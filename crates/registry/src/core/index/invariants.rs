@@ -1,5 +1,3 @@
-//! Invariant proof tests for the builder-based registry architecture.
-
 use std::sync::Arc;
 
 use crate::core::index::build::RegistryBuilder;
@@ -10,7 +8,10 @@ use crate::core::symbol::ActionId;
 use crate::core::traits::RegistryEntry;
 use crate::core::{RegistryMetaStatic, RegistrySource};
 
-/// Builder produces deterministic index ordering by canonical ID.
+/// Must maintain deterministic iteration order (sorted by canonical ID).
+///
+/// - Enforced in: `resolve_id_duplicates`
+/// - Failure symptom: Iterator order changes unpredictably.
 #[cfg_attr(test, test)]
 pub(crate) fn test_deterministic_iteration() {
 	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> = RegistryBuilder::new("test");
@@ -82,7 +83,10 @@ pub(crate) fn test_alias_collision_recording() {
 	);
 }
 
-/// Each unique ID resolves to exactly one entry in the built index.
+/// Must have unambiguous ID lookup (one winner per ID).
+///
+/// - Enforced in: `resolve_id_duplicates`, `RuntimeRegistry::register`
+/// - Failure symptom: Panics or inconsistent lookups.
 #[cfg_attr(test, test)]
 pub(crate) fn test_unambiguous_id_lookup() {
 	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> = RegistryBuilder::new("test");
@@ -101,8 +105,10 @@ pub(crate) fn test_unambiguous_id_lookup() {
 	assert_eq!(beta.priority(), 20);
 }
 
-/// When duplicate IDs are ingested with ByPriority policy, the
-/// higher-priority entry wins and the loser is evicted from key maps.
+/// Must evict old definition on ID override (higher priority wins).
+///
+/// - Enforced in: `RuntimeRegistry::register`
+/// - Failure symptom: Stale definition remains accessible after override.
 #[cfg_attr(test, test)]
 pub(crate) fn test_id_override_eviction() {
 	use crate::core::index::collision::DuplicatePolicy;
@@ -143,7 +149,10 @@ pub(crate) fn test_id_override_eviction() {
 	assert_eq!(entry.priority(), 50, "Higher priority entry must win");
 }
 
-/// Snapshot-backed RegistryRefs remain valid even after another snapshot is taken.
+/// Must keep owned definitions alive while reachable via `RegistryRef`.
+///
+/// - Enforced in: `Snapshot`, `RegistryRef` (holds `Arc<Snapshot>`)
+/// - Failure symptom: Use-after-free in `RegistryRef` deref.
 #[cfg_attr(test, test)]
 pub(crate) fn test_snapshot_liveness_across_swap() {
 	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> = RegistryBuilder::new("test");
@@ -166,7 +175,10 @@ pub(crate) fn test_snapshot_liveness_across_swap() {
 	);
 }
 
-/// CAS loop ensures no lost updates under concurrent registration.
+/// Must provide linearizable writes without lost updates.
+///
+/// - Enforced in: `RuntimeRegistry::register` (CAS loop)
+/// - Failure symptom: Concurrent registrations silently dropped.
 #[cfg_attr(test, test)]
 pub(crate) fn test_no_lost_updates() {
 	use std::sync::Arc;
@@ -242,7 +254,10 @@ pub(crate) fn test_no_lost_updates() {
 	}
 }
 
-/// Symbol resolution remains stable across snapshot swaps.
+/// Must keep symbol resolution stable across snapshot swaps.
+///
+/// - Enforced in: interner prefix-copy in `RuntimeRegistry::register`
+/// - Failure symptom: Interned strings resolve to wrong text after snapshot swap.
 #[cfg_attr(test, test)]
 pub(crate) fn test_symbol_stability_across_swap() {
 	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> = RegistryBuilder::new("test");
@@ -288,8 +303,10 @@ pub(crate) fn test_symbol_stability_across_swap() {
 	assert_eq!(stable_ref.priority(), 10, "Priority must be unchanged");
 }
 
-/// RegistrySource precedence (Runtime > Crate > Builtin) is respected at
-/// both build-time and runtime.
+/// Must respect source precedence: Runtime > Crate > Builtin.
+///
+/// - Enforced in: `cmp_party`, `RegistryEntry::total_order_cmp`
+/// - Failure symptom: Wrong definition wins a key binding or ID conflict.
 #[cfg_attr(test, test)]
 pub(crate) fn test_source_precedence() {
 	// 1. Build-time precedence: Runtime beats Builtin at same priority

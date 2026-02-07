@@ -1,8 +1,8 @@
 pub mod sink;
 pub mod types;
 
-#[cfg(any(test, doc))]
-pub(crate) mod invariants;
+#[cfg(test)]
+mod invariants;
 
 use xeno_registry::actions::editor_ctx::OverlayRequest;
 use xeno_registry::commands::CommandError;
@@ -17,12 +17,7 @@ impl crate::impls::Editor {
 	///
 	/// # Invariants
 	///
-	/// - Single Path Side-Effects: All UI-visible consequences of editor mutations
-	///   (overlays, notifications, redraws) must be routed through the `EffectSink` and
-	///   dispatched via `flush_effects`.
-	///   - Enforced in: [`crate::impls::Editor::flush_effects`]
-	///   - Tested by: [`crate::effects::invariants::test_single_path_side_effects`]
-	///   - Failure symptom: Inconsistent UI state or dropped event notifications.
+	/// - Must route all UI consequences through `EffectSink` and `flush_effects`.
 	pub fn flush_effects(&mut self) {
 		if self.state.flush_depth > 0 {
 			self.state.frame.needs_redraw = true;

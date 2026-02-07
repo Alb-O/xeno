@@ -1,15 +1,18 @@
-//! Proofs for capability provider invariants.
-
-/// Verifies the Delegator Rule via compile-fail assertion.
+/// Must not implement `xeno_registry::*Access` traits directly on `Editor`.
 ///
-/// This test is primarily implemented as a rustdoc `compile_fail` block
-/// in the anchor file to ensure it fails at compile time if regressed.
+/// - Enforced in: `EditorCaps` (via delegator pattern)
+/// - Failure symptom: Circular dependencies or accidental leakage of engine-specific
+///   methods into the action registry.
 #[cfg_attr(test, test)]
 pub fn test_delegator_rule() {
 	// Logic-only verification is handled by the rustdoc compile_fail tripwire.
 }
 
-/// Verifies that capability mutations enqueue layer events.
+/// Must enqueue layer events for capability mutations.
+///
+/// - Enforced in: `EditorCaps` (via domain-specific implementations)
+/// - Failure symptom: UI layers (overlays, status bars) failing to update after an
+///   action executes.
 #[cfg_attr(test, test)]
 pub fn test_mutation_side_effect_invariant() {
 	use xeno_primitives::range::CharIdx;

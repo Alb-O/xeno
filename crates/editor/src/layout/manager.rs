@@ -44,14 +44,14 @@
 //!
 //! # Invariants
 //!
-//! - [`crate::layout::invariants::VALIDATE_LAYER_ID_BEFORE_OVERLAY_ACCESS`]
-//! - [`crate::layout::invariants::PRESERVE_LAYER_GENERATION_FROM_PREFLIGHT_TO_APPLY`]
-//! - [`crate::layout::invariants::NO_ORPHAN_VIEW_ON_FAILED_SPLIT_PREFLIGHT`]
-//! - [`crate::layout::invariants::EMIT_CLOSE_HOOKS_AFTER_SUCCESSFUL_REMOVAL`]
-//! - [`crate::layout::invariants::APPLY_REMOVE_VIEW_FOCUS_SUGGESTION_DETERMINISTICALLY`]
-//! - [`crate::layout::invariants::SOFT_MIN_SPLIT_GEOMETRY_PREVENTS_ZERO_PANES`]
-//! - [`crate::layout::invariants::CANCEL_STALE_SEPARATOR_DRAG`]
-//! - [`crate::layout::invariants::BUMP_OVERLAY_GENERATION_ON_LAYER_CLEAR`]
+//! - Must validate any stored [`crate::layout::types::LayerId`] before overlay access.
+//! - Must preserve [`crate::layout::types::LayerId`] generation between split preflight and apply.
+//! - Must not allocate or insert a new [`crate::buffer::ViewId`] when split preflight fails.
+//! - Must emit close hooks only after removal succeeds.
+//! - Must apply `remove_view` focus suggestions deterministically.
+//! - Must enforce soft-min sizing and avoid zero-sized panes when space allows.
+//! - Must cancel active separator drag when layout changes or layers become stale.
+//! - Must bump overlay generation when an overlay layer is cleared.
 //!
 //! # Data flow
 //!

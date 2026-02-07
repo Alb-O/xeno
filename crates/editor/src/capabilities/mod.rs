@@ -31,8 +31,8 @@ pub mod theme;
 pub mod undo;
 pub mod viewport;
 
-#[cfg(any(test, doc))]
-pub(crate) mod invariants;
+#[cfg(test)]
+mod invariants;
 
 pub use provider::EditorCaps;
 use xeno_registry::commands::CommandError;

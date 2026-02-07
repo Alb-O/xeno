@@ -21,17 +21,18 @@ Common commands:
 
 ## Code style
 
-Use full where clause syntax for readability:
+Avoid inline bounds for complex signatures, use where clause:
 
 ```rust
-// Correctimpl<T> CompletionModel for MyModel<T>where    T: HttpClientExt + Clone + Send + Debug + Default + 'static,{    // ...}// Avoid inline bounds for complex signaturesimpl<T: HttpClientExt + Clone + Send + Debug + Default + 'static> CompletionModel for MyModel<T> {
+impl<T> CompletionModel for MyModel<T>where    T: HttpClientExt + Clone + Send + Debug + Default + 'static,{ ...
 ```
 
-## Rustdoc
+## Rustdoc (& documentation)
 
-Always prefer comprehensive techspec docstrings over inline comments:
+- Always prefer comprehensive techspec docstrings over inline comments
 - If inline comment is spotted, consider merging it into docstring or removing if it's trivial
 - Tests are more relaxed, but no need to state obvious flow
+- No bold decorations in list items (`**Prefix:** Actual description`) <- don't do this, be more concise with less formatting/decoration.
 
 ## Architecture map (start here)
 
@@ -69,49 +70,29 @@ Subsystem architecture lives as `//!` module-level rustdoc in the anchor files l
 8. Failure modes & recovery
 9. Recipes
 
-### Invariants contract (mandatory triad)
+### Invariants
 
-Every invariant must include all three fields as intra-doc links (see "Invariant Documentation Standard" below for full rules):
+Anchor docs list invariants as brief one-line summaries, each `invariants.rs` test carries the full triad as a docstring:
 
-- Enforced in: `[crate::module::Type::method]` (absolute path, intra-doc link)
-- Tested by: `[crate::module::invariants::test_*]` (link to proof wrapper)
-- Failure symptom: concrete, user-visible or correctness symptom (plain text)
+```rust
+/// Must [invariant description].
+///
+/// - Enforced in: `Type::method`
+/// - Failure symptom: [concrete symptom]
+#[cfg_attr(test, test)]
+pub(crate) fn test_invariant_name() { ... }
+```
 
-No triad field may be omitted. No `TODO` placeholders are permitted.
-
-### Style rules
-
-- No bold decorations in list items.
-- Keep statements normative and checkable (must/should/may), and avoid vague prose.
+No triad field may be omitted.
 
 ### Maintenance rules
 
 When changing core behavior, public API, or invariants in any subsystem:
 1. Update the module-level rustdoc in the relevant anchor file in the same change set.
-2. Add or update the `invariants::test_*` proof wrapper for the new invariant.
+2. Add or update the `invariants::test_*` proof in `invariants.rs` for the new invariant.
 3. Verify with `./scripts/audit-anchors.sh`.
 
-## Invariant Documentation Standard
-
-### The Invariant Triad
-Every architectural invariant must use the following format in module-level documentation:
-
-```rust
-//! - Must [invariant description]
-//!   - Enforced in: [`crate::module::Type::method`]
-//!   - Tested by: [`crate::module::invariants::test_name`]
-//!   - Failure symptom: [concrete user-visible symptom]
-```
-
-No triad field may be omitted. No `TODO (add regression…)` placeholders are permitted in committed
-invariants; every invariant must have an actual `invariants::test_*` link target.
-
-### Machine-Checkable Links (rustdoc-audited)
-- "Tested by" entries must be intra-doc links (`[...]`) targeting `invariants::test_*` items.
-  - New/refactored code should collapse the proof logic directly into the `test_*` item using `#[cfg_attr(test, test)]` (or `tokio::test`) to avoid redundant `inv_*` wrappers.
-- "Enforced in" entries must be intra-doc links where the target is linkable (pub/pub(crate) items in pub(crate)+ modules). Use backticks for truly private functions (e.g. private `fn` in a private module) or `#[cfg(test)]` test modules.
-- Verify anchor links with:
-  `RUSTDOCFLAGS="--document-private-items -D rustdoc::broken_intra_doc_links -A rustdoc::private_intra_doc_links -A warnings" cargo doc --workspace --no-deps`
+## Rustdoc link rules
 
 ### Absolute Path Rule for `//!` Anchor Docs
 Because `//!` module-level docs resolve names from the parent scope (not the module's own scope),
@@ -122,26 +103,10 @@ Because `//!` module-level docs resolve names from the parent scope (not the mod
 
 Never use unqualified names, `self::`, or `super::` in anchor `//!` docs.
 
-This rule applies to ALL `[links]` in `//!` docs - invariant triads, Key Types tables, Data Flow, etc.
+### The `invariants.rs` Module Pattern
 
-### Anchor Module Visibility
-Any module that contains an architecture anchor `//!` must be declared at least `pub(crate)` in its
-parent `mod.rs` so that `crate::...` paths are resolvable. This is a visibility floor for anchor
-pathability only; internal items remain private unless there is a separate API reason.
+Each anchor module has a sibling `invariants.rs` file:
 
-### The `invariants/` Module Pattern
-Each anchor module must have a sibling `invariants` submodule directory with this structure:
-
-1. In anchor `mod.rs`: `#[cfg(any(test, doc))] pub(crate) mod invariants;`
-2. In `invariants/mod.rs`:
-   - `pub(crate) mod catalog;`
-   - curated `pub(crate) use catalog::{...};` exports for invariant constants
-   - `#[cfg(doc)]` stubs for every `test_*` link target used in anchor docs
-   - `#[cfg(test)] mod proofs;`
-   - curated `#[cfg(test)] pub(crate) use proofs::{test_..., ...};` exports (no wildcard re-exports)
-3. In `invariants/catalog.rs`: define each invariant as a named `pub(crate) const` with full triad rustdoc.
-4. In `invariants/proofs.rs`: implement runnable `#[cfg_attr(test, test)]` or `#[cfg_attr(test, tokio::test)]` proof functions with `test_*` names.
-5. Anchor docs must link to the stable wrapper path: `[crate::module::invariants::test_my_invariant]`.
-
-Recommended mapping for discoverability:
-- `MY_INVARIANT_NAME` (catalog constant) <-> `test_my_invariant_name` (proof/stub target)
+1. In anchor `mod.rs`: `#[cfg(test)] mod invariants;`
+2. In `invariants.rs`: implement `#[cfg_attr(test, test)]` (or `tokio::test`) proof functions
+   with `test_*` names. Each test carries the full invariant triad as a docstring.

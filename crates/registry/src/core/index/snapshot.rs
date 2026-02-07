@@ -7,8 +7,7 @@
 //!
 //! # Invariants
 //!
-//! - [`RegistryRef`] must hold its source [`Snapshot`] alive while held.
-//!   - Participates in: [`crate::core::index::invariants::OWNED_DEFINITIONS_STAY_ALIVE_WHILE_REACHABLE`]
+//! - `RegistryRef` must hold its source `Snapshot` alive while held (see `invariants::test_snapshot_liveness_across_swap`).
 
 use std::sync::Arc;
 

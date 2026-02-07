@@ -25,20 +25,9 @@
 //!
 //! # Invariants
 //!
-//! - MUST NOT allow re-entrant locking of the same document on a single thread.
-//!   - Enforced in: [`crate::buffer::LockGuard::new`]
-//!   - Tested by: [`crate::buffer::invariants::test_reentrant_lock_panic`]
-//!   - Failure symptom: Thread deadlocks waiting for a lock it already holds.
-//!
-//! - MUST keep view state (cursor/selection) within document bounds.
-//!   - Enforced in: [`crate::buffer::Buffer::ensure_valid_selection`]
-//!   - Tested by: [`crate::buffer::invariants::test_selection_clamping`]
-//!   - Failure symptom: Panics or out-of-bounds access during rendering or editing.
-//!
-//! - MUST preserve monotonic document versions across edits.
-//!   - Enforced in: [`crate::core::document::Document::apply_commit`]
-//!   - Tested by: [`crate::buffer::invariants::test_version_monotonicity`]
-//!   - Failure symptom: Desync between editor, LSP, and syntax subsystems.
+//! - Must not allow re-entrant locking of the same document on a single thread.
+//! - Must keep view state (cursor/selection) within document bounds.
+//! - Must preserve monotonic document versions across edits.
 //!
 //! # Data flow
 //!
@@ -75,8 +64,8 @@ mod editing;
 mod layout;
 mod navigation;
 
-#[cfg(any(test, doc))]
-pub(crate) mod invariants;
+#[cfg(test)]
+mod invariants;
 
 use std::cell::RefCell;
 use std::collections::HashSet;

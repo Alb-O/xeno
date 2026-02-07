@@ -7,8 +7,7 @@
 //!
 //! # Invariants
 //!
-//! - Concurrent registrations must be linearizable.
-//!   - Participates in: [`crate::core::index::invariants::NO_LOST_UPDATES_UNDER_CONTENTION`]
+//! - Concurrent registrations must be linearizable (see `invariants::test_no_lost_updates`).
 
 use std::cmp::Ordering;
 use std::sync::Arc;

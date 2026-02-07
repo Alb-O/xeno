@@ -7,17 +7,8 @@
 //!
 //! # Invariants
 //!
-//! - The Delegator Rule: The [`Editor`] struct must not implement any `xeno_registry::*Access`
-//!   traits. All registry-facing capabilities must be implemented on [`EditorCaps`].
-//!   - Enforced in: [`crate::capabilities::provider::EditorCaps`] (via delegator pattern)
-//!   - Tested by: [`crate::capabilities::invariants::test_delegator_rule`]
-//!   - Failure symptom: Circular dependencies or accidental leakage of engine-specific methods into the action registry.
-//!
-//! - Mutation Side-Effect Invariant: Capability methods on `EditorCaps` that mutate editor state
-//!   must enqueue corresponding events into the `EffectSink`.
-//!   - Enforced in: [`crate::capabilities::provider::EditorCaps`] (via domain-specific implementations)
-//!   - Tested by: [`crate::capabilities::invariants::test_mutation_side_effect_invariant`]
-//!   - Failure symptom: UI layers (overlays, status bars) failing to update after an action executes.
+//! - Must not implement `xeno_registry::*Access` traits directly on `Editor` (Delegator Rule).
+//! - Must enqueue layer events for capability mutations (Mutation Side-Effect Invariant).
 //!
 //! # Enforcement (The Delegator Rule)
 //!

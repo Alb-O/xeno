@@ -29,8 +29,8 @@ mod splits;
 mod types;
 mod views;
 
-#[cfg(any(test, doc))]
-pub(crate) mod invariants;
+#[cfg(test)]
+mod invariants;
 
 pub use manager::LayoutManager;
 pub use splits::SplitError;

@@ -24,18 +24,18 @@
 //!
 //! # Invariants
 //!
-//! - [`crate::syntax_manager::invariants::NO_UNBOUNDED_UI_THREAD_PARSING`]
-//! - [`crate::syntax_manager::invariants::SINGLE_FLIGHT_PER_DOCUMENT`]
-//! - [`crate::syntax_manager::invariants::MONOTONIC_STALE_INSTALL_GUARD`]
-//! - [`crate::syntax_manager::invariants::MUTATIONS_MUST_NOTE_EDIT`]
-//! - [`crate::syntax_manager::invariants::BOOTSTRAP_PARSE_SKIPS_DEBOUNCE`]
-//! - [`crate::syntax_manager::invariants::TICK_MUST_DRAIN_COMPLETED_INFLIGHT`]
-//! - [`crate::syntax_manager::invariants::SYNTAX_VERSION_BUMPS_ON_TREE_CHANGE`]
-//! - [`crate::syntax_manager::invariants::PENDING_INCREMENTAL_CLEARED_ON_INVALIDATIONS`]
-//! - [`crate::syntax_manager::invariants::TREE_DOC_VERSION_TRACKED_AND_CLEARED`]
-//! - [`crate::syntax_manager::invariants::HIGHLIGHT_RENDERING_SKIPS_STALE_TREE_VERSION`]
-//! - [`crate::syntax_manager::invariants::RECENTLY_VISIBLE_PROMOTED_TO_WARM`]
-//! - [`crate::syntax_manager::invariants::PERMIT_LIFETIME_TIED_TO_TASK_EXECUTION`]
+//! - Must not perform unbounded parsing on the UI thread.
+//! - Must enforce single-flight per document.
+//! - Must install completed parses for continuity without regressing `tree_doc_version`.
+//! - Must call `note_edit_incremental` or `note_edit` on every document mutation.
+//! - Must skip debounce for bootstrap parses when no syntax tree is installed.
+//! - Must detect completed inflight tasks from `tick()`, not only from `render()`.
+//! - Must bump `syntax_version` whenever the installed tree changes or is dropped.
+//! - Must clear `pending_incremental` on language change, syntax reset, and retention drop.
+//! - Must track `tree_doc_version` with the installed tree and clear it on drop.
+//! - Must skip highlight spans when `tree_doc_version` differs from the rendered version.
+//! - Must promote recently visible documents to `Warm` hotness via `RecentDocLru`.
+//! - Must tie background task permit lifetime to real thread execution.
 //!
 //! # Data flow
 //!
@@ -1262,8 +1262,8 @@ pub(crate) fn apply_retention(
 	}
 }
 
-#[cfg(any(test, doc))]
-pub(crate) mod invariants;
+#[cfg(test)]
+mod invariants;
 
 #[cfg(test)]
 mod tests;

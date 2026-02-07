@@ -23,10 +23,10 @@
 //!
 //! # Invariants
 //!
-//! - [`crate::overlay::invariants::RESTORE_ONLY_WHEN_CAPTURE_VERSION_MATCHES`]
-//! - [`crate::overlay::invariants::ONLY_ONE_ACTIVE_MODAL_SESSION`]
-//! - [`crate::overlay::invariants::CLAMP_RESOLVED_AREAS_TO_SCREEN_BOUNDS`]
-//! - [`crate::overlay::invariants::CLEAR_LSP_UI_WHEN_MODAL_OPENS`]
+//! - Must gate state restoration on captured buffer version matching.
+//! - Must allow only one active modal session at a time.
+//! - Must clamp resolved overlay areas to screen bounds.
+//! - Must clear LSP UI when a modal overlay opens.
 //!
 //! # Data flow
 //!

@@ -32,20 +32,20 @@
 //!
 //! # Invariants
 //!
-//! - [`crate::session::manager::invariants::SINGLEFLIGHT_START_PER_LANGUAGE_AND_ROOT`]
-//! - [`crate::session::manager::invariants::ATOMIC_REGISTRY_MUTATION_ACROSS_INDICES`]
-//! - [`crate::session::manager::invariants::ROUTER_PROCESSES_EVENTS_SEQUENTIALLY_AND_REPLIES_INLINE`]
-//! - [`crate::session::manager::invariants::STOPPED_OR_CRASHED_SERVER_IS_REMOVED_AND_PROGRESS_CLEARED`]
-//! - [`crate::session::manager::invariants::ROUTER_DROPS_STALE_GENERATION_EVENTS`]
-//! - [`crate::session::manager::invariants::LANGUAGE_SERVER_ID_IS_SLOT_PLUS_GENERATION`]
-//! - [`crate::session::manager::invariants::SERVER_CONFIG_CARRIES_PREASSIGNED_SERVER_ID`]
-//! - [`crate::session::manager::invariants::WORKSPACE_CONFIGURATION_RESPONSE_MATCHES_ITEM_COUNT`]
-//! - [`crate::session::manager::invariants::WORKSPACE_FOLDERS_RESPONSE_USES_PERCENT_ENCODED_URIS`]
-//! - [`crate::session::manager::invariants::DOCUMENT_SYNC_DOES_NOT_NOTIFY_BEFORE_INIT`]
-//! - [`crate::session::manager::invariants::POSITION_REQUESTS_GATE_ON_CLIENT_READINESS`]
-//! - [`crate::session::manager::invariants::CLIENT_CAPABILITIES_ACCESS_IS_FALLIBLE`]
-//! - [`crate::session::manager::invariants::READY_FLAG_REQUIRES_CAPABILITIES_WITH_RELEASE_ACQUIRE_ORDERING`]
-//! - [`crate::session::manager::invariants::LSP_SYSTEM_LOOKUPS_USE_CANONICAL_PATHS`]
+//! - Must singleflight `transport.start()` per `(language, root_path)` key.
+//! - Must update registry indices atomically on mutation.
+//! - Must process transport events sequentially and reply to requests inline.
+//! - Must remove stopped/crashed servers and clear their progress.
+//! - Must drop events from stale server generations.
+//! - `LanguageServerId` must be slot + monotonic generation counter.
+//! - `ServerConfig` must carry a pre-assigned server ID before transport start.
+//! - `workspace/configuration` response must match the request item count.
+//! - `workspace/workspaceFolders` response must use percent-encoded URIs.
+//! - Must not send change notifications before client initialization completes.
+//! - Must gate position-dependent requests on client readiness.
+//! - Must return `None` for capabilities before initialization.
+//! - Ready flag must require capabilities with release/acquire ordering.
+//! - Must use canonicalized paths for registry lookups.
 //!
 //! # Data flow
 //!
@@ -360,8 +360,8 @@ impl LspManager {
 // Use LocalTransport::new() to create a transport that spawns servers locally.
 // Users should construct LspManager via LspSystem::new() in editor code.
 
-#[cfg(any(test, doc))]
-pub(crate) mod invariants;
+#[cfg(test)]
+mod invariants;
 
 #[cfg(test)]
 mod tests;

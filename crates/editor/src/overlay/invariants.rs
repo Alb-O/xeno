@@ -1,12 +1,13 @@
-//! Machine-checkable invariant proofs for the overlay subsystem.
-
 use std::collections::HashMap;
 
 use xeno_tui::layout::Rect;
 
 use crate::overlay::spec::RectPolicy;
 
-/// Restored state is gated on captured buffer versions.
+/// Must gate state restoration on captured buffer version matching.
+///
+/// - Enforced in: `OverlaySession::restore_all`
+/// - Failure symptom: Stale cursor/selection state is restored over user's edits.
 #[cfg_attr(test, test)]
 pub(crate) fn test_versioned_restore() {
 	let screen = Rect::new(0, 0, 80, 24);
@@ -26,7 +27,10 @@ pub(crate) fn test_versioned_restore() {
 	);
 }
 
-/// Multiple active modal sessions are rejected.
+/// Must allow only one active modal session at a time.
+///
+/// - Enforced in: `OverlayManager::open`
+/// - Failure symptom: Two modal overlays fight for focus and input.
 #[cfg_attr(test, test)]
 pub(crate) fn test_exclusive_modal() {
 	use crate::overlay::OverlayManager;
@@ -35,7 +39,10 @@ pub(crate) fn test_exclusive_modal() {
 	assert!(!mgr.is_open(), "fresh manager should not be open");
 }
 
-/// Rect policy resolution clamps to screen bounds.
+/// Must clamp resolved overlay areas to screen bounds.
+///
+/// - Enforced in: `RectPolicy::resolve_opt`
+/// - Failure symptom: Overlay windows extend beyond screen bounds.
 #[cfg_attr(test, test)]
 pub(crate) fn test_rect_policy_clamps_to_screen() {
 	let screen = Rect::new(0, 0, 100, 50);
@@ -69,7 +76,10 @@ pub(crate) fn test_rect_policy_clamps_to_screen() {
 	assert!(policy.resolve_opt(zero, &roles).is_none());
 }
 
-/// Modal open path clears LSP UI before controller setup.
+/// Must clear LSP UI (completion menu) when a modal overlay opens.
+///
+/// - Enforced in: `OverlayManager::open`
+/// - Failure symptom: LSP completion menu is visible behind/alongside a modal overlay.
 #[cfg_attr(test, test)]
 pub(crate) fn test_modal_overlay_clears_lsp_menu() {
 	use crate::overlay::OverlayManager;

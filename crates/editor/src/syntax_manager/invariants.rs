@@ -1,11 +1,3 @@
-//! Machine-checkable invariant proofs for [`crate::syntax_manager::SyntaxManager`].
-//!
-//! Each invariant is expressed as a `pub(crate) async fn test_*()` that is both
-//! a runnable test and an intra-doc link target for the anchor module-level docs.
-//!
-//! Shared test infrastructure ([`MockEngine`], [`EngineGuard`]) lives here so
-//! both this module and the sibling `tests` module can reuse it.
-
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
@@ -16,10 +8,10 @@ use xeno_primitives::{ChangeSet, Rope};
 use xeno_runtime_language::LanguageLoader;
 use xeno_runtime_language::syntax::{Syntax, SyntaxError, SyntaxOptions};
 
-use super::super::*;
+use super::*;
 use crate::core::document::DocumentId;
 
-// Mock parsing engine that blocks until explicitly released.
+/// Mock parsing engine that blocks until explicitly released.
 ///
 /// Allows tests to control task scheduling deterministically by gating
 /// `parse` calls behind a [`Notify`] barrier.
@@ -128,7 +120,10 @@ async fn wait_for_finish(mgr: &SyntaxManager) {
 	.expect("Task did not finish in time");
 }
 
-/// Single-flight per document.
+/// Must enforce single-flight per document.
+///
+/// - Enforced in: `SyntaxManager::ensure_syntax`
+/// - Failure symptom: Multiple redundant parse tasks for the same document identity.
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_single_flight_per_doc() {
 	let engine = Arc::new(MockEngine::new());
@@ -168,8 +163,10 @@ pub(crate) async fn test_single_flight_per_doc() {
 	assert_eq!(engine.parse_count.load(Ordering::SeqCst), 1);
 }
 
-/// No unbounded UI-thread parsing; inflight tasks are drained
-/// even when the document has been marked clean externally.
+/// Must not perform unbounded parsing on the UI thread.
+///
+/// - Enforced in: `SyntaxManager::ensure_syntax`, `SyntaxManager::note_edit_incremental`
+/// - Failure symptom: UI freezes or jitters during edits.
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_inflight_drained_even_if_doc_marked_clean() {
 	let engine = Arc::new(MockEngine::new());
@@ -212,8 +209,11 @@ pub(crate) async fn test_inflight_drained_even_if_doc_marked_clean() {
 	assert!(mgr.has_syntax(doc_id));
 }
 
-/// Monotonic version stale guard; a stale V1 parse must not
-/// overwrite a clean V2 incremental tree.
+/// Must not regress to a tree older than the currently installed `tree_doc_version`.
+///
+/// - Enforced in: `should_install_completed_parse`
+/// - Failure symptom: Stale trees overwrite newer incrementals, or highlighting stays
+///   missing until an exact-version parse completes.
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_stale_parse_does_not_overwrite_clean_incremental() {
 	let engine = Arc::new(MockEngine::new());
@@ -297,8 +297,11 @@ pub(crate) async fn test_stale_parse_does_not_overwrite_clean_incremental() {
 	);
 }
 
-/// Stale install continuity; a stale parse is installed when
-/// the slot is dirty, providing some highlighting while a catch-up reparse runs.
+/// Must install completed parses for continuity when the slot is dirty,
+/// even if stale, to keep highlighting visible during catch-up reparses.
+///
+/// - Enforced in: `should_install_completed_parse`
+/// - Failure symptom: Highlighting stays missing until an exact-version parse completes.
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_stale_install_continuity() {
 	let engine = Arc::new(MockEngine::new());
@@ -347,7 +350,11 @@ pub(crate) async fn test_stale_install_continuity() {
 	);
 }
 
-/// Edit notification updates debounce timestamp.
+/// Must call `note_edit_incremental` or `note_edit` on every document mutation.
+///
+/// - Enforced in: `EditorUndoHost::apply_transaction_inner`,
+///   `EditorUndoHost::apply_history_op`, `Editor::apply_buffer_edit_plan`
+/// - Failure symptom: Debounce is bypassed and background parses run without edit silence.
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_note_edit_updates_timestamp() {
 	let engine = Arc::new(MockEngine::new());
@@ -413,7 +420,10 @@ pub(crate) async fn test_note_edit_updates_timestamp() {
 	assert_eq!(r2.result, SyntaxPollResult::Kicked);
 }
 
-/// Bootstrap parses skip debounce.
+/// Must skip debounce for bootstrap parses when no syntax tree is installed.
+///
+/// - Enforced in: `SyntaxManager::ensure_syntax`
+/// - Failure symptom: Newly opened documents remain unhighlighted until debounce elapses.
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_bootstrap_parse_skips_debounce() {
 	let engine = Arc::new(MockEngine::new());
@@ -439,7 +449,11 @@ pub(crate) async fn test_bootstrap_parse_skips_debounce() {
 	assert_eq!(r.result, SyntaxPollResult::Kicked);
 }
 
-/// Tick detects completed tasks.
+/// Must detect completed inflight tasks from `tick()`, not only from `render()`.
+///
+/// - Enforced in: `SyntaxManager::drain_finished_inflight` via `Editor::tick`
+/// - Failure symptom: Completed parses are not installed while idle until user input
+///   triggers rendering.
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_idle_tick_polls_inflight_parse() {
 	let engine = Arc::new(MockEngine::new());
@@ -472,7 +486,10 @@ pub(crate) async fn test_idle_tick_polls_inflight_parse() {
 	assert!(!mgr.has_pending(doc_id));
 }
 
-/// syntax_version monotonicity bumps on install.
+/// Must bump `syntax_version` whenever the installed tree changes or is dropped.
+///
+/// - Enforced in: `mark_updated`
+/// - Failure symptom: Highlight cache serves stale spans after reparse or retention drop.
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_syntax_version_bumps_on_install() {
 	let engine = Arc::new(MockEngine::new());
@@ -514,7 +531,12 @@ pub(crate) async fn test_syntax_version_bumps_on_install() {
 	assert!(v1 > v0);
 }
 
-/// Language change discards old parse.
+/// Must clear `pending_incremental` on language change, syntax reset, and retention drop.
+///
+/// - Enforced in: `SyntaxManager::ensure_syntax`, `SyntaxManager::reset_syntax`,
+///   `apply_retention`
+/// - Failure symptom: Stale changesets are applied against mismatched ropes, causing
+///   bad edits or panics.
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_language_switch_discards_old_parse() {
 	let engine = Arc::new(MockEngine::new());
@@ -583,8 +605,11 @@ pub(crate) async fn test_language_switch_discards_old_parse() {
 	assert!(mgr.has_syntax(doc_id));
 }
 
-/// Permit lifetime is tied to thread execution; invalidation does not release
-/// the semaphore permit early; only task completion does.
+/// Must tie background task permit lifetime to real thread execution.
+///
+/// - Enforced in: `TaskCollector::spawn`
+/// - Failure symptom: Concurrency cap is violated under churn because permits are
+///   released before CPU work ends.
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_invalidate_does_not_release_permit_until_task_finishes() {
 	let engine = Arc::new(MockEngine::new());
@@ -915,14 +940,11 @@ pub(crate) async fn test_cold_throttles_work() {
 	assert_eq!(poll3.result, SyntaxPollResult::Kicked);
 }
 
-/// Highlight rendering skips spans when `tree_doc_version`
-/// does not match the document version being rendered.
+/// Highlight rendering must skip spans when `tree_doc_version` differs from
+/// the rendered document version.
 ///
-/// The enforcement is in `HighlightTiles::build_tile_spans` which checks
-/// `syntax.tree().root_node().end_byte() > rope_len_bytes` and returns
-/// empty when the tree is out of bounds. We verify the version-tracking
-/// mechanism that enables this guard: after an edit, `tree_doc_version`
-/// remains at the old version until a reparse or sync update succeeds.
+/// - Enforced in: `HighlightTiles::build_tile_spans` (in `crate::render::cache::highlight`)
+/// - Failure symptom: Out-of-bounds tree-sitter access can panic during rapid edits.
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_highlight_skips_stale_tree_version() {
 	let engine = Arc::new(MockEngine::new());
@@ -970,22 +992,17 @@ pub(crate) async fn test_highlight_skips_stale_tree_version() {
 		Some(1),
 		"tree_doc_version must remain at V1 after an un-synced edit"
 	);
-
-	// The highlight renderer checks this version mismatch and clamps/skips
-	// spans to prevent out-of-bounds tree-sitter node access. Structural:
-	// `build_tile_spans` returns empty if root_node().end_byte() > rope_len_bytes.
 }
 
-/// Recently visible documents are promoted to `Warm` hotness
-/// via `RecentDocLru` to prevent immediate retention drops when hidden.
+/// Must promote recently visible documents to `Warm` hotness to avoid
+/// immediate retention drops.
 ///
-/// The enforcement is in `Editor::ensure_syntax_for_buffers` which touches
-/// the LRU on visible docs and checks membership for warm promotion. We
-/// verify the LRU data structure: touch, contains, remove, and capacity
-/// eviction.
+/// - Enforced in: `Editor::ensure_syntax_for_buffers`, `Editor::on_document_close`
+/// - Failure symptom: Switching away for one frame drops syntax and causes a flash of
+///   unhighlighted text.
 #[cfg_attr(test, test)]
 pub(crate) fn test_warm_hotness_prevents_immediate_drop() {
-	use super::super::lru::RecentDocLru;
+	use super::lru::RecentDocLru;
 
 	let mut lru = RecentDocLru::new(3);
 	let d1 = DocumentId(1);
