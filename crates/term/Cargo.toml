@@ -12,6 +12,7 @@ path = "src/main.rs"
 
 [features]
 perf = ["xeno-tui/perf"]
+lsp = ["xeno-editor/lsp"]
 
 [dependencies]
 anyhow.workspace = true
@@ -27,8 +28,7 @@ tracing-subscriber = { workspace = true, features = ["env-filter", "json"] }
 unicode-width.workspace = true
 uuid.workspace = true
 which.workspace = true
-xeno-editor = { workspace = true, features = ["lsp"] }
-xeno-lsp = { workspace = true, features = ["client", "position"] }
+xeno-editor = { workspace = true }
 xeno-primitives.workspace = true
 xeno-registry.workspace = true
 xeno-runtime-config.workspace = true

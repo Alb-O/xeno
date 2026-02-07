@@ -54,6 +54,7 @@ impl LspSystem {
 		client.hover(uri, position).await
 	}
 
+	#[allow(dead_code)]
 	pub async fn completion(
 		&self,
 		buffer: &Buffer,
@@ -74,6 +75,7 @@ impl LspSystem {
 		client.goto_definition(uri, position).await
 	}
 
+	#[allow(dead_code)]
 	pub async fn references(
 		&self,
 		buffer: &Buffer,
@@ -85,6 +87,7 @@ impl LspSystem {
 		client.references(uri, position, include_declaration).await
 	}
 
+	#[allow(dead_code)]
 	pub async fn format(
 		&self,
 		buffer: &Buffer,

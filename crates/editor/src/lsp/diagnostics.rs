@@ -1,9 +1,8 @@
-use xeno_lsp::lsp_position_to_char;
-use xeno_lsp::lsp_types::{Diagnostic, DiagnosticSeverity};
 use xeno_primitives::Selection;
 use xeno_registry::notifications::keys;
 
 use crate::impls::Editor;
+use crate::lsp::api::{Diagnostic, DiagnosticSeverity};
 use crate::render::{DiagnosticLineMap, DiagnosticRangeMap, DiagnosticSpan};
 
 /// Builds a diagnostic line map from LSP diagnostics.
@@ -14,14 +13,13 @@ pub fn build_diagnostic_line_map(diagnostics: &[Diagnostic]) -> DiagnosticLineMa
 	let mut map = DiagnosticLineMap::new();
 
 	for diag in diagnostics {
-		let line = diag.range.start.line as usize;
-		// LSP: 1=Error, 2=Warning, 3=Info, 4=Hint → Gutter: 4, 3, 2, 1
+		let line = diag.range.0;
+		// Gutter: 4, 3, 2, 1
 		let severity = match diag.severity {
-			Some(DiagnosticSeverity::ERROR) => 4,
-			Some(DiagnosticSeverity::WARNING) => 3,
-			Some(DiagnosticSeverity::INFORMATION) => 2,
-			Some(DiagnosticSeverity::HINT) => 1,
-			_ => 0,
+			DiagnosticSeverity::Error => 4,
+			DiagnosticSeverity::Warning => 3,
+			DiagnosticSeverity::Info => 2,
+			DiagnosticSeverity::Hint => 1,
 		};
 		map.entry(line)
 			.and_modify(|e| *e = (*e).max(severity))
@@ -44,21 +42,13 @@ pub fn build_diagnostic_range_map(diagnostics: &[Diagnostic]) -> DiagnosticRange
 
 	for diag in diagnostics {
 		let severity = match diag.severity {
-			Some(DiagnosticSeverity::ERROR) => 4,
-			Some(DiagnosticSeverity::WARNING) => 3,
-			Some(DiagnosticSeverity::INFORMATION) => 2,
-			Some(DiagnosticSeverity::HINT) => 1,
-			_ => 0,
+			DiagnosticSeverity::Error => 4,
+			DiagnosticSeverity::Warning => 3,
+			DiagnosticSeverity::Info => 2,
+			DiagnosticSeverity::Hint => 1,
 		};
 
-		if severity == 0 {
-			continue;
-		}
-
-		let start_line = diag.range.start.line as usize;
-		let end_line = diag.range.end.line as usize;
-		let start_char = diag.range.start.character as usize;
-		let end_char = diag.range.end.character as usize;
+		let (start_line, start_char, end_line, end_char) = diag.range;
 
 		if start_line == end_line && start_char == end_char {
 			continue;
@@ -113,11 +103,19 @@ impl Editor {
 			return;
 		}
 
-		let encoding = self.state.lsp.offset_encoding_for_buffer(buffer);
 		let mut positions: Vec<_> = buffer.with_doc(|doc| {
+			let content = doc.content();
 			diagnostics
 				.iter()
-				.filter_map(|diag| lsp_position_to_char(doc.content(), diag.range.start, encoding))
+				.filter_map(|diag| {
+					let (line, col, _, _) = diag.range;
+					if line >= content.len_lines() {
+						return None;
+					}
+					let line_start = content.line_to_char(line);
+					let line_len = content.line(line).len_chars();
+					Some(line_start + col.min(line_len))
+				})
 				.collect()
 		});
 		positions.sort_unstable();

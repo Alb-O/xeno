@@ -12,6 +12,8 @@ use xeno_registry::notifications::{Notification, keys};
 
 use crate::buffer::{ApplyPolicy, DocumentId, ViewId};
 use crate::impls::messaging::push_notification;
+#[cfg(feature = "lsp")]
+use crate::lsp::LspSystem;
 use crate::types::{Config, FrameState, UndoHost, ViewSnapshot};
 use crate::view_manager::ViewManager;
 
@@ -24,7 +26,7 @@ pub(super) struct EditorUndoHost<'a> {
 	pub notifications: &'a mut xeno_tui::widgets::notifications::ToastManager,
 	pub syntax_manager: &'a mut crate::syntax_manager::SyntaxManager,
 	#[cfg(feature = "lsp")]
-	pub lsp: &'a mut crate::LspSystem,
+	pub lsp: &'a mut LspSystem,
 }
 
 impl EditorUndoHost<'_> {

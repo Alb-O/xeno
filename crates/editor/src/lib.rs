@@ -51,7 +51,7 @@ pub mod info_popup;
 mod input;
 /// Split layout management.
 pub mod layout;
-pub mod lsp;
+mod lsp;
 /// Runtime metrics for observability.
 pub mod metrics;
 /// Async message bus for background task hydration.
@@ -62,6 +62,8 @@ pub mod overlay;
 pub mod paths;
 /// Rendering utilities for buffers, status line, and completion.
 pub mod render;
+/// Runtime policy and directives.
+pub mod runtime;
 /// Unified async work scheduler.
 pub mod scheduler;
 /// Separator drag and hover state.
@@ -90,7 +92,12 @@ pub use completion::{
 };
 pub use editor_ctx::{EditorCapabilities, EditorContext, EditorOps, HandleOutcome, apply_effects};
 pub use impls::{Editor, Editor as EditorApp};
-pub use lsp::LspSystem;
+#[cfg(feature = "lsp")]
+pub use lsp::LspDiagnosticsEvent;
+#[cfg(feature = "lsp")]
+pub use lsp::api::LanguageServerConfig;
+#[cfg(feature = "lsp")]
+pub use lsp::smoke::run_lsp_smoke;
 pub use msg::{Dirty, EditorMsg, IoMsg, LspMsg, MsgSender, ThemeMsg};
 pub use terminal_config::{TerminalConfig, TerminalSequence};
 pub use theme_source::ThemeSource;

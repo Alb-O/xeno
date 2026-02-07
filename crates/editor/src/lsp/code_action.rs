@@ -10,8 +10,7 @@
 
 use std::ops::Range as StdRange;
 
-use xeno_lsp::lsp_types::{CodeActionOrCommand, Command, Diagnostic};
-use xeno_lsp::{OffsetEncoding, lsp_range_to_char_range};
+use xeno_lsp::lsp_types::CodeActionOrCommand;
 use xeno_primitives::range::CharIdx;
 use xeno_registry::notifications::keys;
 
@@ -19,6 +18,7 @@ use super::types::{LspMenuKind, LspMenuState};
 use crate::buffer::ViewId;
 use crate::completion::CompletionState;
 use crate::impls::Editor;
+use crate::lsp::api::{Diagnostic, DiagnosticSeverity};
 use crate::{CompletionItem as UiCompletionItem, CompletionKind};
 
 impl Editor {
@@ -36,6 +36,7 @@ impl Editor {
 		else {
 			return false;
 		};
+
 		if !client.supports_code_action() {
 			self.notify(keys::warn("Code actions not supported for this buffer"));
 			return false;
@@ -63,12 +64,39 @@ impl Editor {
 			diagnostics_for_range(
 				&self.state.lsp.get_diagnostics(buffer),
 				doc.content(),
-				encoding,
 				start..end,
 			)
 		});
+		let lsp_diagnostics: Vec<xeno_lsp::lsp_types::Diagnostic> = diagnostics
+			.into_iter()
+			.map(|d| xeno_lsp::lsp_types::Diagnostic {
+				range: xeno_lsp::lsp_types::Range {
+					start: xeno_lsp::lsp_types::Position {
+						line: d.range.0 as u32,
+						character: d.range.1 as u32,
+					},
+					end: xeno_lsp::lsp_types::Position {
+						line: d.range.2 as u32,
+						character: d.range.3 as u32,
+					},
+				},
+				severity: Some(match d.severity {
+					DiagnosticSeverity::Error => xeno_lsp::lsp_types::DiagnosticSeverity::ERROR,
+					DiagnosticSeverity::Warning => xeno_lsp::lsp_types::DiagnosticSeverity::WARNING,
+					DiagnosticSeverity::Info => {
+						xeno_lsp::lsp_types::DiagnosticSeverity::INFORMATION
+					}
+					DiagnosticSeverity::Hint => xeno_lsp::lsp_types::DiagnosticSeverity::HINT,
+				}),
+				code: d.code.map(xeno_lsp::lsp_types::NumberOrString::String),
+				source: d.source,
+				message: d.message,
+				..Default::default()
+			})
+			.collect();
+
 		let context = xeno_lsp::lsp_types::CodeActionContext {
-			diagnostics,
+			diagnostics: lsp_diagnostics,
 			only: None,
 			trigger_kind: None,
 		};
@@ -76,7 +104,8 @@ impl Editor {
 			Ok(Some(actions)) => actions,
 			Ok(None) => Vec::new(),
 			Err(err) => {
-				self.notify(keys::error(err.to_string()));
+				let err_msg: String = err.to_string();
+				self.notify(keys::error(err_msg));
 				return false;
 			}
 		};
@@ -118,7 +147,8 @@ impl Editor {
 	) {
 		match action {
 			CodeActionOrCommand::Command(command) => {
-				self.execute_lsp_command(buffer_id, command).await;
+				self.execute_lsp_command(buffer_id, command.command, command.arguments)
+					.await;
 			}
 			CodeActionOrCommand::CodeAction(action) => {
 				if let Some(disabled) = action.disabled {
@@ -128,17 +158,24 @@ impl Editor {
 				if let Some(edit) = action.edit
 					&& let Err(err) = self.apply_workspace_edit(edit).await
 				{
-					self.notify(keys::error(err.to_string()));
+					let err_msg: String = err.to_string();
+					self.notify(keys::error(err_msg));
 					return;
 				}
 				if let Some(command) = action.command {
-					self.execute_lsp_command(buffer_id, command).await;
+					self.execute_lsp_command(buffer_id, command.command, command.arguments)
+						.await;
 				}
 			}
 		}
 	}
 
-	pub(crate) async fn execute_lsp_command(&mut self, buffer_id: ViewId, command: Command) {
+	pub(crate) async fn execute_lsp_command(
+		&mut self,
+		buffer_id: ViewId,
+		command: String,
+		arguments: Option<Vec<serde_json::Value>>,
+	) {
 		let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
 			return;
 		};
@@ -153,13 +190,11 @@ impl Editor {
 			return;
 		};
 
-		match client
-			.execute_command(command.command, command.arguments)
-			.await
-		{
+		match client.execute_command(command, arguments).await {
 			Ok(Some(_)) | Ok(None) => {}
 			Err(err) => {
-				self.notify(keys::error(err.to_string()));
+				let err_msg: String = err.to_string();
+				self.notify(keys::error(err_msg));
 			}
 		}
 	}
@@ -187,14 +222,15 @@ fn map_code_action_item(action: &CodeActionOrCommand) -> UiCompletionItem {
 fn diagnostics_for_range(
 	diagnostics: &[Diagnostic],
 	rope: &xeno_primitives::Rope,
-	encoding: OffsetEncoding,
 	selection: StdRange<CharIdx>,
 ) -> Vec<Diagnostic> {
 	let mut out = Vec::new();
 	for diag in diagnostics {
-		let Some((start, end)) = lsp_range_to_char_range(rope, diag.range, encoding) else {
-			continue;
-		};
+		let (start_line, start_char, end_line, end_char) = diag.range;
+
+		let start = rope.line_to_char(start_line) + start_char;
+		let end = rope.line_to_char(end_line) + end_char;
+
 		let diag_range = start..end;
 		let includes = if selection.start == selection.end {
 			diag_range.start <= selection.start && selection.start <= diag_range.end

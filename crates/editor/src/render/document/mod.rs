@@ -62,6 +62,10 @@ impl Editor {
 	/// # Parameters
 	/// - `frame`: The terminal frame to render into
 	pub fn render(&mut self, frame: &mut xeno_tui::Frame) {
+		// Clear the redraw latch at the start of rendering.
+		// Any redraw requests occurring during the render pass will persist for the next frame.
+		self.state.frame.needs_redraw = false;
+
 		self.ensure_syntax_for_buffers();
 
 		let use_block_cursor = true;

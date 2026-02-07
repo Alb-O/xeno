@@ -3320,7 +3320,6 @@ dependencies = [
  "uuid",
  "which",
  "xeno-editor",
- "xeno-lsp",
  "xeno-primitives",
  "xeno-registry",
  "xeno-runtime-config",

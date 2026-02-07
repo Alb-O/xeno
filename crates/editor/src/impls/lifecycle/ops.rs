@@ -176,6 +176,8 @@ impl Editor {
 			self.state.lsp.sync_manager_mut().take_immediate(doc_id)?;
 
 		let change_count = changes.len();
+		// FIXME: Leak of lsp::client through LspManager forces explicit Client usage or internal wrappers
+		// but since we're inside editor impls it's mostly fine
 		let use_incremental = !force_full_sync
 			&& self
 				.state
@@ -203,6 +205,8 @@ impl Editor {
 			};
 
 			let result = if use_incremental {
+				// Clone changes to satisfy 'static requirement for async block
+				let changes: Vec<_> = changes.into_iter().collect();
 				match sync
 					.notify_change_incremental_no_content_with_barrier(&path, &language, changes)
 					.await

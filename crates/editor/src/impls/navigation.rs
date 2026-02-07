@@ -33,16 +33,6 @@ impl Location {
 			column,
 		}
 	}
-
-	/// Creates a location from LSP Position (line and character are 0-indexed).
-	#[cfg(feature = "lsp")]
-	pub fn from_lsp(path: impl Into<PathBuf>, position: &xeno_lsp::lsp_types::Position) -> Self {
-		Self {
-			path: path.into(),
-			line: position.line as usize,
-			column: position.character as usize,
-		}
-	}
 }
 
 impl Editor {

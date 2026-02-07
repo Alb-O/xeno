@@ -32,9 +32,7 @@ impl Editor {
 			else {
 				return;
 			};
-			if !client.supports_signature_help() {
-				return;
-			}
+
 			(client, uri, position, buffer.cursor, buffer.version())
 		};
 

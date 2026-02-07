@@ -121,11 +121,3 @@ pub fn coalesce_resize_events(events: &EventReader, first: WindowSize) -> io::Re
 
 	Ok(latest)
 }
-
-/// Returns the appropriate cursor style for the given editor mode.
-pub fn cursor_style_for_mode(mode: xeno_primitives::Mode) -> CursorStyle {
-	match mode {
-		xeno_primitives::Mode::Insert => CursorStyle::SteadyBar,
-		_ => CursorStyle::SteadyBlock,
-	}
-}

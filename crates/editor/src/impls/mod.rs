@@ -68,11 +68,13 @@ use xeno_registry::{
 use xeno_runtime_language::LanguageLoader;
 use xeno_tui::layout::Rect;
 
-use crate::LspSystem;
-use crate::buffer::{Layout, ViewId};
+use crate::buffer::{Buffer, Layout, ViewId};
 pub use crate::command_queue::CommandQueue;
 pub use crate::hook_runtime::HookRuntime;
 pub use crate::layout::{LayoutManager, SeparatorHit, SeparatorId};
+#[cfg(feature = "lsp")]
+use crate::lsp::LspHandle;
+use crate::lsp::LspSystem;
 use crate::msg::{MsgReceiver, MsgSender};
 pub use crate::overlay::{OverlayStore, OverlaySystem};
 pub use crate::separator::{DragState, MouseVelocityTracker, SeparatorHoverAnimation};
@@ -338,6 +340,88 @@ impl Editor {
 		}
 	}
 
+	/// Configure a language server.
+	pub fn configure_language_server(
+		&mut self,
+		_language: impl Into<String>,
+		_config: crate::lsp::api::LanguageServerConfig,
+	) {
+		#[cfg(feature = "lsp")]
+		self.state.lsp.configure_server(_language, _config);
+	}
+
+	/// Removes a language server configuration.
+	pub fn remove_language_server(&mut self, _language: &str) {
+		#[cfg(feature = "lsp")]
+		self.state.lsp.remove_server(_language);
+	}
+
+	/// Returns total error count across all buffers.
+	pub fn total_error_count(&self) -> usize {
+		#[cfg(feature = "lsp")]
+		{
+			self.state.lsp.total_error_count()
+		}
+		#[cfg(not(feature = "lsp"))]
+		{
+			0
+		}
+	}
+
+	/// Returns total warning count across all buffers.
+	pub fn total_warning_count(&self) -> usize {
+		#[cfg(feature = "lsp")]
+		{
+			self.state.lsp.total_warning_count()
+		}
+		#[cfg(not(feature = "lsp"))]
+		{
+			0
+		}
+	}
+
+	/// Returns error count for the given buffer.
+	pub fn error_count(&self, _buffer: &Buffer) -> usize {
+		#[cfg(feature = "lsp")]
+		{
+			self.state.lsp.error_count(_buffer)
+		}
+		#[cfg(not(feature = "lsp"))]
+		{
+			0
+		}
+	}
+
+	/// Returns warning count for the given buffer.
+	pub fn warning_count(&self, _buffer: &Buffer) -> usize {
+		#[cfg(feature = "lsp")]
+		{
+			self.state.lsp.warning_count(_buffer)
+		}
+		#[cfg(not(feature = "lsp"))]
+		{
+			0
+		}
+	}
+
+	/// Returns diagnostics for the given buffer.
+	pub fn get_diagnostics(&self, _buffer: &Buffer) -> Vec<crate::lsp::api::Diagnostic> {
+		#[cfg(feature = "lsp")]
+		{
+			self.state.lsp.get_diagnostics(_buffer)
+		}
+		#[cfg(not(feature = "lsp"))]
+		{
+			Vec::new()
+		}
+	}
+
+	/// Shuts down all language servers.
+	pub async fn shutdown_lsp(&self) {
+		#[cfg(feature = "lsp")]
+		self.state.lsp.shutdown_all().await;
+	}
+
 	/// Returns the base window.
 	pub fn base_window(&self) -> &BaseWindow {
 		self.state.windows.base_window()
@@ -359,7 +443,7 @@ impl Editor {
 		emit_hook_sync_with(
 			&HookContext::new(HookEventData::WindowCreated {
 				window_id: id.into(),
-				kind: WindowKind::Floating,
+				kind: WindowKind::Base,
 			}),
 			&mut self.state.hook_runtime,
 		);
@@ -476,13 +560,21 @@ impl Editor {
 	}
 
 	#[inline]
-	pub fn lsp(&self) -> &LspSystem {
+	#[cfg_attr(not(feature = "lsp"), allow(dead_code))]
+	pub(crate) fn lsp(&self) -> &LspSystem {
 		&self.state.lsp
 	}
 
 	#[inline]
-	pub fn lsp_mut(&mut self) -> &mut LspSystem {
+	#[allow(dead_code)]
+	pub(crate) fn lsp_mut(&mut self) -> &mut LspSystem {
 		&mut self.state.lsp
+	}
+
+	#[inline]
+	#[cfg(feature = "lsp")]
+	pub(crate) fn lsp_handle(&self) -> LspHandle {
+		self.state.lsp.handle()
 	}
 
 	#[inline]

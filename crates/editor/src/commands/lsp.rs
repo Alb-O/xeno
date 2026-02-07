@@ -1,6 +1,5 @@
 //! LSP commands with direct [`Editor`] access.
 
-use xeno_lsp::lsp_types::{GotoDefinitionResponse, HoverContents, MarkedString, MarkupContent};
 use xeno_primitives::BoxFutureLocal;
 use xeno_registry::Capability;
 
@@ -58,12 +57,12 @@ fn cmd_goto_definition<'a>(
 			.ok_or_else(|| CommandError::Failed("No definition found".into()))?;
 
 		let location = match response {
-			GotoDefinitionResponse::Scalar(loc) => loc,
-			GotoDefinitionResponse::Array(locs) => locs
+			xeno_lsp::lsp_types::GotoDefinitionResponse::Scalar(loc) => loc,
+			xeno_lsp::lsp_types::GotoDefinitionResponse::Array(locs) => locs
 				.into_iter()
 				.next()
 				.ok_or_else(|| CommandError::Failed("No definition found".into()))?,
-			GotoDefinitionResponse::Link(links) => {
+			xeno_lsp::lsp_types::GotoDefinitionResponse::Link(links) => {
 				let link = links
 					.into_iter()
 					.next()
@@ -79,7 +78,11 @@ fn cmd_goto_definition<'a>(
 			.ok_or_else(|| CommandError::Failed("Invalid file path in definition".into()))?;
 
 		ctx.editor
-			.goto_location(&Location::from_lsp(path, &location.range.start))
+			.goto_location(&Location::new(
+				path,
+				location.range.start.line as usize,
+				location.range.start.character as usize,
+			))
 			.await
 			.map_err(|e| CommandError::Io(e.to_string()))?;
 
@@ -88,23 +91,25 @@ fn cmd_goto_definition<'a>(
 }
 
 /// Formats a single [`MarkedString`] to markdown.
-fn format_marked_string(ms: &MarkedString) -> String {
+fn format_marked_string(ms: &xeno_lsp::lsp_types::MarkedString) -> String {
 	match ms {
-		MarkedString::String(s) => s.clone(),
-		MarkedString::LanguageString(ls) => format!("```{}\n{}\n```", ls.language, ls.value),
+		xeno_lsp::lsp_types::MarkedString::String(s) => s.clone(),
+		xeno_lsp::lsp_types::MarkedString::LanguageString(ls) => {
+			format!("```{}\n{}\n```", ls.language, ls.value)
+		}
 	}
 }
 
 /// Formats LSP hover contents to markdown.
-fn format_hover_contents(contents: &HoverContents) -> String {
+fn format_hover_contents(contents: &xeno_lsp::lsp_types::HoverContents) -> String {
 	match contents {
-		HoverContents::Scalar(ms) => format_marked_string(ms),
-		HoverContents::Array(parts) => parts
+		xeno_lsp::lsp_types::HoverContents::Scalar(ms) => format_marked_string(ms),
+		xeno_lsp::lsp_types::HoverContents::Array(parts) => parts
 			.iter()
 			.map(format_marked_string)
 			.collect::<Vec<_>>()
 			.join("\n\n"),
-		HoverContents::Markup(MarkupContent { value, .. }) => value.clone(),
+		xeno_lsp::lsp_types::HoverContents::Markup(m) => m.value.clone(),
 	}
 }
 

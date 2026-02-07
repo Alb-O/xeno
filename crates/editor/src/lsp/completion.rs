@@ -78,12 +78,13 @@ impl Editor {
 		else {
 			return;
 		};
+
 		if !client.supports_completion() {
 			return;
 		}
 
 		let selection = buffer.selection.primary();
-		let replace_start = if selection.is_point() {
+		let replace_start: usize = if selection.is_point() {
 			completion_replace_start(buffer)
 		} else {
 			selection.from()
@@ -175,7 +176,7 @@ impl Editor {
 		}
 		let command = item.command.clone();
 
-		let replace_start = if selection.is_point() {
+		let replace_start: CharIdx = if selection.is_point() {
 			self.overlays()
 				.get::<CompletionState>()
 				.map(|state| state.replace_start)
@@ -219,7 +220,8 @@ impl Editor {
 				match planned {
 					Ok(planned) => edits.push(planned),
 					Err(err) => {
-						self.notify(keys::error(err.to_string()));
+						let err_msg: String = err.to_string();
+						self.notify(keys::error(err_msg));
 						return;
 					}
 				}
@@ -227,7 +229,8 @@ impl Editor {
 		}
 
 		if let Err(err) = validate_non_overlapping(&mut edits, buffer_id) {
-			self.notify(keys::error(err.to_string()));
+			let err_msg: String = err.to_string();
+			self.notify(keys::error(err_msg));
 			return;
 		}
 
@@ -240,7 +243,8 @@ impl Editor {
 		let tx = match self.apply_buffer_edit_plan(&plan) {
 			Ok(tx) => tx,
 			Err(err) => {
-				self.notify(keys::error(err.to_string()));
+				let err_msg: String = err.to_string();
+				self.notify(keys::error(err_msg));
 				return;
 			}
 		};
@@ -253,7 +257,8 @@ impl Editor {
 				buffer.set_cursor_and_selection(cursor, selection);
 			}
 			if let Some(command) = command {
-				self.execute_lsp_command(buffer_id, command).await;
+				self.execute_lsp_command(buffer_id, command.command, command.arguments)
+					.await;
 			}
 			return;
 		}
@@ -266,7 +271,8 @@ impl Editor {
 			buffer.set_cursor_and_selection(new_cursor, Selection::point(new_cursor));
 		}
 		if let Some(command) = command {
-			self.execute_lsp_command(buffer_id, command).await;
+			self.execute_lsp_command(buffer_id, command.command, command.arguments)
+				.await;
 		}
 	}
 }

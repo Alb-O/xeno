@@ -9,12 +9,12 @@ use xeno_primitives::{CommitResult, Rope, Transaction};
 use crate::buffer::Buffer;
 
 #[cfg(feature = "lsp")]
-pub struct LspSystem {
+pub(crate) struct LspSystem {
 	pub(super) inner: RealLspSystem,
 }
 
 #[cfg(not(feature = "lsp"))]
-pub struct LspSystem;
+pub(crate) struct LspSystem;
 
 #[cfg(feature = "lsp")]
 #[derive(Clone)]
@@ -31,11 +31,19 @@ impl LspHandle {
 	) -> xeno_lsp::Result<()> {
 		self.sync.close_document(&path, &language).await
 	}
+
+	pub async fn on_buffer_close(
+		&self,
+		path: std::path::PathBuf,
+		language: String,
+	) -> xeno_lsp::Result<()> {
+		self.close_document(path, language).await
+	}
 }
 
 #[cfg(feature = "lsp")]
 pub(super) struct RealLspSystem {
-	manager: LspManager,
+	pub(super) manager: LspManager,
 	pub(super) sync_manager: crate::lsp::sync_manager::LspSyncManager,
 	pub(super) completion: xeno_lsp::CompletionController,
 	pub(super) signature_gen: u64,
@@ -88,7 +96,7 @@ impl Default for LspSystem {
 
 #[cfg(feature = "lsp")]
 impl LspSystem {
-	pub fn poll_diagnostics(&mut self) -> Vec<xeno_lsp::DiagnosticsEvent> {
+	pub(crate) fn poll_diagnostics(&mut self) -> Vec<xeno_lsp::DiagnosticsEvent> {
 		self.inner.manager.poll_diagnostics()
 	}
 
@@ -99,37 +107,74 @@ impl LspSystem {
 	pub fn configure_server(
 		&self,
 		language: impl Into<String>,
-		config: xeno_lsp::LanguageServerConfig,
+		config: crate::lsp::api::LanguageServerConfig,
 	) {
-		self.inner.manager.configure_server(language, config);
+		let internal_config = config.into_xeno_lsp();
+		self.inner
+			.manager
+			.configure_server(language, internal_config);
 	}
 
 	pub fn remove_server(&self, language: &str) {
 		self.inner.manager.remove_server(language);
 	}
 
-	pub fn sync(&self) -> &xeno_lsp::DocumentSync {
+	pub(crate) fn sync(&self) -> &xeno_lsp::DocumentSync {
 		self.inner.manager.sync()
 	}
 
-	pub fn sync_clone(&self) -> xeno_lsp::DocumentSync {
+	pub(crate) fn sync_clone(&self) -> xeno_lsp::DocumentSync {
 		self.inner.manager.sync().clone()
 	}
 
-	pub fn registry(&self) -> &xeno_lsp::Registry {
+	pub(crate) fn registry(&self) -> &xeno_lsp::Registry {
 		self.inner.manager.registry()
 	}
 
-	pub fn documents(&self) -> &xeno_lsp::DocumentStateManager {
+	pub(crate) fn documents(&self) -> &xeno_lsp::DocumentStateManager {
 		self.inner.manager.documents()
 	}
 
-	pub fn get_diagnostics(&self, buffer: &Buffer) -> Vec<xeno_lsp::lsp_types::Diagnostic> {
+	pub(crate) fn get_raw_diagnostics(
+		&self,
+		buffer: &Buffer,
+	) -> Vec<xeno_lsp::lsp_types::Diagnostic> {
 		buffer
 			.path()
 			.as_ref()
 			.map(|p| self.sync().get_diagnostics(p))
 			.unwrap_or_default()
+	}
+
+	pub fn get_diagnostics(&self, buffer: &Buffer) -> Vec<crate::lsp::api::Diagnostic> {
+		use xeno_lsp::lsp_types::DiagnosticSeverity as LspSeverity;
+
+		use crate::lsp::api::{Diagnostic, DiagnosticSeverity};
+
+		self.get_raw_diagnostics(buffer)
+			.into_iter()
+			.map(|d| Diagnostic {
+				range: (
+					d.range.start.line as usize,
+					d.range.start.character as usize,
+					d.range.end.line as usize,
+					d.range.end.character as usize,
+				),
+				severity: match d.severity {
+					Some(LspSeverity::ERROR) => DiagnosticSeverity::Error,
+					Some(LspSeverity::WARNING) => DiagnosticSeverity::Warning,
+					Some(LspSeverity::INFORMATION) => DiagnosticSeverity::Info,
+					Some(LspSeverity::HINT) | None => DiagnosticSeverity::Hint,
+					_ => DiagnosticSeverity::Hint,
+				},
+				message: d.message,
+				source: d.source,
+				code: d.code.map(|c| match c {
+					xeno_lsp::lsp_types::NumberOrString::Number(n) => n.to_string(),
+					xeno_lsp::lsp_types::NumberOrString::String(s) => s,
+				}),
+			})
+			.collect()
 	}
 
 	pub fn error_count(&self, buffer: &Buffer) -> usize {
@@ -208,5 +253,67 @@ impl LspSystem {
 
 	pub(crate) fn sync_manager_mut(&mut self) -> &mut crate::lsp::sync_manager::LspSyncManager {
 		&mut self.inner.sync_manager
+	}
+
+	pub(crate) fn completion_generation(&self) -> u64 {
+		self.inner.completion.generation()
+	}
+
+	pub(crate) fn trigger_completion(
+		&mut self,
+		request: xeno_lsp::CompletionRequest<crate::buffer::ViewId>,
+	) {
+		use crate::lsp::LspUiEvent;
+		let ui_tx = self.inner.ui_tx.clone();
+		self.inner.completion.trigger(
+			request,
+			move |generation, buffer_id, replace_start, response| {
+				let _ = ui_tx.send(LspUiEvent::CompletionResult {
+					generation,
+					buffer_id,
+					replace_start,
+					response,
+				});
+			},
+		);
+	}
+
+	pub(crate) fn cancel_completion(&mut self) {
+		self.inner.completion.cancel();
+	}
+
+	pub(crate) fn signature_help_generation(&self) -> u64 {
+		self.inner.signature_gen
+	}
+
+	pub(crate) fn bump_signature_help_generation(&mut self) -> u64 {
+		self.inner.signature_gen = self.inner.signature_gen.wrapping_add(1);
+		self.inner.signature_gen
+	}
+
+	pub(crate) fn set_signature_help_cancel(
+		&mut self,
+		cancel: tokio_util::sync::CancellationToken,
+	) {
+		self.inner.signature_cancel = Some(cancel);
+	}
+
+	pub(crate) fn take_signature_help_cancel(
+		&mut self,
+	) -> Option<tokio_util::sync::CancellationToken> {
+		self.inner.signature_cancel.take()
+	}
+
+	pub(crate) fn ui_tx(&self) -> tokio::sync::mpsc::UnboundedSender<crate::lsp::LspUiEvent> {
+		self.inner.ui_tx.clone()
+	}
+
+	pub(crate) fn try_recv_ui_event(&mut self) -> Option<crate::lsp::LspUiEvent> {
+		self.inner.ui_rx.try_recv().ok()
+	}
+
+	pub(crate) fn canonicalize_path(&self, path: &std::path::Path) -> std::path::PathBuf {
+		path.canonicalize()
+			.unwrap_or_else(|_| std::env::current_dir().unwrap_or_default().join(path))
 	}
 }

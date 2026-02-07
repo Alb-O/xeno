@@ -209,13 +209,12 @@ impl Editor {
 
 			#[cfg(feature = "lsp")]
 			{
-				let lsp_handle = self.state.lsp.handle();
-				if let (Some(path), Some(lang)) = (
-					buffer.path().map(|p| p.to_path_buf()),
-					buffer.file_type().map(|s| s.to_string()),
-				) {
+				let lsp = self.lsp_handle();
+				let path = buffer.path().map(|p| p.to_path_buf());
+				let language = buffer.file_type().map(|s| s.to_string());
+				if let (Some(path), Some(language)) = (path, language) {
 					tokio::spawn(async move {
-						if let Err(e) = lsp_handle.close_document(path, lang).await {
+						if let Err(e) = lsp.on_buffer_close(path, language).await {
 							tracing::warn!(error = %e, "LSP buffer close failed");
 						}
 					});
