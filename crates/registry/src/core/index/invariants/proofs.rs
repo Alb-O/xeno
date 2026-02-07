@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use crate::core::index::build::RegistryBuilder;
+use crate::core::index::collision::DuplicatePolicy;
 use crate::core::index::runtime::RuntimeRegistry;
 use crate::core::index::test_fixtures::{TestDef, TestEntry, make_def};
 use crate::core::symbol::ActionId;
@@ -285,4 +286,187 @@ pub(crate) fn test_symbol_stability_across_swap() {
 		"ID must be stable after swaps"
 	);
 	assert_eq!(stable_ref.priority(), 10, "Priority must be unchanged");
+}
+
+/// RegistrySource precedence (Runtime > Crate > Builtin) is respected at
+/// both build-time and runtime.
+#[cfg_attr(test, test)]
+pub(crate) fn test_source_precedence() {
+	// 1. Build-time precedence: Runtime beats Builtin at same priority
+	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> =
+		RegistryBuilder::with_policy("test", DuplicatePolicy::ByPriority);
+
+	let builtin = TestDef {
+		meta: RegistryMetaStatic {
+			id: "cmd",
+			name: "builtin",
+			aliases: &[],
+			description: "",
+			priority: 10,
+			source: RegistrySource::Builtin,
+			required_caps: &[],
+			flags: 0,
+		},
+	};
+	let runtime = TestDef {
+		meta: RegistryMetaStatic {
+			id: "cmd",
+			name: "runtime",
+			aliases: &[],
+			description: "",
+			priority: 10,
+			source: RegistrySource::Runtime,
+			required_caps: &[],
+			flags: 0,
+		},
+	};
+
+	// Order of push shouldn't matter for ByPriority
+	builder.push(Arc::new(builtin));
+	builder.push(Arc::new(runtime));
+
+	let index = builder.build();
+	assert_eq!(index.len(), 1);
+	let entry = index.get("cmd").unwrap();
+	assert_eq!(
+		index.interner.resolve(entry.meta().name),
+		"runtime",
+		"Runtime source must win over Builtin at same priority (build-time)"
+	);
+
+	// 2. Runtime precedence: Runtime beats existing Builtin at same priority
+	let mut builder2: RegistryBuilder<TestDef, TestEntry, ActionId> = RegistryBuilder::new("test2");
+	let builtin2 = TestDef {
+		meta: RegistryMetaStatic {
+			id: "cmd2",
+			name: "builtin2",
+			aliases: &[],
+			description: "",
+			priority: 10,
+			source: RegistrySource::Builtin,
+			required_caps: &[],
+			flags: 0,
+		},
+	};
+	builder2.push(Arc::new(builtin2));
+	let registry = RuntimeRegistry::new("test2", builder2.build());
+
+	let runtime_def: &'static TestDef = Box::leak(Box::new(TestDef {
+		meta: RegistryMetaStatic {
+			id: "cmd2",
+			name: "runtime2",
+			aliases: &[],
+			description: "",
+			priority: 10,
+			source: RegistrySource::Runtime,
+			required_caps: &[],
+			flags: 0,
+		},
+	}));
+
+	let res = registry.register(runtime_def);
+	assert!(res.is_ok(), "Runtime registration should succeed");
+	let entry2 = registry.get("cmd2").unwrap();
+	assert_eq!(
+		entry2.name_str(),
+		"runtime2",
+		"Runtime source must win over Builtin at same priority (runtime)"
+	);
+}
+
+/// On canonical ID conflicts with identical priority and source, later ingest (higher ordinal) wins.
+#[cfg_attr(test, test)]
+pub(crate) fn test_canonical_id_ordinal_tiebreaker() {
+	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> =
+		RegistryBuilder::with_policy("test", DuplicatePolicy::ByPriority);
+
+	let first = TestDef {
+		meta: RegistryMetaStatic {
+			id: "tie",
+			name: "first",
+			aliases: &[],
+			description: "",
+			priority: 10,
+			source: RegistrySource::Builtin,
+			required_caps: &[],
+			flags: 0,
+		},
+	};
+	let second = TestDef {
+		meta: RegistryMetaStatic {
+			id: "tie",
+			name: "second",
+			aliases: &[],
+			description: "",
+			priority: 10,
+			source: RegistrySource::Builtin,
+			required_caps: &[],
+			flags: 0,
+		},
+	};
+
+	builder.push(Arc::new(first));
+	builder.push(Arc::new(second));
+
+	let index = builder.build();
+	assert_eq!(index.len(), 1);
+	let entry = index.get("tie").unwrap();
+	assert_eq!(
+		index.interner.resolve(entry.meta().name),
+		"second",
+		"Later ingest must win canonical-ID tie-break"
+	);
+}
+
+/// On key conflicts (name/alias) with identical priority and source, canonical ID total order wins.
+#[cfg_attr(test, test)]
+pub(crate) fn test_key_conflict_id_tiebreaker() {
+	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> =
+		RegistryBuilder::with_policy("test", DuplicatePolicy::ByPriority);
+
+	let def_a = TestDef {
+		meta: RegistryMetaStatic {
+			id: "A",
+			name: "A",
+			aliases: &["shared"],
+			description: "",
+			priority: 10,
+			source: RegistrySource::Builtin,
+			required_caps: &[],
+			flags: 0,
+		},
+	};
+	let def_b = TestDef {
+		meta: RegistryMetaStatic {
+			id: "B",
+			name: "B",
+			aliases: &["shared"],
+			description: "",
+			priority: 10,
+			source: RegistrySource::Builtin,
+			required_caps: &[],
+			flags: 0,
+		},
+	};
+
+	builder.push(Arc::new(def_a));
+	builder.push(Arc::new(def_b));
+
+	let index = builder.build();
+	assert_eq!(index.len(), 2);
+
+	let entry_a = index.get("A").unwrap();
+	let entry_b = index.get("B").unwrap();
+	let sym_a = entry_a.meta().id;
+	let sym_b = entry_b.meta().id;
+
+	// Verify that the symbols are ordered as expected (B > A in sorted IDs)
+	assert!(sym_b > sym_a, "Symbol B must be greater than Symbol A");
+
+	let shared = index.get("shared").unwrap();
+	assert_eq!(
+		shared.meta().id,
+		sym_b,
+		"Greater canonical ID symbol must win key conflict tie-break"
+	);
 }

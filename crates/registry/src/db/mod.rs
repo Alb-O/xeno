@@ -13,7 +13,7 @@ pub mod keymap_registry;
 pub mod plugin;
 
 use crate::actions::KeyPrefixDef;
-use crate::actions::definition::ActionEntry;
+use crate::actions::entry::ActionEntry;
 use crate::commands::CommandEntry;
 #[cfg(feature = "keymap")]
 use crate::db::keymap_registry::KeymapRegistry;
@@ -112,6 +112,6 @@ pub fn resolve_action_id_from_static(id: &str) -> ActionId {
 	let db = get_db();
 	db.actions
 		.get(id)
-		.map(|r| r.dense_id())
+		.map(|r: crate::actions::ActionRef| r.dense_id())
 		.unwrap_or(ActionId::INVALID)
 }

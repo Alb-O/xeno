@@ -24,7 +24,9 @@ pub fn find_action_by_id(id: ActionId) -> Option<std::sync::Arc<ActionEntry>> {
 
 /// Resolve an action name to its ActionId.
 pub fn resolve_action_id(name: &str) -> Option<ActionId> {
-	ACTIONS.get(name).map(|a| a.dense_id())
+	ACTIONS
+		.get(name)
+		.map(|a: crate::actions::ActionRef| a.dense_id())
 }
 
 /// Resolve an action key to its ActionId.

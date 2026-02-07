@@ -24,7 +24,7 @@ pub(crate) const DETERMINISTIC_EFFECTIVE_ITERATION_ORDER: () = ();
 
 /// Owned runtime definitions must remain alive while reachable from snapshots.
 ///
-/// - Enforced in: [`crate::core::index::runtime::Snapshot`], [`crate::core::index::runtime::RegistryRef`]
+/// - Enforced in: [`crate::core::index::snapshot::Snapshot`], [`crate::core::index::snapshot::RegistryRef`]
 /// - Tested by: [`crate::core::index::invariants::test_snapshot_liveness_across_swap`]
 /// - Failure symptom: Use-after-free when readers hold snapshot-backed refs during writes.
 pub(crate) const OWNED_DEFINITIONS_STAY_ALIVE_WHILE_REACHABLE: () = ();

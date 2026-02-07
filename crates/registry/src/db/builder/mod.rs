@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use crate::actions::definition::ActionEntry;
+use crate::actions::entry::ActionEntry;
 use crate::actions::{ActionDef, KeyBindingDef, KeyPrefixDef};
 use crate::commands::{CommandDef, CommandEntry};
 use crate::core::plugin::PluginDef;

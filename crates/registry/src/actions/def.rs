@@ -1,10 +1,12 @@
 //! Action definition and handler types.
-//!
-//! Actions are registered explicitly and looked up by keybindings.
 
+use super::entry::ActionEntry;
 use super::keybindings::KeyBindingDef;
-use crate::actions::{ActionContext, ActionResult, RegistryMeta, RegistryMetaStatic};
-use crate::{BuildEntry, CapabilitySet, FrozenInterner, RegistryMetaRef, Symbol, SymbolList};
+use crate::actions::{ActionContext, ActionResult};
+use crate::core::index::{BuildEntry, RegistryMetaRef};
+use crate::core::{
+	CapabilitySet, FrozenInterner, RegistryMeta, RegistryMetaStatic, Symbol, SymbolList,
+};
 
 /// Definition of a registered action (static input for builder).
 ///
@@ -29,21 +31,6 @@ impl crate::core::RegistryEntry for ActionDef {
 		panic!("Called meta() on static ActionDef")
 	}
 }
-
-/// Symbolized action entry stored in the registry snapshot.
-#[derive(Clone, Copy)]
-pub struct ActionEntry {
-	/// Common registry metadata (symbolized).
-	pub meta: RegistryMeta,
-	/// Short description (symbolized).
-	pub short_desc: Symbol,
-	/// The function that executes this action.
-	pub handler: ActionHandler,
-	/// Keybindings associated with the action.
-	pub bindings: &'static [KeyBindingDef],
-}
-
-crate::impl_registry_entry!(ActionEntry);
 
 impl BuildEntry<ActionEntry> for ActionDef {
 	fn meta_ref(&self) -> RegistryMetaRef<'_> {

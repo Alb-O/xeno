@@ -1,13 +1,9 @@
 use std::cmp::Ordering;
 use std::sync::Arc;
 
-use rustc_hash::FxHashMap as HashMap;
-
+use super::collision::{Collision, CollisionKind, DuplicatePolicy, Party, cmp_party};
 use super::types::RegistryIndex;
-use crate::{
-	Collision, CollisionKind, DenseId, DuplicatePolicy, FrozenInterner, InternerBuilder, KeyKind,
-	Party, RegistryEntry, RegistrySource, Resolution, Symbol,
-};
+use crate::{DenseId, FrozenInterner, InternerBuilder, RegistryEntry, RegistrySource, Symbol};
 
 /// Borrowed metadata for building entries (supports both static and dynamic).
 pub struct RegistryMetaRef<'a> {
@@ -47,8 +43,8 @@ where
 }
 
 pub(crate) struct IngestEntry<In> {
-	ordinal: u32,
-	inner: Arc<In>,
+	pub(crate) ordinal: u32,
+	pub(crate) inner: Arc<In>,
 }
 
 impl<In, Out, Id> RegistryBuilder<In, Out, Id>
@@ -109,6 +105,8 @@ where
 	}
 
 	pub fn build(self) -> RegistryIndex<Out, Id> {
+		use super::lookup::build_lookup;
+
 		// 1. Resolve ID duplicates (winners vs losers)
 		let (winners, id_collisions) = resolve_id_duplicates(self.defs, self.policy);
 
@@ -240,7 +238,7 @@ where
 fn build_table<In, Out>(
 	winners: &[IngestEntry<In>],
 	interner: &FrozenInterner,
-) -> (Vec<std::sync::Arc<Out>>, Vec<Symbol>, Vec<Party>)
+) -> (Vec<Arc<Out>>, Vec<Symbol>, Vec<Party>)
 where
 	In: BuildEntry<Out>,
 	Out: RegistryEntry,
@@ -262,196 +260,18 @@ where
 			priority: out.meta().priority,
 			ordinal: entry.ordinal,
 		});
-		table.push(std::sync::Arc::new(out));
+		table.push(Arc::new(out));
 	}
 
 	(table, alias_pool, parties)
 }
 
-// Make this public so RuntimeRegistry can use it for extension
-pub(crate) fn build_lookup<Out, Id>(
-	registry_label: &'static str,
-	table: &[std::sync::Arc<Out>],
-	parties: &[Party],
-	alias_pool: &[Symbol],
-	_policy: DuplicatePolicy,
-) -> (HashMap<Symbol, Id>, Vec<Collision>)
-where
-	Out: RegistryEntry,
-	Id: DenseId,
-{
-	let mut by_key = HashMap::default();
-	let mut collisions = Vec::new();
-
-	#[derive(Copy, Clone, PartialEq, Eq)]
-	enum InternalKeyKind {
-		Canonical,
-		Name,
-		Alias,
-	}
-	let mut key_kinds = HashMap::default();
-
-	// Stage A: Canonical IDs
-	for (idx, entry) in table.iter().enumerate() {
-		let dense_id = Id::from_u32(idx as u32);
-		let sym = entry.meta().id;
-		let current_party = parties[idx];
-
-		if let Some(prev_id) = by_key.insert(sym, dense_id) {
-			let prev_idx = prev_id.as_u32() as usize;
-			collisions.push(Collision {
-				registry: registry_label,
-				key: sym,
-				kind: CollisionKind::KeyConflict {
-					existing_kind: KeyKind::Alias, // Must have been alias if we are in Stage A and prev existed? No, canonicals are unique.
-					// Actually, if we had duplicate canonical IDs, resolve_id_duplicates would have caught them.
-					// So this branch should theoretically be unreachable unless resolve_id_duplicates failed.
-					// But let's keep the logic sound.
-					incoming_kind: KeyKind::Canonical,
-					existing: parties[prev_idx],
-					incoming: current_party,
-					resolution: Resolution::ReplacedExisting,
-				},
-			});
-		}
-		key_kinds.insert(sym, InternalKeyKind::Canonical);
-	}
-
-	// Stage B: Names
-	for (idx, entry) in table.iter().enumerate() {
-		let dense_id = Id::from_u32(idx as u32);
-		let name_sym = entry.meta().name;
-		let current_party = parties[idx];
-
-		match key_kinds.get(&name_sym) {
-			Some(InternalKeyKind::Canonical) => {
-				// Canonical ID already occupies this key; skip silently.
-			}
-			Some(InternalKeyKind::Name) => {
-				let existing_id = by_key[&name_sym];
-				let existing_idx = existing_id.as_u32() as usize;
-				let existing_party = parties[existing_idx];
-
-				if compare_out(entry.as_ref(), table[existing_idx].as_ref()) == Ordering::Greater {
-					by_key.insert(name_sym, dense_id);
-					collisions.push(Collision {
-						registry: registry_label,
-						key: name_sym,
-						kind: CollisionKind::KeyConflict {
-							existing_kind: KeyKind::Alias, // Names are treated as aliases for conflict purposes
-							incoming_kind: KeyKind::Alias,
-							existing: existing_party,
-							incoming: current_party,
-							resolution: Resolution::ReplacedExisting,
-						},
-					});
-				} else {
-					collisions.push(Collision {
-						registry: registry_label,
-						key: name_sym,
-						kind: CollisionKind::KeyConflict {
-							existing_kind: KeyKind::Alias,
-							incoming_kind: KeyKind::Alias,
-							existing: existing_party,
-							incoming: current_party,
-							resolution: Resolution::KeptExisting,
-						},
-					});
-				}
-			}
-			None => {
-				by_key.insert(name_sym, dense_id);
-				key_kinds.insert(name_sym, InternalKeyKind::Name);
-			}
-			_ => {}
-		}
-	}
-
-	// Stage C: Aliases
-	for (idx, entry) in table.iter().enumerate() {
-		let dense_id = Id::from_u32(idx as u32);
-		let meta = entry.meta();
-		let current_party = parties[idx];
-
-		let start = meta.aliases.start as usize;
-		let len = meta.aliases.len as usize;
-		debug_assert!(start + len <= alias_pool.len());
-		let aliases = &alias_pool[start..start + len];
-
-		for &alias in aliases {
-			match key_kinds.get(&alias) {
-				Some(InternalKeyKind::Canonical | InternalKeyKind::Name) => {
-					let existing_id = by_key[&alias];
-					let existing_idx = existing_id.as_u32() as usize;
-					collisions.push(Collision {
-						registry: registry_label,
-						key: alias,
-						kind: CollisionKind::KeyConflict {
-							existing_kind: KeyKind::Canonical, // Simplification: assume it's canonical/name
-							incoming_kind: KeyKind::Alias,
-							existing: parties[existing_idx],
-							incoming: current_party,
-							resolution: Resolution::KeptExisting,
-						},
-					});
-				}
-				Some(InternalKeyKind::Alias) => {
-					let existing_id = by_key[&alias];
-					let existing_idx = existing_id.as_u32() as usize;
-					let existing_party = parties[existing_idx];
-
-					if compare_out(entry.as_ref(), table[existing_idx].as_ref())
-						== Ordering::Greater
-					{
-						by_key.insert(alias, dense_id);
-						collisions.push(Collision {
-							registry: registry_label,
-							key: alias,
-							kind: CollisionKind::KeyConflict {
-								existing_kind: KeyKind::Alias,
-								incoming_kind: KeyKind::Alias,
-								existing: existing_party,
-								incoming: current_party,
-								resolution: Resolution::ReplacedExisting,
-							},
-						});
-					} else {
-						collisions.push(Collision {
-							registry: registry_label,
-							key: alias,
-							kind: CollisionKind::KeyConflict {
-								existing_kind: KeyKind::Alias,
-								incoming_kind: KeyKind::Alias,
-								existing: existing_party,
-								incoming: current_party,
-								resolution: Resolution::KeptExisting,
-							},
-						});
-					}
-				}
-				None => {
-					by_key.insert(alias, dense_id);
-					key_kinds.insert(alias, InternalKeyKind::Alias);
-				}
-			}
-		}
-	}
-
-	(by_key, collisions)
-}
-
-fn compare_out<T: RegistryEntry>(a: &T, b: &T) -> Ordering {
-	a.priority()
-		.cmp(&b.priority())
-		.then_with(|| b.source().rank().cmp(&a.source().rank()))
-}
-
 pub(crate) struct IdCollisionRecord {
-	id_str: String,
-	winner_ordinal: u32,
-	loser_ordinal: u32,
-	loser_source: RegistrySource,
-	loser_priority: i16,
+	pub(crate) id_str: String,
+	pub(crate) winner_ordinal: u32,
+	pub(crate) loser_ordinal: u32,
+	pub(crate) loser_source: RegistrySource,
+	pub(crate) loser_priority: i16,
 }
 
 fn resolve_winners_in_group<'a, In, Out>(
@@ -468,13 +288,23 @@ where
 			DuplicatePolicy::FirstWins => false,
 			DuplicatePolicy::LastWins => true,
 			DuplicatePolicy::ByPriority => {
-				let a = winner.inner.meta_ref();
-				let b = candidate.inner.meta_ref();
-				b.priority
-					.cmp(&a.priority)
-					.then_with(|| a.source.rank().cmp(&b.source.rank()))
-					.then_with(|| winner.ordinal.cmp(&candidate.ordinal))
-					== Ordering::Greater
+				let a_meta = winner.inner.meta_ref();
+				let b_meta = candidate.inner.meta_ref();
+
+				let a_party = Party {
+					def_id: Symbol::INVALID,
+					source: a_meta.source,
+					priority: a_meta.priority,
+					ordinal: winner.ordinal,
+				};
+				let b_party = Party {
+					def_id: Symbol::INVALID,
+					source: b_meta.source,
+					priority: b_meta.priority,
+					ordinal: candidate.ordinal,
+				};
+
+				cmp_party(&b_party, &a_party) == Ordering::Greater
 			}
 			DuplicatePolicy::Panic => {
 				panic!("Duplicate registry key: {}", winner.inner.meta_ref().id)

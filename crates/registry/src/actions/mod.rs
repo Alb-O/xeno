@@ -10,9 +10,10 @@ pub use crate::core::{
 
 pub mod builtins;
 mod context;
-pub mod definition;
+pub mod def;
 pub mod edit_op;
 mod effects;
+pub mod entry;
 mod keybindings;
 mod macros;
 mod pending;
@@ -21,7 +22,8 @@ mod result;
 pub mod editor_ctx;
 
 pub use context::{ActionArgs, ActionContext};
-pub use definition::{ActionDef, ActionEntry, ActionHandler};
+pub use def::{ActionDef, ActionHandler};
+pub use entry::ActionEntry;
 
 // Re-export macros
 pub use crate::action;

@@ -1,3 +1,12 @@
+//! Collision types and precedence rules.
+//!
+//! # Role
+//!
+//! This module defines the vocabulary for conflicts and the canonical precedence rules
+//! used to resolve them.
+
+use std::cmp::Ordering;
+
 use crate::core::meta::RegistrySource;
 use crate::core::symbol::Symbol;
 
@@ -34,6 +43,23 @@ pub struct Party {
 	pub priority: i16,
 	/// Stable ingest ordinal.
 	pub ordinal: u32,
+}
+
+/// Compares two parties using the global precedence rules for canonical-ID conflicts.
+///
+/// Precedence hierarchy:
+/// 1. Priority (higher wins)
+/// 2. Source (Runtime > Crate > Builtin)
+/// 3. Ingest ordinal (higher/later wins)
+///
+/// Tie-breaking semantics:
+/// - At build-time: later ingest wins if priority and source are identical.
+/// - At runtime: the new entry is assigned a higher ordinal, so it wins on ties.
+pub(crate) fn cmp_party(a: &Party, b: &Party) -> Ordering {
+	a.priority
+		.cmp(&b.priority)
+		.then_with(|| a.source.rank().cmp(&b.source.rank()))
+		.then_with(|| a.ordinal.cmp(&b.ordinal))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -26,6 +26,9 @@ pub(crate) fn test_deterministic_iteration() {}
 pub(crate) fn test_no_lost_updates() {}
 
 #[cfg(doc)]
+pub(crate) fn test_source_precedence() {}
+
+#[cfg(doc)]
 pub(crate) fn test_symbol_stability_across_swap() {}
 
 #[cfg(test)]

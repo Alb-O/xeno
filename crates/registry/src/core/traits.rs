@@ -44,7 +44,12 @@ pub trait RegistryEntry {
 		self.meta().flags
 	}
 
-	/// Compares this entry against another using the global total order.
+	/// Compares this entry against another using the global total order for key conflicts.
+	///
+	/// Precedence hierarchy:
+	/// 1. Priority (higher wins)
+	/// 2. Source Rank (higher wins: Runtime > Crate > Builtin)
+	/// 3. Canonical ID (stable tie-break via interned symbol)
 	fn total_order_cmp(&self, other: &Self) -> Ordering
 	where
 		Self: Sized,

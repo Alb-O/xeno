@@ -13,7 +13,7 @@ pub enum RegistrySource {
 }
 
 impl RegistrySource {
-	/// Returns the precedence rank of the source (lower is higher precedence).
+	/// Returns the precedence rank of the source (higher is higher precedence).
 	pub const fn rank(self) -> u8 {
 		match self {
 			Self::Builtin => 0,

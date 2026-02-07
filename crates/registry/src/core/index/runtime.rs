@@ -1,75 +1,23 @@
-//! Runtime registry implementation with atomic updates.
+//! Runtime registry container with atomic publication.
 //!
-//! # Purpose
+//! # Role
 //!
-//! The `RuntimeRegistry` manages a collection of definitions that can be extended at runtime.
-//! It uses a copy-on-write snapshot strategy to ensure lock-free concurrent reads while allowing
-//! atomic updates for new definitions (e.g., from plugins).
-//!
-//! # Mental Model
-//!
-//! - **Snapshot:** An immutable, consistent view of the registry state (tables, lookups, interners).
-//! - **RegistryRef:** A pinned reference to a definition within a specific snapshot. It keeps the
-//!   snapshot alive even if the global registry is updated.
-//! - **Atomic Swap:** Updates are performed by building a *new* snapshot and atomically swapping
-//!   the pointer. Readers holding old snapshots continue to see the old state.
-//!
-//! # Key Types
-//!
-//! | Type | Role |
-//! |------|------|
-//! | [`RuntimeRegistry`] | The main entry point; holds the atomic pointer to the current snapshot. |
-//! | [`Snapshot`] | A complete, immutable state of the registry (tables, hashmaps, interner). |
-//! | [`RegistryRef`] | A handle to a definition, carrying a strong reference to its source snapshot. |
-//! | [`SnapshotGuard`] | A lightweight guard for efficient iteration without per-item Arc clones. |
+//! This module provides the thread-safe entrypoint for accessing and updating registry data.
+//! It handles the CAS-based extension loop.
 //!
 //! # Invariants
 //!
-//! - Must have unambiguous ID lookup (one winner per ID).
-//!   - Enforced in: [`crate::core::index::build::resolve_id_duplicates`] (build time), [`RuntimeRegistry::register`] (runtime).
-//!   - Tested by: [`crate::core::index::invariants::test_unambiguous_id_lookup`]
-//!   - Failure symptom: Panics or inconsistent lookups.
-//!
-//! - Must maintain deterministic iteration order.
-//!   - Enforced in: [`crate::core::index::build::RegistryBuilder::build`] (sort by ID).
-//!   - Tested by: [`crate::core::index::invariants::test_deterministic_iteration`]
-//!   - Failure symptom: Iterator order changes unpredictably.
-//!
-//! - Must keep owned definitions alive while reachable.
-//!   - Enforced in: [`RegistryRef`] (holds `Arc<Snapshot>`).
-//!   - Tested by: [`crate::core::index::invariants::test_snapshot_liveness_across_swap`]
-//!   - Failure symptom: Use-after-free in `RegistryRef` deref.
-//!
-//! - Must provide linearizable writes without lost updates.
-//!   - Enforced in: [`RuntimeRegistry::register`] (CAS loop).
-//!   - Tested by: [`crate::core::index::invariants::test_no_lost_updates`]
-//!   - Failure symptom: Concurrent registrations silently dropped.
-//!
-//! # Data Flow
-//!
-//! 1. **Read:** `registry.get()` loads the current snapshot `Arc`. It performs a lookup and returns
-//!    a `RegistryRef` wrapping that same `Arc`.
-//! 2. **Write:** `registry.register()` uses a CAS loop:
-//!    - Load current snapshot
-//!    - Build extended snapshot (new interner, new table with Arc-wrapped entries)
-//!    - CAS swap; if failed, retry with updated snapshot
-//!
-//! # Concurrency
-//!
-//! - **Reads:** Wait-free (atomic load).
-//! - **Writes:** Lock-free with linearizability (CAS retry loop). No lost updates under contention.
+//! - Concurrent registrations must be linearizable.
+//!   - Participates in: [`crate::core::index::invariants::NO_LOST_UPDATES_UNDER_CONTENTION`]
 
 use std::cmp::Ordering;
 use std::sync::Arc;
 
 use arc_swap::ArcSwap;
-use rustc_hash::FxHashMap;
 
+use super::snapshot::{RegistryRef, Snapshot, SnapshotGuard};
 use super::types::RegistryIndex;
-use crate::core::{
-	Collision, DenseId, DuplicatePolicy, FrozenInterner, InternerBuilder, Party, RegistryEntry,
-	Symbol,
-};
+use crate::core::{DenseId, DuplicatePolicy, InternerBuilder, Party, RegistryEntry, Symbol};
 
 /// Error type for registration failures.
 pub enum RegisterError<T, Id: DenseId>
@@ -135,171 +83,6 @@ impl<T, Id: DenseId> std::error::Error for RegisterError<T, Id> where T: Runtime
 /// Marker trait for types that can be stored in a runtime registry.
 pub trait RuntimeEntry: RegistryEntry + Send + Sync + 'static {}
 impl<T> RuntimeEntry for T where T: RegistryEntry + Send + Sync + 'static {}
-
-/// Snapshot-pinning guard that provides `&T` access to a registry definition.
-pub struct RegistryRef<T, Id: DenseId>
-where
-	T: RuntimeEntry,
-{
-	pub(crate) snap: Arc<Snapshot<T, Id>>,
-	pub(crate) id: Id,
-}
-
-impl<T, Id: DenseId> Clone for RegistryRef<T, Id>
-where
-	T: RuntimeEntry,
-{
-	fn clone(&self) -> Self {
-		Self {
-			snap: self.snap.clone(),
-			id: self.id,
-		}
-	}
-}
-
-impl<T, Id: DenseId> std::fmt::Debug for RegistryRef<T, Id>
-where
-	T: RuntimeEntry,
-{
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		f.debug_struct("RegistryRef")
-			.field("id", &self.id)
-			.field("name", &self.name_str())
-			.finish()
-	}
-}
-
-impl<T, Id: DenseId> RegistryRef<T, Id>
-where
-	T: RuntimeEntry,
-{
-	/// Returns the dense ID for this definition.
-	pub fn dense_id(&self) -> Id {
-		self.id
-	}
-
-	/// Resolves a symbol to its string representation using this ref's snapshot interner.
-	pub fn resolve(&self, sym: crate::core::Symbol) -> &str {
-		self.snap.interner.resolve(sym)
-	}
-
-	/// Returns the interned name as a string.
-	pub fn name_str(&self) -> &str {
-		self.resolve(self.name())
-	}
-
-	/// Returns the interned id as a string.
-	pub fn id_str(&self) -> &str {
-		self.resolve(self.id())
-	}
-
-	/// Returns the interned description as a string.
-	pub fn description_str(&self) -> &str {
-		self.resolve(self.description())
-	}
-
-	/// Returns an iterator over resolved alias strings.
-	pub fn aliases_resolved(&self) -> Vec<&str> {
-		let meta = self.meta();
-		let start = meta.aliases.start as usize;
-		let end = start + meta.aliases.len as usize;
-		self.snap.alias_pool[start..end]
-			.iter()
-			.map(|&sym| self.snap.interner.resolve(sym))
-			.collect()
-	}
-}
-
-impl<T, Id: DenseId> std::ops::Deref for RegistryRef<T, Id>
-where
-	T: RuntimeEntry,
-{
-	type Target = T;
-
-	fn deref(&self) -> &T {
-		&self.snap.table[self.id.as_u32() as usize]
-	}
-}
-
-/// Single source of truth for registry lookups.
-pub struct Snapshot<T, Id: DenseId>
-where
-	T: RuntimeEntry,
-{
-	pub table: Arc<[Arc<T>]>,
-	pub by_key: Arc<FxHashMap<Symbol, Id>>,
-	pub interner: FrozenInterner,
-	pub alias_pool: Arc<[Symbol]>,
-	pub collisions: Arc<[Collision]>,
-}
-
-impl<T, Id: DenseId> Clone for Snapshot<T, Id>
-where
-	T: RuntimeEntry,
-{
-	fn clone(&self) -> Self {
-		Self {
-			table: self.table.clone(),
-			by_key: self.by_key.clone(),
-			interner: self.interner.clone(),
-			alias_pool: self.alias_pool.clone(),
-			collisions: self.collisions.clone(),
-		}
-	}
-}
-
-impl<T, Id: DenseId> Snapshot<T, Id>
-where
-	T: RuntimeEntry,
-{
-	/// Creates a new snapshot from a builtin index.
-	fn from_builtins(b: &RegistryIndex<T, Id>) -> Self {
-		Self {
-			table: b.table.clone(),
-			by_key: b.by_key.clone(),
-			interner: b.interner.clone(),
-			alias_pool: b.alias_pool.clone(),
-			collisions: b.collisions.clone(),
-		}
-	}
-}
-
-/// Lightweight guard for efficient iteration without per-item Arc clones.
-pub struct SnapshotGuard<T, Id: DenseId>
-where
-	T: RuntimeEntry,
-{
-	snap: Arc<Snapshot<T, Id>>,
-}
-
-impl<T, Id: DenseId> SnapshotGuard<T, Id>
-where
-	T: RuntimeEntry,
-{
-	/// Returns an iterator over all entries in the snapshot.
-	pub fn iter(&self) -> impl Iterator<Item = &T> + '_ {
-		self.snap.table.iter().map(|arc| arc.as_ref())
-	}
-
-	/// Returns an iterator over (Id, &T) pairs.
-	pub fn iter_items(&self) -> impl Iterator<Item = (Id, &T)> + '_ {
-		self.snap
-			.table
-			.iter()
-			.enumerate()
-			.map(|(idx, arc)| (Id::from_u32(idx as u32), arc.as_ref()))
-	}
-
-	/// Returns the number of entries.
-	pub fn len(&self) -> usize {
-		self.snap.table.len()
-	}
-
-	/// Returns true if empty.
-	pub fn is_empty(&self) -> bool {
-		self.snap.table.is_empty()
-	}
-}
 
 /// Registry wrapper for runtime-extensible registries.
 pub struct RuntimeRegistry<T, Id: DenseId>
@@ -403,9 +186,9 @@ where
 	/// Returns `Err(RegisterError::Rejected)` if rejected due to policy.
 	pub fn register<In>(&self, def: &'static In) -> Result<RegistryRef<T, Id>, RegisterError<T, Id>>
 	where
-		In: super::BuildEntry<T>,
+		In: super::build::BuildEntry<T>,
 	{
-		use crate::core::index::build::build_lookup;
+		use super::lookup::build_lookup;
 
 		loop {
 			let old = self.snap.load_full();
@@ -467,14 +250,7 @@ where
 					DuplicatePolicy::FirstWins => false,
 					DuplicatePolicy::LastWins => true,
 					DuplicatePolicy::ByPriority => {
-						let ord =
-							new_party
-								.priority
-								.cmp(&existing_party.priority)
-								.then_with(|| {
-									new_party.source.rank().cmp(&existing_party.source.rank())
-								});
-						ord == Ordering::Greater
+						super::cmp_party(&new_party, &existing_party) == Ordering::Greater
 					}
 					DuplicatePolicy::Panic => {
 						panic!(
