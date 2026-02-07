@@ -179,7 +179,7 @@ impl<T: FromOptionValue> TypedOptionKey<T> {
 		self.def.kdl_key
 	}
 
-	/// Returns the untyped option key for use with [`OptionAccess::option_raw`].
+	/// Returns the untyped option key for use with [`crate::actions::editor_ctx::OptionAccess::option_raw`].
 	pub fn untyped(&self) -> OptionKey {
 		self.def
 	}

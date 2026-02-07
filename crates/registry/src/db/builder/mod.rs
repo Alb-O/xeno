@@ -149,9 +149,9 @@ fn validate_option_def(def: &'static OptionDef) {
 }
 
 impl Default for RegistryDbBuilder {
-    fn default() -> Self {
-        Self::new()
-    }
+	fn default() -> Self {
+		Self::new()
+	}
 }
 
 impl RegistryDbBuilder {

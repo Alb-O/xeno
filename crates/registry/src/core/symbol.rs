@@ -36,6 +36,13 @@ impl InternerBuilder {
 		Self::default()
 	}
 
+	pub fn from_frozen(f: &FrozenInterner) -> Self {
+		Self {
+			pool: f.pool.to_vec(),
+			lookup: f.lookup.as_ref().clone(),
+		}
+	}
+
 	pub fn intern(&mut self, s: &str) -> Symbol {
 		if let Some(&sym) = self.lookup.get(s) {
 			return sym;

@@ -18,7 +18,7 @@ pub fn find_action(key: &str) -> Option<RegistryRef<ActionEntry, ActionId>> {
 }
 
 /// Look up an action by typed ActionId.
-pub fn find_action_by_id(id: ActionId) -> Option<ActionEntry> {
+pub fn find_action_by_id(id: ActionId) -> Option<std::sync::Arc<ActionEntry>> {
 	resolve_action_id_typed(id)
 }
 

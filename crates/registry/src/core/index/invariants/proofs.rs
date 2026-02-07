@@ -251,3 +251,125 @@ pub(crate) fn test_snapshot_liveness_across_swap() {
 		"No mutation means same snapshot"
 	);
 }
+
+/// CAS loop ensures no lost updates under concurrent registration.
+#[cfg_attr(test, test)]
+pub(crate) fn test_no_lost_updates() {
+	use std::sync::Arc;
+	use std::sync::atomic::{AtomicUsize, Ordering};
+	use std::thread;
+
+	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> = RegistryBuilder::new("test");
+	builder.push(Arc::new(make_def("base", 0)));
+	let registry = Arc::new(RuntimeRegistry::new("test", builder.build()));
+
+	let num_threads = 8;
+	let regs_per_thread = 10;
+	let total_regs = num_threads * regs_per_thread;
+
+	// Track successful registrations
+	let success_count = Arc::new(AtomicUsize::new(0));
+
+	let handles: Vec<_> = (0..num_threads)
+		.map(|thread_id| {
+			let registry = Arc::clone(&registry);
+			let success_count = Arc::clone(&success_count);
+			thread::spawn(move || {
+				for i in 0..regs_per_thread {
+					// Create unique ID for this registration
+					let id = format!("thread{}_reg{}", thread_id, i);
+					let id_leak: &'static str = Box::leak(id.into_boxed_str());
+
+					// Leak the def to get 'static reference (matches real usage where defs are static)
+					let def: &'static TestDef = Box::leak(Box::new(TestDef {
+						meta: RegistryMetaStatic {
+							id: id_leak,
+							name: id_leak,
+							aliases: &[],
+							description: "",
+							priority: (thread_id * 100 + i) as i16,
+							source: RegistrySource::Runtime,
+							required_caps: &[],
+							flags: 0,
+						},
+					}));
+
+					if registry.register(def).is_ok() {
+						success_count.fetch_add(1, Ordering::SeqCst);
+					}
+				}
+			})
+		})
+		.collect();
+
+	// Wait for all threads
+	for handle in handles {
+		handle.join().unwrap();
+	}
+
+	// All registrations should have succeeded (unique IDs, no conflicts)
+	assert_eq!(
+		success_count.load(Ordering::SeqCst),
+		total_regs,
+		"All concurrent registrations should succeed"
+	);
+
+	// Verify all entries are present and resolvable
+	assert_eq!(registry.len(), 1 + total_regs);
+
+	// Spot check a few registrations
+	for thread_id in 0..num_threads {
+		for i in [0, regs_per_thread - 1] {
+			let id = format!("thread{}_reg{}", thread_id, i);
+			let entry = registry.get(&id);
+			assert!(entry.is_some(), "Entry {} should be resolvable", id);
+			assert_eq!(entry.unwrap().priority(), (thread_id * 100 + i) as i16);
+		}
+	}
+}
+
+/// Symbol resolution remains stable across snapshot swaps.
+#[cfg_attr(test, test)]
+pub(crate) fn test_symbol_stability_across_swap() {
+	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> = RegistryBuilder::new("test");
+	builder.push(Arc::new(make_def("stable", 10)));
+	let registry = RuntimeRegistry::new("test", builder.build());
+
+	// Hold a reference from before any swaps
+	let stable_ref = registry.get("stable").expect("stable must resolve");
+	let original_name = stable_ref.name_str().to_string();
+	let original_id = stable_ref.id_str().to_string();
+
+	// Register new entries to cause swaps
+	for i in 0..5 {
+		let id = format!("new{}", i);
+		let id_leak: &'static str = Box::leak(id.into_boxed_str());
+		let def: &'static TestDef = Box::leak(Box::new(TestDef {
+			meta: RegistryMetaStatic {
+				id: id_leak,
+				name: id_leak,
+				aliases: &[],
+				description: "",
+				priority: i as i16,
+				source: RegistrySource::Runtime,
+				required_caps: &[],
+				flags: 0,
+			},
+		}));
+
+		let _ = registry.register(def);
+	}
+
+	// Original reference must still resolve correctly
+	assert_eq!(
+		stable_ref.name_str(),
+		original_name,
+		"Name must be stable after swaps"
+	);
+	assert_eq!(
+		stable_ref.id_str(),
+		original_id,
+		"ID must be stable after swaps"
+	);
+	assert_eq!(stable_ref.priority(), 10, "Priority must be unchanged");
+}

@@ -1,4 +1,4 @@
-use std::sync::{LazyLock, OnceLock};
+use std::sync::{Arc, LazyLock, OnceLock};
 
 pub use crate::core::{
 	ActionId, CommandId, DenseId, GutterId, HookId, MotionId, OptionId, RegistryIndex,
@@ -35,7 +35,7 @@ pub struct RegistryDb {
 	pub gutters: RuntimeRegistry<GutterEntry, GutterId>,
 	pub statusline: RuntimeRegistry<StatuslineEntry, StatuslineId>,
 	pub hooks: HooksRegistry,
-	pub(crate) action_id_to_def: Vec<ActionEntry>,
+	pub(crate) action_id_to_def: Vec<Arc<ActionEntry>>,
 	pub notifications: Vec<&'static crate::notifications::NotificationDef>,
 	pub key_prefixes: Vec<KeyPrefixDef>,
 	#[cfg(feature = "keymap")]
@@ -104,7 +104,7 @@ pub static HOOKS: LazyLock<&'static HooksRegistry> = LazyLock::new(|| &get_db().
 pub static NOTIFICATIONS: LazyLock<&'static [&'static crate::notifications::NotificationDef]> =
 	LazyLock::new(|| get_db().notifications.as_slice());
 
-pub fn resolve_action_id_typed(id: ActionId) -> Option<ActionEntry> {
+pub fn resolve_action_id_typed(id: ActionId) -> Option<Arc<ActionEntry>> {
 	get_db().action_id_to_def.get(id.0 as usize).cloned()
 }
 

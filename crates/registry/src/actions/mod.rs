@@ -85,10 +85,10 @@ pub fn register_plugin(
 
 /// Registers an action definition at runtime.
 ///
-/// Returns `true` if the action was added, `false` if already registered.
+/// Returns `true` if the action was added, `false` if rejected (e.g., lower priority duplicate).
 #[cfg(feature = "db")]
 pub fn register_action(def: &'static ActionDef) -> bool {
-	ACTIONS.register(def)
+	ACTIONS.register(def).is_ok()
 }
 
 /// Finds an action by name, alias, or id.

@@ -11,7 +11,7 @@ pub struct RegistryIndex<T, Id: DenseId>
 where
 	T: RegistryEntry + Send + Sync + 'static,
 {
-	pub(crate) table: Arc<[T]>,
+	pub(crate) table: Arc<[Arc<T>]>,
 	pub(crate) by_key: Arc<Map<Symbol, Id>>,
 	pub(crate) interner: FrozenInterner,
 	pub(crate) alias_pool: Arc<[Symbol]>,
@@ -54,19 +54,19 @@ where
 	/// Returns the definition for a given ID, if it exists.
 	#[inline]
 	pub fn get_by_id(&self, id: Id) -> Option<&T> {
-		self.table.get(id.as_u32() as usize)
+		self.table.get(id.as_u32() as usize).map(|arc| arc.as_ref())
 	}
 
 	/// Returns all effective definitions in stable order.
 	#[inline]
-	pub fn items(&self) -> &[T] {
+	pub fn items(&self) -> &[Arc<T>] {
 		&self.table
 	}
 
 	/// Returns an iterator over effective definitions in stable order.
 	#[inline]
 	pub fn iter(&self) -> impl Iterator<Item = &T> + '_ {
-		self.table.iter()
+		self.table.iter().map(|arc| arc.as_ref())
 	}
 
 	/// Returns recorded collisions for diagnostics.
