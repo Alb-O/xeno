@@ -62,7 +62,7 @@ mod tests;
 impl Buffer {
 	/// Prepares an insertion transaction at all cursor positions.
 	///
-	/// Returns the [`Transaction`] and the resulting [`Selection`] without
+	/// Returns the [`Transaction`] and the resulting [`xeno_primitives::Selection`] without
 	/// applying them.
 	pub fn prepare_insert(&mut self, text: &str) -> (Transaction, xeno_primitives::Selection) {
 		self.ensure_valid_selection();

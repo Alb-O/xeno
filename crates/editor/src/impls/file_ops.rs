@@ -1,6 +1,6 @@
 //! File operations (save, load).
 //!
-//! Implements [`FileOpsAccess`] for the [`Editor`].
+//! Implements [`xeno_registry::FileOpsAccess`] for the [`Editor`].
 
 use std::io;
 use std::path::{Path, PathBuf};
@@ -92,7 +92,7 @@ impl xeno_registry::FileOpsAccess for Editor {
 impl Editor {
 	/// Applies a loaded file to the editor.
 	///
-	/// Called by [`IoMsg::FileLoaded`] when background file loading completes.
+	/// Called by [`crate::msg::IoMsg::FileLoaded`] when background file loading completes.
 	/// Replaces the buffer's content with the loaded rope and emits hooks.
 	pub(crate) fn apply_loaded_file(&mut self, path: PathBuf, rope: Rope, readonly: bool) {
 		tracing::debug!(path = %path.display(), len = rope.len_bytes(), "File loaded");

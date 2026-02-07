@@ -56,7 +56,7 @@ pub struct DocumentMetaOutcome {
 /// # Architecture
 ///
 /// - Content is stored as a [`Rope`] for efficient editing of large files.
-/// - Edits are applied via [`Transaction`] objects through the [`commit`] method.
+/// - Edits are applied via [`Transaction`] objects through the [`Self::commit`] method.
 /// - History is managed by an [`UndoBackend`] at the document level, ensuring
 ///   undoing an edit affects all views of that document.
 pub struct Document {
@@ -190,7 +190,7 @@ impl Document {
 
 	/// Applies an edit bypassing the document-level readonly check.
 	///
-	/// Access is gated by [`CommitBypassToken`], which can only be constructed
+	/// Access is gated by [`crate::buffer::CommitBypassToken`], which can only be constructed
 	/// within the `buffer` module. This ensures the caller has already
 	/// performed view-level readonly validation.
 	pub(crate) fn commit_unchecked(

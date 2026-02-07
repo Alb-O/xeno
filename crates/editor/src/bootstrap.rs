@@ -4,11 +4,11 @@
 //! theme background immediately on startup, avoiding the flash that occurs
 //! when the terminal background differs from the editor theme.
 //!
-//! Call [`init`] early in startup (before creating the Editor) to load
+//! Call [`crate::bootstrap::init`] early in startup (before creating the Editor) to load
 //! cached theme colors. The bootstrap theme is then automatically used
 //! by [`Config::new`] for the first frame.
 //!
-//! [`Config::new`]: crate::types::config::Config::new
+//! [`Config::new`]: crate::types::Config::new
 
 use std::fs;
 use std::path::PathBuf;

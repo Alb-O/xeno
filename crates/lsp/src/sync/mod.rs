@@ -291,7 +291,7 @@ impl DocumentSync {
 		Ok(())
 	}
 
-	/// Like [`notify_change_incremental_no_content`] but returns a barrier receiver.
+	/// Like [`Self::notify_change_incremental_no_content`] but returns a barrier receiver.
 	pub async fn notify_change_incremental_no_content_with_barrier(
 		&self,
 		path: &Path,

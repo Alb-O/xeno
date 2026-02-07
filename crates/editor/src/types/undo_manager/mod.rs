@@ -150,7 +150,7 @@ impl UndoManager {
 
 	/// Pushes an undo group without clearing the redo stack.
 	///
-	/// Used internally by [`finalize_edit`] which handles redo clearing
+	/// Used internally by [`Self::finalize_edit`] which handles redo clearing
 	/// separately to ensure it happens on all applied edits (even merged ones).
 	fn push_undo_group(&mut self, group: EditorUndoGroup) {
 		trace!(

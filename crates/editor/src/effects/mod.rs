@@ -69,8 +69,8 @@ impl crate::impls::Editor {
 
 	/// Dispatches a single [`OverlayRequest`] to the overlay system.
 	///
-	/// Commit closes are deferred via [`FrameState::pending_overlay_commit`]
-	/// because [`OverlayController::on_commit`] is async and cannot run inside
+	/// Commit closes are deferred via [`crate::types::FrameState::pending_overlay_commit`]
+	/// because [`crate::overlay::OverlayController::on_commit`] is async and cannot run inside
 	/// the synchronous effect flush loop.
 	pub(crate) fn handle_overlay_request(
 		&mut self,

@@ -233,7 +233,7 @@ impl Buffer {
 
 	/// Scrolls the viewport without moving the cursor.
 	///
-	/// Sets [`suppress_auto_scroll`] to prevent the viewport from chasing the
+	/// Sets [`Self::suppress_auto_scroll`] to prevent the viewport from chasing the
 	/// cursor back into view.
 	pub fn handle_mouse_scroll(
 		&mut self,

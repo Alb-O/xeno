@@ -3,15 +3,14 @@
 //! The [`Editor`] is the central workspace container, managing buffers, layout,
 //! and UI state. Implementation is split across focused modules:
 //!
-//! - [`buffer_ops`] - Buffer creation and management
-//! - [`editing`] - Text modification operations
-//! - [`file_ops`] - File save/load (implements [`FileOpsAccess`])
-//! - [`focus`] - View focus and navigation
-//! - [`lifecycle`] - Tick, startup, and render updates
-//! - [`splits`] - Split view management
-//! - [`theming`] - Theme and syntax highlighting
+//! - `buffer_ops` - Buffer creation and management
+//! - `editing` - Text modification operations
+//! - `file_ops` - File save/load (implements [`xeno_registry::FileOpsAccess`])
+//! - `focus` - View focus and navigation
+//! - `lifecycle` - Tick, startup, and render updates
+//! - `splits` - Split view management
+//! - `theming` - Theme and syntax highlighting
 //!
-//! [`FileOpsAccess`]: xeno_registry::FileOpsAccess
 
 /// Buffer creation operations.
 mod buffer_ops;
@@ -136,16 +135,9 @@ fn log_registry_summary_once() {
 ///
 /// # Focus and Navigation
 ///
-/// - [`focused_view`] - Current focus (buffer ID)
-/// - [`focus_buffer`] - Focus by ID
-/// - [`focus_next_view`] / [`focus_prev_view`] - Cycle through views
-///
-/// [`ViewId`]: crate::buffer::ViewId
-/// [`ViewId`]: crate::buffer::ViewId
-/// [`focused_view`]: Self::focused_view
-/// [`focus_buffer`]: Self::focus_buffer
-/// [`focus_next_view`]: Self::focus_next_view
-/// [`focus_prev_view`]: Self::focus_prev_view
+/// - `focused_view` - Current focus (buffer ID)
+/// - `focus_buffer` - Focus by ID
+/// - `focus_next_view` / `focus_prev_view` - Cycle through views
 pub(crate) struct EditorState {
 	/// Core editing state: buffers, workspace, undo history.
 	///

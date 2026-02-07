@@ -7,7 +7,7 @@
 //!
 //! The client spawns a language server process and communicates via stdin/stdout.
 //! It uses the [`crate::MainLoop`] to drive the LSP protocol, running in a
-//! background task. The client provides a [`ServerSocket`] for sending requests
+//! background task. The client provides a [`crate::ServerSocket`] for sending requests
 //! and notifications.
 //!
 //! # Event Handling

@@ -45,7 +45,7 @@ pub(crate) const LANGUAGE_SERVER_ID_IS_SLOT_PLUS_GENERATION: () = ();
 
 /// `ServerConfig` must carry a pre-assigned [`crate::client::LanguageServerId`].
 ///
-/// - Enforced in: [`crate::registry::Registry::get_or_start`], [`crate::client::LocalTransport::start`]
+/// - Enforced in: [`crate::registry::Registry::get_or_start`], `LocalTransport` `LspTransport::start` impl
 /// - Tested by: [`crate::session::manager::invariants::test_singleflight_start`]
 /// - Failure symptom: Transport-generated IDs diverge from registry IDs.
 pub(crate) const SERVER_CONFIG_CARRIES_PREASSIGNED_SERVER_ID: () = ();

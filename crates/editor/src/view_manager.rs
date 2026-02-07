@@ -1,6 +1,6 @@
 //! Buffer storage, ID generation, and focus tracking.
 //!
-//! [`ViewManager`] centralizes ownership of text buffers.
+//! [`crate::view_manager::ViewManager`] centralizes ownership of text buffers.
 
 use std::collections::HashMap;
 use std::path::PathBuf;

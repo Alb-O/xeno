@@ -22,8 +22,8 @@ impl Editor {
 
 	/// Completes a deferred overlay commit if one is pending.
 	///
-	/// [`OverlayController::on_commit`] is async, so `CloseModal { Commit }`
-	/// effects set [`FrameState::pending_overlay_commit`] instead of running
+	/// [`crate::overlay::OverlayController::on_commit`] is async, so `CloseModal { Commit }`
+	/// effects set [`crate::types::FrameState::pending_overlay_commit`] instead of running
 	/// the commit inline. This method MUST be called from every async
 	/// continuation that follows a [`flush_effects`](Self::flush_effects) call.
 	pub async fn flush_pending_overlay_commit(&mut self) {

@@ -16,14 +16,14 @@ pub struct LineSlice {
 }
 
 impl LineSlice {
-	/// Returns a [`RopeSlice`] for the content portion of the line (excluding newline).
+	/// Returns a [`xeno_primitives::RopeSlice`] for the content portion of the line (excluding newline).
 	pub fn content_slice<'a>(&self, rope: &'a Rope) -> xeno_primitives::RopeSlice<'a> {
 		rope.slice(self.start_char..self.content_end_char)
 	}
 
 	/// Returns the line content as a String.
 	///
-	/// Prefer [`content_slice`] for zero-copy access where possible.
+	/// Prefer [`Self::content_slice`] for zero-copy access where possible.
 	pub fn content_string(&self, rope: &Rope) -> String {
 		self.content_slice(rope).into()
 	}

@@ -1,21 +1,21 @@
 //! Async message bus for background task hydration.
 //!
-//! Background tasks send [`EditorMsg`] variants to update editor state after
+//! Background tasks send [`crate::msg::EditorMsg`] variants to update editor state after
 //! first frame renders. The main loop drains messages before each draw,
-//! aggregating [`Dirty`] flags to determine redraw needs.
+//! aggregating [`crate::msg::Dirty`] flags to determine redraw needs.
 //!
 //! # Architecture
 //!
 //! ```text
 //! Background Task ─┐
-//!                  ├──► EditorMsg ──► drain_messages() ──► Editor state update
+//!                  ├──► crate::msg::EditorMsg ──► drain_messages() ──► Editor state update
 //! Background Task ─┘
 //! ```
 //!
 //! Domain-specific messages wrap their payloads:
-//! - [`ThemeMsg`] - Theme registry and active theme updates
-//! - [`IoMsg`] - File load completion
-//! - [`LspMsg`] - LSP catalog and server lifecycle
+//! - [`crate::msg::ThemeMsg`] - Theme registry and active theme updates
+//! - [`crate::msg::IoMsg`] - File load completion
+//! - [`crate::msg::LspMsg`] - LSP catalog and server lifecycle
 
 mod dirty;
 mod io;

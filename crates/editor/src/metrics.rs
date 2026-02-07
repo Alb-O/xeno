@@ -1,6 +1,6 @@
 //! Runtime metrics for observability.
 //!
-//! This module provides [`EditorMetrics`] for tracking hook and LSP statistics.
+//! This module provides [`crate::metrics::EditorMetrics`] for tracking hook and LSP statistics.
 //! Metrics are emitted periodically via tracing and can be queried for debug displays.
 
 use std::sync::atomic::{AtomicU64, Ordering};

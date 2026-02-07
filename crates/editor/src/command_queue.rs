@@ -1,6 +1,6 @@
 //! Command queue for deferred command execution.
 //!
-//! When an action returns [`ActionResult::Command`], the command is queued here
+//! When actions request deferred command execution, the command is queued here
 //! for async execution on the next tick.
 
 use std::collections::VecDeque;
@@ -16,7 +16,7 @@ pub struct QueuedCommand {
 
 /// Queue for commands to be executed asynchronously.
 ///
-/// Actions can schedule commands via [`ActionResult::Command`]. The main loop
+/// Actions can schedule commands through action effects. The main loop
 /// drains this queue and executes commands with full async/editor access.
 #[derive(Default)]
 pub struct CommandQueue {

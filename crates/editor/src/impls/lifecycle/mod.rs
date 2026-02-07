@@ -47,7 +47,7 @@ impl Editor {
 
 	/// Runs the main editor tick: dirty buffer hooks, LSP sync, and animations.
 	///
-	/// Also drains completed background syntax parses from the [`SyntaxManager`]
+	/// Also drains completed background syntax parses from the [`crate::syntax_manager::SyntaxManager`]
 	/// and requests a redraw if any results were installed.
 	pub fn tick(&mut self) {
 		if self.state.syntax_manager.drain_finished_inflight() {

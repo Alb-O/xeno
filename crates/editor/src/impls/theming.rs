@@ -10,7 +10,7 @@ use super::Editor;
 impl Editor {
 	/// Resolves and applies the configured theme after themes are registered.
 	///
-	/// Called by [`ThemeMsg::ThemesReady`] after background theme loading completes.
+	/// Called by [`crate::msg::ThemeMsg::ThemesReady`] after background theme loading completes.
 	/// Falls back to current theme if resolution fails.
 	pub(crate) fn resolve_configured_theme(&mut self) {
 		use xeno_registry::options::keys;

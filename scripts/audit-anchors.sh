@@ -7,12 +7,12 @@ set -e
 RUSTDOCFLAGS="--document-private-items -D rustdoc::broken_intra_doc_links -A rustdoc::private_intra_doc_links -A warnings"
 
 echo "Auditing xeno-editor..."
-cargo doc -p xeno-editor --no-deps
+RUSTDOCFLAGS="$RUSTDOCFLAGS" cargo doc -p xeno-editor --no-deps
 
 echo "Auditing xeno-lsp..."
-cargo doc -p xeno-lsp --features position --no-deps
+RUSTDOCFLAGS="$RUSTDOCFLAGS" cargo doc -p xeno-lsp --features position --no-deps
 
 echo "Auditing xeno-registry..."
-cargo doc -p xeno-registry --no-deps
+RUSTDOCFLAGS="$RUSTDOCFLAGS" cargo doc -p xeno-registry --no-deps
 
 echo "Anchor audit PASSED."

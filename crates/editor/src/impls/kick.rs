@@ -1,6 +1,6 @@
 //! Background task spawning helpers.
 //!
-//! These methods spawn fire-and-forget tasks that send [`EditorMsg`] on completion.
+//! These methods spawn fire-and-forget tasks that send [`crate::msg::EditorMsg`] on completion.
 //! The main loop drains messages and applies them to editor state.
 
 use std::path::PathBuf;
@@ -15,7 +15,7 @@ impl Editor {
 	///
 	/// Seeds embedded themes into the data directory, then loads from
 	/// embedded, data, and config directories. Later sources override earlier
-	/// by ID: config > data > embedded. Sends [`ThemeMsg::ThemesReady`] when
+	/// by ID: config > data > embedded. Sends [`crate::msg::ThemeMsg::ThemesReady`] when
 	/// complete.
 	pub fn kick_theme_load(&self) {
 		let tx = self.msg_tx();
@@ -30,7 +30,7 @@ impl Editor {
 
 	/// Spawns a background task to load a file.
 	///
-	/// Sends [`IoMsg::FileLoaded`] or [`IoMsg::LoadFailed`] on completion.
+	/// Sends [`crate::msg::IoMsg::FileLoaded`] or [`crate::msg::IoMsg::LoadFailed`] on completion.
 	pub fn kick_file_load(&self, path: PathBuf) {
 		let tx = self.msg_tx();
 		tokio::spawn(async move {

@@ -1,13 +1,13 @@
 //! Hook runtime for scheduling and executing async hooks.
 //!
-//! This module provides [`HookRuntime`], which stores queued async hook futures
+//! This module provides [`crate::hook_runtime::HookRuntime`], which stores queued async hook futures
 //! and provides methods to drain them. It integrates with the sync emission path
-//! via [`HookScheduler`].
+//! via [`xeno_registry::HookScheduler`].
 //!
 //! # Concurrency Model
 //!
-//! Hooks execute concurrently via [`FuturesUnordered`], not sequentially. The
-//! [`drain_budget`](HookRuntime::drain_budget) method polls completions within a
+//! Hooks execute concurrently via [`tokio::task::JoinSet`], not sequentially. The
+//! [`drain_budget`](crate::hook_runtime::HookRuntime::drain_budget) method polls completions within a
 //! time budget, preventing UI stalls from slow hooks.
 
 use std::time::{Duration, Instant};

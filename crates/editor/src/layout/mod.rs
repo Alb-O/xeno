@@ -1,6 +1,6 @@
 //! Layout management for buffer splits.
 //!
-//! The [`LayoutManager`] manages overlay layers and handles split operations,
+//! The [`crate::layout::LayoutManager`] manages overlay layers and handles split operations,
 //! view navigation, and separator interactions (hover/drag for resizing).
 //!
 //! # Layer System
@@ -13,13 +13,13 @@
 //!
 //! # Modules
 //!
-//! - [`manager`] - Core `LayoutManager` struct
-//! - [`types`] - Type definitions ([`LayerId`], [`SeparatorId`], [`SeparatorHit`])
-//! - [`layers`] - Layer management and area computation
-//! - [`views`] - View navigation and lookup
-//! - [`splits`] - Split creation and removal
-//! - [`separators`] - Separator hit detection
-//! - [`drag`] - Drag state and hover animation
+//! - `manager` - Core `LayoutManager` struct
+//! - `types` - Type definitions (`LayerId`, `SeparatorId`, `SeparatorHit`)
+//! - `layers` - Layer management and area computation
+//! - `views` - View navigation and lookup
+//! - `splits` - Split creation and removal
+//! - `separators` - Separator hit detection
+//! - `drag` - Drag state and hover animation
 
 mod drag;
 mod layers;

@@ -24,7 +24,7 @@ impl Editor {
 	///
 	/// This is the authoritative entry point for all local document mutations.
 	/// It coordinates the following pipeline:
-	/// 1. Captures view snapshots (cursor, scroll) via the [`UndoManager`].
+	/// 1. Captures view snapshots (cursor, scroll) via the [`crate::types::UndoManager`].
 	/// 2. Applies the mutation to the local buffer.
 	/// 3. Notifies overlays.
 	pub(crate) fn apply_edit(

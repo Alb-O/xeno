@@ -17,7 +17,7 @@ pub struct FrameState {
 	///
 	/// Set when a `CloseModal { Commit }` effect arrives during the
 	/// synchronous flush loop; cleared by
-	/// [`Editor::flush_pending_overlay_commit`].
+	/// [`crate::impls::Editor::flush_pending_overlay_commit`].
 	pub pending_overlay_commit: bool,
 	/// Last tick timestamp.
 	pub last_tick: std::time::SystemTime,
