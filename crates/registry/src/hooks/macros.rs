@@ -40,7 +40,7 @@ macro_rules! hook {
 
 			#[allow(non_upper_case_globals)]
 			pub static [<HOOK_ $name>]: $crate::hooks::HookDef = $crate::hooks::HookDef {
-				meta: $crate::RegistryMeta {
+				meta: $crate::RegistryMetaStatic {
 					id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
 					name: stringify!($name),
 					aliases: &[],
@@ -73,7 +73,7 @@ macro_rules! hook {
 
 			#[allow(non_upper_case_globals)]
 			pub static [<HOOK_ $name>]: $crate::hooks::HookDef = $crate::hooks::HookDef {
-				meta: $crate::RegistryMeta {
+				meta: $crate::RegistryMetaStatic {
 					id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
 					name: stringify!($name),
 					aliases: &[],

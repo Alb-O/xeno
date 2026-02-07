@@ -23,7 +23,7 @@ macro_rules! motion {
 
 			#[allow(non_upper_case_globals)]
 			pub static [<MOTION_ $name>]: $crate::motions::MotionDef = $crate::motions::MotionDef {
-				meta: $crate::motions::RegistryMeta {
+				meta: $crate::motions::RegistryMetaStatic {
 					id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
 					name: stringify!($name),
 					aliases: $crate::__reg_opt_slice!($({$aliases})?),

@@ -1,97 +1,63 @@
 //! Statusline segment registry.
-//!
-//! Segments are rendered in order based on their position and priority.
 
 pub mod builtins;
 mod macros;
 
+use crate::core::index::{BuildEntry, RegistryMetaRef};
 pub use crate::core::{
-	RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta, RegistryMetadata, RegistryRef,
-	RegistrySource, RuntimeRegistry,
+	CapabilitySet, FrozenInterner, RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta,
+	RegistryMetaStatic, RegistryMetadata, RegistryRef, RegistrySource, RuntimeRegistry,
+	StatuslineId, Symbol, SymbolList,
 };
 // Re-export macros
 pub use crate::segment;
 
-/// Position in the statusline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SegmentPosition {
-	/// Left-aligned segments (mode, count, etc.)
 	Left,
-	/// Center segments (filename, etc.)
 	Center,
-	/// Right-aligned segments (position, diagnostics, etc.)
 	Right,
 }
 
-/// Context provided to statusline segment renderers.
 pub struct StatuslineContext<'a> {
-	/// Current mode name.
 	pub mode_name: &'a str,
-	/// File path being edited.
 	pub path: Option<&'a str>,
-	/// Whether the buffer is modified.
 	pub modified: bool,
-	/// Whether the buffer is read-only.
 	pub readonly: bool,
-	/// Current line number (1-indexed).
 	pub line: usize,
-	/// Current column number (1-indexed).
 	pub col: usize,
-	/// Numeric count prefix (0 if not specified).
 	pub count: u32,
-	/// Total lines in document.
 	pub total_lines: usize,
-	/// File type name if detected.
 	pub file_type: Option<&'a str>,
-	/// Current buffer index (1-indexed).
 	pub buffer_index: usize,
-	/// Total number of open buffers.
 	pub buffer_count: usize,
-
-	/// Buffer sync role.
 	pub sync_role: Option<&'a str>,
-	/// Buffer sync status description.
 	pub sync_status: Option<&'a str>,
 }
 
-/// A rendered segment with styling information.
 #[derive(Debug, Clone)]
 pub struct RenderedSegment {
-	/// The text content.
 	pub text: String,
-	/// Style hint for the segment.
 	pub style: SegmentStyle,
 }
 
-/// Style hints for segments (actual colors handled by terminal layer).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum SegmentStyle {
-	/// Default style.
 	#[default]
 	Normal,
-	/// Mode indicator style (varies by mode).
 	Mode,
-	/// Inverted/reversed style.
 	Inverted,
-	/// Dimmed/secondary style.
 	Dim,
-	/// Warning style.
 	Warning,
-	/// Error style.
 	Error,
-	/// Success/good style.
 	Success,
 }
 
-/// Definition of a statusline segment.
+#[derive(Clone, Copy)]
 pub struct StatuslineSegmentDef {
-	/// Common registry metadata.
-	pub meta: RegistryMeta,
-	/// Position in the statusline.
+	pub meta: RegistryMetaStatic,
 	pub position: SegmentPosition,
-	/// Whether this segment is enabled by default.
 	pub default_enabled: bool,
-	/// Render function.
 	pub render: fn(&StatuslineContext) -> Option<RenderedSegment>,
 }
 
@@ -105,65 +71,111 @@ impl core::fmt::Debug for StatuslineSegmentDef {
 	}
 }
 
+impl crate::core::RegistryEntry for StatuslineSegmentDef {
+	fn meta(&self) -> &RegistryMeta {
+		panic!("Called meta() on static StatuslineSegmentDef")
+	}
+}
+
+pub struct StatuslineEntry {
+	pub meta: RegistryMeta,
+	pub position: SegmentPosition,
+	pub default_enabled: bool,
+	pub render: fn(&StatuslineContext) -> Option<RenderedSegment>,
+}
+
+crate::impl_registry_entry!(StatuslineEntry);
+
+impl BuildEntry<StatuslineEntry> for StatuslineSegmentDef {
+	fn meta_ref(&self) -> RegistryMetaRef<'_> {
+		RegistryMetaRef {
+			id: self.meta.id,
+			name: self.meta.name,
+			aliases: self.meta.aliases,
+			description: self.meta.description,
+			priority: self.meta.priority,
+			source: self.meta.source,
+			required_caps: self.meta.required_caps,
+			flags: self.meta.flags,
+		}
+	}
+
+	fn short_desc_str(&self) -> &str {
+		self.meta.name
+	}
+
+	fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
+		let meta = self.meta_ref();
+		sink.push(meta.id);
+		sink.push(meta.name);
+		sink.push(meta.description);
+		for &alias in meta.aliases {
+			sink.push(alias);
+		}
+	}
+
+	fn build(&self, interner: &FrozenInterner, alias_pool: &mut Vec<Symbol>) -> StatuslineEntry {
+		let meta_ref = self.meta_ref();
+		let start = alias_pool.len() as u32;
+		for &alias in meta_ref.aliases {
+			alias_pool.push(interner.get(alias).expect("missing interned alias"));
+		}
+		let len = (alias_pool.len() as u32 - start) as u16;
+
+		let meta = RegistryMeta {
+			id: interner.get(meta_ref.id).expect("missing interned id"),
+			name: interner.get(meta_ref.name).expect("missing interned name"),
+			description: interner
+				.get(meta_ref.description)
+				.expect("missing interned description"),
+			aliases: SymbolList { start, len },
+			priority: meta_ref.priority,
+			source: meta_ref.source,
+			required_caps: CapabilitySet::from_iter(meta_ref.required_caps.iter().cloned()),
+			flags: meta_ref.flags,
+		};
+
+		StatuslineEntry {
+			meta,
+			position: self.position,
+			default_enabled: self.default_enabled,
+			render: self.render,
+		}
+	}
+}
+
 #[cfg(feature = "db")]
 pub use crate::db::STATUSLINE_SEGMENTS;
 
-/// Get all segments for a given position, sorted by priority.
 #[cfg(feature = "db")]
-pub fn segments_for_position(position: SegmentPosition) -> Vec<RegistryRef<StatuslineSegmentDef>> {
+pub fn segments_for_position(
+	position: SegmentPosition,
+) -> Vec<RegistryRef<StatuslineEntry, StatuslineId>> {
 	STATUSLINE_SEGMENTS
-		.iter()
+		.all()
 		.into_iter()
 		.filter(|s| s.position == position && s.default_enabled)
 		.collect()
 }
 
-/// Render all segments for a position.
 #[cfg(feature = "db")]
 pub fn render_position(position: SegmentPosition, ctx: &StatuslineContext) -> Vec<RenderedSegment> {
 	let mut segments = segments_for_position(position);
-	segments.sort_by(|a, b| {
-		b.meta()
-			.priority
-			.cmp(&a.meta().priority)
-			.then_with(|| a.meta().name.cmp(b.meta().name))
-	});
+	segments.sort_by(|a, b| b.meta().priority.cmp(&a.meta().priority));
 	segments
 		.into_iter()
 		.filter_map(|seg| (seg.render)(ctx))
 		.collect()
 }
 
-/// Find a segment by name.
 #[cfg(feature = "db")]
-pub fn find_segment(name: &str) -> Option<RegistryRef<StatuslineSegmentDef>> {
+pub fn find_segment(name: &str) -> Option<RegistryRef<StatuslineEntry, StatuslineId>> {
 	STATUSLINE_SEGMENTS.get(name)
 }
 
-/// Get all registered segments, sorted by priority.
 #[cfg(feature = "db")]
-pub fn all_segments() -> Vec<RegistryRef<StatuslineSegmentDef>> {
+pub fn all_segments() -> Vec<RegistryRef<StatuslineEntry, StatuslineId>> {
 	STATUSLINE_SEGMENTS.all()
 }
 
-crate::impl_registry_entry!(StatuslineSegmentDef);
 pub use builtins::register_builtins;
-
-use crate::error::RegistryError;
-
-/// Plugin registration callback for the statusline module.
-///
-/// Underutilized: duplicates `builtins::register_all` → `register_builtins`.
-pub fn register_plugin(
-	db: &mut crate::db::builder::RegistryDbBuilder,
-) -> Result<(), RegistryError> {
-	register_builtins(db);
-	Ok(())
-}
-
-inventory::submit! {
-	crate::PluginDef::new(
-		crate::RegistryMeta::minimal("statusline-builtin", "Statusline Builtin", "Builtin statusline segments"),
-		register_plugin
-	)
-}

@@ -131,21 +131,23 @@ impl Editor {
 
 	pub(crate) fn clear_lsp_menu(&mut self) {
 		if let Some(completions) = self.overlays().get::<CompletionState>()
-			&& completions.active {
-				let completions = self.overlays_mut().get_or_default::<CompletionState>();
-				completions.items.clear();
-				completions.selected_idx = None;
-				completions.active = false;
-				completions.scroll_offset = 0;
-				completions.replace_start = 0;
-				completions.query.clear();
-			}
+			&& completions.active
+		{
+			let completions = self.overlays_mut().get_or_default::<CompletionState>();
+			completions.items.clear();
+			completions.selected_idx = None;
+			completions.active = false;
+			completions.scroll_offset = 0;
+			completions.replace_start = 0;
+			completions.query.clear();
+		}
 
 		if let Some(menu_state) = self.overlays().get::<LspMenuState>()
-			&& menu_state.is_active() {
-				let menu_state = self.overlays_mut().get_or_default::<LspMenuState>();
-				menu_state.clear();
-			}
+			&& menu_state.is_active()
+		{
+			let menu_state = self.overlays_mut().get_or_default::<LspMenuState>();
+			menu_state.clear();
+		}
 
 		self.state.frame.needs_redraw = true;
 	}

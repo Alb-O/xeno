@@ -1,35 +1,5 @@
-use super::capability::Capability;
-
-/// Numeric identifier for an action in the registry.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ActionId(pub u32);
-
-impl ActionId {
-	/// Represents an invalid action ID.
-	pub const INVALID: ActionId = ActionId(u32::MAX);
-
-	/// Returns true if this action ID is valid.
-	#[inline]
-	pub fn is_valid(self) -> bool {
-		self != Self::INVALID
-	}
-
-	/// Returns the underlying u32 value.
-	#[inline]
-	pub fn as_u32(self) -> u32 {
-		self.0
-	}
-}
-
-impl std::fmt::Display for ActionId {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		if *self == Self::INVALID {
-			write!(f, "ActionId(INVALID)")
-		} else {
-			write!(f, "ActionId({})", self.0)
-		}
-	}
-}
+use super::capability::{Capability, CapabilitySet};
+use super::symbol::Symbol;
 
 /// Represents where a registry item was defined.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -63,29 +33,21 @@ impl core::fmt::Display for RegistrySource {
 	}
 }
 
-/// Common metadata for all registry item types.
+/// Static metadata for const declarations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct RegistryMeta {
-	/// Unique identifier (e.g., "xeno-stdlib::move_left").
+pub struct RegistryMetaStatic {
 	pub id: &'static str,
-	/// Human-readable name for UI display.
 	pub name: &'static str,
-	/// Alternative names for command/action lookup.
 	pub aliases: &'static [&'static str],
-	/// Description for help text.
 	pub description: &'static str,
-	/// Priority for conflict resolution (higher wins).
 	pub priority: i16,
-	/// Where this item was defined.
 	pub source: RegistrySource,
-	/// Capabilities required to execute this item.
 	pub required_caps: &'static [Capability],
-	/// Bitflags for additional behavior hints.
 	pub flags: u32,
 }
 
-impl RegistryMeta {
-	/// Creates a new RegistryMeta with all fields specified.
+impl RegistryMetaStatic {
+	/// Creates a new RegistryMetaStatic with all fields specified.
 	#[allow(clippy::too_many_arguments, reason = "constructor for all fields")]
 	pub const fn new(
 		id: &'static str,
@@ -109,7 +71,7 @@ impl RegistryMeta {
 		}
 	}
 
-	/// Creates a minimal RegistryMeta with defaults for optional fields.
+	/// Creates a minimal RegistryMetaStatic with defaults for optional fields.
 	pub const fn minimal(id: &'static str, name: &'static str, description: &'static str) -> Self {
 		Self {
 			id,
@@ -122,4 +84,32 @@ impl RegistryMeta {
 			flags: 0,
 		}
 	}
+}
+
+/// Metadata string list handle (index range into snapshot alias pool).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct SymbolList {
+	pub start: u32,
+	pub len: u16,
+}
+
+/// Common metadata for all registry item types (symbolized for runtime).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RegistryMeta {
+	/// Unique identifier (interned).
+	pub id: Symbol,
+	/// Human-readable name for UI display (interned).
+	pub name: Symbol,
+	/// Description for help text (interned).
+	pub description: Symbol,
+	/// Alternative names for command/action lookup (interned index range).
+	pub aliases: SymbolList,
+	/// Priority for conflict resolution (higher wins).
+	pub priority: i16,
+	/// Where this item was defined.
+	pub source: RegistrySource,
+	/// Capabilities required to execute this item.
+	pub required_caps: CapabilitySet,
+	/// Bitflags for additional behavior hints.
+	pub flags: u32,
 }

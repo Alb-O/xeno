@@ -2,15 +2,13 @@
 
 mod build;
 mod collision;
-pub(crate) mod insert;
 pub(crate) mod runtime;
 mod types;
 
-pub use build::RegistryBuilder;
-pub use collision::{ChooseWinner, Collision, DuplicatePolicy, KeyKind, KeyStore};
-pub use insert::{insert_id_key_runtime, insert_typed_key};
-pub use runtime::{RegistryRef, RuntimeRegistry};
-pub use types::{DefPtr, DefRef, RegistryIndex};
+pub use build::{BuildEntry, RegistryBuilder, RegistryMetaRef};
+pub use collision::{Collision, CollisionKind, DuplicatePolicy, KeyKind, Party, Resolution};
+pub use runtime::{RegistryRef, RuntimeEntry, RuntimeRegistry, Snapshot};
+pub use types::RegistryIndex;
 
 #[cfg(any(test, doc))]
 pub(crate) mod invariants;

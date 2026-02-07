@@ -28,8 +28,14 @@ impl Editor {
 
 	/// Sets the editor's color theme by name.
 	pub fn set_theme(&mut self, theme_name: &str) -> Result<(), CommandError> {
-		if let Some(theme) = xeno_registry::themes::get_theme(theme_name) {
-			self.state.config.theme = *theme;
+		if let Some(theme_ref) = xeno_registry::themes::get_theme(theme_name) {
+			// Leak the name for RegistryMetaStatic since themes are rarely changed
+			let name: &'static str = Box::leak(theme_name.to_string().into_boxed_str());
+			self.state.config.theme = xeno_registry::themes::Theme {
+				meta: xeno_registry::RegistryMetaStatic::minimal(name, name, ""),
+				variant: theme_ref.variant,
+				colors: theme_ref.colors,
+			};
 			// Increment theme epoch to invalidate highlight cache
 			let new_epoch = self.state.render_cache.theme_epoch.wrapping_add(1);
 			self.state.render_cache.set_theme_epoch(new_epoch);

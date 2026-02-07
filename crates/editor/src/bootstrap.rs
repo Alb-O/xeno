@@ -209,10 +209,10 @@ fn create_bootstrap_theme(colors: &BootstrapColors) -> &'static Theme {
 		ColorPair, ModeColors, NotificationColors, PopupColors, SemanticColors, SyntaxStyles,
 		ThemeColors, UiColors,
 	};
-	use xeno_registry::{RegistryMeta, RegistrySource};
+	use xeno_registry::{RegistryMetaStatic, RegistrySource};
 
 	Box::leak(Box::new(Theme {
-		meta: RegistryMeta {
+		meta: RegistryMetaStatic {
 			id: "bootstrap",
 			name: "bootstrap",
 			aliases: &[],

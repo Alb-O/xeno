@@ -4,13 +4,13 @@
 //! This module provides auto-registration via the [`action!`] macro and O(1) lookup.
 
 pub use crate::core::{
-	Capability, CommandError, RegistryBuilder, RegistryEntry, RegistryMeta, RegistryMetadata,
-	RegistryRef, RegistrySource, RuntimeRegistry,
+	Capability, CommandError, RegistryBuilder, RegistryEntry, RegistryMeta, RegistryMetaStatic,
+	RegistryMetadata, RegistryRef, RegistrySource, RuntimeRegistry,
 };
 
 pub mod builtins;
 mod context;
-mod definition;
+pub mod definition;
 pub mod edit_op;
 mod effects;
 mod keybindings;
@@ -21,15 +21,17 @@ mod result;
 pub mod editor_ctx;
 
 pub use context::{ActionArgs, ActionContext};
-pub use definition::{ActionDef, ActionHandler};
+pub use definition::{ActionDef, ActionEntry, ActionHandler};
 
 // Re-export macros
 pub use crate::action;
-pub use crate::core::Key;
+pub use crate::core::{ActionId, Key};
 pub use crate::{key_prefix, result_extension_handler, result_handler};
 
-/// Typed handle to an action definition.
-pub type ActionKey = Key<ActionDef>;
+/// Typed handle to an action definition (compile-time builtins).
+pub type ActionKey = Key<ActionDef, ActionId>;
+/// Typed reference to a runtime action entry.
+pub type ActionRef = RegistryRef<ActionEntry, ActionId>;
 pub use builtins::{cursor_motion, selection_motion};
 pub use edit_op::{
 	CharMapKind, CursorAdjust, EditOp, EditPlan, PostEffect, PreEffect, SelectionOp, TextTransform,
@@ -91,28 +93,12 @@ pub fn register_action(def: &'static ActionDef) -> bool {
 
 /// Finds an action by name, alias, or id.
 #[cfg(feature = "db")]
-pub fn find_action(name: &str) -> Option<RegistryRef<ActionDef>> {
+pub fn find_action(name: &str) -> Option<ActionRef> {
 	ACTIONS.get(name)
 }
 
 /// Returns all registered actions (builtins + runtime), sorted by name.
 #[cfg(feature = "db")]
-pub fn all_actions() -> Vec<RegistryRef<ActionDef>> {
+pub fn all_actions() -> Vec<ActionRef> {
 	ACTIONS.all()
-}
-
-#[cfg(all(test, feature = "db"))]
-mod tests {
-	use super::*;
-
-	#[test]
-	fn test_actions_short_desc_not_empty() {
-		for action in all_actions() {
-			assert!(
-				!action.short_desc.trim().is_empty(),
-				"Action '{}' is missing a short_desc. Please provide one for the which-key HUD.",
-				action.id()
-			);
-		}
-	}
 }

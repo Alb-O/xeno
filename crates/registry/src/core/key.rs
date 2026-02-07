@@ -190,14 +190,14 @@ impl FromOptionValue for String {
 /// Wraps either a `&'static T` (for compile-time builtins) or a [`RegistryRef<T>`]
 /// (for runtime-registered definitions). Provides uniform `&T` access via [`Key::def`]
 /// regardless of backing storage.
-pub enum Key<T: RegistryEntry + Send + Sync + 'static> {
+pub enum Key<T: RegistryEntry + Send + Sync + 'static, Id: crate::core::DenseId> {
 	/// Builtin definition with `'static` lifetime.
 	Static(&'static T),
 	/// Runtime definition pinned by a snapshot guard.
-	Ref(RegistryRef<T>),
+	Ref(RegistryRef<T, Id>),
 }
 
-impl<T: RegistryEntry + Send + Sync + 'static> Clone for Key<T> {
+impl<T: RegistryEntry + Send + Sync + 'static, Id: crate::core::DenseId> Clone for Key<T, Id> {
 	fn clone(&self) -> Self {
 		match self {
 			Self::Static(s) => Self::Static(s),
@@ -206,14 +206,14 @@ impl<T: RegistryEntry + Send + Sync + 'static> Clone for Key<T> {
 	}
 }
 
-impl<T: RegistryEntry + Send + Sync + 'static> Key<T> {
+impl<T: RegistryEntry + Send + Sync + 'static, Id: crate::core::DenseId> Key<T, Id> {
 	/// Creates a new typed handle from a static reference.
 	pub const fn new(def: &'static T) -> Self {
 		Self::Static(def)
 	}
 
 	/// Creates a new typed handle from a registry reference.
-	pub fn new_ref(r: RegistryRef<T>) -> Self {
+	pub fn new_ref(r: RegistryRef<T, Id>) -> Self {
 		Self::Ref(r)
 	}
 
@@ -225,14 +225,19 @@ impl<T: RegistryEntry + Send + Sync + 'static> Key<T> {
 		}
 	}
 
-	/// Returns the name of the referenced definition.
-	pub fn name(&self) -> &str {
+	/// Returns the name symbol of the referenced definition.
+	pub fn name(&self) -> super::Symbol {
 		self.def().name()
 	}
 }
 
-impl<T: RegistryEntry + Send + Sync + 'static> core::fmt::Debug for Key<T> {
+impl<T: RegistryEntry + Send + Sync + 'static, Id: crate::core::DenseId> core::fmt::Debug
+	for Key<T, Id>
+{
 	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-		f.debug_tuple("Key").field(&self.name()).finish()
+		match self {
+			Self::Static(_) => f.debug_tuple("Key::Static").finish(),
+			Self::Ref(r) => f.debug_tuple("Key::Ref").field(&r.dense_id()).finish(),
+		}
 	}
 }

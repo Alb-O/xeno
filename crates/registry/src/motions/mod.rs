@@ -1,17 +1,13 @@
 //! Motion registry.
-//!
-//! Motions are fundamental cursor movement operations (char, word, line, etc.) that
-//! actions compose to implement editor commands. Each motion module co-locates its
-//! registration with implementation.
-//!
-//! The [`movement`] module re-exports movement functions and shared utilities.
 
 use ropey::RopeSlice;
 use xeno_primitives::Range;
 
+use crate::core::index::{BuildEntry, RegistryMetaRef};
 pub use crate::core::{
-	Capability, Key, RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta, RegistryMetadata,
-	RegistryRef, RegistrySource, RuntimeRegistry,
+	Capability, CapabilitySet, FrozenInterner, Key, MotionId, RegistryBuilder, RegistryEntry,
+	RegistryIndex, RegistryMeta, RegistryMetaStatic, RegistryMetadata, RegistryRef, RegistrySource,
+	RuntimeRegistry, Symbol, SymbolList,
 };
 
 #[macro_use]
@@ -48,74 +44,104 @@ pub mod flags {
 /// Handler signature for motion primitives.
 pub type MotionHandler = fn(RopeSlice, Range, usize, bool) -> Range;
 
-/// Definition of a motion primitive.
+/// Definition of a motion primitive (static input for builder).
+#[derive(Clone)]
 pub struct MotionDef {
-	/// Common registry metadata.
+	/// Common registry metadata (static).
+	pub meta: RegistryMetaStatic,
+	/// Function that implements the motion logic.
+	pub handler: MotionHandler,
+}
+
+impl crate::core::RegistryEntry for MotionDef {
+	fn meta(&self) -> &RegistryMeta {
+		panic!("Called meta() on static MotionDef")
+	}
+}
+
+/// Symbolized motion entry stored in the registry snapshot.
+pub struct MotionEntry {
+	/// Common registry metadata (symbolized).
 	pub meta: RegistryMeta,
 	/// Function that implements the motion logic.
 	pub handler: MotionHandler,
 }
 
-impl MotionDef {
-	/// Returns the unique identifier.
-	pub fn id(&self) -> &'static str {
-		self.meta.id
+crate::impl_registry_entry!(MotionEntry);
+
+impl BuildEntry<MotionEntry> for MotionDef {
+	fn meta_ref(&self) -> RegistryMetaRef<'_> {
+		RegistryMetaRef {
+			id: self.meta.id,
+			name: self.meta.name,
+			aliases: self.meta.aliases,
+			description: self.meta.description,
+			priority: self.meta.priority,
+			source: self.meta.source,
+			required_caps: self.meta.required_caps,
+			flags: self.meta.flags,
+		}
 	}
 
-	/// Returns the human-readable name.
-	pub fn name(&self) -> &'static str {
+	fn short_desc_str(&self) -> &str {
 		self.meta.name
 	}
 
-	/// Returns alternative names for lookup.
-	pub fn aliases(&self) -> &'static [&'static str] {
-		self.meta.aliases
+	fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
+		let meta = self.meta_ref();
+		sink.push(meta.id);
+		sink.push(meta.name);
+		sink.push(meta.description);
+		for &alias in meta.aliases {
+			sink.push(alias);
+		}
 	}
 
-	/// Returns the description.
-	pub fn description(&self) -> &'static str {
-		self.meta.description
-	}
+	fn build(&self, interner: &FrozenInterner, alias_pool: &mut Vec<Symbol>) -> MotionEntry {
+		let meta_ref = self.meta_ref();
+		let start = alias_pool.len() as u32;
+		for &alias in meta_ref.aliases {
+			alias_pool.push(interner.get(alias).expect("missing interned alias"));
+		}
+		let len = (alias_pool.len() as u32 - start) as u16;
 
-	/// Returns the priority.
-	pub fn priority(&self) -> i16 {
-		self.meta.priority
-	}
+		let meta = RegistryMeta {
+			id: interner.get(meta_ref.id).expect("missing interned id"),
+			name: interner.get(meta_ref.name).expect("missing interned name"),
+			description: interner
+				.get(meta_ref.description)
+				.expect("missing interned description"),
+			aliases: SymbolList { start, len },
+			priority: meta_ref.priority,
+			source: meta_ref.source,
+			required_caps: CapabilitySet::from_iter(meta_ref.required_caps.iter().cloned()),
+			flags: meta_ref.flags,
+		};
 
-	/// Returns the source.
-	pub fn source(&self) -> RegistrySource {
-		self.meta.source
-	}
-
-	/// Returns required capabilities.
-	pub fn required_caps(&self) -> &'static [Capability] {
-		self.meta.required_caps
-	}
-
-	/// Returns behavior flags.
-	pub fn flags(&self) -> u32 {
-		self.meta.flags
+		MotionEntry {
+			meta,
+			handler: self.handler,
+		}
 	}
 }
 
-crate::impl_registry_entry!(MotionDef);
+/// Typed handle to a motion definition (compile-time builtins).
+pub type MotionKey = Key<MotionDef, MotionId>;
 
-/// Typed handle to a motion definition.
-pub type MotionKey = Key<MotionDef>;
+/// Typed reference to a runtime motion entry.
+pub type MotionRef = RegistryRef<MotionEntry, MotionId>;
 
 #[cfg(feature = "db")]
 pub use crate::db::MOTIONS;
 
 /// Finds a motion by name or alias.
 #[cfg(feature = "db")]
-pub fn find(name: &str) -> Option<MotionKey> {
-	MOTIONS.get(name).map(MotionKey::new_ref)
+pub fn find(name: &str) -> Option<MotionRef> {
+	MOTIONS.get(name)
 }
 
 /// Returns all registered motions, sorted by name.
 #[cfg(feature = "db")]
-pub fn all() -> Vec<RegistryRef<MotionDef>> {
-	let mut items = MOTIONS.all();
-	items.sort_by_key(|m| m.name().to_string());
-	items
+pub fn all() -> Vec<MotionRef> {
+	MOTIONS.all()
 }

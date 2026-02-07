@@ -8,7 +8,8 @@ use xeno_registry::actions::find_action;
 use xeno_registry::commands::find_command;
 use xeno_registry::{
 	ActionArgs, ActionContext, ActionResult, CommandContext, CommandError, EditorContext,
-	HookContext, HookEventData, dispatch_result, emit_sync_with as emit_hook_sync_with,
+	HookContext, HookEventData, RegistryEntry, dispatch_result,
+	emit_sync_with as emit_hook_sync_with,
 };
 
 use crate::commands::{CommandOutcome, EditorCommandContext, find_editor_command};
@@ -114,7 +115,7 @@ impl Editor {
 		} else {
 			let mut caps = self.caps();
 			let mut e_ctx = EditorContext::new(&mut caps);
-			e_ctx.check_all_capabilities(required_caps).err()
+			e_ctx.check_capability_set(required_caps).err()
 		};
 		if let Some(e) = caps_error
 			&& let Some(result) = handle_capability_violation(
@@ -127,23 +128,26 @@ impl Editor {
 		}
 
 		if policy.enforce_readonly
-			&& requires_edit_capability(required_caps)
+			&& requires_edit_capability_set(required_caps)
 			&& self.buffer().is_readonly()
 		{
 			return notify_readonly_denied(self);
 		}
 
+		let action_id_str = action.id_str().to_string();
+		let action_name_str = action.name_str().to_string();
+
 		emit_hook_sync_with(
 			&HookContext::new(HookEventData::ActionPre {
-				action_id: action.id(),
+				action_id: &action_id_str,
 			}),
 			&mut self.state.hook_runtime,
 		);
 
 		let span = trace_span!(
 			"action",
-			name = action.name(),
-			id = action.id(),
+			name = %action_name_str,
+			id = %action_id_str,
 			count = count,
 			extend = extend,
 		);
@@ -159,6 +163,8 @@ impl Editor {
 			)
 		};
 
+		let handler = action.handler;
+
 		let ctx = ActionContext {
 			text: content.slice(..),
 			cursor,
@@ -172,10 +178,10 @@ impl Editor {
 			},
 		};
 
-		let result = (action.handler)(&ctx);
+		let result = handler(&ctx);
 		trace!(result = ?result, "Action completed");
 
-		let outcome = if self.apply_action_result(action.id(), result, extend) {
+		let outcome = if self.apply_action_result(&action_id_str, result, extend) {
 			InvocationResult::Quit
 		} else {
 			InvocationResult::Ok
@@ -202,7 +208,7 @@ impl Editor {
 		} else {
 			let mut caps = self.caps();
 			let mut e_ctx = EditorContext::new(&mut caps);
-			e_ctx.check_all_capabilities(required_caps).err()
+			e_ctx.check_capability_set(required_caps).err()
 		};
 		if let Some(e) = caps_error
 			&& let Some(result) = handle_capability_violation(
@@ -221,11 +227,14 @@ impl Editor {
 		}
 
 		if policy.enforce_readonly
-			&& requires_edit_capability(required_caps)
+			&& requires_edit_capability_set(required_caps)
 			&& self.buffer().is_readonly()
 		{
 			return notify_readonly_denied(self);
 		}
+
+		let handler = command_def.handler;
+		let user_data = command_def.user_data;
 
 		let args_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
 		let res = {
@@ -235,10 +244,10 @@ impl Editor {
 				args: &args_refs,
 				count: 1,
 				register: None,
-				user_data: command_def.user_data,
+				user_data,
 			};
 
-			(command_def.handler)(&mut ctx).await
+			handler(&mut ctx).await
 		};
 
 		let outcome = match res {
@@ -329,7 +338,7 @@ impl Editor {
 	/// Dispatches an action result to handlers and emits post-action hook.
 	pub(crate) fn apply_action_result(
 		&mut self,
-		action_id: &'static str,
+		action_id: &str,
 		result: ActionResult,
 		extend: bool,
 	) -> bool {
@@ -372,6 +381,10 @@ fn notify_capability_denied(editor: &mut Editor, kind: InvocationKind, error: &C
 fn notify_readonly_denied(editor: &mut Editor) -> InvocationResult {
 	editor.show_notification(xeno_registry::notifications::keys::BUFFER_READONLY.into());
 	InvocationResult::ReadonlyDenied
+}
+
+fn requires_edit_capability_set(caps: xeno_registry::CapabilitySet) -> bool {
+	caps.contains(xeno_registry::CapabilitySet::EDIT)
 }
 
 fn requires_edit_capability(caps: &[xeno_registry::Capability]) -> bool {

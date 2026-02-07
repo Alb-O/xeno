@@ -14,7 +14,7 @@ macro_rules! segment {
 			#[allow(non_upper_case_globals)]
 			pub static [<SEG_ $name:upper>]: $crate::statusline::StatuslineSegmentDef =
 				$crate::statusline::StatuslineSegmentDef {
-					meta: $crate::statusline::RegistryMeta {
+					meta: $crate::statusline::RegistryMetaStatic {
 						id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
 						name: stringify!($name),
 						aliases: &[],

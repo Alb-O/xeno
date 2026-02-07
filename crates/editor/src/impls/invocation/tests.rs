@@ -68,12 +68,26 @@ command!(
 	handler: invocation_test_command_fail
 );
 
-fn register_invocation_test_defs() {
-	xeno_registry::actions::register_action(&ACTION_invocation_test_action);
-	xeno_registry::actions::register_action(&ACTION_invocation_edit_action);
-	xeno_registry::commands::register_command(&CMD_invocation_test_command_fail);
-	xeno_registry::hooks::register_hook(&HOOK_invocation_test_action_pre);
-	xeno_registry::hooks::register_hook(&HOOK_invocation_test_action_post);
+fn register_invocation_test_plugin(
+	db: &mut xeno_registry::db::builder::RegistryDbBuilder,
+) -> Result<(), xeno_registry::RegistryError> {
+	db.register_action(&ACTION_invocation_test_action);
+	db.register_action(&ACTION_invocation_edit_action);
+	db.register_command(&CMD_invocation_test_command_fail);
+	db.register_hook(&HOOK_invocation_test_action_pre);
+	db.register_hook(&HOOK_invocation_test_action_post);
+	Ok(())
+}
+
+inventory::submit! {
+	xeno_registry::PluginDef::new(
+		xeno_registry::RegistryMetaStatic::minimal(
+			"invocation-test",
+			"Invocation Test",
+			"Test defs for invocation tests",
+		),
+		register_invocation_test_plugin,
+	)
 }
 
 struct MockEditor {
@@ -230,7 +244,7 @@ fn capability_enforcement_logs_in_log_only_mode() {
 
 #[test]
 fn action_hooks_fire_once() {
-	register_invocation_test_defs();
+	// Test defs registered via inventory::submit!(PluginDef) at DB init time.
 	ACTION_PRE_COUNT.with(|count| count.set(0));
 	ACTION_POST_COUNT.with(|count| count.set(0));
 
@@ -247,7 +261,7 @@ fn action_hooks_fire_once() {
 
 #[test]
 fn readonly_enforcement_blocks_edit_actions() {
-	register_invocation_test_defs();
+	// Test defs registered via inventory::submit!(PluginDef) at DB init time.
 	let mut editor = Editor::new_scratch();
 	editor.buffer_mut().set_readonly(true);
 
@@ -265,7 +279,7 @@ fn readonly_enforcement_blocks_edit_actions() {
 
 #[test]
 fn readonly_disabled_allows_edit_actions() {
-	register_invocation_test_defs();
+	// Test defs registered via inventory::submit!(PluginDef) at DB init time.
 	let mut editor = Editor::new_scratch();
 	editor.buffer_mut().set_readonly(true);
 
@@ -283,7 +297,7 @@ fn readonly_disabled_allows_edit_actions() {
 
 #[test]
 fn command_error_propagates() {
-	register_invocation_test_defs();
+	// Test defs registered via inventory::submit!(PluginDef) at DB init time.
 	let mut editor = Editor::new_scratch();
 	let rt = tokio::runtime::Builder::new_current_thread()
 		.enable_all()

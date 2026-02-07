@@ -20,7 +20,7 @@ macro_rules! text_object {
 		paste::paste! {
 			#[allow(non_upper_case_globals)]
 			pub static [<OBJ_ $name>]: $crate::textobj::TextObjectDef = $crate::textobj::TextObjectDef::new(
-				$crate::textobj::RegistryMeta {
+				$crate::textobj::RegistryMetaStatic {
 					id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
 					name: stringify!($name),
 					aliases: $crate::__reg_opt_slice!($({$aliases})?),

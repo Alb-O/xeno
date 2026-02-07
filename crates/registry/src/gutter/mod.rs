@@ -1,7 +1,4 @@
 //! Gutter column registry.
-//!
-//! Gutter columns are defined in static lists and rendered
-//! left-to-right based on priority.
 
 use std::path::Path;
 
@@ -24,64 +21,47 @@ pub fn register_plugin(
 	Ok(())
 }
 
+use crate::core::index::{BuildEntry, RegistryMetaRef};
 pub use crate::core::{
-	RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta, RegistryMetadata, RegistryRef,
-	RegistrySource, RuntimeRegistry,
+	CapabilitySet, FrozenInterner, GutterId, RegistryBuilder, RegistryEntry, RegistryIndex,
+	RegistryMeta, RegistryMetaStatic, RegistryMetadata, RegistryRef, RegistrySource,
+	RuntimeRegistry, Symbol, SymbolList,
 };
 // Re-export macros
 pub use crate::gutter;
 
 /// Context passed to each gutter render closure (per-line).
 pub struct GutterLineContext<'a> {
-	/// 0-indexed line number in document.
 	pub line_idx: usize,
-	/// Total lines in the document.
 	pub total_lines: usize,
-	/// Current cursor line (0-indexed) - enables relative line numbers.
 	pub cursor_line: usize,
-	/// Whether this line is the cursor line.
 	pub is_cursor_line: bool,
-	/// Whether this is a wrapped continuation (not first segment of line).
 	pub is_continuation: bool,
-	/// Line text (rope slice for efficient access).
 	pub line_text: RopeSlice<'a>,
-	/// File path if available.
 	pub path: Option<&'a Path>,
-	/// Per-line annotation data (diagnostics, git, etc.).
 	pub annotations: &'a GutterAnnotations,
-	/// Theme for color lookups.
 	pub theme: &'a Theme,
 }
 
-/// Context for width calculation (per-document, not per-line).
 #[derive(Debug, Clone, Copy)]
 pub struct GutterWidthContext {
-	/// Total lines in document.
 	pub total_lines: usize,
-	/// Maximum viewport width (for constraints).
 	pub viewport_width: u16,
 }
 
-/// A styled segment within a gutter cell.
 #[derive(Debug, Clone)]
 pub struct GutterSegment {
-	/// Text content.
 	pub text: String,
-	/// Foreground color (None = default gutter_fg from theme).
 	pub fg: Option<Color>,
-	/// Whether to dim the text (blend fg toward bg).
 	pub dim: bool,
 }
 
-/// What a gutter column renders for a single line.
 #[derive(Debug, Clone)]
 pub struct GutterCell {
-	/// Styled segments (concatenated, then right-aligned within column width).
 	pub segments: Vec<GutterSegment>,
 }
 
 impl GutterCell {
-	/// Creates a cell with a single uniformly-styled segment.
 	pub fn new(text: impl Into<String>, fg: Option<Color>, dim: bool) -> Self {
 		Self {
 			segments: vec![GutterSegment {
@@ -92,43 +72,30 @@ impl GutterCell {
 		}
 	}
 
-	/// Creates a cell from multiple styled segments.
 	pub fn styled(segments: Vec<GutterSegment>) -> Self {
 		Self { segments }
 	}
 }
 
-/// Width calculation strategy.
 #[derive(Debug, Clone, Copy)]
 pub enum GutterWidth {
-	/// Fixed width in characters.
 	Fixed(u16),
-	/// Dynamic width computed from document state.
 	Dynamic(fn(&GutterWidthContext) -> u16),
 }
 
-/// Per-line annotation data for gutter columns.
 #[derive(Debug, Clone, Default)]
 pub struct GutterAnnotations {
-	/// Diagnostic severity (0=none, 1=hint, 2=info, 3=warn, 4=error).
 	pub diagnostic_severity: u8,
-	/// Custom sign character (breakpoint, bookmark, etc.).
 	pub sign: Option<char>,
-	/// Line number in old file (for diff `-` and context lines).
 	pub diff_old_line: Option<u32>,
-	/// Line number in new file (for diff `+` and context lines).
 	pub diff_new_line: Option<u32>,
 }
 
-/// Definition of a gutter column.
+#[derive(Clone, Copy)]
 pub struct GutterDef {
-	/// Common registry metadata.
-	pub meta: RegistryMeta,
-	/// Whether enabled by default.
+	pub meta: RegistryMetaStatic,
 	pub default_enabled: bool,
-	/// Width strategy.
 	pub width: GutterWidth,
-	/// Render function - called per visible line.
 	pub render: fn(&GutterLineContext) -> Option<GutterCell>,
 }
 
@@ -142,53 +109,118 @@ impl core::fmt::Debug for GutterDef {
 	}
 }
 
+impl crate::core::RegistryEntry for GutterDef {
+	fn meta(&self) -> &RegistryMeta {
+		panic!("Called meta() on static GutterDef")
+	}
+}
+
+pub struct GutterEntry {
+	pub meta: RegistryMeta,
+	pub default_enabled: bool,
+	pub width: GutterWidth,
+	pub render: fn(&GutterLineContext) -> Option<GutterCell>,
+}
+
+crate::impl_registry_entry!(GutterEntry);
+
+impl BuildEntry<GutterEntry> for GutterDef {
+	fn meta_ref(&self) -> RegistryMetaRef<'_> {
+		RegistryMetaRef {
+			id: self.meta.id,
+			name: self.meta.name,
+			aliases: self.meta.aliases,
+			description: self.meta.description,
+			priority: self.meta.priority,
+			source: self.meta.source,
+			required_caps: self.meta.required_caps,
+			flags: self.meta.flags,
+		}
+	}
+
+	fn short_desc_str(&self) -> &str {
+		self.meta.name
+	}
+
+	fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
+		let meta = self.meta_ref();
+		sink.push(meta.id);
+		sink.push(meta.name);
+		sink.push(meta.description);
+		for &alias in meta.aliases {
+			sink.push(alias);
+		}
+	}
+
+	fn build(&self, interner: &FrozenInterner, alias_pool: &mut Vec<Symbol>) -> GutterEntry {
+		let meta_ref = self.meta_ref();
+		let start = alias_pool.len() as u32;
+		for &alias in meta_ref.aliases {
+			alias_pool.push(interner.get(alias).expect("missing interned alias"));
+		}
+		let len = (alias_pool.len() as u32 - start) as u16;
+
+		let meta = RegistryMeta {
+			id: interner.get(meta_ref.id).expect("missing interned id"),
+			name: interner.get(meta_ref.name).expect("missing interned name"),
+			description: interner
+				.get(meta_ref.description)
+				.expect("missing interned description"),
+			aliases: SymbolList { start, len },
+			priority: meta_ref.priority,
+			source: meta_ref.source,
+			required_caps: CapabilitySet::from_iter(meta_ref.required_caps.iter().cloned()),
+			flags: meta_ref.flags,
+		};
+
+		GutterEntry {
+			meta,
+			default_enabled: self.default_enabled,
+			width: self.width,
+			render: self.render,
+		}
+	}
+}
+
 #[cfg(feature = "db")]
 pub use crate::db::GUTTERS;
 
-/// Returns enabled gutters sorted by priority (left to right).
 #[cfg(feature = "db")]
-pub fn enabled_gutters() -> Vec<RegistryRef<GutterDef>> {
+pub fn enabled_gutters() -> Vec<RegistryRef<GutterEntry, GutterId>> {
 	GUTTERS
-		.iter()
+		.all()
 		.into_iter()
 		.filter(|g| g.default_enabled)
 		.collect()
 }
 
-/// Finds a gutter column by name.
 #[cfg(feature = "db")]
-pub fn find(name: &str) -> Option<RegistryRef<GutterDef>> {
+pub fn find(name: &str) -> Option<RegistryRef<GutterEntry, GutterId>> {
 	GUTTERS.get(name)
 }
 
-/// Returns all registered gutter columns, sorted by priority.
 #[cfg(feature = "db")]
-pub fn all() -> Vec<RegistryRef<GutterDef>> {
-	GUTTERS.iter()
+pub fn all() -> Vec<RegistryRef<GutterEntry, GutterId>> {
+	GUTTERS.all()
 }
 
-/// Computes the width of a single gutter column.
-pub fn column_width(gutter: &GutterDef, ctx: &GutterWidthContext) -> u16 {
+pub fn column_width(gutter: &GutterEntry, ctx: &GutterWidthContext) -> u16 {
 	match gutter.width {
 		GutterWidth::Fixed(w) => w,
 		GutterWidth::Dynamic(f) => f(ctx),
 	}
 }
 
-/// Computes total gutter width from enabled columns (includes trailing separator).
 #[cfg(feature = "db")]
 pub fn total_width(ctx: &GutterWidthContext) -> u16 {
 	let width: u16 = enabled_gutters().iter().map(|g| column_width(g, ctx)).sum();
 	if width > 0 { width + 1 } else { 0 }
 }
 
-/// Computes widths for all enabled columns, returning (width, def) pairs sorted by priority.
 #[cfg(feature = "db")]
-pub fn column_widths(ctx: &GutterWidthContext) -> Vec<(u16, RegistryRef<GutterDef>)> {
+pub fn column_widths(ctx: &GutterWidthContext) -> Vec<(u16, RegistryRef<GutterEntry, GutterId>)> {
 	enabled_gutters()
 		.into_iter()
 		.map(|g| (column_width(&g, ctx), g))
 		.collect()
 }
-
-crate::impl_registry_entry!(GutterDef);

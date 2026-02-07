@@ -1,4 +1,4 @@
-use crate::core::{OptionDefault, OptionType, RegistryMeta, RegistrySource};
+use crate::core::{OptionDefault, OptionType, RegistryMetaStatic, RegistrySource};
 use crate::options::OptionScope;
 
 fn def_bool() -> bool {
@@ -6,7 +6,7 @@ fn def_bool() -> bool {
 }
 
 static BAD_OPT: crate::options::OptionDef = crate::options::OptionDef {
-	meta: RegistryMeta {
+	meta: RegistryMetaStatic {
 		id: "test::BAD_OPT",
 		name: "BAD_OPT",
 		aliases: &[],

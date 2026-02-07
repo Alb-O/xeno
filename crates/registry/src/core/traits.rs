@@ -1,7 +1,8 @@
 use std::cmp::Ordering;
 
-use super::capability::Capability;
+use super::capability::CapabilitySet;
 use super::meta::{RegistryMeta, RegistrySource};
+use super::symbol::Symbol;
 
 /// Trait for accessing registry metadata from definition types.
 pub trait RegistryEntry {
@@ -9,22 +10,17 @@ pub trait RegistryEntry {
 	fn meta(&self) -> &RegistryMeta;
 
 	/// Returns the unique identifier.
-	fn id(&self) -> &'static str {
+	fn id(&self) -> Symbol {
 		self.meta().id
 	}
 
 	/// Returns the human-readable name.
-	fn name(&self) -> &'static str {
+	fn name(&self) -> Symbol {
 		self.meta().name
 	}
 
-	/// Returns alternative names for lookup.
-	fn aliases(&self) -> &'static [&'static str] {
-		self.meta().aliases
-	}
-
 	/// Returns the description.
-	fn description(&self) -> &'static str {
+	fn description(&self) -> Symbol {
 		self.meta().description
 	}
 
@@ -39,7 +35,7 @@ pub trait RegistryEntry {
 	}
 
 	/// Returns capabilities required to execute this item.
-	fn required_caps(&self) -> &'static [Capability] {
+	fn required_caps(&self) -> CapabilitySet {
 		self.meta().required_caps
 	}
 
@@ -56,16 +52,16 @@ pub trait RegistryEntry {
 		self.priority()
 			.cmp(&other.priority())
 			.then_with(|| self.source().rank().cmp(&other.source().rank()))
-			.then_with(|| self.id().cmp(other.id()))
+			.then_with(|| self.id().cmp(&other.id()))
 	}
 }
 
 /// Trait for basic metadata access.
 pub trait RegistryMetadata {
 	/// Returns the unique identifier for this registry item.
-	fn id(&self) -> &'static str;
+	fn id(&self) -> Symbol;
 	/// Returns the human-readable name for this registry item.
-	fn name(&self) -> &'static str;
+	fn name(&self) -> Symbol;
 	/// Returns the priority for collision resolution (higher wins).
 	fn priority(&self) -> i16;
 	/// Returns where this registry item was defined.
@@ -83,10 +79,10 @@ macro_rules! impl_registry_entry {
 		}
 
 		impl $crate::RegistryMetadata for $type {
-			fn id(&self) -> &'static str {
+			fn id(&self) -> $crate::Symbol {
 				self.meta.id
 			}
-			fn name(&self) -> &'static str {
+			fn name(&self) -> $crate::Symbol {
 				self.meta.name
 			}
 			fn priority(&self) -> i16 {

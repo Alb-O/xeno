@@ -74,11 +74,11 @@ impl Editor {
 					ContinuationKind::Leaf => {
 						let desc = cont.value.map_or("", |e| {
 							if !e.short_desc.is_empty() {
-								e.short_desc
+								&e.short_desc
 							} else if !e.description.is_empty() {
-								e.description
+								&e.description
 							} else {
-								e.action_name
+								&e.action_name
 							}
 						});
 						KeyTreeNode::new(key, desc)

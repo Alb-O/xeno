@@ -19,7 +19,10 @@ enum GutterLayoutKind {
 	Columns(
 		Vec<(
 			u16,
-			xeno_registry::gutter::RegistryRef<xeno_registry::gutter::GutterDef>,
+			xeno_registry::gutter::RegistryRef<
+				xeno_registry::gutter::GutterEntry,
+				xeno_registry::gutter::GutterId,
+			>,
 		)>,
 	),
 	Prompt {
@@ -68,13 +71,19 @@ impl GutterLayout {
 		};
 		let mut columns: Vec<(
 			u16,
-			xeno_registry::gutter::RegistryRef<xeno_registry::gutter::GutterDef>,
+			xeno_registry::gutter::RegistryRef<
+				xeno_registry::gutter::GutterEntry,
+				xeno_registry::gutter::GutterId,
+			>,
 		)> = names
 			.iter()
 			.filter_map(|name| find_gutter(name))
 			.map(|def| (column_width(&def, &ctx), def))
 			.collect();
-		columns.sort_by_key(|(_, def)| def.meta.priority);
+		columns.sort_by_key(|(_, def)| {
+			use xeno_registry::gutter::RegistryEntry;
+			def.priority()
+		});
 		let total_width = Self::columns_total_width(&columns);
 		Self {
 			total_width,
@@ -130,7 +139,10 @@ impl GutterLayout {
 	fn columns_total_width(
 		columns: &[(
 			u16,
-			xeno_registry::gutter::RegistryRef<xeno_registry::gutter::GutterDef>,
+			xeno_registry::gutter::RegistryRef<
+				xeno_registry::gutter::GutterEntry,
+				xeno_registry::gutter::GutterId,
+			>,
 		)],
 	) -> u16 {
 		let width: u16 = columns.iter().map(|(w, _)| *w).sum();

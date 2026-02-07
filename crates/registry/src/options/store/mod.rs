@@ -7,31 +7,15 @@
 
 use std::collections::HashMap;
 
-use crate::options::{OptionError, OptionKey, OptionValue, find_by_kdl};
+use crate::options::{OptionError, OptionKey, OptionValue};
 
 #[cfg(test)]
 mod tests;
 
 /// Runtime storage for option values.
-///
-/// An `OptionStore` holds a collection of option values keyed by their KDL key.
-/// Multiple stores can be combined using the [`OptionResolver`](crate::options::OptionResolver)
-/// to implement layered configuration.
-///
-/// # Example
-///
-/// ```ignore
-/// use crate::options::{keys, OptionStore, OptionValue};
-///
-/// let mut store = OptionStore::new();
-/// store.set(keys::TAB_WIDTH.untyped(), OptionValue::Int(2));
-///
-/// assert_eq!(store.get_int(keys::TAB_WIDTH.untyped()), Some(2));
-/// ```
 #[derive(Debug, Clone, Default)]
 pub struct OptionStore {
-	/// Values keyed by KDL key for config parsing.
-	values: HashMap<&'static str, OptionValue>,
+	values: HashMap<String, OptionValue>,
 }
 
 impl OptionStore {
@@ -42,22 +26,21 @@ impl OptionStore {
 
 	/// Sets an option value by typed key.
 	pub fn set(&mut self, key: OptionKey, value: OptionValue) {
-		self.values.insert(key.def().kdl_key, value);
+		self.values.insert(key.kdl_key.to_string(), value);
 	}
 
 	/// Sets an option value by KDL key (for config parsing).
-	///
-	/// Returns an error if the KDL key is not recognized.
 	pub fn set_by_kdl(&mut self, kdl_key: &str, value: OptionValue) -> Result<(), OptionError> {
-		let def =
-			find_by_kdl(kdl_key).ok_or_else(|| OptionError::UnknownOption(kdl_key.to_string()))?;
-		self.values.insert(def.kdl_key, value);
-		Ok(())
+		if crate::db::OPTIONS.get(kdl_key).is_some() {
+			self.values.insert(kdl_key.to_string(), value);
+			return Ok(());
+		}
+		Err(OptionError::UnknownOption(kdl_key.to_string()))
 	}
 
 	/// Gets an option value, returning `None` if not set.
 	pub fn get(&self, key: OptionKey) -> Option<&OptionValue> {
-		self.values.get(key.def().kdl_key)
+		self.values.get(key.kdl_key)
 	}
 
 	/// Gets typed value with automatic conversion to `i64`.
@@ -76,18 +59,14 @@ impl OptionStore {
 	}
 
 	/// Removes an option from the store.
-	///
-	/// Returns the previous value if it existed.
 	pub fn remove(&mut self, key: OptionKey) -> Option<OptionValue> {
-		self.values.remove(key.def().kdl_key)
+		self.values.remove(key.kdl_key)
 	}
 
 	/// Merges another store into this one.
-	///
-	/// Values from `other` take precedence on conflict.
 	pub fn merge(&mut self, other: &OptionStore) {
 		for (k, v) in &other.values {
-			self.values.insert(k, v.clone());
+			self.values.insert(k.clone(), v.clone());
 		}
 	}
 
@@ -102,9 +81,7 @@ impl OptionStore {
 	}
 
 	/// Returns an iterator over all set values.
-	///
-	/// Yields tuples of (KDL key, value).
-	pub fn iter(&self) -> impl Iterator<Item = (&'static str, &OptionValue)> {
-		self.values.iter().map(|(k, v)| (*k, v))
+	pub fn iter(&self) -> impl Iterator<Item = (&str, &OptionValue)> {
+		self.values.iter().map(|(k, v)| (k.as_str(), v))
 	}
 }

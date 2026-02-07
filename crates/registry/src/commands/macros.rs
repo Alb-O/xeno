@@ -13,7 +13,7 @@ macro_rules! command {
 		paste::paste! {
 			#[allow(non_upper_case_globals)]
 			pub static [<CMD_ $name>]: $crate::commands::CommandDef = $crate::commands::CommandDef {
-				meta: $crate::commands::RegistryMeta {
+				meta: $crate::commands::RegistryMetaStatic {
 					id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
 					name: stringify!($name),
 					aliases: $crate::__reg_opt_slice!($({$aliases})?),

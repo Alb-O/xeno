@@ -184,7 +184,7 @@ pub fn derive_option(input: TokenStream) -> TokenStream {
 		#[allow(non_upper_case_globals)]
 		pub(crate) static #internal_static: ::xeno_registry::options::OptionDef =
 			::xeno_registry::options::OptionDef {
-		meta: ::xeno_registry::options::RegistryMeta {
+		meta: ::xeno_registry::options::RegistryMetaStatic {
 			id: ::core::concat!(::core::env!("CARGO_PKG_NAME"), "::", ::core::stringify!(#name)),
 			name: ::core::stringify!(#name),
 			aliases: &[],

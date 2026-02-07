@@ -1,6 +1,4 @@
 //! Options registry
-//!
-//! Options are named settings that can be configured globally or per-buffer.
 
 use std::marker::PhantomData;
 
@@ -23,36 +21,29 @@ pub mod keys {
 	};
 }
 
+use crate::core::index::{BuildEntry, RegistryMetaRef};
 pub use crate::core::{
-	FromOptionValue, Key, OptionDefault, OptionType, OptionValue, RegistryBuilder, RegistryEntry,
-	RegistryIndex, RegistryMeta, RegistryMetadata, RegistrySource, RuntimeRegistry,
+	CapabilitySet, FromOptionValue, FrozenInterner, Key, OptionDefault, OptionId, OptionType,
+	OptionValue, RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta, RegistryMetaStatic,
+	RegistryMetadata, RegistrySource, RuntimeRegistry, Symbol, SymbolList,
 };
 
-/// Validator function signature for option constraints.
 pub type OptionValidator = fn(&OptionValue) -> Result<(), String>;
 
-/// Scope for option application.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OptionScope {
-	/// Global option (applies to all buffers).
 	Global,
-	/// Buffer-local option (can be overridden per-buffer).
 	Buffer,
 }
 
-/// Definition of a configurable option.
+/// Definition of a configurable option (static input).
+#[derive(Clone, Copy)]
 pub struct OptionDef {
-	/// Common registry metadata.
-	pub meta: RegistryMeta,
-	/// KDL configuration key (e.g., "tab-width").
+	pub meta: RegistryMetaStatic,
 	pub kdl_key: &'static str,
-	/// Value type constraint.
 	pub value_type: OptionType,
-	/// Default value factory.
 	pub default: OptionDefault,
-	/// Application scope.
 	pub scope: OptionScope,
-	/// Optional validator for value constraints.
 	pub validator: Option<OptionValidator>,
 }
 
@@ -61,121 +52,187 @@ impl core::fmt::Debug for OptionDef {
 		f.debug_struct("OptionDef")
 			.field("name", &self.meta.name)
 			.field("kdl_key", &self.kdl_key)
-			.field("value_type", &self.value_type)
-			.field("scope", &self.scope)
-			.field("priority", &self.meta.priority)
-			.field("description", &self.meta.description)
 			.finish()
 	}
 }
 
-/// Typed handle to an option definition.
-pub type OptionKey = Key<OptionDef>;
+impl crate::core::RegistryEntry for OptionDef {
+	fn meta(&self) -> &RegistryMeta {
+		panic!("Called meta() on static OptionDef")
+	}
+}
+
+/// Symbolized option entry.
+pub struct OptionEntry {
+	pub meta: RegistryMeta,
+	pub kdl_key: Symbol,
+	pub value_type: OptionType,
+	pub default: OptionDefault,
+	pub scope: OptionScope,
+	pub validator: Option<OptionValidator>,
+}
+
+crate::impl_registry_entry!(OptionEntry);
+
+impl BuildEntry<OptionEntry> for OptionDef {
+	fn meta_ref(&self) -> RegistryMetaRef<'_> {
+		RegistryMetaRef {
+			id: self.meta.id,
+			name: self.meta.name,
+			aliases: self.meta.aliases,
+			description: self.meta.description,
+			priority: self.meta.priority,
+			source: self.meta.source,
+			required_caps: self.meta.required_caps,
+			flags: self.meta.flags,
+		}
+	}
+
+	fn short_desc_str(&self) -> &str {
+		self.meta.name
+	}
+
+	fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
+		let meta = self.meta_ref();
+		sink.push(meta.id);
+		sink.push(meta.name);
+		sink.push(meta.description);
+		for &alias in meta.aliases {
+			sink.push(alias);
+		}
+		sink.push(self.kdl_key);
+	}
+
+	fn build(&self, interner: &FrozenInterner, alias_pool: &mut Vec<Symbol>) -> OptionEntry {
+		let meta_ref = self.meta_ref();
+		let start = alias_pool.len() as u32;
+		for &alias in meta_ref.aliases {
+			alias_pool.push(interner.get(alias).expect("missing interned alias"));
+		}
+		// kdl_key acts as an implicit alias for option lookup
+		alias_pool.push(
+			interner
+				.get(self.kdl_key)
+				.expect("missing interned kdl_key"),
+		);
+		let len = (alias_pool.len() as u32 - start) as u16;
+
+		let meta = RegistryMeta {
+			id: interner.get(meta_ref.id).expect("missing interned id"),
+			name: interner.get(meta_ref.name).expect("missing interned name"),
+			description: interner
+				.get(meta_ref.description)
+				.expect("missing interned description"),
+			aliases: SymbolList { start, len },
+			priority: meta_ref.priority,
+			source: meta_ref.source,
+			required_caps: CapabilitySet::from_iter(meta_ref.required_caps.iter().cloned()),
+			flags: meta_ref.flags,
+		};
+
+		OptionEntry {
+			meta,
+			kdl_key: interner
+				.get(self.kdl_key)
+				.expect("missing interned kdl_key"),
+			value_type: self.value_type,
+			default: self.default,
+			scope: self.scope,
+			validator: self.validator,
+		}
+	}
+}
+
+/// Handle to an option definition, used for option store lookups.
+pub type OptionKey = &'static OptionDef;
 
 /// Typed handle to an option definition with compile-time type information.
 pub struct TypedOptionKey<T: FromOptionValue> {
-	inner: OptionKey,
+	def: &'static OptionDef,
 	_marker: PhantomData<T>,
 }
 
 impl<T: FromOptionValue> Clone for TypedOptionKey<T> {
 	fn clone(&self) -> Self {
-		Self {
-			inner: self.inner.clone(),
-			_marker: PhantomData,
-		}
+		*self
 	}
 }
 
+impl<T: FromOptionValue> Copy for TypedOptionKey<T> {}
+
 impl<T: FromOptionValue> TypedOptionKey<T> {
-	/// Creates a new typed option key from a static option definition.
+	/// Creates a new typed option key from a static definition.
 	pub const fn new(def: &'static OptionDef) -> Self {
 		Self {
-			inner: OptionKey::new(def),
+			def,
 			_marker: PhantomData,
 		}
 	}
 
 	/// Returns the underlying option definition.
-	pub fn def(&self) -> &OptionDef {
-		self.inner.def()
+	pub fn def(&self) -> &'static OptionDef {
+		self.def
 	}
 
-	/// Returns the untyped option key.
+	/// Returns the KDL key for this option.
+	pub fn kdl_key(&self) -> &'static str {
+		self.def.kdl_key
+	}
+
+	/// Returns the untyped option key for use with [`OptionAccess::option_raw`].
 	pub fn untyped(&self) -> OptionKey {
-		self.inner.clone()
+		self.def
 	}
 }
 
-impl<T: FromOptionValue> core::fmt::Debug for TypedOptionKey<T> {
-	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-		f.debug_tuple("TypedOptionKey")
-			.field(&self.inner.def().meta.name)
-			.finish()
-	}
-}
-
-/// Registry wrapper for option definitions.
-///
-/// Dead: submitted by `derive_option` but never iterated. All option
-/// registration goes through explicit `register_builtins` calls.
 pub struct OptionReg(pub &'static OptionDef);
 inventory::collect!(OptionReg);
 
 #[cfg(feature = "db")]
 pub use crate::db::OPTIONS;
 
-/// Finds an option definition by name.
 #[cfg(feature = "db")]
 pub fn find(name: &str) -> Option<OptionsRef> {
 	OPTIONS.get(name)
 }
 
-/// Finds an option definition by its internal name.
-#[cfg(feature = "db")]
-pub fn find_by_name(name: &str) -> Option<OptionsRef> {
-	OPTIONS.get(name)
-}
-
-/// Finds an option definition by its KDL configuration key.
-#[cfg(feature = "db")]
-pub fn find_by_kdl(kdl_key: &str) -> Option<OptionsRef> {
-	OPTIONS.by_kdl_key(kdl_key)
-}
-
-/// Returns all registered options.
 #[cfg(feature = "db")]
 pub fn all() -> Vec<OptionsRef> {
-	OPTIONS.items()
+	OPTIONS.all()
 }
 
-/// Returns all options sorted by KDL key.
+/// Validates a parsed option value against the registry definition.
 #[cfg(feature = "db")]
-pub fn all_sorted() -> Vec<OptionsRef> {
-	let mut opts = OPTIONS.items();
-	opts.sort_by_key(|o| o.kdl_key);
-	opts
+pub fn validate(kdl_key: &str, value: &OptionValue) -> Result<(), OptionError> {
+	let entry = OPTIONS
+		.get(kdl_key)
+		.ok_or_else(|| OptionError::UnknownOption(kdl_key.to_string()))?;
+	if !value.matches_type(entry.value_type) {
+		return Err(OptionError::TypeMismatch {
+			option: kdl_key.to_string(),
+			expected: entry.value_type,
+			got: value.type_name(),
+		});
+	}
+	if let Some(validator) = entry.validator {
+		validator(value).map_err(|reason| OptionError::InvalidValue {
+			option: kdl_key.to_string(),
+			reason,
+		})?;
+	}
+	Ok(())
 }
 
-/// Error type for option validation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptionError {
-	/// The option KDL key is not recognized.
 	UnknownOption(String),
-	/// The value type does not match the option's declared type.
 	TypeMismatch {
-		/// The option's KDL key.
 		option: String,
-		/// The expected type.
 		expected: OptionType,
-		/// The actual type name of the provided value.
 		got: &'static str,
 	},
-	/// The value fails validation constraints.
 	InvalidValue {
-		/// The option's KDL key.
 		option: String,
-		/// Human-readable reason for validation failure.
 		reason: String,
 	},
 }
@@ -202,46 +259,3 @@ impl core::fmt::Display for OptionError {
 }
 
 impl std::error::Error for OptionError {}
-
-/// Validates that a KDL key exists, the value matches the expected type,
-/// and passes any custom validator defined for the option.
-#[cfg(feature = "db")]
-pub fn validate(kdl_key: &str, value: &OptionValue) -> Result<(), OptionError> {
-	let def =
-		find_by_kdl(kdl_key).ok_or_else(|| OptionError::UnknownOption(kdl_key.to_string()))?;
-	if !value.matches_type(def.value_type) {
-		return Err(OptionError::TypeMismatch {
-			option: kdl_key.to_string(),
-			expected: def.value_type,
-			got: value.type_name(),
-		});
-	}
-	if let Some(validator) = def.validator {
-		validator(value).map_err(|reason| OptionError::InvalidValue {
-			option: kdl_key.to_string(),
-			reason,
-		})?;
-	}
-	Ok(())
-}
-
-crate::impl_registry_entry!(OptionDef);
-
-use crate::error::RegistryError;
-
-/// Plugin registration callback for the options module.
-///
-/// Underutilized: duplicates `builtins::register_all` → `register_builtins`.
-pub fn register_plugin(
-	db: &mut crate::db::builder::RegistryDbBuilder,
-) -> Result<(), RegistryError> {
-	register_builtins(db);
-	Ok(())
-}
-
-inventory::submit! {
-	crate::PluginDef::new(
-		crate::RegistryMeta::minimal("options-builtin", "Options Builtin", "Builtin option set"),
-		register_plugin
-	)
-}

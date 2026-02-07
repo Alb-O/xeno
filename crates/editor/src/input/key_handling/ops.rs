@@ -7,8 +7,6 @@ use crate::impls::Editor;
 impl Editor {
 	/// Dispatches an action based on the key result.
 	pub(crate) fn dispatch_action(&mut self, result: &KeyResult) -> ActionDispatch {
-		use xeno_registry::find_action_by_id;
-
 		match result {
 			KeyResult::ActionById {
 				id,
@@ -16,8 +14,8 @@ impl Editor {
 				extend,
 				register,
 			} => {
-				let quit = if let Some(action) = find_action_by_id(*id) {
-					self.invoke_action(action.name(), *count, *extend, *register, None)
+				let quit = if let Some(action) = xeno_registry::ACTIONS.get_by_id(*id) {
+					self.invoke_action(action.name_str(), *count, *extend, *register, None)
 						.is_quit()
 				} else {
 					self.show_notification(xeno_registry::notifications::keys::unknown_action(
@@ -34,9 +32,15 @@ impl Editor {
 				register,
 				char_arg,
 			} => {
-				let quit = if let Some(action) = find_action_by_id(*id) {
-					self.invoke_action(action.name(), *count, *extend, *register, Some(*char_arg))
-						.is_quit()
+				let quit = if let Some(action) = xeno_registry::ACTIONS.get_by_id(*id) {
+					self.invoke_action(
+						action.name_str(),
+						*count,
+						*extend,
+						*register,
+						Some(*char_arg),
+					)
+					.is_quit()
 				} else {
 					self.show_notification(xeno_registry::notifications::keys::unknown_action(
 						&id.to_string(),

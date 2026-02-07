@@ -3234,6 +3234,7 @@ name = "xeno-registry"
 version = "0.8.7"
 dependencies = [
  "arc-swap",
+ "bitflags 2.10.0",
  "inventory",
  "parking_lot",
  "paste",

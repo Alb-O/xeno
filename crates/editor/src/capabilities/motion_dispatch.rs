@@ -11,7 +11,7 @@ impl MotionDispatchAccess for EditorCaps<'_> {
 			return xeno_registry::SelectionAccess::selection(self).clone();
 		};
 
-		let handler = motion_key.def().handler;
+		let handler = motion_key.handler;
 		let selection = xeno_registry::SelectionAccess::selection(self).clone();
 		let is_normal = xeno_registry::ModeAccess::mode(self) == Mode::Normal;
 

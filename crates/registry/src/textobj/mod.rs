@@ -1,7 +1,4 @@
 //! Text object registry.
-//!
-//! Text objects define selections around semantic units (words, paragraphs,
-//! brackets, etc.) with `inner` and `around` benchmarks.
 
 use ropey::RopeSlice;
 use xeno_primitives::Range;
@@ -22,77 +19,34 @@ pub fn register_plugin(
 	Ok(())
 }
 
+use crate::core::index::{BuildEntry, RegistryMetaRef};
 pub use crate::core::{
-	Capability, DuplicatePolicy, RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta,
-	RegistryMetadata, RegistrySource,
+	Capability, CapabilitySet, DuplicatePolicy, FrozenInterner, RegistryBuilder, RegistryEntry,
+	RegistryIndex, RegistryMeta, RegistryMetaStatic, RegistryMetadata, RegistryRef, RegistrySource,
+	Symbol, SymbolList, TextObjectId,
 };
 pub use crate::motions::{flags, movement};
 // Re-export macros
 pub use crate::text_object;
 pub use crate::{bracket_pair_object, symmetric_text_object};
 
-/// Handler signature for text object selection.
 pub type TextObjectHandler = fn(RopeSlice, usize) -> Option<Range>;
 
-/// Definition of a text object.
+/// Definition of a text object (static input).
+#[derive(Clone, Copy)]
 pub struct TextObjectDef {
-	/// Common registry metadata.
-	pub meta: RegistryMeta,
-	/// Primary trigger character (e.g., 'w' for word).
+	pub meta: RegistryMetaStatic,
 	pub trigger: char,
-	/// Alternative trigger characters.
 	pub alt_triggers: &'static [char],
-	/// Handler for inner selection mode.
 	pub inner: TextObjectHandler,
-	/// Handler for around selection mode.
 	pub around: TextObjectHandler,
 }
 
 impl TextObjectDef {
-	/// Returns the unique identifier.
-	pub fn id(&self) -> &'static str {
-		self.meta.id
-	}
-
-	/// Returns the human-readable name.
-	pub fn name(&self) -> &'static str {
-		self.meta.name
-	}
-
-	/// Returns alternative names for lookup.
-	pub fn aliases(&self) -> &'static [&'static str] {
-		self.meta.aliases
-	}
-
-	/// Returns the description.
-	pub fn description(&self) -> &'static str {
-		self.meta.description
-	}
-
-	/// Returns the priority.
-	pub fn priority(&self) -> i16 {
-		self.meta.priority
-	}
-
-	/// Returns the source.
-	pub fn source(&self) -> RegistrySource {
-		self.meta.source
-	}
-
-	/// Returns required capabilities.
-	pub fn required_caps(&self) -> &'static [Capability] {
-		self.meta.required_caps
-	}
-
-	/// Returns behavior flags.
-	pub fn flags(&self) -> u32 {
-		self.meta.flags
-	}
-
 	#[doc(hidden)]
 	#[allow(clippy::too_many_arguments, reason = "macro-generated constructor")]
 	pub const fn new(
-		meta: RegistryMeta,
+		meta: RegistryMetaStatic,
 		trigger: char,
 		alt_triggers: &'static [char],
 		inner: TextObjectHandler,
@@ -108,27 +62,96 @@ impl TextObjectDef {
 	}
 }
 
-crate::impl_registry_entry!(TextObjectDef);
+impl crate::core::RegistryEntry for TextObjectDef {
+	fn meta(&self) -> &RegistryMeta {
+		panic!("Called meta() on static TextObjectDef")
+	}
+}
+
+/// Symbolized text object entry.
+pub struct TextObjectEntry {
+	pub meta: RegistryMeta,
+	pub trigger: char,
+	pub alt_triggers: &'static [char],
+	pub inner: TextObjectHandler,
+	pub around: TextObjectHandler,
+}
+
+crate::impl_registry_entry!(TextObjectEntry);
+
+impl BuildEntry<TextObjectEntry> for TextObjectDef {
+	fn meta_ref(&self) -> RegistryMetaRef<'_> {
+		RegistryMetaRef {
+			id: self.meta.id,
+			name: self.meta.name,
+			aliases: self.meta.aliases,
+			description: self.meta.description,
+			priority: self.meta.priority,
+			source: self.meta.source,
+			required_caps: self.meta.required_caps,
+			flags: self.meta.flags,
+		}
+	}
+
+	fn short_desc_str(&self) -> &str {
+		self.meta.name
+	}
+
+	fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
+		let meta = self.meta_ref();
+		sink.push(meta.id);
+		sink.push(meta.name);
+		sink.push(meta.description);
+		for &alias in meta.aliases {
+			sink.push(alias);
+		}
+	}
+
+	fn build(&self, interner: &FrozenInterner, alias_pool: &mut Vec<Symbol>) -> TextObjectEntry {
+		let meta_ref = self.meta_ref();
+		let start = alias_pool.len() as u32;
+		for &alias in meta_ref.aliases {
+			alias_pool.push(interner.get(alias).expect("missing interned alias"));
+		}
+		let len = (alias_pool.len() as u32 - start) as u16;
+
+		let meta = RegistryMeta {
+			id: interner.get(meta_ref.id).expect("missing interned id"),
+			name: interner.get(meta_ref.name).expect("missing interned name"),
+			description: interner
+				.get(meta_ref.description)
+				.expect("missing interned description"),
+			aliases: SymbolList { start, len },
+			priority: meta_ref.priority,
+			source: meta_ref.source,
+			required_caps: CapabilitySet::from_iter(meta_ref.required_caps.iter().cloned()),
+			flags: meta_ref.flags,
+		};
+
+		TextObjectEntry {
+			meta,
+			trigger: self.trigger,
+			alt_triggers: self.alt_triggers,
+			inner: self.inner,
+			around: self.around,
+		}
+	}
+}
 
 #[cfg(feature = "db")]
 pub use crate::db::TEXT_OBJECTS;
 
-/// Finds a text object by trigger character.
 #[cfg(feature = "db")]
 pub fn find_by_trigger(trigger: char) -> Option<TextObjectRef> {
 	TEXT_OBJECTS.by_trigger(trigger)
 }
 
-/// Finds a text object by name or alias.
 #[cfg(feature = "db")]
 pub fn find(name: &str) -> Option<TextObjectRef> {
 	TEXT_OBJECTS.get(name)
 }
 
-/// Returns all registered text objects, sorted by name.
 #[cfg(feature = "db")]
 pub fn all() -> Vec<TextObjectRef> {
-	let mut items = TEXT_OBJECTS.all();
-	items.sort_by_key(|o| o.name().to_string());
-	items
+	TEXT_OBJECTS.all()
 }

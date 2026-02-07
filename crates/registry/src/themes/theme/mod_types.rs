@@ -2,32 +2,31 @@ use xeno_primitives::Color;
 
 use super::super::syntax::SyntaxStyles;
 use super::types::{
-	ColorPair, ModeColors, NotificationColors, OwnedTheme, PopupColors, SemanticColors,
-	ThemeColors, ThemeDef, ThemeVariant, UiColors,
+	ColorPair, ModeColors, NotificationColors, PopupColors, SemanticColors, ThemeColors, ThemeDef,
+	ThemeEntry, ThemeVariant, UiColors,
 };
+use crate::core::{RegistryMetaStatic, RegistrySource};
 
-/// Register runtime themes into the [`THEMES`] registry.
+/// Register runtime themes.
 ///
-/// Leaks each [`OwnedTheme`] to obtain `&'static ThemeDef` references, then
-/// batch-inserts them with override semantics so later calls can shadow
-/// earlier ones by ID. May be called multiple times.
+/// Runtime registration requires interner extension which is not yet supported
+/// in the frozen-interner architecture. This is a no-op placeholder.
 #[cfg(feature = "db")]
-pub fn register_runtime_themes(themes: Vec<OwnedTheme>) {
-	let leaked: Vec<&'static ThemeDef> = themes.into_iter().map(OwnedTheme::leak).collect();
-	if let Err(e) = THEMES.try_register_many_override(leaked) {
-		tracing::warn!(error = %e, "failed to register runtime themes");
-	}
+pub fn register_runtime_themes(_themes: Vec<ThemeDef>) {
+	// Runtime theme registration requires rebuilding or extending the frozen
+	// interner, which is not yet implemented. Themes must be registered
+	// through the builder at startup for now.
 }
 
 /// Default fallback theme (minimal terminal colors).
 pub static DEFAULT_THEME: ThemeDef = ThemeDef {
-	meta: crate::core::RegistryMeta {
+	meta: RegistryMetaStatic {
 		id: "default",
 		name: "default",
 		aliases: &[],
 		description: "",
 		priority: 0,
-		source: crate::core::RegistrySource::Builtin,
+		source: RegistrySource::Builtin,
 		required_caps: &[],
 		flags: 0,
 	},
@@ -77,30 +76,14 @@ pub static DEFAULT_THEME: ThemeDef = ThemeDef {
 /// Default theme ID to use when no theme is specified.
 pub const DEFAULT_THEME_ID: &str = "gruvbox";
 
-use crate::RegistryEntry;
 #[cfg(feature = "db")]
 pub use crate::db::THEMES;
 
 /// Find a theme by name or alias.
-pub fn get_theme(name: &str) -> Option<crate::core::RegistryRef<ThemeDef>> {
-	let normalize = |s: &str| -> String {
-		s.chars()
-			.filter(|c| *c != '-' && *c != '_')
-			.collect::<String>()
-			.to_lowercase()
-	};
-
-	let search = normalize(name);
-
+pub fn get_theme(name: &str) -> Option<crate::core::RegistryRef<ThemeEntry, crate::core::ThemeId>> {
 	#[cfg(feature = "db")]
 	{
 		if let Some(theme) = THEMES.get(name) {
-			return Some(theme);
-		}
-
-		if let Some(theme) = THEMES.iter().into_iter().find(|t| {
-			normalize(t.name()) == search || t.aliases().iter().any(|a| normalize(a) == search)
-		}) {
 			return Some(theme);
 		}
 	}

@@ -1,7 +1,9 @@
 use xeno_primitives::BoxFutureLocal;
 
 use crate::command;
-use crate::commands::{CommandContext, CommandError, CommandOutcome, all_commands, find_command};
+use crate::commands::{
+	CommandContext, CommandError, CommandOutcome, RegistryEntry, all_commands, find_command,
+};
 use crate::notifications::keys;
 
 command!(help, { aliases: &["h"], description: "Show help for commands" }, handler: cmd_help);
@@ -13,20 +15,16 @@ fn cmd_help<'a>(
 		if let Some(cmd_name) = ctx.args.first() {
 			if let Some(cmd) = find_command(cmd_name) {
 				let mut out = Vec::new();
-				out.push(format!("Command: :{}", cmd.name()));
-				if !cmd.aliases().is_empty() {
-					out.push(format!("Aliases: {}", cmd.aliases().join(", ")));
+				out.push(format!("Command: :{}", cmd.name_str()));
+				let aliases = cmd.aliases_resolved();
+				if !aliases.is_empty() {
+					out.push(format!("Aliases: {}", aliases.join(", ")));
 				}
-				out.push(format!("Description: {}", cmd.description()));
+				out.push(format!("Description: {}", cmd.description_str()));
 				out.push(format!("Source: {}", cmd.source()));
 				out.push(format!("Priority: {}", cmd.priority()));
 				if !cmd.required_caps().is_empty() {
-					let caps: Vec<String> = cmd
-						.required_caps()
-						.iter()
-						.map(|c| format!("{c:?}"))
-						.collect();
-					out.push(format!("Required Capabilities: {}", caps.join(", ")));
+					out.push(format!("Required Capabilities: {:?}", cmd.required_caps()));
 				}
 				ctx.emit(keys::help_text(out.join("\n")));
 				return Ok(CommandOutcome::Ok);
@@ -36,17 +34,18 @@ fn cmd_help<'a>(
 		}
 
 		let mut sorted_commands = all_commands();
-		sorted_commands.sort_by_key(|c| c.name().to_string());
+		sorted_commands.sort_by(|a, b| a.name_str().cmp(b.name_str()));
 
 		let help_text: Vec<String> = sorted_commands
 			.iter()
 			.map(|c| {
-				let aliases = if c.aliases().is_empty() {
+				let aliases = c.aliases_resolved();
+				let alias_str = if aliases.is_empty() {
 					String::new()
 				} else {
-					format!(" ({})", c.aliases().join(", "))
+					format!(" ({})", aliases.join(", "))
 				};
-				format!(":{}{} - {}", c.name(), aliases, c.description())
+				format!(":{}{} - {}", c.name_str(), alias_str, c.description_str())
 			})
 			.collect();
 		ctx.emit(keys::help_text(help_text.join(" | ")));

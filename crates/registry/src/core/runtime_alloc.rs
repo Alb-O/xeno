@@ -59,8 +59,8 @@ impl RuntimeMetaBuilder {
 		self
 	}
 
-	pub fn build(self) -> crate::RegistryMeta {
-		crate::RegistryMeta {
+	pub fn build(self) -> crate::RegistryMetaStatic {
+		crate::RegistryMetaStatic {
 			id: leak_str(self.id),
 			name: leak_str(self.name),
 			aliases: leak_strs(self.aliases),

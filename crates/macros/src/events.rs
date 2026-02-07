@@ -95,6 +95,7 @@ fn borrowed_type(ty: &Ident) -> TokenStream2 {
 		"Path" => quote! { &'a ::std::path::Path },
 		"RopeSlice" => quote! { ::xeno_primitives::RopeSlice<'a> },
 		"OptionStr" => quote! { ::core::option::Option<&'a str> },
+		"Str" => quote! { &'a str },
 		_ => quote! { #ty },
 	}
 }
@@ -106,6 +107,7 @@ fn owned_type(ty: &Ident) -> TokenStream2 {
 		"Path" => quote! { ::std::path::PathBuf },
 		"RopeSlice" => quote! { ::std::string::String },
 		"OptionStr" => quote! { ::core::option::Option<::std::string::String> },
+		"Str" => quote! { ::std::string::String },
 		_ => quote! { #ty },
 	}
 }
@@ -117,6 +119,7 @@ fn owned_value(ty: &Ident, field: &Ident) -> TokenStream2 {
 		"Path" => quote! { #field.to_path_buf() },
 		"RopeSlice" => quote! { #field.to_string() },
 		"OptionStr" => quote! { #field.map(::std::string::String::from) },
+		"Str" => quote! { #field.to_string() },
 		_ => quote! { #field.clone() },
 	}
 }

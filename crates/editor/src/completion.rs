@@ -173,12 +173,13 @@ impl CompletionSource for CommandSource {
 			.iter()
 			.into_iter()
 			.filter(|cmd| {
-				cmd.name().starts_with(input) || cmd.aliases().iter().any(|a| a.starts_with(input))
+				cmd.name_str().starts_with(input)
+					|| cmd.aliases_resolved().iter().any(|a| a.starts_with(input))
 			})
 			.map(|cmd| CompletionItem {
-				label: cmd.name().to_string(),
-				insert_text: cmd.name().to_string(),
-				detail: Some(cmd.description().to_string()),
+				label: cmd.name_str().to_string(),
+				insert_text: cmd.name_str().to_string(),
+				detail: Some(cmd.description_str().to_string()),
 				filter_text: None,
 				kind: CompletionKind::Command,
 				match_indices: None,

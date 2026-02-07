@@ -3,32 +3,18 @@
 //! Actions are registered explicitly and looked up by keybindings.
 
 use super::keybindings::KeyBindingDef;
-use crate::actions::{ActionContext, ActionResult, RegistryMeta};
+use crate::actions::{ActionContext, ActionResult, RegistryMeta, RegistryMetaStatic};
+use crate::{BuildEntry, CapabilitySet, FrozenInterner, RegistryMetaRef, Symbol, SymbolList};
 
-/// Definition of a registered action.
+/// Definition of a registered action (static input for builder).
 ///
 /// Actions are the fundamental unit of editor behavior. They're registered
 /// explicitly and looked up by keybindings.
-///
-/// # Registration
-///
-/// Use the `action!` macro to register actions:
-///
-/// ```ignore
-/// action!(move_line_down, {
-///     description: "Move line down",
-///     bindings: r#"normal \"j\" \"down\""#,
-/// }, |ctx| cursor_motion(ctx, "line_down"));
-/// ```
+#[derive(Copy, Clone)]
 pub struct ActionDef {
-	/// Common registry metadata.
-	pub meta: RegistryMeta,
+	/// Common registry metadata (static).
+	pub meta: RegistryMetaStatic,
 	/// Short description without key-sequence prefix (for which-key HUD).
-	///
-	/// When actions share a common prefix (e.g., `g` for "Goto"), this field
-	/// contains just the suffix (e.g., "Line start" instead of "Goto line start").
-	/// The prefix description is shown on the root key, making the tree read
-	/// naturally: `g Goto...` → `h Line start`.
 	pub short_desc: &'static str,
 	/// The function that executes this action.
 	pub handler: ActionHandler,
@@ -36,50 +22,94 @@ pub struct ActionDef {
 	pub bindings: &'static [KeyBindingDef],
 }
 
-impl ActionDef {
-	/// Returns the unique identifier.
-	pub fn id(&self) -> &'static str {
-		self.meta.id
+impl crate::core::RegistryEntry for ActionDef {
+	fn meta(&self) -> &crate::core::RegistryMeta {
+		// This is a dummy implementation to satisfy trait bounds in Key.
+		// It should never be called on a static ActionDef via the RegistryEntry trait.
+		panic!("Called meta() on static ActionDef")
+	}
+}
+
+/// Symbolized action entry stored in the registry snapshot.
+#[derive(Clone, Copy)]
+pub struct ActionEntry {
+	/// Common registry metadata (symbolized).
+	pub meta: RegistryMeta,
+	/// Short description (symbolized).
+	pub short_desc: Symbol,
+	/// The function that executes this action.
+	pub handler: ActionHandler,
+	/// Keybindings associated with the action.
+	pub bindings: &'static [KeyBindingDef],
+}
+
+crate::impl_registry_entry!(ActionEntry);
+
+impl BuildEntry<ActionEntry> for ActionDef {
+	fn meta_ref(&self) -> RegistryMetaRef<'_> {
+		RegistryMetaRef {
+			id: self.meta.id,
+			name: self.meta.name,
+			aliases: self.meta.aliases,
+			description: self.meta.description,
+			priority: self.meta.priority,
+			source: self.meta.source,
+			required_caps: self.meta.required_caps,
+			flags: self.meta.flags,
+		}
 	}
 
-	/// Returns the human-readable name.
-	pub fn name(&self) -> &'static str {
-		self.meta.name
+	fn short_desc_str(&self) -> &str {
+		self.short_desc
 	}
 
-	/// Returns alternative names for lookup.
-	pub fn aliases(&self) -> &'static [&'static str] {
-		self.meta.aliases
+	fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
+		let meta = self.meta_ref();
+		sink.push(meta.id);
+		sink.push(meta.name);
+		sink.push(meta.description);
+		for &alias in meta.aliases {
+			sink.push(alias);
+		}
+		sink.push(self.short_desc);
 	}
 
-	/// Returns the keybindings declared alongside this action.
-	pub fn bindings(&self) -> &'static [KeyBindingDef] {
-		self.bindings
-	}
+	fn build(&self, interner: &FrozenInterner, alias_pool: &mut Vec<Symbol>) -> ActionEntry {
+		let meta_ref = self.meta_ref();
+		let start = alias_pool.len() as u32;
 
-	/// Returns the description.
-	pub fn description(&self) -> &'static str {
-		self.meta.description
-	}
+		// Dedup aliases per entry
+		let mut unique_aliases = Vec::from(meta_ref.aliases);
+		unique_aliases.sort_unstable();
+		unique_aliases.dedup();
 
-	/// Returns the priority.
-	pub fn priority(&self) -> i16 {
-		self.meta.priority
-	}
+		for alias in unique_aliases {
+			alias_pool.push(interner.get(alias).expect("missing interned alias"));
+		}
+		let len = (alias_pool.len() as u32 - start) as u16;
+		debug_assert!(alias_pool.len() as u32 - start <= u16::MAX as u32);
 
-	/// Returns the source.
-	pub fn source(&self) -> crate::actions::RegistrySource {
-		self.meta.source
-	}
+		let meta = RegistryMeta {
+			id: interner.get(meta_ref.id).expect("missing interned id"),
+			name: interner.get(meta_ref.name).expect("missing interned name"),
+			description: interner
+				.get(meta_ref.description)
+				.expect("missing interned description"),
+			aliases: SymbolList { start, len },
+			priority: meta_ref.priority,
+			source: meta_ref.source,
+			required_caps: CapabilitySet::from_iter(meta_ref.required_caps.iter().cloned()),
+			flags: meta_ref.flags,
+		};
 
-	/// Returns required capabilities.
-	pub fn required_caps(&self) -> &'static [crate::actions::Capability] {
-		self.meta.required_caps
-	}
-
-	/// Returns behavior flags.
-	pub fn flags(&self) -> u32 {
-		self.meta.flags
+		ActionEntry {
+			meta,
+			short_desc: interner
+				.get(self.short_desc)
+				.expect("missing interned short_desc"),
+			handler: self.handler,
+			bindings: self.bindings,
+		}
 	}
 }
 
@@ -88,5 +118,3 @@ impl ActionDef {
 /// Takes an immutable [`ActionContext`] and returns an [`ActionResult`]
 /// describing what the editor should do.
 pub type ActionHandler = fn(&ActionContext) -> ActionResult;
-
-crate::impl_registry_entry!(ActionDef);

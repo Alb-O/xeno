@@ -104,5 +104,5 @@ pub use theme_source::ThemeSource;
 pub use ui::UiManager;
 pub use xeno_registry::themes::{
 	ColorPair, ModeColors, PopupColors, SemanticColors, THEMES, Theme, ThemeColors, UiColors,
-	blend_colors, get_theme, suggest_theme,
+	blend_colors, suggest_theme,
 };

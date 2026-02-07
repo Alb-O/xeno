@@ -1,15 +1,13 @@
 //! Command registry.
-//!
-//! This crate provides trait-based commands through the [`CommandEditorOps`] abstraction.
-//! Commands registered here are portable and don't depend on specific editor internals.
-//! For commands needing direct editor access (LSP, debugging), see `xeno-editor/src/commands/`.
 
 use std::any::Any;
 use std::path::PathBuf;
 
 use xeno_primitives::BoxFutureLocal;
 
+use crate::core::index::{BuildEntry, RegistryMetaRef};
 use crate::notifications::Notification;
+use crate::{CapabilitySet, FrozenInterner, Symbol, SymbolList};
 
 pub mod builtins;
 mod macros;
@@ -28,8 +26,8 @@ pub fn register_plugin(
 // Re-export macros
 pub use crate::command;
 pub use crate::core::{
-	Capability, CommandError, RegistryBuilder, RegistryEntry, RegistryMeta, RegistryMetadata,
-	RegistryRef, RegistrySource, RuntimeRegistry,
+	Capability, CommandError, RegistryBuilder, RegistryEntry, RegistryMeta, RegistryMetaStatic,
+	RegistryMetadata, RegistryRef, RegistrySource, RuntimeRegistry,
 };
 
 /// Function signature for async command handlers.
@@ -141,9 +139,26 @@ impl<'a> CommandContext<'a> {
 	}
 }
 
-/// A registered command definition.
+/// A registered command definition (static input for builder).
+#[derive(Clone)]
 pub struct CommandDef {
-	/// Common registry metadata.
+	/// Common registry metadata (static).
+	pub meta: RegistryMetaStatic,
+	/// Async function that executes the command.
+	pub handler: CommandHandler,
+	/// Extension-specific data passed to handler.
+	pub user_data: Option<&'static (dyn Any + Sync)>,
+}
+
+impl crate::core::RegistryEntry for CommandDef {
+	fn meta(&self) -> &RegistryMeta {
+		panic!("Called meta() on static CommandDef")
+	}
+}
+
+/// Symbolized command entry stored in the registry snapshot.
+pub struct CommandEntry {
+	/// Common registry metadata (symbolized).
 	pub meta: RegistryMeta,
 	/// Async function that executes the command.
 	pub handler: CommandHandler,
@@ -151,49 +166,64 @@ pub struct CommandDef {
 	pub user_data: Option<&'static (dyn Any + Sync)>,
 }
 
-impl CommandDef {
-	/// Returns the unique identifier.
-	pub fn id(&self) -> &'static str {
-		self.meta.id
+crate::impl_registry_entry!(CommandEntry);
+
+impl BuildEntry<CommandEntry> for CommandDef {
+	fn meta_ref(&self) -> RegistryMetaRef<'_> {
+		RegistryMetaRef {
+			id: self.meta.id,
+			name: self.meta.name,
+			aliases: self.meta.aliases,
+			description: self.meta.description,
+			priority: self.meta.priority,
+			source: self.meta.source,
+			required_caps: self.meta.required_caps,
+			flags: self.meta.flags,
+		}
 	}
 
-	/// Returns the human-readable name.
-	pub fn name(&self) -> &'static str {
-		self.meta.name
+	fn short_desc_str(&self) -> &str {
+		self.meta.name // Commands don't have short_desc currently
 	}
 
-	/// Returns alternative names for lookup.
-	pub fn aliases(&self) -> &'static [&'static str] {
-		self.meta.aliases
+	fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
+		let meta = self.meta_ref();
+		sink.push(meta.id);
+		sink.push(meta.name);
+		sink.push(meta.description);
+		for &alias in meta.aliases {
+			sink.push(alias);
+		}
 	}
 
-	/// Returns the description.
-	pub fn description(&self) -> &'static str {
-		self.meta.description
-	}
+	fn build(&self, interner: &FrozenInterner, alias_pool: &mut Vec<Symbol>) -> CommandEntry {
+		let meta_ref = self.meta_ref();
+		let start = alias_pool.len() as u32;
+		for &alias in meta_ref.aliases {
+			alias_pool.push(interner.get(alias).expect("missing interned alias"));
+		}
+		let len = (alias_pool.len() as u32 - start) as u16;
 
-	/// Returns the priority.
-	pub fn priority(&self) -> i16 {
-		self.meta.priority
-	}
+		let meta = RegistryMeta {
+			id: interner.get(meta_ref.id).expect("missing interned id"),
+			name: interner.get(meta_ref.name).expect("missing interned name"),
+			description: interner
+				.get(meta_ref.description)
+				.expect("missing interned description"),
+			aliases: SymbolList { start, len },
+			priority: meta_ref.priority,
+			source: meta_ref.source,
+			required_caps: CapabilitySet::from_iter(meta_ref.required_caps.iter().cloned()),
+			flags: meta_ref.flags,
+		};
 
-	/// Returns the source.
-	pub fn source(&self) -> RegistrySource {
-		self.meta.source
-	}
-
-	/// Returns required capabilities.
-	pub fn required_caps(&self) -> &'static [Capability] {
-		self.meta.required_caps
-	}
-
-	/// Returns behavior flags.
-	pub fn flags(&self) -> u32 {
-		self.meta.flags
+		CommandEntry {
+			meta,
+			handler: self.handler,
+			user_data: self.user_data,
+		}
 	}
 }
-
-crate::impl_registry_entry!(CommandDef);
 
 /// Command flags for optional behavior hints.
 pub mod flags {
@@ -204,22 +234,14 @@ pub mod flags {
 #[cfg(feature = "db")]
 pub use crate::db::COMMANDS;
 
-/// Registers an extra command definition at runtime.
-///
-/// Returns `true` if the command was added, `false` if already registered.
-#[cfg(feature = "db")]
-pub fn register_command(def: &'static CommandDef) -> bool {
-	COMMANDS.register(def)
-}
-
 /// Finds a command by name or alias.
 #[cfg(feature = "db")]
-pub fn find_command(name: &str) -> Option<RegistryRef<CommandDef>> {
+pub fn find_command(name: &str) -> Option<RegistryRef<CommandEntry, crate::core::CommandId>> {
 	COMMANDS.get(name)
 }
 
 /// Returns all registered commands (builtins + runtime), sorted by name.
 #[cfg(feature = "db")]
-pub fn all_commands() -> Vec<RegistryRef<CommandDef>> {
+pub fn all_commands() -> Vec<RegistryRef<CommandEntry, crate::core::CommandId>> {
 	COMMANDS.all()
 }

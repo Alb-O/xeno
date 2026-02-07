@@ -243,10 +243,12 @@ pub use notifications::{
 	AutoDismiss, IntoNotification, Level, Notification, NotificationDef, NotificationKey,
 	keys as notification_keys,
 };
+#[cfg(all(feature = "options", feature = "db"))]
+pub use options::validate;
 #[cfg(feature = "options")]
 pub use options::{
 	OptionDef, OptionError, OptionKey, OptionReg, OptionScope, OptionType, OptionValidator,
-	OptionValue, TypedOptionKey, validate,
+	OptionValue, TypedOptionKey,
 };
 #[cfg(feature = "statusline")]
 pub use statusline::{

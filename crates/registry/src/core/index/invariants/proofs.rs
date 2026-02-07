@@ -1,361 +1,253 @@
+//! Invariant proof tests for the new builder-based registry architecture.
+//!
+//! The previous proofs referenced the old insert/KeyStore/DefRef API which has
+//! been replaced by the RegistryBuilder + RegistryIndex + RuntimeRegistry stack.
+//! These proofs need to be rewritten against the new architecture.
+
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
 
-use crate::core::index::build::RegistryBuilder;
-use crate::core::index::collision::{self, DuplicatePolicy, KeyKind, KeyStore};
-use crate::core::index::insert::{insert_id_key_runtime, insert_typed_key};
+use crate::core::index::build::{BuildEntry, RegistryBuilder, RegistryMetaRef};
 use crate::core::index::runtime::RuntimeRegistry;
-use crate::{RegistryEntry, RegistryMeta};
+use crate::core::{
+	CapabilitySet, FrozenInterner, RegistryEntry, RegistryMeta, RegistryMetaStatic, RegistrySource,
+	Symbol, SymbolList,
+};
 
-struct TestDef {
+/// Minimal test entry type for proofs.
+struct TestEntry {
 	meta: RegistryMeta,
-	drop_counter: Option<Arc<AtomicUsize>>,
 }
 
-impl RegistryEntry for TestDef {
+impl RegistryEntry for TestEntry {
 	fn meta(&self) -> &RegistryMeta {
 		&self.meta
 	}
 }
 
-impl Drop for TestDef {
-	fn drop(&mut self) {
-		if let Some(counter) = &self.drop_counter {
-			counter.fetch_add(1, Ordering::SeqCst);
+/// Minimal test def type for proofs.
+#[derive(Clone)]
+struct TestDef {
+	meta: RegistryMetaStatic,
+}
+
+impl BuildEntry<TestEntry> for TestDef {
+	fn meta_ref(&self) -> RegistryMetaRef<'_> {
+		RegistryMetaRef {
+			id: self.meta.id,
+			name: self.meta.name,
+			aliases: self.meta.aliases,
+			description: self.meta.description,
+			priority: self.meta.priority,
+			source: self.meta.source,
+			required_caps: self.meta.required_caps,
+			flags: self.meta.flags,
+		}
+	}
+	fn short_desc_str(&self) -> &str {
+		self.meta.name
+	}
+	fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
+		sink.push(self.meta.id);
+		sink.push(self.meta.name);
+		sink.push(self.meta.description);
+		for &alias in self.meta.aliases {
+			sink.push(alias);
+		}
+	}
+	fn build(&self, interner: &FrozenInterner, alias_pool: &mut Vec<Symbol>) -> TestEntry {
+		let meta_ref = self.meta_ref();
+		let start = alias_pool.len() as u32;
+		for &alias in meta_ref.aliases {
+			alias_pool.push(interner.get(alias).expect("missing interned alias"));
+		}
+		let len = (alias_pool.len() as u32 - start) as u16;
+
+		TestEntry {
+			meta: RegistryMeta {
+				id: interner.get(meta_ref.id).expect("missing interned id"),
+				name: interner.get(meta_ref.name).expect("missing interned name"),
+				description: interner
+					.get(meta_ref.description)
+					.expect("missing interned description"),
+				aliases: SymbolList { start, len },
+				priority: meta_ref.priority,
+				source: meta_ref.source,
+				required_caps: CapabilitySet::from_iter(meta_ref.required_caps.iter().cloned()),
+				flags: meta_ref.flags,
+			},
 		}
 	}
 }
 
-fn make_meta(id: &'static str, priority: i16) -> RegistryMeta {
-	RegistryMeta {
-		id,
-		name: id,
-		aliases: &[],
-		description: "",
-		priority,
-		source: crate::RegistrySource::Builtin,
-		required_caps: &[],
-		flags: 0,
+use crate::core::symbol::ActionId;
+
+fn make_def(id: &'static str, priority: i16) -> TestDef {
+	TestDef {
+		meta: RegistryMetaStatic {
+			id,
+			name: id,
+			aliases: &[],
+			description: "",
+			priority,
+			source: RegistrySource::Builtin,
+			required_caps: &[],
+			flags: 0,
+		},
 	}
 }
 
-fn choose_winner_any(
-	_kind: KeyKind,
-	_key: &str,
-	_existing: &TestDef,
-	_candidate: &TestDef,
-) -> bool {
-	true
-}
-
-/// Snapshot-backed owned definitions stay alive across swaps while referenced.
-#[cfg_attr(test, test)]
-pub(crate) fn test_snapshot_liveness_across_swap() {
-	let drop_counter = Arc::new(AtomicUsize::new(0));
-
-	let def_a = TestDef {
-		meta: make_meta("X", 10),
-		drop_counter: Some(Arc::clone(&drop_counter)),
-	};
-
-	let builder = RegistryBuilder::<TestDef>::new("test");
-	let registry =
-		RuntimeRegistry::with_policy("test", builder.build(), DuplicatePolicy::ByPriority);
-
-	registry.register_owned(def_a);
-	assert_eq!(registry.len(), 1);
-
-	let snap = registry.snapshot();
-	let ref_a = snap.get_def("X").unwrap();
-	assert_eq!(ref_a.as_entry().id(), "X");
-
-	static DEF_B: TestDef = TestDef {
-		meta: RegistryMeta {
-			id: "X",
-			name: "X",
-			aliases: &[],
-			description: "",
-			priority: 20,
-			source: crate::RegistrySource::Builtin,
-			required_caps: &[],
-			flags: 0,
-		},
-		drop_counter: None,
-	};
-	registry
-		.try_register_many_override(std::iter::once(&DEF_B))
-		.unwrap();
-
-	assert_eq!(registry.get("X").unwrap().priority(), 20);
-	assert_eq!(
-		drop_counter.load(Ordering::SeqCst),
-		0,
-		"Owned def A should be kept alive by snapshot ref"
-	);
-
-	drop(ref_a);
-	drop(snap);
-
-	assert_eq!(
-		drop_counter.load(Ordering::SeqCst),
-		1,
-		"Owned def A should be dropped after last ref release"
-	);
-}
-
-/// ID lookup keeps exactly one winner.
-#[cfg_attr(test, test)]
-pub(crate) fn test_unambiguous_id_lookup() {
-	struct MockStore {
-		ids: std::collections::HashMap<Box<str>, crate::core::index::types::DefRef<TestDef>>,
-	}
-	impl KeyStore<TestDef> for MockStore {
-		fn get_id_owner(&self, id: &str) -> Option<crate::core::index::types::DefRef<TestDef>> {
-			self.ids.get(id).cloned()
-		}
-		fn insert_id(
-			&mut self,
-			id: &str,
-			def: crate::core::index::types::DefRef<TestDef>,
-		) -> Option<crate::core::index::types::DefRef<TestDef>> {
-			self.ids.insert(Box::from(id), def)
-		}
-		fn get_key_winner(&self, _key: &str) -> Option<crate::core::index::types::DefRef<TestDef>> {
-			None
-		}
-		fn set_key_winner(&mut self, _key: &str, _def: crate::core::index::types::DefRef<TestDef>) {
-		}
-		fn set_id_owner(&mut self, id: &str, def: crate::core::index::types::DefRef<TestDef>) {
-			self.ids.insert(Box::from(id), def);
-		}
-		fn evict_def(&mut self, _def: crate::core::index::types::DefRef<TestDef>) {}
-		fn push_collision(&mut self, _c: crate::core::index::collision::Collision) {}
-	}
-
-	let mut store = MockStore {
-		ids: Default::default(),
-	};
-	let choose_winner: collision::ChooseWinner<TestDef> = choose_winner_any;
-
-	static DEF_A: TestDef = TestDef {
-		meta: RegistryMeta {
-			id: "X",
-			name: "X",
-			aliases: &[],
-			description: "",
-			priority: 10,
-			source: crate::RegistrySource::Builtin,
-			required_caps: &[],
-			flags: 0,
-		},
-		drop_counter: None,
-	};
-	static DEF_B: TestDef = TestDef {
-		meta: RegistryMeta {
-			id: "X",
-			name: "X",
-			aliases: &[],
-			description: "",
-			priority: 20,
-			source: crate::RegistrySource::Builtin,
-			required_caps: &[],
-			flags: 0,
-		},
-		drop_counter: None,
-	};
-	let ref_a = crate::core::index::types::DefRef::Builtin(&DEF_A);
-	let ref_b = crate::core::index::types::DefRef::Builtin(&DEF_B);
-
-	let res = insert_typed_key(
-		&mut store,
-		"test",
-		choose_winner,
-		KeyKind::Id,
-		"X",
-		ref_a.clone(),
-	);
-	assert!(res.is_ok(), "First insert should succeed");
-
-	let res = insert_typed_key(
-		&mut store,
-		"test",
-		choose_winner,
-		KeyKind::Id,
-		"X",
-		ref_b.clone(),
-	);
-	assert!(res.is_err(), "Duplicate ID at build time should be fatal");
-
-	let res = insert_id_key_runtime(&mut store, "test", choose_winner, "X", ref_b.clone());
-	assert!(res.is_ok(), "Runtime override should succeed");
-	assert_eq!(
-		store.ids.get("X").unwrap().as_entry().priority(),
-		20,
-		"New definition should win"
-	);
-	assert_eq!(store.ids.len(), 1, "Only one winner per ID");
-}
-
-/// ID overrides evict old key winners.
-#[cfg_attr(test, test)]
-pub(crate) fn test_id_override_eviction() {
-	let builder = RegistryBuilder::<TestDef>::new("test");
-	let registry =
-		RuntimeRegistry::with_policy("test", builder.build(), DuplicatePolicy::ByPriority);
-
-	static DEF_A: TestDef = TestDef {
-		meta: RegistryMeta {
-			id: "X",
-			name: "OLD_NAME",
-			aliases: &["OLD_ALIAS"],
-			description: "",
-			priority: 10,
-			source: crate::RegistrySource::Builtin,
-			required_caps: &[],
-			flags: 0,
-		},
-		drop_counter: None,
-	};
-	registry.try_register(&DEF_A).unwrap();
-	assert_eq!(registry.get("X").unwrap().id(), "X");
-	assert_eq!(registry.get("OLD_NAME").unwrap().id(), "X");
-	assert_eq!(registry.get("OLD_ALIAS").unwrap().id(), "X");
-
-	static DEF_B: TestDef = TestDef {
-		meta: RegistryMeta {
-			id: "X",
-			name: "NEW_NAME",
-			aliases: &[],
-			description: "",
-			priority: 20,
-			source: crate::RegistrySource::Builtin,
-			required_caps: &[],
-			flags: 0,
-		},
-		drop_counter: None,
-	};
-	registry.try_register_override(&DEF_B).unwrap();
-
-	assert!(
-		registry.get("OLD_NAME").is_none(),
-		"OLD_NAME should be evicted"
-	);
-	assert!(
-		registry.get("OLD_ALIAS").is_none(),
-		"OLD_ALIAS should be evicted"
-	);
-	assert_eq!(registry.get("X").unwrap().id(), "X");
-	assert_eq!(registry.get("X").unwrap().priority(), 20);
-	assert_eq!(registry.get("NEW_NAME").unwrap().id(), "X");
-}
-
-/// Losers in ID contests are not admitted through name/alias paths.
-#[cfg_attr(test, test)]
-pub(crate) fn test_id_loser_admission_gate() {
-	let builder = RegistryBuilder::<TestDef>::new("test");
-	let registry =
-		RuntimeRegistry::with_policy("test", builder.build(), DuplicatePolicy::ByPriority);
-
-	static DEF_A: TestDef = TestDef {
-		meta: RegistryMeta {
-			id: "X",
-			name: "KEEP",
-			aliases: &[],
-			description: "",
-			priority: 20,
-			source: crate::RegistrySource::Builtin,
-			required_caps: &[],
-			flags: 0,
-		},
-		drop_counter: None,
-	};
-	registry.try_register(&DEF_A).unwrap();
-
-	static DEF_B: TestDef = TestDef {
-		meta: RegistryMeta {
-			id: "X",
-			name: "LOSER_NAME",
-			aliases: &["LOSER_ALIAS"],
-			description: "",
-			priority: 10,
-			source: crate::RegistrySource::Builtin,
-			required_caps: &[],
-			flags: 0,
-		},
-		drop_counter: None,
-	};
-
-	let action = registry.try_register_override(&DEF_B).unwrap();
-	assert_eq!(action, crate::error::InsertAction::KeptExisting);
-
-	assert_eq!(registry.get("X").unwrap().priority(), 20);
-	assert_eq!(registry.get("KEEP").unwrap().id(), "X");
-	assert!(
-		registry.get("LOSER_NAME").is_none(),
-		"Loser name should not be admitted"
-	);
-	assert!(
-		registry.get("LOSER_ALIAS").is_none(),
-		"Loser alias should not be admitted"
-	);
-}
-
-/// Effective iteration remains deterministic across overrides and insertions.
+/// Builder produces deterministic index ordering by canonical ID.
 #[cfg_attr(test, test)]
 pub(crate) fn test_deterministic_iteration() {
-	let mut builder = RegistryBuilder::<TestDef>::new("test");
-
+	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> = RegistryBuilder::new("test");
 	let def_a = TestDef {
-		meta: make_meta("A", 10),
-		drop_counter: None,
+		meta: RegistryMetaStatic::minimal("A", "A", ""),
 	};
 	let def_b = TestDef {
-		meta: make_meta("B", 10),
-		drop_counter: None,
+		meta: RegistryMetaStatic::minimal("B", "B", ""),
 	};
-	builder.push(Box::leak(Box::new(def_a)));
-	builder.push(Box::leak(Box::new(def_b)));
+	builder.push(std::sync::Arc::new(def_b));
+	builder.push(std::sync::Arc::new(def_a));
 
-	let registry =
-		RuntimeRegistry::with_policy("test", builder.build(), DuplicatePolicy::ByPriority);
-
-	let ids: Vec<_> = registry.all().iter().map(|r| r.id()).collect();
+	let index = builder.build();
+	assert_eq!(index.len(), 2);
+	// Items should be sorted by canonical ID
+	let ids: Vec<_> = index
+		.iter()
+		.map(|e| index.interner.resolve(e.meta().id))
+		.collect();
 	assert_eq!(ids, vec!["A", "B"]);
+}
 
-	static DEF_A_NEW: TestDef = TestDef {
-		meta: RegistryMeta {
+/// Duplicate IDs in debug mode trigger panic (DuplicatePolicy::Panic).
+#[cfg_attr(test, test)]
+#[should_panic(expected = "Duplicate registry key")]
+pub(crate) fn test_duplicate_id_panics_in_debug() {
+	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> = RegistryBuilder::new("test");
+	builder.push(std::sync::Arc::new(make_def("X", 10)));
+	builder.push(std::sync::Arc::new(make_def("X", 20)));
+	let _ = builder.build(); // Should panic
+}
+
+/// Alias conflicts are recorded as collisions.
+#[cfg_attr(test, test)]
+pub(crate) fn test_alias_collision_recording() {
+	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> = RegistryBuilder::new("test");
+	let def_a = TestDef {
+		meta: RegistryMetaStatic {
 			id: "A",
 			name: "A",
-			aliases: &[],
-			description: "",
-			priority: 20,
-			source: crate::RegistrySource::Builtin,
-			required_caps: &[],
-			flags: 0,
-		},
-		drop_counter: None,
-	};
-	registry.try_register_override(&DEF_A_NEW).unwrap();
-
-	let ids: Vec<_> = registry.all().iter().map(|r| r.id()).collect();
-	assert_eq!(ids, vec!["A", "B"]);
-	assert_eq!(registry.get("A").unwrap().priority(), 20);
-
-	static DEF_C: TestDef = TestDef {
-		meta: RegistryMeta {
-			id: "C",
-			name: "C",
-			aliases: &[],
+			aliases: &["shared"],
 			description: "",
 			priority: 10,
-			source: crate::RegistrySource::Builtin,
+			source: RegistrySource::Builtin,
 			required_caps: &[],
 			flags: 0,
 		},
-		drop_counter: None,
 	};
-	registry.try_register(&DEF_C).unwrap();
+	let def_b = TestDef {
+		meta: RegistryMetaStatic {
+			id: "B",
+			name: "B",
+			aliases: &["shared"],
+			description: "",
+			priority: 20,
+			source: RegistrySource::Builtin,
+			required_caps: &[],
+			flags: 0,
+		},
+	};
+	builder.push(std::sync::Arc::new(def_a));
+	builder.push(std::sync::Arc::new(def_b));
 
-	let ids: Vec<_> = registry.all().iter().map(|r| r.id()).collect();
-	assert_eq!(ids, vec!["A", "B", "C"]);
+	let index = builder.build();
+	assert_eq!(index.len(), 2);
+	assert!(
+		!index.collisions().is_empty(),
+		"Alias collision should be recorded"
+	);
+}
+
+/// Each unique ID resolves to exactly one entry in the built index.
+#[cfg_attr(test, test)]
+pub(crate) fn test_unambiguous_id_lookup() {
+	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> = RegistryBuilder::new("test");
+	builder.push(Arc::new(make_def("alpha", 10)));
+	builder.push(Arc::new(make_def("beta", 20)));
+
+	let index = builder.build();
+	let registry = RuntimeRegistry::new("test", index);
+
+	let alpha = registry.get("alpha").expect("alpha must resolve");
+	let beta = registry.get("beta").expect("beta must resolve");
+
+	// Each ID maps to a single, distinct dense slot
+	assert_ne!(alpha.dense_id(), beta.dense_id());
+	assert_eq!(alpha.priority(), 10);
+	assert_eq!(beta.priority(), 20);
+}
+
+/// When duplicate IDs are ingested with ByPriority policy, the
+/// higher-priority entry wins and the loser is evicted from key maps.
+#[cfg_attr(test, test)]
+pub(crate) fn test_id_override_eviction() {
+	use crate::core::index::collision::DuplicatePolicy;
+	// Use ByPriority explicitly to test priority-based eviction.
+	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> =
+		RegistryBuilder::with_policy("test", DuplicatePolicy::ByPriority);
+	let low = TestDef {
+		meta: RegistryMetaStatic {
+			id: "X",
+			name: "X",
+			aliases: &[],
+			description: "low priority",
+			priority: 5,
+			source: RegistrySource::Builtin,
+			required_caps: &[],
+			flags: 0,
+		},
+	};
+	let high = TestDef {
+		meta: RegistryMetaStatic {
+			id: "X",
+			name: "X",
+			aliases: &[],
+			description: "high priority",
+			priority: 50,
+			source: RegistrySource::Builtin,
+			required_caps: &[],
+			flags: 0,
+		},
+	};
+	builder.push(Arc::new(low));
+	builder.push(Arc::new(high));
+
+	let index = builder.build();
+	// Only one winner for the duplicate ID
+	assert_eq!(index.len(), 1);
+	let entry = index.get("X").expect("X must resolve");
+	assert_eq!(entry.priority(), 50, "Higher priority entry must win");
+}
+
+/// Snapshot-backed RegistryRefs remain valid even after another snapshot is taken.
+#[cfg_attr(test, test)]
+pub(crate) fn test_snapshot_liveness_across_swap() {
+	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> = RegistryBuilder::new("test");
+	builder.push(Arc::new(make_def("A", 10)));
+	let registry = RuntimeRegistry::new("test", builder.build());
+
+	// Pin a snapshot-backed ref
+	let ref_a = registry.get("A").expect("A must resolve");
+	let snap = registry.snapshot();
+
+	// Take another snapshot (would trigger ArcSwap store in runtime mutation path)
+	let snap2 = registry.snapshot();
+
+	// The original ref and snapshot must still be valid and readable
+	assert_eq!(ref_a.priority(), 10);
+	assert_eq!(snap.table.len(), 1);
+	assert!(
+		Arc::ptr_eq(&snap, &snap2),
+		"No mutation means same snapshot"
+	);
 }

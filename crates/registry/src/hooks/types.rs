@@ -2,52 +2,38 @@
 
 use super::context::{HookContext, MutableHookContext};
 use crate::HookEvent;
-pub use crate::core::{RegistryEntry, RegistryMeta, RegistryMetadata};
+use crate::core::index::{BuildEntry, RegistryMetaRef};
+pub use crate::core::{
+	CapabilitySet, FrozenInterner, RegistryEntry, RegistryMeta, RegistryMetaStatic,
+	RegistryMetadata, Symbol, SymbolList,
+};
 
-/// Execution priority for async hooks.
-///
-/// Interactive hooks must always complete; background hooks can be dropped
-/// under backlog to prevent UI stalls.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum HookPriority {
-	/// High-priority hook that must complete (e.g., LSP sync, user-visible feedback).
 	#[default]
 	Interactive,
-	/// Low-priority hook that can be dropped under backlog (e.g., analytics, telemetry).
 	Background,
 }
 
-/// Result of a hook execution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum HookResult {
-	/// Continue with the operation.
 	#[default]
 	Continue,
-	/// Cancel the operation (for pre-hooks like BufferWritePre).
 	Cancel,
 }
 
-/// A boxed future that returns a [`HookResult`].
 pub type HookFuture = xeno_primitives::BoxFutureStatic<HookResult>;
 
-/// Action returned by a hook handler.
-///
-/// Hooks return this to indicate whether they completed synchronously
-/// or need async work.
 pub enum HookAction {
-	/// Hook completed synchronously with the given result.
 	Done(HookResult),
-	/// Hook needs async work. The future will be awaited.
 	Async(HookFuture),
 }
 
 impl HookAction {
-	/// Create a sync action that continues.
 	pub fn done() -> Self {
 		HookAction::Done(HookResult::Continue)
 	}
 
-	/// Create a sync action that cancels.
 	pub fn cancel() -> Self {
 		HookAction::Done(HookResult::Cancel)
 	}
@@ -65,39 +51,25 @@ impl From<()> for HookAction {
 	}
 }
 
-/// Whether a hook can mutate editor state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HookMutability {
-	/// Hook only reads state.
 	Immutable,
-	/// Hook may modify state.
 	Mutable,
 }
 
-/// Handler function for a hook.
 #[derive(Clone, Copy)]
 pub enum HookHandler {
-	/// Handler that receives immutable context.
 	Immutable(fn(&HookContext) -> HookAction),
-	/// Handler that receives mutable context.
 	Mutable(fn(&mut MutableHookContext) -> HookAction),
 }
 
-/// A hook that responds to editor events.
+/// A hook that responds to editor events (static input).
 #[derive(Clone, Copy)]
 pub struct HookDef {
-	/// Common registry metadata.
-	pub meta: RegistryMeta,
-	/// The event this hook responds to.
+	pub meta: RegistryMetaStatic,
 	pub event: HookEvent,
-	/// Whether this hook can mutate editor state.
 	pub mutability: HookMutability,
-	/// Execution priority for scheduling (Interactive vs Background).
 	pub execution_priority: HookPriority,
-	/// The hook handler function.
-	///
-	/// Returns [`HookAction::Done`] for sync completion or [`HookAction::Async`]
-	/// with a future for async work.
 	pub handler: HookHandler,
 }
 
@@ -108,10 +80,82 @@ impl std::fmt::Debug for HookDef {
 			.field("event", &self.event)
 			.field("mutability", &self.mutability)
 			.field("execution_priority", &self.execution_priority)
-			.field("priority", &self.meta.priority)
-			.field("description", &self.meta.description)
 			.finish()
 	}
 }
 
-crate::impl_registry_entry!(HookDef);
+impl crate::core::RegistryEntry for HookDef {
+	fn meta(&self) -> &RegistryMeta {
+		panic!("Called meta() on static HookDef")
+	}
+}
+
+/// Symbolized hook entry.
+pub struct HookEntry {
+	pub meta: RegistryMeta,
+	pub event: HookEvent,
+	pub mutability: HookMutability,
+	pub execution_priority: HookPriority,
+	pub handler: HookHandler,
+}
+
+crate::impl_registry_entry!(HookEntry);
+
+impl BuildEntry<HookEntry> for HookDef {
+	fn meta_ref(&self) -> RegistryMetaRef<'_> {
+		RegistryMetaRef {
+			id: self.meta.id,
+			name: self.meta.name,
+			aliases: self.meta.aliases,
+			description: self.meta.description,
+			priority: self.meta.priority,
+			source: self.meta.source,
+			required_caps: self.meta.required_caps,
+			flags: self.meta.flags,
+		}
+	}
+
+	fn short_desc_str(&self) -> &str {
+		self.meta.name
+	}
+
+	fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
+		let meta = self.meta_ref();
+		sink.push(meta.id);
+		sink.push(meta.name);
+		sink.push(meta.description);
+		for &alias in meta.aliases {
+			sink.push(alias);
+		}
+	}
+
+	fn build(&self, interner: &FrozenInterner, alias_pool: &mut Vec<Symbol>) -> HookEntry {
+		let meta_ref = self.meta_ref();
+		let start = alias_pool.len() as u32;
+		for &alias in meta_ref.aliases {
+			alias_pool.push(interner.get(alias).expect("missing interned alias"));
+		}
+		let len = (alias_pool.len() as u32 - start) as u16;
+
+		let meta = RegistryMeta {
+			id: interner.get(meta_ref.id).expect("missing interned id"),
+			name: interner.get(meta_ref.name).expect("missing interned name"),
+			description: interner
+				.get(meta_ref.description)
+				.expect("missing interned description"),
+			aliases: SymbolList { start, len },
+			priority: meta_ref.priority,
+			source: meta_ref.source,
+			required_caps: CapabilitySet::from_iter(meta_ref.required_caps.iter().cloned()),
+			flags: meta_ref.flags,
+		};
+
+		HookEntry {
+			meta,
+			event: self.event,
+			mutability: self.mutability,
+			execution_priority: self.execution_priority,
+			handler: self.handler,
+		}
+	}
+}

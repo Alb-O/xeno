@@ -1,20 +1,20 @@
 use xeno_primitives::{Color, Mode, Style};
 
 use super::super::syntax::SyntaxStyles;
-use crate::core::{RegistryMeta, RegistrySource};
+use crate::core::index::{BuildEntry, RegistryMetaRef};
+pub use crate::core::{
+	CapabilitySet, FrozenInterner, RegistryMeta, RegistryMetaStatic, RegistryRef, RegistrySource,
+	Symbol, SymbolList, ThemeId,
+};
 
 /// Whether a theme uses a light or dark background.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum ThemeVariant {
-	/// Dark theme with light text on dark background.
 	#[default]
 	Dark,
-	/// Light theme with dark text on light background.
-	/// Light theme with dark text on light background.
 	Light,
 }
 
-/// UI color definitions for the editor chrome.
 #[derive(Clone, Copy, Debug)]
 pub struct UiColors {
 	pub bg: Color,
@@ -30,7 +30,6 @@ pub struct UiColors {
 	pub command_input_fg: Color,
 }
 
-/// A background/foreground color pair for UI elements like mode badges.
 #[derive(Clone, Copy, Debug)]
 pub struct ColorPair {
 	pub bg: Color,
@@ -47,7 +46,6 @@ impl ColorPair {
 	}
 }
 
-/// Mode indicator colors for status bar badges.
 #[derive(Clone, Copy, Debug)]
 pub struct ModeColors {
 	pub normal: ColorPair,
@@ -66,7 +64,6 @@ impl ModeColors {
 	}
 }
 
-/// Semantic colors used throughout the UI.
 #[derive(Clone, Copy, Debug)]
 pub struct SemanticColors {
 	pub error: Color,
@@ -80,7 +77,6 @@ pub struct SemanticColors {
 	pub accent: Color,
 }
 
-/// Popup/menu color definitions.
 #[derive(Clone, Copy, Debug)]
 pub struct PopupColors {
 	pub bg: Color,
@@ -89,7 +85,6 @@ pub struct PopupColors {
 	pub title: Color,
 }
 
-/// Per-semantic-style color pair for notifications.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct SemanticColorPair {
 	pub bg: Option<Color>,
@@ -100,7 +95,6 @@ impl SemanticColorPair {
 	pub const NONE: Self = Self { bg: None, fg: None };
 }
 
-/// Notification-specific color overrides.
 #[derive(Clone, Copy, Debug)]
 pub struct NotificationColors {
 	pub border: Option<Color>,
@@ -121,7 +115,6 @@ pub const SEMANTIC_SUCCESS: &str = "success";
 pub const SEMANTIC_DIM: &str = "dim";
 pub const SEMANTIC_NORMAL: &str = "normal";
 
-/// Complete theme color palette.
 #[derive(Clone, Copy, Debug)]
 pub struct ThemeColors {
 	pub ui: UiColors,
@@ -167,51 +160,82 @@ impl ThemeColors {
 	}
 }
 
-/// A complete theme definition.
+/// A complete theme definition (static input).
 #[derive(Clone, Copy, Debug)]
 pub struct ThemeDef {
+	pub meta: RegistryMetaStatic,
+	pub variant: ThemeVariant,
+	pub colors: ThemeColors,
+}
+
+impl crate::core::RegistryEntry for ThemeDef {
+	fn meta(&self) -> &RegistryMeta {
+		panic!("Called meta() on static ThemeDef")
+	}
+}
+
+/// Symbolized theme entry.
+pub struct ThemeEntry {
 	pub meta: RegistryMeta,
 	pub variant: ThemeVariant,
 	pub colors: ThemeColors,
 }
 
-/// Owned theme data for runtime-loaded themes.
-#[derive(Clone, Debug)]
-pub struct OwnedTheme {
-	pub id: String,
-	pub name: String,
-	pub aliases: Vec<String>,
-	pub variant: ThemeVariant,
-	pub colors: ThemeColors,
-	pub priority: i16,
-	pub source: RegistrySource,
-}
+crate::impl_registry_entry!(ThemeEntry);
 
-impl OwnedTheme {
-	pub fn leak(self) -> &'static ThemeDef {
-		let id: &'static str = Box::leak(self.id.into_boxed_str());
-		let name: &'static str = Box::leak(self.name.into_boxed_str());
-		let aliases: &'static [&'static str] = Box::leak(
-			self.aliases
-				.into_iter()
-				.map(|s| -> &'static str { Box::leak(s.into_boxed_str()) })
-				.collect::<Vec<_>>()
-				.into_boxed_slice(),
-		);
+impl BuildEntry<ThemeEntry> for ThemeDef {
+	fn meta_ref(&self) -> RegistryMetaRef<'_> {
+		RegistryMetaRef {
+			id: self.meta.id,
+			name: self.meta.name,
+			aliases: self.meta.aliases,
+			description: self.meta.description,
+			priority: self.meta.priority,
+			source: self.meta.source,
+			required_caps: self.meta.required_caps,
+			flags: self.meta.flags,
+		}
+	}
 
-		Box::leak(Box::new(ThemeDef {
-			meta: RegistryMeta {
-				id,
-				name,
-				aliases,
-				description: "",
-				priority: self.priority,
-				source: self.source,
-				required_caps: &[],
-				flags: 0,
-			},
+	fn short_desc_str(&self) -> &str {
+		self.meta.name
+	}
+
+	fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
+		let meta = self.meta_ref();
+		sink.push(meta.id);
+		sink.push(meta.name);
+		sink.push(meta.description);
+		for &alias in meta.aliases {
+			sink.push(alias);
+		}
+	}
+
+	fn build(&self, interner: &FrozenInterner, alias_pool: &mut Vec<Symbol>) -> ThemeEntry {
+		let meta_ref = self.meta_ref();
+		let start = alias_pool.len() as u32;
+		for &alias in meta_ref.aliases {
+			alias_pool.push(interner.get(alias).expect("missing interned alias"));
+		}
+		let len = (alias_pool.len() as u32 - start) as u16;
+
+		let meta = RegistryMeta {
+			id: interner.get(meta_ref.id).expect("missing interned id"),
+			name: interner.get(meta_ref.name).expect("missing interned name"),
+			description: interner
+				.get(meta_ref.description)
+				.expect("missing interned description"),
+			aliases: SymbolList { start, len },
+			priority: meta_ref.priority,
+			source: meta_ref.source,
+			required_caps: CapabilitySet::from_iter(meta_ref.required_caps.iter().cloned()),
+			flags: meta_ref.flags,
+		};
+
+		ThemeEntry {
+			meta,
 			variant: self.variant,
 			colors: self.colors,
-		}))
+		}
 	}
 }

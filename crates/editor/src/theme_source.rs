@@ -32,14 +32,13 @@ impl CompletionSource for ThemeSource {
 		let mut items: Vec<_> = THEMES
 			.all()
 			.iter()
-			.map(|t| &**t)
 			.filter(|t| {
-				t.meta.name.starts_with(prefix)
-					|| t.meta.aliases.iter().any(|a| a.starts_with(prefix))
+				t.name_str().starts_with(prefix)
+					|| t.aliases_resolved().iter().any(|a| a.starts_with(prefix))
 			})
 			.map(|t| CompletionItem {
-				label: t.meta.name.to_string(),
-				insert_text: t.meta.name.to_string(),
+				label: t.name_str().to_string(),
+				insert_text: t.name_str().to_string(),
 				detail: Some(format!(
 					"{} theme",
 					match t.variant {

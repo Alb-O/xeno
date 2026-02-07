@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use xeno_primitives::BoxFutureLocal;
 
-use crate::commands::{COMMANDS, CommandContext, CommandError, CommandOutcome};
+use crate::commands::{COMMANDS, CommandContext, CommandError, CommandOutcome, RegistryEntry};
 use crate::notifications::keys;
 use crate::{command, motions, textobj};
 
@@ -106,28 +106,28 @@ fn collect_command_collisions(collisions: &mut Vec<CollisionReport>) {
 	let mut by_name = HashMap::new();
 	let mut by_alias = HashMap::new();
 
-	for cmd in COMMANDS.iter() {
+	for cmd in COMMANDS.all() {
 		let meta = EntryMeta {
-			id: cmd.id().to_string(),
+			id: cmd.id_str().to_string(),
 			source: cmd.source().to_string(),
 			priority: cmd.priority(),
 		};
 
 		register_collision(
 			CollisionKind::Id,
-			cmd.id().to_string(),
+			cmd.id_str().to_string(),
 			meta.clone(),
 			&mut by_id,
 			collisions,
 		);
 		register_collision(
 			CollisionKind::Name,
-			cmd.name().to_string(),
+			cmd.name_str().to_string(),
 			meta.clone(),
 			&mut by_name,
 			collisions,
 		);
-		for alias in cmd.aliases() {
+		for alias in cmd.aliases_resolved() {
 			register_collision(
 				CollisionKind::Alias,
 				alias.to_string(),
@@ -146,26 +146,26 @@ fn collect_motion_collisions(collisions: &mut Vec<CollisionReport>) {
 
 	for motion in motions::all() {
 		let meta = EntryMeta {
-			id: motion.id().to_string(),
+			id: motion.id_str().to_string(),
 			source: motion.source().to_string(),
 			priority: motion.priority(),
 		};
 
 		register_collision(
 			CollisionKind::Id,
-			motion.id().to_string(),
+			motion.id_str().to_string(),
 			meta.clone(),
 			&mut by_id,
 			collisions,
 		);
 		register_collision(
 			CollisionKind::Name,
-			motion.name().to_string(),
+			motion.name_str().to_string(),
 			meta.clone(),
 			&mut by_name,
 			collisions,
 		);
-		for alias in motion.aliases() {
+		for alias in motion.aliases_resolved() {
 			register_collision(
 				CollisionKind::Alias,
 				alias.to_string(),
@@ -182,7 +182,7 @@ fn collect_text_object_collisions(collisions: &mut Vec<CollisionReport>) {
 
 	for obj in textobj::all() {
 		let meta = EntryMeta {
-			id: obj.id().to_string(),
+			id: obj.id_str().to_string(),
 			source: obj.source().to_string(),
 			priority: obj.priority(),
 		};

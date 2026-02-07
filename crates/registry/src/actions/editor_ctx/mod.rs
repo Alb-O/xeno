@@ -276,6 +276,29 @@ impl<'a> EditorContext<'a> {
 		Ok(())
 	}
 
+	/// Checks if all capabilities in the given set are available.
+	pub fn check_capability_set(&mut self, caps: crate::CapabilitySet) -> Result<(), CommandError> {
+		use crate::CapabilitySet;
+		let all_caps = [
+			(CapabilitySet::TEXT, Capability::Text),
+			(CapabilitySet::CURSOR, Capability::Cursor),
+			(CapabilitySet::SELECTION, Capability::Selection),
+			(CapabilitySet::MODE, Capability::Mode),
+			(CapabilitySet::MESSAGING, Capability::Messaging),
+			(CapabilitySet::EDIT, Capability::Edit),
+			(CapabilitySet::SEARCH, Capability::Search),
+			(CapabilitySet::UNDO, Capability::Undo),
+			(CapabilitySet::FILE_OPS, Capability::FileOps),
+			(CapabilitySet::OVERLAY, Capability::Overlay),
+		];
+		for (flag, cap) in all_caps {
+			if caps.contains(flag) && !self.check_capability(cap) {
+				return Err(CommandError::MissingCapability(cap));
+			}
+		}
+		Ok(())
+	}
+
 	/// Returns option access if the capability is available.
 	pub fn option_ops(&self) -> Option<&dyn OptionAccess> {
 		self.inner.option_ops()

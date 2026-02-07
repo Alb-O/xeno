@@ -75,7 +75,8 @@ impl OverlayController for CommandPaletteOverlay {
 				if let Some(cmd) = crate::commands::find_editor_command(name) {
 					ctx.queue_command(cmd.name, args);
 				} else if let Some(cmd) = xeno_registry::commands::find_command(name) {
-					ctx.queue_command(cmd.name(), args);
+					let name: &'static str = Box::leak(cmd.name_str().to_string().into_boxed_str());
+					ctx.queue_command(name, args);
 				} else {
 					ctx.notify(keys::unknown_command(name));
 				}

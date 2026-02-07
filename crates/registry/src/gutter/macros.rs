@@ -24,7 +24,7 @@ macro_rules! gutter {
 		paste::paste! {
 			#[allow(non_upper_case_globals)]
 			pub static [<GUTTER_ $name:upper>]: $crate::gutter::GutterDef = $crate::gutter::GutterDef {
-				meta: $crate::gutter::RegistryMeta {
+				meta: $crate::gutter::RegistryMetaStatic {
 					id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
 					name: stringify!($name),
 					aliases: &[],

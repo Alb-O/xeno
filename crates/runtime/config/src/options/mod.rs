@@ -47,7 +47,7 @@ pub fn parse_options_with_context(node: &KdlNode, context: ParseContext) -> Resu
 	for opt_node in children.nodes() {
 		let kdl_key = opt_node.name().value();
 
-		let def = options::find_by_kdl(kdl_key).ok_or_else(|| ConfigError::UnknownOption {
+		let def = options::find(kdl_key).ok_or_else(|| ConfigError::UnknownOption {
 			key: kdl_key.to_string(),
 			suggestion: parse::suggest_option(kdl_key),
 		})?;

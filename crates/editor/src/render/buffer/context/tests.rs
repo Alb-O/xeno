@@ -11,10 +11,23 @@ mod tests {
 	use crate::render::BufferRenderContext;
 	use crate::window::GutterSelector;
 
+	fn theme_from_entry(
+		theme_ref: xeno_registry::core::RegistryRef<
+			xeno_registry::themes::theme::ThemeEntry,
+			xeno_registry::core::ThemeId,
+		>,
+	) -> xeno_registry::themes::Theme {
+		xeno_registry::themes::Theme {
+			meta: xeno_registry::RegistryMetaStatic::minimal("test", "test", ""),
+			variant: theme_ref.variant,
+			colors: theme_ref.colors,
+		}
+	}
+
 	#[test]
 	fn test_render_baseline() {
 		let buffer = Buffer::new(ViewId::text(1), "Hello world".to_string(), None);
-		let theme = xeno_registry::themes::get_theme("default").unwrap();
+		let theme = theme_from_entry(xeno_registry::themes::get_theme("default").unwrap());
 		let loader = xeno_runtime_language::LanguageLoader::from_embedded();
 		let syntax_manager = crate::syntax_manager::SyntaxManager::default();
 
@@ -84,7 +97,7 @@ mod tests {
 	fn test_render_wrapping() {
 		// Use a very narrow text width to force wrapping
 		let buffer = Buffer::new(ViewId::text(1), "One two three four five".to_string(), None);
-		let theme = xeno_registry::themes::get_theme("default").unwrap();
+		let theme = theme_from_entry(xeno_registry::themes::get_theme("default").unwrap());
 		let loader = xeno_runtime_language::LanguageLoader::from_embedded();
 		let syntax_manager = crate::syntax_manager::SyntaxManager::default();
 

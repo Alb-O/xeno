@@ -7,8 +7,8 @@ use xeno_keymap_core::parser::{Node, parse_seq};
 pub use xeno_keymap_core::{ContinuationEntry, ContinuationKind};
 use xeno_keymap_core::{MatchResult, Matcher};
 
-use crate::actions::{ActionDef, BindingMode, KeyBindingDef};
-use crate::core::{ActionId, RegistryIndex};
+use crate::actions::{ActionEntry, BindingMode, KeyBindingDef};
+use crate::core::{ActionId, RegistryEntry, RegistryIndex};
 
 /// Binding entry storing action info and the key sequence.
 #[derive(Debug, Clone)]
@@ -16,11 +16,11 @@ pub struct BindingEntry {
 	/// Resolved action ID for dispatch.
 	pub action_id: ActionId,
 	/// Action name (for display/debugging).
-	pub action_name: &'static str,
+	pub action_name: String,
 	/// Human-readable description for UI display.
-	pub description: &'static str,
+	pub description: String,
 	/// Short description without key-sequence prefix (for which-key HUD).
-	pub short_desc: &'static str,
+	pub short_desc: String,
 	/// Key sequence that triggers this binding (for display).
 	pub keys: Vec<Node>,
 }
@@ -50,8 +50,8 @@ pub struct KeymapRegistry {
 pub struct KeymapConflict {
 	pub mode: BindingMode,
 	pub keys: &'static str,
-	pub kept_action: &'static str,
-	pub dropped_action: &'static str,
+	pub kept_action: String,
+	pub dropped_action: String,
 	pub kept_priority: i16,
 	pub dropped_priority: i16,
 }
@@ -90,7 +90,10 @@ impl KeymapRegistry {
 	}
 
 	/// Build registry from action index + builtin keybindings.
-	pub fn build(actions: &RegistryIndex<ActionDef>, bindings: &[KeyBindingDef]) -> Self {
+	pub fn build(
+		actions: &RegistryIndex<ActionEntry, ActionId>,
+		bindings: &[KeyBindingDef],
+	) -> Self {
 		let mut registry = Self::new();
 		let mut sorted: Vec<KeyBindingDef> = bindings.to_vec();
 		sorted.sort_by(|a, b| {
@@ -101,38 +104,43 @@ impl KeymapRegistry {
 				.then_with(|| a.action.cmp(b.action))
 		});
 
-		let action_id_lookup: HashMap<&str, ActionId> = actions
-			.items_all()
+		// Build name -> ActionId lookup from the index
+		let action_id_lookup: HashMap<String, ActionId> = actions
+			.items()
 			.iter()
 			.enumerate()
-			.map(|(idx, def)| (def.as_entry().id(), ActionId(idx as u32)))
+			.map(|(idx, entry)| {
+				let id_str = actions.interner.resolve(entry.id()).to_string();
+				(id_str, ActionId(idx as u32))
+			})
 			.collect();
 
-		let mut seen: HashMap<(BindingMode, &'static str), (&'static str, i16)> = HashMap::new();
+		let mut seen: HashMap<(BindingMode, &'static str), (String, i16)> = HashMap::new();
 		let mut unknown_actions: Vec<(&'static str, BindingMode)> = Vec::new();
 		let mut parse_failures: Vec<(&'static str, &'static str)> = Vec::new();
 
 		for def in sorted {
-			let Some(action_def) = actions.get(def.action) else {
+			let Some(action_entry) = actions.get(def.action) else {
 				if unknown_actions.len() < 5 {
 					unknown_actions.push((def.action, def.mode));
 				}
 				continue;
 			};
 
-			let Some(action_id) = action_id_lookup.get(action_def.id()).copied() else {
+			let action_id_str = actions.interner.resolve(action_entry.id()).to_string();
+			let Some(&action_id) = action_id_lookup.get(&action_id_str) else {
 				if unknown_actions.len() < 5 {
-					unknown_actions.push((action_def.id(), def.mode));
+					unknown_actions.push((def.action, def.mode));
 				}
 				continue;
 			};
 
-			if let Some((kept_action, kept_priority)) = seen.get(&(def.mode, def.keys)).copied() {
+			if let Some((kept_action, kept_priority)) = seen.get(&(def.mode, def.keys)).cloned() {
 				registry.conflicts.push(KeymapConflict {
 					mode: def.mode,
 					keys: def.keys,
 					kept_action,
-					dropped_action: action_def.id(),
+					dropped_action: action_id_str,
 					kept_priority,
 					dropped_priority: def.priority,
 				});
@@ -146,13 +154,19 @@ impl KeymapRegistry {
 				continue;
 			};
 
-			seen.insert((def.mode, def.keys), (action_def.id(), def.priority));
+			seen.insert((def.mode, def.keys), (action_id_str.clone(), def.priority));
 
 			let entry = BindingEntry {
 				action_id,
-				action_name: action_def.name(),
-				description: action_def.description(),
-				short_desc: action_def.short_desc,
+				action_name: actions.interner.resolve(action_entry.name()).to_string(),
+				description: actions
+					.interner
+					.resolve(action_entry.description())
+					.to_string(),
+				short_desc: actions
+					.interner
+					.resolve(action_entry.short_desc)
+					.to_string(),
 				keys: keys.clone(),
 			};
 

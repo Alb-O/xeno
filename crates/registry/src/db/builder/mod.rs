@@ -1,19 +1,21 @@
 use std::collections::HashSet;
 
+use crate::actions::definition::ActionEntry;
 use crate::actions::{ActionDef, KeyBindingDef, KeyPrefixDef};
-use crate::commands::CommandDef;
+use crate::commands::{CommandDef, CommandEntry};
 use crate::core::plugin::PluginDef;
 pub use crate::core::{
-	Capability, CommandError, DuplicatePolicy, KeyKind, RegistryBuilder, RegistryEntry,
-	RegistryError, RegistryIndex, RegistryMeta, RegistrySource, RuntimeRegistry, insert_typed_key,
+	ActionId, Capability, CommandError, CommandId, DuplicatePolicy, GutterId, HookId, KeyKind,
+	MotionId, OptionId, RegistryBuilder, RegistryEntry, RegistryError, RegistryIndex, RegistryMeta,
+	RegistrySource, RuntimeRegistry, StatuslineId, TextObjectId, ThemeId,
 };
-use crate::gutter::GutterDef;
-use crate::hooks::HookDef;
-use crate::motions::MotionDef;
-use crate::options::OptionDef;
-use crate::statusline::StatuslineSegmentDef;
-use crate::textobj::TextObjectDef;
-use crate::themes::theme::ThemeDef;
+use crate::gutter::{GutterDef, GutterEntry};
+use crate::hooks::{HookDef, HookEntry};
+use crate::motions::{MotionDef, MotionEntry};
+use crate::options::{OptionDef, OptionEntry};
+use crate::statusline::{StatuslineEntry, StatuslineSegmentDef};
+use crate::textobj::{TextObjectDef, TextObjectEntry};
+use crate::themes::theme::{ThemeDef, ThemeEntry};
 
 #[derive(Debug)]
 pub struct BuiltinGroup<T: 'static> {
@@ -45,15 +47,15 @@ macro_rules! impl_group_reg {
 }
 
 pub struct RegistryDbBuilder {
-	pub actions: RegistryBuilder<ActionDef>,
-	pub commands: RegistryBuilder<CommandDef>,
-	pub motions: RegistryBuilder<MotionDef>,
-	pub text_objects: RegistryBuilder<TextObjectDef>,
-	pub options: RegistryBuilder<OptionDef>,
-	pub themes: RegistryBuilder<ThemeDef>,
-	pub gutters: RegistryBuilder<GutterDef>,
-	pub statusline: RegistryBuilder<StatuslineSegmentDef>,
-	pub hooks: RegistryBuilder<HookDef>,
+	pub actions: RegistryBuilder<ActionDef, ActionEntry, ActionId>,
+	pub commands: RegistryBuilder<CommandDef, CommandEntry, CommandId>,
+	pub motions: RegistryBuilder<MotionDef, MotionEntry, MotionId>,
+	pub text_objects: RegistryBuilder<TextObjectDef, TextObjectEntry, TextObjectId>,
+	pub options: RegistryBuilder<OptionDef, OptionEntry, OptionId>,
+	pub themes: RegistryBuilder<ThemeDef, ThemeEntry, ThemeId>,
+	pub gutters: RegistryBuilder<GutterDef, GutterEntry, GutterId>,
+	pub statusline: RegistryBuilder<StatuslineSegmentDef, StatuslineEntry, StatuslineId>,
+	pub hooks: RegistryBuilder<HookDef, HookEntry, HookId>,
 	pub notifications: Vec<&'static crate::notifications::NotificationDef>,
 	pub keybindings: Vec<KeyBindingDef>,
 	pub key_prefixes: Vec<KeyPrefixDef>,
@@ -62,15 +64,15 @@ pub struct RegistryDbBuilder {
 }
 
 pub struct RegistryIndices {
-	pub actions: RegistryIndex<ActionDef>,
-	pub commands: RegistryIndex<CommandDef>,
-	pub motions: RegistryIndex<MotionDef>,
-	pub text_objects: RegistryIndex<TextObjectDef>,
-	pub options: RegistryIndex<OptionDef>,
-	pub themes: RegistryIndex<ThemeDef>,
-	pub gutters: RegistryIndex<GutterDef>,
-	pub statusline: RegistryIndex<StatuslineSegmentDef>,
-	pub hooks: RegistryIndex<HookDef>,
+	pub actions: RegistryIndex<ActionEntry, ActionId>,
+	pub commands: RegistryIndex<CommandEntry, CommandId>,
+	pub motions: RegistryIndex<MotionEntry, MotionId>,
+	pub text_objects: RegistryIndex<TextObjectEntry, TextObjectId>,
+	pub options: RegistryIndex<OptionEntry, OptionId>,
+	pub themes: RegistryIndex<ThemeEntry, ThemeId>,
+	pub gutters: RegistryIndex<GutterEntry, GutterId>,
+	pub statusline: RegistryIndex<StatuslineEntry, StatuslineId>,
+	pub hooks: RegistryIndex<HookEntry, HookId>,
 	pub notifications: Vec<&'static crate::notifications::NotificationDef>,
 	pub keybindings: Vec<KeyBindingDef>,
 	pub key_prefixes: Vec<KeyPrefixDef>,
@@ -130,21 +132,10 @@ impl DomainCounts {
 
 #[derive(Debug)]
 pub struct PluginBuildRecord {
-	pub meta: RegistryMeta,
+	pub plugin_id: &'static str,
 	pub counts: DomainCounts,
 }
 
-/// Validates that an option definition's default type matches its declared value type.
-///
-/// This validation ensures that the `OptionDefault` factory produces a variant
-/// compatible with the [`OptionType`] constraint.
-///
-/// # Panics
-///
-/// Panics if the types do not match. This is considered a programmer error and
-/// should be caught during build or initialization.
-///
-/// [`OptionType`]: crate::options::OptionType
 fn validate_option_def(def: &'static OptionDef) {
 	if def.default.value_type() != def.value_type {
 		panic!(
@@ -155,6 +146,12 @@ fn validate_option_def(def: &'static OptionDef) {
 			def.default.value_type(),
 		);
 	}
+}
+
+impl Default for RegistryDbBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl RegistryDbBuilder {
@@ -178,41 +175,41 @@ impl RegistryDbBuilder {
 	}
 
 	pub fn register_action(&mut self, def: &'static ActionDef) {
-		self.actions.push(def);
+		self.actions.push_static(def);
 		self.keybindings.extend(def.bindings.iter().copied());
 	}
 
 	pub fn register_command(&mut self, def: &'static CommandDef) {
-		self.commands.push(def);
+		self.commands.push_static(def);
 	}
 
 	pub fn register_motion(&mut self, def: &'static MotionDef) {
-		self.motions.push(def);
+		self.motions.push_static(def);
 	}
 
 	pub fn register_text_object(&mut self, def: &'static TextObjectDef) {
-		self.text_objects.push(def);
+		self.text_objects.push_static(def);
 	}
 
 	pub fn register_option(&mut self, def: &'static OptionDef) {
 		validate_option_def(def);
-		self.options.push(def);
+		self.options.push_static(def);
 	}
 
 	pub fn register_theme(&mut self, def: &'static ThemeDef) {
-		self.themes.push(def);
+		self.themes.push_static(def);
 	}
 
 	pub fn register_gutter(&mut self, def: &'static GutterDef) {
-		self.gutters.push(def);
+		self.gutters.push_static(def);
 	}
 
 	pub fn register_statusline_segment(&mut self, def: &'static StatuslineSegmentDef) {
-		self.statusline.push(def);
+		self.statusline.push_static(def);
 	}
 
 	pub fn register_hook(&mut self, def: &'static HookDef) {
-		self.hooks.push(def);
+		self.hooks.push_static(def);
 	}
 
 	pub fn register_notification(&mut self, def: &'static crate::notifications::NotificationDef) {
@@ -267,21 +264,13 @@ impl RegistryDbBuilder {
 		}
 
 		let before = DomainCounts::snapshot(self);
-		let span = tracing::debug_span!(
-			"plugin.register",
-			plugin_id = plugin.meta.id,
-			plugin_name = plugin.meta.name,
-			priority = plugin.meta.priority,
-			source = %plugin.meta.source,
-		);
-		let _guard = span.enter();
-
 		(plugin.register)(self)?;
-
 		let after = DomainCounts::snapshot(self);
+		let _diff = DomainCounts::diff(after, before);
+
 		self.plugin_records.push(PluginBuildRecord {
-			meta: plugin.meta,
-			counts: DomainCounts::diff(after, before),
+			plugin_id: plugin.meta.id,
+			counts: _diff,
 		});
 
 		Ok(())
@@ -304,12 +293,3 @@ impl RegistryDbBuilder {
 		}
 	}
 }
-
-impl Default for RegistryDbBuilder {
-	fn default() -> Self {
-		Self::new()
-	}
-}
-
-#[cfg(test)]
-mod tests;

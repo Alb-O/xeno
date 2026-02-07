@@ -59,7 +59,7 @@ macro_rules! action {
 		paste::paste! {
 			#[allow(non_upper_case_globals)]
 			pub static [<ACTION_ $name>]: $crate::actions::ActionDef = $crate::actions::ActionDef {
-				meta: $crate::actions::RegistryMeta {
+				meta: $crate::actions::RegistryMetaStatic {
 					id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
 					name: stringify!($name),
 					aliases: $crate::__reg_opt_slice!($({$aliases})?),

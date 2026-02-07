@@ -13,16 +13,14 @@ pub struct LoopDirective {
 }
 
 /// Editor-defined cursor style (term maps to termina CSI).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CursorStyle {
 	#[default]
- Block,
+	Block,
 	Beam,
 	Underline,
 	Hidden,
 }
-
 
 /// Runtime policy constants.
 const HOOK_BUDGET_FAST: crate::hook_runtime::HookDrainBudget =

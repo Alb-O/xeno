@@ -46,7 +46,7 @@ fn select_object_with_trigger(
 
 fn select_to_boundary(
 	ctx: &crate::actions::ActionContext,
-	obj: &crate::textobj::TextObjectDef,
+	obj: &crate::textobj::TextObjectEntry,
 	pos: usize,
 	to_start: bool,
 ) -> Option<Range> {

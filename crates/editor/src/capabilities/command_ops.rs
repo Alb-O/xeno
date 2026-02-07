@@ -4,7 +4,7 @@ use xeno_primitives::BoxFutureLocal;
 use xeno_registry::actions::editor_ctx::OverlayRequest;
 use xeno_registry::commands::{CommandEditorOps, CommandError};
 use xeno_registry::notifications::Notification;
-use xeno_registry::options::{OptionScope, find_by_kdl};
+use xeno_registry::options::{OptionScope, find};
 use xeno_registry::{
 	EditorCapabilities, FileOpsAccess, HookContext, HookEventData, NotificationAccess, ThemeAccess,
 	emit_sync_with as emit_hook_sync_with,
@@ -54,10 +54,11 @@ impl CommandEditorOps for EditorCaps<'_> {
 			.global_options
 			.set_by_kdl(kdl_key, opt_value);
 
-		if let Some(def) = find_by_kdl(kdl_key) {
+		if let Some(def) = find(kdl_key) {
+			let resolved_key = def.resolve(def.kdl_key);
 			emit_hook_sync_with(
 				&HookContext::new(HookEventData::OptionChanged {
-					key: def.kdl_key,
+					key: resolved_key,
 					scope: "global",
 				}),
 				&mut self.ed.state.hook_runtime,
@@ -67,7 +68,7 @@ impl CommandEditorOps for EditorCaps<'_> {
 	}
 
 	fn set_local_option(&mut self, kdl_key: &str, value: &str) -> Result<(), CommandError> {
-		let def = find_by_kdl(kdl_key).ok_or_else(|| {
+		let def = find(kdl_key).ok_or_else(|| {
 			use xeno_registry::options::parse;
 			let suggestion = parse::suggest_option(kdl_key);
 			CommandError::InvalidArgument(match suggestion {
@@ -89,9 +90,10 @@ impl CommandEditorOps for EditorCaps<'_> {
 			.local_options
 			.set_by_kdl(kdl_key, opt_value);
 
+		let resolved_key = def.resolve(def.kdl_key);
 		emit_hook_sync_with(
 			&HookContext::new(HookEventData::OptionChanged {
-				key: def.kdl_key,
+				key: resolved_key,
 				scope: "buffer",
 			}),
 			&mut self.ed.state.hook_runtime,

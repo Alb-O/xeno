@@ -4,7 +4,7 @@ use xeno_primitives::BoxFutureLocal;
 use xeno_registry::index::{all_actions, all_commands, all_motions, all_text_objects};
 use xeno_registry::options::OPTIONS;
 use xeno_registry::themes::THEMES;
-use xeno_registry::{Capability, GUTTERS, HOOKS, NOTIFICATIONS, STATUSLINE_SEGMENTS};
+use xeno_registry::{GUTTERS, HOOKS, NOTIFICATIONS, STATUSLINE_SEGMENTS};
 
 use super::{CommandError, CommandOutcome, EditorCommandContext};
 use crate::editor_command;
@@ -133,12 +133,12 @@ impl RegistryKind {
 
 #[derive(Debug, Clone)]
 struct RegistryItem {
-	id: &'static str,
-	name: &'static str,
+	id: String,
+	name: String,
 	description: String,
 	priority: i16,
 	source: xeno_registry::RegistrySource,
-	required_caps: &'static [Capability],
+	required_caps: String,
 	flags: u32,
 }
 
@@ -226,7 +226,7 @@ fn append_registry_section(
 		return 0;
 	}
 
-	items.sort_by(|a, b| b.priority.cmp(&a.priority).then(a.id.cmp(b.id)));
+	items.sort_by(|a, b| b.priority.cmp(&a.priority).then(a.id.cmp(&b.id)));
 	let count = items.len();
 
 	out.push_str(&format!("## {} ({})\n", kind.label(), count));
@@ -237,7 +237,7 @@ fn append_registry_section(
 			item.name,
 			item.priority,
 			item.source,
-			format_caps(item.required_caps),
+			item.required_caps,
 			format_flags(item.flags),
 			item.description
 		));
@@ -247,147 +247,69 @@ fn append_registry_section(
 	count
 }
 
+fn registry_item_from_ref<T, Id>(def: &xeno_registry::core::RegistryRef<T, Id>) -> RegistryItem
+where
+	T: xeno_registry::core::RuntimeEntry,
+	Id: xeno_registry::core::DenseId,
+{
+	RegistryItem {
+		id: def.id_str().to_string(),
+		name: def.name_str().to_string(),
+		description: def.description_str().to_string(),
+		priority: def.priority(),
+		source: def.source(),
+		required_caps: format_caps(def.required_caps()),
+		flags: def.flags(),
+	}
+}
+
 fn collect_registry_items(kind: RegistryKind) -> Vec<RegistryItem> {
 	match kind {
-		RegistryKind::Actions => all_actions()
-			.into_iter()
-			.map(|def| RegistryItem {
-				id: def.meta.id,
-				name: def.meta.name,
-				description: def.meta.description.to_string(),
-				priority: def.meta.priority,
-				source: def.meta.source,
-				required_caps: def.meta.required_caps,
-				flags: def.meta.flags,
-			})
-			.collect(),
-		RegistryKind::Commands => all_commands()
-			.into_iter()
-			.map(|def| RegistryItem {
-				id: def.meta.id,
-				name: def.meta.name,
-				description: def.meta.description.to_string(),
-				priority: def.meta.priority,
-				source: def.meta.source,
-				required_caps: def.meta.required_caps,
-				flags: def.meta.flags,
-			})
-			.collect(),
+		RegistryKind::Actions => all_actions().iter().map(registry_item_from_ref).collect(),
+		RegistryKind::Commands => all_commands().iter().map(registry_item_from_ref).collect(),
 		RegistryKind::EditorCommands => crate::commands::EDITOR_COMMANDS
 			.iter()
 			.copied()
 			.map(|def| RegistryItem {
-				id: def.id,
-				name: def.name,
+				id: def.id.to_string(),
+				name: def.name.to_string(),
 				description: def.description.to_string(),
 				priority: def.priority,
 				source: def.source,
-				required_caps: def.required_caps,
+				required_caps: format!(
+					"{:?}",
+					xeno_registry::CapabilitySet::from_iter(def.required_caps.iter().cloned())
+				),
 				flags: 0,
 			})
 			.collect(),
-		RegistryKind::Motions => all_motions()
-			.into_iter()
-			.map(|def| RegistryItem {
-				id: def.meta.id,
-				name: def.meta.name,
-				description: def.meta.description.to_string(),
-				priority: def.meta.priority,
-				source: def.meta.source,
-				required_caps: def.meta.required_caps,
-				flags: def.meta.flags,
-			})
-			.collect(),
+		RegistryKind::Motions => all_motions().iter().map(registry_item_from_ref).collect(),
 		RegistryKind::TextObjects => all_text_objects()
-			.into_iter()
-			.map(|def| RegistryItem {
-				id: def.meta.id,
-				name: def.meta.name,
-				description: def.meta.description.to_string(),
-				priority: def.meta.priority,
-				source: def.meta.source,
-				required_caps: def.meta.required_caps,
-				flags: def.meta.flags,
-			})
+			.iter()
+			.map(registry_item_from_ref)
 			.collect(),
-		RegistryKind::Gutters => GUTTERS
-			.all()
-			.into_iter()
-			.map(|def| RegistryItem {
-				id: def.meta.id,
-				name: def.meta.name,
-				description: def.meta.description.to_string(),
-				priority: def.meta.priority,
-				source: def.meta.source,
-				required_caps: def.meta.required_caps,
-				flags: def.meta.flags,
-			})
-			.collect(),
-		RegistryKind::Hooks => HOOKS
-			.all()
-			.into_iter()
-			.map(|def| RegistryItem {
-				id: def.meta.id,
-				name: def.meta.name,
-				description: def.meta.description.to_string(),
-				priority: def.meta.priority,
-				source: def.meta.source,
-				required_caps: def.meta.required_caps,
-				flags: def.meta.flags,
-			})
-			.collect(),
+		RegistryKind::Gutters => GUTTERS.all().iter().map(registry_item_from_ref).collect(),
+		RegistryKind::Hooks => HOOKS.all().iter().map(registry_item_from_ref).collect(),
 		RegistryKind::Notifications => NOTIFICATIONS
 			.iter()
 			.copied()
 			.map(|def| RegistryItem {
-				id: def.id,
-				name: def.id,
+				id: def.id.to_string(),
+				name: def.id.to_string(),
 				description: format!("level={:?}, auto_dismiss={:?}", def.level, def.auto_dismiss),
 				priority: 0,
 				source: def.source,
-				required_caps: &[],
+				required_caps: "[]".to_string(),
 				flags: 0,
 			})
 			.collect(),
-		RegistryKind::Options => OPTIONS
-			.items()
-			.into_iter()
-			.map(|def| RegistryItem {
-				id: def.meta.id,
-				name: def.meta.name,
-				description: def.meta.description.to_string(),
-				priority: def.meta.priority,
-				source: def.meta.source,
-				required_caps: def.meta.required_caps,
-				flags: def.meta.flags,
-			})
-			.collect(),
+		RegistryKind::Options => OPTIONS.items().iter().map(registry_item_from_ref).collect(),
 		RegistryKind::Statusline => STATUSLINE_SEGMENTS
 			.all()
-			.into_iter()
-			.map(|def| RegistryItem {
-				id: def.meta.id,
-				name: def.meta.name,
-				description: def.meta.description.to_string(),
-				priority: def.meta.priority,
-				source: def.meta.source,
-				required_caps: def.meta.required_caps,
-				flags: def.meta.flags,
-			})
+			.iter()
+			.map(registry_item_from_ref)
 			.collect(),
-		RegistryKind::Themes => THEMES
-			.all()
-			.into_iter()
-			.map(|def| RegistryItem {
-				id: def.meta.id,
-				name: def.meta.name,
-				description: def.meta.description.to_string(),
-				priority: def.meta.priority,
-				source: def.meta.source,
-				required_caps: def.meta.required_caps,
-				flags: def.meta.flags,
-			})
-			.collect(),
+		RegistryKind::Themes => THEMES.all().iter().map(registry_item_from_ref).collect(),
 	}
 }
 
@@ -398,20 +320,8 @@ fn matches_prefix(item: &RegistryItem, prefix: Option<&str>) -> bool {
 	item.id.starts_with(prefix) || item.name.starts_with(prefix)
 }
 
-fn format_caps(caps: &[Capability]) -> String {
-	if caps.is_empty() {
-		return "[]".to_string();
-	}
-	use std::fmt::Write;
-	let mut out = String::from("[");
-	for (i, cap) in caps.iter().enumerate() {
-		if i > 0 {
-			out.push_str(", ");
-		}
-		write!(out, "{cap:?}").unwrap();
-	}
-	out.push(']');
-	out
+fn format_caps(caps: xeno_registry::CapabilitySet) -> String {
+	format!("{caps:?}")
 }
 
 fn format_flags(flags: u32) -> String {

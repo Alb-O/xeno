@@ -1,606 +1,226 @@
 //! Registry definition indexing and runtime extension system.
-//!
-//! # Purpose
-//!
-//! - Owns: definition indexing (ID/name/alias), runtime extension registration, collision reporting,
-//!   deterministic iteration order, and winner resolution policy.
-//! - Does not own: command execution, hook emission, or any subsystem behavior beyond selecting which
-//!   definition is visible under a given key.
-//! - Source of truth: [`crate::core::index::types::RegistryIndex`] and its domain-specific [`crate::core::index::runtime::RuntimeRegistry`] instances, each
-//!   storing an atomic [`crate::core::index::runtime::Snapshot`].
-//!
-//! # Mental model
-//!
-//! Think of a registry as an *append-only stream of candidate definitions* with a *current visible
-//! winner* for each key.
-//!
-//! - Builtin definitions live for the process (`&'static T`).
-//! - Owned definitions are runtime-registered (`Arc<T>`).
-//! - A [`crate::core::index::runtime::Snapshot`] is an immutable, atomic view used for lock-free reads.
-//! - Definitions inside a snapshot are referenced by [`crate::core::index::types::DefRef`], a safe handle:
-//!   `Builtin(&'static T) | Owned(Arc<T>)`.
-//! - Lookup keys are split into:
-//!   - `by_id`: the single winner per stable ID
-//!   - `by_key`: winners for names/aliases (and other non-ID keys)
-//! - [`crate::core::index::runtime::Snapshot::id_order`] preserves deterministic iteration order of *IDs that exist* in the snapshot.
-//!   Iteration is driven by `id_order` and resolved through `by_id`.
-//!
-//! **Shift from `DefPtr` to `DefRef`:**
-//! Earlier implementations stored raw pointers (`DefPtr`) plus a separate `owned` list and a manual
-//! prune pass to keep pointed-to allocations alive. This module now stores `DefRef` handles directly
-//! in the indices. Lifetime is structural: if a `DefRef::Owned(Arc<T>)` is reachable from `by_id` or
-//! `by_key`, the allocation stays alive; eviction naturally drops the last `Arc` when no longer
-//! referenced by the snapshot (and when no guards remain).
-//!
-//! # Key types
-//!
-//! | Type | Meaning | Constraints | Constructed / mutated in |
-//! |---|---|---|---|
-//! | [`crate::core::index::types::DefRef`] | Safe handle to a definition (`Builtin`/`Owned`) | Owned refs keep their allocation alive via `Arc` reachability | `DefRef::Builtin`, `DefRef::Owned` |
-//! | [`crate::core::index::runtime::RegistryRef`] | Guard that pins an `Arc<Snapshot<T>>` while exposing `&T` via `Deref` | Must hold the snapshot `Arc` for the lifetime of the borrow | [`crate::core::index::runtime::RuntimeRegistry::get`], [`crate::core::index::runtime::RuntimeRegistry::all`] |
-//! | [`crate::core::index::runtime::Snapshot`] | Atomic view of the registry indices | Immutable after construction; shared via `ArcSwap` | `RuntimeRegistry` CAS loop |
-//! | [`crate::core::index::types::RegistryIndex`] | Build-time index of builtins (seed snapshot) | Builtins are `&'static` | `RegistryBuilder::build` |
-//! | [`crate::core::index::collision::KeyStore`] | Abstract mutation surface used by insertion logic | Must implement `evict_def` for runtime overrides | `SnapshotStore` / build store |
-//! | [`crate::core::index::collision::DuplicatePolicy`] | Winner selection rule | Must be deterministic for reproducible iteration/results | [`crate::core::index::runtime::RuntimeRegistry::with_policy`] |
-//! | [`crate::core::InsertAction`] | Outcome classification for insertion | Used for diagnostics and tests | `insert_typed_key`, `insert_id_key_runtime` |
-//! | [`crate::core::index::collision::KeyKind`] | Class of key being inserted | `Id`, `Name`, `Alias` | `RegistryMeta` |
-//!
-//! # Invariants
-//!
-//! - [`crate::core::index::invariants::UNAMBIGUOUS_ID_LOOKUP_HAS_SINGLE_WINNER`]
-//! - [`crate::core::index::invariants::EVICT_OLD_DEFINITION_ON_ID_OVERRIDE`]
-//! - [`crate::core::index::invariants::DETERMINISTIC_EFFECTIVE_ITERATION_ORDER`]
-//! - [`crate::core::index::invariants::OWNED_DEFINITIONS_STAY_ALIVE_WHILE_REACHABLE`]
-//!
-//! # Data flow
-//!
-//! - Builtins:
-//!   - `RegistryBuilder` constructs a [`crate::core::index::types::RegistryIndex`] from `&'static T` definitions.
-//!   - The runtime registry seeds its first [`crate::core::index::runtime::Snapshot`] from that builtins index.
-//! - Runtime registration:
-//!   - `register` / `register_owned` call `try_register_many_internal`.
-//!   - Writes clone the current snapshot, apply insertions via `insert_typed_key` / `insert_id_key_runtime`
-//!     against a `KeyStore`, then CAS-publish the new snapshot.
-//! - Dedup/admission gating:
-//!   - Registration skips definitions whose identity is already present in the snapshot (and within the
-//!     same batch), avoiding duplicate `id_order` entries and redundant collisions.
-//!   - In override mode, definitions that lose the ID contest are not admitted via name/alias.
-//! - Lookups:
-//!   - `get(key)` loads the snapshot `Arc` and returns a [`crate::core::index::runtime::RegistryRef`] holding a cloned `DefRef<T>`.
-//!   - `all()` iterates `id_order`, resolves each ID via `by_id`, and returns guards in stable order.
-//!
-//! # Lifecycle
-//!
-//! - Build phase:
-//!   - Builtins registered; plugins may mutate the builder; duplicate policy resolves collisions.
-//!   - A finalized [`crate::core::index::types::RegistryIndex`] is produced.
-//! - Runtime phase:
-//!   - [`crate::core::index::runtime::RuntimeRegistry`] creates an `ArcSwap<Snapshot<T>>` seeded from builtins.
-//!   - Runtime registrations CAS-publish new snapshots; reads stay lock-free.
-//!   - Snapshots are dropped when replaced and when no [`crate::core::index::runtime::RegistryRef`] guards remain.
-//!
-//! # Concurrency and ordering
-//!
-//! - Lock-free reads: `snap.load_full()` returns an `Arc<Snapshot<T>>` without blocking.
-//! - CAS retry loop: writers retry if a concurrent write published a newer snapshot.
-//! - Deterministic winners: [`crate::core::index::collision::DuplicatePolicy`] must be deterministic; `ByPriority` uses a total order
-//!   comparison and breaks ties using existing-wins semantics.
-//! - Snapshot lifetime: [`crate::core::index::runtime::RegistryRef`] prevents the snapshot (and any `Arc<T>` held by `DefRef`) from
-//!   being dropped while callers hold borrowed references.
-//!
-//! # Failure modes and recovery
-//!
-//! - Duplicate build ID: build-time insertion panics to prevent ambiguous behavior.
-//! - CAS contention: writes may retry under heavy concurrent registration.
-//! - Eviction failure: if `evict_def` is not implemented for a `KeyStore`, stale keys can persist.
-//!
-//! # Recipes
-//!
-//! ## Override a builtin definition
-//!
-//! - Call `registry.try_register_override(new_def)`.
-//! - Ensure `new_def.meta().priority` is higher than the existing one if using `ByPriority`.
-//!
-//! ## Register an owned (non-static) definition
-//!
-//! - Call `registry.register_owned(def)` or `registry.register_many_owned(defs)`.
-//! - The definition is wrapped in `Arc<T>` and stored in-index as `DefRef::Owned`.
-//! - The `Arc` is dropped when the definition becomes unreachable from the latest snapshot and all
-//!   snapshot guards have been released.
-//!
-use std::cmp::Ordering;
+
 use std::sync::Arc;
 
 use arc_swap::ArcSwap;
+use rustc_hash::FxHashMap;
 
-use super::collision::{ChooseWinner, Collision, DuplicatePolicy, KeyKind, KeyStore};
-use super::insert::{insert_id_key_runtime, insert_typed_key};
-use super::types::{DefRef, Map, RegistryIndex};
-use crate::RegistryEntry;
-use crate::error::{InsertAction, RegistryError};
+use super::types::RegistryIndex;
+use crate::core::{Collision, DenseId, FrozenInterner, RegistryEntry, Symbol};
+
 /// Marker trait for types that can be stored in a runtime registry.
-///
-/// Combines `RegistryEntry` with thread-safety and static lifetime requirements.
 pub trait RuntimeEntry: RegistryEntry + Send + Sync + 'static {}
-
 impl<T> RuntimeEntry for T where T: RegistryEntry + Send + Sync + 'static {}
 
 /// Snapshot-pinning guard that provides `&T` access to a registry definition.
-///
-/// Holds an `Arc<Snapshot<T>>` to keep the snapshot (and any `Arc<T>` owned defs
-/// within it) alive for the lifetime of this guard. Dereferences to `&T` via
-/// the internal [`DefRef`].
-///
-/// Returned by [`RuntimeRegistry::get`] and [`RuntimeRegistry::all`]. Cloning
-/// is cheap (Arc bump + variant copy).
-pub struct RegistryRef<T>
+pub struct RegistryRef<T, Id: DenseId>
 where
 	T: RuntimeEntry,
 {
-	snap: Arc<Snapshot<T>>,
-	def: DefRef<T>,
+	pub(crate) snap: Arc<Snapshot<T, Id>>,
+	pub(crate) id: Id,
 }
 
-impl<T> Clone for RegistryRef<T>
+impl<T, Id: DenseId> Clone for RegistryRef<T, Id>
 where
 	T: RuntimeEntry,
 {
 	fn clone(&self) -> Self {
 		Self {
 			snap: self.snap.clone(),
-			def: self.def.clone(),
+			id: self.id,
 		}
 	}
 }
 
-impl<T> std::ops::Deref for RegistryRef<T>
+impl<T, Id: DenseId> RegistryRef<T, Id>
+where
+	T: RuntimeEntry,
+{
+	/// Returns the dense ID for this definition.
+	pub fn dense_id(&self) -> Id {
+		self.id
+	}
+
+	/// Resolves a symbol to its string representation using this ref's snapshot interner.
+	pub fn resolve(&self, sym: crate::core::Symbol) -> &str {
+		self.snap.interner.resolve(sym)
+	}
+
+	/// Returns the interned name as a string.
+	pub fn name_str(&self) -> &str {
+		self.resolve(self.name())
+	}
+
+	/// Returns the interned id as a string.
+	pub fn id_str(&self) -> &str {
+		self.resolve(self.id())
+	}
+
+	/// Returns the interned description as a string.
+	pub fn description_str(&self) -> &str {
+		self.resolve(self.description())
+	}
+
+	/// Returns an iterator over resolved alias strings.
+	pub fn aliases_resolved(&self) -> Vec<&str> {
+		let meta = self.meta();
+		let start = meta.aliases.start as usize;
+		let end = start + meta.aliases.len as usize;
+		self.snap.alias_pool[start..end]
+			.iter()
+			.map(|&sym| self.snap.interner.resolve(sym))
+			.collect()
+	}
+}
+
+impl<T, Id: DenseId> std::ops::Deref for RegistryRef<T, Id>
 where
 	T: RuntimeEntry,
 {
 	type Target = T;
 
 	fn deref(&self) -> &T {
-		self.def.as_entry()
+		&self.snap.table[self.id.as_u32() as usize]
 	}
 }
 
 /// Single source of truth for registry lookups.
-///
-/// Contains a merged view of builtins and runtime extensions.
-pub struct Snapshot<T>
+pub struct Snapshot<T, Id: DenseId>
 where
 	T: RuntimeEntry,
 {
-	pub by_id: Map<Box<str>, DefRef<T>>,
-	pub by_key: Map<Box<str>, DefRef<T>>,
-	/// Explicit iteration order for effective definitions.
-	pub id_order: Vec<Box<str>>,
-	pub collisions: Vec<Collision>,
+	pub table: Arc<[T]>,
+	pub by_key: Arc<FxHashMap<Symbol, Id>>,
+	pub interner: FrozenInterner,
+	pub alias_pool: Arc<[Symbol]>,
+	pub collisions: Arc<[Collision]>,
 }
 
-impl<T> Clone for Snapshot<T>
+impl<T, Id: DenseId> Clone for Snapshot<T, Id>
 where
 	T: RuntimeEntry,
 {
 	fn clone(&self) -> Self {
 		Self {
-			by_id: self.by_id.clone(),
+			table: self.table.clone(),
 			by_key: self.by_key.clone(),
-			id_order: self.id_order.clone(),
+			interner: self.interner.clone(),
+			alias_pool: self.alias_pool.clone(),
 			collisions: self.collisions.clone(),
 		}
 	}
 }
 
-impl<T> Snapshot<T>
+impl<T, Id: DenseId> Snapshot<T, Id>
 where
 	T: RuntimeEntry,
 {
 	/// Creates a new snapshot from a builtin index.
-	fn from_builtins(b: &RegistryIndex<T>) -> Self {
+	fn from_builtins(b: &RegistryIndex<T, Id>) -> Self {
 		Self {
-			by_id: b.by_id.clone(),
+			table: b.table.clone(),
 			by_key: b.by_key.clone(),
-			id_order: b.id_order.clone(),
-			collisions: b.collisions.to_vec(),
+			interner: b.interner.clone(),
+			alias_pool: b.alias_pool.clone(),
+			collisions: b.collisions.clone(),
 		}
-	}
-
-	/// Looks up a definition by ID, name, or alias.
-	#[inline]
-	pub fn get_def(&self, key: &str) -> Option<DefRef<T>> {
-		self.by_id
-			.get(key)
-			.cloned()
-			.or_else(|| self.by_key.get(key).cloned())
-	}
-
-	/// Returns the definition for a given ID, if it exists.
-	#[inline]
-	pub fn get_by_id_def(&self, id: &str) -> Option<DefRef<T>> {
-		self.by_id.get(id).cloned()
 	}
 }
 
 /// Registry wrapper for runtime-extensible registries.
-pub struct RuntimeRegistry<T>
+pub struct RuntimeRegistry<T, Id: DenseId>
 where
 	T: RuntimeEntry,
 {
 	pub(super) label: &'static str,
-	pub(super) builtins: RegistryIndex<T>,
-	pub(super) snap: ArcSwap<Snapshot<T>>,
-	pub(super) policy: DuplicatePolicy,
+	pub(super) builtins: RegistryIndex<T, Id>,
+	pub(super) snap: ArcSwap<Snapshot<T, Id>>,
 }
 
-impl<T> RuntimeRegistry<T>
+impl<T, Id: DenseId> RuntimeRegistry<T, Id>
 where
 	T: RuntimeEntry,
 {
 	/// Creates a new runtime registry with the given builtins.
-	pub fn new(label: &'static str, builtins: RegistryIndex<T>) -> Self {
+	pub fn new(label: &'static str, builtins: RegistryIndex<T, Id>) -> Self {
 		let snap = Snapshot::from_builtins(&builtins);
 		Self {
 			label,
 			builtins,
 			snap: ArcSwap::from_pointee(snap),
-			policy: DuplicatePolicy::for_build(),
-		}
-	}
-
-	/// Creates a new runtime registry with a custom duplicate policy.
-	pub fn with_policy(
-		label: &'static str,
-		builtins: RegistryIndex<T>,
-		policy: DuplicatePolicy,
-	) -> Self {
-		let snap = Snapshot::from_builtins(&builtins);
-		Self {
-			label,
-			builtins,
-			snap: ArcSwap::from_pointee(snap),
-			policy,
 		}
 	}
 
 	/// Looks up a definition by ID, name, or alias.
 	#[inline]
-	pub fn get(&self, key: &str) -> Option<RegistryRef<T>> {
+	pub fn get(&self, key: &str) -> Option<RegistryRef<T, Id>> {
 		let snap = self.snap.load_full();
-		let def = snap.get_def(key)?;
-		Some(RegistryRef { snap, def })
+		let sym = snap.interner.get(key)?;
+		let id = *snap.by_key.get(&sym)?;
+		Some(RegistryRef { snap, id })
 	}
 
-	/// Returns the definition for a given ID, if it exists.
+	/// Looks up a definition by its interned symbol.
 	#[inline]
-	pub fn get_by_id(&self, id: &str) -> Option<RegistryRef<T>> {
+	pub fn get_sym(&self, sym: Symbol) -> Option<RegistryRef<T, Id>> {
 		let snap = self.snap.load_full();
-		let def = snap.get_by_id_def(id)?;
-		Some(RegistryRef { snap, def })
+		let id = *snap.by_key.get(&sym)?;
+		Some(RegistryRef { snap, id })
 	}
 
-	/// Registers a definition at runtime.
-	pub fn register(&self, def: &'static T) -> bool {
-		self.try_register(def).is_ok()
-	}
-
-	/// Registers an owned definition without leaking.
-	pub fn register_owned(&self, def: T) -> bool {
-		self.try_register_owned(def).is_ok()
-	}
-
-	/// Registers many definitions at runtime in a single atomic operation.
-	pub fn register_many<I>(&self, defs: I) -> Result<usize, RegistryError>
-	where
-		I: IntoIterator<Item = &'static T>,
-	{
-		Ok(self.try_register_many(defs)?.len())
-	}
-
-	/// Registers many owned definitions without leaking.
-	pub fn register_many_owned<I>(&self, defs: I) -> Result<usize, RegistryError>
-	where
-		I: IntoIterator<Item = T>,
-	{
-		Ok(self.try_register_many_owned(defs)?.len())
-	}
-
-	/// Attempts to register many definitions at runtime in a single atomic operation.
-	pub fn try_register_many<I>(&self, defs: I) -> Result<Vec<InsertAction>, RegistryError>
-	where
-		I: IntoIterator<Item = &'static T>,
-	{
-		self.try_register_many_internal(defs.into_iter().map(DefRef::Builtin), false)
-	}
-
-	/// Attempts to register many owned definitions without leaking.
-	pub fn try_register_many_owned<I>(&self, defs: I) -> Result<Vec<InsertAction>, RegistryError>
-	where
-		I: IntoIterator<Item = T>,
-	{
-		self.try_register_many_internal(defs.into_iter().map(|d| DefRef::Owned(Arc::new(d))), false)
-	}
-
-	/// Attempts to register many definitions with ID override support.
-	pub fn try_register_many_override<I>(&self, defs: I) -> Result<Vec<InsertAction>, RegistryError>
-	where
-		I: IntoIterator<Item = &'static T>,
-	{
-		self.try_register_many_internal(defs.into_iter().map(DefRef::Builtin), true)
-	}
-
-	fn try_register_many_internal<I>(
-		&self,
-		defs: I,
-		allow_overrides: bool,
-	) -> Result<Vec<InsertAction>, RegistryError>
-	where
-		I: IntoIterator<Item = DefRef<T>>,
-	{
-		let input_defs: Vec<DefRef<T>> = defs.into_iter().collect();
-		if input_defs.is_empty() {
-			return Ok(Vec::new());
+	/// Returns all effective definitions.
+	pub fn all(&self) -> Vec<RegistryRef<T, Id>> {
+		let snap = self.snap.load_full();
+		let mut refs = Vec::with_capacity(snap.table.len());
+		for i in 0..snap.table.len() {
+			refs.push(RegistryRef {
+				snap: snap.clone(),
+				id: Id::from_u32(i as u32),
+			});
 		}
+		refs
+	}
 
-		loop {
-			let cur = self.snap.load_full();
-			let mut next = (*cur).clone();
-
-			let mut seen_identities = rustc_hash::FxHashSet::default();
-			for def in cur.by_id.values() {
-				seen_identities.insert(def.identity());
-			}
-
-			let mut actions = vec![InsertAction::KeptExisting; input_defs.len()];
-			let choose_winner = self.make_choose_winner();
-
-			let mutated = {
-				let mut store = SnapshotStore {
-					snap: &mut next,
-					mutated: false,
-				};
-
-				for (idx, def) in input_defs.iter().enumerate() {
-					if seen_identities.contains(&def.identity()) {
-						continue;
-					}
-
-					let meta = def.as_entry().meta();
-
-					let id_action = if allow_overrides {
-						insert_id_key_runtime(
-							&mut store,
-							self.label,
-							choose_winner,
-							meta.id,
-							def.clone(),
-						)?
-					} else {
-						insert_typed_key(
-							&mut store,
-							self.label,
-							choose_winner,
-							KeyKind::Id,
-							meta.id,
-							def.clone(),
-						)?
-					};
-
-					if id_action == InsertAction::KeptExisting {
-						seen_identities.insert(def.identity());
-						continue;
-					}
-
-					if id_action == InsertAction::InsertedNew {
-						store.snap.id_order.push(Box::from(meta.id));
-						store.mutated = true;
-					}
-
-					let _action = insert_typed_key(
-						&mut store,
-						self.label,
-						choose_winner,
-						KeyKind::Name,
-						meta.name,
-						def.clone(),
-					)?;
-
-					for &alias in meta.aliases {
-						insert_typed_key(
-							&mut store,
-							self.label,
-							choose_winner,
-							KeyKind::Alias,
-							alias,
-							def.clone(),
-						)?;
-					}
-
-					actions[idx] = id_action;
-					seen_identities.insert(def.identity());
-				}
-
-				store.mutated
-			};
-
-			if !mutated {
-				return Ok(actions);
-			}
-
-			let next_arc = Arc::new(next);
-			let prev = self.snap.compare_and_swap(&cur, next_arc);
-
-			if Arc::ptr_eq(&prev, &cur) {
-				return Ok(actions);
-			}
+	/// Looks up a definition by its dense ID.
+	#[inline]
+	pub fn get_by_id(&self, id: Id) -> Option<RegistryRef<T, Id>> {
+		let snap = self.snap.load_full();
+		if (id.as_u32() as usize) < snap.table.len() {
+			Some(RegistryRef { snap, id })
+		} else {
+			None
 		}
 	}
 
-	/// Attempts to register a definition at runtime, returning detailed error info.
-	pub fn try_register(&self, def: &'static T) -> Result<InsertAction, RegistryError> {
-		Ok(self.try_register_many(std::iter::once(def))?[0])
+	/// Returns a snapshot guard for direct interner access.
+	pub fn snapshot(&self) -> Arc<Snapshot<T, Id>> {
+		self.snap.load_full()
 	}
 
-	/// Attempts to register an owned definition without leaking.
-	pub fn try_register_owned(&self, def: T) -> Result<InsertAction, RegistryError> {
-		Ok(self.try_register_many_owned(std::iter::once(def))?[0])
+	/// Registers a new definition at runtime (stub - not yet implemented).
+	///
+	/// Returns `false` because runtime registration requires interner extension
+	/// which is not yet supported with the frozen interner architecture.
+	pub fn register<In>(&self, _def: &'static In) -> bool
+	where
+		In: super::BuildEntry<T>,
+	{
+		false
 	}
 
-	/// Attempts to register a definition with ID override support.
-	pub fn try_register_override(&self, def: &'static T) -> Result<InsertAction, RegistryError> {
-		Ok(self.try_register_many_override(std::iter::once(def))?[0])
-	}
-
-	fn make_choose_winner(&self) -> ChooseWinner<T> {
-		match self.policy {
-			DuplicatePolicy::Panic => |kind, key, existing, new| {
-				panic!(
-					"runtime registry key conflict: kind={} key={:?} existing_id={} new_id={}",
-					kind,
-					key,
-					existing.id(),
-					new.id()
-				);
-			},
-			DuplicatePolicy::FirstWins => |_, _, _, _| false,
-			DuplicatePolicy::LastWins => |_, _, _, _| true,
-			DuplicatePolicy::ByPriority => {
-				|_, _, existing, new| new.total_order_cmp(existing) == Ordering::Greater
-			}
-		}
+	/// Returns an iterator over all definitions as `RegistryRef`s.
+	pub fn iter(&self) -> Vec<RegistryRef<T, Id>> {
+		self.all()
 	}
 
 	/// Returns the number of effective definitions.
 	pub fn len(&self) -> usize {
-		self.snap.load().id_order.len()
+		self.snap.load().table.len()
 	}
 
 	/// Returns true if the registry contains no definitions.
 	pub fn is_empty(&self) -> bool {
-		self.snap.load().id_order.is_empty()
-	}
-
-	/// Returns all definitions in stable order.
-	pub fn all(&self) -> Vec<RegistryRef<T>> {
-		let snap = self.snap.load_full();
-		snap.id_order
-			.iter()
-			.filter_map(|id| {
-				let def = snap.by_id.get(id)?.clone();
-				Some(RegistryRef {
-					snap: snap.clone(),
-					def,
-				})
-			})
-			.collect()
-	}
-
-	/// Returns an iterator over effective definitions.
-	pub fn iter(&self) -> Vec<RegistryRef<T>> {
-		self.all()
-	}
-
-	/// Returns all effective definitions.
-	pub fn items(&self) -> Vec<RegistryRef<T>> {
-		self.all()
-	}
-
-	/// Returns all recorded collisions (builtins + runtime).
-	pub fn collisions(&self) -> Vec<Collision> {
-		self.snap.load().collisions.clone()
-	}
-
-	/// Returns the underlying builtins index.
-	pub fn builtins(&self) -> &RegistryIndex<T> {
-		&self.builtins
-	}
-
-	/// Returns the current snapshot guard so callers can read without allocating.
-	pub fn snapshot(&self) -> Arc<Snapshot<T>> {
-		self.snap.load_full()
-	}
-
-	/// Executes a closure while the snapshot guard is alive.
-	pub fn with_snapshot<R>(&self, f: impl FnOnce(&Snapshot<T>) -> R) -> R {
-		let snap = self.snap.load();
-		f(&snap)
-	}
-
-	/// Panics if internal invariants are violated.
-	///
-	/// Checks:
-	/// - `id_order` matches `by_id` keys exactly.
-	pub fn debug_assert_invariants(&self) {
-		let snap = self.snap.load();
-
-		// id_order matches by_id keys exactly.
-		for id in &snap.id_order {
-			if !snap.by_id.contains_key(id) {
-				panic!("Invariant failed: id_order contains missing ID: {}", id);
-			}
-		}
-		if snap.id_order.len() != snap.by_id.len() {
-			panic!(
-				"Invariant failed: id_order length {} != by_id length {}",
-				snap.id_order.len(),
-				snap.by_id.len()
-			);
-		}
-	}
-}
-
-/// KeyStore over Snapshot for shared insertion logic.
-struct SnapshotStore<'a, T>
-where
-	T: RuntimeEntry,
-{
-	snap: &'a mut Snapshot<T>,
-	mutated: bool,
-}
-
-impl<T> KeyStore<T> for SnapshotStore<'_, T>
-where
-	T: RuntimeEntry,
-{
-	fn get_id_owner(&self, id: &str) -> Option<DefRef<T>> {
-		self.snap.by_id.get(id).cloned()
-	}
-
-	fn get_key_winner(&self, key: &str) -> Option<DefRef<T>> {
-		self.snap.by_key.get(key).cloned()
-	}
-
-	fn set_key_winner(&mut self, key: &str, def: DefRef<T>) {
-		self.snap.by_key.insert(Box::from(key), def);
-		self.mutated = true;
-	}
-
-	fn insert_id(&mut self, id: &str, def: DefRef<T>) -> Option<DefRef<T>> {
-		match self.snap.by_id.entry(Box::from(id)) {
-			std::collections::hash_map::Entry::Vacant(v) => {
-				v.insert(def);
-				self.mutated = true;
-				None
-			}
-			std::collections::hash_map::Entry::Occupied(o) => Some(o.get().clone()),
-		}
-	}
-
-	fn set_id_owner(&mut self, id: &str, def: DefRef<T>) {
-		self.snap.by_id.insert(Box::from(id), def);
-		self.mutated = true;
-	}
-
-	fn evict_def(&mut self, def: DefRef<T>) {
-		let len_before = self.snap.by_key.len();
-		self.snap.by_key.retain(|_, v| !v.ptr_eq(&def));
-		if self.snap.by_key.len() != len_before {
-			self.mutated = true;
-		}
-	}
-
-	fn push_collision(&mut self, c: Collision) {
-		self.snap.collisions.push(c);
-		self.mutated = true;
+		self.len() == 0
 	}
 }

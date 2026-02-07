@@ -7,15 +7,21 @@ pub mod key;
 pub mod meta;
 pub mod plugin;
 pub mod runtime_alloc;
+pub mod symbol;
 pub mod traits;
 
-pub use capability::Capability;
+pub use capability::{Capability, CapabilitySet};
 pub use error::{CommandError, InsertAction, InsertFatal, RegistryError};
 pub use index::{
-	ChooseWinner, Collision, DefPtr, DefRef, DuplicatePolicy, KeyKind, KeyStore, RegistryBuilder,
-	RegistryIndex, RegistryRef, RuntimeRegistry, insert_id_key_runtime, insert_typed_key,
+	BuildEntry, Collision, CollisionKind, DuplicatePolicy, KeyKind, Party, RegistryBuilder,
+	RegistryIndex, RegistryMetaRef, RegistryRef, Resolution, RuntimeEntry, RuntimeRegistry,
+	Snapshot,
 };
 pub use key::{FromOptionValue, Key, OptionDefault, OptionType, OptionValue};
-pub use meta::{ActionId, RegistryMeta, RegistrySource};
+pub use meta::{RegistryMeta, RegistryMetaStatic, RegistrySource, SymbolList};
 pub use plugin::PluginDef;
+pub use symbol::{
+	ActionId, CommandId, DenseId, FrozenInterner, GutterId, HookId, Interner, InternerBuilder,
+	MotionId, OptionId, OverlayId, StatuslineId, Symbol, TextObjectId, ThemeId,
+};
 pub use traits::{RegistryEntry, RegistryMetadata};
