@@ -1,11 +1,8 @@
 use xeno_primitives::movement;
 
-use crate::actions::{ActionEffects, ActionResult, PendingAction, PendingKind, action};
+use crate::actions::{ActionEffects, ActionResult, PendingAction, PendingKind, action_handler};
 
-action!(find_char, {
-	description: "Select to next occurrence of character (inclusive)",
-	bindings: r#"normal "f""#,
-}, |ctx| match ctx.args.char {
+action_handler!(find_char, |ctx| match ctx.args.char {
 	Some(ch) => {
 		let mut new_sel = ctx.selection.clone();
 		new_sel.transform_mut(|r| {
@@ -19,10 +16,7 @@ action!(find_char, {
 	})),
 });
 
-action!(find_char_to, {
-	description: "Select to next occurrence of character (exclusive)",
-	bindings: r#"normal "t""#,
-}, |ctx| match ctx.args.char {
+action_handler!(find_char_to, |ctx| match ctx.args.char {
 	Some(ch) => {
 		let mut new_sel = ctx.selection.clone();
 		new_sel.transform_mut(|r| {
@@ -36,10 +30,7 @@ action!(find_char_to, {
 	})),
 });
 
-action!(find_char_reverse, {
-	description: "Select to previous occurrence of character (inclusive)",
-	bindings: r#"normal "alt-f""#,
-}, |ctx| match ctx.args.char {
+action_handler!(find_char_reverse, |ctx| match ctx.args.char {
 	Some(ch) => {
 		let mut new_sel = ctx.selection.clone();
 		new_sel.transform_mut(|r| {
@@ -53,10 +44,7 @@ action!(find_char_reverse, {
 	})),
 });
 
-action!(find_char_to_reverse, {
-	description: "Select to previous occurrence of character (exclusive)",
-	bindings: r#"normal "alt-t""#,
-}, |ctx| match ctx.args.char {
+action_handler!(find_char_to_reverse, |ctx| match ctx.args.char {
 	Some(ch) => {
 		let mut new_sel = ctx.selection.clone();
 		new_sel.transform_mut(|r| {
@@ -69,10 +57,3 @@ action!(find_char_to_reverse, {
 		prompt: "to<-".into(),
 	})),
 });
-
-pub(super) const DEFS: &[&crate::actions::ActionDef] = &[
-	&ACTION_find_char,
-	&ACTION_find_char_to,
-	&ACTION_find_char_reverse,
-	&ACTION_find_char_to_reverse,
-];

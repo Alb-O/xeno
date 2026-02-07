@@ -2,10 +2,10 @@ use std::path::PathBuf;
 
 use xeno_primitives::BoxFutureLocal;
 
-use crate::command;
+use crate::command_handler;
 use crate::commands::{CommandContext, CommandError, CommandOutcome};
 
-command!(write, { aliases: &["w"], description: "Write buffer to file" }, handler: cmd_write);
+command_handler!(write, handler: cmd_write);
 
 fn cmd_write<'a>(
 	ctx: &'a mut CommandContext<'a>,
@@ -20,7 +20,7 @@ fn cmd_write<'a>(
 	})
 }
 
-command!(wq, { aliases: &["x"], description: "Write and quit" }, handler: cmd_write_quit);
+command_handler!(wq, handler: cmd_write_quit);
 
 fn cmd_write_quit<'a>(
 	ctx: &'a mut CommandContext<'a>,
@@ -34,5 +34,3 @@ fn cmd_write_quit<'a>(
 		Ok(CommandOutcome::Quit)
 	})
 }
-
-pub const DEFS: &[&crate::commands::CommandDef] = &[&CMD_write, &CMD_wq];

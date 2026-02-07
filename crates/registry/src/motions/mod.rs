@@ -3,9 +3,9 @@
 use ropey::RopeSlice;
 use xeno_primitives::Range;
 
-use crate::core::index::{BuildEntry, RegistryMetaRef};
+use crate::core::index::{BuildEntry, RegistryMetaRef, StrListRef};
 pub use crate::core::{
-	Capability, CapabilitySet, FrozenInterner, Key, MotionId, RegistryBuilder, RegistryEntry,
+	Capability, CapabilitySet, FrozenInterner, MotionId, RegistryBuilder, RegistryEntry,
 	RegistryIndex, RegistryMeta, RegistryMetaStatic, RegistryMetadata, RegistryRef, RegistrySource,
 	RuntimeRegistry, Symbol, SymbolList,
 };
@@ -14,9 +14,11 @@ pub use crate::core::{
 pub(crate) mod macros;
 
 pub mod builtins;
+pub mod handler;
 pub mod movement;
 
 pub use builtins::register_builtins;
+pub use handler::{MotionHandlerReg, MotionHandlerStatic};
 
 use crate::error::RegistryError;
 
@@ -28,12 +30,7 @@ pub fn register_plugin(
 }
 
 // Re-export macros
-pub use crate::motion;
-
-/// Typed handles for built-in motions.
-pub mod keys {
-	pub use crate::motions::builtins::*;
-}
+pub use crate::motion_handler;
 
 /// Command flags for motion definitions.
 pub mod flags {
@@ -53,12 +50,6 @@ pub struct MotionDef {
 	pub handler: MotionHandler,
 }
 
-impl crate::core::RegistryEntry for MotionDef {
-	fn meta(&self) -> &RegistryMeta {
-		panic!("Called meta() on static MotionDef")
-	}
-}
-
 /// Symbolized motion entry stored in the registry snapshot.
 pub struct MotionEntry {
 	/// Common registry metadata (symbolized).
@@ -74,7 +65,7 @@ impl BuildEntry<MotionEntry> for MotionDef {
 		RegistryMetaRef {
 			id: self.meta.id,
 			name: self.meta.name,
-			aliases: self.meta.aliases,
+			aliases: StrListRef::Static(self.meta.aliases),
 			description: self.meta.description,
 			priority: self.meta.priority,
 			source: self.meta.source,
@@ -92,17 +83,15 @@ impl BuildEntry<MotionEntry> for MotionDef {
 		sink.push(meta.id);
 		sink.push(meta.name);
 		sink.push(meta.description);
-		for &alias in meta.aliases {
-			sink.push(alias);
-		}
+		meta.aliases.for_each(|a| sink.push(a));
 	}
 
 	fn build(&self, interner: &FrozenInterner, alias_pool: &mut Vec<Symbol>) -> MotionEntry {
 		let meta_ref = self.meta_ref();
 		let start = alias_pool.len() as u32;
-		for &alias in meta_ref.aliases {
+		meta_ref.aliases.for_each(|alias| {
 			alias_pool.push(interner.get(alias).expect("missing interned alias"));
-		}
+		});
 		let len = (alias_pool.len() as u32 - start) as u16;
 
 		let meta = RegistryMeta {
@@ -125,9 +114,6 @@ impl BuildEntry<MotionEntry> for MotionDef {
 	}
 }
 
-/// Typed handle to a motion definition (compile-time builtins).
-pub type MotionKey = Key<MotionDef, MotionId>;
-
 /// Typed reference to a runtime motion entry.
 pub type MotionRef = RegistryRef<MotionEntry, MotionId>;
 
@@ -144,4 +130,42 @@ pub fn find(name: &str) -> Option<MotionRef> {
 #[cfg(feature = "db")]
 pub fn all() -> Vec<MotionRef> {
 	MOTIONS.all()
+}
+
+/// Unified motion input: either a static `MotionDef` or a KDL-linked definition.
+pub enum MotionInput {
+	/// Static definition from `motion!` macro.
+	Static(MotionDef),
+	/// KDL-linked definition with owned metadata.
+	Linked(crate::kdl::link::LinkedMotionDef),
+}
+
+impl BuildEntry<MotionEntry> for MotionInput {
+	fn meta_ref(&self) -> RegistryMetaRef<'_> {
+		match self {
+			Self::Static(def) => def.meta_ref(),
+			Self::Linked(def) => def.meta_ref(),
+		}
+	}
+
+	fn short_desc_str(&self) -> &str {
+		match self {
+			Self::Static(def) => def.short_desc_str(),
+			Self::Linked(def) => def.short_desc_str(),
+		}
+	}
+
+	fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
+		match self {
+			Self::Static(def) => def.collect_strings(sink),
+			Self::Linked(def) => def.collect_strings(sink),
+		}
+	}
+
+	fn build(&self, interner: &FrozenInterner, alias_pool: &mut Vec<Symbol>) -> MotionEntry {
+		match self {
+			Self::Static(def) => def.build(interner, alias_pool),
+			Self::Linked(def) => def.build(interner, alias_pool),
+		}
+	}
 }

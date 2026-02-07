@@ -2,10 +2,13 @@ use std::cell::Cell;
 
 use xeno_primitives::range::CharIdx;
 use xeno_primitives::{BoxFutureLocal, Mode, Selection};
+use xeno_registry::hooks::{
+	HookAction, HookContext, HookDef, HookHandler, HookMutability, HookPriority,
+};
 use xeno_registry::{
 	ActionEffects, ActionResult, Capability, CommandContext, CommandError, CommandOutcome,
-	CursorAccess, EditorCapabilities, HookAction, HookEventData, ModeAccess, Notification,
-	NotificationAccess, SelectionAccess, action, command, hook,
+	CursorAccess, EditorCapabilities, ModeAccess, Notification, NotificationAccess,
+	SelectionAccess,
 };
 
 use super::*;
@@ -15,46 +18,93 @@ thread_local! {
 	static ACTION_POST_COUNT: Cell<usize> = const { Cell::new(0) };
 }
 
-action!(
-	invocation_test_action,
-	{ description: "Invocation test action" },
-	|_ctx| ActionResult::Effects(ActionEffects::ok())
-);
+fn handler_invocation_test_action(_ctx: &xeno_registry::ActionContext) -> ActionResult {
+	ActionResult::Effects(ActionEffects::ok())
+}
 
-action!(
-	invocation_edit_action,
-	{
-		description: "Invocation edit action",
-		caps: &[Capability::Edit]
+static ACTION_INVOCATION_TEST: xeno_registry::ActionDef = xeno_registry::ActionDef {
+	meta: xeno_registry::RegistryMetaStatic {
+		id: "xeno-editor::invocation_test_action",
+		name: "invocation_test_action",
+		aliases: &[],
+		description: "Invocation test action",
+		priority: 0,
+		source: xeno_registry::RegistrySource::Crate("xeno-editor"),
+		required_caps: &[],
+		flags: 0,
 	},
-	|_ctx| ActionResult::Effects(ActionEffects::ok())
-);
+	short_desc: "Invocation test action",
+	handler: handler_invocation_test_action,
+	bindings: &[],
+};
 
-hook!(
-	invocation_test_action_pre,
-	ActionPre,
-	0,
-	"Count action pre hooks",
-	|ctx| {
-		if let HookEventData::ActionPre { .. } = &ctx.data {
-			ACTION_PRE_COUNT.with(|count| count.set(count.get() + 1));
-		}
-		HookAction::done()
-	}
-);
+fn handler_invocation_edit_action(_ctx: &xeno_registry::ActionContext) -> ActionResult {
+	ActionResult::Effects(ActionEffects::ok())
+}
 
-hook!(
-	invocation_test_action_post,
-	ActionPost,
-	0,
-	"Count action post hooks",
-	|ctx| {
-		if let HookEventData::ActionPost { .. } = &ctx.data {
-			ACTION_POST_COUNT.with(|count| count.set(count.get() + 1));
-		}
-		HookAction::done()
+static ACTION_INVOCATION_EDIT: xeno_registry::ActionDef = xeno_registry::ActionDef {
+	meta: xeno_registry::RegistryMetaStatic {
+		id: "xeno-editor::invocation_edit_action",
+		name: "invocation_edit_action",
+		aliases: &[],
+		description: "Invocation edit action",
+		priority: 0,
+		source: xeno_registry::RegistrySource::Crate("xeno-editor"),
+		required_caps: &[Capability::Edit],
+		flags: 0,
+	},
+	short_desc: "Invocation edit action",
+	handler: handler_invocation_edit_action,
+	bindings: &[],
+};
+
+fn hook_handler_action_pre(ctx: &HookContext) -> HookAction {
+	if let xeno_registry::HookEventData::ActionPre { .. } = &ctx.data {
+		ACTION_PRE_COUNT.with(|count| count.set(count.get() + 1));
 	}
-);
+	HookAction::done()
+}
+
+static HOOK_ACTION_PRE: HookDef = HookDef {
+	meta: xeno_registry::RegistryMetaStatic {
+		id: "xeno-editor::invocation_test_action_pre",
+		name: "invocation_test_action_pre",
+		aliases: &[],
+		description: "Count action pre hooks",
+		priority: 0,
+		source: xeno_registry::RegistrySource::Crate("xeno-editor"),
+		required_caps: &[],
+		flags: 0,
+	},
+	event: xeno_registry::HookEvent::ActionPre,
+	mutability: HookMutability::Immutable,
+	execution_priority: HookPriority::Interactive,
+	handler: HookHandler::Immutable(hook_handler_action_pre),
+};
+
+fn hook_handler_action_post(ctx: &HookContext) -> HookAction {
+	if let xeno_registry::HookEventData::ActionPost { .. } = &ctx.data {
+		ACTION_POST_COUNT.with(|count| count.set(count.get() + 1));
+	}
+	HookAction::done()
+}
+
+static HOOK_ACTION_POST: HookDef = HookDef {
+	meta: xeno_registry::RegistryMetaStatic {
+		id: "xeno-editor::invocation_test_action_post",
+		name: "invocation_test_action_post",
+		aliases: &[],
+		description: "Count action post hooks",
+		priority: 0,
+		source: xeno_registry::RegistrySource::Crate("xeno-editor"),
+		required_caps: &[],
+		flags: 0,
+	},
+	event: xeno_registry::HookEvent::ActionPost,
+	mutability: HookMutability::Immutable,
+	execution_priority: HookPriority::Interactive,
+	handler: HookHandler::Immutable(hook_handler_action_post),
+};
 
 fn invocation_test_command_fail<'a>(
 	_ctx: &'a mut CommandContext<'a>,
@@ -62,20 +112,29 @@ fn invocation_test_command_fail<'a>(
 	Box::pin(async move { Err(CommandError::Failed("boom".into())) })
 }
 
-command!(
-	invocation_test_command_fail,
-	{ description: "Invocation test command failure" },
-	handler: invocation_test_command_fail
-);
+static CMD_TEST_FAIL: xeno_registry::CommandDef = xeno_registry::CommandDef {
+	meta: xeno_registry::RegistryMetaStatic {
+		id: "xeno-editor::invocation_test_command_fail",
+		name: "invocation_test_command_fail",
+		aliases: &[],
+		description: "Invocation test command failure",
+		priority: 0,
+		source: xeno_registry::RegistrySource::Crate("xeno-editor"),
+		required_caps: &[],
+		flags: 0,
+	},
+	handler: invocation_test_command_fail,
+	user_data: None,
+};
 
 fn register_invocation_test_plugin(
 	db: &mut xeno_registry::db::builder::RegistryDbBuilder,
 ) -> Result<(), xeno_registry::RegistryError> {
-	db.register_action(&ACTION_invocation_test_action);
-	db.register_action(&ACTION_invocation_edit_action);
-	db.register_command(&CMD_invocation_test_command_fail);
-	db.register_hook(&HOOK_invocation_test_action_pre);
-	db.register_hook(&HOOK_invocation_test_action_post);
+	db.register_action(&ACTION_INVOCATION_TEST);
+	db.register_action(&ACTION_INVOCATION_EDIT);
+	db.register_command(&CMD_TEST_FAIL);
+	db.register_hook(&HOOK_ACTION_PRE);
+	db.register_hook(&HOOK_ACTION_POST);
 	Ok(())
 }
 

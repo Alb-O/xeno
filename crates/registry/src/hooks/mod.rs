@@ -7,6 +7,7 @@ pub use crate::core::{
 pub mod builtins;
 mod context;
 mod emit;
+pub mod handler;
 mod macros;
 pub mod registry;
 mod types;
@@ -28,17 +29,17 @@ pub use context::{
 	WindowKind,
 };
 pub use emit::{HookScheduler, emit, emit_mutable, emit_sync, emit_sync_with};
+pub use handler::{HookHandlerReg, HookHandlerStatic};
 pub use types::{
-	HookAction, HookDef, HookEntry, HookFuture, HookHandler, HookMutability, HookPriority,
-	HookResult,
+	HookAction, HookDef, HookEntry, HookFuture, HookHandler, HookInput, HookMutability,
+	HookPriority, HookResult,
 };
 pub use xeno_primitives::Mode;
 
-pub use crate::async_hook;
 #[cfg(feature = "db")]
 pub use crate::db::HOOKS;
 // Re-export macros
-pub use crate::hook;
+pub use crate::hook_handler;
 
 pub type HooksRef = RegistryRef<HookEntry, HookId>;
 

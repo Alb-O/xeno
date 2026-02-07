@@ -1,34 +1,20 @@
-/// Defines an ex-mode command.
+/// Registers a handler function for a KDL-defined command.
+///
+/// The metadata (description, aliases, etc.) comes from `commands.kdl`; this macro
+/// only provides the Rust handler and creates the inventory linkage.
 #[macro_export]
-macro_rules! command {
-	($name:ident, {
-		$(aliases: $aliases:expr,)?
-		description: $desc:expr
-		$(, priority: $priority:expr)?
-		$(, caps: $caps:expr)?
-		$(, flags: $flags:expr)?
-		$(, source: $source:expr)?
-		$(,)?
-	}, handler: $handler:expr) => {
+macro_rules! command_handler {
+	($name:ident, handler: $handler:expr) => {
 		paste::paste! {
 			#[allow(non_upper_case_globals)]
-			pub static [<CMD_ $name>]: $crate::commands::CommandDef = $crate::commands::CommandDef {
-				meta: $crate::commands::RegistryMetaStatic {
-					id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
+			pub(crate) static [<CMD_HANDLER_ $name>]: $crate::commands::CommandHandlerStatic =
+				$crate::commands::CommandHandlerStatic {
 					name: stringify!($name),
-					aliases: $crate::__reg_opt_slice!($({$aliases})?),
-					description: $desc,
-					priority: $crate::__reg_opt!($({$priority})?, 0),
-					source: $crate::__reg_opt!(
-						$({$source})?,
-						$crate::RegistrySource::Crate(env!("CARGO_PKG_NAME"))
-					),
-					required_caps: $crate::__reg_opt_slice!($({$caps})?),
-					flags: $crate::__reg_opt!($({$flags})?, $crate::commands::flags::NONE),
-				},
-				handler: $handler,
-				user_data: None,
-			};
+					crate_name: env!("CARGO_PKG_NAME"),
+					handler: $handler,
+				};
+
+			inventory::submit!($crate::commands::CommandHandlerReg(&[<CMD_HANDLER_ $name>]));
 		}
 	};
 }

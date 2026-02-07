@@ -13,26 +13,21 @@ pub(crate) mod window;
 
 pub use navigation::{cursor_motion, selection_motion};
 
-use crate::actions::ActionDef;
-use crate::db::builder::{BuiltinGroup, RegistryDbBuilder};
-
-const GROUPS: &[BuiltinGroup<ActionDef>] = &[
-	BuiltinGroup::new("modes", modes::DEFS),
-	BuiltinGroup::new("editing", editing::DEFS),
-	BuiltinGroup::new("insert", insert::DEFS),
-	BuiltinGroup::new("navigation", navigation::DEFS),
-	BuiltinGroup::new("scrolling", scrolling::DEFS),
-	BuiltinGroup::new("find", find::DEFS),
-	BuiltinGroup::new("search", search::DEFS),
-	BuiltinGroup::new("selection", selection::DEFS),
-	BuiltinGroup::new("text_objects", text_objects::DEFS),
-	BuiltinGroup::new("misc", misc::DEFS),
-	BuiltinGroup::new("window", window::DEFS),
-];
+use crate::db::builder::RegistryDbBuilder;
 
 pub fn register_builtins(builder: &mut RegistryDbBuilder) {
-	for group in GROUPS {
-		builder.register_action_group(group);
+	let blob = crate::kdl::loader::load_action_metadata();
+	let handlers = inventory::iter::<crate::actions::ActionHandlerReg>
+		.into_iter()
+		.map(|r| r.0);
+	let linked = crate::kdl::link::link_actions(&blob, handlers);
+
+	for def in linked {
+		builder.register_linked_action(def);
 	}
-	prefixes::register_prefixes(builder);
+
+	let prefixes = crate::kdl::link::link_prefixes(&blob);
+	for prefix in prefixes {
+		builder.key_prefixes.push(prefix);
+	}
 }

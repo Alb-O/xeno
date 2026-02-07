@@ -2,8 +2,8 @@ use xeno_primitives::range::Range;
 use xeno_primitives::{Mode, MotionId, Selection, motion_ids};
 
 use crate::actions::{
-	ActionEffects, ActionResult, AppEffect, Effect, MotionKind, MotionRequest, ViewEffect, action,
-	edit_op,
+	ActionEffects, ActionResult, AppEffect, Effect, MotionKind, MotionRequest, ViewEffect,
+	action_handler, edit_op,
 };
 
 /// Emits a motion request followed by a mode change to insert mode.
@@ -22,38 +22,42 @@ fn insert_with_motion(_ctx: &crate::actions::ActionContext, id: MotionId) -> Act
 	)
 }
 
-action!(insert_mode, { description: "Switch to insert mode", bindings: r#"normal "i""# }, |ctx| {
-	let ranges: Vec<_> = ctx.selection.ranges().iter()
+action_handler!(insert_mode, |ctx| {
+	let ranges: Vec<_> = ctx
+		.selection
+		.ranges()
+		.iter()
 		.map(|r| Range::new(r.max(), r.min()))
 		.collect();
 	let sel = Selection::from_vec(ranges, ctx.selection.primary_index());
-	ActionResult::Effects(ActionEffects::selection(sel).with(Effect::App(AppEffect::SetMode(Mode::Insert))))
+	ActionResult::Effects(
+		ActionEffects::selection(sel).with(Effect::App(AppEffect::SetMode(Mode::Insert))),
+	)
 });
 
-action!(insert_line_start, { description: "Insert at start of line", bindings: r#"normal "I""# },
-	|ctx| insert_with_motion(ctx, motion_ids::LINE_START));
+action_handler!(insert_line_start, |ctx| insert_with_motion(
+	ctx,
+	motion_ids::LINE_START
+));
+action_handler!(insert_line_end, |ctx| insert_with_motion(
+	ctx,
+	motion_ids::LINE_END
+));
 
-action!(insert_line_end, { description: "Insert at end of line", bindings: r#"normal "A""# },
-	|ctx| insert_with_motion(ctx, motion_ids::LINE_END));
-
-action!(insert_after, { description: "Insert after cursor", bindings: r#"normal "a""# }, |ctx| {
+action_handler!(insert_after, |ctx| {
 	let max_pos = ctx.text.len_chars();
-	let ranges: Vec<_> = ctx.selection.ranges().iter()
+	let ranges: Vec<_> = ctx
+		.selection
+		.ranges()
+		.iter()
 		.map(|r| Range::point((r.max() + 1).min(max_pos)))
 		.collect();
 	let sel = Selection::from_vec(ranges, ctx.selection.primary_index());
-	ActionResult::Effects(ActionEffects::selection(sel).with(Effect::App(AppEffect::SetMode(Mode::Insert))))
+	ActionResult::Effects(
+		ActionEffects::selection(sel).with(Effect::App(AppEffect::SetMode(Mode::Insert))),
+	)
 });
 
-action!(insert_newline, {
-	description: "Insert newline with indentation",
-	bindings: r#"insert "enter""#,
-}, |_ctx| ActionResult::Effects(ActionEffects::edit_op(edit_op::insert_newline())));
-
-pub(super) const DEFS: &[&crate::actions::ActionDef] = &[
-	&ACTION_insert_mode,
-	&ACTION_insert_line_start,
-	&ACTION_insert_line_end,
-	&ACTION_insert_after,
-	&ACTION_insert_newline,
-];
+action_handler!(insert_newline, |_ctx| ActionResult::Effects(
+	ActionEffects::edit_op(edit_op::insert_newline())
+));

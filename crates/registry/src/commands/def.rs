@@ -1,7 +1,7 @@
 use std::any::Any;
 
 use super::entry::CommandEntry;
-use crate::core::index::{BuildEntry, RegistryMetaRef};
+use crate::core::index::{BuildEntry, RegistryMetaRef, StrListRef};
 use crate::core::{
 	CapabilitySet, FrozenInterner, RegistryMeta, RegistryMetaStatic, Symbol, SymbolList,
 };
@@ -25,18 +25,12 @@ pub struct CommandDef {
 	pub user_data: Option<&'static (dyn Any + Sync)>,
 }
 
-impl crate::core::RegistryEntry for CommandDef {
-	fn meta(&self) -> &RegistryMeta {
-		panic!("Called meta() on static CommandDef")
-	}
-}
-
 impl BuildEntry<CommandEntry> for CommandDef {
 	fn meta_ref(&self) -> RegistryMetaRef<'_> {
 		RegistryMetaRef {
 			id: self.meta.id,
 			name: self.meta.name,
-			aliases: self.meta.aliases,
+			aliases: StrListRef::Static(self.meta.aliases),
 			description: self.meta.description,
 			priority: self.meta.priority,
 			source: self.meta.source,
@@ -54,17 +48,15 @@ impl BuildEntry<CommandEntry> for CommandDef {
 		sink.push(meta.id);
 		sink.push(meta.name);
 		sink.push(meta.description);
-		for &alias in meta.aliases {
-			sink.push(alias);
-		}
+		meta.aliases.for_each(|a| sink.push(a));
 	}
 
 	fn build(&self, interner: &FrozenInterner, alias_pool: &mut Vec<Symbol>) -> CommandEntry {
 		let meta_ref = self.meta_ref();
 		let start = alias_pool.len() as u32;
-		for &alias in meta_ref.aliases {
+		meta_ref.aliases.for_each(|alias| {
 			alias_pool.push(interner.get(alias).expect("missing interned alias"));
-		}
+		});
 		let len = (alias_pool.len() as u32 - start) as u16;
 
 		let meta = RegistryMeta {
@@ -84,6 +76,48 @@ impl BuildEntry<CommandEntry> for CommandDef {
 			meta,
 			handler: self.handler,
 			user_data: self.user_data,
+		}
+	}
+}
+
+/// Unified command input: either a static `CommandDef` or a KDL-linked definition.
+///
+/// Same pattern as `ActionInput` — lets the `RegistryBuilder` accept both
+/// legacy static definitions and KDL-linked definitions through a single
+/// generic `In` parameter.
+pub enum CommandInput {
+	/// Static definition from `command!` macro.
+	Static(CommandDef),
+	/// KDL-linked definition with owned metadata.
+	Linked(crate::kdl::link::LinkedCommandDef),
+}
+
+impl BuildEntry<CommandEntry> for CommandInput {
+	fn meta_ref(&self) -> RegistryMetaRef<'_> {
+		match self {
+			Self::Static(def) => def.meta_ref(),
+			Self::Linked(def) => def.meta_ref(),
+		}
+	}
+
+	fn short_desc_str(&self) -> &str {
+		match self {
+			Self::Static(def) => def.short_desc_str(),
+			Self::Linked(def) => def.short_desc_str(),
+		}
+	}
+
+	fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
+		match self {
+			Self::Static(def) => def.collect_strings(sink),
+			Self::Linked(def) => def.collect_strings(sink),
+		}
+	}
+
+	fn build(&self, interner: &FrozenInterner, alias_pool: &mut Vec<Symbol>) -> CommandEntry {
+		match self {
+			Self::Static(def) => def.build(interner, alias_pool),
+			Self::Linked(def) => def.build(interner, alias_pool),
 		}
 	}
 }

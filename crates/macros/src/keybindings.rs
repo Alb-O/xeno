@@ -1,14 +1,17 @@
 //! KDL keybinding parsing macro.
 //!
-//! Parses keybindings in KDL format and emits a static keybinding list per action.
+//! Parses keybindings in KDL format and emits a keybinding list per action.
 //! Supports key sequences like `"g g"` for multi-key bindings.
+//!
+//! Note: Currently unused — all actions were migrated from the `action!` macro
+//! to `action_handler!` + KDL metadata. Retained for potential future use.
 
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::parse::{Parse, ParseStream};
 use syn::{Expr, Token, parse_macro_input};
 
-/// Parses keybinding definitions and generates static keybinding lists.
+/// Parses keybinding definitions and generates keybinding lists.
 pub fn parse_keybindings(input: TokenStream) -> TokenStream {
 	let input = parse_macro_input!(input as ParseKeybindingsInput);
 
@@ -47,7 +50,7 @@ impl Parse for ParseKeybindingsInput {
 	}
 }
 
-/// Generates a static keybinding list for an action.
+/// Generates a keybinding list for an action using `LazyLock`.
 fn generate_keybindings(
 	action_name: &str,
 	kdl_str: &str,
@@ -91,8 +94,8 @@ fn generate_keybindings(
 			bindings.push(quote! {
 				xeno_registry::actions::KeyBindingDef {
 					mode: xeno_registry::actions::BindingMode::#mode_variant,
-					keys: #key_str,
-					action: #action_id,
+					keys: std::sync::Arc::from(#key_str),
+					action: std::sync::Arc::from(#action_id),
 					priority: 100,
 				}
 			});
@@ -103,8 +106,9 @@ fn generate_keybindings(
 
 	Ok(quote! {
 		#[allow(non_upper_case_globals)]
-		pub static #static_ident: &[xeno_registry::actions::KeyBindingDef] = &[
-			#(#bindings),*
-		];
+		pub static #static_ident: std::sync::LazyLock<Vec<xeno_registry::actions::KeyBindingDef>> =
+			std::sync::LazyLock::new(|| vec![
+				#(#bindings),*
+			]);
 	})
 }

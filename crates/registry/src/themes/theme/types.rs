@@ -1,7 +1,7 @@
 use xeno_primitives::{Color, Mode, Style};
 
 use super::super::syntax::SyntaxStyles;
-use crate::core::index::{BuildEntry, RegistryMetaRef};
+use crate::core::index::{BuildEntry, RegistryMetaRef, StrListRef};
 pub use crate::core::{
 	CapabilitySet, FrozenInterner, RegistryMeta, RegistryMetaStatic, RegistryRef, RegistrySource,
 	Symbol, SymbolList, ThemeId,
@@ -168,12 +168,6 @@ pub struct ThemeDef {
 	pub colors: ThemeColors,
 }
 
-impl crate::core::RegistryEntry for ThemeDef {
-	fn meta(&self) -> &RegistryMeta {
-		panic!("Called meta() on static ThemeDef")
-	}
-}
-
 /// Symbolized theme entry.
 pub struct ThemeEntry {
 	pub meta: RegistryMeta,
@@ -188,7 +182,7 @@ impl BuildEntry<ThemeEntry> for ThemeDef {
 		RegistryMetaRef {
 			id: self.meta.id,
 			name: self.meta.name,
-			aliases: self.meta.aliases,
+			aliases: StrListRef::Static(self.meta.aliases),
 			description: self.meta.description,
 			priority: self.meta.priority,
 			source: self.meta.source,
@@ -206,17 +200,15 @@ impl BuildEntry<ThemeEntry> for ThemeDef {
 		sink.push(meta.id);
 		sink.push(meta.name);
 		sink.push(meta.description);
-		for &alias in meta.aliases {
-			sink.push(alias);
-		}
+		meta.aliases.for_each(|a| sink.push(a));
 	}
 
 	fn build(&self, interner: &FrozenInterner, alias_pool: &mut Vec<Symbol>) -> ThemeEntry {
 		let meta_ref = self.meta_ref();
 		let start = alias_pool.len() as u32;
-		for &alias in meta_ref.aliases {
+		meta_ref.aliases.for_each(|alias| {
 			alias_pool.push(interner.get(alias).expect("missing interned alias"));
-		}
+		});
 		let len = (alias_pool.len() as u32 - start) as u16;
 
 		let meta = RegistryMeta {

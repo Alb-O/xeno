@@ -59,7 +59,7 @@ pub(crate) mod runtime;
 pub(crate) mod snapshot;
 mod types;
 
-pub use build::{BuildEntry, RegistryBuilder, RegistryMetaRef};
+pub use build::{BuildEntry, RegistryBuilder, RegistryMetaRef, StrListRef};
 pub(crate) use collision::cmp_party;
 pub use collision::{Collision, CollisionKind, DuplicatePolicy, KeyKind, Party, Resolution};
 pub use runtime::{RegisterError, RuntimeEntry, RuntimeRegistry};

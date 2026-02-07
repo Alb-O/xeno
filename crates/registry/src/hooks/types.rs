@@ -2,7 +2,7 @@
 
 use super::context::{HookContext, MutableHookContext};
 use crate::HookEvent;
-use crate::core::index::{BuildEntry, RegistryMetaRef};
+use crate::core::index::{BuildEntry, RegistryMetaRef, StrListRef};
 pub use crate::core::{
 	CapabilitySet, FrozenInterner, RegistryEntry, RegistryMeta, RegistryMetaStatic,
 	RegistryMetadata, Symbol, SymbolList,
@@ -84,12 +84,6 @@ impl std::fmt::Debug for HookDef {
 	}
 }
 
-impl crate::core::RegistryEntry for HookDef {
-	fn meta(&self) -> &RegistryMeta {
-		panic!("Called meta() on static HookDef")
-	}
-}
-
 /// Symbolized hook entry.
 pub struct HookEntry {
 	pub meta: RegistryMeta,
@@ -101,12 +95,48 @@ pub struct HookEntry {
 
 crate::impl_registry_entry!(HookEntry);
 
+/// Unified input for hook registration.
+pub enum HookInput {
+	Static(HookDef),
+	Linked(crate::kdl::link::LinkedHookDef),
+}
+
+impl BuildEntry<HookEntry> for HookInput {
+	fn meta_ref(&self) -> RegistryMetaRef<'_> {
+		match self {
+			Self::Static(d) => d.meta_ref(),
+			Self::Linked(d) => d.meta_ref(),
+		}
+	}
+
+	fn short_desc_str(&self) -> &str {
+		match self {
+			Self::Static(d) => d.short_desc_str(),
+			Self::Linked(d) => d.short_desc_str(),
+		}
+	}
+
+	fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
+		match self {
+			Self::Static(d) => d.collect_strings(sink),
+			Self::Linked(d) => d.collect_strings(sink),
+		}
+	}
+
+	fn build(&self, interner: &FrozenInterner, alias_pool: &mut Vec<Symbol>) -> HookEntry {
+		match self {
+			Self::Static(d) => d.build(interner, alias_pool),
+			Self::Linked(d) => d.build(interner, alias_pool),
+		}
+	}
+}
+
 impl BuildEntry<HookEntry> for HookDef {
 	fn meta_ref(&self) -> RegistryMetaRef<'_> {
 		RegistryMetaRef {
 			id: self.meta.id,
 			name: self.meta.name,
-			aliases: self.meta.aliases,
+			aliases: StrListRef::Static(self.meta.aliases),
 			description: self.meta.description,
 			priority: self.meta.priority,
 			source: self.meta.source,
@@ -124,17 +154,15 @@ impl BuildEntry<HookEntry> for HookDef {
 		sink.push(meta.id);
 		sink.push(meta.name);
 		sink.push(meta.description);
-		for &alias in meta.aliases {
-			sink.push(alias);
-		}
+		meta.aliases.for_each(|a| sink.push(a));
 	}
 
 	fn build(&self, interner: &FrozenInterner, alias_pool: &mut Vec<Symbol>) -> HookEntry {
 		let meta_ref = self.meta_ref();
 		let start = alias_pool.len() as u32;
-		for &alias in meta_ref.aliases {
+		meta_ref.aliases.for_each(|alias| {
 			alias_pool.push(interner.get(alias).expect("missing interned alias"));
-		}
+		});
 		let len = (alias_pool.len() as u32 - start) as u16;
 
 		let meta = RegistryMeta {

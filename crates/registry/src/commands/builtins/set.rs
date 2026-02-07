@@ -1,28 +1,12 @@
 use xeno_primitives::BoxFutureLocal;
 
-use crate::command;
-use crate::commands::{CommandContext, CommandError, CommandOutcome, RegistrySource};
+use crate::command_handler;
+use crate::commands::{CommandContext, CommandError, CommandOutcome};
 use crate::notifications::keys;
 
-command!(
-	set,
-	{
-		aliases: &["se"],
-		description: "Set an option globally",
-		source: RegistrySource::Builtin,
-	},
-	handler: cmd_set
-);
+command_handler!(set, handler: cmd_set);
 
-command!(
-	setlocal,
-	{
-		aliases: &["setl"],
-		description: "Set an option for current buffer only",
-		source: RegistrySource::Builtin,
-	},
-	handler: cmd_setlocal
-);
+command_handler!(setlocal, handler: cmd_setlocal);
 
 fn cmd_set<'a>(
 	ctx: &'a mut CommandContext<'a>,
@@ -71,5 +55,3 @@ fn parse_set_args(args: &[&str]) -> Result<(String, String), CommandError> {
 		Ok((first.to_string(), "true".to_string()))
 	}
 }
-
-pub const DEFS: &[&crate::commands::CommandDef] = &[&CMD_set, &CMD_setlocal];

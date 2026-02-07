@@ -1,43 +1,26 @@
 //! Registration macros for gutter columns.
 
-/// Helper to select enabled value or default to true.
-#[doc(hidden)]
+/// Registers a handler for a KDL-defined gutter.
+///
+/// Metadata comes from `gutters.kdl`; this macro provides width + render handlers
+/// and creates the inventory linkage.
 #[macro_export]
-macro_rules! __gutter_enabled {
-	() => {
-		true
-	};
-	($val:expr) => {
-		$val
-	};
-}
-
-/// Defines a gutter column.
-#[macro_export]
-macro_rules! gutter {
+macro_rules! gutter_handler {
 	($name:ident, {
-		description: $desc:expr,
-		priority: $priority:expr,
-		width: $width_kind:ident($width_val:expr)
-		$(, enabled: $enabled:expr)?
-	}, $render:expr) => {
+		width: $width_kind:ident($width_val:expr),
+		render: $render:expr $(,)?
+	}) => {
 		paste::paste! {
 			#[allow(non_upper_case_globals)]
-			pub static [<GUTTER_ $name:upper>]: $crate::gutter::GutterDef = $crate::gutter::GutterDef {
-				meta: $crate::gutter::RegistryMetaStatic {
-					id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
+			pub(crate) static [<GUTTER_HANDLER_ $name>]: $crate::gutter::handler::GutterHandlerStatic =
+				$crate::gutter::handler::GutterHandlerStatic {
 					name: stringify!($name),
-					aliases: &[],
-					description: $desc,
-					priority: $priority,
-					source: $crate::RegistrySource::Crate(env!("CARGO_PKG_NAME")),
-					required_caps: &[],
-					flags: 0,
-				},
-				default_enabled: $crate::__gutter_enabled!($($enabled)?),
-				width: $crate::gutter::GutterWidth::$width_kind($width_val),
-				render: $render,
-			};
+					crate_name: env!("CARGO_PKG_NAME"),
+					width: $crate::gutter::GutterWidth::$width_kind($width_val),
+					render: $render,
+				};
+
+			inventory::submit!($crate::gutter::handler::GutterHandlerReg(&[<GUTTER_HANDLER_ $name>]));
 		}
 	};
 }

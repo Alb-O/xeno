@@ -2,7 +2,7 @@
 
 use crate::actions::{ActionEntry, ActionKey};
 use crate::commands::CommandEntry;
-use crate::core::{ActionId, CommandId, Key, MotionId, RegistryRef};
+use crate::core::{ActionId, CommandId, LookupKey, MotionId, RegistryRef};
 use crate::db::{ACTIONS, COMMANDS, MOTIONS, TEXT_OBJECTS, resolve_action_id_typed};
 use crate::motions::MotionEntry;
 use crate::textobj::TextObjectRef;
@@ -32,8 +32,8 @@ pub fn resolve_action_id(name: &str) -> Option<ActionId> {
 /// Resolve an action key to its ActionId.
 pub fn resolve_action_key(key: ActionKey) -> Option<ActionId> {
 	match &key {
-		Key::Static(def) => resolve_action_id(def.meta.name),
-		Key::Ref(r) => Some(r.dense_id()),
+		LookupKey::Static(canonical_id) => ACTIONS.get(canonical_id).map(|r| r.dense_id()),
+		LookupKey::Ref(r) => Some(r.dense_id()),
 	}
 }
 

@@ -1,7 +1,7 @@
 use xeno_primitives::range::Range;
 
 use crate::actions::{
-	ActionEffects, ActionResult, ObjectSelectionKind, PendingAction, PendingKind, action,
+	ActionEffects, ActionResult, ObjectSelectionKind, PendingAction, PendingKind, action_handler,
 };
 
 fn select_object_with_trigger(
@@ -58,29 +58,19 @@ fn select_to_boundary(
 	}
 }
 
-action!(select_object_inner, {
-	description: "Select inner text object",
-	bindings: r#"normal "alt-i""#,
-}, |ctx| select_object_with_trigger(ctx, ObjectSelectionKind::Inner));
-
-action!(select_object_around, {
-	description: "Select around text object",
-	bindings: r#"normal "alt-a""#,
-}, |ctx| select_object_with_trigger(ctx, ObjectSelectionKind::Around));
-
-action!(select_object_to_start, {
-	description: "Select to object start",
-	bindings: r#"normal "[" "{""#,
-}, |ctx| select_object_with_trigger(ctx, ObjectSelectionKind::ToStart));
-
-action!(select_object_to_end, {
-	description: "Select to object end",
-	bindings: r#"normal "]" "}""#,
-}, |ctx| select_object_with_trigger(ctx, ObjectSelectionKind::ToEnd));
-
-pub(super) const DEFS: &[&crate::actions::ActionDef] = &[
-	&ACTION_select_object_inner,
-	&ACTION_select_object_around,
-	&ACTION_select_object_to_start,
-	&ACTION_select_object_to_end,
-];
+action_handler!(select_object_inner, |ctx| select_object_with_trigger(
+	ctx,
+	ObjectSelectionKind::Inner
+));
+action_handler!(select_object_around, |ctx| select_object_with_trigger(
+	ctx,
+	ObjectSelectionKind::Around
+));
+action_handler!(select_object_to_start, |ctx| select_object_with_trigger(
+	ctx,
+	ObjectSelectionKind::ToStart
+));
+action_handler!(select_object_to_end, |ctx| select_object_with_trigger(
+	ctx,
+	ObjectSelectionKind::ToEnd
+));

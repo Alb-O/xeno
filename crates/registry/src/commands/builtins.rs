@@ -7,22 +7,17 @@ mod set;
 mod theme;
 mod write;
 
-use crate::commands::CommandDef;
-use crate::db::builder::{BuiltinGroup, RegistryDbBuilder};
-
-const GROUPS: &[BuiltinGroup<CommandDef>] = &[
-	BuiltinGroup::new("quit", quit::DEFS),
-	BuiltinGroup::new("write", write::DEFS),
-	BuiltinGroup::new("edit", edit::DEFS),
-	BuiltinGroup::new("buffer", buffer::DEFS),
-	BuiltinGroup::new("help", help::DEFS),
-	BuiltinGroup::new("set", set::DEFS),
-	BuiltinGroup::new("theme", theme::DEFS),
-	BuiltinGroup::new("registry", registry::DEFS),
-];
+use crate::db::builder::RegistryDbBuilder;
+use crate::kdl::link::link_commands;
+use crate::kdl::loader::load_command_metadata;
 
 pub fn register_builtins(builder: &mut RegistryDbBuilder) {
-	for group in GROUPS {
-		builder.register_command_group(group);
+	let metadata = load_command_metadata();
+	let handlers = inventory::iter::<crate::commands::CommandHandlerReg>
+		.into_iter()
+		.map(|r| r.0);
+	let linked = link_commands(&metadata, handlers);
+	for def in linked {
+		builder.register_linked_command(def);
 	}
 }

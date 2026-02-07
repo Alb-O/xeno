@@ -47,14 +47,15 @@ impl Editor {
 
 			for key in &key_strs[1..] {
 				prefix_so_far = format!("{prefix_so_far} {key}");
-				let desc = find_prefix(binding_mode, &prefix_so_far).map_or("", |p| p.description);
+				let desc = find_prefix(binding_mode, &prefix_so_far)
+					.map_or(String::new(), |p| p.description.to_string());
 				ancestors.push(KeyTreeNode::new(key.clone(), desc));
 			}
 			(root, ancestors)
 		};
 
 		let prefix_key = key_strs.join(" ");
-		let root_desc = find_prefix(binding_mode, &key_strs[0]).map(|p| p.description);
+		let root_desc = find_prefix(binding_mode, &key_strs[0]).map(|p| p.description.to_string());
 
 		let children: Vec<KeyTreeNode<'_>> = continuations
 			.iter()
@@ -67,8 +68,8 @@ impl Editor {
 						} else {
 							format!("{prefix_key} {key}")
 						};
-						let desc =
-							find_prefix(binding_mode, &sub_prefix).map_or("", |p| p.description);
+						let desc = find_prefix(binding_mode, &sub_prefix)
+							.map_or(String::new(), |p| p.description.to_string());
 						KeyTreeNode::with_suffix(key, desc, "...")
 					}
 					ContinuationKind::Leaf => {

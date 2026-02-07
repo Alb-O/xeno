@@ -1,29 +1,20 @@
 use xeno_primitives::Selection;
 
-use crate::actions::{ActionEffects, ActionResult, action};
+use crate::actions::{ActionEffects, ActionResult, action_handler};
 
-action!(collapse_selection, {
-	description: "Collapse selection to cursor",
-	bindings: r#"normal ";" "esc""#,
-}, |ctx| {
+action_handler!(collapse_selection, |ctx| {
 	let mut new_sel = ctx.selection.clone();
 	new_sel.transform_mut(|r| r.anchor = r.head);
 	ActionResult::Effects(ActionEffects::selection(new_sel))
 });
 
-action!(flip_selection, {
-	description: "Flip selection direction",
-	bindings: r#"normal "alt-;""#,
-}, |ctx| {
+action_handler!(flip_selection, |ctx| {
 	let mut new_sel = ctx.selection.clone();
 	new_sel.transform_mut(|r| std::mem::swap(&mut r.anchor, &mut r.head));
 	ActionResult::Effects(ActionEffects::selection(new_sel))
 });
 
-action!(ensure_forward, {
-	description: "Ensure selection is forward",
-	bindings: r#"normal "alt-:""#,
-}, |ctx| {
+action_handler!(ensure_forward, |ctx| {
 	let mut new_sel = ctx.selection.clone();
 	new_sel.transform_mut(|r| {
 		if r.head < r.anchor {
@@ -33,15 +24,8 @@ action!(ensure_forward, {
 	ActionResult::Effects(ActionEffects::selection(new_sel))
 });
 
-action!(select_line, {
-	description: "Select current line",
-	bindings: r#"normal "x""#,
-}, handler: select_line_impl);
-
-action!(extend_line, {
-	description: "Extend selection by line",
-	bindings: r#"normal "X""#,
-}, handler: extend_line_impl);
+action_handler!(select_line, handler: select_line_impl);
+action_handler!(extend_line, handler: extend_line_impl);
 
 fn select_line_impl(ctx: &crate::actions::ActionContext) -> ActionResult {
 	let mut new_sel = ctx.selection.clone();
@@ -88,10 +72,7 @@ fn line_end_pos(text: ropey::RopeSlice, line: usize) -> usize {
 	}
 }
 
-action!(select_all, {
-	description: "Select all text",
-	bindings: r#"normal "%""#,
-}, |ctx| {
+action_handler!(select_all, |ctx| {
 	let len = ctx.text.len_chars();
 	if len == 0 {
 		return ActionResult::Effects(ActionEffects::selection(Selection::point(0)));
@@ -100,10 +81,7 @@ action!(select_all, {
 	ActionResult::Effects(ActionEffects::selection(Selection::single(0, end)))
 });
 
-action!(expand_to_line, {
-	description: "Expand selection to cover full lines",
-	bindings: r#"normal "alt-x""#,
-}, handler: expand_to_line_impl);
+action_handler!(expand_to_line, handler: expand_to_line_impl);
 
 fn expand_to_line_impl(ctx: &crate::actions::ActionContext) -> ActionResult {
 	let mut new_sel = ctx.selection.clone();
@@ -116,10 +94,7 @@ fn expand_to_line_impl(ctx: &crate::actions::ActionContext) -> ActionResult {
 	ActionResult::Effects(ActionEffects::selection(new_sel))
 }
 
-action!(remove_primary_selection, {
-	description: "Remove the primary selection",
-	bindings: r#"normal "alt-,""#,
-}, |ctx| {
+action_handler!(remove_primary_selection, |ctx| {
 	if ctx.selection.len() <= 1 {
 		return ActionResult::Effects(ActionEffects::ok());
 	}
@@ -128,36 +103,26 @@ action!(remove_primary_selection, {
 	ActionResult::Effects(ActionEffects::selection(new_sel))
 });
 
-action!(remove_selections_except_primary, {
-	description: "Remove all selections except the primary one",
-	bindings: r#"normal ",""#,
-}, |ctx| ActionResult::Effects(ActionEffects::selection(Selection::single(
-	ctx.selection.primary().anchor,
-	ctx.selection.primary().head,
-))));
+action_handler!(remove_selections_except_primary, |ctx| {
+	ActionResult::Effects(ActionEffects::selection(Selection::single(
+		ctx.selection.primary().anchor,
+		ctx.selection.primary().head,
+	)))
+});
 
-action!(rotate_selections_forward, {
-	description: "Rotate selections forward",
-	bindings: r#"normal ")""#,
-}, |ctx| {
+action_handler!(rotate_selections_forward, |ctx| {
 	let mut new_sel = ctx.selection.clone();
 	new_sel.rotate_forward();
 	ActionResult::Effects(ActionEffects::selection(new_sel))
 });
 
-action!(rotate_selections_backward, {
-	description: "Rotate selections backward",
-	bindings: r#"normal "(""#,
-}, |ctx| {
+action_handler!(rotate_selections_backward, |ctx| {
 	let mut new_sel = ctx.selection.clone();
 	new_sel.rotate_backward();
 	ActionResult::Effects(ActionEffects::selection(new_sel))
 });
 
-action!(split_lines, {
-	description: "Split selection into lines",
-	bindings: r#"normal "alt-s""#,
-}, |ctx| split_lines_impl(ctx));
+action_handler!(split_lines, |ctx| split_lines_impl(ctx));
 
 fn split_lines_impl(ctx: &crate::actions::ActionContext) -> ActionResult {
 	let text = &ctx.text;
@@ -196,10 +161,7 @@ fn split_lines_impl(ctx: &crate::actions::ActionContext) -> ActionResult {
 	}
 }
 
-action!(duplicate_selections_down, {
-	description: "Duplicate selections on next lines",
-	bindings: r#"normal "C" "+""#,
-}, handler: duplicate_selections_down_impl);
+action_handler!(duplicate_selections_down, handler: duplicate_selections_down_impl);
 
 fn duplicate_selections_down_impl(ctx: &crate::actions::ActionContext) -> ActionResult {
 	let text = &ctx.text;
@@ -237,10 +199,7 @@ fn duplicate_selections_down_impl(ctx: &crate::actions::ActionContext) -> Action
 	)))
 }
 
-action!(duplicate_selections_up, {
-	description: "Duplicate selections on previous lines",
-	bindings: r#"normal "alt-C""#,
-}, handler: duplicate_selections_up_impl);
+action_handler!(duplicate_selections_up, handler: duplicate_selections_up_impl);
 
 fn duplicate_selections_up_impl(ctx: &crate::actions::ActionContext) -> ActionResult {
 	let text = &ctx.text;
@@ -290,29 +249,8 @@ fn line_col_to_char(text: &ropey::RopeSlice, line: usize, col: usize) -> usize {
 	line_start + col.min(line_len)
 }
 
-action!(merge_selections, {
-	description: "Merge overlapping selections",
-	bindings: r#"normal "alt-+""#,
-}, |ctx| {
+action_handler!(merge_selections, |ctx| {
 	let mut new_sel = ctx.selection.clone();
 	new_sel.merge_overlaps_and_adjacent();
 	ActionResult::Effects(ActionEffects::selection(new_sel))
 });
-
-pub(super) const DEFS: &[&crate::actions::ActionDef] = &[
-	&ACTION_collapse_selection,
-	&ACTION_flip_selection,
-	&ACTION_ensure_forward,
-	&ACTION_select_line,
-	&ACTION_extend_line,
-	&ACTION_select_all,
-	&ACTION_expand_to_line,
-	&ACTION_remove_primary_selection,
-	&ACTION_remove_selections_except_primary,
-	&ACTION_rotate_selections_forward,
-	&ACTION_rotate_selections_backward,
-	&ACTION_split_lines,
-	&ACTION_duplicate_selections_down,
-	&ACTION_duplicate_selections_up,
-	&ACTION_merge_selections,
-];

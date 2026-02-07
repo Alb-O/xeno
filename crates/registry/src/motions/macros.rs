@@ -1,15 +1,10 @@
-/// Defines a motion primitive.
+/// Registers a handler function for a KDL-defined motion.
+///
+/// The metadata (description, aliases, etc.) comes from `motions.kdl`; this macro
+/// only provides the Rust handler and creates the inventory linkage.
 #[macro_export]
-macro_rules! motion {
-	($name:ident, {
-		$(aliases: $aliases:expr,)?
-		description: $desc:expr
-		$(, priority: $priority:expr)?
-		$(, caps: $caps:expr)?
-		$(, flags: $flags:expr)?
-		$(, source: $source:expr)?
-		$(,)?
-	}, |$text:ident, $range:ident, $count:ident, $extend:ident| $body:expr) => {
+macro_rules! motion_handler {
+	($name:ident, |$text:ident, $range:ident, $count:ident, $extend:ident| $body:expr) => {
 		paste::paste! {
 			#[allow(unused_variables, non_snake_case)]
 			fn [<motion_handler_ $name>](
@@ -22,23 +17,14 @@ macro_rules! motion {
 			}
 
 			#[allow(non_upper_case_globals)]
-			pub static [<MOTION_ $name>]: $crate::motions::MotionDef = $crate::motions::MotionDef {
-				meta: $crate::motions::RegistryMetaStatic {
-					id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
+			pub(crate) static [<MOTION_HANDLER_ $name>]: $crate::motions::MotionHandlerStatic =
+				$crate::motions::MotionHandlerStatic {
 					name: stringify!($name),
-					aliases: $crate::__reg_opt_slice!($({$aliases})?),
-					description: $desc,
-					priority: $crate::__reg_opt!($({$priority})?, 0),
-					source: $crate::__reg_opt!($({$source})?, $crate::RegistrySource::Crate(env!("CARGO_PKG_NAME"))),
-					required_caps: $crate::__reg_opt_slice!($({$caps})?),
-					flags: $crate::__reg_opt!($({$flags})?, $crate::motions::flags::NONE),
-				},
-				handler: [<motion_handler_ $name>],
-			};
+					crate_name: env!("CARGO_PKG_NAME"),
+					handler: [<motion_handler_ $name>],
+				};
 
-			#[doc = concat!("Typed handle for the `", stringify!($name), "` motion.")]
-			#[allow(non_upper_case_globals)]
-			pub const $name: $crate::motions::MotionKey = $crate::motions::MotionKey::new(&[<MOTION_ $name>]);
+			inventory::submit!($crate::motions::MotionHandlerReg(&[<MOTION_HANDLER_ $name>]));
 		}
 	};
 }

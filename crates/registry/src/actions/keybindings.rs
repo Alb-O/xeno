@@ -1,6 +1,6 @@
 //! Keybindings map key sequences to actions in different modes.
 
-use std::sync::LazyLock;
+use std::sync::{Arc, LazyLock};
 
 use xeno_primitives::Mode;
 
@@ -23,32 +23,32 @@ fn current_key_prefixes() -> &'static [KeyPrefixDef] {
 }
 
 /// Definition of a key sequence prefix with its description.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct KeyPrefixDef {
 	/// Mode this prefix is active in.
 	pub mode: BindingMode,
 	/// The prefix key sequence (e.g., `"g"`, `"z"`).
-	pub keys: &'static str,
+	pub keys: Arc<str>,
 	/// Human-readable description (e.g., "Goto", "View").
-	pub description: &'static str,
+	pub description: Arc<str>,
 }
 
 /// Finds a prefix definition for the given mode and key sequence.
 pub fn find_prefix(mode: BindingMode, keys: &str) -> Option<&'static KeyPrefixDef> {
 	KEY_PREFIXES
 		.iter()
-		.find(|p| p.mode == mode && p.keys == keys)
+		.find(|p| p.mode == mode && &*p.keys == keys)
 }
 
 /// Key sequence binding definition.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct KeyBindingDef {
 	/// Mode this binding is active in.
 	pub mode: BindingMode,
 	/// Key sequence string (e.g., `"g g"`, `"ctrl-home"`).
-	pub keys: &'static str,
+	pub keys: Arc<str>,
 	/// Action to execute (looked up by name in the action registry).
-	pub action: &'static str,
+	pub action: Arc<str>,
 	/// Priority for conflict resolution (lower wins).
 	pub priority: i16,
 }

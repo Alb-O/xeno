@@ -1,9 +1,11 @@
 //! Action definition and handler types.
 
+use std::sync::Arc;
+
 use super::entry::ActionEntry;
 use super::keybindings::KeyBindingDef;
 use crate::actions::{ActionContext, ActionResult};
-use crate::core::index::{BuildEntry, RegistryMetaRef};
+use crate::core::index::{BuildEntry, RegistryMetaRef, StrListRef};
 use crate::core::{
 	CapabilitySet, FrozenInterner, RegistryMeta, RegistryMetaStatic, Symbol, SymbolList,
 };
@@ -12,7 +14,7 @@ use crate::core::{
 ///
 /// Actions are the fundamental unit of editor behavior. They're registered
 /// explicitly and looked up by keybindings.
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct ActionDef {
 	/// Common registry metadata (static).
 	pub meta: RegistryMetaStatic,
@@ -24,20 +26,12 @@ pub struct ActionDef {
 	pub bindings: &'static [KeyBindingDef],
 }
 
-impl crate::core::RegistryEntry for ActionDef {
-	fn meta(&self) -> &crate::core::RegistryMeta {
-		// This is a dummy implementation to satisfy trait bounds in Key.
-		// It should never be called on a static ActionDef via the RegistryEntry trait.
-		panic!("Called meta() on static ActionDef")
-	}
-}
-
 impl BuildEntry<ActionEntry> for ActionDef {
 	fn meta_ref(&self) -> RegistryMetaRef<'_> {
 		RegistryMetaRef {
 			id: self.meta.id,
 			name: self.meta.name,
-			aliases: self.meta.aliases,
+			aliases: StrListRef::Static(self.meta.aliases),
 			description: self.meta.description,
 			priority: self.meta.priority,
 			source: self.meta.source,
@@ -55,9 +49,7 @@ impl BuildEntry<ActionEntry> for ActionDef {
 		sink.push(meta.id);
 		sink.push(meta.name);
 		sink.push(meta.description);
-		for &alias in meta.aliases {
-			sink.push(alias);
-		}
+		meta.aliases.for_each(|a| sink.push(a));
 		sink.push(self.short_desc);
 	}
 
@@ -66,7 +58,7 @@ impl BuildEntry<ActionEntry> for ActionDef {
 		let start = alias_pool.len() as u32;
 
 		// Dedup aliases per entry
-		let mut unique_aliases = Vec::from(meta_ref.aliases);
+		let mut unique_aliases = meta_ref.aliases.to_vec();
 		unique_aliases.sort_unstable();
 		unique_aliases.dedup();
 
@@ -95,7 +87,7 @@ impl BuildEntry<ActionEntry> for ActionDef {
 				.get(self.short_desc)
 				.expect("missing interned short_desc"),
 			handler: self.handler,
-			bindings: self.bindings,
+			bindings: Arc::from(self.bindings),
 		}
 	}
 }
@@ -105,3 +97,45 @@ impl BuildEntry<ActionEntry> for ActionDef {
 /// Takes an immutable [`ActionContext`] and returns an [`ActionResult`]
 /// describing what the editor should do.
 pub type ActionHandler = fn(&ActionContext) -> ActionResult;
+
+/// Unified action input: either a static `ActionDef` or a KDL-linked definition.
+///
+/// This enum lets the `RegistryBuilder` accept both legacy static definitions
+/// (from the `action!` macro) and new KDL-linked definitions through a single
+/// generic `In` parameter.
+pub enum ActionInput {
+	/// Static definition from `action!` macro.
+	Static(ActionDef),
+	/// KDL-linked definition with owned metadata.
+	Linked(crate::kdl::link::LinkedActionDef),
+}
+
+impl BuildEntry<ActionEntry> for ActionInput {
+	fn meta_ref(&self) -> RegistryMetaRef<'_> {
+		match self {
+			Self::Static(def) => def.meta_ref(),
+			Self::Linked(def) => def.meta_ref(),
+		}
+	}
+
+	fn short_desc_str(&self) -> &str {
+		match self {
+			Self::Static(def) => def.short_desc_str(),
+			Self::Linked(def) => def.short_desc_str(),
+		}
+	}
+
+	fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
+		match self {
+			Self::Static(def) => def.collect_strings(sink),
+			Self::Linked(def) => def.collect_strings(sink),
+		}
+	}
+
+	fn build(&self, interner: &FrozenInterner, alias_pool: &mut Vec<Symbol>) -> ActionEntry {
+		match self {
+			Self::Static(def) => def.build(interner, alias_pool),
+			Self::Linked(def) => def.build(interner, alias_pool),
+		}
+	}
+}

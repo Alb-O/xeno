@@ -5,6 +5,7 @@
 extern crate self as xeno_registry;
 
 pub mod core;
+pub mod kdl;
 #[doc(hidden)]
 pub use crate::core as xeno_registry_core;
 
@@ -203,8 +204,8 @@ pub use actions::{
 pub use actions::{Axis, SeqDirection, SpatialDirection};
 #[cfg(feature = "commands")]
 pub use commands::{
-	CommandContext, CommandDef, CommandEditorOps, CommandError, CommandHandler, CommandOutcome,
-	CommandResult,
+	CommandContext, CommandDef, CommandEditorOps, CommandError, CommandHandler, CommandHandlerReg,
+	CommandHandlerStatic, CommandInput, CommandOutcome, CommandResult,
 };
 #[cfg(feature = "db")]
 pub use db::index;
@@ -222,17 +223,21 @@ pub use db::{
 };
 #[cfg(feature = "gutter")]
 pub use gutter::{
-	GutterAnnotations, GutterCell, GutterDef, GutterLineContext, GutterSegment, GutterWidth,
-	GutterWidthContext,
+	GutterAnnotations, GutterCell, GutterDef, GutterHandlerReg, GutterHandlerStatic, GutterInput,
+	GutterLineContext, GutterSegment, GutterWidth, GutterWidthContext,
 };
 #[cfg(feature = "hooks")]
 pub use hooks::{
-	Bool, HookAction, HookContext, HookDef, HookFuture, HookHandler, HookMutability, HookPriority,
-	HookResult, HookScheduler, MutableHookContext, OptionViewId, SplitDirection, Str, ViewId,
-	WindowId, WindowKind, emit, emit_mutable, emit_sync, emit_sync_with,
+	Bool, HookAction, HookContext, HookDef, HookFuture, HookHandler, HookHandlerReg,
+	HookHandlerStatic, HookInput, HookMutability, HookPriority, HookResult, HookScheduler,
+	MutableHookContext, OptionViewId, SplitDirection, Str, ViewId, WindowId, WindowKind, emit,
+	emit_mutable, emit_sync, emit_sync_with,
 };
 #[cfg(feature = "motions")]
-pub use motions::{Capability, MotionDef, MotionHandler, flags, movement};
+pub use motions::{
+	Capability, MotionDef, MotionHandler, MotionHandlerReg, MotionHandlerStatic, MotionInput,
+	flags, movement,
+};
 #[cfg(feature = "notifications")]
 pub use notifications::{
 	AutoDismiss, IntoNotification, Level, Notification, NotificationDef, NotificationKey,
@@ -242,16 +247,19 @@ pub use notifications::{
 pub use options::validate;
 #[cfg(feature = "options")]
 pub use options::{
-	OptionDef, OptionError, OptionKey, OptionReg, OptionScope, OptionType, OptionValidator,
-	OptionValue, TypedOptionKey,
+	OptionDef, OptionError, OptionInput, OptionKey, OptionReg, OptionScope, OptionType,
+	OptionValidator, OptionValue, TypedOptionKey,
 };
 #[cfg(feature = "statusline")]
 pub use statusline::{
-	RenderedSegment, SegmentPosition, SegmentStyle, StatuslineContext, StatuslineSegmentDef,
-	render_position,
+	RenderedSegment, SegmentPosition, SegmentStyle, StatuslineContext, StatuslineInput,
+	StatuslineSegmentDef, render_position,
 };
 #[cfg(feature = "textobj")]
-pub use textobj::{TextObjectDef, TextObjectHandler};
+pub use textobj::{
+	TextObjectDef, TextObjectHandler, TextObjectHandlerReg, TextObjectHandlerStatic,
+	TextObjectInput,
+};
 #[cfg(feature = "options")]
 pub use xeno_macros::derive_option;
 

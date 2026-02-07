@@ -1,7 +1,10 @@
 use std::collections::HashSet;
+use std::sync::Arc;
 
+use crate::actions::def::ActionInput;
 use crate::actions::entry::ActionEntry;
 use crate::actions::{ActionDef, KeyBindingDef, KeyPrefixDef};
+use crate::commands::def::CommandInput;
 use crate::commands::{CommandDef, CommandEntry};
 use crate::core::plugin::PluginDef;
 pub use crate::core::{
@@ -9,53 +12,26 @@ pub use crate::core::{
 	MotionId, OptionId, RegistryBuilder, RegistryEntry, RegistryError, RegistryIndex, RegistryMeta,
 	RegistrySource, RuntimeRegistry, StatuslineId, TextObjectId, ThemeId,
 };
-use crate::gutter::{GutterDef, GutterEntry};
-use crate::hooks::{HookDef, HookEntry};
-use crate::motions::{MotionDef, MotionEntry};
-use crate::options::{OptionDef, OptionEntry};
-use crate::statusline::{StatuslineEntry, StatuslineSegmentDef};
-use crate::textobj::{TextObjectDef, TextObjectEntry};
+use crate::gutter::{GutterDef, GutterEntry, GutterInput};
+use crate::hooks::{HookDef, HookEntry, HookInput};
+#[cfg(feature = "actions")]
+use crate::kdl::link::LinkedActionDef;
+use crate::motions::{MotionDef, MotionEntry, MotionInput};
+use crate::options::{OptionDef, OptionEntry, OptionInput};
+use crate::statusline::{StatuslineEntry, StatuslineInput, StatuslineSegmentDef};
+use crate::textobj::{TextObjectDef, TextObjectEntry, TextObjectInput};
 use crate::themes::theme::{ThemeDef, ThemeEntry};
 
-#[derive(Debug)]
-pub struct BuiltinGroup<T: 'static> {
-	pub name: &'static str,
-	pub defs: &'static [&'static T],
-}
-
-impl<T> BuiltinGroup<T> {
-	pub const fn new(name: &'static str, defs: &'static [&'static T]) -> Self {
-		Self { name, defs }
-	}
-}
-
-macro_rules! impl_group_reg {
-	($fn_name:ident, $ty:ty, $item_fn:ident, $domain:literal) => {
-		pub fn $fn_name(&mut self, group: &'static BuiltinGroup<$ty>) {
-			let span = tracing::debug_span!(
-				"builtin.group",
-				domain = $domain,
-				group = group.name,
-				count = group.defs.len(),
-			);
-			let _guard = span.enter();
-			for &def in group.defs {
-				self.$item_fn(def);
-			}
-		}
-	};
-}
-
 pub struct RegistryDbBuilder {
-	pub actions: RegistryBuilder<ActionDef, ActionEntry, ActionId>,
-	pub commands: RegistryBuilder<CommandDef, CommandEntry, CommandId>,
-	pub motions: RegistryBuilder<MotionDef, MotionEntry, MotionId>,
-	pub text_objects: RegistryBuilder<TextObjectDef, TextObjectEntry, TextObjectId>,
-	pub options: RegistryBuilder<OptionDef, OptionEntry, OptionId>,
+	pub actions: RegistryBuilder<ActionInput, ActionEntry, ActionId>,
+	pub commands: RegistryBuilder<CommandInput, CommandEntry, CommandId>,
+	pub motions: RegistryBuilder<MotionInput, MotionEntry, MotionId>,
+	pub text_objects: RegistryBuilder<TextObjectInput, TextObjectEntry, TextObjectId>,
+	pub options: RegistryBuilder<OptionInput, OptionEntry, OptionId>,
 	pub themes: RegistryBuilder<ThemeDef, ThemeEntry, ThemeId>,
-	pub gutters: RegistryBuilder<GutterDef, GutterEntry, GutterId>,
-	pub statusline: RegistryBuilder<StatuslineSegmentDef, StatuslineEntry, StatuslineId>,
-	pub hooks: RegistryBuilder<HookDef, HookEntry, HookId>,
+	pub gutters: RegistryBuilder<GutterInput, GutterEntry, GutterId>,
+	pub statusline: RegistryBuilder<StatuslineInput, StatuslineEntry, StatuslineId>,
+	pub hooks: RegistryBuilder<HookInput, HookEntry, HookId>,
 	pub notifications: Vec<&'static crate::notifications::NotificationDef>,
 	pub keybindings: Vec<KeyBindingDef>,
 	pub key_prefixes: Vec<KeyPrefixDef>,
@@ -175,25 +151,51 @@ impl RegistryDbBuilder {
 	}
 
 	pub fn register_action(&mut self, def: &'static ActionDef) {
-		self.actions.push_static(def);
-		self.keybindings.extend(def.bindings.iter().copied());
+		self.keybindings.extend(def.bindings.iter().cloned());
+		self.actions
+			.push(Arc::new(ActionInput::Static(def.clone())));
+	}
+
+	/// Registers an action defined via KDL metadata + Rust handler linking.
+	pub fn register_linked_action(&mut self, def: LinkedActionDef) {
+		self.keybindings.extend(def.bindings.iter().cloned());
+		self.actions.push(Arc::new(ActionInput::Linked(def)));
 	}
 
 	pub fn register_command(&mut self, def: &'static CommandDef) {
-		self.commands.push_static(def);
+		self.commands
+			.push(Arc::new(CommandInput::Static(def.clone())));
+	}
+
+	/// Registers a command defined via KDL metadata + Rust handler linking.
+	pub fn register_linked_command(&mut self, def: crate::kdl::link::LinkedCommandDef) {
+		self.commands.push(Arc::new(CommandInput::Linked(def)));
 	}
 
 	pub fn register_motion(&mut self, def: &'static MotionDef) {
-		self.motions.push_static(def);
+		self.motions
+			.push(Arc::new(MotionInput::Static(def.clone())));
+	}
+
+	/// Registers a motion defined via KDL metadata + Rust handler linking.
+	pub fn register_linked_motion(&mut self, def: crate::kdl::link::LinkedMotionDef) {
+		self.motions.push(Arc::new(MotionInput::Linked(def)));
 	}
 
 	pub fn register_text_object(&mut self, def: &'static TextObjectDef) {
-		self.text_objects.push_static(def);
+		self.text_objects
+			.push(Arc::new(TextObjectInput::Static(*def)));
+	}
+
+	/// Registers a text object defined via KDL metadata + Rust handler linking.
+	pub fn register_linked_text_object(&mut self, def: crate::kdl::link::LinkedTextObjectDef) {
+		self.text_objects
+			.push(Arc::new(TextObjectInput::Linked(def)));
 	}
 
 	pub fn register_option(&mut self, def: &'static OptionDef) {
 		validate_option_def(def);
-		self.options.push_static(def);
+		self.options.push(Arc::new(OptionInput::Static(*def)));
 	}
 
 	pub fn register_theme(&mut self, def: &'static ThemeDef) {
@@ -201,55 +203,43 @@ impl RegistryDbBuilder {
 	}
 
 	pub fn register_gutter(&mut self, def: &'static GutterDef) {
-		self.gutters.push_static(def);
+		self.gutters.push(Arc::new(GutterInput::Static(*def)));
+	}
+
+	/// Registers a gutter defined via KDL metadata + Rust handler linking.
+	pub fn register_linked_gutter(&mut self, def: crate::kdl::link::LinkedGutterDef) {
+		self.gutters.push(Arc::new(GutterInput::Linked(def)));
 	}
 
 	pub fn register_statusline_segment(&mut self, def: &'static StatuslineSegmentDef) {
-		self.statusline.push_static(def);
+		self.statusline
+			.push(Arc::new(StatuslineInput::Static(*def)));
+	}
+
+	/// Registers a statusline segment defined via KDL metadata + Rust handler linking.
+	pub fn register_linked_statusline_segment(
+		&mut self,
+		def: crate::kdl::link::LinkedStatuslineDef,
+	) {
+		self.statusline.push(Arc::new(StatuslineInput::Linked(def)));
 	}
 
 	pub fn register_hook(&mut self, def: &'static HookDef) {
-		self.hooks.push_static(def);
+		self.hooks.push(Arc::new(HookInput::Static(*def)));
+	}
+
+	/// Registers a hook defined via KDL metadata + Rust handler linking.
+	pub fn register_linked_hook(&mut self, def: crate::kdl::link::LinkedHookDef) {
+		self.hooks.push(Arc::new(HookInput::Linked(def)));
 	}
 
 	pub fn register_notification(&mut self, def: &'static crate::notifications::NotificationDef) {
 		self.notifications.push(def);
 	}
 
-	pub fn register_key_prefixes(&mut self, defs: &'static [KeyPrefixDef]) {
-		self.key_prefixes.extend(defs.iter().copied());
+	pub fn register_key_prefixes(&mut self, defs: impl IntoIterator<Item = KeyPrefixDef>) {
+		self.key_prefixes.extend(defs);
 	}
-
-	impl_group_reg!(register_action_group, ActionDef, register_action, "actions");
-	impl_group_reg!(
-		register_command_group,
-		CommandDef,
-		register_command,
-		"commands"
-	);
-	impl_group_reg!(register_motion_group, MotionDef, register_motion, "motions");
-	impl_group_reg!(
-		register_text_object_group,
-		TextObjectDef,
-		register_text_object,
-		"text_objects"
-	);
-	impl_group_reg!(register_option_group, OptionDef, register_option, "options");
-	impl_group_reg!(register_theme_group, ThemeDef, register_theme, "themes");
-	impl_group_reg!(register_gutter_group, GutterDef, register_gutter, "gutters");
-	impl_group_reg!(
-		register_statusline_group,
-		StatuslineSegmentDef,
-		register_statusline_segment,
-		"statusline"
-	);
-	impl_group_reg!(register_hook_group, HookDef, register_hook, "hooks");
-	impl_group_reg!(
-		register_notification_group,
-		crate::notifications::NotificationDef,
-		register_notification,
-		"notifications"
-	);
 
 	pub fn plugin_build_records(&self) -> &[PluginBuildRecord] {
 		&self.plugin_records

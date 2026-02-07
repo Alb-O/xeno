@@ -11,7 +11,7 @@ pub mod typed_keys;
 pub mod validators;
 
 pub use builtins::register_builtins;
-pub use def::{OptionDef, OptionScope, OptionValidator};
+pub use def::{OptionDef, OptionInput, OptionScope, OptionValidator};
 pub use entry::OptionEntry;
 pub use registry::{OptionsRef, OptionsRegistry};
 pub use resolver::OptionResolver;

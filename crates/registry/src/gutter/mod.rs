@@ -8,9 +8,11 @@ pub use crate::themes::Color;
 pub use crate::themes::theme::ThemeDef as Theme;
 
 pub mod builtins;
+pub mod handler;
 mod macros;
 
 pub use builtins::register_builtins;
+pub use handler::{GutterHandlerReg, GutterHandlerStatic};
 
 use crate::error::RegistryError;
 
@@ -21,14 +23,14 @@ pub fn register_plugin(
 	Ok(())
 }
 
-use crate::core::index::{BuildEntry, RegistryMetaRef};
+use crate::core::index::{BuildEntry, RegistryMetaRef, StrListRef};
 pub use crate::core::{
 	CapabilitySet, FrozenInterner, GutterId, RegistryBuilder, RegistryEntry, RegistryIndex,
 	RegistryMeta, RegistryMetaStatic, RegistryMetadata, RegistryRef, RegistrySource,
 	RuntimeRegistry, Symbol, SymbolList,
 };
 // Re-export macros
-pub use crate::gutter;
+pub use crate::gutter_handler;
 
 /// Context passed to each gutter render closure (per-line).
 pub struct GutterLineContext<'a> {
@@ -109,12 +111,6 @@ impl core::fmt::Debug for GutterDef {
 	}
 }
 
-impl crate::core::RegistryEntry for GutterDef {
-	fn meta(&self) -> &RegistryMeta {
-		panic!("Called meta() on static GutterDef")
-	}
-}
-
 pub struct GutterEntry {
 	pub meta: RegistryMeta,
 	pub default_enabled: bool,
@@ -129,7 +125,7 @@ impl BuildEntry<GutterEntry> for GutterDef {
 		RegistryMetaRef {
 			id: self.meta.id,
 			name: self.meta.name,
-			aliases: self.meta.aliases,
+			aliases: StrListRef::Static(self.meta.aliases),
 			description: self.meta.description,
 			priority: self.meta.priority,
 			source: self.meta.source,
@@ -147,17 +143,15 @@ impl BuildEntry<GutterEntry> for GutterDef {
 		sink.push(meta.id);
 		sink.push(meta.name);
 		sink.push(meta.description);
-		for &alias in meta.aliases {
-			sink.push(alias);
-		}
+		meta.aliases.for_each(|a| sink.push(a));
 	}
 
 	fn build(&self, interner: &FrozenInterner, alias_pool: &mut Vec<Symbol>) -> GutterEntry {
 		let meta_ref = self.meta_ref();
 		let start = alias_pool.len() as u32;
-		for &alias in meta_ref.aliases {
+		meta_ref.aliases.for_each(|alias| {
 			alias_pool.push(interner.get(alias).expect("missing interned alias"));
-		}
+		});
 		let len = (alias_pool.len() as u32 - start) as u16;
 
 		let meta = RegistryMeta {
@@ -178,6 +172,42 @@ impl BuildEntry<GutterEntry> for GutterDef {
 			default_enabled: self.default_enabled,
 			width: self.width,
 			render: self.render,
+		}
+	}
+}
+
+/// Unified input for gutter registration.
+pub enum GutterInput {
+	Static(GutterDef),
+	Linked(crate::kdl::link::LinkedGutterDef),
+}
+
+impl BuildEntry<GutterEntry> for GutterInput {
+	fn meta_ref(&self) -> RegistryMetaRef<'_> {
+		match self {
+			Self::Static(d) => d.meta_ref(),
+			Self::Linked(d) => d.meta_ref(),
+		}
+	}
+
+	fn short_desc_str(&self) -> &str {
+		match self {
+			Self::Static(d) => d.short_desc_str(),
+			Self::Linked(d) => d.short_desc_str(),
+		}
+	}
+
+	fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
+		match self {
+			Self::Static(d) => d.collect_strings(sink),
+			Self::Linked(d) => d.collect_strings(sink),
+		}
+	}
+
+	fn build(&self, interner: &FrozenInterner, alias_pool: &mut Vec<Symbol>) -> GutterEntry {
+		match self {
+			Self::Static(d) => d.build(interner, alias_pool),
+			Self::Linked(d) => d.build(interner, alias_pool),
 		}
 	}
 }

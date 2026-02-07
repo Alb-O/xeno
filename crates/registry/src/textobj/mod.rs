@@ -1,13 +1,17 @@
 //! Text object registry.
 
+use std::sync::Arc;
+
 use ropey::RopeSlice;
 use xeno_primitives::Range;
 
 pub mod builtins;
+pub mod handler;
 mod macros;
 pub mod registry;
 
 pub use builtins::register_builtins;
+pub use handler::{TextObjectHandlerReg, TextObjectHandlerStatic};
 pub use registry::{TextObjectRef, TextObjectRegistry};
 
 use crate::error::RegistryError;
@@ -19,16 +23,14 @@ pub fn register_plugin(
 	Ok(())
 }
 
-use crate::core::index::{BuildEntry, RegistryMetaRef};
+use crate::core::index::{BuildEntry, RegistryMetaRef, StrListRef};
 pub use crate::core::{
 	Capability, CapabilitySet, DuplicatePolicy, FrozenInterner, RegistryBuilder, RegistryEntry,
 	RegistryIndex, RegistryMeta, RegistryMetaStatic, RegistryMetadata, RegistryRef, RegistrySource,
 	Symbol, SymbolList, TextObjectId,
 };
-pub use crate::motions::{flags, movement};
 // Re-export macros
-pub use crate::text_object;
-pub use crate::{bracket_pair_object, symmetric_text_object};
+pub use crate::text_object_handler;
 
 pub type TextObjectHandler = fn(RopeSlice, usize) -> Option<Range>;
 
@@ -62,17 +64,11 @@ impl TextObjectDef {
 	}
 }
 
-impl crate::core::RegistryEntry for TextObjectDef {
-	fn meta(&self) -> &RegistryMeta {
-		panic!("Called meta() on static TextObjectDef")
-	}
-}
-
 /// Symbolized text object entry.
 pub struct TextObjectEntry {
 	pub meta: RegistryMeta,
 	pub trigger: char,
-	pub alt_triggers: &'static [char],
+	pub alt_triggers: Arc<[char]>,
 	pub inner: TextObjectHandler,
 	pub around: TextObjectHandler,
 }
@@ -84,7 +80,7 @@ impl BuildEntry<TextObjectEntry> for TextObjectDef {
 		RegistryMetaRef {
 			id: self.meta.id,
 			name: self.meta.name,
-			aliases: self.meta.aliases,
+			aliases: StrListRef::Static(self.meta.aliases),
 			description: self.meta.description,
 			priority: self.meta.priority,
 			source: self.meta.source,
@@ -102,17 +98,15 @@ impl BuildEntry<TextObjectEntry> for TextObjectDef {
 		sink.push(meta.id);
 		sink.push(meta.name);
 		sink.push(meta.description);
-		for &alias in meta.aliases {
-			sink.push(alias);
-		}
+		meta.aliases.for_each(|a| sink.push(a));
 	}
 
 	fn build(&self, interner: &FrozenInterner, alias_pool: &mut Vec<Symbol>) -> TextObjectEntry {
 		let meta_ref = self.meta_ref();
 		let start = alias_pool.len() as u32;
-		for &alias in meta_ref.aliases {
+		meta_ref.aliases.for_each(|alias| {
 			alias_pool.push(interner.get(alias).expect("missing interned alias"));
-		}
+		});
 		let len = (alias_pool.len() as u32 - start) as u16;
 
 		let meta = RegistryMeta {
@@ -131,9 +125,46 @@ impl BuildEntry<TextObjectEntry> for TextObjectDef {
 		TextObjectEntry {
 			meta,
 			trigger: self.trigger,
-			alt_triggers: self.alt_triggers,
+			alt_triggers: Arc::from(self.alt_triggers),
 			inner: self.inner,
 			around: self.around,
+		}
+	}
+}
+
+/// Unified input for text object registration — either a static `TextObjectDef`
+/// or a `LinkedTextObjectDef` assembled from KDL metadata + Rust handlers.
+pub enum TextObjectInput {
+	Static(TextObjectDef),
+	Linked(crate::kdl::link::LinkedTextObjectDef),
+}
+
+impl BuildEntry<TextObjectEntry> for TextObjectInput {
+	fn meta_ref(&self) -> RegistryMetaRef<'_> {
+		match self {
+			Self::Static(d) => d.meta_ref(),
+			Self::Linked(d) => d.meta_ref(),
+		}
+	}
+
+	fn short_desc_str(&self) -> &str {
+		match self {
+			Self::Static(d) => d.short_desc_str(),
+			Self::Linked(d) => d.short_desc_str(),
+		}
+	}
+
+	fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
+		match self {
+			Self::Static(d) => d.collect_strings(sink),
+			Self::Linked(d) => d.collect_strings(sink),
+		}
+	}
+
+	fn build(&self, interner: &FrozenInterner, alias_pool: &mut Vec<Symbol>) -> TextObjectEntry {
+		match self {
+			Self::Static(d) => d.build(interner, alias_pool),
+			Self::Linked(d) => d.build(interner, alias_pool),
 		}
 	}
 }

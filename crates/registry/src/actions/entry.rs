@@ -1,9 +1,11 @@
+use std::sync::Arc;
+
 use super::def::ActionHandler;
 use super::keybindings::KeyBindingDef;
 use crate::core::{RegistryMeta, Symbol};
 
 /// Symbolized action entry stored in the registry snapshot.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct ActionEntry {
 	/// Common registry metadata (symbolized).
 	pub meta: RegistryMeta,
@@ -12,7 +14,7 @@ pub struct ActionEntry {
 	/// The function that executes this action.
 	pub handler: ActionHandler,
 	/// Keybindings associated with the action.
-	pub bindings: &'static [KeyBindingDef],
+	pub bindings: Arc<[KeyBindingDef]>,
 }
 
 crate::impl_registry_entry!(ActionEntry);

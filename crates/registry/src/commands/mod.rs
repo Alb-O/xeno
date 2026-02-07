@@ -10,11 +10,13 @@ use crate::notifications::Notification;
 pub mod builtins;
 pub mod def;
 pub mod entry;
+pub mod handler;
 mod macros;
 
 pub use builtins::register_builtins;
-pub use def::{CommandDef, CommandHandler};
+pub use def::{CommandDef, CommandHandler, CommandInput};
 pub use entry::CommandEntry;
+pub use handler::{CommandHandlerReg, CommandHandlerStatic};
 
 use crate::error::RegistryError;
 
@@ -26,7 +28,7 @@ pub fn register_plugin(
 }
 
 // Re-export macros
-pub use crate::command;
+pub use crate::command_handler;
 pub use crate::core::{
 	Capability, CommandError, RegistryBuilder, RegistryEntry, RegistryMeta, RegistryMetaStatic,
 	RegistryMetadata, RegistryRef, RegistrySource, RuntimeRegistry,

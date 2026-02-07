@@ -1,23 +1,16 @@
 //! Built-in statusline segment implementations.
 
-use crate::statusline::{RenderedSegment, SegmentStyle, segment};
+use crate::segment_handler;
+use crate::statusline::{RenderedSegment, SegmentStyle};
 
-segment!(mode, {
-	position: Left,
-	description: "Mode indicator",
-	priority: 100,
-}, |ctx| {
+segment_handler!(mode, |ctx| {
 	Some(RenderedSegment {
 		text: format!(" {} ", ctx.mode_name.to_uppercase()),
 		style: SegmentStyle::Mode,
 	})
 });
 
-segment!(count, {
-	position: Left,
-	description: "Numeric prefix count",
-	priority: 90,
-}, |ctx| {
+segment_handler!(count, |ctx| {
 	if ctx.count > 0 {
 		Some(RenderedSegment {
 			text: format!(" {} ", ctx.count),
@@ -28,11 +21,7 @@ segment!(count, {
 	}
 });
 
-segment!(file, {
-	position: Left,
-	description: "Current filename and modified flag",
-	priority: 80,
-}, |ctx| {
+segment_handler!(file, |ctx| {
 	let path = ctx.path.unwrap_or("[No Name]");
 	let modified = if ctx.modified { " [+]" } else { "" };
 	Some(RenderedSegment {
@@ -41,11 +30,7 @@ segment!(file, {
 	})
 });
 
-segment!(readonly, {
-	position: Left,
-	description: "Read-only indicator",
-	priority: 75,
-}, |ctx| {
+segment_handler!(readonly, |ctx| {
 	if ctx.readonly {
 		Some(RenderedSegment {
 			text: " [RO] ".to_string(),
@@ -56,33 +41,21 @@ segment!(readonly, {
 	}
 });
 
-segment!(filetype, {
-	position: Right,
-	description: "Detected file type",
-	priority: 50,
-}, |ctx| {
+segment_handler!(filetype, |ctx| {
 	ctx.file_type.map(|ft| RenderedSegment {
 		text: format!(" {} ", ft),
 		style: SegmentStyle::Dim,
 	})
 });
 
-segment!(position, {
-	position: Right,
-	description: "Cursor position (line:col)",
-	priority: 100,
-}, |ctx| {
+segment_handler!(position, |ctx| {
 	Some(RenderedSegment {
 		text: format!(" {}:{} ", ctx.line, ctx.col),
 		style: SegmentStyle::Normal,
 	})
 });
 
-segment!(progress, {
-	position: Right,
-	description: "Document progress percentage",
-	priority: 90,
-}, |ctx| {
+segment_handler!(progress, |ctx| {
 	let pct = if ctx.total_lines > 1 {
 		(ctx.line - 1) * 100 / (ctx.total_lines - 1)
 	} else {
@@ -95,11 +68,13 @@ segment!(progress, {
 });
 
 pub fn register_builtins(builder: &mut crate::db::builder::RegistryDbBuilder) {
-	builder.register_statusline_segment(&SEG_MODE);
-	builder.register_statusline_segment(&SEG_COUNT);
-	builder.register_statusline_segment(&SEG_FILE);
-	builder.register_statusline_segment(&SEG_READONLY);
-	builder.register_statusline_segment(&SEG_FILETYPE);
-	builder.register_statusline_segment(&SEG_POSITION);
-	builder.register_statusline_segment(&SEG_PROGRESS);
+	let metadata = crate::kdl::loader::load_statusline_metadata();
+	let handlers = inventory::iter::<crate::statusline::handler::StatuslineHandlerReg>
+		.into_iter()
+		.map(|r| r.0);
+	let linked = crate::kdl::link::link_statusline(&metadata, handlers);
+
+	for def in linked {
+		builder.register_linked_statusline_segment(def);
+	}
 }

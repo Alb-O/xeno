@@ -1,18 +1,10 @@
 use xeno_primitives::BoxFutureLocal;
 
-use crate::command;
-use crate::commands::{CommandContext, CommandError, CommandOutcome, RegistrySource};
+use crate::command_handler;
+use crate::commands::{CommandContext, CommandError, CommandOutcome};
 use crate::notifications::keys;
 
-command!(
-	theme,
-	{
-		aliases: &["colorscheme"],
-		description: "Set the editor theme",
-		source: RegistrySource::Builtin,
-	},
-	handler: cmd_theme
-);
+command_handler!(theme, handler: cmd_theme);
 
 fn cmd_theme<'a>(
 	ctx: &'a mut CommandContext<'a>,
@@ -27,5 +19,3 @@ fn cmd_theme<'a>(
 		Ok(CommandOutcome::Ok)
 	})
 }
-
-pub const DEFS: &[&crate::commands::CommandDef] = &[&CMD_theme];

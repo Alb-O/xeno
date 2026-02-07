@@ -4,21 +4,11 @@ use xeno_primitives::BoxFutureLocal;
 
 use crate::commands::{COMMANDS, CommandContext, CommandError, CommandOutcome, RegistryEntry};
 use crate::notifications::keys;
-use crate::{command, motions, textobj};
+use crate::{command_handler, motions, textobj};
 
-command!(
-	registry_diag,
-	{ aliases: &["registry.diag"], description: "Show registry system diagnostics" },
-	handler: cmd_registry_diag
-);
-command!(
-	registry_doctor,
-	{
-		aliases: &["registry.doctor"],
-		description: "Check for registry collisions and suggest fixes"
-	},
-	handler: cmd_registry_doctor
-);
+command_handler!(registry_diag, handler: cmd_registry_diag);
+
+command_handler!(registry_doctor, handler: cmd_registry_doctor);
 
 enum CollisionKind {
 	Id,
@@ -194,7 +184,7 @@ fn collect_text_object_collisions(collisions: &mut Vec<CollisionReport>) {
 			&mut by_trigger,
 			collisions,
 		);
-		for &trigger in obj.alt_triggers {
+		for &trigger in &*obj.alt_triggers {
 			register_collision(
 				CollisionKind::Trigger,
 				trigger.to_string(),
@@ -275,5 +265,3 @@ fn cmd_registry_doctor<'a>(
 		Ok(CommandOutcome::Ok)
 	})
 }
-
-pub const DEFS: &[&crate::commands::CommandDef] = &[&CMD_registry_diag, &CMD_registry_doctor];

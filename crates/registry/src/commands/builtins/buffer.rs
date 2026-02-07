@@ -1,10 +1,10 @@
 use xeno_primitives::BoxFutureLocal;
 
-use crate::command;
+use crate::command_handler;
 use crate::commands::{CommandContext, CommandError, CommandOutcome};
 use crate::notifications::keys;
 
-command!(buffer, { aliases: &["b"], description: "Switch to buffer" }, handler: cmd_buffer);
+command_handler!(buffer, handler: cmd_buffer);
 
 fn cmd_buffer<'a>(
 	ctx: &'a mut CommandContext<'a>,
@@ -18,11 +18,7 @@ fn cmd_buffer<'a>(
 	})
 }
 
-command!(
-	buffer_next,
-	{ aliases: &["bn"], description: "Go to next buffer" },
-	handler: cmd_buffer_next
-);
+command_handler!(buffer_next, handler: cmd_buffer_next);
 
 fn cmd_buffer_next<'a>(
 	ctx: &'a mut CommandContext<'a>,
@@ -33,11 +29,7 @@ fn cmd_buffer_next<'a>(
 	})
 }
 
-command!(
-	buffer_prev,
-	{ aliases: &["bp"], description: "Go to previous buffer" },
-	handler: cmd_buffer_prev
-);
+command_handler!(buffer_prev, handler: cmd_buffer_prev);
 
 fn cmd_buffer_prev<'a>(
 	ctx: &'a mut CommandContext<'a>,
@@ -48,11 +40,7 @@ fn cmd_buffer_prev<'a>(
 	})
 }
 
-command!(
-	delete_buffer,
-	{ aliases: &["db"], description: "Delete current buffer" },
-	handler: cmd_delete_buffer
-);
+command_handler!(delete_buffer, handler: cmd_delete_buffer);
 
 fn cmd_delete_buffer<'a>(
 	ctx: &'a mut CommandContext<'a>,
@@ -63,11 +51,7 @@ fn cmd_delete_buffer<'a>(
 	})
 }
 
-command!(
-	readonly,
-	{ aliases: &["ro"], description: "Toggle read-only mode for current buffer" },
-	handler: cmd_readonly
-);
+command_handler!(readonly, handler: cmd_readonly);
 
 fn cmd_readonly<'a>(
 	ctx: &'a mut CommandContext<'a>,
@@ -83,11 +67,3 @@ fn cmd_readonly<'a>(
 		Ok(CommandOutcome::Ok)
 	})
 }
-
-pub const DEFS: &[&crate::commands::CommandDef] = &[
-	&CMD_buffer,
-	&CMD_buffer_next,
-	&CMD_buffer_prev,
-	&CMD_delete_buffer,
-	&CMD_readonly,
-];

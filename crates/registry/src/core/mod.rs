@@ -16,7 +16,7 @@ pub use index::{
 	RegistryIndex, RegistryMetaRef, RegistryRef, Resolution, RuntimeEntry, RuntimeRegistry,
 	Snapshot,
 };
-pub use key::{FromOptionValue, Key, OptionDefault, OptionType, OptionValue};
+pub use key::{FromOptionValue, LookupKey, OptionDefault, OptionType, OptionValue};
 pub use meta::{RegistryMeta, RegistryMetaStatic, RegistrySource, SymbolList};
 pub use plugin::PluginDef;
 pub use symbol::{

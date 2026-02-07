@@ -1,5 +1,5 @@
 use super::entry::OptionEntry;
-use crate::core::index::{BuildEntry, RegistryMetaRef};
+use crate::core::index::{BuildEntry, RegistryMetaRef, StrListRef};
 use crate::core::{
 	CapabilitySet, FrozenInterner, OptionDefault, OptionType, OptionValue, RegistryMeta,
 	RegistryMetaStatic, Symbol, SymbolList,
@@ -36,9 +36,35 @@ impl core::fmt::Debug for OptionDef {
 	}
 }
 
-impl crate::core::RegistryEntry for OptionDef {
-	fn meta(&self) -> &RegistryMeta {
-		panic!("Called meta() on static OptionDef")
+/// Unified input for option registration — either a static `OptionDef`
+/// (from `derive_option`) or a `LinkedOptionDef` assembled from KDL metadata.
+pub enum OptionInput {
+	Static(OptionDef),
+}
+
+impl BuildEntry<OptionEntry> for OptionInput {
+	fn meta_ref(&self) -> RegistryMetaRef<'_> {
+		match self {
+			Self::Static(d) => d.meta_ref(),
+		}
+	}
+
+	fn short_desc_str(&self) -> &str {
+		match self {
+			Self::Static(d) => d.short_desc_str(),
+		}
+	}
+
+	fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
+		match self {
+			Self::Static(d) => d.collect_strings(sink),
+		}
+	}
+
+	fn build(&self, interner: &FrozenInterner, alias_pool: &mut Vec<Symbol>) -> OptionEntry {
+		match self {
+			Self::Static(d) => d.build(interner, alias_pool),
+		}
 	}
 }
 
@@ -47,7 +73,7 @@ impl BuildEntry<OptionEntry> for OptionDef {
 		RegistryMetaRef {
 			id: self.meta.id,
 			name: self.meta.name,
-			aliases: self.meta.aliases,
+			aliases: StrListRef::Static(self.meta.aliases),
 			description: self.meta.description,
 			priority: self.meta.priority,
 			source: self.meta.source,
@@ -65,18 +91,16 @@ impl BuildEntry<OptionEntry> for OptionDef {
 		sink.push(meta.id);
 		sink.push(meta.name);
 		sink.push(meta.description);
-		for &alias in meta.aliases {
-			sink.push(alias);
-		}
+		meta.aliases.for_each(|a| sink.push(a));
 		sink.push(self.kdl_key);
 	}
 
 	fn build(&self, interner: &FrozenInterner, alias_pool: &mut Vec<Symbol>) -> OptionEntry {
 		let meta_ref = self.meta_ref();
 		let start = alias_pool.len() as u32;
-		for &alias in meta_ref.aliases {
+		meta_ref.aliases.for_each(|alias| {
 			alias_pool.push(interner.get(alias).expect("missing interned alias"));
-		}
+		});
 		// kdl_key acts as an implicit alias for option lookup
 		alias_pool.push(
 			interner

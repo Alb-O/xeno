@@ -1,6 +1,6 @@
 //! Shared test helpers for registry index tests.
 
-use crate::core::index::build::{BuildEntry, RegistryMetaRef};
+use crate::core::index::build::{BuildEntry, RegistryMetaRef, StrListRef};
 use crate::core::{
 	CapabilitySet, FrozenInterner, RegistryEntry, RegistryMeta, RegistryMetaStatic, RegistrySource,
 	Symbol, SymbolList,
@@ -28,7 +28,7 @@ impl BuildEntry<TestEntry> for TestDef {
 		RegistryMetaRef {
 			id: self.meta.id,
 			name: self.meta.name,
-			aliases: self.meta.aliases,
+			aliases: StrListRef::Static(self.meta.aliases),
 			description: self.meta.description,
 			priority: self.meta.priority,
 			source: self.meta.source,
@@ -43,16 +43,14 @@ impl BuildEntry<TestEntry> for TestDef {
 		sink.push(self.meta.id);
 		sink.push(self.meta.name);
 		sink.push(self.meta.description);
-		for &alias in self.meta.aliases {
-			sink.push(alias);
-		}
+		StrListRef::Static(self.meta.aliases).for_each(|a| sink.push(a));
 	}
 	fn build(&self, interner: &FrozenInterner, alias_pool: &mut Vec<Symbol>) -> TestEntry {
 		let meta_ref = self.meta_ref();
 		let start = alias_pool.len() as u32;
-		for &alias in meta_ref.aliases {
+		meta_ref.aliases.for_each(|alias| {
 			alias_pool.push(interner.get(alias).expect("missing interned alias"));
-		}
+		});
 		let len = (alias_pool.len() as u32 - start) as u16;
 
 		TestEntry {

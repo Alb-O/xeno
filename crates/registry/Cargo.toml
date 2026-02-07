@@ -68,15 +68,22 @@ bitflags = { workspace = true }
 inventory.workspace = true
 parking_lot.workspace = true
 paste.workspace = true
+postcard.workspace = true
 regex = { workspace = true, optional = true }
 ropey = { workspace = true, optional = true }
 rustc-hash = { workspace = true }
+serde.workspace = true
 strsim = { workspace = true, optional = true }
 thiserror.workspace = true
 tracing = { workspace = true, optional = true }
 xeno-keymap-core = { workspace = true, optional = true }
 xeno-macros = { workspace = true, optional = true }
 xeno-primitives = { workspace = true, optional = true }
+
+[build-dependencies]
+kdl.workspace = true
+postcard.workspace = true
+serde.workspace = true
 
 [lints]
 workspace = true

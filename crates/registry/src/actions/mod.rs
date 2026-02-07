@@ -1,7 +1,7 @@
 //! Action registry definitions and handlers.
 //!
 //! Actions are the primary unit of editor functionality, executed via keybindings.
-//! This module provides auto-registration via the [`action!`] macro and O(1) lookup.
+//! This module provides auto-registration via the [`action_handler!`] macro and O(1) lookup.
 
 pub use crate::core::{
 	Capability, CommandError, RegistryBuilder, RegistryEntry, RegistryMeta, RegistryMetaStatic,
@@ -14,6 +14,7 @@ pub mod def;
 pub mod edit_op;
 mod effects;
 pub mod entry;
+pub mod handler;
 mod keybindings;
 mod macros;
 mod pending;
@@ -24,14 +25,15 @@ pub mod editor_ctx;
 pub use context::{ActionArgs, ActionContext};
 pub use def::{ActionDef, ActionHandler};
 pub use entry::ActionEntry;
+pub use handler::{ActionHandlerReg, ActionHandlerStatic};
 
 // Re-export macros
-pub use crate::action;
-pub use crate::core::{ActionId, Key};
-pub use crate::{key_prefix, result_extension_handler, result_handler};
+pub use crate::action_handler;
+pub use crate::core::{ActionId, LookupKey};
+pub use crate::{result_extension_handler, result_handler};
 
-/// Typed handle to an action definition (compile-time builtins).
-pub type ActionKey = Key<ActionDef, ActionId>;
+/// Typed handle for looking up an action by canonical ID or registry reference.
+pub type ActionKey = LookupKey<ActionEntry, ActionId>;
 /// Typed reference to a runtime action entry.
 pub type ActionRef = RegistryRef<ActionEntry, ActionId>;
 pub use builtins::{cursor_motion, selection_motion};

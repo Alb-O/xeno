@@ -1,12 +1,12 @@
 use xeno_primitives::BoxFutureLocal;
 
-use crate::command;
+use crate::command_handler;
 use crate::commands::{
 	CommandContext, CommandError, CommandOutcome, RegistryEntry, all_commands, find_command,
 };
 use crate::notifications::keys;
 
-command!(help, { aliases: &["h"], description: "Show help for commands" }, handler: cmd_help);
+command_handler!(help, handler: cmd_help);
 
 fn cmd_help<'a>(
 	ctx: &'a mut CommandContext<'a>,
@@ -52,5 +52,3 @@ fn cmd_help<'a>(
 		Ok(CommandOutcome::Ok)
 	})
 }
-
-pub const DEFS: &[&crate::commands::CommandDef] = &[&CMD_help];

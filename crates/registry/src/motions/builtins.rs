@@ -38,101 +38,111 @@ pub fn move_horizontally(
 	make_range(range, new_pos, extend)
 }
 
-motion!(left, { description: "Move left" }, |text, range, count, extend| {
+motion_handler!(left, |text, range, count, extend| {
 	move_horizontally(text, range, Direction::Backward, count, extend)
 });
 
-motion!(right, { description: "Move right" }, |text, range, count, extend| {
+motion_handler!(right, |text, range, count, extend| {
 	move_horizontally(text, range, Direction::Forward, count, extend)
 });
 
-motion!(up, { description: "Move up" }, |text, range, count, extend| {
+motion_handler!(up, |text, range, count, extend| {
 	movement::move_vertically(text, range, Direction::Backward, count, extend)
 });
 
-motion!(down, { description: "Move down" }, |text, range, count, extend| {
+motion_handler!(down, |text, range, count, extend| {
 	movement::move_vertically(text, range, Direction::Forward, count, extend)
 });
 
-motion!(next_word_start, { description: "Move to next word start" }, |text, range, count, extend| {
-	movement::move_word(text, range, Direction::Forward, movement::WordBoundary::Start, count, extend)
+motion_handler!(next_word_start, |text, range, count, extend| {
+	movement::move_word(
+		text,
+		range,
+		Direction::Forward,
+		movement::WordBoundary::Start,
+		count,
+		extend,
+	)
 });
 
-motion!(next_word_end, { description: "Move to next word end" }, |text, range, count, extend| {
-	movement::move_word(text, range, Direction::Forward, movement::WordBoundary::End, count, extend)
+motion_handler!(next_word_end, |text, range, count, extend| {
+	movement::move_word(
+		text,
+		range,
+		Direction::Forward,
+		movement::WordBoundary::End,
+		count,
+		extend,
+	)
 });
 
-motion!(prev_word_start, { description: "Move to previous word start" }, |text, range, count, extend| {
-	movement::move_word(text, range, Direction::Backward, movement::WordBoundary::Start, count, extend)
+motion_handler!(prev_word_start, |text, range, count, extend| {
+	movement::move_word(
+		text,
+		range,
+		Direction::Backward,
+		movement::WordBoundary::Start,
+		count,
+		extend,
+	)
 });
 
-motion!(next_long_word_start, { description: "Move to next WORD start" }, |text, range, count, extend| {
+motion_handler!(next_long_word_start, |text, range, count, extend| {
 	movement::move_to_next_word_start(text, range, count, WordType::WORD, extend)
 });
 
-motion!(prev_long_word_start, { description: "Move to previous WORD start" }, |text, range, count, extend| {
+motion_handler!(prev_long_word_start, |text, range, count, extend| {
 	movement::move_to_prev_word_start(text, range, count, WordType::WORD, extend)
 });
 
-motion!(next_long_word_end, { description: "Move to next WORD end" }, |text, range, count, extend| {
+motion_handler!(next_long_word_end, |text, range, count, extend| {
 	movement::move_to_next_word_end(text, range, count, WordType::WORD, extend)
 });
 
-motion!(line_start, { description: "Move to line start" }, |text, range, _count, extend| {
+motion_handler!(line_start, |text, range, _count, extend| {
 	movement::move_to_line_boundary(text, range, movement::LineBoundary::Start, extend)
 });
 
-motion!(line_end, { description: "Move to line end" }, |text, range, _count, extend| {
+motion_handler!(line_end, |text, range, _count, extend| {
 	movement::move_to_line_boundary(text, range, movement::LineBoundary::End, extend)
 });
 
-motion!(first_nonwhitespace, { description: "Move to first non-blank character" }, |text, range, _count, extend| {
+motion_handler!(first_nonwhitespace, |text, range, _count, extend| {
 	movement::move_to_line_boundary(text, range, movement::LineBoundary::FirstNonBlank, extend)
 });
 
-motion!(document_start, { description: "Move to document start" }, |_text, range, _count, extend| {
+motion_handler!(document_start, |_text, range, _count, extend| {
 	make_range(range, 0, extend)
 });
 
-motion!(document_end, { description: "Move to document end" }, |text, range, _count, extend| {
+motion_handler!(document_end, |text, range, _count, extend| {
 	let pos = xeno_primitives::rope::clamp_to_cell(text.len_chars(), text);
 	make_range(range, pos, extend)
 });
 
-motion!(next_paragraph, { description: "Move to next paragraph" }, |text, range, count, extend| {
+motion_handler!(next_paragraph, |text, range, count, extend| {
 	movement::move_paragraph(text, range, Direction::Forward, count, extend)
 });
 
-motion!(prev_paragraph, { description: "Move to previous paragraph" }, |text, range, count, extend| {
+motion_handler!(prev_paragraph, |text, range, count, extend| {
 	movement::move_paragraph(text, range, Direction::Backward, count, extend)
 });
 
-motion!(next_hunk, { description: "Move to next change" }, |text, range, count, extend| {
+motion_handler!(next_hunk, |text, range, count, extend| {
 	movement::move_to_diff_change(text, range, Direction::Forward, count, extend)
 });
 
-motion!(prev_hunk, { description: "Move to previous change" }, |text, range, count, extend| {
+motion_handler!(prev_hunk, |text, range, count, extend| {
 	movement::move_to_diff_change(text, range, Direction::Backward, count, extend)
 });
 
 pub fn register_builtins(builder: &mut crate::db::builder::RegistryDbBuilder) {
-	builder.register_motion(&MOTION_left);
-	builder.register_motion(&MOTION_right);
-	builder.register_motion(&MOTION_up);
-	builder.register_motion(&MOTION_down);
-	builder.register_motion(&MOTION_next_word_start);
-	builder.register_motion(&MOTION_next_word_end);
-	builder.register_motion(&MOTION_prev_word_start);
-	builder.register_motion(&MOTION_next_long_word_start);
-	builder.register_motion(&MOTION_prev_long_word_start);
-	builder.register_motion(&MOTION_next_long_word_end);
-	builder.register_motion(&MOTION_line_start);
-	builder.register_motion(&MOTION_line_end);
-	builder.register_motion(&MOTION_first_nonwhitespace);
-	builder.register_motion(&MOTION_document_start);
-	builder.register_motion(&MOTION_document_end);
-	builder.register_motion(&MOTION_next_paragraph);
-	builder.register_motion(&MOTION_prev_paragraph);
-	builder.register_motion(&MOTION_next_hunk);
-	builder.register_motion(&MOTION_prev_hunk);
+	let metadata = crate::kdl::loader::load_motion_metadata();
+	let handlers = inventory::iter::<crate::motions::MotionHandlerReg>
+		.into_iter()
+		.map(|r| r.0);
+	let linked = crate::kdl::link::link_motions(&metadata, handlers);
+	for def in linked {
+		builder.register_linked_motion(def);
+	}
 }

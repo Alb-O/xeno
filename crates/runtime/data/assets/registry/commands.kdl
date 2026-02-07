@@ -1,0 +1,51 @@
+// Command definitions for xeno's ex-mode command system.
+// Each `command` node defines metadata; Rust handlers are linked at startup via `command_handler!`.
+
+command "quit" description="Quit editor" {
+    aliases "q"
+}
+command "force_quit" description="Force quit editor" {
+    aliases "q!"
+}
+command "write" description="Write buffer to file" {
+    aliases "w"
+}
+command "wq" description="Write and quit" {
+    aliases "x"
+}
+command "edit" description="Edit a file" {
+    aliases "e"
+}
+command "buffer" description="Switch to buffer" {
+    aliases "b"
+}
+command "buffer_next" description="Go to next buffer" {
+    aliases "bn"
+}
+command "buffer_prev" description="Go to previous buffer" {
+    aliases "bp"
+}
+command "delete_buffer" description="Delete current buffer" {
+    aliases "db"
+}
+command "readonly" description="Toggle read-only mode for current buffer" {
+    aliases "ro"
+}
+command "help" description="Show help for commands" {
+    aliases "h"
+}
+command "set" description="Set an option globally" {
+    aliases "se"
+}
+command "setlocal" description="Set an option for current buffer only" {
+    aliases "setl"
+}
+command "theme" description="Set the editor theme" {
+    aliases "colorscheme"
+}
+command "registry_diag" description="Show registry system diagnostics" {
+    aliases "registry.diag"
+}
+command "registry_doctor" description="Check for registry collisions and suggest fixes" {
+    aliases "registry.doctor"
+}

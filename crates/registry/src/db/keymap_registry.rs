@@ -1,6 +1,7 @@
 //! Unified keymap registry using trie-based matching.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use tracing::warn;
 use xeno_keymap_core::parser::{Node, parse_seq};
@@ -49,7 +50,7 @@ pub struct KeymapRegistry {
 #[derive(Debug, Clone)]
 pub struct KeymapConflict {
 	pub mode: BindingMode,
-	pub keys: &'static str,
+	pub keys: Arc<str>,
 	pub kept_action: String,
 	pub dropped_action: String,
 	pub kept_priority: i16,
@@ -99,46 +100,37 @@ impl KeymapRegistry {
 		sorted.sort_by(|a, b| {
 			a.mode
 				.cmp(&b.mode)
-				.then_with(|| a.keys.cmp(b.keys))
+				.then_with(|| a.keys.cmp(&b.keys))
 				.then_with(|| a.priority.cmp(&b.priority))
-				.then_with(|| a.action.cmp(b.action))
+				.then_with(|| a.action.cmp(&b.action))
 		});
 
-		// Build name -> ActionId lookup from the index
-		let action_id_lookup: HashMap<String, ActionId> = actions
-			.items()
-			.iter()
-			.enumerate()
-			.map(|(idx, entry)| {
-				let id_str = actions.interner.resolve(entry.id()).to_string();
-				(id_str, ActionId(idx as u32))
-			})
-			.collect();
-
-		let mut seen: HashMap<(BindingMode, &'static str), (String, i16)> = HashMap::new();
-		let mut unknown_actions: Vec<(&'static str, BindingMode)> = Vec::new();
-		let mut parse_failures: Vec<(&'static str, &'static str)> = Vec::new();
+		let mut seen: HashMap<(BindingMode, Arc<str>), (String, i16)> = HashMap::new();
+		let mut unknown_actions: Vec<(Arc<str>, BindingMode)> = Vec::new();
+		let mut parse_failures: Vec<(Arc<str>, Arc<str>)> = Vec::new();
 
 		for def in sorted {
-			let Some(action_entry) = actions.get(def.action) else {
+			let Some(action_entry) = actions.get(&def.action) else {
 				if unknown_actions.len() < 5 {
-					unknown_actions.push((def.action, def.mode));
+					unknown_actions.push((Arc::clone(&def.action), def.mode));
 				}
 				continue;
 			};
 
+			let Some(&action_id) = actions.by_key.get(&action_entry.id()) else {
+				if unknown_actions.len() < 5 {
+					unknown_actions.push((Arc::clone(&def.action), def.mode));
+				}
+				continue;
+			};
 			let action_id_str = actions.interner.resolve(action_entry.id()).to_string();
-			let Some(&action_id) = action_id_lookup.get(&action_id_str) else {
-				if unknown_actions.len() < 5 {
-					unknown_actions.push((def.action, def.mode));
-				}
-				continue;
-			};
 
-			if let Some((kept_action, kept_priority)) = seen.get(&(def.mode, def.keys)).cloned() {
+			if let Some((kept_action, kept_priority)) =
+				seen.get(&(def.mode, Arc::clone(&def.keys))).cloned()
+			{
 				registry.conflicts.push(KeymapConflict {
 					mode: def.mode,
-					keys: def.keys,
+					keys: Arc::clone(&def.keys),
 					kept_action,
 					dropped_action: action_id_str,
 					kept_priority,
@@ -147,14 +139,17 @@ impl KeymapRegistry {
 				continue;
 			}
 
-			let Ok(keys) = parse_seq(def.keys) else {
+			let Ok(keys) = parse_seq(&def.keys) else {
 				if parse_failures.len() < 5 {
-					parse_failures.push((def.keys, def.action));
+					parse_failures.push((Arc::clone(&def.keys), Arc::clone(&def.action)));
 				}
 				continue;
 			};
 
-			seen.insert((def.mode, def.keys), (action_id_str.clone(), def.priority));
+			seen.insert(
+				(def.mode, Arc::clone(&def.keys)),
+				(action_id_str.clone(), def.priority),
+			);
 
 			let entry = BindingEntry {
 				action_id,

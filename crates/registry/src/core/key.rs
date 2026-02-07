@@ -185,19 +185,28 @@ impl FromOptionValue for String {
 	}
 }
 
-/// Typed handle to a registry definition.
+/// Typed handle for looking up a registry entry by canonical ID string.
 ///
-/// Wraps either a `&'static T` (for compile-time builtins) or a [`RegistryRef<T>`]
-/// (for runtime-registered definitions). Provides uniform `&T` access via [`Key::def`]
-/// regardless of backing storage.
-pub enum Key<T: RegistryEntry + Send + Sync + 'static, Id: crate::core::DenseId> {
-	/// Builtin definition with `'static` lifetime.
-	Static(&'static T),
-	/// Runtime definition pinned by a snapshot guard.
+/// Stores either a `&'static str` canonical ID (for compile-time handles emitted
+/// by `*_handler!` macros) or a [`RegistryRef<T, Id>`] (for runtime-resolved
+/// entries). Resolves entries through the registry's 3-stage lookup
+/// (canonical ID, name, alias).
+pub enum LookupKey<T, Id>
+where
+	T: RegistryEntry + Send + Sync + 'static,
+	Id: crate::core::DenseId,
+{
+	/// Compile-time handle storing a canonical ID string (e.g., `"xeno-registry::move_left"`).
+	Static(&'static str),
+	/// Runtime handle from a registry snapshot.
 	Ref(RegistryRef<T, Id>),
 }
 
-impl<T: RegistryEntry + Send + Sync + 'static, Id: crate::core::DenseId> Clone for Key<T, Id> {
+impl<T, Id> Clone for LookupKey<T, Id>
+where
+	T: RegistryEntry + Send + Sync + 'static,
+	Id: crate::core::DenseId,
+{
 	fn clone(&self) -> Self {
 		match self {
 			Self::Static(s) => Self::Static(s),
@@ -206,38 +215,34 @@ impl<T: RegistryEntry + Send + Sync + 'static, Id: crate::core::DenseId> Clone f
 	}
 }
 
-impl<T: RegistryEntry + Send + Sync + 'static, Id: crate::core::DenseId> Key<T, Id> {
-	/// Creates a new typed handle from a static reference.
-	pub const fn new(def: &'static T) -> Self {
-		Self::Static(def)
+impl<T, Id> LookupKey<T, Id>
+where
+	T: RegistryEntry + Send + Sync + 'static,
+	Id: crate::core::DenseId,
+{
+	/// Creates a compile-time handle from a canonical ID string.
+	pub const fn new(canonical_id: &'static str) -> Self {
+		Self::Static(canonical_id)
 	}
 
-	/// Creates a new typed handle from a registry reference.
+	/// Creates a runtime handle from a registry reference.
 	pub fn new_ref(r: RegistryRef<T, Id>) -> Self {
 		Self::Ref(r)
 	}
-
-	/// Returns the underlying definition.
-	pub fn def(&self) -> &T {
-		match self {
-			Self::Static(s) => s,
-			Self::Ref(r) => r,
-		}
-	}
-
-	/// Returns the name symbol of the referenced definition.
-	pub fn name(&self) -> super::Symbol {
-		self.def().name()
-	}
 }
 
-impl<T: RegistryEntry + Send + Sync + 'static, Id: crate::core::DenseId> core::fmt::Debug
-	for Key<T, Id>
+impl<T, Id> core::fmt::Debug for LookupKey<T, Id>
+where
+	T: RegistryEntry + Send + Sync + 'static,
+	Id: crate::core::DenseId,
 {
 	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
 		match self {
-			Self::Static(_) => f.debug_tuple("Key::Static").finish(),
-			Self::Ref(r) => f.debug_tuple("Key::Ref").field(&r.dense_id()).finish(),
+			Self::Static(id) => f.debug_tuple("LookupKey::Static").field(id).finish(),
+			Self::Ref(r) => f
+				.debug_tuple("LookupKey::Ref")
+				.field(&r.dense_id())
+				.finish(),
 		}
 	}
 }

@@ -5,11 +5,36 @@ use super::collision::{Collision, CollisionKind, DuplicatePolicy, Party, cmp_par
 use super::types::RegistryIndex;
 use crate::{DenseId, FrozenInterner, InternerBuilder, RegistryEntry, RegistrySource, Symbol};
 
+/// Borrowed alias list that works with both static (`&[&str]`) and owned (`&[String]`) storage.
+pub enum StrListRef<'a> {
+	/// Static string slices (from `RegistryMetaStatic`).
+	Static(&'a [&'a str]),
+	/// Owned strings (from KDL-linked definitions).
+	Owned(&'a [String]),
+}
+
+impl<'a> StrListRef<'a> {
+	/// Calls `f` for each alias string.
+	pub fn for_each(&self, mut f: impl FnMut(&'a str)) {
+		match self {
+			Self::Static(xs) => xs.iter().copied().for_each(&mut f),
+			Self::Owned(xs) => xs.iter().for_each(|s| f(s.as_str())),
+		}
+	}
+
+	/// Collects all alias strings into a `Vec<&str>`.
+	pub fn to_vec(&self) -> Vec<&'a str> {
+		let mut out = Vec::new();
+		self.for_each(|s| out.push(s));
+		out
+	}
+}
+
 /// Borrowed metadata for building entries (supports both static and dynamic).
 pub struct RegistryMetaRef<'a> {
 	pub id: &'a str,
 	pub name: &'a str,
-	pub aliases: &'a [&'a str],
+	pub aliases: StrListRef<'a>,
 	pub description: &'a str,
 	pub priority: i16,
 	pub source: RegistrySource,

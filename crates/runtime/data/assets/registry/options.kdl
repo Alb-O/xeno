@@ -1,0 +1,9 @@
+// Option definitions for xeno's editor configuration system.
+// Each `option` node defines metadata; validators are linked by name at startup.
+
+option "cursorline" kdl-key="cursorline" value-type="bool" default="#true" scope="buffer" description="Whether to highlight the current line."
+option "tab_width" kdl-key="tab-width" value-type="int" default="4" scope="buffer" description="Number of spaces a tab character occupies."
+option "scroll_lines" kdl-key="scroll-lines" value-type="int" default="1" scope="global" description="Number of lines to scroll per scroll action."
+option "scroll_margin" kdl-key="scroll-margin" value-type="int" default="3" scope="buffer" description="Minimum visible lines above/below cursor when scrolling."
+option "theme" kdl-key="theme" value-type="string" default="monokai" scope="global" description="Active color theme name."
+option "default_theme_id" kdl-key="default-theme-id" value-type="string" default="monokai" scope="global" description="Default theme identifier."

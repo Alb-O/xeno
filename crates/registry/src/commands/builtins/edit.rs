@@ -1,10 +1,10 @@
 use xeno_primitives::BoxFutureLocal;
 
-use crate::command;
+use crate::command_handler;
 use crate::commands::{CommandContext, CommandError, CommandOutcome};
 use crate::notifications::keys;
 
-command!(edit, { aliases: &["e"], description: "Edit a file" }, handler: cmd_edit);
+command_handler!(edit, handler: cmd_edit);
 
 fn cmd_edit<'a>(
 	ctx: &'a mut CommandContext<'a>,
@@ -17,5 +17,3 @@ fn cmd_edit<'a>(
 		Ok(CommandOutcome::Ok)
 	})
 }
-
-pub const DEFS: &[&crate::commands::CommandDef] = &[&CMD_edit];

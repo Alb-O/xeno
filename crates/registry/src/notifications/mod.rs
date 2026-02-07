@@ -5,7 +5,7 @@
 
 use std::time::Duration;
 
-pub use crate::core::{Key, RegistryMetadata, RegistrySource};
+pub use crate::core::{RegistryMetadata, RegistrySource};
 
 #[macro_use]
 mod macros;

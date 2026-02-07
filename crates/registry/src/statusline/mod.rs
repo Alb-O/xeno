@@ -1,16 +1,17 @@
 //! Statusline segment registry.
 
 pub mod builtins;
+pub mod handler;
 mod macros;
 
-use crate::core::index::{BuildEntry, RegistryMetaRef};
+use crate::core::index::{BuildEntry, RegistryMetaRef, StrListRef};
 pub use crate::core::{
 	CapabilitySet, FrozenInterner, RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta,
 	RegistryMetaStatic, RegistryMetadata, RegistryRef, RegistrySource, RuntimeRegistry,
 	StatuslineId, Symbol, SymbolList,
 };
 // Re-export macros
-pub use crate::segment;
+pub use crate::segment_handler;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SegmentPosition {
@@ -71,12 +72,6 @@ impl core::fmt::Debug for StatuslineSegmentDef {
 	}
 }
 
-impl crate::core::RegistryEntry for StatuslineSegmentDef {
-	fn meta(&self) -> &RegistryMeta {
-		panic!("Called meta() on static StatuslineSegmentDef")
-	}
-}
-
 pub struct StatuslineEntry {
 	pub meta: RegistryMeta,
 	pub position: SegmentPosition,
@@ -91,7 +86,7 @@ impl BuildEntry<StatuslineEntry> for StatuslineSegmentDef {
 		RegistryMetaRef {
 			id: self.meta.id,
 			name: self.meta.name,
-			aliases: self.meta.aliases,
+			aliases: StrListRef::Static(self.meta.aliases),
 			description: self.meta.description,
 			priority: self.meta.priority,
 			source: self.meta.source,
@@ -109,17 +104,15 @@ impl BuildEntry<StatuslineEntry> for StatuslineSegmentDef {
 		sink.push(meta.id);
 		sink.push(meta.name);
 		sink.push(meta.description);
-		for &alias in meta.aliases {
-			sink.push(alias);
-		}
+		meta.aliases.for_each(|a| sink.push(a));
 	}
 
 	fn build(&self, interner: &FrozenInterner, alias_pool: &mut Vec<Symbol>) -> StatuslineEntry {
 		let meta_ref = self.meta_ref();
 		let start = alias_pool.len() as u32;
-		for &alias in meta_ref.aliases {
+		meta_ref.aliases.for_each(|alias| {
 			alias_pool.push(interner.get(alias).expect("missing interned alias"));
-		}
+		});
 		let len = (alias_pool.len() as u32 - start) as u16;
 
 		let meta = RegistryMeta {
@@ -140,6 +133,42 @@ impl BuildEntry<StatuslineEntry> for StatuslineSegmentDef {
 			position: self.position,
 			default_enabled: self.default_enabled,
 			render: self.render,
+		}
+	}
+}
+
+/// Unified input for statusline segment registration.
+pub enum StatuslineInput {
+	Static(StatuslineSegmentDef),
+	Linked(crate::kdl::link::LinkedStatuslineDef),
+}
+
+impl BuildEntry<StatuslineEntry> for StatuslineInput {
+	fn meta_ref(&self) -> RegistryMetaRef<'_> {
+		match self {
+			Self::Static(d) => d.meta_ref(),
+			Self::Linked(d) => d.meta_ref(),
+		}
+	}
+
+	fn short_desc_str(&self) -> &str {
+		match self {
+			Self::Static(d) => d.short_desc_str(),
+			Self::Linked(d) => d.short_desc_str(),
+		}
+	}
+
+	fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
+		match self {
+			Self::Static(d) => d.collect_strings(sink),
+			Self::Linked(d) => d.collect_strings(sink),
+		}
+	}
+
+	fn build(&self, interner: &FrozenInterner, alias_pool: &mut Vec<Symbol>) -> StatuslineEntry {
+		match self {
+			Self::Static(d) => d.build(interner, alias_pool),
+			Self::Linked(d) => d.build(interner, alias_pool),
 		}
 	}
 }

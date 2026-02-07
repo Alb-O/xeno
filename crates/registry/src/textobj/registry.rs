@@ -23,7 +23,7 @@ impl TextObjectRegistry {
 		for (idx, entry) in builtins.items().iter().enumerate() {
 			let id = crate::core::DenseId::from_u32(idx as u32);
 			trigger_map.insert(entry.trigger, id);
-			for &alt in entry.alt_triggers {
+			for &alt in &*entry.alt_triggers {
 				trigger_map.insert(alt, id);
 			}
 		}

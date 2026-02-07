@@ -1,0 +1,8 @@
+// Gutter column definitions for xeno's line number and sign area.
+// Each `gutter` node defines metadata; render/width handlers are linked at startup.
+
+gutter "line_numbers" description="Absolute line numbers" priority=0 width="dynamic"
+gutter "relative" description="Relative line numbers" priority=0 width="dynamic" enabled=#false
+gutter "hybrid" description="Hybrid line numbers" priority=0 width="dynamic" enabled=#false
+gutter "diff_line_numbers" description="Diff line numbers" priority=0 width=4 enabled=#false
+gutter "signs" description="Sign column" priority=100 width=2
