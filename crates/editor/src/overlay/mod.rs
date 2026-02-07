@@ -377,6 +377,8 @@ pub enum LayerEvent {
 		from: crate::impls::FocusTarget,
 		to: crate::impls::FocusTarget,
 	},
+	/// The editor layout (splits, window sizes) has changed.
+	LayoutChanged,
 }
 
 impl LayerEvent {

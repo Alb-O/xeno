@@ -2,7 +2,6 @@ use xeno_input::movement::{self, WordType};
 use xeno_primitives::range::{Direction as MoveDir, Range};
 use xeno_primitives::transaction::Change;
 use xeno_primitives::{Selection, Transaction};
-use xeno_registry::ModeAccess;
 use xeno_registry::edit_op::{
 	CharMapKind, CursorAdjust, EditPlan, PostEffect, PreEffect, SelectionOp, TextTransform,
 };

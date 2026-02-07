@@ -3,10 +3,10 @@
 //! This crate provides unified configuration parsing and loading for the editor.
 //! Configuration is written in KDL (v2) format and supports:
 //!
-//! - **Themes**: Color schemes for UI and syntax highlighting
-//! - **Keybindings**: Key-to-action mappings per mode
-//! - **Options**: Editor settings (tab width, theme)
-//! - **Languages**: Per-language option overrides
+//! - Themes: Color schemes for UI and syntax highlighting
+//! - Keybindings: Key-to-action mappings per mode
+//! - Options: Editor settings (tab width, theme)
+//! - Languages: Per-language option overrides
 //!
 //! # Configuration Files
 //!

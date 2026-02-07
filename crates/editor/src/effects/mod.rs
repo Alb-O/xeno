@@ -1,7 +1,10 @@
 pub mod sink;
 pub mod types;
 
-use xeno_registry::actions::editor_ctx::{OverlayAccess, OverlayRequest};
+#[cfg(any(test, doc))]
+pub(crate) mod invariants;
+
+use xeno_registry::actions::editor_ctx::OverlayRequest;
 use xeno_registry::commands::CommandError;
 
 use crate::effects::sink::DrainedEffects;
@@ -11,6 +14,15 @@ impl crate::impls::Editor {
 	///
 	/// Re-entrant calls are deferred: nested flushes signal a redraw and
 	/// return immediately, letting the outermost flush complete first.
+	///
+	/// # Invariants
+	///
+	/// - Single Path Side-Effects: All UI-visible consequences of editor mutations
+	///   (overlays, notifications, redraws) must be routed through the `EffectSink` and
+	///   dispatched via `flush_effects`.
+	///   - Enforced in: [`crate::impls::Editor::flush_effects`]
+	///   - Tested by: [`crate::effects::invariants::test_single_path_side_effects`]
+	///   - Failure symptom: Inconsistent UI state or dropped event notifications.
 	pub fn flush_effects(&mut self) {
 		if self.state.flush_depth > 0 {
 			self.state.frame.needs_redraw = true;
@@ -64,6 +76,25 @@ impl crate::impls::Editor {
 
 		if needs_redraw {
 			self.state.frame.needs_redraw = true;
+		}
+	}
+
+	/// Validates an [`OverlayRequest`] for correctness without applying it.
+	///
+	/// Use this for synchronous error reporting at the capability boundary.
+	pub(crate) fn validate_overlay_request(
+		&self,
+		req: &OverlayRequest,
+	) -> Result<(), CommandError> {
+		use xeno_registry::actions::editor_ctx::OverlayRequest::*;
+
+		match req {
+			OpenModal { kind, .. } => match *kind {
+				"command_palette" | "search" => Ok(()),
+				_ => Err(CommandError::NotFound(format!("modal:{kind}"))),
+			},
+			CloseModal { .. } => Ok(()),
+			ShowInfoPopup { .. } => Ok(()),
 		}
 	}
 
@@ -123,15 +154,5 @@ impl crate::impls::Editor {
 				Ok(())
 			}
 		}
-	}
-}
-
-impl OverlayAccess for crate::impls::Editor {
-	fn overlay_request(&mut self, req: OverlayRequest) -> Result<(), CommandError> {
-		self.handle_overlay_request(req)
-	}
-
-	fn overlay_modal_is_open(&self) -> bool {
-		self.state.overlay_system.interaction.is_open()
 	}
 }

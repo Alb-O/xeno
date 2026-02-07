@@ -20,6 +20,12 @@ impl Editor {
 		true
 	}
 
+	/// Changes the editor mode.
+	pub fn set_mode(&mut self, mode: xeno_primitives::Mode) {
+		let mut caps = self.caps();
+		xeno_registry::ModeAccess::set_mode(&mut caps, mode);
+	}
+
 	/// Applies a transaction with full undo support.
 	///
 	/// This is the authoritative entry point for all local document mutations.

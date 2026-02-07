@@ -14,8 +14,8 @@
 //! Think of a registry as an *append-only stream of candidate definitions* with a *current visible
 //! winner* for each key.
 //!
-//! - **Builtin** definitions live for the process (`&'static T`).
-//! - **Owned** definitions are runtime-registered (`Arc<T>`).
+//! - Builtin definitions live for the process (`&'static T`).
+//! - Owned definitions are runtime-registered (`Arc<T>`).
 //! - A [`crate::core::index::runtime::Snapshot`] is an immutable, atomic view used for lock-free reads.
 //! - Definitions inside a snapshot are referenced by [`crate::core::index::types::DefRef`], a safe handle:
 //!   `Builtin(&'static T) | Owned(Arc<T>)`.

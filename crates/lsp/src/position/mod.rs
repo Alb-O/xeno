@@ -6,9 +6,9 @@
 //!
 //! # Offset Encoding
 //!
-//! - **UTF-8**: Character offset is the byte offset within the line.
-//! - **UTF-16**: Character offset is the number of UTF-16 code units (default LSP encoding).
-//! - **UTF-32**: Character offset is the number of Unicode codepoints (same as Rope char offset).
+//! - UTF-8: Character offset is the byte offset within the line.
+//! - UTF-16: Character offset is the number of UTF-16 code units (default LSP encoding).
+//! - UTF-32: Character offset is the number of Unicode codepoints (same as Rope char offset).
 //!
 //! Since Rope uses Unicode codepoints internally, UTF-32 is a 1:1 mapping.
 //! UTF-16 requires special handling for characters outside the BMP (emoji, etc.)

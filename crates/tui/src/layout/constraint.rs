@@ -16,9 +16,9 @@ use core::fmt;
 /// # Size Calculation
 ///
 /// The deterministic solver allocates space in priority passes:
-/// - **Pass 1**: `Length` constraints receive their exact value (clamped to remaining space).
-/// - **Pass 2**: `Percentage` constraints receive their proportional share (clamped to remaining).
-/// - **Pass 3**: `Min` constraints receive at least their minimum, then split any leftover evenly.
+/// - Pass 1: `Length` constraints receive their exact value (clamped to remaining space).
+/// - Pass 2: `Percentage` constraints receive their proportional share (clamped to remaining).
+/// - Pass 3: `Min` constraints receive at least their minimum, then split any leftover evenly.
 ///
 /// # Collection Creation
 ///

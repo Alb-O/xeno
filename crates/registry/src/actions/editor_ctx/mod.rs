@@ -66,9 +66,7 @@ use crate::actions::{Capability, CommandError, Mode};
 /// [`ActionResult`]: crate::actions::ActionResult
 /// [`check_capability`]: Self::check_capability
 pub struct EditorContext<'a> {
-	/// The capability provider (typically `Editor` from xeno-api).
-	///
-	/// `Editor`: `crate::actions::Editor` (external type, not linkable here)
+	/// The capability provider (typically `EditorCaps` from xeno-editor).
 	inner: &'a mut dyn EditorCapabilities,
 }
 
@@ -111,11 +109,6 @@ impl<'a> EditorContext<'a> {
 	/// Returns a reference to the current selection.
 	pub fn selection(&self) -> &Selection {
 		self.inner.selection()
-	}
-
-	/// Returns a mutable reference as `dyn Any` for downcasting.
-	pub fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-		self.inner.as_any_mut()
 	}
 
 	/// Sets the current selection.
@@ -307,9 +300,6 @@ impl<'a> EditorContext<'a> {
 pub trait EditorCapabilities:
 	CursorAccess + SelectionAccess + ModeAccess + NotificationAccess
 {
-	/// Returns a mutable reference as `dyn Any` for downcasting.
-	fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
-
 	/// Access to search operations (optional).
 	fn search(&mut self) -> Option<&mut dyn SearchAccess> {
 		None

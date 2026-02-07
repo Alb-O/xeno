@@ -214,8 +214,6 @@ pub struct Editor {
 	pub(crate) state: EditorState,
 }
 
-impl xeno_registry::EditorOps for Editor {}
-
 impl Editor {
 	/// Creates an editor with a file path, loading content in the background.
 	///

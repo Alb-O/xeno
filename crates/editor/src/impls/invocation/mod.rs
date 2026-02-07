@@ -112,7 +112,8 @@ impl Editor {
 		let caps_error = if required_caps.is_empty() {
 			None
 		} else {
-			let mut e_ctx = EditorContext::new(self);
+			let mut caps = self.caps();
+			let mut e_ctx = EditorContext::new(&mut caps);
 			e_ctx.check_all_capabilities(required_caps).err()
 		};
 		if let Some(e) = caps_error
@@ -199,14 +200,15 @@ impl Editor {
 		let caps_error = if required_caps.is_empty() {
 			None
 		} else {
-			let mut e_ctx = EditorContext::new(self);
+			let mut caps = self.caps();
+			let mut e_ctx = EditorContext::new(&mut caps);
 			e_ctx.check_all_capabilities(required_caps).err()
 		};
 		if let Some(e) = caps_error
 			&& let Some(result) = handle_capability_violation(
 				policy,
 				e,
-				|err| notify_capability_denied(self, InvocationKind::Command, err),
+				|err| notify_capability_denied(self, InvocationKind::Action, err),
 				|err| {
 					warn!(
 						command = name,
@@ -226,15 +228,20 @@ impl Editor {
 		}
 
 		let args_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-		let mut ctx = CommandContext {
-			editor: self,
-			args: &args_refs,
-			count: 1,
-			register: None,
-			user_data: command_def.user_data,
+		let res = {
+			let mut caps = self.caps();
+			let mut ctx = CommandContext {
+				editor: &mut caps,
+				args: &args_refs,
+				count: 1,
+				register: None,
+				user_data: command_def.user_data,
+			};
+
+			(command_def.handler)(&mut ctx).await
 		};
 
-		let outcome = match (command_def.handler)(&mut ctx).await {
+		let outcome = match res {
 			Ok(CommandOutcome::Ok) => InvocationResult::Ok,
 			Ok(CommandOutcome::Quit) => InvocationResult::Quit,
 			Ok(CommandOutcome::ForceQuit) => InvocationResult::ForceQuit,
@@ -267,7 +274,8 @@ impl Editor {
 		let caps_error = if required_caps.is_empty() {
 			None
 		} else {
-			let mut e_ctx = EditorContext::new(self);
+			let mut caps = self.caps();
+			let mut e_ctx = EditorContext::new(&mut caps);
 			e_ctx.check_all_capabilities(required_caps).err()
 		};
 		if let Some(e) = caps_error
@@ -325,9 +333,14 @@ impl Editor {
 		result: ActionResult,
 		extend: bool,
 	) -> bool {
-		let mut ctx = EditorContext::new(self);
-		let result_variant = result.variant_name();
-		let should_quit = dispatch_result(&result, &mut ctx, extend);
+		let (should_quit, result_variant) = {
+			let mut caps = self.caps();
+			let mut ctx = EditorContext::new(&mut caps);
+			let result_variant = result.variant_name();
+			let should_quit = dispatch_result(&result, &mut ctx, extend);
+			(should_quit, result_variant)
+		};
+
 		emit_hook_sync_with(
 			&HookContext::new(HookEventData::ActionPost {
 				action_id,
@@ -341,7 +354,6 @@ impl Editor {
 
 enum InvocationKind {
 	Action,
-	Command,
 	EditorCommand,
 }
 
@@ -350,7 +362,7 @@ fn notify_capability_denied(editor: &mut Editor, kind: InvocationKind, error: &C
 		InvocationKind::Action => {
 			editor.show_notification(xeno_registry::notifications::keys::action_error(error))
 		}
-		InvocationKind::Command | InvocationKind::EditorCommand => {
+		InvocationKind::EditorCommand => {
 			let error = error.to_string();
 			editor.show_notification(xeno_registry::notifications::keys::command_error(&error));
 		}

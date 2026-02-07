@@ -1,9 +1,37 @@
 //! Editor context and effect handling.
+//!
+//! # Purpose
+//!
+//! Translates registry-defined [`ActionResult`] and [`ActionEffects`] into concrete
+//! capability calls on the editor via [`EditorContext`].
+//!
+//! # Architecture
+//!
+//! This module implements a "Capability-First" interpreter. It does not know about
+//! the concrete `Editor` type; instead, it operates purely through the abstract
+//! traits provided by the registry.
+//!
+//! # Invariants
+//!
+//! - The Honesty Rule: The interpreter must not use RTTI, `Any`, or engine-specific
+//!   downcasting to access `Editor` methods.
+//!   - Enforced in: [`crate::editor_ctx::apply_effects`]
+//!   - Tested by: [`crate::editor_ctx::invariants::test_honesty_rule`]
+//!   - Failure symptom: Compilation error or boundary breach that couples registry policy to engine implementation.
+//!
+//! - Single Path Side-Effects: All UI consequences of an action (redraws, overlay
+//!   notifications) must originate from the capability providers enqueuing into the
+//!   `EffectSink`. The interpreter must not emit these events directly.
+//!   - Enforced in: [`crate::editor_ctx::apply_effects`]
+//!   - Tested by: [`crate::editor_ctx::invariants::test_single_path_side_effects`]
+//!   - Failure symptom: Duplicate notifications or missed UI updates during re-entrant actions.
+
+#[cfg(any(test, doc))]
+pub(crate) mod invariants;
 
 use std::time::Instant;
 
 use tracing::{trace, trace_span};
-use xeno_primitives::range::Range;
 use xeno_primitives::{Mode, Selection};
 pub use xeno_registry::actions::editor_ctx::*;
 use xeno_registry::{
@@ -38,12 +66,6 @@ pub fn apply_effects(
 		match effect {
 			Effect::View(view) => {
 				apply_view_effect(view, ctx, extend);
-				let view_id = ctx.focused_view();
-				if let Some(ed) = ctx.as_any_mut().downcast_mut::<crate::impls::Editor>() {
-					ed.notify_overlay_event(crate::overlay::LayerEvent::CursorMoved {
-						view: view_id,
-					});
-				}
 			}
 			Effect::Edit(edit) => apply_edit_effect(edit, ctx),
 			Effect::Ui(ui) => apply_ui_effect(ui, ctx),
@@ -353,14 +375,14 @@ fn apply_screen_motion(
 
 	let selection = ctx.selection();
 	let primary_index = selection.primary_index();
-	let new_ranges: Vec<Range> = selection
+	let new_ranges: Vec<xeno_primitives::range::Range> = selection
 		.ranges()
 		.iter()
 		.map(|range| {
 			if extend {
-				Range::new(range.anchor, target)
+				xeno_primitives::range::Range::new(range.anchor, target)
 			} else {
-				Range::point(target)
+				xeno_primitives::range::Range::point(target)
 			}
 		})
 		.collect();

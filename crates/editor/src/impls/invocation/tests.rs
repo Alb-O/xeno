@@ -146,11 +146,7 @@ impl NotificationAccess for MockEditor {
 	}
 }
 
-impl EditorCapabilities for MockEditor {
-	fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-		self
-	}
-}
+impl EditorCapabilities for MockEditor {}
 
 #[test]
 fn invocation_describe() {

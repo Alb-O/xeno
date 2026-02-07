@@ -1,6 +1,4 @@
 //! File operations (save, load).
-//!
-//! Implements [`xeno_registry::FileOpsAccess`] for the [`Editor`].
 
 use std::io;
 use std::path::{Path, PathBuf};
@@ -14,12 +12,14 @@ use xeno_registry::{HookContext, HookEventData, emit as emit_hook};
 
 use super::Editor;
 
-impl xeno_registry::FileOpsAccess for Editor {
-	fn is_modified(&self) -> bool {
+impl Editor {
+	/// Returns true if the current buffer has unsaved changes.
+	pub fn is_modified(&self) -> bool {
 		self.buffer().modified()
 	}
 
-	fn save(&mut self) -> BoxFutureLocal<'_, Result<(), CommandError>> {
+	/// Saves the current buffer to its file path.
+	pub fn save(&mut self) -> BoxFutureLocal<'_, Result<(), CommandError>> {
 		Box::pin(async move {
 			let path_owned = match &self.buffer().path() {
 				Some(p) => p.clone(),
@@ -82,14 +82,13 @@ impl xeno_registry::FileOpsAccess for Editor {
 		})
 	}
 
-	fn save_as(&mut self, path: PathBuf) -> BoxFutureLocal<'_, Result<(), CommandError>> {
+	/// Saves the current buffer to a new file path.
+	pub fn save_as(&mut self, path: PathBuf) -> BoxFutureLocal<'_, Result<(), CommandError>> {
 		let loader_arc = self.state.config.language_loader.clone();
 		let _ = self.buffer_mut().set_path(Some(path), Some(&loader_arc));
 		self.save()
 	}
-}
 
-impl Editor {
 	/// Applies a loaded file to the editor.
 	///
 	/// Called by [`crate::msg::IoMsg::FileLoaded`] when background file loading completes.
