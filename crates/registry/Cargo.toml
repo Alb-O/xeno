@@ -4,6 +4,7 @@ description = "Registry-first organization extensions"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+build = "build/main.rs"
 
 [features]
 default = ["full"]
