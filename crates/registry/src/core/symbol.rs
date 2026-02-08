@@ -230,6 +230,20 @@ impl DenseId for OverlayId {
 	}
 }
 
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct NotificationId(pub u32);
+
+impl DenseId for NotificationId {
+	const INVALID: Self = NotificationId(u32::MAX);
+	fn from_u32(v: u32) -> Self {
+		NotificationId(v)
+	}
+	fn as_u32(self) -> u32 {
+		self.0
+	}
+}
+
 macro_rules! impl_display_id {
     ($($t:ty),*) => {
         $(
@@ -256,7 +270,8 @@ impl_display_id!(
 	GutterId,
 	StatuslineId,
 	HookId,
-	OverlayId
+	OverlayId,
+	NotificationId
 );
 
 impl ActionId {

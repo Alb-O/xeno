@@ -1,25 +1,14 @@
+use super::types::{ThemeDef, ThemeEntry, LinkedThemeDef};
+use crate::core::RegistryMetaStatic;
+use crate::core::RegistrySource;
 use xeno_primitives::Color;
-
+use super::types::{UiColors, ModeColors, ColorPair, SemanticColors, PopupColors, NotificationColors, ThemeColors};
 use super::super::syntax::SyntaxStyles;
-use super::types::{
-	ColorPair, ModeColors, NotificationColors, PopupColors, SemanticColors, ThemeColors, ThemeDef,
-	ThemeEntry, ThemeVariant, UiColors,
-};
-use crate::core::{RegistryMetaStatic, RegistrySource};
 
 /// Register runtime themes.
-///
-/// Runtime themes are parsed from KDL at startup, converted to owned `ThemeDef`s,
-/// then leaked to satisfy `'static` requirements for registry registration.
-/// This is a one-time startup path and lets runtime themes override builtins.
-#[cfg(feature = "db")]
-pub fn register_runtime_themes(themes: Vec<ThemeDef>) {
+pub fn register_runtime_themes(themes: Vec<LinkedThemeDef>) {
 	for theme in themes {
-		let id = theme.meta.id;
-		let leaked: &'static ThemeDef = Box::leak(Box::new(theme));
-		if let Err(error) = THEMES.register(leaked) {
-			tracing::warn!(theme = id, error = %error, "Failed to register runtime theme");
-		}
+		let _ = THEMES.register_owned(std::sync::Arc::new(theme));
 	}
 }
 
@@ -35,7 +24,7 @@ pub static DEFAULT_THEME: ThemeDef = ThemeDef {
 		required_caps: &[],
 		flags: 0,
 	},
-	variant: ThemeVariant::Dark,
+	variant: crate::themes::ThemeVariant::Dark,
 	colors: ThemeColors {
 		ui: UiColors {
 			bg: Color::Reset,
@@ -79,7 +68,7 @@ pub static DEFAULT_THEME: ThemeDef = ThemeDef {
 };
 
 /// Default theme ID to use when no theme is specified.
-pub const DEFAULT_THEME_ID: &str = "gruvbox";
+pub const DEFAULT_THEME_ID: &str = "xeno-registry::monokai";
 
 #[cfg(feature = "db")]
 pub use crate::db::THEMES;

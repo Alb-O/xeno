@@ -28,8 +28,7 @@ tracing-subscriber = { workspace = true, features = ["env-filter", "json"] }
 unicode-width.workspace = true
 uuid.workspace = true
 which.workspace = true
-xeno-editor = { workspace = true }
-xeno-primitives.workspace = true
+xeno-editor.workspace = true
 xeno-registry.workspace = true
 xeno-runtime-config.workspace = true
 xeno-runtime-language.workspace = true

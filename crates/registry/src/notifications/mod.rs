@@ -11,10 +11,15 @@ pub use crate::core::{RegistryMetadata, RegistrySource};
 mod macros;
 
 pub mod builtins;
+pub mod def;
+pub mod entry;
 pub mod keys;
 
 pub use builtins::register_builtins;
+pub use def::{LinkedNotificationDef, NotificationDef, NotificationInput};
+pub use entry::NotificationEntry;
 
+pub use crate::core::NotificationId;
 use crate::error::RegistryError;
 
 pub fn register_plugin(
@@ -63,93 +68,98 @@ impl Default for AutoDismiss {
 	}
 }
 
-/// Static notification definition registered in the notification list.
-#[derive(Debug)]
-pub struct NotificationDef {
-	/// Unique identifier for this notification type.
-	pub id: &'static str,
-	/// Severity level.
-	pub level: Level,
-	/// Auto-dismiss behavior.
-	pub auto_dismiss: AutoDismiss,
-	/// Where this notification was defined.
-	pub source: RegistrySource,
-}
-
-impl NotificationDef {
-	/// Creates a new notification definition.
-	pub const fn new(
-		id: &'static str,
-		level: Level,
-		auto_dismiss: AutoDismiss,
-		source: RegistrySource,
-	) -> Self {
-		Self {
-			id,
-			level,
-			auto_dismiss,
-			source,
-		}
-	}
-}
-
 /// Runtime notification instance ready to display.
 #[derive(Debug, Clone)]
 pub struct Notification {
-	/// Reference to the static definition.
-	pub def: &'static NotificationDef,
+	/// Canonical identifier of the notification type.
+	pub id: std::sync::Arc<str>,
+	/// Severity level (resolved from registry if None).
+	pub level: Option<Level>,
+	/// Auto-dismiss behavior (resolved from registry if None).
+	pub auto_dismiss: Option<AutoDismiss>,
 	/// The formatted message content.
 	pub message: String,
 }
 
 impl Notification {
-	/// Creates a new notification instance.
-	pub fn new(def: &'static NotificationDef, message: impl Into<String>) -> Self {
+	/// Creates a new fully-specified notification instance.
+	pub fn new(
+		id: impl Into<std::sync::Arc<str>>,
+		level: Level,
+		auto_dismiss: AutoDismiss,
+		message: impl Into<String>,
+	) -> Self {
 		Self {
-			def,
+			id: id.into(),
+			level: Some(level),
+			auto_dismiss: Some(auto_dismiss),
 			message: message.into(),
 		}
 	}
 
-	/// Returns the notification level.
-	pub fn level(&self) -> Level {
-		self.def.level
+	/// Creates a pending notification that will be resolved at the sink.
+	pub fn new_pending(id: impl Into<std::sync::Arc<str>>, message: impl Into<String>) -> Self {
+		Self {
+			id: id.into(),
+			level: None,
+			auto_dismiss: None,
+			message: message.into(),
+		}
 	}
 
-	/// Returns the auto-dismiss behavior.
+	/// Returns the notification level, or Info if not yet resolved.
+	pub fn level(&self) -> Level {
+		if self.level.is_none() {
+			tracing::error!(id = %self.id, "Notification accessed before resolution");
+		}
+		self.level.unwrap_or(Level::Info)
+	}
+
+	/// Returns the auto-dismiss behavior, or default if not yet resolved.
 	pub fn auto_dismiss(&self) -> AutoDismiss {
-		self.def.auto_dismiss
+		if self.auto_dismiss.is_none() {
+			tracing::error!(id = %self.id, "Notification accessed before resolution");
+		}
+		self.auto_dismiss.unwrap_or(AutoDismiss::DEFAULT)
+	}
+
+	/// Resolves this notification against the provided registry.
+	/// Returns true if resolved successfully.
+	pub fn resolve(&mut self, db: &crate::db::RegistryDb) -> bool {
+		if let Some(entry) = db.notifications_reg().get(&self.id) {
+			self.level = Some(entry.level);
+			self.auto_dismiss = Some(entry.auto_dismiss);
+			true
+		} else {
+			tracing::error!(id = %self.id, "Failed to resolve notification ID");
+			false
+		}
 	}
 }
 
 /// Typed key referencing a notification definition with a static message.
 #[derive(Clone, Copy)]
 pub struct NotificationKey {
-	def: &'static NotificationDef,
+	id: &'static str,
 	message: &'static str,
 }
 
 impl NotificationKey {
 	/// Creates a new notification key with a static message.
-	pub const fn new(def: &'static NotificationDef, message: &'static str) -> Self {
-		Self { def, message }
+	pub const fn new(id: &'static str, message: &'static str) -> Self {
+		Self { id, message }
 	}
 
 	/// Creates a notification instance from this key.
 	pub fn emit(self) -> Notification {
-		Notification::new(self.def, self.message)
-	}
-
-	/// Returns the notification level.
-	pub fn level(self) -> Level {
-		self.def.level
+		Notification::new_pending(self.id, self.message)
 	}
 }
 
 impl core::fmt::Debug for NotificationKey {
 	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
 		f.debug_struct("NotificationKey")
-			.field("id", &self.def.id)
+			.field("id", &self.id)
 			.field("message", &self.message)
 			.finish()
 	}
@@ -184,6 +194,6 @@ pub use crate::db::NOTIFICATIONS;
 
 /// Returns all registered notification definitions.
 #[cfg(feature = "db")]
-pub fn all() -> impl Iterator<Item = &'static NotificationDef> {
-	NOTIFICATIONS.iter().copied()
+pub fn all() -> Vec<crate::core::RegistryRef<NotificationEntry, NotificationId>> {
+	NOTIFICATIONS.all()
 }

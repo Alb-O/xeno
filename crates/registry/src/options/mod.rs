@@ -40,6 +40,33 @@ pub type OptionKey = crate::core::LookupKey<OptionEntry, OptionId>;
 pub struct OptionReg(pub &'static OptionDef);
 inventory::collect!(OptionReg);
 
+/// Static registration for an option validator.
+pub struct OptionValidatorStatic {
+	pub name: &'static str,
+	pub validator: OptionValidator,
+	pub crate_name: &'static str,
+}
+
+pub struct OptionValidatorReg(pub &'static OptionValidatorStatic);
+inventory::collect!(OptionValidatorReg);
+
+#[macro_export]
+macro_rules! option_validator {
+	($name:ident, $func:path) => {
+		paste::paste! {
+			#[allow(non_upper_case_globals)]
+			pub(crate) static [<VALIDATOR_ $name>]: $crate::options::OptionValidatorStatic =
+				$crate::options::OptionValidatorStatic {
+					name: stringify!($name),
+					crate_name: env!("CARGO_PKG_NAME"),
+					validator: $func,
+				};
+
+			inventory::submit!($crate::options::OptionValidatorReg(&[<VALIDATOR_ $name>]));
+		}
+	};
+}
+
 #[cfg(feature = "db")]
 pub use crate::db::OPTIONS;
 

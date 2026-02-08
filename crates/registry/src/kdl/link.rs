@@ -311,7 +311,7 @@ mod commands_link {
 #[cfg(feature = "commands")]
 pub use commands_link::*;
 
-// ── Motions ──────────────────────────────────────────────────────────
+// ── Motions ───────────────────────────────────────────────────────────
 
 #[cfg(feature = "motions")]
 mod motions_link {
@@ -893,6 +893,486 @@ mod hooks_link {
 #[cfg(feature = "hooks")]
 pub use hooks_link::*;
 
+// ── Options ──────────────────────────────────────────────────────────
+
+#[cfg(feature = "options")]
+mod options_link {
+	use super::*;
+	use crate::kdl::types::OptionsBlob;
+	use crate::options::def::{LinkedOptionDef, OptionScope};
+	use crate::options::{OptionDefault, OptionType, OptionValidatorStatic, OptionValue};
+
+	/// Links KDL option metadata with validator statics, producing `LinkedOptionDef`s.
+	pub fn link_options(
+		metadata: &OptionsBlob,
+		validators: impl Iterator<Item = &'static OptionValidatorStatic>,
+	) -> Vec<LinkedOptionDef> {
+		let validator_map: HashMap<&str, &OptionValidatorStatic> =
+			validators.map(|v| (v.name, v)).collect();
+
+		let mut defs = Vec::new();
+
+		for meta in &metadata.options {
+			let id = format!("xeno-registry::{}", meta.name);
+
+			let value_type = match meta.value_type.as_str() {
+				"bool" => OptionType::Bool,
+				"int" => OptionType::Int,
+				"string" => OptionType::String,
+				other => panic!("unknown option value-type: '{}'", other),
+			};
+
+			let scope = match meta.scope.as_str() {
+				"global" => OptionScope::Global,
+				"buffer" => OptionScope::Buffer,
+				other => panic!("unknown option scope: '{}'", other),
+			};
+
+			let default = match value_type {
+				OptionType::Bool => {
+					let val = match meta.default.as_str() {
+						"#true" | "true" => true,
+						"#false" | "false" => false,
+						other => panic!("invalid bool default: '{}'", other),
+					};
+					OptionDefault::Value(OptionValue::Bool(val))
+				}
+				OptionType::Int => {
+					let val = meta
+						.default
+						.parse::<i64>()
+						.unwrap_or_else(|_| panic!("invalid int default: '{}'", meta.default));
+					OptionDefault::Value(OptionValue::Int(val))
+				}
+				OptionType::String => {
+					OptionDefault::Value(OptionValue::String(meta.default.clone()))
+				}
+			};
+
+			let validator = meta.validator.as_ref().map(|name| {
+				validator_map
+					.get(name.as_str())
+					.map(|v| v.validator)
+					.unwrap_or_else(|| {
+						panic!(
+							"KDL option '{}' references unknown validator '{}'",
+							meta.name, name
+						)
+					})
+			});
+
+			defs.push(LinkedOptionDef {
+				id,
+				name: meta.name.clone(),
+				description: meta.description.clone(),
+				keys: meta.keys.clone(),
+				priority: meta.priority,
+				flags: meta.flags,
+				kdl_key: meta.kdl_key.clone(),
+				value_type,
+				default,
+				scope,
+				validator,
+				source: RegistrySource::Builtin,
+			});
+		}
+
+		defs
+	}
+}
+
+#[cfg(feature = "options")]
+pub use options_link::*;
+
+// ── Notifications ────────────────────────────────────────────────────
+
+#[cfg(feature = "notifications")]
+mod notifications_link {
+	use std::time::Duration;
+
+	use super::*;
+	use crate::kdl::types::NotificationsBlob;
+	use crate::notifications::def::LinkedNotificationDef;
+	use crate::notifications::{AutoDismiss, Level};
+
+	/// Links KDL notification metadata, producing `LinkedNotificationDef`s.
+	pub fn link_notifications(metadata: &NotificationsBlob) -> Vec<LinkedNotificationDef> {
+		let mut defs = Vec::new();
+
+		for meta in &metadata.notifications {
+			let id = format!("xeno-registry::{}", meta.name);
+
+			let level = match meta.level.as_str() {
+				"info" => Level::Info,
+				"warn" => Level::Warn,
+				"error" => Level::Error,
+				"debug" => Level::Debug,
+				"success" => Level::Success,
+				other => panic!("unknown notification level: '{}'", other),
+			};
+
+			let auto_dismiss = match meta.auto_dismiss.as_str() {
+				"never" => AutoDismiss::Never,
+				"after" => {
+					let ms = meta.dismiss_ms.unwrap_or(4000);
+					AutoDismiss::After(Duration::from_millis(ms))
+				}
+				other => panic!("unknown auto-dismiss: '{}'", other),
+			};
+
+			defs.push(LinkedNotificationDef {
+				id,
+				name: meta.name.clone(),
+				description: meta.description.clone(),
+				keys: Vec::new(),
+				priority: 0,
+				flags: 0,
+				level,
+				auto_dismiss,
+				source: RegistrySource::Builtin,
+			});
+		}
+
+		defs
+	}
+}
+
+#[cfg(feature = "notifications")]
+pub use notifications_link::*;
+
+// ── Themes ───────────────────────────────────────────────────────────
+
+#[cfg(feature = "themes")]
+mod themes_link {
+	use std::str::FromStr;
+
+	use super::*;
+	use crate::kdl::types::{RawStyle, ThemesBlob};
+	use crate::themes::theme::LinkedThemeDef;
+	use crate::themes::{
+		Color, ColorPair, ModeColors, Modifier, NotificationColors, PopupColors, SemanticColors,
+		SyntaxStyle, SyntaxStyles, ThemeColors, ThemeVariant, UiColors,
+	};
+
+	pub fn link_themes(blob: &ThemesBlob) -> Vec<LinkedThemeDef> {
+		blob.themes
+			.iter()
+			.map(|meta| {
+				let id = format!("xeno-registry::{}", meta.name);
+
+				let variant = match meta.variant.as_str() {
+					"dark" => ThemeVariant::Dark,
+					"light" => ThemeVariant::Light,
+					other => panic!("Theme '{}' unknown variant: '{}'", meta.name, other),
+				};
+
+				let mut palette = HashMap::new();
+				let mut pending = meta.palette.clone();
+				let mut progress = true;
+				while progress && !pending.is_empty() {
+					progress = false;
+					let mut resolved_in_pass = Vec::new();
+					for (name, val) in &pending {
+						if let Ok(color) = parse_color(val, &palette) {
+							palette.insert(name.clone(), color);
+							resolved_in_pass.push(name.clone());
+							progress = true;
+						}
+					}
+					for name in resolved_in_pass {
+						pending.remove(&name);
+					}
+				}
+
+				if !pending.is_empty() {
+					panic!(
+						"Theme '{}' has unresolved or cyclic palette references: {:?}",
+						meta.name,
+						pending.keys().collect::<Vec<_>>()
+					);
+				}
+
+				let colors = ThemeColors {
+					ui: build_ui_colors(&meta.ui, &palette, &meta.name),
+					mode: build_mode_colors(&meta.mode, &palette, &meta.name),
+					semantic: build_semantic_colors(&meta.semantic, &palette, &meta.name),
+					popup: build_popup_colors(&meta.popup, &palette, &meta.name),
+					notification: NotificationColors::INHERITED,
+					syntax: build_syntax_styles(&meta.syntax, &palette, &meta.name),
+				};
+
+				LinkedThemeDef {
+					id,
+					name: meta.name.clone(),
+					keys: meta.keys.clone(),
+					description: meta.description.clone(),
+					priority: meta.priority,
+					variant,
+					colors,
+					source: RegistrySource::Builtin,
+				}
+			})
+			.collect()
+	}
+
+	fn parse_color(s: &str, palette: &HashMap<String, Color>) -> Result<Color, String> {
+		if let Some(name) = s.strip_prefix('$') {
+			return palette
+				.get(name)
+				.copied()
+				.ok_or_else(|| format!("unknown palette color: {name}"));
+		}
+		Color::from_str(s).map_err(|_| format!("invalid color: {s}"))
+	}
+
+	fn build_ui_colors(
+		map: &HashMap<String, String>,
+		palette: &HashMap<String, Color>,
+		theme_name: &str,
+	) -> UiColors {
+		let get = |key: &str, default: Color| {
+			map.get(key)
+				.map(|s| {
+					parse_color(s, palette).unwrap_or_else(|e| {
+						panic!("Theme '{}' UI error: {}: {}", theme_name, key, e)
+					})
+				})
+				.unwrap_or(default)
+		};
+		let bg = get("bg", Color::Reset);
+		UiColors {
+			bg,
+			fg: get("fg", Color::Reset),
+			nontext_bg: get("nontext-bg", bg),
+			gutter_fg: get("gutter-fg", Color::DarkGray),
+			cursor_bg: get("cursor-bg", Color::White),
+			cursor_fg: get("cursor-fg", Color::Black),
+			cursorline_bg: get("cursorline-bg", Color::DarkGray),
+			selection_bg: get("selection-bg", Color::Blue),
+			selection_fg: get("selection-fg", Color::White),
+			message_fg: get("message-fg", Color::Yellow),
+			command_input_fg: get("command-input-fg", Color::White),
+		}
+	}
+
+	fn build_mode_colors(
+		map: &HashMap<String, String>,
+		palette: &HashMap<String, Color>,
+		theme_name: &str,
+	) -> ModeColors {
+		let get = |key: &str, default: Color| {
+			map.get(key)
+				.map(|s| {
+					parse_color(s, palette).unwrap_or_else(|e| {
+						panic!("Theme '{}' mode error: {}: {}", theme_name, key, e)
+					})
+				})
+				.unwrap_or(default)
+		};
+		ModeColors {
+			normal: ColorPair::new(
+				get("normal-bg", Color::Blue),
+				get("normal-fg", Color::White),
+			),
+			insert: ColorPair::new(
+				get("insert-bg", Color::Green),
+				get("insert-fg", Color::Black),
+			),
+			prefix: ColorPair::new(
+				get("prefix-bg", Color::Magenta),
+				get("prefix-fg", Color::White),
+			),
+			command: ColorPair::new(
+				get("command-bg", Color::Yellow),
+				get("command-fg", Color::Black),
+			),
+		}
+	}
+
+	fn build_semantic_colors(
+		map: &HashMap<String, String>,
+		palette: &HashMap<String, Color>,
+		theme_name: &str,
+	) -> SemanticColors {
+		let get = |key: &str, default: Color| {
+			map.get(key)
+				.map(|s| {
+					parse_color(s, palette).unwrap_or_else(|e| {
+						panic!("Theme '{}' semantic error: {}: {}", theme_name, key, e)
+					})
+				})
+				.unwrap_or(default)
+		};
+		SemanticColors {
+			error: get("error", Color::Red),
+			warning: get("warning", Color::Yellow),
+			success: get("success", Color::Green),
+			info: get("info", Color::Cyan),
+			hint: get("hint", Color::DarkGray),
+			dim: get("dim", Color::DarkGray),
+			link: get("link", Color::Cyan),
+			match_hl: get("match", Color::Green),
+			accent: get("accent", Color::Cyan),
+		}
+	}
+
+	fn build_popup_colors(
+		map: &HashMap<String, String>,
+		palette: &HashMap<String, Color>,
+		theme_name: &str,
+	) -> PopupColors {
+		let get = |key: &str, default: Color| {
+			map.get(key)
+				.map(|s| {
+					parse_color(s, palette).unwrap_or_else(|e| {
+						panic!("Theme '{}' popup error: {}: {}", theme_name, key, e)
+					})
+				})
+				.unwrap_or(default)
+		};
+		PopupColors {
+			bg: get("bg", Color::Reset),
+			fg: get("fg", Color::Reset),
+			border: get("border", Color::DarkGray),
+			title: get("title", Color::Yellow),
+		}
+	}
+
+	fn build_syntax_styles(
+		map: &HashMap<String, RawStyle>,
+		palette: &HashMap<String, Color>,
+		theme_name: &str,
+	) -> SyntaxStyles {
+		let mut styles = SyntaxStyles::minimal();
+		for (scope, raw) in map {
+			let style = SyntaxStyle {
+				fg: raw.fg.as_ref().map(|s| {
+					parse_color(s, palette).unwrap_or_else(|e| {
+						panic!("Theme '{}' syntax fg error: {}: {}", theme_name, scope, e)
+					})
+				}),
+				bg: raw.bg.as_ref().map(|s| {
+					parse_color(s, palette).unwrap_or_else(|e| {
+						panic!("Theme '{}' syntax bg error: {}: {}", theme_name, scope, e)
+					})
+				}),
+				modifiers: raw
+					.modifiers
+					.as_ref()
+					.map(|s| parse_modifiers(s, theme_name, scope))
+					.unwrap_or(Modifier::empty()),
+			};
+			set_syntax_style(&mut styles, scope, style);
+		}
+		styles
+	}
+
+	pub(crate) fn parse_modifiers(s: &str, theme_name: &str, scope: &str) -> Modifier {
+		let mut modifiers = Modifier::empty();
+		for part in s.split('|').map(|s| s.trim()) {
+			if part.is_empty() {
+				continue;
+			}
+			match part.to_lowercase().as_str() {
+				"bold" => modifiers.insert(Modifier::BOLD),
+				"italic" => modifiers.insert(Modifier::ITALIC),
+				"underlined" => modifiers.insert(Modifier::UNDERLINED),
+				"reversed" => modifiers.insert(Modifier::REVERSED),
+				"dim" => modifiers.insert(Modifier::DIM),
+				"crossed-out" => modifiers.insert(Modifier::CROSSED_OUT),
+				other => panic!(
+					"Theme '{}' scope '{}' unknown modifier: '{}'",
+					theme_name, scope, other
+				),
+			}
+		}
+		modifiers
+	}
+
+	fn set_syntax_style(styles: &mut SyntaxStyles, scope: &str, style: SyntaxStyle) {
+		match scope {
+			"attribute" => styles.attribute = style,
+			"tag" => styles.tag = style,
+			"namespace" => styles.namespace = style,
+			"comment" => styles.comment = style,
+			"comment.line" => styles.comment_line = style,
+			"comment.block" => styles.comment_block = style,
+			"comment.block.documentation" => styles.comment_block_documentation = style,
+			"constant" => styles.constant = style,
+			"constant.builtin" => styles.constant_builtin = style,
+			"constant.builtin.boolean" => styles.constant_builtin_boolean = style,
+			"constant.character" => styles.constant_character = style,
+			"constant.character.escape" => styles.constant_character_escape = style,
+			"constant.numeric" => styles.constant_numeric = style,
+			"constant.numeric.integer" => styles.constant_numeric_integer = style,
+			"constant.numeric.float" => styles.constant_numeric_float = style,
+			"constructor" => styles.constructor = style,
+			"function" => styles.function = style,
+			"function.builtin" => styles.function_builtin = style,
+			"function.method" => styles.function_method = style,
+			"function.macro" => styles.function_macro = style,
+			"function.special" => styles.function_special = style,
+			"keyword" => styles.keyword = style,
+			"keyword.control" => styles.keyword_control = style,
+			"keyword.control.conditional" => styles.keyword_control_conditional = style,
+			"keyword.control.repeat" => styles.keyword_control_repeat = style,
+			"keyword.control.import" => styles.keyword_control_import = style,
+			"keyword.control.return" => styles.keyword_control_return = style,
+			"keyword.control.exception" => styles.keyword_control_exception = style,
+			"keyword.operator" => styles.keyword_operator = style,
+			"keyword.directive" => styles.keyword_directive = style,
+			"keyword.function" => styles.keyword_function = style,
+			"keyword.storage" => styles.keyword_storage = style,
+			"keyword.storage.type" => styles.keyword_storage_type = style,
+			"keyword.storage.modifier" => styles.keyword_storage_modifier = style,
+			"label" => styles.label = style,
+			"operator" => styles.operator = style,
+			"punctuation" => styles.punctuation = style,
+			"punctuation.bracket" => styles.punctuation_bracket = style,
+			"punctuation.delimiter" => styles.punctuation_delimiter = style,
+			"punctuation.special" => styles.punctuation_special = style,
+			"string" => styles.string = style,
+			"string.regexp" => styles.string_regexp = style,
+			"string.special" => styles.string_special = style,
+			"string.special.path" => styles.string_special_path = style,
+			"string.special.url" => styles.string_special_url = style,
+			"string.special.symbol" => styles.string_special_symbol = style,
+			"type" => styles.r#type = style,
+			"type.builtin" => styles.type_builtin = style,
+			"type.parameter" => styles.type_parameter = style,
+			"type.enum.variant" => styles.type_enum_variant = style,
+			"variable" => styles.variable = style,
+			"variable.builtin" => styles.variable_builtin = style,
+			"variable.parameter" => styles.variable_parameter = style,
+			"variable.other" => styles.variable_other = style,
+			"variable.other.member" => styles.variable_other_member = style,
+			"markup.heading" => styles.markup_heading = style,
+			"markup.heading.1" => styles.markup_heading_1 = style,
+			"markup.heading.2" => styles.markup_heading_2 = style,
+			"markup.heading.3" => styles.markup_heading_3 = style,
+			"markup.bold" => styles.markup_bold = style,
+			"markup.italic" => styles.markup_italic = style,
+			"markup.strikethrough" => styles.markup_strikethrough = style,
+			"markup.link" => styles.markup_link = style,
+			"markup.link.url" => styles.markup_link_url = style,
+			"markup.link.text" => styles.markup_link_text = style,
+			"markup.quote" => styles.markup_quote = style,
+			"markup.raw" => styles.markup_raw = style,
+			"markup.raw.inline" => styles.markup_raw_inline = style,
+			"markup.raw.block" => styles.markup_raw_block = style,
+			"markup.list" => styles.markup_list = style,
+			"diff.plus" => styles.diff_plus = style,
+			"diff.minus" => styles.diff_minus = style,
+			"diff.delta" => styles.diff_delta = style,
+			"special" => styles.special = style,
+			_ => {}
+		}
+	}
+}
+
+#[cfg(feature = "themes")]
+pub use themes_link::*;
+
 // ── Tests ─────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -901,7 +1381,7 @@ mod tests {
 	use crate::kdl::loader::{
 		load_action_metadata, load_command_metadata, load_gutter_metadata, load_hook_metadata,
 		load_motion_metadata, load_option_metadata, load_statusline_metadata,
-		load_text_object_metadata,
+		load_text_object_metadata, load_theme_metadata,
 	};
 
 	// ── Action linkage tests ──────────────────────────────────────────
@@ -1104,63 +1584,16 @@ mod tests {
 	// ── Option metadata validation ───────────────────────────────────
 
 	#[test]
-	fn all_static_options_have_kdl_entries() {
+	fn all_kdl_options_parse_and_validate() {
 		let blob = load_option_metadata();
-		let kdl_keys: HashSet<&str> = blob.options.iter().map(|o| o.kdl_key.as_str()).collect();
+		let validators: Vec<&crate::options::OptionValidatorStatic> =
+			inventory::iter::<crate::options::OptionValidatorReg>
+				.into_iter()
+				.map(|r| r.0)
+				.collect();
 
-		for reg in inventory::iter::<crate::options::builtins::OptionReg> {
-			assert!(
-				kdl_keys.contains(reg.0.kdl_key),
-				"static option '{}' (kdl_key='{}') has no KDL entry",
-				reg.0.meta.name,
-				reg.0.kdl_key
-			);
-		}
-	}
-
-	#[test]
-	fn all_kdl_options_have_static_defs() {
-		let blob = load_option_metadata();
-		let static_keys: HashSet<&str> = inventory::iter::<crate::options::builtins::OptionReg>
-			.into_iter()
-			.map(|r| r.0.kdl_key)
-			.collect();
-
-		for opt in &blob.options {
-			assert!(
-				static_keys.contains(opt.kdl_key.as_str()),
-				"KDL option '{}' (kdl_key='{}') has no static def",
-				opt.name,
-				opt.kdl_key
-			);
-		}
-	}
-
-	#[test]
-	fn option_kdl_keys_match() {
-		use std::collections::HashMap;
-
-		let blob = load_option_metadata();
-		let kdl_map: HashMap<&str, &crate::kdl::types::OptionMetaRaw> = blob
-			.options
-			.iter()
-			.map(|o| (o.kdl_key.as_str(), o))
-			.collect();
-
-		for reg in inventory::iter::<crate::options::builtins::OptionReg> {
-			let def = reg.0;
-			let kdl = kdl_map.get(def.kdl_key).unwrap_or_else(|| {
-				panic!(
-					"static option '{}' not found in KDL by kdl_key",
-					def.meta.name
-				)
-			});
-			assert_eq!(
-				def.kdl_key, kdl.kdl_key,
-				"kdl_key mismatch for option '{}'",
-				def.meta.name
-			);
-		}
+		// This will panic if any option is invalid (type, default, scope, or unknown validator)
+		options_link::link_options(&blob, validators.into_iter());
 	}
 
 	// ── Gutter linkage tests ─────────────────────────────────────────
@@ -1261,5 +1694,47 @@ mod tests {
 				reg.0.name
 			);
 		}
+	}
+
+	// ── Theme linkage tests ───────────────────────────────────────────
+
+	#[test]
+	fn all_kdl_themes_parse_and_validate() {
+		let blob = load_theme_metadata();
+		// This will panic if any theme has invalid colors, unresolved palette refs, or bad modifiers
+		link_themes(&blob);
+	}
+
+	#[test]
+	fn default_theme_exists_in_kdl() {
+		let blob = load_theme_metadata();
+		let names: HashSet<&str> = blob.themes.iter().map(|t| t.name.as_str()).collect();
+		assert!(
+			names.contains("monokai"),
+			"Default theme 'monokai' missing from KDL"
+		);
+	}
+
+	#[test]
+	fn modifier_parsing_works() {
+		use crate::themes::Modifier;
+		assert_eq!(
+			themes_link::parse_modifiers("bold", "test", "test"),
+			Modifier::BOLD
+		);
+		assert_eq!(
+			themes_link::parse_modifiers("bold|italic", "test", "test"),
+			Modifier::BOLD | Modifier::ITALIC
+		);
+		assert_eq!(
+			themes_link::parse_modifiers("  bold | ITALIC  ", "test", "test"),
+			Modifier::BOLD | Modifier::ITALIC
+		);
+	}
+
+	#[test]
+	#[should_panic(expected = "unknown modifier: 'invalid'")]
+	fn modifier_parsing_panics_on_unknown() {
+		themes_link::parse_modifiers("invalid", "test", "test");
 	}
 }

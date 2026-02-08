@@ -126,8 +126,14 @@ pub struct TextObjectsBlob {
 /// Raw option metadata extracted from KDL.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct OptionMetaRaw {
-	/// Option name (handler linkage key).
+	/// Option name (linkage key).
 	pub name: String,
+	/// Alternative lookup names.
+	pub keys: Vec<String>,
+	/// Conflict resolution priority.
+	pub priority: i16,
+	/// Behavior hint flags.
+	pub flags: u32,
 	/// KDL config key (e.g., `"tab-width"`).
 	pub kdl_key: String,
 	/// Value type: `"bool"`, `"int"`, `"string"`.
@@ -138,6 +144,8 @@ pub struct OptionMetaRaw {
 	pub scope: String,
 	/// Human-readable description.
 	pub description: String,
+	/// Optional validator name.
+	pub validator: Option<String>,
 }
 
 /// Top-level blob containing all option metadata.
@@ -213,4 +221,74 @@ pub struct HookMetaRaw {
 pub struct HooksBlob {
 	/// All hook definitions.
 	pub hooks: Vec<HookMetaRaw>,
+}
+
+// ── Notifications ──────────────────────────────────────────────────────
+
+/// Raw notification metadata extracted from KDL.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct NotificationMetaRaw {
+	/// Notification name (linkage key).
+	pub name: String,
+	/// Severity level: "info", "warn", "error", "debug", "success".
+	pub level: String,
+	/// Auto-dismiss behavior: "never", "after".
+	pub auto_dismiss: String,
+	/// Dismiss duration in milliseconds (if auto_dismiss is "after").
+	pub dismiss_ms: Option<u64>,
+	/// Human-readable description.
+	pub description: String,
+}
+
+/// Top-level blob containing all notification metadata.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct NotificationsBlob {
+	/// All notification definitions.
+	pub notifications: Vec<NotificationMetaRaw>,
+}
+
+// ── Themes ───────────────────────────────────────────────────────────
+
+use std::collections::HashMap;
+
+/// Raw theme metadata extracted from KDL.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ThemeMetaRaw {
+	/// Theme name.
+	pub name: String,
+	/// Alternative lookup names.
+	pub keys: Vec<String>,
+	/// Human-readable description.
+	pub description: String,
+	/// Conflict resolution priority.
+	pub priority: i16,
+	/// Whether it's a "dark" or "light" theme.
+	pub variant: String,
+	/// Resolved color palette: Map of name -> hex string.
+	pub palette: HashMap<String, String>,
+	/// UI colors: Map of field -> color name or hex.
+	pub ui: HashMap<String, String>,
+	/// Mode colors: Map of field -> color name or hex.
+	pub mode: HashMap<String, String>,
+	/// Semantic colors: Map of field -> color name or hex.
+	pub semantic: HashMap<String, String>,
+	/// Popup colors: Map of field -> color name or hex.
+	pub popup: HashMap<String, String>,
+	/// Syntax styles: Map of scope -> raw style.
+	pub syntax: HashMap<String, RawStyle>,
+}
+
+/// Serializable style definition.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RawStyle {
+	pub fg: Option<String>,
+	pub bg: Option<String>,
+	pub modifiers: Option<String>,
+}
+
+/// Top-level blob containing all theme metadata.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ThemesBlob {
+	/// All theme definitions.
+	pub themes: Vec<ThemeMetaRaw>,
 }

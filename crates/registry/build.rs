@@ -97,11 +97,15 @@ struct TextObjectsBlob {
 #[derive(Debug, Serialize, Deserialize)]
 struct OptionMetaRaw {
 	name: String,
+	keys: Vec<String>,
+	priority: i16,
+	flags: u32,
 	kdl_key: String,
 	value_type: String,
 	default: String,
 	scope: String,
 	description: String,
+	validator: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -147,6 +151,47 @@ struct HookMetaRaw {
 #[derive(Debug, Serialize, Deserialize)]
 struct HooksBlob {
 	hooks: Vec<HookMetaRaw>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct NotificationMetaRaw {
+	name: String,
+	level: String,
+	auto_dismiss: String,
+	dismiss_ms: Option<u64>,
+	description: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct NotificationsBlob {
+	notifications: Vec<NotificationMetaRaw>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ThemeMetaRaw {
+	name: String,
+	keys: Vec<String>,
+	description: String,
+	priority: i16,
+	variant: String,
+	palette: std::collections::HashMap<String, String>,
+	ui: std::collections::HashMap<String, String>,
+	mode: std::collections::HashMap<String, String>,
+	semantic: std::collections::HashMap<String, String>,
+	popup: std::collections::HashMap<String, String>,
+	syntax: std::collections::HashMap<String, RawStyle>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct RawStyle {
+	fg: Option<String>,
+	bg: Option<String>,
+	modifiers: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ThemesBlob {
+	themes: Vec<ThemeMetaRaw>,
 }
 
 // ── Blob I/O ──────────────────────────────────────────────────────────
@@ -523,6 +568,19 @@ fn build_options_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 		);
 		let name = node_name_arg(node, "option");
 		let context = format!("option '{name}'");
+
+		let keys = collect_keys(node);
+		let priority = node
+			.get("priority")
+			.and_then(|v| v.as_integer())
+			.map(|v| v as i16)
+			.unwrap_or(0);
+		let flags = node
+			.get("flags")
+			.and_then(|v| v.as_integer())
+			.map(|v| v as u32)
+			.unwrap_or(0);
+
 		let kdl_key = require_str(node, "kdl-key", &context);
 		let value_type = require_str(node, "value-type", &context);
 		assert!(
@@ -538,13 +596,22 @@ fn build_options_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 
 		let default = require_str(node, "default", &context);
 
+		let validator = node
+			.get("validator")
+			.and_then(|v| v.as_string())
+			.map(String::from);
+
 		options.push(OptionMetaRaw {
 			name,
+			keys,
+			priority,
+			flags,
 			kdl_key,
 			value_type,
 			default,
 			scope,
 			description,
+			validator,
 		});
 	}
 
@@ -633,7 +700,7 @@ fn build_statusline_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 	let kdl = fs::read_to_string(&path).expect("failed to read statusline.kdl");
 	let doc: KdlDocument = kdl.parse().expect("failed to parse statusline.kdl");
 
-	let valid_positions = ["left", "right"];
+	let valid_positions = ["left", "right", "center"];
 
 	let mut segments = Vec::new();
 	for node in doc.nodes() {
@@ -722,6 +789,197 @@ fn build_hooks_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 	write_blob(&out_dir.join("hooks.bin"), &bin);
 }
 
+// ── Notifications ──────────────────────────────────────────────────────
+
+fn build_notifications_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
+	let path = data_dir.join("notifications.kdl");
+	println!("cargo:rerun-if-changed={}", path.display());
+
+	let kdl = fs::read_to_string(&path).expect("failed to read notifications.kdl");
+	let doc: KdlDocument = kdl.parse().expect("failed to parse notifications.kdl");
+
+	let valid_levels = ["info", "warn", "error", "debug", "success"];
+	let valid_dismiss = ["never", "after"];
+
+	let mut notifications = Vec::new();
+	for node in doc.nodes() {
+		assert_eq!(
+			node.name().value(),
+			"notification",
+			"unexpected top-level node '{}' in notifications.kdl",
+			node.name().value()
+		);
+		let name = node_name_arg(node, "notification");
+		let context = format!("notification '{name}'");
+
+		let level = require_str(node, "level", &context);
+		assert!(
+			valid_levels.contains(&level.as_str()),
+			"{context}: unknown level '{level}'"
+		);
+
+		let auto_dismiss = require_str(node, "auto-dismiss", &context);
+		assert!(
+			valid_dismiss.contains(&auto_dismiss.as_str()),
+			"{context}: unknown auto-dismiss '{auto_dismiss}'"
+		);
+
+		let dismiss_ms = node
+			.get("dismiss-ms")
+			.and_then(|v| v.as_integer())
+			.map(|v| v as u64);
+		let description = require_str(node, "description", &context);
+
+		notifications.push(NotificationMetaRaw {
+			name,
+			level,
+			auto_dismiss,
+			dismiss_ms,
+			description,
+		});
+	}
+
+	let pairs: Vec<(String, String)> = notifications
+		.iter()
+		.map(|n| (n.name.clone(), String::new()))
+		.collect();
+	validate_unique(&pairs, "notification");
+
+	let blob = NotificationsBlob { notifications };
+	let bin = postcard::to_stdvec(&blob).expect("failed to serialize notifications blob");
+	write_blob(&out_dir.join("notifications.bin"), &bin);
+}
+
+// ── Themes ───────────────────────────────────────────────────────────
+
+fn build_themes_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
+	let mut themes = Vec::new();
+
+	let entries = fs::read_dir(data_dir).expect("failed to read themes directory");
+	for entry in entries {
+		let entry = entry.expect("failed to read theme entry");
+		let path = entry.path();
+		if path.extension().is_some_and(|ext| ext == "kdl") {
+			println!("cargo:rerun-if-changed={}", path.display());
+			let kdl = fs::read_to_string(&path).expect("failed to read theme kdl");
+			let doc: KdlDocument = kdl
+				.parse()
+				.unwrap_or_else(|e| panic!("failed to parse theme {}: {}", path.display(), e));
+
+			let name = doc
+				.get_arg("name")
+				.and_then(|v| v.as_string())
+				.unwrap_or_else(|| path.file_stem().unwrap().to_str().unwrap())
+				.to_string();
+
+			let variant = doc
+				.get_arg("variant")
+				.and_then(|v| v.as_string())
+				.unwrap_or("dark")
+				.to_string();
+
+			let keys = doc
+				.get("keys")
+				.map(|n| {
+					n.entries()
+						.iter()
+						.filter_map(|e| e.value().as_string().map(String::from))
+						.collect()
+				})
+				.unwrap_or_default();
+
+			let description = doc
+				.get_arg("description")
+				.and_then(|v| v.as_string())
+				.unwrap_or("")
+				.to_string();
+
+			let priority = doc
+				.get_arg("priority")
+				.and_then(|v| v.as_integer())
+				.map(|v| v as i16)
+				.unwrap_or(0);
+
+			let palette = parse_kdl_map(doc.get("palette"));
+			let ui = parse_kdl_map(doc.get("ui"));
+			let mode = parse_kdl_map(doc.get("mode"));
+			let semantic = parse_kdl_map(doc.get("semantic"));
+			let popup = parse_kdl_map(doc.get("popup"));
+
+			let mut syntax = std::collections::HashMap::new();
+			if let Some(node) = doc.get("syntax")
+				&& let Some(children) = node.children() {
+					parse_syntax_recursive(children, "", &mut syntax);
+				}
+
+			themes.push(ThemeMetaRaw {
+				name,
+				keys,
+				description,
+				priority,
+				variant,
+				palette,
+				ui,
+				mode,
+				semantic,
+				popup,
+				syntax,
+			});
+		}
+	}
+
+	let blob = ThemesBlob { themes };
+	let bin = postcard::to_stdvec(&blob).expect("failed to serialize themes blob");
+	write_blob(&out_dir.join("themes.bin"), &bin);
+}
+
+fn parse_kdl_map(node: Option<&kdl::KdlNode>) -> std::collections::HashMap<String, String> {
+	let mut map = std::collections::HashMap::new();
+	if let Some(node) = node
+		&& let Some(children) = node.children()
+	{
+		for child in children.nodes() {
+			if let Some(entry) = child.entry(0)
+				&& let Some(val) = entry.value().as_string()
+			{
+				map.insert(child.name().value().to_string(), val.to_string());
+			}
+		}
+	}
+	map
+}
+
+fn parse_syntax_recursive(
+	children: &kdl::KdlDocument,
+	prefix: &str,
+	map: &mut std::collections::HashMap<String, RawStyle>,
+) {
+	for node in children.nodes() {
+		let name = node.name().value();
+		let scope = if prefix.is_empty() {
+			name.to_string()
+		} else {
+			format!("{prefix}.{name}")
+		};
+
+		let fg = node.get("fg").and_then(|v| v.as_string()).map(String::from);
+		let bg = node.get("bg").and_then(|v| v.as_string()).map(String::from);
+		let modifiers = node
+			.get("mod")
+			.or_else(|| node.get("modifiers"))
+			.and_then(|v| v.as_string())
+			.map(String::from);
+
+		if fg.is_some() || bg.is_some() || modifiers.is_some() {
+			map.insert(scope.clone(), RawStyle { fg, bg, modifiers });
+		}
+
+		if let Some(children) = node.children() {
+			parse_syntax_recursive(children, &scope, map);
+		}
+	}
+}
+
 // ── Main ──────────────────────────────────────────────────────────────
 
 fn main() {
@@ -741,4 +999,12 @@ fn main() {
 	build_gutters_blob(&data_dir, &out_dir);
 	build_statusline_blob(&data_dir, &out_dir);
 	build_hooks_blob(&data_dir, &out_dir);
+	build_notifications_blob(&data_dir, &out_dir);
+
+	let themes_dir = PathBuf::from(&manifest_dir)
+		.parent()
+		.unwrap()
+		.join("runtime/data/assets/themes");
+	println!("cargo:rerun-if-changed={}", themes_dir.display());
+	build_themes_blob(&themes_dir, &out_dir);
 }

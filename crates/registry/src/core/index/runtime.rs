@@ -187,14 +187,31 @@ where
 	}
 
 	/// Registers a new definition at runtime with linearizable semantics.
-	///
-	/// Uses a CAS loop to ensure no lost updates under contention.
-	/// Returns `Ok(RegistryRef)` if successfully registered (won or replaced).
-	/// Returns `Err(RegisterError::Rejected)` if rejected due to policy.
 	pub fn register<In>(&self, def: &'static In) -> Result<RegistryRef<T, Id>, RegisterError<T, Id>>
 	where
 		In: super::build::BuildEntry<T>,
 	{
+		self.register_internal(def)
+	}
+
+	/// Registers an owned definition at runtime.
+	///
+	/// # Safety/Invariants
+	///
+	/// The implementation of [`super::build::BuildEntry::build`] must produce a fully-owned `T`.
+	/// It MUST NOT store references to the input definition `In` inside `T`, as the input
+	/// definition is dropped after registration (unless it was already static).
+	pub fn register_owned<In>(&self, def: Arc<In>) -> Result<RegistryRef<T, Id>, RegisterError<T, Id>>
+	where
+		In: super::build::BuildEntry<T>,
+	{
+		self.register_internal(&*def)
+	}
+
+	fn register_internal(
+		&self,
+		def: &dyn super::build::BuildEntry<T>,
+	) -> Result<RegistryRef<T, Id>, RegisterError<T, Id>> {
 		use super::lookup::build_lookup;
 
 		loop {

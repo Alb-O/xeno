@@ -1,43 +1,38 @@
 //! Built-in option implementations.
 
-#[crate::derive_option]
-#[option(kdl = "cursorline", scope = buffer)]
+use super::TypedOptionKey;
+use crate::db::builder::RegistryDbBuilder;
+
 /// Whether to highlight the current line.
-pub static CURSORLINE: bool = true;
+pub const CURSORLINE: TypedOptionKey<bool> = TypedOptionKey::new("xeno-registry::cursorline");
 
-#[crate::derive_option]
-#[option(kdl = "tab-width", scope = buffer)]
 /// Number of spaces a tab character occupies.
-pub static TAB_WIDTH: i64 = 4;
+pub const TAB_WIDTH: TypedOptionKey<i64> = TypedOptionKey::new("xeno-registry::tab_width");
 
-#[crate::derive_option]
-#[option(kdl = "scroll-lines", scope = global)]
 /// Number of lines to scroll.
-pub static SCROLL_LINES: i64 = 1;
+pub const SCROLL_LINES: TypedOptionKey<i64> = TypedOptionKey::new("xeno-registry::scroll_lines");
 
-#[crate::derive_option]
-#[option(kdl = "scroll-margin", scope = buffer)]
 /// Minimum number of lines to keep above/below the cursor.
-pub static SCROLL_MARGIN: i64 = 3;
+pub const SCROLL_MARGIN: TypedOptionKey<i64> = TypedOptionKey::new("xeno-registry::scroll_margin");
 
-#[crate::derive_option]
-#[option(kdl = "theme", scope = global)]
 /// Active color theme name.
-pub static THEME: String = "monokai".to_string();
+pub const THEME: TypedOptionKey<String> = TypedOptionKey::new("xeno-registry::theme");
 
-#[crate::derive_option]
-#[option(kdl = "default-theme-id", scope = global)]
 /// Fallback theme ID if preferred theme is unavailable.
-pub static DEFAULT_THEME_ID: String = "monokai".to_string();
+pub const DEFAULT_THEME_ID: TypedOptionKey<String> =
+	TypedOptionKey::new("xeno-registry::default_theme_id");
 
-pub struct OptionReg(pub &'static crate::options::OptionDef);
-inventory::collect!(OptionReg);
+// Register standard validators
+crate::option_validator!(positive_int, super::validators::positive_int);
 
-pub fn register_builtins(builder: &mut crate::db::builder::RegistryDbBuilder) {
-	builder.register_option(&__OPT_CURSORLINE);
-	builder.register_option(&__OPT_TAB_WIDTH);
-	builder.register_option(&__OPT_SCROLL_LINES);
-	builder.register_option(&__OPT_SCROLL_MARGIN);
-	builder.register_option(&__OPT_THEME);
-	builder.register_option(&__OPT_DEFAULT_THEME_ID);
+pub fn register_builtins(builder: &mut RegistryDbBuilder) {
+	let blob = crate::kdl::loader::load_option_metadata();
+	let validators = inventory::iter::<crate::options::OptionValidatorReg>
+		.into_iter()
+		.map(|r| r.0);
+	let linked = crate::kdl::link::link_options(&blob, validators);
+
+	for def in linked {
+		builder.register_linked_option(def);
+	}
 }

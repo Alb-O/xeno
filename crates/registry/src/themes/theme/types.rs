@@ -168,6 +168,53 @@ pub struct ThemeDef {
 	pub colors: ThemeColors,
 }
 
+/// Linked theme definition assembled from KDL metadata.
+#[derive(Clone)]
+pub struct LinkedThemeDef {
+	pub id: String,
+	pub name: String,
+	pub description: String,
+	pub keys: Vec<String>,
+	pub priority: i16,
+	pub variant: ThemeVariant,
+	pub colors: ThemeColors,
+	pub source: RegistrySource,
+}
+
+impl BuildEntry<ThemeEntry> for LinkedThemeDef {
+	fn meta_ref(&self) -> RegistryMetaRef<'_> {
+		RegistryMetaRef {
+			id: &self.id,
+			name: &self.name,
+			keys: StrListRef::Owned(&self.keys),
+			description: &self.description,
+			priority: self.priority,
+			source: self.source,
+			required_caps: &[],
+			flags: 0,
+		}
+	}
+
+	fn short_desc_str(&self) -> &str {
+		&self.name
+	}
+
+	fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
+		crate::core::index::meta_build::collect_meta_strings(&self.meta_ref(), sink, []);
+	}
+
+	fn build(&self, interner: &FrozenInterner, key_pool: &mut Vec<Symbol>) -> ThemeEntry {
+		let meta =
+			crate::core::index::meta_build::build_meta(interner, key_pool, self.meta_ref(), []);
+
+		ThemeEntry {
+			meta,
+			variant: self.variant,
+			colors: self.colors,
+		}
+	}
+}
+
 /// Symbolized theme entry.
 pub struct ThemeEntry {
 	pub meta: RegistryMeta,
@@ -212,4 +259,4 @@ impl BuildEntry<ThemeEntry> for ThemeDef {
 }
 
 /// Unified input for theme registration.
-pub type ThemeInput = crate::core::def_input::DefInput<ThemeDef>;
+pub type ThemeInput = crate::core::def_input::DefInput<ThemeDef, LinkedThemeDef>;

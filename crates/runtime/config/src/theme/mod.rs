@@ -32,29 +32,19 @@ pub struct ParsedTheme {
 }
 
 impl ParsedTheme {
-	/// Convert to a `ThemeDef` for registration in the runtime theme registry.
-	///
-	/// Leaks the owned name/key strings to produce `&'static str` references
-	/// required by [`xeno_registry::themes::RegistryMetaStatic`]. This is safe
-	/// because theme registration runs once at startup.
-	pub fn into_owned_theme(self) -> xeno_registry::themes::ThemeDef {
+	/// Convert to a `LinkedThemeDef` for registration in the runtime theme registry.
+	pub fn into_owned_theme(self) -> xeno_registry::themes::LinkedThemeDef {
 		use xeno_registry::themes::RegistrySource;
 
-		let id: &'static str = self.name.leak();
-		let keys: &'static [&'static str] =
-			Vec::leak(self.keys.into_iter().map(|s| &*String::leak(s)).collect());
+		let id = format!("xeno-registry::{}", self.name);
 
-		xeno_registry::themes::ThemeDef {
-			meta: xeno_registry::themes::RegistryMetaStatic {
-				id,
-				name: id,
-				keys,
-				description: "",
-				priority: 0,
-				source: RegistrySource::Runtime,
-				required_caps: &[],
-				flags: 0,
-			},
+		xeno_registry::themes::LinkedThemeDef {
+			id,
+			name: self.name,
+			keys: self.keys,
+			description: "".to_string(),
+			priority: 0,
+			source: RegistrySource::Runtime,
 			variant: self.variant,
 			colors: self.colors,
 		}

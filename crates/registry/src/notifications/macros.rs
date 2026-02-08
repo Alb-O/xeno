@@ -1,78 +1,39 @@
 //! Notification definition macros.
 
-/// Defines a notification with compile-time registration.
+/// Defines a notification emitter.
+///
+/// The metadata (level, auto-dismiss, etc.) comes from `notifications.kdl`.
+/// This macro creates a `NotificationKey` typed handle and optionally a builder function.
 #[macro_export]
 macro_rules! notif {
-	// Static message: notif!(name, Level, "message")
-	($name:ident, $level:ident, $msg:literal) => {
+	// Static message: notif!(name, "message")
+	($name:ident, $msg:literal) => {
 		paste::paste! {
-			static [<NOTIF_ $name:upper>]: $crate::notifications::NotificationDef = $crate::notifications::NotificationDef::new(
-				concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
-				$crate::notifications::Level::$level,
-				$crate::notifications::AutoDismiss::DEFAULT,
-				$crate::RegistrySource::Builtin,
-			);
-
-			#[doc = concat!("Static notification: ", $msg)]
+			#[doc = concat!("Static notification handle for `", stringify!($name), "`.")]
 			pub const [<$name:upper>]: $crate::notifications::NotificationKey =
-				$crate::notifications::NotificationKey::new(&[<NOTIF_ $name:upper>], $msg);
+				$crate::notifications::NotificationKey::new(
+					concat!("xeno-registry::", stringify!($name)),
+					$msg
+				);
 		}
 	};
 
-	// Static message with custom auto_dismiss: notif!(name, Level, "message", auto_dismiss: expr)
-	($name:ident, $level:ident, $msg:literal, auto_dismiss: $dismiss:expr) => {
+	// Parameterized: notif!(name(arg: Type, ...), format_expr)
+	($name:ident ( $($arg:ident : $ty:ty),* $(,)? ), $fmt:expr) => {
 		paste::paste! {
-			static [<NOTIF_ $name:upper>]: $crate::notifications::NotificationDef = $crate::notifications::NotificationDef::new(
-				concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
-				$crate::notifications::Level::$level,
-				$dismiss,
-				$crate::RegistrySource::Builtin,
-			);
-
-			#[doc = concat!("Static notification: ", $msg)]
-			pub const [<$name:upper>]: $crate::notifications::NotificationKey =
-				$crate::notifications::NotificationKey::new(&[<NOTIF_ $name:upper>], $msg);
-		}
-	};
-
-	// Parameterized: notif!(name(arg: Type, ...), Level, format_expr)
-	($name:ident ( $($arg:ident : $ty:ty),* $(,)? ), $level:ident, $fmt:expr) => {
-		paste::paste! {
-			static [<NOTIF_ $name:upper>]: $crate::notifications::NotificationDef = $crate::notifications::NotificationDef::new(
-				concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
-				$crate::notifications::Level::$level,
-				$crate::notifications::AutoDismiss::DEFAULT,
-				$crate::RegistrySource::Builtin,
-			);
-
 			/// Const key for pattern matching and introspection.
 			pub const [<$name:upper>]: $crate::notifications::NotificationKey =
-				$crate::notifications::NotificationKey::new(&[<NOTIF_ $name:upper>], "");
+				$crate::notifications::NotificationKey::new(
+					concat!("xeno-registry::", stringify!($name)),
+					""
+				);
 
 			/// Builder function for parameterized notification.
 			pub fn $name($($arg: $ty),*) -> $crate::notifications::Notification {
-				$crate::notifications::Notification::new(&[<NOTIF_ $name:upper>], $fmt)
-			}
-		}
-	};
-
-	// Parameterized with custom auto_dismiss: notif!(name(arg: Type, ...), Level, format_expr, auto_dismiss: expr)
-	($name:ident ( $($arg:ident : $ty:ty),* $(,)? ), $level:ident, $fmt:expr, auto_dismiss: $dismiss:expr) => {
-		paste::paste! {
-			static [<NOTIF_ $name:upper>]: $crate::notifications::NotificationDef = $crate::notifications::NotificationDef::new(
-				concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
-				$crate::notifications::Level::$level,
-				$dismiss,
-				$crate::RegistrySource::Builtin,
-			);
-
-			/// Const key for pattern matching and introspection.
-			pub const [<$name:upper>]: $crate::notifications::NotificationKey =
-				$crate::notifications::NotificationKey::new(&[<NOTIF_ $name:upper>], "");
-
-			/// Builder function for parameterized notification.
-			pub fn $name($($arg: $ty),*) -> $crate::notifications::Notification {
-				$crate::notifications::Notification::new(&[<NOTIF_ $name:upper>], $fmt)
+				$crate::notifications::Notification::new_pending(
+					concat!("xeno-registry::", stringify!($name)),
+					$fmt
+				)
 			}
 		}
 	};
@@ -85,7 +46,10 @@ macro_rules! notif_alias {
 		paste::paste! {
 			#[doc = concat!("Alias for ", stringify!($base), ": ", $msg)]
 			pub const [<$alias:upper>]: $crate::notifications::NotificationKey =
-				$crate::notifications::NotificationKey::new(&[<NOTIF_ $base:upper>], $msg);
+				$crate::notifications::NotificationKey::new(
+					concat!("xeno-registry::", stringify!($base)),
+					$msg
+				);
 		}
 	};
 }

@@ -72,19 +72,19 @@ impl DomainSpec for Options {
 
 	fn on_push(_db: &mut RegistryDbBuilder, input: &Self::Input) {
 		if let OptionInput::Static(def) = input {
-			// Validate static option defaults at registration time
-			if def.default.value_type() != def.value_type {
-				panic!(
-					"OptionDef default type mismatch: name={} kdl_key={} value_type={:?} default_type={:?}",
-					def.meta.name,
-					def.kdl_key,
-					def.value_type,
-					def.default.value_type(),
-				);
-			}
+			crate::db::builder::validate_option_def(def);
 		}
 	}
 }
+
+domain!(
+	Notifications,
+	"notifications",
+	notifications,
+	crate::notifications::NotificationInput,
+	crate::notifications::NotificationEntry,
+	crate::notifications::NotificationId
+);
 
 domain!(
 	Commands,

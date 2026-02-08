@@ -30,7 +30,7 @@ mod unit_tests {
 	fn test_cursor_spans_tab_width() {
 		let doc = Rope::from("\tX");
 		let tab_width = 4;
-		let theme = theme_from_entry(xeno_registry::themes::get_theme("default").unwrap());
+		let theme = theme_from_entry(xeno_registry::themes::get_theme("monokai").unwrap());
 		let loader = xeno_runtime_language::LanguageLoader::new();
 		let syntax_manager = crate::syntax_manager::SyntaxManager::default();
 
@@ -131,7 +131,7 @@ mod unit_tests {
 	fn test_selection_spans_tab_width() {
 		let doc = Rope::from("\tX");
 		let tab_width = 4;
-		let theme = theme_from_entry(xeno_registry::themes::get_theme("default").unwrap());
+		let theme = theme_from_entry(xeno_registry::themes::get_theme("monokai").unwrap());
 		let loader = xeno_runtime_language::LanguageLoader::new();
 		let syntax_manager = crate::syntax_manager::SyntaxManager::default();
 
@@ -226,7 +226,7 @@ mod unit_tests {
 	#[test]
 	fn test_cursor_does_not_span_continuation_indent() {
 		let doc = Rope::from("Long line that wraps");
-		let theme = theme_from_entry(xeno_registry::themes::get_theme("default").unwrap());
+		let theme = theme_from_entry(xeno_registry::themes::get_theme("monokai").unwrap());
 		let loader = xeno_runtime_language::LanguageLoader::new();
 		let syntax_manager = crate::syntax_manager::SyntaxManager::default();
 

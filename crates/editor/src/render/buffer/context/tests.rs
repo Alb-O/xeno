@@ -27,7 +27,7 @@ mod tests {
 	#[test]
 	fn test_render_baseline() {
 		let buffer = Buffer::new(ViewId::text(1), "Hello world".to_string(), None);
-		let theme = theme_from_entry(xeno_registry::themes::get_theme("default").unwrap());
+		let theme = theme_from_entry(xeno_registry::themes::get_theme("monokai").unwrap());
 		let loader = xeno_runtime_language::LanguageLoader::from_embedded();
 		let syntax_manager = crate::syntax_manager::SyntaxManager::default();
 
@@ -97,7 +97,7 @@ mod tests {
 	fn test_render_wrapping() {
 		// Use a very narrow text width to force wrapping
 		let buffer = Buffer::new(ViewId::text(1), "One two three four five".to_string(), None);
-		let theme = theme_from_entry(xeno_registry::themes::get_theme("default").unwrap());
+		let theme = theme_from_entry(xeno_registry::themes::get_theme("monokai").unwrap());
 		let loader = xeno_runtime_language::LanguageLoader::from_embedded();
 		let syntax_manager = crate::syntax_manager::SyntaxManager::default();
 

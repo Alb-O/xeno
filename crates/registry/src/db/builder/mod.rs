@@ -32,7 +32,11 @@ pub struct RegistryDbBuilder {
 	pub gutters: RegistryBuilder<GutterInput, GutterEntry, GutterId>,
 	pub statusline: RegistryBuilder<StatuslineInput, StatuslineEntry, StatuslineId>,
 	pub hooks: RegistryBuilder<HookInput, HookEntry, HookId>,
-	pub notifications: Vec<&'static crate::notifications::NotificationDef>,
+	pub notifications: RegistryBuilder<
+		crate::notifications::NotificationInput,
+		crate::notifications::NotificationEntry,
+		crate::notifications::NotificationId,
+	>,
 	pub keybindings: Vec<KeyBindingDef>,
 	pub key_prefixes: Vec<KeyPrefixDef>,
 	plugin_ids: HashSet<&'static str>,
@@ -49,7 +53,10 @@ pub struct RegistryIndices {
 	pub gutters: RegistryIndex<GutterEntry, GutterId>,
 	pub statusline: RegistryIndex<StatuslineEntry, StatuslineId>,
 	pub hooks: RegistryIndex<HookEntry, HookId>,
-	pub notifications: Vec<&'static crate::notifications::NotificationDef>,
+	pub notifications: RegistryIndex<
+		crate::notifications::NotificationEntry,
+		crate::notifications::NotificationId,
+	>,
 	pub keybindings: Vec<KeyBindingDef>,
 	pub key_prefixes: Vec<KeyPrefixDef>,
 }
@@ -130,7 +137,7 @@ impl RegistryDbBuilder {
 			gutters: RegistryBuilder::new("gutters"),
 			statusline: RegistryBuilder::new("statusline"),
 			hooks: RegistryBuilder::new("hooks"),
-			notifications: Vec::new(),
+			notifications: RegistryBuilder::new("notifications"),
 			keybindings: Vec::new(),
 			key_prefixes: Vec::new(),
 			plugin_ids: HashSet::new(),
@@ -180,11 +187,21 @@ impl RegistryDbBuilder {
 	}
 
 	pub fn register_option(&mut self, def: &'static OptionDef) {
-		self.push_domain::<crate::db::domains::Options>(OptionInput::Static(*def));
+		self.push_domain::<crate::db::domains::Options>(OptionInput::Static(def.clone()));
+	}
+
+	/// Registers an option defined via KDL metadata + Rust validator linking.
+	pub fn register_linked_option(&mut self, def: crate::options::def::LinkedOptionDef) {
+		self.push_domain::<crate::db::domains::Options>(OptionInput::Linked(def));
 	}
 
 	pub fn register_theme(&mut self, def: &'static ThemeDef) {
 		self.push_domain::<crate::db::domains::Themes>(ThemeInput::Static(*def));
+	}
+
+	/// Registers a theme defined via KDL metadata.
+	pub fn register_linked_theme(&mut self, def: crate::themes::theme::LinkedThemeDef) {
+		self.push_domain::<crate::db::domains::Themes>(ThemeInput::Linked(def));
 	}
 
 	pub fn register_gutter(&mut self, def: &'static GutterDef) {
@@ -218,7 +235,19 @@ impl RegistryDbBuilder {
 	}
 
 	pub fn register_notification(&mut self, def: &'static crate::notifications::NotificationDef) {
-		self.notifications.push(def);
+		self.push_domain::<crate::db::domains::Notifications>(
+			crate::notifications::NotificationInput::Static(*def),
+		);
+	}
+
+	/// Registers a notification defined via KDL metadata.
+	pub fn register_linked_notification(
+		&mut self,
+		def: crate::notifications::def::LinkedNotificationDef,
+	) {
+		self.push_domain::<crate::db::domains::Notifications>(
+			crate::notifications::NotificationInput::Linked(def),
+		);
 	}
 
 	pub fn register_key_prefixes(&mut self, defs: impl IntoIterator<Item = KeyPrefixDef>) {
@@ -261,9 +290,22 @@ impl RegistryDbBuilder {
 			gutters: self.gutters.build(),
 			statusline: self.statusline.build(),
 			hooks: self.hooks.build(),
-			notifications: self.notifications,
+			notifications: self.notifications.build(),
 			keybindings: self.keybindings,
 			key_prefixes: self.key_prefixes,
 		}
+	}
+}
+
+/// Validates that an option definition's default value matches its declared type.
+pub(crate) fn validate_option_def(def: &OptionDef) {
+	if def.default.value_type() != def.value_type {
+		panic!(
+			"OptionDef default type mismatch: name={} kdl_key={} value_type={:?} default_type={:?}",
+			def.meta.name,
+			def.kdl_key,
+			def.value_type,
+			def.default.value_type(),
+		);
 	}
 }

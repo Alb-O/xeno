@@ -37,8 +37,11 @@ pub struct RegistryDb {
 	pub gutters: RuntimeRegistry<GutterEntry, GutterId>,
 	pub statusline: RuntimeRegistry<StatuslineEntry, StatuslineId>,
 	pub hooks: HooksRegistry,
+	pub notifications: RuntimeRegistry<
+		crate::notifications::NotificationEntry,
+		crate::notifications::NotificationId,
+	>,
 	pub(crate) action_id_to_def: Vec<Arc<ActionEntry>>,
-	pub notifications: Vec<&'static crate::notifications::NotificationDef>,
 	pub key_prefixes: Vec<KeyPrefixDef>,
 	#[cfg(feature = "keymap")]
 	pub keymap: KeymapRegistry,
@@ -65,9 +68,6 @@ pub fn get_db() -> &'static RegistryDb {
 		#[cfg(feature = "keymap")]
 		let keymap = KeymapRegistry::build(&indices.actions, &indices.keybindings);
 
-		let mut notifications = indices.notifications;
-		notifications.sort_by_key(|d| d.id);
-
 		RegistryDb {
 			actions: RuntimeRegistry::new("actions", indices.actions),
 			commands: RuntimeRegistry::new("commands", indices.commands),
@@ -78,8 +78,8 @@ pub fn get_db() -> &'static RegistryDb {
 			gutters: RuntimeRegistry::new("gutters", indices.gutters),
 			statusline: RuntimeRegistry::new("statusline", indices.statusline),
 			hooks: HooksRegistry::new(indices.hooks),
+			notifications: RuntimeRegistry::new("notifications", indices.notifications),
 			action_id_to_def,
-			notifications,
 			key_prefixes: indices.key_prefixes,
 			#[cfg(feature = "keymap")]
 			keymap,
@@ -103,8 +103,23 @@ pub static GUTTERS: LazyLock<&'static RuntimeRegistry<GutterEntry, GutterId>> =
 pub static STATUSLINE_SEGMENTS: LazyLock<&'static RuntimeRegistry<StatuslineEntry, StatuslineId>> =
 	LazyLock::new(|| &get_db().statusline);
 pub static HOOKS: LazyLock<&'static HooksRegistry> = LazyLock::new(|| &get_db().hooks);
-pub static NOTIFICATIONS: LazyLock<&'static [&'static crate::notifications::NotificationDef]> =
-	LazyLock::new(|| get_db().notifications.as_slice());
+pub static NOTIFICATIONS: LazyLock<
+	&'static RuntimeRegistry<
+		crate::notifications::NotificationEntry,
+		crate::notifications::NotificationId,
+	>,
+> = LazyLock::new(|| &get_db().notifications);
+
+impl RegistryDb {
+	pub fn notifications_reg(
+		&self,
+	) -> &RuntimeRegistry<
+		crate::notifications::NotificationEntry,
+		crate::notifications::NotificationId,
+	> {
+		&self.notifications
+	}
+}
 
 pub fn resolve_action_id_typed(id: ActionId) -> Option<Arc<ActionEntry>> {
 	get_db().action_id_to_def.get(id.0 as usize).cloned()

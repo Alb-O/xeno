@@ -98,7 +98,7 @@ pub enum OptionType {
 /// function pointers. This enables build-time validation of option definitions
 /// (ensuring the default matches the declared [`OptionType`]) and eliminates
 /// runtime downcasting/unwraps during resolution.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub enum OptionDefault {
 	/// Boolean default value factory.
 	Bool(fn() -> bool),
@@ -106,6 +106,8 @@ pub enum OptionDefault {
 	Int(fn() -> i64),
 	/// String default value factory.
 	String(fn() -> String),
+	/// Static value (for KDL-linked definitions).
+	Value(OptionValue),
 }
 
 impl core::fmt::Debug for OptionDefault {
@@ -114,26 +116,33 @@ impl core::fmt::Debug for OptionDefault {
 			OptionDefault::Bool(_) => f.write_str("OptionDefault::Bool(..)"),
 			OptionDefault::Int(_) => f.write_str("OptionDefault::Int(..)"),
 			OptionDefault::String(_) => f.write_str("OptionDefault::String(..)"),
+			OptionDefault::Value(v) => f.debug_tuple("OptionDefault::Value").field(v).finish(),
 		}
 	}
 }
 
 impl OptionDefault {
 	/// Returns the [`OptionType`] produced by this default.
-	pub fn value_type(self) -> OptionType {
+	pub fn value_type(&self) -> OptionType {
 		match self {
 			OptionDefault::Bool(_) => OptionType::Bool,
 			OptionDefault::Int(_) => OptionType::Int,
 			OptionDefault::String(_) => OptionType::String,
+			OptionDefault::Value(v) => match v {
+				OptionValue::Bool(_) => OptionType::Bool,
+				OptionValue::Int(_) => OptionType::Int,
+				OptionValue::String(_) => OptionType::String,
+			},
 		}
 	}
 
 	/// Invokes the factory function and returns the value as an [`OptionValue`].
-	pub fn to_value(self) -> OptionValue {
+	pub fn to_value(&self) -> OptionValue {
 		match self {
 			OptionDefault::Bool(f) => OptionValue::Bool(f()),
 			OptionDefault::Int(f) => OptionValue::Int(f()),
 			OptionDefault::String(f) => OptionValue::String(f()),
+			OptionDefault::Value(v) => v.clone(),
 		}
 	}
 }

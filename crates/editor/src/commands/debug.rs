@@ -4,7 +4,7 @@ use xeno_primitives::BoxFutureLocal;
 use xeno_registry::index::{all_actions, all_commands, all_motions, all_text_objects};
 use xeno_registry::options::OPTIONS;
 use xeno_registry::themes::THEMES;
-use xeno_registry::{GUTTERS, HOOKS, NOTIFICATIONS, STATUSLINE_SEGMENTS};
+use xeno_registry::{GUTTERS, HOOKS, NOTIFICATIONS, STATUSLINE_SEGMENTS, RegistryMetadata};
 
 use super::{CommandError, CommandOutcome, EditorCommandContext};
 use crate::editor_command;
@@ -291,14 +291,14 @@ fn collect_registry_items(kind: RegistryKind) -> Vec<RegistryItem> {
 		RegistryKind::Gutters => GUTTERS.all().iter().map(registry_item_from_ref).collect(),
 		RegistryKind::Hooks => HOOKS.all().iter().map(registry_item_from_ref).collect(),
 		RegistryKind::Notifications => NOTIFICATIONS
+			.all()
 			.iter()
-			.copied()
 			.map(|def| RegistryItem {
-				id: def.id.to_string(),
-				name: def.id.to_string(),
+				id: def.id_str().to_string(),
+				name: def.id_str().to_string(),
 				description: format!("level={:?}, auto_dismiss={:?}", def.level, def.auto_dismiss),
 				priority: 0,
-				source: def.source,
+				source: def.source(),
 				required_caps: "[]".to_string(),
 				flags: 0,
 			})

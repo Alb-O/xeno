@@ -4,7 +4,6 @@ pub(crate) mod insert;
 pub(crate) mod misc;
 pub(crate) mod modes;
 pub(crate) mod navigation;
-pub(crate) mod prefixes;
 pub(crate) mod scrolling;
 pub(crate) mod search;
 pub(crate) mod selection;

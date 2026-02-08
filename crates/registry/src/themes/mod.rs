@@ -6,8 +6,13 @@ pub mod syntax;
 pub mod theme;
 
 pub use syntax::{SyntaxStyle, SyntaxStyles};
-pub use theme::{ThemeDef as Theme, *};
+pub use theme::{ThemeDef as Theme, LinkedThemeDef, *};
 
 pub fn register_builtins(builder: &mut crate::db::builder::RegistryDbBuilder) {
-	builder.register_theme(&theme::DEFAULT_THEME);
+	let blob = crate::kdl::loader::load_theme_metadata();
+	let linked = crate::kdl::link::link_themes(&blob);
+
+	for def in linked {
+		builder.register_linked_theme(def);
+	}
 }

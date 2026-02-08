@@ -82,10 +82,7 @@ impl<'a> OptionResolver<'a> {
 			"option type mismatch; falling back to default",
 		);
 
-		match opt.default {
-			crate::options::OptionDefault::Int(f) => f(),
-			_ => unreachable!("validated at build"),
-		}
+		opt.default.to_value().as_int().expect("validated at build")
 	}
 
 	/// Resolves a boolean option through the hierarchy.
@@ -102,10 +99,10 @@ impl<'a> OptionResolver<'a> {
 			"option type mismatch; falling back to default",
 		);
 
-		match opt.default {
-			crate::options::OptionDefault::Bool(f) => f(),
-			_ => unreachable!("validated at build"),
-		}
+		opt.default
+			.to_value()
+			.as_bool()
+			.expect("validated at build")
 	}
 
 	/// Resolves a string option through the hierarchy.
@@ -122,9 +119,10 @@ impl<'a> OptionResolver<'a> {
 			"option type mismatch; falling back to default",
 		);
 
-		match opt.default {
-			crate::options::OptionDefault::String(f) => f(),
-			_ => unreachable!("validated at build"),
-		}
+		opt.default
+			.to_value()
+			.as_str()
+			.expect("validated at build")
+			.to_string()
 	}
 }
