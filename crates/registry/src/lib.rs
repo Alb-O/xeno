@@ -188,8 +188,8 @@ pub use db::index::{
 pub use db::keymap_registry::{BindingEntry, KeymapRegistry, LookupResult, get_keymap_registry};
 #[cfg(feature = "db")]
 pub use db::{
-	ACTIONS, COMMANDS, GUTTERS, HOOKS, MOTIONS, NOTIFICATIONS, OPTIONS, STATUSLINE_SEGMENTS,
-	TEXT_OBJECTS, THEMES,
+	ACTIONS, COMMANDS, GUTTERS, HOOKS, LANGUAGES, MOTIONS, NOTIFICATIONS, OPTIONS,
+	STATUSLINE_SEGMENTS, TEXT_OBJECTS, THEMES,
 };
 #[cfg(feature = "actions")]
 pub use domains::actions;
@@ -199,6 +199,8 @@ pub use domains::commands;
 pub use domains::gutter;
 #[cfg(feature = "hooks")]
 pub use domains::hooks;
+#[cfg(feature = "languages")]
+pub use domains::languages;
 #[cfg(feature = "motions")]
 pub use domains::motions;
 #[cfg(feature = "notifications")]

@@ -244,6 +244,20 @@ impl DenseId for NotificationId {
 	}
 }
 
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct LanguageId(pub u32);
+
+impl DenseId for LanguageId {
+	const INVALID: Self = LanguageId(u32::MAX);
+	fn from_u32(v: u32) -> Self {
+		LanguageId(v)
+	}
+	fn as_u32(self) -> u32 {
+		self.0
+	}
+}
+
 macro_rules! impl_display_id {
     ($($t:ty),*) => {
         $(
@@ -271,7 +285,8 @@ impl_display_id!(
 	StatuslineId,
 	HookId,
 	OverlayId,
-	NotificationId
+	NotificationId,
+	LanguageId
 );
 
 impl ActionId {

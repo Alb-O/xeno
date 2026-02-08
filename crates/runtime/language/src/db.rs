@@ -1,16 +1,11 @@
-//! Language database: single source of truth for language configuration.
-//!
-//! The [`LanguageDb`] consolidates all language metadata into a single structure,
-//! parsed once from `languages.kdl`. Lookups are backed by simple HashMaps for
-//! fast access by name, extension, filename, and shebang.
-
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
-use tracing::error;
-use tree_house::Language;
+use tree_house::LanguageConfig as TreeHouseConfig;
+use xeno_registry::db::LANGUAGES;
+use xeno_registry::languages::registry::LanguageRef;
+use xeno_registry::{DenseId, LanguageId};
 
-use crate::config::load_language_configs;
 use crate::language::LanguageData;
 use crate::lsp_config::LanguageLspInfo;
 
@@ -24,160 +19,137 @@ pub fn language_db() -> &'static Arc<LanguageDb> {
 
 /// Consolidated language configuration database.
 ///
-/// Holds all registered language metadata with in-memory indices for
-/// fast lookups by name, extension, filename, and shebang.
+/// Wraps the registry-backed language index and provides caching for
+/// runtime-loaded syntax configurations.
 pub struct LanguageDb {
-	languages: Vec<LanguageData>,
-	globs: Vec<(String, usize)>,
-	/// Map from language name to index.
-	by_name: HashMap<String, usize>,
-	/// Map from extension to language index (first registered wins).
-	by_extension: HashMap<String, usize>,
-	/// Map from filename to language index.
-	by_filename: HashMap<String, usize>,
-	/// Map from shebang to language index.
-	by_shebang: HashMap<String, usize>,
+	configs: Vec<OnceLock<Option<Arc<TreeHouseConfig>>>>,
 }
 
 impl LanguageDb {
-	/// Creates an empty database.
+	/// Creates an empty database (unused in registry-backed version).
 	pub fn new() -> Self {
-		Self {
-			languages: Vec::new(),
-			globs: Vec::new(),
-			by_name: HashMap::new(),
-			by_extension: HashMap::new(),
-			by_filename: HashMap::new(),
-			by_shebang: HashMap::new(),
-		}
+		Self::from_embedded()
 	}
 
-	/// Creates a database populated from the embedded `languages.kdl`.
+	/// Creates a database populated from the embedded registry.
 	pub fn from_embedded() -> Self {
-		let mut db = Self::new();
-		match load_language_configs() {
-			Ok(langs) => db.register_all(langs),
-			Err(e) => error!(error = %e, "Failed to load language configs"),
+		let len = LANGUAGES.len();
+		let mut configs = Vec::with_capacity(len);
+		for _ in 0..len {
+			configs.push(OnceLock::new());
 		}
-		db
-	}
-
-	/// Registers a language and adds it to all indices.
-	///
-	/// Returns the language ID for the registered language.
-	pub fn register(&mut self, data: LanguageData) -> Language {
-		let idx = self.languages.len() as u32;
-		self.register_all(vec![data]);
-		Language::new(idx)
-	}
-
-	/// Batch-registers languages.
-	fn register_all(&mut self, languages: Vec<LanguageData>) {
-		let start_idx = self.languages.len();
-
-		for (i, data) in languages.iter().enumerate() {
-			let idx = start_idx + i;
-
-			// Index by name.
-			self.by_name.entry(data.name.clone()).or_insert(idx);
-
-			// Index by extension (first registered wins).
-			for ext in &data.extensions {
-				self.by_extension.entry(ext.clone()).or_insert(idx);
-			}
-
-			// Index by filename.
-			for fname in &data.filenames {
-				self.by_filename.entry(fname.clone()).or_insert(idx);
-			}
-
-			// Index by shebang.
-			for shebang in &data.shebangs {
-				self.by_shebang.entry(shebang.clone()).or_insert(idx);
-			}
-
-			// Collect globs.
-			for glob in &data.globs {
-				self.globs.push((glob.clone(), idx));
-			}
-		}
-
-		self.languages.extend(languages);
+		Self { configs }
 	}
 
 	/// Returns language data by index.
-	pub fn get(&self, idx: usize) -> Option<&LanguageData> {
-		self.languages.get(idx)
+	pub fn get(&self, idx: usize) -> Option<LanguageData> {
+		LANGUAGES
+			.get_by_id(LanguageId::from_u32(idx as u32))
+			.map(|entry: LanguageRef| LanguageData { entry })
 	}
 
 	/// Returns the index for a language name.
 	pub fn index_for_name(&self, name: &str) -> Option<usize> {
-		self.by_name.get(name).copied()
+		LANGUAGES
+			.get(name)
+			.map(|r: LanguageRef| r.dense_id().as_u32() as usize)
 	}
 
 	/// Returns the index for a file extension.
 	pub fn index_for_extension(&self, ext: &str) -> Option<usize> {
-		self.by_extension.get(ext).copied()
+		LANGUAGES
+			.language_for_extension(ext)
+			.map(|r: LanguageRef| r.dense_id().as_u32() as usize)
 	}
 
 	/// Returns the index for an exact filename.
 	pub fn index_for_filename(&self, filename: &str) -> Option<usize> {
-		self.by_filename.get(filename).copied()
+		LANGUAGES
+			.language_for_filename(filename)
+			.map(|r: LanguageRef| r.dense_id().as_u32() as usize)
 	}
 
 	/// Returns the index for a shebang interpreter.
 	pub fn index_for_shebang(&self, interpreter: &str) -> Option<usize> {
-		self.by_shebang.get(interpreter).copied()
+		LANGUAGES
+			.language_for_shebang(interpreter)
+			.map(|r: LanguageRef| r.dense_id().as_u32() as usize)
 	}
 
 	/// Returns glob patterns with their language indices.
-	pub fn globs(&self) -> &[(String, usize)] {
-		&self.globs
+	pub fn globs(&self) -> Vec<(String, usize)> {
+		(*LANGUAGES)
+			.globs()
+			.into_iter()
+			.map(|(pattern, id): (String, LanguageId)| (pattern, id.as_u32() as usize))
+			.collect()
 	}
 
 	/// Returns all registered languages.
-	pub fn languages(&self) -> impl Iterator<Item = (usize, &LanguageData)> {
-		self.languages.iter().enumerate()
+	pub fn languages(&self) -> impl Iterator<Item = (usize, LanguageData)> {
+		LANGUAGES
+			.all()
+			.into_iter()
+			.map(|entry: LanguageRef| (entry.dense_id().as_u32() as usize, LanguageData { entry }))
 	}
 
 	/// Returns the number of registered languages.
 	pub fn len(&self) -> usize {
-		self.languages.len()
+		LANGUAGES.len()
 	}
 
 	/// Returns true if no languages are registered.
 	pub fn is_empty(&self) -> bool {
-		self.languages.is_empty()
+		LANGUAGES.is_empty()
+	}
+
+	/// Returns the syntax configuration for a language ID.
+	pub fn get_config(&self, id: LanguageId) -> Option<&TreeHouseConfig> {
+		let lock = self.configs.get(id.as_u32() as usize)?;
+		lock.get_or_init(|| {
+			let entry = LANGUAGES.get_by_id(id)?;
+			crate::language::load_syntax_config(&entry).map(Arc::new)
+		})
+		.as_ref()
+		.map(|arc: &Arc<TreeHouseConfig>| arc.as_ref())
 	}
 
 	/// Returns LSP configuration for a language.
-	///
-	/// Returns `None` if the language has no LSP servers configured.
 	pub fn lsp_info(&self, language: &str) -> Option<LanguageLspInfo> {
-		let idx = self.index_for_name(language)?;
-		let lang = &self.languages[idx];
-		if lang.lsp_servers.is_empty() {
+		let entry = LANGUAGES.get(language)?;
+		if entry.lsp_servers.is_empty() {
 			return None;
 		}
 		Some(LanguageLspInfo {
-			servers: lang.lsp_servers.clone(),
-			roots: lang.roots.clone(),
+			servers: entry
+				.lsp_servers
+				.iter()
+				.map(|&s| entry.resolve(s).to_string())
+				.collect(),
+			roots: entry
+				.roots
+				.iter()
+				.map(|&s| entry.resolve(s).to_string())
+				.collect(),
 		})
 	}
 
 	/// Returns a mapping of all languages to their LSP info.
-	///
-	/// Only includes languages that have LSP servers configured.
 	pub fn lsp_mapping(&self) -> HashMap<String, LanguageLspInfo> {
-		self.languages
-			.iter()
-			.filter(|lang| !lang.lsp_servers.is_empty())
-			.map(|lang| {
+		LANGUAGES
+			.all()
+			.into_iter()
+			.filter(|l| !l.lsp_servers.is_empty())
+			.map(|l| {
 				(
-					lang.name.clone(),
+					l.id_str().to_string(),
 					LanguageLspInfo {
-						servers: lang.lsp_servers.clone(),
-						roots: lang.roots.clone(),
+						servers: l
+							.lsp_servers
+							.iter()
+							.map(|&s| l.resolve(s).to_string())
+							.collect(),
+						roots: l.roots.iter().map(|&s| l.resolve(s).to_string()).collect(),
 					},
 				)
 			})
@@ -194,102 +166,7 @@ impl Default for LanguageDb {
 impl std::fmt::Debug for LanguageDb {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		f.debug_struct("LanguageDb")
-			.field("languages", &self.languages.len())
-			.field("globs", &self.globs.len())
+			.field("languages", &LANGUAGES.len())
 			.finish_non_exhaustive()
-	}
-}
-
-#[cfg(test)]
-mod tests {
-	use super::*;
-
-	#[test]
-	fn db_from_embedded() {
-		let db = LanguageDb::from_embedded();
-		assert!(!db.is_empty());
-
-		let rust_idx = db.index_for_name("rust").expect("rust language");
-		let rust = db.get(rust_idx).unwrap();
-		assert!(rust.extensions.contains(&"rs".to_string()));
-	}
-
-	#[test]
-	fn lsp_info_returns_configured_servers() {
-		let db = LanguageDb::from_embedded();
-		let info = db.lsp_info("rust").expect("rust has LSP");
-		assert!(info.servers.contains(&"rust-analyzer".to_string()));
-	}
-
-	#[test]
-	fn lsp_mapping_excludes_languages_without_servers() {
-		let db = LanguageDb::from_embedded();
-		let mapping = db.lsp_mapping();
-
-		assert!(mapping.contains_key("rust"));
-		for info in mapping.values() {
-			assert!(!info.servers.is_empty());
-		}
-	}
-
-	#[test]
-	fn collision_returns_lower_idx() {
-		let mut db = LanguageDb::new();
-		db.register(LanguageData::new(
-			"cpp".to_string(),
-			None,
-			vec!["h".to_string(), "cpp".to_string()],
-			vec![],
-			vec![],
-			vec![],
-			vec![],
-			None,
-			None,
-			vec![],
-			vec![],
-		));
-		db.register(LanguageData::new(
-			"c".to_string(),
-			None,
-			vec!["h".to_string(), "c".to_string()],
-			vec![],
-			vec![],
-			vec![],
-			vec![],
-			None,
-			None,
-			vec![],
-			vec![],
-		));
-
-		let idx = db.index_for_extension("h").expect("h extension");
-		assert_eq!(
-			idx, 0,
-			"shared extension should resolve to first registered"
-		);
-	}
-
-	#[test]
-	fn multi_key_indexing() {
-		let mut db = LanguageDb::new();
-		db.register(LanguageData::new(
-			"rust".to_string(),
-			None,
-			vec!["rs".to_string()],
-			vec!["Cargo.toml".to_string()],
-			vec![],
-			vec!["rust-script".to_string(), "cargo".to_string()],
-			vec![],
-			None,
-			None,
-			vec![],
-			vec![],
-		));
-
-		assert!(db.index_for_extension("rs").is_some());
-		assert!(db.index_for_filename("Cargo.toml").is_some());
-		assert!(db.index_for_shebang("rust-script").is_some());
-		assert!(db.index_for_shebang("cargo").is_some());
-		assert!(db.index_for_extension("py").is_none());
 	}
 }

@@ -136,7 +136,7 @@ impl Document {
 			&& let Some(lang_id) = language_loader.language_for_path(p)
 		{
 			let lang_data = language_loader.get(lang_id);
-			self.file_type = lang_data.map(|l| l.name.clone());
+			self.file_type = lang_data.map(|l| l.name().to_string());
 			self.language_id = Some(lang_id);
 		}
 	}
@@ -148,7 +148,7 @@ impl Document {
 
 		if let Some(lang_id) = language_loader.language_for_name(name) {
 			let lang_data = language_loader.get(lang_id);
-			self.file_type = lang_data.map(|l| l.name.clone());
+			self.file_type = lang_data.map(|l| l.name().to_string());
 			self.language_id = Some(lang_id);
 		}
 	}

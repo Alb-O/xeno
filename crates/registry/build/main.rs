@@ -3,11 +3,13 @@ use std::path::PathBuf;
 
 mod actions;
 mod common;
+mod languages;
 mod registry;
 mod themes;
 mod types;
 
 use actions::build_actions_blob;
+use languages::build_languages_blob;
 use registry::{
 	build_commands_blob, build_gutters_blob, build_hooks_blob, build_motions_blob,
 	build_notifications_blob, build_options_blob, build_statusline_blob, build_textobj_blob,
@@ -23,7 +25,13 @@ fn main() {
 		.unwrap()
 		.join("runtime/data/assets/registry");
 
+	let lang_data_dir = PathBuf::from(&manifest_dir)
+		.parent()
+		.unwrap()
+		.join("runtime/data/assets/language");
+
 	build_actions_blob(&data_dir, &out_dir);
+	build_languages_blob(&lang_data_dir, &out_dir);
 	build_commands_blob(&data_dir, &out_dir);
 	build_motions_blob(&data_dir, &out_dir);
 	build_textobj_blob(&data_dir, &out_dir);

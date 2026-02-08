@@ -1,7 +1,7 @@
 use std::sync::{Arc, LazyLock, OnceLock};
 
 pub use crate::core::{
-	ActionId, CommandId, DenseId, GutterId, HookId, MotionId, OptionId, RegistryIndex,
+	ActionId, CommandId, DenseId, GutterId, HookId, LanguageId, MotionId, OptionId, RegistryIndex,
 	RuntimeRegistry, StatuslineId, TextObjectId, ThemeId,
 };
 
@@ -21,6 +21,7 @@ use crate::commands::CommandEntry;
 use crate::db::keymap_registry::KeymapRegistry;
 use crate::gutter::GutterEntry;
 use crate::hooks::registry::HooksRegistry;
+use crate::languages::LanguagesRegistry;
 use crate::motions::MotionEntry;
 use crate::options::registry::OptionsRegistry;
 use crate::statusline::StatuslineEntry;
@@ -41,6 +42,7 @@ pub struct RegistryDb {
 		crate::notifications::NotificationEntry,
 		crate::notifications::NotificationId,
 	>,
+	pub languages: LanguagesRegistry,
 	pub(crate) action_id_to_def: Vec<Arc<ActionEntry>>,
 	pub key_prefixes: Vec<KeyPrefixDef>,
 	#[cfg(feature = "keymap")]
@@ -79,6 +81,7 @@ pub fn get_db() -> &'static RegistryDb {
 			statusline: RuntimeRegistry::new("statusline", indices.statusline),
 			hooks: HooksRegistry::new(indices.hooks),
 			notifications: RuntimeRegistry::new("notifications", indices.notifications),
+			languages: LanguagesRegistry::new(indices.languages),
 			action_id_to_def,
 			key_prefixes: indices.key_prefixes,
 			#[cfg(feature = "keymap")]
@@ -109,6 +112,7 @@ pub static NOTIFICATIONS: LazyLock<
 		crate::notifications::NotificationId,
 	>,
 > = LazyLock::new(|| &get_db().notifications);
+pub static LANGUAGES: LazyLock<&'static LanguagesRegistry> = LazyLock::new(|| &get_db().languages);
 
 impl RegistryDb {
 	pub fn notifications_reg(

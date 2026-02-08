@@ -7,6 +7,8 @@ pub mod gutter;
 #[cfg(feature = "hooks")]
 #[macro_use]
 pub mod hooks;
+#[cfg(feature = "languages")]
+pub mod languages;
 #[cfg(feature = "motions")]
 pub mod motions;
 #[cfg(feature = "notifications")]

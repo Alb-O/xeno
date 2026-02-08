@@ -24,10 +24,10 @@
 //! - Query files (highlights, indents, textobjects, injections, locals)
 
 pub mod build;
-pub mod config;
 pub mod db;
 pub mod grammar;
 pub mod highlight;
+pub mod ids;
 pub mod language;
 pub mod loader;
 pub mod lsp_config;
@@ -37,14 +37,14 @@ mod runtime;
 pub mod syntax;
 mod utils;
 
-pub use config::{LanguageConfigError, load_language_configs};
 pub use db::{LanguageDb, language_db};
 pub use grammar::{
 	GrammarError, GrammarSource, cache_dir, grammar_search_paths, load_grammar,
 	load_grammar_or_build, query_search_paths, runtime_dir,
 };
 pub use highlight::{Highlight, HighlightEvent, HighlightSpan, HighlightStyles, Highlighter};
-pub use language::{LanguageData, LanguageDataRaw};
+pub use ids::{RegistryLanguageIdExt, TreeHouseLanguageExt};
+pub use language::LanguageData;
 pub use loader::{LanguageId, LanguageLoader};
 pub use lsp_config::{
 	LanguageLspInfo, LanguageLspMapping, LspConfigError, LspServerDef, LspServerDefRaw,

@@ -22,9 +22,10 @@ full = [
     "gutter-builtins",
     "hooks-builtins",
     "notifications-builtins",
+    "languages-builtins",
 ]
 
-minimal = ["actions", "commands", "motions", "textobj", "options", "themes"]
+minimal = ["actions", "commands", "motions", "textobj", "options", "themes", "languages"]
 
 db = ["dep:tracing"]
 keymap = ["db", "actions", "dep:xeno-keymap-core"]
@@ -47,6 +48,7 @@ statusline = []
 gutter = ["dep:ropey", "themes"]
 hooks = ["dep:tracing", "dep:xeno-macros", "dep:xeno-primitives"]
 notifications = []
+languages = []
 
 # Builtins gates
 actions-builtins = ["actions"]
@@ -59,6 +61,7 @@ statusline-builtins = ["statusline"]
 gutter-builtins = ["gutter"]
 hooks-builtins = ["hooks"]
 notifications-builtins = ["notifications"]
+languages-builtins = ["languages"]
 
 # Preserve legacy knobs
 actions-handler-coverage = ["actions-builtins"]

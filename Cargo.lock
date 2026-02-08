@@ -3289,7 +3289,6 @@ version = "0.8.9"
 dependencies = [
  "cc",
  "kdl",
- "once_cell",
  "postcard",
  "regex",
  "ropey",

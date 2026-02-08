@@ -6,7 +6,8 @@ use crate::commands::CommandEntry;
 use crate::commands::def::CommandInput;
 use crate::core::index::RegistryBuilder;
 use crate::core::{
-	ActionId, CommandId, GutterId, HookId, MotionId, OptionId, StatuslineId, TextObjectId, ThemeId,
+	ActionId, CommandId, GutterId, HookId, LanguageId, MotionId, OptionId, StatuslineId,
+	TextObjectId, ThemeId,
 };
 use crate::db::builder::RegistryDbBuilder;
 use crate::db::domain::DomainSpec;
@@ -129,3 +130,11 @@ domain!(
 	StatuslineId
 );
 domain!(Hooks, "hooks", hooks, HookInput, HookEntry, HookId);
+domain!(
+	Languages,
+	"languages",
+	languages,
+	crate::languages::LanguageInput,
+	crate::languages::LanguageEntry,
+	LanguageId
+);

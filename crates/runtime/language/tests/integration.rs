@@ -8,31 +8,18 @@
 //! Without grammars, tests verify the API works but can't produce highlights.
 //! To get grammars, run: `XENO_RUNTIME=runtime xeno grammar fetch && xeno grammar build`
 
-use std::sync::Arc;
-
 use ropey::Rope;
+use xeno_runtime_language::LanguageLoader;
 use xeno_runtime_language::grammar::{grammar_search_paths, load_grammar};
 use xeno_runtime_language::highlight::{Highlight, HighlightStyles};
 use xeno_runtime_language::syntax::Syntax;
-use xeno_runtime_language::{LanguageData, LanguageDb, LanguageLoader};
 
 fn create_test_loader() -> (LanguageLoader, tree_house::Language) {
-	let mut db = LanguageDb::new();
-	let rust = LanguageData::new(
-		"rust".to_string(),
-		None,
-		vec!["rs".to_string()],
-		vec![],
-		vec![],
-		vec![],
-		vec!["//".to_string()],
-		Some(("/*".to_string(), "*/".to_string())),
-		Some("rust"),
-		vec![],
-		vec![],
-	);
-	let rust_lang = db.register(rust);
-	(LanguageLoader::from_db(Arc::new(db)), rust_lang)
+	let loader = LanguageLoader::from_embedded();
+	let rust_lang = loader
+		.language_for_name("rust")
+		.expect("rust should be in embedded registry");
+	(loader, rust_lang)
 }
 
 #[test]
@@ -64,14 +51,11 @@ fn test_language_data_fields() {
 	let lang = loader.language_for_name("rust").unwrap();
 	let data = loader.get(lang).unwrap();
 
-	assert_eq!(data.name, "rust");
-	assert_eq!(data.grammar_name, "rust");
-	assert_eq!(data.extensions, vec!["rs"]);
-	assert_eq!(data.comment_tokens, vec!["//"]);
-	assert_eq!(
-		data.block_comment,
-		Some(("/*".to_string(), "*/".to_string()))
-	);
+	assert_eq!(data.name(), "rust");
+	assert_eq!(data.grammar_name(), "rust");
+	assert!(data.extensions().any(|e| e == "rs"));
+	assert!(data.comment_tokens().any(|t| t == "//"));
+	assert!(data.block_comment().is_some());
 }
 
 #[test]
@@ -187,23 +171,8 @@ fn test_grammar_loading_debug() {
 fn test_full_highlighting_pipeline() {
 	use xeno_primitives::{Color, Style};
 
-	let mut db = LanguageDb::new();
-
-	let rust = LanguageData::new(
-		"rust".to_string(),
-		None,
-		vec!["rs".to_string()],
-		vec![],
-		vec![],
-		vec![],
-		vec!["//".to_string()],
-		Some(("/*".to_string(), "*/".to_string())),
-		Some("rust"),
-		vec![],
-		vec![],
-	);
-	let rust_lang = db.register(rust);
-	let loader = LanguageLoader::from_db(Arc::new(db));
+	let loader = LanguageLoader::from_embedded();
+	let rust_lang = loader.language_for_name("rust").expect("rust has LSP");
 
 	let source = Rope::from_str("fn main() {\n    let x = 42;\n}");
 
@@ -292,23 +261,8 @@ fn test_language_loader_tree_house_trait() {
 fn test_incremental_syntax_update() {
 	use xeno_primitives::{Selection, Transaction};
 
-	let mut db = LanguageDb::new();
-
-	let rust = LanguageData::new(
-		"rust".to_string(),
-		None,
-		vec!["rs".to_string()],
-		vec![],
-		vec![],
-		vec![],
-		vec!["//".to_string()],
-		Some(("/*".to_string(), "*/".to_string())),
-		Some("rust"),
-		vec![],
-		vec![],
-	);
-	let rust_lang = db.register(rust);
-	let loader = LanguageLoader::from_db(Arc::new(db));
+	let loader = LanguageLoader::from_embedded();
+	let rust_lang = loader.language_for_name("rust").expect("rust has LSP");
 
 	let mut source = Rope::from_str("fn main() {}");
 
@@ -442,7 +396,7 @@ fn main() {}
 		println!(
 			"Layer {}: language={:?} (id={})",
 			layer_count,
-			lang.map(|l| &l.name),
+			lang.as_ref().map(|l| l.name()),
 			layer_data.language.idx()
 		);
 	}
@@ -496,7 +450,7 @@ fn main() {}
 		let lang = loader.get(layer_data.language);
 		println!(
 			"  Layer: language={:?} (id={})",
-			lang.map(|l| &l.name),
+			lang.as_ref().map(|l| l.name()),
 			layer_data.language.idx()
 		);
 	}
@@ -529,7 +483,7 @@ fn main() {}
 			has_config
 		);
 		if has_config {
-			println!("  grammar_name: {}", md_inline_data.grammar_name);
+			println!("  grammar_name: {:?}", md_inline_data.grammar_name());
 		}
 	}
 
@@ -542,7 +496,7 @@ fn main() {}
 			has_config
 		);
 		if has_config {
-			println!("  grammar_name: {}", md_rustdoc_data.grammar_name);
+			println!("  grammar_name: {:?}", md_rustdoc_data.grammar_name());
 		}
 	}
 
@@ -586,10 +540,8 @@ fn main() {}
 	for layer in syntax.layers_for_byte_range(0, source.len_bytes() as u32) {
 		let layer_data = syntax.layer(layer);
 		let lang_id = layer_data.language;
-		let lang_name = loader
-			.get(lang_id)
-			.map(|d| d.name.as_str())
-			.unwrap_or("unknown");
+		let lang = loader.get(lang_id);
+		let lang_name = lang.as_ref().map(|d| d.name()).unwrap_or("unknown");
 		if let Some(tree) = layer_data.tree() {
 			println!(
 				"  Layer {}: {} [{}-{}]",
@@ -608,10 +560,8 @@ fn main() {}
 		let layer_data = syntax.layer(layer);
 		let lang_id = layer_data.language;
 		let has_config = loader.get_config(lang_id).is_some();
-		let lang_name = loader
-			.get(lang_id)
-			.map(|d| d.name.as_str())
-			.unwrap_or("unknown");
+		let lang = loader.get(lang_id);
+		let lang_name = lang.as_ref().map(|d| d.name()).unwrap_or("unknown");
 		let has_tree = layer_data.tree().is_some();
 		println!(
 			"  Layer lang_id={}: {} -> get_config: {}, has_tree: {}",
@@ -661,23 +611,8 @@ fn main() {}
 /// not just the text after the prefix.
 #[test]
 fn test_highlight_span_positions_doc_comment() {
-	let mut db = LanguageDb::new();
-
-	let rust = LanguageData::new(
-		"rust".to_string(),
-		None,
-		vec!["rs".to_string()],
-		vec![],
-		vec![],
-		vec![],
-		vec!["//".to_string()],
-		Some(("/*".to_string(), "*/".to_string())),
-		Some("rust"),
-		vec![],
-		vec![],
-	);
-	let rust_lang = db.register(rust);
-	let loader = LanguageLoader::from_db(Arc::new(db));
+	let loader = LanguageLoader::from_embedded();
+	let rust_lang = loader.language_for_name("rust").expect("rust has LSP");
 
 	let source = Rope::from_str("//! Hello world\nfn main() {}");
 

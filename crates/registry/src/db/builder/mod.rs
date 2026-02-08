@@ -9,8 +9,8 @@ use crate::commands::{CommandDef, CommandEntry};
 use crate::core::plugin::PluginDef;
 pub use crate::core::{
 	ActionId, Capability, CommandError, CommandId, DuplicatePolicy, GutterId, HookId, KeyKind,
-	MotionId, OptionId, RegistryBuilder, RegistryEntry, RegistryError, RegistryIndex, RegistryMeta,
-	RegistrySource, RuntimeRegistry, StatuslineId, TextObjectId, ThemeId,
+	LanguageId, MotionId, OptionId, RegistryBuilder, RegistryEntry, RegistryError, RegistryIndex,
+	RegistryMeta, RegistrySource, RuntimeRegistry, StatuslineId, TextObjectId, ThemeId,
 };
 use crate::gutter::link::LinkedGutterDef;
 use crate::gutter::{GutterDef, GutterEntry, GutterInput};
@@ -243,6 +243,18 @@ define_domains! {
 		linked_def: LinkedNotificationDef,
 		linked_to_input: |def: LinkedNotificationDef| NotificationInput::Linked(def),
 	}
+	languages: {
+		stem: language,
+		domain: crate::db::domains::Languages,
+		field: languages,
+		input: crate::languages::LanguageInput,
+		entry: crate::languages::LanguageEntry,
+		id: LanguageId,
+		static_def: crate::languages::types::LanguageDef,
+		static_to_input: |def: &'static crate::languages::types::LanguageDef| crate::languages::LanguageInput::Static(def.clone()),
+		linked_def: crate::languages::link::LinkedLanguageDef,
+		linked_to_input: |def: crate::languages::link::LinkedLanguageDef| crate::languages::LanguageInput::Linked(def),
+	}
 }
 
 #[derive(Debug)]
@@ -381,6 +393,15 @@ impl RegistryDbBuilder {
 
 		for def in linked {
 			self.register_linked_theme(def);
+		}
+	}
+
+	pub fn register_compiled_languages(&mut self) {
+		let spec = crate::languages::loader::load_languages_spec();
+		let linked = crate::languages::link::link_languages(&spec);
+
+		for def in linked {
+			self.register_linked_language(def);
 		}
 	}
 
