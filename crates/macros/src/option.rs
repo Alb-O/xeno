@@ -201,12 +201,12 @@ pub fn derive_option(input: TokenStream) -> TokenStream {
 		validator: #validator_expr,
 	};
 
-		::inventory::submit! { ::xeno_registry::options::OptionReg(&#internal_static) }
+		::inventory::submit! { ::xeno_registry::options::builtins::OptionReg(&#internal_static) }
 
 		#(#other_attrs)*
 		#[doc = concat!("Typed handle for the `", stringify!(#name), "` option.")]
 		#vis const #name: ::xeno_registry::options::TypedOptionKey<#key_type> =
-			::xeno_registry::options::TypedOptionKey::new(&#internal_static);
+			::xeno_registry::options::TypedOptionKey::new(::core::concat!(::core::env!("CARGO_PKG_NAME"), "::", ::core::stringify!(#name)));
 	};
 
 	expanded.into()

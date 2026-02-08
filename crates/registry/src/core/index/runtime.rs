@@ -142,6 +142,14 @@ where
 		Some(RegistryRef { snap, id })
 	}
 
+	/// Looks up a definition by its untyped key.
+	pub fn get_key(&self, key: &crate::core::LookupKey<T, Id>) -> Option<RegistryRef<T, Id>> {
+		match key {
+			crate::core::LookupKey::Static(s) => self.get(s),
+			crate::core::LookupKey::Ref(r) => Some(r.clone()),
+		}
+	}
+
 	/// Returns all effective definitions.
 	pub fn all(&self) -> Vec<RegistryRef<T, Id>> {
 		let snap = self.snap.load_full();

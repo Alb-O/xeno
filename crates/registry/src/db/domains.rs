@@ -27,9 +27,9 @@ macro_rules! domain {
 			type Id = $Id;
 			const LABEL: &'static str = $label;
 
-			fn builder<'a>(
-				db: &'a mut RegistryDbBuilder,
-			) -> &'a mut RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
+			fn builder(
+				db: &mut RegistryDbBuilder,
+			) -> &mut RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
 				&mut db.$field
 			}
 		}
@@ -43,9 +43,9 @@ impl DomainSpec for Actions {
 	type Id = ActionId;
 	const LABEL: &'static str = "actions";
 
-	fn builder<'a>(
-		db: &'a mut RegistryDbBuilder,
-	) -> &'a mut RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
+	fn builder(
+		db: &mut RegistryDbBuilder,
+	) -> &mut RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
 		&mut db.actions
 	}
 
@@ -64,9 +64,9 @@ impl DomainSpec for Options {
 	type Id = OptionId;
 	const LABEL: &'static str = "options";
 
-	fn builder<'a>(
-		db: &'a mut RegistryDbBuilder,
-	) -> &'a mut RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
+	fn builder(
+		db: &mut RegistryDbBuilder,
+	) -> &mut RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
 		&mut db.options
 	}
 

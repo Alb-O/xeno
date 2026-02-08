@@ -47,15 +47,14 @@ impl CommandEditorOps for EditorCaps<'_> {
 
 	fn set_option(&mut self, kdl_key: &str, value: &str) -> Result<(), CommandError> {
 		let opt_value = super::parse_option_value(kdl_key, value)?;
-		let _ = self
-			.ed
-			.state
-			.config
-			.global_options
-			.set_by_kdl(kdl_key, opt_value);
+		let _ = self.ed.state.config.global_options.set_by_kdl(
+			&xeno_registry::db::OPTIONS,
+			kdl_key,
+			opt_value,
+		);
 
 		if let Some(def) = find(kdl_key) {
-			let resolved_key = def.resolve(def.kdl_key);
+			let resolved_key = def.name_str();
 			emit_hook_sync_with(
 				&HookContext::new(HookEventData::OptionChanged {
 					key: resolved_key,
@@ -84,13 +83,13 @@ impl CommandEditorOps for EditorCaps<'_> {
 		}
 
 		let opt_value = super::parse_option_value(kdl_key, value)?;
-		let _ = self
-			.ed
-			.buffer_mut()
-			.local_options
-			.set_by_kdl(kdl_key, opt_value);
+		let _ = self.ed.buffer_mut().local_options.set_by_kdl(
+			&xeno_registry::db::OPTIONS,
+			kdl_key,
+			opt_value,
+		);
 
-		let resolved_key = def.resolve(def.kdl_key);
+		let resolved_key = def.name_str();
 		emit_hook_sync_with(
 			&HookContext::new(HookEventData::OptionChanged {
 				key: resolved_key,

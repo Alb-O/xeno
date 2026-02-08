@@ -46,9 +46,10 @@ impl OverlayController for CommandPaletteOverlay {
 
 	fn on_open(&mut self, ctx: &mut dyn OverlayContext, session: &mut OverlaySession) {
 		if let Some(buffer) = ctx.buffer_mut(session.input) {
-			buffer
-				.local_options
-				.set(opt_keys::CURSORLINE.untyped(), OptionValue::Bool(false));
+			let opt = xeno_registry::db::OPTIONS
+				.get_key(&opt_keys::CURSORLINE.untyped())
+				.expect("cursorline option missing from registry");
+			buffer.local_options.set(opt, OptionValue::Bool(false));
 		}
 	}
 

@@ -1108,7 +1108,7 @@ mod tests {
 		let blob = load_option_metadata();
 		let kdl_keys: HashSet<&str> = blob.options.iter().map(|o| o.kdl_key.as_str()).collect();
 
-		for reg in inventory::iter::<crate::options::OptionReg> {
+		for reg in inventory::iter::<crate::options::builtins::OptionReg> {
 			assert!(
 				kdl_keys.contains(reg.0.kdl_key),
 				"static option '{}' (kdl_key='{}') has no KDL entry",
@@ -1121,7 +1121,7 @@ mod tests {
 	#[test]
 	fn all_kdl_options_have_static_defs() {
 		let blob = load_option_metadata();
-		let static_keys: HashSet<&str> = inventory::iter::<crate::options::OptionReg>
+		let static_keys: HashSet<&str> = inventory::iter::<crate::options::builtins::OptionReg>
 			.into_iter()
 			.map(|r| r.0.kdl_key)
 			.collect();
@@ -1147,7 +1147,7 @@ mod tests {
 			.map(|o| (o.kdl_key.as_str(), o))
 			.collect();
 
-		for reg in inventory::iter::<crate::options::OptionReg> {
+		for reg in inventory::iter::<crate::options::builtins::OptionReg> {
 			let def = reg.0;
 			let kdl = kdl_map.get(def.kdl_key).unwrap_or_else(|| {
 				panic!(

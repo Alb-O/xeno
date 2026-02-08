@@ -184,7 +184,7 @@ impl RegistryDbBuilder {
 	}
 
 	pub fn register_theme(&mut self, def: &'static ThemeDef) {
-		self.push_domain::<crate::db::domains::Themes>(ThemeInput::Static(def.clone()));
+		self.push_domain::<crate::db::domains::Themes>(ThemeInput::Static(*def));
 	}
 
 	pub fn register_gutter(&mut self, def: &'static GutterDef) {

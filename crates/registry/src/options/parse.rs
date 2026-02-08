@@ -18,19 +18,7 @@ pub fn parse_value(kdl_key: &str, value: &str) -> Result<OptionValue, OptionErro
 		}
 	})?;
 
-	if !opt_value.matches_type(entry.value_type) {
-		return Err(OptionError::TypeMismatch {
-			option: kdl_key.to_string(),
-			expected: entry.value_type,
-			got: opt_value.type_name(),
-		});
-	}
-	if let Some(validator) = entry.validator {
-		validator(&opt_value).map_err(|reason| OptionError::InvalidValue {
-			option: kdl_key.to_string(),
-			reason,
-		})?;
-	}
+	crate::options::validate_ref(&entry, &opt_value)?;
 
 	Ok(opt_value)
 }

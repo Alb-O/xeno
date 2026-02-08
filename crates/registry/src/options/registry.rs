@@ -24,6 +24,11 @@ impl OptionsRegistry {
 		self.inner.get(key)
 	}
 
+	/// Looks up an option by its key (either static canonical ID or resolved reference).
+	pub fn get_key(&self, key: &crate::options::OptionKey) -> Option<OptionsRef> {
+		self.inner.get_key(key)
+	}
+
 	pub fn items(&self) -> Vec<OptionsRef> {
 		self.inner.all()
 	}

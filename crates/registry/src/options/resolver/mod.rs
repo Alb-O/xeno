@@ -11,7 +11,7 @@
 //! 3. Global config (from `options { }` block)
 //! 4. Compile-time default (from `#[derive_option]` macro)
 
-use crate::options::{OptionKey, OptionStore, OptionValue};
+use crate::options::{OptionStore, OptionValue, OptionsRef};
 
 #[cfg(test)]
 mod tests;
@@ -49,33 +49,32 @@ impl<'a> OptionResolver<'a> {
 	}
 
 	/// Resolves an option through the hierarchy.
-	pub fn resolve(&self, key: OptionKey) -> OptionValue {
+	pub fn resolve(&self, opt: &OptionsRef) -> OptionValue {
 		if let Some(store) = self.buffer_local
-			&& let Some(v) = store.get(key)
+			&& let Some(v) = store.get(opt.dense_id())
 		{
 			return v.clone();
 		}
 		if let Some(store) = self.language
-			&& let Some(v) = store.get(key)
+			&& let Some(v) = store.get(opt.dense_id())
 		{
 			return v.clone();
 		}
 		if let Some(store) = self.global
-			&& let Some(v) = store.get(key)
+			&& let Some(v) = store.get(opt.dense_id())
 		{
 			return v.clone();
 		}
-		key.default.to_value()
+		opt.default.to_value()
 	}
 
 	/// Resolves an integer option through the hierarchy.
-	pub fn resolve_int(&self, key: OptionKey) -> i64 {
-		let resolved = self.resolve(key);
+	pub fn resolve_int(&self, opt: &OptionsRef) -> i64 {
+		let resolved = self.resolve(opt);
 		if let Some(v) = resolved.as_int() {
 			return v;
 		}
 
-		let def = key;
 		tracing::warn!(
 			domain = "options",
 			expected = "int",
@@ -83,20 +82,19 @@ impl<'a> OptionResolver<'a> {
 			"option type mismatch; falling back to default",
 		);
 
-		match def.default {
+		match opt.default {
 			crate::options::OptionDefault::Int(f) => f(),
-			_ => unreachable!("validated in RegistryDbBuilder::register_option"),
+			_ => unreachable!("validated at build"),
 		}
 	}
 
 	/// Resolves a boolean option through the hierarchy.
-	pub fn resolve_bool(&self, key: OptionKey) -> bool {
-		let resolved = self.resolve(key);
+	pub fn resolve_bool(&self, opt: &OptionsRef) -> bool {
+		let resolved = self.resolve(opt);
 		if let Some(v) = resolved.as_bool() {
 			return v;
 		}
 
-		let def = key;
 		tracing::warn!(
 			domain = "options",
 			expected = "bool",
@@ -104,20 +102,19 @@ impl<'a> OptionResolver<'a> {
 			"option type mismatch; falling back to default",
 		);
 
-		match def.default {
+		match opt.default {
 			crate::options::OptionDefault::Bool(f) => f(),
-			_ => unreachable!("validated in RegistryDbBuilder::register_option"),
+			_ => unreachable!("validated at build"),
 		}
 	}
 
 	/// Resolves a string option through the hierarchy.
-	pub fn resolve_string(&self, key: OptionKey) -> String {
-		let resolved = self.resolve(key);
+	pub fn resolve_string(&self, opt: &OptionsRef) -> String {
+		let resolved = self.resolve(opt);
 		if let Some(v) = resolved.as_str() {
 			return v.to_string();
 		}
 
-		let def = key;
 		tracing::warn!(
 			domain = "options",
 			expected = "string",
@@ -125,9 +122,9 @@ impl<'a> OptionResolver<'a> {
 			"option type mismatch; falling back to default",
 		);
 
-		match def.default {
+		match opt.default {
 			crate::options::OptionDefault::String(f) => f(),
-			_ => unreachable!("validated in RegistryDbBuilder::register_option"),
+			_ => unreachable!("validated at build"),
 		}
 	}
 }

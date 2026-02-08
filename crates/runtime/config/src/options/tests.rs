@@ -16,13 +16,19 @@ options {
 "##;
 	let doc: kdl::KdlDocument = kdl.parse().unwrap();
 	let opts = parse_global(doc.get("options").unwrap()).unwrap().store;
+	let options = &options::OPTIONS;
 
 	assert_eq!(
-		opts.get(keys::TAB_WIDTH.untyped()),
+		opts.get(
+			options
+				.get_key(&keys::TAB_WIDTH.untyped())
+				.unwrap()
+				.dense_id()
+		),
 		Some(&OptionValue::Int(4))
 	);
 	assert_eq!(
-		opts.get(keys::THEME.untyped()),
+		opts.get(options.get_key(&keys::THEME.untyped()).unwrap().dense_id()),
 		Some(&OptionValue::String("gruvbox".to_string()))
 	);
 }
@@ -104,10 +110,16 @@ language "python" {
 }
 "##;
 	let config = Config::parse(kdl).unwrap();
+	let options = &options::OPTIONS;
 
 	// Global options
 	assert_eq!(
-		config.options.get(keys::TAB_WIDTH.untyped()),
+		config.options.get(
+			options
+				.get_key(&keys::TAB_WIDTH.untyped())
+				.unwrap()
+				.dense_id()
+		),
 		Some(&OptionValue::Int(4))
 	);
 
@@ -116,7 +128,12 @@ language "python" {
 
 	let rust = config.languages.iter().find(|l| l.name == "rust").unwrap();
 	assert_eq!(
-		rust.options.get(keys::TAB_WIDTH.untyped()),
+		rust.options.get(
+			options
+				.get_key(&keys::TAB_WIDTH.untyped())
+				.unwrap()
+				.dense_id()
+		),
 		Some(&OptionValue::Int(2))
 	);
 
@@ -126,7 +143,12 @@ language "python" {
 		.find(|l| l.name == "python")
 		.unwrap();
 	assert_eq!(
-		python.options.get(keys::TAB_WIDTH.untyped()),
+		python.options.get(
+			options
+				.get_key(&keys::TAB_WIDTH.untyped())
+				.unwrap()
+				.dense_id()
+		),
 		Some(&OptionValue::Int(8))
 	);
 }
@@ -156,8 +178,10 @@ language "rust" {
 
 	// The option should NOT be set in the language store
 	let rust = config.languages.iter().find(|l| l.name == "rust").unwrap();
+	let options = &options::OPTIONS;
 	assert_eq!(
-		rust.options.get(keys::THEME.untyped()),
+		rust.options
+			.get(options.get_key(&keys::THEME.untyped()).unwrap().dense_id()),
 		None,
 		"global option should not be stored in language scope"
 	);
@@ -183,8 +207,14 @@ language "rust" {
 
 	// The option should be set
 	let rust = config.languages.iter().find(|l| l.name == "rust").unwrap();
+	let options = &options::OPTIONS;
 	assert_eq!(
-		rust.options.get(keys::TAB_WIDTH.untyped()),
+		rust.options.get(
+			options
+				.get_key(&keys::TAB_WIDTH.untyped())
+				.unwrap()
+				.dense_id()
+		),
 		Some(&OptionValue::Int(2))
 	);
 }

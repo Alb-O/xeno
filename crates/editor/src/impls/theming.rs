@@ -18,7 +18,13 @@ impl Editor {
 			.state
 			.config
 			.global_options
-			.get_string(keys::THEME.untyped())
+			.get(
+				xeno_registry::db::OPTIONS
+					.get_key(&keys::THEME.untyped())
+					.expect("theme option missing from registry")
+					.dense_id(),
+			)
+			.and_then(|v| v.as_str())
 			.map(|s| s.to_string())
 			.unwrap_or_else(|| xeno_registry::themes::DEFAULT_THEME_ID.to_string());
 		if let Err(e) = self.set_theme(&theme_id) {

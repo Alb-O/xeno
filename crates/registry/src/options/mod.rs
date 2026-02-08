@@ -34,8 +34,8 @@ pub use crate::core::{
 	RegistrySource,
 };
 
-/// Handle to an option definition, used for option store lookups.
-pub type OptionKey = &'static OptionDef;
+/// Untyped handle to an option definition (canonical ID string or resolved reference).
+pub type OptionKey = crate::core::LookupKey<OptionEntry, OptionId>;
 
 pub struct OptionReg(pub &'static OptionDef);
 inventory::collect!(OptionReg);
@@ -59,16 +59,22 @@ pub fn validate(kdl_key: &str, value: &OptionValue) -> Result<(), OptionError> {
 	let entry = OPTIONS
 		.get(kdl_key)
 		.ok_or_else(|| OptionError::UnknownOption(kdl_key.to_string()))?;
-	if !value.matches_type(entry.value_type) {
+	validate_ref(&entry, value)
+}
+
+/// Validates a parsed option value against a resolved reference.
+#[cfg(feature = "db")]
+pub fn validate_ref(opt: &OptionsRef, value: &OptionValue) -> Result<(), OptionError> {
+	if !value.matches_type(opt.value_type) {
 		return Err(OptionError::TypeMismatch {
-			option: kdl_key.to_string(),
-			expected: entry.value_type,
+			option: opt.name_str().to_string(),
+			expected: opt.value_type,
 			got: value.type_name(),
 		});
 	}
-	if let Some(validator) = entry.validator {
+	if let Some(validator) = opt.validator {
 		validator(value).map_err(|reason| OptionError::InvalidValue {
-			option: kdl_key.to_string(),
+			option: opt.name_str().to_string(),
 			reason,
 		})?;
 	}

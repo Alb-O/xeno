@@ -24,7 +24,7 @@ pub struct OptionDef {
 }
 
 /// Handle to an option definition.
-pub type OptionKey = &'static OptionDef;
+pub type OptionKey = crate::core::LookupKey<OptionEntry, crate::core::OptionId>;
 
 impl core::fmt::Debug for OptionDef {
 	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {

@@ -30,6 +30,9 @@ pub static THEME: String = "monokai".to_string();
 /// Fallback theme ID if preferred theme is unavailable.
 pub static DEFAULT_THEME_ID: String = "monokai".to_string();
 
+pub struct OptionReg(pub &'static crate::options::OptionDef);
+inventory::collect!(OptionReg);
+
 pub fn register_builtins(builder: &mut crate::db::builder::RegistryDbBuilder) {
 	builder.register_option(&__OPT_CURSORLINE);
 	builder.register_option(&__OPT_TAB_WIDTH);

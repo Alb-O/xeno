@@ -20,9 +20,9 @@ pub trait DomainSpec {
 	const LABEL: &'static str;
 
 	/// Returns a mutable reference to the domain-specific builder.
-	fn builder<'a>(
-		db: &'a mut crate::db::builder::RegistryDbBuilder,
-	) -> &'a mut RegistryBuilder<Self::Input, Self::Entry, Self::Id>;
+	fn builder(
+		db: &mut crate::db::builder::RegistryDbBuilder,
+	) -> &mut RegistryBuilder<Self::Input, Self::Entry, Self::Id>;
 
 	/// Domain-specific side effects to perform when a new definition is pushed.
 	fn on_push(_db: &mut crate::db::builder::RegistryDbBuilder, _input: &Self::Input) {}

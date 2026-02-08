@@ -71,10 +71,13 @@ async fn main() -> anyhow::Result<()> {
 
 	if let Some(theme_name) = cli.theme {
 		use xeno_registry::options::OptionValue;
+		let opt = xeno_registry::db::OPTIONS
+			.get_key(&keys::THEME.untyped())
+			.expect("theme option missing from registry");
 		editor
 			.config_mut()
 			.global_options
-			.set(keys::THEME.untyped(), OptionValue::String(theme_name));
+			.set(opt, OptionValue::String(theme_name));
 	}
 
 	run_editor(editor).await?;

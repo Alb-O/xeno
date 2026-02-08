@@ -89,7 +89,7 @@ pub fn parse_options_with_context(node: &KdlNode, context: ParseContext) -> Resu
 			continue;
 		}
 
-		let _ = store.set_by_kdl(kdl_key, opt_value);
+		let _ = store.set_by_kdl(&options::OPTIONS, kdl_key, opt_value);
 	}
 
 	Ok(ParsedOptions { store, warnings })
