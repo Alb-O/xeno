@@ -78,8 +78,7 @@ impl ModeAccess for MockEditor {
 
 impl NotificationAccess for MockEditor {
 	fn emit(&mut self, notification: Notification) {
-		self.effect_log
-			.push(format!("notify:{}", notification.id));
+		self.effect_log.push(format!("notify:{}", notification.id));
 		self.notifications.push(notification);
 	}
 
@@ -177,10 +176,7 @@ fn error_effect_emits_error_notification() {
 	apply_effects(&effects, &mut ctx, false);
 
 	assert_eq!(editor.notifications.len(), 1);
-	assert_eq!(
-		&*editor.notifications[0].id,
-		"xeno-registry::action_error"
-	);
+	assert_eq!(&*editor.notifications[0].id, "xeno-registry::action_error");
 }
 
 #[test]

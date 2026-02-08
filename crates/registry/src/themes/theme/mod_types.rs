@@ -1,9 +1,11 @@
-use super::types::{ThemeDef, ThemeEntry, LinkedThemeDef};
-use crate::core::RegistryMetaStatic;
-use crate::core::RegistrySource;
 use xeno_primitives::Color;
-use super::types::{UiColors, ModeColors, ColorPair, SemanticColors, PopupColors, NotificationColors, ThemeColors};
+
 use super::super::syntax::SyntaxStyles;
+use super::types::{
+	ColorPair, LinkedThemeDef, ModeColors, NotificationColors, PopupColors, SemanticColors,
+	ThemeColors, ThemeDef, ThemeEntry, UiColors,
+};
+use crate::core::{RegistryMetaStatic, RegistrySource};
 
 /// Register runtime themes.
 pub fn register_runtime_themes(themes: Vec<LinkedThemeDef>) {

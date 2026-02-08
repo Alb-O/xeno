@@ -6,7 +6,7 @@ pub mod syntax;
 pub mod theme;
 
 pub use syntax::{SyntaxStyle, SyntaxStyles};
-pub use theme::{ThemeDef as Theme, LinkedThemeDef, *};
+pub use theme::{LinkedThemeDef, ThemeDef as Theme, *};
 
 pub fn register_builtins(builder: &mut crate::db::builder::RegistryDbBuilder) {
 	let blob = crate::kdl::loader::load_theme_metadata();

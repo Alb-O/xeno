@@ -201,7 +201,10 @@ where
 	/// The implementation of [`super::build::BuildEntry::build`] must produce a fully-owned `T`.
 	/// It MUST NOT store references to the input definition `In` inside `T`, as the input
 	/// definition is dropped after registration (unless it was already static).
-	pub fn register_owned<In>(&self, def: Arc<In>) -> Result<RegistryRef<T, Id>, RegisterError<T, Id>>
+	pub fn register_owned<In>(
+		&self,
+		def: Arc<In>,
+	) -> Result<RegistryRef<T, Id>, RegisterError<T, Id>>
 	where
 		In: super::build::BuildEntry<T>,
 	{
