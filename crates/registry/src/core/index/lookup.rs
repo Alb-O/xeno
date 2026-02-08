@@ -2,7 +2,7 @@
 //!
 //! # Role
 //!
-//! This module implements the 3-stage key binding model (canonical → name → aliases)
+//! This module implements the 3-stage key binding model (canonical → name → keys)
 //! and records collisions for diagnostics.
 //!
 //! # Invariants
@@ -25,7 +25,7 @@ pub(crate) fn build_lookup<Out, Id>(
 	registry_label: &'static str,
 	table: &[Arc<Out>],
 	parties: &[Party],
-	alias_pool: &[Symbol],
+	key_pool: &[Symbol],
 	_policy: DuplicatePolicy,
 ) -> (HashMap<Symbol, Id>, Vec<Collision>)
 where
@@ -38,8 +38,8 @@ where
 	#[derive(Copy, Clone, PartialEq, Eq)]
 	enum InternalKeyKind {
 		Canonical,
-		Name,
-		Alias,
+		PrimaryName,
+		SecondaryKey,
 	}
 	let mut key_kinds = HashMap::default();
 
@@ -60,7 +60,7 @@ where
 		key_kinds.insert(sym, InternalKeyKind::Canonical);
 	}
 
-	// Stage B: Names
+	// Stage B: Primary Names
 	for (idx, entry) in table.iter().enumerate() {
 		let dense_id = Id::from_u32(idx as u32);
 		let name_sym = entry.meta().name;
@@ -68,9 +68,20 @@ where
 
 		match key_kinds.get(&name_sym) {
 			Some(InternalKeyKind::Canonical) => {
-				// Canonical ID already occupies this key; skip silently.
+				// Canonical ID already occupies this key; record collision but skip binding.
+				collisions.push(Collision {
+					registry: registry_label,
+					key: name_sym,
+					kind: CollisionKind::KeyConflict {
+						existing_kind: KeyKind::Canonical,
+						incoming_kind: KeyKind::PrimaryName,
+						existing: parties[by_key[&name_sym].as_u32() as usize],
+						incoming: current_party,
+						resolution: Resolution::KeptExisting,
+					},
+				});
 			}
-			Some(InternalKeyKind::Name) => {
+			Some(InternalKeyKind::PrimaryName) => {
 				let existing_id = by_key[&name_sym];
 				let existing_idx = existing_id.as_u32() as usize;
 				let existing_party = parties[existing_idx];
@@ -81,8 +92,8 @@ where
 						registry: registry_label,
 						key: name_sym,
 						kind: CollisionKind::KeyConflict {
-							existing_kind: KeyKind::Alias, // Names are treated as aliases for conflict purposes
-							incoming_kind: KeyKind::Alias,
+							existing_kind: KeyKind::PrimaryName,
+							incoming_kind: KeyKind::PrimaryName,
 							existing: existing_party,
 							incoming: current_party,
 							resolution: Resolution::ReplacedExisting,
@@ -93,8 +104,8 @@ where
 						registry: registry_label,
 						key: name_sym,
 						kind: CollisionKind::KeyConflict {
-							existing_kind: KeyKind::Alias,
-							incoming_kind: KeyKind::Alias,
+							existing_kind: KeyKind::PrimaryName,
+							incoming_kind: KeyKind::PrimaryName,
 							existing: existing_party,
 							incoming: current_party,
 							resolution: Resolution::KeptExisting,
@@ -104,55 +115,70 @@ where
 			}
 			None => {
 				by_key.insert(name_sym, dense_id);
-				key_kinds.insert(name_sym, InternalKeyKind::Name);
+				key_kinds.insert(name_sym, InternalKeyKind::PrimaryName);
 			}
 			_ => {}
 		}
 	}
 
-	// Stage C: Aliases
+	// Stage C: Secondary Keys
 	for (idx, entry) in table.iter().enumerate() {
 		let dense_id = Id::from_u32(idx as u32);
 		let meta = entry.meta();
 		let current_party = parties[idx];
 
-		let start = meta.aliases.start as usize;
-		let len = meta.aliases.len as usize;
-		debug_assert!(start + len <= alias_pool.len());
-		let aliases = &alias_pool[start..start + len];
+		let start = meta.keys.start as usize;
+		let len = meta.keys.len as usize;
+		debug_assert!(start + len <= key_pool.len());
+		let secondary_keys = &key_pool[start..start + len];
 
-		for &alias in aliases {
-			match key_kinds.get(&alias) {
-				Some(InternalKeyKind::Canonical | InternalKeyKind::Name) => {
-					let existing_id = by_key[&alias];
+		for &key in secondary_keys {
+			match key_kinds.get(&key) {
+				Some(InternalKeyKind::Canonical) => {
+					let existing_id = by_key[&key];
 					let existing_idx = existing_id.as_u32() as usize;
 					collisions.push(Collision {
 						registry: registry_label,
-						key: alias,
+						key,
 						kind: CollisionKind::KeyConflict {
-							existing_kind: KeyKind::Canonical, // Simplification: assume it's canonical/name
-							incoming_kind: KeyKind::Alias,
+							existing_kind: KeyKind::Canonical,
+							incoming_kind: KeyKind::SecondaryKey,
 							existing: parties[existing_idx],
 							incoming: current_party,
 							resolution: Resolution::KeptExisting,
 						},
 					});
 				}
-				Some(InternalKeyKind::Alias) => {
-					let existing_id = by_key[&alias];
+				Some(InternalKeyKind::PrimaryName) => {
+					let existing_id = by_key[&key];
+					let existing_idx = existing_id.as_u32() as usize;
+					collisions.push(Collision {
+						registry: registry_label,
+						key,
+						kind: CollisionKind::KeyConflict {
+							existing_kind: KeyKind::PrimaryName,
+							incoming_kind: KeyKind::SecondaryKey,
+							existing: parties[existing_idx],
+							incoming: current_party,
+							resolution: Resolution::KeptExisting,
+						},
+					});
+				}
+				Some(InternalKeyKind::SecondaryKey) => {
+					let existing_id = by_key[&key];
 					let existing_idx = existing_id.as_u32() as usize;
 					let existing_party = parties[existing_idx];
 
 					if compare_out(entry.as_ref(), table[existing_idx].as_ref())
 						== Ordering::Greater
 					{
-						by_key.insert(alias, dense_id);
+						by_key.insert(key, dense_id);
 						collisions.push(Collision {
 							registry: registry_label,
-							key: alias,
+							key,
 							kind: CollisionKind::KeyConflict {
-								existing_kind: KeyKind::Alias,
-								incoming_kind: KeyKind::Alias,
+								existing_kind: KeyKind::SecondaryKey,
+								incoming_kind: KeyKind::SecondaryKey,
 								existing: existing_party,
 								incoming: current_party,
 								resolution: Resolution::ReplacedExisting,
@@ -161,10 +187,10 @@ where
 					} else {
 						collisions.push(Collision {
 							registry: registry_label,
-							key: alias,
+							key,
 							kind: CollisionKind::KeyConflict {
-								existing_kind: KeyKind::Alias,
-								incoming_kind: KeyKind::Alias,
+								existing_kind: KeyKind::SecondaryKey,
+								incoming_kind: KeyKind::SecondaryKey,
 								existing: existing_party,
 								incoming: current_party,
 								resolution: Resolution::KeptExisting,
@@ -173,8 +199,8 @@ where
 					}
 				}
 				None => {
-					by_key.insert(alias, dense_id);
-					key_kinds.insert(alias, InternalKeyKind::Alias);
+					by_key.insert(key, dense_id);
+					key_kinds.insert(key, InternalKeyKind::SecondaryKey);
 				}
 			}
 		}

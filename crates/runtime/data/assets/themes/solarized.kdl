@@ -2,7 +2,7 @@
 // Based on https://ethanschoonover.com/solarized/
 name solarized_dark
 variant dark
-aliases solarized
+keys solarized
 // Solarized color palette
 palette {
 	// Background tones (dark)

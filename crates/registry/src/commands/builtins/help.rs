@@ -16,9 +16,9 @@ fn cmd_help<'a>(
 			if let Some(cmd) = find_command(cmd_name) {
 				let mut out = Vec::new();
 				out.push(format!("Command: :{}", cmd.name_str()));
-				let aliases = cmd.aliases_resolved();
-				if !aliases.is_empty() {
-					out.push(format!("Aliases: {}", aliases.join(", ")));
+				let keyes = cmd.keys_resolved();
+				if !keyes.is_empty() {
+					out.push(format!("Secondary Keys: {}", keyes.join(", ")));
 				}
 				out.push(format!("Description: {}", cmd.description_str()));
 				out.push(format!("Source: {}", cmd.source()));
@@ -39,13 +39,13 @@ fn cmd_help<'a>(
 		let help_text: Vec<String> = sorted_commands
 			.iter()
 			.map(|c| {
-				let aliases = c.aliases_resolved();
-				let alias_str = if aliases.is_empty() {
+				let keyes = c.keys_resolved();
+				let key_str = if keyes.is_empty() {
 					String::new()
 				} else {
-					format!(" ({})", aliases.join(", "))
+					format!(" ({})", keyes.join(", "))
 				};
-				format!(":{}{} - {}", c.name_str(), alias_str, c.description_str())
+				format!(":{}{} - {}", c.name_str(), key_str, c.description_str())
 			})
 			.collect();
 		ctx.emit(keys::help_text(help_text.join(" | ")));

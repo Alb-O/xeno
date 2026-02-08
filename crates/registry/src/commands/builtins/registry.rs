@@ -117,7 +117,7 @@ fn collect_command_collisions(collisions: &mut Vec<CollisionReport>) {
 			&mut by_name,
 			collisions,
 		);
-		for alias in cmd.aliases_resolved() {
+		for alias in cmd.keys_resolved() {
 			register_collision(
 				CollisionKind::Alias,
 				alias.to_string(),
@@ -155,7 +155,7 @@ fn collect_motion_collisions(collisions: &mut Vec<CollisionReport>) {
 			&mut by_name,
 			collisions,
 		);
-		for alias in motion.aliases_resolved() {
+		for alias in motion.keys_resolved() {
 			register_collision(
 				CollisionKind::Alias,
 				alias.to_string(),

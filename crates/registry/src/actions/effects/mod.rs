@@ -475,20 +475,20 @@ pub enum AppEffect {
 ///
 /// When composing effects, follow these conventions:
 ///
-/// 1. **Cursor/Selection before Mode** - Set cursor/selection before changing
+/// 1. Cursor/Selection before Mode - Set cursor/selection before changing
 ///    mode, so mode-entry logic sees the correct position.
 ///    ```ignore
 ///    ActionEffects::selection(sel).with(Effect::App(AppEffect::SetMode(Mode::Insert)))
 ///    ```
 ///
-/// 2. **EditOp is self-contained** - `EditOp` effects handle their own cursor
+/// 2. EditOp is self-contained - `EditOp` effects handle their own cursor
 ///    updates internally. Don't combine `SetCursor` with `EditOp` for the same
 ///    logical edit.
 ///
-/// 3. **Notifications are side effects** - Place `Notify` effects at the end
+/// 3. Notifications are side effects - Place `Notify` effects at the end
 ///    since they don't affect subsequent effects.
 ///
-/// 4. **Quit short-circuits outcome** - Once `Quit` is processed, the return
+/// 4. Quit short-circuits outcome - Once `Quit` is processed, the return
 ///    outcome becomes `HandleOutcome::Quit`. Subsequent effects still execute
 ///    but the final outcome is quit.
 ///

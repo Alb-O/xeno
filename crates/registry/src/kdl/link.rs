@@ -7,9 +7,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::core::index::{BuildEntry, RegistryMetaRef, StrListRef};
-use crate::core::{
-	CapabilitySet, FrozenInterner, RegistryMeta, RegistrySource, Symbol, SymbolList,
-};
+use crate::core::{FrozenInterner, RegistrySource, Symbol};
 
 // ── Actions ──────────────────────────────────────────────────────────
 
@@ -37,7 +35,7 @@ mod actions_link {
 		/// Short description for which-key HUD.
 		pub short_desc: String,
 		/// Alternative lookup names.
-		pub aliases: Vec<String>,
+		pub keys: Vec<String>,
 		/// Conflict resolution priority.
 		pub priority: i16,
 		/// Required capabilities.
@@ -57,7 +55,7 @@ mod actions_link {
 			RegistryMetaRef {
 				id: &self.id,
 				name: &self.name,
-				aliases: StrListRef::Owned(&self.aliases),
+				keys: StrListRef::Owned(&self.keys),
 				description: &self.description,
 				priority: self.priority,
 				source: self.source,
@@ -71,39 +69,13 @@ mod actions_link {
 		}
 
 		fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
-			sink.push(&self.id);
-			sink.push(&self.name);
-			sink.push(&self.description);
-			for alias in &self.aliases {
-				sink.push(alias);
-			}
+			crate::core::index::meta_build::collect_meta_strings(&self.meta_ref(), sink, []);
 			sink.push(&self.short_desc);
 		}
 
-		fn build(&self, interner: &FrozenInterner, alias_pool: &mut Vec<Symbol>) -> ActionEntry {
-			let start = alias_pool.len() as u32;
-
-			let mut unique_aliases = self.meta_ref().aliases.to_vec();
-			unique_aliases.sort_unstable();
-			unique_aliases.dedup();
-
-			for alias in unique_aliases {
-				alias_pool.push(interner.get(alias).expect("missing interned alias"));
-			}
-			let len = (alias_pool.len() as u32 - start) as u16;
-
-			let meta = RegistryMeta {
-				id: interner.get(&self.id).expect("missing interned id"),
-				name: interner.get(&self.name).expect("missing interned name"),
-				description: interner
-					.get(&self.description)
-					.expect("missing interned description"),
-				aliases: SymbolList { start, len },
-				priority: self.priority,
-				source: self.source,
-				required_caps: CapabilitySet::from_iter(self.caps.iter().cloned()),
-				flags: self.flags,
-			};
+		fn build(&self, interner: &FrozenInterner, key_pool: &mut Vec<Symbol>) -> ActionEntry {
+			let meta =
+				crate::core::index::meta_build::build_meta(interner, key_pool, self.meta_ref(), []);
 
 			ActionEntry {
 				meta,
@@ -189,7 +161,7 @@ mod actions_link {
 				name: meta.name.clone(),
 				description: meta.description.clone(),
 				short_desc,
-				aliases: meta.aliases.clone(),
+				keys: meta.keys.clone(),
 				priority: meta.priority,
 				caps,
 				flags: meta.flags,
@@ -248,7 +220,7 @@ mod commands_link {
 		/// Human-readable description.
 		pub description: String,
 		/// Alternative lookup names (e.g., `"q"` for `"quit"`).
-		pub aliases: Vec<String>,
+		pub keys: Vec<String>,
 		/// The async handler function from Rust.
 		pub handler: CommandHandler,
 		/// Where this definition came from.
@@ -260,7 +232,7 @@ mod commands_link {
 			RegistryMetaRef {
 				id: &self.id,
 				name: &self.name,
-				aliases: StrListRef::Owned(&self.aliases),
+				keys: StrListRef::Owned(&self.keys),
 				description: &self.description,
 				priority: 0,
 				source: self.source,
@@ -274,38 +246,12 @@ mod commands_link {
 		}
 
 		fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
-			sink.push(&self.id);
-			sink.push(&self.name);
-			sink.push(&self.description);
-			for alias in &self.aliases {
-				sink.push(alias);
-			}
+			crate::core::index::meta_build::collect_meta_strings(&self.meta_ref(), sink, []);
 		}
 
-		fn build(&self, interner: &FrozenInterner, alias_pool: &mut Vec<Symbol>) -> CommandEntry {
-			let start = alias_pool.len() as u32;
-
-			let mut unique_aliases = self.meta_ref().aliases.to_vec();
-			unique_aliases.sort_unstable();
-			unique_aliases.dedup();
-
-			for alias in unique_aliases {
-				alias_pool.push(interner.get(alias).expect("missing interned alias"));
-			}
-			let len = (alias_pool.len() as u32 - start) as u16;
-
-			let meta = RegistryMeta {
-				id: interner.get(&self.id).expect("missing interned id"),
-				name: interner.get(&self.name).expect("missing interned name"),
-				description: interner
-					.get(&self.description)
-					.expect("missing interned description"),
-				aliases: SymbolList { start, len },
-				priority: 0,
-				source: self.source,
-				required_caps: CapabilitySet::empty(),
-				flags: 0,
-			};
+		fn build(&self, interner: &FrozenInterner, key_pool: &mut Vec<Symbol>) -> CommandEntry {
+			let meta =
+				crate::core::index::meta_build::build_meta(interner, key_pool, self.meta_ref(), []);
 
 			CommandEntry {
 				meta,
@@ -343,7 +289,7 @@ mod commands_link {
 				id,
 				name: meta.name.clone(),
 				description: meta.description.clone(),
-				aliases: meta.aliases.clone(),
+				keys: meta.keys.clone(),
 				handler: handler.handler,
 				source: RegistrySource::Crate(handler.crate_name),
 			});
@@ -384,7 +330,7 @@ mod motions_link {
 		/// Human-readable description.
 		pub description: String,
 		/// Alternative lookup names.
-		pub aliases: Vec<String>,
+		pub keys: Vec<String>,
 		/// The handler function from Rust.
 		pub handler: MotionHandler,
 		/// Where this definition came from.
@@ -396,7 +342,7 @@ mod motions_link {
 			RegistryMetaRef {
 				id: &self.id,
 				name: &self.name,
-				aliases: StrListRef::Owned(&self.aliases),
+				keys: StrListRef::Owned(&self.keys),
 				description: &self.description,
 				priority: 0,
 				source: self.source,
@@ -410,38 +356,12 @@ mod motions_link {
 		}
 
 		fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
-			sink.push(&self.id);
-			sink.push(&self.name);
-			sink.push(&self.description);
-			for alias in &self.aliases {
-				sink.push(alias);
-			}
+			crate::core::index::meta_build::collect_meta_strings(&self.meta_ref(), sink, []);
 		}
 
-		fn build(&self, interner: &FrozenInterner, alias_pool: &mut Vec<Symbol>) -> MotionEntry {
-			let start = alias_pool.len() as u32;
-
-			let mut unique_aliases = self.meta_ref().aliases.to_vec();
-			unique_aliases.sort_unstable();
-			unique_aliases.dedup();
-
-			for alias in unique_aliases {
-				alias_pool.push(interner.get(alias).expect("missing interned alias"));
-			}
-			let len = (alias_pool.len() as u32 - start) as u16;
-
-			let meta = RegistryMeta {
-				id: interner.get(&self.id).expect("missing interned id"),
-				name: interner.get(&self.name).expect("missing interned name"),
-				description: interner
-					.get(&self.description)
-					.expect("missing interned description"),
-				aliases: SymbolList { start, len },
-				priority: 0,
-				source: self.source,
-				required_caps: CapabilitySet::empty(),
-				flags: 0,
-			};
+		fn build(&self, interner: &FrozenInterner, key_pool: &mut Vec<Symbol>) -> MotionEntry {
+			let meta =
+				crate::core::index::meta_build::build_meta(interner, key_pool, self.meta_ref(), []);
 
 			MotionEntry {
 				meta,
@@ -478,7 +398,7 @@ mod motions_link {
 				id,
 				name: meta.name.clone(),
 				description: meta.description.clone(),
-				aliases: meta.aliases.clone(),
+				keys: meta.keys.clone(),
 				handler: handler.handler,
 				source: RegistrySource::Crate(handler.crate_name),
 			});
@@ -537,7 +457,7 @@ mod textobj_link {
 			RegistryMetaRef {
 				id: &self.id,
 				name: &self.name,
-				aliases: StrListRef::Owned(&[]),
+				keys: StrListRef::Owned(&[]),
 				description: &self.description,
 				priority: 0,
 				source: self.source,
@@ -551,31 +471,12 @@ mod textobj_link {
 		}
 
 		fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
-			sink.push(&self.id);
-			sink.push(&self.name);
-			sink.push(&self.description);
+			crate::core::index::meta_build::collect_meta_strings(&self.meta_ref(), sink, []);
 		}
 
-		fn build(
-			&self,
-			interner: &FrozenInterner,
-			alias_pool: &mut Vec<Symbol>,
-		) -> TextObjectEntry {
-			let start = alias_pool.len() as u32;
-			let len = (alias_pool.len() as u32 - start) as u16;
-
-			let meta = RegistryMeta {
-				id: interner.get(&self.id).expect("missing interned id"),
-				name: interner.get(&self.name).expect("missing interned name"),
-				description: interner
-					.get(&self.description)
-					.expect("missing interned description"),
-				aliases: SymbolList { start, len },
-				priority: 0,
-				source: self.source,
-				required_caps: CapabilitySet::empty(),
-				flags: 0,
-			};
+		fn build(&self, interner: &FrozenInterner, key_pool: &mut Vec<Symbol>) -> TextObjectEntry {
+			let meta =
+				crate::core::index::meta_build::build_meta(interner, key_pool, self.meta_ref(), []);
 
 			TextObjectEntry {
 				meta,
@@ -687,7 +588,7 @@ mod gutters_link {
 			RegistryMetaRef {
 				id: &self.id,
 				name: &self.name,
-				aliases: StrListRef::Owned(&[]),
+				keys: StrListRef::Owned(&[]),
 				description: &self.description,
 				priority: self.priority,
 				source: self.source,
@@ -701,27 +602,12 @@ mod gutters_link {
 		}
 
 		fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
-			sink.push(&self.id);
-			sink.push(&self.name);
-			sink.push(&self.description);
+			crate::core::index::meta_build::collect_meta_strings(&self.meta_ref(), sink, []);
 		}
 
-		fn build(&self, interner: &FrozenInterner, alias_pool: &mut Vec<Symbol>) -> GutterEntry {
-			let start = alias_pool.len() as u32;
-			let len = (alias_pool.len() as u32 - start) as u16;
-
-			let meta = RegistryMeta {
-				id: interner.get(&self.id).expect("missing interned id"),
-				name: interner.get(&self.name).expect("missing interned name"),
-				description: interner
-					.get(&self.description)
-					.expect("missing interned description"),
-				aliases: SymbolList { start, len },
-				priority: self.priority,
-				source: self.source,
-				required_caps: CapabilitySet::empty(),
-				flags: 0,
-			};
+		fn build(&self, interner: &FrozenInterner, key_pool: &mut Vec<Symbol>) -> GutterEntry {
+			let meta =
+				crate::core::index::meta_build::build_meta(interner, key_pool, self.meta_ref(), []);
 
 			GutterEntry {
 				meta,
@@ -818,7 +704,7 @@ mod statusline_link {
 			RegistryMetaRef {
 				id: &self.id,
 				name: &self.name,
-				aliases: StrListRef::Owned(&[]),
+				keys: StrListRef::Owned(&[]),
 				description: &self.description,
 				priority: self.priority,
 				source: self.source,
@@ -832,31 +718,12 @@ mod statusline_link {
 		}
 
 		fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
-			sink.push(&self.id);
-			sink.push(&self.name);
-			sink.push(&self.description);
+			crate::core::index::meta_build::collect_meta_strings(&self.meta_ref(), sink, []);
 		}
 
-		fn build(
-			&self,
-			interner: &FrozenInterner,
-			alias_pool: &mut Vec<Symbol>,
-		) -> StatuslineEntry {
-			let start = alias_pool.len() as u32;
-			let len = (alias_pool.len() as u32 - start) as u16;
-
-			let meta = RegistryMeta {
-				id: interner.get(&self.id).expect("missing interned id"),
-				name: interner.get(&self.name).expect("missing interned name"),
-				description: interner
-					.get(&self.description)
-					.expect("missing interned description"),
-				aliases: SymbolList { start, len },
-				priority: self.priority,
-				source: self.source,
-				required_caps: CapabilitySet::empty(),
-				flags: 0,
-			};
+		fn build(&self, interner: &FrozenInterner, key_pool: &mut Vec<Symbol>) -> StatuslineEntry {
+			let meta =
+				crate::core::index::meta_build::build_meta(interner, key_pool, self.meta_ref(), []);
 
 			StatuslineEntry {
 				meta,
@@ -947,7 +814,7 @@ mod hooks_link {
 			RegistryMetaRef {
 				id: &self.id,
 				name: &self.name,
-				aliases: StrListRef::Owned(&[]),
+				keys: StrListRef::Owned(&[]),
 				description: &self.description,
 				priority: self.priority,
 				source: self.source,
@@ -961,27 +828,12 @@ mod hooks_link {
 		}
 
 		fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
-			sink.push(&self.id);
-			sink.push(&self.name);
-			sink.push(&self.description);
+			crate::core::index::meta_build::collect_meta_strings(&self.meta_ref(), sink, []);
 		}
 
-		fn build(&self, interner: &FrozenInterner, alias_pool: &mut Vec<Symbol>) -> HookEntry {
-			let start = alias_pool.len() as u32;
-			let len = (alias_pool.len() as u32 - start) as u16;
-
-			let meta = RegistryMeta {
-				id: interner.get(&self.id).expect("missing interned id"),
-				name: interner.get(&self.name).expect("missing interned name"),
-				description: interner
-					.get(&self.description)
-					.expect("missing interned description"),
-				aliases: SymbolList { start, len },
-				priority: self.priority,
-				source: self.source,
-				required_caps: CapabilitySet::empty(),
-				flags: 0,
-			};
+		fn build(&self, interner: &FrozenInterner, key_pool: &mut Vec<Symbol>) -> HookEntry {
+			let meta =
+				crate::core::index::meta_build::build_meta(interner, key_pool, self.meta_ref(), []);
 
 			HookEntry {
 				meta,

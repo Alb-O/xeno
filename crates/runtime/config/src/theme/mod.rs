@@ -24,7 +24,7 @@ pub struct ParsedTheme {
 	/// Whether this is a dark or light theme.
 	pub variant: ThemeVariant,
 	/// Alternative names for the theme.
-	pub aliases: Vec<String>,
+	pub keys: Vec<String>,
 	/// Color definitions for all UI elements.
 	pub colors: ThemeColors,
 	/// Path to the source file, if loaded from disk.
@@ -34,25 +34,21 @@ pub struct ParsedTheme {
 impl ParsedTheme {
 	/// Convert to a `ThemeDef` for registration in the runtime theme registry.
 	///
-	/// Leaks the owned name/alias strings to produce `&'static str` references
+	/// Leaks the owned name/key strings to produce `&'static str` references
 	/// required by [`xeno_registry::themes::RegistryMetaStatic`]. This is safe
 	/// because theme registration runs once at startup.
 	pub fn into_owned_theme(self) -> xeno_registry::themes::ThemeDef {
 		use xeno_registry::themes::RegistrySource;
 
 		let id: &'static str = self.name.leak();
-		let aliases: &'static [&'static str] = Vec::leak(
-			self.aliases
-				.into_iter()
-				.map(|s| &*String::leak(s))
-				.collect(),
-		);
+		let keys: &'static [&'static str] =
+			Vec::leak(self.keys.into_iter().map(|s| &*String::leak(s)).collect());
 
 		xeno_registry::themes::ThemeDef {
 			meta: xeno_registry::themes::RegistryMetaStatic {
 				id,
 				name: id,
-				aliases,
+				keys,
 				description: "",
 				priority: 0,
 				source: RegistrySource::Runtime,
@@ -86,8 +82,8 @@ pub fn parse_standalone_theme(input: &str) -> Result<ParsedTheme> {
 		.transpose()?
 		.unwrap_or_default();
 
-	let aliases = doc
-		.get("aliases")
+	let keys = doc
+		.get("keys")
 		.map(|node| {
 			node.entries()
 				.iter()
@@ -105,7 +101,7 @@ pub fn parse_standalone_theme(input: &str) -> Result<ParsedTheme> {
 	Ok(ParsedTheme {
 		name,
 		variant,
-		aliases,
+		keys,
 		colors: ThemeColors {
 			ui,
 			mode,
@@ -143,8 +139,8 @@ pub fn parse_theme_node(node: &KdlNode) -> Result<ParsedTheme> {
 		.transpose()?
 		.unwrap_or_default();
 
-	let aliases = children
-		.get("aliases")
+	let keys = children
+		.get("keys")
 		.map(|node| {
 			node.entries()
 				.iter()
@@ -162,7 +158,7 @@ pub fn parse_theme_node(node: &KdlNode) -> Result<ParsedTheme> {
 	Ok(ParsedTheme {
 		name,
 		variant,
-		aliases,
+		keys,
 		colors: ThemeColors {
 			ui,
 			mode,

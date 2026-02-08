@@ -62,7 +62,7 @@ pub struct EditorCommandDef {
 	/// Primary command name (used in command line).
 	pub name: &'static str,
 	/// Alternative names for the command.
-	pub aliases: &'static [&'static str],
+	pub keys: &'static [&'static str],
 	/// Human-readable description for help text.
 	pub description: &'static str,
 	/// Capabilities required to execute this command.
@@ -77,14 +77,14 @@ pub struct EditorCommandDef {
 	pub source: RegistrySource,
 }
 
-/// O(1) editor command lookup index by name and aliases.
+/// O(1) editor command lookup index by name and keys.
 static EDITOR_CMD_INDEX: LazyLock<HashMap<&'static str, &'static EditorCommandDef>> =
 	LazyLock::new(|| {
 		let mut map = HashMap::new();
 		for reg in inventory::iter::<EditorCommandReg> {
 			map.insert(reg.0.name, reg.0);
-			for &alias in reg.0.aliases {
-				map.insert(alias, reg.0);
+			for &key in reg.0.keys {
+				map.insert(key, reg.0);
 			}
 		}
 		map
@@ -97,7 +97,7 @@ pub static EDITOR_COMMANDS: LazyLock<Vec<&'static EditorCommandDef>> = LazyLock:
 	commands
 });
 
-/// Finds an editor command by name or alias.
+/// Finds an editor command by name or key.
 pub fn find_editor_command(name: &str) -> Option<&'static EditorCommandDef> {
 	EDITOR_CMD_INDEX.get(name).copied()
 }
@@ -111,7 +111,7 @@ pub fn all_editor_commands() -> impl Iterator<Item = &'static EditorCommandDef> 
 #[macro_export]
 macro_rules! editor_command {
 	($name:ident, {
-		$(aliases: $aliases:expr,)?
+		$(keys: $keys:expr,)?
 		description: $desc:expr
 		$(, caps: $caps:expr)?
 		$(, priority: $priority:expr)?
@@ -123,7 +123,7 @@ macro_rules! editor_command {
 				$crate::commands::EditorCommandDef {
 					id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
 					name: stringify!($name),
-					aliases: $crate::__editor_cmd_opt_slice!($({$aliases})?),
+					keys: $crate::__editor_cmd_opt_slice!($({$keys})?),
 					description: $desc,
 					required_caps: $crate::__editor_cmd_opt_slice!($({$caps})?),
 					handler: $handler,

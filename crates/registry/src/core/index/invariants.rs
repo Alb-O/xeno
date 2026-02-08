@@ -46,13 +46,13 @@ pub(crate) fn test_duplicate_id_panics_in_debug() {
 
 /// Alias conflicts are recorded as collisions.
 #[cfg_attr(test, test)]
-pub(crate) fn test_alias_collision_recording() {
+pub(crate) fn test_key_collision_recording() {
 	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> = RegistryBuilder::new("test");
 	let def_a = TestDef {
 		meta: RegistryMetaStatic {
 			id: "A",
 			name: "A",
-			aliases: &["shared"],
+			keys: &["shared"],
 			description: "",
 			priority: 10,
 			source: RegistrySource::Builtin,
@@ -64,7 +64,7 @@ pub(crate) fn test_alias_collision_recording() {
 		meta: RegistryMetaStatic {
 			id: "B",
 			name: "B",
-			aliases: &["shared"],
+			keys: &["shared"],
 			description: "",
 			priority: 20,
 			source: RegistrySource::Builtin,
@@ -119,7 +119,7 @@ pub(crate) fn test_id_override_eviction() {
 		meta: RegistryMetaStatic {
 			id: "X",
 			name: "X",
-			aliases: &[],
+			keys: &[],
 			description: "low priority",
 			priority: 5,
 			source: RegistrySource::Builtin,
@@ -131,7 +131,7 @@ pub(crate) fn test_id_override_eviction() {
 		meta: RegistryMetaStatic {
 			id: "X",
 			name: "X",
-			aliases: &[],
+			keys: &[],
 			description: "high priority",
 			priority: 50,
 			source: RegistrySource::Builtin,
@@ -211,7 +211,7 @@ pub(crate) fn test_no_lost_updates() {
 						meta: RegistryMetaStatic {
 							id: id_leak,
 							name: id_leak,
-							aliases: &[],
+							keys: &[],
 							description: "",
 							priority: (thread_id * 100 + i) as i16,
 							source: RegistrySource::Runtime,
@@ -277,7 +277,7 @@ pub(crate) fn test_symbol_stability_across_swap() {
 			meta: RegistryMetaStatic {
 				id: id_leak,
 				name: id_leak,
-				aliases: &[],
+				keys: &[],
 				description: "",
 				priority: i as i16,
 				source: RegistrySource::Runtime,
@@ -317,7 +317,7 @@ pub(crate) fn test_source_precedence() {
 		meta: RegistryMetaStatic {
 			id: "cmd",
 			name: "builtin",
-			aliases: &[],
+			keys: &[],
 			description: "",
 			priority: 10,
 			source: RegistrySource::Builtin,
@@ -329,7 +329,7 @@ pub(crate) fn test_source_precedence() {
 		meta: RegistryMetaStatic {
 			id: "cmd",
 			name: "runtime",
-			aliases: &[],
+			keys: &[],
 			description: "",
 			priority: 10,
 			source: RegistrySource::Runtime,
@@ -357,7 +357,7 @@ pub(crate) fn test_source_precedence() {
 		meta: RegistryMetaStatic {
 			id: "cmd2",
 			name: "builtin2",
-			aliases: &[],
+			keys: &[],
 			description: "",
 			priority: 10,
 			source: RegistrySource::Builtin,
@@ -372,7 +372,7 @@ pub(crate) fn test_source_precedence() {
 		meta: RegistryMetaStatic {
 			id: "cmd2",
 			name: "runtime2",
-			aliases: &[],
+			keys: &[],
 			description: "",
 			priority: 10,
 			source: RegistrySource::Runtime,
@@ -401,7 +401,7 @@ pub(crate) fn test_canonical_id_ordinal_tiebreaker() {
 		meta: RegistryMetaStatic {
 			id: "tie",
 			name: "first",
-			aliases: &[],
+			keys: &[],
 			description: "",
 			priority: 10,
 			source: RegistrySource::Builtin,
@@ -413,7 +413,7 @@ pub(crate) fn test_canonical_id_ordinal_tiebreaker() {
 		meta: RegistryMetaStatic {
 			id: "tie",
 			name: "second",
-			aliases: &[],
+			keys: &[],
 			description: "",
 			priority: 10,
 			source: RegistrySource::Builtin,
@@ -435,7 +435,7 @@ pub(crate) fn test_canonical_id_ordinal_tiebreaker() {
 	);
 }
 
-/// On key conflicts (name/alias) with identical priority and source, canonical ID total order wins.
+/// On key conflicts (name/key) with identical priority and source, canonical ID total order wins.
 #[cfg_attr(test, test)]
 pub(crate) fn test_key_conflict_id_tiebreaker() {
 	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> =
@@ -445,7 +445,7 @@ pub(crate) fn test_key_conflict_id_tiebreaker() {
 		meta: RegistryMetaStatic {
 			id: "A",
 			name: "A",
-			aliases: &["shared"],
+			keys: &["shared"],
 			description: "",
 			priority: 10,
 			source: RegistrySource::Builtin,
@@ -457,7 +457,7 @@ pub(crate) fn test_key_conflict_id_tiebreaker() {
 		meta: RegistryMetaStatic {
 			id: "B",
 			name: "B",
-			aliases: &["shared"],
+			keys: &["shared"],
 			description: "",
 			priority: 10,
 			source: RegistrySource::Builtin,

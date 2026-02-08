@@ -22,7 +22,7 @@ pub fn suggest_theme(name: &str) -> Option<String> {
 			best_match = Some(theme_name.to_string());
 		}
 
-		for alias in theme.aliases_resolved() {
+		for alias in theme.keys_resolved() {
 			let score = strsim::jaro_winkler(&name_lower, alias);
 			if score > best_score {
 				best_score = score;

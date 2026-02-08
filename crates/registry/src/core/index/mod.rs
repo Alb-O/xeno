@@ -24,11 +24,19 @@
 //! 2. Higher rank [`crate::core::meta::RegistrySource`] wins (Runtime > Crate > Builtin).
 //! 3. Deterministic tie-breaker:
 //!    - Canonical-ID conflicts: higher (later) ingest ordinal wins.
-//!    - Key conflicts (name/alias): canonical ID total order wins (via interned symbol).
+//!    - Key conflicts (name/key): canonical ID total order wins (via interned symbol).
 //!
 //! - Enforced in: `cmp_party`, `RegistryEntry::total_order_cmp`
 //! - Tested by: `test_source_precedence` (in `invariants.rs`)
 //! - Failure symptom: Wrong definition wins a key binding or ID conflict.
+//!
+//! # 3-Stage Key Model
+//!
+//! Keys are interned and resolved in three stages, ensuring that canonical identity is
+//! never displaced by secondary lookup keys:
+//! 1. Stage A: Canonical ID - Immutable identity binding.
+//! 2. Stage B: Primary Name - Friendly display name lookup.
+//! 3. Stage C: Secondary Keys - User secondary keys and domain-specific lookup keys.
 //!
 //! # Key Types
 //!
@@ -36,9 +44,10 @@
 //! |------|------|
 //! | [`RuntimeRegistry`] | Atomic container for a specific domain's definitions. |
 //! | [`RegistryIndex`] | Immutable, indexed storage produced by the builder. |
-//! | [`Snapshot`] | Current state of a registry (tables, maps, interner). |
+//! | [`Snapshot`] | Current state of a registry (tables, maps, interner, key pool). |
 //! | [`RegistryRef`] | A pinned handle to an entry, holding its snapshot alive. |
 //! | [`RegistryBuilder`] | Pipeline for string interning and ID assignment. |
+//! | [`crate::core::domain::DomainSpec`] | Definition of a specific registry domain. |
 //!
 //! # Concurrency
 //!
@@ -55,6 +64,7 @@
 mod build;
 mod collision;
 pub(crate) mod lookup;
+pub(crate) mod meta_build;
 pub(crate) mod runtime;
 pub(crate) mod snapshot;
 mod types;

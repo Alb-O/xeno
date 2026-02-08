@@ -7,7 +7,7 @@ fn test_parse_standalone_theme() {
 
 	assert_eq!(theme.name, "gruvbox");
 	assert_eq!(theme.variant, ThemeVariant::Dark);
-	assert_eq!(theme.aliases, vec!["gruvbox_dark", "gruvbox-dark"]);
+	assert_eq!(theme.keys, vec!["gruvbox_dark", "gruvbox-dark"]);
 
 	// Verify syntax styles are parsed
 	let keyword_style = theme.colors.syntax.resolve("keyword");

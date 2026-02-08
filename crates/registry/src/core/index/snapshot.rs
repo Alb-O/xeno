@@ -23,7 +23,7 @@ where
 	pub table: Arc<[Arc<T>]>,
 	pub by_key: Arc<FxHashMap<Symbol, Id>>,
 	pub interner: FrozenInterner,
-	pub alias_pool: Arc<[Symbol]>,
+	pub key_pool: Arc<[Symbol]>,
 	pub collisions: Arc<[Collision]>,
 }
 
@@ -36,7 +36,7 @@ where
 			table: self.table.clone(),
 			by_key: self.by_key.clone(),
 			interner: self.interner.clone(),
-			alias_pool: self.alias_pool.clone(),
+			key_pool: self.key_pool.clone(),
 			collisions: self.collisions.clone(),
 		}
 	}
@@ -52,7 +52,7 @@ where
 			table: b.table.clone(),
 			by_key: b.by_key.clone(),
 			interner: b.interner.clone(),
-			alias_pool: b.alias_pool.clone(),
+			key_pool: b.key_pool.clone(),
 			collisions: b.collisions.clone(),
 		}
 	}
@@ -120,12 +120,12 @@ where
 		self.resolve(self.description())
 	}
 
-	/// Returns an iterator over resolved alias strings.
-	pub fn aliases_resolved(&self) -> Vec<&str> {
+	/// Returns an iterator over resolved secondary key strings.
+	pub fn keys_resolved(&self) -> Vec<&str> {
 		let meta = self.meta();
-		let start = meta.aliases.start as usize;
-		let end = start + meta.aliases.len as usize;
-		self.snap.alias_pool[start..end]
+		let start = meta.keys.start as usize;
+		let end = start + meta.keys.len as usize;
+		self.snap.key_pool[start..end]
 			.iter()
 			.map(|&sym| self.snap.interner.resolve(sym))
 			.collect()

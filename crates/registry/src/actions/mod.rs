@@ -95,7 +95,7 @@ pub fn register_action(def: &'static ActionDef) -> bool {
 	ACTIONS.register(def).is_ok()
 }
 
-/// Finds an action by name, alias, or id.
+/// Finds an action by name, key, or id.
 #[cfg(feature = "db")]
 pub fn find_action(name: &str) -> Option<ActionRef> {
 	ACTIONS.get(name)

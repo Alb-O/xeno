@@ -30,7 +30,7 @@ struct ActionMetaRaw {
 	name: String,
 	description: String,
 	short_desc: Option<String>,
-	aliases: Vec<String>,
+	keys: Vec<String>,
 	priority: i16,
 	caps: Vec<String>,
 	flags: u32,
@@ -61,7 +61,7 @@ struct ActionsBlob {
 struct CommandMetaRaw {
 	name: String,
 	description: String,
-	aliases: Vec<String>,
+	keys: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -73,7 +73,7 @@ struct CommandsBlob {
 struct MotionMetaRaw {
 	name: String,
 	description: String,
-	aliases: Vec<String>,
+	keys: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -183,14 +183,14 @@ fn require_str(node: &kdl::KdlNode, attr: &str, context: &str) -> String {
 }
 
 /// Extracts positional string arguments from a child node.
-fn collect_aliases(node: &kdl::KdlNode) -> Vec<String> {
+fn collect_keys(node: &kdl::KdlNode) -> Vec<String> {
 	let Some(children) = node.children() else {
 		return Vec::new();
 	};
-	let Some(aliases_node) = children.get("aliases") else {
+	let Some(keys_node) = children.get("keys") else {
 		return Vec::new();
 	};
-	aliases_node
+	keys_node
 		.entries()
 		.iter()
 		.filter(|e| e.name().is_none())
@@ -235,17 +235,17 @@ fn parse_action_node(node: &kdl::KdlNode, group_name: Option<&str>) -> ActionMet
 
 	let children = node.children();
 
-	let mut aliases = Vec::new();
+	let mut keys = Vec::new();
 	let mut caps = Vec::new();
 	let mut bindings = Vec::new();
 
 	if let Some(children) = children {
-		if let Some(aliases_node) = children.get("aliases") {
-			for entry in aliases_node.entries() {
+		if let Some(keys_node) = children.get("keys") {
+			for entry in keys_node.entries() {
 				if entry.name().is_none()
 					&& let Some(s) = entry.value().as_string()
 				{
-					aliases.push(s.to_string());
+					keys.push(s.to_string());
 				}
 			}
 		}
@@ -291,7 +291,7 @@ fn parse_action_node(node: &kdl::KdlNode, group_name: Option<&str>) -> ActionMet
 		name,
 		description,
 		short_desc,
-		aliases,
+		keys,
 		priority,
 		caps,
 		flags,
@@ -390,11 +390,11 @@ fn build_commands_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 		let name = node_name_arg(node, "command");
 		let context = format!("command '{name}'");
 		let description = require_str(node, "description", &context);
-		let aliases = collect_aliases(node);
+		let keys = collect_keys(node);
 		commands.push(CommandMetaRaw {
 			name,
 			description,
-			aliases,
+			keys,
 		});
 	}
 
@@ -429,11 +429,11 @@ fn build_motions_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 		let name = node_name_arg(node, "motion");
 		let context = format!("motion '{name}'");
 		let description = require_str(node, "description", &context);
-		let aliases = collect_aliases(node);
+		let keys = collect_keys(node);
 		motions.push(MotionMetaRaw {
 			name,
 			description,
-			aliases,
+			keys,
 		});
 	}
 

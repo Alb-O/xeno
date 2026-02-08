@@ -7,12 +7,12 @@ use crate::db::{ACTIONS, COMMANDS, MOTIONS, TEXT_OBJECTS, resolve_action_id_type
 use crate::motions::MotionEntry;
 use crate::textobj::TextObjectRef;
 
-/// Finds a command definition by ID, name, or alias.
+/// Finds a command definition by ID, name, or key.
 pub fn find_command(key: &str) -> Option<RegistryRef<CommandEntry, CommandId>> {
 	COMMANDS.get(key)
 }
 
-/// Finds an action definition by ID, name, or alias.
+/// Finds an action definition by ID, name, or key.
 pub fn find_action(key: &str) -> Option<RegistryRef<ActionEntry, ActionId>> {
 	ACTIONS.get(key)
 }
@@ -37,7 +37,7 @@ pub fn resolve_action_key(key: ActionKey) -> Option<ActionId> {
 	}
 }
 
-/// Finds a motion definition by ID, name, or alias.
+/// Finds a motion definition by ID, name, or key.
 pub fn find_motion(key: &str) -> Option<RegistryRef<MotionEntry, MotionId>> {
 	MOTIONS.get(key)
 }

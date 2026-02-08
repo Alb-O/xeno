@@ -64,15 +64,20 @@ pub(crate) fn cmp_party(a: &Party, b: &Party) -> Ordering {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KeyKind {
+	/// Stage A: Immutable unique identifier.
 	Canonical,
-	Alias,
+	/// Stage B: Primary friendly display name.
+	PrimaryName,
+	/// Stage C: User-defined alias or domain-specific lookup key.
+	SecondaryKey,
 }
 
 impl std::fmt::Display for KeyKind {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
 			Self::Canonical => write!(f, "canonical"),
-			Self::Alias => write!(f, "alias"),
+			Self::PrimaryName => write!(f, "primary_name"),
+			Self::SecondaryKey => write!(f, "secondary_key"),
 		}
 	}
 }

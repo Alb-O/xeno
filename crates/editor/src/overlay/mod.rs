@@ -121,10 +121,10 @@ pub struct ActiveOverlay {
 /// Unified overlay system managing modal interactions, passive layers, and shared state.
 ///
 /// The `OverlaySystem` orchestrates two primary types of UI overlays:
-/// 1. **Modal Interactions**: Managed by [`OverlayManager`], these are focus-stealing
+/// 1. Modal Interactions: Managed by [`OverlayManager`], these are focus-stealing
 ///    activities like command palette or search prompts that usually involve
 ///    a dedicated input buffer.
-/// 2. **Passive Layers**: Managed by [`OverlayLayers`], these are non-focusing
+/// 2. Passive Layers: Managed by [`OverlayLayers`], these are non-focusing
 ///    contextual elements like info tooltips, diagnostics popovers, or LSP
 ///    completion menus.
 ///

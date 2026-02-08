@@ -7,6 +7,8 @@ pub use crate::core::{
 
 pub mod builder;
 pub mod builtins;
+pub mod domain;
+pub mod domains;
 pub mod index;
 #[cfg(feature = "keymap")]
 pub mod keymap_registry;

@@ -215,7 +215,7 @@ fn create_bootstrap_theme(colors: &BootstrapColors) -> &'static Theme {
 		meta: RegistryMetaStatic {
 			id: "bootstrap",
 			name: "bootstrap",
-			aliases: &[],
+			keys: &[],
 			description: "",
 			priority: -1000,
 			source: RegistrySource::Builtin,

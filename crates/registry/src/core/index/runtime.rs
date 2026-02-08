@@ -125,7 +125,7 @@ where
 		}
 	}
 
-	/// Looks up a definition by ID, name, or alias.
+	/// Looks up a definition by ID, name, or secondary key.
 	#[inline]
 	pub fn get(&self, key: &str) -> Option<RegistryRef<T, Id>> {
 		let snap = self.snap.load_full();
@@ -204,9 +204,9 @@ where
 			}
 			let interner = ib.freeze();
 
-			// 2. Extend alias pool
-			let mut alias_pool = old.alias_pool.to_vec();
-			let new_entry = def.build(&interner, &mut alias_pool);
+			// 2. Extend key pool
+			let mut key_pool = old.key_pool.to_vec();
+			let new_entry = def.build(&interner, &mut key_pool);
 
 			// 3. Resolve canonical ID collision with existing
 			let id_sym = new_entry.meta().id;
@@ -291,14 +291,14 @@ where
 
 			// 4. Rebuild lookup and collisions
 			let (by_key, key_collisions) =
-				build_lookup(self.label, &new_table, &parties, &alias_pool, self.policy);
+				build_lookup(self.label, &new_table, &parties, &key_pool, self.policy);
 
 			// 5. Publish with CAS (clone Arc to return exact snapshot on success)
 			let new_snap = Snapshot {
 				table: Arc::from(new_table),
 				by_key: Arc::new(by_key),
 				interner,
-				alias_pool: Arc::from(alias_pool),
+				key_pool: Arc::from(key_pool),
 				collisions: Arc::from(key_collisions),
 			};
 			let new_arc = Arc::new(new_snap);

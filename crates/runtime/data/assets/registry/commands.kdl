@@ -2,50 +2,50 @@
 // Each `command` node defines metadata; Rust handlers are linked at startup via `command_handler!`.
 
 command "quit" description="Quit editor" {
-    aliases "q"
+    keys "q"
 }
 command "force_quit" description="Force quit editor" {
-    aliases "q!"
+    keys "q!"
 }
 command "write" description="Write buffer to file" {
-    aliases "w"
+    keys "w"
 }
 command "wq" description="Write and quit" {
-    aliases "x"
+    keys "x"
 }
 command "edit" description="Edit a file" {
-    aliases "e"
+    keys "e"
 }
 command "buffer" description="Switch to buffer" {
-    aliases "b"
+    keys "b"
 }
 command "buffer_next" description="Go to next buffer" {
-    aliases "bn"
+    keys "bn"
 }
 command "buffer_prev" description="Go to previous buffer" {
-    aliases "bp"
+    keys "bp"
 }
 command "delete_buffer" description="Delete current buffer" {
-    aliases "db"
+    keys "db"
 }
 command "readonly" description="Toggle read-only mode for current buffer" {
-    aliases "ro"
+    keys "ro"
 }
 command "help" description="Show help for commands" {
-    aliases "h"
+    keys "h"
 }
 command "set" description="Set an option globally" {
-    aliases "se"
+    keys "se"
 }
 command "setlocal" description="Set an option for current buffer only" {
-    aliases "setl"
+    keys "setl"
 }
 command "theme" description="Set the editor theme" {
-    aliases "colorscheme"
+    keys "colorscheme"
 }
 command "registry_diag" description="Show registry system diagnostics" {
-    aliases "registry.diag"
+    keys "registry.diag"
 }
 command "registry_doctor" description="Check for registry collisions and suggest fixes" {
-    aliases "registry.doctor"
+    keys "registry.doctor"
 }

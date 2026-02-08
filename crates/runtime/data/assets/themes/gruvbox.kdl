@@ -2,7 +2,7 @@
 // Based on https://github.com/morhetz/gruvbox
 name gruvbox
 variant dark
-aliases gruvbox_dark gruvbox-dark
+keys gruvbox_dark gruvbox-dark
 // Gruvbox color palette
 palette {
 	// Background tones

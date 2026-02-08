@@ -10,7 +10,7 @@ use crate::info_popup::PopupAnchor;
 
 editor_command!(
 	hover,
-	{ aliases: &["lsp-hover"], description: "Show hover information at cursor" },
+	{ keys: &["lsp-hover"], description: "Show hover information at cursor" },
 	handler: cmd_hover
 );
 
@@ -35,7 +35,7 @@ fn cmd_hover<'a>(
 editor_command!(
 	gd,
 	{
-		aliases: &["goto-definition", "lsp-definition"],
+		keys: &["goto-definition", "lsp-definition"],
 		description: "Go to definition",
 		caps: &[Capability::FileOps]
 	},
@@ -116,7 +116,7 @@ fn format_hover_contents(contents: &xeno_lsp::lsp_types::HoverContents) -> Strin
 editor_command!(
 	code_action,
 	{
-		aliases: &["code-action", "code-actions", "lsp-code-action", "lsp-code-actions"],
+		keys: &["code-action", "code-actions", "lsp-code-action", "lsp-code-actions"],
 		description: "Show code actions at cursor",
 		caps: &[Capability::Edit]
 	},
@@ -135,7 +135,7 @@ fn cmd_code_action<'a>(
 editor_command!(
 	rename,
 	{
-		aliases: &["lsp-rename"],
+		keys: &["lsp-rename"],
 		description: "Rename symbol at cursor",
 		caps: &[Capability::Edit]
 	},
@@ -154,7 +154,7 @@ fn cmd_rename<'a>(
 editor_command!(
 	diagnostic_next,
 	{
-		aliases: &["diagnostic-next", "diag-next", "lsp-diagnostic-next"],
+		keys: &["diagnostic-next", "diag-next", "lsp-diagnostic-next"],
 		description: "Jump to next diagnostic"
 	},
 	handler: cmd_diagnostic_next
@@ -172,7 +172,7 @@ fn cmd_diagnostic_next<'a>(
 editor_command!(
 	diagnostic_prev,
 	{
-		aliases: &["diagnostic-prev", "diag-prev", "lsp-diagnostic-prev"],
+		keys: &["diagnostic-prev", "diag-prev", "lsp-diagnostic-prev"],
 		description: "Jump to previous diagnostic"
 	},
 	handler: cmd_diagnostic_prev

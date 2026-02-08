@@ -174,7 +174,7 @@ impl CompletionSource for CommandSource {
 			.into_iter()
 			.filter(|cmd| {
 				cmd.name_str().starts_with(input)
-					|| cmd.aliases_resolved().iter().any(|a| a.starts_with(input))
+					|| cmd.keys_resolved().iter().any(|a| a.starts_with(input))
 			})
 			.map(|cmd| CompletionItem {
 				label: cmd.name_str().to_string(),

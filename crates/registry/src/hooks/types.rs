@@ -4,8 +4,7 @@ use super::context::{HookContext, MutableHookContext};
 use crate::HookEvent;
 use crate::core::index::{BuildEntry, RegistryMetaRef, StrListRef};
 pub use crate::core::{
-	CapabilitySet, FrozenInterner, RegistryEntry, RegistryMeta, RegistryMetaStatic,
-	RegistryMetadata, Symbol, SymbolList,
+	FrozenInterner, RegistryEntry, RegistryMeta, RegistryMetaStatic, RegistryMetadata, Symbol,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -95,48 +94,12 @@ pub struct HookEntry {
 
 crate::impl_registry_entry!(HookEntry);
 
-/// Unified input for hook registration.
-pub enum HookInput {
-	Static(HookDef),
-	Linked(crate::kdl::link::LinkedHookDef),
-}
-
-impl BuildEntry<HookEntry> for HookInput {
-	fn meta_ref(&self) -> RegistryMetaRef<'_> {
-		match self {
-			Self::Static(d) => d.meta_ref(),
-			Self::Linked(d) => d.meta_ref(),
-		}
-	}
-
-	fn short_desc_str(&self) -> &str {
-		match self {
-			Self::Static(d) => d.short_desc_str(),
-			Self::Linked(d) => d.short_desc_str(),
-		}
-	}
-
-	fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
-		match self {
-			Self::Static(d) => d.collect_strings(sink),
-			Self::Linked(d) => d.collect_strings(sink),
-		}
-	}
-
-	fn build(&self, interner: &FrozenInterner, alias_pool: &mut Vec<Symbol>) -> HookEntry {
-		match self {
-			Self::Static(d) => d.build(interner, alias_pool),
-			Self::Linked(d) => d.build(interner, alias_pool),
-		}
-	}
-}
-
 impl BuildEntry<HookEntry> for HookDef {
 	fn meta_ref(&self) -> RegistryMetaRef<'_> {
 		RegistryMetaRef {
 			id: self.meta.id,
 			name: self.meta.name,
-			aliases: StrListRef::Static(self.meta.aliases),
+			keys: StrListRef::Static(self.meta.keys),
 			description: self.meta.description,
 			priority: self.meta.priority,
 			source: self.meta.source,
@@ -150,33 +113,12 @@ impl BuildEntry<HookEntry> for HookDef {
 	}
 
 	fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
-		let meta = self.meta_ref();
-		sink.push(meta.id);
-		sink.push(meta.name);
-		sink.push(meta.description);
-		meta.aliases.for_each(|a| sink.push(a));
+		crate::core::index::meta_build::collect_meta_strings(&self.meta_ref(), sink, []);
 	}
 
-	fn build(&self, interner: &FrozenInterner, alias_pool: &mut Vec<Symbol>) -> HookEntry {
-		let meta_ref = self.meta_ref();
-		let start = alias_pool.len() as u32;
-		meta_ref.aliases.for_each(|alias| {
-			alias_pool.push(interner.get(alias).expect("missing interned alias"));
-		});
-		let len = (alias_pool.len() as u32 - start) as u16;
-
-		let meta = RegistryMeta {
-			id: interner.get(meta_ref.id).expect("missing interned id"),
-			name: interner.get(meta_ref.name).expect("missing interned name"),
-			description: interner
-				.get(meta_ref.description)
-				.expect("missing interned description"),
-			aliases: SymbolList { start, len },
-			priority: meta_ref.priority,
-			source: meta_ref.source,
-			required_caps: CapabilitySet::from_iter(meta_ref.required_caps.iter().cloned()),
-			flags: meta_ref.flags,
-		};
+	fn build(&self, interner: &FrozenInterner, key_pool: &mut Vec<Symbol>) -> HookEntry {
+		let meta =
+			crate::core::index::meta_build::build_meta(interner, key_pool, self.meta_ref(), []);
 
 		HookEntry {
 			meta,
@@ -187,3 +129,6 @@ impl BuildEntry<HookEntry> for HookDef {
 		}
 	}
 }
+
+/// Unified input for hook registration.
+pub type HookInput = crate::core::def_input::DefInput<HookDef, crate::kdl::link::LinkedHookDef>;

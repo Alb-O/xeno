@@ -21,13 +21,28 @@ This yields three important properties:
 - returned handles pin the snapshot they came from.
 - plugins can register new definitions without coordinating with readers.
 
+## Glossary
+
+| Term | Definition |
+|------|------------|
+| Canonical ID | Stage A key. Immutable unique identifier for a definition (e.g., `xeno-registry::quit`). |
+| Primary Name | Stage B key. Friendly display name used for lookup (e.g., `quit`). |
+| Secondary Keys | Stage C keys. User-defined aliases and domain-specific lookup keys (e.g., `q` for `quit`). |
+| Symbol | Interned string identifier (`u32`). Fast to compare and copy. |
+| Key Pool | A shared pool of `Symbol`s within a `Snapshot` used to store secondary keys. |
+| Snapshot | Immutable point-in-time view of a registry domain. |
+| Pinning | Mechanism where a `RegistryRef` holds an `Arc<Snapshot>`, keeping the data alive even if a new snapshot is published. |
+| DomainSpec | Trait defining the contract for a registry domain (input, entry, and builder wiring). |
+| DefInput | Unified wrapper for static (macro-authored) and linked (dynamic) definitions. |
+
 ## Snapshots and read semantics
 
 A `Snapshot` is the single source of truth for lookups. It contains:
 
 - a dense table of entries (`table`),
 - a key map (`by_key`) from interned symbols to dense IDs,
-- a frozen interner used to resolve symbols back to strings, and
+- a frozen interner used to resolve symbols back to strings,
+- a key pool (`key_pool`) of interned symbols, and
 - diagnostic collision records.
 
 Lookups return a `RegistryRef`, which holds an `Arc<Snapshot>` and a dense ID. This is the pinning mechanism: once a `RegistryRef` exists, the snapshot it refers to cannot be freed even if a newer snapshot is published.
@@ -43,7 +58,7 @@ When two definitions claim the same canonical ID, the registry selects exactly o
 3. later ingest ordinal wins (a deterministic tie-break).
 
 
-Names and aliases are bindings into the key map. When multiple definitions compete for the same non-canonical key, the precedence rule is:
+Secondary keys (Primary Name + Secondary Keys) are bindings into the key map. When multiple definitions compete for the same non-canonical key, the precedence rule is:
 
 1. higher priority wins,
 2. higher source rank wins (`Runtime > Crate > Builtin`),
@@ -51,7 +66,7 @@ Names and aliases are bindings into the key map. When multiple definitions compe
 
 This is the rule used for 'which definition a user gets when they type a key.'
 
-Once a canonical ID is bound, it cannot be displaced by a name or alias. Names/aliases compete only within their stages; they do not override canonical identity bindings.
+Once a canonical ID is bound, it cannot be displaced by a secondary key. Keys compete only within their stages; they do not override canonical identity bindings.
 
 ## Duplicate policy
 
@@ -65,21 +80,26 @@ In dev, `Panic` can be used to force early discovery of bad domain composition.
 
 ## Adding a new domain
 
-A domain is a small, regular module structure plus a registration hook into the database builder.
+A domain is a small, regular structure defined by a `DomainSpec` implementation.
 
-Create `src/<domain>/` with the following shape:
+1. Create `src/<domain>/` with the following shape:
+   - `def.rs` — `<Domain>Def`: the static definition type (`'static` authoring surface).
+   - `entry.rs` — `<Domain>Entry`: the runtime storage type used in tables and returned from lookups.
+   - `builtins.rs` — built-in definition set and `register_builtins` function.
+   - `mod.rs` — public facade, `Input` type alias (via `DefInput`), and re-exports.
 
-- `def.rs` — `<Domain>Def`: the static definition type (`'static` authoring surface) and `BuildEntry` implementation.
-- `entry.rs` — `<Domain>Entry`: the runtime storage type used in tables and returned from lookups.
-- `builtins.rs` — built-in definition set and `register_builtins` function.
-- `mod.rs` — public facade and re-exports.
+2. Implement `DomainSpec` for the new domain in `crates/registry/src/db/domains.rs` using the `domain!` macro (or manually if custom `on_push` logic is needed).
 
-Then wire the domain into:
-
-- `crates/registry/src/db/mod.rs` (domain is part of the DB surface), and
-- the DB builder module (domain is built and published during startup).
+3. Wire the domain into `crates/registry/src/db/mod.rs` as part of the `RegistryDb` struct and `ACTIONS`/`OPTIONS` style static accessors.
 
 For a canonical example, see `src/options/`.
+
+### Recipe: Adding a new key to an existing domain
+
+If you add a new lookup field (like `kdl_key`) to a domain:
+1. Update `collect_strings` in `def.rs` to call `collect_meta_strings(..., [extra_key])`.
+2. Update `build` in `def.rs` to pass the extra key(s) to `build_meta(..., [extra_key])`.
+3. The new key will automatically join **Stage C** (Secondary Keys) and cannot displace Stage A or Stage B bindings.
 
 ## Invariants
 
@@ -95,6 +115,12 @@ These invariants are enforced both structurally (immutability + snapshot pinning
 ## Debugging collisions
 
 When a definition loses a canonical-ID or key conflict, the registry records a `Collision` in the current snapshot. This is intended for “why didn’t my plugin override X?” questions.
+
+Example: If a plugin tries to bind `:q` to its own action but the built-in `quit` action already has it as an alias, the snapshot will record a `KeyConflict`.
+- key: `:q` (symbol)
+- existing: `quit` (Party { source: Builtin, ... })
+- incoming: `my-plugin-quit` (Party { source: Runtime, ... })
+- resolution: `ReplacedExisting` (since Runtime > Builtin)
 
 To inspect:
 

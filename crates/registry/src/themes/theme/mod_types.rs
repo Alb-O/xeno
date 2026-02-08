@@ -28,7 +28,7 @@ pub static DEFAULT_THEME: ThemeDef = ThemeDef {
 	meta: RegistryMetaStatic {
 		id: "default",
 		name: "default",
-		aliases: &[],
+		keys: &[],
 		description: "",
 		priority: 0,
 		source: RegistrySource::Builtin,
@@ -84,7 +84,7 @@ pub const DEFAULT_THEME_ID: &str = "gruvbox";
 #[cfg(feature = "db")]
 pub use crate::db::THEMES;
 
-/// Find a theme by name or alias.
+/// Find a theme by name or key.
 pub fn get_theme(name: &str) -> Option<crate::core::RegistryRef<ThemeEntry, crate::core::ThemeId>> {
 	#[cfg(feature = "db")]
 	{

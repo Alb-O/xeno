@@ -26,7 +26,7 @@ static ACTION_INVOCATION_TEST: xeno_registry::ActionDef = xeno_registry::ActionD
 	meta: xeno_registry::RegistryMetaStatic {
 		id: "xeno-editor::invocation_test_action",
 		name: "invocation_test_action",
-		aliases: &[],
+		keys: &[],
 		description: "Invocation test action",
 		priority: 0,
 		source: xeno_registry::RegistrySource::Crate("xeno-editor"),
@@ -46,7 +46,7 @@ static ACTION_INVOCATION_EDIT: xeno_registry::ActionDef = xeno_registry::ActionD
 	meta: xeno_registry::RegistryMetaStatic {
 		id: "xeno-editor::invocation_edit_action",
 		name: "invocation_edit_action",
-		aliases: &[],
+		keys: &[],
 		description: "Invocation edit action",
 		priority: 0,
 		source: xeno_registry::RegistrySource::Crate("xeno-editor"),
@@ -69,7 +69,7 @@ static HOOK_ACTION_PRE: HookDef = HookDef {
 	meta: xeno_registry::RegistryMetaStatic {
 		id: "xeno-editor::invocation_test_action_pre",
 		name: "invocation_test_action_pre",
-		aliases: &[],
+		keys: &[],
 		description: "Count action pre hooks",
 		priority: 0,
 		source: xeno_registry::RegistrySource::Crate("xeno-editor"),
@@ -93,7 +93,7 @@ static HOOK_ACTION_POST: HookDef = HookDef {
 	meta: xeno_registry::RegistryMetaStatic {
 		id: "xeno-editor::invocation_test_action_post",
 		name: "invocation_test_action_post",
-		aliases: &[],
+		keys: &[],
 		description: "Count action post hooks",
 		priority: 0,
 		source: xeno_registry::RegistrySource::Crate("xeno-editor"),
@@ -116,7 +116,7 @@ static CMD_TEST_FAIL: xeno_registry::CommandDef = xeno_registry::CommandDef {
 	meta: xeno_registry::RegistryMetaStatic {
 		id: "xeno-editor::invocation_test_command_fail",
 		name: "invocation_test_command_fail",
-		aliases: &[],
+		keys: &[],
 		description: "Invocation test command failure",
 		priority: 0,
 		source: xeno_registry::RegistrySource::Crate("xeno-editor"),

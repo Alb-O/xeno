@@ -17,7 +17,7 @@ pub struct ActionMetaRaw {
 	/// Short description for which-key HUD (defaults to description if absent).
 	pub short_desc: Option<String>,
 	/// Alternative lookup names.
-	pub aliases: Vec<String>,
+	pub keys: Vec<String>,
 	/// Conflict resolution priority.
 	pub priority: i16,
 	/// Required capability names (parsed to `Capability` enum at link time).
@@ -69,7 +69,7 @@ pub struct CommandMetaRaw {
 	/// Human-readable description.
 	pub description: String,
 	/// Alternative lookup names (e.g., `"q"` for `"quit"`).
-	pub aliases: Vec<String>,
+	pub keys: Vec<String>,
 }
 
 /// Top-level blob containing all command metadata.
@@ -89,7 +89,7 @@ pub struct MotionMetaRaw {
 	/// Human-readable description.
 	pub description: String,
 	/// Alternative lookup names.
-	pub aliases: Vec<String>,
+	pub keys: Vec<String>,
 }
 
 /// Top-level blob containing all motion metadata.

@@ -14,7 +14,7 @@ where
 	pub(crate) table: Arc<[Arc<T>]>,
 	pub(crate) by_key: Arc<Map<Symbol, Id>>,
 	pub(crate) interner: FrozenInterner,
-	pub(crate) alias_pool: Arc<[Symbol]>,
+	pub(crate) key_pool: Arc<[Symbol]>,
 	pub(crate) collisions: Arc<[Collision]>,
 }
 
@@ -27,7 +27,7 @@ where
 			table: self.table.clone(),
 			by_key: self.by_key.clone(),
 			interner: self.interner.clone(),
-			alias_pool: self.alias_pool.clone(),
+			key_pool: self.key_pool.clone(),
 			collisions: self.collisions.clone(),
 		}
 	}
@@ -37,7 +37,7 @@ impl<T, Id: DenseId> RegistryIndex<T, Id>
 where
 	T: RegistryEntry + Send + Sync + 'static,
 {
-	/// Looks up a definition by ID, name, or alias.
+	/// Looks up a definition by ID, name, or secondary key.
 	#[inline]
 	pub fn get(&self, key: &str) -> Option<&T> {
 		let sym = self.interner.get(key)?;

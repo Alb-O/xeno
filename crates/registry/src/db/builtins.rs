@@ -9,7 +9,7 @@ pub fn register_all(builder: &mut RegistryDbBuilder) -> Result<(), RegistryError
 	crate::options::register_builtins(builder);
 	crate::themes::register_builtins(builder);
 	crate::gutter::register_builtins(builder);
-	crate::statusline::register_builtins(builder);
+	crate::statusline::builtins::register_builtins(builder);
 	crate::hooks::register_builtins(builder);
 	crate::notifications::register_builtins(builder);
 	Ok(())

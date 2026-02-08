@@ -2,7 +2,7 @@
 // Based on the classic Monokai color scheme
 name monokai
 variant dark
-aliases monokai_extended
+keys monokai_extended
 // Monokai color palette
 palette {
 	// Background tones

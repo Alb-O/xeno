@@ -20,7 +20,7 @@ use crate::motions::{MotionDef, MotionEntry, MotionInput};
 use crate::options::{OptionDef, OptionEntry, OptionInput};
 use crate::statusline::{StatuslineEntry, StatuslineInput, StatuslineSegmentDef};
 use crate::textobj::{TextObjectDef, TextObjectEntry, TextObjectInput};
-use crate::themes::theme::{ThemeDef, ThemeEntry};
+use crate::themes::theme::{ThemeDef, ThemeEntry, ThemeInput};
 
 pub struct RegistryDbBuilder {
 	pub actions: RegistryBuilder<ActionInput, ActionEntry, ActionId>,
@@ -28,7 +28,7 @@ pub struct RegistryDbBuilder {
 	pub motions: RegistryBuilder<MotionInput, MotionEntry, MotionId>,
 	pub text_objects: RegistryBuilder<TextObjectInput, TextObjectEntry, TextObjectId>,
 	pub options: RegistryBuilder<OptionInput, OptionEntry, OptionId>,
-	pub themes: RegistryBuilder<ThemeDef, ThemeEntry, ThemeId>,
+	pub themes: RegistryBuilder<ThemeInput, ThemeEntry, ThemeId>,
 	pub gutters: RegistryBuilder<GutterInput, GutterEntry, GutterId>,
 	pub statusline: RegistryBuilder<StatuslineInput, StatuslineEntry, StatuslineId>,
 	pub hooks: RegistryBuilder<HookInput, HookEntry, HookId>,
@@ -112,18 +112,6 @@ pub struct PluginBuildRecord {
 	pub counts: DomainCounts,
 }
 
-fn validate_option_def(def: &'static OptionDef) {
-	if def.default.value_type() != def.value_type {
-		panic!(
-			"OptionDef default type mismatch: name={} kdl_key={} value_type={:?} default_type={:?}",
-			def.meta.name,
-			def.kdl_key,
-			def.value_type,
-			def.default.value_type(),
-		);
-	}
-}
-
 impl Default for RegistryDbBuilder {
 	fn default() -> Self {
 		Self::new()
@@ -150,70 +138,66 @@ impl RegistryDbBuilder {
 		}
 	}
 
+	fn push_domain<D: crate::db::domain::DomainSpec>(&mut self, input: D::Input) {
+		D::on_push(self, &input);
+		D::builder(self).push(Arc::new(input));
+	}
+
 	pub fn register_action(&mut self, def: &'static ActionDef) {
-		self.keybindings.extend(def.bindings.iter().cloned());
-		self.actions
-			.push(Arc::new(ActionInput::Static(def.clone())));
+		self.push_domain::<crate::db::domains::Actions>(ActionInput::Static(def.clone()));
 	}
 
 	/// Registers an action defined via KDL metadata + Rust handler linking.
 	pub fn register_linked_action(&mut self, def: LinkedActionDef) {
-		self.keybindings.extend(def.bindings.iter().cloned());
-		self.actions.push(Arc::new(ActionInput::Linked(def)));
+		self.push_domain::<crate::db::domains::Actions>(ActionInput::Linked(def));
 	}
 
 	pub fn register_command(&mut self, def: &'static CommandDef) {
-		self.commands
-			.push(Arc::new(CommandInput::Static(def.clone())));
+		self.push_domain::<crate::db::domains::Commands>(CommandInput::Static(def.clone()));
 	}
 
 	/// Registers a command defined via KDL metadata + Rust handler linking.
 	pub fn register_linked_command(&mut self, def: crate::kdl::link::LinkedCommandDef) {
-		self.commands.push(Arc::new(CommandInput::Linked(def)));
+		self.push_domain::<crate::db::domains::Commands>(CommandInput::Linked(def));
 	}
 
 	pub fn register_motion(&mut self, def: &'static MotionDef) {
-		self.motions
-			.push(Arc::new(MotionInput::Static(def.clone())));
+		self.push_domain::<crate::db::domains::Motions>(MotionInput::Static(def.clone()));
 	}
 
 	/// Registers a motion defined via KDL metadata + Rust handler linking.
 	pub fn register_linked_motion(&mut self, def: crate::kdl::link::LinkedMotionDef) {
-		self.motions.push(Arc::new(MotionInput::Linked(def)));
+		self.push_domain::<crate::db::domains::Motions>(MotionInput::Linked(def));
 	}
 
 	pub fn register_text_object(&mut self, def: &'static TextObjectDef) {
-		self.text_objects
-			.push(Arc::new(TextObjectInput::Static(*def)));
+		self.push_domain::<crate::db::domains::TextObjects>(TextObjectInput::Static(*def));
 	}
 
 	/// Registers a text object defined via KDL metadata + Rust handler linking.
 	pub fn register_linked_text_object(&mut self, def: crate::kdl::link::LinkedTextObjectDef) {
-		self.text_objects
-			.push(Arc::new(TextObjectInput::Linked(def)));
+		self.push_domain::<crate::db::domains::TextObjects>(TextObjectInput::Linked(def));
 	}
 
 	pub fn register_option(&mut self, def: &'static OptionDef) {
-		validate_option_def(def);
-		self.options.push(Arc::new(OptionInput::Static(*def)));
+		self.push_domain::<crate::db::domains::Options>(OptionInput::Static(*def));
 	}
 
 	pub fn register_theme(&mut self, def: &'static ThemeDef) {
-		self.themes.push_static(def);
+		self.push_domain::<crate::db::domains::Themes>(ThemeInput::Static(def.clone()));
 	}
 
 	pub fn register_gutter(&mut self, def: &'static GutterDef) {
-		self.gutters.push(Arc::new(GutterInput::Static(*def)));
+		self.push_domain::<crate::db::domains::Gutters>(GutterInput::Static(*def));
 	}
 
 	/// Registers a gutter defined via KDL metadata + Rust handler linking.
 	pub fn register_linked_gutter(&mut self, def: crate::kdl::link::LinkedGutterDef) {
-		self.gutters.push(Arc::new(GutterInput::Linked(def)));
+		self.push_domain::<crate::db::domains::Gutters>(GutterInput::Linked(def));
 	}
 
 	pub fn register_statusline_segment(&mut self, def: &'static StatuslineSegmentDef) {
-		self.statusline
-			.push(Arc::new(StatuslineInput::Static(*def)));
+		self.push_domain::<crate::db::domains::Statusline>(StatuslineInput::Static(*def));
 	}
 
 	/// Registers a statusline segment defined via KDL metadata + Rust handler linking.
@@ -221,16 +205,16 @@ impl RegistryDbBuilder {
 		&mut self,
 		def: crate::kdl::link::LinkedStatuslineDef,
 	) {
-		self.statusline.push(Arc::new(StatuslineInput::Linked(def)));
+		self.push_domain::<crate::db::domains::Statusline>(StatuslineInput::Linked(def));
 	}
 
 	pub fn register_hook(&mut self, def: &'static HookDef) {
-		self.hooks.push(Arc::new(HookInput::Static(*def)));
+		self.push_domain::<crate::db::domains::Hooks>(HookInput::Static(*def));
 	}
 
 	/// Registers a hook defined via KDL metadata + Rust handler linking.
 	pub fn register_linked_hook(&mut self, def: crate::kdl::link::LinkedHookDef) {
-		self.hooks.push(Arc::new(HookInput::Linked(def)));
+		self.push_domain::<crate::db::domains::Hooks>(HookInput::Linked(def));
 	}
 
 	pub fn register_notification(&mut self, def: &'static crate::notifications::NotificationDef) {

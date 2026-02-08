@@ -2,7 +2,7 @@
 // Based on Atom's One Dark theme
 name one_dark
 variant dark
-aliases atom_one_dark one
+keys atom_one_dark one
 // One Dark color palette
 palette {
 	// Background tones

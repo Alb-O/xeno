@@ -1,6 +1,7 @@
 //! Shared registry infrastructure.
 
 pub mod capability;
+pub mod def_input;
 pub mod error;
 pub mod index;
 pub mod key;

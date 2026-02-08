@@ -2,8 +2,7 @@
 
 use crate::core::index::build::{BuildEntry, RegistryMetaRef, StrListRef};
 use crate::core::{
-	CapabilitySet, FrozenInterner, RegistryEntry, RegistryMeta, RegistryMetaStatic, RegistrySource,
-	Symbol, SymbolList,
+	FrozenInterner, RegistryEntry, RegistryMeta, RegistryMetaStatic, RegistrySource, Symbol,
 };
 
 /// Minimal test entry type for proofs.
@@ -28,7 +27,7 @@ impl BuildEntry<TestEntry> for TestDef {
 		RegistryMetaRef {
 			id: self.meta.id,
 			name: self.meta.name,
-			aliases: StrListRef::Static(self.meta.aliases),
+			keys: StrListRef::Static(self.meta.keys),
 			description: self.meta.description,
 			priority: self.meta.priority,
 			source: self.meta.source,
@@ -40,32 +39,16 @@ impl BuildEntry<TestEntry> for TestDef {
 		self.meta.name
 	}
 	fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
-		sink.push(self.meta.id);
-		sink.push(self.meta.name);
-		sink.push(self.meta.description);
-		StrListRef::Static(self.meta.aliases).for_each(|a| sink.push(a));
+		crate::core::index::meta_build::collect_meta_strings(&self.meta_ref(), sink, []);
 	}
-	fn build(&self, interner: &FrozenInterner, alias_pool: &mut Vec<Symbol>) -> TestEntry {
-		let meta_ref = self.meta_ref();
-		let start = alias_pool.len() as u32;
-		meta_ref.aliases.for_each(|alias| {
-			alias_pool.push(interner.get(alias).expect("missing interned alias"));
-		});
-		let len = (alias_pool.len() as u32 - start) as u16;
-
+	fn build(&self, interner: &FrozenInterner, key_pool: &mut Vec<Symbol>) -> TestEntry {
 		TestEntry {
-			meta: RegistryMeta {
-				id: interner.get(meta_ref.id).expect("missing interned id"),
-				name: interner.get(meta_ref.name).expect("missing interned name"),
-				description: interner
-					.get(meta_ref.description)
-					.expect("missing interned description"),
-				aliases: SymbolList { start, len },
-				priority: meta_ref.priority,
-				source: meta_ref.source,
-				required_caps: CapabilitySet::from_iter(meta_ref.required_caps.iter().cloned()),
-				flags: meta_ref.flags,
-			},
+			meta: crate::core::index::meta_build::build_meta(
+				interner,
+				key_pool,
+				self.meta_ref(),
+				[],
+			),
 		}
 	}
 }
@@ -75,7 +58,7 @@ pub(crate) fn make_def(id: &'static str, priority: i16) -> TestDef {
 		meta: RegistryMetaStatic {
 			id,
 			name: id,
-			aliases: &[],
+			keys: &[],
 			description: "",
 			priority,
 			source: RegistrySource::Builtin,
@@ -94,7 +77,7 @@ pub(crate) fn make_def_with_source(
 		meta: RegistryMetaStatic {
 			id,
 			name: id,
-			aliases: &[],
+			keys: &[],
 			description: "",
 			priority,
 			source,
@@ -104,16 +87,16 @@ pub(crate) fn make_def_with_source(
 	}
 }
 
-pub(crate) fn make_def_with_aliases(
+pub(crate) fn make_def_with_keyes(
 	id: &'static str,
 	priority: i16,
-	aliases: &'static [&'static str],
+	keys: &'static [&'static str],
 ) -> TestDef {
 	TestDef {
 		meta: RegistryMetaStatic {
 			id,
 			name: id,
-			aliases,
+			keys,
 			description: "",
 			priority,
 			source: RegistrySource::Builtin,

@@ -5,7 +5,7 @@ use super::collision::{Collision, CollisionKind, DuplicatePolicy, Party, cmp_par
 use super::types::RegistryIndex;
 use crate::{DenseId, FrozenInterner, InternerBuilder, RegistryEntry, RegistrySource, Symbol};
 
-/// Borrowed alias list that works with both static (`&[&str]`) and owned (`&[String]`) storage.
+/// Borrowed key list that works with both static (`&[&str]`) and owned (`&[String]`) storage.
 pub enum StrListRef<'a> {
 	/// Static string slices (from `RegistryMetaStatic`).
 	Static(&'a [&'a str]),
@@ -14,7 +14,7 @@ pub enum StrListRef<'a> {
 }
 
 impl<'a> StrListRef<'a> {
-	/// Calls `f` for each alias string.
+	/// Calls `f` for each key string.
 	pub fn for_each(&self, mut f: impl FnMut(&'a str)) {
 		match self {
 			Self::Static(xs) => xs.iter().copied().for_each(&mut f),
@@ -22,7 +22,7 @@ impl<'a> StrListRef<'a> {
 		}
 	}
 
-	/// Collects all alias strings into a `Vec<&str>`.
+	/// Collects all key strings into a `Vec<&str>`.
 	pub fn to_vec(&self) -> Vec<&'a str> {
 		let mut out = Vec::new();
 		self.for_each(|s| out.push(s));
@@ -34,7 +34,7 @@ impl<'a> StrListRef<'a> {
 pub struct RegistryMetaRef<'a> {
 	pub id: &'a str,
 	pub name: &'a str,
-	pub aliases: StrListRef<'a>,
+	pub keys: StrListRef<'a>,
 	pub description: &'a str,
 	pub priority: i16,
 	pub source: RegistrySource,
@@ -51,7 +51,7 @@ pub trait BuildEntry<Out: RegistryEntry> {
 	/// Collects all strings that need to be interned.
 	fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>);
 	/// Converts to the symbolized runtime entry.
-	fn build(&self, interner: &FrozenInterner, alias_pool: &mut Vec<Symbol>) -> Out;
+	fn build(&self, interner: &FrozenInterner, key_pool: &mut Vec<Symbol>) -> Out;
 }
 
 /// Builder for constructing a [`RegistryIndex`].
@@ -138,12 +138,12 @@ where
 		// 2. Build interner from WINNERS only
 		let interner = build_interner(&winners);
 
-		// 3. Build table and alias pool
-		let (table, alias_pool, parties) = build_table(&winners, &interner);
+		// 3. Build table and key pool
+		let (table, key_pool, parties) = build_table(&winners, &interner);
 
 		// 4. Build lookup map and resolve key conflicts
 		let (by_key, key_collisions) =
-			build_lookup(self.label, &table, &parties, &alias_pool, self.policy);
+			build_lookup(self.label, &table, &parties, &key_pool, self.policy);
 
 		// 5. Finalize collisions
 		let mut all_collisions = Vec::with_capacity(id_collisions.len() + key_collisions.len());
@@ -184,7 +184,7 @@ where
 			table: Arc::from(table),
 			by_key: Arc::new(by_key),
 			interner,
-			alias_pool: Arc::from(alias_pool),
+			key_pool: Arc::from(key_pool),
 			collisions: Arc::from(all_collisions),
 		}
 	}
@@ -268,7 +268,7 @@ where
 	In: BuildEntry<Out>,
 	Out: RegistryEntry,
 {
-	let mut alias_pool = Vec::new();
+	let mut key_pool = Vec::new();
 
 	// Re-sort winners by ID string to ensure stable table indexing
 	let mut sorted_winners: Vec<_> = winners.iter().collect();
@@ -278,7 +278,7 @@ where
 	let mut parties = Vec::with_capacity(sorted_winners.len());
 
 	for entry in sorted_winners {
-		let out = entry.inner.build(interner, &mut alias_pool);
+		let out = entry.inner.build(interner, &mut key_pool);
 		parties.push(Party {
 			def_id: out.meta().id,
 			source: out.meta().source,
@@ -288,7 +288,7 @@ where
 		table.push(Arc::new(out));
 	}
 
-	(table, alias_pool, parties)
+	(table, key_pool, parties)
 }
 
 pub(crate) struct IdCollisionRecord {

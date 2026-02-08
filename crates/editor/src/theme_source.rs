@@ -34,7 +34,7 @@ impl CompletionSource for ThemeSource {
 			.iter()
 			.filter(|t| {
 				t.name_str().starts_with(prefix)
-					|| t.aliases_resolved().iter().any(|a| a.starts_with(prefix))
+					|| t.keys_resolved().iter().any(|a| a.starts_with(prefix))
 			})
 			.map(|t| CompletionItem {
 				label: t.name_str().to_string(),

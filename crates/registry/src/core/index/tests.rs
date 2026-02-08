@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use super::test_fixtures::{
-	TestDef, TestEntry, make_def, make_def_with_aliases, make_def_with_source,
+	TestDef, TestEntry, make_def, make_def_with_keyes, make_def_with_source,
 };
 use crate::core::index::build::RegistryBuilder;
 use crate::core::index::runtime::{RegisterError, RuntimeRegistry};
@@ -112,14 +112,14 @@ fn test_register_replaces_existing() {
 	assert_eq!(registry.len(), 2);
 }
 
-/// Runtime registration with aliases makes the entry reachable by alias.
+/// Runtime registration with keyes makes the entry reachable by key.
 #[test]
-fn test_register_with_aliases() {
+fn test_register_with_keys() {
 	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> = RegistryBuilder::new("test");
 	builder.push(Arc::new(make_def("base", 0)));
 	let registry = RuntimeRegistry::new("test", builder.build());
 
-	let def: &'static TestDef = Box::leak(Box::new(make_def_with_aliases(
+	let def: &'static TestDef = Box::leak(Box::new(make_def_with_keyes(
 		"my_action",
 		10,
 		&["ma", "myact"],
@@ -132,12 +132,12 @@ fn test_register_with_aliases() {
 		.expect("canonical ID must resolve");
 	assert_eq!(by_id.priority(), 10);
 
-	// Reachable by alias
-	let by_alias1 = registry.get("ma").expect("alias 'ma' must resolve");
-	assert_eq!(by_alias1.dense_id(), by_id.dense_id());
+	// Reachable by key
+	let by_key1 = registry.get("ma").expect("key 'ma' must resolve");
+	assert_eq!(by_key1.dense_id(), by_id.dense_id());
 
-	let by_alias2 = registry.get("myact").expect("alias 'myact' must resolve");
-	assert_eq!(by_alias2.dense_id(), by_id.dense_id());
+	let by_key2 = registry.get("myact").expect("key 'myact' must resolve");
+	assert_eq!(by_key2.dense_id(), by_id.dense_id());
 }
 
 /// SnapshotGuard provides correct iteration and count.
@@ -242,7 +242,7 @@ fn test_registry_ref_string_helpers() {
 		meta: RegistryMetaStatic {
 			id: "test::my_action",
 			name: "my_action",
-			aliases: &["ma"],
+			keys: &["ma"],
 			description: "A test action",
 			priority: 42,
 			source: RegistrySource::Builtin,
@@ -257,6 +257,6 @@ fn test_registry_ref_string_helpers() {
 	assert_eq!(r.id_str(), "test::my_action");
 	assert_eq!(r.name_str(), "my_action");
 	assert_eq!(r.description_str(), "A test action");
-	assert_eq!(r.aliases_resolved(), vec!["ma"]);
+	assert_eq!(r.keys_resolved(), vec!["ma"]);
 	assert_eq!(r.dense_id(), ActionId::from_u32(0));
 }

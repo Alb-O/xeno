@@ -13,7 +13,7 @@ use crate::info_popup::PopupAnchor;
 editor_command!(
 	stats,
 	{
-		aliases: &["editor-stats", "debug-stats"],
+		keys: &["editor-stats", "debug-stats"],
 		description: "Show editor runtime statistics"
 	},
 	handler: cmd_stats
@@ -22,7 +22,7 @@ editor_command!(
 editor_command!(
 	registry,
 	{
-		aliases: &["reg"],
+		keys: &["reg"],
 		description: "List registry items"
 	},
 	handler: cmd_registry

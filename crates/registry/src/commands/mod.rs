@@ -146,7 +146,7 @@ pub mod flags {
 #[cfg(feature = "db")]
 pub use crate::db::COMMANDS;
 
-/// Finds a command by name or alias.
+/// Finds a command by name or key.
 #[cfg(feature = "db")]
 pub fn find_command(name: &str) -> Option<RegistryRef<CommandEntry, crate::core::CommandId>> {
 	COMMANDS.get(name)

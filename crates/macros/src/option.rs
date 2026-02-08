@@ -187,7 +187,7 @@ pub fn derive_option(input: TokenStream) -> TokenStream {
 		meta: ::xeno_registry::options::RegistryMetaStatic {
 			id: ::core::concat!(::core::env!("CARGO_PKG_NAME"), "::", ::core::stringify!(#name)),
 			name: ::core::stringify!(#name),
-			aliases: &[],
+			keys: &[],
 			description: #description,
 			priority: #priority,
 			source: ::xeno_registry::options::RegistrySource::Crate(::core::env!("CARGO_PKG_NAME")),

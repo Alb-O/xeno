@@ -14,7 +14,7 @@
 // - Cursor: RGB(255, 255, 0) - pure yellow
 name debug
 variant dark
-aliases test
+keys test
 priority -100
 // Debug theme palette - predictable values for testing
 palette {

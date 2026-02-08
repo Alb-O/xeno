@@ -38,7 +38,7 @@ impl core::fmt::Display for RegistrySource {
 pub struct RegistryMetaStatic {
 	pub id: &'static str,
 	pub name: &'static str,
-	pub aliases: &'static [&'static str],
+	pub keys: &'static [&'static str],
 	pub description: &'static str,
 	pub priority: i16,
 	pub source: RegistrySource,
@@ -52,7 +52,7 @@ impl RegistryMetaStatic {
 	pub const fn new(
 		id: &'static str,
 		name: &'static str,
-		aliases: &'static [&'static str],
+		keys: &'static [&'static str],
 		description: &'static str,
 		priority: i16,
 		source: RegistrySource,
@@ -62,7 +62,7 @@ impl RegistryMetaStatic {
 		Self {
 			id,
 			name,
-			aliases,
+			keys,
 			description,
 			priority,
 			source,
@@ -76,7 +76,7 @@ impl RegistryMetaStatic {
 		Self {
 			id,
 			name,
-			aliases: &[],
+			keys: &[],
 			description,
 			priority: 0,
 			source: RegistrySource::Builtin,
@@ -86,7 +86,7 @@ impl RegistryMetaStatic {
 	}
 }
 
-/// Metadata string list handle (index range into snapshot alias pool).
+/// Metadata string list handle (index range into snapshot key pool).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct SymbolList {
 	pub start: u32,
@@ -102,8 +102,8 @@ pub struct RegistryMeta {
 	pub name: Symbol,
 	/// Description for help text (interned).
 	pub description: Symbol,
-	/// Alternative names for command/action lookup (interned index range).
-	pub aliases: SymbolList,
+	/// Alternative lookup keys (interned index range into key pool).
+	pub keys: SymbolList,
 	/// Priority for conflict resolution (higher wins).
 	pub priority: i16,
 	/// Where this item was defined.

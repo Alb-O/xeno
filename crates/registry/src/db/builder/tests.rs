@@ -9,7 +9,7 @@ static BAD_OPT: crate::options::OptionDef = crate::options::OptionDef {
 	meta: RegistryMetaStatic {
 		id: "test::BAD_OPT",
 		name: "BAD_OPT",
-		aliases: &[],
+		keys: &[],
 		description: "bad opt",
 		priority: 0,
 		source: RegistrySource::Builtin,
