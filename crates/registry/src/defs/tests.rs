@@ -1,5 +1,5 @@
 use crate::defs::link::link_by_name;
-use crate::defs::loader::{HEADER_SIZE, MAGIC, SCHEMA_VERSION, load_blob, validate_blob};
+use crate::defs::loader::{MAGIC, SCHEMA_VERSION, validate_blob};
 
 #[test]
 fn test_validate_blob_valid() {

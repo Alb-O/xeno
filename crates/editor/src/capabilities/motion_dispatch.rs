@@ -1,6 +1,7 @@
 use tracing::warn;
 use xeno_primitives::{Mode, Selection};
-use xeno_registry::{MotionDispatchAccess, MotionKind, MotionRequest, motions};
+use xeno_registry::actions::{MotionDispatchAccess, MotionKind, MotionRequest};
+use xeno_registry::motions;
 
 use crate::capabilities::provider::EditorCaps;
 
@@ -8,12 +9,12 @@ impl MotionDispatchAccess for EditorCaps<'_> {
 	fn apply_motion(&mut self, req: &MotionRequest) -> Selection {
 		let Some(motion_key) = motions::find(req.id.as_str()) else {
 			warn!("unknown motion: {}", req.id.as_str());
-			return xeno_registry::SelectionAccess::selection(self).clone();
+			return xeno_registry::actions::SelectionAccess::selection(self).clone();
 		};
 
 		let handler = motion_key.handler;
-		let selection = xeno_registry::SelectionAccess::selection(self).clone();
-		let is_normal = xeno_registry::ModeAccess::mode(self) == Mode::Normal;
+		let selection = xeno_registry::actions::SelectionAccess::selection(self).clone();
+		let is_normal = xeno_registry::actions::ModeAccess::mode(self) == Mode::Normal;
 
 		let MotionRequest {
 			count,

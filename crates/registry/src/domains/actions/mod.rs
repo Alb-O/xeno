@@ -24,9 +24,14 @@ mod result;
 pub mod spec;
 
 pub mod editor_ctx;
-
 pub use context::{ActionArgs, ActionContext};
 pub use def::{ActionDef, ActionHandler};
+pub use editor_ctx::{
+	CommandQueueAccess, CursorAccess, EditAccess, EditorCapabilities, EditorContext, EditorOps,
+	FileOpsAccess, FocusOps, HandleOutcome, JumpAccess, MacroAccess, ModeAccess, MotionAccess,
+	MotionDispatchAccess, NotificationAccess, OptionAccess, PaletteAccess, ResultHandler,
+	SearchAccess, SelectionAccess, SplitOps, TextAccess, ThemeAccess, UndoAccess, ViewportAccess,
+};
 pub use entry::ActionEntry;
 pub use handler::{ActionHandlerReg, ActionHandlerStatic};
 

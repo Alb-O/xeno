@@ -3,7 +3,8 @@
 //! Focusing buffers and navigating between views.
 
 use xeno_primitives::Mode;
-use xeno_registry::{HookContext, HookEventData, ViewId, emit_sync_with as emit_hook_sync_with};
+use xeno_registry::HookEventData;
+use xeno_registry::hooks::{HookContext, ViewId, emit_sync_with as emit_hook_sync_with};
 
 use super::Editor;
 use crate::buffer::SpatialDirection;

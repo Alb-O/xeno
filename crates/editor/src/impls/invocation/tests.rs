@@ -2,14 +2,16 @@ use std::cell::Cell;
 
 use xeno_primitives::range::CharIdx;
 use xeno_primitives::{BoxFutureLocal, Mode, Selection};
+use xeno_registry::actions::{
+	ActionEffects, ActionResult, CursorAccess, EditorCapabilities, ModeAccess, NotificationAccess,
+	SelectionAccess,
+};
+use xeno_registry::commands::{CommandContext, CommandOutcome};
 use xeno_registry::hooks::{
 	HookAction, HookContext, HookDef, HookHandler, HookMutability, HookPriority,
 };
-use xeno_registry::{
-	ActionEffects, ActionResult, Capability, CommandContext, CommandError, CommandOutcome,
-	CursorAccess, EditorCapabilities, ModeAccess, Notification, NotificationAccess,
-	SelectionAccess,
-};
+use xeno_registry::notifications::Notification;
+use xeno_registry::{Capability, CommandError};
 
 use super::*;
 
@@ -18,45 +20,47 @@ thread_local! {
 	static ACTION_POST_COUNT: Cell<usize> = const { Cell::new(0) };
 }
 
-fn handler_invocation_test_action(_ctx: &xeno_registry::ActionContext) -> ActionResult {
+fn handler_invocation_test_action(_ctx: &xeno_registry::actions::ActionContext) -> ActionResult {
 	ActionResult::Effects(ActionEffects::ok())
 }
 
-static ACTION_INVOCATION_TEST: xeno_registry::ActionDef = xeno_registry::ActionDef {
-	meta: xeno_registry::RegistryMetaStatic {
-		id: "xeno-editor::invocation_test_action",
-		name: "invocation_test_action",
-		keys: &[],
-		description: "Invocation test action",
-		priority: 0,
-		source: xeno_registry::RegistrySource::Crate("xeno-editor"),
-		required_caps: &[],
-		flags: 0,
-	},
-	short_desc: "Invocation test action",
-	handler: handler_invocation_test_action,
-	bindings: &[],
-};
+static ACTION_INVOCATION_TEST: xeno_registry::actions::ActionDef =
+	xeno_registry::actions::ActionDef {
+		meta: xeno_registry::RegistryMetaStatic {
+			id: "xeno-editor::invocation_test_action",
+			name: "invocation_test_action",
+			keys: &[],
+			description: "Invocation test action",
+			priority: 0,
+			source: xeno_registry::RegistrySource::Crate("xeno-editor"),
+			required_caps: &[],
+			flags: 0,
+		},
+		short_desc: "Invocation test action",
+		handler: handler_invocation_test_action,
+		bindings: &[],
+	};
 
-fn handler_invocation_edit_action(_ctx: &xeno_registry::ActionContext) -> ActionResult {
+fn handler_invocation_edit_action(_ctx: &xeno_registry::actions::ActionContext) -> ActionResult {
 	ActionResult::Effects(ActionEffects::ok())
 }
 
-static ACTION_INVOCATION_EDIT: xeno_registry::ActionDef = xeno_registry::ActionDef {
-	meta: xeno_registry::RegistryMetaStatic {
-		id: "xeno-editor::invocation_edit_action",
-		name: "invocation_edit_action",
-		keys: &[],
-		description: "Invocation edit action",
-		priority: 0,
-		source: xeno_registry::RegistrySource::Crate("xeno-editor"),
-		required_caps: &[Capability::Edit],
-		flags: 0,
-	},
-	short_desc: "Invocation edit action",
-	handler: handler_invocation_edit_action,
-	bindings: &[],
-};
+static ACTION_INVOCATION_EDIT: xeno_registry::actions::ActionDef =
+	xeno_registry::actions::ActionDef {
+		meta: xeno_registry::RegistryMetaStatic {
+			id: "xeno-editor::invocation_edit_action",
+			name: "invocation_edit_action",
+			keys: &[],
+			description: "Invocation edit action",
+			priority: 0,
+			source: xeno_registry::RegistrySource::Crate("xeno-editor"),
+			required_caps: &[Capability::Edit],
+			flags: 0,
+		},
+		short_desc: "Invocation edit action",
+		handler: handler_invocation_edit_action,
+		bindings: &[],
+	};
 
 fn hook_handler_action_pre(ctx: &HookContext) -> HookAction {
 	if let xeno_registry::HookEventData::ActionPre { .. } = &ctx.data {
@@ -112,7 +116,7 @@ fn invocation_test_command_fail<'a>(
 	Box::pin(async move { Err(CommandError::Failed("boom".into())) })
 }
 
-static CMD_TEST_FAIL: xeno_registry::CommandDef = xeno_registry::CommandDef {
+static CMD_TEST_FAIL: xeno_registry::commands::CommandDef = xeno_registry::commands::CommandDef {
 	meta: xeno_registry::RegistryMetaStatic {
 		id: "xeno-editor::invocation_test_command_fail",
 		name: "invocation_test_command_fail",

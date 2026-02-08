@@ -5,8 +5,8 @@ use xeno_primitives::{Mode, Selection};
 use xeno_registry::actions::editor_ctx::{
 	CursorAccess, EditorCapabilities, ModeAccess, NotificationAccess, SelectionAccess,
 };
+use xeno_registry::actions::{ActionEffects, AppEffect, UiEffect, ViewEffect};
 use xeno_registry::notifications::Notification;
-use xeno_registry::{ActionEffects, AppEffect, UiEffect, ViewEffect};
 
 use crate::editor_ctx::apply_effects;
 

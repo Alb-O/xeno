@@ -1,4 +1,4 @@
-use xeno_registry::CommandQueueAccess;
+use xeno_registry::actions::CommandQueueAccess;
 
 use crate::capabilities::provider::EditorCaps;
 

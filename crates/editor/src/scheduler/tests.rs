@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use parking_lot::Mutex;
-use xeno_registry::HookPriority;
+use xeno_registry::hooks::HookPriority;
 
 use super::state::*;
 use super::types::*;

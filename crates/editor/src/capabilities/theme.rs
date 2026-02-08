@@ -1,4 +1,4 @@
-use xeno_registry::ThemeAccess;
+use xeno_registry::actions::ThemeAccess;
 use xeno_registry::commands::CommandError;
 
 use crate::capabilities::provider::EditorCaps;

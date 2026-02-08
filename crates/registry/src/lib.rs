@@ -9,6 +9,15 @@ pub mod defs;
 
 #[cfg(test)]
 mod tests;
+// Types re-exported at crate root for `define_events!` macro expansion.
+// The macro generates public types (`HookEventData`, `OwnedHookContext`) whose fields
+// reference these, so they must be `pub use`.
+#[cfg(feature = "hooks")]
+pub use domains::hooks::{
+	Bool, HookAction, HookResult, Mode, OptionViewId, SplitDirection, Str, ViewId, WindowId,
+	WindowKind,
+};
+
 #[doc(hidden)]
 pub use crate::core as xeno_registry_core;
 
@@ -168,6 +177,20 @@ pub mod db;
 #[macro_use]
 pub mod domains;
 
+#[cfg(feature = "db")]
+pub use db::index;
+#[cfg(feature = "db")]
+pub use db::index::{
+	all_actions, all_commands, all_motions, all_text_objects, find_action, find_action_by_id,
+	find_command, find_motion, find_text_object_by_trigger, resolve_action_id, resolve_action_key,
+};
+#[cfg(feature = "keymap")]
+pub use db::keymap_registry::{BindingEntry, KeymapRegistry, LookupResult, get_keymap_registry};
+#[cfg(feature = "db")]
+pub use db::{
+	ACTIONS, COMMANDS, GUTTERS, HOOKS, MOTIONS, NOTIFICATIONS, OPTIONS, STATUSLINE_SEGMENTS,
+	TEXT_OBJECTS, THEMES,
+};
 #[cfg(feature = "actions")]
 pub use domains::actions;
 #[cfg(feature = "commands")]
@@ -188,83 +211,6 @@ pub use domains::statusline;
 pub use domains::textobj;
 #[cfg(feature = "themes")]
 pub use domains::themes;
-
-// Re-exports for convenience
-#[cfg(feature = "actions")]
-pub use domains::actions::editor_ctx::{
-	CommandQueueAccess, CursorAccess, EditAccess, EditorCapabilities, EditorContext, EditorOps,
-	FileOpsAccess, FocusOps, HandleOutcome, JumpAccess, MacroAccess, ModeAccess, MotionAccess,
-	MotionDispatchAccess, NotificationAccess, OptionAccess, PaletteAccess, ResultHandler,
-	SearchAccess, SelectionAccess, SplitOps, TextAccess, ThemeAccess, UndoAccess, ViewportAccess,
-};
-#[cfg(feature = "actions")]
-pub use domains::actions::{
-	ActionArgs, ActionContext, ActionDef, ActionEffects, ActionHandler, ActionResult, AppEffect,
-	BindingMode, EditEffect, Effect, Mode, MotionKind, MotionRequest, ObjectSelectionKind,
-	PendingAction, PendingKind, RESULT_EFFECTS_HANDLERS, RESULT_EXTENSION_HANDLERS,
-	ResultHandlerRegistry, ScreenPosition, ScrollAmount, UiEffect, ViewEffect, dispatch_result,
-	edit_op, find_prefix,
-};
-#[cfg(feature = "actions")]
-pub use domains::actions::{Axis, SeqDirection, SpatialDirection};
-#[cfg(feature = "commands")]
-pub use domains::commands::{
-	CommandContext, CommandDef, CommandEditorOps, CommandError, CommandHandler, CommandHandlerReg,
-	CommandHandlerStatic, CommandInput, CommandOutcome, CommandResult,
-};
-#[cfg(feature = "db")]
-pub use db::index;
-#[cfg(feature = "db")]
-pub use db::index::{
-	all_actions, all_commands, all_motions, all_text_objects, find_action, find_action_by_id,
-	find_command, find_motion, find_text_object_by_trigger, resolve_action_id, resolve_action_key,
-};
-#[cfg(feature = "keymap")]
-pub use db::keymap_registry::{BindingEntry, KeymapRegistry, LookupResult, get_keymap_registry};
-#[cfg(feature = "db")]
-pub use db::{
-	ACTIONS, COMMANDS, GUTTERS, HOOKS, MOTIONS, NOTIFICATIONS, OPTIONS, STATUSLINE_SEGMENTS,
-	TEXT_OBJECTS, THEMES,
-};
-#[cfg(feature = "gutter")]
-pub use domains::gutter::{
-	GutterAnnotations, GutterCell, GutterDef, GutterHandlerReg, GutterHandlerStatic, GutterInput,
-	GutterLineContext, GutterSegment, GutterWidth, GutterWidthContext,
-};
-#[cfg(feature = "hooks")]
-pub use domains::hooks::{
-	Bool, HookAction, HookContext, HookDef, HookFuture, HookHandler, HookHandlerReg,
-	HookHandlerStatic, HookInput, HookMutability, HookPriority, HookResult, HookScheduler,
-	MutableHookContext, OptionViewId, SplitDirection, Str, ViewId, WindowId, WindowKind, emit,
-	emit_mutable, emit_sync, emit_sync_with,
-};
-#[cfg(feature = "motions")]
-pub use domains::motions::{
-	Capability, MotionDef, MotionHandler, MotionHandlerReg, MotionHandlerStatic, MotionInput,
-	flags, movement,
-};
-#[cfg(feature = "notifications")]
-pub use domains::notifications::{
-	AutoDismiss, IntoNotification, Level, Notification, NotificationDef, NotificationKey,
-	keys as notification_keys,
-};
-#[cfg(all(feature = "options", feature = "db"))]
-pub use domains::options::validate;
-#[cfg(feature = "options")]
-pub use domains::options::{
-	OptionDef, OptionError, OptionInput, OptionKey, OptionReg, OptionScope, OptionType,
-	OptionValidator, OptionValue, TypedOptionKey,
-};
-#[cfg(feature = "statusline")]
-pub use domains::statusline::{
-	RenderedSegment, SegmentPosition, SegmentStyle, StatuslineContext, StatuslineInput,
-	StatuslineSegmentDef, render_position,
-};
-#[cfg(feature = "textobj")]
-pub use domains::textobj::{
-	TextObjectDef, TextObjectHandler, TextObjectHandlerReg, TextObjectHandlerStatic,
-	TextObjectInput,
-};
 #[cfg(feature = "options")]
 pub use xeno_macros::derive_option;
 

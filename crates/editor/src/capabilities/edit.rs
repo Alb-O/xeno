@@ -1,5 +1,4 @@
-use xeno_registry::EditAccess;
-use xeno_registry::actions::edit_op;
+use xeno_registry::actions::{EditAccess, edit_op};
 
 use crate::capabilities::provider::EditorCaps;
 

@@ -17,7 +17,7 @@ The runtime does not parse KDL (or any text format). Instead, the build scripts 
 
 **Build time**
 1. Authoring input: domain metadata authored as KDL (currently) under the repo’s data assets.
-2. Compilation: `build.rs` + `build_src/*` parse the authoring format and produce a domain spec value (Rust struct).
+2. Compilation: `build/main.rs` + `build/*` parse the authoring format and produce a domain spec value (Rust struct).
 3. Serialization: the spec is serialized using `postcard` and written to `<domain>.bin` using the shared blob wrapper format.
 4. Embedding: the `.bin` files are embedded in the final binary via `include_bytes!(concat!(env!("OUT_DIR"), ...))`.
 
@@ -29,16 +29,16 @@ The runtime does not parse KDL (or any text format). Instead, the build scripts 
 
 ### Colocation
 
-Each domain owns its own compilation boundary:
+All domain modules live under `src/domains/`. Each domain owns its own compilation boundary:
 
 ```
-src/<domain>/
+src/domains/<domain>/
 	spec.rs    // serde structs defining the format-neutral spec contract
 	loader.rs  // loads embedded <domain>.bin via defs::loader
 	link.rs    // domain-specific linking/validation/parsing (handlers, enums, etc.)
-````
+```
 
-This replaces the old centralized `src/kdl/*` mirror.
+`src/domains/mod.rs` declares each domain behind its feature gate. Domain modules are re-exported at crate root (`pub use domains::actions;` etc.) so `crate::actions::*` paths work, but individual types are not flattened to the crate root — consumers import from the domain: `use xeno_registry::actions::ActionDef;`, not `use xeno_registry::ActionDef;`.
 
 ### Shared substrate (`src/defs`)
 
@@ -104,19 +104,20 @@ When adding a new domain, treat it as three layers:
 
 ### 1) Define the domain runtime types
 
-Create `src/<domain>/` with:
+Create `src/domains/<domain>/` with:
 - `entry.rs`: define `<Domain>Entry` implementing `RegistryEntry`
 - `def.rs`: define `<Domain>Def` and `<Domain>Input` (often `Static` + `Linked`)
 - handler registry if needed (inventory + statics)
 
 Also update:
-- `crates/registry/src/db/domains.rs`: add a `DomainSpec` entry for the new domain
-- `crates/registry/src/db/builder/mod.rs`: extend `define_domains!` to include the domain
-- `crates/registry/src/lib.rs` and `src/<domain>/mod.rs` exports as appropriate
+- `src/domains/mod.rs`: add the feature-gated `pub mod <domain>;`
+- `src/lib.rs`: add the feature-gated `pub use domains::<domain>;`
+- `src/db/domains.rs`: add a `DomainSpec` entry for the new domain
+- `src/db/builder/mod.rs`: extend `define_domains!` to include the domain
 
 ### 2) Add the compiled spec pipeline (format-neutral)
 
-Inside `src/<domain>/`:
+Inside `src/domains/<domain>/`:
 
 #### `spec.rs`
 Define a serde `Spec` contract for the domain. Keep it data-only:
@@ -165,7 +166,7 @@ Do not put generic linking logic in the domain; use `defs/link.rs`.
 
 ### 3) Build-time compiler
 
-Add/extend build compiler under `crates/registry/build_src/`:
+Add/extend the build compiler under `crates/registry/build/`:
 
 * Define build-time spec structs matching the runtime spec layout.
 * Parse the authoring input (KDL) into the spec value.
@@ -205,7 +206,7 @@ No runtime changes should be required.
 
 ## Practical contributor notes
 
-* Prefer keeping parsing and validation in the domain linker (`<domain>/link.rs`), not in `build_src`, unless it is purely KDL-syntax-related.
+* Prefer keeping parsing and validation in the domain linker (`<domain>/link.rs`), not in `build/`, unless it is purely KDL-syntax-related.
 * Keep `Spec` structs stable and minimal; they are a contract between build-time compilers and runtime loaders.
 * If you touch shared types like `MetaCommonSpec`, update build-time copies and ensure postcard decode compatibility.
 * Run the feature matrix locally for registry changes:

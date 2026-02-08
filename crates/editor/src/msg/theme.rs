@@ -20,7 +20,7 @@ impl ThemeMsg {
 				editor.resolve_configured_theme();
 				crate::bootstrap::cache_theme(&editor.state.config.theme);
 				for (filename, error) in errors {
-					editor.notify(xeno_registry::notification_keys::error(format!(
+					editor.notify(xeno_registry::notifications::keys::error(format!(
 						"{filename}: {error}"
 					)));
 				}

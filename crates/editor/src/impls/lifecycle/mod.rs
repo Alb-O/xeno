@@ -6,7 +6,8 @@ mod state;
 use std::path::PathBuf;
 use std::time::{Duration, SystemTime};
 
-use xeno_registry::{HookContext, HookEventData, emit_sync_with as emit_hook_sync_with};
+use xeno_registry::HookEventData;
+use xeno_registry::hooks::{HookContext, emit_sync_with as emit_hook_sync_with};
 
 use super::Editor;
 

@@ -1,5 +1,5 @@
 use xeno_primitives::range::Direction;
-use xeno_registry::MotionAccess;
+use xeno_registry::actions::MotionAccess;
 
 use crate::capabilities::provider::EditorCaps;
 use crate::overlay::LayerEvent;

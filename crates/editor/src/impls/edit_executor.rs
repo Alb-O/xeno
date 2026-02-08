@@ -17,7 +17,7 @@
 
 use xeno_primitives::range::Direction as MoveDir;
 use xeno_primitives::{Selection, Transaction};
-use xeno_registry::edit_op::EditOp;
+use xeno_registry::actions::edit_op::EditOp;
 
 use super::Editor;
 use crate::buffer::ViewId;

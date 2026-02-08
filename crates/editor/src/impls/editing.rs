@@ -23,7 +23,7 @@ impl Editor {
 	/// Changes the editor mode.
 	pub fn set_mode(&mut self, mode: xeno_primitives::Mode) {
 		let mut caps = self.caps();
-		xeno_registry::ModeAccess::set_mode(&mut caps, mode);
+		xeno_registry::actions::ModeAccess::set_mode(&mut caps, mode);
 	}
 
 	/// Applies a transaction with full undo support.

@@ -1,7 +1,7 @@
 use std::future::Future;
 use std::pin::Pin;
 
-use xeno_registry::HookPriority;
+use xeno_registry::hooks::HookPriority;
 
 /// Unique identifier for a document (used for cancellation).
 pub type DocId = u64;

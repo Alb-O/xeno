@@ -1,4 +1,4 @@
-use xeno_registry::NotificationAccess;
+use xeno_registry::actions::NotificationAccess;
 use xeno_registry::notifications::Notification;
 
 use crate::capabilities::provider::EditorCaps;

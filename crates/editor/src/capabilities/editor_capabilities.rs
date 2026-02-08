@@ -1,9 +1,9 @@
-use xeno_registry::{EditorCapabilities, MacroAccess, UndoAccess};
+use xeno_registry::actions::{EditorCapabilities, MacroAccess, UndoAccess};
 
 use crate::capabilities::provider::EditorCaps;
 
 impl EditorCapabilities for EditorCaps<'_> {
-	fn search(&mut self) -> Option<&mut dyn xeno_registry::SearchAccess> {
+	fn search(&mut self) -> Option<&mut dyn xeno_registry::actions::SearchAccess> {
 		Some(self)
 	}
 
@@ -11,35 +11,35 @@ impl EditorCapabilities for EditorCaps<'_> {
 		Some(self)
 	}
 
-	fn edit(&mut self) -> Option<&mut dyn xeno_registry::EditAccess> {
+	fn edit(&mut self) -> Option<&mut dyn xeno_registry::actions::EditAccess> {
 		Some(self)
 	}
 
-	fn motion(&mut self) -> Option<&mut dyn xeno_registry::MotionAccess> {
+	fn motion(&mut self) -> Option<&mut dyn xeno_registry::actions::MotionAccess> {
 		Some(self)
 	}
 
-	fn motion_dispatch(&mut self) -> Option<&mut dyn xeno_registry::MotionDispatchAccess> {
+	fn motion_dispatch(&mut self) -> Option<&mut dyn xeno_registry::actions::MotionDispatchAccess> {
 		Some(self)
 	}
 
-	fn split_ops(&mut self) -> Option<&mut dyn xeno_registry::SplitOps> {
+	fn split_ops(&mut self) -> Option<&mut dyn xeno_registry::actions::SplitOps> {
 		Some(self)
 	}
 
-	fn focus_ops(&mut self) -> Option<&mut dyn xeno_registry::FocusOps> {
+	fn focus_ops(&mut self) -> Option<&mut dyn xeno_registry::actions::FocusOps> {
 		Some(self)
 	}
 
-	fn viewport(&mut self) -> Option<&mut dyn xeno_registry::ViewportAccess> {
+	fn viewport(&mut self) -> Option<&mut dyn xeno_registry::actions::ViewportAccess> {
 		Some(self)
 	}
 
-	fn file_ops(&mut self) -> Option<&mut dyn xeno_registry::FileOpsAccess> {
+	fn file_ops(&mut self) -> Option<&mut dyn xeno_registry::actions::FileOpsAccess> {
 		Some(self)
 	}
 
-	fn jump_ops(&mut self) -> Option<&mut dyn xeno_registry::JumpAccess> {
+	fn jump_ops(&mut self) -> Option<&mut dyn xeno_registry::actions::JumpAccess> {
 		Some(self)
 	}
 
@@ -47,15 +47,15 @@ impl EditorCapabilities for EditorCaps<'_> {
 		Some(self)
 	}
 
-	fn command_queue(&mut self) -> Option<&mut dyn xeno_registry::CommandQueueAccess> {
+	fn command_queue(&mut self) -> Option<&mut dyn xeno_registry::actions::CommandQueueAccess> {
 		Some(self)
 	}
 
-	fn palette(&mut self) -> Option<&mut dyn xeno_registry::PaletteAccess> {
+	fn palette(&mut self) -> Option<&mut dyn xeno_registry::actions::PaletteAccess> {
 		Some(self)
 	}
 
-	fn option_ops(&self) -> Option<&dyn xeno_registry::OptionAccess> {
+	fn option_ops(&self) -> Option<&dyn xeno_registry::actions::OptionAccess> {
 		Some(self)
 	}
 

@@ -5,7 +5,7 @@
 //!
 //! - `buffer_ops` - Buffer creation and management
 //! - `editing` - Text modification operations
-//! - `file_ops` - File save/load (implements [`xeno_registry::FileOpsAccess`])
+//! - `file_ops` - File save/load (implements [`xeno_registry::actions::FileOpsAccess`])
 //! - `focus` - View focus and navigation
 //! - `lifecycle` - Tick, startup, and render updates
 //! - `splits` - Split view management
@@ -60,11 +60,10 @@ use std::sync::Once;
 pub use edit_executor::EditExecutor;
 pub use focus::{FocusReason, FocusTarget, PanelId};
 pub use navigation::Location;
+use xeno_registry::HookEventData;
+use xeno_registry::hooks::{HookContext, WindowKind, emit_sync_with as emit_hook_sync_with};
 use xeno_registry::options::OPTIONS;
 use xeno_registry::themes::THEMES;
-use xeno_registry::{
-	HookContext, HookEventData, WindowKind, emit_sync_with as emit_hook_sync_with,
-};
 use xeno_runtime_language::LanguageLoader;
 use xeno_tui::layout::Rect;
 

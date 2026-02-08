@@ -1,4 +1,4 @@
-use xeno_registry::MacroAccess;
+use xeno_registry::actions::MacroAccess;
 
 use crate::capabilities::provider::EditorCaps;
 

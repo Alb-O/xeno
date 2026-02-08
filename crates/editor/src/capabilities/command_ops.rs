@@ -1,14 +1,13 @@
 use std::path::PathBuf;
 
 use xeno_primitives::BoxFutureLocal;
+use xeno_registry::HookEventData;
 use xeno_registry::actions::editor_ctx::OverlayRequest;
+use xeno_registry::actions::{EditorCapabilities, FileOpsAccess, NotificationAccess, ThemeAccess};
 use xeno_registry::commands::{CommandEditorOps, CommandError};
+use xeno_registry::hooks::{HookContext, emit_sync_with as emit_hook_sync_with};
 use xeno_registry::notifications::Notification;
 use xeno_registry::options::{OptionScope, find};
-use xeno_registry::{
-	EditorCapabilities, FileOpsAccess, HookContext, HookEventData, NotificationAccess, ThemeAccess,
-	emit_sync_with as emit_hook_sync_with,
-};
 
 use crate::capabilities::provider::EditorCaps;
 

@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 
 use tokio::task::JoinSet;
-use xeno_registry::HookPriority;
+use xeno_registry::hooks::HookPriority;
 
 use super::state::{BACKGROUND_DROP_THRESHOLD, BACKLOG_HIGH_WATER, WorkScheduler};
 use super::types::{DocId, WorkItem, WorkKind};

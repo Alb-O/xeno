@@ -6,9 +6,8 @@ use std::path::PathBuf;
 
 #[cfg(feature = "lsp")]
 use tracing::warn;
-use xeno_registry::{
-	HookContext, HookEventData, emit as emit_hook, emit_sync_with as emit_hook_sync_with,
-};
+use xeno_registry::HookEventData;
+use xeno_registry::hooks::{HookContext, emit as emit_hook, emit_sync_with as emit_hook_sync_with};
 
 use super::{Editor, is_writable};
 use crate::buffer::ViewId;

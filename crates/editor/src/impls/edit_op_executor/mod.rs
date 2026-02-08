@@ -4,7 +4,7 @@ mod ops;
 mod types;
 
 use xeno_primitives::EditOrigin;
-use xeno_registry::edit_op::{EditOp, EditPlan};
+use xeno_registry::actions::edit_op::{EditOp, EditPlan};
 
 use super::Editor;
 

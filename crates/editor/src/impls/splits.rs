@@ -4,8 +4,9 @@
 
 use std::path::PathBuf;
 
-use xeno_registry::{
-	HookContext, HookEventData, SplitDirection, ViewId, emit_sync_with as emit_hook_sync_with,
+use xeno_registry::HookEventData;
+use xeno_registry::hooks::{
+	HookContext, SplitDirection, ViewId, emit_sync_with as emit_hook_sync_with,
 };
 
 use super::Editor;

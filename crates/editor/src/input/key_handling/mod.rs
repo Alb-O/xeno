@@ -43,7 +43,8 @@ impl Editor {
 
 	/// Handles a key event when in active editing mode.
 	pub(crate) async fn handle_key_active(&mut self, key: termina::event::KeyEvent) -> bool {
-		use xeno_registry::{HookContext, HookEventData, emit as emit_hook};
+		use xeno_registry::HookEventData;
+		use xeno_registry::hooks::{HookContext, emit as emit_hook};
 
 		let old_mode = self.mode();
 		#[cfg(feature = "lsp")]

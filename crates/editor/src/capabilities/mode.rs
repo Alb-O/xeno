@@ -1,5 +1,5 @@
 use xeno_primitives::Mode;
-use xeno_registry::ModeAccess;
+use xeno_registry::actions::ModeAccess;
 use xeno_registry::notifications::keys;
 
 use crate::capabilities::provider::EditorCaps;

@@ -1,5 +1,5 @@
 use xeno_primitives::visible_line_count;
-use xeno_registry::{
+use xeno_registry::statusline::{
 	RenderedSegment, SegmentPosition, SegmentStyle, StatuslineContext, render_position,
 };
 use xeno_tui::style::{Modifier, Style};

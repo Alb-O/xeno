@@ -1,4 +1,4 @@
-use xeno_registry::PaletteAccess;
+use xeno_registry::actions::PaletteAccess;
 use xeno_registry::actions::editor_ctx::{OverlayCloseReason, OverlayRequest};
 
 use crate::capabilities::provider::EditorCaps;

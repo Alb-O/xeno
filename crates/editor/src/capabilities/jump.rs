@@ -1,4 +1,4 @@
-use xeno_registry::JumpAccess;
+use xeno_registry::actions::JumpAccess;
 
 use crate::capabilities::provider::EditorCaps;
 

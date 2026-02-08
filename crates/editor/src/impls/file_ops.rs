@@ -7,8 +7,9 @@ use ropey::Rope;
 #[cfg(feature = "lsp")]
 use tracing::warn;
 use xeno_primitives::BoxFutureLocal;
+use xeno_registry::HookEventData;
 use xeno_registry::commands::CommandError;
-use xeno_registry::{HookContext, HookEventData, emit as emit_hook};
+use xeno_registry::hooks::{HookContext, emit as emit_hook};
 
 use super::Editor;
 

@@ -1,4 +1,4 @@
-use xeno_registry::OptionAccess;
+use xeno_registry::actions::OptionAccess;
 use xeno_registry::options::{OptionKey, OptionValue};
 
 use crate::capabilities::provider::EditorCaps;

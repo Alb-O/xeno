@@ -1,5 +1,5 @@
 use xeno_primitives::Selection;
-use xeno_registry::SelectionAccess;
+use xeno_registry::actions::SelectionAccess;
 
 use crate::capabilities::provider::EditorCaps;
 use crate::overlay::LayerEvent;

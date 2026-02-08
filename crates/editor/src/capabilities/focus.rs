@@ -1,5 +1,5 @@
 use xeno_primitives::direction::{SeqDirection, SpatialDirection};
-use xeno_registry::FocusOps;
+use xeno_registry::actions::FocusOps;
 
 use crate::capabilities::provider::EditorCaps;
 use crate::overlay::LayerEvent;

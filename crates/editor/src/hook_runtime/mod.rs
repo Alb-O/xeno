@@ -13,7 +13,7 @@
 use std::time::{Duration, Instant};
 
 use tokio::task::JoinSet;
-use xeno_registry::{HookFuture as HookBoxFuture, HookPriority, HookScheduler};
+use xeno_registry::hooks::{HookFuture as HookBoxFuture, HookPriority, HookScheduler};
 
 use super::execution_gate::ExecutionGate;
 

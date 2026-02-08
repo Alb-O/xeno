@@ -4,13 +4,12 @@
 //! checking, hook emission, and error handling.
 
 use tracing::{debug, trace, trace_span, warn};
-use xeno_registry::actions::find_action;
-use xeno_registry::commands::find_command;
-use xeno_registry::{
-	ActionArgs, ActionContext, ActionResult, CommandContext, CommandError, EditorContext,
-	HookContext, HookEventData, RegistryEntry, dispatch_result,
-	emit_sync_with as emit_hook_sync_with,
+use xeno_registry::actions::{
+	ActionArgs, ActionContext, ActionResult, EditorContext, dispatch_result, find_action,
 };
+use xeno_registry::commands::{CommandContext, find_command};
+use xeno_registry::hooks::{HookContext, emit_sync_with as emit_hook_sync_with};
+use xeno_registry::{CommandError, HookEventData, RegistryEntry};
 
 use crate::commands::{CommandOutcome, EditorCommandContext, find_editor_command};
 use crate::impls::Editor;

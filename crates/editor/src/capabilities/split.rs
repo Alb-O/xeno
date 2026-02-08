@@ -1,5 +1,5 @@
 use xeno_primitives::direction::Axis;
-use xeno_registry::SplitOps;
+use xeno_registry::actions::SplitOps;
 use xeno_registry::actions::editor_ctx::SplitError;
 
 use crate::capabilities::provider::EditorCaps;

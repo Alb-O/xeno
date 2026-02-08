@@ -1,4 +1,4 @@
-use xeno_registry::UndoAccess;
+use xeno_registry::actions::UndoAccess;
 
 use crate::capabilities::provider::EditorCaps;
 
