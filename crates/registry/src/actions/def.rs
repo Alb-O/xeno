@@ -70,4 +70,4 @@ pub type ActionHandler = fn(&ActionContext) -> ActionResult;
 
 /// Unified action input: either a static `ActionDef` or a KDL-linked definition.
 pub type ActionInput =
-	crate::core::def_input::DefInput<ActionDef, crate::kdl::link::LinkedActionDef>;
+	crate::core::def_input::DefInput<ActionDef, crate::actions::link::LinkedActionDef>;

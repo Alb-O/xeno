@@ -37,12 +37,12 @@ pub fn build_actions_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 		}
 	}
 
-	let blob = ActionsBlob { actions, prefixes };
-	let bin = postcard::to_stdvec(&blob).expect("failed to serialize actions blob");
+	let spec = ActionsSpec { actions, prefixes };
+	let bin = postcard::to_stdvec(&spec).expect("failed to serialize actions spec");
 	write_blob(&out_dir.join("actions.bin"), &bin);
 }
 
-fn collect_action_nodes(doc: &KdlDocument) -> (Vec<ActionMetaRaw>, Vec<KeyPrefixRaw>) {
+fn collect_action_nodes(doc: &KdlDocument) -> (Vec<ActionSpec>, Vec<KeyPrefixSpec>) {
 	let mut actions = Vec::new();
 	let mut prefixes = Vec::new();
 
@@ -77,7 +77,7 @@ fn collect_action_nodes(doc: &KdlDocument) -> (Vec<ActionMetaRaw>, Vec<KeyPrefix
 	(actions, prefixes)
 }
 
-fn parse_action_node(node: &kdl::KdlNode, group_name: Option<&str>) -> ActionMetaRaw {
+fn parse_action_node(node: &kdl::KdlNode, group_name: Option<&str>) -> ActionSpec {
 	let name = node_name_arg(node, "action");
 	let context = format!("action '{name}'");
 
@@ -144,7 +144,7 @@ fn parse_action_node(node: &kdl::KdlNode, group_name: Option<&str>) -> ActionMet
 					if entry.name().is_none()
 						&& let Some(keys) = entry.value().as_string()
 					{
-						bindings.push(KeyBindingRaw {
+						bindings.push(KeyBindingSpec {
 							mode: mode.clone(),
 							keys: keys.to_string(),
 						});
@@ -154,8 +154,8 @@ fn parse_action_node(node: &kdl::KdlNode, group_name: Option<&str>) -> ActionMet
 		}
 	}
 
-	ActionMetaRaw {
-		common: MetaCommonRaw {
+	ActionSpec {
+		common: MetaCommonSpec {
 			name,
 			description,
 			short_desc,
@@ -169,14 +169,14 @@ fn parse_action_node(node: &kdl::KdlNode, group_name: Option<&str>) -> ActionMet
 	}
 }
 
-fn parse_prefix_node(node: &kdl::KdlNode) -> KeyPrefixRaw {
+fn parse_prefix_node(node: &kdl::KdlNode) -> KeyPrefixSpec {
 	let mode = require_str(node, "mode", "prefix");
 	assert!(
 		VALID_MODES.contains(&mode.as_str()),
 		"prefix: unknown mode '{mode}'"
 	);
 
-	KeyPrefixRaw {
+	KeyPrefixSpec {
 		keys: require_str(node, "keys", "prefix"),
 		description: require_str(node, "description", "prefix"),
 		mode,

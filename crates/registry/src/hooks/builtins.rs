@@ -37,15 +37,7 @@ hook_handler!(
 );
 
 pub fn register_builtins(builder: &mut crate::db::builder::RegistryDbBuilder) {
-	let metadata = crate::kdl::loader::load_hook_metadata();
-	let handlers = inventory::iter::<crate::hooks::HookHandlerReg>
-		.into_iter()
-		.map(|r| r.0);
-	let linked = crate::kdl::link::link_hooks(&metadata, handlers);
-
-	for def in linked {
-		builder.register_linked_hook(def);
-	}
+	builder.register_compiled_hooks();
 }
 
 fn register_builtins_reg(

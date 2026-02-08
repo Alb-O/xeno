@@ -14,6 +14,9 @@ pub mod builtins;
 pub mod def;
 pub mod entry;
 pub mod keys;
+pub mod link;
+pub mod loader;
+pub mod spec;
 
 pub use builtins::register_builtins;
 pub use def::{LinkedNotificationDef, NotificationDef, NotificationInput};

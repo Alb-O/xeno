@@ -5,7 +5,10 @@
 extern crate self as xeno_registry;
 
 pub mod core;
-pub mod kdl;
+pub mod defs;
+
+#[cfg(test)]
+mod tests;
 #[doc(hidden)]
 pub use crate::core as xeno_registry_core;
 

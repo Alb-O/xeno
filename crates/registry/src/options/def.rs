@@ -1,8 +1,7 @@
 use super::entry::OptionEntry;
 use crate::core::index::{BuildEntry, RegistryMetaRef, StrListRef};
 use crate::core::{
-	FrozenInterner, LinkedDef, LinkedPayload, OptionDefault, OptionType, OptionValue, RegistryMeta,
-	RegistryMetaStatic, Symbol,
+	FrozenInterner, OptionDefault, OptionType, OptionValue, RegistryMetaStatic, Symbol,
 };
 
 pub type OptionValidator = fn(&OptionValue) -> Result<(), String>;
@@ -38,43 +37,8 @@ impl core::fmt::Debug for OptionDef {
 
 /// Unified input for option registration — either a static `OptionDef`
 /// (from `derive_option`) or a `LinkedOptionDef` assembled from KDL metadata.
-pub type OptionInput = crate::core::def_input::DefInput<OptionDef, LinkedOptionDef>;
-
-/// An option definition assembled from KDL metadata + Rust validator.
-pub type LinkedOptionDef = LinkedDef<OptionPayload>;
-
-#[derive(Clone)]
-pub struct OptionPayload {
-	pub kdl_key: String,
-	pub value_type: OptionType,
-	pub default: OptionDefault,
-	pub scope: OptionScope,
-	pub validator: Option<OptionValidator>,
-}
-
-impl LinkedPayload<OptionEntry> for OptionPayload {
-	fn collect_extra_keys<'a>(&'a self, sink: &mut Vec<&'a str>) {
-		sink.push(self.kdl_key.as_str());
-	}
-
-	fn build_entry(
-		&self,
-		interner: &FrozenInterner,
-		meta: RegistryMeta,
-		_short_desc: Symbol,
-	) -> OptionEntry {
-		OptionEntry {
-			meta,
-			kdl_key: interner
-				.get(&self.kdl_key)
-				.expect("missing interned kdl_key"),
-			value_type: self.value_type,
-			default: self.default.clone(),
-			scope: self.scope,
-			validator: self.validator,
-		}
-	}
-}
+pub type OptionInput =
+	crate::core::def_input::DefInput<OptionDef, crate::options::link::LinkedOptionDef>;
 
 impl BuildEntry<OptionEntry> for OptionDef {
 	fn meta_ref(&self) -> RegistryMetaRef<'_> {

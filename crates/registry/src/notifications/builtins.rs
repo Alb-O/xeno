@@ -101,12 +101,7 @@ notif!(
 );
 
 pub fn register_builtins(builder: &mut RegistryDbBuilder) {
-	let blob = crate::kdl::loader::load_notification_metadata();
-	let linked = crate::kdl::link::link_notifications(&blob);
-
-	for def in linked {
-		builder.register_linked_notification(def);
-	}
+	builder.register_compiled_notifications();
 }
 
 fn register_builtins_reg(

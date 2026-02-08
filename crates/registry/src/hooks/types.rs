@@ -131,4 +131,4 @@ impl BuildEntry<HookEntry> for HookDef {
 }
 
 /// Unified input for hook registration.
-pub type HookInput = crate::core::def_input::DefInput<HookDef, crate::kdl::link::LinkedHookDef>;
+pub type HookInput = crate::core::def_input::DefInput<HookDef, crate::hooks::link::LinkedHookDef>;

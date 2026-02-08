@@ -11,7 +11,10 @@ pub mod builtins;
 pub mod def;
 pub mod entry;
 pub mod handler;
+pub mod link;
+pub mod loader;
 mod macros;
+pub mod spec;
 
 pub use builtins::register_builtins;
 pub use def::{CommandDef, CommandHandler, CommandInput};

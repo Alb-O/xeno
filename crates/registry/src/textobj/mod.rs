@@ -7,8 +7,11 @@ use xeno_primitives::Range;
 
 pub mod builtins;
 pub mod handler;
+pub mod link;
+pub mod loader;
 mod macros;
 pub mod registry;
+pub mod spec;
 
 pub use builtins::register_builtins;
 pub use handler::{TextObjectHandlerReg, TextObjectHandlerStatic};
@@ -114,7 +117,7 @@ impl BuildEntry<TextObjectEntry> for TextObjectDef {
 /// Unified input for text object registration — either a static `TextObjectDef`
 /// or a `LinkedTextObjectDef` assembled from KDL metadata + Rust handlers.
 pub type TextObjectInput =
-	crate::core::def_input::DefInput<TextObjectDef, crate::kdl::link::LinkedTextObjectDef>;
+	crate::core::def_input::DefInput<TextObjectDef, crate::textobj::link::LinkedTextObjectDef>;
 
 #[cfg(feature = "db")]
 pub use crate::db::TEXT_OBJECTS;

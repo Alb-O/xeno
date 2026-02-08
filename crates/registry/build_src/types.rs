@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct MetaCommonRaw {
+pub struct MetaCommonSpec {
 	pub name: String,
 	pub description: String,
 	pub short_desc: Option<String>,
@@ -12,67 +12,67 @@ pub struct MetaCommonRaw {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ActionMetaRaw {
-	pub common: MetaCommonRaw,
-	pub bindings: Vec<KeyBindingRaw>,
+pub struct ActionSpec {
+	pub common: MetaCommonSpec,
+	pub bindings: Vec<KeyBindingSpec>,
 	pub group: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct KeyBindingRaw {
+pub struct KeyBindingSpec {
 	pub mode: String,
 	pub keys: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct KeyPrefixRaw {
+pub struct KeyPrefixSpec {
 	pub mode: String,
 	pub keys: String,
 	pub description: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ActionsBlob {
-	pub actions: Vec<ActionMetaRaw>,
-	pub prefixes: Vec<KeyPrefixRaw>,
+pub struct ActionsSpec {
+	pub actions: Vec<ActionSpec>,
+	pub prefixes: Vec<KeyPrefixSpec>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct CommandMetaRaw {
-	pub common: MetaCommonRaw,
+pub struct CommandSpec {
+	pub common: MetaCommonSpec,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct CommandsBlob {
-	pub commands: Vec<CommandMetaRaw>,
+pub struct CommandsSpec {
+	pub commands: Vec<CommandSpec>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct MotionMetaRaw {
-	pub common: MetaCommonRaw,
+pub struct MotionSpec {
+	pub common: MetaCommonSpec,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct MotionsBlob {
-	pub motions: Vec<MotionMetaRaw>,
+pub struct MotionsSpec {
+	pub motions: Vec<MotionSpec>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct TextObjectMetaRaw {
-	pub common: MetaCommonRaw,
+pub struct TextObjectSpec {
+	pub common: MetaCommonSpec,
 	pub trigger: String,
 	pub alt_triggers: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct TextObjectsBlob {
-	pub text_objects: Vec<TextObjectMetaRaw>,
+pub struct TextObjectsSpec {
+	pub text_objects: Vec<TextObjectSpec>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct OptionMetaRaw {
+pub struct OptionSpec {
 	/// Common metadata.
-	pub common: MetaCommonRaw,
+	pub common: MetaCommonSpec,
 	/// KDL config key (e.g., `"tab-width"`).
 	pub kdl_key: String,
 	/// Value type: `"bool"`, `"int"`, `"string"`.
@@ -86,61 +86,61 @@ pub struct OptionMetaRaw {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct OptionsBlob {
-	pub options: Vec<OptionMetaRaw>,
+pub struct OptionsSpec {
+	pub options: Vec<OptionSpec>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct GutterMetaRaw {
-	pub common: MetaCommonRaw,
+pub struct GutterSpec {
+	pub common: MetaCommonSpec,
 	pub width: String,
 	pub enabled: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct GuttersBlob {
-	pub gutters: Vec<GutterMetaRaw>,
+pub struct GuttersSpec {
+	pub gutters: Vec<GutterSpec>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct StatuslineMetaRaw {
-	pub common: MetaCommonRaw,
+pub struct StatuslineSegmentSpec {
+	pub common: MetaCommonSpec,
 	pub position: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct StatuslineBlob {
-	pub segments: Vec<StatuslineMetaRaw>,
+pub struct StatuslineSpec {
+	pub segments: Vec<StatuslineSegmentSpec>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct HookMetaRaw {
-	pub common: MetaCommonRaw,
+pub struct HookSpec {
+	pub common: MetaCommonSpec,
 	pub event: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct HooksBlob {
-	pub hooks: Vec<HookMetaRaw>,
+pub struct HooksSpec {
+	pub hooks: Vec<HookSpec>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct NotificationMetaRaw {
-	pub common: MetaCommonRaw,
+pub struct NotificationSpec {
+	pub common: MetaCommonSpec,
 	pub level: String,
 	pub auto_dismiss: String,
 	pub dismiss_ms: Option<u64>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct NotificationsBlob {
-	pub notifications: Vec<NotificationMetaRaw>,
+pub struct NotificationsSpec {
+	pub notifications: Vec<NotificationSpec>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ThemeMetaRaw {
+pub struct ThemeSpec {
 	/// Common metadata.
-	pub common: MetaCommonRaw,
+	pub common: MetaCommonSpec,
 	/// Whether it's a "dark" or "light" theme.
 	pub variant: String,
 	/// Resolved color palette: Map of name -> hex string.
@@ -165,6 +165,6 @@ pub struct RawStyle {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ThemesBlob {
-	pub themes: Vec<ThemeMetaRaw>,
+pub struct ThemesSpec {
+	pub themes: Vec<ThemeSpec>,
 }

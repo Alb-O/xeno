@@ -15,20 +15,7 @@ pub use navigation::{cursor_motion, selection_motion};
 use crate::db::builder::RegistryDbBuilder;
 
 pub fn register_builtins(builder: &mut RegistryDbBuilder) {
-	let blob = crate::kdl::loader::load_action_metadata();
-	let handlers = inventory::iter::<crate::actions::ActionHandlerReg>
-		.into_iter()
-		.map(|r| r.0);
-	let linked = crate::kdl::link::link_actions(&blob, handlers);
-
-	for def in linked {
-		builder.register_linked_action(def);
-	}
-
-	let prefixes = crate::kdl::link::link_prefixes(&blob);
-	for prefix in prefixes {
-		builder.key_prefixes.push(prefix);
-	}
+	builder.register_compiled_actions();
 }
 
 fn register_builtins_reg(

@@ -47,7 +47,7 @@
 //! | [`Snapshot`] | Current state of a registry (tables, maps, interner, key pool). |
 //! | [`RegistryRef`] | A pinned handle to an entry, holding its snapshot alive. |
 //! | [`RegistryBuilder`] | Pipeline for string interning and ID assignment. |
-//! | [`crate::core::domain::DomainSpec`] | Definition of a specific registry domain. |
+//! | [`crate::db::domain::DomainSpec`] | Definition of a specific registry domain. |
 //!
 //! # Concurrency
 //!

@@ -72,15 +72,7 @@ gutter_handler!(signs, |ctx| {
 });
 
 pub fn register_builtins(builder: &mut crate::db::builder::RegistryDbBuilder) {
-	let metadata = crate::kdl::loader::load_gutter_metadata();
-	let handlers = inventory::iter::<crate::gutter::GutterHandlerReg>
-		.into_iter()
-		.map(|r| r.0);
-	let linked = crate::kdl::link::link_gutters(&metadata, handlers);
-
-	for def in linked {
-		builder.register_linked_gutter(def);
-	}
+	builder.register_compiled_gutters();
 }
 
 fn register_builtins_reg(

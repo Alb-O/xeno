@@ -68,15 +68,7 @@ segment_handler!(progress, |ctx| {
 });
 
 pub fn register_builtins(builder: &mut crate::db::builder::RegistryDbBuilder) {
-	let metadata = crate::kdl::loader::load_statusline_metadata();
-	let handlers = inventory::iter::<crate::statusline::handler::StatuslineHandlerReg>
-		.into_iter()
-		.map(|r| r.0);
-	let linked = crate::kdl::link::link_statusline(&metadata, handlers);
-
-	for def in linked {
-		builder.register_linked_statusline_segment(def);
-	}
+	builder.register_compiled_statusline();
 }
 
 fn register_builtins_reg(

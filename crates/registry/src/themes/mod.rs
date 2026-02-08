@@ -5,16 +5,15 @@ pub use xeno_primitives::{Color, Mode, Modifier, Style};
 pub mod syntax;
 pub mod theme;
 
+pub mod link;
+pub mod loader;
+pub mod spec;
+
 pub use syntax::{SyntaxStyle, SyntaxStyles};
 pub use theme::{LinkedThemeDef, ThemeDef as Theme, *};
 
 pub fn register_builtins(builder: &mut crate::db::builder::RegistryDbBuilder) {
-	let blob = crate::kdl::loader::load_theme_metadata();
-	let linked = crate::kdl::link::link_themes(&blob);
-
-	for def in linked {
-		builder.register_linked_theme(def);
-	}
+	builder.register_compiled_themes();
 }
 
 fn register_builtins_reg(

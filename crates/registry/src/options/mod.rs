@@ -3,9 +3,12 @@
 pub mod builtins;
 pub mod def;
 pub mod entry;
+pub mod link;
+pub mod loader;
 pub mod parse;
 pub mod registry;
 mod resolver;
+pub mod spec;
 mod store;
 pub mod typed_keys;
 pub mod validators;

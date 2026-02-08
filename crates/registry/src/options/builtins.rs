@@ -26,15 +26,7 @@ pub const DEFAULT_THEME_ID: TypedOptionKey<String> =
 crate::option_validator!(positive_int, super::validators::positive_int);
 
 pub fn register_builtins(builder: &mut RegistryDbBuilder) {
-	let blob = crate::kdl::loader::load_option_metadata();
-	let validators = inventory::iter::<crate::options::OptionValidatorReg>
-		.into_iter()
-		.map(|r| r.0);
-	let linked = crate::kdl::link::link_options(&blob, validators);
-
-	for def in linked {
-		builder.register_linked_option(def);
-	}
+	builder.register_compiled_options();
 }
 
 fn register_builtins_reg(

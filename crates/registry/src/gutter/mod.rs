@@ -9,7 +9,10 @@ pub use crate::themes::theme::ThemeDef as Theme;
 
 pub mod builtins;
 pub mod handler;
+pub mod link;
+pub mod loader;
 mod macros;
+pub mod spec;
 
 pub use builtins::register_builtins;
 pub use handler::{GutterHandlerReg, GutterHandlerStatic};
@@ -157,7 +160,7 @@ impl BuildEntry<GutterEntry> for GutterDef {
 
 /// Unified input for gutter registration.
 pub type GutterInput =
-	crate::core::def_input::DefInput<GutterDef, crate::kdl::link::LinkedGutterDef>;
+	crate::core::def_input::DefInput<GutterDef, crate::gutter::link::LinkedGutterDef>;
 
 #[cfg(feature = "db")]
 pub use crate::db::GUTTERS;

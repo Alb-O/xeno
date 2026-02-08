@@ -16,9 +16,12 @@ mod effects;
 pub mod entry;
 pub mod handler;
 mod keybindings;
+pub mod link;
+pub mod loader;
 mod macros;
 mod pending;
 mod result;
+pub mod spec;
 
 pub mod editor_ctx;
 

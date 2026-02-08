@@ -44,8 +44,8 @@ pub fn build_commands_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 		{
 			panic!("{context}: commands do not support 'caps'");
 		}
-		commands.push(CommandMetaRaw {
-			common: MetaCommonRaw {
+		commands.push(CommandSpec {
+			common: MetaCommonSpec {
 				name,
 				description,
 				short_desc,
@@ -63,8 +63,8 @@ pub fn build_commands_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 		.collect();
 	validate_unique(&pairs, "command");
 
-	let blob = CommandsBlob { commands };
-	let bin = postcard::to_stdvec(&blob).expect("failed to serialize commands blob");
+	let spec = CommandsSpec { commands };
+	let bin = postcard::to_stdvec(&spec).expect("failed to serialize commands spec");
 	write_blob(&out_dir.join("commands.bin"), &bin);
 }
 
@@ -106,8 +106,8 @@ pub fn build_motions_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 		{
 			panic!("{context}: motions do not support 'caps'");
 		}
-		motions.push(MotionMetaRaw {
-			common: MetaCommonRaw {
+		motions.push(MotionSpec {
+			common: MetaCommonSpec {
 				name,
 				description,
 				short_desc,
@@ -125,8 +125,8 @@ pub fn build_motions_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 		.collect();
 	validate_unique(&pairs, "motion");
 
-	let blob = MotionsBlob { motions };
-	let bin = postcard::to_stdvec(&blob).expect("failed to serialize motions blob");
+	let spec = MotionsSpec { motions };
+	let bin = postcard::to_stdvec(&spec).expect("failed to serialize motions spec");
 	write_blob(&out_dir.join("motions.bin"), &bin);
 }
 
@@ -182,8 +182,8 @@ pub fn build_textobj_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 			})
 			.unwrap_or_default();
 
-		text_objects.push(TextObjectMetaRaw {
-			common: MetaCommonRaw {
+		text_objects.push(TextObjectSpec {
+			common: MetaCommonSpec {
 				name,
 				description,
 				short_desc,
@@ -203,8 +203,8 @@ pub fn build_textobj_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 		.collect();
 	validate_unique(&pairs, "text_object");
 
-	let blob = TextObjectsBlob { text_objects };
-	let bin = postcard::to_stdvec(&blob).expect("failed to serialize text_objects blob");
+	let spec = TextObjectsSpec { text_objects };
+	let bin = postcard::to_stdvec(&spec).expect("failed to serialize text_objects spec");
 	write_blob(&out_dir.join("text_objects.bin"), &bin);
 }
 
@@ -272,8 +272,8 @@ pub fn build_options_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 			.and_then(|v| v.as_string())
 			.map(String::from);
 
-		options.push(OptionMetaRaw {
-			common: MetaCommonRaw {
+		options.push(OptionSpec {
+			common: MetaCommonSpec {
 				name,
 				description,
 				short_desc,
@@ -296,8 +296,8 @@ pub fn build_options_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 		.collect();
 	validate_unique(&pairs, "option");
 
-	let blob = OptionsBlob { options };
-	let bin = postcard::to_stdvec(&blob).expect("failed to serialize options blob");
+	let spec = OptionsSpec { options };
+	let bin = postcard::to_stdvec(&spec).expect("failed to serialize options spec");
 	write_blob(&out_dir.join("options.bin"), &bin);
 }
 
@@ -359,8 +359,8 @@ pub fn build_gutters_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 			.and_then(|v| v.as_bool())
 			.unwrap_or(true);
 
-		gutters.push(GutterMetaRaw {
-			common: MetaCommonRaw {
+		gutters.push(GutterSpec {
+			common: MetaCommonSpec {
 				name,
 				description,
 				short_desc,
@@ -380,8 +380,8 @@ pub fn build_gutters_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 		.collect();
 	validate_unique(&pairs, "gutter");
 
-	let blob = GuttersBlob { gutters };
-	let bin = postcard::to_stdvec(&blob).expect("failed to serialize gutters blob");
+	let spec = GuttersSpec { gutters };
+	let bin = postcard::to_stdvec(&spec).expect("failed to serialize gutters spec");
 	write_blob(&out_dir.join("gutters.bin"), &bin);
 }
 
@@ -431,8 +431,8 @@ pub fn build_statusline_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 			panic!("{context}: statusline segments do not support 'caps'");
 		}
 
-		segments.push(StatuslineMetaRaw {
-			common: MetaCommonRaw {
+		segments.push(StatuslineSegmentSpec {
+			common: MetaCommonSpec {
 				name,
 				description,
 				short_desc,
@@ -451,8 +451,8 @@ pub fn build_statusline_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 		.collect();
 	validate_unique(&pairs, "segment");
 
-	let blob = StatuslineBlob { segments };
-	let bin = postcard::to_stdvec(&blob).expect("failed to serialize statusline blob");
+	let spec = StatuslineSpec { segments };
+	let bin = postcard::to_stdvec(&spec).expect("failed to serialize statusline spec");
 	write_blob(&out_dir.join("statusline.bin"), &bin);
 }
 
@@ -496,8 +496,8 @@ pub fn build_hooks_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 			panic!("{context}: hooks do not support 'caps'");
 		}
 
-		hooks.push(HookMetaRaw {
-			common: MetaCommonRaw {
+		hooks.push(HookSpec {
+			common: MetaCommonSpec {
 				name,
 				description,
 				short_desc,
@@ -516,8 +516,8 @@ pub fn build_hooks_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 		.collect();
 	validate_unique(&pairs, "hook");
 
-	let blob = HooksBlob { hooks };
-	let bin = postcard::to_stdvec(&blob).expect("failed to serialize hooks blob");
+	let spec = HooksSpec { hooks };
+	let bin = postcard::to_stdvec(&spec).expect("failed to serialize hooks spec");
 	write_blob(&out_dir.join("hooks.bin"), &bin);
 }
 
@@ -580,8 +580,8 @@ pub fn build_notifications_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 			.map(|v| v as u64);
 		let description = require_str(node, "description", &context);
 
-		notifications.push(NotificationMetaRaw {
-			common: MetaCommonRaw {
+		notifications.push(NotificationSpec {
+			common: MetaCommonSpec {
 				name,
 				description,
 				short_desc,
@@ -602,7 +602,7 @@ pub fn build_notifications_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 		.collect();
 	validate_unique(&pairs, "notification");
 
-	let blob = NotificationsBlob { notifications };
-	let bin = postcard::to_stdvec(&blob).expect("failed to serialize notifications blob");
+	let spec = NotificationsSpec { notifications };
+	let bin = postcard::to_stdvec(&spec).expect("failed to serialize notifications spec");
 	write_blob(&out_dir.join("notifications.bin"), &bin);
 }

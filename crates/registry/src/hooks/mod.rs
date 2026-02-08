@@ -8,8 +8,11 @@ pub mod builtins;
 mod context;
 mod emit;
 pub mod handler;
+pub mod link;
+pub mod loader;
 mod macros;
 pub mod registry;
+pub mod spec;
 mod types;
 
 pub use builtins::register_builtins;

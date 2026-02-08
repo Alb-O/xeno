@@ -15,7 +15,10 @@ pub(crate) mod macros;
 
 pub mod builtins;
 pub mod handler;
+pub mod link;
+pub mod loader;
 pub mod movement;
+pub mod spec;
 
 pub use builtins::register_builtins;
 pub use handler::{MotionHandlerReg, MotionHandlerStatic};
@@ -113,4 +116,4 @@ pub fn all() -> Vec<MotionRef> {
 
 /// Unified motion input: either a static `MotionDef` or a KDL-linked definition.
 pub type MotionInput =
-	crate::core::def_input::DefInput<MotionDef, crate::kdl::link::LinkedMotionDef>;
+	crate::core::def_input::DefInput<MotionDef, crate::motions::link::LinkedMotionDef>;

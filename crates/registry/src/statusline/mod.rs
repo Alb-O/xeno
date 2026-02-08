@@ -2,7 +2,10 @@
 
 pub mod builtins;
 pub mod handler;
+pub mod link;
+pub mod loader;
 mod macros;
+pub mod spec;
 
 use crate::core::index::{BuildEntry, RegistryMetaRef, StrListRef};
 pub use crate::core::{
@@ -117,8 +120,10 @@ impl BuildEntry<StatuslineEntry> for StatuslineSegmentDef {
 }
 
 /// Unified input for statusline segment registration.
-pub type StatuslineInput =
-	crate::core::def_input::DefInput<StatuslineSegmentDef, crate::kdl::link::LinkedStatuslineDef>;
+pub type StatuslineInput = crate::core::def_input::DefInput<
+	StatuslineSegmentDef,
+	crate::statusline::link::LinkedStatuslineDef,
+>;
 
 #[cfg(feature = "db")]
 pub use crate::db::STATUSLINE_SEGMENTS;

@@ -91,8 +91,8 @@ pub fn build_themes_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 				parse_syntax_recursive(children, "", &mut syntax);
 			}
 
-			themes.push(ThemeMetaRaw {
-				common: MetaCommonRaw {
+			themes.push(ThemeSpec {
+				common: MetaCommonSpec {
 					name,
 					description,
 					short_desc,
@@ -112,8 +112,8 @@ pub fn build_themes_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 		}
 	}
 
-	let blob = ThemesBlob { themes };
-	let bin = postcard::to_stdvec(&blob).expect("failed to serialize themes blob");
+	let spec = ThemesSpec { themes };
+	let bin = postcard::to_stdvec(&spec).expect("failed to serialize themes spec");
 	write_blob(&out_dir.join("themes.bin"), &bin);
 }
 

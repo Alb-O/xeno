@@ -137,14 +137,7 @@ motion_handler!(prev_hunk, |text, range, count, extend| {
 });
 
 pub fn register_builtins(builder: &mut crate::db::builder::RegistryDbBuilder) {
-	let metadata = crate::kdl::loader::load_motion_metadata();
-	let handlers = inventory::iter::<crate::motions::MotionHandlerReg>
-		.into_iter()
-		.map(|r| r.0);
-	let linked = crate::kdl::link::link_motions(&metadata, handlers);
-	for def in linked {
-		builder.register_linked_motion(def);
-	}
+	builder.register_compiled_motions();
 }
 
 fn register_builtins_reg(

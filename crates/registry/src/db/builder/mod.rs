@@ -12,15 +12,20 @@ pub use crate::core::{
 	MotionId, OptionId, RegistryBuilder, RegistryEntry, RegistryError, RegistryIndex, RegistryMeta,
 	RegistrySource, RuntimeRegistry, StatuslineId, TextObjectId, ThemeId,
 };
+use crate::gutter::link::LinkedGutterDef;
 use crate::gutter::{GutterDef, GutterEntry, GutterInput};
+use crate::hooks::link::LinkedHookDef;
 use crate::hooks::{HookDef, HookEntry, HookInput};
-#[cfg(feature = "actions")]
-use crate::kdl::link::LinkedActionDef;
+use crate::motions::link::LinkedMotionDef;
 use crate::motions::{MotionDef, MotionEntry, MotionInput};
+use crate::notifications::def::{LinkedNotificationDef, NotificationInput};
+use crate::options::link::LinkedOptionDef;
 use crate::options::{OptionDef, OptionEntry, OptionInput};
+use crate::statusline::link::LinkedStatuslineDef;
 use crate::statusline::{StatuslineEntry, StatuslineInput, StatuslineSegmentDef};
+use crate::textobj::link::LinkedTextObjectDef;
 use crate::textobj::{TextObjectDef, TextObjectEntry, TextObjectInput};
-use crate::themes::theme::{ThemeDef, ThemeEntry, ThemeInput};
+use crate::themes::theme::{LinkedThemeDef, ThemeDef, ThemeEntry, ThemeInput};
 
 macro_rules! define_domains {
 	(
@@ -127,8 +132,8 @@ define_domains! {
 		id: ActionId,
 		static_def: ActionDef,
 		static_to_input: |def: &'static ActionDef| ActionInput::Static(def.clone()),
-		linked_def: LinkedActionDef,
-		linked_to_input: |def: LinkedActionDef| ActionInput::Linked(def),
+		linked_def: crate::actions::link::LinkedActionDef,
+		linked_to_input: |def: crate::actions::link::LinkedActionDef| ActionInput::Linked(def),
 	}
 	commands: {
 		stem: command,
@@ -139,8 +144,8 @@ define_domains! {
 		id: CommandId,
 		static_def: CommandDef,
 		static_to_input: |def: &'static CommandDef| CommandInput::Static(def.clone()),
-		linked_def: crate::kdl::link::LinkedCommandDef,
-		linked_to_input: |def: crate::kdl::link::LinkedCommandDef| CommandInput::Linked(def),
+		linked_def: crate::commands::link::LinkedCommandDef,
+		linked_to_input: |def: crate::commands::link::LinkedCommandDef| CommandInput::Linked(def),
 	}
 	motions: {
 		stem: motion,
@@ -151,8 +156,8 @@ define_domains! {
 		id: MotionId,
 		static_def: MotionDef,
 		static_to_input: |def: &'static MotionDef| MotionInput::Static(def.clone()),
-		linked_def: crate::kdl::link::LinkedMotionDef,
-		linked_to_input: |def: crate::kdl::link::LinkedMotionDef| MotionInput::Linked(def),
+		linked_def: LinkedMotionDef,
+		linked_to_input: |def: LinkedMotionDef| MotionInput::Linked(def),
 	}
 	text_objects: {
 		stem: text_object,
@@ -163,8 +168,8 @@ define_domains! {
 		id: TextObjectId,
 		static_def: TextObjectDef,
 		static_to_input: |def: &'static TextObjectDef| TextObjectInput::Static(*def),
-		linked_def: crate::kdl::link::LinkedTextObjectDef,
-		linked_to_input: |def: crate::kdl::link::LinkedTextObjectDef| TextObjectInput::Linked(def),
+		linked_def: LinkedTextObjectDef,
+		linked_to_input: |def: LinkedTextObjectDef| TextObjectInput::Linked(def),
 	}
 	options: {
 		stem: option,
@@ -175,8 +180,8 @@ define_domains! {
 		id: OptionId,
 		static_def: OptionDef,
 		static_to_input: |def: &'static OptionDef| OptionInput::Static(def.clone()),
-		linked_def: crate::options::def::LinkedOptionDef,
-		linked_to_input: |def: crate::options::def::LinkedOptionDef| OptionInput::Linked(def),
+		linked_def: LinkedOptionDef,
+		linked_to_input: |def: LinkedOptionDef| OptionInput::Linked(def),
 	}
 	themes: {
 		stem: theme,
@@ -187,8 +192,8 @@ define_domains! {
 		id: ThemeId,
 		static_def: ThemeDef,
 		static_to_input: |def: &'static ThemeDef| ThemeInput::Static(*def),
-		linked_def: crate::themes::theme::LinkedThemeDef,
-		linked_to_input: |def: crate::themes::theme::LinkedThemeDef| ThemeInput::Linked(def),
+		linked_def: LinkedThemeDef,
+		linked_to_input: |def: LinkedThemeDef| ThemeInput::Linked(def),
 	}
 	gutters: {
 		stem: gutter,
@@ -199,8 +204,8 @@ define_domains! {
 		id: GutterId,
 		static_def: GutterDef,
 		static_to_input: |def: &'static GutterDef| GutterInput::Static(*def),
-		linked_def: crate::kdl::link::LinkedGutterDef,
-		linked_to_input: |def: crate::kdl::link::LinkedGutterDef| GutterInput::Linked(def),
+		linked_def: LinkedGutterDef,
+		linked_to_input: |def: LinkedGutterDef| GutterInput::Linked(def),
 	}
 	statusline: {
 		stem: statusline_segment,
@@ -211,8 +216,8 @@ define_domains! {
 		id: StatuslineId,
 		static_def: StatuslineSegmentDef,
 		static_to_input: |def: &'static StatuslineSegmentDef| StatuslineInput::Static(*def),
-		linked_def: crate::kdl::link::LinkedStatuslineDef,
-		linked_to_input: |def: crate::kdl::link::LinkedStatuslineDef| StatuslineInput::Linked(def),
+		linked_def: LinkedStatuslineDef,
+		linked_to_input: |def: LinkedStatuslineDef| StatuslineInput::Linked(def),
 	}
 	hooks: {
 		stem: hook,
@@ -223,20 +228,20 @@ define_domains! {
 		id: HookId,
 		static_def: HookDef,
 		static_to_input: |def: &'static HookDef| HookInput::Static(*def),
-		linked_def: crate::kdl::link::LinkedHookDef,
-		linked_to_input: |def: crate::kdl::link::LinkedHookDef| HookInput::Linked(def),
+		linked_def: LinkedHookDef,
+		linked_to_input: |def: LinkedHookDef| HookInput::Linked(def),
 	}
 	notifications: {
 		stem: notification,
 		domain: crate::db::domains::Notifications,
 		field: notifications,
-		input: crate::notifications::NotificationInput,
+		input: NotificationInput,
 		entry: crate::notifications::NotificationEntry,
 		id: crate::notifications::NotificationId,
 		static_def: crate::notifications::NotificationDef,
-		static_to_input: |def: &'static crate::notifications::NotificationDef| crate::notifications::NotificationInput::Static(*def),
-		linked_def: crate::notifications::def::LinkedNotificationDef,
-		linked_to_input: |def: crate::notifications::def::LinkedNotificationDef| crate::notifications::NotificationInput::Linked(def),
+		static_to_input: |def: &'static crate::notifications::NotificationDef| NotificationInput::Static(*def),
+		linked_def: LinkedNotificationDef,
+		linked_to_input: |def: LinkedNotificationDef| NotificationInput::Linked(def),
 	}
 }
 
@@ -253,6 +258,132 @@ impl Default for RegistryDbBuilder {
 }
 
 impl RegistryDbBuilder {
+	#[cfg(feature = "actions")]
+	pub fn register_compiled_actions(&mut self) {
+		let spec = crate::actions::loader::load_actions_spec();
+		let handlers = inventory::iter::<crate::actions::handler::ActionHandlerReg>
+			.into_iter()
+			.map(|r| r.0);
+
+		let linked = crate::actions::link::link_actions(&spec, handlers);
+
+		for def in linked {
+			self.register_linked_action(def);
+		}
+
+		self.register_key_prefixes(crate::actions::link::link_prefixes(&spec));
+	}
+
+	#[cfg(feature = "commands")]
+	pub fn register_compiled_commands(&mut self) {
+		let spec = crate::commands::loader::load_commands_spec();
+		let handlers = inventory::iter::<crate::commands::CommandHandlerReg>
+			.into_iter()
+			.map(|r| r.0);
+
+		let linked = crate::commands::link::link_commands(&spec, handlers);
+
+		for def in linked {
+			self.register_linked_command(def);
+		}
+	}
+
+	pub fn register_compiled_motions(&mut self) {
+		let spec = crate::motions::loader::load_motions_spec();
+		let handlers = inventory::iter::<crate::motions::handler::MotionHandlerReg>
+			.into_iter()
+			.map(|r| r.0);
+
+		let linked = crate::motions::link::link_motions(&spec, handlers);
+
+		for def in linked {
+			self.register_linked_motion(def);
+		}
+	}
+
+	pub fn register_compiled_text_objects(&mut self) {
+		let spec = crate::textobj::loader::load_text_objects_spec();
+		let handlers = inventory::iter::<crate::textobj::handler::TextObjectHandlerReg>
+			.into_iter()
+			.map(|r| r.0);
+
+		let linked = crate::textobj::link::link_text_objects(&spec, handlers);
+
+		for def in linked {
+			self.register_linked_text_object(def);
+		}
+	}
+
+	pub fn register_compiled_options(&mut self) {
+		let spec = crate::options::loader::load_options_spec();
+		let validators = inventory::iter::<crate::options::OptionValidatorReg>
+			.into_iter()
+			.map(|r| r.0);
+
+		let linked = crate::options::link::link_options(&spec, validators);
+
+		for def in linked {
+			self.register_linked_option(def);
+		}
+	}
+
+	pub fn register_compiled_hooks(&mut self) {
+		let spec = crate::hooks::loader::load_hooks_spec();
+		let handlers = inventory::iter::<crate::hooks::handler::HookHandlerReg>
+			.into_iter()
+			.map(|r| r.0);
+
+		let linked = crate::hooks::link::link_hooks(&spec, handlers);
+
+		for def in linked {
+			self.register_linked_hook(def);
+		}
+	}
+
+	pub fn register_compiled_statusline(&mut self) {
+		let spec = crate::statusline::loader::load_statusline_spec();
+		let handlers = inventory::iter::<crate::statusline::handler::StatuslineHandlerReg>
+			.into_iter()
+			.map(|r| r.0);
+
+		let linked = crate::statusline::link::link_statusline(&spec, handlers);
+
+		for def in linked {
+			self.register_linked_statusline_segment(def);
+		}
+	}
+
+	pub fn register_compiled_gutters(&mut self) {
+		let spec = crate::gutter::loader::load_gutters_spec();
+		let handlers = inventory::iter::<crate::gutter::handler::GutterHandlerReg>
+			.into_iter()
+			.map(|r| r.0);
+
+		let linked = crate::gutter::link::link_gutters(&spec, handlers);
+
+		for def in linked {
+			self.register_linked_gutter(def);
+		}
+	}
+
+	pub fn register_compiled_notifications(&mut self) {
+		let spec = crate::notifications::loader::load_notifications_spec();
+		let linked = crate::notifications::link::link_notifications(&spec);
+
+		for def in linked {
+			self.register_linked_notification(def);
+		}
+	}
+
+	pub fn register_compiled_themes(&mut self) {
+		let spec = crate::themes::loader::load_themes_spec();
+		let linked = crate::themes::link::link_themes(&spec);
+
+		for def in linked {
+			self.register_linked_theme(def);
+		}
+	}
+
 	pub fn push_domain<D: crate::db::domain::DomainSpec>(&mut self, input: D::Input) {
 		D::on_push(self, &input);
 		D::builder(self).push(Arc::new(input));
