@@ -1,0 +1,21 @@
+#[cfg(feature = "actions")]
+pub mod actions;
+#[cfg(feature = "commands")]
+pub mod commands;
+#[cfg(feature = "gutter")]
+pub mod gutter;
+#[cfg(feature = "hooks")]
+#[macro_use]
+pub mod hooks;
+#[cfg(feature = "motions")]
+pub mod motions;
+#[cfg(feature = "notifications")]
+pub mod notifications;
+#[cfg(feature = "options")]
+pub mod options;
+#[cfg(feature = "statusline")]
+pub mod statusline;
+#[cfg(feature = "textobj")]
+pub mod textobj;
+#[cfg(feature = "themes")]
+pub mod themes;

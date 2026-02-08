@@ -165,38 +165,40 @@ xeno_macros::define_events! {
 #[cfg(feature = "db")]
 pub mod db;
 
-#[cfg(feature = "actions")]
-pub mod actions;
-#[cfg(feature = "commands")]
-pub mod commands;
-#[cfg(feature = "gutter")]
-pub mod gutter;
-#[cfg(feature = "hooks")]
 #[macro_use]
-pub mod hooks;
+pub mod domains;
+
+#[cfg(feature = "actions")]
+pub use domains::actions;
+#[cfg(feature = "commands")]
+pub use domains::commands;
+#[cfg(feature = "gutter")]
+pub use domains::gutter;
+#[cfg(feature = "hooks")]
+pub use domains::hooks;
 #[cfg(feature = "motions")]
-pub mod motions;
+pub use domains::motions;
 #[cfg(feature = "notifications")]
-pub mod notifications;
+pub use domains::notifications;
 #[cfg(feature = "options")]
-pub mod options;
+pub use domains::options;
 #[cfg(feature = "statusline")]
-pub mod statusline;
+pub use domains::statusline;
 #[cfg(feature = "textobj")]
-pub mod textobj;
+pub use domains::textobj;
 #[cfg(feature = "themes")]
-pub mod themes;
+pub use domains::themes;
 
 // Re-exports for convenience
 #[cfg(feature = "actions")]
-pub use actions::editor_ctx::{
+pub use domains::actions::editor_ctx::{
 	CommandQueueAccess, CursorAccess, EditAccess, EditorCapabilities, EditorContext, EditorOps,
 	FileOpsAccess, FocusOps, HandleOutcome, JumpAccess, MacroAccess, ModeAccess, MotionAccess,
 	MotionDispatchAccess, NotificationAccess, OptionAccess, PaletteAccess, ResultHandler,
 	SearchAccess, SelectionAccess, SplitOps, TextAccess, ThemeAccess, UndoAccess, ViewportAccess,
 };
 #[cfg(feature = "actions")]
-pub use actions::{
+pub use domains::actions::{
 	ActionArgs, ActionContext, ActionDef, ActionEffects, ActionHandler, ActionResult, AppEffect,
 	BindingMode, EditEffect, Effect, Mode, MotionKind, MotionRequest, ObjectSelectionKind,
 	PendingAction, PendingKind, RESULT_EFFECTS_HANDLERS, RESULT_EXTENSION_HANDLERS,
@@ -204,9 +206,9 @@ pub use actions::{
 	edit_op, find_prefix,
 };
 #[cfg(feature = "actions")]
-pub use actions::{Axis, SeqDirection, SpatialDirection};
+pub use domains::actions::{Axis, SeqDirection, SpatialDirection};
 #[cfg(feature = "commands")]
-pub use commands::{
+pub use domains::commands::{
 	CommandContext, CommandDef, CommandEditorOps, CommandError, CommandHandler, CommandHandlerReg,
 	CommandHandlerStatic, CommandInput, CommandOutcome, CommandResult,
 };
@@ -225,41 +227,41 @@ pub use db::{
 	TEXT_OBJECTS, THEMES,
 };
 #[cfg(feature = "gutter")]
-pub use gutter::{
+pub use domains::gutter::{
 	GutterAnnotations, GutterCell, GutterDef, GutterHandlerReg, GutterHandlerStatic, GutterInput,
 	GutterLineContext, GutterSegment, GutterWidth, GutterWidthContext,
 };
 #[cfg(feature = "hooks")]
-pub use hooks::{
+pub use domains::hooks::{
 	Bool, HookAction, HookContext, HookDef, HookFuture, HookHandler, HookHandlerReg,
 	HookHandlerStatic, HookInput, HookMutability, HookPriority, HookResult, HookScheduler,
 	MutableHookContext, OptionViewId, SplitDirection, Str, ViewId, WindowId, WindowKind, emit,
 	emit_mutable, emit_sync, emit_sync_with,
 };
 #[cfg(feature = "motions")]
-pub use motions::{
+pub use domains::motions::{
 	Capability, MotionDef, MotionHandler, MotionHandlerReg, MotionHandlerStatic, MotionInput,
 	flags, movement,
 };
 #[cfg(feature = "notifications")]
-pub use notifications::{
+pub use domains::notifications::{
 	AutoDismiss, IntoNotification, Level, Notification, NotificationDef, NotificationKey,
 	keys as notification_keys,
 };
 #[cfg(all(feature = "options", feature = "db"))]
-pub use options::validate;
+pub use domains::options::validate;
 #[cfg(feature = "options")]
-pub use options::{
+pub use domains::options::{
 	OptionDef, OptionError, OptionInput, OptionKey, OptionReg, OptionScope, OptionType,
 	OptionValidator, OptionValue, TypedOptionKey,
 };
 #[cfg(feature = "statusline")]
-pub use statusline::{
+pub use domains::statusline::{
 	RenderedSegment, SegmentPosition, SegmentStyle, StatuslineContext, StatuslineInput,
 	StatuslineSegmentDef, render_position,
 };
 #[cfg(feature = "textobj")]
-pub use textobj::{
+pub use domains::textobj::{
 	TextObjectDef, TextObjectHandler, TextObjectHandlerReg, TextObjectHandlerStatic,
 	TextObjectInput,
 };
