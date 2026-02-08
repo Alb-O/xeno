@@ -1,4 +1,4 @@
-use crate::core::{LinkedDef, LinkedMetaOwned, RegistrySource};
+use crate::core::LinkedDef;
 use crate::kdl::types::OptionsBlob;
 use crate::options::def::{LinkedOptionDef, OptionPayload};
 use crate::options::{OptionDefault, OptionType, OptionValidatorStatic, OptionValue};
@@ -13,8 +13,6 @@ pub fn link_options(
 	let mut defs = Vec::new();
 
 	for meta in &metadata.options {
-		let id = format!("xeno-registry::{}", meta.name);
-
 		let value_type = super::parse::parse_option_type(&meta.value_type);
 		let scope = super::parse::parse_option_scope(&meta.scope);
 		let default = match value_type {
@@ -28,28 +26,20 @@ pub fn link_options(
 			OptionType::String => OptionDefault::Value(OptionValue::String(meta.default.clone())),
 		};
 
-		let validator =
-			meta.validator.as_deref().map(|name| validator_map.get(name).map(|v| v.validator).unwrap_or_else(
-					|| {
-						panic!(
-							"KDL option '{}' references unknown validator '{}'",
-							meta.name, name
-						)
-					},
-				));
+		let validator = meta.validator.as_deref().map(|name| {
+			validator_map
+				.get(name)
+				.map(|v| v.validator)
+				.unwrap_or_else(|| {
+					panic!(
+						"KDL option '{}' references unknown validator '{}'",
+						meta.common.name, name
+					)
+				})
+		});
 
 		defs.push(LinkedDef {
-			meta: LinkedMetaOwned {
-				id,
-				name: meta.name.clone(),
-				description: meta.description.clone(),
-				keys: meta.keys.clone(),
-				priority: meta.priority,
-				source: RegistrySource::Builtin,
-				required_caps: vec![],
-				flags: meta.flags,
-				short_desc: None,
-			},
+			meta: super::common::linked_meta_from_common(&meta.common),
 			payload: OptionPayload {
 				kdl_key: meta.kdl_key.clone(),
 				value_type,

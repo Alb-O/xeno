@@ -30,3 +30,15 @@ pub fn register_builtins(builder: &mut RegistryDbBuilder) {
 		builder.key_prefixes.push(prefix);
 	}
 }
+
+fn register_builtins_reg(
+	builder: &mut RegistryDbBuilder,
+) -> Result<(), crate::db::builder::RegistryError> {
+	register_builtins(builder);
+	Ok(())
+}
+
+inventory::submit!(crate::db::builtins::BuiltinsReg {
+	ordinal: 10,
+	f: register_builtins_reg,
+});

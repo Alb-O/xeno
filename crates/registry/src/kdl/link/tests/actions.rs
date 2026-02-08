@@ -1,4 +1,6 @@
-use super::super::*;
+use std::collections::HashSet;
+
+use super::super::{actions, parse};
 use crate::kdl::loader::load_action_metadata;
 
 #[test]
@@ -13,9 +15,9 @@ fn all_kdl_actions_have_handlers() {
 
 	for action in &blob.actions {
 		assert!(
-			handler_names.contains(action.name.as_str()),
+			handler_names.contains(action.common.name.as_str()),
 			"KDL action '{}' has no handler",
-			action.name
+			action.common.name
 		);
 	}
 }
@@ -23,7 +25,11 @@ fn all_kdl_actions_have_handlers() {
 #[test]
 fn all_handlers_have_kdl_entries() {
 	let blob = load_action_metadata();
-	let kdl_names: HashSet<&str> = blob.actions.iter().map(|a| a.name.as_str()).collect();
+	let kdl_names: HashSet<&str> = blob
+		.actions
+		.iter()
+		.map(|a| a.common.name.as_str())
+		.collect();
 
 	for reg in inventory::iter::<crate::actions::ActionHandlerReg> {
 		assert!(

@@ -1,5 +1,34 @@
 use std::collections::{HashMap, HashSet};
 
+use crate::core::{LinkedMetaOwned, RegistrySource};
+use crate::kdl::types::MetaCommonRaw;
+
+/// Builds `LinkedMetaOwned` from `MetaCommonRaw` with consistent defaults.
+///
+/// Applies the unified rules for all KDL-linked domains:
+/// - ID prefix: `"xeno-registry::"`
+/// - Source: `RegistrySource::Crate(env!("CARGO_PKG_NAME"))`
+/// - short_desc resolved: `short_desc || description`
+/// - required_caps: empty (caller can override if needed)
+pub(crate) fn linked_meta_from_common(common: &MetaCommonRaw) -> LinkedMetaOwned {
+	LinkedMetaOwned {
+		id: format!("xeno-registry::{}", common.name),
+		name: common.name.clone(),
+		keys: common.keys.clone(),
+		description: common.description.clone(),
+		priority: common.priority,
+		flags: common.flags,
+		source: RegistrySource::Crate(env!("CARGO_PKG_NAME")),
+		required_caps: vec![],
+		short_desc: Some(
+			common
+				.short_desc
+				.clone()
+				.unwrap_or_else(|| common.description.clone()),
+		),
+	}
+}
+
 /// Links KDL metadata with handler statics using a name-based bijection.
 ///
 /// Panics if any KDL entry has no matching handler, or vice versa.
@@ -11,7 +40,13 @@ pub(crate) fn link_by_name<M, H: 'static, Out>(
 	build: impl Fn(&M, &'static H) -> Out,
 	what: &'static str,
 ) -> Vec<Out> {
-	let handler_map: HashMap<&str, &H> = handlers.map(|h| (handler_name(h), h)).collect();
+	let mut handler_map: HashMap<&str, &H> = HashMap::new();
+	for h in handlers {
+		let name = handler_name(h);
+		if handler_map.insert(name, h).is_some() {
+			panic!("duplicate {}_handler!() registration for '{}'", what, name);
+		}
+	}
 	let mut defs = Vec::with_capacity(metas.len());
 	let mut used_handlers = HashSet::with_capacity(handler_map.len());
 
@@ -44,5 +79,12 @@ pub(crate) fn build_name_map<H: 'static>(
 	handlers: impl Iterator<Item = &'static H>,
 	name: impl Fn(&'static H) -> &'static str,
 ) -> HashMap<&'static str, &'static H> {
-	handlers.map(|h| (name(h), h)).collect()
+	let mut out = HashMap::new();
+	for h in handlers {
+		let n = name(h);
+		if out.insert(n, h).is_some() {
+			panic!("duplicate static registration for '{}'", n);
+		}
+	}
+	out
 }

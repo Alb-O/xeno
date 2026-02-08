@@ -3,12 +3,8 @@ use serde::{Deserialize, Serialize};
 /// Raw motion metadata extracted from KDL, before handler linking.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MotionMetaRaw {
-	/// Motion name (handler linkage key).
-	pub name: String,
-	/// Human-readable description.
-	pub description: String,
-	/// Alternative lookup names.
-	pub keys: Vec<String>,
+	/// Common metadata.
+	pub common: super::common::MetaCommonRaw,
 }
 
 /// Top-level blob containing all motion metadata.

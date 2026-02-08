@@ -4,15 +4,13 @@
 //! precompiled blobs with handler statics collected via `inventory`. The result
 //! is `Linked*Def` types that implement `BuildEntry` for the registry builder.
 
-use std::collections::{HashMap, HashSet};
-
-use crate::core::index::{BuildEntry, RegistryMetaRef, StrListRef};
-use crate::core::{FrozenInterner, RegistrySource, Symbol};
+use crate::core::FrozenInterner;
 
 #[cfg(feature = "actions")]
 pub mod actions;
 pub(crate) mod common;
 pub(crate) mod parse;
+pub(crate) mod spec;
 #[cfg(feature = "actions")]
 pub use actions::*;
 

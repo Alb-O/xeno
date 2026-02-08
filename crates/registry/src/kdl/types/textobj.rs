@@ -3,10 +3,8 @@ use serde::{Deserialize, Serialize};
 /// Raw text object metadata extracted from KDL, before handler linking.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TextObjectMetaRaw {
-	/// Text object name (handler linkage key).
-	pub name: String,
-	/// Human-readable description.
-	pub description: String,
+	/// Common metadata.
+	pub common: super::common::MetaCommonRaw,
 	/// Primary trigger character (e.g., `"w"`, `"("`).
 	pub trigger: String,
 	/// Alternate trigger characters.

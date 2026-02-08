@@ -1,4 +1,5 @@
-use super::super::*;
+use std::collections::HashSet;
+
 use crate::kdl::loader::load_motion_metadata;
 
 #[test]
@@ -13,9 +14,9 @@ fn all_kdl_motions_have_handlers() {
 
 	for motion in &blob.motions {
 		assert!(
-			handler_names.contains(motion.name.as_str()),
+			handler_names.contains(motion.common.name.as_str()),
 			"KDL motion '{}' has no handler",
-			motion.name
+			motion.common.name
 		);
 	}
 }
@@ -23,7 +24,11 @@ fn all_kdl_motions_have_handlers() {
 #[test]
 fn all_motion_handlers_have_kdl_entries() {
 	let blob = load_motion_metadata();
-	let kdl_names: HashSet<&str> = blob.motions.iter().map(|m| m.name.as_str()).collect();
+	let kdl_names: HashSet<&str> = blob
+		.motions
+		.iter()
+		.map(|m| m.common.name.as_str())
+		.collect();
 
 	for reg in inventory::iter::<crate::motions::MotionHandlerReg> {
 		assert!(

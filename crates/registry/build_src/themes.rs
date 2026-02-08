@@ -27,6 +27,8 @@ pub fn build_themes_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 				.unwrap_or_else(|| path.file_stem().unwrap().to_str().unwrap())
 				.to_string();
 
+			let context = format!("theme '{name}'");
+
 			let variant = doc
 				.get("variant")
 				.and_then(|n| n.entry(0))
@@ -51,12 +53,30 @@ pub fn build_themes_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 				.unwrap_or("")
 				.to_string();
 
+			let short_desc = doc
+				.get("short-desc")
+				.and_then(|n| n.entry(0))
+				.and_then(|e| e.value().as_string())
+				.map(String::from);
+
 			let priority = doc
 				.get("priority")
 				.and_then(|n| n.entry(0))
 				.and_then(|e| e.value().as_integer())
 				.map(|v| v as i16)
 				.unwrap_or(0);
+
+			let flags = doc
+				.get("flags")
+				.and_then(|n| n.entry(0))
+				.and_then(|e| e.value().as_integer())
+				.map(|v| v as u32)
+				.unwrap_or(0);
+
+			// Themes do not support caps
+			if doc.get("caps").is_some() {
+				panic!("{context}: themes do not support 'caps'");
+			}
 
 			let palette = parse_kdl_map(doc.get("palette"));
 			let ui = parse_kdl_map(doc.get("ui"));
@@ -72,10 +92,15 @@ pub fn build_themes_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 			}
 
 			themes.push(ThemeMetaRaw {
-				name,
-				keys,
-				description,
-				priority,
+				common: MetaCommonRaw {
+					name,
+					description,
+					short_desc,
+					keys,
+					priority,
+					caps: vec![],
+					flags,
+				},
 				variant,
 				palette,
 				ui,

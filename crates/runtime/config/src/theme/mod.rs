@@ -34,19 +34,27 @@ pub struct ParsedTheme {
 impl ParsedTheme {
 	/// Convert to a `LinkedThemeDef` for registration in the runtime theme registry.
 	pub fn into_owned_theme(self) -> xeno_registry::themes::LinkedThemeDef {
-		use xeno_registry::themes::RegistrySource;
+		use xeno_registry::core::{LinkedMetaOwned, RegistrySource};
+		use xeno_registry::themes::theme::ThemePayload;
 
 		let id = format!("xeno-registry::{}", self.name);
 
 		xeno_registry::themes::LinkedThemeDef {
-			id,
-			name: self.name,
-			keys: self.keys,
-			description: "".to_string(),
-			priority: 0,
-			source: RegistrySource::Runtime,
-			variant: self.variant,
-			colors: self.colors,
+			meta: LinkedMetaOwned {
+				id,
+				name: self.name,
+				keys: self.keys,
+				description: "".to_string(),
+				priority: 0,
+				flags: 0,
+				source: RegistrySource::Runtime,
+				required_caps: vec![],
+				short_desc: None,
+			},
+			payload: ThemePayload {
+				variant: self.variant,
+				colors: self.colors,
+			},
 		}
 	}
 }

@@ -1,8 +1,8 @@
 use std::time::Duration;
 
-use super::*;
+use crate::core::LinkedDef;
 use crate::kdl::types::NotificationsBlob;
-use crate::notifications::def::LinkedNotificationDef;
+use crate::notifications::def::{LinkedNotificationDef, NotificationPayload};
 use crate::notifications::{AutoDismiss, Level};
 
 /// Links KDL notification metadata, producing `LinkedNotificationDef`s.
@@ -10,8 +10,6 @@ pub fn link_notifications(metadata: &NotificationsBlob) -> Vec<LinkedNotificatio
 	let mut defs = Vec::new();
 
 	for meta in &metadata.notifications {
-		let id = format!("xeno-registry::{}", meta.name);
-
 		let level = match meta.level.as_str() {
 			"info" => Level::Info,
 			"warn" => Level::Warn,
@@ -30,16 +28,12 @@ pub fn link_notifications(metadata: &NotificationsBlob) -> Vec<LinkedNotificatio
 			other => panic!("unknown auto-dismiss: '{}'", other),
 		};
 
-		defs.push(LinkedNotificationDef {
-			id,
-			name: meta.name.clone(),
-			description: meta.description.clone(),
-			keys: Vec::new(),
-			priority: 0,
-			flags: 0,
-			level,
-			auto_dismiss,
-			source: RegistrySource::Builtin,
+		defs.push(LinkedDef {
+			meta: super::common::linked_meta_from_common(&meta.common),
+			payload: NotificationPayload {
+				level,
+				auto_dismiss,
+			},
 		});
 	}
 

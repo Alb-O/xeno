@@ -32,8 +32,10 @@ macro_rules! text_object_handler {
 				$crate::textobj::TextObjectHandlerStatic {
 					name: stringify!($name),
 					crate_name: env!("CARGO_PKG_NAME"),
-					inner: [<textobj_inner_ $name>],
-					around: [<textobj_around_ $name>],
+					handler: $crate::textobj::handler::TextObjectHandlers {
+						inner: [<textobj_inner_ $name>],
+						around: [<textobj_around_ $name>],
+					},
 				};
 
 			inventory::submit!($crate::textobj::TextObjectHandlerReg(&[<TEXTOBJ_HANDLER_ $name>]));

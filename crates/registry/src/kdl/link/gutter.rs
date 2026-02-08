@@ -1,47 +1,26 @@
 use super::*;
-use crate::gutter::handler::GutterHandlerStatic;
-use crate::gutter::{GutterCell, GutterEntry, GutterLineContext, GutterWidth};
-use crate::kdl::types::GuttersBlob;
+use crate::core::{LinkedDef, LinkedPayload, RegistryMeta, Symbol};
+use crate::gutter::handler::{GutterHandlerStatic, GutterRenderHandler};
+use crate::gutter::{GutterEntry, GutterWidth, GutterWidthContext};
+use crate::kdl::types::{GutterMetaRaw, GuttersBlob};
 
 /// A gutter definition assembled from KDL metadata + Rust handlers.
+pub type LinkedGutterDef = LinkedDef<GutterPayload>;
+
 #[derive(Clone)]
-pub struct LinkedGutterDef {
-	pub id: String,
-	pub name: String,
-	pub description: String,
-	pub priority: i16,
+pub struct GutterPayload {
 	pub default_enabled: bool,
 	pub width: GutterWidth,
-	pub render: fn(&GutterLineContext) -> Option<GutterCell>,
-	pub source: RegistrySource,
+	pub render: GutterRenderHandler,
 }
 
-impl BuildEntry<GutterEntry> for LinkedGutterDef {
-	fn meta_ref(&self) -> RegistryMetaRef<'_> {
-		RegistryMetaRef {
-			id: &self.id,
-			name: &self.name,
-			keys: StrListRef::Owned(&[]),
-			description: &self.description,
-			priority: self.priority,
-			source: self.source,
-			required_caps: &[],
-			flags: 0,
-		}
-	}
-
-	fn short_desc_str(&self) -> &str {
-		&self.name
-	}
-
-	fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
-		crate::core::index::meta_build::collect_meta_strings(&self.meta_ref(), sink, []);
-	}
-
-	fn build(&self, interner: &FrozenInterner, key_pool: &mut Vec<Symbol>) -> GutterEntry {
-		let meta =
-			crate::core::index::meta_build::build_meta(interner, key_pool, self.meta_ref(), []);
-
+impl LinkedPayload<GutterEntry> for GutterPayload {
+	fn build_entry(
+		&self,
+		_interner: &FrozenInterner,
+		meta: RegistryMeta,
+		_short_desc: Symbol,
+	) -> GutterEntry {
 		GutterEntry {
 			meta,
 			default_enabled: self.default_enabled,
@@ -56,42 +35,51 @@ pub fn link_gutters(
 	metadata: &GuttersBlob,
 	handlers: impl Iterator<Item = &'static GutterHandlerStatic>,
 ) -> Vec<LinkedGutterDef> {
-	let handler_map: HashMap<&str, &GutterHandlerStatic> = handlers.map(|h| (h.name, h)).collect();
+	super::spec::link_domain::<GutterLinkSpec>(&metadata.gutters, handlers)
+}
 
-	let mut defs = Vec::new();
-	let mut used_handlers = HashSet::new();
+fn dynamic_width(ctx: &GutterWidthContext) -> u16 {
+	(ctx.total_lines.max(1).ilog10() as u16 + 1).max(3)
+}
 
-	for meta in &metadata.gutters {
-		let handler = handler_map.get(meta.name.as_str()).unwrap_or_else(|| {
-			panic!(
-				"KDL gutter '{}' has no matching gutter_handler!() in Rust",
-				meta.name
-			)
-		});
-		used_handlers.insert(meta.name.as_str());
+fn parse_width(raw: &str, name: &str) -> GutterWidth {
+	if raw == "dynamic" {
+		return GutterWidth::Dynamic(dynamic_width);
+	}
+	match raw.parse::<u16>() {
+		Ok(width) => GutterWidth::Fixed(width),
+		Err(_) => panic!("unknown width '{}' for gutter '{}'", raw, name),
+	}
+}
 
-		let id = format!("xeno-registry::{}", meta.name);
+struct GutterLinkSpec;
 
-		defs.push(LinkedGutterDef {
-			id,
-			name: meta.name.clone(),
-			description: meta.description.clone(),
-			priority: meta.priority,
-			default_enabled: meta.enabled,
-			width: handler.width,
-			render: handler.render,
-			source: RegistrySource::Crate(handler.crate_name),
-		});
+impl super::spec::DomainLinkSpec for GutterLinkSpec {
+	type Meta = GutterMetaRaw;
+	type HandlerFn = GutterRenderHandler;
+	type Entry = GutterEntry;
+	type Payload = GutterPayload;
+
+	const WHAT: &'static str = "gutter";
+	const CANONICAL_PREFIX: &'static str = "xeno-registry::";
+
+	fn common(meta: &Self::Meta) -> &crate::kdl::types::MetaCommonRaw {
+		&meta.common
 	}
 
-	for name in handler_map.keys() {
-		if !used_handlers.contains(name) {
-			panic!(
-				"gutter_handler!({}) has no matching entry in gutters.kdl",
-				name
-			);
+	fn short_desc(meta: &Self::Meta) -> String {
+		meta.common.name.clone()
+	}
+
+	fn build_payload(
+		meta: &Self::Meta,
+		handler: Self::HandlerFn,
+		_canonical_id: std::sync::Arc<str>,
+	) -> Self::Payload {
+		GutterPayload {
+			default_enabled: meta.enabled,
+			width: parse_width(&meta.width, &meta.common.name),
+			render: handler,
 		}
 	}
-
-	defs
 }

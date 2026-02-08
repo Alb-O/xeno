@@ -3,20 +3,8 @@ use serde::{Deserialize, Serialize};
 /// Raw action metadata extracted from KDL, before handler linking.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ActionMetaRaw {
-	/// Action name (handler linkage key).
-	pub name: String,
-	/// Human-readable description.
-	pub description: String,
-	/// Short description for which-key HUD (defaults to description if absent).
-	pub short_desc: Option<String>,
-	/// Alternative lookup names.
-	pub keys: Vec<String>,
-	/// Conflict resolution priority.
-	pub priority: i16,
-	/// Required capability names (parsed to `Capability` enum at link time).
-	pub caps: Vec<String>,
-	/// Behavior hint flags.
-	pub flags: u32,
+	/// Common metadata.
+	pub common: super::common::MetaCommonRaw,
 	/// Key bindings per mode.
 	pub bindings: Vec<KeyBindingRaw>,
 	/// Organizational group name (informational only).

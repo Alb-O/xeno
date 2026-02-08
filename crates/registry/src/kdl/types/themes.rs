@@ -5,14 +5,8 @@ use serde::{Deserialize, Serialize};
 /// Raw theme metadata extracted from KDL.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ThemeMetaRaw {
-	/// Theme name.
-	pub name: String,
-	/// Alternative lookup names.
-	pub keys: Vec<String>,
-	/// Human-readable description.
-	pub description: String,
-	/// Conflict resolution priority.
-	pub priority: i16,
+	/// Common metadata.
+	pub common: super::common::MetaCommonRaw,
 	/// Whether it's a "dark" or "light" theme.
 	pub variant: String,
 	/// Resolved color palette: Map of name -> hex string.

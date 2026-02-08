@@ -2,8 +2,8 @@ use super::*;
 use crate::commands::def::CommandHandler;
 use crate::commands::entry::CommandEntry;
 use crate::commands::handler::CommandHandlerStatic;
-use crate::core::{LinkedDef, LinkedMetaOwned, LinkedPayload, RegistryMeta, Symbol};
-use crate::kdl::types::CommandsBlob;
+use crate::core::{LinkedDef, LinkedPayload, RegistryMeta, Symbol};
+use crate::kdl::types::{CommandMetaRaw, CommandsBlob};
 
 /// A command definition assembled from KDL metadata + Rust handler.
 pub type LinkedCommandDef = LinkedDef<CommandPayload>;
@@ -35,27 +35,33 @@ pub fn link_commands(
 	metadata: &CommandsBlob,
 	handlers: impl Iterator<Item = &'static CommandHandlerStatic>,
 ) -> Vec<LinkedCommandDef> {
-	super::common::link_by_name(
-		&metadata.commands,
-		handlers,
-		|m| &m.name,
-		|h| h.name,
-		|meta, handler| LinkedDef {
-			meta: LinkedMetaOwned {
-				id: format!("xeno-registry::{}", meta.name),
-				name: meta.name.clone(),
-				keys: meta.keys.clone(),
-				description: meta.description.clone(),
-				priority: 0,
-				source: RegistrySource::Crate(handler.crate_name),
-				required_caps: vec![],
-				flags: 0,
-				short_desc: None,
-			},
-			payload: CommandPayload {
-				handler: handler.handler,
-			},
-		},
-		"command",
-	)
+	super::spec::link_domain::<CommandLinkSpec>(&metadata.commands, handlers)
+}
+
+struct CommandLinkSpec;
+
+impl super::spec::DomainLinkSpec for CommandLinkSpec {
+	type Meta = CommandMetaRaw;
+	type HandlerFn = CommandHandler;
+	type Entry = CommandEntry;
+	type Payload = CommandPayload;
+
+	const WHAT: &'static str = "command";
+	const CANONICAL_PREFIX: &'static str = "xeno-registry::";
+
+	fn common(meta: &Self::Meta) -> &crate::kdl::types::MetaCommonRaw {
+		&meta.common
+	}
+
+	fn short_desc(meta: &Self::Meta) -> String {
+		meta.common.name.clone()
+	}
+
+	fn build_payload(
+		_meta: &Self::Meta,
+		handler: Self::HandlerFn,
+		_canonical_id: std::sync::Arc<str>,
+	) -> Self::Payload {
+		CommandPayload { handler }
+	}
 }

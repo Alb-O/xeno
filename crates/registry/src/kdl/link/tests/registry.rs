@@ -1,4 +1,6 @@
-use super::super::*;
+use std::collections::HashSet;
+
+use super::super::link_options;
 use crate::kdl::loader::{
 	load_gutter_metadata, load_hook_metadata, load_option_metadata, load_statusline_metadata,
 };
@@ -26,9 +28,9 @@ fn all_kdl_gutters_have_handlers() {
 
 	for gutter in &blob.gutters {
 		assert!(
-			handler_names.contains(gutter.name.as_str()),
+			handler_names.contains(gutter.common.name.as_str()),
 			"KDL gutter '{}' has no handler",
-			gutter.name
+			gutter.common.name
 		);
 	}
 }
@@ -36,7 +38,11 @@ fn all_kdl_gutters_have_handlers() {
 #[test]
 fn all_gutter_handlers_have_kdl_entries() {
 	let blob = load_gutter_metadata();
-	let kdl_names: HashSet<&str> = blob.gutters.iter().map(|g| g.name.as_str()).collect();
+	let kdl_names: HashSet<&str> = blob
+		.gutters
+		.iter()
+		.map(|g| g.common.name.as_str())
+		.collect();
 
 	for reg in inventory::iter::<crate::gutter::GutterHandlerReg> {
 		assert!(
@@ -58,9 +64,9 @@ fn all_kdl_segments_have_handlers() {
 
 	for seg in &blob.segments {
 		assert!(
-			handler_names.contains(seg.name.as_str()),
+			handler_names.contains(seg.common.name.as_str()),
 			"KDL segment '{}' has no handler",
-			seg.name
+			seg.common.name
 		);
 	}
 }
@@ -68,7 +74,11 @@ fn all_kdl_segments_have_handlers() {
 #[test]
 fn all_segment_handlers_have_kdl_entries() {
 	let blob = load_statusline_metadata();
-	let kdl_names: HashSet<&str> = blob.segments.iter().map(|s| s.name.as_str()).collect();
+	let kdl_names: HashSet<&str> = blob
+		.segments
+		.iter()
+		.map(|s| s.common.name.as_str())
+		.collect();
 
 	for reg in inventory::iter::<crate::statusline::handler::StatuslineHandlerReg> {
 		assert!(
@@ -89,9 +99,9 @@ fn all_kdl_hooks_have_handlers() {
 
 	for hook in &blob.hooks {
 		assert!(
-			handler_names.contains(hook.name.as_str()),
+			handler_names.contains(hook.common.name.as_str()),
 			"KDL hook '{}' has no handler",
-			hook.name
+			hook.common.name
 		);
 	}
 }
@@ -99,7 +109,7 @@ fn all_kdl_hooks_have_handlers() {
 #[test]
 fn all_hook_handlers_have_kdl_entries() {
 	let blob = load_hook_metadata();
-	let kdl_names: HashSet<&str> = blob.hooks.iter().map(|h| h.name.as_str()).collect();
+	let kdl_names: HashSet<&str> = blob.hooks.iter().map(|h| h.common.name.as_str()).collect();
 
 	for reg in inventory::iter::<crate::hooks::HookHandlerReg> {
 		assert!(

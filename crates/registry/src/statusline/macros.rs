@@ -13,7 +13,7 @@ macro_rules! segment_handler {
 				$crate::statusline::handler::StatuslineHandlerStatic {
 					name: stringify!($name),
 					crate_name: env!("CARGO_PKG_NAME"),
-					render: $render,
+					handler: $render,
 				};
 
 			inventory::submit!($crate::statusline::handler::StatuslineHandlerReg(&[<SEG_HANDLER_ $name>]));

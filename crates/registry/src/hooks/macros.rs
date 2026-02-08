@@ -50,10 +50,12 @@ macro_rules! hook_handler {
 				$crate::hooks::handler::HookHandlerStatic {
 					name: stringify!($name),
 					crate_name: env!("CARGO_PKG_NAME"),
-					event: $crate::HookEvent::$event,
-					mutability: $crate::hooks::HookMutability::Immutable,
-					execution_priority: $crate::hooks::HookPriority::Interactive,
-					handler: $crate::hooks::HookHandler::Immutable([<hook_handler_ $name>]),
+					handler: $crate::hooks::handler::HookHandlerConfig {
+						event: $crate::HookEvent::$event,
+						mutability: $crate::hooks::HookMutability::Immutable,
+						execution_priority: $crate::hooks::HookPriority::Interactive,
+						handler: $crate::hooks::HookHandler::Immutable([<hook_handler_ $name>]),
+					},
 				};
 
 			inventory::submit!($crate::hooks::handler::HookHandlerReg(&[<HOOK_HANDLER_ $name>]));

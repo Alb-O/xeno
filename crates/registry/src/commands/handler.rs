@@ -6,16 +6,9 @@
 
 use super::def::CommandHandler;
 
-/// Static handler registration entry collected via `inventory`.
-pub struct CommandHandlerStatic {
-	/// Handler name (must match the KDL command name exactly).
-	pub name: &'static str,
-	/// Crate that defined this handler.
-	pub crate_name: &'static str,
-	/// The async handler function pointer.
-	pub handler: CommandHandler,
-}
+pub type CommandHandlerStatic = crate::core::HandlerStatic<CommandHandler>;
 
+/// Static handler registration entry collected via `inventory`.
 /// Wrapper for `inventory::collect!`.
 pub struct CommandHandlerReg(pub &'static CommandHandlerStatic);
 

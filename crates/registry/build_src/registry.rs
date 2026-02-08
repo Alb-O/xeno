@@ -25,16 +25,41 @@ pub fn build_commands_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 		let context = format!("command '{name}'");
 		let description = require_str(node, "description", &context);
 		let keys = collect_keys(node);
+		let short_desc = node
+			.get("short-desc")
+			.and_then(|v| v.as_string())
+			.map(String::from);
+		let priority = node
+			.get("priority")
+			.and_then(|v| v.as_integer())
+			.map(|v| v as i16)
+			.unwrap_or(0);
+		let flags = node
+			.get("flags")
+			.and_then(|v| v.as_integer())
+			.map(|v| v as u32)
+			.unwrap_or(0);
+		if let Some(children) = node.children()
+			&& children.get("caps").is_some()
+		{
+			panic!("{context}: commands do not support 'caps'");
+		}
 		commands.push(CommandMetaRaw {
-			name,
-			description,
-			keys,
+			common: MetaCommonRaw {
+				name,
+				description,
+				short_desc,
+				keys,
+				priority,
+				caps: vec![],
+				flags,
+			},
 		});
 	}
 
 	let pairs: Vec<(String, String)> = commands
 		.iter()
-		.map(|c| (c.name.clone(), String::new()))
+		.map(|c| (c.common.name.clone(), String::new()))
 		.collect();
 	validate_unique(&pairs, "command");
 
@@ -62,16 +87,41 @@ pub fn build_motions_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 		let context = format!("motion '{name}'");
 		let description = require_str(node, "description", &context);
 		let keys = collect_keys(node);
+		let short_desc = node
+			.get("short-desc")
+			.and_then(|v| v.as_string())
+			.map(String::from);
+		let priority = node
+			.get("priority")
+			.and_then(|v| v.as_integer())
+			.map(|v| v as i16)
+			.unwrap_or(0);
+		let flags = node
+			.get("flags")
+			.and_then(|v| v.as_integer())
+			.map(|v| v as u32)
+			.unwrap_or(0);
+		if let Some(children) = node.children()
+			&& children.get("caps").is_some()
+		{
+			panic!("{context}: motions do not support 'caps'");
+		}
 		motions.push(MotionMetaRaw {
-			name,
-			description,
-			keys,
+			common: MetaCommonRaw {
+				name,
+				description,
+				short_desc,
+				keys,
+				priority,
+				caps: vec![],
+				flags,
+			},
 		});
 	}
 
 	let pairs: Vec<(String, String)> = motions
 		.iter()
-		.map(|m| (m.name.clone(), String::new()))
+		.map(|m| (m.common.name.clone(), String::new()))
 		.collect();
 	validate_unique(&pairs, "motion");
 
@@ -98,6 +148,26 @@ pub fn build_textobj_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 		let name = node_name_arg(node, "text_object");
 		let context = format!("text_object '{name}'");
 		let description = require_str(node, "description", &context);
+		let keys = collect_keys(node);
+		let short_desc = node
+			.get("short-desc")
+			.and_then(|v| v.as_string())
+			.map(String::from);
+		let priority = node
+			.get("priority")
+			.and_then(|v| v.as_integer())
+			.map(|v| v as i16)
+			.unwrap_or(0);
+		let flags = node
+			.get("flags")
+			.and_then(|v| v.as_integer())
+			.map(|v| v as u32)
+			.unwrap_or(0);
+		if let Some(children) = node.children()
+			&& children.get("caps").is_some()
+		{
+			panic!("{context}: text objects do not support 'caps'");
+		}
 		let trigger = require_str(node, "trigger", &context);
 
 		let alt_triggers = node
@@ -113,8 +183,15 @@ pub fn build_textobj_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 			.unwrap_or_default();
 
 		text_objects.push(TextObjectMetaRaw {
-			name,
-			description,
+			common: MetaCommonRaw {
+				name,
+				description,
+				short_desc,
+				keys,
+				priority,
+				caps: vec![],
+				flags,
+			},
 			trigger,
 			alt_triggers,
 		});
@@ -122,7 +199,7 @@ pub fn build_textobj_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 
 	let pairs: Vec<(String, String)> = text_objects
 		.iter()
-		.map(|t| (t.name.clone(), String::new()))
+		.map(|t| (t.common.name.clone(), String::new()))
 		.collect();
 	validate_unique(&pairs, "text_object");
 
@@ -153,6 +230,10 @@ pub fn build_options_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 		let context = format!("option '{name}'");
 
 		let keys = collect_keys(node);
+		let short_desc = node
+			.get("short-desc")
+			.and_then(|v| v.as_string())
+			.map(String::from);
 		let priority = node
 			.get("priority")
 			.and_then(|v| v.as_integer())
@@ -163,6 +244,13 @@ pub fn build_options_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 			.and_then(|v| v.as_integer())
 			.map(|v| v as u32)
 			.unwrap_or(0);
+
+		// Options do not support caps
+		if let Some(children) = node.children()
+			&& children.get("caps").is_some()
+		{
+			panic!("{context}: options do not support 'caps'");
+		}
 
 		let kdl_key = require_str(node, "kdl-key", &context);
 		let value_type = require_str(node, "value-type", &context);
@@ -185,22 +273,26 @@ pub fn build_options_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 			.map(String::from);
 
 		options.push(OptionMetaRaw {
-			name,
-			keys,
-			priority,
-			flags,
+			common: MetaCommonRaw {
+				name,
+				description,
+				short_desc,
+				keys,
+				priority,
+				caps: vec![],
+				flags,
+			},
 			kdl_key,
 			value_type,
 			default,
 			scope,
-			description,
 			validator,
 		});
 	}
 
 	let pairs: Vec<(String, String)> = options
 		.iter()
-		.map(|o| (o.name.clone(), String::new()))
+		.map(|o| (o.common.name.clone(), String::new()))
 		.collect();
 	validate_unique(&pairs, "option");
 
@@ -227,11 +319,26 @@ pub fn build_gutters_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 		let name = node_name_arg(node, "gutter");
 		let context = format!("gutter '{name}'");
 		let description = require_str(node, "description", &context);
+		let keys = collect_keys(node);
+		let short_desc = node
+			.get("short-desc")
+			.and_then(|v| v.as_string())
+			.map(String::from);
 		let priority = node
 			.get("priority")
 			.and_then(|v| v.as_integer())
 			.map(|v| v as i16)
 			.unwrap_or(0);
+		let flags = node
+			.get("flags")
+			.and_then(|v| v.as_integer())
+			.map(|v| v as u32)
+			.unwrap_or(0);
+		if let Some(children) = node.children()
+			&& children.get("caps").is_some()
+		{
+			panic!("{context}: gutters do not support 'caps'");
+		}
 
 		// width: "dynamic" or integer
 		let width = node
@@ -253,9 +360,15 @@ pub fn build_gutters_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 			.unwrap_or(true);
 
 		gutters.push(GutterMetaRaw {
-			name,
-			description,
-			priority,
+			common: MetaCommonRaw {
+				name,
+				description,
+				short_desc,
+				keys,
+				priority,
+				caps: vec![],
+				flags,
+			},
 			width,
 			enabled,
 		});
@@ -263,7 +376,7 @@ pub fn build_gutters_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 
 	let pairs: Vec<(String, String)> = gutters
 		.iter()
-		.map(|g| (g.name.clone(), String::new()))
+		.map(|g| (g.common.name.clone(), String::new()))
 		.collect();
 	validate_unique(&pairs, "gutter");
 
@@ -292,6 +405,11 @@ pub fn build_statusline_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 		let name = node_name_arg(node, "segment");
 		let context = format!("segment '{name}'");
 		let description = require_str(node, "description", &context);
+		let keys = collect_keys(node);
+		let short_desc = node
+			.get("short-desc")
+			.and_then(|v| v.as_string())
+			.map(String::from);
 		let position = require_str(node, "position", &context);
 		assert!(
 			valid_positions.contains(&position.as_str()),
@@ -302,18 +420,34 @@ pub fn build_statusline_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 			.and_then(|v| v.as_integer())
 			.map(|v| v as i16)
 			.unwrap_or(0);
+		let flags = node
+			.get("flags")
+			.and_then(|v| v.as_integer())
+			.map(|v| v as u32)
+			.unwrap_or(0);
+		if let Some(children) = node.children()
+			&& children.get("caps").is_some()
+		{
+			panic!("{context}: statusline segments do not support 'caps'");
+		}
 
 		segments.push(StatuslineMetaRaw {
-			name,
-			description,
+			common: MetaCommonRaw {
+				name,
+				description,
+				short_desc,
+				keys,
+				priority,
+				caps: vec![],
+				flags,
+			},
 			position,
-			priority,
 		});
 	}
 
 	let pairs: Vec<(String, String)> = segments
 		.iter()
-		.map(|s| (s.name.clone(), String::new()))
+		.map(|s| (s.common.name.clone(), String::new()))
 		.collect();
 	validate_unique(&pairs, "segment");
 
@@ -341,23 +475,44 @@ pub fn build_hooks_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 		let context = format!("hook '{name}'");
 		let event = require_str(node, "event", &context);
 		let description = require_str(node, "description", &context);
+		let keys = collect_keys(node);
+		let short_desc = node
+			.get("short-desc")
+			.and_then(|v| v.as_string())
+			.map(String::from);
 		let priority = node
 			.get("priority")
 			.and_then(|v| v.as_integer())
 			.map(|v| v as i16)
 			.unwrap_or(0);
+		let flags = node
+			.get("flags")
+			.and_then(|v| v.as_integer())
+			.map(|v| v as u32)
+			.unwrap_or(0);
+		if let Some(children) = node.children()
+			&& children.get("caps").is_some()
+		{
+			panic!("{context}: hooks do not support 'caps'");
+		}
 
 		hooks.push(HookMetaRaw {
-			name,
+			common: MetaCommonRaw {
+				name,
+				description,
+				short_desc,
+				keys,
+				priority,
+				caps: vec![],
+				flags,
+			},
 			event,
-			priority,
-			description,
 		});
 	}
 
 	let pairs: Vec<(String, String)> = hooks
 		.iter()
-		.map(|h| (h.name.clone(), String::new()))
+		.map(|h| (h.common.name.clone(), String::new()))
 		.collect();
 	validate_unique(&pairs, "hook");
 
@@ -386,6 +541,26 @@ pub fn build_notifications_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 		);
 		let name = node_name_arg(node, "notification");
 		let context = format!("notification '{name}'");
+		let keys = collect_keys(node);
+		let short_desc = node
+			.get("short-desc")
+			.and_then(|v| v.as_string())
+			.map(String::from);
+		let priority = node
+			.get("priority")
+			.and_then(|v| v.as_integer())
+			.map(|v| v as i16)
+			.unwrap_or(0);
+		let flags = node
+			.get("flags")
+			.and_then(|v| v.as_integer())
+			.map(|v| v as u32)
+			.unwrap_or(0);
+		if let Some(children) = node.children()
+			&& children.get("caps").is_some()
+		{
+			panic!("{context}: notifications do not support 'caps'");
+		}
 
 		let level = require_str(node, "level", &context);
 		assert!(
@@ -406,17 +581,24 @@ pub fn build_notifications_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 		let description = require_str(node, "description", &context);
 
 		notifications.push(NotificationMetaRaw {
-			name,
+			common: MetaCommonRaw {
+				name,
+				description,
+				short_desc,
+				keys,
+				priority,
+				caps: vec![],
+				flags,
+			},
 			level,
 			auto_dismiss,
 			dismiss_ms,
-			description,
 		});
 	}
 
 	let pairs: Vec<(String, String)> = notifications
 		.iter()
-		.map(|n| (n.name.clone(), String::new()))
+		.map(|n| (n.common.name.clone(), String::new()))
 		.collect();
 	validate_unique(&pairs, "notification");
 

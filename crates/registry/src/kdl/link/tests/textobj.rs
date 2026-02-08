@@ -1,4 +1,5 @@
-use super::super::*;
+use std::collections::HashSet;
+
 use crate::kdl::loader::load_text_object_metadata;
 
 #[test]
@@ -14,9 +15,9 @@ fn all_kdl_text_objects_have_handlers() {
 
 	for obj in &blob.text_objects {
 		assert!(
-			handler_names.contains(obj.name.as_str()),
+			handler_names.contains(obj.common.name.as_str()),
 			"KDL text object '{}' has no handler",
-			obj.name
+			obj.common.name
 		);
 	}
 }
@@ -24,7 +25,11 @@ fn all_kdl_text_objects_have_handlers() {
 #[test]
 fn all_text_object_handlers_have_kdl_entries() {
 	let blob = load_text_object_metadata();
-	let kdl_names: HashSet<&str> = blob.text_objects.iter().map(|t| t.name.as_str()).collect();
+	let kdl_names: HashSet<&str> = blob
+		.text_objects
+		.iter()
+		.map(|t| t.common.name.as_str())
+		.collect();
 
 	for reg in inventory::iter::<crate::textobj::TextObjectHandlerReg> {
 		assert!(

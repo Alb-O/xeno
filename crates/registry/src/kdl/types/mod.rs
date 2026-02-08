@@ -1,5 +1,8 @@
 //! Serializable intermediate types for KDL-to-registry pipeline.
 
+pub mod common;
+pub use common::*;
+
 pub mod actions;
 pub use actions::*;
 

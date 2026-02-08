@@ -1,8 +1,9 @@
+use std::collections::HashMap;
 use std::str::FromStr;
 
-use super::*;
+use crate::core::LinkedDef;
 use crate::kdl::types::{RawStyle, ThemesBlob};
-use crate::themes::theme::LinkedThemeDef;
+use crate::themes::theme::{LinkedThemeDef, ThemePayload};
 use crate::themes::{
 	Color, ColorPair, ModeColors, Modifier, NotificationColors, PopupColors, SemanticColors,
 	SyntaxStyle, SyntaxStyles, ThemeColors, ThemeVariant, UiColors,
@@ -12,12 +13,10 @@ pub fn link_themes(blob: &ThemesBlob) -> Vec<LinkedThemeDef> {
 	blob.themes
 		.iter()
 		.map(|meta| {
-			let id = format!("xeno-registry::{}", meta.name);
-
 			let variant = match meta.variant.as_str() {
 				"dark" => ThemeVariant::Dark,
 				"light" => ThemeVariant::Light,
-				other => panic!("Theme '{}' unknown variant: '{}'", meta.name, other),
+				other => panic!("Theme '{}' unknown variant: '{}'", meta.common.name, other),
 			};
 
 			let mut palette = HashMap::new();
@@ -41,29 +40,23 @@ pub fn link_themes(blob: &ThemesBlob) -> Vec<LinkedThemeDef> {
 			if !pending.is_empty() {
 				panic!(
 					"Theme '{}' has unresolved or cyclic palette references: {:?}",
-					meta.name,
+					meta.common.name,
 					pending.keys().collect::<Vec<_>>()
 				);
 			}
 
 			let colors = ThemeColors {
-				ui: build_ui_colors(&meta.ui, &palette, &meta.name),
-				mode: build_mode_colors(&meta.mode, &palette, &meta.name),
-				semantic: build_semantic_colors(&meta.semantic, &palette, &meta.name),
-				popup: build_popup_colors(&meta.popup, &palette, &meta.name),
+				ui: build_ui_colors(&meta.ui, &palette, &meta.common.name),
+				mode: build_mode_colors(&meta.mode, &palette, &meta.common.name),
+				semantic: build_semantic_colors(&meta.semantic, &palette, &meta.common.name),
+				popup: build_popup_colors(&meta.popup, &palette, &meta.common.name),
 				notification: NotificationColors::INHERITED,
-				syntax: build_syntax_styles(&meta.syntax, &palette, &meta.name),
+				syntax: build_syntax_styles(&meta.syntax, &palette, &meta.common.name),
 			};
 
-			LinkedThemeDef {
-				id,
-				name: meta.name.clone(),
-				keys: meta.keys.clone(),
-				description: meta.description.clone(),
-				priority: meta.priority,
-				variant,
-				colors,
-				source: RegistrySource::Builtin,
+			LinkedDef {
+				meta: super::common::linked_meta_from_common(&meta.common),
+				payload: ThemePayload { variant, colors },
 			}
 		})
 		.collect()

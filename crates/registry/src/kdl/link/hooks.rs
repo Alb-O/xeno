@@ -1,49 +1,30 @@
+use std::sync::Arc;
+
 use super::*;
 use crate::HookEvent;
-use crate::hooks::handler::HookHandlerStatic;
+use crate::core::{LinkedDef, LinkedPayload, RegistryMeta, Symbol};
+use crate::hooks::handler::{HookHandlerConfig, HookHandlerStatic};
 use crate::hooks::{HookEntry, HookHandler, HookMutability, HookPriority};
-use crate::kdl::types::HooksBlob;
+use crate::kdl::types::{HookMetaRaw, HooksBlob};
 
 /// A hook definition assembled from KDL metadata + Rust handler.
+pub type LinkedHookDef = LinkedDef<HookPayload>;
+
 #[derive(Clone)]
-pub struct LinkedHookDef {
-	pub id: String,
-	pub name: String,
-	pub description: String,
-	pub priority: i16,
+pub struct HookPayload {
 	pub event: HookEvent,
 	pub mutability: HookMutability,
 	pub execution_priority: HookPriority,
 	pub handler: HookHandler,
-	pub source: RegistrySource,
 }
 
-impl BuildEntry<HookEntry> for LinkedHookDef {
-	fn meta_ref(&self) -> RegistryMetaRef<'_> {
-		RegistryMetaRef {
-			id: &self.id,
-			name: &self.name,
-			keys: StrListRef::Owned(&[]),
-			description: &self.description,
-			priority: self.priority,
-			source: self.source,
-			required_caps: &[],
-			flags: 0,
-		}
-	}
-
-	fn short_desc_str(&self) -> &str {
-		&self.name
-	}
-
-	fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
-		crate::core::index::meta_build::collect_meta_strings(&self.meta_ref(), sink, []);
-	}
-
-	fn build(&self, interner: &FrozenInterner, key_pool: &mut Vec<Symbol>) -> HookEntry {
-		let meta =
-			crate::core::index::meta_build::build_meta(interner, key_pool, self.meta_ref(), []);
-
+impl LinkedPayload<HookEntry> for HookPayload {
+	fn build_entry(
+		&self,
+		_interner: &FrozenInterner,
+		meta: RegistryMeta,
+		_short_desc: Symbol,
+	) -> HookEntry {
 		HookEntry {
 			meta,
 			event: self.event,
@@ -59,40 +40,45 @@ pub fn link_hooks(
 	metadata: &HooksBlob,
 	handlers: impl Iterator<Item = &'static HookHandlerStatic>,
 ) -> Vec<LinkedHookDef> {
-	let handler_map: HashMap<&str, &HookHandlerStatic> = handlers.map(|h| (h.name, h)).collect();
+	super::spec::link_domain::<HookLinkSpec>(&metadata.hooks, handlers)
+}
 
-	let mut defs = Vec::new();
-	let mut used_handlers = HashSet::new();
+struct HookLinkSpec;
 
-	for meta in &metadata.hooks {
-		let handler = handler_map.get(meta.name.as_str()).unwrap_or_else(|| {
+impl super::spec::DomainLinkSpec for HookLinkSpec {
+	type Meta = HookMetaRaw;
+	type HandlerFn = HookHandlerConfig;
+	type Entry = HookEntry;
+	type Payload = HookPayload;
+
+	const WHAT: &'static str = "hook";
+	const CANONICAL_PREFIX: &'static str = "xeno-registry::";
+
+	fn common(meta: &Self::Meta) -> &crate::kdl::types::MetaCommonRaw {
+		&meta.common
+	}
+
+	fn build_payload(
+		meta: &Self::Meta,
+		handler: Self::HandlerFn,
+		_canonical_id: Arc<str>,
+	) -> Self::Payload {
+		// Validate KDL event matches handler event (fail-fast, deterministic)
+		let kdl_event = &meta.event;
+		let handler_event_str = handler.event.as_str();
+		if kdl_event != handler_event_str {
 			panic!(
-				"KDL hook '{}' has no matching hook_handler!() in Rust",
-				meta.name
-			)
-		});
-		used_handlers.insert(meta.name.as_str());
+				"hook '{}' event mismatch: KDL says '{}', handler says '{}' \
+				(hint: hooks.kdl must use HookEvent::as_str() values, e.g. \"buffer:open\")",
+				meta.common.name, kdl_event, handler_event_str
+			);
+		}
 
-		let id = format!("xeno-registry::{}", meta.name);
-
-		defs.push(LinkedHookDef {
-			id,
-			name: meta.name.clone(),
-			description: meta.description.clone(),
-			priority: meta.priority,
+		HookPayload {
 			event: handler.event,
 			mutability: handler.mutability,
 			execution_priority: handler.execution_priority,
 			handler: handler.handler,
-			source: RegistrySource::Crate(handler.crate_name),
-		});
-	}
-
-	for name in handler_map.keys() {
-		if !used_handlers.contains(name) {
-			panic!("hook_handler!({}) has no matching entry in hooks.kdl", name);
 		}
 	}
-
-	defs
 }

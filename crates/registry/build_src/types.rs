@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ActionMetaRaw {
+pub struct MetaCommonRaw {
 	pub name: String,
 	pub description: String,
 	pub short_desc: Option<String>,
@@ -9,6 +9,11 @@ pub struct ActionMetaRaw {
 	pub priority: i16,
 	pub caps: Vec<String>,
 	pub flags: u32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ActionMetaRaw {
+	pub common: MetaCommonRaw,
 	pub bindings: Vec<KeyBindingRaw>,
 	pub group: Option<String>,
 }
@@ -34,9 +39,7 @@ pub struct ActionsBlob {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CommandMetaRaw {
-	pub name: String,
-	pub description: String,
-	pub keys: Vec<String>,
+	pub common: MetaCommonRaw,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -46,9 +49,7 @@ pub struct CommandsBlob {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MotionMetaRaw {
-	pub name: String,
-	pub description: String,
-	pub keys: Vec<String>,
+	pub common: MetaCommonRaw,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -58,8 +59,7 @@ pub struct MotionsBlob {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TextObjectMetaRaw {
-	pub name: String,
-	pub description: String,
+	pub common: MetaCommonRaw,
 	pub trigger: String,
 	pub alt_triggers: Vec<String>,
 }
@@ -71,15 +71,17 @@ pub struct TextObjectsBlob {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct OptionMetaRaw {
-	pub name: String,
-	pub keys: Vec<String>,
-	pub priority: i16,
-	pub flags: u32,
+	/// Common metadata.
+	pub common: MetaCommonRaw,
+	/// KDL config key (e.g., `"tab-width"`).
 	pub kdl_key: String,
+	/// Value type: `"bool"`, `"int"`, `"string"`.
 	pub value_type: String,
+	/// Default value as a string.
 	pub default: String,
+	/// Scope: `"buffer"` or `"global"`.
 	pub scope: String,
-	pub description: String,
+	/// Optional validator name.
 	pub validator: Option<String>,
 }
 
@@ -90,9 +92,7 @@ pub struct OptionsBlob {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GutterMetaRaw {
-	pub name: String,
-	pub description: String,
-	pub priority: i16,
+	pub common: MetaCommonRaw,
 	pub width: String,
 	pub enabled: bool,
 }
@@ -104,10 +104,8 @@ pub struct GuttersBlob {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct StatuslineMetaRaw {
-	pub name: String,
-	pub description: String,
+	pub common: MetaCommonRaw,
 	pub position: String,
-	pub priority: i16,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -117,10 +115,8 @@ pub struct StatuslineBlob {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct HookMetaRaw {
-	pub name: String,
+	pub common: MetaCommonRaw,
 	pub event: String,
-	pub priority: i16,
-	pub description: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -130,11 +126,10 @@ pub struct HooksBlob {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct NotificationMetaRaw {
-	pub name: String,
+	pub common: MetaCommonRaw,
 	pub level: String,
 	pub auto_dismiss: String,
 	pub dismiss_ms: Option<u64>,
-	pub description: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -144,16 +139,21 @@ pub struct NotificationsBlob {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ThemeMetaRaw {
-	pub name: String,
-	pub keys: Vec<String>,
-	pub description: String,
-	pub priority: i16,
+	/// Common metadata.
+	pub common: MetaCommonRaw,
+	/// Whether it's a "dark" or "light" theme.
 	pub variant: String,
+	/// Resolved color palette: Map of name -> hex string.
 	pub palette: std::collections::HashMap<String, String>,
+	/// UI colors: Map of field -> color name or hex.
 	pub ui: std::collections::HashMap<String, String>,
+	/// Mode colors: Map of field -> color name or hex.
 	pub mode: std::collections::HashMap<String, String>,
+	/// Semantic colors: Map of field -> color name or hex.
 	pub semantic: std::collections::HashMap<String, String>,
+	/// Popup colors: Map of field -> color name or hex.
 	pub popup: std::collections::HashMap<String, String>,
+	/// Syntax styles: Map of scope -> raw style.
 	pub syntax: std::collections::HashMap<String, RawStyle>,
 }
 

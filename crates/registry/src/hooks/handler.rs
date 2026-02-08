@@ -3,12 +3,12 @@
 use super::types::{HookHandler, HookMutability, HookPriority};
 use crate::HookEvent;
 
-/// Static handler registration entry collected via `inventory`.
-pub struct HookHandlerStatic {
-	/// Handler name (must match the KDL hook name exactly).
-	pub name: &'static str,
-	/// Crate that defined this handler.
-	pub crate_name: &'static str,
+/// Handler configuration carried by the static registration.
+///
+/// Contains the executable logic and structural properties (event, mutability, priority)
+/// that are code-dependent and cannot be expressed in KDL.
+#[derive(Clone, Copy)]
+pub struct HookHandlerConfig {
 	/// Event this hook listens to.
 	pub event: HookEvent,
 	/// Mutability requirement.
@@ -18,6 +18,8 @@ pub struct HookHandlerStatic {
 	/// Handler function.
 	pub handler: HookHandler,
 }
+
+pub type HookHandlerStatic = crate::core::HandlerStatic<HookHandlerConfig>;
 
 /// Wrapper for `inventory::collect!`.
 pub struct HookHandlerReg(pub &'static HookHandlerStatic);

@@ -1,4 +1,5 @@
-use super::super::*;
+use std::collections::HashSet;
+
 use crate::kdl::loader::load_command_metadata;
 
 #[test]
@@ -14,9 +15,9 @@ fn all_kdl_commands_have_handlers() {
 
 	for cmd in &blob.commands {
 		assert!(
-			handler_names.contains(cmd.name.as_str()),
+			handler_names.contains(cmd.common.name.as_str()),
 			"KDL command '{}' has no handler",
-			cmd.name
+			cmd.common.name
 		);
 	}
 }
@@ -24,7 +25,11 @@ fn all_kdl_commands_have_handlers() {
 #[test]
 fn all_command_handlers_have_kdl_entries() {
 	let blob = load_command_metadata();
-	let kdl_names: HashSet<&str> = blob.commands.iter().map(|c| c.name.as_str()).collect();
+	let kdl_names: HashSet<&str> = blob
+		.commands
+		.iter()
+		.map(|c| c.common.name.as_str())
+		.collect();
 
 	for reg in inventory::iter::<crate::commands::CommandHandlerReg> {
 		assert!(

@@ -3,12 +3,8 @@ use serde::{Deserialize, Serialize};
 /// Raw gutter metadata extracted from KDL.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GutterMetaRaw {
-	/// Gutter name (handler linkage key).
-	pub name: String,
-	/// Human-readable description.
-	pub description: String,
-	/// Rendering priority (lower = further left).
-	pub priority: i16,
+	/// Common metadata.
+	pub common: super::common::MetaCommonRaw,
 	/// Width: `"dynamic"` or a fixed integer as string.
 	pub width: String,
 	/// Whether enabled by default.

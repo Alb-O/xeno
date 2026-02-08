@@ -1,19 +1,11 @@
 //! Gutter handler static registration via `inventory`.
 
-use super::{GutterCell, GutterLineContext, GutterWidth};
+use super::{GutterCell, GutterLineContext};
+
+pub type GutterRenderHandler = fn(&GutterLineContext) -> Option<GutterCell>;
+pub type GutterHandlerStatic = crate::core::HandlerStatic<GutterRenderHandler>;
 
 /// Static handler registration entry collected via `inventory`.
-pub struct GutterHandlerStatic {
-	/// Handler name (must match the KDL gutter name exactly).
-	pub name: &'static str,
-	/// Crate that defined this handler.
-	pub crate_name: &'static str,
-	/// Width specification.
-	pub width: GutterWidth,
-	/// Render function.
-	pub render: fn(&GutterLineContext) -> Option<GutterCell>,
-}
-
 /// Wrapper for `inventory::collect!`.
 pub struct GutterHandlerReg(pub &'static GutterHandlerStatic);
 

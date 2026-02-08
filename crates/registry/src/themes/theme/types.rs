@@ -6,6 +6,7 @@ pub use crate::core::{
 	CapabilitySet, FrozenInterner, RegistryMeta, RegistryMetaStatic, RegistryRef, RegistrySource,
 	Symbol, SymbolList, ThemeId,
 };
+use crate::core::{LinkedDef, LinkedPayload};
 
 /// Whether a theme uses a light or dark background.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -168,45 +169,20 @@ pub struct ThemeDef {
 	pub colors: ThemeColors,
 }
 
-/// Linked theme definition assembled from KDL metadata.
+/// Theme payload for linked definitions.
 #[derive(Clone)]
-pub struct LinkedThemeDef {
-	pub id: String,
-	pub name: String,
-	pub description: String,
-	pub keys: Vec<String>,
-	pub priority: i16,
+pub struct ThemePayload {
 	pub variant: ThemeVariant,
 	pub colors: ThemeColors,
-	pub source: RegistrySource,
 }
 
-impl BuildEntry<ThemeEntry> for LinkedThemeDef {
-	fn meta_ref(&self) -> RegistryMetaRef<'_> {
-		RegistryMetaRef {
-			id: &self.id,
-			name: &self.name,
-			keys: StrListRef::Owned(&self.keys),
-			description: &self.description,
-			priority: self.priority,
-			source: self.source,
-			required_caps: &[],
-			flags: 0,
-		}
-	}
-
-	fn short_desc_str(&self) -> &str {
-		&self.name
-	}
-
-	fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
-		crate::core::index::meta_build::collect_meta_strings(&self.meta_ref(), sink, []);
-	}
-
-	fn build(&self, interner: &FrozenInterner, key_pool: &mut Vec<Symbol>) -> ThemeEntry {
-		let meta =
-			crate::core::index::meta_build::build_meta(interner, key_pool, self.meta_ref(), []);
-
+impl LinkedPayload<ThemeEntry> for ThemePayload {
+	fn build_entry(
+		&self,
+		_interner: &FrozenInterner,
+		meta: RegistryMeta,
+		_short_desc: Symbol,
+	) -> ThemeEntry {
 		ThemeEntry {
 			meta,
 			variant: self.variant,
@@ -214,6 +190,9 @@ impl BuildEntry<ThemeEntry> for LinkedThemeDef {
 		}
 	}
 }
+
+/// Linked theme definition assembled from KDL metadata.
+pub type LinkedThemeDef = LinkedDef<ThemePayload>;
 
 /// Symbolized theme entry.
 pub struct ThemeEntry {

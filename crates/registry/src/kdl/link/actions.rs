@@ -5,8 +5,8 @@ use crate::actions::def::ActionHandler;
 use crate::actions::entry::ActionEntry;
 use crate::actions::handler::ActionHandlerStatic;
 use crate::actions::{KeyBindingDef, KeyPrefixDef};
-use crate::core::{LinkedDef, LinkedMetaOwned, LinkedPayload, RegistryMeta, Symbol};
-use crate::kdl::types::{ActionsBlob, KeyBindingRaw};
+use crate::core::{LinkedDef, LinkedPayload, RegistryMeta, Symbol};
+use crate::kdl::types::{ActionMetaRaw, ActionsBlob, KeyBindingRaw};
 
 /// An action definition assembled from KDL metadata + Rust handler.
 pub type LinkedActionDef = LinkedDef<ActionPayload>;
@@ -51,45 +51,35 @@ pub fn link_actions(
 	metadata: &ActionsBlob,
 	handlers: impl Iterator<Item = &'static ActionHandlerStatic>,
 ) -> Vec<LinkedActionDef> {
-	super::common::link_by_name(
-		&metadata.actions,
-		handlers,
-		|m| &m.name,
-		|h| h.name,
-		|meta, handler| {
-			let id = format!("xeno-registry::{}", meta.name);
-			let action_id: Arc<str> = Arc::from(id.as_str());
-			let short_desc = meta
-				.short_desc
-				.clone()
-				.unwrap_or_else(|| meta.description.clone());
-			let caps = meta
-				.caps
-				.iter()
-				.map(|c| super::parse::parse_capability(c))
-				.collect();
-			let bindings = parse_bindings(&meta.bindings, action_id);
+	super::spec::link_domain::<ActionLinkSpec>(&metadata.actions, handlers)
+}
 
-			LinkedDef {
-				meta: LinkedMetaOwned {
-					id,
-					name: meta.name.clone(),
-					keys: meta.keys.clone(),
-					description: meta.description.clone(),
-					priority: meta.priority,
-					source: RegistrySource::Crate(handler.crate_name),
-					required_caps: caps,
-					flags: meta.flags,
-					short_desc: Some(short_desc),
-				},
-				payload: ActionPayload {
-					handler: handler.handler,
-					bindings: Arc::from(bindings.into_boxed_slice()),
-				},
-			}
-		},
-		"action",
-	)
+struct ActionLinkSpec;
+
+impl super::spec::DomainLinkSpec for ActionLinkSpec {
+	type Meta = ActionMetaRaw;
+	type HandlerFn = ActionHandler;
+	type Entry = ActionEntry;
+	type Payload = ActionPayload;
+
+	const WHAT: &'static str = "action";
+	const CANONICAL_PREFIX: &'static str = "xeno-registry::";
+
+	fn common(meta: &Self::Meta) -> &crate::kdl::types::MetaCommonRaw {
+		&meta.common
+	}
+
+	fn build_payload(
+		meta: &Self::Meta,
+		handler: Self::HandlerFn,
+		canonical_id: Arc<str>,
+	) -> Self::Payload {
+		let bindings = parse_bindings(&meta.bindings, canonical_id);
+		ActionPayload {
+			handler,
+			bindings: Arc::from(bindings.into_boxed_slice()),
+		}
+	}
 }
 
 /// Parses prefix data from the blob into `KeyPrefixDef`s.

@@ -6,16 +6,9 @@
 
 use super::def::ActionHandler;
 
-/// Static handler registration entry collected via `inventory`.
-pub struct ActionHandlerStatic {
-	/// Handler name (must match the KDL action name exactly).
-	pub name: &'static str,
-	/// Crate that defined this handler.
-	pub crate_name: &'static str,
-	/// The handler function pointer.
-	pub handler: ActionHandler,
-}
+pub type ActionHandlerStatic = crate::core::HandlerStatic<ActionHandler>;
 
+/// Static handler registration entry collected via `inventory`.
 /// Wrapper for `inventory::collect!`.
 pub struct ActionHandlerReg(pub &'static ActionHandlerStatic);
 

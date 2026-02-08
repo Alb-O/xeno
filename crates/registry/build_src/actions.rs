@@ -32,8 +32,8 @@ pub fn build_actions_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 
 	let mut seen = HashSet::new();
 	for action in &actions {
-		if !seen.insert(&action.name) {
-			panic!("duplicate action name: '{}'", action.name);
+		if !seen.insert(&action.common.name) {
+			panic!("duplicate action name: '{}'", action.common.name);
 		}
 	}
 
@@ -155,13 +155,15 @@ fn parse_action_node(node: &kdl::KdlNode, group_name: Option<&str>) -> ActionMet
 	}
 
 	ActionMetaRaw {
-		name,
-		description,
-		short_desc,
-		keys,
-		priority,
-		caps,
-		flags,
+		common: MetaCommonRaw {
+			name,
+			description,
+			short_desc,
+			keys,
+			priority,
+			caps,
+			flags,
+		},
 		bindings,
 		group: group_name.map(String::from),
 	}
