@@ -5,6 +5,7 @@ pub mod def_input;
 pub mod error;
 pub mod index;
 pub mod key;
+pub mod linked_def;
 pub mod meta;
 pub mod plugin;
 pub mod symbol;
@@ -18,6 +19,7 @@ pub use index::{
 	Snapshot,
 };
 pub use key::{FromOptionValue, LookupKey, OptionDefault, OptionType, OptionValue};
+pub use linked_def::{LinkedDef, LinkedMetaOwned, LinkedPayload};
 pub use meta::{RegistryMeta, RegistryMetaStatic, RegistrySource, SymbolList};
 pub use plugin::PluginDef;
 pub use symbol::{

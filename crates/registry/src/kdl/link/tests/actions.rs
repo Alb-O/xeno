@@ -63,17 +63,14 @@ fn bindings_parse_correctly() {
 fn capabilities_parse_correctly() {
 	use crate::core::capability::Capability;
 
-	assert_eq!(actions::parse_capability("Text"), Capability::Text);
-	assert_eq!(actions::parse_capability("Edit"), Capability::Edit);
-	assert_eq!(actions::parse_capability("Cursor"), Capability::Cursor);
+	assert_eq!(parse::parse_capability("Text"), Capability::Text);
+	assert_eq!(parse::parse_capability("Edit"), Capability::Edit);
+	assert_eq!(parse::parse_capability("Cursor"), Capability::Cursor);
 	assert_eq!(Capability::Selection, Capability::Selection);
-	assert_eq!(actions::parse_capability("Mode"), Capability::Mode);
-	assert_eq!(
-		actions::parse_capability("Messaging"),
-		Capability::Messaging
-	);
-	assert_eq!(actions::parse_capability("Search"), Capability::Search);
-	assert_eq!(actions::parse_capability("Undo"), Capability::Undo);
-	assert_eq!(actions::parse_capability("FileOps"), Capability::FileOps);
-	assert_eq!(actions::parse_capability("Overlay"), Capability::Overlay);
+	assert_eq!(parse::parse_capability("Mode"), Capability::Mode);
+	assert_eq!(parse::parse_capability("Messaging"), Capability::Messaging);
+	assert_eq!(parse::parse_capability("Search"), Capability::Search);
+	assert_eq!(parse::parse_capability("Undo"), Capability::Undo);
+	assert_eq!(parse::parse_capability("FileOps"), Capability::FileOps);
+	assert_eq!(parse::parse_capability("Overlay"), Capability::Overlay);
 }

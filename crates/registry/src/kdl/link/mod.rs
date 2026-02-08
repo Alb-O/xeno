@@ -11,6 +11,8 @@ use crate::core::{FrozenInterner, RegistrySource, Symbol};
 
 #[cfg(feature = "actions")]
 pub mod actions;
+pub(crate) mod common;
+pub(crate) mod parse;
 #[cfg(feature = "actions")]
 pub use actions::*;
 

@@ -22,94 +22,221 @@ use crate::statusline::{StatuslineEntry, StatuslineInput, StatuslineSegmentDef};
 use crate::textobj::{TextObjectDef, TextObjectEntry, TextObjectInput};
 use crate::themes::theme::{ThemeDef, ThemeEntry, ThemeInput};
 
-pub struct RegistryDbBuilder {
-	pub actions: RegistryBuilder<ActionInput, ActionEntry, ActionId>,
-	pub commands: RegistryBuilder<CommandInput, CommandEntry, CommandId>,
-	pub motions: RegistryBuilder<MotionInput, MotionEntry, MotionId>,
-	pub text_objects: RegistryBuilder<TextObjectInput, TextObjectEntry, TextObjectId>,
-	pub options: RegistryBuilder<OptionInput, OptionEntry, OptionId>,
-	pub themes: RegistryBuilder<ThemeInput, ThemeEntry, ThemeId>,
-	pub gutters: RegistryBuilder<GutterInput, GutterEntry, GutterId>,
-	pub statusline: RegistryBuilder<StatuslineInput, StatuslineEntry, StatuslineId>,
-	pub hooks: RegistryBuilder<HookInput, HookEntry, HookId>,
-	pub notifications: RegistryBuilder<
-		crate::notifications::NotificationInput,
-		crate::notifications::NotificationEntry,
-		crate::notifications::NotificationId,
-	>,
-	pub keybindings: Vec<KeyBindingDef>,
-	pub key_prefixes: Vec<KeyPrefixDef>,
-	plugin_ids: HashSet<&'static str>,
-	plugin_records: Vec<PluginBuildRecord>,
-}
+macro_rules! define_domains {
+	(
+		$(
+			$(#[$attr:meta])*
+			$domain_id:ident : {
+				stem: $stem:ident,
+				domain: $domain:path,
+				field: $field:ident,
+				input: $input:ty,
+				entry: $entry:ty,
+				id: $id_ty:ty,
+				static_def: $static_def:ty,
+				static_to_input: $static_to_input:expr,
+				linked_def: $linked_def:ty,
+				linked_to_input: $linked_to_input:expr $(,)?
+			}
+		)*
+	) => {
+		pub struct RegistryDbBuilder {
+			$( $(#[$attr])* pub $field: RegistryBuilder<$input, $entry, $id_ty>, )*
+			pub keybindings: Vec<KeyBindingDef>,
+			pub key_prefixes: Vec<KeyPrefixDef>,
+			pub(crate) plugin_ids: HashSet<&'static str>,
+			pub(crate) plugin_records: Vec<PluginBuildRecord>,
+		}
 
-pub struct RegistryIndices {
-	pub actions: RegistryIndex<ActionEntry, ActionId>,
-	pub commands: RegistryIndex<CommandEntry, CommandId>,
-	pub motions: RegistryIndex<MotionEntry, MotionId>,
-	pub text_objects: RegistryIndex<TextObjectEntry, TextObjectId>,
-	pub options: RegistryIndex<OptionEntry, OptionId>,
-	pub themes: RegistryIndex<ThemeEntry, ThemeId>,
-	pub gutters: RegistryIndex<GutterEntry, GutterId>,
-	pub statusline: RegistryIndex<StatuslineEntry, StatuslineId>,
-	pub hooks: RegistryIndex<HookEntry, HookId>,
-	pub notifications: RegistryIndex<
-		crate::notifications::NotificationEntry,
-		crate::notifications::NotificationId,
-	>,
-	pub keybindings: Vec<KeyBindingDef>,
-	pub key_prefixes: Vec<KeyPrefixDef>,
-}
+		pub struct RegistryIndices {
+			$( $(#[$attr])* pub $field: RegistryIndex<$entry, $id_ty>, )*
+			pub keybindings: Vec<KeyBindingDef>,
+			pub key_prefixes: Vec<KeyPrefixDef>,
+		}
 
-#[derive(Debug, Clone, Copy, Default)]
-pub struct DomainCounts {
-	pub actions: usize,
-	pub commands: usize,
-	pub motions: usize,
-	pub text_objects: usize,
-	pub options: usize,
-	pub themes: usize,
-	pub gutters: usize,
-	pub statusline: usize,
-	pub hooks: usize,
-	pub notifications: usize,
-	pub keybindings: usize,
-	pub key_prefixes: usize,
-}
+		#[derive(Debug, Clone, Copy, Default)]
+		pub struct DomainCounts {
+			$( $(#[$attr])* pub $field: usize, )*
+			pub keybindings: usize,
+			pub key_prefixes: usize,
+		}
 
-impl DomainCounts {
-	fn snapshot(builder: &RegistryDbBuilder) -> Self {
-		Self {
-			actions: builder.actions.len(),
-			commands: builder.commands.len(),
-			motions: builder.motions.len(),
-			text_objects: builder.text_objects.len(),
-			options: builder.options.len(),
-			themes: builder.themes.len(),
-			gutters: builder.gutters.len(),
-			statusline: builder.statusline.len(),
-			hooks: builder.hooks.len(),
-			notifications: builder.notifications.len(),
-			keybindings: builder.keybindings.len(),
-			key_prefixes: builder.key_prefixes.len(),
+		impl DomainCounts {
+			fn snapshot(builder: &RegistryDbBuilder) -> Self {
+				Self {
+					$( $(#[$attr])* $field: builder.$field.len(), )*
+					keybindings: builder.keybindings.len(),
+					key_prefixes: builder.key_prefixes.len(),
+				}
+			}
+
+			fn diff(after: Self, before: Self) -> Self {
+				Self {
+					$( $(#[$attr])* $field: after.$field.saturating_sub(before.$field), )*
+					keybindings: after.keybindings.saturating_sub(before.keybindings),
+					key_prefixes: after.key_prefixes.saturating_sub(before.key_prefixes),
+				}
+			}
+		}
+
+		impl RegistryDbBuilder {
+			pub fn new() -> Self {
+				Self {
+					$( $(#[$attr])* $field: RegistryBuilder::new(stringify!($field)), )*
+					keybindings: Vec::new(),
+					key_prefixes: Vec::new(),
+					plugin_ids: HashSet::new(),
+					plugin_records: Vec::new(),
+				}
+			}
+
+			pub fn build(self) -> RegistryIndices {
+				RegistryIndices {
+					$( $(#[$attr])* $field: self.$field.build(), )*
+					keybindings: self.keybindings,
+					key_prefixes: self.key_prefixes,
+				}
+			}
+
+			$(
+				paste::paste! {
+					$(#[$attr])*
+					pub fn [<register_ $stem>](&mut self, def: &'static $static_def) {
+						let func = $static_to_input;
+						self.push_domain::<$domain>(func(def));
+					}
+
+					$(#[$attr])*
+					pub fn [<register_linked_ $stem>](&mut self, def: $linked_def) {
+						let func = $linked_to_input;
+						self.push_domain::<$domain>(func(def));
+					}
+				}
+			)*
 		}
 	}
+}
 
-	fn diff(after: Self, before: Self) -> Self {
-		Self {
-			actions: after.actions.saturating_sub(before.actions),
-			commands: after.commands.saturating_sub(before.commands),
-			motions: after.motions.saturating_sub(before.motions),
-			text_objects: after.text_objects.saturating_sub(before.text_objects),
-			options: after.options.saturating_sub(before.options),
-			themes: after.themes.saturating_sub(before.themes),
-			gutters: after.gutters.saturating_sub(before.gutters),
-			statusline: after.statusline.saturating_sub(before.statusline),
-			hooks: after.hooks.saturating_sub(before.hooks),
-			notifications: after.notifications.saturating_sub(before.notifications),
-			keybindings: after.keybindings.saturating_sub(before.keybindings),
-			key_prefixes: after.key_prefixes.saturating_sub(before.key_prefixes),
-		}
+define_domains! {
+	actions: {
+		stem: action,
+		domain: crate::db::domains::Actions,
+		field: actions,
+		input: ActionInput,
+		entry: ActionEntry,
+		id: ActionId,
+		static_def: ActionDef,
+		static_to_input: |def: &'static ActionDef| ActionInput::Static(def.clone()),
+		linked_def: LinkedActionDef,
+		linked_to_input: |def: LinkedActionDef| ActionInput::Linked(def),
+	}
+	commands: {
+		stem: command,
+		domain: crate::db::domains::Commands,
+		field: commands,
+		input: CommandInput,
+		entry: CommandEntry,
+		id: CommandId,
+		static_def: CommandDef,
+		static_to_input: |def: &'static CommandDef| CommandInput::Static(def.clone()),
+		linked_def: crate::kdl::link::LinkedCommandDef,
+		linked_to_input: |def: crate::kdl::link::LinkedCommandDef| CommandInput::Linked(def),
+	}
+	motions: {
+		stem: motion,
+		domain: crate::db::domains::Motions,
+		field: motions,
+		input: MotionInput,
+		entry: MotionEntry,
+		id: MotionId,
+		static_def: MotionDef,
+		static_to_input: |def: &'static MotionDef| MotionInput::Static(def.clone()),
+		linked_def: crate::kdl::link::LinkedMotionDef,
+		linked_to_input: |def: crate::kdl::link::LinkedMotionDef| MotionInput::Linked(def),
+	}
+	text_objects: {
+		stem: text_object,
+		domain: crate::db::domains::TextObjects,
+		field: text_objects,
+		input: TextObjectInput,
+		entry: TextObjectEntry,
+		id: TextObjectId,
+		static_def: TextObjectDef,
+		static_to_input: |def: &'static TextObjectDef| TextObjectInput::Static(*def),
+		linked_def: crate::kdl::link::LinkedTextObjectDef,
+		linked_to_input: |def: crate::kdl::link::LinkedTextObjectDef| TextObjectInput::Linked(def),
+	}
+	options: {
+		stem: option,
+		domain: crate::db::domains::Options,
+		field: options,
+		input: OptionInput,
+		entry: OptionEntry,
+		id: OptionId,
+		static_def: OptionDef,
+		static_to_input: |def: &'static OptionDef| OptionInput::Static(def.clone()),
+		linked_def: crate::options::def::LinkedOptionDef,
+		linked_to_input: |def: crate::options::def::LinkedOptionDef| OptionInput::Linked(def),
+	}
+	themes: {
+		stem: theme,
+		domain: crate::db::domains::Themes,
+		field: themes,
+		input: ThemeInput,
+		entry: ThemeEntry,
+		id: ThemeId,
+		static_def: ThemeDef,
+		static_to_input: |def: &'static ThemeDef| ThemeInput::Static(*def),
+		linked_def: crate::themes::theme::LinkedThemeDef,
+		linked_to_input: |def: crate::themes::theme::LinkedThemeDef| ThemeInput::Linked(def),
+	}
+	gutters: {
+		stem: gutter,
+		domain: crate::db::domains::Gutters,
+		field: gutters,
+		input: GutterInput,
+		entry: GutterEntry,
+		id: GutterId,
+		static_def: GutterDef,
+		static_to_input: |def: &'static GutterDef| GutterInput::Static(*def),
+		linked_def: crate::kdl::link::LinkedGutterDef,
+		linked_to_input: |def: crate::kdl::link::LinkedGutterDef| GutterInput::Linked(def),
+	}
+	statusline: {
+		stem: statusline_segment,
+		domain: crate::db::domains::Statusline,
+		field: statusline,
+		input: StatuslineInput,
+		entry: StatuslineEntry,
+		id: StatuslineId,
+		static_def: StatuslineSegmentDef,
+		static_to_input: |def: &'static StatuslineSegmentDef| StatuslineInput::Static(*def),
+		linked_def: crate::kdl::link::LinkedStatuslineDef,
+		linked_to_input: |def: crate::kdl::link::LinkedStatuslineDef| StatuslineInput::Linked(def),
+	}
+	hooks: {
+		stem: hook,
+		domain: crate::db::domains::Hooks,
+		field: hooks,
+		input: HookInput,
+		entry: HookEntry,
+		id: HookId,
+		static_def: HookDef,
+		static_to_input: |def: &'static HookDef| HookInput::Static(*def),
+		linked_def: crate::kdl::link::LinkedHookDef,
+		linked_to_input: |def: crate::kdl::link::LinkedHookDef| HookInput::Linked(def),
+	}
+	notifications: {
+		stem: notification,
+		domain: crate::db::domains::Notifications,
+		field: notifications,
+		input: crate::notifications::NotificationInput,
+		entry: crate::notifications::NotificationEntry,
+		id: crate::notifications::NotificationId,
+		static_def: crate::notifications::NotificationDef,
+		static_to_input: |def: &'static crate::notifications::NotificationDef| crate::notifications::NotificationInput::Static(*def),
+		linked_def: crate::notifications::def::LinkedNotificationDef,
+		linked_to_input: |def: crate::notifications::def::LinkedNotificationDef| crate::notifications::NotificationInput::Linked(def),
 	}
 }
 
@@ -126,128 +253,9 @@ impl Default for RegistryDbBuilder {
 }
 
 impl RegistryDbBuilder {
-	pub fn new() -> Self {
-		Self {
-			actions: RegistryBuilder::new("actions"),
-			commands: RegistryBuilder::new("commands"),
-			motions: RegistryBuilder::new("motions"),
-			text_objects: RegistryBuilder::new("text_objects"),
-			options: RegistryBuilder::new("options"),
-			themes: RegistryBuilder::new("themes"),
-			gutters: RegistryBuilder::new("gutters"),
-			statusline: RegistryBuilder::new("statusline"),
-			hooks: RegistryBuilder::new("hooks"),
-			notifications: RegistryBuilder::new("notifications"),
-			keybindings: Vec::new(),
-			key_prefixes: Vec::new(),
-			plugin_ids: HashSet::new(),
-			plugin_records: Vec::new(),
-		}
-	}
-
-	fn push_domain<D: crate::db::domain::DomainSpec>(&mut self, input: D::Input) {
+	pub fn push_domain<D: crate::db::domain::DomainSpec>(&mut self, input: D::Input) {
 		D::on_push(self, &input);
 		D::builder(self).push(Arc::new(input));
-	}
-
-	pub fn register_action(&mut self, def: &'static ActionDef) {
-		self.push_domain::<crate::db::domains::Actions>(ActionInput::Static(def.clone()));
-	}
-
-	/// Registers an action defined via KDL metadata + Rust handler linking.
-	pub fn register_linked_action(&mut self, def: LinkedActionDef) {
-		self.push_domain::<crate::db::domains::Actions>(ActionInput::Linked(def));
-	}
-
-	pub fn register_command(&mut self, def: &'static CommandDef) {
-		self.push_domain::<crate::db::domains::Commands>(CommandInput::Static(def.clone()));
-	}
-
-	/// Registers a command defined via KDL metadata + Rust handler linking.
-	pub fn register_linked_command(&mut self, def: crate::kdl::link::LinkedCommandDef) {
-		self.push_domain::<crate::db::domains::Commands>(CommandInput::Linked(def));
-	}
-
-	pub fn register_motion(&mut self, def: &'static MotionDef) {
-		self.push_domain::<crate::db::domains::Motions>(MotionInput::Static(def.clone()));
-	}
-
-	/// Registers a motion defined via KDL metadata + Rust handler linking.
-	pub fn register_linked_motion(&mut self, def: crate::kdl::link::LinkedMotionDef) {
-		self.push_domain::<crate::db::domains::Motions>(MotionInput::Linked(def));
-	}
-
-	pub fn register_text_object(&mut self, def: &'static TextObjectDef) {
-		self.push_domain::<crate::db::domains::TextObjects>(TextObjectInput::Static(*def));
-	}
-
-	/// Registers a text object defined via KDL metadata + Rust handler linking.
-	pub fn register_linked_text_object(&mut self, def: crate::kdl::link::LinkedTextObjectDef) {
-		self.push_domain::<crate::db::domains::TextObjects>(TextObjectInput::Linked(def));
-	}
-
-	pub fn register_option(&mut self, def: &'static OptionDef) {
-		self.push_domain::<crate::db::domains::Options>(OptionInput::Static(def.clone()));
-	}
-
-	/// Registers an option defined via KDL metadata + Rust validator linking.
-	pub fn register_linked_option(&mut self, def: crate::options::def::LinkedOptionDef) {
-		self.push_domain::<crate::db::domains::Options>(OptionInput::Linked(def));
-	}
-
-	pub fn register_theme(&mut self, def: &'static ThemeDef) {
-		self.push_domain::<crate::db::domains::Themes>(ThemeInput::Static(*def));
-	}
-
-	/// Registers a theme defined via KDL metadata.
-	pub fn register_linked_theme(&mut self, def: crate::themes::theme::LinkedThemeDef) {
-		self.push_domain::<crate::db::domains::Themes>(ThemeInput::Linked(def));
-	}
-
-	pub fn register_gutter(&mut self, def: &'static GutterDef) {
-		self.push_domain::<crate::db::domains::Gutters>(GutterInput::Static(*def));
-	}
-
-	/// Registers a gutter defined via KDL metadata + Rust handler linking.
-	pub fn register_linked_gutter(&mut self, def: crate::kdl::link::LinkedGutterDef) {
-		self.push_domain::<crate::db::domains::Gutters>(GutterInput::Linked(def));
-	}
-
-	pub fn register_statusline_segment(&mut self, def: &'static StatuslineSegmentDef) {
-		self.push_domain::<crate::db::domains::Statusline>(StatuslineInput::Static(*def));
-	}
-
-	/// Registers a statusline segment defined via KDL metadata + Rust handler linking.
-	pub fn register_linked_statusline_segment(
-		&mut self,
-		def: crate::kdl::link::LinkedStatuslineDef,
-	) {
-		self.push_domain::<crate::db::domains::Statusline>(StatuslineInput::Linked(def));
-	}
-
-	pub fn register_hook(&mut self, def: &'static HookDef) {
-		self.push_domain::<crate::db::domains::Hooks>(HookInput::Static(*def));
-	}
-
-	/// Registers a hook defined via KDL metadata + Rust handler linking.
-	pub fn register_linked_hook(&mut self, def: crate::kdl::link::LinkedHookDef) {
-		self.push_domain::<crate::db::domains::Hooks>(HookInput::Linked(def));
-	}
-
-	pub fn register_notification(&mut self, def: &'static crate::notifications::NotificationDef) {
-		self.push_domain::<crate::db::domains::Notifications>(
-			crate::notifications::NotificationInput::Static(*def),
-		);
-	}
-
-	/// Registers a notification defined via KDL metadata.
-	pub fn register_linked_notification(
-		&mut self,
-		def: crate::notifications::def::LinkedNotificationDef,
-	) {
-		self.push_domain::<crate::db::domains::Notifications>(
-			crate::notifications::NotificationInput::Linked(def),
-		);
 	}
 
 	pub fn register_key_prefixes(&mut self, defs: impl IntoIterator<Item = KeyPrefixDef>) {
@@ -277,23 +285,6 @@ impl RegistryDbBuilder {
 		});
 
 		Ok(())
-	}
-
-	pub fn build(self) -> RegistryIndices {
-		RegistryIndices {
-			actions: self.actions.build(),
-			commands: self.commands.build(),
-			motions: self.motions.build(),
-			text_objects: self.text_objects.build(),
-			options: self.options.build(),
-			themes: self.themes.build(),
-			gutters: self.gutters.build(),
-			statusline: self.statusline.build(),
-			hooks: self.hooks.build(),
-			notifications: self.notifications.build(),
-			keybindings: self.keybindings,
-			key_prefixes: self.key_prefixes,
-		}
 	}
 }
 

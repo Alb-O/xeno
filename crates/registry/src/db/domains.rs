@@ -19,8 +19,17 @@ use crate::textobj::{TextObjectEntry, TextObjectInput};
 use crate::themes::theme::{ThemeEntry, ThemeInput};
 
 macro_rules! domain {
-	($name:ident, $label:literal, $field:ident, $Input:ty, $Entry:ty, $Id:ty) => {
+	(
+		$name:ident,
+		$label:literal,
+		$field:ident,
+		$Input:ty,
+		$Entry:ty,
+		$Id:ty
+		$(, on_push($db:ident, $input:ident) $body:block )?
+	) => {
 		pub struct $name;
+
 		impl DomainSpec for $name {
 			type Input = $Input;
 			type Entry = $Entry;
@@ -32,50 +41,42 @@ macro_rules! domain {
 			) -> &mut RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
 				&mut db.$field
 			}
+
+			$(
+				fn on_push($db: &mut RegistryDbBuilder, $input: &Self::Input) $body
+			)?
 		}
 	};
 }
 
-pub struct Actions;
-impl DomainSpec for Actions {
-	type Input = ActionInput;
-	type Entry = ActionEntry;
-	type Id = ActionId;
-	const LABEL: &'static str = "actions";
-
-	fn builder(
-		db: &mut RegistryDbBuilder,
-	) -> &mut RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
-		&mut db.actions
-	}
-
-	fn on_push(db: &mut RegistryDbBuilder, input: &Self::Input) {
+domain!(
+	Actions,
+	"actions",
+	actions,
+	ActionInput,
+	ActionEntry,
+	ActionId,
+	on_push(db, input) {
 		match input {
 			ActionInput::Static(def) => db.keybindings.extend(def.bindings.iter().cloned()),
-			ActionInput::Linked(def) => db.keybindings.extend(def.bindings.iter().cloned()),
+			ActionInput::Linked(def) => db.keybindings.extend(def.payload.bindings.iter().cloned()),
 		}
 	}
-}
+);
 
-pub struct Options;
-impl DomainSpec for Options {
-	type Input = OptionInput;
-	type Entry = OptionEntry;
-	type Id = OptionId;
-	const LABEL: &'static str = "options";
-
-	fn builder(
-		db: &mut RegistryDbBuilder,
-	) -> &mut RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
-		&mut db.options
-	}
-
-	fn on_push(_db: &mut RegistryDbBuilder, input: &Self::Input) {
+domain!(
+	Options,
+	"options",
+	options,
+	OptionInput,
+	OptionEntry,
+	OptionId,
+	on_push(_db, input) {
 		if let OptionInput::Static(def) = input {
 			crate::db::builder::validate_option_def(def);
 		}
 	}
-}
+);
 
 domain!(
 	Notifications,

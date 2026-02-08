@@ -1,51 +1,24 @@
 use super::*;
+use crate::core::{LinkedDef, LinkedMetaOwned, LinkedPayload, RegistryMeta, Symbol};
 use crate::kdl::types::MotionsBlob;
 use crate::motions::handler::MotionHandlerStatic;
 use crate::motions::{MotionEntry, MotionHandler};
 
 /// A motion definition assembled from KDL metadata + Rust handler.
+pub type LinkedMotionDef = LinkedDef<MotionPayload>;
+
 #[derive(Clone)]
-pub struct LinkedMotionDef {
-	/// Canonical ID: `"xeno-registry::{name}"`.
-	pub id: String,
-	/// Motion name (linkage key).
-	pub name: String,
-	/// Human-readable description.
-	pub description: String,
-	/// Alternative lookup names.
-	pub keys: Vec<String>,
-	/// The handler function from Rust.
+pub struct MotionPayload {
 	pub handler: MotionHandler,
-	/// Where this definition came from.
-	pub source: RegistrySource,
 }
 
-impl BuildEntry<MotionEntry> for LinkedMotionDef {
-	fn meta_ref(&self) -> RegistryMetaRef<'_> {
-		RegistryMetaRef {
-			id: &self.id,
-			name: &self.name,
-			keys: StrListRef::Owned(&self.keys),
-			description: &self.description,
-			priority: 0,
-			source: self.source,
-			required_caps: &[],
-			flags: 0,
-		}
-	}
-
-	fn short_desc_str(&self) -> &str {
-		&self.name
-	}
-
-	fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
-		crate::core::index::meta_build::collect_meta_strings(&self.meta_ref(), sink, []);
-	}
-
-	fn build(&self, interner: &FrozenInterner, key_pool: &mut Vec<Symbol>) -> MotionEntry {
-		let meta =
-			crate::core::index::meta_build::build_meta(interner, key_pool, self.meta_ref(), []);
-
+impl LinkedPayload<MotionEntry> for MotionPayload {
+	fn build_entry(
+		&self,
+		_interner: &FrozenInterner,
+		meta: RegistryMeta,
+		_short_desc: Symbol,
+	) -> MotionEntry {
 		MotionEntry {
 			meta,
 			handler: self.handler,
@@ -60,40 +33,27 @@ pub fn link_motions(
 	metadata: &MotionsBlob,
 	handlers: impl Iterator<Item = &'static MotionHandlerStatic>,
 ) -> Vec<LinkedMotionDef> {
-	let handler_map: HashMap<&str, &MotionHandlerStatic> = handlers.map(|h| (h.name, h)).collect();
-
-	let mut defs = Vec::new();
-	let mut used_handlers = HashSet::new();
-
-	for meta in &metadata.motions {
-		let handler = handler_map.get(meta.name.as_str()).unwrap_or_else(|| {
-			panic!(
-				"KDL motion '{}' has no matching motion_handler!() in Rust",
-				meta.name
-			)
-		});
-		used_handlers.insert(meta.name.as_str());
-
-		let id = format!("xeno-registry::{}", meta.name);
-
-		defs.push(LinkedMotionDef {
-			id,
-			name: meta.name.clone(),
-			description: meta.description.clone(),
-			keys: meta.keys.clone(),
-			handler: handler.handler,
-			source: RegistrySource::Crate(handler.crate_name),
-		});
-	}
-
-	for name in handler_map.keys() {
-		if !used_handlers.contains(name) {
-			panic!(
-				"motion_handler!({}) has no matching entry in motions.kdl",
-				name
-			);
-		}
-	}
-
-	defs
+	super::common::link_by_name(
+		&metadata.motions,
+		handlers,
+		|m| &m.name,
+		|h| h.name,
+		|meta, handler| LinkedDef {
+			meta: LinkedMetaOwned {
+				id: format!("xeno-registry::{}", meta.name),
+				name: meta.name.clone(),
+				keys: meta.keys.clone(),
+				description: meta.description.clone(),
+				priority: 0,
+				source: RegistrySource::Crate(handler.crate_name),
+				required_caps: vec![],
+				flags: 0,
+				short_desc: None,
+			},
+			payload: MotionPayload {
+				handler: handler.handler,
+			},
+		},
+		"motion",
+	)
 }

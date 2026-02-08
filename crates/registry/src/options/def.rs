@@ -1,8 +1,8 @@
 use super::entry::OptionEntry;
 use crate::core::index::{BuildEntry, RegistryMetaRef, StrListRef};
 use crate::core::{
-	FrozenInterner, OptionDefault, OptionType, OptionValue, RegistryMetaStatic, RegistrySource,
-	Symbol,
+	FrozenInterner, LinkedDef, LinkedPayload, OptionDefault, OptionType, OptionValue, RegistryMeta,
+	RegistryMetaStatic, Symbol,
 };
 
 pub type OptionValidator = fn(&OptionValue) -> Result<(), String>;
@@ -41,56 +41,28 @@ impl core::fmt::Debug for OptionDef {
 pub type OptionInput = crate::core::def_input::DefInput<OptionDef, LinkedOptionDef>;
 
 /// An option definition assembled from KDL metadata + Rust validator.
+pub type LinkedOptionDef = LinkedDef<OptionPayload>;
+
 #[derive(Clone)]
-pub struct LinkedOptionDef {
-	pub id: String,
-	pub name: String,
-	pub description: String,
-	pub keys: Vec<String>,
-	pub priority: i16,
-	pub flags: u32,
+pub struct OptionPayload {
 	pub kdl_key: String,
 	pub value_type: OptionType,
 	pub default: OptionDefault,
 	pub scope: OptionScope,
 	pub validator: Option<OptionValidator>,
-	pub source: RegistrySource,
 }
 
-impl BuildEntry<OptionEntry> for LinkedOptionDef {
-	fn meta_ref(&self) -> RegistryMetaRef<'_> {
-		RegistryMetaRef {
-			id: &self.id,
-			name: &self.name,
-			keys: StrListRef::Owned(&self.keys),
-			description: &self.description,
-			priority: self.priority,
-			source: self.source,
-			required_caps: &[],
-			flags: self.flags,
-		}
+impl LinkedPayload<OptionEntry> for OptionPayload {
+	fn collect_extra_keys<'a>(&'a self, sink: &mut Vec<&'a str>) {
+		sink.push(self.kdl_key.as_str());
 	}
 
-	fn short_desc_str(&self) -> &str {
-		&self.name
-	}
-
-	fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
-		crate::core::index::meta_build::collect_meta_strings(
-			&self.meta_ref(),
-			sink,
-			[self.kdl_key.as_str()],
-		);
-	}
-
-	fn build(&self, interner: &FrozenInterner, key_pool: &mut Vec<Symbol>) -> OptionEntry {
-		let meta = crate::core::index::meta_build::build_meta(
-			interner,
-			key_pool,
-			self.meta_ref(),
-			[self.kdl_key.as_str()],
-		);
-
+	fn build_entry(
+		&self,
+		interner: &FrozenInterner,
+		meta: RegistryMeta,
+		_short_desc: Symbol,
+	) -> OptionEntry {
 		OptionEntry {
 			meta,
 			kdl_key: interner
