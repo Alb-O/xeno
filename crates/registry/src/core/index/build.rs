@@ -5,6 +5,153 @@ use super::collision::{Collision, CollisionKind, DuplicatePolicy, Party, cmp_par
 use super::types::RegistryIndex;
 use crate::{DenseId, FrozenInterner, InternerBuilder, RegistryEntry, RegistrySource, Symbol};
 
+/// Context for interning and looking up strings during entry building.
+pub trait BuildCtx {
+	/// Interns a string and returns its symbol.
+	fn intern(&mut self, s: &str) -> Symbol;
+	/// Looks up a string and returns its symbol if it exists.
+	fn get(&self, s: &str) -> Option<Symbol>;
+	/// Resolves a symbol to its string representation.
+	fn resolve(&self, sym: Symbol) -> &str;
+}
+
+/// Extension methods for BuildCtx to reduce boilerplate in domain implementations.
+pub trait BuildCtxExt: BuildCtx {
+	/// Interns a required string.
+	fn intern_req(&mut self, s: &str, _what: &'static str) -> Symbol {
+		self.intern(s)
+	}
+
+	/// Interns an optional string.
+	fn intern_opt(&mut self, s: Option<&str>) -> Option<Symbol> {
+		s.map(|s| self.intern(s))
+	}
+
+	/// Interns a slice of strings.
+	fn intern_slice(&mut self, ss: &[&str]) -> Arc<[Symbol]> {
+		ss.iter()
+			.map(|&s| self.intern(s))
+			.collect::<Vec<_>>()
+			.into()
+	}
+
+	/// Interns an iterator of strings.
+	fn intern_iter<I>(&mut self, it: I) -> Arc<[Symbol]>
+	where
+		I: IntoIterator,
+		I::Item: AsRef<str>,
+	{
+		it.into_iter()
+			.map(|s| self.intern(s.as_ref()))
+			.collect::<Vec<_>>()
+			.into()
+	}
+}
+
+impl<T: BuildCtx + ?Sized> BuildCtxExt for T {}
+
+pub(crate) struct ProdBuildCtx<'a> {
+	pub(crate) interner: &'a FrozenInterner,
+}
+
+impl BuildCtx for ProdBuildCtx<'_> {
+	fn intern(&mut self, s: &str) -> Symbol {
+		self.interner
+			.get(s)
+			.expect("string not pre-interned in ProdBuildCtx")
+	}
+
+	fn get(&self, s: &str) -> Option<Symbol> {
+		self.interner.get(s)
+	}
+
+	fn resolve(&self, sym: Symbol) -> &str {
+		self.interner.resolve(sym)
+	}
+}
+
+pub(crate) struct RuntimeBuildCtx<'a> {
+	pub(crate) interner: &'a FrozenInterner,
+}
+
+impl BuildCtx for RuntimeBuildCtx<'_> {
+	fn intern(&mut self, s: &str) -> Symbol {
+		self.interner
+			.get(s)
+			.expect("missing interned string in runtime build")
+	}
+
+	fn get(&self, s: &str) -> Option<Symbol> {
+		self.interner.get(s)
+	}
+
+	fn resolve(&self, sym: Symbol) -> &str {
+		self.interner.resolve(sym)
+	}
+}
+
+/// Instrumented context that verifies all used strings were collected.
+#[cfg(any(debug_assertions, feature = "registry-contracts"))]
+pub(crate) struct DebugBuildCtx<'a> {
+	pub(crate) inner: &'a mut dyn BuildCtx,
+	pub(crate) collected: std::collections::HashSet<&'a str>,
+	pub(crate) used: std::collections::HashSet<String>,
+}
+
+#[cfg(any(debug_assertions, feature = "registry-contracts"))]
+impl BuildCtx for DebugBuildCtx<'_> {
+	fn intern(&mut self, s: &str) -> Symbol {
+		if !self.collected.contains(s) {
+			panic!(
+				"BuildEntry::build() interned string not in collect_strings(): '{}'",
+				s
+			);
+		}
+		self.used.insert(s.to_string());
+		self.inner.intern(s)
+	}
+
+	fn get(&self, s: &str) -> Option<Symbol> {
+		if !self.collected.contains(s) {
+			panic!(
+				"BuildEntry::build() looked up string not in collect_strings(): '{}'",
+				s
+			);
+		}
+		// used.insert would need &mut self
+		self.inner.get(s)
+	}
+
+	fn resolve(&self, sym: Symbol) -> &str {
+		self.inner.resolve(sym)
+	}
+}
+
+/// Helper for collecting strings to be interned.
+pub struct StringCollector<'a, 'b>(pub &'a mut Vec<&'b str>);
+
+impl<'a, 'b> StringCollector<'a, 'b> {
+	/// Collects a single string.
+	pub fn push(&mut self, s: &'b str) {
+		self.0.push(s);
+	}
+
+	/// Collects an optional string.
+	pub fn opt(&mut self, s: Option<&'b str>) {
+		if let Some(s) = s {
+			self.push(s);
+		}
+	}
+
+	/// Collects an iterator of strings.
+	pub fn extend<I>(&mut self, it: I)
+	where
+		I: IntoIterator<Item = &'b str>,
+	{
+		self.0.extend(it);
+	}
+}
+
 /// Borrowed key list that works with both static (`&[&str]`) and owned (`&[String]`) storage.
 pub enum StrListRef<'a> {
 	/// Static string slices (from `RegistryMetaStatic`).
@@ -48,10 +195,25 @@ pub trait BuildEntry<Out: RegistryEntry> {
 	fn meta_ref(&self) -> RegistryMetaRef<'_>;
 	/// Returns the short description string.
 	fn short_desc_str(&self) -> &str;
-	/// Collects all strings that need to be interned.
-	fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>);
+	/// Collects strings for the payload only. Meta strings are handled by the builder.
+	fn collect_payload_strings<'b>(&'b self, collector: &mut StringCollector<'_, 'b>);
 	/// Converts to the symbolized runtime entry.
-	fn build(&self, interner: &FrozenInterner, key_pool: &mut Vec<Symbol>) -> Out;
+	fn build(&self, ctx: &mut dyn BuildCtx, key_pool: &mut Vec<Symbol>) -> Out;
+
+	/// Collects all strings that need to be interned (used internally by the builder).
+	fn collect_strings_all<'b>(&'b self, sink: &mut Vec<&'b str>) {
+		let meta = self.meta_ref();
+		let mut collector = StringCollector(sink);
+
+		collector.push(meta.id);
+		collector.push(meta.name);
+		collector.push(meta.description);
+		meta.keys.for_each(|k| collector.push(k));
+
+		collector.push(self.short_desc_str());
+
+		self.collect_payload_strings(&mut collector);
+	}
 }
 
 /// Builder for constructing a [`RegistryIndex`].
@@ -99,7 +261,7 @@ where
 	}
 
 	pub fn push(&mut self, def: Arc<In>) {
-		let ordinal = self.defs.len() as u32;
+		let ordinal = super::u32_index(self.defs.len(), self.label);
 		self.defs.push(IngestEntry {
 			ordinal,
 			inner: def,
@@ -145,7 +307,16 @@ where
 		let (by_key, key_collisions) =
 			build_lookup(self.label, &table, &parties, &key_pool, self.policy);
 
-		// 5. Finalize collisions
+		// 5. Build canonical ID lookup
+		let mut by_id = rustc_hash::FxHashMap::default();
+		for (i, entry) in table.iter().enumerate() {
+			by_id.insert(
+				entry.meta().id,
+				Id::from_u32(super::u32_index(i, self.label)),
+			);
+		}
+
+		// 6. Finalize collisions
 		let mut all_collisions = Vec::with_capacity(id_collisions.len() + key_collisions.len());
 
 		// Rehydrate ID collisions (now that we have an interner)
@@ -182,10 +353,12 @@ where
 
 		RegistryIndex {
 			table: Arc::from(table),
+			by_id: Arc::new(by_id),
 			by_key: Arc::new(by_key),
 			interner,
 			key_pool: Arc::from(key_pool),
 			collisions: Arc::from(all_collisions),
+			parties: Arc::from(parties),
 		}
 	}
 }
@@ -248,7 +421,7 @@ where
 	let mut all_strings = Vec::new();
 
 	for entry in winners {
-		entry.inner.collect_strings(&mut all_strings);
+		entry.inner.collect_strings_all(&mut all_strings);
 	}
 	all_strings.sort_unstable();
 	all_strings.dedup();
@@ -278,7 +451,24 @@ where
 	let mut parties = Vec::with_capacity(sorted_winners.len());
 
 	for entry in sorted_winners {
-		let out = entry.inner.build(interner, &mut key_pool);
+		let mut prod_ctx = ProdBuildCtx { interner };
+
+		#[cfg(any(debug_assertions, feature = "registry-contracts"))]
+		let out = {
+			let mut sink = Vec::new();
+			entry.inner.collect_strings_all(&mut sink);
+			let collected = sink.into_iter().collect();
+			let mut ctx = DebugBuildCtx {
+				inner: &mut prod_ctx,
+				collected,
+				used: std::collections::HashSet::default(),
+			};
+			entry.inner.build(&mut ctx, &mut key_pool)
+		};
+
+		#[cfg(not(any(debug_assertions, feature = "registry-contracts")))]
+		let out = entry.inner.build(&mut prod_ctx, &mut key_pool);
+
 		parties.push(Party {
 			def_id: out.meta().id,
 			source: out.meta().source,

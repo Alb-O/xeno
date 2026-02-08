@@ -179,7 +179,7 @@ pub struct ThemePayload {
 impl LinkedPayload<ThemeEntry> for ThemePayload {
 	fn build_entry(
 		&self,
-		_interner: &FrozenInterner,
+		_ctx: &mut dyn crate::core::index::BuildCtx,
 		meta: RegistryMeta,
 		_short_desc: Symbol,
 	) -> ThemeEntry {
@@ -221,13 +221,18 @@ impl BuildEntry<ThemeEntry> for ThemeDef {
 		self.meta.name
 	}
 
-	fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
-		crate::core::index::meta_build::collect_meta_strings(&self.meta_ref(), sink, []);
+	fn collect_payload_strings<'b>(
+		&'b self,
+		_collector: &mut crate::core::index::StringCollector<'_, 'b>,
+	) {
 	}
 
-	fn build(&self, interner: &FrozenInterner, key_pool: &mut Vec<Symbol>) -> ThemeEntry {
-		let meta =
-			crate::core::index::meta_build::build_meta(interner, key_pool, self.meta_ref(), []);
+	fn build(
+		&self,
+		ctx: &mut dyn crate::core::index::BuildCtx,
+		key_pool: &mut Vec<Symbol>,
+	) -> ThemeEntry {
+		let meta = crate::core::index::meta_build::build_meta(ctx, key_pool, self.meta_ref(), []);
 
 		ThemeEntry {
 			meta,

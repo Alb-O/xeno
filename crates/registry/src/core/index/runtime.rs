@@ -157,7 +157,7 @@ where
 		for i in 0..snap.table.len() {
 			refs.push(RegistryRef {
 				snap: snap.clone(),
-				id: Id::from_u32(i as u32),
+				id: Id::from_u32(super::u32_index(i, self.label)),
 			});
 		}
 		refs
@@ -215,15 +215,13 @@ where
 		&self,
 		def: &dyn super::build::BuildEntry<T>,
 	) -> Result<RegistryRef<T, Id>, RegisterError<T, Id>> {
-		use super::lookup::build_lookup;
-
 		loop {
 			let old = self.snap.load_full();
 
 			// 1. Extend interner
 			let mut ib = InternerBuilder::from_frozen(&old.interner);
 			let mut tmp_strings = Vec::new();
-			def.collect_strings(&mut tmp_strings);
+			def.collect_strings_all(&mut tmp_strings);
 			tmp_strings.sort_unstable();
 			tmp_strings.dedup();
 
@@ -234,26 +232,37 @@ where
 
 			// 2. Extend key pool
 			let mut key_pool = old.key_pool.to_vec();
-			let new_entry = def.build(&interner, &mut key_pool);
+			let mut runtime_ctx = super::build::RuntimeBuildCtx {
+				interner: &interner,
+			};
+
+			#[cfg(any(debug_assertions, feature = "registry-contracts"))]
+			let new_entry = {
+				let mut sink = Vec::new();
+				def.collect_strings_all(&mut sink);
+				let collected = sink.into_iter().collect();
+				let mut ctx = super::build::DebugBuildCtx {
+					inner: &mut runtime_ctx,
+					collected,
+					used: std::collections::HashSet::default(),
+				};
+				def.build(&mut ctx, &mut key_pool)
+			};
+
+			#[cfg(not(any(debug_assertions, feature = "registry-contracts")))]
+			let new_entry = def.build(&mut runtime_ctx, &mut key_pool);
 
 			// 3. Resolve canonical ID collision with existing
 			let id_sym = new_entry.meta().id;
 
 			let mut new_table: Vec<Arc<T>> = old.table.to_vec();
-			let mut parties: Vec<Party> = Vec::with_capacity(new_table.len() + 1);
+			let mut parties: Vec<Party> = old.parties.to_vec();
+			let mut new_by_id = (*old.by_id).clone();
 
-			// Reconstruct parties from existing table
-			for (i, entry) in old.table.iter().enumerate() {
-				parties.push(Party {
-					def_id: entry.meta().id,
-					source: entry.meta().source,
-					priority: entry.meta().priority,
-					ordinal: i as u32,
-				});
-			}
+			// Check for CANONICAL ID collision using O(1) by_id lookup
+			let existing_id = old.by_id.get(&id_sym).copied();
+			let existing_idx = existing_id.map(|id| id.as_u32() as usize);
 
-			// Check for CANONICAL ID collision
-			let existing_idx = old.table.iter().position(|e| e.meta().id == id_sym);
 			let mut replaced_idx = None;
 			let mut new_idx = new_table.len();
 
@@ -266,7 +275,7 @@ where
 					def_id: id_sym,
 					source: new_entry.meta().source,
 					priority: new_entry.meta().priority,
-					ordinal: new_table.len() as u32,
+					ordinal: super::u32_index(new_table.len(), self.label),
 				};
 
 				// Policy check: higher priority wins; at equal priority, higher
@@ -294,11 +303,11 @@ where
 					replaced_idx = Some(idx);
 				} else {
 					// New entry lost - return error with existing ref
-					let existing_id = Id::from_u32(idx as u32);
+					let existing_id_id = Id::from_u32(super::u32_index(idx, self.label));
 					return Err(RegisterError::Rejected {
 						existing: RegistryRef {
 							snap: old,
-							id: existing_id,
+							id: existing_id_id,
 						},
 						incoming_id: def.meta_ref().id.to_string(),
 						policy: self.policy,
@@ -306,7 +315,7 @@ where
 				}
 			} else {
 				// New unique ID
-				let ordinal = new_table.len() as u32;
+				let ordinal = super::u32_index(new_table.len(), self.label);
 				parties.push(Party {
 					def_id: id_sym,
 					source: new_entry.meta().source,
@@ -315,19 +324,44 @@ where
 				});
 				new_table.push(Arc::new(new_entry));
 				new_idx = new_table.len() - 1;
+				new_by_id.insert(id_sym, Id::from_u32(super::u32_index(new_idx, self.label)));
 			}
 
-			// 4. Rebuild lookup and collisions
-			let (by_key, key_collisions) =
-				build_lookup(self.label, &new_table, &parties, &key_pool, self.policy);
+			// 4. Update lookup and collisions incrementally
+			let (by_key, key_collisions) = if let Some(replaced_idx) = replaced_idx {
+				super::lookup::update_lookup_replace(
+					self.label,
+					&new_table,
+					&parties,
+					&key_pool,
+					self.policy,
+					replaced_idx,
+					&old,
+					&new_by_id,
+				)
+			} else {
+				// Incremental append
+				super::lookup::update_lookup_append(
+					self.label,
+					&new_table,
+					&parties,
+					&key_pool,
+					self.policy,
+					new_idx,
+					&old,
+					&new_by_id,
+				)
+			};
 
 			// 5. Publish with CAS (clone Arc to return exact snapshot on success)
 			let new_snap = Snapshot {
 				table: Arc::from(new_table),
+				by_id: Arc::new(new_by_id),
 				by_key: Arc::new(by_key),
 				interner,
 				key_pool: Arc::from(key_pool),
 				collisions: Arc::from(key_collisions),
+				parties: Arc::from(parties),
 			};
 			let new_arc = Arc::new(new_snap);
 
@@ -336,8 +370,8 @@ where
 			if Arc::ptr_eq(&prev, &old) {
 				// CAS succeeded - return ref pinned to exact snapshot we installed
 				let result_id = replaced_idx
-					.map(|i| Id::from_u32(i as u32))
-					.unwrap_or_else(|| Id::from_u32(new_idx as u32));
+					.map(|i| Id::from_u32(super::u32_index(i, self.label)))
+					.unwrap_or_else(|| Id::from_u32(super::u32_index(new_idx, self.label)));
 				return Ok(RegistryRef {
 					snap: new_arc,
 					id: result_id,

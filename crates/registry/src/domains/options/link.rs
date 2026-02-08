@@ -1,7 +1,5 @@
 use super::spec::OptionsSpec;
-use crate::core::{
-	FrozenInterner, LinkedDef, LinkedPayload, OptionType, OptionValue, RegistryMeta, Symbol,
-};
+use crate::core::{LinkedDef, LinkedPayload, OptionType, OptionValue, RegistryMeta, Symbol};
 use crate::options::entry::OptionEntry;
 use crate::options::{OptionDefault, OptionScope, OptionValidator, OptionValidatorStatic};
 
@@ -18,21 +16,22 @@ pub struct OptionPayload {
 }
 
 impl LinkedPayload<OptionEntry> for OptionPayload {
-	fn collect_extra_keys<'a>(&'a self, sink: &mut Vec<&'a str>) {
-		sink.push(self.kdl_key.as_str());
+	fn collect_extra_keys<'b>(
+		&'b self,
+		collector: &mut crate::core::index::StringCollector<'_, 'b>,
+	) {
+		collector.push(self.kdl_key.as_str());
 	}
 
 	fn build_entry(
 		&self,
-		interner: &FrozenInterner,
+		ctx: &mut dyn crate::core::index::BuildCtx,
 		meta: RegistryMeta,
 		_short_desc: Symbol,
 	) -> OptionEntry {
 		OptionEntry {
 			meta,
-			kdl_key: interner
-				.get(&self.kdl_key)
-				.expect("missing interned kdl_key"),
+			kdl_key: ctx.intern(&self.kdl_key),
 			value_type: self.value_type,
 			default: self.default.clone(),
 			scope: self.scope,

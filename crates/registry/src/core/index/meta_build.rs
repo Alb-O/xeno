@@ -5,7 +5,7 @@
 //! sorted, and interned consistently across all domains.
 
 use crate::core::index::build::RegistryMetaRef;
-use crate::core::{CapabilitySet, FrozenInterner, RegistryMeta, Symbol, SymbolList};
+use crate::core::{CapabilitySet, RegistryMeta, Symbol, SymbolList};
 
 /// Collects all strings from metadata and extra keys for interning.
 pub fn collect_meta_strings<'a>(
@@ -24,12 +24,12 @@ pub fn collect_meta_strings<'a>(
 
 /// Builds a symbolized [`RegistryMeta`] and interns keys into the pool.
 pub fn build_meta<'a>(
-	interner: &FrozenInterner,
+	ctx: &mut dyn super::build::BuildCtx,
 	key_pool: &mut Vec<Symbol>,
 	meta_ref: RegistryMetaRef<'_>,
 	extra_keys: impl IntoIterator<Item = &'a str>,
 ) -> RegistryMeta {
-	let start = key_pool.len() as u32;
+	let start = super::u32_index(key_pool.len(), "meta_build");
 
 	// Collect and dedup secondary keys (user-defined keys + domain-specific keys)
 	// Note: id and name are handled in Stages A and B respectively; do not include them here.
@@ -41,17 +41,15 @@ pub fn build_meta<'a>(
 	keys.dedup();
 
 	for key in keys {
-		key_pool.push(interner.get(key).expect("missing interned key"));
+		key_pool.push(ctx.intern(key));
 	}
-	let len = (key_pool.len() as u32 - start) as u16;
+	let len = (super::u32_index(key_pool.len(), "meta_build") - start) as u16;
 	debug_assert!(key_pool.len() as u32 - start <= u16::MAX as u32);
 
 	RegistryMeta {
-		id: interner.get(meta_ref.id).expect("missing interned id"),
-		name: interner.get(meta_ref.name).expect("missing interned name"),
-		description: interner
-			.get(meta_ref.description)
-			.expect("missing interned description"),
+		id: ctx.intern(meta_ref.id),
+		name: ctx.intern(meta_ref.name),
+		description: ctx.intern(meta_ref.description),
 		keys: SymbolList { start, len },
 		priority: meta_ref.priority,
 		source: meta_ref.source,

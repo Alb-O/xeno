@@ -1,6 +1,6 @@
 use super::spec::GuttersSpec;
 use crate::core::{
-	FrozenInterner, LinkedDef, LinkedMetaOwned, LinkedPayload, RegistryMeta, RegistrySource, Symbol,
+	LinkedDef, LinkedMetaOwned, LinkedPayload, RegistryMeta, RegistrySource, Symbol,
 };
 use crate::gutter::handler::{GutterHandlerStatic, GutterRenderHandler};
 use crate::gutter::{GutterEntry, GutterWidth, GutterWidthContext};
@@ -17,7 +17,7 @@ pub struct GutterPayload {
 impl LinkedPayload<GutterEntry> for GutterPayload {
 	fn build_entry(
 		&self,
-		_interner: &FrozenInterner,
+		_ctx: &mut dyn crate::core::index::BuildCtx,
 		meta: RegistryMeta,
 		_short_desc: Symbol,
 	) -> GutterEntry {

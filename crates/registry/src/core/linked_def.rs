@@ -1,6 +1,6 @@
 use crate::core::capability::Capability;
-use crate::core::index::{BuildEntry, RegistryMetaRef, StrListRef};
-use crate::core::{FrozenInterner, RegistryEntry, RegistryMeta, RegistrySource, Symbol};
+use crate::core::index::{BuildCtx, BuildEntry, RegistryMetaRef, StrListRef};
+use crate::core::{RegistryEntry, RegistryMeta, RegistrySource, Symbol};
 
 #[derive(Clone)]
 pub struct LinkedMetaOwned {
@@ -22,14 +22,21 @@ pub trait LinkedPayload<Out: RegistryEntry>: Clone + Send + Sync + 'static {
 	}
 
 	/// Stage C “extra keys” (e.g. options’ kdl_key). Default none.
-	fn collect_extra_keys<'a>(&'a self, _sink: &mut Vec<&'a str>) {}
+	fn collect_extra_keys<'b>(
+		&'b self,
+		_collector: &mut crate::core::index::StringCollector<'_, 'b>,
+	) {
+	}
 
 	/// Any extra strings that must be interned beyond meta/extra_keys/short_desc.
-	fn collect_payload_strings<'a>(&'a self, _sink: &mut Vec<&'a str>) {}
+	fn collect_payload_strings<'b>(
+		&'b self,
+		_collector: &mut crate::core::index::StringCollector<'_, 'b>,
+	) {
+	}
 
 	/// Construct the final entry. `short_desc` is interned from `short_desc(meta)`.
-	fn build_entry(&self, interner: &FrozenInterner, meta: RegistryMeta, short_desc: Symbol)
-	-> Out;
+	fn build_entry(&self, ctx: &mut dyn BuildCtx, meta: RegistryMeta, short_desc: Symbol) -> Out;
 }
 
 #[derive(Clone)]
@@ -60,35 +67,30 @@ where
 		self.payload.short_desc(&self.meta)
 	}
 
-	fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
-		let mut extra = Vec::new();
-		self.payload.collect_extra_keys(&mut extra);
-
-		crate::core::index::meta_build::collect_meta_strings(
-			&self.meta_ref(),
-			sink,
-			extra.iter().copied(),
-		);
-
-		sink.push(self.payload.short_desc(&self.meta));
-		self.payload.collect_payload_strings(sink);
+	fn collect_payload_strings<'b>(
+		&'b self,
+		collector: &mut crate::core::index::StringCollector<'_, 'b>,
+	) {
+		self.payload.collect_extra_keys(collector);
+		self.payload.collect_payload_strings(collector);
 	}
 
-	fn build(&self, interner: &FrozenInterner, key_pool: &mut Vec<Symbol>) -> Out {
-		let mut extra = Vec::new();
-		self.payload.collect_extra_keys(&mut extra);
+	fn build(&self, ctx: &mut dyn BuildCtx, key_pool: &mut Vec<Symbol>) -> Out {
+		let mut extra_strings = Vec::new();
+		{
+			let mut collector = crate::core::index::StringCollector(&mut extra_strings);
+			self.payload.collect_extra_keys(&mut collector);
+		}
 
 		let meta = crate::core::index::meta_build::build_meta(
-			interner,
+			ctx,
 			key_pool,
 			self.meta_ref(),
-			extra.iter().copied(),
+			extra_strings.iter().copied(),
 		);
 
-		let short_desc = interner
-			.get(self.payload.short_desc(&self.meta))
-			.expect("missing interned short_desc");
+		let short_desc = ctx.intern(self.payload.short_desc(&self.meta));
 
-		self.payload.build_entry(interner, meta, short_desc)
+		self.payload.build_entry(ctx, meta, short_desc)
 	}
 }

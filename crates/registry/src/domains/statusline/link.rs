@@ -1,6 +1,6 @@
 use super::spec::StatuslineSpec;
 use crate::core::{
-	FrozenInterner, LinkedDef, LinkedMetaOwned, LinkedPayload, RegistryMeta, RegistrySource, Symbol,
+	LinkedDef, LinkedMetaOwned, LinkedPayload, RegistryMeta, RegistrySource, Symbol,
 };
 use crate::statusline::handler::{StatuslineHandlerStatic, StatuslineRenderHandler};
 use crate::statusline::{SegmentPosition, StatuslineEntry};
@@ -17,7 +17,7 @@ pub struct StatuslinePayload {
 impl LinkedPayload<StatuslineEntry> for StatuslinePayload {
 	fn build_entry(
 		&self,
-		_interner: &FrozenInterner,
+		_ctx: &mut dyn crate::core::index::BuildCtx,
 		meta: RegistryMeta,
 		_short_desc: Symbol,
 	) -> StatuslineEntry {

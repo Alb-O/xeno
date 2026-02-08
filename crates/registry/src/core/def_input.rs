@@ -1,7 +1,7 @@
 //! Generic registry input type for static and dynamic definitions.
 
-use crate::core::index::{BuildEntry, RegistryMetaRef};
-use crate::core::{FrozenInterner, RegistryEntry, Symbol};
+use crate::core::index::{BuildCtx, BuildEntry, RegistryMetaRef, StringCollector};
+use crate::core::{RegistryEntry, Symbol};
 
 /// Represents an inhabitant-free type for domains that don't support linked definitions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -16,11 +16,11 @@ impl<Out: RegistryEntry> BuildEntry<Out> for NoLinked {
 		match *self {}
 	}
 
-	fn collect_strings<'a>(&'a self, _sink: &mut Vec<&'a str>) {
+	fn collect_payload_strings<'b>(&'b self, _collector: &mut StringCollector<'_, 'b>) {
 		match *self {}
 	}
 
-	fn build(&self, _interner: &FrozenInterner, _key_pool: &mut Vec<Symbol>) -> Out {
+	fn build(&self, _ctx: &mut dyn BuildCtx, _key_pool: &mut Vec<Symbol>) -> Out {
 		match *self {}
 	}
 }
@@ -54,17 +54,17 @@ where
 		}
 	}
 
-	fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
+	fn collect_payload_strings<'b>(&'b self, collector: &mut StringCollector<'_, 'b>) {
 		match self {
-			Self::Static(s) => s.collect_strings(sink),
-			Self::Linked(l) => l.collect_strings(sink),
+			Self::Static(s) => s.collect_payload_strings(collector),
+			Self::Linked(l) => l.collect_payload_strings(collector),
 		}
 	}
 
-	fn build(&self, interner: &FrozenInterner, key_pool: &mut Vec<Symbol>) -> Out {
+	fn build(&self, ctx: &mut dyn BuildCtx, key_pool: &mut Vec<Symbol>) -> Out {
 		match self {
-			Self::Static(s) => s.build(interner, key_pool),
-			Self::Linked(l) => l.build(interner, key_pool),
+			Self::Static(s) => s.build(ctx, key_pool),
+			Self::Linked(l) => l.build(ctx, key_pool),
 		}
 	}
 }

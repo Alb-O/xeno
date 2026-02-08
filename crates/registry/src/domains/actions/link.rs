@@ -6,8 +6,7 @@ use crate::actions::entry::ActionEntry;
 use crate::actions::handler::ActionHandlerStatic;
 use crate::actions::{BindingMode, KeyBindingDef, KeyPrefixDef};
 use crate::core::{
-	Capability, FrozenInterner, LinkedDef, LinkedMetaOwned, LinkedPayload, RegistryMeta,
-	RegistrySource, Symbol,
+	Capability, LinkedDef, LinkedMetaOwned, LinkedPayload, RegistryMeta, RegistrySource, Symbol,
 };
 
 /// An action definition assembled from spec + Rust handler.
@@ -22,7 +21,7 @@ pub struct ActionPayload {
 impl LinkedPayload<ActionEntry> for ActionPayload {
 	fn build_entry(
 		&self,
-		_interner: &FrozenInterner,
+		_ctx: &mut dyn crate::core::index::BuildCtx,
 		meta: RegistryMeta,
 		short_desc: Symbol,
 	) -> ActionEntry {

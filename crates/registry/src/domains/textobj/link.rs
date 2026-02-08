@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use super::spec::TextObjectsSpec;
 use crate::core::{
-	FrozenInterner, LinkedDef, LinkedMetaOwned, LinkedPayload, RegistryMeta, RegistrySource, Symbol,
+	LinkedDef, LinkedMetaOwned, LinkedPayload, RegistryMeta, RegistrySource, Symbol,
 };
 use crate::textobj::handler::TextObjectHandlerStatic;
 use crate::textobj::{TextObjectEntry, TextObjectHandler};
@@ -20,7 +20,7 @@ pub struct TextObjectPayload {
 impl LinkedPayload<TextObjectEntry> for TextObjectPayload {
 	fn build_entry(
 		&self,
-		_interner: &FrozenInterner,
+		_ctx: &mut dyn crate::core::index::BuildCtx,
 		meta: RegistryMeta,
 		_short_desc: Symbol,
 	) -> TextObjectEntry {

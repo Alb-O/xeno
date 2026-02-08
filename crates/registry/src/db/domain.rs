@@ -16,6 +16,16 @@ pub trait DomainSpec {
 	/// The dense ID type used for O(1) table lookups.
 	type Id: DenseId;
 
+	/// Static definition type (built-ins).
+	type StaticDef: 'static;
+	/// Linked definition type (from compiled specs).
+	type LinkedDef;
+
+	/// Converts a static definition to the builder input type.
+	fn static_to_input(def: &'static Self::StaticDef) -> Self::Input;
+	/// Converts a linked definition to the builder input type.
+	fn linked_to_input(def: Self::LinkedDef) -> Self::Input;
+
 	/// human-readable label for the domain (e.g., "actions").
 	const LABEL: &'static str;
 

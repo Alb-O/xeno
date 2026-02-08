@@ -1,12 +1,12 @@
 use std::fs;
-use std::path::PathBuf;
+use std::path::Path;
 
 use kdl::KdlDocument;
 
 use super::common::*;
 use super::types::*;
 
-pub fn build_commands_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
+pub fn build_commands_blob(data_dir: &Path, out_dir: &Path) {
 	let path = data_dir.join("commands.kdl");
 	println!("cargo:rerun-if-changed={}", path.display());
 
@@ -68,7 +68,7 @@ pub fn build_commands_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 	write_blob(&out_dir.join("commands.bin"), &bin);
 }
 
-pub fn build_motions_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
+pub fn build_motions_blob(data_dir: &Path, out_dir: &Path) {
 	let path = data_dir.join("motions.kdl");
 	println!("cargo:rerun-if-changed={}", path.display());
 
@@ -130,7 +130,7 @@ pub fn build_motions_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 	write_blob(&out_dir.join("motions.bin"), &bin);
 }
 
-pub fn build_textobj_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
+pub fn build_textobj_blob(data_dir: &Path, out_dir: &Path) {
 	let path = data_dir.join("text_objects.kdl");
 	println!("cargo:rerun-if-changed={}", path.display());
 
@@ -208,7 +208,7 @@ pub fn build_textobj_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 	write_blob(&out_dir.join("text_objects.bin"), &bin);
 }
 
-pub fn build_options_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
+pub fn build_options_blob(data_dir: &Path, out_dir: &Path) {
 	let path = data_dir.join("options.kdl");
 	println!("cargo:rerun-if-changed={}", path.display());
 
@@ -301,7 +301,7 @@ pub fn build_options_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 	write_blob(&out_dir.join("options.bin"), &bin);
 }
 
-pub fn build_gutters_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
+pub fn build_gutters_blob(data_dir: &Path, out_dir: &Path) {
 	let path = data_dir.join("gutters.kdl");
 	println!("cargo:rerun-if-changed={}", path.display());
 
@@ -385,7 +385,7 @@ pub fn build_gutters_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 	write_blob(&out_dir.join("gutters.bin"), &bin);
 }
 
-pub fn build_statusline_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
+pub fn build_statusline_blob(data_dir: &Path, out_dir: &Path) {
 	let path = data_dir.join("statusline.kdl");
 	println!("cargo:rerun-if-changed={}", path.display());
 
@@ -456,7 +456,7 @@ pub fn build_statusline_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 	write_blob(&out_dir.join("statusline.bin"), &bin);
 }
 
-pub fn build_hooks_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
+pub fn build_hooks_blob(data_dir: &Path, out_dir: &Path) {
 	let path = data_dir.join("hooks.kdl");
 	println!("cargo:rerun-if-changed={}", path.display());
 
@@ -521,7 +521,7 @@ pub fn build_hooks_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
 	write_blob(&out_dir.join("hooks.bin"), &bin);
 }
 
-pub fn build_notifications_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
+pub fn build_notifications_blob(data_dir: &Path, out_dir: &Path) {
 	let path = data_dir.join("notifications.kdl");
 	println!("cargo:rerun-if-changed={}", path.display());
 

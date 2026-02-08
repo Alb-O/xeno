@@ -1,6 +1,6 @@
 use super::spec::MotionsSpec;
 use crate::core::{
-	FrozenInterner, LinkedDef, LinkedMetaOwned, LinkedPayload, RegistryMeta, RegistrySource, Symbol,
+	LinkedDef, LinkedMetaOwned, LinkedPayload, RegistryMeta, RegistrySource, Symbol,
 };
 use crate::motions::handler::MotionHandlerStatic;
 use crate::motions::{MotionEntry, MotionHandler};
@@ -15,7 +15,7 @@ pub struct MotionPayload {
 impl LinkedPayload<MotionEntry> for MotionPayload {
 	fn build_entry(
 		&self,
-		_interner: &FrozenInterner,
+		_ctx: &mut dyn crate::core::index::BuildCtx,
 		meta: RegistryMeta,
 		_short_desc: Symbol,
 	) -> MotionEntry {

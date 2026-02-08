@@ -1,9 +1,9 @@
 //! Shared test helpers for registry index tests.
 
-use crate::core::index::build::{BuildEntry, RegistryMetaRef, StrListRef};
-use crate::core::{
-	FrozenInterner, RegistryEntry, RegistryMeta, RegistryMetaStatic, RegistrySource, Symbol,
+use crate::core::index::build::{
+	BuildCtx, BuildEntry, RegistryMetaRef, StrListRef, StringCollector,
 };
+use crate::core::{RegistryEntry, RegistryMeta, RegistryMetaStatic, RegistrySource, Symbol};
 
 /// Minimal test entry type for proofs.
 pub(crate) struct TestEntry {
@@ -38,17 +38,10 @@ impl BuildEntry<TestEntry> for TestDef {
 	fn short_desc_str(&self) -> &str {
 		self.meta.name
 	}
-	fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
-		crate::core::index::meta_build::collect_meta_strings(&self.meta_ref(), sink, []);
-	}
-	fn build(&self, interner: &FrozenInterner, key_pool: &mut Vec<Symbol>) -> TestEntry {
+	fn collect_payload_strings<'b>(&'b self, _collector: &mut StringCollector<'_, 'b>) {}
+	fn build(&self, ctx: &mut dyn BuildCtx, key_pool: &mut Vec<Symbol>) -> TestEntry {
 		TestEntry {
-			meta: crate::core::index::meta_build::build_meta(
-				interner,
-				key_pool,
-				self.meta_ref(),
-				[],
-			),
+			meta: crate::core::index::meta_build::build_meta(ctx, key_pool, self.meta_ref(), []),
 		}
 	}
 }

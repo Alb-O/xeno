@@ -1,12 +1,12 @@
 use std::fs;
-use std::path::PathBuf;
+use std::path::Path;
 
 use kdl::KdlDocument;
 
 use super::common::*;
 use super::types::*;
 
-pub fn build_themes_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
+pub fn build_themes_blob(data_dir: &Path, out_dir: &Path) {
 	let mut themes = Vec::new();
 
 	let entries = fs::read_dir(data_dir).expect("failed to read themes directory");

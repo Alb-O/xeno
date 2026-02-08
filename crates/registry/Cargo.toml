@@ -63,6 +63,9 @@ hooks-builtins = ["hooks"]
 notifications-builtins = ["notifications"]
 languages-builtins = ["languages"]
 
+# Contract enforcement
+registry-contracts = []
+
 # Preserve legacy knobs
 actions-handler-coverage = ["actions-builtins"]
 

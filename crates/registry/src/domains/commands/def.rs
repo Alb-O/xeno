@@ -2,7 +2,7 @@ use std::any::Any;
 
 use super::entry::CommandEntry;
 use crate::core::index::{BuildEntry, RegistryMetaRef, StrListRef};
-use crate::core::{FrozenInterner, RegistryMetaStatic, Symbol};
+use crate::core::{RegistryMetaStatic, Symbol};
 
 /// Function signature for async command handlers.
 pub type CommandHandler = for<'a> fn(
@@ -41,13 +41,18 @@ impl BuildEntry<CommandEntry> for CommandDef {
 		self.meta.name
 	}
 
-	fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
-		crate::core::index::meta_build::collect_meta_strings(&self.meta_ref(), sink, []);
+	fn collect_payload_strings<'b>(
+		&'b self,
+		_collector: &mut crate::core::index::StringCollector<'_, 'b>,
+	) {
 	}
 
-	fn build(&self, interner: &FrozenInterner, key_pool: &mut Vec<Symbol>) -> CommandEntry {
-		let meta =
-			crate::core::index::meta_build::build_meta(interner, key_pool, self.meta_ref(), []);
+	fn build(
+		&self,
+		ctx: &mut dyn crate::core::index::BuildCtx,
+		key_pool: &mut Vec<Symbol>,
+	) -> CommandEntry {
+		let meta = crate::core::index::meta_build::build_meta(ctx, key_pool, self.meta_ref(), []);
 
 		CommandEntry {
 			meta,

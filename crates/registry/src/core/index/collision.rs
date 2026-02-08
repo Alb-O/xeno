@@ -116,3 +116,64 @@ pub enum CollisionKind {
 		resolution: Resolution,
 	},
 }
+
+impl Collision {
+	/// Provides a stable sort order for collisions.
+	pub fn stable_cmp(&self, other: &Self) -> Ordering {
+		self.key
+			.as_u32()
+			.cmp(&other.key.as_u32())
+			.then_with(|| self.kind.rank().cmp(&other.kind.rank()))
+			.then_with(|| self.kind.winner_ordinal().cmp(&other.kind.winner_ordinal()))
+			.then_with(|| self.kind.loser_ordinal().cmp(&other.kind.loser_ordinal()))
+	}
+}
+
+impl CollisionKind {
+	fn rank(&self) -> u8 {
+		match self {
+			Self::DuplicateId { .. } => 0,
+			Self::KeyConflict { incoming_kind, .. } => match incoming_kind {
+				KeyKind::Canonical => 1,
+				KeyKind::PrimaryName => 2,
+				KeyKind::SecondaryKey => 3,
+			},
+		}
+	}
+
+	fn winner_ordinal(&self) -> u32 {
+		match self {
+			Self::DuplicateId { winner, .. } => winner.ordinal,
+			Self::KeyConflict {
+				existing,
+				incoming,
+				resolution,
+				..
+			} => {
+				if *resolution == Resolution::ReplacedExisting {
+					incoming.ordinal
+				} else {
+					existing.ordinal
+				}
+			}
+		}
+	}
+
+	fn loser_ordinal(&self) -> u32 {
+		match self {
+			Self::DuplicateId { loser, .. } => loser.ordinal,
+			Self::KeyConflict {
+				existing,
+				incoming,
+				resolution,
+				..
+			} => {
+				if *resolution == Resolution::ReplacedExisting {
+					existing.ordinal
+				} else {
+					incoming.ordinal
+				}
+			}
+		}
+	}
+}

@@ -1,7 +1,7 @@
 use super::spec::HooksSpec;
 use crate::HookEvent;
 use crate::core::{
-	FrozenInterner, LinkedDef, LinkedMetaOwned, LinkedPayload, RegistryMeta, RegistrySource, Symbol,
+	LinkedDef, LinkedMetaOwned, LinkedPayload, RegistryMeta, RegistrySource, Symbol,
 };
 use crate::hooks::handler::HookHandlerStatic;
 use crate::hooks::{HookEntry, HookHandler, HookMutability, HookPriority};
@@ -19,7 +19,7 @@ pub struct HookPayload {
 impl LinkedPayload<HookEntry> for HookPayload {
 	fn build_entry(
 		&self,
-		_interner: &FrozenInterner,
+		_ctx: &mut dyn crate::core::index::BuildCtx,
 		meta: RegistryMeta,
 		_short_desc: Symbol,
 	) -> HookEntry {

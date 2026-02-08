@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use rustc_hash::FxHashMap;
 
-use crate::core::{Collision, DenseId, FrozenInterner, RegistryEntry, Symbol};
+use crate::core::{Collision, DenseId, FrozenInterner, Party, RegistryEntry, Symbol};
 
 pub(super) type Map<K, V> = FxHashMap<K, V>;
 
@@ -12,10 +12,12 @@ where
 	T: RegistryEntry + Send + Sync + 'static,
 {
 	pub(crate) table: Arc<[Arc<T>]>,
+	pub(crate) by_id: Arc<Map<Symbol, Id>>,
 	pub(crate) by_key: Arc<Map<Symbol, Id>>,
 	pub(crate) interner: FrozenInterner,
 	pub(crate) key_pool: Arc<[Symbol]>,
 	pub(crate) collisions: Arc<[Collision]>,
+	pub(crate) parties: Arc<[Party]>,
 }
 
 impl<T, Id: DenseId> Clone for RegistryIndex<T, Id>
@@ -25,10 +27,12 @@ where
 	fn clone(&self) -> Self {
 		Self {
 			table: self.table.clone(),
+			by_id: self.by_id.clone(),
 			by_key: self.by_key.clone(),
 			interner: self.interner.clone(),
 			key_pool: self.key_pool.clone(),
 			collisions: self.collisions.clone(),
+			parties: self.parties.clone(),
 		}
 	}
 }

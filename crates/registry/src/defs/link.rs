@@ -35,31 +35,70 @@ pub fn link_by_name<M, H: 'static, Out>(
 	what: &'static str,
 ) -> Vec<Out> {
 	let mut handler_map: HashMap<&str, &H> = HashMap::new();
+	let mut dup_handlers = Vec::new();
+
 	for h in handlers {
 		let name = handler_name(h);
 		if handler_map.insert(name, h).is_some() {
-			panic!("duplicate {}_handler!() registration for '{}'", what, name);
+			dup_handlers.push(name.to_string());
 		}
 	}
+
 	let mut defs = Vec::with_capacity(metas.len());
 	let mut used_handlers = HashSet::with_capacity(handler_map.len());
+	let mut dup_metas = Vec::new();
+	let mut seen_metas = HashSet::new();
+	let mut missing_handlers = Vec::new();
 
 	for meta in metas {
 		let name = meta_name(meta);
-		let handler = handler_map.get(name).unwrap_or_else(|| {
-			panic!(
-				"Spec {} '{}' has no matching {}_handler!() in Rust",
-				what, name, what
-			)
-		});
-		used_handlers.insert(name);
-		defs.push(build(meta, handler));
+		if !seen_metas.insert(name) {
+			dup_metas.push(name.to_string());
+			continue;
+		}
+
+		if let Some(handler) = handler_map.get(name) {
+			used_handlers.insert(name);
+			defs.push(build(meta, handler));
+		} else {
+			missing_handlers.push(name.to_string());
+		}
 	}
 
-	for name in handler_map.keys() {
-		if !used_handlers.contains(name) {
-			panic!("{}_handler!({}) has no matching entry in spec", what, name);
+	let extra_handlers: Vec<String> = handler_map
+		.keys()
+		.filter(|&&name| !used_handlers.contains(name))
+		.map(|&s| s.to_string())
+		.collect();
+
+	if !dup_handlers.is_empty()
+		|| !dup_metas.is_empty()
+		|| !missing_handlers.is_empty()
+		|| !extra_handlers.is_empty()
+	{
+		let mut report = format!("link_by_name({}) failed:\n", what);
+
+		fn append_list(report: &mut String, title: &str, mut list: Vec<String>) {
+			if !list.is_empty() {
+				list.sort();
+				list.dedup();
+				report.push_str(&format!("  {} ({}):\n", title, list.len()));
+				for item in list {
+					report.push_str(&format!("    - {}\n", item));
+				}
+			}
 		}
+
+		append_list(&mut report, "duplicate handlers", dup_handlers);
+		append_list(&mut report, "duplicate spec entries", dup_metas);
+		append_list(
+			&mut report,
+			"spec entries missing handlers",
+			missing_handlers,
+		);
+		append_list(&mut report, "handlers missing spec entries", extra_handlers);
+
+		panic!("{}", report);
 	}
 
 	defs

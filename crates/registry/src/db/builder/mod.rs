@@ -1,52 +1,32 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use crate::actions::def::ActionInput;
-use crate::actions::entry::ActionEntry;
-use crate::actions::{ActionDef, KeyBindingDef, KeyPrefixDef};
-use crate::commands::def::CommandInput;
-use crate::commands::{CommandDef, CommandEntry};
+use crate::actions::{KeyBindingDef, KeyPrefixDef};
 use crate::core::plugin::PluginDef;
 pub use crate::core::{
 	ActionId, Capability, CommandError, CommandId, DuplicatePolicy, GutterId, HookId, KeyKind,
 	LanguageId, MotionId, OptionId, RegistryBuilder, RegistryEntry, RegistryError, RegistryIndex,
 	RegistryMeta, RegistrySource, RuntimeRegistry, StatuslineId, TextObjectId, ThemeId,
 };
-use crate::gutter::link::LinkedGutterDef;
-use crate::gutter::{GutterDef, GutterEntry, GutterInput};
-use crate::hooks::link::LinkedHookDef;
-use crate::hooks::{HookDef, HookEntry, HookInput};
-use crate::motions::link::LinkedMotionDef;
-use crate::motions::{MotionDef, MotionEntry, MotionInput};
-use crate::notifications::def::{LinkedNotificationDef, NotificationInput};
-use crate::options::link::LinkedOptionDef;
-use crate::options::{OptionDef, OptionEntry, OptionInput};
-use crate::statusline::link::LinkedStatuslineDef;
-use crate::statusline::{StatuslineEntry, StatuslineInput, StatuslineSegmentDef};
-use crate::textobj::link::LinkedTextObjectDef;
-use crate::textobj::{TextObjectDef, TextObjectEntry, TextObjectInput};
-use crate::themes::theme::{LinkedThemeDef, ThemeDef, ThemeEntry, ThemeInput};
+use crate::options::OptionDef;
 
 macro_rules! define_domains {
 	(
 		$(
 			$(#[$attr:meta])*
-			$domain_id:ident : {
+			{
 				stem: $stem:ident,
 				domain: $domain:path,
-				field: $field:ident,
-				input: $input:ty,
-				entry: $entry:ty,
-				id: $id_ty:ty,
-				static_def: $static_def:ty,
-				static_to_input: $static_to_input:expr,
-				linked_def: $linked_def:ty,
-				linked_to_input: $linked_to_input:expr $(,)?
+				field: $field:ident $(,)?
 			}
 		)*
 	) => {
 		pub struct RegistryDbBuilder {
-			$( $(#[$attr])* pub $field: RegistryBuilder<$input, $entry, $id_ty>, )*
+			$( $(#[$attr])* pub $field: RegistryBuilder<
+				<$domain as crate::db::domain::DomainSpec>::Input,
+				<$domain as crate::db::domain::DomainSpec>::Entry,
+				<$domain as crate::db::domain::DomainSpec>::Id,
+			>, )*
 			pub keybindings: Vec<KeyBindingDef>,
 			pub key_prefixes: Vec<KeyPrefixDef>,
 			pub(crate) plugin_ids: HashSet<&'static str>,
@@ -54,7 +34,10 @@ macro_rules! define_domains {
 		}
 
 		pub struct RegistryIndices {
-			$( $(#[$attr])* pub $field: RegistryIndex<$entry, $id_ty>, )*
+			$( $(#[$attr])* pub $field: RegistryIndex<
+				<$domain as crate::db::domain::DomainSpec>::Entry,
+				<$domain as crate::db::domain::DomainSpec>::Id,
+			>, )*
 			pub keybindings: Vec<KeyBindingDef>,
 			pub key_prefixes: Vec<KeyPrefixDef>,
 		}
@@ -87,7 +70,7 @@ macro_rules! define_domains {
 		impl RegistryDbBuilder {
 			pub fn new() -> Self {
 				Self {
-					$( $(#[$attr])* $field: RegistryBuilder::new(stringify!($field)), )*
+					$( $(#[$attr])* $field: RegistryBuilder::new(<$domain as crate::db::domain::DomainSpec>::LABEL), )*
 					keybindings: Vec::new(),
 					key_prefixes: Vec::new(),
 					plugin_ids: HashSet::new(),
@@ -106,15 +89,13 @@ macro_rules! define_domains {
 			$(
 				paste::paste! {
 					$(#[$attr])*
-					pub fn [<register_ $stem>](&mut self, def: &'static $static_def) {
-						let func = $static_to_input;
-						self.push_domain::<$domain>(func(def));
+					pub fn [<register_ $stem>](&mut self, def: &'static <$domain as crate::db::domain::DomainSpec>::StaticDef) {
+						self.push_domain::<$domain>(<$domain as crate::db::domain::DomainSpec>::static_to_input(def));
 					}
 
 					$(#[$attr])*
-					pub fn [<register_linked_ $stem>](&mut self, def: $linked_def) {
-						let func = $linked_to_input;
-						self.push_domain::<$domain>(func(def));
+					pub fn [<register_linked_ $stem>](&mut self, def: <$domain as crate::db::domain::DomainSpec>::LinkedDef) {
+						self.push_domain::<$domain>(<$domain as crate::db::domain::DomainSpec>::linked_to_input(def));
 					}
 				}
 			)*
@@ -123,138 +104,17 @@ macro_rules! define_domains {
 }
 
 define_domains! {
-	actions: {
-		stem: action,
-		domain: crate::db::domains::Actions,
-		field: actions,
-		input: ActionInput,
-		entry: ActionEntry,
-		id: ActionId,
-		static_def: ActionDef,
-		static_to_input: |def: &'static ActionDef| ActionInput::Static(def.clone()),
-		linked_def: crate::actions::link::LinkedActionDef,
-		linked_to_input: |def: crate::actions::link::LinkedActionDef| ActionInput::Linked(def),
-	}
-	commands: {
-		stem: command,
-		domain: crate::db::domains::Commands,
-		field: commands,
-		input: CommandInput,
-		entry: CommandEntry,
-		id: CommandId,
-		static_def: CommandDef,
-		static_to_input: |def: &'static CommandDef| CommandInput::Static(def.clone()),
-		linked_def: crate::commands::link::LinkedCommandDef,
-		linked_to_input: |def: crate::commands::link::LinkedCommandDef| CommandInput::Linked(def),
-	}
-	motions: {
-		stem: motion,
-		domain: crate::db::domains::Motions,
-		field: motions,
-		input: MotionInput,
-		entry: MotionEntry,
-		id: MotionId,
-		static_def: MotionDef,
-		static_to_input: |def: &'static MotionDef| MotionInput::Static(def.clone()),
-		linked_def: LinkedMotionDef,
-		linked_to_input: |def: LinkedMotionDef| MotionInput::Linked(def),
-	}
-	text_objects: {
-		stem: text_object,
-		domain: crate::db::domains::TextObjects,
-		field: text_objects,
-		input: TextObjectInput,
-		entry: TextObjectEntry,
-		id: TextObjectId,
-		static_def: TextObjectDef,
-		static_to_input: |def: &'static TextObjectDef| TextObjectInput::Static(*def),
-		linked_def: LinkedTextObjectDef,
-		linked_to_input: |def: LinkedTextObjectDef| TextObjectInput::Linked(def),
-	}
-	options: {
-		stem: option,
-		domain: crate::db::domains::Options,
-		field: options,
-		input: OptionInput,
-		entry: OptionEntry,
-		id: OptionId,
-		static_def: OptionDef,
-		static_to_input: |def: &'static OptionDef| OptionInput::Static(def.clone()),
-		linked_def: LinkedOptionDef,
-		linked_to_input: |def: LinkedOptionDef| OptionInput::Linked(def),
-	}
-	themes: {
-		stem: theme,
-		domain: crate::db::domains::Themes,
-		field: themes,
-		input: ThemeInput,
-		entry: ThemeEntry,
-		id: ThemeId,
-		static_def: ThemeDef,
-		static_to_input: |def: &'static ThemeDef| ThemeInput::Static(*def),
-		linked_def: LinkedThemeDef,
-		linked_to_input: |def: LinkedThemeDef| ThemeInput::Linked(def),
-	}
-	gutters: {
-		stem: gutter,
-		domain: crate::db::domains::Gutters,
-		field: gutters,
-		input: GutterInput,
-		entry: GutterEntry,
-		id: GutterId,
-		static_def: GutterDef,
-		static_to_input: |def: &'static GutterDef| GutterInput::Static(*def),
-		linked_def: LinkedGutterDef,
-		linked_to_input: |def: LinkedGutterDef| GutterInput::Linked(def),
-	}
-	statusline: {
-		stem: statusline_segment,
-		domain: crate::db::domains::Statusline,
-		field: statusline,
-		input: StatuslineInput,
-		entry: StatuslineEntry,
-		id: StatuslineId,
-		static_def: StatuslineSegmentDef,
-		static_to_input: |def: &'static StatuslineSegmentDef| StatuslineInput::Static(*def),
-		linked_def: LinkedStatuslineDef,
-		linked_to_input: |def: LinkedStatuslineDef| StatuslineInput::Linked(def),
-	}
-	hooks: {
-		stem: hook,
-		domain: crate::db::domains::Hooks,
-		field: hooks,
-		input: HookInput,
-		entry: HookEntry,
-		id: HookId,
-		static_def: HookDef,
-		static_to_input: |def: &'static HookDef| HookInput::Static(*def),
-		linked_def: LinkedHookDef,
-		linked_to_input: |def: LinkedHookDef| HookInput::Linked(def),
-	}
-	notifications: {
-		stem: notification,
-		domain: crate::db::domains::Notifications,
-		field: notifications,
-		input: NotificationInput,
-		entry: crate::notifications::NotificationEntry,
-		id: crate::notifications::NotificationId,
-		static_def: crate::notifications::NotificationDef,
-		static_to_input: |def: &'static crate::notifications::NotificationDef| NotificationInput::Static(*def),
-		linked_def: LinkedNotificationDef,
-		linked_to_input: |def: LinkedNotificationDef| NotificationInput::Linked(def),
-	}
-	languages: {
-		stem: language,
-		domain: crate::db::domains::Languages,
-		field: languages,
-		input: crate::languages::LanguageInput,
-		entry: crate::languages::LanguageEntry,
-		id: LanguageId,
-		static_def: crate::languages::types::LanguageDef,
-		static_to_input: |def: &'static crate::languages::types::LanguageDef| crate::languages::LanguageInput::Static(def.clone()),
-		linked_def: crate::languages::link::LinkedLanguageDef,
-		linked_to_input: |def: crate::languages::link::LinkedLanguageDef| crate::languages::LanguageInput::Linked(def),
-	}
+	{ stem: action, domain: crate::db::domains::Actions, field: actions }
+	{ stem: command, domain: crate::db::domains::Commands, field: commands }
+	{ stem: motion, domain: crate::db::domains::Motions, field: motions }
+	{ stem: text_object, domain: crate::db::domains::TextObjects, field: text_objects }
+	{ stem: option, domain: crate::db::domains::Options, field: options }
+	{ stem: theme, domain: crate::db::domains::Themes, field: themes }
+	{ stem: gutter, domain: crate::db::domains::Gutters, field: gutters }
+	{ stem: statusline_segment, domain: crate::db::domains::Statusline, field: statusline }
+	{ stem: hook, domain: crate::db::domains::Hooks, field: hooks }
+	{ stem: notification, domain: crate::db::domains::Notifications, field: notifications }
+	{ stem: language, domain: crate::db::domains::Languages, field: languages }
 }
 
 #[derive(Debug)]

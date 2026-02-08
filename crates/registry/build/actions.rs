@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 use std::fs;
-use std::path::PathBuf;
+use std::path::Path;
 
 use kdl::KdlDocument;
 
@@ -21,7 +21,7 @@ const VALID_CAPS: &[&str] = &[
 	"Overlay",
 ];
 
-pub fn build_actions_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
+pub fn build_actions_blob(data_dir: &Path, out_dir: &Path) {
 	let path = data_dir.join("actions.kdl");
 	println!("cargo:rerun-if-changed={}", path.display());
 

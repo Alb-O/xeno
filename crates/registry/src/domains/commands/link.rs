@@ -3,7 +3,7 @@ use crate::commands::def::CommandHandler;
 use crate::commands::entry::CommandEntry;
 use crate::commands::handler::CommandHandlerStatic;
 use crate::core::{
-	FrozenInterner, LinkedDef, LinkedMetaOwned, LinkedPayload, RegistryMeta, RegistrySource, Symbol,
+	LinkedDef, LinkedMetaOwned, LinkedPayload, RegistryMeta, RegistrySource, Symbol,
 };
 
 /// A command definition assembled from spec + Rust handler.
@@ -17,7 +17,7 @@ pub struct CommandPayload {
 impl LinkedPayload<CommandEntry> for CommandPayload {
 	fn build_entry(
 		&self,
-		_interner: &FrozenInterner,
+		_ctx: &mut dyn crate::core::index::BuildCtx,
 		meta: RegistryMeta,
 		_short_desc: Symbol,
 	) -> CommandEntry {

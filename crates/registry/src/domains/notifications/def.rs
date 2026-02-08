@@ -2,8 +2,7 @@ use super::entry::NotificationEntry;
 use super::{AutoDismiss, Level};
 use crate::core::index::{BuildEntry, RegistryMetaRef, StrListRef};
 use crate::core::{
-	FrozenInterner, LinkedDef, LinkedPayload, RegistryMeta, RegistryMetaStatic, RegistrySource,
-	Symbol,
+	LinkedDef, LinkedPayload, RegistryMeta, RegistryMetaStatic, RegistrySource, Symbol,
 };
 
 /// Static notification definition (for transition and direct use).
@@ -38,7 +37,7 @@ pub struct NotificationPayload {
 impl LinkedPayload<NotificationEntry> for NotificationPayload {
 	fn build_entry(
 		&self,
-		_interner: &FrozenInterner,
+		_ctx: &mut dyn crate::core::index::BuildCtx,
 		meta: RegistryMeta,
 		_short_desc: Symbol,
 	) -> NotificationEntry {
@@ -71,13 +70,18 @@ impl BuildEntry<NotificationEntry> for NotificationDef {
 		self.meta.name
 	}
 
-	fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
-		crate::core::index::meta_build::collect_meta_strings(&self.meta_ref(), sink, []);
+	fn collect_payload_strings<'b>(
+		&'b self,
+		_collector: &mut crate::core::index::StringCollector<'_, 'b>,
+	) {
 	}
 
-	fn build(&self, interner: &FrozenInterner, key_pool: &mut Vec<Symbol>) -> NotificationEntry {
-		let meta =
-			crate::core::index::meta_build::build_meta(interner, key_pool, self.meta_ref(), []);
+	fn build(
+		&self,
+		ctx: &mut dyn crate::core::index::BuildCtx,
+		key_pool: &mut Vec<Symbol>,
+	) -> NotificationEntry {
+		let meta = crate::core::index::meta_build::build_meta(ctx, key_pool, self.meta_ref(), []);
 
 		NotificationEntry {
 			meta,

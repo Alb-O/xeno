@@ -35,7 +35,7 @@ fn test_validate_blob_too_short() {
 }
 
 #[test]
-#[should_panic(expected = "duplicate")]
+#[should_panic(expected = "duplicate handlers (1)")]
 fn test_link_by_name_duplicate_handler() {
 	struct Meta {
 		name: String,
@@ -62,7 +62,7 @@ fn test_link_by_name_duplicate_handler() {
 }
 
 #[test]
-#[should_panic(expected = "has no matching")]
+#[should_panic(expected = "spec entries missing handlers (1)")]
 fn test_link_by_name_missing_handler() {
 	struct Meta {
 		name: String,
@@ -86,7 +86,7 @@ fn test_link_by_name_missing_handler() {
 }
 
 #[test]
-#[should_panic(expected = "has no matching entry in spec")]
+#[should_panic(expected = "handlers missing spec entries (1)")]
 fn test_link_by_name_unused_handler() {
 	struct Meta {
 		name: String,
@@ -110,4 +110,62 @@ fn test_link_by_name_unused_handler() {
 		|_, _| (),
 		"test",
 	);
+}
+
+#[test]
+fn test_link_by_name_aggregate_report() {
+	struct Meta {
+		name: String,
+	}
+	struct Handler {
+		name: &'static str,
+	}
+
+	let metas = vec![
+		Meta {
+			name: "missing".into(),
+		},
+		Meta {
+			name: "dup_meta".into(),
+		},
+		Meta {
+			name: "dup_meta".into(),
+		},
+	];
+	let handlers = vec![
+		Handler { name: "extra" },
+		Handler {
+			name: "dup_handler",
+		},
+		Handler {
+			name: "dup_handler",
+		},
+	];
+	let leaked_handlers: &'static [Handler] = Box::leak(handlers.into_boxed_slice());
+
+	let result = std::panic::catch_unwind(|| {
+		link_by_name(
+			&metas,
+			leaked_handlers.iter(),
+			|m| &m.name,
+			|h| h.name,
+			|_, _| (),
+			"test",
+		);
+	});
+
+	let err = result.expect_err("should have panicked");
+	let msg = err
+		.downcast_ref::<String>()
+		.expect("panic msg should be String");
+
+	assert!(msg.contains("link_by_name(test) failed:"));
+	assert!(msg.contains("duplicate handlers (1):"));
+	assert!(msg.contains("- dup_handler"));
+	assert!(msg.contains("duplicate spec entries (1):"));
+	assert!(msg.contains("- dup_meta"));
+	assert!(msg.contains("spec entries missing handlers (2):"));
+	assert!(msg.contains("- missing"));
+	assert!(msg.contains("handlers missing spec entries (2):"));
+	assert!(msg.contains("- extra"));
 }

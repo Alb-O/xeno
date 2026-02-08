@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::core::{BuildEntry, FrozenInterner, RegistryMeta, RegistryMetaRef, StrListRef, Symbol};
+use crate::core::{BuildEntry, RegistryMeta, RegistryMetaRef, StrListRef, Symbol};
 
 #[derive(Clone)]
 pub struct LanguageEntry {
@@ -56,64 +56,51 @@ impl BuildEntry<LanguageEntry> for LanguageDef {
 		""
 	}
 
-	fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
-		crate::core::index::meta_build::collect_meta_strings(&self.meta_ref(), sink, []);
-		if let Some(s) = self.scope {
-			sink.push(s);
-		}
-		if let Some(s) = self.grammar_name {
-			sink.push(s);
-		}
-		if let Some(s) = self.injection_regex {
-			sink.push(s);
-		}
-		for s in self.extensions {
-			sink.push(s);
-		}
-		for s in self.filenames {
-			sink.push(s);
-		}
-		for s in self.globs {
-			sink.push(s);
-		}
-		for s in self.shebangs {
-			sink.push(s);
-		}
-		for s in self.comment_tokens {
-			sink.push(s);
-		}
+	fn collect_payload_strings<'b>(
+		&'b self,
+		collector: &mut crate::core::index::StringCollector<'_, 'b>,
+	) {
+		collector.opt(self.scope);
+		collector.opt(self.grammar_name);
+		collector.opt(self.injection_regex);
+		collector.extend(self.extensions.iter().copied());
+		collector.extend(self.filenames.iter().copied());
+		collector.extend(self.globs.iter().copied());
+		collector.extend(self.shebangs.iter().copied());
+		collector.extend(self.comment_tokens.iter().copied());
 		if let Some((s1, s2)) = self.block_comment {
-			sink.push(s1);
-			sink.push(s2);
+			collector.push(s1);
+			collector.push(s2);
 		}
-		for s in self.lsp_servers {
-			sink.push(s);
-		}
-		for s in self.roots {
-			sink.push(s);
-		}
+		collector.extend(self.lsp_servers.iter().copied());
+		collector.extend(self.roots.iter().copied());
 	}
 
-	fn build(&self, interner: &FrozenInterner, key_pool: &mut Vec<Symbol>) -> LanguageEntry {
-		let meta =
-			crate::core::index::meta_build::build_meta(interner, key_pool, self.meta_ref(), []);
-		let intern = |s: &str| interner.get(s).expect("missing interned string");
-		let intern_slice = |xs: &[&str]| xs.iter().map(|s| intern(s)).collect::<Vec<_>>().into();
+	fn build(
+		&self,
+		ctx: &mut dyn crate::core::index::BuildCtx,
+		key_pool: &mut Vec<Symbol>,
+	) -> LanguageEntry {
+		use crate::core::index::BuildCtxExt;
+
+		let meta = crate::core::index::meta_build::build_meta(ctx, key_pool, self.meta_ref(), []);
 
 		LanguageEntry {
 			meta,
-			scope: self.scope.map(intern),
-			grammar_name: self.grammar_name.map(intern),
-			injection_regex: self.injection_regex.map(intern),
+			scope: self.scope.map(|s| ctx.intern(s)),
+			grammar_name: self.grammar_name.map(|s| ctx.intern(s)),
+			injection_regex: self.injection_regex.map(|s| ctx.intern(s)),
 			auto_format: self.auto_format,
-			extensions: intern_slice(self.extensions),
-			filenames: intern_slice(self.filenames),
-			globs: intern_slice(self.globs),
-			shebangs: intern_slice(self.shebangs),
-			comment_tokens: intern_slice(self.comment_tokens),
-			block_comment: self.block_comment.map(|(s1, s2)| (intern(s1), intern(s2))),
-			lsp_servers: intern_slice(self.lsp_servers),
-			roots: intern_slice(self.roots),
+			extensions: ctx.intern_slice(self.extensions),
+			filenames: ctx.intern_slice(self.filenames),
+			globs: ctx.intern_slice(self.globs),
+			shebangs: ctx.intern_slice(self.shebangs),
+			comment_tokens: ctx.intern_slice(self.comment_tokens),
+			block_comment: self
+				.block_comment
+				.map(|(s1, s2)| (ctx.intern(s1), ctx.intern(s2))),
+			lsp_servers: ctx.intern_slice(self.lsp_servers),
+			roots: ctx.intern_slice(self.roots),
 		}
 	}
 }

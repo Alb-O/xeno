@@ -260,3 +260,141 @@ fn test_registry_ref_string_helpers() {
 	assert_eq!(r.keys_resolved(), vec!["ma"]);
 	assert_eq!(r.dense_id(), ActionId::from_u32(0));
 }
+
+/// Verifies the semantic distinction between canonical IDs and secondary keys
+/// during runtime collision detection. A secondary key match is NOT a canonical
+/// ID collision.
+#[test]
+fn test_canonical_collision_semantic_distinction() {
+	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> = RegistryBuilder::new("test");
+	// Entry A has canonical ID "A" and secondary key "B"
+	builder.push(Arc::new(make_def_with_keyes("A", 10, &["B"])));
+	let registry = RuntimeRegistry::new("test", builder.build());
+
+	// Initial state: "B" resolves to A (via secondary key mapping)
+	let b_ref = registry.get("B").expect("B should resolve to A");
+	assert_eq!(b_ref.id_str(), "A");
+
+	// Register entry with canonical ID "B"
+	let def_b: &'static TestDef = Box::leak(Box::new(make_def("B", 5)));
+	registry
+		.register(def_b)
+		.expect("register B should succeed (no canonical collision)");
+
+	// Now "B" should resolve to B (canonical ID Stage A beats prior secondary key Stage C)
+	let b_ref_new = registry.get("B").expect("B should resolve to B");
+	assert_eq!(b_ref_new.id_str(), "B");
+	assert_eq!(registry.len(), 2);
+
+	// "A" still resolves to A
+	assert_eq!(registry.get("A").unwrap().id_str(), "A");
+}
+
+/// Verifies that incremental updates (append and replace) produce identical
+/// lookup maps and collision lists as a full rebuild.
+#[test]
+fn test_incremental_reference_equivalence() {
+	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> = RegistryBuilder::new("test");
+	builder.push(Arc::new(make_def("builtin_1", 10)));
+	builder.push(Arc::new(make_def_with_keyes("builtin_2", 20, &["shared"])));
+	let registry = RuntimeRegistry::new("test", builder.build());
+
+	// Deterministic sequence of operations
+	let ops = vec![
+		// 1. Simple append
+		make_def("append_1", 30),
+		// 2. Append with key conflict (loser)
+		make_def_with_keyes("append_2", 5, &["shared"]),
+		// 3. Append with key conflict (winner)
+		make_def_with_keyes("append_3", 50, &["shared"]),
+		// 4. Replace existing (canonical collision)
+		make_def_with_source("append_1", 100, RegistrySource::Runtime),
+		// 5. Replace that changes keys
+		make_def_with_keyes("builtin_2", 100, &["new_key"]),
+	];
+
+	for def in ops {
+		let static_def: &'static TestDef = Box::leak(Box::new(def));
+		registry
+			.register(static_def)
+			.expect("register should succeed");
+
+		// Compare current snapshot against full rebuild
+		let current_snap = registry.snapshot();
+
+		let (ref_by_key, ref_collisions) = crate::core::index::lookup::build_lookup(
+			"test",
+			&current_snap.table,
+			&current_snap.parties,
+			&current_snap.key_pool,
+			DuplicatePolicy::ByPriority,
+		);
+
+		assert_eq!(
+			*current_snap.by_key, ref_by_key,
+			"by_key mismatch after register"
+		);
+		assert_eq!(
+			*current_snap.collisions, ref_collisions,
+			"collisions mismatch after register"
+		);
+	}
+
+	// Verification of final state
+	let _snap = registry.snapshot();
+	// Check that Stage A always wins
+	// builtin_2 was replaced and lost "shared" key.
+	// append_3 (priority 50) should own "shared".
+	assert_eq!(registry.get("shared").unwrap().id_str(), "append_3");
+
+	// Check that replaced entries keep their dense IDs
+	assert_eq!(registry.get("append_1").unwrap().priority(), 100);
+}
+
+/// Verifies that BuildEntry::build() is enforced to only use strings
+/// collected by collect_strings() in debug builds.
+#[test]
+#[cfg(any(debug_assertions, feature = "registry-contracts"))]
+#[should_panic(expected = "not in collect_strings()")]
+fn test_build_ctx_enforcement() {
+	use crate::core::index::{BuildCtx, BuildEntry, RegistryMetaRef, StrListRef, StringCollector};
+	use crate::core::meta::RegistrySource;
+	use crate::core::symbol::Symbol;
+
+	struct BadDef;
+	impl BuildEntry<TestEntry> for BadDef {
+		fn meta_ref(&self) -> RegistryMetaRef<'_> {
+			RegistryMetaRef {
+				id: "bad",
+				name: "bad",
+				keys: StrListRef::Static(&[]),
+				description: "",
+				priority: 0,
+				source: RegistrySource::Builtin,
+				required_caps: &[],
+				flags: 0,
+			}
+		}
+		fn short_desc_str(&self) -> &str {
+			"bad"
+		}
+		fn collect_payload_strings<'b>(&'b self, _collector: &mut StringCollector<'_, 'b>) {
+			// Deliberately don't collect "secret"
+		}
+		fn build(&self, ctx: &mut dyn BuildCtx, key_pool: &mut Vec<Symbol>) -> TestEntry {
+			ctx.intern("secret"); // This should panic
+			TestEntry {
+				meta: crate::core::index::meta_build::build_meta(
+					ctx,
+					key_pool,
+					self.meta_ref(),
+					[],
+				),
+			}
+		}
+	}
+
+	let mut builder: RegistryBuilder<BadDef, TestEntry, ActionId> = RegistryBuilder::new("test");
+	builder.push(Arc::new(BadDef));
+	let _ = builder.build();
+}

@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 use rustc_hash::FxHashMap;
 
-use crate::core::{Collision, DenseId, FrozenInterner, Symbol};
+use crate::core::{Collision, DenseId, FrozenInterner, Party, Symbol};
 
 /// Single source of truth for registry lookups.
 pub struct Snapshot<T, Id: DenseId>
@@ -21,10 +21,12 @@ where
 	T: super::RuntimeEntry,
 {
 	pub table: Arc<[Arc<T>]>,
+	pub by_id: Arc<FxHashMap<Symbol, Id>>,
 	pub by_key: Arc<FxHashMap<Symbol, Id>>,
 	pub interner: FrozenInterner,
 	pub key_pool: Arc<[Symbol]>,
 	pub collisions: Arc<[Collision]>,
+	pub parties: Arc<[Party]>,
 }
 
 impl<T, Id: DenseId> Clone for Snapshot<T, Id>
@@ -34,10 +36,12 @@ where
 	fn clone(&self) -> Self {
 		Self {
 			table: self.table.clone(),
+			by_id: self.by_id.clone(),
 			by_key: self.by_key.clone(),
 			interner: self.interner.clone(),
 			key_pool: self.key_pool.clone(),
 			collisions: self.collisions.clone(),
+			parties: self.parties.clone(),
 		}
 	}
 }
@@ -50,10 +54,12 @@ where
 	pub(super) fn from_builtins(b: &super::types::RegistryIndex<T, Id>) -> Self {
 		Self {
 			table: b.table.clone(),
+			by_id: b.by_id.clone(),
 			by_key: b.by_key.clone(),
 			interner: b.interner.clone(),
 			key_pool: b.key_pool.clone(),
 			collisions: b.collisions.clone(),
+			parties: b.parties.clone(),
 		}
 	}
 }
@@ -162,11 +168,12 @@ where
 
 	/// Returns an iterator over (Id, &T) pairs.
 	pub fn iter_items(&self) -> impl Iterator<Item = (Id, &T)> + '_ {
-		self.snap
-			.table
-			.iter()
-			.enumerate()
-			.map(|(idx, arc)| (Id::from_u32(idx as u32), arc.as_ref()))
+		self.snap.table.iter().enumerate().map(|(idx, arc)| {
+			(
+				Id::from_u32(super::u32_index(idx, "snapshot_iter")),
+				arc.as_ref(),
+			)
+		})
 	}
 
 	/// Returns the number of entries.

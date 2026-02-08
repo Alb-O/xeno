@@ -1,6 +1,6 @@
 use super::spec::LanguagesSpec;
 use super::types::LanguageEntry;
-use crate::core::{FrozenInterner, LinkedDef, LinkedPayload, RegistryMeta, Symbol};
+use crate::core::{LinkedDef, LinkedPayload, RegistryMeta, Symbol};
 
 pub type LinkedLanguageDef = LinkedDef<LanguagePayload>;
 
@@ -21,70 +21,84 @@ pub struct LanguagePayload {
 }
 
 impl LinkedPayload<LanguageEntry> for LanguagePayload {
-	fn collect_payload_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
-		if let Some(s) = self.scope.as_deref() {
-			sink.push(s);
-		}
-		if let Some(s) = self.grammar_name.as_deref() {
-			sink.push(s);
-		}
-		if let Some(s) = self.injection_regex.as_deref() {
-			sink.push(s);
-		}
-		for s in &self.extensions {
-			sink.push(s);
-		}
-		for s in &self.filenames {
-			sink.push(s);
-		}
-		for s in &self.globs {
-			sink.push(s);
-		}
-		for s in &self.shebangs {
-			sink.push(s);
-		}
-		for s in &self.comment_tokens {
-			sink.push(s);
-		}
+	fn collect_payload_strings<'b>(
+		&'b self,
+		collector: &mut crate::core::index::StringCollector<'_, 'b>,
+	) {
+		collector.opt(self.scope.as_deref());
+		collector.opt(self.grammar_name.as_deref());
+		collector.opt(self.injection_regex.as_deref());
+		collector.extend(self.extensions.iter().map(|s| s.as_str()));
+		collector.extend(self.filenames.iter().map(|s| s.as_str()));
+		collector.extend(self.globs.iter().map(|s| s.as_str()));
+		collector.extend(self.shebangs.iter().map(|s| s.as_str()));
+		collector.extend(self.comment_tokens.iter().map(|s| s.as_str()));
 		if let Some((s1, s2)) = self.block_comment.as_ref() {
-			sink.push(s1);
-			sink.push(s2);
+			collector.push(s1);
+			collector.push(s2);
 		}
-		for s in &self.lsp_servers {
-			sink.push(s);
-		}
-		for s in &self.roots {
-			sink.push(s);
-		}
+		collector.extend(self.lsp_servers.iter().map(|s| s.as_str()));
+		collector.extend(self.roots.iter().map(|s| s.as_str()));
 	}
 
 	fn build_entry(
 		&self,
-		interner: &FrozenInterner,
+		ctx: &mut dyn crate::core::index::BuildCtx,
 		meta: RegistryMeta,
 		_short_desc: Symbol,
 	) -> LanguageEntry {
-		let intern = |s: &str| interner.get(s).expect("missing interned string");
-		let intern_opt = |s: &Option<String>| s.as_deref().map(intern);
-		let intern_slice = |xs: &[String]| xs.iter().map(|s| intern(s)).collect::<Vec<_>>().into();
-
 		LanguageEntry {
 			meta,
-			scope: intern_opt(&self.scope),
-			grammar_name: intern_opt(&self.grammar_name),
-			injection_regex: intern_opt(&self.injection_regex),
+			scope: self.scope.as_ref().map(|s| ctx.intern(s)),
+			grammar_name: self.grammar_name.as_ref().map(|s| ctx.intern(s)),
+			injection_regex: self.injection_regex.as_ref().map(|s| ctx.intern(s)),
 			auto_format: self.auto_format,
-			extensions: intern_slice(&self.extensions),
-			filenames: intern_slice(&self.filenames),
-			globs: intern_slice(&self.globs),
-			shebangs: intern_slice(&self.shebangs),
-			comment_tokens: intern_slice(&self.comment_tokens),
+			extensions: self
+				.extensions
+				.iter()
+				.map(|s| ctx.intern(s))
+				.collect::<Vec<_>>()
+				.into(),
+			filenames: self
+				.filenames
+				.iter()
+				.map(|s| ctx.intern(s))
+				.collect::<Vec<_>>()
+				.into(),
+			globs: self
+				.globs
+				.iter()
+				.map(|s| ctx.intern(s))
+				.collect::<Vec<_>>()
+				.into(),
+			shebangs: self
+				.shebangs
+				.iter()
+				.map(|s| ctx.intern(s))
+				.collect::<Vec<_>>()
+				.into(),
+			comment_tokens: self
+				.comment_tokens
+				.iter()
+				.map(|s| ctx.intern(s))
+				.collect::<Vec<_>>()
+				.into(),
 			block_comment: self
 				.block_comment
 				.as_ref()
-				.map(|(s1, s2)| (intern(s1), intern(s2))),
-			lsp_servers: intern_slice(&self.lsp_servers),
-			roots: intern_slice(&self.roots),
+				.map(|(s1, s2)| (ctx.intern(s1), ctx.intern(s2))),
+			lsp_servers: self
+				.lsp_servers
+				.iter()
+				.map(|s| ctx.intern(s))
+				.collect::<Vec<_>>()
+				.into(),
+			roots: self
+				.roots
+				.iter()
+				.map(|s| ctx.intern(s))
+				.collect::<Vec<_>>()
+				.into(),
 		}
 	}
 }

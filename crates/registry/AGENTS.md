@@ -2,95 +2,211 @@
 
 This file is for contributors working on the `xeno-registry` crate. It describes the registry’s architecture, the data flow from authored metadata to runtime entries, and the conventions for adding or modifying domains.
 
-The registry is format-neutral at runtime. KDL is only an authoring format at build time.
+The registry is **format-neutral at runtime**. KDL (currently) is **build-time authoring only**.
+
+---
 
 ## Architecture overview
 
-The registry is a typed, immutable index built at startup from a mix of:
+The registry is a typed database of editor definitions (actions, commands, options, themes, etc.) with:
 
-1. Rust statics (builtins): handlers / definitions compiled into the binary.
-2. Compiled specs (metadata): postcard-serialized binary blobs embedded in the binary and decoded at startup.
+- **Immutable snapshots** for readers (`RegistryRef` pins an `Arc<Snapshot>`).
+- **Runtime registration** via **snapshot rebuild + CAS publish** (atomic swap).
+- **Build-time compilation** of authored metadata into embedded binary specs.
+- **Domain-colocated loaders/linkers** (each domain owns its spec → linked defs wiring).
 
-The runtime does not parse KDL (or any text format). Instead, the build scripts parse and emit compiled specs.
+### High-level components
+
+- **Domain modules** (e.g. `src/actions/`, `src/options/`, `src/languages/`):
+  - `spec` types (serde/postcard contract)
+  - `loader` (decode embedded blob)
+  - `link` (link spec ↔ Rust handler statics where applicable)
+  - runtime `Entry` types and `Input` types ingested by the builder
+
+- **Shared substrate**:
+  - `src/defs/loader.rs`: blob header/validation + postcard decode
+  - `src/defs/link.rs`: shared linking utilities (e.g. `link_by_name`)
+  - `src/core/index/*`: generic index building, lookup resolution, collision recording, runtime registration
+
+- **DB builder**:
+  - `src/db/domain.rs`: `DomainSpec` trait (domain type plumbing + conversions + hooks)
+  - `src/db/domains.rs`: domain marker types implementing `DomainSpec`
+  - `src/db/builder/mod.rs`: `RegistryDbBuilder` and domain registration wrappers
 
 ### Pipeline (end-to-end)
 
 **Build time**
-1. Authoring input: domain metadata authored as KDL (currently) under the repo’s data assets.
-2. Compilation: `build/main.rs` + `build/*` parse the authoring format and produce a domain spec value (Rust struct).
-3. Serialization: the spec is serialized using `postcard` and written to `<domain>.bin` using the shared blob wrapper format.
-4. Embedding: the `.bin` files are embedded in the final binary via `include_bytes!(concat!(env!("OUT_DIR"), ...))`.
+1. Authoring input: domain metadata authored as KDL (currently) under repo assets.
+2. Compilation: `crates/registry/build/*` parse the authoring format into domain spec structs.
+3. Serialization: specs are serialized with `postcard` and written as `<domain>.bin` using the shared blob wrapper.
+4. Embedding: `.bin` files are embedded into the final binary (`include_bytes!(concat!(env!("OUT_DIR"), ...))`).
 
 **Runtime**
-1. Load spec: domain module decodes the embedded blob with `defs::loader`.
-2. Link: domain module links spec metadata with Rust statics (handlers) where applicable.
-3. Build index: `RegistryDbBuilder` ingests static + linked inputs, interns strings, assigns dense IDs, and builds immutable indices.
-4. Runtime access: the resulting indices are exposed via typed refs and stable snapshot semantics (unchanged).
+1. Load spec: domain module decodes embedded blob via `defs::loader`.
+2. Link: domain module links spec metadata to Rust handler statics where applicable.
+3. Build indices: `RegistryDbBuilder` ingests static + linked inputs, interns strings, assigns dense IDs, builds immutable `RegistryIndex` values.
+4. Publish: each domain is exposed via a `RuntimeRegistry` holding an atomic `Snapshot`.
+5. Extend: runtime registration builds a new snapshot and publishes it with CAS.
 
-### Colocation
+---
 
-All domain modules live under `src/domains/`. Each domain owns its own compilation boundary:
+## Incremental updates (runtime registration)
 
-```
-src/domains/<domain>/
-	spec.rs    // serde structs defining the format-neutral spec contract
-	loader.rs  // loads embedded <domain>.bin via defs::loader
-	link.rs    // domain-specific linking/validation/parsing (handlers, enums, etc.)
-```
+Runtime registration is snapshot-based, but **lookup maintenance is incremental**:
 
-`src/domains/mod.rs` declares each domain behind its feature gate. Domain modules are re-exported at crate root (`pub use domains::actions;` etc.) so `crate::actions::*` paths work, but individual types are not flattened to the crate root — consumers import from the domain: `use xeno_registry::actions::ActionDef;`, not `use xeno_registry::ActionDef;`.
+- **Append** (new canonical ID): **O(1)** relative to registry size (work proportional to the new entry’s key set).
+- **Replace** (canonical ID collision where incoming wins): **O(N × affected_keys)**, where `affected_keys` is the union of keys of the old + new entry (typically small). Only those keys are rescanned across entries.
 
-### Shared substrate (`src/defs`)
+This avoids rebuilding the entire lookup map for the common case (append), and bounds replace cost to a small number of targeted rescans.
 
-`crates/registry/src/defs` is a small shared layer used by all domains:
+### `by_id` map (Stage A only)
 
-- `defs/spec.rs`: shared spec types used across domains (e.g. `MetaCommonSpec`)
-- `defs/loader.rs`:  shared blob header/validation and postcard decode (`load_blob`)
-- `defs/link.rs`: shared linking utilities (`link_by_name`, `build_name_map`)
+Snapshots and indices maintain two maps:
 
-Domains should depend on `defs/*`, not on other domains’ internal loaders/linkers.
+- `by_id`: **Canonical ID → Id** (Stage A only). Used for correct, O(1) canonical collision detection.
+- `by_key`: **Any lookup key → Id** (Stages A/B/C as appropriate for lookup), used for general key resolution.
+
+**Important:** `by_key` may contain secondary keys; **canonical-ID collision detection must use `by_id`**, not `by_key`.
+
+---
+
+## Build pipeline safety (`BuildCtx` + contracts)
+
+### `BuildCtx`
+
+`BuildEntry::build` no longer takes a raw interner; it takes:
+
+- `fn build(&self, ctx: &mut dyn BuildCtx, key_pool: &mut Vec<Symbol>) -> Entry`
+
+All interning / symbol lookup performed during build must go through `BuildCtx`.
+
+### String declaration contract
+
+All strings used during `build()` must be declared ahead of time:
+
+- Domains implement `collect_payload_strings` (payload-only)
+- Core automatically collects **all metadata strings** (`id`, `name`, `description`, `short_desc`, and key strings) before build
+- The builder interns the collected string set, then calls `build()`
+
+### Enforcement
+
+The “collect before use” contract is enforced:
+
+- **in debug builds** (default)
+- **in any build** when enabled via feature: `registry-contracts`
+
+If a `build()` attempts to intern/lookup a string not declared via collection, it panics with a precise message (string value included).
+
+---
+
+## Ergonomics helpers
+
+### `StringCollector`
+
+Domains use `StringCollector` for declarative payload string gathering:
+
+- `push(&str)`
+- `opt(Option<&str>)`
+- `extend(iter of &str)`
+
+Domains no longer manually collect meta strings; they only collect payload strings.
+
+### `BuildCtxExt`
+
+Extension methods reduce boilerplate in `build()` implementations:
+
+- `intern_req(&str, what)`
+- `intern_opt(Option<&str>)`
+- `intern_iter(iter of &str)` (and similar helpers)
+
+Use these consistently to keep domain build code compact and uniform.
+
+---
+
+## Linking utilities (`link_by_name` aggregate reporting)
+
+For handler-driven domains (actions/commands/motions/etc.), linking is strict and name-based.
+
+`defs::link::link_by_name` now performs a full scan before failing and produces a **single aggregate report** covering all issues:
+
+- duplicate handlers
+- duplicate spec/meta entries
+- spec entries missing handlers
+- handlers missing spec entries
+
+This is intentionally fatal (panic), but dramatically improves debuggability when evolving specs/handlers.
+
+---
 
 ## Glossary
 
 ### Registry lifecycle terms
 
-- `Def`: a Rust-side definition shape (builtins) that may include function pointers / static tables.
-- `Input`: the type ingested by the builder for a domain (often `Static(def)` or `Linked(def)`).
-- `Entry`: the runtime, symbolized, interned form stored in the immutable registry index.
+- **Def**: Rust-side definition shape (builtins). May include function pointers / static tables.
+- **Spec**: Format-neutral, data-only serialized contract embedded in the binary (postcard blob).
+- **LinkedDef**: A runtime input produced by linking spec metadata with Rust handler statics.
+- **Input**: Domain-specific value ingested by the builder (often `Static(...)` or `Linked(...)`).
+- **Entry**: Runtime, symbolized form stored in the registry index.
 
 ### Identity and lookup
 
-- Canonical ID: the stable identifier for an entry (usually `"xeno-registry::<name>"`). Canonical IDs are the primary keys for typed handles like `LookupKey<T, Id>`.
-- Primary Name: human-facing short name (often equal to the suffix of the canonical ID); used for display and authoring.
-- Secondary Keys: additional strings used for lookup (aliases, config keys like option `kdl_key`, etc.). These are attached to metadata and participate in resolution.
-- Resolution: the 3-stage lookup contract used by the registry (canonical IDs / names / secondary keys), producing typed `RegistryRef`s.
+- **Canonical ID (Stage A)**: Stable identifier (often `"xeno-registry::<name>"`). Collision detection uses `by_id`.
+- **Primary Name (Stage B)**: Human-facing name used for display and lookup.
+- **Secondary Keys (Stage C)**: Additional lookup strings (aliases, config keys, etc.).
+- **Resolution**: The 3-stage lookup contract. Stage precedence is enforced consistently across build and runtime registration.
 
-### Linking terms
+### Core types
 
-- Linking: pairing spec metadata with Rust statics (handlers) to produce `LinkedDef<Payload>` inputs.
-- Bijection linking: for handler-driven domains (actions/commands/motions/etc.), linking is name-based and strict:
-  - every spec item must have a handler
-  - every handler must have a spec item
-  (enforced by `defs::link::link_by_name`)
+- **`RegistryIndex<T, Id>`**: Immutable, indexed storage produced by the builder (tables, maps, interner, collisions).
+- **`Snapshot<T, Id>`**: Published runtime view (Arc-pinned); readers hold these alive via `RegistryRef`.
+- **`RegistryRef<T, Id>`**: Pinned handle to an entry; keeps its source snapshot alive.
+- **`RuntimeRegistry<T, Id>`**: Atomic container for current snapshot; supports registration via snapshot rebuild + CAS.
+- **`Party`**: Comparable metadata used to resolve conflicts deterministically (priority, source rank, ordinal).
+- **`Collision`**: Diagnostic record for key conflicts; ordering is deterministic via `Collision::stable_cmp`.
 
 ---
 
 ## Invariants and mental model
 
-### Immutability (runtime)
+### Snapshot semantics
 
-The registry indices are immutable after initialization. Plugins and runtime extension do not mutate the registry indices (the “snapshot + CAS” design is not part of the runtime path here).
+- Readers load the current snapshot and use it for all lookups.
+- `RegistryRef` pins the snapshot it came from; it never observes partial updates.
 
 ### Dense IDs
 
-Domains assign dense IDs (e.g. `ActionId`, `CommandId`) during build. These IDs index into compact tables for O(1) access.
+Domains assign dense IDs (`ActionId`, `OptionId`, etc.) during build. IDs index compact tables for O(1) access.
 
-### Snapshot and resolution
+### Precedence (conflict resolution)
 
-Snapshot and resolution behavior is unchanged:
-- `RegistryRef<T, Id>` points at a typed entry in the built index
-- `LookupKey<T, Id>` allows lookup by canonical ID or `RegistryRef`
-- the builder creates the final `RegistryIndex` tables used by runtime access
+Resolution follows a strict precedence hierarchy (applies at build and runtime):
+
+1. Higher `priority` wins.
+2. Higher `source` rank wins (Runtime > Crate > Builtin).
+3. Deterministic tie-breakers via `Party` ordering.
+
+### Determinism
+
+- Collision lists are sorted with `Collision::stable_cmp`.
+- Stable ordering must not depend on incidental insertion order.
+
+---
+
+## `DomainSpec` and domain wiring
+
+The `define_domains!` macro is intentionally minimal. All domain plumbing lives in `DomainSpec` implementations.
+
+### `DomainSpec` responsibilities
+
+Each domain marker type implements `DomainSpec`:
+
+- associated types: `Input`, `Entry`, `Id`, `StaticDef`, `LinkedDef`
+- conversions: `static_to_input`, `linked_to_input`
+- `LABEL`: human-readable domain label
+- `builder(db) -> &mut RegistryBuilder<...>`: selects the correct builder field
+- optional `on_push(db, &input)`: domain-specific side effects (e.g. collecting keybindings)
+
+This keeps domain behavior explicit and local, while keeping `RegistryDbBuilder` boilerplate flat.
 
 ---
 
@@ -98,122 +214,89 @@ Snapshot and resolution behavior is unchanged:
 
 When adding a new domain, treat it as three layers:
 
-1. Domain types + entry
-2. Spec + loader + linker
-3. Builder wiring + tests
+1) Domain runtime types (`Entry`/`Input`)
+2) Spec + loader + link (format-neutral runtime pipeline)
+3) DB wiring (`DomainSpec` + builder registration)
 
-### 1) Define the domain runtime types
+### 1) Define domain runtime types
 
-Create `src/domains/<domain>/` with:
+Create a new module (typically `src/<domain>/`):
+
 - `entry.rs`: define `<Domain>Entry` implementing `RegistryEntry`
 - `def.rs`: define `<Domain>Def` and `<Domain>Input` (often `Static` + `Linked`)
-- handler registry if needed (inventory + statics)
+- `link.rs`: if handler-driven, define handler statics and linking rules
+- `loader.rs`: load embedded `<domain>.bin`
+- `spec.rs` (or `types.rs`): serde contract used by build + runtime decode
 
-Also update:
-- `src/domains/mod.rs`: add the feature-gated `pub mod <domain>;`
-- `src/lib.rs`: add the feature-gated `pub use domains::<domain>;`
-- `src/db/domains.rs`: add a `DomainSpec` entry for the new domain
-- `src/db/builder/mod.rs`: extend `define_domains!` to include the domain
+### 2) Implement build contract (`BuildEntry`)
 
-### 2) Add the compiled spec pipeline (format-neutral)
+Your domain `Input` type must implement `BuildEntry<Entry>`:
 
-Inside `src/domains/<domain>/`:
+- implement `collect_payload_strings(&self, collector: &mut StringCollector<...>)`
+  - payload-only strings
+  - do **not** collect meta strings (core does this automatically)
+- implement `build(&self, ctx: &mut dyn BuildCtx, key_pool: &mut Vec<Symbol>) -> Entry`
+  - use `BuildCtxExt` helpers (`intern_req`, `intern_opt`, `intern_iter`)
+  - never access interners directly
 
-#### `spec.rs`
-Define a serde `Spec` contract for the domain. Keep it data-only:
-- include `common: MetaCommonSpec`
-- represent enums as strings (e.g. `"buffer"`, `"global"`) unless you have a strong reason not to
-- store parseable fields as strings if they originate as strings in authoring (width, position, etc.)
+Run with `--features registry-contracts` if you’re touching collection/build logic.
 
-Example pattern:
+### 3) Add the compiled spec pipeline (format-neutral)
 
-```rust
-#[derive(Clone, Serialize, Deserialize)]
-pub struct DomainSpec {
-  pub common: MetaCommonSpec,
-  pub some_field: String,
-  pub optional_field: Option<u64>,
-}
-```
+**Runtime (domain module)**:
+- define `Spec` contract structs (serde/postcard)
+- `loader.rs`: decode embedded blob using `defs::loader`
+- `link.rs`: domain-specific linking/validation/parsing
+  - handler-driven domains should use `defs::link::link_by_name`
 
-#### `loader.rs`
+**Build time (`crates/registry/build/`)**:
+- parse authoring format (KDL)
+- emit the same `Spec` structs
+- serialize via `postcard` using the shared blob wrapper
+- emit `cargo:rerun-if-changed` for authoring inputs
 
-Decode the embedded blob using the shared loader:
+### 4) Wire into `RegistryDbBuilder`
 
-```rust
-pub fn load_domain_spec() -> DomainSpecs {
-  const BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/domain.bin"));
-  defs::loader::load_blob(BYTES, "<domain>")
-}
-```
+1. Add a domain marker type implementing `DomainSpec` in `src/db/domains.rs`.
+   - include conversions (`static_to_input`, `linked_to_input`)
+   - add `on_push` if you need side tables (e.g. keybindings)
 
-#### `link.rs`
+2. Add one line to the `define_domains!` invocation in `src/db/builder/mod.rs`:
+   - `field` name (builder field)
+   - `stem` (register method prefix)
+   - `domain` marker type
 
-Implement the domain’s linking rules:
-
-* If the domain is handler-driven (strict bijection):
-
-  * iterate handler statics
-  * use `defs::link::link_by_name` with the spec slice and handler slice
-  * construct `LinkedDef<Payload>` where `Payload: LinkedPayload<Entry>`
-
-* If the domain is spec-only (no handlers):
-
-  * convert spec items directly into `LinkedDef` or into the appropriate `Input` variant
-  * do domain-specific parsing/validation here (scope enums, numeric constraints, etc.)
-
-Do not put generic linking logic in the domain; use `defs/link.rs`.
-
-### 3) Build-time compiler
-
-Add/extend the build compiler under `crates/registry/build/`:
-
-* Define build-time spec structs matching the runtime spec layout.
-* Parse the authoring input (KDL) into the spec value.
-* Serialize with `postcard` and write with the shared blob wrapper (`write_blob`).
-* Emit `cargo:rerun-if-changed` for authoring inputs.
-
-The build-time compiler should be the only place that knows about KDL syntax.
-
-### 4) Builder wiring
-
-In `db/builder/mod.rs`, add a `register_compiled_<domain>` method that:
-
-* loads the spec via `<domain>::loader`
-* links spec ↔ handlers via `<domain>::link` as needed
-* registers linked defs into the domain builder
-* registers any side tables (e.g. key prefix defs) if applicable
-
-Then call this registration method from the domain’s builtin registration path (commonly `<domain>/builtins.rs`).
+That’s it. The macro should not grow knobs.
 
 ### 5) Tests (required)
 
-Every new domain must add tests at two levels:
+- Add a domain-level consistency test:
+  - handler-driven: spec ↔ handler bijection
+  - spec-only: spec validity and linking rules
+- Add targeted tests for parsing/validation rules if the domain has them.
+- Run the registry feature matrix:
+  - `cargo test -p xeno-registry`
+  - `cargo test -p xeno-registry --no-default-features`
+  - `cargo test -p xeno-registry --all-features`
+  - `cargo test -p xeno-registry --features registry-contracts`
+  - `cargo clippy -p xeno-registry --all-targets --all-features`
 
-1. Generic substrate tests (already exist): `defs/tests.rs` should cover invariants of the shared linker and loader.
-2. Domain consistency tests: add a test in `src/tests/consistency.rs` verifying spec↔handler consistency where applicable (bijection), or spec validity for spec-only domains.
-
-If the domain includes parsing (enums, numeric widths, palette resolution, etc.), add at least one targeted test for those semantics.
+---
 
 ## Supporting a new authoring format
 
-Because runtime is format-neutral, adding a new authoring format means:
+Runtime is format-neutral. Adding a new authoring format means:
 
-* implementing a build-time compiler that produces the same domain `Spec` structs
-* emitting the same `<domain>.bin` blob(s)
+- implement a new build-time compiler producing the existing `Spec` structs
+- emit the same `<domain>.bin` blobs
 
 No runtime changes should be required.
 
+---
+
 ## Practical contributor notes
 
-* Prefer keeping parsing and validation in the domain linker (`<domain>/link.rs`), not in `build/`, unless it is purely KDL-syntax-related.
-* Keep `Spec` structs stable and minimal; they are a contract between build-time compilers and runtime loaders.
-* If you touch shared types like `MetaCommonSpec`, update build-time copies and ensure postcard decode compatibility.
-* Run the feature matrix locally for registry changes:
-
-  * `cargo test -p xeno-registry`
-  * `cargo test -p xeno-registry --no-default-features`
-  * `cargo test -p xeno-registry --all-features`
-  * `cargo clippy -p xeno-registry --all-targets`
-  * `cargo doc -p xeno-registry --no-deps` (with rustdoc link checks if relevant)
-  
+- Keep parsing/validation in the **domain linker** (`<domain>/link.rs`) unless it is purely authoring-syntax-specific.
+- Prefer `BuildCtxExt` + `StringCollector` over ad-hoc interning/collection.
+- If you touch shared spec types, update build-time copies and verify postcard compatibility.
+- If you touch linking, ensure failures remain aggregate and deterministic (`link_by_name` report, stable collision ordering).

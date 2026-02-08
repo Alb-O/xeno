@@ -1,8 +1,6 @@
 use super::entry::OptionEntry;
 use crate::core::index::{BuildEntry, RegistryMetaRef, StrListRef};
-use crate::core::{
-	FrozenInterner, OptionDefault, OptionType, OptionValue, RegistryMetaStatic, Symbol,
-};
+use crate::core::{OptionDefault, OptionType, OptionValue, RegistryMetaStatic, Symbol};
 
 pub type OptionValidator = fn(&OptionValue) -> Result<(), String>;
 
@@ -58,17 +56,20 @@ impl BuildEntry<OptionEntry> for OptionDef {
 		self.meta.name
 	}
 
-	fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
-		crate::core::index::meta_build::collect_meta_strings(
-			&self.meta_ref(),
-			sink,
-			[self.kdl_key],
-		);
+	fn collect_payload_strings<'b>(
+		&'b self,
+		collector: &mut crate::core::index::StringCollector<'_, 'b>,
+	) {
+		collector.push(self.kdl_key);
 	}
 
-	fn build(&self, interner: &FrozenInterner, key_pool: &mut Vec<Symbol>) -> OptionEntry {
+	fn build(
+		&self,
+		ctx: &mut dyn crate::core::index::BuildCtx,
+		key_pool: &mut Vec<Symbol>,
+	) -> OptionEntry {
 		let meta = crate::core::index::meta_build::build_meta(
-			interner,
+			ctx,
 			key_pool,
 			self.meta_ref(),
 			[self.kdl_key],
@@ -76,9 +77,7 @@ impl BuildEntry<OptionEntry> for OptionDef {
 
 		OptionEntry {
 			meta,
-			kdl_key: interner
-				.get(self.kdl_key)
-				.expect("missing interned kdl_key"),
+			kdl_key: ctx.intern(self.kdl_key),
 			value_type: self.value_type,
 			default: self.default.clone(),
 			scope: self.scope,

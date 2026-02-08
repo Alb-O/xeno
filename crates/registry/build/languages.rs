@@ -1,13 +1,13 @@
 use std::collections::HashSet;
 use std::fs;
-use std::path::PathBuf;
+use std::path::Path;
 
 use kdl::{KdlDocument, KdlNode};
 
 use super::common::*;
 use super::types::*;
 
-pub fn build_languages_blob(data_dir: &PathBuf, out_dir: &PathBuf) {
+pub fn build_languages_blob(data_dir: &Path, out_dir: &Path) {
 	let path = data_dir.join("languages.kdl");
 	println!("cargo:rerun-if-changed={}", path.display());
 
@@ -164,9 +164,7 @@ fn parse_block_comment(node: &KdlNode, children: Option<&KdlDocument>) -> Option
 		return Some((start.to_string(), end.to_string()));
 	}
 
-	let Some(children) = children else {
-		return None;
-	};
+	let children = children?;
 	let bc_node = children.get("block-comment-tokens")?;
 
 	if let (Some(start), Some(end)) = (

@@ -142,7 +142,7 @@ impl LanguageDb {
 			.filter(|l| !l.lsp_servers.is_empty())
 			.map(|l| {
 				(
-					l.id_str().to_string(),
+					l.name_str().to_string(),
 					LanguageLspInfo {
 						servers: l
 							.lsp_servers

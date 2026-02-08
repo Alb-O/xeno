@@ -6,7 +6,7 @@ use super::entry::ActionEntry;
 use super::keybindings::KeyBindingDef;
 use crate::actions::{ActionContext, ActionResult};
 use crate::core::index::{BuildEntry, RegistryMetaRef, StrListRef};
-use crate::core::{FrozenInterner, RegistryMetaStatic, Symbol};
+use crate::core::{RegistryMetaStatic, Symbol};
 
 /// Definition of a registered action (static input for builder).
 ///
@@ -42,20 +42,23 @@ impl BuildEntry<ActionEntry> for ActionDef {
 		self.short_desc
 	}
 
-	fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
-		crate::core::index::meta_build::collect_meta_strings(&self.meta_ref(), sink, []);
-		sink.push(self.short_desc);
+	fn collect_payload_strings<'b>(
+		&'b self,
+		collector: &mut crate::core::index::StringCollector<'_, 'b>,
+	) {
+		collector.push(self.short_desc);
 	}
 
-	fn build(&self, interner: &FrozenInterner, key_pool: &mut Vec<Symbol>) -> ActionEntry {
-		let meta =
-			crate::core::index::meta_build::build_meta(interner, key_pool, self.meta_ref(), []);
+	fn build(
+		&self,
+		ctx: &mut dyn crate::core::index::BuildCtx,
+		key_pool: &mut Vec<Symbol>,
+	) -> ActionEntry {
+		let meta = crate::core::index::meta_build::build_meta(ctx, key_pool, self.meta_ref(), []);
 
 		ActionEntry {
 			meta,
-			short_desc: interner
-				.get(self.short_desc)
-				.expect("missing interned short_desc"),
+			short_desc: ctx.intern(self.short_desc),
 			handler: self.handler,
 			bindings: Arc::from(self.bindings),
 		}
