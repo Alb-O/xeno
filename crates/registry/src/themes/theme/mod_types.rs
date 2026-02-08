@@ -9,13 +9,18 @@ use crate::core::{RegistryMetaStatic, RegistrySource};
 
 /// Register runtime themes.
 ///
-/// Runtime registration requires interner extension which is not yet supported
-/// in the frozen-interner architecture. This is a no-op placeholder.
+/// Runtime themes are parsed from KDL at startup, converted to owned `ThemeDef`s,
+/// then leaked to satisfy `'static` requirements for registry registration.
+/// This is a one-time startup path and lets runtime themes override builtins.
 #[cfg(feature = "db")]
-pub fn register_runtime_themes(_themes: Vec<ThemeDef>) {
-	// Runtime theme registration requires rebuilding or extending the frozen
-	// interner, which is not yet implemented. Themes must be registered
-	// through the builder at startup for now.
+pub fn register_runtime_themes(themes: Vec<ThemeDef>) {
+	for theme in themes {
+		let id = theme.meta.id;
+		let leaked: &'static ThemeDef = Box::leak(Box::new(theme));
+		if let Err(error) = THEMES.register(leaked) {
+			tracing::warn!(theme = id, error = %error, "Failed to register runtime theme");
+		}
+	}
 }
 
 /// Default fallback theme (minimal terminal colors).

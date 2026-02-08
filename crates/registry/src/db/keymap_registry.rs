@@ -170,7 +170,7 @@ impl KeymapRegistry {
 
 		if !registry.conflicts.is_empty() {
 			let samples: Vec<_> = registry.conflicts.iter().take(5).collect();
-			warn!(
+			tracing::debug!(
 				count = registry.conflicts.len(),
 				?samples,
 				"Keymap conflicts detected"

@@ -68,6 +68,7 @@ impl Editor {
 		let tab_width = self.tab_width();
 		self.buffer_mut()
 			.handle_mouse_scroll(direction, count * scroll_lines, tab_width);
+		self.state.frame.needs_redraw = true;
 	}
 
 	/// Navigates to a specific location (file, line, column).
