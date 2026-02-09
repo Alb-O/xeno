@@ -164,6 +164,30 @@ impl SyntaxManager {
 		self.entries.get(&doc_id)?.slot.tree_doc_version
 	}
 
+	/// Returns the pending edit mapping from the resident tree to the current document.
+	///
+	/// When syntax is stale, this provides the composed delta (`old_rope -> current`)
+	/// that can be used to remap stale highlight spans so they remain attached to
+	/// their original text during debounce/catch-up windows.
+	pub(crate) fn stale_highlight_mapping(
+		&self,
+		doc_id: DocumentId,
+		doc_version: u64,
+	) -> Option<(&Rope, &ChangeSet)> {
+		let entry = self.entries.get(&doc_id)?;
+		let tree_doc_version = entry.slot.tree_doc_version?;
+		if tree_doc_version == doc_version {
+			return None;
+		}
+
+		let pending = entry.slot.pending_incremental.as_ref()?;
+		if pending.base_tree_doc_version != tree_doc_version {
+			return None;
+		}
+
+		Some((&pending.old_rope, &pending.composed))
+	}
+
 	/// Returns the document-global byte coverage of the installed syntax tree.
 	pub fn syntax_coverage(&self, doc_id: DocumentId) -> Option<std::ops::Range<u32>> {
 		self.entries.get(&doc_id)?.slot.coverage.clone()

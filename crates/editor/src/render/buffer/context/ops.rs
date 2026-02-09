@@ -84,6 +84,9 @@ impl<'a> BufferRenderContext<'a> {
 		};
 		let syntax_version = self.syntax_manager.syntax_version(doc_id);
 		let _tree_doc_version = self.syntax_manager.syntax_doc_version(doc_id);
+		let stale_mapping = self
+			.syntax_manager
+			.stale_highlight_mapping(doc_id, doc_version);
 
 		// Coverage check for partial trees
 		if syntax.is_partial() {
@@ -111,11 +114,12 @@ impl<'a> BufferRenderContext<'a> {
 
 		cache.highlight.get_spans(HighlightSpanQuery {
 			doc_id,
-			_doc_version: doc_version, // reserved
+			_doc_version: doc_version,
 			syntax_version,
 			language_id,
 			rope: doc_content,
 			syntax,
+			stale_mapping,
 			language_loader: self.language_loader,
 			style_resolver: |scope: &str| self.theme.colors.syntax.resolve(scope),
 			start_line,

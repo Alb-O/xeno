@@ -1,5 +1,8 @@
 use std::collections::HashMap;
 
+use xeno_primitives::Transaction;
+use xeno_primitives::transaction::Change;
+
 use super::*;
 
 #[test]
@@ -292,4 +295,58 @@ fn test_invalidate_then_evict_must_not_panic() {
 
 	assert!(cache.index.contains_key(&doc2));
 	assert!(!cache.index.contains_key(&doc1));
+}
+
+#[test]
+fn test_remap_stale_span_tracks_delete_before_span() {
+	let old_rope = Rope::from("abcdeXYZ");
+	let tx = Transaction::change(
+		old_rope.slice(..),
+		[Change {
+			start: 0,
+			end: 5,
+			replacement: None,
+		}],
+	);
+
+	let mut new_rope = old_rope.clone();
+	tx.apply(&mut new_rope);
+
+	let span = HighlightSpan {
+		start: 5,
+		end: 8,
+		highlight: xeno_runtime_language::highlight::Highlight::new(0),
+	};
+
+	let (start, end) =
+		remap_stale_span_to_current(&span, &old_rope, &new_rope, tx.changes()).unwrap();
+	assert_eq!(start, 0);
+	assert_eq!(end, 3);
+}
+
+#[test]
+fn test_remap_stale_span_tracks_insert_before_span() {
+	let old_rope = Rope::from("XYZ");
+	let tx = Transaction::change(
+		old_rope.slice(..),
+		[Change {
+			start: 0,
+			end: 0,
+			replacement: Some("abc".into()),
+		}],
+	);
+
+	let mut new_rope = old_rope.clone();
+	tx.apply(&mut new_rope);
+
+	let span = HighlightSpan {
+		start: 0,
+		end: 3,
+		highlight: xeno_runtime_language::highlight::Highlight::new(0),
+	};
+
+	let (start, end) =
+		remap_stale_span_to_current(&span, &old_rope, &new_rope, tx.changes()).unwrap();
+	assert_eq!(start, 3);
+	assert_eq!(end, 6);
 }

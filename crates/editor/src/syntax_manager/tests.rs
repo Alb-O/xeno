@@ -3,7 +3,8 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use tokio::time::sleep;
-use xeno_primitives::Rope;
+use xeno_primitives::transaction::Change;
+use xeno_primitives::{Rope, Transaction};
 use xeno_runtime_language::LanguageLoader;
 use xeno_runtime_language::syntax::InjectionPolicy;
 
@@ -420,4 +421,33 @@ async fn test_viewport_policy_flip_discard() {
 		mgr.syntax_for_doc(doc_id).unwrap().opts().injections,
 		InjectionPolicy::Disabled
 	);
+}
+
+#[test]
+fn test_stale_highlight_mapping_available_for_aligned_pending_window() {
+	let mut mgr = SyntaxManager::default();
+	let doc_id = DocumentId(1);
+
+	let old_rope = Rope::from("abcdef");
+	let tx = Transaction::change(
+		old_rope.slice(..),
+		[Change {
+			start: 0,
+			end: 1,
+			replacement: None,
+		}],
+	);
+
+	{
+		let entry = mgr.entry_mut(doc_id);
+		entry.slot.tree_doc_version = Some(1);
+		entry.slot.pending_incremental = Some(PendingIncrementalEdits {
+			base_tree_doc_version: 1,
+			old_rope: old_rope.clone(),
+			composed: tx.changes().clone(),
+		});
+	}
+
+	assert!(mgr.stale_highlight_mapping(doc_id, 2).is_some());
+	assert!(mgr.stale_highlight_mapping(doc_id, 1).is_none());
 }

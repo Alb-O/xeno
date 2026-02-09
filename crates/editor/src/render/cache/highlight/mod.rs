@@ -6,7 +6,8 @@
 
 use std::collections::{HashMap, VecDeque};
 
-use xeno_primitives::Rope;
+use xeno_primitives::transaction::Bias;
+use xeno_primitives::{ChangeSet, Rope};
 use xeno_runtime_language::highlight::{HighlightSpan, HighlightStyles};
 use xeno_runtime_language::syntax::Syntax;
 use xeno_runtime_language::{LanguageId, LanguageLoader};
@@ -27,6 +28,34 @@ fn line_to_byte_or_eof(rope: &Rope, line: usize) -> u32 {
 	} else {
 		rope.len_bytes() as u32
 	}
+}
+
+fn remap_stale_span_to_current(
+	span: &HighlightSpan,
+	old_rope: &Rope,
+	new_rope: &Rope,
+	changes: &ChangeSet,
+) -> Option<(u32, u32)> {
+	let old_len_bytes = old_rope.len_bytes();
+	let old_start_byte = (span.start as usize).min(old_len_bytes);
+	let old_end_byte = (span.end as usize).min(old_len_bytes);
+
+	let old_start_char = old_rope.byte_to_char(old_start_byte);
+	let old_end_char = old_rope.byte_to_char(old_end_byte);
+	let new_len_chars = new_rope.len_chars();
+
+	// Preserve half-open interval semantics when mapping through edits.
+	let new_start_char = changes
+		.map_pos(old_start_char, Bias::Right)
+		.min(new_len_chars);
+	let new_end_char = changes.map_pos(old_end_char, Bias::Left).min(new_len_chars);
+	if new_start_char >= new_end_char {
+		return None;
+	}
+
+	let new_start_byte = new_rope.char_to_byte(new_start_char) as u32;
+	let new_end_byte = new_rope.char_to_byte(new_end_char) as u32;
+	(new_start_byte < new_end_byte).then_some((new_start_byte, new_end_byte))
 }
 
 /// Key for identifying a highlight tile.
@@ -73,7 +102,8 @@ where
 	/// The document ID.
 	pub doc_id: DocumentId,
 	/// The document version (rope version).
-	/// Intentionally unused in current cache key; reserved for future soft invalidation.
+	/// Not part of the cache key; stale-span remapping may use this alongside
+	/// `stale_mapping` to keep cached highlights visually anchored during debounce.
 	pub _doc_version: u64,
 	/// Current syntax version for cache validation.
 	pub syntax_version: u64,
@@ -83,6 +113,10 @@ where
 	pub rope: &'a Rope,
 	/// The syntax tree for highlighting.
 	pub syntax: &'a Syntax,
+	/// Optional mapping from the tree's base rope to the current rope.
+	///
+	/// When present, stale spans are remapped through this delta before clipping.
+	pub stale_mapping: Option<(&'a Rope, &'a ChangeSet)>,
 	/// The language loader.
 	pub language_loader: &'a LanguageLoader,
 	/// Function to resolve highlight styles.
@@ -186,8 +220,19 @@ impl HighlightTiles {
 			// return spans extending beyond the tile boundary or where the caller
 			// only requested a sub-portion of the tiles.
 			for (span, style) in spans {
-				let s = span.start.max(start_byte);
-				let e = span.end.min(end_byte);
+				let (mapped_start, mapped_end) = if let Some((old_rope, changes)) = q.stale_mapping
+				{
+					let Some(mapped) = remap_stale_span_to_current(span, old_rope, q.rope, changes)
+					else {
+						continue;
+					};
+					mapped
+				} else {
+					(span.start, span.end)
+				};
+
+				let s = mapped_start.max(start_byte);
+				let e = mapped_end.min(end_byte);
 
 				if s < e {
 					all_spans.push((
