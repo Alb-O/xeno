@@ -20,8 +20,6 @@ use crate::core::{
 	Snapshot, Symbol,
 };
 
-pub(crate) type Map<K, V> = FxHashMap<K, V>;
-
 pub(crate) fn collect_entry_keys<T: RegistryEntry>(
 	entry: &T,
 	key_pool: &[Symbol],
@@ -227,9 +225,7 @@ fn recalculate_key_winner<T, Id>(
 	let mut winner_party = first_party;
 	let mut winner_kind = first_kind;
 
-	for i in 1..candidates.len() {
-		let (challenger_id, challenger_party, challenger_kind) = candidates[i];
-
+	for (challenger_id, challenger_party, challenger_kind) in candidates.into_iter().skip(1) {
 		let challenger_better = match (winner_kind, challenger_kind) {
 			(KeyKind::Canonical, _) => false,
 			(_, KeyKind::Canonical) => true,
@@ -276,6 +272,7 @@ fn recalculate_key_winner<T, Id>(
 	by_key.insert(key, winner_id);
 }
 
+#[allow(clippy::too_many_arguments)]
 fn resolve_incremental<T, Id>(
 	registry_label: &'static str,
 	key: Symbol,

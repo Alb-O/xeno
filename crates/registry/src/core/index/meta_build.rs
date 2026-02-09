@@ -7,21 +7,6 @@
 use crate::core::index::build::RegistryMetaRef;
 use crate::core::{CapabilitySet, RegistryMeta, Symbol, SymbolList};
 
-/// Collects all strings from metadata and extra keys for interning.
-pub fn collect_meta_strings<'a>(
-	meta: &RegistryMetaRef<'a>,
-	sink: &mut Vec<&'a str>,
-	extra_keys: impl IntoIterator<Item = &'a str>,
-) {
-	sink.push(meta.id);
-	sink.push(meta.name);
-	sink.push(meta.description);
-	meta.keys.for_each(|k| sink.push(k));
-	for key in extra_keys {
-		sink.push(key);
-	}
-}
-
 /// Builds a symbolized [`RegistryMeta`] and interns keys into the pool.
 pub fn build_meta<'a>(
 	ctx: &mut dyn super::build::BuildCtx,

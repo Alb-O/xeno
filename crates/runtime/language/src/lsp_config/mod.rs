@@ -1,10 +1,9 @@
 //! LSP server configuration loading.
 //!
-//! Server definitions are loaded from postcard blobs compiled at build time.
+//! Server definitions are loaded from registry specs.
 
 use std::collections::HashMap;
 
-use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use thiserror::Error;
 
@@ -14,16 +13,12 @@ mod tests;
 /// Errors that can occur when loading LSP configurations.
 #[derive(Debug, Error)]
 pub enum LspConfigError {
-	#[error("failed to deserialize precompiled data: {0}")]
-	Postcard(#[from] postcard::Error),
-	#[error("invalid precompiled blob (magic/version mismatch)")]
-	InvalidBlob,
+	#[error("failed to load lsp configuration: {0}")]
+	Load(String),
 }
 
 /// Result type for LSP configuration operations.
 pub type Result<T> = std::result::Result<T, LspConfigError>;
-
-static LSP_BIN: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/lsp.bin"));
 
 /// LSP server definition parsed from `lsp.kdl`.
 #[derive(Debug, Clone)]
@@ -44,57 +39,26 @@ pub struct LspServerDef {
 	pub nix: Option<String>,
 }
 
-/// Serializable LSP server configuration for build-time compilation.
-///
-/// Stores config as JSON string (postcard doesn't support `serde_json::Value`).
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LspServerDefRaw {
-	pub name: String,
-	pub command: String,
-	pub args: Vec<String>,
-	pub environment: HashMap<String, String>,
-	pub config_json: Option<String>,
-	pub source: Option<String>,
-	pub nix: Option<String>,
-}
-
-impl From<LspServerDefRaw> for LspServerDef {
-	fn from(raw: LspServerDefRaw) -> Self {
-		Self {
-			name: raw.name,
+/// Loads LSP server configurations from registry specs.
+pub fn load_lsp_configs() -> Result<Vec<LspServerDef>> {
+	let spec = xeno_registry::domains::lsp_servers::loader::load_lsp_servers_spec();
+	Ok(spec
+		.servers
+		.into_iter()
+		.map(|raw| LspServerDef {
+			name: raw.common.name,
 			command: raw.command,
 			args: raw.args,
-			environment: raw.environment,
+			environment: raw.environment.into_iter().collect(),
 			config: raw.config_json.and_then(|s| serde_json::from_str(&s).ok()),
 			source: raw.source,
 			nix: raw.nix,
-		}
-	}
-}
-
-impl From<&LspServerDef> for LspServerDefRaw {
-	fn from(def: &LspServerDef) -> Self {
-		Self {
-			name: def.name.clone(),
-			command: def.command.clone(),
-			args: def.args.clone(),
-			environment: def.environment.clone(),
-			config_json: def.config.as_ref().map(|v| v.to_string()),
-			source: def.source.clone(),
-			nix: def.nix.clone(),
-		}
-	}
-}
-
-/// Loads LSP server configurations from precompiled postcard blobs.
-pub fn load_lsp_configs() -> Result<Vec<LspServerDef>> {
-	let payload = crate::precompiled::validate_blob(LSP_BIN).ok_or(LspConfigError::InvalidBlob)?;
-	let raw: Vec<LspServerDefRaw> = postcard::from_bytes(payload)?;
-	Ok(raw.into_iter().map(LspServerDef::from).collect())
+		})
+		.collect())
 }
 
 /// Language LSP configuration extracted from languages.kdl.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct LanguageLspInfo {
 	/// LSP server names for this language.
 	pub servers: Vec<String>,

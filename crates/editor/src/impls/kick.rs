@@ -126,14 +126,7 @@ async fn load_themes_blocking(
 		let mut errors = Vec::new();
 		let mut all_themes = Vec::new();
 
-		let embedded = xeno_runtime_config::load_embedded_themes();
-		errors.extend(embedded.errors);
-		all_themes.extend(embedded.themes);
-
 		if let Some(ref dir) = data_themes_dir {
-			if let Err(e) = xeno_runtime_config::seed_embedded_themes(dir) {
-				tracing::warn!(error = %e, "failed to seed embedded themes to data dir");
-			}
 			collect_dir_themes(dir, &mut all_themes, &mut errors);
 		}
 

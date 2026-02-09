@@ -1,0 +1,9 @@
+[package]
+name = "xeno-registry-spec"
+version.workspace = true
+edition.workspace = true
+description = "Pure data specification for xeno-registry domains"
+license.workspace = true
+
+[dependencies]
+serde = { workspace = true, features = ["derive"] }

@@ -1,25 +1,21 @@
 //! Runtime assets verification.
 //!
-//! This module provides tests to verify that embedded query files and themes
-//! are correctly included in the binary.
+//! This module provides tests to verify registry-backed language assets load.
 
 #[cfg(test)]
 mod tests {
 	#[test]
-	fn test_queries_embedded() {
-		let languages: Vec<_> = xeno_runtime_data::queries::languages().collect();
-		assert!(!languages.is_empty(), "Should have language directories");
-		assert!(languages.contains(&"rust"), "Should have rust queries");
-
-		let highlights = xeno_runtime_data::queries::get_str("rust", "highlights");
+	fn test_queries_from_registry() {
+		let rust = xeno_registry::LANGUAGES
+			.get("rust")
+			.expect("rust language should exist");
+		let highlights = xeno_registry::languages::queries::get_query_text(&rust, "highlights");
 		assert!(highlights.is_some(), "Should have rust highlights.scm");
 	}
 
 	#[test]
-	fn test_themes_embedded() {
-		let themes: Vec<_> = xeno_runtime_data::themes::list().collect();
-		assert!(!themes.is_empty(), "Should have theme files");
-		assert!(themes.contains(&"gruvbox.kdl"), "Should have gruvbox.kdl");
-		assert!(themes.contains(&"one_dark.kdl"), "Should have one_dark.kdl");
+	fn test_themes_from_registry() {
+		assert!(xeno_registry::THEMES.get("gruvbox").is_some());
+		assert!(xeno_registry::THEMES.get("one_dark").is_some());
 	}
 }

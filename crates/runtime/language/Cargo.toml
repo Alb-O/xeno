@@ -8,7 +8,6 @@ license.workspace = true
 [dependencies]
 cc.workspace = true
 kdl.workspace = true
-postcard.workspace = true
 regex.workspace = true
 ropey.workspace = true
 serde.workspace = true
@@ -18,13 +17,7 @@ tracing.workspace = true
 tree-house.workspace = true
 xeno-primitives.workspace = true
 xeno-registry.workspace = true
-xeno-runtime-data.workspace = true
-
-[build-dependencies]
-kdl.workspace = true
-postcard.workspace = true
-serde.workspace = true
-serde_json.workspace = true
+xeno-registry-spec.workspace = true
 
 [lints.rust]
 unused_crate_dependencies = "warn"

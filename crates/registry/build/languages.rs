@@ -1,18 +1,35 @@
 use std::collections::HashSet;
 use std::fs;
-use std::path::Path;
 
 use kdl::{KdlDocument, KdlNode};
+use xeno_registry_spec::MetaCommonSpec;
+use xeno_registry_spec::languages::{LanguageQuerySpec, LanguageSpec, LanguagesSpec};
 
-use super::common::*;
-use super::types::*;
+pub fn build(ctx: &super::common::BuildCtx) {
+	let root = ctx.asset("src/domains/languages/assets");
+	ctx.rerun_tree(&root);
 
-pub fn build_languages_blob(data_dir: &Path, out_dir: &Path) {
-	let path = data_dir.join("languages.kdl");
-	println!("cargo:rerun-if-changed={}", path.display());
-
+	let path = root.join("languages.kdl");
 	let kdl = fs::read_to_string(&path).expect("failed to read languages.kdl");
-	let languages = parse_languages_kdl(&kdl);
+	let mut languages = parse_languages_kdl(&kdl);
+
+	let queries_root = root.join("queries");
+	for lang in &mut languages {
+		let lang_dir = queries_root.join(&lang.common.name);
+		if lang_dir.exists() {
+			for entry in walkdir::WalkDir::new(&lang_dir) {
+				let entry = entry.expect("failed to walk queries");
+				let path = entry.path();
+				if path.extension().is_some_and(|ext| ext == "scm") {
+					let kind = path.file_stem().unwrap().to_str().unwrap().to_string();
+					let text = fs::read_to_string(path).expect("failed to read query");
+					lang.queries.push(LanguageQuerySpec { kind, text });
+				}
+			}
+			// Sort for determinism
+			lang.queries.sort_by(|a, b| a.kind.cmp(&b.kind));
+		}
+	}
 
 	let mut seen = HashSet::new();
 	for lang in &languages {
@@ -23,7 +40,7 @@ pub fn build_languages_blob(data_dir: &Path, out_dir: &Path) {
 
 	let spec = LanguagesSpec { langs: languages };
 	let bin = postcard::to_stdvec(&spec).expect("failed to serialize languages spec");
-	write_blob(&out_dir.join("languages.bin"), &bin);
+	ctx.write_blob("languages.bin", &bin);
 }
 
 fn parse_languages_kdl(input: &str) -> Vec<LanguageSpec> {
@@ -98,6 +115,7 @@ fn parse_language_node(node: &KdlNode) -> LanguageSpec {
 		block_comment,
 		lsp_servers,
 		roots,
+		queries: Vec::new(),
 	}
 }
 

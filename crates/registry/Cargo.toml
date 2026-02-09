@@ -86,11 +86,14 @@ tracing = { workspace = true, optional = true }
 xeno-keymap-core = { workspace = true, optional = true }
 xeno-macros = { workspace = true, optional = true }
 xeno-primitives = { workspace = true, optional = true }
+xeno-registry-spec = { workspace = true }
 
 [build-dependencies]
 kdl.workspace = true
 postcard.workspace = true
-serde.workspace = true
+serde_json.workspace = true
+walkdir = "2"
+xeno-registry-spec = { workspace = true }
 
 [lints]
 workspace = true

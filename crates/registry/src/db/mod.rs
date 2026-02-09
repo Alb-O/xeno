@@ -22,6 +22,7 @@ use crate::db::keymap_registry::KeymapRegistry;
 use crate::gutter::GutterEntry;
 use crate::hooks::registry::HooksRegistry;
 use crate::languages::LanguagesRegistry;
+use crate::lsp_servers::LspServersRegistry;
 use crate::motions::MotionEntry;
 use crate::options::registry::OptionsRegistry;
 use crate::statusline::StatuslineEntry;
@@ -43,6 +44,7 @@ pub struct RegistryDb {
 		crate::notifications::NotificationId,
 	>,
 	pub languages: LanguagesRegistry,
+	pub lsp_servers: LspServersRegistry,
 	pub(crate) action_id_to_def: Vec<Arc<ActionEntry>>,
 	pub key_prefixes: Vec<KeyPrefixDef>,
 	#[cfg(feature = "keymap")]
@@ -82,6 +84,7 @@ pub fn get_db() -> &'static RegistryDb {
 			hooks: HooksRegistry::new(indices.hooks),
 			notifications: RuntimeRegistry::new("notifications", indices.notifications),
 			languages: LanguagesRegistry::new(indices.languages),
+			lsp_servers: LspServersRegistry::new(indices.lsp_servers),
 			action_id_to_def,
 			key_prefixes: indices.key_prefixes,
 			#[cfg(feature = "keymap")]
@@ -113,6 +116,8 @@ pub static NOTIFICATIONS: LazyLock<
 	>,
 > = LazyLock::new(|| &get_db().notifications);
 pub static LANGUAGES: LazyLock<&'static LanguagesRegistry> = LazyLock::new(|| &get_db().languages);
+pub static LSP_SERVERS: LazyLock<&'static LspServersRegistry> =
+	LazyLock::new(|| &get_db().lsp_servers);
 
 impl RegistryDb {
 	pub fn notifications_reg(

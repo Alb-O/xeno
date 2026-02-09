@@ -115,6 +115,7 @@ define_domains! {
 	{ stem: hook, domain: crate::db::domains::Hooks, field: hooks }
 	{ stem: notification, domain: crate::db::domains::Notifications, field: notifications }
 	{ stem: language, domain: crate::db::domains::Languages, field: languages }
+	{ stem: lsp_server, domain: crate::db::domains::LspServers, field: lsp_servers }
 }
 
 #[derive(Debug)]
@@ -262,6 +263,15 @@ impl RegistryDbBuilder {
 
 		for def in linked {
 			self.register_linked_language(def);
+		}
+	}
+
+	pub fn register_compiled_lsp_servers(&mut self) {
+		let spec = crate::lsp_servers::loader::load_lsp_servers_spec();
+		let linked = crate::lsp_servers::entry::link_lsp_servers(&spec);
+
+		for def in linked {
+			self.register_linked_lsp_server(def);
 		}
 	}
 

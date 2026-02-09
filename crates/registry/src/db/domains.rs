@@ -1,5 +1,3 @@
-//! Domain implementations for RegistryDb.
-
 use crate::actions::ActionDef;
 use crate::actions::def::ActionInput;
 use crate::actions::entry::ActionEntry;
@@ -17,6 +15,7 @@ use crate::hooks::{HookDef, HookEntry, HookInput};
 use crate::motions::{MotionDef, MotionEntry, MotionInput};
 use crate::options::{OptionDef, OptionEntry, OptionInput};
 use crate::statusline::{StatuslineEntry, StatuslineInput, StatuslineSegmentDef};
+use crate::symbol::LspServerId;
 use crate::textobj::{TextObjectDef, TextObjectEntry, TextObjectInput};
 use crate::themes::theme::{ThemeDef, ThemeEntry, ThemeInput};
 
@@ -223,4 +222,21 @@ domain!(
 	),
 	crate::languages::link::LinkedLanguageDef,
 	|def: crate::languages::link::LinkedLanguageDef| crate::languages::LanguageInput::Linked(def)
+);
+
+domain!(
+	LspServers,
+	"lsp_servers",
+	lsp_servers,
+	crate::lsp_servers::LspServerInput,
+	crate::lsp_servers::LspServerEntry,
+	LspServerId,
+	crate::lsp_servers::entry::LspServerDef,
+	|def: &'static crate::lsp_servers::entry::LspServerDef| {
+		crate::lsp_servers::LspServerInput::Static(def.clone())
+	},
+	crate::core::LinkedDef<crate::lsp_servers::entry::LspServerPayload>,
+	|def: crate::core::LinkedDef<crate::lsp_servers::entry::LspServerPayload>| {
+		crate::lsp_servers::LspServerInput::Linked(def)
+	}
 );

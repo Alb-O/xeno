@@ -24,6 +24,7 @@ The registry is a typed database of editor definitions (actions, commands, optio
   - runtime `Entry` types and `Input` types ingested by the builder
 
 - **Shared substrate**:
+  - `crates/registry-spec`: shared pure-data spec structs (serde models).
   - `src/defs/loader.rs`: blob header/validation + postcard decode
   - `src/defs/link.rs`: shared linking utilities (e.g. `link_by_name`)
   - `src/core/index/*`: generic index building, lookup resolution, collision recording, runtime registration
@@ -36,7 +37,7 @@ The registry is a typed database of editor definitions (actions, commands, optio
 ### Pipeline (end-to-end)
 
 **Build time**
-1. Authoring input: domain metadata authored as KDL (currently) under repo assets.
+1. Authoring input: domain metadata authored as KDL (currently) under `crates/registry/src/domains/<domain>/assets/`.
 2. Compilation: `crates/registry/build/*` parse the authoring format into domain spec structs.
 3. Serialization: specs are serialized with `postcard` and written as `<domain>.bin` using the shared blob wrapper.
 4. Embedding: `.bin` files are embedded into the final binary (`include_bytes!(concat!(env!("OUT_DIR"), ...))`).
@@ -243,8 +244,11 @@ Run with `--features registry-contracts` if you’re touching collection/build l
 
 ### 3) Add the compiled spec pipeline (format-neutral)
 
+**Spec definition**:
+- Add domain spec structs to `crates/registry-spec/src/<domain>.rs`.
+- Re-export them in `src/<domain>/spec.rs`.
+
 **Runtime (domain module)**:
-- define `Spec` contract structs (serde/postcard)
 - `loader.rs`: decode embedded blob using `defs::loader`
 - `link.rs`: domain-specific linking/validation/parsing
   - handler-driven domains should use `defs::link::link_by_name`

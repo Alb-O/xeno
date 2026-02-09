@@ -1,14 +1,32 @@
 use std::fs;
-use std::path::Path;
 
 use kdl::KdlDocument;
+use xeno_registry_spec::MetaCommonSpec;
+use xeno_registry_spec::commands::{CommandSpec, CommandsSpec};
+use xeno_registry_spec::gutters::{GutterSpec, GuttersSpec};
+use xeno_registry_spec::hooks::{HookSpec, HooksSpec};
+use xeno_registry_spec::motions::{MotionSpec, MotionsSpec};
+use xeno_registry_spec::notifications::{NotificationSpec, NotificationsSpec};
+use xeno_registry_spec::options::{OptionSpec, OptionsSpec};
+use xeno_registry_spec::statusline::{StatuslineSegmentSpec, StatuslineSpec};
+use xeno_registry_spec::textobj::{TextObjectSpec, TextObjectsSpec};
 
 use super::common::*;
-use super::types::*;
 
-pub fn build_commands_blob(data_dir: &Path, out_dir: &Path) {
-	let path = data_dir.join("commands.kdl");
-	println!("cargo:rerun-if-changed={}", path.display());
+pub fn build_all(ctx: &super::common::BuildCtx) {
+	build_commands(ctx);
+	build_motions(ctx);
+	build_textobj(ctx);
+	build_options(ctx);
+	build_gutters(ctx);
+	build_statusline(ctx);
+	build_hooks(ctx);
+	build_notifications(ctx);
+}
+
+pub fn build_commands(ctx: &super::common::BuildCtx) {
+	let path = ctx.asset("src/domains/commands/assets/commands.kdl");
+	ctx.rerun_if_changed(&path);
 
 	let kdl = fs::read_to_string(&path).expect("failed to read commands.kdl");
 	let doc: KdlDocument = kdl.parse().expect("failed to parse commands.kdl");
@@ -65,12 +83,12 @@ pub fn build_commands_blob(data_dir: &Path, out_dir: &Path) {
 
 	let spec = CommandsSpec { commands };
 	let bin = postcard::to_stdvec(&spec).expect("failed to serialize commands spec");
-	write_blob(&out_dir.join("commands.bin"), &bin);
+	ctx.write_blob("commands.bin", &bin);
 }
 
-pub fn build_motions_blob(data_dir: &Path, out_dir: &Path) {
-	let path = data_dir.join("motions.kdl");
-	println!("cargo:rerun-if-changed={}", path.display());
+pub fn build_motions(ctx: &super::common::BuildCtx) {
+	let path = ctx.asset("src/domains/motions/assets/motions.kdl");
+	ctx.rerun_if_changed(&path);
 
 	let kdl = fs::read_to_string(&path).expect("failed to read motions.kdl");
 	let doc: KdlDocument = kdl.parse().expect("failed to parse motions.kdl");
@@ -127,12 +145,12 @@ pub fn build_motions_blob(data_dir: &Path, out_dir: &Path) {
 
 	let spec = MotionsSpec { motions };
 	let bin = postcard::to_stdvec(&spec).expect("failed to serialize motions spec");
-	write_blob(&out_dir.join("motions.bin"), &bin);
+	ctx.write_blob("motions.bin", &bin);
 }
 
-pub fn build_textobj_blob(data_dir: &Path, out_dir: &Path) {
-	let path = data_dir.join("text_objects.kdl");
-	println!("cargo:rerun-if-changed={}", path.display());
+pub fn build_textobj(ctx: &super::common::BuildCtx) {
+	let path = ctx.asset("src/domains/textobj/assets/text_objects.kdl");
+	ctx.rerun_if_changed(&path);
 
 	let kdl = fs::read_to_string(&path).expect("failed to read text_objects.kdl");
 	let doc: KdlDocument = kdl.parse().expect("failed to parse text_objects.kdl");
@@ -205,12 +223,12 @@ pub fn build_textobj_blob(data_dir: &Path, out_dir: &Path) {
 
 	let spec = TextObjectsSpec { text_objects };
 	let bin = postcard::to_stdvec(&spec).expect("failed to serialize text_objects spec");
-	write_blob(&out_dir.join("text_objects.bin"), &bin);
+	ctx.write_blob("text_objects.bin", &bin);
 }
 
-pub fn build_options_blob(data_dir: &Path, out_dir: &Path) {
-	let path = data_dir.join("options.kdl");
-	println!("cargo:rerun-if-changed={}", path.display());
+pub fn build_options(ctx: &super::common::BuildCtx) {
+	let path = ctx.asset("src/domains/options/assets/options.kdl");
+	ctx.rerun_if_changed(&path);
 
 	let kdl = fs::read_to_string(&path).expect("failed to read options.kdl");
 	let doc: KdlDocument = kdl.parse().expect("failed to parse options.kdl");
@@ -298,12 +316,12 @@ pub fn build_options_blob(data_dir: &Path, out_dir: &Path) {
 
 	let spec = OptionsSpec { options };
 	let bin = postcard::to_stdvec(&spec).expect("failed to serialize options spec");
-	write_blob(&out_dir.join("options.bin"), &bin);
+	ctx.write_blob("options.bin", &bin);
 }
 
-pub fn build_gutters_blob(data_dir: &Path, out_dir: &Path) {
-	let path = data_dir.join("gutters.kdl");
-	println!("cargo:rerun-if-changed={}", path.display());
+pub fn build_gutters(ctx: &super::common::BuildCtx) {
+	let path = ctx.asset("src/domains/gutter/assets/gutters.kdl");
+	ctx.rerun_if_changed(&path);
 
 	let kdl = fs::read_to_string(&path).expect("failed to read gutters.kdl");
 	let doc: KdlDocument = kdl.parse().expect("failed to parse gutters.kdl");
@@ -382,12 +400,12 @@ pub fn build_gutters_blob(data_dir: &Path, out_dir: &Path) {
 
 	let spec = GuttersSpec { gutters };
 	let bin = postcard::to_stdvec(&spec).expect("failed to serialize gutters spec");
-	write_blob(&out_dir.join("gutters.bin"), &bin);
+	ctx.write_blob("gutters.bin", &bin);
 }
 
-pub fn build_statusline_blob(data_dir: &Path, out_dir: &Path) {
-	let path = data_dir.join("statusline.kdl");
-	println!("cargo:rerun-if-changed={}", path.display());
+pub fn build_statusline(ctx: &super::common::BuildCtx) {
+	let path = ctx.asset("src/domains/statusline/assets/statusline.kdl");
+	ctx.rerun_if_changed(&path);
 
 	let kdl = fs::read_to_string(&path).expect("failed to read statusline.kdl");
 	let doc: KdlDocument = kdl.parse().expect("failed to parse statusline.kdl");
@@ -453,12 +471,12 @@ pub fn build_statusline_blob(data_dir: &Path, out_dir: &Path) {
 
 	let spec = StatuslineSpec { segments };
 	let bin = postcard::to_stdvec(&spec).expect("failed to serialize statusline spec");
-	write_blob(&out_dir.join("statusline.bin"), &bin);
+	ctx.write_blob("statusline.bin", &bin);
 }
 
-pub fn build_hooks_blob(data_dir: &Path, out_dir: &Path) {
-	let path = data_dir.join("hooks.kdl");
-	println!("cargo:rerun-if-changed={}", path.display());
+pub fn build_hooks(ctx: &super::common::BuildCtx) {
+	let path = ctx.asset("src/domains/hooks/assets/hooks.kdl");
+	ctx.rerun_if_changed(&path);
 
 	let kdl = fs::read_to_string(&path).expect("failed to read hooks.kdl");
 	let doc: KdlDocument = kdl.parse().expect("failed to parse hooks.kdl");
@@ -518,12 +536,12 @@ pub fn build_hooks_blob(data_dir: &Path, out_dir: &Path) {
 
 	let spec = HooksSpec { hooks };
 	let bin = postcard::to_stdvec(&spec).expect("failed to serialize hooks spec");
-	write_blob(&out_dir.join("hooks.bin"), &bin);
+	ctx.write_blob("hooks.bin", &bin);
 }
 
-pub fn build_notifications_blob(data_dir: &Path, out_dir: &Path) {
-	let path = data_dir.join("notifications.kdl");
-	println!("cargo:rerun-if-changed={}", path.display());
+pub fn build_notifications(ctx: &super::common::BuildCtx) {
+	let path = ctx.asset("src/domains/notifications/assets/notifications.kdl");
+	ctx.rerun_if_changed(&path);
 
 	let kdl = fs::read_to_string(&path).expect("failed to read notifications.kdl");
 	let doc: KdlDocument = kdl.parse().expect("failed to parse notifications.kdl");
@@ -604,5 +622,5 @@ pub fn build_notifications_blob(data_dir: &Path, out_dir: &Path) {
 
 	let spec = NotificationsSpec { notifications };
 	let bin = postcard::to_stdvec(&spec).expect("failed to serialize notifications spec");
-	write_blob(&out_dir.join("notifications.bin"), &bin);
+	ctx.write_blob("notifications.bin", &bin);
 }

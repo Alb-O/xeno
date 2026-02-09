@@ -1,21 +1,20 @@
 use std::fs;
-use std::path::Path;
 
 use kdl::KdlDocument;
+use xeno_registry_spec::MetaCommonSpec;
+use xeno_registry_spec::themes::{RawStyle, ThemeSpec, ThemesSpec};
 
-use super::common::*;
-use super::types::*;
+pub fn build(ctx: &super::common::BuildCtx) {
+	let root = ctx.asset("src/domains/themes/assets");
+	ctx.rerun_tree(&root);
 
-pub fn build_themes_blob(data_dir: &Path, out_dir: &Path) {
 	let mut themes = Vec::new();
 
-	let entries = fs::read_dir(data_dir).expect("failed to read themes directory");
-	for entry in entries {
-		let entry = entry.expect("failed to read theme entry");
+	for entry in walkdir::WalkDir::new(&root) {
+		let entry = entry.expect("failed to walk themes");
 		let path = entry.path();
 		if path.extension().is_some_and(|ext| ext == "kdl") {
-			println!("cargo:rerun-if-changed={}", path.display());
-			let kdl = fs::read_to_string(&path).expect("failed to read theme kdl");
+			let kdl = fs::read_to_string(path).expect("failed to read theme kdl");
 			let doc: KdlDocument = kdl
 				.parse()
 				.unwrap_or_else(|e| panic!("failed to parse theme {}: {}", path.display(), e));
@@ -114,7 +113,7 @@ pub fn build_themes_blob(data_dir: &Path, out_dir: &Path) {
 
 	let spec = ThemesSpec { themes };
 	let bin = postcard::to_stdvec(&spec).expect("failed to serialize themes spec");
-	write_blob(&out_dir.join("themes.bin"), &bin);
+	ctx.write_blob("themes.bin", &bin);
 }
 
 fn parse_kdl_map(node: Option<&kdl::KdlNode>) -> std::collections::HashMap<String, String> {

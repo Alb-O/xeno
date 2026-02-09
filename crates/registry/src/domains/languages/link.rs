@@ -5,6 +5,12 @@ use crate::core::{LinkedDef, LinkedPayload, RegistryMeta, Symbol};
 pub type LinkedLanguageDef = LinkedDef<LanguagePayload>;
 
 #[derive(Clone)]
+pub struct LanguageQueryPayload {
+	pub kind: String,
+	pub text: String,
+}
+
+#[derive(Clone)]
 pub struct LanguagePayload {
 	pub scope: Option<String>,
 	pub grammar_name: Option<String>,
@@ -18,6 +24,7 @@ pub struct LanguagePayload {
 	pub block_comment: Option<(String, String)>,
 	pub lsp_servers: Vec<String>,
 	pub roots: Vec<String>,
+	pub queries: Vec<LanguageQueryPayload>,
 }
 
 impl LinkedPayload<LanguageEntry> for LanguagePayload {
@@ -39,6 +46,10 @@ impl LinkedPayload<LanguageEntry> for LanguagePayload {
 		}
 		collector.extend(self.lsp_servers.iter().map(|s| s.as_str()));
 		collector.extend(self.roots.iter().map(|s| s.as_str()));
+		for q in &self.queries {
+			collector.push(&q.kind);
+			collector.push(&q.text);
+		}
 	}
 
 	fn build_entry(
@@ -99,6 +110,15 @@ impl LinkedPayload<LanguageEntry> for LanguagePayload {
 				.map(|s| ctx.intern(s))
 				.collect::<Vec<_>>()
 				.into(),
+			queries: self
+				.queries
+				.iter()
+				.map(|q| super::types::LanguageQueryEntry {
+					kind: ctx.intern(&q.kind),
+					text: ctx.intern(&q.text),
+				})
+				.collect::<Vec<_>>()
+				.into(),
 		}
 	}
 }
@@ -121,6 +141,14 @@ pub fn link_languages(spec: &LanguagesSpec) -> Vec<LinkedLanguageDef> {
 				block_comment: l.block_comment.clone(),
 				lsp_servers: l.lsp_servers.clone(),
 				roots: l.roots.clone(),
+				queries: l
+					.queries
+					.iter()
+					.map(|q| LanguageQueryPayload {
+						kind: q.kind.clone(),
+						text: q.text.clone(),
+					})
+					.collect(),
 			},
 		})
 		.collect()

@@ -31,7 +31,6 @@ pub mod ids;
 pub mod language;
 pub mod loader;
 pub mod lsp_config;
-mod precompiled;
 pub mod query;
 mod runtime;
 pub mod syntax;
@@ -47,8 +46,7 @@ pub use ids::{RegistryLanguageIdExt, TreeHouseLanguageExt};
 pub use language::LanguageData;
 pub use loader::{LanguageId, LanguageLoader};
 pub use lsp_config::{
-	LanguageLspInfo, LanguageLspMapping, LspConfigError, LspServerDef, LspServerDefRaw,
-	load_lsp_configs,
+	LanguageLspInfo, LanguageLspMapping, LspConfigError, LspServerDef, load_lsp_configs,
 };
 pub use query::{CapturedNode, IndentQuery, RainbowQuery, TagQuery, TextObjectQuery, read_query};
 pub use syntax::{InjectionPolicy, Syntax, SyntaxError, SyntaxOptions};

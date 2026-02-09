@@ -1,17 +1,54 @@
 use std::collections::HashSet;
 use std::fs;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+
+use walkdir::WalkDir;
 
 pub const MAGIC: &[u8; 8] = b"XENOASST";
 pub const SCHEMA_VERSION: u32 = 1;
 
-pub fn write_blob(path: &PathBuf, data: &[u8]) {
-	let mut file = fs::File::create(path).expect("failed to create blob");
-	file.write_all(MAGIC).expect("failed to write magic");
-	file.write_all(&SCHEMA_VERSION.to_le_bytes())
-		.expect("failed to write version");
-	file.write_all(data).expect("failed to write data");
+pub struct BuildCtx {
+	pub manifest_dir: PathBuf,
+	pub out_dir: PathBuf,
+}
+
+impl BuildCtx {
+	pub fn new() -> Self {
+		let manifest_dir = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
+		let out_dir = PathBuf::from(std::env::var("OUT_DIR").unwrap());
+		Self {
+			manifest_dir,
+			out_dir,
+		}
+	}
+
+	pub fn asset(&self, rel: &str) -> PathBuf {
+		self.manifest_dir.join(rel)
+	}
+
+	pub fn rerun_if_changed(&self, path: &Path) {
+		println!("cargo:rerun-if-changed={}", path.display());
+	}
+
+	pub fn rerun_tree(&self, root: &Path) {
+		println!("cargo:rerun-if-changed={}", root.display());
+		for entry in WalkDir::new(root) {
+			let entry = entry.unwrap();
+			if entry.path().is_file() {
+				self.rerun_if_changed(entry.path());
+			}
+		}
+	}
+
+	pub fn write_blob(&self, filename: &str, data: &[u8]) {
+		let path = self.out_dir.join(filename);
+		let mut file = fs::File::create(&path).expect("failed to create blob");
+		file.write_all(MAGIC).expect("failed to write magic");
+		file.write_all(&SCHEMA_VERSION.to_le_bytes())
+			.expect("failed to write version");
+		file.write_all(data).expect("failed to write data");
+	}
 }
 
 /// Extracts the first positional string argument from a KDL node.

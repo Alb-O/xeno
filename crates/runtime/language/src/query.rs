@@ -20,7 +20,10 @@ pub fn read_query(lang: &str, filename: &str) -> String {
 	let query_type = filename.strip_suffix(".scm").unwrap_or(filename);
 
 	tree_house::read_query(lang, |query_lang| {
-		if let Some(content) = xeno_runtime_data::queries::get_str(query_lang, query_type) {
+		if let Some(lang_ref) = xeno_registry::LANGUAGES.get(query_lang)
+			&& let Some(content) =
+				xeno_registry::languages::queries::get_query_text(&lang_ref, query_type)
+		{
 			return content.to_string();
 		}
 		for path in query_search_paths() {

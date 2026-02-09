@@ -7,8 +7,10 @@ pub mod gutter;
 #[cfg(feature = "hooks")]
 #[macro_use]
 pub mod hooks;
+pub mod grammars;
 #[cfg(feature = "languages")]
 pub mod languages;
+pub mod lsp_servers;
 #[cfg(feature = "motions")]
 pub mod motions;
 #[cfg(feature = "notifications")]

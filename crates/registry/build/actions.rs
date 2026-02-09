@@ -1,11 +1,11 @@
 use std::collections::HashSet;
 use std::fs;
-use std::path::Path;
 
 use kdl::KdlDocument;
+use xeno_registry_spec::MetaCommonSpec;
+use xeno_registry_spec::actions::{ActionSpec, ActionsSpec, KeyBindingSpec, KeyPrefixSpec};
 
 use super::common::*;
-use super::types::*;
 
 const VALID_MODES: &[&str] = &["normal", "insert", "match", "space"];
 const VALID_CAPS: &[&str] = &[
@@ -21,9 +21,9 @@ const VALID_CAPS: &[&str] = &[
 	"Overlay",
 ];
 
-pub fn build_actions_blob(data_dir: &Path, out_dir: &Path) {
-	let path = data_dir.join("actions.kdl");
-	println!("cargo:rerun-if-changed={}", path.display());
+pub fn build(ctx: &super::common::BuildCtx) {
+	let path = ctx.asset("src/domains/actions/assets/actions.kdl");
+	ctx.rerun_if_changed(&path);
 
 	let kdl = fs::read_to_string(&path).expect("failed to read actions.kdl");
 	let doc: KdlDocument = kdl.parse().expect("failed to parse actions.kdl");
@@ -39,7 +39,7 @@ pub fn build_actions_blob(data_dir: &Path, out_dir: &Path) {
 
 	let spec = ActionsSpec { actions, prefixes };
 	let bin = postcard::to_stdvec(&spec).expect("failed to serialize actions spec");
-	write_blob(&out_dir.join("actions.bin"), &bin);
+	ctx.write_blob("actions.bin", &bin);
 }
 
 fn collect_action_nodes(doc: &KdlDocument) -> (Vec<ActionSpec>, Vec<KeyPrefixSpec>) {

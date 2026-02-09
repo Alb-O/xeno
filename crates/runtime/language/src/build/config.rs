@@ -1,10 +1,9 @@
-//! Grammar configuration types and loading from KDL.
+//! Grammar configuration types loaded from registry specs.
 
 use std::path::PathBuf;
 
-use kdl::KdlDocument;
+use xeno_registry_spec::grammars::{GrammarSourceSpec, GrammarSpec};
 
-use super::GrammarBuildError;
 use crate::grammar::{cache_dir, runtime_dir};
 
 /// Grammar configuration from grammars.kdl.
@@ -35,106 +34,32 @@ pub enum GrammarSource {
 	},
 }
 
-/// Loads grammar configurations from the embedded `grammars.kdl`.
+/// Loads grammar configurations from compiled registry specs.
 pub fn load_grammar_configs() -> super::Result<Vec<GrammarConfig>> {
-	parse_grammar_configs(xeno_runtime_data::language::grammars_kdl())
+	let spec = xeno_registry::domains::grammars::loader::load_grammars_spec();
+	Ok(spec.grammars.into_iter().map(GrammarConfig::from).collect())
 }
 
-/// Parse grammar configurations from a KDL string.
-///
-/// Each grammar is a node where the node name is the grammar identifier:
-/// ```kdl
-/// // Git source:
-/// rust {
-///     source "https://github.com/tree-sitter/tree-sitter-rust"
-///     rev "abc123"
-///     subpath "optional/path"  // optional
-/// }
-///
-/// // Local source:
-/// custom {
-///     path "/path/to/grammar"
-/// }
-/// ```
-fn parse_grammar_configs(input: &str) -> super::Result<Vec<GrammarConfig>> {
-	let doc: KdlDocument = input.parse()?;
-
-	let mut grammars = Vec::new();
-
-	for node in doc.nodes() {
-		let name = node.name().value();
-
-		let children = match node.children() {
-			Some(c) => c,
-			None => continue,
-		};
-
-		let source = if let Some(path_node) = children.get("path") {
-			let path = path_node
-				.entry(0)
-				.and_then(|e| e.value().as_string())
-				.ok_or_else(|| {
-					GrammarBuildError::ConfigParse(format!(
-						"grammar '{}' path node missing value",
-						name
-					))
-				})?;
-			GrammarSource::Local {
-				path: path.to_string(),
-			}
-		} else {
-			// Git source - requires source and rev children
-			let source_node = children.get("source").ok_or_else(|| {
-				GrammarBuildError::ConfigParse(format!(
-					"grammar '{}' missing 'source' or 'path' child",
-					name
-				))
-			})?;
-
-			let remote = source_node
-				.entry(0)
-				.and_then(|e| e.value().as_string())
-				.ok_or_else(|| {
-					GrammarBuildError::ConfigParse(format!(
-						"grammar '{}' source node missing URL value",
-						name
-					))
-				})?;
-
-			let rev_node = children.get("rev").ok_or_else(|| {
-				GrammarBuildError::ConfigParse(format!("grammar '{}' missing 'rev' child", name))
-			})?;
-
-			let revision = rev_node
-				.entry(0)
-				.and_then(|e| e.value().as_string())
-				.ok_or_else(|| {
-					GrammarBuildError::ConfigParse(format!(
-						"grammar '{}' rev node missing value",
-						name
-					))
-				})?;
-
-			let subpath = children
-				.get("subpath")
-				.and_then(|n| n.entry(0))
-				.and_then(|e| e.value().as_string())
-				.map(|s| s.to_string());
-
-			GrammarSource::Git {
-				remote: remote.to_string(),
-				revision: revision.to_string(),
+impl From<GrammarSpec> for GrammarConfig {
+	fn from(value: GrammarSpec) -> Self {
+		let source = match value.source {
+			GrammarSourceSpec::Local { path } => GrammarSource::Local { path },
+			GrammarSourceSpec::Git {
+				remote,
+				revision,
 				subpath,
-			}
+			} => GrammarSource::Git {
+				remote,
+				revision,
+				subpath,
+			},
 		};
 
-		grammars.push(GrammarConfig {
-			grammar_id: name.to_string(),
+		Self {
+			grammar_id: value.id,
 			source,
-		});
+		}
 	}
-
-	Ok(grammars)
 }
 
 /// Get the directory where grammar sources are stored.
@@ -199,7 +124,6 @@ mod tests {
 
 	#[test]
 	fn test_load_grammar_configs() {
-		// Test that embedded grammars.kdl parses correctly
 		let result = load_grammar_configs();
 		assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
 
@@ -216,57 +140,6 @@ mod tests {
 				assert!(remote.contains("tree-sitter-rust"));
 			}
 			GrammarSource::Local { .. } => panic!("Expected git source for rust"),
-		}
-	}
-
-	#[test]
-	fn test_parse_git_grammar() {
-		let kdl = r#"
-rust {
-    source "https://github.com/tree-sitter/tree-sitter-rust"
-    rev "abc123"
-}
-"#;
-		let configs = parse_grammar_configs(kdl).unwrap();
-		assert_eq!(configs.len(), 1);
-		assert_eq!(configs[0].grammar_id, "rust");
-		assert!(matches!(configs[0].source, GrammarSource::Git { .. }));
-	}
-
-	#[test]
-	fn test_parse_git_grammar_with_subpath() {
-		let kdl = r#"
-typescript {
-    source "https://github.com/tree-sitter/tree-sitter-typescript"
-    rev "abc123"
-    subpath "typescript"
-}
-"#;
-		let configs = parse_grammar_configs(kdl).unwrap();
-		assert_eq!(configs.len(), 1);
-		match &configs[0].source {
-			GrammarSource::Git { subpath, .. } => {
-				assert_eq!(subpath.as_deref(), Some("typescript"));
-			}
-			_ => panic!("Expected git source"),
-		}
-	}
-
-	#[test]
-	fn test_parse_local_grammar() {
-		let kdl = r#"
-custom {
-    path "/path/to/grammar"
-}
-"#;
-		let configs = parse_grammar_configs(kdl).unwrap();
-		assert_eq!(configs.len(), 1);
-		assert_eq!(configs[0].grammar_id, "custom");
-		match &configs[0].source {
-			GrammarSource::Local { path } => {
-				assert_eq!(path, "/path/to/grammar");
-			}
-			_ => panic!("Expected local source"),
 		}
 	}
 

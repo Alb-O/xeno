@@ -2,6 +2,7 @@ use std::path::Path;
 
 use rustc_hash::FxHashMap;
 
+pub use super::queries;
 use crate::core::{DenseId, LanguageId, RegistryIndex, RegistryRef, RuntimeRegistry, Symbol};
 use crate::languages::LanguageEntry;
 

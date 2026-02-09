@@ -915,25 +915,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "include_dir"
-version = "0.7.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "923d117408f1e49d914f1a379a309cffe4f18c05cf4e3d12e613a15fc81bd0dd"
-dependencies = [
- "include_dir_macros",
-]
-
-[[package]]
-name = "include_dir_macros"
-version = "0.7.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7cab85a7ed0bd5f0e76d93846e0147172bed2e2d3f859bcc33a8d9699cad1a75"
-dependencies = [
- "proc-macro2",
- "quote",
-]
-
-[[package]]
 name = "indexmap"
 version = "2.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3244,12 +3225,22 @@ dependencies = [
  "ropey",
  "rustc-hash",
  "serde",
+ "serde_json",
  "strsim",
  "thiserror 2.0.18",
  "tracing",
+ "walkdir",
  "xeno-keymap-core",
  "xeno-macros",
  "xeno-primitives",
+ "xeno-registry-spec",
+]
+
+[[package]]
+name = "xeno-registry-spec"
+version = "0.8.9"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
@@ -3273,14 +3264,6 @@ dependencies = [
  "thiserror 2.0.18",
  "xeno-primitives",
  "xeno-registry",
- "xeno-runtime-data",
-]
-
-[[package]]
-name = "xeno-runtime-data"
-version = "0.8.9"
-dependencies = [
- "include_dir",
 ]
 
 [[package]]
@@ -3289,7 +3272,6 @@ version = "0.8.9"
 dependencies = [
  "cc",
  "kdl",
- "postcard",
  "regex",
  "ropey",
  "serde",
@@ -3299,7 +3281,7 @@ dependencies = [
  "tree-house",
  "xeno-primitives",
  "xeno-registry",
- "xeno-runtime-data",
+ "xeno-registry-spec",
 ]
 
 [[package]]

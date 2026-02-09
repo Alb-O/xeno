@@ -413,6 +413,3 @@ fn set_syntax_style(styles: &mut SyntaxStyles, scope: &str, style: SyntaxStyle) 
 		_ => {}
 	}
 }
-
-#[cfg(test)]
-mod tests;

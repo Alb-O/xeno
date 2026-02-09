@@ -258,20 +258,34 @@ impl DenseId for LanguageId {
 	}
 }
 
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct LspServerId(pub u32);
+
+impl DenseId for LspServerId {
+	const INVALID: Self = LspServerId(u32::MAX);
+	fn from_u32(v: u32) -> Self {
+		LspServerId(v)
+	}
+	fn as_u32(self) -> u32 {
+		self.0
+	}
+}
+
 macro_rules! impl_display_id {
-    ($($t:ty),*) => {
-        $(
-            impl std::fmt::Display for $t {
-                fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                    if self.0 == u32::MAX {
-                        write!(f, "{}(INVALID)", stringify!($t))
-                    } else {
-                        write!(f, "{}({})", stringify!($t), self.0)
-                    }
-                }
-            }
-        )*
-    };
+	($($t:ty),*) => {
+		$(
+			impl std::fmt::Display for $t {
+				fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+					if self.0 == u32::MAX {
+						write!(f, "{}(INVALID)", stringify!($t))
+					} else {
+						write!(f, "{}({})", stringify!($t), self.0)
+					}
+				}
+			}
+		)*
+	};
 }
 
 impl_display_id!(
@@ -286,7 +300,8 @@ impl_display_id!(
 	HookId,
 	OverlayId,
 	NotificationId,
-	LanguageId
+	LanguageId,
+	LspServerId
 );
 
 impl ActionId {

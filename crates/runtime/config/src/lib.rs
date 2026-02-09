@@ -252,50 +252,5 @@ pub fn load_themes_from_directory(dir: impl AsRef<Path>) -> Result<ThemeLoadResu
 	Ok(ThemeLoadResult { themes, errors })
 }
 
-/// Seed embedded theme KDL files into `dir`.
-///
-/// Creates the directory if absent. Existing files are never overwritten.
-pub fn seed_embedded_themes(dir: impl AsRef<Path>) -> std::io::Result<()> {
-	let dir = dir.as_ref();
-	std::fs::create_dir_all(dir)?;
-
-	for filename in xeno_runtime_data::themes::list() {
-		let target = dir.join(filename);
-		if !target.exists()
-			&& let Some(content) = xeno_runtime_data::themes::get_str(filename)
-		{
-			std::fs::write(&target, content)?;
-		}
-	}
-
-	Ok(())
-}
-
-/// Result of loading embedded themes.
-pub struct EmbeddedThemeLoadResult {
-	/// Successfully parsed themes.
-	pub themes: Vec<ParsedTheme>,
-	/// Parse failures as (filename, error message) pairs.
-	pub errors: Vec<(String, String)>,
-}
-
-/// Loads all themes embedded in the binary.
-pub fn load_embedded_themes() -> EmbeddedThemeLoadResult {
-	let mut themes = Vec::new();
-	let mut errors = Vec::new();
-
-	for filename in xeno_runtime_data::themes::list() {
-		let Some(content) = xeno_runtime_data::themes::get_str(filename) else {
-			continue;
-		};
-		match theme::parse_standalone_theme(content) {
-			Ok(theme) => themes.push(theme),
-			Err(e) => errors.push((filename.to_string(), e.to_string())),
-		}
-	}
-
-	EmbeddedThemeLoadResult { themes, errors }
-}
-
 #[cfg(test)]
 mod tests;

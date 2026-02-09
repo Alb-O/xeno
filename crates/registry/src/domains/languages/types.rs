@@ -3,6 +3,12 @@ use std::sync::Arc;
 use crate::core::{BuildEntry, RegistryMeta, RegistryMetaRef, StrListRef, Symbol};
 
 #[derive(Clone)]
+pub struct LanguageQueryEntry {
+	pub kind: Symbol,
+	pub text: Symbol,
+}
+
+#[derive(Clone)]
 pub struct LanguageEntry {
 	pub meta: RegistryMeta,
 	pub scope: Option<Symbol>,
@@ -17,6 +23,7 @@ pub struct LanguageEntry {
 	pub block_comment: Option<(Symbol, Symbol)>,
 	pub lsp_servers: Arc<[Symbol]>,
 	pub roots: Arc<[Symbol]>,
+	pub queries: Arc<[LanguageQueryEntry]>,
 }
 
 crate::impl_registry_entry!(LanguageEntry);
@@ -74,6 +81,7 @@ impl BuildEntry<LanguageEntry> for LanguageDef {
 		}
 		collector.extend(self.lsp_servers.iter().copied());
 		collector.extend(self.roots.iter().copied());
+		// Static defs don't have queries usually
 	}
 
 	fn build(
@@ -101,6 +109,7 @@ impl BuildEntry<LanguageEntry> for LanguageDef {
 				.map(|(s1, s2)| (ctx.intern(s1), ctx.intern(s2))),
 			lsp_servers: ctx.intern_slice(self.lsp_servers),
 			roots: ctx.intern_slice(self.roots),
+			queries: Arc::new([]),
 		}
 	}
 }
