@@ -49,10 +49,8 @@ Workspace layout:
 - `crates/editor`: core editor implementation + overlay system
 - `crates/registry`: definition indexing + runtime extension via snapshots
 - `crates/lsp` + `crates/editor/src/lsp/*`: LSP framework + editor integration
-- `crates/runtime/language`: tree-sitter integration and syntax primitives
+- `crates/language`: tree-sitter integration and syntax primitives
 - `crates/tui`: terminal UI backend (Ratatui-derived)
-- `crates/runtime/config`: KDL config parsing
-- `crates/runtime/data/assets`: embedded runtime assets (queries/themes/language configs)
 
 ## Architecture doc policy (module-level `//!` rustdoc)
 
