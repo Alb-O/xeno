@@ -135,5 +135,5 @@ pub fn find(name: &str) -> Option<TextObjectRef> {
 
 #[cfg(feature = "db")]
 pub fn all() -> Vec<TextObjectRef> {
-	TEXT_OBJECTS.all()
+	TEXT_OBJECTS.snapshot_guard().iter_refs().collect()
 }

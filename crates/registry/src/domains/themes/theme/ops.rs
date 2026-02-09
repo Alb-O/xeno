@@ -14,7 +14,7 @@ pub fn suggest_theme(name: &str) -> Option<String> {
 	let mut best_match = None;
 	let mut best_score = 0.0;
 
-	for theme in THEMES.all() {
+	for theme in THEMES.snapshot_guard().iter_refs() {
 		let theme_name = theme.name_str();
 		let score = strsim::jaro_winkler(&name_lower, theme_name);
 		if score > best_score {

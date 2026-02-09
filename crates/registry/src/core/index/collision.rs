@@ -55,11 +55,11 @@ pub struct Party {
 /// Tie-breaking semantics:
 /// - At build-time: later ingest wins if priority and source are identical.
 /// - At runtime: the new entry is assigned a higher ordinal, so it wins on ties.
+///
+/// This is a convenience wrapper around [`super::precedence::cmp_party`] with
+/// [`TieBreak::Ordinal`] for backward compatibility.
 pub(crate) fn cmp_party(a: &Party, b: &Party) -> Ordering {
-	a.priority
-		.cmp(&b.priority)
-		.then_with(|| a.source.rank().cmp(&b.source.rank()))
-		.then_with(|| a.ordinal.cmp(&b.ordinal))
+	super::precedence::cmp_party(a, b, super::precedence::TieBreak::Ordinal)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -108,11 +108,22 @@ pub enum CollisionKind {
 	},
 
 	/// A binding attempt for `key` conflicted with an existing binding.
+	///
+	/// With explicit stage maps, this includes:
+	/// - Cross-stage blocks: Attempted Stage B/C binding blocked by a higher-stage winner
+	///   (resolution will be [`Resolution::KeptExisting`]).
+	/// - Within-stage conflicts: Multiple entries competing for the same key within the
+	///   same stage (e.g. two secondary keys), resolved by total order.
 	KeyConflict {
+		/// The stage of the existing winner for this key.
 		existing_kind: KeyKind,
+		/// The stage of the incoming entry attempting to bind this key.
 		incoming_kind: KeyKind,
+		/// The entry currently winning/holding the key.
 		existing: Party,
+		/// The entry attempting to bind the key.
 		incoming: Party,
+		/// Whether the incoming entry replaced the existing winner.
 		resolution: Resolution,
 	},
 }

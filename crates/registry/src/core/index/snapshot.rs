@@ -21,12 +21,18 @@ where
 	T: super::RuntimeEntry,
 {
 	pub table: Arc<[Arc<T>]>,
-	pub by_id: Arc<FxHashMap<Symbol, Id>>,
-	pub by_key: Arc<FxHashMap<Symbol, Id>>,
+	/// Stage A: Canonical ID lookup.
+	pub(crate) by_id: Arc<FxHashMap<Symbol, Id>>,
+	/// Stage B: Primary name lookup.
+	pub(crate) by_name: Arc<FxHashMap<Symbol, Id>>,
+	/// Stage C: Secondary key lookup.
+	pub(crate) by_key: Arc<FxHashMap<Symbol, Id>>,
 	pub interner: FrozenInterner,
 	pub key_pool: Arc<[Symbol]>,
 	pub collisions: Arc<[Collision]>,
 	pub parties: Arc<[Party]>,
+	/// Next ordinal for monotonic runtime assignment.
+	pub next_ordinal: u32,
 }
 
 impl<T, Id: DenseId> Clone for Snapshot<T, Id>
@@ -37,11 +43,13 @@ where
 		Self {
 			table: self.table.clone(),
 			by_id: self.by_id.clone(),
+			by_name: self.by_name.clone(),
 			by_key: self.by_key.clone(),
 			interner: self.interner.clone(),
 			key_pool: self.key_pool.clone(),
 			collisions: self.collisions.clone(),
 			parties: self.parties.clone(),
+			next_ordinal: self.next_ordinal,
 		}
 	}
 }
@@ -52,14 +60,23 @@ where
 {
 	/// Creates a new snapshot from a builtin index.
 	pub(super) fn from_builtins(b: &super::types::RegistryIndex<T, Id>) -> Self {
+		let next_ordinal = b
+			.parties
+			.iter()
+			.map(|p| p.ordinal)
+			.max()
+			.unwrap_or(0)
+			.saturating_add(1);
 		Self {
 			table: b.table.clone(),
 			by_id: b.by_id.clone(),
+			by_name: b.by_name.clone(),
 			by_key: b.by_key.clone(),
 			interner: b.interner.clone(),
 			key_pool: b.key_pool.clone(),
 			collisions: b.collisions.clone(),
 			parties: b.parties.clone(),
+			next_ordinal,
 		}
 	}
 }
@@ -173,6 +190,16 @@ where
 				Id::from_u32(super::u32_index(idx, "snapshot_iter")),
 				arc.as_ref(),
 			)
+		})
+	}
+
+	/// Returns an iterator over [`RegistryRef`] handles.
+	pub fn iter_refs(self) -> impl Iterator<Item = RegistryRef<T, Id>> {
+		let snap = self.snap;
+		let len = snap.table.len();
+		(0..len).map(move |idx| RegistryRef {
+			snap: snap.clone(),
+			id: Id::from_u32(super::u32_index(idx, "snapshot_iter_refs")),
 		})
 	}
 

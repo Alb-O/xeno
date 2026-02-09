@@ -30,11 +30,15 @@ impl OptionsRegistry {
 	}
 
 	pub fn items(&self) -> Vec<OptionsRef> {
-		self.inner.all()
+		self.inner.snapshot_guard().iter_refs().collect()
 	}
 
 	pub fn all(&self) -> Vec<OptionsRef> {
-		self.inner.all()
+		self.inner.snapshot_guard().iter_refs().collect()
+	}
+
+	pub fn snapshot_guard(&self) -> crate::core::index::SnapshotGuard<OptionEntry, OptionId> {
+		self.inner.snapshot_guard()
 	}
 
 	pub fn len(&self) -> usize {

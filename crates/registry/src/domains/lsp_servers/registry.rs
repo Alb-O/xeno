@@ -24,7 +24,7 @@ impl LspServersRegistry {
 	}
 
 	pub fn all(&self) -> Vec<LspServerRef> {
-		self.inner.all()
+		self.inner.snapshot_guard().iter_refs().collect()
 	}
 
 	pub fn len(&self) -> usize {

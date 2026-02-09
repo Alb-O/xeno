@@ -112,7 +112,7 @@ pub fn find(name: &str) -> Option<MotionRef> {
 /// Returns all registered motions, sorted by name.
 #[cfg(feature = "db")]
 pub fn all() -> Vec<MotionRef> {
-	MOTIONS.all()
+	MOTIONS.snapshot_guard().iter_refs().collect()
 }
 
 /// Unified motion input: either a static `MotionDef` or a KDL-linked definition.

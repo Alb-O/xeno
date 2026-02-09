@@ -322,14 +322,20 @@ fn test_incremental_reference_equivalence() {
 		// Compare current snapshot against full rebuild
 		let current_snap = registry.snapshot();
 
-		let (ref_by_key, ref_collisions) = crate::core::index::lookup::build_lookup(
-			"test",
-			&current_snap.table,
-			&current_snap.parties,
-			&current_snap.key_pool,
-			DuplicatePolicy::ByPriority,
-		);
+		// Build reference maps using the same logic as initial build
+		let (ref_by_name, ref_by_key, ref_collisions) =
+			crate::core::index::lookup::build_stage_maps(
+				"test",
+				&current_snap.table,
+				&current_snap.parties,
+				&current_snap.key_pool,
+				&current_snap.by_id,
+			);
 
+		assert_eq!(
+			*current_snap.by_name, ref_by_name,
+			"by_name mismatch after register"
+		);
 		assert_eq!(
 			*current_snap.by_key, ref_by_key,
 			"by_key mismatch after register"
@@ -349,6 +355,109 @@ fn test_incremental_reference_equivalence() {
 
 	// Check that replaced entries keep their dense IDs
 	assert_eq!(registry.get("append_1").unwrap().priority(), 100);
+}
+
+/// Verifies that the 3-stage key model correctly records block collisions.
+#[test]
+fn test_stage_blocking_collisions() {
+	use crate::core::{CollisionKind, KeyKind, Resolution};
+
+	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> = RegistryBuilder::new("test");
+	// A: id="A", name="A"
+	builder.push(Arc::new(make_def("A", 10)));
+	// B: id="B", name="B", keys=["A"] -> blocked by Stage A identity of "A"
+	builder.push(Arc::new(make_def_with_keyes("B", 20, &["A"])));
+	// C: id="C", name="A" -> blocked by Stage A identity of "A"
+	builder.push(Arc::new(super::test_fixtures::make_def_with_name(
+		"C", "A", 30,
+	)));
+
+	let registry = RuntimeRegistry::new("test", builder.build());
+	let snap = registry.snapshot();
+
+	// 1. Verify "A" is owned by identity "A"
+	assert_eq!(registry.get("A").unwrap().id_str(), "A");
+
+	// 2. Verify collisions for "A"
+	let a_collisions: Vec<_> = snap
+		.collisions
+		.iter()
+		.filter(|c| snap.interner.resolve(c.key) == "A")
+		.collect();
+
+	// Should have 3 collisions for "A":
+	// - A blocks its own name (Stage A vs Stage B)
+	// - A blocks B's secondary key (Stage A vs Stage C)
+	// - A blocks C's name (Stage A vs Stage B)
+	assert_eq!(a_collisions.len(), 3);
+
+	for c in a_collisions {
+		match &c.kind {
+			CollisionKind::KeyConflict {
+				existing_kind,
+				resolution,
+				..
+			} => {
+				assert_eq!(*existing_kind, KeyKind::Canonical);
+				assert_eq!(*resolution, Resolution::KeptExisting);
+			}
+			_ => panic!("Expected key conflict"),
+		}
+	}
+
+	// 3. Runtime append: D: id="D", name="B" -> blocked by Stage A identity of "B"
+	registry
+		.register(Box::leak(Box::new(
+			super::test_fixtures::make_def_with_name("D", "B", 40),
+		)))
+		.unwrap();
+
+	let snap = registry.snapshot();
+	let b_collisions: Vec<_> = snap
+		.collisions
+		.iter()
+		.filter(|c| snap.interner.resolve(c.key) == "B")
+		.collect();
+
+	// - B blocks its own name (Stage A vs Stage B)
+	// - B blocks D's name (Stage A identity vs Stage B name conflict)
+	// B (id="B", name="B"). D (id="D", name="B").
+	// Identity "B" always wins over Stage B name "B".
+	assert_eq!(b_collisions.len(), 2);
+	for c in b_collisions {
+		match &c.kind {
+			CollisionKind::KeyConflict {
+				existing_kind,
+				resolution,
+				..
+			} => {
+				assert_eq!(*existing_kind, KeyKind::Canonical);
+				assert_eq!(*resolution, Resolution::KeptExisting);
+			}
+			_ => panic!("Expected key conflict"),
+		}
+	}
+
+	// 4. Verify lookup for "B" still returns B
+	assert_eq!(registry.get("B").unwrap().id_str(), "B");
+
+	// 5. Runtime append: E: id="E", name="E", keys=["B"] -> blocked by Stage A identity of "B"
+	registry
+		.register(Box::leak(Box::new(make_def_with_keyes("E", 50, &["B"]))))
+		.unwrap();
+
+	let snap = registry.snapshot();
+	let b_collisions: Vec<_> = snap
+		.collisions
+		.iter()
+		.filter(|c| snap.interner.resolve(c.key) == "B")
+		.collect();
+
+	// Should have 3 collisions for "B" now:
+	// - B blocks its own name (Stage A vs Stage B)
+	// - B blocks D's name (Stage A vs Stage B)
+	// - B blocks E's secondary key (Stage A vs Stage C)
+	assert_eq!(b_collisions.len(), 3);
 }
 
 /// Verifies that BuildEntry::build() is enforced to only use strings

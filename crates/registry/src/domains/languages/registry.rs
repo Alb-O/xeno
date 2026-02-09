@@ -116,7 +116,11 @@ impl LanguagesRegistry {
 	}
 
 	pub fn all(&self) -> Vec<LanguageRef> {
-		self.inner.all()
+		self.inner.snapshot_guard().iter_refs().collect()
+	}
+
+	pub fn snapshot_guard(&self) -> crate::core::index::SnapshotGuard<LanguageEntry, LanguageId> {
+		self.inner.snapshot_guard()
 	}
 
 	pub fn len(&self) -> usize {

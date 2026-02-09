@@ -57,7 +57,8 @@
 //! # Invariants
 //!
 //! - Must have unambiguous ID lookup (one winner per ID).
-//! - Must maintain deterministic iteration order (sorted by canonical ID).
+//! - Must maintain deterministic iteration order by dense ID (table index).
+//!   Builtins are built in canonical-ID order; runtime appends extend the table in registration order.
 //! - Must keep owned definitions alive while reachable.
 //! - Must provide linearizable writes without lost updates.
 
@@ -65,6 +66,7 @@ mod build;
 mod collision;
 pub(crate) mod lookup;
 pub(crate) mod meta_build;
+pub mod precedence;
 pub(crate) mod runtime;
 pub(crate) mod snapshot;
 mod types;

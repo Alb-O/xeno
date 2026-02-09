@@ -61,7 +61,8 @@ pub fn find_hooks(event: crate::HookEvent) -> Vec<HooksRef> {
 	hooks_for_event(event)
 }
 
+/// Returns all registered hooks.
 #[cfg(feature = "db")]
 pub fn all_hooks() -> Vec<HooksRef> {
-	HOOKS.all()
+	HOOKS.snapshot_guard().iter_refs().collect()
 }

@@ -88,8 +88,8 @@ impl LanguageDb {
 	/// Returns all registered languages.
 	pub fn languages(&self) -> impl Iterator<Item = (usize, LanguageData)> {
 		LANGUAGES
-			.all()
-			.into_iter()
+			.snapshot_guard()
+			.iter_refs()
 			.map(|entry: LanguageRef| (entry.dense_id().as_u32() as usize, LanguageData { entry }))
 	}
 
@@ -137,10 +137,10 @@ impl LanguageDb {
 	/// Returns a mapping of all languages to their LSP info.
 	pub fn lsp_mapping(&self) -> HashMap<String, LanguageLspInfo> {
 		LANGUAGES
-			.all()
-			.into_iter()
-			.filter(|l| !l.lsp_servers.is_empty())
-			.map(|l| {
+			.snapshot_guard()
+			.iter_refs()
+			.filter(|l: &LanguageRef| !l.lsp_servers.is_empty())
+			.map(|l: LanguageRef| {
 				(
 					l.name_str().to_string(),
 					LanguageLspInfo {

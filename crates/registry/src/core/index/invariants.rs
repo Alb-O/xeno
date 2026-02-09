@@ -8,9 +8,12 @@ use crate::core::symbol::ActionId;
 use crate::core::traits::RegistryEntry;
 use crate::core::{RegistryMetaStatic, RegistrySource};
 
-/// Must maintain deterministic iteration order (sorted by canonical ID).
+/// Must maintain deterministic iteration order by dense ID (table index).
 ///
-/// - Enforced in: `resolve_id_duplicates`
+/// Builtins are built in canonical-ID order; runtime appends extend in registration order.
+/// This test verifies build-time sorting; runtime appends maintain insertion order.
+///
+/// - Enforced in: `resolve_id_duplicates` (build-time), `RuntimeRegistry::register` (runtime)
 /// - Failure symptom: Iterator order changes unpredictably.
 #[cfg_attr(test, test)]
 pub(crate) fn test_deterministic_iteration() {
@@ -26,7 +29,7 @@ pub(crate) fn test_deterministic_iteration() {
 
 	let index = builder.build();
 	assert_eq!(index.len(), 2);
-	// Items should be sorted by canonical ID
+	// Builtins are sorted by canonical ID at build time
 	let ids: Vec<_> = index
 		.iter()
 		.map(|e| index.interner.resolve(e.meta().id))

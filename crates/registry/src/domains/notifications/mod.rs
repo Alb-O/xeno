@@ -198,5 +198,5 @@ pub use crate::db::NOTIFICATIONS;
 /// Returns all registered notification definitions.
 #[cfg(feature = "db")]
 pub fn all() -> Vec<crate::core::RegistryRef<NotificationEntry, NotificationId>> {
-	NOTIFICATIONS.all()
+	NOTIFICATIONS.snapshot_guard().iter_refs().collect()
 }

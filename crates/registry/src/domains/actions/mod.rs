@@ -112,5 +112,5 @@ pub fn find_action(name: &str) -> Option<ActionRef> {
 /// Returns all registered actions (builtins + runtime), sorted by name.
 #[cfg(feature = "db")]
 pub fn all_actions() -> Vec<ActionRef> {
-	ACTIONS.all()
+	ACTIONS.snapshot_guard().iter_refs().collect()
 }

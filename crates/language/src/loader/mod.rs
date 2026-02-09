@@ -98,19 +98,22 @@ impl LanguageLoader {
 
 	/// Finds a language by matching text against injection regexes.
 	fn language_for_injection_match(&self, text: &str) -> Option<Language> {
-		LANGUAGES.all().into_iter().find_map(|l: LanguageRef| {
-			let data = LanguageData { entry: l };
-			data.injection_regex()
-				.filter(|r| r.is_match(text))
-				.map(|_| data.entry.dense_id().to_tree_house())
-		})
+		LANGUAGES
+			.snapshot_guard()
+			.iter_refs()
+			.find_map(|l: LanguageRef| {
+				let data = LanguageData { entry: l };
+				data.injection_regex()
+					.filter(|r| r.is_match(text))
+					.map(|_| data.entry.dense_id().to_tree_house())
+			})
 	}
 
 	/// Returns all registered languages.
 	pub fn languages(&self) -> impl Iterator<Item = (Language, LanguageData)> {
 		LANGUAGES
-			.all()
-			.into_iter()
+			.snapshot_guard()
+			.iter_refs()
 			.map(|l: LanguageRef| (l.dense_id().to_tree_house(), LanguageData { entry: l }))
 	}
 

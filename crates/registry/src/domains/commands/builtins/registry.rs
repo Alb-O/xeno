@@ -2,9 +2,14 @@ use std::collections::HashMap;
 
 use xeno_primitives::BoxFutureLocal;
 
-use crate::commands::{COMMANDS, CommandContext, CommandError, CommandOutcome, RegistryEntry};
+use crate::command_handler;
+use crate::commands::{
+	COMMANDS, CommandContext, CommandError, CommandOutcome, CommandRef, RegistryEntry,
+};
+use crate::db::{MOTIONS, TEXT_OBJECTS};
+use crate::motions::MotionRef;
 use crate::notifications::keys;
-use crate::{command_handler, motions, textobj};
+use crate::textobj::TextObjectRef;
 
 command_handler!(registry_diag, handler: cmd_registry_diag);
 
@@ -96,7 +101,8 @@ fn collect_command_collisions(collisions: &mut Vec<CollisionReport>) {
 	let mut by_name = HashMap::new();
 	let mut by_alias = HashMap::new();
 
-	for cmd in COMMANDS.all() {
+	for cmd in COMMANDS.snapshot_guard().iter_refs() {
+		let cmd: CommandRef = cmd;
 		let meta = EntryMeta {
 			id: cmd.id_str().to_string(),
 			source: cmd.source().to_string(),
@@ -118,6 +124,7 @@ fn collect_command_collisions(collisions: &mut Vec<CollisionReport>) {
 			collisions,
 		);
 		for alias in cmd.keys_resolved() {
+			let alias: &str = alias;
 			register_collision(
 				CollisionKind::Alias,
 				alias.to_string(),
@@ -134,7 +141,8 @@ fn collect_motion_collisions(collisions: &mut Vec<CollisionReport>) {
 	let mut by_name = HashMap::new();
 	let mut by_alias = HashMap::new();
 
-	for motion in motions::all() {
+	for motion in MOTIONS.snapshot_guard().iter_refs() {
+		let motion: MotionRef = motion;
 		let meta = EntryMeta {
 			id: motion.id_str().to_string(),
 			source: motion.source().to_string(),
@@ -170,7 +178,8 @@ fn collect_motion_collisions(collisions: &mut Vec<CollisionReport>) {
 fn collect_text_object_collisions(collisions: &mut Vec<CollisionReport>) {
 	let mut by_trigger = HashMap::new();
 
-	for obj in textobj::all() {
+	for obj in TEXT_OBJECTS.snapshot_guard().iter_refs() {
+		let obj: TextObjectRef = obj;
 		let meta = EntryMeta {
 			id: obj.id_str().to_string(),
 			source: obj.source().to_string(),

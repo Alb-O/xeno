@@ -57,9 +57,9 @@ pub fn suggest_option(key: &str) -> Option<String> {
 	}
 
 	crate::options::OPTIONS
-		.all()
-		.into_iter()
-		.map(|o| o.resolve(o.kdl_key).to_string())
+		.snapshot_guard()
+		.iter_refs()
+		.map(|o: crate::options::OptionsRef| o.resolve(o.kdl_key).to_string())
 		.min_by_key(|k| strsim::levenshtein(key, k))
 		.filter(|k| strsim::levenshtein(key, k) <= 3)
 }

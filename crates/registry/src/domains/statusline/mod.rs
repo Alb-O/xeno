@@ -134,8 +134,8 @@ pub fn segments_for_position(
 	position: SegmentPosition,
 ) -> Vec<RegistryRef<StatuslineEntry, StatuslineId>> {
 	STATUSLINE_SEGMENTS
-		.all()
-		.into_iter()
+		.snapshot_guard()
+		.iter_refs()
 		.filter(|s| s.position == position && s.default_enabled)
 		.collect()
 }
@@ -157,5 +157,5 @@ pub fn find_segment(name: &str) -> Option<RegistryRef<StatuslineEntry, Statuslin
 
 #[cfg(feature = "db")]
 pub fn all_segments() -> Vec<RegistryRef<StatuslineEntry, StatuslineId>> {
-	STATUSLINE_SEGMENTS.all()
+	STATUSLINE_SEGMENTS.snapshot_guard().iter_refs().collect()
 }

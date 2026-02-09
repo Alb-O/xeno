@@ -288,11 +288,19 @@ fn collect_registry_items(kind: RegistryKind) -> Vec<RegistryItem> {
 			.iter()
 			.map(registry_item_from_ref)
 			.collect(),
-		RegistryKind::Gutters => GUTTERS.all().iter().map(registry_item_from_ref).collect(),
-		RegistryKind::Hooks => HOOKS.all().iter().map(registry_item_from_ref).collect(),
+		RegistryKind::Gutters => GUTTERS
+			.snapshot_guard()
+			.iter_refs()
+			.map(|r| registry_item_from_ref(&r))
+			.collect(),
+		RegistryKind::Hooks => HOOKS
+			.snapshot_guard()
+			.iter_refs()
+			.map(|r| registry_item_from_ref(&r))
+			.collect(),
 		RegistryKind::Notifications => NOTIFICATIONS
-			.all()
-			.iter()
+			.snapshot_guard()
+			.iter_refs()
 			.map(|def| RegistryItem {
 				id: def.id_str().to_string(),
 				name: def.id_str().to_string(),
@@ -303,13 +311,21 @@ fn collect_registry_items(kind: RegistryKind) -> Vec<RegistryItem> {
 				flags: 0,
 			})
 			.collect(),
-		RegistryKind::Options => OPTIONS.items().iter().map(registry_item_from_ref).collect(),
-		RegistryKind::Statusline => STATUSLINE_SEGMENTS
-			.all()
-			.iter()
-			.map(registry_item_from_ref)
+		RegistryKind::Options => OPTIONS
+			.snapshot_guard()
+			.iter_refs()
+			.map(|r| registry_item_from_ref(&r))
 			.collect(),
-		RegistryKind::Themes => THEMES.all().iter().map(registry_item_from_ref).collect(),
+		RegistryKind::Statusline => STATUSLINE_SEGMENTS
+			.snapshot_guard()
+			.iter_refs()
+			.map(|r| registry_item_from_ref(&r))
+			.collect(),
+		RegistryKind::Themes => THEMES
+			.snapshot_guard()
+			.iter_refs()
+			.map(|r| registry_item_from_ref(&r))
+			.collect(),
 	}
 }
 

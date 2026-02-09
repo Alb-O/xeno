@@ -126,19 +126,36 @@ where
 	}
 
 	/// Looks up a definition by ID, name, or secondary key.
+	///
+	/// Uses 3-stage fallback: canonical ID → primary name → secondary keys.
 	#[inline]
 	pub fn get(&self, key: &str) -> Option<RegistryRef<T, Id>> {
 		let snap = self.snap.load_full();
 		let sym = snap.interner.get(key)?;
-		let id = *snap.by_key.get(&sym)?;
-		Some(RegistryRef { snap, id })
+		self.get_sym_with_snap(snap, sym)
 	}
 
 	/// Looks up a definition by its interned symbol.
+	///
+	/// Uses 3-stage fallback: canonical ID → primary name → secondary keys.
 	#[inline]
 	pub fn get_sym(&self, sym: Symbol) -> Option<RegistryRef<T, Id>> {
 		let snap = self.snap.load_full();
-		let id = *snap.by_key.get(&sym)?;
+		self.get_sym_with_snap(snap, sym)
+	}
+
+	#[inline]
+	fn get_sym_with_snap(
+		&self,
+		snap: Arc<Snapshot<T, Id>>,
+		sym: Symbol,
+	) -> Option<RegistryRef<T, Id>> {
+		let id = snap
+			.by_id
+			.get(&sym)
+			.or_else(|| snap.by_name.get(&sym))
+			.or_else(|| snap.by_key.get(&sym))
+			.copied()?;
 		Some(RegistryRef { snap, id })
 	}
 
@@ -148,19 +165,6 @@ where
 			crate::core::LookupKey::Static(s) => self.get(s),
 			crate::core::LookupKey::Ref(r) => Some(r.clone()),
 		}
-	}
-
-	/// Returns all effective definitions.
-	pub fn all(&self) -> Vec<RegistryRef<T, Id>> {
-		let snap = self.snap.load_full();
-		let mut refs = Vec::with_capacity(snap.table.len());
-		for i in 0..snap.table.len() {
-			refs.push(RegistryRef {
-				snap: snap.clone(),
-				id: Id::from_u32(super::u32_index(i, self.label)),
-			});
-		}
-		refs
 	}
 
 	/// Returns a snapshot guard for efficient iteration.
@@ -266,6 +270,9 @@ where
 			let mut replaced_idx = None;
 			let mut new_idx = new_table.len();
 
+			// Get monotonic ordinal for this registration attempt
+			let new_ordinal = old.next_ordinal;
+
 			if let Some(idx) = existing_idx {
 				// Collision on canonical ID
 				let existing_party = parties[idx];
@@ -275,7 +282,7 @@ where
 					def_id: id_sym,
 					source: new_entry.meta().source,
 					priority: new_entry.meta().priority,
-					ordinal: super::u32_index(new_table.len(), self.label),
+					ordinal: new_ordinal,
 				};
 
 				// Policy check: higher priority wins; at equal priority, higher
@@ -315,41 +322,40 @@ where
 				}
 			} else {
 				// New unique ID
-				let ordinal = super::u32_index(new_table.len(), self.label);
 				parties.push(Party {
 					def_id: id_sym,
 					source: new_entry.meta().source,
 					priority: new_entry.meta().priority,
-					ordinal,
+					ordinal: new_ordinal,
 				});
 				new_table.push(Arc::new(new_entry));
 				new_idx = new_table.len() - 1;
 				new_by_id.insert(id_sym, Id::from_u32(super::u32_index(new_idx, self.label)));
 			}
 
-			// 4. Update lookup and collisions incrementally
-			let (by_key, key_collisions) = if let Some(replaced_idx) = replaced_idx {
-				super::lookup::update_lookup_replace(
+			// 4. Update stage maps (by_name, by_key) and collisions incrementally
+			let (by_name, by_key, key_collisions) = if let Some(replaced_idx) = replaced_idx {
+				super::lookup::update_stage_maps_replace(
 					self.label,
 					&new_table,
 					&parties,
 					&key_pool,
-					self.policy,
 					replaced_idx,
 					&old,
 					&new_by_id,
 				)
 			} else {
 				// Incremental append
-				super::lookup::update_lookup_append(
+				super::lookup::update_stage_maps_append(
 					self.label,
 					&new_table,
 					&parties,
 					&key_pool,
-					self.policy,
 					new_idx,
-					&old,
 					&new_by_id,
+					&old.by_name,
+					&old.by_key,
+					&old.collisions,
 				)
 			};
 
@@ -357,11 +363,13 @@ where
 			let new_snap = Snapshot {
 				table: Arc::from(new_table),
 				by_id: Arc::new(new_by_id),
+				by_name: Arc::new(by_name),
 				by_key: Arc::new(by_key),
 				interner,
 				key_pool: Arc::from(key_pool),
 				collisions: Arc::from(key_collisions),
 				parties: Arc::from(parties),
+				next_ordinal: new_ordinal.saturating_add(1),
 			};
 			let new_arc = Arc::new(new_snap);
 
@@ -379,11 +387,6 @@ where
 			}
 			// CAS failed, retry with updated snapshot
 		}
-	}
-
-	/// Returns an iterator over all definitions as `RegistryRef`s.
-	pub fn iter(&self) -> Vec<RegistryRef<T, Id>> {
-		self.all()
 	}
 
 	/// Returns the number of effective definitions.

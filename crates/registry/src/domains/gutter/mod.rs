@@ -169,8 +169,8 @@ pub use crate::db::GUTTERS;
 #[cfg(feature = "db")]
 pub fn enabled_gutters() -> Vec<RegistryRef<GutterEntry, GutterId>> {
 	GUTTERS
-		.all()
-		.into_iter()
+		.snapshot_guard()
+		.iter_refs()
 		.filter(|g| g.default_enabled)
 		.collect()
 }
@@ -182,7 +182,7 @@ pub fn find(name: &str) -> Option<RegistryRef<GutterEntry, GutterId>> {
 
 #[cfg(feature = "db")]
 pub fn all() -> Vec<RegistryRef<GutterEntry, GutterId>> {
-	GUTTERS.all()
+	GUTTERS.snapshot_guard().iter_refs().collect()
 }
 
 pub fn column_width(gutter: &GutterEntry, ctx: &GutterWidthContext) -> u16 {

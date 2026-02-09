@@ -69,19 +69,18 @@ Runtime config extends (not replaces) built-in specs. Precedence follows the sta
 
 Runtime registration is snapshot-based, but **lookup maintenance is incremental**:
 
-- **Append** (new canonical ID): **O(1)** relative to registry size (work proportional to the new entry’s key set).
-- **Replace** (canonical ID collision where incoming wins): **O(N × affected_keys)**, where `affected_keys` is the union of keys of the old + new entry (typically small). Only those keys are rescanned across entries.
+- **Append** (new canonical ID): **O(entry_keys)**. Proportional to the new entry’s key set.
+- **Replace** (canonical ID collision where incoming wins): **O(N × affected_keys)**. Union of keys of old + new entry are rescanned.
 
-This avoids rebuilding the entire lookup map for the common case (append), and bounds replace cost to a small number of targeted rescans.
+### Stage Maps
 
-### `by_id` map (Stage A only)
+Snapshots and indices maintain three maps:
 
-Snapshots and indices maintain two maps:
+- `by_id`: **Stage A**. Autoritative for identity.
+- `by_name`: **Stage B**. Blocked by Stage A.
+- `by_key`: **Stage C**. Blocked by Stage A and Stage B.
 
-- `by_id`: **Canonical ID → Id** (Stage A only). Used for correct, O(1) canonical collision detection.
-- `by_key`: **Any lookup key → Id** (Stages A/B/C as appropriate for lookup), used for general key resolution.
-
-**Important:** `by_key` may contain secondary keys; **canonical-ID collision detection must use `by_id`**, not `by_key`.
+Collision recording during incremental updates ensures that Stage A/B blocks are captured as `KeptExisting` collisions, mirroring a full rebuild.
 
 ---
 
@@ -165,19 +164,23 @@ This is intentionally fatal (panic), but dramatically improves debuggability whe
 
 ### Identity and lookup
 
-- **Canonical ID (Stage A)**: Stable identifier (often `"xeno-registry::<name>"`). Collision detection uses `by_id`.
-- **Primary Name (Stage B)**: Human-facing name used for display and lookup.
-- **Secondary Keys (Stage C)**: Additional lookup strings (aliases, config keys, etc.).
-- **Resolution**: The 3-stage lookup contract. Stage precedence is enforced consistently across build and runtime registration.
+- **3-Stage Key Model**: Lookup follows a sequential fallback:
+  1. **Canonical ID (Stage A)**: Stable identifier (often `"xeno-registry::<name>"`).
+  2. **Primary Name (Stage B)**: Human-facing name used for display and lookup.
+  3. **Secondary Keys (Stage C)**: Additional lookup strings (aliases, config keys, etc.).
+- **Resolution**: Stage precedence is structural. A symbol belongs to exactly one stage map.
+  - Stage B is blocked if the symbol exists in Stage A.
+  - Stage C is blocked if the symbol exists in Stage A or Stage B.
 
 ### Core types
 
 - **`RegistryIndex<T, Id>`**: Immutable, indexed storage produced by the builder (tables, maps, interner, collisions).
-- **`Snapshot<T, Id>`**: Published runtime view (Arc-pinned); readers hold these alive via `RegistryRef`.
+- **`Snapshot<T, Id>`**: Published runtime view (Arc-pinned); readers hold these alive via `RegistryRef`. Contains `by_id`, `by_name`, and `by_key` maps.
 - **`RegistryRef<T, Id>`**: Pinned handle to an entry; keeps its source snapshot alive.
 - **`RuntimeRegistry<T, Id>`**: Atomic container for current snapshot; supports registration via snapshot rebuild + CAS.
-- **`Party`**: Comparable metadata used to resolve conflicts deterministically (priority, source rank, ordinal).
-- **`Collision`**: Diagnostic record for key conflicts; ordering is deterministic via `Collision::stable_cmp`.
+- **`Party`**: Comparable metadata used to resolve conflicts deterministically.
+- **`Collision`**: Diagnostic record for key conflicts and **blocked attempts**. Ordering is deterministic via `Collision::stable_cmp`.
+- **`next_ordinal`**: A monotonic counter in `Snapshot` ensuring runtime extensions have strictly increasing ordinals for tie-breaking.
 
 ---
 
@@ -187,6 +190,7 @@ This is intentionally fatal (panic), but dramatically improves debuggability whe
 
 - Readers load the current snapshot and use it for all lookups.
 - `RegistryRef` pins the snapshot it came from; it never observes partial updates.
+- **Iteration Order**: Deterministic by dense ID (table index). Builtins are sorted by canonical ID; runtime appends follow insertion order.
 
 ### Dense IDs
 
@@ -194,11 +198,13 @@ Domains assign dense IDs (`ActionId`, `OptionId`, etc.) during build. IDs index 
 
 ### Precedence (conflict resolution)
 
-Resolution follows a strict precedence hierarchy (applies at build and runtime):
+Resolution follows a strict precedence hierarchy (applies at build and runtime) managed by the **precedence engine**:
 
 1. Higher `priority` wins.
 2. Higher `source` rank wins (Runtime > Crate > Builtin).
-3. Deterministic tie-breakers via `Party` ordering.
+3. **Tie-breakers**:
+   - `TieBreak::Ordinal`: Later ingest wins (used for canonical ID duplicates).
+   - `TieBreak::DefId`: Deterministic identity tie-break (used for key/name conflicts).
 
 ### Determinism
 
@@ -253,6 +259,11 @@ Your domain `Input` type must implement `BuildEntry<Entry>`:
 - implement `build(&self, ctx: &mut dyn BuildCtx, key_pool: &mut Vec<Symbol>) -> Entry`
   - use `BuildCtxExt` helpers (`intern_req`, `intern_opt`, `intern_iter`)
   - never access interners directly
+- **Domain Checklist**:
+  - [ ] Implement `BuildEntry` for your input type.
+  - [ ] Ensure all strings are collected (debug contracts will verify this).
+  - [ ] Meta keys (Stage C) should NOT include `id` or `name` (handled by Stages A/B).
+  - [ ] Use `meta_build::build_meta` with `extra_keys` for domain-specific lookup keys.
 
 Run with `--features registry-contracts` if you’re touching collection/build logic.
 

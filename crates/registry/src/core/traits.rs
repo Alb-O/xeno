@@ -50,14 +50,14 @@ pub trait RegistryEntry {
 	/// 1. Priority (higher wins)
 	/// 2. Source Rank (higher wins: Runtime > Crate > Builtin)
 	/// 3. Canonical ID (stable tie-break via interned symbol)
+	///
+	/// Delegates to [`crate::core::index::precedence::cmp_entry`] to ensure
+	/// consistency across all conflict resolution points.
 	fn total_order_cmp(&self, other: &Self) -> Ordering
 	where
 		Self: Sized,
 	{
-		self.priority()
-			.cmp(&other.priority())
-			.then_with(|| self.source().rank().cmp(&other.source().rank()))
-			.then_with(|| self.id().cmp(&other.id()))
+		crate::core::index::precedence::cmp_entry(self, other)
 	}
 }
 

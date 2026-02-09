@@ -37,6 +37,9 @@ pub use crate::core::{
 	RegistryMetadata, RegistryRef, RegistrySource, RuntimeRegistry,
 };
 
+/// Typed reference to a runtime command entry.
+pub type CommandRef = RegistryRef<CommandEntry, crate::core::CommandId>;
+
 /// Simplified result type for command operations.
 pub type CommandResult = Result<(), CommandError>;
 
@@ -158,5 +161,5 @@ pub fn find_command(name: &str) -> Option<RegistryRef<CommandEntry, crate::core:
 /// Returns all registered commands (builtins + runtime), sorted by name.
 #[cfg(feature = "db")]
 pub fn all_commands() -> Vec<RegistryRef<CommandEntry, crate::core::CommandId>> {
-	COMMANDS.all()
+	COMMANDS.snapshot_guard().iter_refs().collect()
 }

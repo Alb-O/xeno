@@ -2,13 +2,16 @@
 //!
 //! # Role
 //!
-//! This module implements the 3-stage key binding model (canonical → name → keys)
-//! and records collisions for diagnostics.
+//! This module implements the 3-stage key binding model with explicit stage maps:
+//! - Stage A (by_id): Canonical IDs - immutable identity
+//! - Stage B (by_name): Primary names - display names
+//! - Stage C (by_key): Secondary keys - aliases and domain keys
 //!
 //! # Invariants
 //!
-//! - Canonical IDs must be Displacement-Immune (Stage A cannot be displaced by Stage B/C).
-//! - Key conflicts must use the total order tie-breaker ([`crate::core::traits::RegistryEntry::total_order_cmp`]).
+//! - Stage B insertions are blocked if the symbol exists in by_id.
+//! - Stage C insertions are blocked if the symbol exists in by_id or by_name.
+//! - Within-stage conflicts are resolved using total order comparison.
 
 use std::cmp::Ordering;
 use std::sync::Arc;
@@ -16,11 +19,11 @@ use std::sync::Arc;
 use rustc_hash::FxHashMap;
 
 use crate::core::{
-	Collision, CollisionKind, DenseId, DuplicatePolicy, KeyKind, Party, RegistryEntry, Resolution,
-	Snapshot, Symbol,
+	Collision, CollisionKind, DenseId, KeyKind, Party, RegistryEntry, Resolution, Snapshot, Symbol,
 };
 
-pub(crate) fn collect_entry_keys<T: RegistryEntry>(
+/// Collects all lookup symbols for an entry that may require collision recalculation.
+pub(crate) fn collect_symbols_for_collision_recalc<T: RegistryEntry>(
 	entry: &T,
 	key_pool: &[Symbol],
 	sink: &mut std::collections::HashSet<Symbol>,
@@ -35,81 +38,380 @@ pub(crate) fn collect_entry_keys<T: RegistryEntry>(
 	}
 }
 
-pub(crate) fn get_key_kind<T, Id>(
-	key: Symbol,
-	dense_id: Id,
-	table: &[Arc<T>],
+/// Builds stage B (by_name) and stage C (by_key) maps with collision tracking.
+pub(crate) fn build_stage_maps<Out, Id>(
+	registry_label: &'static str,
+	table: &[Arc<Out>],
+	parties: &[Party],
+	key_pool: &[Symbol],
 	by_id: &FxHashMap<Symbol, Id>,
-) -> KeyKind
+) -> (FxHashMap<Symbol, Id>, FxHashMap<Symbol, Id>, Vec<Collision>)
 where
-	T: RegistryEntry,
+	Out: super::RuntimeEntry,
 	Id: DenseId,
 {
-	if let Some(&id) = by_id.get(&key)
-		&& id == dense_id
-	{
-		KeyKind::Canonical
-	} else if table[dense_id.as_u32() as usize].name() == key {
-		KeyKind::PrimaryName
+	let mut by_name = FxHashMap::default();
+	let mut by_key = FxHashMap::default();
+	let mut collisions = Vec::new();
+
+	// Stage B: Primary Names
+	for (idx, entry) in table.iter().enumerate() {
+		let dense_id = Id::from_u32(super::u32_index(idx, registry_label));
+		let name_sym = entry.name();
+		let party = parties[idx];
+
+		// Check for Stage A block
+		if by_id.contains_key(&name_sym) {
+			// Record collision: Canonical blocks PrimaryName
+			if let Some(&canonical_id) = by_id.get(&name_sym) {
+				let canonical_party = parties[canonical_id.as_u32() as usize];
+				collisions.push(Collision {
+					registry: registry_label,
+					key: name_sym,
+					kind: CollisionKind::KeyConflict {
+						existing_kind: KeyKind::Canonical,
+						incoming_kind: KeyKind::PrimaryName,
+						existing: canonical_party,
+						incoming: party,
+						resolution: Resolution::KeptExisting,
+					},
+				});
+			}
+			continue;
+		}
+
+		// Within-stage conflict resolution
+		resolve_stage_b(
+			registry_label,
+			name_sym,
+			dense_id,
+			party,
+			table,
+			parties,
+			&mut by_name,
+			&mut collisions,
+		);
+	}
+
+	// Stage C: Secondary Keys
+	for (idx, entry) in table.iter().enumerate() {
+		let dense_id = Id::from_u32(super::u32_index(idx, registry_label));
+		let party = parties[idx];
+		let meta = entry.meta();
+		let start = meta.keys.start as usize;
+		let len = meta.keys.len as usize;
+
+		for &key in &key_pool[start..start + len] {
+			// Check for Stage A or B block
+			if by_id.contains_key(&key) {
+				if let Some(&canonical_id) = by_id.get(&key) {
+					let canonical_party = parties[canonical_id.as_u32() as usize];
+					collisions.push(Collision {
+						registry: registry_label,
+						key,
+						kind: CollisionKind::KeyConflict {
+							existing_kind: KeyKind::Canonical,
+							incoming_kind: KeyKind::SecondaryKey,
+							existing: canonical_party,
+							incoming: party,
+							resolution: Resolution::KeptExisting,
+						},
+					});
+				}
+				continue;
+			}
+
+			if by_name.contains_key(&key) {
+				if let Some(&name_id) = by_name.get(&key) {
+					let name_party = parties[name_id.as_u32() as usize];
+					collisions.push(Collision {
+						registry: registry_label,
+						key,
+						kind: CollisionKind::KeyConflict {
+							existing_kind: KeyKind::PrimaryName,
+							incoming_kind: KeyKind::SecondaryKey,
+							existing: name_party,
+							incoming: party,
+							resolution: Resolution::KeptExisting,
+						},
+					});
+				}
+				continue;
+			}
+
+			// Within-stage conflict resolution
+			resolve_stage_c(
+				registry_label,
+				key,
+				dense_id,
+				party,
+				table,
+				parties,
+				&mut by_key,
+				&mut collisions,
+			);
+		}
+	}
+
+	collisions.sort_by(Collision::stable_cmp);
+	(by_name, by_key, collisions)
+}
+
+fn resolve_stage_b<Out, Id>(
+	registry_label: &'static str,
+	key: Symbol,
+	incoming_id: Id,
+	incoming_party: Party,
+	table: &[Arc<Out>],
+	parties: &[Party],
+	by_name: &mut FxHashMap<Symbol, Id>,
+	collisions: &mut Vec<Collision>,
+) where
+	Out: RegistryEntry,
+	Id: DenseId,
+{
+	if let Some(&existing_id) = by_name.get(&key) {
+		let existing_idx = existing_id.as_u32() as usize;
+		let existing_party = parties[existing_idx];
+
+		// Same stage: compare entries
+		if table[incoming_id.as_u32() as usize].total_order_cmp(table[existing_idx].as_ref())
+			== Ordering::Greater
+		{
+			by_name.insert(key, incoming_id);
+			collisions.push(Collision {
+				registry: registry_label,
+				key,
+				kind: CollisionKind::KeyConflict {
+					existing_kind: KeyKind::PrimaryName,
+					incoming_kind: KeyKind::PrimaryName,
+					existing: existing_party,
+					incoming: incoming_party,
+					resolution: Resolution::ReplacedExisting,
+				},
+			});
+		} else {
+			collisions.push(Collision {
+				registry: registry_label,
+				key,
+				kind: CollisionKind::KeyConflict {
+					existing_kind: KeyKind::PrimaryName,
+					incoming_kind: KeyKind::PrimaryName,
+					existing: existing_party,
+					incoming: incoming_party,
+					resolution: Resolution::KeptExisting,
+				},
+			});
+		}
 	} else {
-		KeyKind::SecondaryKey
+		by_name.insert(key, incoming_id);
 	}
 }
 
-pub(crate) fn update_lookup_append<T, Id>(
+fn resolve_stage_c<Out, Id>(
+	registry_label: &'static str,
+	key: Symbol,
+	incoming_id: Id,
+	incoming_party: Party,
+	table: &[Arc<Out>],
+	parties: &[Party],
+	by_key: &mut FxHashMap<Symbol, Id>,
+	collisions: &mut Vec<Collision>,
+) where
+	Out: RegistryEntry,
+	Id: DenseId,
+{
+	if let Some(&existing_id) = by_key.get(&key) {
+		let existing_idx = existing_id.as_u32() as usize;
+		let existing_party = parties[existing_idx];
+
+		// Same stage: compare entries
+		if table[incoming_id.as_u32() as usize].total_order_cmp(table[existing_idx].as_ref())
+			== Ordering::Greater
+		{
+			by_key.insert(key, incoming_id);
+			collisions.push(Collision {
+				registry: registry_label,
+				key,
+				kind: CollisionKind::KeyConflict {
+					existing_kind: KeyKind::SecondaryKey,
+					incoming_kind: KeyKind::SecondaryKey,
+					existing: existing_party,
+					incoming: incoming_party,
+					resolution: Resolution::ReplacedExisting,
+				},
+			});
+		} else {
+			collisions.push(Collision {
+				registry: registry_label,
+				key,
+				kind: CollisionKind::KeyConflict {
+					existing_kind: KeyKind::SecondaryKey,
+					incoming_kind: KeyKind::SecondaryKey,
+					existing: existing_party,
+					incoming: incoming_party,
+					resolution: Resolution::KeptExisting,
+				},
+			});
+		}
+	} else {
+		by_key.insert(key, incoming_id);
+	}
+}
+
+/// Incremental update for append operations.
+pub(crate) fn update_stage_maps_append<T, Id>(
 	registry_label: &'static str,
 	table: &[Arc<T>],
 	parties: &[Party],
 	key_pool: &[Symbol],
-	_policy: DuplicatePolicy,
 	new_idx: usize,
-	old_snap: &Snapshot<T, Id>,
-	new_by_id: &FxHashMap<Symbol, Id>,
-) -> (FxHashMap<Symbol, Id>, Vec<Collision>)
+	by_id: &FxHashMap<Symbol, Id>,
+	old_by_name: &FxHashMap<Symbol, Id>,
+	old_by_key: &FxHashMap<Symbol, Id>,
+	old_collisions: &[Collision],
+) -> (FxHashMap<Symbol, Id>, FxHashMap<Symbol, Id>, Vec<Collision>)
 where
 	T: super::RuntimeEntry,
 	Id: DenseId,
 {
-	let mut by_key = (*old_snap.by_key).clone();
-	let mut collisions = old_snap.collisions.to_vec();
+	let mut by_name = old_by_name.clone();
+	let mut by_key = old_by_key.clone();
+	let mut collisions = old_collisions.to_vec();
 
 	let entry = &table[new_idx];
 	let dense_id = Id::from_u32(super::u32_index(new_idx, registry_label));
-	let current_party = parties[new_idx];
-
-	// Stage A: Canonical ID
-	let id_sym = entry.id();
-	by_key.insert(id_sym, dense_id);
+	let party = parties[new_idx];
 
 	// Stage B: Primary Name
 	let name_sym = entry.name();
-	resolve_incremental(
-		registry_label,
-		name_sym,
-		dense_id,
-		current_party,
-		KeyKind::PrimaryName,
-		&mut by_key,
-		&mut collisions,
-		table,
-		parties,
-		new_by_id,
-	);
+	if let Some(&canonical_id) = by_id.get(&name_sym) {
+		// Record collision: Canonical blocks PrimaryName
+		let canonical_party = parties[canonical_id.as_u32() as usize];
+		collisions.push(Collision {
+			registry: registry_label,
+			key: name_sym,
+			kind: CollisionKind::KeyConflict {
+				existing_kind: KeyKind::Canonical,
+				incoming_kind: KeyKind::PrimaryName,
+				existing: canonical_party,
+				incoming: party,
+				resolution: Resolution::KeptExisting,
+			},
+		});
+	} else {
+		resolve_stage_b(
+			registry_label,
+			name_sym,
+			dense_id,
+			party,
+			table,
+			parties,
+			&mut by_name,
+			&mut collisions,
+		);
+	}
 
 	// Stage C: Secondary Keys
 	let meta = entry.meta();
 	let start = meta.keys.start as usize;
 	let len = meta.keys.len as usize;
-	let secondary_keys = &key_pool[start..start + len];
+	for &key in &key_pool[start..start + len] {
+		if let Some(&canonical_id) = by_id.get(&key) {
+			// Record collision: Canonical blocks SecondaryKey
+			let canonical_party = parties[canonical_id.as_u32() as usize];
+			collisions.push(Collision {
+				registry: registry_label,
+				key,
+				kind: CollisionKind::KeyConflict {
+					existing_kind: KeyKind::Canonical,
+					incoming_kind: KeyKind::SecondaryKey,
+					existing: canonical_party,
+					incoming: party,
+					resolution: Resolution::KeptExisting,
+				},
+			});
+			continue;
+		}
 
-	for &key in secondary_keys {
-		resolve_incremental(
+		if let Some(&name_id) = by_name.get(&key) {
+			// Record collision: PrimaryName blocks SecondaryKey
+			let name_party = parties[name_id.as_u32() as usize];
+			collisions.push(Collision {
+				registry: registry_label,
+				key,
+				kind: CollisionKind::KeyConflict {
+					existing_kind: KeyKind::PrimaryName,
+					incoming_kind: KeyKind::SecondaryKey,
+					existing: name_party,
+					incoming: party,
+					resolution: Resolution::KeptExisting,
+				},
+			});
+			continue;
+		}
+
+		resolve_stage_c(
 			registry_label,
 			key,
 			dense_id,
-			current_party,
-			KeyKind::SecondaryKey,
+			party,
+			table,
+			parties,
 			&mut by_key,
+			&mut collisions,
+		);
+	}
+
+	collisions.sort_by(Collision::stable_cmp);
+	(by_name, by_key, collisions)
+}
+
+/// Incremental update for replace operations.
+pub(crate) fn update_stage_maps_replace<T, Id>(
+	registry_label: &'static str,
+	table: &[Arc<T>],
+	parties: &[Party],
+	key_pool: &[Symbol],
+	replaced_idx: usize,
+	old_snap: &Snapshot<T, Id>,
+	new_by_id: &FxHashMap<Symbol, Id>,
+) -> (FxHashMap<Symbol, Id>, FxHashMap<Symbol, Id>, Vec<Collision>)
+where
+	T: super::RuntimeEntry,
+	Id: DenseId,
+{
+	let mut by_name = (*old_snap.by_name).clone();
+	let mut by_key = (*old_snap.by_key).clone();
+
+	// Collect all affected keys from old and new entry
+	let mut affected_keys = std::collections::HashSet::default();
+	collect_symbols_for_collision_recalc(
+		old_snap.table[replaced_idx].as_ref(),
+		old_snap.key_pool.as_ref(),
+		&mut affected_keys,
+	);
+	collect_symbols_for_collision_recalc(
+		table[replaced_idx].as_ref(),
+		key_pool,
+		&mut affected_keys,
+	);
+
+	// Filter out collisions for affected keys (will be recomputed)
+	let mut collisions: Vec<Collision> = old_snap
+		.collisions
+		.iter()
+		.filter(|c| !affected_keys.contains(&c.key))
+		.cloned()
+		.collect();
+
+	// Recalculate winners for affected keys
+	// First Stage B, then Stage C (because Stage C depends on Stage B)
+	for &key in &affected_keys {
+		recalculate_stage_b_winner(
+			registry_label,
+			key,
+			&mut by_name,
 			&mut collisions,
 			table,
 			parties,
@@ -117,52 +419,8 @@ where
 		);
 	}
 
-	collisions.sort_by(Collision::stable_cmp);
-	(by_key, collisions)
-}
-
-pub(crate) fn update_lookup_replace<T, Id>(
-	registry_label: &'static str,
-	table: &[Arc<T>],
-	parties: &[Party],
-	key_pool: &[Symbol],
-	_policy: DuplicatePolicy,
-	replaced_idx: usize,
-	old_snap: &Snapshot<T, Id>,
-	new_by_id: &FxHashMap<Symbol, Id>,
-) -> (FxHashMap<Symbol, Id>, Vec<Collision>)
-where
-	T: super::RuntimeEntry,
-	Id: DenseId,
-{
-	let mut by_key = (*old_snap.by_key).clone();
-
-	let mut affected_keys = std::collections::HashSet::default();
-	collect_entry_keys(
-		old_snap.table[replaced_idx].as_ref(),
-		old_snap.key_pool.as_ref(),
-		&mut affected_keys,
-	);
-	collect_entry_keys(table[replaced_idx].as_ref(), key_pool, &mut affected_keys);
-
-	// Filter out collisions involving the replaced entry
-	let replaced_ordinal = old_snap.parties[replaced_idx].ordinal;
-	let mut collisions: Vec<Collision> = old_snap
-		.collisions
-		.iter()
-		.filter(|c| match &c.kind {
-			CollisionKind::KeyConflict {
-				existing, incoming, ..
-			} => existing.ordinal != replaced_ordinal && incoming.ordinal != replaced_ordinal,
-			CollisionKind::DuplicateId { winner, loser, .. } => {
-				winner.ordinal != replaced_ordinal && loser.ordinal != replaced_ordinal
-			}
-		})
-		.cloned()
-		.collect();
-
-	for key in affected_keys {
-		recalculate_key_winner(
+	for &key in &affected_keys {
+		recalculate_stage_c_winner(
 			registry_label,
 			key,
 			&mut by_key,
@@ -171,14 +429,116 @@ where
 			parties,
 			key_pool,
 			new_by_id,
+			&by_name,
 		);
 	}
 
 	collisions.sort_by(Collision::stable_cmp);
-	(by_key, collisions)
+	(by_name, by_key, collisions)
 }
 
-fn recalculate_key_winner<T, Id>(
+fn recalculate_stage_b_winner<T, Id>(
+	registry_label: &'static str,
+	key: Symbol,
+	by_name: &mut FxHashMap<Symbol, Id>,
+	collisions: &mut Vec<Collision>,
+	table: &[Arc<T>],
+	parties: &[Party],
+	by_id: &FxHashMap<Symbol, Id>,
+) where
+	T: RegistryEntry,
+	Id: DenseId,
+{
+	// Check Stage A block first - record collisions for all attempted Stage B binds
+	if let Some(&canon_id) = by_id.get(&key) {
+		let canon_party = parties[canon_id.as_u32() as usize];
+
+		// Record collision for every entry whose name matches this blocked key
+		for (i, entry) in table.iter().enumerate() {
+			if entry.name() == key {
+				let incoming_party = parties[i];
+				collisions.push(Collision {
+					registry: registry_label,
+					key,
+					kind: CollisionKind::KeyConflict {
+						existing_kind: KeyKind::Canonical,
+						incoming_kind: KeyKind::PrimaryName,
+						existing: canon_party,
+						incoming: incoming_party,
+						resolution: Resolution::KeptExisting,
+					},
+				});
+			}
+		}
+
+		by_name.remove(&key);
+		return;
+	}
+
+	// Find all candidates for this key in Stage B
+	let mut candidates: Vec<(Id, Party)> = Vec::new();
+	for (i, entry) in table.iter().enumerate() {
+		if entry.name() == key {
+			let dense_id = Id::from_u32(super::u32_index(i, registry_label));
+			candidates.push((dense_id, parties[i]));
+		}
+	}
+
+	if candidates.is_empty() {
+		by_name.remove(&key);
+		return;
+	}
+
+	// Find winner using total order
+	let (mut winner_id, mut winner_party) = candidates[0];
+	for (challenger_id, challenger_party) in candidates.into_iter().skip(1) {
+		if table[challenger_id.as_u32() as usize]
+			.total_order_cmp(table[winner_id.as_u32() as usize].as_ref())
+			== Ordering::Greater
+		{
+			collisions.push(Collision {
+				registry: registry_label,
+				key,
+				kind: CollisionKind::KeyConflict {
+					existing_kind: KeyKind::PrimaryName,
+					incoming_kind: KeyKind::PrimaryName,
+					existing: winner_party,
+					incoming: challenger_party,
+					resolution: Resolution::ReplacedExisting,
+				},
+			});
+			winner_id = challenger_id;
+			winner_party = challenger_party;
+		} else {
+			collisions.push(Collision {
+				registry: registry_label,
+				key,
+				kind: CollisionKind::KeyConflict {
+					existing_kind: KeyKind::PrimaryName,
+					incoming_kind: KeyKind::PrimaryName,
+					existing: winner_party,
+					incoming: challenger_party,
+					resolution: Resolution::KeptExisting,
+				},
+			});
+		}
+	}
+
+	by_name.insert(key, winner_id);
+}
+
+fn entry_has_secondary_key<T: RegistryEntry>(
+	entry: &Arc<T>,
+	key_pool: &[Symbol],
+	key: Symbol,
+) -> bool {
+	let meta = entry.meta();
+	let start = meta.keys.start as usize;
+	let len = meta.keys.len as usize;
+	key_pool[start..start + len].contains(&key)
+}
+
+fn recalculate_stage_c_winner<T, Id>(
 	registry_label: &'static str,
 	key: Symbol,
 	by_key: &mut FxHashMap<Symbol, Id>,
@@ -186,31 +546,70 @@ fn recalculate_key_winner<T, Id>(
 	table: &[Arc<T>],
 	parties: &[Party],
 	key_pool: &[Symbol],
-	_by_id: &FxHashMap<Symbol, Id>,
+	by_id: &FxHashMap<Symbol, Id>,
+	by_name: &FxHashMap<Symbol, Id>,
 ) where
 	T: RegistryEntry,
 	Id: DenseId,
 {
-	let mut candidates = Vec::new();
-	for (i, entry) in table.iter().enumerate() {
-		let kind = if entry.id() == key {
-			Some(KeyKind::Canonical)
-		} else if entry.name() == key {
-			Some(KeyKind::PrimaryName)
-		} else {
-			let meta = entry.meta();
-			let start = meta.keys.start as usize;
-			let len = meta.keys.len as usize;
-			if key_pool[start..start + len].contains(&key) {
-				Some(KeyKind::SecondaryKey)
-			} else {
-				None
-			}
-		};
+	// Check Stage A block - canonical ID blocks secondary keys
+	if let Some(&canon_id) = by_id.get(&key) {
+		let canon_party = parties[canon_id.as_u32() as usize];
 
-		if let Some(k) = kind {
+		// Record collision for every entry that has this key as secondary
+		for (i, entry) in table.iter().enumerate() {
+			if entry_has_secondary_key(entry, key_pool, key) {
+				let incoming_party = parties[i];
+				collisions.push(Collision {
+					registry: registry_label,
+					key,
+					kind: CollisionKind::KeyConflict {
+						existing_kind: KeyKind::Canonical,
+						incoming_kind: KeyKind::SecondaryKey,
+						existing: canon_party,
+						incoming: incoming_party,
+						resolution: Resolution::KeptExisting,
+					},
+				});
+			}
+		}
+
+		by_key.remove(&key);
+		return;
+	}
+
+	// Check Stage B block - primary name blocks secondary keys
+	if let Some(&name_id) = by_name.get(&key) {
+		let name_party = parties[name_id.as_u32() as usize];
+
+		// Record collision for every entry that has this key as secondary
+		for (i, entry) in table.iter().enumerate() {
+			if entry_has_secondary_key(entry, key_pool, key) {
+				let incoming_party = parties[i];
+				collisions.push(Collision {
+					registry: registry_label,
+					key,
+					kind: CollisionKind::KeyConflict {
+						existing_kind: KeyKind::PrimaryName,
+						incoming_kind: KeyKind::SecondaryKey,
+						existing: name_party,
+						incoming: incoming_party,
+						resolution: Resolution::KeptExisting,
+					},
+				});
+			}
+		}
+
+		by_key.remove(&key);
+		return;
+	}
+
+	// Find all candidates for this key in Stage C
+	let mut candidates: Vec<(Id, Party)> = Vec::new();
+	for (i, entry) in table.iter().enumerate() {
+		if entry_has_secondary_key(entry, key_pool, key) {
 			let dense_id = Id::from_u32(super::u32_index(i, registry_label));
-			candidates.push((dense_id, parties[i], k));
+			candidates.push((dense_id, parties[i]));
 		}
 	}
 
@@ -219,33 +618,19 @@ fn recalculate_key_winner<T, Id>(
 		return;
 	}
 
-	// Candidates are already in table order. Simulate build_lookup loop.
-	let (first_id, first_party, first_kind) = candidates[0];
-	let mut winner_id = first_id;
-	let mut winner_party = first_party;
-	let mut winner_kind = first_kind;
-
-	for (challenger_id, challenger_party, challenger_kind) in candidates.into_iter().skip(1) {
-		let challenger_better = match (winner_kind, challenger_kind) {
-			(KeyKind::Canonical, _) => false,
-			(_, KeyKind::Canonical) => true,
-			(KeyKind::PrimaryName, KeyKind::PrimaryName)
-			| (KeyKind::SecondaryKey, KeyKind::SecondaryKey) => {
-				table[challenger_id.as_u32() as usize]
-					.total_order_cmp(table[winner_id.as_u32() as usize].as_ref())
-					== Ordering::Greater
-			}
-			(KeyKind::PrimaryName, KeyKind::SecondaryKey) => false,
-			(KeyKind::SecondaryKey, KeyKind::PrimaryName) => true,
-		};
-
-		if challenger_better {
+	// Find winner using total order
+	let (mut winner_id, mut winner_party) = candidates[0];
+	for (challenger_id, challenger_party) in candidates.into_iter().skip(1) {
+		if table[challenger_id.as_u32() as usize]
+			.total_order_cmp(table[winner_id.as_u32() as usize].as_ref())
+			== Ordering::Greater
+		{
 			collisions.push(Collision {
 				registry: registry_label,
 				key,
 				kind: CollisionKind::KeyConflict {
-					existing_kind: winner_kind,
-					incoming_kind: challenger_kind,
+					existing_kind: KeyKind::SecondaryKey,
+					incoming_kind: KeyKind::SecondaryKey,
 					existing: winner_party,
 					incoming: challenger_party,
 					resolution: Resolution::ReplacedExisting,
@@ -253,14 +638,13 @@ fn recalculate_key_winner<T, Id>(
 			});
 			winner_id = challenger_id;
 			winner_party = challenger_party;
-			winner_kind = challenger_kind;
 		} else {
 			collisions.push(Collision {
 				registry: registry_label,
 				key,
 				kind: CollisionKind::KeyConflict {
-					existing_kind: winner_kind,
-					incoming_kind: challenger_kind,
+					existing_kind: KeyKind::SecondaryKey,
+					incoming_kind: KeyKind::SecondaryKey,
 					existing: winner_party,
 					incoming: challenger_party,
 					resolution: Resolution::KeptExisting,
@@ -270,196 +654,4 @@ fn recalculate_key_winner<T, Id>(
 	}
 
 	by_key.insert(key, winner_id);
-}
-
-#[allow(clippy::too_many_arguments)]
-fn resolve_incremental<T, Id>(
-	registry_label: &'static str,
-	key: Symbol,
-	incoming_id: Id,
-	incoming_party: Party,
-	incoming_kind: KeyKind,
-	by_key: &mut FxHashMap<Symbol, Id>,
-	collisions: &mut Vec<Collision>,
-	table: &[Arc<T>],
-	parties: &[Party],
-	by_id: &FxHashMap<Symbol, Id>,
-) where
-	T: super::RuntimeEntry,
-	Id: DenseId,
-{
-	if let Some(&existing_id) = by_key.get(&key) {
-		if existing_id == incoming_id {
-			return;
-		}
-
-		let existing_idx = existing_id.as_u32() as usize;
-		let existing_party = parties[existing_idx];
-		let existing_kind = get_key_kind(key, existing_id, table, by_id);
-
-		match (existing_kind, incoming_kind) {
-			(KeyKind::Canonical, _) => {
-				// Stage A wins
-				collisions.push(Collision {
-					registry: registry_label,
-					key,
-					kind: CollisionKind::KeyConflict {
-						existing_kind: KeyKind::Canonical,
-						incoming_kind,
-						existing: existing_party,
-						incoming: incoming_party,
-						resolution: Resolution::KeptExisting,
-					},
-				});
-			}
-			(KeyKind::PrimaryName, KeyKind::PrimaryName)
-			| (KeyKind::SecondaryKey, KeyKind::SecondaryKey) => {
-				// Same stage: compare entries
-				if compare_out(
-					table[incoming_id.as_u32() as usize].as_ref(),
-					table[existing_idx].as_ref(),
-				) == Ordering::Greater
-				{
-					by_key.insert(key, incoming_id);
-					collisions.push(Collision {
-						registry: registry_label,
-						key,
-						kind: CollisionKind::KeyConflict {
-							existing_kind,
-							incoming_kind,
-							existing: existing_party,
-							incoming: incoming_party,
-							resolution: Resolution::ReplacedExisting,
-						},
-					});
-				} else {
-					collisions.push(Collision {
-						registry: registry_label,
-						key,
-						kind: CollisionKind::KeyConflict {
-							existing_kind,
-							incoming_kind,
-							existing: existing_party,
-							incoming: incoming_party,
-							resolution: Resolution::KeptExisting,
-						},
-					});
-				}
-			}
-			(KeyKind::PrimaryName, KeyKind::SecondaryKey) => {
-				// Stage B wins over Stage C
-				collisions.push(Collision {
-					registry: registry_label,
-					key,
-					kind: CollisionKind::KeyConflict {
-						existing_kind: KeyKind::PrimaryName,
-						incoming_kind: KeyKind::SecondaryKey,
-						existing: existing_party,
-						incoming: incoming_party,
-						resolution: Resolution::KeptExisting,
-					},
-				});
-			}
-			(KeyKind::SecondaryKey, KeyKind::PrimaryName) => {
-				// Stage B displaces Stage C
-				by_key.insert(key, incoming_id);
-				collisions.push(Collision {
-					registry: registry_label,
-					key,
-					kind: CollisionKind::KeyConflict {
-						existing_kind: KeyKind::SecondaryKey,
-						incoming_kind: KeyKind::PrimaryName,
-						existing: existing_party,
-						incoming: incoming_party,
-						resolution: Resolution::ReplacedExisting,
-					},
-				});
-			}
-			(_, KeyKind::Canonical) => {
-				// Canonical Stage A displaces any prior mapping
-				by_key.insert(key, incoming_id);
-			}
-		}
-	} else {
-		by_key.insert(key, incoming_id);
-	}
-}
-
-pub(crate) fn compare_out<T: RegistryEntry>(a: &T, b: &T) -> Ordering {
-	// Use the established total order from RegistryEntry.
-	// This ensures consistency across all conflict resolution points.
-	a.total_order_cmp(b)
-}
-
-// Make this public so RuntimeRegistry can use it for extension
-pub(crate) fn build_lookup<Out, Id>(
-	registry_label: &'static str,
-	table: &[Arc<Out>],
-	parties: &[Party],
-	key_pool: &[Symbol],
-	_policy: DuplicatePolicy,
-) -> (FxHashMap<Symbol, Id>, Vec<Collision>)
-where
-	Out: super::RuntimeEntry,
-	Id: DenseId,
-{
-	let mut by_key = FxHashMap::default();
-	let mut collisions = Vec::new();
-
-	// Stage A: Canonical IDs
-	for (idx, entry) in table.iter().enumerate() {
-		let dense_id = Id::from_u32(super::u32_index(idx, registry_label));
-		by_key.insert(entry.id(), dense_id);
-	}
-
-	// Internal by_id map for kind detection during build
-	let mut by_id = FxHashMap::default();
-	for (idx, entry) in table.iter().enumerate() {
-		by_id.insert(
-			entry.id(),
-			Id::from_u32(super::u32_index(idx, registry_label)),
-		);
-	}
-
-	// Stage B: Primary Names
-	for (idx, entry) in table.iter().enumerate() {
-		let dense_id = Id::from_u32(super::u32_index(idx, registry_label));
-		resolve_incremental(
-			registry_label,
-			entry.name(),
-			dense_id,
-			parties[idx],
-			KeyKind::PrimaryName,
-			&mut by_key,
-			&mut collisions,
-			table,
-			parties,
-			&by_id,
-		);
-	}
-
-	// Stage C: Secondary Keys
-	for (idx, entry) in table.iter().enumerate() {
-		let dense_id = Id::from_u32(super::u32_index(idx, registry_label));
-		let meta = entry.meta();
-		let start = meta.keys.start as usize;
-		let len = meta.keys.len as usize;
-		for &key in &key_pool[start..start + len] {
-			resolve_incremental(
-				registry_label,
-				key,
-				dense_id,
-				parties[idx],
-				KeyKind::SecondaryKey,
-				&mut by_key,
-				&mut collisions,
-				table,
-				parties,
-				&by_id,
-			);
-		}
-	}
-
-	collisions.sort_by(Collision::stable_cmp);
-	(by_key, collisions)
 }

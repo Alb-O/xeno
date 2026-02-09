@@ -80,7 +80,7 @@ pub fn find(name: &str) -> Option<OptionsRef> {
 
 #[cfg(feature = "db")]
 pub fn all() -> Vec<OptionsRef> {
-	OPTIONS.all()
+	OPTIONS.snapshot_guard().iter_refs().collect()
 }
 
 /// Validates a parsed option value against the registry definition.

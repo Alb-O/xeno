@@ -13,6 +13,7 @@ where
 {
 	pub(crate) table: Arc<[Arc<T>]>,
 	pub(crate) by_id: Arc<Map<Symbol, Id>>,
+	pub(crate) by_name: Arc<Map<Symbol, Id>>,
 	pub(crate) by_key: Arc<Map<Symbol, Id>>,
 	pub(crate) interner: FrozenInterner,
 	pub(crate) key_pool: Arc<[Symbol]>,
@@ -28,6 +29,7 @@ where
 		Self {
 			table: self.table.clone(),
 			by_id: self.by_id.clone(),
+			by_name: self.by_name.clone(),
 			by_key: self.by_key.clone(),
 			interner: self.interner.clone(),
 			key_pool: self.key_pool.clone(),
@@ -49,9 +51,15 @@ where
 	}
 
 	/// Looks up a definition by its interned symbol.
+	///
+	/// Uses 3-stage fallback: canonical ID → primary name → secondary keys.
 	#[inline]
 	pub fn get_sym(&self, sym: Symbol) -> Option<&T> {
-		let id = self.by_key.get(&sym)?;
+		let id = self
+			.by_id
+			.get(&sym)
+			.or_else(|| self.by_name.get(&sym))
+			.or_else(|| self.by_key.get(&sym))?;
 		Some(&self.table[id.as_u32() as usize])
 	}
 

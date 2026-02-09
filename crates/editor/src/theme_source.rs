@@ -30,8 +30,8 @@ impl CompletionSource for ThemeSource {
 		let arg_start = cmd_name.len() + 1;
 
 		let mut items: Vec<_> = THEMES
-			.all()
-			.iter()
+			.snapshot_guard()
+			.iter_refs()
 			.filter(|t| {
 				t.name_str().starts_with(prefix)
 					|| t.keys_resolved().iter().any(|a| a.starts_with(prefix))

@@ -49,20 +49,20 @@ pub fn find_text_object_by_trigger(trigger: char) -> Option<TextObjectRef> {
 
 /// Returns all command definitions, sorted by name.
 pub fn all_commands() -> Vec<RegistryRef<CommandEntry, CommandId>> {
-	COMMANDS.all()
+	COMMANDS.snapshot_guard().iter_refs().collect()
 }
 
 /// Returns all action definitions, sorted by name.
 pub fn all_actions() -> Vec<RegistryRef<ActionEntry, ActionId>> {
-	ACTIONS.all()
+	ACTIONS.snapshot_guard().iter_refs().collect()
 }
 
 /// Returns all motion definitions, sorted by name.
 pub fn all_motions() -> Vec<RegistryRef<MotionEntry, MotionId>> {
-	MOTIONS.all()
+	MOTIONS.snapshot_guard().iter_refs().collect()
 }
 
 /// Returns all text object definitions, sorted by name.
 pub fn all_text_objects() -> Vec<TextObjectRef> {
-	TEXT_OBJECTS.all()
+	TEXT_OBJECTS.snapshot_guard().iter_refs().collect()
 }

@@ -292,7 +292,7 @@ where
 	}
 
 	pub fn build(self) -> RegistryIndex<Out, Id> {
-		use super::lookup::build_lookup;
+		use super::lookup::build_stage_maps;
 
 		// 1. Resolve ID duplicates (winners vs losers)
 		let (winners, id_collisions) = resolve_id_duplicates(self.defs, self.policy);
@@ -303,11 +303,7 @@ where
 		// 3. Build table and key pool
 		let (table, key_pool, parties) = build_table(&winners, &interner);
 
-		// 4. Build lookup map and resolve key conflicts
-		let (by_key, key_collisions) =
-			build_lookup(self.label, &table, &parties, &key_pool, self.policy);
-
-		// 5. Build canonical ID lookup
+		// 4. Build canonical ID lookup (Stage A)
 		let mut by_id = rustc_hash::FxHashMap::default();
 		for (i, entry) in table.iter().enumerate() {
 			by_id.insert(
@@ -315,6 +311,10 @@ where
 				Id::from_u32(super::u32_index(i, self.label)),
 			);
 		}
+
+		// 5. Build Stage B and C maps with collision tracking
+		let (by_name, by_key, key_collisions) =
+			build_stage_maps(self.label, &table, &parties, &key_pool, &by_id);
 
 		// 6. Finalize collisions
 		let mut all_collisions = Vec::with_capacity(id_collisions.len() + key_collisions.len());
@@ -354,6 +354,7 @@ where
 		RegistryIndex {
 			table: Arc::from(table),
 			by_id: Arc::new(by_id),
+			by_name: Arc::new(by_name),
 			by_key: Arc::new(by_key),
 			interner,
 			key_pool: Arc::from(key_pool),

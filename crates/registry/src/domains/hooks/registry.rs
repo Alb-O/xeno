@@ -34,7 +34,11 @@ impl HooksRegistry {
 	}
 
 	pub fn all(&self) -> Vec<HooksRef> {
-		self.inner.all()
+		self.inner.snapshot_guard().iter_refs().collect()
+	}
+
+	pub fn snapshot_guard(&self) -> crate::core::index::SnapshotGuard<HookEntry, HookId> {
+		self.inner.snapshot_guard()
 	}
 
 	pub fn for_event(&self, event: HookEvent) -> Vec<HooksRef> {

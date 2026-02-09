@@ -117,7 +117,7 @@ impl KeymapRegistry {
 				continue;
 			};
 
-			let Some(&action_id) = actions.by_key.get(&action_entry.id()) else {
+			let Some(&action_id) = actions.by_id.get(&action_entry.id()) else {
 				if unknown_actions.len() < 5 {
 					unknown_actions.push((Arc::clone(&def.action), def.mode));
 				}
