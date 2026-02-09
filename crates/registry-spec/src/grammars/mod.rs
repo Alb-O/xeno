@@ -1,3 +1,6 @@
+#[cfg(feature = "compile")]
+pub mod compile;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

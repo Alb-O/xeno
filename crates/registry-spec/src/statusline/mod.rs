@@ -1,6 +1,11 @@
+#[cfg(feature = "compile")]
+pub mod compile;
+
 use serde::{Deserialize, Serialize};
 
 use crate::MetaCommonSpec;
+
+pub const VALID_POSITIONS: &[&str] = &["left", "right", "center"];
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StatuslineSegmentSpec {

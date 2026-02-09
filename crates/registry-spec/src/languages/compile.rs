@@ -1,11 +1,14 @@
+//! KDL → [`LanguagesSpec`] compiler.
+
 use std::collections::HashSet;
 use std::fs;
 
 use kdl::{KdlDocument, KdlNode};
-use xeno_registry_spec::MetaCommonSpec;
-use xeno_registry_spec::languages::{LanguageQuerySpec, LanguageSpec, LanguagesSpec};
 
-pub fn build(ctx: &super::common::BuildCtx) {
+use super::*;
+use crate::compile::BuildCtx;
+
+pub fn build(ctx: &BuildCtx) {
 	let root = ctx.asset("src/domains/languages/assets");
 	ctx.rerun_tree(&root);
 
@@ -26,7 +29,6 @@ pub fn build(ctx: &super::common::BuildCtx) {
 					lang.queries.push(LanguageQuerySpec { kind, text });
 				}
 			}
-			// Sort for determinism
 			lang.queries.sort_by(|a, b| a.kind.cmp(&b.kind));
 		}
 	}
@@ -92,7 +94,7 @@ fn parse_language_node(node: &KdlNode) -> LanguageSpec {
 	LanguageSpec {
 		common: MetaCommonSpec {
 			name,
-			description: String::new(), // Language KDL doesn't have descriptions usually
+			description: String::new(),
 			short_desc: None,
 			keys: Vec::new(),
 			priority: node

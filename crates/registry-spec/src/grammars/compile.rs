@@ -1,10 +1,12 @@
+//! KDL → [`GrammarsSpec`] compiler.
+
 use std::collections::HashSet;
 use std::fs;
 
 use kdl::KdlDocument;
-use xeno_registry_spec::grammars::{GrammarSourceSpec, GrammarSpec, GrammarsSpec};
 
-use super::common::*;
+use super::*;
+use crate::compile::BuildCtx;
 
 pub fn build(ctx: &BuildCtx) {
 	let root = ctx.asset("src/domains/grammars/assets");
@@ -46,7 +48,6 @@ fn parse_grammars_kdl(input: &str) -> Vec<GrammarSpec> {
 				.to_string();
 			GrammarSourceSpec::Local { path }
 		} else {
-			// Git source
 			let source_node = children
 				.get("source")
 				.unwrap_or_else(|| panic!("grammar '{}' missing 'source' or 'path' child", id));
@@ -83,7 +84,6 @@ fn parse_grammars_kdl(input: &str) -> Vec<GrammarSpec> {
 		grammars.push(GrammarSpec { id, source });
 	}
 
-	// Deterministic sort
 	grammars.sort_by(|a, b| a.id.cmp(&b.id));
 	grammars
 }

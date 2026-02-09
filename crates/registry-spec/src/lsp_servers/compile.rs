@@ -1,12 +1,13 @@
+//! KDL → [`LspServersSpec`] compiler.
+
 use std::collections::{BTreeMap, HashSet};
 use std::fs;
 
 use kdl::{KdlDocument, KdlNode, KdlValue};
 use serde_json::Value as JsonValue;
-use xeno_registry_spec::MetaCommonSpec;
-use xeno_registry_spec::lsp_servers::{LspServerSpec, LspServersSpec};
 
-use super::common::*;
+use super::*;
+use crate::compile::BuildCtx;
 
 pub fn build(ctx: &BuildCtx) {
 	let root = ctx.asset("src/domains/lsp_servers/assets");

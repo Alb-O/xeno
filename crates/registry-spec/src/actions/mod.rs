@@ -1,6 +1,23 @@
+#[cfg(feature = "compile")]
+pub mod compile;
+
 use serde::{Deserialize, Serialize};
 
 use crate::MetaCommonSpec;
+
+pub const VALID_MODES: &[&str] = &["normal", "insert", "match", "space"];
+pub const VALID_CAPS: &[&str] = &[
+	"Text",
+	"Cursor",
+	"Selection",
+	"Mode",
+	"Messaging",
+	"Edit",
+	"Search",
+	"Undo",
+	"FileOps",
+	"Overlay",
+];
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActionSpec {

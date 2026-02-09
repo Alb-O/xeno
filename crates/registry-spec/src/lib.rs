@@ -1,3 +1,6 @@
+#[cfg(feature = "compile")]
+pub mod compile;
+
 pub mod meta;
 pub use meta::MetaCommonSpec;
 

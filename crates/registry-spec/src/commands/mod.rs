@@ -1,16 +1,16 @@
+#[cfg(feature = "compile")]
+pub mod compile;
+
 use serde::{Deserialize, Serialize};
 
 use crate::MetaCommonSpec;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NotificationSpec {
+pub struct CommandSpec {
 	pub common: MetaCommonSpec,
-	pub level: String,
-	pub auto_dismiss: String,
-	pub dismiss_ms: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NotificationsSpec {
-	pub notifications: Vec<NotificationSpec>,
+pub struct CommandsSpec {
+	pub commands: Vec<CommandSpec>,
 }

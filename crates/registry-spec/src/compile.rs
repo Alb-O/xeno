@@ -1,3 +1,9 @@
+//! Build-time infrastructure for compiling KDL assets into binary blobs.
+//!
+//! Gated behind the `compile` feature. Provides shared utilities used by
+//! each domain's `compile` submodule to parse KDL definitions and emit
+//! postcard-serialized blob files consumed at runtime.
+
 use std::collections::HashSet;
 use std::fs;
 use std::io::Write;
@@ -72,7 +78,7 @@ pub fn require_str(node: &kdl::KdlNode, attr: &str, context: &str) -> String {
 		.to_string()
 }
 
-/// Extracts positional string arguments from a child node.
+/// Extracts positional string arguments from a `keys` child node.
 pub fn collect_keys(node: &kdl::KdlNode) -> Vec<String> {
 	let Some(children) = node.children() else {
 		return Vec::new();
@@ -88,7 +94,7 @@ pub fn collect_keys(node: &kdl::KdlNode) -> Vec<String> {
 		.collect()
 }
 
-/// Validates no duplicate names in a list.
+/// Validates no duplicate names in a list of `(name, _)` pairs.
 pub fn validate_unique(items: &[(String, String)], domain: &str) {
 	let mut seen = HashSet::new();
 	for (name, _) in items {

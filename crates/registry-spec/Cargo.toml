@@ -2,8 +2,16 @@
 name = "xeno-registry-spec"
 version.workspace = true
 edition.workspace = true
-description = "Pure data specification for xeno-registry domains"
+description = "Domain specs and feature-gated build logic for xeno-registry"
 license.workspace = true
 
+[features]
+default = []
+compile = ["dep:kdl", "dep:postcard", "dep:walkdir", "dep:serde_json"]
+
 [dependencies]
+kdl = { workspace = true, optional = true }
+postcard = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true, optional = true }
+walkdir = { version = "2", optional = true }

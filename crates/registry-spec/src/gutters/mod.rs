@@ -1,14 +1,18 @@
+#[cfg(feature = "compile")]
+pub mod compile;
+
 use serde::{Deserialize, Serialize};
 
 use crate::MetaCommonSpec;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct HookSpec {
+pub struct GutterSpec {
 	pub common: MetaCommonSpec,
-	pub event: String,
+	pub width: String,
+	pub enabled: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct HooksSpec {
-	pub hooks: Vec<HookSpec>,
+pub struct GuttersSpec {
+	pub gutters: Vec<GutterSpec>,
 }

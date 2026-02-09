@@ -1,27 +1,14 @@
+//! KDL → [`ActionsSpec`] compiler.
+
 use std::collections::HashSet;
 use std::fs;
 
 use kdl::KdlDocument;
-use xeno_registry_spec::MetaCommonSpec;
-use xeno_registry_spec::actions::{ActionSpec, ActionsSpec, KeyBindingSpec, KeyPrefixSpec};
 
-use super::common::*;
+use super::*;
+use crate::compile::*;
 
-const VALID_MODES: &[&str] = &["normal", "insert", "match", "space"];
-const VALID_CAPS: &[&str] = &[
-	"Text",
-	"Cursor",
-	"Selection",
-	"Mode",
-	"Messaging",
-	"Edit",
-	"Search",
-	"Undo",
-	"FileOps",
-	"Overlay",
-];
-
-pub fn build(ctx: &super::common::BuildCtx) {
+pub fn build(ctx: &BuildCtx) {
 	let path = ctx.asset("src/domains/actions/assets/actions.kdl");
 	ctx.rerun_if_changed(&path);
 

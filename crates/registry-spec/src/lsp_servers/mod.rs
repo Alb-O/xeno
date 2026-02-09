@@ -1,3 +1,6 @@
+#[cfg(feature = "compile")]
+pub mod compile;
+
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};

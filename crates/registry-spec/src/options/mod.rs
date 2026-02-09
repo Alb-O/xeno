@@ -1,6 +1,12 @@
+#[cfg(feature = "compile")]
+pub mod compile;
+
 use serde::{Deserialize, Serialize};
 
 use crate::MetaCommonSpec;
+
+pub const VALID_TYPES: &[&str] = &["bool", "int", "string"];
+pub const VALID_SCOPES: &[&str] = &["buffer", "global"];
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OptionSpec {

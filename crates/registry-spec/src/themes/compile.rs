@@ -1,10 +1,14 @@
+//! KDL → [`ThemesSpec`] compiler.
+
+use std::collections::HashMap;
 use std::fs;
 
 use kdl::KdlDocument;
-use xeno_registry_spec::MetaCommonSpec;
-use xeno_registry_spec::themes::{RawStyle, ThemeSpec, ThemesSpec};
 
-pub fn build(ctx: &super::common::BuildCtx) {
+use super::*;
+use crate::compile::BuildCtx;
+
+pub fn build(ctx: &BuildCtx) {
 	let root = ctx.asset("src/domains/themes/assets");
 	ctx.rerun_tree(&root);
 
@@ -72,7 +76,6 @@ pub fn build(ctx: &super::common::BuildCtx) {
 				.map(|v| v as u32)
 				.unwrap_or(0);
 
-			// Themes do not support caps
 			if doc.get("caps").is_some() {
 				panic!("{context}: themes do not support 'caps'");
 			}
@@ -83,7 +86,7 @@ pub fn build(ctx: &super::common::BuildCtx) {
 			let semantic = parse_kdl_map(doc.get("semantic"));
 			let popup = parse_kdl_map(doc.get("popup"));
 
-			let mut syntax = std::collections::HashMap::new();
+			let mut syntax = HashMap::new();
 			if let Some(node) = doc.get("syntax")
 				&& let Some(children) = node.children()
 			{
@@ -116,8 +119,8 @@ pub fn build(ctx: &super::common::BuildCtx) {
 	ctx.write_blob("themes.bin", &bin);
 }
 
-fn parse_kdl_map(node: Option<&kdl::KdlNode>) -> std::collections::HashMap<String, String> {
-	let mut map = std::collections::HashMap::new();
+fn parse_kdl_map(node: Option<&kdl::KdlNode>) -> HashMap<String, String> {
+	let mut map = HashMap::new();
 	if let Some(node) = node
 		&& let Some(children) = node.children()
 	{
@@ -135,7 +138,7 @@ fn parse_kdl_map(node: Option<&kdl::KdlNode>) -> std::collections::HashMap<Strin
 fn parse_syntax_recursive(
 	children: &kdl::KdlDocument,
 	prefix: &str,
-	map: &mut std::collections::HashMap<String, RawStyle>,
+	map: &mut HashMap<String, RawStyle>,
 ) {
 	for node in children.nodes() {
 		let name = node.name().value();

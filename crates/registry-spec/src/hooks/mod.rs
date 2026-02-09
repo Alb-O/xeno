@@ -1,13 +1,17 @@
+#[cfg(feature = "compile")]
+pub mod compile;
+
 use serde::{Deserialize, Serialize};
 
 use crate::MetaCommonSpec;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MotionSpec {
+pub struct HookSpec {
 	pub common: MetaCommonSpec,
+	pub event: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MotionsSpec {
-	pub motions: Vec<MotionSpec>,
+pub struct HooksSpec {
+	pub hooks: Vec<HookSpec>,
 }

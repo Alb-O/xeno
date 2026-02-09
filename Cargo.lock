@@ -3148,11 +3148,9 @@ dependencies = [
  "ropey",
  "rustc-hash",
  "serde",
- "serde_json",
  "strsim",
  "thiserror 2.0.18",
  "tracing",
- "walkdir",
  "xeno-keymap-core",
  "xeno-macros",
  "xeno-primitives",
@@ -3163,7 +3161,11 @@ dependencies = [
 name = "xeno-registry-spec"
 version = "0.8.11"
 dependencies = [
+ "kdl",
+ "postcard",
  "serde",
+ "serde_json",
+ "walkdir",
 ]
 
 [[package]]
