@@ -93,7 +93,6 @@ No triad field may be omitted.
 When changing core behavior, public API, or invariants in any subsystem:
 1. Update the module-level rustdoc in the relevant anchor file in the same change set.
 2. Add or update the `invariants::test_*` proof in `invariants.rs` for the new invariant.
-3. Verify with `./scripts/audit-anchors.sh`.
 
 ## Rustdoc link rules
 
