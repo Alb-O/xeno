@@ -424,7 +424,7 @@ async fn test_viewport_policy_flip_discard() {
 }
 
 #[test]
-fn test_stale_highlight_mapping_available_for_aligned_pending_window() {
+fn test_highlight_projection_ctx_available_for_aligned_pending_window() {
 	let mut mgr = SyntaxManager::default();
 	let doc_id = DocumentId(1);
 
@@ -448,6 +448,6 @@ fn test_stale_highlight_mapping_available_for_aligned_pending_window() {
 		});
 	}
 
-	assert!(mgr.stale_highlight_mapping(doc_id, 2).is_some());
-	assert!(mgr.stale_highlight_mapping(doc_id, 1).is_none());
+	assert!(mgr.highlight_projection_ctx(doc_id, 2).is_some());
+	assert!(mgr.highlight_projection_ctx(doc_id, 1).is_none());
 }

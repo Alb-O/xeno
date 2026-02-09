@@ -4,6 +4,7 @@ use xeno_primitives::Transaction;
 use xeno_primitives::transaction::Change;
 
 use super::*;
+use crate::syntax_manager::HighlightProjectionCtx;
 
 #[test]
 fn test_highlight_tiles_new() {
@@ -11,6 +12,8 @@ fn test_highlight_tiles_new() {
 	assert_eq!(cache.theme_epoch(), 0);
 	assert!(cache.tiles.is_empty());
 	assert!(cache.mru_order.is_empty());
+	assert!(cache.projected_tiles.is_empty());
+	assert!(cache.projected_index.is_empty());
 }
 
 #[test]
@@ -212,6 +215,116 @@ fn test_highlight_tiles_invalidate_document() {
 
 	assert!(!cache.index.contains_key(&doc1));
 	assert!(cache.index.contains_key(&doc2));
+}
+
+#[test]
+fn test_projected_tile_cache_reuses_same_target_version() {
+	let mut cache = HighlightTiles::with_capacity(4);
+	let doc_id = DocumentId(1);
+	let key = HighlightKey {
+		syntax_version: 1,
+		theme_epoch: 0,
+		language_id: None,
+		tile_idx: 0,
+	};
+	cache.insert_tile(
+		doc_id,
+		0,
+		HighlightTile {
+			key,
+			spans: vec![(
+				HighlightSpan {
+					start: 0,
+					end: 3,
+					highlight: xeno_runtime_language::highlight::Highlight::new(0),
+				},
+				Style::default(),
+			)],
+		},
+	);
+
+	let old_rope = Rope::from("XYZ");
+	let tx = Transaction::change(
+		old_rope.slice(..),
+		[Change {
+			start: 0,
+			end: 0,
+			replacement: Some("abc".into()),
+		}],
+	);
+	let mut new_rope = old_rope.clone();
+	tx.apply(&mut new_rope);
+
+	let projection = HighlightProjectionCtx {
+		tree_doc_version: 1,
+		target_doc_version: 2,
+		base_rope: &old_rope,
+		composed_changes: tx.changes(),
+	};
+
+	let first = cache.get_or_build_projected_tile_index(doc_id, 0, key, projection, &new_rope, 0);
+	let second = cache.get_or_build_projected_tile_index(doc_id, 0, key, projection, &new_rope, 0);
+
+	assert_eq!(first, second);
+	assert_eq!(cache.projected_tiles.len(), 1);
+}
+
+#[test]
+fn test_projected_tile_cache_keys_target_doc_version() {
+	let mut cache = HighlightTiles::with_capacity(4);
+	let doc_id = DocumentId(1);
+	let key = HighlightKey {
+		syntax_version: 1,
+		theme_epoch: 0,
+		language_id: None,
+		tile_idx: 0,
+	};
+	cache.insert_tile(
+		doc_id,
+		0,
+		HighlightTile {
+			key,
+			spans: vec![(
+				HighlightSpan {
+					start: 0,
+					end: 3,
+					highlight: xeno_runtime_language::highlight::Highlight::new(0),
+				},
+				Style::default(),
+			)],
+		},
+	);
+
+	let old_rope = Rope::from("XYZ");
+	let tx = Transaction::change(
+		old_rope.slice(..),
+		[Change {
+			start: 0,
+			end: 0,
+			replacement: Some("abc".into()),
+		}],
+	);
+	let mut new_rope = old_rope.clone();
+	tx.apply(&mut new_rope);
+
+	let projection_v2 = HighlightProjectionCtx {
+		tree_doc_version: 1,
+		target_doc_version: 2,
+		base_rope: &old_rope,
+		composed_changes: tx.changes(),
+	};
+	let projection_v3 = HighlightProjectionCtx {
+		tree_doc_version: 1,
+		target_doc_version: 3,
+		base_rope: &old_rope,
+		composed_changes: tx.changes(),
+	};
+
+	let v2 = cache.get_or_build_projected_tile_index(doc_id, 0, key, projection_v2, &new_rope, 0);
+	let v3 = cache.get_or_build_projected_tile_index(doc_id, 0, key, projection_v3, &new_rope, 0);
+
+	assert_ne!(v2, v3);
+	assert_eq!(cache.projected_tiles.len(), 2);
 }
 
 #[test]

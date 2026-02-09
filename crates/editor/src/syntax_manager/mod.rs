@@ -1,3 +1,69 @@
+//! Syntax manager for background parsing, scheduling, and install policy.
+//!
+//! # Purpose
+//!
+//! Coordinate syntax parsing work across documents, balancing responsiveness and
+//! resource usage with tiered policy, hotness-aware retention, and monotonic
+//! install rules.
+//!
+//! # Mental model
+//!
+//! The manager is a per-document state machine:
+//! - `Dirty` documents need catch-up.
+//! - scheduling state decides `Pending/Kicked/Ready` outcomes.
+//! - completed tasks are installed only if epoch/version/retention rules allow.
+//! - highlight rendering may project stale tree spans through pending edits.
+//!
+//! # Key types
+//!
+//! | Type | Role | Notes |
+//! |---|---|---|
+//! | [`crate::syntax_manager::SyntaxManager`] | Orchestrator | Entry point from render/tick/edit paths |
+//! | [`crate::syntax_manager::SyntaxSlot`] | Tree state | Current tree, versions, pending incrementals |
+//! | [`crate::syntax_manager::DocSched`] | Scheduling state | Debounce, cooldown, in-flight bookkeeping |
+//! | [`crate::syntax_manager::EnsureSyntaxContext`] | Poll input | Per-document snapshot for scheduling |
+//! | [`crate::syntax_manager::HighlightProjectionCtx`] | Stale highlight mapping | Bridges stale tree spans to current rope |
+//!
+//! # Invariants
+//!
+//! - Must not install parse results from older epochs.
+//! - Must not regress installed tree doc version.
+//! - Must keep `syntax_version` monotonic on tree install/drop.
+//! - Must only expose highlight projection context when pending edits align to resident tree.
+//!
+//! # Data flow
+//!
+//! 1. Edit path calls `note_edit`/`note_edit_incremental`.
+//! 2. Render/tick path calls `ensure_syntax` with current snapshot.
+//! 3. Background tasks complete and are drained.
+//! 4. Install policy accepts or discards completion.
+//! 5. Render uses tree and optional projection context for highlighting.
+//!
+//! # Lifecycle
+//!
+//! - Create manager once at editor startup.
+//! - Poll from render loop.
+//! - Drain finished tasks from tick.
+//! - Remove document state on close.
+//!
+//! # Concurrency & ordering
+//!
+//! - Global semaphore enforces parse concurrency.
+//! - Document epoch invalidates stale background completions.
+//! - Requested document version prevents old-task flicker installs.
+//!
+//! # Failure modes & recovery
+//!
+//! - Timeouts/errors enter cooldown.
+//! - Retention drops trees for cold docs when configured.
+//! - Incremental misalignment falls back to full reparse.
+//!
+//! # Recipes
+//!
+//! - For edit bursts: use `note_edit_incremental`, then `ensure_syntax`.
+//! - For rendering stale-but-continuous highlights: use
+//!   [`crate::syntax_manager::SyntaxManager::highlight_projection_ctx`].
+
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -31,8 +97,8 @@ pub(crate) use tasks::TaskCollector;
 use tasks::{TaskKind, TaskSpec};
 pub(crate) use types::PendingIncrementalEdits;
 pub use types::{
-	DocEpoch, EditSource, EnsureSyntaxContext, OptKey, SyntaxPollOutcome, SyntaxPollResult,
-	SyntaxSlot, TaskId,
+	DocEpoch, EditSource, EnsureSyntaxContext, HighlightProjectionCtx, OptKey,
+	SyntaxPollOutcome, SyntaxPollResult, SyntaxSlot, TaskId,
 };
 #[cfg(test)]
 pub(crate) use xeno_runtime_language::LanguageId;
@@ -164,16 +230,15 @@ impl SyntaxManager {
 		self.entries.get(&doc_id)?.slot.tree_doc_version
 	}
 
-	/// Returns the pending edit mapping from the resident tree to the current document.
+	/// Returns projection context for mapping stale tree highlights onto current text.
 	///
-	/// When syntax is stale, this provides the composed delta (`old_rope -> current`)
-	/// that can be used to remap stale highlight spans so they remain attached to
-	/// their original text during debounce/catch-up windows.
-	pub(crate) fn stale_highlight_mapping(
+	/// Returns `None` when tree and target versions already match, or when no
+	/// aligned pending window exists.
+	pub(crate) fn highlight_projection_ctx(
 		&self,
 		doc_id: DocumentId,
 		doc_version: u64,
-	) -> Option<(&Rope, &ChangeSet)> {
+	) -> Option<HighlightProjectionCtx<'_>> {
 		let entry = self.entries.get(&doc_id)?;
 		let tree_doc_version = entry.slot.tree_doc_version?;
 		if tree_doc_version == doc_version {
@@ -185,7 +250,12 @@ impl SyntaxManager {
 			return None;
 		}
 
-		Some((&pending.old_rope, &pending.composed))
+		Some(HighlightProjectionCtx {
+			tree_doc_version,
+			target_doc_version: doc_version,
+			base_rope: &pending.old_rope,
+			composed_changes: &pending.composed,
+		})
 	}
 
 	/// Returns the document-global byte coverage of the installed syntax tree.

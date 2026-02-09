@@ -14,12 +14,15 @@ use xeno_runtime_language::{LanguageId, LanguageLoader};
 use xeno_tui::style::Style;
 
 use crate::core::document::DocumentId;
+use crate::syntax_manager::HighlightProjectionCtx;
 
 /// Number of lines per tile.
 pub const TILE_SIZE: usize = 128;
 
 /// Maximum number of tiles to cache.
 const MAX_TILES: usize = 16;
+/// Maximum number of projected tiles cached for stale-tree rendering.
+const MAX_PROJECTED_TILES: usize = 24;
 
 #[inline]
 fn line_to_byte_or_eof(rope: &Rope, line: usize) -> u32 {
@@ -91,6 +94,18 @@ pub struct HighlightTile {
 	pub spans: Vec<(HighlightSpan, Style)>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct ProjectedHighlightKey {
+	base: HighlightKey,
+	target_doc_version: u64,
+}
+
+#[derive(Debug, Clone)]
+struct ProjectedHighlightTile {
+	key: ProjectedHighlightKey,
+	spans: Vec<(HighlightSpan, Style)>,
+}
+
 /// Query parameters for retrieving highlight spans.
 ///
 /// Groups all parameters needed for a highlight query into a single object
@@ -102,8 +117,8 @@ where
 	/// The document ID.
 	pub doc_id: DocumentId,
 	/// The document version (rope version).
-	/// Not part of the cache key; stale-span remapping may use this alongside
-	/// `stale_mapping` to keep cached highlights visually anchored during debounce.
+	/// Not part of the source-tile cache key. Used together with `projection`
+	/// for projected stale-span caching keyed by target document version.
 	pub _doc_version: u64,
 	/// Current syntax version for cache validation.
 	pub syntax_version: u64,
@@ -113,10 +128,8 @@ where
 	pub rope: &'a Rope,
 	/// The syntax tree for highlighting.
 	pub syntax: &'a Syntax,
-	/// Optional mapping from the tree's base rope to the current rope.
-	///
-	/// When present, stale spans are remapped through this delta before clipping.
-	pub stale_mapping: Option<(&'a Rope, &'a ChangeSet)>,
+	/// Optional projection context for stale-tree rendering.
+	pub projection: Option<HighlightProjectionCtx<'a>>,
 	/// The language loader.
 	pub language_loader: &'a LanguageLoader,
 	/// Function to resolve highlight styles.
@@ -142,6 +155,14 @@ pub struct HighlightTiles {
 	max_tiles: usize,
 	/// Map from document_id -> tile_idx -> tile index for O(1) lookup.
 	index: HashMap<DocumentId, HashMap<usize, usize>>,
+	/// Projected stale-highlight tiles keyed by source key + target doc version.
+	projected_tiles: Vec<ProjectedHighlightTile>,
+	/// MRU order for projected tiles.
+	projected_mru_order: VecDeque<usize>,
+	/// Max projected tile capacity.
+	max_projected_tiles: usize,
+	/// O(1) lookup for projected tiles.
+	projected_index: HashMap<(DocumentId, usize, u64), usize>,
 	/// Current theme epoch for cache invalidation.
 	theme_epoch: u64,
 }
@@ -163,6 +184,10 @@ impl HighlightTiles {
 			mru_order: VecDeque::with_capacity(max_tiles),
 			max_tiles,
 			index: HashMap::new(),
+			projected_tiles: Vec::with_capacity(MAX_PROJECTED_TILES),
+			projected_mru_order: VecDeque::with_capacity(MAX_PROJECTED_TILES),
+			max_projected_tiles: MAX_PROJECTED_TILES,
+			projected_index: HashMap::new(),
 			theme_epoch: 0,
 		}
 	}
@@ -200,8 +225,14 @@ impl HighlightTiles {
 			q.rope.len_bytes() as u32
 		};
 
-		let start_tile = q.start_line / TILE_SIZE;
-		let end_tile = (q.end_line.saturating_sub(1)) / TILE_SIZE;
+		let mut start_tile = q.start_line / TILE_SIZE;
+		let mut end_tile = (q.end_line.saturating_sub(1)) / TILE_SIZE;
+		if q.projection.is_some() {
+			// Pull one neighboring source tile in each direction so projected spans
+			// that cross tile boundaries after remapping stay visually continuous.
+			start_tile = start_tile.saturating_sub(1);
+			end_tile = end_tile.saturating_add(1);
+		}
 
 		let mut all_spans = Vec::new();
 
@@ -214,26 +245,20 @@ impl HighlightTiles {
 			};
 
 			let tile_index = self.get_or_build_tile_index(&q, tile_idx, key);
-			let spans = &self.tiles[tile_index].spans;
+			let spans: &[(HighlightSpan, Style)] = if let Some(projection) = q.projection {
+				let projected_idx = self.get_or_build_projected_tile_index(
+					q.doc_id, tile_idx, key, projection, q.rope, tile_index,
+				);
+				&self.projected_tiles[projected_idx].spans
+			} else {
+				&self.tiles[tile_index].spans
+			};
 
-			// Clip spans to the requested byte range. This handles cases where tiles
-			// return spans extending beyond the tile boundary or where the caller
-			// only requested a sub-portion of the tiles.
+			// Clip spans to requested range. Source/projected tiles may cover more
+			// than the caller window.
 			for (span, style) in spans {
-				let (mapped_start, mapped_end) = if let Some((old_rope, changes)) = q.stale_mapping
-				{
-					let Some(mapped) = remap_stale_span_to_current(span, old_rope, q.rope, changes)
-					else {
-						continue;
-					};
-					mapped
-				} else {
-					(span.start, span.end)
-				};
-
-				let s = mapped_start.max(start_byte);
-				let e = mapped_end.min(end_byte);
-
+				let s = span.start.max(start_byte);
+				let e = span.end.min(end_byte);
 				if s < e {
 					all_spans.push((
 						HighlightSpan {
@@ -279,6 +304,33 @@ impl HighlightTiles {
 		self.insert_tile(q.doc_id, tile_idx, tile)
 	}
 
+	fn get_or_build_projected_tile_index(
+		&mut self,
+		doc_id: DocumentId,
+		tile_idx: usize,
+		base_key: HighlightKey,
+		projection: HighlightProjectionCtx<'_>,
+		target_rope: &Rope,
+		source_tile_index: usize,
+	) -> usize {
+		let key = ProjectedHighlightKey {
+			base: base_key,
+			target_doc_version: projection.target_doc_version,
+		};
+
+		if let Some(tile_index) = self.get_cached_projected_tile_index(doc_id, tile_idx, &key) {
+			return tile_index;
+		}
+
+		let spans = self.project_spans_to_target(
+			&self.tiles[source_tile_index].spans,
+			projection,
+			target_rope,
+		);
+		let tile = ProjectedHighlightTile { key, spans };
+		self.insert_projected_tile(doc_id, tile_idx, projection.target_doc_version, tile)
+	}
+
 	fn get_cached_tile_index(
 		&mut self,
 		doc_id: DocumentId,
@@ -297,6 +349,29 @@ impl HighlightTiles {
 		}
 
 		self.touch(tile_index);
+		Some(tile_index)
+	}
+
+	fn get_cached_projected_tile_index(
+		&mut self,
+		doc_id: DocumentId,
+		tile_idx: usize,
+		key: &ProjectedHighlightKey,
+	) -> Option<usize> {
+		let &tile_index = self
+			.projected_index
+			.get(&(doc_id, tile_idx, key.target_doc_version))?;
+
+		let is_valid = {
+			let tile = self.projected_tiles.get(tile_index)?;
+			tile.key == *key
+		};
+
+		if !is_valid {
+			return None;
+		}
+
+		self.touch_projected(tile_index);
 		Some(tile_index)
 	}
 
@@ -347,11 +422,58 @@ impl HighlightTiles {
 		tile_index
 	}
 
+	fn insert_projected_tile(
+		&mut self,
+		doc_id: DocumentId,
+		tile_idx: usize,
+		target_doc_version: u64,
+		tile: ProjectedHighlightTile,
+	) -> usize {
+		let key = (doc_id, tile_idx, target_doc_version);
+		if let Some(&old_index) = self.projected_index.get(&key)
+			&& let Some(existing) = self.projected_tiles.get_mut(old_index)
+		{
+			*existing = tile;
+			self.touch_projected(old_index);
+			return old_index;
+		}
+
+		let tile_index = if self.projected_tiles.len() < self.max_projected_tiles {
+			let idx = self.projected_tiles.len();
+			self.projected_tiles.push(tile);
+			idx
+		} else {
+			let lru_idx = self
+				.projected_mru_order
+				.pop_back()
+				.expect("projected MRU order not empty");
+
+			self.projected_index.retain(|_, idx| *idx != lru_idx);
+			self.projected_tiles[lru_idx] = tile;
+			lru_idx
+		};
+
+		self.projected_index.insert(key, tile_index);
+		self.projected_mru_order.push_front(tile_index);
+		tile_index
+	}
+
 	fn touch(&mut self, tile_index: usize) {
 		if let Some(pos) = self.mru_order.iter().position(|&idx| idx == tile_index) {
 			self.mru_order.remove(pos);
 		}
 		self.mru_order.push_front(tile_index);
+	}
+
+	fn touch_projected(&mut self, tile_index: usize) {
+		if let Some(pos) = self
+			.projected_mru_order
+			.iter()
+			.position(|&idx| idx == tile_index)
+		{
+			self.projected_mru_order.remove(pos);
+		}
+		self.projected_mru_order.push_front(tile_index);
 	}
 
 	fn build_tile_spans<F>(
@@ -407,6 +529,33 @@ impl HighlightTiles {
 			.collect()
 	}
 
+	fn project_spans_to_target(
+		&self,
+		source_spans: &[(HighlightSpan, Style)],
+		projection: HighlightProjectionCtx<'_>,
+		target_rope: &Rope,
+	) -> Vec<(HighlightSpan, Style)> {
+		source_spans
+			.iter()
+			.filter_map(|(span, style)| {
+				let (start, end) = remap_stale_span_to_current(
+					span,
+					projection.base_rope,
+					target_rope,
+					projection.composed_changes,
+				)?;
+				Some((
+					HighlightSpan {
+						start,
+						end,
+						highlight: span.highlight,
+					},
+					*style,
+				))
+			})
+			.collect()
+	}
+
 	/// Invalidates all cached tiles for a document.
 	///
 	/// Reclaims memory by removing index entries for the specified document.
@@ -414,6 +563,7 @@ impl HighlightTiles {
 	/// LRU invariants and prevent panics. They will be evicted normally.
 	pub fn invalidate_document(&mut self, doc_id: DocumentId) {
 		self.index.remove(&doc_id);
+		self.projected_index.retain(|(id, _, _), _| *id != doc_id);
 	}
 
 	/// Clears all cached tiles.
@@ -421,6 +571,9 @@ impl HighlightTiles {
 		self.tiles.clear();
 		self.mru_order.clear();
 		self.index.clear();
+		self.projected_tiles.clear();
+		self.projected_mru_order.clear();
+		self.projected_index.clear();
 	}
 }
 

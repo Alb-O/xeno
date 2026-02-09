@@ -84,9 +84,9 @@ impl<'a> BufferRenderContext<'a> {
 		};
 		let syntax_version = self.syntax_manager.syntax_version(doc_id);
 		let _tree_doc_version = self.syntax_manager.syntax_doc_version(doc_id);
-		let stale_mapping = self
+		let projection = self
 			.syntax_manager
-			.stale_highlight_mapping(doc_id, doc_version);
+			.highlight_projection_ctx(doc_id, doc_version);
 
 		// Coverage check for partial trees
 		if syntax.is_partial() {
@@ -119,7 +119,7 @@ impl<'a> BufferRenderContext<'a> {
 			language_id,
 			rope: doc_content,
 			syntax,
-			stale_mapping,
+			projection,
 			language_loader: self.language_loader,
 			style_resolver: |scope: &str| self.theme.colors.syntax.resolve(scope),
 			start_line,

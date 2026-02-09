@@ -40,10 +40,6 @@ impl MockEngine {
 		}
 	}
 
-	pub(crate) fn set_result(&self, res: std::result::Result<Syntax, String>) {
-		*self.result.lock() = res;
-	}
-
 	/// Allows one pending parse to proceed.
 	pub(crate) fn proceed(&self) {
 		self.notify.notify_one();
@@ -1384,6 +1380,47 @@ pub(crate) async fn test_highlight_skips_stale_tree_version() {
 		mgr.syntax_doc_version(doc_id),
 		Some(1),
 		"tree_doc_version must remain at V1 after an un-synced edit"
+	);
+}
+
+/// Must only expose highlight projection context when pending incremental edits
+/// are aligned with the resident tree version.
+///
+/// - Enforced in: `SyntaxManager::highlight_projection_ctx`
+/// - Failure symptom: highlight projection applies mismatched deltas and causes
+///   visual jump/flicker during debounce.
+#[cfg_attr(test, test)]
+pub(crate) fn test_highlight_projection_ctx_alignment_gate() {
+	let mut mgr = SyntaxManager::default();
+	let doc_id = DocumentId(9);
+	let old_rope = Rope::from("abcdef");
+	let changes = ChangeSet::new(old_rope.slice(..));
+
+	{
+		let entry = mgr.entry_mut(doc_id);
+		entry.slot.tree_doc_version = Some(1);
+		entry.slot.pending_incremental = Some(PendingIncrementalEdits {
+			base_tree_doc_version: 1,
+			old_rope: old_rope.clone(),
+			composed: changes.clone(),
+		});
+	}
+
+	assert!(mgr.highlight_projection_ctx(doc_id, 2).is_some());
+	assert!(mgr.highlight_projection_ctx(doc_id, 1).is_none());
+
+	{
+		let entry = mgr.entry_mut(doc_id);
+		entry.slot.pending_incremental = Some(PendingIncrementalEdits {
+			base_tree_doc_version: 2,
+			old_rope,
+			composed: changes,
+		});
+	}
+
+	assert!(
+		mgr.highlight_projection_ctx(doc_id, 3).is_none(),
+		"projection context must not be exposed for mismatched pending base"
 	);
 }
 

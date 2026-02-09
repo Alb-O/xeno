@@ -48,6 +48,23 @@ pub struct EnsureSyntaxContext<'a> {
 	pub viewport: Option<std::ops::Range<u32>>,
 }
 
+/// Mapping context for projecting stale tree-based highlights onto current text.
+///
+/// When the resident syntax tree lags behind the current document version,
+/// highlight spans can be remapped through `composed_changes` to preserve
+/// visual attachment to the edited text during debounce/catch-up windows.
+#[derive(Clone, Copy)]
+pub struct HighlightProjectionCtx<'a> {
+	/// Document version the resident tree corresponds to.
+	pub tree_doc_version: u64,
+	/// Current target document version for rendering.
+	pub target_doc_version: u64,
+	/// Rope snapshot at the start of the pending edit window.
+	pub base_rope: &'a Rope,
+	/// Composed delta from `base_rope` to the current rope.
+	pub composed_changes: &'a ChangeSet,
+}
+
 /// Invariant enforcement: Accumulated edits awaiting an incremental reparse.
 pub(crate) struct PendingIncrementalEdits {
 	/// Document version that `old_rope` corresponds to.
