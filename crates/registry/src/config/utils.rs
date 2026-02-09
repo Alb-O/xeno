@@ -1,185 +1,165 @@
-//! Theme configuration parsing.
-//!
-//! Parses theme definitions from KDL format into runtime-usable structures.
+//! Configuration parsing utilities.
 
-use std::path::PathBuf;
+use std::collections::HashMap;
 
-use kdl::{KdlDocument, KdlNode};
-pub use xeno_registry::themes::{
-	ColorPair, ModeColors, NotificationColors, PopupColors, SemanticColors, ThemeColors,
-	ThemeVariant, UiColors,
-};
-use xeno_registry::themes::{SyntaxStyle, SyntaxStyles};
+use kdl::KdlDocument;
+use xeno_primitives::{Color, Modifier};
 
-use crate::error::{ConfigError, Result};
-use crate::utils::{
-	ParseContext, get_color_field, get_color_field_opt, parse_modifier, parse_palette,
-};
+use super::{ConfigError, Result};
 
-/// A parsed theme with owned data suitable for runtime use.
-#[derive(Debug, Clone)]
-pub struct ParsedTheme {
-	/// Unique name of the theme.
-	pub name: String,
-	/// Whether this is a dark or light theme.
-	pub variant: ThemeVariant,
-	/// Alternative names for the theme.
-	pub keys: Vec<String>,
-	/// Color definitions for all UI elements.
-	pub colors: ThemeColors,
-	/// Path to the source file, if loaded from disk.
-	pub source_path: Option<PathBuf>,
+/// Context for parsing, including palette colors for variable resolution.
+#[derive(Default)]
+pub struct ParseContext {
+	/// Named color definitions for `$variable` expansion.
+	pub palette: HashMap<String, Color>,
 }
 
-impl ParsedTheme {
-	/// Convert to a `LinkedThemeDef` for registration in the runtime theme registry.
-	pub fn into_owned_theme(self) -> xeno_registry::themes::LinkedThemeDef {
-		use xeno_registry::core::{LinkedMetaOwned, RegistrySource};
-		use xeno_registry::themes::theme::ThemePayload;
-
-		let id = format!("xeno-registry::{}", self.name);
-
-		xeno_registry::themes::LinkedThemeDef {
-			meta: LinkedMetaOwned {
-				id,
-				name: self.name,
-				keys: self.keys,
-				description: "".to_string(),
-				priority: 0,
-				flags: 0,
-				source: RegistrySource::Runtime,
-				required_caps: vec![],
-				short_desc: None,
-			},
-			payload: ThemePayload {
-				variant: self.variant,
-				colors: self.colors,
-			},
+impl ParseContext {
+	/// Resolves a color value, expanding `$palette` variables.
+	pub fn resolve_color(&self, value: &str) -> Result<Color> {
+		if let Some(name) = value.strip_prefix('$') {
+			self.palette
+				.get(name)
+				.copied()
+				.ok_or_else(|| ConfigError::UndefinedPaletteColor(name.to_string()))
+		} else {
+			parse_color(value)
 		}
 	}
 }
 
-/// Parse a standalone theme file (top-level structure).
-pub fn parse_standalone_theme(input: &str) -> Result<ParsedTheme> {
-	let doc: KdlDocument = input.parse()?;
-	let mut ctx = ParseContext::default();
-	if let Some(node) = doc.get("palette") {
-		parse_palette(node, &mut ctx)?;
+/// Parse a color value from a string.
+///
+/// Supports hex (`#RGB`, `#RRGGBB`), named colors, and `reset`/`default`.
+pub fn parse_color(value: &str) -> Result<Color> {
+	let value = value.trim();
+
+	if value.eq_ignore_ascii_case("reset") || value.eq_ignore_ascii_case("default") {
+		return Ok(Color::Reset);
 	}
 
-	let name = doc
-		.get_arg("name")
-		.and_then(|v| v.as_string())
-		.ok_or_else(|| ConfigError::MissingField("name".into()))?
-		.to_string();
+	if let Some(hex) = value.strip_prefix('#') {
+		return parse_hex_color(hex);
+	}
 
-	let variant = doc
-		.get_arg("variant")
-		.and_then(|v| v.as_string())
-		.map(parse_variant)
-		.transpose()?
-		.unwrap_or_default();
-
-	let keys = doc
-		.get("keys")
-		.map(|node| {
-			node.entries()
-				.iter()
-				.filter_map(|e| e.value().as_string().map(String::from))
-				.collect()
-		})
-		.unwrap_or_default();
-
-	let ui = parse_ui_colors(doc.get("ui"), &ctx)?;
-	let mode = parse_mode_colors(doc.get("mode"), &ctx)?;
-	let semantic = parse_semantic_colors(doc.get("semantic"), &ctx)?;
-	let popup = parse_popup_colors(doc.get("popup"), &ctx)?;
-	let syntax = parse_syntax_styles(doc.get("syntax"), &ctx)?;
-
-	Ok(ParsedTheme {
-		name,
-		variant,
-		keys,
-		colors: ThemeColors {
-			ui,
-			mode,
-			semantic,
-			popup,
-			notification: NotificationColors::INHERITED,
-			syntax,
-		},
-		source_path: None,
-	})
+	parse_named_color(value)
 }
 
-/// Parse a theme from a `theme { }` node in a config file.
-pub fn parse_theme_node(node: &KdlNode) -> Result<ParsedTheme> {
-	let children = node
-		.children()
-		.ok_or_else(|| ConfigError::MissingField("theme children".into()))?;
+/// Parses a hex color string (`#RGB` or `#RRGGBB`) into a Color.
+fn parse_hex_color(hex: &str) -> Result<Color> {
+	let hex = hex.trim_start_matches('#');
+	let err = || ConfigError::InvalidColor(format!("#{hex}"));
 
-	let mut ctx = ParseContext::default();
-
-	if let Some(palette_node) = children.get("palette") {
-		parse_palette(palette_node, &mut ctx)?;
+	match hex.len() {
+		3 => {
+			let r = u8::from_str_radix(&hex[0..1].repeat(2), 16).map_err(|_| err())?;
+			let g = u8::from_str_radix(&hex[1..2].repeat(2), 16).map_err(|_| err())?;
+			let b = u8::from_str_radix(&hex[2..3].repeat(2), 16).map_err(|_| err())?;
+			Ok(Color::Rgb(r, g, b))
+		}
+		6 => {
+			let r = u8::from_str_radix(&hex[0..2], 16).map_err(|_| err())?;
+			let g = u8::from_str_radix(&hex[2..4], 16).map_err(|_| err())?;
+			let b = u8::from_str_radix(&hex[4..6], 16).map_err(|_| err())?;
+			Ok(Color::Rgb(r, g, b))
+		}
+		_ => Err(err()),
 	}
-
-	let name = children
-		.get_arg("name")
-		.and_then(|v| v.as_string())
-		.ok_or_else(|| ConfigError::MissingField("name".into()))?
-		.to_string();
-
-	let variant = children
-		.get_arg("variant")
-		.and_then(|v| v.as_string())
-		.map(parse_variant)
-		.transpose()?
-		.unwrap_or_default();
-
-	let keys = children
-		.get("keys")
-		.map(|node| {
-			node.entries()
-				.iter()
-				.filter_map(|e| e.value().as_string().map(String::from))
-				.collect()
-		})
-		.unwrap_or_default();
-
-	let ui = parse_ui_colors(children.get("ui"), &ctx)?;
-	let mode = parse_mode_colors(children.get("mode"), &ctx)?;
-	let semantic = parse_semantic_colors(children.get("semantic"), &ctx)?;
-	let popup = parse_popup_colors(children.get("popup"), &ctx)?;
-	let syntax = parse_syntax_styles(children.get("syntax"), &ctx)?;
-
-	Ok(ParsedTheme {
-		name,
-		variant,
-		keys,
-		colors: ThemeColors {
-			ui,
-			mode,
-			semantic,
-			popup,
-			notification: NotificationColors::INHERITED,
-			syntax,
-		},
-		source_path: None,
-	})
 }
 
-/// Parses a theme variant string into a `ThemeVariant`.
-fn parse_variant(s: &str) -> Result<ThemeVariant> {
-	match s.to_lowercase().as_str() {
-		"dark" => Ok(ThemeVariant::Dark),
-		"light" => Ok(ThemeVariant::Light),
-		other => Err(ConfigError::InvalidVariant(other.to_string())),
+/// Parses a named color (e.g., "red", "bright-blue") into a Color.
+fn parse_named_color(name: &str) -> Result<Color> {
+	let normalized = name.to_lowercase().replace(['-', '_'], "");
+
+	match normalized.as_str() {
+		"black" => Ok(Color::Black),
+		"red" => Ok(Color::Red),
+		"green" => Ok(Color::Green),
+		"yellow" => Ok(Color::Yellow),
+		"blue" => Ok(Color::Blue),
+		"magenta" => Ok(Color::Magenta),
+		"cyan" => Ok(Color::Cyan),
+		"gray" | "grey" => Ok(Color::Gray),
+		"darkgray" | "darkgrey" => Ok(Color::DarkGray),
+		"lightred" => Ok(Color::LightRed),
+		"lightgreen" => Ok(Color::LightGreen),
+		"lightyellow" => Ok(Color::LightYellow),
+		"lightblue" => Ok(Color::LightBlue),
+		"lightmagenta" => Ok(Color::LightMagenta),
+		"lightcyan" => Ok(Color::LightCyan),
+		"white" => Ok(Color::White),
+		"reset" | "default" => Ok(Color::Reset),
+		_ => Err(ConfigError::InvalidColor(name.to_string())),
 	}
+}
+
+/// Parse text modifiers from a space-separated string.
+pub fn parse_modifier(value: &str) -> Result<Modifier> {
+	let mut modifiers = Modifier::empty();
+
+	for part in value.split_whitespace() {
+		let normalized = part.to_lowercase().replace(['-', '_'], "");
+		modifiers |= match normalized.as_str() {
+			"bold" => Modifier::BOLD,
+			"dim" => Modifier::DIM,
+			"italic" => Modifier::ITALIC,
+			"underlined" | "underline" => Modifier::UNDERLINED,
+			"slowblink" => Modifier::SLOW_BLINK,
+			"rapidblink" => Modifier::RAPID_BLINK,
+			"reversed" | "reverse" => Modifier::REVERSED,
+			"hidden" => Modifier::HIDDEN,
+			"crossedout" | "strikethrough" => Modifier::CROSSED_OUT,
+			_ => return Err(ConfigError::InvalidModifier(part.to_string())),
+		};
+	}
+
+	Ok(modifiers)
+}
+
+/// Get a required color field from a KDL document.
+pub fn get_color_field(doc: &KdlDocument, name: &str, ctx: &ParseContext) -> Result<Color> {
+	let value = doc
+		.get_arg(name)
+		.and_then(|v| v.as_string())
+		.ok_or_else(|| ConfigError::MissingField(name.to_string()))?;
+	ctx.resolve_color(value)
+}
+
+/// Gets an optional color field from a KDL document.
+///
+/// Returns `Ok(None)` if the field is absent, `Ok(Some(color))` if present and valid.
+pub fn get_color_field_opt(
+	doc: &KdlDocument,
+	name: &str,
+	ctx: &ParseContext,
+) -> Result<Option<Color>> {
+	doc.get_arg(name)
+		.and_then(|v| v.as_string())
+		.map(|value| ctx.resolve_color(value))
+		.transpose()
+}
+
+/// Parse a palette block into the context.
+pub fn parse_palette(node: &kdl::KdlNode, ctx: &mut ParseContext) -> Result<()> {
+	let Some(children) = node.children() else {
+		return Ok(());
+	};
+	for child in children.nodes() {
+		let name = child.name().value();
+		if let Some(value) = child.get(0).and_then(|v| v.as_string()) {
+			ctx.palette.insert(name.to_string(), parse_color(value)?);
+		}
+	}
+	Ok(())
 }
 
 /// Parses UI colors from a KDL node.
-fn parse_ui_colors(node: Option<&KdlNode>, ctx: &ParseContext) -> Result<UiColors> {
+pub fn parse_ui_colors(
+	node: Option<&kdl::KdlNode>,
+	ctx: &ParseContext,
+) -> Result<crate::themes::UiColors> {
+	use crate::themes::UiColors;
+
 	let node = node.ok_or_else(|| ConfigError::MissingField("ui".into()))?;
 	let children = node
 		.children()
@@ -204,35 +184,40 @@ fn parse_ui_colors(node: Option<&KdlNode>, ctx: &ParseContext) -> Result<UiColor
 	})
 }
 
-/// Parses a color pair (bg + fg) from a KDL node.
-fn parse_color_pair(
-	children: &kdl::KdlDocument,
-	prefix: &str,
-	ctx: &ParseContext,
-) -> Result<ColorPair> {
-	Ok(ColorPair {
-		bg: get_color_field(children, &format!("{prefix}-bg"), ctx)?,
-		fg: get_color_field(children, &format!("{prefix}-fg"), ctx)?,
-	})
-}
-
 /// Parses mode indicator colors from a KDL node.
-fn parse_mode_colors(node: Option<&KdlNode>, ctx: &ParseContext) -> Result<ModeColors> {
+pub fn parse_mode_colors(
+	node: Option<&kdl::KdlNode>,
+	ctx: &ParseContext,
+) -> Result<crate::themes::ModeColors> {
+	use crate::themes::{ColorPair, ModeColors};
+
 	let node = node.ok_or_else(|| ConfigError::MissingField("mode".into()))?;
 	let children = node
 		.children()
 		.ok_or_else(|| ConfigError::MissingField("mode".into()))?;
 
+	let parse_pair = |prefix: &str| -> Result<ColorPair> {
+		Ok(ColorPair {
+			bg: get_color_field(children, &format!("{prefix}-bg"), ctx)?,
+			fg: get_color_field(children, &format!("{prefix}-fg"), ctx)?,
+		})
+	};
+
 	Ok(ModeColors {
-		normal: parse_color_pair(children, "normal", ctx)?,
-		insert: parse_color_pair(children, "insert", ctx)?,
-		prefix: parse_color_pair(children, "prefix", ctx)?,
-		command: parse_color_pair(children, "command", ctx)?,
+		normal: parse_pair("normal")?,
+		insert: parse_pair("insert")?,
+		prefix: parse_pair("prefix")?,
+		command: parse_pair("command")?,
 	})
 }
 
 /// Parses semantic colors from a KDL node.
-fn parse_semantic_colors(node: Option<&KdlNode>, ctx: &ParseContext) -> Result<SemanticColors> {
+pub fn parse_semantic_colors(
+	node: Option<&kdl::KdlNode>,
+	ctx: &ParseContext,
+) -> Result<crate::themes::SemanticColors> {
+	use crate::themes::SemanticColors;
+
 	let node = node.ok_or_else(|| ConfigError::MissingField("semantic".into()))?;
 	let children = node
 		.children()
@@ -252,7 +237,12 @@ fn parse_semantic_colors(node: Option<&KdlNode>, ctx: &ParseContext) -> Result<S
 }
 
 /// Parses popup/menu colors from a KDL node.
-fn parse_popup_colors(node: Option<&KdlNode>, ctx: &ParseContext) -> Result<PopupColors> {
+pub fn parse_popup_colors(
+	node: Option<&kdl::KdlNode>,
+	ctx: &ParseContext,
+) -> Result<crate::themes::PopupColors> {
+	use crate::themes::PopupColors;
+
 	let node = node.ok_or_else(|| ConfigError::MissingField("popup".into()))?;
 	let children = node
 		.children()
@@ -267,15 +257,18 @@ fn parse_popup_colors(node: Option<&KdlNode>, ctx: &ParseContext) -> Result<Popu
 }
 
 /// Parses syntax highlighting styles from a KDL node.
-fn parse_syntax_styles(node: Option<&KdlNode>, ctx: &ParseContext) -> Result<SyntaxStyles> {
+pub fn parse_syntax_styles(
+	node: Option<&kdl::KdlNode>,
+	ctx: &ParseContext,
+) -> Result<crate::themes::SyntaxStyles> {
 	let Some(node) = node else {
-		return Ok(SyntaxStyles::minimal());
+		return Ok(crate::themes::SyntaxStyles::minimal());
 	};
 	let Some(children) = node.children() else {
-		return Ok(SyntaxStyles::minimal());
+		return Ok(crate::themes::SyntaxStyles::minimal());
 	};
 
-	let mut styles = SyntaxStyles::minimal();
+	let mut styles = crate::themes::SyntaxStyles::minimal();
 	for child in children.nodes() {
 		parse_syntax_node(child, "", &mut styles, ctx)?;
 	}
@@ -284,9 +277,9 @@ fn parse_syntax_styles(node: Option<&KdlNode>, ctx: &ParseContext) -> Result<Syn
 
 /// Parses a syntax node and its children recursively.
 fn parse_syntax_node(
-	node: &KdlNode,
+	node: &kdl::KdlNode,
 	prefix: &str,
-	styles: &mut SyntaxStyles,
+	styles: &mut crate::themes::SyntaxStyles,
 	ctx: &ParseContext,
 ) -> Result<()> {
 	let name = node.name().value();
@@ -309,8 +302,11 @@ fn parse_syntax_node(
 }
 
 /// Parses a style definition from a KDL node's attributes.
-fn parse_style_from_node(node: &KdlNode, ctx: &ParseContext) -> Result<SyntaxStyle> {
-	let mut style = SyntaxStyle::NONE;
+fn parse_style_from_node(
+	node: &kdl::KdlNode,
+	ctx: &ParseContext,
+) -> Result<crate::themes::SyntaxStyle> {
+	let mut style = crate::themes::SyntaxStyle::NONE;
 
 	if let Some(fg) = node.get("fg").and_then(|v| v.as_string()) {
 		style.fg = Some(ctx.resolve_color(fg)?);
@@ -330,7 +326,11 @@ fn parse_style_from_node(node: &KdlNode, ctx: &ParseContext) -> Result<SyntaxSty
 }
 
 /// Sets a syntax style for the given scope name.
-fn set_syntax_style(styles: &mut SyntaxStyles, scope: &str, style: SyntaxStyle) {
+fn set_syntax_style(
+	styles: &mut crate::themes::SyntaxStyles,
+	scope: &str,
+	style: crate::themes::SyntaxStyle,
+) {
 	if style.fg.is_none() && style.bg.is_none() && style.modifiers.is_empty() {
 		return;
 	}

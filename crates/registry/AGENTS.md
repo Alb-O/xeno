@@ -2,7 +2,7 @@
 
 This file is for contributors working on the `xeno-registry` crate. It describes the registry’s architecture, the data flow from authored metadata to runtime entries, and the conventions for adding or modifying domains.
 
-The registry is **format-neutral at runtime**. KDL (currently) is **build-time authoring only**.
+The registry is **format-neutral at runtime**. Built-in definitions use compiled specs, but user configuration is parsed at runtime via the `config` module (requires `config-kdl` feature).
 
 ---
 
@@ -48,6 +48,20 @@ The registry is a typed database of editor definitions (actions, commands, optio
 3. Build indices: `RegistryDbBuilder` ingests static + linked inputs, interns strings, assigns dense IDs, builds immutable `RegistryIndex` values.
 4. Publish: each domain is exposed via a `RuntimeRegistry` holding an atomic `Snapshot`.
 5. Extend: runtime registration builds a new snapshot and publishes it with CAS.
+
+### Runtime user configuration (optional, `config-kdl` feature)
+
+User configuration (themes, options, keys) is parsed at runtime via `xeno_registry::config`:
+
+- **`config::Config`**: Unified config struct holding themes, options, keys, and language overrides
+- **`config::kdl`**: KDL parsing functions (requires `config-kdl` feature)
+  - `parse_config_str()`: Parse main config file
+  - `parse_theme_standalone_str()`: Parse standalone theme files
+- **`config::ConfigWarning`**: Non-fatal warnings (e.g., scope mismatches)
+
+Applications (e.g., `xeno-term`) read config files and call the parsing functions. The registry validates options against domain definitions and registers themes via `themes::register_runtime_themes()`.
+
+Runtime config extends (not replaces) built-in specs. Precedence follows the standard registry rules: Runtime > Crate > Builtin.
 
 ---
 

@@ -85,13 +85,23 @@ async fn main() -> anyhow::Result<()> {
 }
 
 /// Loads user config from `~/.config/xeno/config.kdl`.
-fn load_user_config() -> Option<xeno_runtime_config::Config> {
+fn load_user_config() -> Option<xeno_registry::config::Config> {
+	use xeno_registry::config::kdl::parse_config_str;
+
 	let config_path = xeno_editor::paths::get_config_dir()?.join("config.kdl");
 	if !config_path.exists() {
 		return None;
 	}
 
-	match xeno_runtime_config::Config::load(&config_path) {
+	let content = match std::fs::read_to_string(&config_path) {
+		Ok(c) => c,
+		Err(e) => {
+			warn!(path = %config_path.display(), error = %e, "failed to read config file");
+			return None;
+		}
+	};
+
+	match parse_config_str(&content) {
 		Ok(config) => {
 			for warning in &config.warnings {
 				warn!("{warning}");
@@ -99,7 +109,7 @@ fn load_user_config() -> Option<xeno_runtime_config::Config> {
 			Some(config)
 		}
 		Err(e) => {
-			warn!(error = %e, "failed to load config");
+			warn!(error = %e, "failed to parse config");
 			None
 		}
 	}
@@ -108,7 +118,7 @@ fn load_user_config() -> Option<xeno_runtime_config::Config> {
 /// Applies user config options to the editor.
 ///
 /// Theme preferences are stored but not resolved until themes finish loading.
-fn apply_user_config(editor: &mut Editor, config: Option<xeno_runtime_config::Config>) {
+fn apply_user_config(editor: &mut Editor, config: Option<xeno_registry::config::Config>) {
 	let Some(config) = config else { return };
 
 	editor.config_mut().global_options.merge(&config.options);

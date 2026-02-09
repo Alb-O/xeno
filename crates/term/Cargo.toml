@@ -30,7 +30,6 @@ uuid.workspace = true
 which.workspace = true
 xeno-editor.workspace = true
 xeno-registry.workspace = true
-xeno-runtime-config.workspace = true
 xeno-runtime-language.workspace = true
 xeno-tui.workspace = true
 

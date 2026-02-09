@@ -4,6 +4,7 @@
 // Allow generated code to refer to this crate as `xeno_registry`
 extern crate self as xeno_registry;
 
+pub mod config;
 pub mod core;
 pub mod defs;
 

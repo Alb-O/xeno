@@ -124,7 +124,7 @@ async fn load_themes_blocking(
 ) -> Vec<(String, String)> {
 	tokio::task::spawn_blocking(move || {
 		let mut errors = Vec::new();
-		let mut all_themes = Vec::new();
+		let mut all_themes: Vec<xeno_registry::themes::LinkedThemeDef> = Vec::new();
 
 		if let Some(ref dir) = data_themes_dir {
 			collect_dir_themes(dir, &mut all_themes, &mut errors);
@@ -134,17 +134,13 @@ async fn load_themes_blocking(
 			collect_dir_themes(dir, &mut all_themes, &mut errors);
 		}
 
+		// Deduplicate by canonical ID (xeno-registry::<name>)
 		let mut deduped = std::collections::HashMap::new();
 		for theme in all_themes {
-			deduped.insert(theme.name.clone(), theme);
+			deduped.insert(theme.meta.id.clone(), theme);
 		}
 
-		xeno_registry::themes::register_runtime_themes(
-			deduped
-				.into_values()
-				.map(|t| t.into_owned_theme())
-				.collect(),
-		);
+		xeno_registry::themes::register_runtime_themes(deduped.into_values().collect());
 
 		errors
 	})
@@ -155,19 +151,41 @@ async fn load_themes_blocking(
 /// Loads themes from `dir` into the accumulator vectors, logging on failure.
 fn collect_dir_themes(
 	dir: &std::path::Path,
-	themes: &mut Vec<xeno_runtime_config::ParsedTheme>,
+	themes: &mut Vec<xeno_registry::themes::LinkedThemeDef>,
 	errors: &mut Vec<(String, String)>,
 ) {
+	use xeno_registry::config::kdl::parse_theme_standalone_str;
+
 	if !dir.exists() {
 		return;
 	}
-	match xeno_runtime_config::load_themes_from_directory(dir) {
-		Ok(result) => {
-			errors.extend(result.errors);
-			themes.extend(result.themes);
-		}
+
+	let entries = match std::fs::read_dir(dir) {
+		Ok(e) => e,
 		Err(e) => {
 			tracing::warn!(dir = %dir.display(), error = %e, "failed to read themes directory");
+			return;
+		}
+	};
+
+	for entry in entries.flatten() {
+		let path = entry.path();
+		if path.extension().is_some_and(|ext| ext == "kdl") {
+			let filename = path
+				.file_name()
+				.unwrap_or_default()
+				.to_string_lossy()
+				.into_owned();
+
+			match std::fs::read_to_string(&path) {
+				Ok(content) => match parse_theme_standalone_str(&content) {
+					Ok(theme) => themes.push(theme),
+					Err(e) => errors.push((filename, e.to_string())),
+				},
+				Err(e) => {
+					errors.push((filename, e.to_string()));
+				}
+			}
 		}
 	}
 }
