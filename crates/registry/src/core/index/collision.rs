@@ -18,7 +18,7 @@ pub enum DuplicatePolicy {
 	FirstWins,
 	/// Overwrite with the last definition seen.
 	LastWins,
-	/// Select winner by priority (higher wins), then source rank, then ID.
+	/// Select winner by priority (higher wins), then source rank, then ordinal.
 	#[default]
 	ByPriority,
 }
@@ -45,21 +45,16 @@ pub struct Party {
 	pub ordinal: u32,
 }
 
-/// Compares two parties using the global precedence rules for canonical-ID conflicts.
+/// Compares two parties using the global precedence rules.
 ///
 /// Precedence hierarchy:
 /// 1. Priority (higher wins)
 /// 2. Source (Runtime > Crate > Builtin)
 /// 3. Ingest ordinal (higher/later wins)
 ///
-/// Tie-breaking semantics:
-/// - At build-time: later ingest wins if priority and source are identical.
-/// - At runtime: the new entry is assigned a higher ordinal, so it wins on ties.
-///
-/// This is a convenience wrapper around [`super::precedence::cmp_party`] with
-/// [`TieBreak::Ordinal`] for backward compatibility.
+/// This is a convenience wrapper around [`super::precedence::cmp_party`].
 pub(crate) fn cmp_party(a: &Party, b: &Party) -> Ordering {
-	super::precedence::cmp_party(a, b, super::precedence::TieBreak::Ordinal)
+	super::precedence::cmp_party(a, b)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -90,7 +85,7 @@ pub enum Resolution {
 	ReplacedExisting,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Collision {
 	pub registry: &'static str,
 	/// The actual lookup key that conflicted: canonical id symbol OR alias symbol.
@@ -98,7 +93,7 @@ pub struct Collision {
 	pub kind: CollisionKind,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CollisionKind {
 	/// Multiple defs had the same canonical id string; losers dropped before table build.
 	DuplicateId {

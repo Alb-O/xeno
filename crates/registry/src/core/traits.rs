@@ -1,5 +1,3 @@
-use std::cmp::Ordering;
-
 use super::capability::CapabilitySet;
 use super::meta::{RegistryMeta, RegistrySource};
 use super::symbol::Symbol;
@@ -42,22 +40,6 @@ pub trait RegistryEntry {
 	/// Returns behavior flags.
 	fn flags(&self) -> u32 {
 		self.meta().flags
-	}
-
-	/// Compares this entry against another using the global total order for key conflicts.
-	///
-	/// Precedence hierarchy:
-	/// 1. Priority (higher wins)
-	/// 2. Source Rank (higher wins: Runtime > Crate > Builtin)
-	/// 3. Canonical ID (stable tie-break via interned symbol)
-	///
-	/// Delegates to [`crate::core::index::precedence::cmp_entry`] to ensure
-	/// consistency across all conflict resolution points.
-	fn total_order_cmp(&self, other: &Self) -> Ordering
-	where
-		Self: Sized,
-	{
-		crate::core::index::precedence::cmp_entry(self, other)
 	}
 }
 

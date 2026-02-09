@@ -202,14 +202,16 @@ Resolution follows a strict precedence hierarchy (applies at build and runtime) 
 
 1. Higher `priority` wins.
 2. Higher `source` rank wins (Runtime > Crate > Builtin).
-3. **Tie-breakers**:
-   - `TieBreak::Ordinal`: Later ingest wins (used for canonical ID duplicates).
-   - `TieBreak::DefId`: Deterministic identity tie-break (used for key/name conflicts).
+3. **Tie-break**: Higher (later) ingest **ordinal** wins.
 
-### Determinism
+This applies consistently across Stage A (IDs), Stage B (Names), and Stage C (Keys), ensuring that later registrations (especially runtime overrides) are deterministic and reliable.
 
-- Collision lists are sorted with `Collision::stable_cmp`.
-- Stable ordering must not depend on incidental insertion order.
+### Diagnostics and Collisions
+
+The registry maintains a list of collisions for debugging and UI feedback:
+
+- **`KeyConflict`**: Outcome of competition for a specific name or key symbol within the current snapshot's stage maps. These are recomputed whenever affected entries change.
+- **`DuplicateId`**: A permanent record of a canonical ID override (a "dropped" or "replaced" definition). At most one record is kept per ID.
 
 ---
 

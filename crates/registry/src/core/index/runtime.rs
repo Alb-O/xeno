@@ -31,6 +31,10 @@ where
 		incoming_id: String,
 		/// The policy that caused the rejection.
 		policy: DuplicatePolicy,
+		/// Metadata for the existing winner.
+		existing_party: Party,
+		/// Metadata for the incoming loser.
+		incoming_party: Party,
 	},
 }
 
@@ -44,11 +48,15 @@ where
 				existing,
 				incoming_id,
 				policy,
+				existing_party,
+				incoming_party,
 			} => f
 				.debug_struct("Rejected")
 				.field("existing_id", &existing.id_str())
 				.field("incoming_id", incoming_id)
 				.field("policy", policy)
+				.field("existing_party", existing_party)
+				.field("incoming_party", incoming_party)
 				.finish(),
 		}
 	}
@@ -64,12 +72,16 @@ where
 				existing,
 				incoming_id,
 				policy,
+				existing_party,
+				incoming_party,
 			} => {
 				write!(
 					f,
-					"Registration rejected: '{}' lost to existing '{}' under policy {:?}",
+					"Registration rejected: '{}' ({:?}) lost to existing '{}' ({:?}) under policy {:?}",
 					incoming_id,
+					incoming_party,
 					existing.id_str(),
+					existing_party,
 					policy
 				)
 			}
@@ -267,7 +279,7 @@ where
 			let existing_id = old.by_id.get(&id_sym).copied();
 			let existing_idx = existing_id.map(|id| id.as_u32() as usize);
 
-			let mut replaced_idx = None;
+			let mut replaced_info = None;
 			let mut new_idx = new_table.len();
 
 			// Get monotonic ordinal for this registration attempt
@@ -307,7 +319,7 @@ where
 					// Replace existing
 					new_table[idx] = Arc::new(new_entry);
 					parties[idx] = new_party;
-					replaced_idx = Some(idx);
+					replaced_info = Some((idx, existing_party, new_party));
 				} else {
 					// New entry lost - return error with existing ref
 					let existing_id_id = Id::from_u32(super::u32_index(idx, self.label));
@@ -318,6 +330,8 @@ where
 						},
 						incoming_id: def.meta_ref().id.to_string(),
 						policy: self.policy,
+						existing_party,
+						incoming_party: new_party,
 					});
 				}
 			} else {
@@ -334,15 +348,9 @@ where
 			}
 
 			// 4. Update stage maps (by_name, by_key) and collisions incrementally
-			let (by_name, by_key, key_collisions) = if let Some(replaced_idx) = replaced_idx {
+			let (by_name, by_key, mut key_collisions) = if let Some((idx, _, _)) = replaced_info {
 				super::lookup::update_stage_maps_replace(
-					self.label,
-					&new_table,
-					&parties,
-					&key_pool,
-					replaced_idx,
-					&old,
-					&new_by_id,
+					self.label, &new_table, &parties, &key_pool, idx, &old, &new_by_id,
 				)
 			} else {
 				// Incremental append
@@ -358,6 +366,27 @@ where
 					&old.collisions,
 				)
 			};
+
+			// Record DuplicateId collision for runtime replacements
+			if let Some((_, existing_party, new_party)) = replaced_info {
+				use crate::core::index::collision::{Collision, CollisionKind};
+
+				// Remove any existing DuplicateId record for this canonical ID to keep it bounded
+				key_collisions.retain(|c| {
+					!matches!(c.kind, CollisionKind::DuplicateId { .. }) || c.key != id_sym
+				});
+
+				key_collisions.push(Collision {
+					registry: self.label,
+					key: id_sym,
+					kind: CollisionKind::DuplicateId {
+						winner: new_party,
+						loser: existing_party,
+						policy: self.policy,
+					},
+				});
+				key_collisions.sort_by(Collision::stable_cmp);
+			}
 
 			// 5. Publish with CAS (clone Arc to return exact snapshot on success)
 			let new_snap = Snapshot {
@@ -377,8 +406,8 @@ where
 
 			if Arc::ptr_eq(&prev, &old) {
 				// CAS succeeded - return ref pinned to exact snapshot we installed
-				let result_id = replaced_idx
-					.map(|i| Id::from_u32(super::u32_index(i, self.label)))
+				let result_id = replaced_info
+					.map(|(i, _, _)| Id::from_u32(super::u32_index(i, self.label)))
 					.unwrap_or_else(|| Id::from_u32(super::u32_index(new_idx, self.label)));
 				return Ok(RegistryRef {
 					snap: new_arc,

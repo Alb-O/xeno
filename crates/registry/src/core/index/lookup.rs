@@ -11,9 +11,8 @@
 //!
 //! - Stage B insertions are blocked if the symbol exists in by_id.
 //! - Stage C insertions are blocked if the symbol exists in by_id or by_name.
-//! - Within-stage conflicts are resolved using total order comparison.
+//! - Within-stage conflicts are resolved using Party precedence.
 
-use std::cmp::Ordering;
 use std::sync::Arc;
 
 use rustc_hash::FxHashMap;
@@ -86,7 +85,6 @@ where
 			name_sym,
 			dense_id,
 			party,
-			table,
 			parties,
 			&mut by_name,
 			&mut collisions,
@@ -145,7 +143,6 @@ where
 				key,
 				dense_id,
 				party,
-				table,
 				parties,
 				&mut by_key,
 				&mut collisions,
@@ -157,27 +154,23 @@ where
 	(by_name, by_key, collisions)
 }
 
-fn resolve_stage_b<Out, Id>(
+fn resolve_stage_b<Id>(
 	registry_label: &'static str,
 	key: Symbol,
 	incoming_id: Id,
 	incoming_party: Party,
-	table: &[Arc<Out>],
 	parties: &[Party],
 	by_name: &mut FxHashMap<Symbol, Id>,
 	collisions: &mut Vec<Collision>,
 ) where
-	Out: RegistryEntry,
 	Id: DenseId,
 {
 	if let Some(&existing_id) = by_name.get(&key) {
 		let existing_idx = existing_id.as_u32() as usize;
 		let existing_party = parties[existing_idx];
 
-		// Same stage: compare entries
-		if table[incoming_id.as_u32() as usize].total_order_cmp(table[existing_idx].as_ref())
-			== Ordering::Greater
-		{
+		// Same stage: compare entries using global precedence (priority > source > ordinal)
+		if super::precedence::party_wins(&incoming_party, &existing_party) {
 			by_name.insert(key, incoming_id);
 			collisions.push(Collision {
 				registry: registry_label,
@@ -208,27 +201,23 @@ fn resolve_stage_b<Out, Id>(
 	}
 }
 
-fn resolve_stage_c<Out, Id>(
+fn resolve_stage_c<Id>(
 	registry_label: &'static str,
 	key: Symbol,
 	incoming_id: Id,
 	incoming_party: Party,
-	table: &[Arc<Out>],
 	parties: &[Party],
 	by_key: &mut FxHashMap<Symbol, Id>,
 	collisions: &mut Vec<Collision>,
 ) where
-	Out: RegistryEntry,
 	Id: DenseId,
 {
 	if let Some(&existing_id) = by_key.get(&key) {
 		let existing_idx = existing_id.as_u32() as usize;
 		let existing_party = parties[existing_idx];
 
-		// Same stage: compare entries
-		if table[incoming_id.as_u32() as usize].total_order_cmp(table[existing_idx].as_ref())
-			== Ordering::Greater
-		{
+		// Same stage: compare entries using global precedence (priority > source > ordinal)
+		if super::precedence::party_wins(&incoming_party, &existing_party) {
 			by_key.insert(key, incoming_id);
 			collisions.push(Collision {
 				registry: registry_label,
@@ -305,7 +294,6 @@ where
 			name_sym,
 			dense_id,
 			party,
-			table,
 			parties,
 			&mut by_name,
 			&mut collisions,
@@ -356,7 +344,6 @@ where
 			key,
 			dense_id,
 			party,
-			table,
 			parties,
 			&mut by_key,
 			&mut collisions,
@@ -398,10 +385,13 @@ where
 	);
 
 	// Filter out collisions for affected keys (will be recomputed)
+	// Note: We preserve DuplicateId collisions as they record overrides, not key conflicts.
 	let mut collisions: Vec<Collision> = old_snap
 		.collisions
 		.iter()
-		.filter(|c| !affected_keys.contains(&c.key))
+		.filter(|c| {
+			matches!(c.kind, CollisionKind::DuplicateId { .. }) || !affected_keys.contains(&c.key)
+		})
 		.cloned()
 		.collect();
 
@@ -492,10 +482,7 @@ fn recalculate_stage_b_winner<T, Id>(
 	// Find winner using total order
 	let (mut winner_id, mut winner_party) = candidates[0];
 	for (challenger_id, challenger_party) in candidates.into_iter().skip(1) {
-		if table[challenger_id.as_u32() as usize]
-			.total_order_cmp(table[winner_id.as_u32() as usize].as_ref())
-			== Ordering::Greater
-		{
+		if super::precedence::party_wins(&challenger_party, &winner_party) {
 			collisions.push(Collision {
 				registry: registry_label,
 				key,
@@ -621,10 +608,7 @@ fn recalculate_stage_c_winner<T, Id>(
 	// Find winner using total order
 	let (mut winner_id, mut winner_party) = candidates[0];
 	for (challenger_id, challenger_party) in candidates.into_iter().skip(1) {
-		if table[challenger_id.as_u32() as usize]
-			.total_order_cmp(table[winner_id.as_u32() as usize].as_ref())
-			== Ordering::Greater
-		{
+		if super::precedence::party_wins(&challenger_party, &winner_party) {
 			collisions.push(Collision {
 				registry: registry_label,
 				key,

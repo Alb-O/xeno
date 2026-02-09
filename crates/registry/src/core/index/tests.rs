@@ -77,10 +77,14 @@ fn test_register_rejected_by_priority() {
 			existing,
 			incoming_id,
 			policy,
+			existing_party,
+			incoming_party,
 		} => {
 			assert_eq!(existing.priority(), 50);
 			assert_eq!(incoming_id, "X");
 			assert_eq!(policy, DuplicatePolicy::ByPriority);
+			assert_eq!(existing_party.priority, 50);
+			assert_eq!(incoming_party.priority, 10);
 		}
 	}
 	// Registry unchanged
@@ -341,7 +345,16 @@ fn test_incremental_reference_equivalence() {
 			"by_key mismatch after register"
 		);
 		assert_eq!(
-			*current_snap.collisions, ref_collisions,
+			current_snap
+				.collisions
+				.iter()
+				.filter(|c| matches!(
+					c.kind,
+					crate::core::index::collision::CollisionKind::KeyConflict { .. }
+				))
+				.cloned()
+				.collect::<Vec<_>>(),
+			ref_collisions,
 			"collisions mismatch after register"
 		);
 	}

@@ -308,7 +308,7 @@ pub(crate) fn test_symbol_stability_across_swap() {
 
 /// Must respect source precedence: Runtime > Crate > Builtin.
 ///
-/// - Enforced in: `cmp_party`, `RegistryEntry::total_order_cmp`
+/// - Enforced in: `cmp_party`
 /// - Failure symptom: Wrong definition wins a key binding or ID conflict.
 #[cfg_attr(test, test)]
 pub(crate) fn test_source_precedence() {
@@ -438,15 +438,27 @@ pub(crate) fn test_canonical_id_ordinal_tiebreaker() {
 	);
 }
 
-/// On key conflicts (name/key) with identical priority and source, canonical ID total order wins.
+/// On key conflicts (name/key) with identical priority and source, later ingest wins (ordinal tie-break).
 #[cfg_attr(test, test)]
-pub(crate) fn test_key_conflict_id_tiebreaker() {
+pub(crate) fn test_key_conflict_ordinal_tiebreaker() {
 	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> =
 		RegistryBuilder::with_policy("test", DuplicatePolicy::ByPriority);
 
-	let def_a = TestDef {
+	let def_first = TestDef {
 		meta: RegistryMetaStatic {
-			id: "A",
+			id: "Z", // Alphabetically last, but ingested first
+			name: "Z",
+			keys: &["shared"],
+			description: "",
+			priority: 10,
+			source: RegistrySource::Builtin,
+			required_caps: &[],
+			flags: 0,
+		},
+	};
+	let def_second = TestDef {
+		meta: RegistryMetaStatic {
+			id: "A", // Alphabetically first, but ingested second
 			name: "A",
 			keys: &["shared"],
 			description: "",
@@ -456,11 +468,37 @@ pub(crate) fn test_key_conflict_id_tiebreaker() {
 			flags: 0,
 		},
 	};
-	let def_b = TestDef {
+
+	builder.push(Arc::new(def_first));
+	builder.push(Arc::new(def_second));
+
+	let index = builder.build();
+	assert_eq!(index.len(), 2);
+
+	let shared = index.get("shared").unwrap();
+	assert_eq!(
+		index.interner.resolve(shared.meta().id),
+		"A",
+		"Later ingest must win key conflict tie-break (ordinal wins over symbol ID)"
+	);
+}
+
+/// Regression test: ID override must keep its name/key bindings even on tie.
+///
+/// This verifies that when a definition is overridden in Stage A (Canonical ID),
+/// it also consistently wins its Stage B (Name) and Stage C (Key) bindings
+/// because it has the higher ordinal.
+#[cfg_attr(test, test)]
+pub(crate) fn test_id_override_keeps_name_binding_on_tie() {
+	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> =
+		RegistryBuilder::with_policy("test", DuplicatePolicy::ByPriority);
+
+	// Def Z owns "shared" name
+	let def_z = TestDef {
 		meta: RegistryMetaStatic {
-			id: "B",
-			name: "B",
-			keys: &["shared"],
+			id: "Z",
+			name: "shared",
+			keys: &[],
 			description: "",
 			priority: 10,
 			source: RegistrySource::Builtin,
@@ -468,25 +506,96 @@ pub(crate) fn test_key_conflict_id_tiebreaker() {
 			flags: 0,
 		},
 	};
+	// Def A(v1) also wants "shared" name
+	let def_a_v1 = TestDef {
+		meta: RegistryMetaStatic {
+			id: "A",
+			name: "shared",
+			keys: &[],
+			description: "v1",
+			priority: 10,
+			source: RegistrySource::Builtin,
+			required_caps: &[],
+			flags: 0,
+		},
+	};
+	// Def A(v2) overrides A(v1) and still wants "shared" name
+	let def_a_v2 = TestDef {
+		meta: RegistryMetaStatic {
+			id: "A",
+			name: "shared",
+			keys: &[],
+			description: "v2",
+			priority: 10,
+			source: RegistrySource::Builtin,
+			required_caps: &[],
+			flags: 0,
+		},
+	};
 
-	builder.push(Arc::new(def_a));
-	builder.push(Arc::new(def_b));
+	builder.push(Arc::new(def_z));
+	builder.push(Arc::new(def_a_v1));
+	builder.push(Arc::new(def_a_v2));
 
 	let index = builder.build();
+	// Only 2 entries: Z and A(v2)
 	assert_eq!(index.len(), 2);
 
-	let entry_a = index.get("A").unwrap();
-	let entry_b = index.get("B").unwrap();
-	let sym_a = entry_a.meta().id;
-	let sym_b = entry_b.meta().id;
-
-	// Verify that the symbols are ordered as expected (B > A in sorted IDs)
-	assert!(sym_b > sym_a, "Symbol B must be greater than Symbol A");
-
+	// "shared" name should be won by A(v2) because it was ingested last
 	let shared = index.get("shared").unwrap();
 	assert_eq!(
-		shared.meta().id,
-		sym_b,
-		"Greater canonical ID symbol must win key conflict tie-break"
+		index.interner.resolve(shared.meta().id),
+		"A",
+		"Overriding entry must win its name binding via ordinal tie-break"
 	);
+	assert_eq!(
+		index.interner.resolve(shared.meta().description),
+		"v2",
+		"Must be the latest version of A"
+	);
+}
+
+/// Runtime overrides of canonical IDs must be recorded as DuplicateId collisions.
+#[cfg_attr(test, test)]
+pub(crate) fn test_runtime_duplicate_id_records_collision() {
+	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> = RegistryBuilder::new("test");
+	builder.push(Arc::new(make_def("X", 10)));
+	let registry = RuntimeRegistry::new("test", builder.build());
+
+	// Runtime override
+	let override_def: &'static TestDef = Box::leak(Box::new(TestDef {
+		meta: RegistryMetaStatic {
+			id: "X",
+			name: "X_runtime",
+			keys: &[],
+			description: "runtime version",
+			priority: 10, // Same priority, Runtime source wins
+			source: RegistrySource::Runtime,
+			required_caps: &[],
+			flags: 0,
+		},
+	}));
+
+	let _ = registry
+		.register(override_def)
+		.expect("Override must succeed");
+
+	let snap = registry.snapshot();
+	let collisions = snap.collisions.as_ref();
+
+	use crate::core::index::collision::CollisionKind;
+	let dup_collision = collisions
+		.iter()
+		.find(|c| {
+			matches!(c.kind, CollisionKind::DuplicateId { .. })
+				&& snap.interner.resolve(c.key) == "X"
+		})
+		.expect("Must record DuplicateId collision on runtime override");
+
+	if let CollisionKind::DuplicateId { winner, loser, .. } = dup_collision.kind {
+		assert_eq!(winner.source, RegistrySource::Runtime);
+		assert_eq!(loser.source, RegistrySource::Builtin);
+	} else {
+		panic!("Wrong collision kind");
+	}
 }
