@@ -1,16 +1,28 @@
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use rustc_hash::FxHashMap;
 use tokio::sync::Semaphore;
 use tokio::task::JoinHandle;
 use xeno_primitives::{ChangeSet, Rope};
-use xeno_runtime_language::syntax::{SealedSource, Syntax, SyntaxError, SyntaxOptions};
+use xeno_runtime_language::syntax::{
+	InjectionPolicy, SealedSource, Syntax, SyntaxError, SyntaxOptions,
+};
 use xeno_runtime_language::{LanguageId, LanguageLoader};
 
 use super::engine::SyntaxEngine;
 use super::types::{DocEpoch, OptKey, TaskId};
 use crate::core::document::DocumentId;
 
+/// Categorization of syntax tasks for metrics and scheduling.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TaskClass {
+	Full,
+	Incremental,
+	Viewport,
+}
+
+/// The type of parse work to perform in a background task.
 pub(super) enum TaskKind {
 	FullParse {
 		content: Rope,
@@ -27,6 +39,17 @@ pub(super) enum TaskKind {
 	},
 }
 
+impl TaskKind {
+	pub fn class(&self) -> TaskClass {
+		match self {
+			Self::FullParse { .. } => TaskClass::Full,
+			Self::ViewportParse { .. } => TaskClass::Viewport,
+			Self::Incremental { .. } => TaskClass::Incremental,
+		}
+	}
+}
+
+/// Input specification for a background syntax task (what to parse and how).
 pub(super) struct TaskSpec {
 	pub(super) doc_id: DocumentId,
 	pub(super) epoch: DocEpoch,
@@ -38,6 +61,7 @@ pub(super) struct TaskSpec {
 	pub(super) loader: Arc<LanguageLoader>,
 }
 
+/// Output of a completed background syntax task, returned via the join handle.
 pub(super) struct TaskDone {
 	pub(super) id: TaskId,
 	pub(super) doc_id: DocumentId,
@@ -46,7 +70,9 @@ pub(super) struct TaskDone {
 	pub(super) lang_id: LanguageId,
 	pub(super) opts_key: OptKey,
 	pub(super) result: Result<Syntax, SyntaxError>,
-	pub(super) is_viewport: bool,
+	pub(super) class: TaskClass,
+	pub(super) injections: InjectionPolicy,
+	pub(super) elapsed: Duration,
 }
 
 /// Invariant enforcement: Collector for background syntax tasks.
@@ -68,36 +94,53 @@ impl TaskCollector {
 		permits: Arc<Semaphore>,
 		engine: Arc<dyn SyntaxEngine>,
 		spec: TaskSpec,
+		reserve: usize,
 	) -> Option<TaskId> {
-		let permit = permits.try_acquire_owned().ok()?;
+		let is_viewport = matches!(spec.kind, TaskKind::ViewportParse { .. });
+
+		let permit = if is_viewport {
+			permits.try_acquire_owned().ok()?
+		} else {
+			let available = permits.available_permits();
+			if available <= reserve {
+				return None;
+			}
+			permits.try_acquire_owned().ok()?
+		};
+
 		let id_val = self.next_id;
 		self.next_id = self.next_id.wrapping_add(1);
 		let task_id = TaskId(id_val);
 
-		let is_viewport = matches!(spec.kind, TaskKind::ViewportParse { .. });
+		let class = spec.kind.class();
+		let injections = spec.opts.injections;
 
 		let handle = tokio::task::spawn_blocking(move || {
 			let _permit = permit; // Tie permit lifetime to closure
 
+			let t0 = Instant::now();
 			let result = match spec.kind {
 				TaskKind::FullParse { content } => {
 					engine.parse(content.slice(..), spec.lang_id, &spec.loader, spec.opts)
 				}
 				TaskKind::ViewportParse { content, window } => {
 					if let Some(data) = spec.loader.get(spec.lang_id) {
-						let repair = data.viewport_repair();
+						let repair: xeno_runtime_language::syntax::ViewportRepair =
+							data.viewport_repair();
 						let forward_haystack = if window.end < content.len_bytes() as u32 {
 							Some(content.byte_slice(window.end as usize..))
 						} else {
 							None
 						};
-						let suffix = repair.scan(
+						let plan = repair.scan(
 							content.byte_slice(window.start as usize..window.end as usize),
 							forward_haystack,
 						);
+						let end = (window.end as usize + plan.extension_bytes as usize)
+							.min(content.len_bytes());
 						let sealed = Arc::new(SealedSource::from_window(
-							content.byte_slice(window.start as usize..window.end as usize),
-							&suffix,
+							content.byte_slice(window.start as usize..end),
+							&plan.suffix,
 						));
 						Syntax::new_viewport(
 							sealed,
@@ -125,6 +168,7 @@ impl TaskCollector {
 					spec.opts,
 				),
 			};
+			let elapsed = t0.elapsed();
 
 			TaskDone {
 				id: task_id,
@@ -134,7 +178,9 @@ impl TaskCollector {
 				lang_id: spec.lang_id,
 				opts_key: spec.opts_key,
 				result,
-				is_viewport,
+				class,
+				injections,
+				elapsed,
 			}
 		});
 

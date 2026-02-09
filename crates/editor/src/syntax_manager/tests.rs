@@ -15,7 +15,13 @@ use crate::core::document::DocumentId;
 async fn test_drain_releases_permit_without_repoll() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
-	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 1,
+			..Default::default()
+		},
+		engine.clone(),
+	);
 	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::ZERO;
 	mgr.set_policy(policy);
@@ -65,7 +71,13 @@ async fn test_drain_releases_permit_without_repoll() {
 async fn test_opts_mismatch_invalidates_and_throttles() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
-	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 1,
+			..Default::default()
+		},
+		engine.clone(),
+	);
 	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::ZERO;
 	policy.s.injections = InjectionPolicy::Eager;
@@ -133,7 +145,13 @@ async fn test_opts_mismatch_invalidates_and_throttles() {
 async fn test_opts_mismatch_never_installs() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
-	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 1,
+			..Default::default()
+		},
+		engine.clone(),
+	);
 	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::ZERO;
 	policy.s.injections = InjectionPolicy::Eager;
@@ -199,7 +217,13 @@ async fn test_opts_mismatch_never_installs() {
 async fn test_dropwhenhidden_discards_completed_parse() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
-	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 1,
+			..Default::default()
+		},
+		engine.clone(),
+	);
 	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::ZERO;
 	policy.s.retention_hidden = RetentionPolicy::DropWhenHidden;
@@ -259,61 +283,141 @@ async fn test_dropwhenhidden_discards_completed_parse() {
 }
 
 #[tokio::test]
-async fn test_language_switch_clears_completed_error() {
+async fn test_viewport_stage_b_budget_gate() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
-	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 1,
+			..Default::default()
+		},
+		engine.clone(),
+	);
 	let mut policy = TieredSyntaxPolicy::test_default();
-	policy.s.debounce = Duration::ZERO;
-	policy.s.cooldown_on_timeout = Duration::from_secs(60);
-	mgr.set_policy(policy);
+	policy.s_max_bytes_inclusive = 0;
+	policy.m_max_bytes_inclusive = 0;
+	policy.l.debounce = Duration::ZERO;
+	policy.l.viewport_stage_b_budget = Some(Duration::from_millis(100));
+	mgr.set_policy(policy.clone());
 
 	let doc_id = DocumentId(1);
 	let loader = Arc::new(LanguageLoader::from_embedded());
-	let lang_id_old = loader.language_for_name("rust").unwrap();
-	let lang_id_new = loader.language_for_name("python").unwrap();
-	let content = Rope::from("test");
+	let lang = loader.language_for_name("rust").unwrap();
+	let content = Rope::from("fn main() {}");
 
-	engine.set_result(Err("timeout".to_string()));
+	// 1. Kick Stage A
 	mgr.ensure_syntax(EnsureSyntaxContext {
 		doc_id,
 		doc_version: 1,
-		language_id: Some(lang_id_old),
+		language_id: Some(lang),
 		content: &content,
 		hotness: SyntaxHotness::Visible,
 		loader: &loader,
-		viewport: None,
+		viewport: Some(0..10),
 	});
 	engine.proceed();
-
-	let mut iters = 0;
-	while !mgr.any_task_finished() && iters < 100 {
+	while !mgr.any_task_finished() {
 		sleep(Duration::from_millis(1)).await;
-		iters += 1;
 	}
-	assert!(mgr.any_task_finished());
-
 	mgr.drain_finished_inflight();
 
-	let poll = mgr.ensure_syntax(EnsureSyntaxContext {
+	// Poll - installs Stage A and should kick Full parse (skipping Stage B due to budget)
+	let r = mgr.ensure_syntax(EnsureSyntaxContext {
 		doc_id,
 		doc_version: 1,
-		language_id: Some(lang_id_old),
+		language_id: Some(lang),
 		content: &content,
 		hotness: SyntaxHotness::Visible,
 		loader: &loader,
-		viewport: None,
+		viewport: Some(0..10),
 	});
-	assert_eq!(poll.result, SyntaxPollResult::CoolingDown);
+	assert_eq!(r.result, SyntaxPollResult::Kicked);
+	assert!(mgr.has_pending(doc_id));
+}
 
-	let poll_new = mgr.ensure_syntax(EnsureSyntaxContext {
+#[tokio::test]
+async fn test_viewport_policy_flip_discard() {
+	let engine = Arc::new(MockEngine::new());
+	let _guard = EngineGuard(engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 1,
+			..Default::default()
+		},
+		engine.clone(),
+	);
+	let mut policy = TieredSyntaxPolicy::test_default();
+	policy.s_max_bytes_inclusive = 0;
+	policy.m_max_bytes_inclusive = 0;
+	policy.l.debounce = Duration::ZERO;
+	policy.l.viewport_stage_b_budget = Some(Duration::from_millis(100));
+	mgr.set_policy(policy.clone());
+
+	let doc_id = DocumentId(1);
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang = loader.language_for_name("rust").unwrap();
+	let content = Rope::from("fn main() {}");
+
+	// 1. Install Stage A
+	mgr.ensure_syntax(EnsureSyntaxContext {
 		doc_id,
 		doc_version: 1,
-		language_id: Some(lang_id_new),
+		language_id: Some(lang),
 		content: &content,
 		hotness: SyntaxHotness::Visible,
 		loader: &loader,
-		viewport: None,
+		viewport: Some(0..10),
 	});
-	assert_eq!(poll_new.result, SyntaxPollResult::Kicked);
+	engine.proceed();
+	while !mgr.any_task_finished() {
+		sleep(Duration::from_millis(1)).await;
+	}
+	mgr.drain_finished_inflight();
+	mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 1,
+		language_id: Some(lang),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+		viewport: Some(0..10),
+	});
+
+	// 2. Kick Stage B
+	mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 1,
+		language_id: Some(lang),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+		viewport: Some(0..10),
+	});
+	assert!(mgr.has_pending(doc_id));
+
+	// 3. Disable Stage B policy BEFORE draining
+	policy.l.viewport_stage_b_budget = None;
+	mgr.set_policy(policy);
+
+	// 4. Complete Stage B
+	engine.proceed();
+	while !mgr.any_task_finished() {
+		sleep(Duration::from_millis(1)).await;
+	}
+	mgr.drain_finished_inflight();
+
+	// Poll - should NOT install Stage B because it no longer matches policy
+	mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 1,
+		language_id: Some(lang),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+		viewport: Some(0..10),
+	});
+	assert_eq!(
+		mgr.syntax_for_doc(doc_id).unwrap().opts().injections,
+		InjectionPolicy::Disabled
+	);
 }

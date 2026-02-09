@@ -24,7 +24,7 @@ const DEFAULT_PARSE_TIMEOUT: Duration = Duration::from_millis(500);
 /// NOTE: actual injection enable/disable is implemented by `LanguageLoader`
 /// (tree-house queries + injected language resolution). `SyntaxOptions` just
 /// plumbs the intent through the call chain.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum InjectionPolicy {
 	/// Build all injection layers (current behavior).
 	Eager,
@@ -270,13 +270,22 @@ pub enum ViewportRepairRule {
 	},
 }
 
+/// Result of a viewport repair scan.
+#[derive(Debug, Clone, Default)]
+pub struct SealPlan {
+	/// Synthetic suffix to append to the window.
+	pub suffix: String,
+	/// Number of bytes to extend the window by from the forward haystack.
+	pub extension_bytes: u32,
+}
+
 impl ViewportRepair {
-	/// Scans the window to determine the synthetic suffix needed to close multi-line constructs.
+	/// Scans the window to determine the synthetic suffix or extension needed to close multi-line constructs.
 	///
 	/// Optionally performs a forward search in the full document to find a real closer.
-	pub fn scan(&self, window: RopeSlice<'_>, forward_haystack: Option<RopeSlice<'_>>) -> String {
+	pub fn scan(&self, window: RopeSlice<'_>, forward_haystack: Option<RopeSlice<'_>>) -> SealPlan {
 		if !self.enabled || window.len_bytes() == 0 {
-			return String::new();
+			return SealPlan::default();
 		}
 
 		// MVP byte-oriented scanner
@@ -284,98 +293,124 @@ impl ViewportRepair {
 		let mut in_string: Option<usize> = None; // index into self.rules
 		let mut in_line_comment = false;
 
-		let bytes: Vec<u8> = window.bytes().take(self.max_scan_bytes as usize).collect();
+		// Use a chunk-based iterator to avoid large Vec allocations
+		let total_bytes = window.len_bytes().min(self.max_scan_bytes as usize);
+		let mut bytes_read = 0;
 
-		let mut i = 0;
-		while i < bytes.len() {
-			if in_line_comment {
-				if bytes[i] == b'\n' {
-					in_line_comment = false;
-				}
-				i += 1;
-				continue;
-			}
+		'outer: for chunk in window.chunks() {
+			let chunk_bytes = chunk.as_bytes();
+			let mut chunk_idx = 0;
 
-			if let Some(rule_idx) = in_string {
-				let rule = &self.rules[rule_idx];
-				if let ViewportRepairRule::String { quote, escape } = rule {
-					if let Some(esc) = escape
-						&& bytes[i..].starts_with(esc.as_bytes())
-					{
-						i += esc.len();
-						i += 1; // skip escaped char
-						continue;
+			while chunk_idx < chunk_bytes.len() && bytes_read < total_bytes {
+				if in_line_comment {
+					if chunk_bytes[chunk_idx] == b'\n' {
+						in_line_comment = false;
 					}
-					if bytes[i..].starts_with(quote.as_bytes()) {
-						in_string = None;
-						i += quote.len();
-						continue;
-					}
+					chunk_idx += 1;
+					bytes_read += 1;
+					continue;
 				}
-				i += 1;
-				continue;
-			}
 
-			// Not in line comment or string
-			let mut matched = false;
-			for (idx, rule) in self.rules.iter().enumerate() {
-				match rule {
-					ViewportRepairRule::LineComment { start } => {
-						if bytes[i..].starts_with(start.as_bytes()) {
-							in_line_comment = true;
-							i += start.len();
-							matched = true;
-							break;
+				if let Some(rule_idx) = in_string {
+					let rule = &self.rules[rule_idx];
+					if let ViewportRepairRule::String { quote, escape } = rule {
+						if let Some(esc) = escape
+							&& chunk_bytes[chunk_idx..].starts_with(esc.as_bytes())
+						{
+							chunk_idx += esc.len();
+							bytes_read += esc.len();
+							if chunk_idx < chunk_bytes.len() {
+								chunk_idx += 1;
+								bytes_read += 1;
+							}
+							continue;
+						}
+						if chunk_bytes[chunk_idx..].starts_with(quote.as_bytes()) {
+							in_string = None;
+							chunk_idx += quote.len();
+							bytes_read += quote.len();
+							continue;
 						}
 					}
-					ViewportRepairRule::String { quote, .. } => {
-						if bytes[i..].starts_with(quote.as_bytes()) {
-							in_string = Some(idx);
-							i += quote.len();
-							matched = true;
-							break;
+					chunk_idx += 1;
+					bytes_read += 1;
+					continue;
+				}
+
+				// Not in line comment or string
+				let mut matched = false;
+				for (idx, rule) in self.rules.iter().enumerate() {
+					match rule {
+						ViewportRepairRule::LineComment { start } => {
+							if chunk_bytes[chunk_idx..].starts_with(start.as_bytes()) {
+								in_line_comment = true;
+								chunk_idx += start.len();
+								bytes_read += start.len();
+								matched = true;
+								break;
+							}
 						}
-					}
-					ViewportRepairRule::BlockComment {
-						open,
-						close,
-						nestable,
-					} => {
-						if bytes[i..].starts_with(open.as_bytes()) {
-							block_comment_depth += 1;
-							i += open.len();
-							matched = true;
-							if !*nestable {
-								// skip until closer
-								while i < bytes.len() {
-									if bytes[i..].starts_with(close.as_bytes()) {
-										block_comment_depth -= 1;
-										i += close.len();
-										break;
+						ViewportRepairRule::String { quote, .. } => {
+							if chunk_bytes[chunk_idx..].starts_with(quote.as_bytes()) {
+								in_string = Some(idx);
+								chunk_idx += quote.len();
+								bytes_read += quote.len();
+								matched = true;
+								break;
+							}
+						}
+						ViewportRepairRule::BlockComment {
+							open,
+							close,
+							nestable,
+						} => {
+							if chunk_bytes[chunk_idx..].starts_with(open.as_bytes()) {
+								block_comment_depth += 1;
+								chunk_idx += open.len();
+								bytes_read += open.len();
+								matched = true;
+								if !*nestable {
+									// skip until closer in the same chunk (simplified)
+									// FIXME: this should handle closer spanning chunks
+									while chunk_idx < chunk_bytes.len() && bytes_read < total_bytes
+									{
+										if chunk_bytes[chunk_idx..].starts_with(close.as_bytes()) {
+											block_comment_depth -= 1;
+											chunk_idx += close.len();
+											bytes_read += close.len();
+											break;
+										}
+										chunk_idx += 1;
+										bytes_read += 1;
 									}
-									i += 1;
 								}
+								break;
+							} else if chunk_bytes[chunk_idx..].starts_with(close.as_bytes()) {
+								if block_comment_depth > 0 {
+									block_comment_depth -= 1;
+								}
+								chunk_idx += close.len();
+								bytes_read += close.len();
+								matched = true;
+								break;
 							}
-							break;
-						} else if bytes[i..].starts_with(close.as_bytes()) {
-							if block_comment_depth > 0 {
-								block_comment_depth -= 1;
-							}
-							i += close.len();
-							matched = true;
-							break;
 						}
 					}
 				}
+
+				if !matched {
+					chunk_idx += 1;
+					bytes_read += 1;
+				}
 			}
 
-			if !matched {
-				i += 1;
+			if bytes_read >= total_bytes {
+				break 'outer;
 			}
 		}
 
 		if block_comment_depth == 0 && in_string.is_none() {
-			return String::new();
+			return SealPlan::default();
 		}
 
 		// Check for real closer forward if requested
@@ -383,33 +418,42 @@ impl ViewportRepair {
 			&& let Some(haystack) = forward_haystack
 		{
 			let search_limit = self.max_forward_search_bytes as usize;
-			let search_bytes: Vec<u8> = haystack.bytes().take(search_limit).collect();
+			let mut search_bytes_read = 0;
 
-			if block_comment_depth > 0 {
-				if let Some(ViewportRepairRule::BlockComment { close, .. }) = self
-					.rules
-					.iter()
-					.find(|r| matches!(r, ViewportRepairRule::BlockComment { .. }))
-					&& search_bytes
-						.windows(close.len())
-						.any(|w| w == close.as_bytes())
+			for chunk in haystack.chunks() {
+				let chunk_bytes = chunk.as_bytes();
+				let current_limit = (search_limit - search_bytes_read).min(chunk_bytes.len());
+
+				if block_comment_depth > 0 {
+					if let Some(ViewportRepairRule::BlockComment { close, .. }) = self
+						.rules
+						.iter()
+						.find(|r| matches!(r, ViewportRepairRule::BlockComment { .. }))
+						&& let Some(pos) = chunk_bytes[..current_limit]
+							.windows(close.len())
+							.position(|w| w == close.as_bytes())
+					{
+						return SealPlan {
+							suffix: String::new(),
+							extension_bytes: (search_bytes_read + pos + close.len()) as u32,
+						};
+					}
+				} else if let Some(rule_idx) = in_string
+					&& let ViewportRepairRule::String { quote, .. } = &self.rules[rule_idx]
+					&& let Some(pos) = chunk_bytes[..current_limit]
+						.windows(quote.len())
+						.position(|w| w == quote.as_bytes())
 				{
-					// Found real closer shortly after window; no synthetic suffix needed
-					// (Tree-sitter will find it if we extend the range, but for now we just
-					// skip synthesis and rely on the fact that ERROR recovery is localized
-					// if the closer exists "soon enough" - actually, better to return the closer
-					// as suffix to be safe, or extend the window.)
-					//
-					// For now, let's just return empty to signal "don't seal, it's fine".
-					return String::new();
+					return SealPlan {
+						suffix: String::new(),
+						extension_bytes: (search_bytes_read + pos + quote.len()) as u32,
+					};
 				}
-			} else if let Some(rule_idx) = in_string
-				&& let ViewportRepairRule::String { quote, .. } = &self.rules[rule_idx]
-				&& search_bytes
-					.windows(quote.len())
-					.any(|w| w == quote.as_bytes())
-			{
-				return String::new();
+
+				search_bytes_read += current_limit;
+				if search_bytes_read >= search_limit {
+					break;
+				}
 			}
 		}
 
@@ -431,7 +475,10 @@ impl ViewportRepair {
 			suffix.push_str(quote);
 		}
 
-		suffix
+		SealPlan {
+			suffix,
+			extension_bytes: 0,
+		}
 	}
 }
 

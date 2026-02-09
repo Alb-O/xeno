@@ -324,7 +324,12 @@ impl Editor {
 					.max_visible(Some(5))
 					.overflow(xeno_tui::widgets::notifications::Overflow::DropOldest),
 				lsp: LspSystem::new(),
-				syntax_manager: crate::syntax_manager::SyntaxManager::new(2),
+				syntax_manager: crate::syntax_manager::SyntaxManager::new(
+					crate::syntax_manager::SyntaxManagerCfg {
+						max_concurrency: 2,
+						..Default::default()
+					},
+				),
 				hook_runtime,
 				overlay_system: OverlaySystem::default(),
 				effects: crate::effects::sink::EffectSink::default(),

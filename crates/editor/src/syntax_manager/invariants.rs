@@ -173,7 +173,13 @@ async fn wait_for_finish(mgr: &SyntaxManager) {
 pub(crate) async fn test_single_flight_per_doc() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
-	let mut mgr = SyntaxManager::new_with_engine(2, engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 2,
+			..Default::default()
+		},
+		engine.clone(),
+	);
 	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::ZERO;
 	mgr.set_policy(policy);
@@ -216,7 +222,13 @@ pub(crate) async fn test_single_flight_per_doc() {
 pub(crate) async fn test_inflight_drained_even_if_doc_marked_clean() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
-	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 1,
+			..Default::default()
+		},
+		engine.clone(),
+	);
 	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::ZERO;
 	mgr.set_policy(policy);
@@ -263,7 +275,13 @@ pub(crate) async fn test_inflight_drained_even_if_doc_marked_clean() {
 pub(crate) async fn test_stale_parse_does_not_overwrite_clean_incremental() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
-	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 1,
+			..Default::default()
+		},
+		engine.clone(),
+	);
 	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::ZERO;
 	mgr.set_policy(policy);
@@ -351,7 +369,13 @@ pub(crate) async fn test_stale_parse_does_not_overwrite_clean_incremental() {
 pub(crate) async fn test_stale_install_continuity() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
-	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 1,
+			..Default::default()
+		},
+		engine.clone(),
+	);
 	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::ZERO;
 	mgr.set_policy(policy);
@@ -404,7 +428,13 @@ pub(crate) async fn test_stale_install_continuity() {
 pub(crate) async fn test_note_edit_updates_timestamp() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
-	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 1,
+			..Default::default()
+		},
+		engine.clone(),
+	);
 	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::from_millis(100);
 	mgr.set_policy(policy);
@@ -473,7 +503,13 @@ pub(crate) async fn test_note_edit_updates_timestamp() {
 pub(crate) async fn test_bootstrap_parse_skips_debounce() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
-	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 1,
+			..Default::default()
+		},
+		engine.clone(),
+	);
 	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::from_secs(60);
 	mgr.set_policy(policy);
@@ -503,7 +539,13 @@ pub(crate) async fn test_bootstrap_parse_skips_debounce() {
 pub(crate) async fn test_idle_tick_polls_inflight_parse() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
-	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 1,
+			..Default::default()
+		},
+		engine.clone(),
+	);
 	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::ZERO;
 	mgr.set_policy(policy);
@@ -539,7 +581,13 @@ pub(crate) async fn test_idle_tick_polls_inflight_parse() {
 pub(crate) async fn test_syntax_version_bumps_on_install() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
-	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 1,
+			..Default::default()
+		},
+		engine.clone(),
+	);
 	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::ZERO;
 	mgr.set_policy(policy);
@@ -586,7 +634,13 @@ pub(crate) async fn test_syntax_version_bumps_on_install() {
 pub(crate) async fn test_language_switch_discards_old_parse() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
-	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 1,
+			..Default::default()
+		},
+		engine.clone(),
+	);
 	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::ZERO;
 	mgr.set_policy(policy);
@@ -659,7 +713,13 @@ pub(crate) async fn test_language_switch_discards_old_parse() {
 pub(crate) async fn test_invalidate_does_not_release_permit_until_task_finishes() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
-	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 1,
+			..Default::default()
+		},
+		engine.clone(),
+	);
 	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::ZERO;
 	mgr.set_policy(policy);
@@ -715,7 +775,13 @@ pub(crate) async fn test_invalidate_does_not_release_permit_until_task_finishes(
 pub(crate) async fn test_monotonic_version_guard() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
-	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 1,
+			..Default::default()
+		},
+		engine.clone(),
+	);
 	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::ZERO;
 	mgr.set_policy(policy);
@@ -807,7 +873,13 @@ pub(crate) async fn test_monotonic_version_guard() {
 pub(crate) async fn test_history_op_bypasses_debounce() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
-	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 1,
+			..Default::default()
+		},
+		engine.clone(),
+	);
 	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::from_secs(60);
 	mgr.set_policy(policy);
@@ -862,7 +934,13 @@ pub(crate) async fn test_history_op_bypasses_debounce() {
 pub(crate) async fn test_cold_eviction_reload() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
-	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 1,
+			..Default::default()
+		},
+		engine.clone(),
+	);
 	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::ZERO;
 	policy.s.retention_hidden = RetentionPolicy::DropWhenHidden;
@@ -925,7 +1003,13 @@ pub(crate) async fn test_cold_eviction_reload() {
 pub(crate) async fn test_cold_throttles_work() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
-	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 1,
+			..Default::default()
+		},
+		engine.clone(),
+	);
 	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::ZERO;
 	policy.s.retention_hidden = RetentionPolicy::DropWhenHidden;
@@ -993,7 +1077,13 @@ pub(crate) async fn test_cold_throttles_work() {
 pub(crate) async fn test_detached_task_reattach() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
-	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 1,
+			..Default::default()
+		},
+		engine.clone(),
+	);
 	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::ZERO;
 	policy.s.retention_hidden = RetentionPolicy::DropWhenHidden;
@@ -1078,7 +1168,13 @@ pub(crate) async fn test_detached_task_reattach() {
 pub(crate) async fn test_sync_bootstrap_success() {
 	// threshold = 10ms, but bootstrap is 5ms -> Ok(syntax)
 	let engine = Arc::new(TimeoutSensitiveEngine::new(Duration::from_millis(1)));
-	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 1,
+			..Default::default()
+		},
+		engine.clone(),
+	);
 	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::ZERO;
 	policy.s.sync_bootstrap_timeout = Some(Duration::from_millis(5));
@@ -1114,7 +1210,13 @@ pub(crate) async fn test_sync_bootstrap_success() {
 pub(crate) async fn test_sync_bootstrap_timeout_fallback() {
 	// threshold = 10ms, bootstrap is 5ms -> Err(Timeout)
 	let engine = Arc::new(TimeoutSensitiveEngine::new(Duration::from_millis(10)));
-	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 1,
+			..Default::default()
+		},
+		engine.clone(),
+	);
 	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::ZERO;
 	policy.s.sync_bootstrap_timeout = Some(Duration::from_millis(5));
@@ -1171,7 +1273,13 @@ pub(crate) async fn test_sync_bootstrap_timeout_fallback() {
 pub(crate) async fn test_sync_bootstrap_attempted_only_once_when_throttled() {
 	let engine = Arc::new(TimeoutSensitiveEngine::new(Duration::from_millis(10)));
 	// Concurrency 1
-	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 1,
+			..Default::default()
+		},
+		engine.clone(),
+	);
 	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::ZERO;
 	policy.s.sync_bootstrap_timeout = Some(Duration::from_millis(5));
@@ -1228,7 +1336,13 @@ pub(crate) async fn test_sync_bootstrap_attempted_only_once_when_throttled() {
 pub(crate) async fn test_highlight_skips_stale_tree_version() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
-	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 1,
+			..Default::default()
+		},
+		engine.clone(),
+	);
 	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::ZERO;
 	mgr.set_policy(policy);

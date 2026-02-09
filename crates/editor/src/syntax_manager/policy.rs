@@ -23,7 +23,7 @@ pub enum SyntaxHotness {
 }
 
 /// Size-based tier for a file.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SyntaxTier {
 	/// Small file.
 	S,
@@ -36,8 +36,10 @@ pub enum SyntaxTier {
 /// Configuration for a specific [`SyntaxTier`].
 #[derive(Debug, Clone, Copy)]
 pub struct TierCfg {
+	/// Minimum time allowed for a single parse operation.
+	pub parse_timeout_min: Duration,
 	/// Maximum time allowed for a single parse operation.
-	pub parse_timeout: Duration,
+	pub parse_timeout_max: Duration,
 	/// Time to wait after an edit before triggering a background parse.
 	pub debounce: Duration,
 	/// Backoff duration after a parse timeout.
@@ -53,6 +55,22 @@ pub struct TierCfg {
 	/// Timeout for the synchronous bootstrap parse attempt on the render
 	/// thread. `None` disables the fast path for this tier.
 	pub sync_bootstrap_timeout: Option<Duration>,
+
+	/// Byte lookbehind for viewport-bounded parsing.
+	pub viewport_lookbehind: u32,
+	/// Byte lookahead for viewport-bounded parsing.
+	pub viewport_lookahead: u32,
+	/// Maximum window size for viewport-bounded parsing.
+	pub viewport_window_max: u32,
+	/// Minimum timeout for viewport-bounded parsing.
+	pub viewport_parse_timeout_min: Duration,
+	/// Maximum timeout for viewport-bounded parsing.
+	pub viewport_parse_timeout_max: Duration,
+	/// Injection policy for viewport-bounded parsing.
+	pub viewport_injections: InjectionPolicy,
+	/// Budget for Stage B viewport-bounded parsing (with injections).
+	/// `None` disables Stage B.
+	pub viewport_stage_b_budget: Option<Duration>,
 }
 
 /// Syntax tree retention policy for memory management.
@@ -87,7 +105,8 @@ impl Default for TieredSyntaxPolicy {
 			s_max_bytes_inclusive: 256 * 1024,
 			m_max_bytes_inclusive: 1024 * 1024,
 			s: TierCfg {
-				parse_timeout: Duration::from_millis(500),
+				parse_timeout_min: Duration::from_millis(50),
+				parse_timeout_max: Duration::from_millis(500),
 				debounce: Duration::from_millis(80),
 				cooldown_on_timeout: Duration::from_millis(400),
 				cooldown_on_error: Duration::from_millis(150),
@@ -95,9 +114,17 @@ impl Default for TieredSyntaxPolicy {
 				retention_hidden: RetentionPolicy::Keep,
 				parse_when_hidden: false,
 				sync_bootstrap_timeout: Some(Duration::from_millis(5)),
+				viewport_lookbehind: 8192,
+				viewport_lookahead: 8192,
+				viewport_window_max: 128 * 1024,
+				viewport_parse_timeout_min: Duration::from_millis(5),
+				viewport_parse_timeout_max: Duration::from_millis(15),
+				viewport_injections: InjectionPolicy::Disabled,
+				viewport_stage_b_budget: Some(Duration::from_millis(25)),
 			},
 			m: TierCfg {
-				parse_timeout: Duration::from_millis(1200),
+				parse_timeout_min: Duration::from_millis(100),
+				parse_timeout_max: Duration::from_millis(1200),
 				debounce: Duration::from_millis(140),
 				cooldown_on_timeout: Duration::from_secs(2),
 				cooldown_on_error: Duration::from_millis(250),
@@ -105,9 +132,17 @@ impl Default for TieredSyntaxPolicy {
 				retention_hidden: RetentionPolicy::DropAfter(Duration::from_secs(60)),
 				parse_when_hidden: false,
 				sync_bootstrap_timeout: Some(Duration::from_millis(3)),
+				viewport_lookbehind: 8192,
+				viewport_lookahead: 8192,
+				viewport_window_max: 128 * 1024,
+				viewport_parse_timeout_min: Duration::from_millis(5),
+				viewport_parse_timeout_max: Duration::from_millis(15),
+				viewport_injections: InjectionPolicy::Disabled,
+				viewport_stage_b_budget: Some(Duration::from_millis(25)),
 			},
 			l: TierCfg {
-				parse_timeout: Duration::from_secs(3),
+				parse_timeout_min: Duration::from_millis(250),
+				parse_timeout_max: Duration::from_secs(3),
 				debounce: Duration::from_millis(250),
 				cooldown_on_timeout: Duration::from_secs(10),
 				cooldown_on_error: Duration::from_secs(2),
@@ -115,6 +150,13 @@ impl Default for TieredSyntaxPolicy {
 				retention_hidden: RetentionPolicy::DropWhenHidden,
 				parse_when_hidden: false,
 				sync_bootstrap_timeout: None,
+				viewport_lookbehind: 8192,
+				viewport_lookahead: 8192,
+				viewport_window_max: 128 * 1024,
+				viewport_parse_timeout_min: Duration::from_millis(5),
+				viewport_parse_timeout_max: Duration::from_millis(15),
+				viewport_injections: InjectionPolicy::Disabled,
+				viewport_stage_b_budget: Some(Duration::from_millis(45)),
 			},
 		}
 	}
@@ -146,5 +188,27 @@ impl TieredSyntaxPolicy {
 		p.m.sync_bootstrap_timeout = None;
 		p.l.sync_bootstrap_timeout = None;
 		p
+	}
+}
+
+/// Global configuration for the [`SyntaxManager`].
+#[derive(Debug, Clone)]
+pub struct SyntaxManagerCfg {
+	/// Maximum concurrent background parse tasks.
+	pub max_concurrency: usize,
+	/// Number of permits to reserve exclusively for viewport-bounded tasks.
+	///
+	/// If `max_concurrency` is 4 and `viewport_reserve` is 1, then at most 3
+	/// full/incremental parses can run concurrently, leaving 1 permit for
+	/// immediate viewport parsing.
+	pub viewport_reserve: usize,
+}
+
+impl Default for SyntaxManagerCfg {
+	fn default() -> Self {
+		Self {
+			max_concurrency: 2,
+			viewport_reserve: 0,
+		}
 	}
 }

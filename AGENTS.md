@@ -24,7 +24,12 @@ Common commands:
 Avoid inline bounds for complex signatures, use where clause:
 
 ```rust
-impl<T> CompletionModel for MyModel<T>where    T: HttpClientExt + Clone + Send + Debug + Default + 'static,{ ...
+impl<T> CompletionModel for MyModel<T>
+where
+    T: HttpClientExt + Clone + Send + Debug + Default + 'static,
+{
+    ...
+}
 ```
 
 ## Rustdoc (& documentation)

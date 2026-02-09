@@ -93,6 +93,9 @@ pub struct SyntaxSlot {
 	///
 	/// Reset when the tree is dropped or changed to allow another attempt.
 	pub(crate) sync_bootstrap_attempted: bool,
+	/// Whether Stage B viewport parsing (with injections) has already been attempted
+	/// for the current tree.
+	pub(crate) viewport_stage_b_attempted: bool,
 }
 
 impl SyntaxSlot {
@@ -100,6 +103,16 @@ impl SyntaxSlot {
 		let res = self.updated;
 		self.updated = false;
 		res
+	}
+
+	/// Wholesale drops the resident syntax tree and resets all tree-coupled latches.
+	pub(crate) fn drop_tree(&mut self) {
+		self.current = None;
+		self.tree_doc_version = None;
+		self.coverage = None;
+		self.pending_incremental = None;
+		self.sync_bootstrap_attempted = false;
+		self.viewport_stage_b_attempted = false;
 	}
 }
 
