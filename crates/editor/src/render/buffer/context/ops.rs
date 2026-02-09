@@ -21,6 +21,14 @@ use crate::render::cache::{HighlightSpanQuery, RenderCache};
 use crate::render::wrap::WrappedSegment;
 use crate::window::GutterSelector;
 
+fn line_to_byte_or_eof(doc_content: &Rope, line: usize) -> u32 {
+	if line < doc_content.len_lines() {
+		doc_content.line_to_byte(line) as u32
+	} else {
+		doc_content.len_bytes() as u32
+	}
+}
+
 impl<'a> BufferRenderContext<'a> {
 	/// Creates cursor styling configuration based on theme and mode.
 	pub fn make_cursor_styles(&self, mode: Mode) -> CursorStyles {
@@ -79,10 +87,11 @@ impl<'a> BufferRenderContext<'a> {
 
 		// Coverage check for partial trees
 		if syntax.is_partial() {
-			let viewport_start_byte = doc_content.line_to_byte(scroll_line) as u32;
 			let total_lines = doc_content.len_lines();
-			let end_line = (scroll_line + viewport_height).min(total_lines);
-			let viewport_end_byte = doc_content.line_to_byte(end_line) as u32;
+			let start_line = scroll_line.min(total_lines);
+			let end_line = start_line.saturating_add(viewport_height).min(total_lines);
+			let viewport_start_byte = line_to_byte_or_eof(doc_content, start_line);
+			let viewport_end_byte = line_to_byte_or_eof(doc_content, end_line);
 
 			if let Some(coverage) = self.syntax_manager.syntax_coverage(doc_id)
 				&& (viewport_start_byte < coverage.start || viewport_end_byte > coverage.end)
@@ -97,7 +106,8 @@ impl<'a> BufferRenderContext<'a> {
 		// tile builder ensure safety via bounds clamping and version-keyed caching.
 
 		let total_lines = visible_line_count(doc_content.slice(..));
-		let end_line = (scroll_line + viewport_height).min(total_lines);
+		let start_line = scroll_line.min(total_lines);
+		let end_line = start_line.saturating_add(viewport_height).min(total_lines);
 
 		cache.highlight.get_spans(HighlightSpanQuery {
 			doc_id,
@@ -108,7 +118,7 @@ impl<'a> BufferRenderContext<'a> {
 			syntax,
 			language_loader: self.language_loader,
 			style_resolver: |scope: &str| self.theme.colors.syntax.resolve(scope),
-			start_line: scroll_line,
+			start_line,
 			end_line,
 		})
 	}

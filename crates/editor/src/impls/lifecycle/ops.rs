@@ -46,10 +46,21 @@ impl Editor {
 			if let Some(buffer) = self.state.core.buffers.get_buffer(view) {
 				let doc_id = buffer.document_id();
 				let viewport = buffer.with_doc(|doc| {
-					let start_byte = doc.content().line_to_byte(buffer.scroll_line) as u32;
+					let content = doc.content();
+					let total_lines = content.len_lines();
+					let start_line = buffer.scroll_line.min(total_lines);
+					let start_byte = if start_line < total_lines {
+						content.line_to_byte(start_line) as u32
+					} else {
+						content.len_bytes() as u32
+					};
 					let height = self.view_area(view).height as usize;
-					let end_line = (buffer.scroll_line + height).min(doc.content().len_lines());
-					let end_byte = doc.content().line_to_byte(end_line) as u32;
+					let end_line = start_line.saturating_add(height).min(total_lines);
+					let end_byte = if end_line < total_lines {
+						content.line_to_byte(end_line) as u32
+					} else {
+						content.len_bytes() as u32
+					};
 					start_byte..end_byte
 				});
 				doc_viewports
@@ -349,5 +360,29 @@ impl Editor {
 			lsp_incremental_sync_tick: self.state.metrics.incremental_sync_tick_count(),
 			lsp_snapshot_bytes_tick: self.state.metrics.snapshot_bytes_tick_count(),
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::Editor;
+
+	#[test]
+	fn ensure_syntax_for_buffers_clamps_stale_scroll_line_after_large_delete() {
+		let mut editor = Editor::new_scratch();
+
+		let mut large = String::new();
+		for _ in 0..100_000 {
+			large.push_str("line\n");
+		}
+
+		{
+			let buffer = editor.buffer_mut();
+			buffer.reset_content(large);
+			buffer.scroll_line = 95_800;
+			buffer.reset_content("collapsed\n");
+		}
+
+		editor.ensure_syntax_for_buffers();
 	}
 }

@@ -20,6 +20,15 @@ pub const TILE_SIZE: usize = 128;
 /// Maximum number of tiles to cache.
 const MAX_TILES: usize = 16;
 
+#[inline]
+fn line_to_byte_or_eof(rope: &Rope, line: usize) -> u32 {
+	if line < rope.len_lines() {
+		rope.line_to_byte(line) as u32
+	} else {
+		rope.len_bytes() as u32
+	}
+}
+
 /// Key for identifying a highlight tile.
 ///
 /// The key includes all factors that affect highlight output:
@@ -150,7 +159,7 @@ impl HighlightTiles {
 			return Vec::new();
 		}
 
-		let start_byte = q.rope.line_to_byte(q.start_line.min(q.rope.len_lines())) as u32;
+		let start_byte = line_to_byte_or_eof(q.rope, q.start_line);
 		let end_byte = if q.end_line < q.rope.len_lines() {
 			q.rope.line_to_byte(q.end_line) as u32
 		} else {
@@ -319,7 +328,7 @@ impl HighlightTiles {
 			return Vec::new();
 		}
 
-		let tile_start_byte = rope.line_to_byte(start_line.min(rope.len_lines())) as u32;
+		let tile_start_byte = line_to_byte_or_eof(rope, start_line);
 		let tile_end_byte = if end_line < rope.len_lines() {
 			rope.line_to_byte(end_line) as u32
 		} else {
