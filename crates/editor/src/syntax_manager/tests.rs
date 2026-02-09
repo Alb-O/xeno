@@ -16,7 +16,7 @@ async fn test_drain_releases_permit_without_repoll() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
 	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
-	let mut policy = TieredSyntaxPolicy::default();
+	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::ZERO;
 	mgr.set_policy(policy);
 
@@ -66,7 +66,7 @@ async fn test_opts_mismatch_invalidates_and_throttles() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
 	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
-	let mut policy = TieredSyntaxPolicy::default();
+	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::ZERO;
 	policy.s.injections = InjectionPolicy::Eager;
 	mgr.set_policy(policy.clone());
@@ -134,7 +134,7 @@ async fn test_opts_mismatch_never_installs() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
 	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
-	let mut policy = TieredSyntaxPolicy::default();
+	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::ZERO;
 	policy.s.injections = InjectionPolicy::Eager;
 	mgr.set_policy(policy.clone());
@@ -200,7 +200,7 @@ async fn test_dropwhenhidden_discards_completed_parse() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
 	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
-	let mut policy = TieredSyntaxPolicy::default();
+	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::ZERO;
 	policy.s.retention_hidden = RetentionPolicy::DropWhenHidden;
 	mgr.set_policy(policy);
@@ -263,7 +263,7 @@ async fn test_language_switch_clears_completed_error() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
 	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
-	let mut policy = TieredSyntaxPolicy::default();
+	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::ZERO;
 	policy.s.cooldown_on_timeout = Duration::from_secs(60);
 	mgr.set_policy(policy);

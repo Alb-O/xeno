@@ -90,6 +90,50 @@ impl Drop for EngineGuard {
 	}
 }
 
+/// Mock engine that simulates timeout based on the requested budget.
+pub(crate) struct TimeoutSensitiveEngine {
+	pub(crate) parse_count: AtomicUsize,
+	pub(crate) threshold: Duration,
+	pub(crate) result: Syntax,
+}
+
+impl TimeoutSensitiveEngine {
+	pub(crate) fn new(threshold: Duration) -> Self {
+		let loader = LanguageLoader::from_embedded();
+		let lang = loader.language_for_name("rust").unwrap();
+		let syntax = Syntax::new(
+			Rope::from("").slice(..),
+			lang,
+			&loader,
+			SyntaxOptions::default(),
+		)
+		.unwrap();
+
+		Self {
+			parse_count: AtomicUsize::new(0),
+			threshold,
+			result: syntax,
+		}
+	}
+}
+
+impl SyntaxEngine for TimeoutSensitiveEngine {
+	fn parse(
+		&self,
+		_content: ropey::RopeSlice<'_>,
+		_lang: LanguageId,
+		_loader: &LanguageLoader,
+		opts: SyntaxOptions,
+	) -> Result<Syntax, SyntaxError> {
+		self.parse_count.fetch_add(1, Ordering::SeqCst);
+		if opts.parse_timeout <= self.threshold {
+			Err(SyntaxError::Timeout)
+		} else {
+			Ok(self.result.clone())
+		}
+	}
+}
+
 /// Convenience: creates a standard [`EnsureSyntaxContext`] for tests.
 fn make_ctx<'a>(
 	doc_id: DocumentId,
@@ -130,7 +174,7 @@ pub(crate) async fn test_single_flight_per_doc() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
 	let mut mgr = SyntaxManager::new_with_engine(2, engine.clone());
-	let mut policy = TieredSyntaxPolicy::default();
+	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::ZERO;
 	mgr.set_policy(policy);
 
@@ -173,7 +217,7 @@ pub(crate) async fn test_inflight_drained_even_if_doc_marked_clean() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
 	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
-	let mut policy = TieredSyntaxPolicy::default();
+	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::ZERO;
 	mgr.set_policy(policy);
 
@@ -220,7 +264,7 @@ pub(crate) async fn test_stale_parse_does_not_overwrite_clean_incremental() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
 	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
-	let mut policy = TieredSyntaxPolicy::default();
+	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::ZERO;
 	mgr.set_policy(policy);
 
@@ -308,7 +352,7 @@ pub(crate) async fn test_stale_install_continuity() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
 	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
-	let mut policy = TieredSyntaxPolicy::default();
+	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::ZERO;
 	mgr.set_policy(policy);
 
@@ -361,7 +405,7 @@ pub(crate) async fn test_note_edit_updates_timestamp() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
 	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
-	let mut policy = TieredSyntaxPolicy::default();
+	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::from_millis(100);
 	mgr.set_policy(policy);
 
@@ -430,7 +474,7 @@ pub(crate) async fn test_bootstrap_parse_skips_debounce() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
 	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
-	let mut policy = TieredSyntaxPolicy::default();
+	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::from_secs(60);
 	mgr.set_policy(policy);
 
@@ -460,7 +504,7 @@ pub(crate) async fn test_idle_tick_polls_inflight_parse() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
 	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
-	let mut policy = TieredSyntaxPolicy::default();
+	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::ZERO;
 	mgr.set_policy(policy);
 
@@ -496,7 +540,7 @@ pub(crate) async fn test_syntax_version_bumps_on_install() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
 	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
-	let mut policy = TieredSyntaxPolicy::default();
+	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::ZERO;
 	mgr.set_policy(policy);
 
@@ -543,7 +587,7 @@ pub(crate) async fn test_language_switch_discards_old_parse() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
 	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
-	let mut policy = TieredSyntaxPolicy::default();
+	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::ZERO;
 	mgr.set_policy(policy);
 
@@ -616,7 +660,7 @@ pub(crate) async fn test_invalidate_does_not_release_permit_until_task_finishes(
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
 	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
-	let mut policy = TieredSyntaxPolicy::default();
+	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::ZERO;
 	mgr.set_policy(policy);
 
@@ -672,7 +716,7 @@ pub(crate) async fn test_monotonic_version_guard() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
 	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
-	let mut policy = TieredSyntaxPolicy::default();
+	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::ZERO;
 	mgr.set_policy(policy);
 
@@ -764,7 +808,7 @@ pub(crate) async fn test_history_op_bypasses_debounce() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
 	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
-	let mut policy = TieredSyntaxPolicy::default();
+	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::from_secs(60);
 	mgr.set_policy(policy);
 
@@ -819,7 +863,7 @@ pub(crate) async fn test_cold_eviction_reload() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
 	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
-	let mut policy = TieredSyntaxPolicy::default();
+	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::ZERO;
 	policy.s.retention_hidden = RetentionPolicy::DropWhenHidden;
 	mgr.set_policy(policy);
@@ -882,7 +926,7 @@ pub(crate) async fn test_cold_throttles_work() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
 	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
-	let mut policy = TieredSyntaxPolicy::default();
+	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::ZERO;
 	policy.s.retention_hidden = RetentionPolicy::DropWhenHidden;
 	mgr.set_policy(policy);
@@ -950,7 +994,7 @@ pub(crate) async fn test_detached_task_reattach() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
 	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
-	let mut policy = TieredSyntaxPolicy::default();
+	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::ZERO;
 	policy.s.retention_hidden = RetentionPolicy::DropWhenHidden;
 	mgr.set_policy(policy);
@@ -1025,6 +1069,156 @@ pub(crate) async fn test_detached_task_reattach() {
 	assert!(mgr.has_syntax(doc_id));
 }
 
+/// Must attempt synchronous bootstrap parse when a document is first opened
+/// and the tier allows it.
+///
+/// - Enforced in: `SyntaxManager::ensure_syntax`
+/// - Failure symptom: Small files flash un-highlighted text on first open.
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_sync_bootstrap_success() {
+	// threshold = 10ms, but bootstrap is 5ms -> Ok(syntax)
+	let engine = Arc::new(TimeoutSensitiveEngine::new(Duration::from_millis(1)));
+	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
+	let mut policy = TieredSyntaxPolicy::test_default();
+	policy.s.debounce = Duration::ZERO;
+	policy.s.sync_bootstrap_timeout = Some(Duration::from_millis(5));
+	mgr.set_policy(policy);
+
+	let doc_id = DocumentId(1);
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang = loader.language_for_name("rust").unwrap();
+	let content = Rope::from("test");
+
+	// First poll should return Ready immediately
+	let r = mgr.ensure_syntax(make_ctx(
+		doc_id,
+		1,
+		Some(lang),
+		&content,
+		SyntaxHotness::Visible,
+		&loader,
+	));
+
+	assert_eq!(r.result, SyntaxPollResult::Ready);
+	assert!(mgr.has_syntax(doc_id));
+	assert!(!mgr.has_pending(doc_id));
+	assert_eq!(engine.parse_count.load(Ordering::SeqCst), 1);
+}
+
+/// Must fall back to background parse if the synchronous bootstrap attempt
+/// times out, without setting a cooldown.
+///
+/// - Enforced in: `SyntaxManager::ensure_syntax`
+/// - Failure symptom: Medium files fail to highlight or stall the UI on first open.
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_sync_bootstrap_timeout_fallback() {
+	// threshold = 10ms, bootstrap is 5ms -> Err(Timeout)
+	let engine = Arc::new(TimeoutSensitiveEngine::new(Duration::from_millis(10)));
+	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
+	let mut policy = TieredSyntaxPolicy::test_default();
+	policy.s.debounce = Duration::ZERO;
+	policy.s.sync_bootstrap_timeout = Some(Duration::from_millis(5));
+	mgr.set_policy(policy);
+
+	let doc_id = DocumentId(1);
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang = loader.language_for_name("rust").unwrap();
+	let content = Rope::from("test");
+
+	// First poll should return Kicked (fell back to background)
+	let r = mgr.ensure_syntax(make_ctx(
+		doc_id,
+		1,
+		Some(lang),
+		&content,
+		SyntaxHotness::Visible,
+		&loader,
+	));
+
+	assert_eq!(r.result, SyntaxPollResult::Kicked);
+	assert!(mgr.has_pending(doc_id));
+
+	// Wait for background task to increment parse_count to 2
+	let mut iters = 0;
+	while engine.parse_count.load(Ordering::SeqCst) < 2 && iters < 100 {
+		sleep(Duration::from_millis(1)).await;
+		iters += 1;
+	}
+	// 1 attempt (sync) + 1 attempt (spawn_blocking kicked immediately)
+	assert_eq!(engine.parse_count.load(Ordering::SeqCst), 2);
+
+	// Let the background task finish
+	wait_for_finish(&mgr).await;
+	mgr.drain_finished_inflight();
+
+	let r2 = mgr.ensure_syntax(make_ctx(
+		doc_id,
+		1,
+		Some(lang),
+		&content,
+		SyntaxHotness::Visible,
+		&loader,
+	));
+	assert_eq!(r2.result, SyntaxPollResult::Ready);
+}
+
+/// Must only attempt synchronous bootstrap once per bootstrap window to
+/// avoid repeated stutter when background parsing is throttled.
+///
+/// - Enforced in: `SyntaxManager::ensure_syntax`
+/// - Failure symptom: Stuttering UI when many files are opened simultaneously.
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_sync_bootstrap_attempted_only_once_when_throttled() {
+	let engine = Arc::new(TimeoutSensitiveEngine::new(Duration::from_millis(10)));
+	// Concurrency 1
+	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
+	let mut policy = TieredSyntaxPolicy::test_default();
+	policy.s.debounce = Duration::ZERO;
+	policy.s.sync_bootstrap_timeout = Some(Duration::from_millis(5));
+	mgr.set_policy(policy);
+
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang = loader.language_for_name("rust").unwrap();
+	let content = Rope::from("test");
+
+	// 1. Occupy the only permit with Document 1
+	mgr.ensure_syntax(make_ctx(
+		DocumentId(1),
+		1,
+		Some(lang),
+		&content,
+		SyntaxHotness::Visible,
+		&loader,
+	));
+	assert!(mgr.has_pending(DocumentId(1)));
+
+	// 2. Poll Document 2 - should try sync (fail) then return Throttled
+	let r = mgr.ensure_syntax(make_ctx(
+		DocumentId(2),
+		1,
+		Some(lang),
+		&content,
+		SyntaxHotness::Visible,
+		&loader,
+	));
+	assert_eq!(r.result, SyntaxPollResult::Throttled);
+	// 1 (Doc 1 background) + 1 (Doc 2 sync)
+	assert_eq!(engine.parse_count.load(Ordering::SeqCst), 2);
+
+	// 3. Poll Document 2 again - should NOT try sync again
+	let r2 = mgr.ensure_syntax(make_ctx(
+		DocumentId(2),
+		1,
+		Some(lang),
+		&content,
+		SyntaxHotness::Visible,
+		&loader,
+	));
+	assert_eq!(r2.result, SyntaxPollResult::Throttled);
+	// Should still be 2
+	assert_eq!(engine.parse_count.load(Ordering::SeqCst), 2);
+}
+
 /// Highlight rendering must skip spans when `tree_doc_version` differs from
 /// the rendered document version.
 ///
@@ -1035,7 +1229,7 @@ pub(crate) async fn test_highlight_skips_stale_tree_version() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
 	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
-	let mut policy = TieredSyntaxPolicy::default();
+	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::ZERO;
 	mgr.set_policy(policy);
 

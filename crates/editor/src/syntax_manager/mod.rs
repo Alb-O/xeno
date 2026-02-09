@@ -67,6 +67,9 @@ pub struct TierCfg {
 	pub retention_hidden: RetentionPolicy,
 	/// Whether to allow background parsing when the document is not visible.
 	pub parse_when_hidden: bool,
+	/// Timeout for the synchronous bootstrap parse attempt on the render
+	/// thread. `None` disables the fast path for this tier.
+	pub sync_bootstrap_timeout: Option<Duration>,
 }
 
 /// Syntax tree retention policy for memory management.
@@ -108,6 +111,7 @@ impl Default for TieredSyntaxPolicy {
 				injections: InjectionPolicy::Eager,
 				retention_hidden: RetentionPolicy::Keep,
 				parse_when_hidden: false,
+				sync_bootstrap_timeout: Some(Duration::from_millis(5)),
 			},
 			m: TierCfg {
 				parse_timeout: Duration::from_millis(1200),
@@ -117,6 +121,7 @@ impl Default for TieredSyntaxPolicy {
 				injections: InjectionPolicy::Eager,
 				retention_hidden: RetentionPolicy::DropAfter(Duration::from_secs(60)),
 				parse_when_hidden: false,
+				sync_bootstrap_timeout: Some(Duration::from_millis(3)),
 			},
 			l: TierCfg {
 				parse_timeout: Duration::from_secs(3),
@@ -126,6 +131,7 @@ impl Default for TieredSyntaxPolicy {
 				injections: InjectionPolicy::Disabled, // biggest win: avoid injection layer explosion
 				retention_hidden: RetentionPolicy::DropWhenHidden,
 				parse_when_hidden: false,
+				sync_bootstrap_timeout: None,
 			},
 		}
 	}
@@ -148,6 +154,15 @@ impl TieredSyntaxPolicy {
 			SyntaxTier::M => self.m,
 			SyntaxTier::L => self.l,
 		}
+	}
+
+	#[cfg(any(test, doc))]
+	pub fn test_default() -> Self {
+		let mut p = Self::default();
+		p.s.sync_bootstrap_timeout = None;
+		p.m.sync_bootstrap_timeout = None;
+		p.l.sync_bootstrap_timeout = None;
+		p
 	}
 }
 
@@ -543,6 +558,10 @@ pub struct SyntaxSlot {
 	last_opts_key: Option<OptKey>,
 	/// Coverage of the currently installed tree (doc-global bytes).
 	pub coverage: Option<std::ops::Range<u32>>,
+	/// Whether a synchronous bootstrap parse has already been attempted.
+	///
+	/// Reset when the tree is dropped or changed to allow another attempt.
+	pub(crate) sync_bootstrap_attempted: bool,
 }
 
 struct DocEntry {
@@ -578,7 +597,7 @@ impl SyntaxManager {
 	#[cfg(any(test, doc))]
 	pub fn new_with_engine(max_concurrency: usize, engine: Arc<dyn SyntaxEngine>) -> Self {
 		Self {
-			policy: TieredSyntaxPolicy::default(),
+			policy: TieredSyntaxPolicy::test_default(),
 			permits: Arc::new(Semaphore::new(max_concurrency.max(1))),
 			entries: HashMap::new(),
 			engine,
@@ -663,6 +682,7 @@ impl SyntaxManager {
 			entry.slot.current = None;
 			entry.slot.tree_doc_version = None;
 			entry.slot.coverage = None;
+			entry.slot.sync_bootstrap_attempted = false;
 			mark_updated(&mut entry.slot);
 		}
 		entry.slot.dirty = true;
@@ -901,6 +921,7 @@ impl SyntaxManager {
 					entry.slot.current = None;
 					entry.slot.tree_doc_version = None;
 					entry.slot.coverage = None;
+					entry.slot.sync_bootstrap_attempted = false;
 					mark_updated(&mut entry.slot);
 					updated = true;
 				}
@@ -919,6 +940,7 @@ impl SyntaxManager {
 				entry.sched.invalidate();
 				entry.slot.dirty = true;
 				entry.slot.coverage = None;
+				entry.slot.sync_bootstrap_attempted = false;
 				mark_updated(&mut entry.slot);
 				updated = true;
 				entry.slot.pending_incremental = None;
@@ -1137,11 +1159,6 @@ impl SyntaxManager {
 			if let Some(_task_id) = entry.sched.active_task
 				&& !entry.sched.active_task_detached
 			{
-				tracing::debug!(
-					?doc_id,
-					?_task_id,
-					"Syntax task already active; returning Pending"
-				);
 				return SyntaxPollOutcome {
 					result: SyntaxPollResult::Pending,
 					updated: was_updated,
@@ -1149,9 +1166,72 @@ impl SyntaxManager {
 			}
 		}
 
-		// 6. Schedule new task
+		// 5.5 Sync bootstrap fast path
 		let lang_id = ctx.language_id.unwrap();
+		let (do_sync, sync_timeout, pre_epoch) = {
+			let entry = self.entry_mut(doc_id);
+			let is_bootstrap = entry.slot.current.is_none();
+			let is_visible = matches!(ctx.hotness, SyntaxHotness::Visible);
 
+			if is_bootstrap && is_visible && !entry.slot.sync_bootstrap_attempted {
+				if let Some(t) = cfg.sync_bootstrap_timeout {
+					entry.slot.sync_bootstrap_attempted = true;
+					(true, Some(t), entry.sched.epoch)
+				} else {
+					(false, None, entry.sched.epoch)
+				}
+			} else {
+				(false, None, entry.sched.epoch)
+			}
+		};
+
+		let sync_result = if do_sync {
+			let sync_opts = SyntaxOptions {
+				parse_timeout: sync_timeout.unwrap(),
+				injections: cfg.injections,
+			};
+			Some(
+				self.engine
+					.parse(ctx.content.slice(..), lang_id, ctx.loader, sync_opts),
+			)
+		} else {
+			None
+		};
+
+		if let Some(res) = sync_result {
+			match res {
+				Ok(syntax) => {
+					let entry = self.entry_mut(doc_id);
+					// Re-check invariants after dropping and re-acquiring borrow
+					let is_bootstrap = entry.slot.current.is_none();
+					let is_visible = matches!(ctx.hotness, SyntaxHotness::Visible);
+					if entry.sched.epoch == pre_epoch
+						&& is_bootstrap && is_visible
+						&& entry.sched.active_task.is_none()
+					{
+						entry.slot.current = Some(syntax);
+						entry.slot.language_id = Some(lang_id);
+						entry.slot.tree_doc_version = Some(ctx.doc_version);
+						entry.slot.dirty = false;
+						entry.slot.coverage = None;
+						entry.slot.pending_incremental = None;
+						entry.sched.force_no_debounce = false;
+						entry.sched.cooldown_until = None;
+						mark_updated(&mut entry.slot);
+						return SyntaxPollOutcome {
+							result: SyntaxPollResult::Ready,
+							updated: true,
+						};
+					}
+				}
+				Err(_) => {
+					// Sync attempt timed out or failed.
+					// Fall through to schedule background task.
+				}
+			}
+		}
+
+		// 6. Schedule new task
 		// 6a. Kicking ViewportParse for L-tier files
 		{
 			let entry = self.entry_mut(doc_id);
@@ -1359,6 +1439,7 @@ pub(crate) fn apply_retention(
 				state.current = None;
 				state.tree_doc_version = None;
 				state.coverage = None;
+				state.sync_bootstrap_attempted = false;
 				state.dirty = false;
 				state.pending_incremental = None;
 				mark_updated(state);
@@ -1374,6 +1455,7 @@ pub(crate) fn apply_retention(
 				state.current = None;
 				state.tree_doc_version = None;
 				state.coverage = None;
+				state.sync_bootstrap_attempted = false;
 				state.dirty = false;
 				state.pending_incremental = None;
 				mark_updated(state);
