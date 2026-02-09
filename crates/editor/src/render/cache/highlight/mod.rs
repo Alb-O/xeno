@@ -116,10 +116,6 @@ where
 {
 	/// The document ID.
 	pub doc_id: DocumentId,
-	/// The document version (rope version).
-	/// Not part of the source-tile cache key. Used together with `projection`
-	/// for projected stale-span caching keyed by target document version.
-	pub _doc_version: u64,
 	/// Current syntax version for cache validation.
 	pub syntax_version: u64,
 	/// The language ID for the document.

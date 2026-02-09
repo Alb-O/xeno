@@ -83,7 +83,6 @@ impl<'a> BufferRenderContext<'a> {
 			return Vec::new();
 		};
 		let syntax_version = self.syntax_manager.syntax_version(doc_id);
-		let _tree_doc_version = self.syntax_manager.syntax_doc_version(doc_id);
 		let projection = self
 			.syntax_manager
 			.highlight_projection_ctx(doc_id, doc_version);
@@ -114,7 +113,6 @@ impl<'a> BufferRenderContext<'a> {
 
 		cache.highlight.get_spans(HighlightSpanQuery {
 			doc_id,
-			_doc_version: doc_version,
 			syntax_version,
 			language_id,
 			rope: doc_content,

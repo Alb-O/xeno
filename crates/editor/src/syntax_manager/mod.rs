@@ -226,7 +226,8 @@ impl SyntaxManager {
 	}
 
 	/// Returns the document version that the installed syntax tree corresponds to.
-	pub fn syntax_doc_version(&self, doc_id: DocumentId) -> Option<u64> {
+	#[cfg(test)]
+	pub(crate) fn syntax_doc_version(&self, doc_id: DocumentId) -> Option<u64> {
 		self.entries.get(&doc_id)?.slot.tree_doc_version
 	}
 
