@@ -21,6 +21,59 @@ pub use resolver::OptionResolver;
 pub use store::OptionStore;
 pub use typed_keys::TypedOptionKey;
 
+pub fn register_plugin(
+	db: &mut crate::db::builder::RegistryDbBuilder,
+) -> Result<(), crate::db::builder::RegistryError> {
+	register_builtins(db);
+	register_compiled(db);
+	Ok(())
+}
+
+/// Registers compiled options from the embedded spec.
+pub fn register_compiled(db: &mut crate::db::builder::RegistryDbBuilder) {
+	let spec = loader::load_options_spec();
+	let validators = inventory::iter::<OptionValidatorReg>
+		.into_iter()
+		.map(|r| r.0);
+
+	let linked = link::link_options(&spec, validators);
+
+	for def in linked {
+		db.push_domain::<Options>(OptionInput::Linked(def));
+	}
+}
+
+pub struct Options;
+
+impl crate::db::domain::DomainSpec for Options {
+	type Input = OptionInput;
+	type Entry = OptionEntry;
+	type Id = crate::core::OptionId;
+	type StaticDef = OptionDef;
+	type LinkedDef = link::LinkedOptionDef;
+	const LABEL: &'static str = "options";
+
+	fn static_to_input(def: &'static Self::StaticDef) -> Self::Input {
+		OptionInput::Static(def.clone())
+	}
+
+	fn linked_to_input(def: Self::LinkedDef) -> Self::Input {
+		OptionInput::Linked(def)
+	}
+
+	fn builder(
+		db: &mut crate::db::builder::RegistryDbBuilder,
+	) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
+		&mut db.options
+	}
+
+	fn on_push(_db: &mut crate::db::builder::RegistryDbBuilder, input: &Self::Input) {
+		if let OptionInput::Static(def) = input {
+			crate::db::builder::validate_option_def(def);
+		}
+	}
+}
+
 /// Typed handles for built-in options.
 pub mod option_keys {
 	pub use crate::options::builtins::{

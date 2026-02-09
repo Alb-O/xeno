@@ -10,7 +10,7 @@ mod write;
 use crate::db::builder::RegistryDbBuilder;
 
 pub fn register_builtins(builder: &mut RegistryDbBuilder) {
-	builder.register_compiled_commands();
+	crate::commands::register_compiled(builder);
 }
 
 fn register_builtins_reg(

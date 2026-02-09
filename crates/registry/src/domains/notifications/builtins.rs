@@ -101,7 +101,7 @@ notif!(
 );
 
 pub fn register_builtins(builder: &mut RegistryDbBuilder) {
-	builder.register_compiled_notifications();
+	crate::notifications::register_compiled(builder);
 }
 
 fn register_builtins_reg(

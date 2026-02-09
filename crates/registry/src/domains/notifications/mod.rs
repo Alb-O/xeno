@@ -29,7 +29,43 @@ pub fn register_plugin(
 	db: &mut crate::db::builder::RegistryDbBuilder,
 ) -> Result<(), RegistryError> {
 	register_builtins(db);
+	register_compiled(db);
 	Ok(())
+}
+
+/// Registers compiled notifications from the embedded spec.
+pub fn register_compiled(db: &mut crate::db::builder::RegistryDbBuilder) {
+	let spec = loader::load_notifications_spec();
+	let linked = link::link_notifications(&spec);
+
+	for def in linked {
+		db.push_domain::<Notifications>(NotificationInput::Linked(def));
+	}
+}
+
+pub struct Notifications;
+
+impl crate::db::domain::DomainSpec for Notifications {
+	type Input = NotificationInput;
+	type Entry = NotificationEntry;
+	type Id = crate::core::NotificationId;
+	type StaticDef = NotificationDef;
+	type LinkedDef = LinkedNotificationDef;
+	const LABEL: &'static str = "notifications";
+
+	fn static_to_input(def: &'static Self::StaticDef) -> Self::Input {
+		NotificationInput::Static(*def)
+	}
+
+	fn linked_to_input(def: Self::LinkedDef) -> Self::Input {
+		NotificationInput::Linked(def)
+	}
+
+	fn builder(
+		db: &mut crate::db::builder::RegistryDbBuilder,
+	) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
+		&mut db.notifications
+	}
 }
 
 // Re-export macros

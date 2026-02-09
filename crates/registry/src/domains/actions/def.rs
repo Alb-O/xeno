@@ -44,9 +44,8 @@ impl BuildEntry<ActionEntry> for ActionDef {
 
 	fn collect_payload_strings<'b>(
 		&'b self,
-		collector: &mut crate::core::index::StringCollector<'_, 'b>,
+		_collector: &mut crate::core::index::StringCollector<'_, 'b>,
 	) {
-		collector.push(self.short_desc);
 	}
 
 	fn build(

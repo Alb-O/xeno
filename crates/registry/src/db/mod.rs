@@ -45,7 +45,6 @@ pub struct RegistryDb {
 	>,
 	pub languages: LanguagesRegistry,
 	pub lsp_servers: LspServersRegistry,
-	pub(crate) action_id_to_def: Vec<Arc<ActionEntry>>,
 	pub key_prefixes: Vec<KeyPrefixDef>,
 	#[cfg(feature = "keymap")]
 	pub keymap: KeymapRegistry,
@@ -67,13 +66,13 @@ pub fn get_db() -> &'static RegistryDb {
 
 		let indices = builder.build();
 
-		let action_id_to_def = indices.actions.items().to_vec();
+		let actions_reg = RuntimeRegistry::new("actions", indices.actions);
 
 		#[cfg(feature = "keymap")]
-		let keymap = KeymapRegistry::build(&indices.actions, &indices.keybindings);
+		let keymap = KeymapRegistry::new(actions_reg.snapshot());
 
 		RegistryDb {
-			actions: RuntimeRegistry::new("actions", indices.actions),
+			actions: actions_reg,
 			commands: RuntimeRegistry::new("commands", indices.commands),
 			motions: RuntimeRegistry::new("motions", indices.motions),
 			text_objects: TextObjectRegistry::new(indices.text_objects),
@@ -85,7 +84,6 @@ pub fn get_db() -> &'static RegistryDb {
 			notifications: RuntimeRegistry::new("notifications", indices.notifications),
 			languages: LanguagesRegistry::new(indices.languages),
 			lsp_servers: LspServersRegistry::new(indices.lsp_servers),
-			action_id_to_def,
 			key_prefixes: indices.key_prefixes,
 			#[cfg(feature = "keymap")]
 			keymap,
@@ -131,7 +129,7 @@ impl RegistryDb {
 }
 
 pub fn resolve_action_id_typed(id: ActionId) -> Option<Arc<ActionEntry>> {
-	get_db().action_id_to_def.get(id.0 as usize).cloned()
+	ACTIONS.get_by_id(id).map(|r| r.get_arc())
 }
 
 pub fn resolve_action_id_from_static(id: &str) -> ActionId {

@@ -72,7 +72,7 @@ gutter_handler!(signs, |ctx| {
 });
 
 pub fn register_builtins(builder: &mut crate::db::builder::RegistryDbBuilder) {
-	builder.register_compiled_gutters();
+	crate::gutter::register_compiled(builder);
 }
 
 fn register_builtins_reg(

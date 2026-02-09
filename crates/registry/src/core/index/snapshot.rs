@@ -143,6 +143,11 @@ where
 		self.resolve(self.description())
 	}
 
+	/// Returns an owned reference to the entry.
+	pub fn get_arc(&self) -> Arc<T> {
+		self.snap.table[self.id.as_u32() as usize].clone()
+	}
+
 	/// Returns an iterator over resolved secondary key strings.
 	pub fn keys_resolved(&self) -> Vec<&str> {
 		let meta = self.meta();

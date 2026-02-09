@@ -23,7 +23,47 @@ pub fn register_plugin(
 	db: &mut crate::db::builder::RegistryDbBuilder,
 ) -> Result<(), RegistryError> {
 	register_builtins(db);
+	register_compiled(db);
 	Ok(())
+}
+
+/// Registers compiled gutters from the embedded spec.
+pub fn register_compiled(db: &mut crate::db::builder::RegistryDbBuilder) {
+	let spec = loader::load_gutters_spec();
+	let handlers = inventory::iter::<handler::GutterHandlerReg>
+		.into_iter()
+		.map(|r| r.0);
+
+	let linked = link::link_gutters(&spec, handlers);
+
+	for def in linked {
+		db.push_domain::<Gutters>(GutterInput::Linked(def));
+	}
+}
+
+pub struct Gutters;
+
+impl crate::db::domain::DomainSpec for Gutters {
+	type Input = GutterInput;
+	type Entry = GutterEntry;
+	type Id = crate::core::GutterId;
+	type StaticDef = GutterDef;
+	type LinkedDef = link::LinkedGutterDef;
+	const LABEL: &'static str = "gutters";
+
+	fn static_to_input(def: &'static Self::StaticDef) -> Self::Input {
+		GutterInput::Static(*def)
+	}
+
+	fn linked_to_input(def: Self::LinkedDef) -> Self::Input {
+		GutterInput::Linked(def)
+	}
+
+	fn builder(
+		db: &mut crate::db::builder::RegistryDbBuilder,
+	) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
+		&mut db.gutters
+	}
 }
 
 use crate::core::index::{BuildCtx, BuildEntry, RegistryMetaRef, StrListRef};

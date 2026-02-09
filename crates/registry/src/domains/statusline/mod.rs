@@ -16,6 +16,52 @@ pub use crate::core::{
 // Re-export macros
 pub use crate::segment_handler;
 
+pub fn register_plugin(
+	db: &mut crate::db::builder::RegistryDbBuilder,
+) -> Result<(), crate::error::RegistryError> {
+	register_compiled(db);
+	Ok(())
+}
+
+/// Registers compiled statusline segments from the embedded spec.
+pub fn register_compiled(db: &mut crate::db::builder::RegistryDbBuilder) {
+	let spec = loader::load_statusline_spec();
+	let handlers = inventory::iter::<handler::StatuslineHandlerReg>
+		.into_iter()
+		.map(|r| r.0);
+
+	let linked = link::link_statusline(&spec, handlers);
+
+	for def in linked {
+		db.push_domain::<Statusline>(StatuslineInput::Linked(def));
+	}
+}
+
+pub struct Statusline;
+
+impl crate::db::domain::DomainSpec for Statusline {
+	type Input = StatuslineInput;
+	type Entry = StatuslineEntry;
+	type Id = crate::core::StatuslineId;
+	type StaticDef = StatuslineSegmentDef;
+	type LinkedDef = link::LinkedStatuslineDef;
+	const LABEL: &'static str = "statusline";
+
+	fn static_to_input(def: &'static Self::StaticDef) -> Self::Input {
+		StatuslineInput::Static(*def)
+	}
+
+	fn linked_to_input(def: Self::LinkedDef) -> Self::Input {
+		StatuslineInput::Linked(def)
+	}
+
+	fn builder(
+		db: &mut crate::db::builder::RegistryDbBuilder,
+	) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
+		&mut db.statusline
+	}
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SegmentPosition {
 	Left,

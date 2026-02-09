@@ -26,7 +26,7 @@ pub const DEFAULT_THEME_ID: TypedOptionKey<String> =
 crate::option_validator!(positive_int, super::validators::positive_int);
 
 pub fn register_builtins(builder: &mut RegistryDbBuilder) {
-	builder.register_compiled_options();
+	crate::options::register_compiled(builder);
 }
 
 fn register_builtins_reg(

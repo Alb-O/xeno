@@ -1,15 +1,17 @@
-//! Unified keymap registry using trie-based matching.
+//! Unified keymap registry using trie-matching.
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use arc_swap::ArcSwap;
 use tracing::warn;
 use xeno_keymap_core::parser::{Node, parse_seq};
 pub use xeno_keymap_core::{ContinuationEntry, ContinuationKind};
 use xeno_keymap_core::{MatchResult, Matcher};
 
-use crate::actions::{ActionEntry, BindingMode, KeyBindingDef};
-use crate::core::{ActionId, RegistryEntry, RegistryIndex};
+use crate::actions::{ActionEntry, BindingMode};
+use crate::core::index::Snapshot;
+use crate::core::{ActionId, DenseId, RegistryEntry};
 
 /// Binding entry storing action info and the key sequence.
 #[derive(Debug, Clone)]
@@ -41,7 +43,7 @@ pub enum LookupResult<'a> {
 }
 
 /// Registry of keybindings organized by mode.
-pub struct KeymapRegistry {
+pub struct KeymapIndex {
 	/// Per-mode trie matchers for key sequences.
 	matchers: HashMap<BindingMode, Matcher<BindingEntry>>,
 	conflicts: Vec<KeymapConflict>,
@@ -57,13 +59,13 @@ pub struct KeymapConflict {
 	pub dropped_priority: i16,
 }
 
-impl Default for KeymapRegistry {
+impl Default for KeymapIndex {
 	fn default() -> Self {
 		Self::new()
 	}
 }
 
-impl KeymapRegistry {
+impl KeymapIndex {
 	/// Creates a new empty registry.
 	pub fn new() -> Self {
 		Self {
@@ -90,39 +92,33 @@ impl KeymapRegistry {
 		}
 	}
 
-	/// Build registry from action index + builtin keybindings.
-	pub fn build(
-		actions: &RegistryIndex<ActionEntry, ActionId>,
-		bindings: &[KeyBindingDef],
-	) -> Self {
+	/// Build registry index from action snapshot.
+	pub fn build(actions: &Snapshot<ActionEntry, ActionId>) -> Self {
 		let mut registry = Self::new();
-		let mut sorted: Vec<KeyBindingDef> = bindings.to_vec();
-		sorted.sort_by(|a, b| {
-			a.mode
-				.cmp(&b.mode)
-				.then_with(|| a.keys.cmp(&b.keys))
-				.then_with(|| a.priority.cmp(&b.priority))
-				.then_with(|| a.action.cmp(&b.action))
+		let mut bindings = Vec::new();
+
+		// Collect all bindings from all actions in the snapshot
+		for (idx, action_entry) in actions.table.iter().enumerate() {
+			let action_id = ActionId::from_u32(idx as u32);
+			for binding in action_entry.bindings.iter() {
+				bindings.push((action_id, binding.clone()));
+			}
+		}
+
+		// Sort bindings for deterministic matching
+		bindings.sort_by(|a, b| {
+			a.1.mode
+				.cmp(&b.1.mode)
+				.then_with(|| a.1.keys.cmp(&b.1.keys))
+				.then_with(|| a.1.priority.cmp(&b.1.priority))
+				.then_with(|| a.1.action.cmp(&b.1.action))
 		});
 
 		let mut seen: HashMap<(BindingMode, Arc<str>), (String, i16)> = HashMap::new();
-		let mut unknown_actions: Vec<(Arc<str>, BindingMode)> = Vec::new();
 		let mut parse_failures: Vec<(Arc<str>, Arc<str>)> = Vec::new();
 
-		for def in sorted {
-			let Some(action_entry) = actions.get(&def.action) else {
-				if unknown_actions.len() < 5 {
-					unknown_actions.push((Arc::clone(&def.action), def.mode));
-				}
-				continue;
-			};
-
-			let Some(&action_id) = actions.by_id.get(&action_entry.id()) else {
-				if unknown_actions.len() < 5 {
-					unknown_actions.push((Arc::clone(&def.action), def.mode));
-				}
-				continue;
-			};
+		for (id, def) in bindings {
+			let action_entry = &actions.table[id.as_u32() as usize];
 			let action_id_str = actions.interner.resolve(action_entry.id()).to_string();
 
 			if let Some((kept_action, kept_priority)) =
@@ -152,7 +148,7 @@ impl KeymapRegistry {
 			);
 
 			let entry = BindingEntry {
-				action_id,
+				action_id: id,
 				action_name: actions.interner.resolve(action_entry.name()).to_string(),
 				description: actions
 					.interner
@@ -174,14 +170,6 @@ impl KeymapRegistry {
 				count = registry.conflicts.len(),
 				?samples,
 				"Keymap conflicts detected"
-			);
-		}
-
-		if !unknown_actions.is_empty() {
-			warn!(
-				count = unknown_actions.len(),
-				?unknown_actions,
-				"Unknown actions referenced by keybindings"
 			);
 		}
 
@@ -225,7 +213,44 @@ impl KeymapRegistry {
 	}
 }
 
-/// Returns the global keymap registry.
-pub fn get_keymap_registry() -> &'static KeymapRegistry {
-	&crate::db::get_db().keymap
+/// A reactive keymap registry that recomputes its index when the underlying actions snapshot changes.
+pub struct KeymapRegistry {
+	cache: ArcSwap<KeymapCache>,
+}
+
+struct KeymapCache {
+	snap: Arc<Snapshot<ActionEntry, ActionId>>,
+	index: Arc<KeymapIndex>,
+}
+
+impl KeymapRegistry {
+	/// Creates a new keymap registry initialized from the given snapshot.
+	pub fn new(snap: Arc<Snapshot<ActionEntry, ActionId>>) -> Self {
+		let index = Arc::new(KeymapIndex::build(&snap));
+		Self {
+			cache: ArcSwap::from_pointee(KeymapCache { snap, index }),
+		}
+	}
+
+	/// Returns the keymap index for the given actions snapshot, recomputing it if necessary.
+	pub fn for_snapshot(&self, snap: Arc<Snapshot<ActionEntry, ActionId>>) -> Arc<KeymapIndex> {
+		let current = self.cache.load();
+		if Arc::ptr_eq(&current.snap, &snap) {
+			return Arc::clone(&current.index);
+		}
+
+		// Recompute
+		let index = Arc::new(KeymapIndex::build(&snap));
+		self.cache.store(Arc::new(KeymapCache {
+			snap: Arc::clone(&snap),
+			index: Arc::clone(&index),
+		}));
+		index
+	}
+}
+
+/// Returns the current keymap index for the current actions snapshot.
+pub fn get_keymap_registry() -> Arc<KeymapIndex> {
+	let db = crate::db::get_db();
+	db.keymap.for_snapshot(crate::db::ACTIONS.snapshot())
 }

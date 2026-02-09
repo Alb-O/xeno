@@ -14,6 +14,7 @@ pub struct LanguageConfig {
 	/// Language name (e.g., "rust", "python").
 	pub name: String,
 	/// Option overrides for this language.
+	#[cfg(feature = "options")]
 	pub options: crate::options::OptionStore,
 }
 
@@ -125,10 +126,12 @@ pub type Result<T> = std::result::Result<T, ConfigError>;
 #[derive(Clone, Default)]
 pub struct Config {
 	/// Parsed theme definition from the config file.
+	#[cfg(feature = "themes")]
 	pub theme: Option<crate::themes::LinkedThemeDef>,
 	/// Keybinding overrides (unresolved strings).
 	pub keys: Option<UnresolvedKeys>,
 	/// Global option overrides.
+	#[cfg(feature = "options")]
 	pub options: crate::options::OptionStore,
 	/// Per-language option overrides.
 	pub languages: Vec<LanguageConfig>,
@@ -138,11 +141,21 @@ pub struct Config {
 
 impl std::fmt::Debug for Config {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		f.debug_struct("Config")
-			.field("theme", &self.theme.as_ref().map(|_| "<LinkedThemeDef>"))
-			.field("keys", &self.keys)
-			.field("options", &self.options)
-			.field("languages", &self.languages)
+		let mut s = f.debug_struct("Config");
+
+		#[cfg(feature = "themes")]
+		{
+			s.field("theme", &self.theme.as_ref().map(|_| "<LinkedThemeDef>"));
+		}
+
+		s.field("keys", &self.keys);
+
+		#[cfg(feature = "options")]
+		{
+			s.field("options", &self.options);
+		}
+
+		s.field("languages", &self.languages)
 			.field("warnings", &self.warnings)
 			.finish()
 	}
@@ -153,16 +166,21 @@ impl Config {
 	///
 	/// Values from `other` override values in `self`.
 	pub fn merge(&mut self, other: Config) {
+		#[cfg(feature = "themes")]
 		if other.theme.is_some() {
 			self.theme = other.theme;
 		}
+
 		if let Some(other_keys) = other.keys {
 			match &mut self.keys {
 				Some(keys) => keys.merge(other_keys),
 				None => self.keys = Some(other_keys),
 			}
 		}
+
+		#[cfg(feature = "options")]
 		self.options.merge(&other.options);
+
 		self.languages.extend(other.languages);
 	}
 }

@@ -186,7 +186,9 @@ pub use db::index::{
 	find_command, find_motion, find_text_object_by_trigger, resolve_action_id, resolve_action_key,
 };
 #[cfg(feature = "keymap")]
-pub use db::keymap_registry::{BindingEntry, KeymapRegistry, LookupResult, get_keymap_registry};
+pub use db::keymap_registry::{
+	BindingEntry, KeymapIndex, KeymapRegistry, LookupResult, get_keymap_registry,
+};
 #[cfg(feature = "db")]
 pub use db::{
 	ACTIONS, COMMANDS, GUTTERS, HOOKS, LANGUAGES, LSP_SERVERS, MOTIONS, NOTIFICATIONS, OPTIONS,

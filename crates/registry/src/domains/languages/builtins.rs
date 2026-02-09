@@ -1,7 +1,7 @@
 use crate::db::builder::RegistryDbBuilder;
 
 pub fn register_builtins(builder: &mut RegistryDbBuilder) {
-	builder.register_compiled_languages();
+	crate::languages::register_compiled(builder);
 }
 
 fn register_builtins_reg(

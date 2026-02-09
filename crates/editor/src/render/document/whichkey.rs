@@ -32,8 +32,8 @@ impl Editor {
 			_ => return,
 		};
 
-		let continuations =
-			get_keymap_registry().continuations_with_kind(binding_mode, pending_keys);
+		let binding = get_keymap_registry();
+		let continuations = binding.continuations_with_kind(binding_mode, pending_keys);
 		if continuations.is_empty() {
 			return;
 		}

@@ -137,7 +137,7 @@ motion_handler!(prev_hunk, |text, range, count, extend| {
 });
 
 pub fn register_builtins(builder: &mut crate::db::builder::RegistryDbBuilder) {
-	builder.register_compiled_motions();
+	crate::motions::register_compiled(builder);
 }
 
 fn register_builtins_reg(

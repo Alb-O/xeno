@@ -5,7 +5,7 @@ use xeno_keymap_core::ToKeyMap;
 use xeno_keymap_core::parser::Node;
 use xeno_primitives::key::{Key, KeyCode, MouseButton, MouseEvent};
 use xeno_registry::actions::BindingMode;
-use xeno_registry::{KeymapRegistry, LookupResult, get_keymap_registry};
+use xeno_registry::{KeymapIndex, LookupResult, get_keymap_registry};
 
 use super::types::{KeyResult, Mode};
 
@@ -137,7 +137,7 @@ impl InputHandler {
 		match &self.mode {
 			Mode::Normal => {
 				let registry = get_keymap_registry();
-				self.handle_mode_key(key, BindingMode::Normal, registry)
+				self.handle_mode_key(key, BindingMode::Normal, &registry)
 			}
 			Mode::Insert => self.handle_insert_key(key),
 			Mode::PendingAction(kind) => {
@@ -157,7 +157,7 @@ impl InputHandler {
 		&mut self,
 		key: Key,
 		binding_mode: BindingMode,
-		registry: &KeymapRegistry,
+		registry: &KeymapIndex,
 	) -> KeyResult {
 		if binding_mode == BindingMode::Normal
 			&& let Some(digit) = key.as_digit()

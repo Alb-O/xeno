@@ -24,7 +24,49 @@ pub fn register_plugin(
 	db: &mut crate::db::builder::RegistryDbBuilder,
 ) -> Result<(), RegistryError> {
 	register_builtins(db);
+	register_compiled(db);
 	Ok(())
+}
+
+/// Registers compiled hooks from the embedded spec.
+pub fn register_compiled(db: &mut crate::db::builder::RegistryDbBuilder) {
+	let spec = loader::load_hooks_spec();
+	let handlers = inventory::iter::<handler::HookHandlerReg>
+		.into_iter()
+		.map(|r| r.0);
+
+	let linked = link::link_hooks(&spec, handlers);
+
+	for def in linked {
+		db.push_domain::<Hooks>(HookInput::Linked(def));
+	}
+}
+
+pub struct Hooks;
+
+impl crate::db::domain::DomainSpec for Hooks {
+	type Input = HookInput;
+	type Entry = HookEntry;
+	type Id = crate::core::HookId;
+	type StaticDef = HookDef;
+	type LinkedDef = link::LinkedHookDef;
+	const LABEL: &'static str = "hooks";
+
+	fn static_to_input(def: &'static Self::StaticDef) -> Self::Input {
+		HookInput::Static(*def)
+	}
+
+	fn linked_to_input(def: Self::LinkedDef) -> Self::Input {
+		HookInput::Linked(def)
+	}
+
+	fn builder(
+		db: &mut crate::db::builder::RegistryDbBuilder,
+	) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
+		&mut db.hooks
+	}
+
+	fn on_push(_db: &mut crate::db::builder::RegistryDbBuilder, _input: &Self::Input) {}
 }
 
 pub use context::{

@@ -134,11 +134,21 @@ static CMD_TEST_FAIL: xeno_registry::commands::CommandDef = xeno_registry::comma
 fn register_invocation_test_plugin(
 	db: &mut xeno_registry::db::builder::RegistryDbBuilder,
 ) -> Result<(), xeno_registry::RegistryError> {
-	db.register_action(&ACTION_INVOCATION_TEST);
-	db.register_action(&ACTION_INVOCATION_EDIT);
-	db.register_command(&CMD_TEST_FAIL);
-	db.register_hook(&HOOK_ACTION_PRE);
-	db.register_hook(&HOOK_ACTION_POST);
+	db.push_domain::<xeno_registry::db::domains::Actions>(
+		xeno_registry::actions::def::ActionInput::Static(ACTION_INVOCATION_TEST.clone()),
+	);
+	db.push_domain::<xeno_registry::db::domains::Actions>(
+		xeno_registry::actions::def::ActionInput::Static(ACTION_INVOCATION_EDIT.clone()),
+	);
+	db.push_domain::<xeno_registry::db::domains::Commands>(
+		xeno_registry::commands::def::CommandInput::Static(CMD_TEST_FAIL.clone()),
+	);
+	db.push_domain::<xeno_registry::db::domains::Hooks>(xeno_registry::hooks::HookInput::Static(
+		HOOK_ACTION_PRE,
+	));
+	db.push_domain::<xeno_registry::db::domains::Hooks>(xeno_registry::hooks::HookInput::Static(
+		HOOK_ACTION_POST,
+	));
 	Ok(())
 }
 

@@ -37,7 +37,7 @@ hook_handler!(
 );
 
 pub fn register_builtins(builder: &mut crate::db::builder::RegistryDbBuilder) {
-	builder.register_compiled_hooks();
+	crate::hooks::register_compiled(builder);
 }
 
 fn register_builtins_reg(

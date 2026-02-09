@@ -27,7 +27,47 @@ pub fn register_plugin(
 	db: &mut crate::db::builder::RegistryDbBuilder,
 ) -> Result<(), RegistryError> {
 	register_builtins(db);
+	register_compiled(db);
 	Ok(())
+}
+
+/// Registers compiled commands from the embedded spec.
+pub fn register_compiled(db: &mut crate::db::builder::RegistryDbBuilder) {
+	let spec = loader::load_commands_spec();
+	let handlers = inventory::iter::<handler::CommandHandlerReg>
+		.into_iter()
+		.map(|r| r.0);
+
+	let linked = link::link_commands(&spec, handlers);
+
+	for def in linked {
+		db.push_domain::<Commands>(def::CommandInput::Linked(def));
+	}
+}
+
+pub struct Commands;
+
+impl crate::db::domain::DomainSpec for Commands {
+	type Input = def::CommandInput;
+	type Entry = entry::CommandEntry;
+	type Id = crate::core::CommandId;
+	type StaticDef = def::CommandDef;
+	type LinkedDef = link::LinkedCommandDef;
+	const LABEL: &'static str = "commands";
+
+	fn static_to_input(def: &'static Self::StaticDef) -> Self::Input {
+		def::CommandInput::Static(def.clone())
+	}
+
+	fn linked_to_input(def: Self::LinkedDef) -> Self::Input {
+		def::CommandInput::Linked(def)
+	}
+
+	fn builder(
+		db: &mut crate::db::builder::RegistryDbBuilder,
+	) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
+		&mut db.commands
+	}
 }
 
 // Re-export macros

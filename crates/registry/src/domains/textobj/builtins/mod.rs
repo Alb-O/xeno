@@ -5,7 +5,7 @@ pub mod quotes;
 pub mod word;
 
 pub fn register_builtins(builder: &mut crate::db::builder::RegistryDbBuilder) {
-	builder.register_compiled_text_objects();
+	crate::textobj::register_compiled(builder);
 }
 
 fn register_builtins_reg(
