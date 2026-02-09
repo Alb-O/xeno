@@ -1,482 +1,53 @@
 use std::collections::HashMap;
-pub mod lru;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use rustc_hash::FxHashMap;
 use tokio::sync::Semaphore;
-use tokio::task::JoinHandle;
 use xeno_primitives::{ChangeSet, Rope};
-use xeno_runtime_language::syntax::{
-	InjectionPolicy, SealedSource, Syntax, SyntaxError, SyntaxOptions,
-};
-use xeno_runtime_language::{LanguageId, LanguageLoader};
+use xeno_runtime_language::LanguageLoader;
+use xeno_runtime_language::syntax::{InjectionPolicy, Syntax, SyntaxOptions};
 
 use crate::core::document::DocumentId;
+
+pub mod lru;
+
+mod engine;
+mod policy;
+mod scheduling;
+mod tasks;
+mod types;
+
+use engine::RealSyntaxEngine;
+pub use engine::SyntaxEngine;
+pub use policy::{RetentionPolicy, SyntaxHotness, SyntaxTier, TierCfg, TieredSyntaxPolicy};
+use scheduling::CompletedSyntaxTask;
+pub(crate) use scheduling::DocSched;
+pub(crate) use tasks::TaskCollector;
+use tasks::{TaskKind, TaskSpec};
+pub(crate) use types::PendingIncrementalEdits;
+pub use types::{
+	DocEpoch, EditSource, EnsureSyntaxContext, OptKey, SyntaxPollOutcome, SyntaxPollResult,
+	SyntaxSlot, TaskId,
+};
+#[cfg(test)]
+pub(crate) use xeno_runtime_language::LanguageId;
 
 const DEFAULT_MAX_CONCURRENCY: usize = 2;
 const VIEWPORT_LOOKBEHIND: u32 = 8192;
 const VIEWPORT_LOOKAHEAD: u32 = 8192;
 const VIEWPORT_WINDOW_MAX: u32 = 128 * 1024;
 
-/// Visibility and urgency of a document for the syntax scheduler.
-///
-/// Hotness determines the priority of background parsing tasks and the aggressiveness
-/// of syntax tree retention.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SyntaxHotness {
-	/// Actively displayed in a window.
-	///
-	/// Parsing is high priority and results are always installed.
-	Visible,
-	/// Not currently visible but likely to become so soon (e.g., recently closed split).
-	///
-	/// Parsing is allowed but lower priority.
-	Warm,
-	/// Not visible and not in recent use.
-	///
-	/// Safe to drop heavy syntax state to save memory.
-	Cold,
+struct DocEntry {
+	sched: DocSched,
+	slot: SyntaxSlot,
 }
 
-/// Size-based tier for a file.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SyntaxTier {
-	/// Small file.
-	S,
-	/// Medium file.
-	M,
-	/// Large file.
-	L,
-}
-
-/// Configuration for a specific [`SyntaxTier`].
-#[derive(Debug, Clone, Copy)]
-pub struct TierCfg {
-	/// Maximum time allowed for a single parse operation.
-	pub parse_timeout: Duration,
-	/// Time to wait after an edit before triggering a background parse.
-	pub debounce: Duration,
-	/// Backoff duration after a parse timeout.
-	pub cooldown_on_timeout: Duration,
-	/// Backoff duration after a parse error.
-	pub cooldown_on_error: Duration,
-	/// Injection handling policy.
-	pub injections: InjectionPolicy,
-	/// Retention policy for hidden documents.
-	pub retention_hidden: RetentionPolicy,
-	/// Whether to allow background parsing when the document is not visible.
-	pub parse_when_hidden: bool,
-	/// Timeout for the synchronous bootstrap parse attempt on the render
-	/// thread. `None` disables the fast path for this tier.
-	pub sync_bootstrap_timeout: Option<Duration>,
-}
-
-/// Syntax tree retention policy for memory management.
-#[derive(Debug, Clone, Copy)]
-pub enum RetentionPolicy {
-	/// Never drop the syntax tree.
-	Keep,
-	/// Drop the syntax tree immediately once the document is hidden.
-	DropWhenHidden,
-	/// Drop the syntax tree after a TTL since the document was last visible.
-	DropAfter(Duration),
-}
-
-/// Tiered syntax policy that maps file size to specific configurations.
-#[derive(Debug, Clone)]
-pub struct TieredSyntaxPolicy {
-	/// Threshold for the small (S) tier.
-	pub s_max_bytes_inclusive: usize,
-	/// Threshold for the medium (M) tier.
-	pub m_max_bytes_inclusive: usize,
-	/// Configuration for small files.
-	pub s: TierCfg,
-	/// Configuration for medium files.
-	pub m: TierCfg,
-	/// Configuration for large files.
-	pub l: TierCfg,
-}
-
-impl Default for TieredSyntaxPolicy {
-	fn default() -> Self {
-		Self {
-			s_max_bytes_inclusive: 256 * 1024,
-			m_max_bytes_inclusive: 1024 * 1024,
-			s: TierCfg {
-				parse_timeout: Duration::from_millis(500),
-				debounce: Duration::from_millis(80),
-				cooldown_on_timeout: Duration::from_millis(400),
-				cooldown_on_error: Duration::from_millis(150),
-				injections: InjectionPolicy::Eager,
-				retention_hidden: RetentionPolicy::Keep,
-				parse_when_hidden: false,
-				sync_bootstrap_timeout: Some(Duration::from_millis(5)),
-			},
-			m: TierCfg {
-				parse_timeout: Duration::from_millis(1200),
-				debounce: Duration::from_millis(140),
-				cooldown_on_timeout: Duration::from_secs(2),
-				cooldown_on_error: Duration::from_millis(250),
-				injections: InjectionPolicy::Eager,
-				retention_hidden: RetentionPolicy::DropAfter(Duration::from_secs(60)),
-				parse_when_hidden: false,
-				sync_bootstrap_timeout: Some(Duration::from_millis(3)),
-			},
-			l: TierCfg {
-				parse_timeout: Duration::from_secs(3),
-				debounce: Duration::from_millis(250),
-				cooldown_on_timeout: Duration::from_secs(10),
-				cooldown_on_error: Duration::from_secs(2),
-				injections: InjectionPolicy::Disabled, // biggest win: avoid injection layer explosion
-				retention_hidden: RetentionPolicy::DropWhenHidden,
-				parse_when_hidden: false,
-				sync_bootstrap_timeout: None,
-			},
-		}
-	}
-}
-
-impl TieredSyntaxPolicy {
-	pub fn tier_for_bytes(&self, bytes: usize) -> SyntaxTier {
-		if bytes <= self.s_max_bytes_inclusive {
-			SyntaxTier::S
-		} else if bytes <= self.m_max_bytes_inclusive {
-			SyntaxTier::M
-		} else {
-			SyntaxTier::L
-		}
-	}
-
-	pub fn cfg(&self, tier: SyntaxTier) -> TierCfg {
-		match tier {
-			SyntaxTier::S => self.s,
-			SyntaxTier::M => self.m,
-			SyntaxTier::L => self.l,
-		}
-	}
-
-	#[cfg(any(test, doc))]
-	pub fn test_default() -> Self {
-		let mut p = Self::default();
-		p.s.sync_bootstrap_timeout = None;
-		p.m.sync_bootstrap_timeout = None;
-		p.l.sync_bootstrap_timeout = None;
-		p
-	}
-}
-
-/// Key for checking if parse options have changed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct OptKey {
-	pub injections: InjectionPolicy,
-}
-
-/// Source of a document edit, used to determine scheduling priority.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum EditSource {
-	/// Interactive typing or local edit (debounced).
-	Typing,
-	/// Undo/redo or bulk operation (immediate).
-	History,
-}
-
-/// Generation counter for a document's syntax state.
-///
-/// Incremented on language changes or syntax resets to invalidate stale background results.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash)]
-pub struct DocEpoch(u64);
-
-impl DocEpoch {
-	pub fn next(self) -> Self {
-		Self(self.0.wrapping_add(1))
-	}
-}
-
-/// Unique identifier for a background syntax task.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct TaskId(u64);
-
-pub(crate) struct DocSched {
-	epoch: DocEpoch,
-	last_edit_at: Instant,
-	last_visible_at: Instant,
-	cooldown_until: Option<Instant>,
-	active_task: Option<TaskId>,
-	active_task_detached: bool,
-	completed: Option<CompletedSyntaxTask>,
-	/// If true, bypasses the debounce gate for the next background parse.
-	force_no_debounce: bool,
-}
-
-impl DocSched {
+impl DocEntry {
 	fn new(now: Instant) -> Self {
 		Self {
-			epoch: DocEpoch(0),
-			last_edit_at: now,
-			last_visible_at: now,
-			cooldown_until: None,
-			active_task: None,
-			active_task_detached: false,
-			completed: None,
-			force_no_debounce: false,
+			sched: DocSched::new(now),
+			slot: SyntaxSlot::default(),
 		}
-	}
-
-	/// Invalidates the current scheduling window, bumping the epoch to discard stale tasks.
-	///
-	/// NOTE: Invalidation does not imply cancellation of the background thread; permits
-	/// are released only on task completion to maintain strict concurrency bounds.
-	fn invalidate(&mut self) {
-		self.epoch = self.epoch.next();
-		self.active_task = None;
-		self.active_task_detached = false;
-		self.completed = None;
-		self.cooldown_until = None;
-		self.force_no_debounce = false;
-	}
-}
-
-enum TaskKind {
-	FullParse {
-		content: Rope,
-	},
-	ViewportParse {
-		content: Rope,
-		window: std::ops::Range<u32>,
-	},
-	Incremental {
-		base: Syntax,
-		old_rope: Rope,
-		new_rope: Rope,
-		composed: ChangeSet,
-	},
-}
-
-struct TaskSpec {
-	doc_id: DocumentId,
-	epoch: DocEpoch,
-	doc_version: u64,
-	lang_id: LanguageId,
-	opts_key: OptKey,
-	opts: SyntaxOptions,
-	kind: TaskKind,
-	loader: Arc<LanguageLoader>,
-}
-
-struct TaskDone {
-	id: TaskId,
-	doc_id: DocumentId,
-	epoch: DocEpoch,
-	doc_version: u64,
-	lang_id: LanguageId,
-	opts_key: OptKey,
-	result: Result<Syntax, SyntaxError>,
-	is_viewport: bool,
-}
-
-/// Invariant enforcement: Collector for background syntax tasks.
-pub(crate) struct TaskCollector {
-	next_id: u64,
-	tasks: FxHashMap<u64, JoinHandle<TaskDone>>,
-}
-
-impl TaskCollector {
-	fn new() -> Self {
-		Self {
-			next_id: 0,
-			tasks: FxHashMap::default(),
-		}
-	}
-
-	fn spawn(
-		&mut self,
-		permits: Arc<Semaphore>,
-		engine: Arc<dyn SyntaxEngine>,
-		spec: TaskSpec,
-	) -> Option<TaskId> {
-		let permit = permits.try_acquire_owned().ok()?;
-		let id_val = self.next_id;
-		self.next_id = self.next_id.wrapping_add(1);
-		let task_id = TaskId(id_val);
-
-		let is_viewport = matches!(spec.kind, TaskKind::ViewportParse { .. });
-
-		let handle = tokio::task::spawn_blocking(move || {
-			let _permit = permit; // Tie permit lifetime to closure
-
-			let result = match spec.kind {
-				TaskKind::FullParse { content } => {
-					engine.parse(content.slice(..), spec.lang_id, &spec.loader, spec.opts)
-				}
-				TaskKind::ViewportParse { content, window } => {
-					if let Some(data) = spec.loader.get(spec.lang_id) {
-						let repair = data.viewport_repair();
-						let forward_haystack = if window.end < content.len_bytes() as u32 {
-							Some(content.byte_slice(window.end as usize..))
-						} else {
-							None
-						};
-						let suffix = repair.scan(
-							content.byte_slice(window.start as usize..window.end as usize),
-							forward_haystack,
-						);
-						let sealed = Arc::new(SealedSource::from_window(
-							content.byte_slice(window.start as usize..window.end as usize),
-							&suffix,
-						));
-						Syntax::new_viewport(
-							sealed,
-							spec.lang_id,
-							&spec.loader,
-							spec.opts,
-							window.start,
-						)
-					} else {
-						Err(SyntaxError::NoLanguage)
-					}
-				}
-				TaskKind::Incremental {
-					base,
-					old_rope,
-					new_rope,
-					composed,
-				} => engine.update_incremental(
-					base,
-					old_rope.slice(..),
-					new_rope.slice(..),
-					&composed,
-					spec.lang_id,
-					&spec.loader,
-					spec.opts,
-				),
-			};
-
-			TaskDone {
-				id: task_id,
-				doc_id: spec.doc_id,
-				epoch: spec.epoch,
-				doc_version: spec.doc_version,
-				lang_id: spec.lang_id,
-				opts_key: spec.opts_key,
-				result,
-				is_viewport,
-			}
-		});
-
-		self.tasks.insert(id_val, handle);
-		Some(task_id)
-	}
-
-	fn drain_finished(&mut self) -> Vec<TaskDone> {
-		let mut done = Vec::new();
-
-		self.tasks.retain(|_, handle| {
-			match xeno_primitives::future::poll_once(handle) {
-				None => true, // Still running, keep it
-				Some(Ok(task_done)) => {
-					done.push(task_done);
-					false // Done, remove it
-				}
-				Some(Err(e)) => {
-					tracing::error!("Syntax task join error: {}", e);
-					false // Done (crashed), remove it
-				}
-			}
-		});
-
-		done
-	}
-
-	fn any_finished(&self) -> bool {
-		self.tasks.values().any(|h| h.is_finished())
-	}
-}
-
-struct CompletedSyntaxTask {
-	doc_version: u64,
-	lang_id: LanguageId,
-	opts: OptKey,
-	result: Result<Syntax, SyntaxError>,
-	is_viewport: bool,
-}
-
-/// Result of polling syntax state.
-#[derive(Debug, PartialEq, Eq)]
-pub enum SyntaxPollResult {
-	/// Syntax is ready.
-	Ready,
-	/// Parse is pending in background.
-	Pending,
-	/// Parse was kicked off.
-	Kicked,
-	/// No language configured for this document.
-	NoLanguage,
-	/// Cooldown active after timeout/error.
-	CoolingDown,
-	/// Background parsing disabled for this state (e.g. hidden large file).
-	Disabled,
-	/// Throttled by global concurrency cap.
-	Throttled,
-}
-
-/// Abstract engine for parsing syntax (for test mockability).
-pub trait SyntaxEngine: Send + Sync {
-	fn parse(
-		&self,
-		content: ropey::RopeSlice<'_>,
-		lang: LanguageId,
-		loader: &LanguageLoader,
-		opts: SyntaxOptions,
-	) -> Result<Syntax, SyntaxError>;
-
-	/// Incrementally updates an existing syntax tree via a composed changeset.
-	///
-	/// The default implementation discards the old tree and falls back to a
-	/// full reparse, allowing mock engines to remain simple.
-	fn update_incremental(
-		&self,
-		_syntax: Syntax,
-		_old_source: ropey::RopeSlice<'_>,
-		new_source: ropey::RopeSlice<'_>,
-		_changeset: &ChangeSet,
-		lang: LanguageId,
-		loader: &LanguageLoader,
-		opts: SyntaxOptions,
-	) -> Result<Syntax, SyntaxError> {
-		self.parse(new_source, lang, loader, opts)
-	}
-}
-
-struct RealSyntaxEngine;
-impl SyntaxEngine for RealSyntaxEngine {
-	fn parse(
-		&self,
-		content: ropey::RopeSlice<'_>,
-		lang: LanguageId,
-		loader: &LanguageLoader,
-		opts: SyntaxOptions,
-	) -> Result<Syntax, SyntaxError> {
-		Syntax::new(content, lang, loader, opts)
-	}
-
-	fn update_incremental(
-		&self,
-		mut syntax: Syntax,
-		old_source: ropey::RopeSlice<'_>,
-		new_source: ropey::RopeSlice<'_>,
-		changeset: &ChangeSet,
-		_lang: LanguageId,
-		loader: &LanguageLoader,
-		opts: SyntaxOptions,
-	) -> Result<Syntax, SyntaxError> {
-		syntax
-			.update_from_changeset(old_source, new_source, changeset, loader, opts)
-			.map(|()| syntax)
-			.or_else(|e| {
-				tracing::warn!(error = %e, "Incremental parse failed, falling back to full reparse");
-				Syntax::new(new_source, _lang, loader, opts)
-			})
 	}
 }
 
@@ -504,83 +75,6 @@ impl Default for SyntaxManager {
 	fn default() -> Self {
 		Self::new(DEFAULT_MAX_CONCURRENCY)
 	}
-}
-
-/// Context provided to [`SyntaxManager::ensure_syntax`] for scheduling.
-pub struct EnsureSyntaxContext<'a> {
-	pub doc_id: DocumentId,
-	pub doc_version: u64,
-	pub language_id: Option<LanguageId>,
-	pub content: &'a Rope,
-	pub hotness: SyntaxHotness,
-	pub loader: &'a Arc<LanguageLoader>,
-	pub viewport: Option<std::ops::Range<u32>>,
-}
-
-/// Invariant enforcement: Accumulated edits awaiting an incremental reparse.
-pub(crate) struct PendingIncrementalEdits {
-	/// Document version that `old_rope` corresponds to.
-	///
-	/// Used to verify that the resident tree still matches the pending base
-	/// before attempting an incremental update.
-	pub(crate) base_tree_doc_version: u64,
-	/// Source text at the start of the pending edit window.
-	pub(crate) old_rope: Rope,
-	/// Composed delta from `old_rope` to the current document state.
-	pub(crate) composed: ChangeSet,
-}
-
-/// Per-document syntax state managed by [`SyntaxManager`].
-///
-/// Tracks the installed syntax tree, its document version, and pending
-/// incremental edits. The `tree_doc_version` field enables monotonic
-/// version gating to prevent stale parse results from overwriting newer trees.
-#[derive(Default)]
-pub struct SyntaxSlot {
-	/// Currently installed syntax tree, if any.
-	current: Option<Syntax>,
-	/// Whether the document has been edited since the last successful parse.
-	dirty: bool,
-	/// Whether the `current` tree was updated in the last poll.
-	updated: bool,
-	/// Local version counter, bumped whenever `current` changes or is dropped.
-	version: u64,
-	/// Document version that the `current` syntax tree corresponds to.
-	///
-	/// Set by `note_edit_incremental` (on sync success) and `ensure_syntax` (on
-	/// background install). `None` means no tree is installed.
-	tree_doc_version: Option<u64>,
-	/// Language identity used for the last parse.
-	language_id: Option<LanguageId>,
-	/// Accumulated incremental edits awaiting background processing.
-	pending_incremental: Option<PendingIncrementalEdits>,
-	/// Configuration options used for the last parse.
-	last_opts_key: Option<OptKey>,
-	/// Coverage of the currently installed tree (doc-global bytes).
-	pub coverage: Option<std::ops::Range<u32>>,
-	/// Whether a synchronous bootstrap parse has already been attempted.
-	///
-	/// Reset when the tree is dropped or changed to allow another attempt.
-	pub(crate) sync_bootstrap_attempted: bool,
-}
-
-struct DocEntry {
-	sched: DocSched,
-	slot: SyntaxSlot,
-}
-
-impl DocEntry {
-	fn new(now: Instant) -> Self {
-		Self {
-			sched: DocSched::new(now),
-			slot: SyntaxSlot::default(),
-		}
-	}
-}
-
-pub struct SyntaxPollOutcome {
-	pub result: SyntaxPollResult,
-	pub updated: bool,
 }
 
 impl SyntaxManager {
@@ -1047,7 +541,7 @@ impl SyntaxManager {
 							}
 						}
 					}
-					Err(SyntaxError::Timeout) => {
+					Err(xeno_runtime_language::syntax::SyntaxError::Timeout) => {
 						entry.sched.cooldown_until = Some(now + cfg.cooldown_on_timeout);
 						return SyntaxPollOutcome {
 							result: SyntaxPollResult::CoolingDown,
@@ -1402,14 +896,6 @@ fn retention_allows_install(
 		RetentionPolicy::Keep => true,
 		RetentionPolicy::DropWhenHidden => false,
 		RetentionPolicy::DropAfter(ttl) => now.duration_since(st.last_visible_at) <= ttl,
-	}
-}
-
-impl SyntaxSlot {
-	pub fn take_updated(&mut self) -> bool {
-		let res = self.updated;
-		self.updated = false;
-		res
 	}
 }
 
