@@ -40,6 +40,27 @@ impl Editor {
 			.collect();
 
 		let mut doc_hotness = HashMap::new();
+		let mut doc_viewports = HashMap::new();
+
+		for view in self.state.windows.base_window().layout.views() {
+			if let Some(buffer) = self.state.core.buffers.get_buffer(view) {
+				let doc_id = buffer.document_id();
+				let viewport = buffer.with_doc(|doc| {
+					let start_byte = doc.content().line_to_byte(buffer.scroll_line) as u32;
+					let height = self.view_area(view).height as usize;
+					let end_line = (buffer.scroll_line + height).min(doc.content().len_lines());
+					let end_byte = doc.content().line_to_byte(end_line) as u32;
+					start_byte..end_byte
+				});
+				doc_viewports
+					.entry(doc_id)
+					.and_modify(|v: &mut std::ops::Range<u32>| {
+						v.start = v.start.min(viewport.start);
+						v.end = v.end.max(viewport.end);
+					})
+					.or_insert(viewport);
+			}
+		}
 
 		for buffer in self.state.core.buffers.buffers() {
 			let doc_id = buffer.document_id();
@@ -91,6 +112,8 @@ impl Editor {
 				.copied()
 				.unwrap_or(SyntaxHotness::Warm);
 
+			let viewport = doc_viewports.get(&doc_id).cloned();
+
 			let outcome = self
 				.state
 				.syntax_manager
@@ -101,6 +124,7 @@ impl Editor {
 					content: &content,
 					hotness,
 					loader: &loader,
+					viewport,
 				});
 
 			if outcome.updated {

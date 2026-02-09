@@ -106,6 +106,7 @@ fn make_ctx<'a>(
 		content,
 		hotness,
 		loader,
+		viewport: None,
 	}
 }
 
@@ -938,6 +939,90 @@ pub(crate) async fn test_cold_throttles_work() {
 		&loader,
 	));
 	assert_eq!(poll3.result, SyntaxPollResult::Kicked);
+}
+
+/// A task detached while Cold should reattach if the document becomes Visible again.
+///
+/// - Enforced in: `SyntaxManager::ensure_syntax`
+/// - Failure symptom: Document stays Disabled or re-kicks redundant tasks after becoming Visible.
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_detached_task_reattach() {
+	let engine = Arc::new(MockEngine::new());
+	let _guard = EngineGuard(engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
+	let mut policy = TieredSyntaxPolicy::default();
+	policy.s.debounce = Duration::ZERO;
+	policy.s.retention_hidden = RetentionPolicy::DropWhenHidden;
+	mgr.set_policy(policy);
+
+	let doc_id = DocumentId(1);
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang_id = loader.language_for_name("rust").unwrap();
+	let content = Rope::from("test");
+
+	// 1. Visible -> kick task
+	mgr.ensure_syntax(make_ctx(
+		doc_id,
+		1,
+		Some(lang_id),
+		&content,
+		SyntaxHotness::Visible,
+		&loader,
+	));
+	assert!(mgr.has_pending(doc_id));
+
+	// Wait for background task to actually enter engine.parse
+	let mut iters = 0;
+	while engine.parse_count.load(Ordering::SeqCst) == 0 && iters < 100 {
+		sleep(Duration::from_millis(1)).await;
+		iters += 1;
+	}
+	assert_eq!(engine.parse_count.load(Ordering::SeqCst), 1);
+
+	// 2. Visible -> Cold. Should be Disabled and not pending.
+	let r1 = mgr.ensure_syntax(make_ctx(
+		doc_id,
+		1,
+		Some(lang_id),
+		&content,
+		SyntaxHotness::Cold,
+		&loader,
+	));
+	assert_eq!(r1.result, SyntaxPollResult::Disabled);
+	assert!(!mgr.has_pending(doc_id));
+
+	// 3. Cold -> Visible. Should be Pending again (reattached).
+	let r2 = mgr.ensure_syntax(make_ctx(
+		doc_id,
+		1,
+		Some(lang_id),
+		&content,
+		SyntaxHotness::Visible,
+		&loader,
+	));
+	assert_eq!(r2.result, SyntaxPollResult::Pending);
+	assert!(mgr.has_pending(doc_id));
+	assert!(mgr.has_inflight_task(doc_id), "task should be reattached");
+
+	// 4. Ensure no second task was kicked
+	assert_eq!(engine.parse_count.load(Ordering::SeqCst), 1);
+
+	// 5. Complete task
+	engine.proceed();
+	wait_for_finish(&mgr).await;
+	mgr.drain_finished_inflight();
+
+	// 6. Install
+	let r3 = mgr.ensure_syntax(make_ctx(
+		doc_id,
+		1,
+		Some(lang_id),
+		&content,
+		SyntaxHotness::Visible,
+		&loader,
+	));
+	assert_eq!(r3.result, SyntaxPollResult::Ready);
+	assert!(mgr.has_syntax(doc_id));
 }
 
 /// Highlight rendering must skip spans when `tree_doc_version` differs from

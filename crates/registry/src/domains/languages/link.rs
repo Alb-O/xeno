@@ -11,6 +11,34 @@ pub struct LanguageQueryPayload {
 }
 
 #[derive(Clone)]
+pub enum ViewportRepairRulePayload {
+	/// e.g. /* ... */
+	BlockComment {
+		open: String,
+		close: String,
+		nestable: bool,
+	},
+
+	/// e.g. "..." or '...'
+	String {
+		quote: String,
+		escape: Option<String>,
+	},
+
+	/// e.g. //
+	LineComment { start: String },
+}
+
+#[derive(Clone)]
+pub struct ViewportRepairPayload {
+	pub enabled: bool,
+	pub max_scan_bytes: u32,
+	pub prefer_real_closer: bool,
+	pub max_forward_search_bytes: u32,
+	pub rules: Vec<ViewportRepairRulePayload>,
+}
+
+#[derive(Clone)]
 pub struct LanguagePayload {
 	pub scope: Option<String>,
 	pub grammar_name: Option<String>,
@@ -24,6 +52,7 @@ pub struct LanguagePayload {
 	pub block_comment: Option<(String, String)>,
 	pub lsp_servers: Vec<String>,
 	pub roots: Vec<String>,
+	pub viewport_repair: Option<ViewportRepairPayload>,
 	pub queries: Vec<LanguageQueryPayload>,
 }
 
@@ -46,6 +75,23 @@ impl LinkedPayload<LanguageEntry> for LanguagePayload {
 		}
 		collector.extend(self.lsp_servers.iter().map(|s| s.as_str()));
 		collector.extend(self.roots.iter().map(|s| s.as_str()));
+		if let Some(repair) = &self.viewport_repair {
+			for rule in &repair.rules {
+				match rule {
+					ViewportRepairRulePayload::BlockComment { open, close, .. } => {
+						collector.push(open);
+						collector.push(close);
+					}
+					ViewportRepairRulePayload::String { quote, escape } => {
+						collector.push(quote);
+						collector.opt(escape.as_deref());
+					}
+					ViewportRepairRulePayload::LineComment { start } => {
+						collector.push(start);
+					}
+				}
+			}
+		}
 		for q in &self.queries {
 			collector.push(&q.kind);
 			collector.push(&q.text);
@@ -110,6 +156,41 @@ impl LinkedPayload<LanguageEntry> for LanguagePayload {
 				.map(|s| ctx.intern(s))
 				.collect::<Vec<_>>()
 				.into(),
+			viewport_repair: self.viewport_repair.as_ref().map(|r| {
+				super::types::ViewportRepairEntry {
+					enabled: r.enabled,
+					max_scan_bytes: r.max_scan_bytes,
+					prefer_real_closer: r.prefer_real_closer,
+					max_forward_search_bytes: r.max_forward_search_bytes,
+					rules: r
+						.rules
+						.iter()
+						.map(|rule| match rule {
+							ViewportRepairRulePayload::BlockComment {
+								open,
+								close,
+								nestable,
+							} => super::types::ViewportRepairRuleEntry::BlockComment {
+								open: ctx.intern(open),
+								close: ctx.intern(close),
+								nestable: *nestable,
+							},
+							ViewportRepairRulePayload::String { quote, escape } => {
+								super::types::ViewportRepairRuleEntry::String {
+									quote: ctx.intern(quote),
+									escape: escape.as_ref().map(|s| ctx.intern(s)),
+								}
+							}
+							ViewportRepairRulePayload::LineComment { start } => {
+								super::types::ViewportRepairRuleEntry::LineComment {
+									start: ctx.intern(start),
+								}
+							}
+						})
+						.collect::<Vec<_>>()
+						.into(),
+				}
+			}),
 			queries: self
 				.queries
 				.iter()
@@ -141,6 +222,38 @@ pub fn link_languages(spec: &LanguagesSpec) -> Vec<LinkedLanguageDef> {
 				block_comment: l.block_comment.clone(),
 				lsp_servers: l.lsp_servers.clone(),
 				roots: l.roots.clone(),
+				viewport_repair: l.viewport_repair.as_ref().map(|r| ViewportRepairPayload {
+					enabled: r.enabled,
+					max_scan_bytes: r.max_scan_bytes,
+					prefer_real_closer: r.prefer_real_closer,
+					max_forward_search_bytes: r.max_forward_search_bytes,
+					rules: r
+						.rules
+						.iter()
+						.map(|rule| match rule {
+							super::spec::ViewportRepairRuleSpec::BlockComment {
+								open,
+								close,
+								nestable,
+							} => ViewportRepairRulePayload::BlockComment {
+								open: open.clone(),
+								close: close.clone(),
+								nestable: *nestable,
+							},
+							super::spec::ViewportRepairRuleSpec::String { quote, escape } => {
+								ViewportRepairRulePayload::String {
+									quote: quote.clone(),
+									escape: escape.clone(),
+								}
+							}
+							super::spec::ViewportRepairRuleSpec::LineComment { start } => {
+								ViewportRepairRulePayload::LineComment {
+									start: start.clone(),
+								}
+							}
+						})
+						.collect(),
+				}),
 				queries: l
 					.queries
 					.iter()

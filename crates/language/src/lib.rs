@@ -49,4 +49,4 @@ pub use lsp_config::{
 	LanguageLspInfo, LanguageLspMapping, LspConfigError, LspServerDef, load_lsp_configs,
 };
 pub use query::{CapturedNode, IndentQuery, RainbowQuery, TagQuery, TextObjectQuery, read_query};
-pub use syntax::{InjectionPolicy, Syntax, SyntaxError, SyntaxOptions};
+pub use syntax::{InjectionPolicy, SealedSource, Syntax, SyntaxError, SyntaxOptions};

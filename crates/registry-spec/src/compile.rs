@@ -19,6 +19,12 @@ pub struct BuildCtx {
 	pub out_dir: PathBuf,
 }
 
+impl Default for BuildCtx {
+	fn default() -> Self {
+		Self::new()
+	}
+}
+
 impl BuildCtx {
 	pub fn new() -> Self {
 		let manifest_dir = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());

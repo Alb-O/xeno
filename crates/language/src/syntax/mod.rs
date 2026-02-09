@@ -4,10 +4,12 @@
 //! that integrates with Xeno's ChangeSet/Transaction system.
 
 use std::ops::RangeBounds;
+use std::sync::Arc;
 use std::time::Duration;
 
 use ropey::RopeSlice;
 use thiserror::Error;
+pub use tree_house::SealedSource;
 use tree_house::tree_sitter::{InputEdit, Node, Tree};
 use tree_house::{Language, Layer, TreeCursor};
 
@@ -78,6 +80,15 @@ pub struct Syntax {
 	inner: tree_house::Syntax,
 	/// Options used for the current parse.
 	opts: SyntaxOptions,
+	/// Metadata for viewport-first trees.
+	pub viewport: Option<ViewportMetadata>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ViewportMetadata {
+	pub base_offset: u32,
+	pub real_len: u32,
+	pub sealed_source: Arc<SealedSource>,
 }
 
 impl Syntax {
@@ -90,7 +101,32 @@ impl Syntax {
 	) -> Result<Self, SyntaxError> {
 		let loader = loader.with_injections(matches!(opts.injections, InjectionPolicy::Eager));
 		let inner = tree_house::Syntax::new(source, language, opts.parse_timeout, &loader)?;
-		Ok(Self { inner, opts })
+		Ok(Self {
+			inner,
+			opts,
+			viewport: None,
+		})
+	}
+
+	/// Creates a new viewport-first syntax tree from a window.
+	pub fn new_viewport(
+		sealed: Arc<SealedSource>,
+		language: Language,
+		loader: &LanguageLoader,
+		opts: SyntaxOptions,
+		base_offset: u32,
+	) -> Result<Self, SyntaxError> {
+		let loader = loader.with_injections(matches!(opts.injections, InjectionPolicy::Eager));
+		let inner = tree_house::Syntax::new(sealed.slice(), language, opts.parse_timeout, &loader)?;
+		Ok(Self {
+			inner,
+			opts,
+			viewport: Some(ViewportMetadata {
+				base_offset,
+				real_len: sealed.real_len_bytes,
+				sealed_source: sealed,
+			}),
+		})
 	}
 
 	/// Updates the syntax tree after edits (incremental) with the given options.
@@ -105,6 +141,9 @@ impl Syntax {
 			return Ok(());
 		}
 		self.opts = opts;
+		// Viewport trees become full trees after an update (or at least lose their viewport status)
+		// but in Xeno we typically replace them with a background full parse result.
+		self.viewport = None;
 		let loader = loader.with_injections(matches!(opts.injections, InjectionPolicy::Eager));
 		self.inner
 			.update(source, opts.parse_timeout, edits, &loader)?;
@@ -127,6 +166,11 @@ impl Syntax {
 	/// Returns the options used for the current parse.
 	pub fn opts(&self) -> SyntaxOptions {
 		self.opts
+	}
+
+	/// Returns true if this is a viewport-first tree.
+	pub fn is_partial(&self) -> bool {
+		self.viewport.is_some()
 	}
 
 	/// Returns the root syntax tree.
@@ -186,7 +230,208 @@ impl Syntax {
 		loader: &'a LanguageLoader,
 		range: impl RangeBounds<u32>,
 	) -> Highlighter<'a> {
-		Highlighter::new(&self.inner, source, loader, range)
+		if let Some(meta) = &self.viewport {
+			Highlighter::new_mapped(
+				&self.inner,
+				meta.sealed_source.slice(),
+				loader,
+				range,
+				meta.base_offset,
+				meta.base_offset + meta.real_len,
+			)
+		} else {
+			Highlighter::new(&self.inner, source, loader, range)
+		}
+	}
+}
+
+#[derive(Debug, Clone)]
+pub struct ViewportRepair {
+	pub enabled: bool,
+	pub max_scan_bytes: u32,
+	pub prefer_real_closer: bool,
+	pub max_forward_search_bytes: u32,
+	pub rules: Vec<ViewportRepairRule>,
+}
+
+#[derive(Debug, Clone)]
+pub enum ViewportRepairRule {
+	BlockComment {
+		open: String,
+		close: String,
+		nestable: bool,
+	},
+	String {
+		quote: String,
+		escape: Option<String>,
+	},
+	LineComment {
+		start: String,
+	},
+}
+
+impl ViewportRepair {
+	/// Scans the window to determine the synthetic suffix needed to close multi-line constructs.
+	///
+	/// Optionally performs a forward search in the full document to find a real closer.
+	pub fn scan(&self, window: RopeSlice<'_>, forward_haystack: Option<RopeSlice<'_>>) -> String {
+		if !self.enabled || window.len_bytes() == 0 {
+			return String::new();
+		}
+
+		// MVP byte-oriented scanner
+		let mut block_comment_depth = 0;
+		let mut in_string: Option<usize> = None; // index into self.rules
+		let mut in_line_comment = false;
+
+		let bytes: Vec<u8> = window.bytes().take(self.max_scan_bytes as usize).collect();
+
+		let mut i = 0;
+		while i < bytes.len() {
+			if in_line_comment {
+				if bytes[i] == b'\n' {
+					in_line_comment = false;
+				}
+				i += 1;
+				continue;
+			}
+
+			if let Some(rule_idx) = in_string {
+				let rule = &self.rules[rule_idx];
+				if let ViewportRepairRule::String { quote, escape } = rule {
+					if let Some(esc) = escape
+						&& bytes[i..].starts_with(esc.as_bytes())
+					{
+						i += esc.len();
+						i += 1; // skip escaped char
+						continue;
+					}
+					if bytes[i..].starts_with(quote.as_bytes()) {
+						in_string = None;
+						i += quote.len();
+						continue;
+					}
+				}
+				i += 1;
+				continue;
+			}
+
+			// Not in line comment or string
+			let mut matched = false;
+			for (idx, rule) in self.rules.iter().enumerate() {
+				match rule {
+					ViewportRepairRule::LineComment { start } => {
+						if bytes[i..].starts_with(start.as_bytes()) {
+							in_line_comment = true;
+							i += start.len();
+							matched = true;
+							break;
+						}
+					}
+					ViewportRepairRule::String { quote, .. } => {
+						if bytes[i..].starts_with(quote.as_bytes()) {
+							in_string = Some(idx);
+							i += quote.len();
+							matched = true;
+							break;
+						}
+					}
+					ViewportRepairRule::BlockComment {
+						open,
+						close,
+						nestable,
+					} => {
+						if bytes[i..].starts_with(open.as_bytes()) {
+							block_comment_depth += 1;
+							i += open.len();
+							matched = true;
+							if !*nestable {
+								// skip until closer
+								while i < bytes.len() {
+									if bytes[i..].starts_with(close.as_bytes()) {
+										block_comment_depth -= 1;
+										i += close.len();
+										break;
+									}
+									i += 1;
+								}
+							}
+							break;
+						} else if bytes[i..].starts_with(close.as_bytes()) {
+							if block_comment_depth > 0 {
+								block_comment_depth -= 1;
+							}
+							i += close.len();
+							matched = true;
+							break;
+						}
+					}
+				}
+			}
+
+			if !matched {
+				i += 1;
+			}
+		}
+
+		if block_comment_depth == 0 && in_string.is_none() {
+			return String::new();
+		}
+
+		// Check for real closer forward if requested
+		if self.prefer_real_closer
+			&& let Some(haystack) = forward_haystack
+		{
+			let search_limit = self.max_forward_search_bytes as usize;
+			let search_bytes: Vec<u8> = haystack.bytes().take(search_limit).collect();
+
+			if block_comment_depth > 0 {
+				if let Some(ViewportRepairRule::BlockComment { close, .. }) = self
+					.rules
+					.iter()
+					.find(|r| matches!(r, ViewportRepairRule::BlockComment { .. }))
+					&& search_bytes
+						.windows(close.len())
+						.any(|w| w == close.as_bytes())
+				{
+					// Found real closer shortly after window; no synthetic suffix needed
+					// (Tree-sitter will find it if we extend the range, but for now we just
+					// skip synthesis and rely on the fact that ERROR recovery is localized
+					// if the closer exists "soon enough" - actually, better to return the closer
+					// as suffix to be safe, or extend the window.)
+					//
+					// For now, let's just return empty to signal "don't seal, it's fine".
+					return String::new();
+				}
+			} else if let Some(rule_idx) = in_string
+				&& let ViewportRepairRule::String { quote, .. } = &self.rules[rule_idx]
+				&& search_bytes
+					.windows(quote.len())
+					.any(|w| w == quote.as_bytes())
+			{
+				return String::new();
+			}
+		}
+
+		let mut suffix = String::new();
+		if block_comment_depth > 0 {
+			// find first block comment rule to get closer
+			if let Some(ViewportRepairRule::BlockComment { close, .. }) = self
+				.rules
+				.iter()
+				.find(|r| matches!(r, ViewportRepairRule::BlockComment { .. }))
+			{
+				for _ in 0..block_comment_depth {
+					suffix.push_str(close);
+				}
+			}
+		} else if let Some(rule_idx) = in_string
+			&& let ViewportRepairRule::String { quote, .. } = &self.rules[rule_idx]
+		{
+			suffix.push_str(quote);
+		}
+
+		suffix
 	}
 }
 

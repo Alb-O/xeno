@@ -5,6 +5,7 @@ use xeno_registry::themes::SyntaxStyles;
 
 use crate::grammar::load_grammar_or_build;
 use crate::query::read_query;
+use crate::syntax::{ViewportRepair, ViewportRepairRule};
 
 /// Language data wrapper over a registry entry.
 #[derive(Debug, Clone)]
@@ -73,6 +74,83 @@ impl LanguageData {
 
 	pub fn roots(&self) -> impl Iterator<Item = &str> {
 		self.entry.roots.iter().map(|&s| self.entry.resolve(s))
+	}
+
+	pub fn viewport_repair(&self) -> ViewportRepair {
+		if let Some(repair) = &self.entry.viewport_repair {
+			return ViewportRepair {
+				enabled: repair.enabled,
+				max_scan_bytes: repair.max_scan_bytes,
+				prefer_real_closer: repair.prefer_real_closer,
+				max_forward_search_bytes: repair.max_forward_search_bytes,
+				rules: repair
+					.rules
+					.iter()
+					.map(|rule| {
+						match rule {
+						xeno_registry::languages::types::ViewportRepairRuleEntry::BlockComment {
+							open,
+							close,
+							nestable,
+						} => ViewportRepairRule::BlockComment {
+							open: self.entry.resolve(*open).to_string(),
+							close: self.entry.resolve(*close).to_string(),
+							nestable: *nestable,
+						},
+						xeno_registry::languages::types::ViewportRepairRuleEntry::String {
+							quote,
+							escape,
+						} => ViewportRepairRule::String {
+							quote: self.entry.resolve(*quote).to_string(),
+							escape: escape.map(|s| self.entry.resolve(s).to_string()),
+						},
+						xeno_registry::languages::types::ViewportRepairRuleEntry::LineComment {
+							start,
+						} => ViewportRepairRule::LineComment {
+							start: self.entry.resolve(*start).to_string(),
+						},
+					}
+					})
+					.collect(),
+			};
+		}
+
+		// Default derivation
+		let mut rules = Vec::new();
+
+		// Block comment
+		if let Some((open, close)) = self.block_comment() {
+			rules.push(ViewportRepairRule::BlockComment {
+				open: open.to_string(),
+				close: close.to_string(),
+				nestable: false, // conservative default
+			});
+		}
+
+		// Line comments
+		for token in self.comment_tokens() {
+			rules.push(ViewportRepairRule::LineComment {
+				start: token.to_string(),
+			});
+		}
+
+		// Strings (common defaults)
+		rules.push(ViewportRepairRule::String {
+			quote: "\"".to_string(),
+			escape: Some("\\".to_string()),
+		});
+		rules.push(ViewportRepairRule::String {
+			quote: "'".to_string(),
+			escape: Some("\\".to_string()),
+		});
+
+		ViewportRepair {
+			enabled: true,
+			max_scan_bytes: 256 * 1024,
+			prefer_real_closer: true,
+			max_forward_search_bytes: 32 * 1024,
+			rules,
+		}
 	}
 
 	/// Returns the syntax configuration, loading it if necessary.

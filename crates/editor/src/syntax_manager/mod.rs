@@ -1,101 +1,3 @@
-//! Syntax highlighting with background parsing and tiered policy.
-//!
-//! # Purpose
-//!
-//! - Owns: Background parsing scheduling, tiered syntax policy, and grammar loading.
-//! - Does not own: Rendering (owned by buffer render logic), tree-sitter core (external).
-//! - Source of truth: [`crate::syntax_manager::SyntaxManager`].
-//!
-//! # Mental model
-//!
-//! - Terms: Tier (S/M/L policy), Hotness (Visible/Warm/Cold), Inflight (background task),
-//!   Cooldown (backoff after error), Epoch (generation counter for stale discard).
-//! - Lifecycle in one sentence: Edits trigger a debounced background parse, which installs results even if stale to ensure continuous highlighting.
-//!
-//! # Key types
-//!
-//! | Type | Meaning | Constraints | Constructed / mutated in |
-//! |---|---|---|---|
-//! | [`crate::syntax_manager::SyntaxManager`] | Top-level scheduler | Global concurrency limit | `EditorState` |
-//! | [`crate::syntax_manager::SyntaxHotness`] | Visibility / priority | Affects retention/parsing | Render loop / pipeline |
-//! | [`crate::syntax_manager::SyntaxTier`] | Size-based config (S/M/L) | Controls timeouts/injections | [`crate::syntax_manager::SyntaxManager::ensure_syntax`] |
-//! | [`crate::syntax_manager::SyntaxSlot`] | Per-document syntax state | Tracks `tree_doc_version` for monotonic install | `SyntaxManager` entry map |
-//! | [`crate::syntax_manager::lru::RecentDocLru`] | Bounded LRU of recently visible documents | Capacity-limited, O(n) touch | `EditorCore::warm_docs` |
-//!
-//! # Invariants
-//!
-//! - Must not perform unbounded parsing on the UI thread.
-//! - Must enforce single-flight per document.
-//! - Must install completed parses for continuity without regressing `tree_doc_version`.
-//! - Must call `note_edit_incremental` or `note_edit` on every document mutation.
-//! - Must skip debounce for bootstrap parses when no syntax tree is installed.
-//! - Must detect completed inflight tasks from `tick()`, not only from `render()`.
-//! - Must bump `syntax_version` whenever the installed tree changes or is dropped.
-//! - Must clear `pending_incremental` on language change, syntax reset, and retention drop.
-//! - Must track `tree_doc_version` with the installed tree and clear it on drop.
-//! - Must skip highlight spans when `tree_doc_version` differs from the rendered version.
-//! - Must promote recently visible documents to `Warm` hotness via `RecentDocLru`.
-//! - Must tie background task permit lifetime to real thread execution.
-//!
-//! # Data flow
-//!
-//! ## Full reparse (bootstrap or no accumulated edits)
-//!
-//! - Trigger: [`crate::syntax_manager::SyntaxManager::note_edit`] called from edit paths to record debounce timestamp.
-//! - Tick loop: `Editor::tick` checks [`crate::syntax_manager::SyntaxManager::any_task_finished`] every iteration and requests a redraw when a background parse completes, ensuring results are installed even when the render loop is idle.
-//! - Render loop: `Editor::render` calls `ensure_syntax_for_buffers` to kick new parses and install completed results before drawing.
-//! - Gating: Check visibility, size tier, debounce, and cooldown.
-//! - Throttling: Acquire global concurrency permit (semaphore).
-//! - Async boundary: `spawn_blocking` calls [`crate::syntax_manager::SyntaxEngine::parse`] (`Syntax::new`).
-//! - Install: Polled result is installed; `dirty` flag cleared only if versions match.
-//!
-//! ## Synchronous incremental update (primary path for interactive edits)
-//!
-//! - Trigger: [`crate::syntax_manager::SyntaxManager::note_edit_incremental`] called with old/new rope, changeset,
-//!   document version, and loader. Changesets are composed via [`xeno_primitives::ChangeSet::compose`] into
-//!   [`crate::syntax_manager::PendingIncrementalEdits`].
-//! - The same call applies [`xeno_runtime_language::syntax::Syntax::update_from_changeset`] in-line with a 10 ms timeout.
-//!   On success the tree is immediately up-to-date, `tree_doc_version` is set to the
-//!   provided version, the dirty flag is cleared, and no background reparse is needed.
-//! - On failure (timeout or error): state is left dirty with accumulated changesets; the
-//!   background path picks up after debounce.
-//!
-//! ## Background incremental reparse (fallback for sync timeout or large edits)
-//!
-//! - [`crate::syntax_manager::SyntaxManager::ensure_syntax`] detects a dirty doc with [`crate::syntax_manager::PendingIncrementalEdits`].
-//! - Same gating, throttling, and scheduling as full reparse.
-//! - Async boundary: `spawn_blocking` clones the existing `Syntax` + composed changeset,
-//!   calls [`crate::syntax_manager::SyntaxEngine::update_incremental`] (`Syntax::update_from_changeset`).
-//!   Falls back to full reparse on failure. The original tree stays in `state.current`
-//!   for rendering during the reparse window (no highlight flash).
-//! - Install: Same as full reparse.
-//!
-//! # Lifecycle
-//!
-//! - Idle: Document is clean or cooling down.
-//! - Debouncing: Waiting for edit silence.
-//! - In-flight: Background task running (identified by `TaskId`).
-//! - Ready: Syntax installed and version matches.
-//!
-//! # Concurrency and ordering
-//!
-//! - Bounded Concurrency: Max N (default 2) global parse tasks via semaphore.
-//! - Install Discipline: Results only clear `dirty` if `parse_version == current_version`.
-//! - Epoch Gating: Background results are discarded if the document epoch has changed (reset, lang change, etc).
-//!
-//! # Failure modes and recovery
-//!
-//! - Parse Timeout: Set cooldown timer; retry after backoff.
-//! - Grammar Missing: Return `JitDisabled` error; stop retrying for that session.
-//! - Stale Results: Installed to maintain some highlighting, but `dirty` flag triggers eventual catch-up.
-//!
-//! # Recipes
-//!
-//! ## Change tier thresholds
-//!
-//! - Update [`crate::syntax_manager::TieredSyntaxPolicy::default()`].
-//! - Ensure `s_max_bytes_inclusive <= m_max_bytes_inclusive`.
-//!
 use std::collections::HashMap;
 pub mod lru;
 use std::sync::Arc;
@@ -105,12 +7,17 @@ use rustc_hash::FxHashMap;
 use tokio::sync::Semaphore;
 use tokio::task::JoinHandle;
 use xeno_primitives::{ChangeSet, Rope};
-use xeno_runtime_language::syntax::{InjectionPolicy, Syntax, SyntaxError, SyntaxOptions};
+use xeno_runtime_language::syntax::{
+	InjectionPolicy, SealedSource, Syntax, SyntaxError, SyntaxOptions,
+};
 use xeno_runtime_language::{LanguageId, LanguageLoader};
 
 use crate::core::document::DocumentId;
 
 const DEFAULT_MAX_CONCURRENCY: usize = 2;
+const VIEWPORT_LOOKBEHIND: u32 = 8192;
+const VIEWPORT_LOOKAHEAD: u32 = 8192;
+const VIEWPORT_WINDOW_MAX: u32 = 128 * 1024;
 
 /// Visibility and urgency of a document for the syntax scheduler.
 ///
@@ -281,6 +188,7 @@ pub(crate) struct DocSched {
 	last_visible_at: Instant,
 	cooldown_until: Option<Instant>,
 	active_task: Option<TaskId>,
+	active_task_detached: bool,
 	completed: Option<CompletedSyntaxTask>,
 	/// If true, bypasses the debounce gate for the next background parse.
 	force_no_debounce: bool,
@@ -294,6 +202,7 @@ impl DocSched {
 			last_visible_at: now,
 			cooldown_until: None,
 			active_task: None,
+			active_task_detached: false,
 			completed: None,
 			force_no_debounce: false,
 		}
@@ -306,6 +215,7 @@ impl DocSched {
 	fn invalidate(&mut self) {
 		self.epoch = self.epoch.next();
 		self.active_task = None;
+		self.active_task_detached = false;
 		self.completed = None;
 		self.cooldown_until = None;
 		self.force_no_debounce = false;
@@ -315,6 +225,10 @@ impl DocSched {
 enum TaskKind {
 	FullParse {
 		content: Rope,
+	},
+	ViewportParse {
+		content: Rope,
+		window: std::ops::Range<u32>,
 	},
 	Incremental {
 		base: Syntax,
@@ -343,6 +257,7 @@ struct TaskDone {
 	lang_id: LanguageId,
 	opts_key: OptKey,
 	result: Result<Syntax, SyntaxError>,
+	is_viewport: bool,
 }
 
 /// Invariant enforcement: Collector for background syntax tasks.
@@ -370,12 +285,41 @@ impl TaskCollector {
 		self.next_id = self.next_id.wrapping_add(1);
 		let task_id = TaskId(id_val);
 
+		let is_viewport = matches!(spec.kind, TaskKind::ViewportParse { .. });
+
 		let handle = tokio::task::spawn_blocking(move || {
 			let _permit = permit; // Tie permit lifetime to closure
 
 			let result = match spec.kind {
 				TaskKind::FullParse { content } => {
 					engine.parse(content.slice(..), spec.lang_id, &spec.loader, spec.opts)
+				}
+				TaskKind::ViewportParse { content, window } => {
+					if let Some(data) = spec.loader.get(spec.lang_id) {
+						let repair = data.viewport_repair();
+						let forward_haystack = if window.end < content.len_bytes() as u32 {
+							Some(content.byte_slice(window.end as usize..))
+						} else {
+							None
+						};
+						let suffix = repair.scan(
+							content.byte_slice(window.start as usize..window.end as usize),
+							forward_haystack,
+						);
+						let sealed = Arc::new(SealedSource::from_window(
+							content.byte_slice(window.start as usize..window.end as usize),
+							&suffix,
+						));
+						Syntax::new_viewport(
+							sealed,
+							spec.lang_id,
+							&spec.loader,
+							spec.opts,
+							window.start,
+						)
+					} else {
+						Err(SyntaxError::NoLanguage)
+					}
 				}
 				TaskKind::Incremental {
 					base,
@@ -401,6 +345,7 @@ impl TaskCollector {
 				lang_id: spec.lang_id,
 				opts_key: spec.opts_key,
 				result,
+				is_viewport,
 			}
 		});
 
@@ -438,6 +383,7 @@ struct CompletedSyntaxTask {
 	lang_id: LanguageId,
 	opts: OptKey,
 	result: Result<Syntax, SyntaxError>,
+	is_viewport: bool,
 }
 
 /// Result of polling syntax state.
@@ -553,6 +499,7 @@ pub struct EnsureSyntaxContext<'a> {
 	pub content: &'a Rope,
 	pub hotness: SyntaxHotness,
 	pub loader: &'a Arc<LanguageLoader>,
+	pub viewport: Option<std::ops::Range<u32>>,
 }
 
 /// Invariant enforcement: Accumulated edits awaiting an incremental reparse.
@@ -594,6 +541,8 @@ pub struct SyntaxSlot {
 	pending_incremental: Option<PendingIncrementalEdits>,
 	/// Configuration options used for the last parse.
 	last_opts_key: Option<OptKey>,
+	/// Coverage of the currently installed tree (doc-global bytes).
+	pub coverage: Option<std::ops::Range<u32>>,
 }
 
 struct DocEntry {
@@ -694,12 +643,26 @@ impl SyntaxManager {
 		self.entries.get(&doc_id)?.slot.tree_doc_version
 	}
 
+	/// Returns the document-global byte coverage of the installed syntax tree.
+	pub fn syntax_coverage(&self, doc_id: DocumentId) -> Option<std::ops::Range<u32>> {
+		self.entries.get(&doc_id)?.slot.coverage.clone()
+	}
+
+	/// Returns true if a background task is currently active for a document (even if detached).
+	#[cfg(test)]
+	pub(crate) fn has_inflight_task(&self, doc_id: DocumentId) -> bool {
+		self.entries
+			.get(&doc_id)
+			.is_some_and(|e| e.sched.active_task.is_some())
+	}
+
 	/// Resets the syntax state for a document, clearing the current tree and history.
 	pub fn reset_syntax(&mut self, doc_id: DocumentId) {
 		let entry = self.entry_mut(doc_id);
 		if entry.slot.current.is_some() {
 			entry.slot.current = None;
 			entry.slot.tree_doc_version = None;
+			entry.slot.coverage = None;
 			mark_updated(&mut entry.slot);
 		}
 		entry.slot.dirty = true;
@@ -754,6 +717,19 @@ impl SyntaxManager {
 
 		if source == EditSource::History {
 			entry.sched.force_no_debounce = true;
+		}
+
+		if let Some(current) = &entry.slot.current
+			&& current.is_partial()
+		{
+			// Never attempt incremental updates on a partial tree.
+			// Drop it immediately to avoid stale highlighting.
+			entry.slot.current = None;
+			entry.slot.tree_doc_version = None;
+			entry.slot.coverage = None;
+			entry.slot.pending_incremental = None;
+			mark_updated(&mut entry.slot);
+			return;
 		}
 
 		let Some(syntax) = entry.slot.current.as_mut() else {
@@ -839,21 +815,20 @@ impl SyntaxManager {
 	pub fn has_pending(&self, doc_id: DocumentId) -> bool {
 		self.entries
 			.get(&doc_id)
-			.and_then(|d| d.sched.active_task.as_ref())
-			.is_some()
+			.is_some_and(|d| d.sched.active_task.is_some() && !d.sched.active_task_detached)
 	}
 
 	pub fn pending_count(&self) -> usize {
 		self.entries
 			.values()
-			.filter(|d| d.sched.active_task.is_some())
+			.filter(|d| d.sched.active_task.is_some() && !d.sched.active_task_detached)
 			.count()
 	}
 
 	pub fn pending_docs(&self) -> impl Iterator<Item = DocumentId> + '_ {
 		self.entries
 			.iter()
-			.filter(|(_, d)| d.sched.active_task.is_some())
+			.filter(|(_, d)| d.sched.active_task.is_some() && !d.sched.active_task_detached)
 			.map(|(id, _)| *id)
 	}
 
@@ -879,6 +854,7 @@ impl SyntaxManager {
 				// Clear active_task if it matches the one that just finished, regardless of epoch
 				if entry.sched.active_task == Some(res.id) {
 					entry.sched.active_task = None;
+					entry.sched.active_task_detached = false;
 				}
 
 				// Epoch check: discard stale results
@@ -891,6 +867,7 @@ impl SyntaxManager {
 					lang_id: res.lang_id,
 					opts: res.opts_key,
 					result: res.result,
+					is_viewport: res.is_viewport,
 				});
 				any_drained = true;
 			}
@@ -911,6 +888,8 @@ impl SyntaxManager {
 			injections: cfg.injections,
 		};
 
+		let work_disabled = matches!(ctx.hotness, SyntaxHotness::Cold) && !cfg.parse_when_hidden;
+
 		// 1. Initial entry check & change detection
 		let mut was_updated = {
 			let entry = self.entry_mut(doc_id);
@@ -918,13 +897,14 @@ impl SyntaxManager {
 
 			if entry.slot.language_id != ctx.language_id {
 				entry.sched.invalidate();
-				entry.slot.current = None;
-				entry.slot.tree_doc_version = None;
-				entry.slot.dirty = true;
-				entry.slot.pending_incremental = None;
+				if entry.slot.current.is_some() {
+					entry.slot.current = None;
+					entry.slot.tree_doc_version = None;
+					entry.slot.coverage = None;
+					mark_updated(&mut entry.slot);
+					updated = true;
+				}
 				entry.slot.language_id = ctx.language_id;
-				mark_updated(&mut entry.slot);
-				updated = true;
 			}
 
 			if matches!(ctx.hotness, SyntaxHotness::Visible | SyntaxHotness::Warm) {
@@ -938,11 +918,17 @@ impl SyntaxManager {
 			{
 				entry.sched.invalidate();
 				entry.slot.dirty = true;
+				entry.slot.coverage = None;
 				mark_updated(&mut entry.slot);
 				updated = true;
 				entry.slot.pending_incremental = None;
 			}
 			entry.slot.last_opts_key = Some(current_opts_key);
+
+			if entry.sched.active_task.is_some() {
+				entry.sched.active_task_detached = work_disabled;
+			}
+
 			updated
 		};
 
@@ -969,34 +955,74 @@ impl SyntaxManager {
 							ctx.hotness,
 						);
 
-						let allow_install = should_install_completed_parse(
-							done.doc_version,
-							entry.slot.tree_doc_version,
-							ctx.doc_version,
-							entry.slot.dirty,
-						);
+						let allow_install = if done.is_viewport {
+							done.doc_version == ctx.doc_version
+						} else {
+							should_install_completed_parse(
+								done.doc_version,
+								entry.slot.tree_doc_version,
+								ctx.doc_version,
+								entry.slot.dirty,
+							)
+						};
 
-						if lang_ok && opts_ok && retain_ok && allow_install {
+						if work_disabled {
+							tracing::trace!(
+								?doc_id,
+								"Discarding syntax result because work is disabled (Cold)"
+							);
+						} else if lang_ok && opts_ok && retain_ok && allow_install {
+							let is_viewport = done.is_viewport;
+							if is_viewport {
+								// Viewport trees are always dirty (trigger full parse follow-up)
+								entry.slot.dirty = true;
+								entry.sched.force_no_debounce = true;
+							}
+
+							if let Some(meta) = &syntax_tree.viewport {
+								entry.slot.coverage = Some(
+									meta.base_offset
+										..meta.base_offset.saturating_add(meta.real_len),
+								);
+							} else {
+								entry.slot.coverage = None;
+							}
+
 							entry.slot.current = Some(syntax_tree);
 							entry.slot.language_id = Some(current_lang);
 							entry.slot.tree_doc_version = Some(done.doc_version);
 							entry.slot.pending_incremental = None;
 							mark_updated(&mut entry.slot);
 							was_updated = true;
-							entry.sched.force_no_debounce = false;
-							if version_match {
-								entry.slot.dirty = false;
-								entry.sched.cooldown_until = None;
-							} else {
-								entry.slot.dirty = true;
+
+							if !is_viewport {
+								entry.sched.force_no_debounce = false;
+								if version_match {
+									entry.slot.dirty = false;
+									entry.sched.cooldown_until = None;
+								} else {
+									entry.slot.dirty = true;
+								}
 							}
-						} else if lang_ok && opts_ok && version_match && !retain_ok {
-							entry.slot.current = None;
-							entry.slot.pending_incremental = None;
-							entry.slot.dirty = false;
-							entry.sched.force_no_debounce = false;
-							mark_updated(&mut entry.slot);
-							was_updated = true;
+						} else {
+							tracing::trace!(
+								?doc_id,
+								?lang_ok,
+								?opts_ok,
+								?retain_ok,
+								?allow_install,
+								"Discarding syntax result due to mismatch/retention"
+							);
+							if lang_ok && opts_ok && version_match && !retain_ok {
+								entry.slot.current = None;
+								entry.slot.tree_doc_version = None;
+								entry.slot.coverage = None;
+								entry.slot.pending_incremental = None;
+								entry.slot.dirty = false;
+								entry.sched.force_no_debounce = false;
+								mark_updated(&mut entry.slot);
+								was_updated = true;
+							}
 						}
 					}
 					Err(SyntaxError::Timeout) => {
@@ -1026,8 +1052,12 @@ impl SyntaxManager {
 					&mut entry.slot,
 					doc_id,
 				) {
-					entry.sched.invalidate();
+					if !work_disabled {
+						entry.sched.invalidate();
+					}
 					was_updated = true;
+				} else if work_disabled {
+					// Fall through to gating check
 				} else {
 					return SyntaxPollOutcome {
 						result: SyntaxPollResult::Pending,
@@ -1041,6 +1071,7 @@ impl SyntaxManager {
 				if entry.slot.current.is_some() {
 					entry.slot.current = None;
 					entry.slot.tree_doc_version = None;
+					entry.slot.coverage = None;
 					mark_updated(&mut entry.slot);
 					was_updated = true;
 				}
@@ -1061,22 +1092,24 @@ impl SyntaxManager {
 				&mut entry.slot,
 				doc_id,
 			) {
-				entry.sched.invalidate();
+				if !work_disabled {
+					entry.sched.invalidate();
+				}
 				was_updated = true;
+			}
+
+			// 5. Gating
+			if work_disabled {
+				return SyntaxPollOutcome {
+					result: SyntaxPollResult::Disabled,
+					updated: was_updated,
+				};
 			}
 
 			if entry.slot.current.is_some() && !entry.slot.dirty {
 				entry.sched.force_no_debounce = false;
 				return SyntaxPollOutcome {
 					result: SyntaxPollResult::Ready,
-					updated: was_updated,
-				};
-			}
-
-			// 5. Gating
-			if matches!(ctx.hotness, SyntaxHotness::Cold) && !cfg.parse_when_hidden {
-				return SyntaxPollOutcome {
-					result: SyntaxPollResult::Disabled,
 					updated: was_updated,
 				};
 			}
@@ -1101,7 +1134,14 @@ impl SyntaxManager {
 			}
 
 			// Defensive: never schedule if a task is already active for this document identity
-			if entry.sched.active_task.is_some() {
+			if let Some(_task_id) = entry.sched.active_task
+				&& !entry.sched.active_task_detached
+			{
+				tracing::debug!(
+					?doc_id,
+					?_task_id,
+					"Syntax task already active; returning Pending"
+				);
 				return SyntaxPollOutcome {
 					result: SyntaxPollResult::Pending,
 					updated: was_updated,
@@ -1111,6 +1151,87 @@ impl SyntaxManager {
 
 		// 6. Schedule new task
 		let lang_id = ctx.language_id.unwrap();
+
+		// 6a. Kicking ViewportParse for L-tier files
+		{
+			let entry = self.entry_mut(doc_id);
+
+			let needs_viewport = if tier == SyntaxTier::L
+				&& ctx.hotness == SyntaxHotness::Visible
+				&& let Some(viewport) = &ctx.viewport
+			{
+				if entry.slot.current.is_none() {
+					true
+				} else if entry.slot.current.as_ref().is_some_and(|s| s.is_partial()) {
+					// Check coverage: re-kick if viewport moved outside sealed window
+					if let Some(coverage) = &entry.slot.coverage {
+						viewport.start < coverage.start || viewport.end > coverage.end
+					} else {
+						true
+					}
+				} else {
+					false
+				}
+			} else {
+				false
+			};
+
+			if needs_viewport
+				&& entry.sched.active_task.is_none()
+				&& let Some(viewport) = &ctx.viewport
+			{
+				// Drop existing partial tree if we're re-kicking due to move
+				if entry.slot.current.as_ref().is_some_and(|s| s.is_partial()) {
+					entry.slot.current = None;
+					entry.slot.tree_doc_version = None;
+					entry.slot.coverage = None;
+					mark_updated(&mut entry.slot);
+				}
+
+				let win_start = viewport.start.saturating_sub(VIEWPORT_LOOKBEHIND);
+				let mut win_end = (viewport.end + VIEWPORT_LOOKAHEAD).min(bytes as u32);
+				let mut win_len = win_end.saturating_sub(win_start);
+
+				if win_len > VIEWPORT_WINDOW_MAX {
+					// Clamp to max size, biasing towards viewport start
+					win_len = VIEWPORT_WINDOW_MAX;
+					win_end = (win_start + win_len).min(bytes as u32);
+				}
+
+				if win_len > 0 {
+					let spec = TaskSpec {
+						doc_id,
+						epoch: entry.sched.epoch,
+						doc_version: ctx.doc_version,
+						lang_id,
+						opts_key: current_opts_key,
+						opts: SyntaxOptions {
+							parse_timeout: Duration::from_millis(15), // Very short for viewport
+							injections: InjectionPolicy::Disabled,    // No injections in viewport-first
+						},
+						kind: TaskKind::ViewportParse {
+							content: ctx.content.clone(),
+							window: win_start..win_end,
+						},
+						loader: Arc::clone(ctx.loader),
+					};
+
+					let permits = Arc::clone(&self.permits);
+					let engine = Arc::clone(&self.engine);
+
+					if let Some(task_id) = self.collector.spawn(permits, engine, spec) {
+						let entry = self.entries.get_mut(&doc_id).unwrap();
+						entry.sched.active_task = Some(task_id);
+						entry.sched.force_no_debounce = false;
+						return SyntaxPollOutcome {
+							result: SyntaxPollResult::Kicked,
+							updated: was_updated,
+						};
+					}
+				}
+			}
+		}
+
 		let (kind, epoch) = {
 			let entry = self.entry_mut(doc_id);
 			let incremental = match entry.slot.pending_incremental.as_ref() {
@@ -1237,6 +1358,7 @@ pub(crate) fn apply_retention(
 			if state.current.is_some() || state.dirty {
 				state.current = None;
 				state.tree_doc_version = None;
+				state.coverage = None;
 				state.dirty = false;
 				state.pending_incremental = None;
 				mark_updated(state);
@@ -1251,6 +1373,7 @@ pub(crate) fn apply_retention(
 			{
 				state.current = None;
 				state.tree_doc_version = None;
+				state.coverage = None;
 				state.dirty = false;
 				state.pending_incremental = None;
 				mark_updated(state);

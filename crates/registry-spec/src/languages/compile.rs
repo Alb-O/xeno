@@ -117,6 +117,7 @@ fn parse_language_node(node: &KdlNode) -> LanguageSpec {
 		block_comment,
 		lsp_servers,
 		roots,
+		viewport_repair: None,
 		queries: Vec::new(),
 	}
 }

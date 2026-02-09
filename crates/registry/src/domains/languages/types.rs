@@ -9,6 +9,34 @@ pub struct LanguageQueryEntry {
 }
 
 #[derive(Clone)]
+pub enum ViewportRepairRuleEntry {
+	/// e.g. /* ... */
+	BlockComment {
+		open: Symbol,
+		close: Symbol,
+		nestable: bool,
+	},
+
+	/// e.g. "..." or '...'
+	String {
+		quote: Symbol,
+		escape: Option<Symbol>,
+	},
+
+	/// e.g. //
+	LineComment { start: Symbol },
+}
+
+#[derive(Clone)]
+pub struct ViewportRepairEntry {
+	pub enabled: bool,
+	pub max_scan_bytes: u32,
+	pub prefer_real_closer: bool,
+	pub max_forward_search_bytes: u32,
+	pub rules: Arc<[ViewportRepairRuleEntry]>,
+}
+
+#[derive(Clone)]
 pub struct LanguageEntry {
 	pub meta: RegistryMeta,
 	pub scope: Option<Symbol>,
@@ -23,6 +51,7 @@ pub struct LanguageEntry {
 	pub block_comment: Option<(Symbol, Symbol)>,
 	pub lsp_servers: Arc<[Symbol]>,
 	pub roots: Arc<[Symbol]>,
+	pub viewport_repair: Option<ViewportRepairEntry>,
 	pub queries: Arc<[LanguageQueryEntry]>,
 }
 
@@ -81,7 +110,7 @@ impl BuildEntry<LanguageEntry> for LanguageDef {
 		}
 		collector.extend(self.lsp_servers.iter().copied());
 		collector.extend(self.roots.iter().copied());
-		// Static defs don't have queries usually
+		// Static defs don't have queries or viewport_repair usually
 	}
 
 	fn build(
@@ -109,6 +138,7 @@ impl BuildEntry<LanguageEntry> for LanguageDef {
 				.map(|(s1, s2)| (ctx.intern(s1), ctx.intern(s2))),
 			lsp_servers: ctx.intern_slice(self.lsp_servers),
 			roots: ctx.intern_slice(self.roots),
+			viewport_repair: None,
 			queries: Arc::new([]),
 		}
 	}

@@ -77,6 +77,21 @@ impl<'a> BufferRenderContext<'a> {
 		let syntax_version = self.syntax_manager.syntax_version(doc_id);
 		let _tree_doc_version = self.syntax_manager.syntax_doc_version(doc_id);
 
+		// Coverage check for partial trees
+		if syntax.is_partial() {
+			let viewport_start_byte = doc_content.line_to_byte(scroll_line) as u32;
+			let total_lines = doc_content.len_lines();
+			let end_line = (scroll_line + viewport_height).min(total_lines);
+			let viewport_end_byte = doc_content.line_to_byte(end_line) as u32;
+
+			if let Some(coverage) = self.syntax_manager.syntax_coverage(doc_id)
+				&& (viewport_start_byte < coverage.start || viewport_end_byte > coverage.end)
+			{
+				// Not covered, skip highlighting for now (will trigger re-parse in tick/ensure_syntax)
+				return Vec::new();
+			}
+		}
+
 		// Note: We allow rendering with a stale tree (tree_doc_version != doc_version)
 		// to maintain highlighting during rapid edits. The highlight cache and
 		// tile builder ensure safety via bounds clamping and version-keyed caching.

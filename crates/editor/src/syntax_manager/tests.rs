@@ -31,6 +31,7 @@ async fn test_drain_releases_permit_without_repoll() {
 		content: &content,
 		hotness: SyntaxHotness::Visible,
 		loader: &loader,
+		viewport: None,
 	});
 
 	// Wait for task
@@ -55,6 +56,7 @@ async fn test_drain_releases_permit_without_repoll() {
 		content: &content,
 		hotness: SyntaxHotness::Visible,
 		loader: &loader,
+		viewport: None,
 	});
 	assert_eq!(r.result, SyntaxPollResult::Kicked);
 }
@@ -82,6 +84,7 @@ async fn test_opts_mismatch_invalidates_and_throttles() {
 		content: &content,
 		hotness: SyntaxHotness::Visible,
 		loader: &loader,
+		viewport: None,
 	});
 	assert!(mgr.has_pending(doc_id));
 
@@ -97,6 +100,7 @@ async fn test_opts_mismatch_invalidates_and_throttles() {
 		content: &content,
 		hotness: SyntaxHotness::Visible,
 		loader: &loader,
+		viewport: None,
 	});
 	assert_eq!(r.result, SyntaxPollResult::Throttled);
 
@@ -120,6 +124,7 @@ async fn test_opts_mismatch_invalidates_and_throttles() {
 		content: &content,
 		hotness: SyntaxHotness::Visible,
 		loader: &loader,
+		viewport: None,
 	});
 	assert_eq!(r.result, SyntaxPollResult::Kicked);
 }
@@ -147,6 +152,7 @@ async fn test_opts_mismatch_never_installs() {
 		content: &content,
 		hotness: SyntaxHotness::Visible,
 		loader: &loader,
+		viewport: None,
 	});
 
 	// 2. Change policy to Disabled injections BEFORE draining
@@ -172,6 +178,7 @@ async fn test_opts_mismatch_never_installs() {
 		content: &content,
 		hotness: SyntaxHotness::Visible,
 		loader: &loader,
+		viewport: None,
 	});
 	// Should kick a new task because the old one was discarded
 	assert_eq!(r.result, SyntaxPollResult::Kicked);
@@ -211,6 +218,7 @@ async fn test_dropwhenhidden_discards_completed_parse() {
 		content: &content,
 		hotness: SyntaxHotness::Visible,
 		loader: &loader,
+		viewport: None,
 	});
 
 	// 2. Drop to Cold
@@ -221,6 +229,7 @@ async fn test_dropwhenhidden_discards_completed_parse() {
 		content: &content,
 		hotness: SyntaxHotness::Cold,
 		loader: &loader,
+		viewport: None,
 	});
 
 	// 3. Complete parse
@@ -243,6 +252,7 @@ async fn test_dropwhenhidden_discards_completed_parse() {
 		content: &content,
 		hotness: SyntaxHotness::Cold,
 		loader: &loader,
+		viewport: None,
 	});
 	assert!(!mgr.has_syntax(doc_id));
 	assert!(!mgr.is_dirty(doc_id), "Cold drop should clear dirty flag");
@@ -272,6 +282,7 @@ async fn test_language_switch_clears_completed_error() {
 		content: &content,
 		hotness: SyntaxHotness::Visible,
 		loader: &loader,
+		viewport: None,
 	});
 	engine.proceed();
 
@@ -291,6 +302,7 @@ async fn test_language_switch_clears_completed_error() {
 		content: &content,
 		hotness: SyntaxHotness::Visible,
 		loader: &loader,
+		viewport: None,
 	});
 	assert_eq!(poll.result, SyntaxPollResult::CoolingDown);
 
@@ -301,6 +313,7 @@ async fn test_language_switch_clears_completed_error() {
 		content: &content,
 		hotness: SyntaxHotness::Visible,
 		loader: &loader,
+		viewport: None,
 	});
 	assert_eq!(poll_new.result, SyntaxPollResult::Kicked);
 }
