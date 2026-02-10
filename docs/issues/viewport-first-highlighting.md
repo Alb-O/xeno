@@ -1,81 +1,45 @@
 # Viewport-First Highlighting for L-tier Files
 
-Status: **blocked** — partial parse produces incorrect highlights for files with multi-line constructs (block comments) spanning beyond the truncation point.
+Status: active on `main` (not blocked)  
+Last verified: 2026-02-10
 
-## Problem
+## Summary
 
-Opening `tmp/miniaudio.h` (4.1MB, 96K lines, L-tier) takes ~885ms for a full tree-sitter parse. During this window the viewport shows un-highlighted text. The goal: parse only viewport bytes first (~2–5ms) for immediate highlighting, then complete the full parse in background.
+Viewport-first parsing is now wired through the syntax scheduler for L-tier files.
+The earlier "blocked" state (incorrect trees from raw truncation) was mitigated by
+sealing viewport windows before parse and then promoting to full parse in the
+background.
 
-## Architecture (was working, but not enough)
+## Current architecture
 
-The scheduling infrastructure was fully implemented and functional:
+- `crates/editor/src/syntax_manager/ensure.rs`:
+  - schedules `TaskKind::ViewportParse` for visible L-tier docs (Stage A)
+  - can run optional Stage B over the same coverage with injections enabled when budget allows
+  - marks viewport trees dirty so a full parse still follows
+- `crates/editor/src/syntax_manager/tasks.rs`:
+  - constructs viewport parse input as a `SealedSource` window
+  - runs `ViewportRepair::scan` to append a synthetic closer or extend to a real closer
+- `crates/language/src/syntax/mod.rs`:
+  - represents viewport trees via `Syntax::new_viewport(...)`
+  - maps highlight output back to document-global offsets
+- `crates/language/src/language/mod.rs`:
+  - derives repair rules from language metadata (or defaults) for comments/strings
 
-- `TaskKind::ViewportParse` — new variant alongside `FullParse` / `Incremental`
-- `SyntaxSlot.partial: bool` — tracks viewport-only trees; kept `dirty = true` so the next `ensure_syntax` schedules a full parse
-- `EnsureSyntaxContext.viewport_end_byte: Option<u32>` — propagated from render path
-- `SyntaxEngine::parse_viewport` trait method with default fallback to `parse`
-- Scheduling gate: L-tier, no tree installed yet, `Visible` hotness, `viewport_end_byte > 0`
-- Range: `0..min(viewport_end_byte * 2, file_size)` — 2x padding reduces re-parse on small scrolls
-- `CancelFlag` — cooperative cancellation wired through tree-sitter's progress callback for all parse variants
-- `ensure_locals` — viewport-bounded locals with geometric growth, decoupled from parse
-- Debounce bypass for partial trees: `force_no_debounce = true` after viewport tree install, so the full parse follows immediately without the 250ms L-tier debounce gate
+## Historical blocker
 
-All of this compiled, passed tests, and scheduled correctly.
+The original blocker is still valid as a historical note: plain truncation and
+`set_included_ranges` can produce invalid trees around multi-line constructs.
+Current code avoids that path by sealing the window first.
 
-## What fails: the parse itself
+## Remaining gaps
 
-### Approach 1: `set_included_ranges`
+- `ViewportRepair::scan` still has a known TODO for delimiters that span chunk boundaries.
+- Repair is heuristic, not grammar-complete; uncommon delimiter forms may still need per-language overrides.
+- There is no dedicated unit-test suite for repair scanner edge cases (scheduler tests exist, but parser-boundary fixtures are still thin).
+- There is no benchmark gate in CI for large-file first-highlight latency/regression.
 
-tree-sitter's `set_included_ranges` restricts which bytes the parser processes while preserving document-relative byte offsets. A `new_with_ranges_cancellable` constructor was added to tree-house to accept custom root layer ranges (reverted).
+## Suggested follow-ups
 
-The problem: tree-sitter treats range boundaries as hard cuts. For `miniaudio.h`, the file opens with:
-
-```c
-/* ... short header comment ... */
-
-/*
-1. Introduction
-===============
-...  3724 lines of block comment ...
-*/
-```
-
-The `/*` at line 12 has no matching `*/` within the viewport range (~100 lines). tree-sitter's error recovery kicks in: it sees `/*` with no close delimiter within the included range, produces an ERROR node, then re-enters normal parsing. Text inside the comment gets parsed as code, producing **wrong** highlights (not just missing highlights).
-
-### Approach 2: source truncation
-
-Instead of `set_included_ranges`, truncate the source rope to the viewport range end (snapped to a line boundary) and parse that prefix as a complete file. The theory: an unterminated `/*` at EOF should cause tree-sitter to extend the comment node to cover everything.
-
-Same failure. tree-sitter's C grammar requires `*/` to close a `/*` block comment. An unterminated `/*` produces an ERROR node, not a comment spanning to EOF. The grammar rule is:
-
-```
-comment: $ => token(choice(
-  seq('//', /.*/),
-  seq('/*', /[^*]*\*+([^/*][^*]*\*+)*/, '/')
-))
-```
-
-The `/*..*/` pattern is a single regex token — there's no partial match. Without `*/`, the token fails and tree-sitter falls back to error recovery, same result as approach 1.
-
-## Why this is fundamental
-
-The issue isn't specific to C block comments. Any grammar with multi-line constructs that require closing delimiters will break:
-
-- Block comments: `/* ... */` (C/C++/Java/Go/Rust/etc.)
-- String literals: `""" ... """` (Python), `` ` ... ` `` (JS template literals), `r#" ... "#` (Rust raw strings)
-- Heredocs: `<<EOF ... EOF` (shell/Ruby/Perl)
-
-The grammar's tokenizer expects the closing delimiter within the parsed bytes. Without it, the token fails and error recovery produces incorrect AST structure.
-
-## Potential directions (not attempted)
-
-1. **Post-parse heuristic repair**: After the viewport parse, walk the tree looking for ERROR nodes at the truncation boundary. If the last token before truncation is inside `/*`, synthesize a comment span covering the remaining viewport bytes. This is grammar-specific and fragile but might work for the common case of block comments at file top.
-
-2. **Injecting synthetic closing delimiters**: Before parsing the truncated source, scan for unclosed `/*` and append `*/` at the truncation point. This is the "bandaid fix" approach — it works for comments but not for all multi-line constructs, and the heuristic for detecting "unclosed" constructs is grammar-dependent.
-
-3. **Two-pass with chunk boundaries**: Parse the first N bytes, then if the tree ends with ERROR, extend by another chunk and re-parse. Iterate until the ERROR resolves or a budget is exhausted. This converges but the worst case is parsing the whole file.
-
-4. **Background-only with progressive render**: Don't parse a prefix at all. Instead, run the full parse on a background thread and progressively render highlights as tree-sitter's progress callback reports parsed byte ranges. Requires tree-sitter API changes to expose partial results during parsing.
-
-5. **Accept wrong highlights for the flash**: The viewport-first tree was visible for ~885ms until the full parse completed. If the wrong highlights are considered acceptable as a transient state (better than no highlights), the implementation worked as-is. The question is whether wrong highlights are worse than no highlights from the user's perspective.
-
+1. Add focused scanner tests for boundary cases in `crates/language/src/syntax/tests.rs`.
+2. Add fixture-based integration tests for top-of-file multiline comment/string cases on large files.
+3. Add a repeatable benchmark scenario (for example `tmp/miniaudio.h`) and track first-highlight latency over time.

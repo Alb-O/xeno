@@ -17,7 +17,7 @@ The registry is a typed database of editor definitions (actions, commands, optio
 
 ### High-level components
 
-- **Domain modules** (e.g. `src/actions/`, `src/options/`, `src/languages/`):
+- **Domain modules** (e.g. `src/domains/actions/`, `src/domains/options/`, `src/domains/languages/`):
   - `spec` types (serde/postcard contract)
   - `loader` (decode embedded blob)
   - `link` (link spec ↔ Rust handler statics where applicable)
@@ -38,7 +38,7 @@ The registry is a typed database of editor definitions (actions, commands, optio
 
 **Build time**
 1. Authoring input: domain metadata authored as KDL (currently) under `crates/registry/src/domains/<domain>/assets/`.
-2. Compilation: `crates/registry/build/*` parse the authoring format into domain spec structs.
+2. Compilation: `crates/registry/build.rs` dispatches to `xeno_registry_spec::<domain>::compile::build` in `crates/registry-spec/src/<domain>/compile.rs`.
 3. Serialization: specs are serialized with `postcard` and written as `<domain>.bin` using the shared blob wrapper.
 4. Embedding: `.bin` files are embedded into the final binary (`include_bytes!(concat!(env!("OUT_DIR"), ...))`).
 
@@ -76,7 +76,7 @@ Runtime registration is snapshot-based, but **lookup maintenance is incremental*
 
 Snapshots and indices maintain three maps:
 
-- `by_id`: **Stage A**. Autoritative for identity.
+- `by_id`: **Stage A**. Authoritative for identity.
 - `by_name`: **Stage B**. Blocked by Stage A.
 - `by_key`: **Stage C**. Blocked by Stage A and Stage B.
 
@@ -243,7 +243,7 @@ When adding a new domain, treat it as three layers:
 
 ### 1) Define domain runtime types
 
-Create a new module (typically `src/<domain>/`):
+Create a new module (typically `src/domains/<domain>/`):
 
 - `entry.rs`: define `<Domain>Entry` implementing `RegistryEntry`
 - `def.rs`: define `<Domain>Def` and `<Domain>Input` (often `Static` + `Linked`)
@@ -272,15 +272,15 @@ Run with `--features registry-contracts` if you’re touching collection/build l
 ### 3) Add the compiled spec pipeline (format-neutral)
 
 **Spec definition**:
-- Add domain spec structs to `crates/registry-spec/src/<domain>.rs`.
-- Re-export them in `src/<domain>/spec.rs`.
+- Add domain spec structs to `crates/registry-spec/src/<domain>/mod.rs`.
+- Re-export them in `src/domains/<domain>/spec.rs`.
 
 **Runtime (domain module)**:
 - `loader.rs`: decode embedded blob using `defs::loader`
 - `link.rs`: domain-specific linking/validation/parsing
   - handler-driven domains should use `defs::link::link_by_name`
 
-**Build time (`crates/registry/build/`)**:
+**Build time (`crates/registry/build.rs` + `crates/registry-spec/src/<domain>/compile.rs`)**:
 - parse authoring format (KDL)
 - emit the same `Spec` structs
 - serialize via `postcard` using the shared blob wrapper
@@ -327,7 +327,7 @@ No runtime changes should be required.
 
 ## Practical contributor notes
 
-- Keep parsing/validation in the **domain linker** (`<domain>/link.rs`) unless it is purely authoring-syntax-specific.
+- Keep parsing/validation in the **domain linker** (`src/domains/<domain>/link.rs`) unless it is purely authoring-syntax-specific.
 - Prefer `BuildCtxExt` + `StringCollector` over ad-hoc interning/collection.
 - If you touch shared spec types, update build-time copies and verify postcard compatibility.
 - If you touch linking, ensure failures remain aggregate and deterministic (`link_by_name` report, stable collision ordering).

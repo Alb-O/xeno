@@ -1,5 +1,11 @@
 # Cold-Start Syntax Highlight Fast Path
 
+Status: implemented on `main`  
+Last verified: 2026-02-10
+
+This document was written as a design proposal. The `Problem` section below
+describes pre-implementation behavior.
+
 ## Problem
 
 When a file is first opened, Xeno always delegates parsing to a background task
@@ -42,6 +48,7 @@ The sync fast path fires when ALL of these hold:
 - **Visible**: `ctx.hotness` is `Visible` (actively displayed in a window).
 - **Has language**: `ctx.language_id` is `Some`.
 - **No active task**: `entry.sched.active_task` is `None`.
+- **Not already attempted**: `entry.slot.sync_bootstrap_attempted` is `false`.
 - **Tier allows it**: controlled by a new `TierCfg::sync_bootstrap_timeout`
   field. S-tier gets `Some(Duration::from_millis(5))`, M-tier gets
   `Some(Duration::from_millis(3))`, L-tier gets `None` (never attempt sync —
@@ -60,7 +67,8 @@ wasted work. This is acceptable because:
 2. The background task will immediately take over and parse with the full tier
    timeout (500 ms for S, 1200 ms for M).
 3. The fast path fires only once per document (bootstrap). Subsequent edits
-   use the existing sync incremental path (`note_edit_incremental`).
+   use the existing sync incremental path (`note_edit_incremental`), and
+   repeated bootstrap retries are prevented by `sync_bootstrap_attempted`.
 
 A future improvement (item #3 in the comparison: `ts_parser_parse_with_options`
 progress callback) would let the sync attempt preserve parser state for the
@@ -114,7 +122,6 @@ if is_bootstrap && is_visible {
         let sync_opts = SyntaxOptions {
             parse_timeout: sync_timeout,
             injections: cfg.injections,
-            build_locals: cfg.build_locals,
         };
         match self.engine.parse(
             ctx.content.slice(..),
@@ -215,7 +222,8 @@ it eliminates a visible flash of unhighlighted text.
 
 | File | Change |
 |------|--------|
-| `crates/editor/src/syntax_manager/mod.rs` | Add `sync_bootstrap_timeout` to `TierCfg`, sync attempt in `ensure_syntax` |
+| `crates/editor/src/syntax_manager/policy.rs` | Add `sync_bootstrap_timeout` to `TierCfg` and tier defaults |
+| `crates/editor/src/syntax_manager/ensure.rs` | Add sync bootstrap attempt in `ensure_syntax` |
 | `crates/editor/src/syntax_manager/invariants.rs` | New invariant test for sync bootstrap gating |
 
 ## Testing

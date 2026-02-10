@@ -104,7 +104,7 @@
 //! - Cancels if stale (revision changed or layer id invalid).
 //! - Ends on mouse release.
 //!
-//! # Concurrency and ordering
+//! # Concurrency & ordering
 //!
 //! No internal multithreading is assumed in this subsystem; ordering constraints are about event sequencing and state mutation.
 //!
@@ -116,7 +116,7 @@
 //! `layout_revision`: must increment on structural changes (split creation, view removal, layer clear).
 //! - Enforced in: `increment_revision` calls in `splits.rs` (split apply) and `separators.rs` (resize structural changes).
 //!
-//! # Failure modes and recovery
+//! # Failure modes & recovery
 //!
 //! - Split preflight failure (`SplitError::ViewNotFound`, `SplitError::AreaTooSmall`):
 //!   Recovery: do not mutate layout; do not allocate buffers; return no-op to caller.

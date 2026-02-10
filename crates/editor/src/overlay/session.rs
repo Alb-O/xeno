@@ -45,12 +45,12 @@
 //! - Cancel: [`crate::overlay::OverlayManager::close`] runs `session.restore_all`, then teardown.
 //! - Teardown: [`crate::overlay::session::OverlaySession::teardown`] (idempotent resource cleanup).
 //!
-//! # Concurrency and ordering
+//! # Concurrency & ordering
 //!
 //! - Single-threaded UI: Most overlay operations run on the main UI thread.
 //! - Async commit: [`crate::overlay::OverlayController::on_commit`] returns a future, allowing async operations (LSP rename) before cleanup.
 //!
-//! # Failure modes and recovery
+//! # Failure modes & recovery
 //!
 //! - Missing anchor: [`crate::overlay::spec::RectPolicy::Below`] returns `None` if the target role is missing; host skips that window.
 //! - Stale restore: `restore_all` skips buffers with version mismatches to protect user edits.

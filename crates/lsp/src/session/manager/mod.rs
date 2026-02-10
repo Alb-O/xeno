@@ -70,13 +70,13 @@
 //! - Running: didOpen/didChange/didSave/didClose flow through [`crate::sync::DocumentSync`]. Router updates diagnostics/progress and services server-initiated requests.
 //! - Stopped/Crashed: Transport emits status; router removes server from [`crate::registry::Registry`] and clears progress. Next operation will start a new server instance.
 //!
-//! # Concurrency and ordering
+//! # Concurrency & ordering
 //!
 //! - Registry startup ordering: [`crate::registry::Registry`] must ensure only one `transport.start()` runs for a given `(language, root_path)` key at a time. Waiters must block on the inflight gate and then re-check the `RegistryState`.
 //! - Router ordering: [`crate::session::manager::LspManager`] router must process events in the order received from the transport receiver. Server-initiated requests must be handled inline; do not spawn per-request tasks that reorder replies.
 //! - Document versioning: [`crate::document::DocumentStateManager`] versions must be monotonic per URI. When barriers are used, [`crate::sync::DocumentSync`] must only ack_change after the barrier is resolved.
 //!
-//! # Failure modes and recovery
+//! # Failure modes & recovery
 //!
 //! - Duplicate startup attempt: Recovery: singleflight blocks duplicates; waiters reuse the leader's handle.
 //! - Server crash or stop: Recovery: router removes server; subsequent operation re-starts server via [`crate::registry::Registry`].

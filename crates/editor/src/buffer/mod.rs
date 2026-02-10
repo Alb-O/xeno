@@ -36,13 +36,20 @@
 //! 3. Mutation: `Buffer` calls [`DocumentHandle::with_mut`] to apply edits.
 //! 4. Notification: Document changes trigger version bumps and event emission.
 //!
-//! # Concurrency and ordering
+//! # Lifecycle
+//!
+//! 1. Creation: `Buffer::new` creates a view over a fresh [`crate::core::document::Document`].
+//! 2. Split: `Buffer::clone_for_split` creates additional views over the same document.
+//! 3. Editing: input handlers mutate document state through [`DocumentHandle`].
+//! 4. Disposal: dropping a buffer releases only view-local state; document lifetime follows shared ownership.
+//!
+//! # Concurrency & ordering
 //!
 //! - Multi-view consistency: Edits to a shared document are immediately visible to all buffers.
 //! - Lock ordering: Always acquire document locks for the shortest possible duration.
 //! - Thread-safety: `Document` is wrapped in `Arc<RwLock<Document>>` inside `DocumentHandle`.
 //!
-//! # Failure modes and recovery
+//! # Failure modes & recovery
 //!
 //! - Readonly violation: Edits to readonly documents/buffers return `EditError`.
 //! - Deadlock prevention: Re-entrant lock attempts trigger a controlled panic via `LockGuard`.

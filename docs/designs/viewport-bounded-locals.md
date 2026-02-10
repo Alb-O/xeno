@@ -1,5 +1,8 @@
 # Plan: Viewport-bounded locals (Neovim-style deferred approach)
 
+Status: archived proposal (not implemented on `main`)  
+Last verified: 2026-02-10
+
 ## Context
 
 The previous plan (skip locals for L-tier files via `build_locals: bool`) showed no measurable performance improvement for large files like `miniaudio.h`. Investigation revealed that Neovim doesn't implement `@local.reference` resolution at all — its highlighting is pure pattern matching.
@@ -8,14 +11,15 @@ Rather than a binary on/off flag, this plan implements **viewport-bounded locals
 
 **Graceful degradation is unchanged:** when `Locals` is empty or covers less than the viewport, `lookup_reference` returns `None` for uncovered references. The highlighter falls back to generic highlights (e.g. `(identifier) @variable`). The visual difference is minimal.
 
-### What exists already (from previous implementation)
+### Current state (reality check)
 
-These changes are already landed on `main` and will be preserved:
-- `build_locals_for_layer` as a standalone function in `tmp/tree-house/highlighter/src/locals.rs`
-- `Syntax::build_locals()` and `Syntax::new_without_locals()` on tree-house
-- `Syntax::new()` delegating to `new_without_locals + build_locals`
-- Removal of `run_local_query` call from `parse.rs` (locals reset to default after parse)
-- `[patch]` in `Cargo.toml` for local tree-house
+- `build_locals_for_layer` exists as a standalone helper in `tmp/tree-house/highlighter/src/locals.rs`.
+- `Syntax::new_without_locals()` exists, but `Syntax::build_locals()` still runs full-range locals (no range parameter yet).
+- `Syntax::new()` still delegates to `new_without_locals + build_locals`.
+- The full viewport-first syntax pipeline moved toward sealed-window parsing and repair (`TaskKind::ViewportParse`) rather than this locals-specific plan.
+
+The sections below are kept as a proposal reference and are not a description
+of current behavior.
 
 ## Changes
 
@@ -133,13 +137,13 @@ pub fn ensure_locals(
 
 ### Part 3: Xeno syntax_manager — remove `build_locals` flag, add `ensure_locals`
 
-**File: `crates/editor/src/syntax_manager/mod.rs`**
+**Files: `crates/editor/src/syntax_manager/policy.rs`, `crates/editor/src/syntax_manager/types.rs`, `crates/editor/src/syntax_manager/ensure.rs`**
 
-Remove `build_locals: bool` from `TierCfg` (lines 163-164, 206, 216, 226).
+Remove `build_locals: bool` from `TierCfg`.
 
-Remove `build_locals: bool` from `OptKey` (line 256).
+Remove `build_locals: bool` from `OptKey`.
 
-Remove `build_locals` from all `SyntaxOptions` construction sites (lines 1150-1154, 806-809).
+Remove `build_locals` from all `SyntaxOptions` construction sites.
 
 Add `ensure_locals` method:
 
@@ -207,17 +211,17 @@ for (doc_id, (viewport_end_byte, content)) in &doc_viewport_end {
 
 Note: `last_viewport_height` is 0 on the first render frame (set during rendering at `render/buffer/viewport/ops.rs:33`). This means locals aren't built on frame 1, but the tree isn't available yet either (background parse). On frame 2+, both the tree and viewport height are available.
 
-## Files modified
+## Proposed files
 
 | File | Change |
 |------|--------|
 | `tmp/tree-house/highlighter/src/locals.rs` | Add `range: Range<u32>` param to `build_locals_for_layer` |
 | `tmp/tree-house/highlighter/src/lib.rs` | Add `range` param to `build_locals`, update `Syntax::new()` |
 | `crates/language/src/syntax/mod.rs` | Remove `build_locals` from `SyntaxOptions`, add `locals_byte_end` + `ensure_locals` to `Syntax` |
-| `crates/editor/src/syntax_manager/mod.rs` | Remove `build_locals` from `TierCfg`/`OptKey`, add `SyntaxManager::ensure_locals` |
+| `crates/editor/src/syntax_manager/{policy.rs,types.rs,ensure.rs}` | Remove `build_locals` from scheduler option keys and add `SyntaxManager::ensure_locals` |
 | `crates/editor/src/impls/lifecycle/ops.rs` | Add viewport-bounded locals pass after `ensure_syntax` loop |
 
-## Verification
+## Verification (if revived)
 
 1. `cd tmp/tree-house && cargo test -p tree-house` — all fixture tests must pass (`Syntax::new()` still builds full-range locals).
 
