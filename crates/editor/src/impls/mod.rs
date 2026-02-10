@@ -208,6 +208,9 @@ pub(crate) struct EditorState {
 	/// Deferred cursor position to apply after file loads (line, column).
 	pub(crate) deferred_goto: Option<(usize, usize)>,
 
+	/// Whether the asynchronous LSP catalog load has been applied.
+	pub(crate) lsp_catalog_ready: bool,
+
 	/// Render cache for efficient viewport rendering.
 	pub(crate) render_cache: crate::render::cache::RenderCache,
 }
@@ -340,6 +343,7 @@ impl Editor {
 				msg_rx,
 				loading_file: None,
 				deferred_goto: None,
+				lsp_catalog_ready: false,
 				render_cache: crate::render::cache::RenderCache::new(),
 			},
 		}

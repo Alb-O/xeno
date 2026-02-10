@@ -2,7 +2,7 @@ use std::io::{self, Write};
 
 use termina::escape::csi::{Csi, Cursor};
 use termina::{PlatformTerminal, Terminal as _};
-use xeno_editor::Editor;
+use xeno_editor::{Editor, TerminalConfig};
 use xeno_editor::runtime::CursorStyle;
 use xeno_registry::HookEventData;
 use xeno_registry::hooks::{HookContext, emit as emit_hook, emit_sync_with as emit_hook_sync_with};
@@ -10,14 +10,16 @@ use xeno_tui::Terminal;
 
 use crate::backend::TerminaBackend;
 use crate::terminal::{
-	coalesce_resize_events, disable_terminal_features, enable_terminal_features, install_panic_hook,
+	coalesce_resize_events, disable_terminal_features_with_config,
+	enable_terminal_features_with_config, install_panic_hook_with_config,
 };
 
 /// Runs the editor main loop.
 pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 	let mut platform_terminal = PlatformTerminal::new()?;
-	install_panic_hook(&mut platform_terminal);
-	enable_terminal_features(&mut platform_terminal)?;
+	let terminal_config = TerminalConfig::detect();
+	install_panic_hook_with_config(&mut platform_terminal, terminal_config);
+	enable_terminal_features_with_config(&mut platform_terminal, terminal_config)?;
 	let events = platform_terminal.event_reader();
 
 	let backend = TerminaBackend::new(platform_terminal);
@@ -29,6 +31,7 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 
 	let mut last_cursor_style: Option<Cursor> = None;
 	let mut dir = editor.pump().await;
+	dir.needs_redraw = true;
 
 	let result: io::Result<()> = async {
 		loop {
@@ -88,7 +91,7 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 	emit_hook(&HookContext::new(HookEventData::EditorQuit)).await;
 
 	let terminal_inner = terminal.backend_mut().terminal_mut();
-	let cleanup_result = disable_terminal_features(terminal_inner);
+	let cleanup_result = disable_terminal_features_with_config(terminal_inner, terminal_config);
 
 	result.and(cleanup_result)
 }

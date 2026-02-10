@@ -195,13 +195,15 @@ impl Editor {
 		use std::collections::HashSet;
 		use std::path::PathBuf;
 
-		let loading = self.state.loading_file.as_ref().map(|p| {
-			p.canonicalize()
-				.unwrap_or_else(|_| std::env::current_dir().unwrap_or_default().join(p))
-		});
+		let cwd = std::env::current_dir().unwrap_or_default();
+		let loading = self
+			.state
+			.loading_file
+			.clone()
+			.map(|path| if path.is_absolute() { path } else { cwd.join(path) });
 
 		let mut seen_docs = HashSet::new();
-		let specs: Vec<(PathBuf, String, String)> = self
+		let specs: Vec<(PathBuf, String, ropey::Rope)> = self
 			.state
 			.core
 			.buffers
@@ -214,9 +216,11 @@ impl Editor {
 				}
 
 				let path = buffer.path()?;
-				let abs_path = path
-					.canonicalize()
-					.unwrap_or_else(|_| std::env::current_dir().unwrap_or_default().join(path));
+				let abs_path = if path.is_absolute() {
+					path.clone()
+				} else {
+					cwd.join(&path)
+				};
 
 				if loading.as_ref().is_some_and(|p| p == &abs_path) {
 					return None;
@@ -224,7 +228,7 @@ impl Editor {
 
 				let language = buffer.file_type()?;
 				self.state.lsp.registry().get_config(&language)?;
-				let content = buffer.with_doc(|doc| doc.content().to_string());
+				let rope = buffer.with_doc(|doc| doc.content().clone());
 
 				let version = buffer.with_doc(|doc| doc.version());
 				let supports_incremental = self
@@ -242,7 +246,7 @@ impl Editor {
 					version,
 				);
 
-				Some((abs_path, language, content))
+				Some((abs_path, language, rope))
 			})
 			.collect();
 
@@ -251,7 +255,26 @@ impl Editor {
 			let sync = self.state.lsp.sync_clone();
 
 			tokio::spawn(async move {
-				for (path, language, content) in specs {
+				for (path, language, rope) in specs {
+					if let Some(uri) = xeno_lsp::uri_from_path(&path)
+						&& sync.documents().is_opened(&uri)
+					{
+						continue;
+					}
+
+					let content = match tokio::task::spawn_blocking(move || rope.to_string()).await {
+						Ok(content) => content,
+						Err(e) => {
+							tracing::warn!(
+								path = %path.display(),
+								language = %language,
+								error = %e,
+								"LSP snapshot conversion failed"
+							);
+							continue;
+						}
+					};
+
 					if let Err(e) = sync.open_document_text(&path, &language, content).await {
 						tracing::warn!(path = %path.display(), language, error = %e, "Background LSP init failed");
 					}
