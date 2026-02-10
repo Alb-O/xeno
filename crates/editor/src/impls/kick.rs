@@ -37,16 +37,35 @@ impl Editor {
 		tokio::spawn(async move {
 			match tokio::fs::read_to_string(&path).await {
 				Ok(content) => {
-					let rope = ropey::Rope::from_str(&normalize_to_lf(content));
-					let readonly = !is_writable(&path);
-					send(
-						&tx,
-						IoMsg::FileLoaded {
-							path,
-							rope,
-							readonly,
-						},
-					);
+					let path_for_build = path.clone();
+					let built = tokio::task::spawn_blocking(move || {
+						let rope = ropey::Rope::from_str(&normalize_to_lf(content));
+						let readonly = !is_writable(&path_for_build);
+						(rope, readonly)
+					})
+					.await;
+
+					match built {
+						Ok((rope, readonly)) => {
+							send(
+								&tx,
+								IoMsg::FileLoaded {
+									path,
+									rope,
+									readonly,
+								},
+							);
+						}
+						Err(e) => {
+							send(
+								&tx,
+								IoMsg::LoadFailed {
+									path,
+									error: std::io::Error::new(std::io::ErrorKind::Other, e.to_string()),
+								},
+							);
+						}
+					}
 				}
 				Err(error) => {
 					send(&tx, IoMsg::LoadFailed { path, error });
@@ -66,15 +85,27 @@ impl Editor {
 		let tx = self.msg_tx();
 
 		tokio::spawn(async move {
-			let server_defs = match xeno_runtime_language::load_lsp_configs() {
-				Ok(defs) => defs,
-				Err(e) => {
-					tracing::warn!(error = %e, "Failed to load LSP configs");
+			let parsed = tokio::task::spawn_blocking(|| {
+				let server_defs = xeno_runtime_language::load_lsp_configs()
+					.map_err(|e| format!("failed to load LSP configs: {e}"))?;
+				let lang_mapping = xeno_runtime_language::language_db().lsp_mapping();
+				Ok::<_, String>((server_defs, lang_mapping))
+			})
+			.await;
+
+			let (server_defs, lang_mapping) = match parsed {
+				Ok(Ok(pair)) => pair,
+				Ok(Err(error)) => {
+					tracing::warn!(error = %error, "Failed to load LSP configs");
+					send(&tx, LspMsg::CatalogReady);
+					return;
+				}
+				Err(error) => {
+					tracing::warn!(error = %error, "Failed to join LSP catalog loader");
 					send(&tx, LspMsg::CatalogReady);
 					return;
 				}
 			};
-			let lang_mapping = xeno_runtime_language::language_db().lsp_mapping();
 
 			let server_map: std::collections::HashMap<_, _> =
 				server_defs.iter().map(|s| (s.name.as_str(), s)).collect();

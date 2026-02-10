@@ -124,11 +124,14 @@ impl Editor {
 
 			// Initialize standard LSP session
 			if let Some(language) = &file_type
+				&& self.state.lsp_catalog_ready
 				&& self.state.lsp.registry().get_config(language).is_some()
 			{
-				let abs_path = path
-					.canonicalize()
-					.unwrap_or_else(|_| std::env::current_dir().unwrap_or_default().join(&path));
+				let lsp_path = if path.is_absolute() {
+					path.clone()
+				} else {
+					std::env::current_dir().unwrap_or_default().join(&path)
+				};
 
 				let version = buffer.with_doc(|doc| doc.version());
 				let supports_incremental = self
@@ -140,7 +143,7 @@ impl Editor {
 				self.state.lsp.sync_manager_mut().on_doc_open(
 					doc_id,
 					crate::lsp::sync_manager::LspDocumentConfig {
-						path: abs_path.clone(),
+						path: lsp_path.clone(),
 						language: language.clone(),
 						supports_incremental,
 					},
@@ -148,11 +151,32 @@ impl Editor {
 				);
 
 				let sync = self.state.lsp.sync_clone();
-				let content = rope.to_string();
+				let path_for_lsp = lsp_path;
+				let rope_for_lsp = rope.clone();
 				let language = language.clone();
 				tokio::spawn(async move {
-					if let Err(e) = sync.open_document_text(&abs_path, &language, content).await {
-						tracing::warn!(path = %abs_path.display(), language, error = %e, "Async LSP init failed");
+					if let Some(uri) = xeno_lsp::uri_from_path(&path_for_lsp)
+						&& sync.documents().is_opened(&uri)
+					{
+						return;
+					}
+
+					let content = match tokio::task::spawn_blocking(move || rope_for_lsp.to_string()).await
+					{
+							Ok(content) => content,
+							Err(e) => {
+								tracing::warn!(
+									path = %path_for_lsp.display(),
+									language = %language,
+									error = %e,
+									"LSP snapshot conversion failed"
+								);
+							return;
+						}
+					};
+
+					if let Err(e) = sync.open_document_text(&path_for_lsp, &language, content).await {
+						tracing::warn!(path = %path_for_lsp.display(), language, error = %e, "Async LSP init failed");
 					}
 				});
 			}

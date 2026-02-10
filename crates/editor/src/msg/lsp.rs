@@ -18,6 +18,7 @@ impl LspMsg {
 		match self {
 			Self::CatalogReady => {
 				tracing::debug!("LSP catalog ready, initializing for open buffers");
+				editor.state.lsp_catalog_ready = true;
 				editor.kick_lsp_init_for_open_buffers();
 				Dirty::NONE
 			}
