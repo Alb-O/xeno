@@ -6,11 +6,14 @@ use xeno_primitives::range::CharIdx;
 use xeno_registry::notifications::keys;
 
 use crate::buffer::ViewId;
+#[cfg(feature = "lsp")]
+use crate::msg::OverlayMsg;
 use crate::overlay::{
 	CloseReason, OverlayContext, OverlayController, OverlaySession, OverlayUiSpec, RectPolicy,
 };
 use crate::window::GutterSelector;
 
+#[cfg_attr(not(feature = "lsp"), allow(dead_code))]
 pub struct RenameOverlay {
 	target: ViewId,
 	position: CharIdx,
@@ -76,15 +79,55 @@ impl OverlayController for RenameOverlay {
 			.trim_end_matches('\n')
 			.trim()
 			.to_string();
-		let target_buffer = self.target;
-		let position = self.position;
+		if new_name.is_empty() {
+			return Box::pin(async {});
+		}
 
-		Box::pin(async move {
-			if new_name.is_empty() {
-				return;
+		#[cfg(feature = "lsp")]
+		{
+			let Some(buffer) = ctx.buffer(self.target) else {
+				return Box::pin(async {});
+			};
+			if buffer.is_readonly() {
+				ctx.notify(keys::BUFFER_READONLY.into());
+				return Box::pin(async {});
 			}
-			apply_rename(ctx, target_buffer, position, new_name).await;
-		})
+
+			let Some((client, uri, _)) = ctx.lsp_prepare_position_request(buffer).ok().flatten()
+			else {
+				ctx.notify(keys::warn("Rename not supported for this buffer"));
+				return Box::pin(async {});
+			};
+
+			let encoding = client.offset_encoding();
+			let Some(pos) = buffer.with_doc(|doc| {
+				xeno_lsp::char_to_lsp_position(doc.content(), self.position, encoding)
+			}) else {
+				ctx.notify(keys::error("Invalid rename position"));
+				return Box::pin(async {});
+			};
+
+			let tx = ctx.msg_tx();
+			tokio::spawn(async move {
+				let msg = match client.rename(uri, pos, new_name).await {
+					Ok(Some(edit)) => OverlayMsg::ApplyWorkspaceEdit(edit),
+					Ok(None) => {
+						OverlayMsg::Notify(keys::info("Rename not supported for this buffer"))
+					}
+					Err(err) => OverlayMsg::Notify(keys::error(err.to_string())),
+				};
+
+				let _ = tx.send(msg.into());
+			});
+
+			return Box::pin(async {});
+		}
+
+		#[cfg(not(feature = "lsp"))]
+		{
+			ctx.notify(keys::warn("LSP not enabled"));
+			Box::pin(async {})
+		}
 	}
 
 	fn on_close(
@@ -93,53 +136,5 @@ impl OverlayController for RenameOverlay {
 		_session: &mut OverlaySession,
 		_reason: CloseReason,
 	) {
-	}
-}
-
-async fn apply_rename(
-	ctx: &mut dyn OverlayContext,
-	buffer_id: ViewId,
-	position: usize,
-	new_name: String,
-) {
-	#[cfg(feature = "lsp")]
-	{
-		let Some(buffer) = ctx.buffer(buffer_id) else {
-			return;
-		};
-		if buffer.is_readonly() {
-			ctx.notify(keys::BUFFER_READONLY.into());
-			return;
-		}
-		let Some((client, uri, _)) = ctx.lsp_prepare_position_request(buffer).ok().flatten() else {
-			ctx.notify(keys::warn("Rename not supported for this buffer"));
-			return;
-		};
-		let encoding = client.offset_encoding();
-		let Some(pos) = buffer
-			.with_doc(|doc| xeno_lsp::char_to_lsp_position(doc.content(), position, encoding))
-		else {
-			ctx.notify(keys::error("Invalid rename position"));
-			return;
-		};
-
-		match client.rename(uri, pos, new_name).await {
-			Ok(Some(edit)) => {
-				if let Err(err) = ctx.apply_workspace_edit(edit).await {
-					ctx.notify(keys::error(err.to_string()));
-				}
-			}
-			Ok(None) => {
-				ctx.notify(keys::info("Rename not supported for this buffer"));
-			}
-			Err(err) => {
-				ctx.notify(keys::error(err.to_string()));
-			}
-		}
-	}
-	#[cfg(not(feature = "lsp"))]
-	{
-		let _ = (buffer_id, position, new_name);
-		ctx.notify(keys::warn("LSP not enabled"));
 	}
 }

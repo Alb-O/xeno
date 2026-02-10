@@ -197,3 +197,32 @@ impl Editor {
 		true
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use termina::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, Modifiers};
+
+	use crate::impls::Editor;
+
+	fn key_enter() -> KeyEvent {
+		KeyEvent {
+			code: KeyCode::Enter,
+			modifiers: Modifiers::NONE,
+			kind: KeyEventKind::Press,
+			state: KeyEventState::NONE,
+		}
+	}
+
+	#[tokio::test]
+	async fn enter_sets_pending_commit_and_pump_consumes() {
+		let mut editor = Editor::new_scratch();
+		editor.handle_window_resize(100, 40);
+		assert!(editor.open_command_palette());
+
+		let _ = editor.handle_key(key_enter()).await;
+		assert!(editor.frame().pending_overlay_commit);
+
+		let _ = editor.pump().await;
+		assert!(!editor.state.overlay_system.interaction.is_open());
+	}
+}

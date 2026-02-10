@@ -1,29 +1,97 @@
+use std::collections::HashMap;
+
 use xeno_primitives::Mode;
 use xeno_tui::layout::Rect;
-use xeno_tui::widgets::{Block, Borders};
 
 use super::CloseReason;
 use super::session::{OverlayPane, OverlaySession};
 use crate::buffer::ViewId;
 use crate::impls::{Editor, FocusReason, FocusTarget};
-use crate::window::FloatingStyle;
 
 /// Low-level manager for UI resources used by overlays.
 ///
 /// `OverlayHost` handles the creation and destruction of scratch buffers and
-/// floating windows required for a modal interaction session.
+/// pane metadata required for a modal interaction session.
 pub struct OverlayHost;
 
 impl OverlayHost {
-	fn compute_content_rect(rect: Rect, style: &FloatingStyle) -> Rect {
-		let mut block = Block::default().padding(style.padding);
-		if style.border {
-			block = block.borders(Borders::ALL).border_type(style.border_type);
-			if let Some(title) = &style.title {
-				block = block.title(title.as_str());
+	pub fn reflow_session(
+		ed: &mut Editor,
+		controller: &dyn super::OverlayController,
+		session: &mut OverlaySession,
+	) -> bool {
+		let spec = controller.ui_spec(ed);
+		let (w, h) = match (ed.state.viewport.width, ed.state.viewport.height) {
+			(Some(w), Some(h)) => (w, h),
+			_ => return false,
+		};
+		let screen = Rect::new(0, 0, w, h);
+
+		let mut roles = HashMap::new();
+		let input_rect = match spec.rect.resolve_opt(screen, &roles) {
+			Some(rect) => rect,
+			None => return false,
+		};
+		roles.insert(super::WindowRole::Input, input_rect);
+
+		let mut resolved: HashMap<
+			super::WindowRole,
+			(
+				Rect,
+				crate::window::FloatingStyle,
+				crate::window::GutterSelector,
+				bool,
+				bool,
+			),
+		> = HashMap::new();
+		resolved.insert(
+			super::WindowRole::Input,
+			(input_rect, spec.style, spec.gutter, true, true),
+		);
+
+		for win_spec in spec.windows {
+			debug_assert!(
+				!resolved.contains_key(&win_spec.role),
+				"OverlayUiSpec contains duplicate WindowRole during reflow: {:?}",
+				win_spec.role
+			);
+			let Some(rect) = win_spec.rect.resolve_opt(screen, &roles) else {
+				continue;
+			};
+			roles.insert(win_spec.role, rect);
+			resolved.insert(
+				win_spec.role,
+				(
+					rect,
+					win_spec.style,
+					win_spec.gutter,
+					win_spec.dismiss_on_blur,
+					win_spec.sticky,
+				),
+			);
+		}
+
+		for pane in &mut session.panes {
+			match resolved.get(&pane.role) {
+				Some((rect, style, gutter, dismiss_on_blur, sticky)) => {
+					pane.rect = *rect;
+					pane.content_rect = crate::overlay::geom::pane_inner_rect(*rect, style);
+					pane.style = style.clone();
+					pane.gutter = *gutter;
+					pane.dismiss_on_blur = *dismiss_on_blur;
+					pane.sticky = *sticky;
+				}
+				None if pane.role == super::WindowRole::Input => {
+					return false;
+				}
+				None => {
+					pane.rect = Rect::new(0, 0, 0, 0);
+					pane.content_rect = Rect::new(0, 0, 0, 0);
+				}
 			}
 		}
-		block.inner(rect)
+
+		true
 	}
 
 	/// Allocates a new scratch buffer for overlay input or display.
@@ -85,7 +153,7 @@ impl OverlayHost {
 			role: super::WindowRole::Input,
 			buffer: input_buffer,
 			rect: input_rect,
-			content_rect: Self::compute_content_rect(input_rect, &spec.style),
+			content_rect: crate::overlay::geom::pane_inner_rect(input_rect, &spec.style),
 			style: spec.style,
 			gutter: spec.gutter,
 			dismiss_on_blur: true,
@@ -94,6 +162,11 @@ impl OverlayHost {
 
 		// 3. Resolve & Allocate Auxiliary Windows
 		for win_spec in spec.windows {
+			debug_assert!(
+				!roles.contains_key(&win_spec.role),
+				"OverlayUiSpec contains duplicate WindowRole during setup: {:?}",
+				win_spec.role
+			);
 			// Resolve rect FIRST to avoid wasteful buffer allocation
 			let rect = match win_spec.rect.resolve_opt(screen, &roles) {
 				Some(r) => r,
@@ -116,7 +189,7 @@ impl OverlayHost {
 				role: win_spec.role,
 				buffer: buffer_id,
 				rect,
-				content_rect: Self::compute_content_rect(rect, &win_spec.style),
+				content_rect: crate::overlay::geom::pane_inner_rect(rect, &win_spec.style),
 				style: win_spec.style,
 				gutter: win_spec.gutter,
 				dismiss_on_blur: win_spec.dismiss_on_blur,

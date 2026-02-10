@@ -196,11 +196,13 @@ impl Editor {
 		use std::path::PathBuf;
 
 		let cwd = std::env::current_dir().unwrap_or_default();
-		let loading = self
-			.state
-			.loading_file
-			.clone()
-			.map(|path| if path.is_absolute() { path } else { cwd.join(path) });
+		let loading = self.state.loading_file.clone().map(|path| {
+			if path.is_absolute() {
+				path
+			} else {
+				cwd.join(path)
+			}
+		});
 
 		let mut seen_docs = HashSet::new();
 		let specs: Vec<(PathBuf, String, ropey::Rope)> = self
@@ -262,7 +264,8 @@ impl Editor {
 						continue;
 					}
 
-					let content = match tokio::task::spawn_blocking(move || rope.to_string()).await {
+					let content = match tokio::task::spawn_blocking(move || rope.to_string()).await
+					{
 						Ok(content) => content,
 						Err(e) => {
 							tracing::warn!(

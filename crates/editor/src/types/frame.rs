@@ -18,6 +18,9 @@ pub struct FrameState {
 	/// Set when a `CloseModal { Commit }` effect arrives during the
 	/// synchronous flush loop; consumed by [`crate::runtime::Editor::pump`].
 	pub pending_overlay_commit: bool,
+	/// Workspace edits queued from async overlay tasks.
+	#[cfg(feature = "lsp")]
+	pub pending_workspace_edits: Vec<xeno_lsp::lsp_types::WorkspaceEdit>,
 	/// Last tick timestamp.
 	pub last_tick: std::time::SystemTime,
 	/// Buffers with pending content changes for `BufferChange` hooks.
@@ -32,6 +35,8 @@ impl Default for FrameState {
 			needs_redraw: false,
 			pending_quit: false,
 			pending_overlay_commit: false,
+			#[cfg(feature = "lsp")]
+			pending_workspace_edits: Vec::new(),
 			last_tick: std::time::SystemTime::now(),
 			dirty_buffers: HashSet::new(),
 			sticky_views: HashSet::new(),

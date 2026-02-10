@@ -5,7 +5,6 @@
 use termina::event::MouseEventKind;
 use xeno_input::input::KeyResult;
 use xeno_primitives::{ScrollDirection, Selection};
-use xeno_tui::widgets::{Block, Borders};
 
 use crate::impls::{Editor, FocusReason, FocusTarget};
 use crate::window::Window;
@@ -83,7 +82,9 @@ impl Editor {
 				return false;
 			}
 		} else if ui.focused_panel_id().is_some() {
-			ui.apply_requests(vec![crate::ui::UiRequest::Focus(crate::ui::UiFocus::editor())]);
+			ui.apply_requests(vec![crate::ui::UiRequest::Focus(
+				crate::ui::UiFocus::editor(),
+			)]);
 		}
 		if ui.take_wants_redraw() {
 			self.state.frame.needs_redraw = true;
@@ -220,16 +221,7 @@ impl Editor {
 			});
 
 		if let Some((overlay_buffer, overlay_rect, overlay_style)) = overlay_hit {
-			let mut block = Block::default().padding(overlay_style.padding);
-			if overlay_style.border {
-				block = block
-					.borders(Borders::ALL)
-					.border_type(overlay_style.border_type);
-				if let Some(title) = &overlay_style.title {
-					block = block.title(title.as_str());
-				}
-			}
-			let inner = block.inner(overlay_rect);
+			let inner = crate::overlay::geom::pane_inner_rect(overlay_rect, &overlay_style);
 			if inner.width == 0 || inner.height == 0 {
 				return false;
 			}
@@ -469,5 +461,55 @@ impl Editor {
 			height: main_height,
 		};
 		self.state.ui.compute_layout(main_area).doc_area
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use termina::event::{Modifiers, MouseButton, MouseEvent, MouseEventKind};
+
+	use crate::impls::{Editor, FocusTarget};
+
+	fn mouse_down(column: u16, row: u16) -> MouseEvent {
+		MouseEvent {
+			kind: MouseEventKind::Down(MouseButton::Left),
+			column,
+			row,
+			modifiers: Modifiers::NONE,
+		}
+	}
+
+	#[tokio::test]
+	async fn modal_mouse_capture_keeps_overlay_open() {
+		let mut editor = Editor::new_scratch();
+		editor.handle_window_resize(100, 40);
+		assert!(editor.open_command_palette());
+
+		let pane = editor
+			.state
+			.overlay_system
+			.interaction
+			.active
+			.as_ref()
+			.and_then(|active| active.session.panes.first())
+			.expect("overlay pane should exist");
+
+		let mouse = mouse_down(pane.rect.x.saturating_add(1), pane.rect.y.saturating_add(1));
+		let _ = editor.handle_mouse(mouse).await;
+
+		assert!(editor.state.overlay_system.interaction.is_open());
+		assert!(matches!(editor.focus(), FocusTarget::Overlay { .. }));
+	}
+
+	#[tokio::test]
+	async fn click_outside_modal_closes_overlay() {
+		let mut editor = Editor::new_scratch();
+		editor.handle_window_resize(100, 40);
+		assert!(editor.open_command_palette());
+
+		let mouse = mouse_down(0, 0);
+		let _ = editor.handle_mouse(mouse).await;
+
+		assert!(!editor.state.overlay_system.interaction.is_open());
 	}
 }

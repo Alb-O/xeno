@@ -161,8 +161,8 @@ impl Editor {
 						return;
 					}
 
-					let content = match tokio::task::spawn_blocking(move || rope_for_lsp.to_string()).await
-					{
+					let content =
+						match tokio::task::spawn_blocking(move || rope_for_lsp.to_string()).await {
 							Ok(content) => content,
 							Err(e) => {
 								tracing::warn!(
@@ -171,11 +171,14 @@ impl Editor {
 									error = %e,
 									"LSP snapshot conversion failed"
 								);
-							return;
-						}
-					};
+								return;
+							}
+						};
 
-					if let Err(e) = sync.open_document_text(&path_for_lsp, &language, content).await {
+					if let Err(e) = sync
+						.open_document_text(&path_for_lsp, &language, content)
+						.await
+					{
 						tracing::warn!(path = %path_for_lsp.display(), language, error = %e, "Async LSP init failed");
 					}
 				});

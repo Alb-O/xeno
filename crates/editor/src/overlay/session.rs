@@ -3,7 +3,7 @@
 //! # Purpose
 //!
 //! - Owns: focus-stealing modal interactions ([`crate::overlay::OverlayManager`]), passive contextual UI layers ([`crate::overlay::OverlayLayers`]), and shared type-erased state ([`crate::overlay::OverlayStore`]).
-//! - Does not own: floating window rendering (owned by window subsystem), LSP request logic.
+//! - Does not own: scene-layer rendering execution (owned by the UI compositor), LSP request logic.
 //! - Source of truth: [`crate::overlay::OverlaySystem`].
 //!
 //! # Mental model
@@ -31,11 +31,11 @@
 //! # Data flow
 //!
 //! 1. Trigger: Editor calls `interaction.open(controller)`.
-//! 2. Allocation: [`crate::overlay::host::OverlayHost`] resolves spec, creates scratch buffers/windows, and focuses input.
+//! 2. Allocation: [`crate::overlay::host::OverlayHost`] resolves spec, creates scratch buffers/panes, and focuses input.
 //! 3. Events: Editor emits [`crate::overlay::LayerEvent`] (CursorMoved, etc.) via `notify_overlay_event`.
 //! 4. Update: Input changes in `session.input` call `controller.on_input_changed` with an [`crate::overlay::OverlayContext`].
 //! 5. Restoration: On cancel/blur, `session.restore_all` reverts previews (version-aware) via the context.
-//! 6. Teardown: `session.teardown` closes all windows and removes buffers.
+//! 6. Teardown: `session.teardown` removes scratch buffers and clears pane metadata.
 //!
 //! # Lifecycle
 //!
@@ -71,11 +71,11 @@ use xeno_primitives::range::{CharIdx, Range};
 use xeno_primitives::{Mode, Selection};
 use xeno_tui::layout::Rect;
 
+use super::WindowRole;
 use crate::buffer::ViewId;
 use crate::impls::FocusTarget;
 use crate::overlay::OverlayContext;
 use crate::window::{FloatingStyle, GutterSelector};
-use super::WindowRole;
 
 /// Renderable pane metadata for a modal overlay session.
 pub struct OverlayPane {

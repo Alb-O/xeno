@@ -10,6 +10,7 @@ use crate::buffer::{Buffer, ViewId};
 use crate::window::WindowId;
 
 pub mod controllers;
+pub(crate) mod geom;
 pub mod host;
 pub mod session;
 pub mod spec;
@@ -112,7 +113,7 @@ pub struct OverlayManager {
 
 /// Coupling of a modal session's resources and its behavioral controller.
 pub struct ActiveOverlay {
-	/// Low-level UI resources (buffers, windows) allocated for this interaction.
+	/// Low-level UI resources (buffers, panes) allocated for this interaction.
 	pub session: OverlaySession,
 	/// High-level logic governing the interaction's behavior.
 	pub controller: Box<dyn OverlayController>,
@@ -143,7 +144,7 @@ impl OverlaySystem {
 	/// Creates a new `OverlaySystem` with default layers initialized.
 	///
 	/// Initial layers include:
-	/// - [`controllers::InfoPopupLayer`] for displaying documentation popups.
+	/// - [`controllers::InfoPopupLayer`] for event-driven info popup dismissal.
 	pub fn new() -> Self {
 		let mut layers = OverlayLayers::default();
 		layers.add(Box::new(controllers::InfoPopupLayer));
@@ -193,7 +194,9 @@ pub trait OverlayContext {
 	fn request_redraw(&mut self);
 	/// Queues a command by name.
 	fn queue_command(&mut self, name: &'static str, args: Vec<String>);
-	/// Closes a floating window.
+	/// Returns the async message sender for background results.
+	fn msg_tx(&self) -> crate::msg::MsgSender;
+	/// Closes a floating window (legacy path for non-overlay floating UI).
 	fn close_floating_window(&mut self, window: WindowId);
 	/// Finalizes removal for a buffer.
 	fn finalize_buffer_removal(&mut self, view: ViewId);
@@ -294,6 +297,10 @@ impl OverlayContext for crate::impls::Editor {
 
 	fn queue_command(&mut self, name: &'static str, args: Vec<String>) {
 		self.state.core.workspace.command_queue.push(name, args);
+	}
+
+	fn msg_tx(&self) -> crate::msg::MsgSender {
+		self.msg_tx()
 	}
 
 	fn close_floating_window(&mut self, window: WindowId) {
@@ -525,8 +532,23 @@ impl OverlayManager {
 	}
 
 	/// Called when terminal viewport dimensions change.
-	pub fn on_viewport_changed(&mut self, _ed: &mut crate::impls::Editor) {
-		// TODO: implement reflow logic in host
+	pub fn on_viewport_changed(&mut self, ed: &mut crate::impls::Editor) {
+		let Some(mut active) = self.active.take() else {
+			return;
+		};
+
+		if OverlayHost::reflow_session(ed, &*active.controller, &mut active.session) {
+			ed.state.frame.needs_redraw = true;
+			self.active = Some(active);
+			return;
+		}
+
+		OverlayHost::cleanup_session(
+			ed,
+			&mut *active.controller,
+			active.session,
+			CloseReason::Forced,
+		);
 	}
 }
 

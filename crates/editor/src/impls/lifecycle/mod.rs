@@ -130,6 +130,11 @@ impl Editor {
 			self.state.effects.request_redraw();
 		}
 		self.state.ui = ui;
+
+		let mut interaction = std::mem::take(&mut self.state.overlay_system.interaction);
+		interaction.on_viewport_changed(self);
+		self.state.overlay_system.interaction = interaction;
+
 		self.state.effects.request_redraw();
 		emit_hook_sync_with(
 			&HookContext::new(HookEventData::WindowResize { width, height }),

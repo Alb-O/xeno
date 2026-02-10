@@ -29,7 +29,7 @@ impl Editor {
 		use crate::syntax_manager::{EnsureSyntaxContext, SyntaxHotness};
 
 		let loader = std::sync::Arc::clone(&self.state.config.language_loader);
-		let visible_ids: HashSet<_> = self
+		let mut visible_ids: HashSet<_> = self
 			.state
 			.windows
 			.base_window()
@@ -39,10 +39,24 @@ impl Editor {
 			.chain(self.state.windows.floating_windows().map(|(_, f)| f.buffer))
 			.collect();
 
+		if let Some(active) = self.state.overlay_system.interaction.active.as_ref() {
+			for pane in &active.session.panes {
+				visible_ids.insert(pane.buffer);
+			}
+		}
+
+		if let Some(store) = self.overlays().get::<crate::info_popup::InfoPopupStore>() {
+			for id in store.ids() {
+				if let Some(popup) = store.get(id) {
+					visible_ids.insert(popup.buffer_id);
+				}
+			}
+		}
+
 		let mut doc_hotness = HashMap::new();
 		let mut doc_viewports = HashMap::new();
 
-		for view in self.state.windows.base_window().layout.views() {
+		for &view in &visible_ids {
 			if let Some(buffer) = self.state.core.buffers.get_buffer(view) {
 				let doc_id = buffer.document_id();
 				let viewport = buffer.with_doc(|doc| {
@@ -327,7 +341,6 @@ impl Editor {
 				InvocationResult::Quit | InvocationResult::ForceQuit => return true,
 				_ => {}
 			}
-
 		}
 		false
 	}

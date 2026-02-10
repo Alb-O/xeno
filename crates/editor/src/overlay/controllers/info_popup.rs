@@ -19,13 +19,13 @@ impl OverlayLayer for InfoPopupLayer {
 	}
 
 	fn layout(&self, _ed: &Editor, _screen: Rect) -> Option<Rect> {
-		// InfoPopups manage their own rects in FloatingWindows for now.
-		// We return None here because we are not using the layer's render path yet.
+		// Info popups are rendered by `ui/layers/info_popups.rs`.
+		// This overlay layer is event-only and handles dismissal triggers.
 		None
 	}
 
 	fn render(&self, _ed: &Editor, _frame: &mut Frame, _area: Rect) {
-		// Handled by window manager
+		// Rendering is handled by scene compositor layers.
 	}
 
 	fn on_event(&mut self, ed: &mut Editor, event: &LayerEvent) {

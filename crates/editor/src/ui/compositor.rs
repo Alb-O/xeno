@@ -4,8 +4,8 @@ use xeno_tui::widgets::{Block, Clear};
 
 use crate::impls::Editor;
 use crate::ui::layer::SceneBuilder;
-use crate::ui::scene::{SceneRenderResult, SurfaceKind, SurfaceOp};
 use crate::ui::layers;
+use crate::ui::scene::{SceneRenderResult, SurfaceKind, SurfaceOp};
 
 pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame) {
 	ed.state.frame.needs_redraw = false;
@@ -52,8 +52,20 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame) {
 	let doc_focused = ui.focus.focused().is_editor();
 
 	let mut builder = SceneBuilder::new(area, main_area, doc_area, status_area);
-	builder.push(SurfaceKind::Background, 0, area, SurfaceOp::Background, false);
-	builder.push(SurfaceKind::Document, 10, doc_area, SurfaceOp::Document, true);
+	builder.push(
+		SurfaceKind::Background,
+		0,
+		area,
+		SurfaceOp::Background,
+		false,
+	);
+	builder.push(
+		SurfaceKind::Document,
+		10,
+		doc_area,
+		SurfaceOp::Document,
+		true,
+	);
 	builder.push(
 		SurfaceKind::LegacyFloatingWindows,
 		20,
@@ -123,7 +135,8 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame) {
 			SurfaceOp::OverlayLayers => ed.state.overlay_system.layers.render(ed, frame),
 			SurfaceOp::ModalOverlays => layers::modal_overlays::render(ed, frame, area, &ctx),
 			SurfaceOp::StatusLine => {
-				let status_bg = Block::default().style(Style::default().bg(ctx.theme.colors.popup.bg));
+				let status_bg =
+					Block::default().style(Style::default().bg(ctx.theme.colors.popup.bg));
 				frame.render_widget(status_bg, status_area);
 				frame.render_widget(ed.render_status_line(), status_area);
 			}

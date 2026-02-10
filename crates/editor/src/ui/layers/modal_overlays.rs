@@ -82,15 +82,7 @@ pub fn render(ed: &mut Editor, frame: &mut xeno_tui::Frame, area: Rect, ctx: &Re
 		let Some(rect) = clamp_rect(pane.rect, area) else {
 			continue;
 		};
-
-		let mut block = Block::default().padding(pane.style.padding);
-		if pane.style.border {
-			block = block.borders(Borders::ALL).border_type(pane.style.border_type);
-			if let Some(title) = &pane.style.title {
-				block = block.title(title.as_str());
-			}
-		}
-		let content_area = block.inner(rect);
+		let content_area = crate::overlay::geom::pane_inner_rect(rect, &pane.style);
 		if content_area.width == 0 || content_area.height == 0 {
 			continue;
 		}
@@ -148,7 +140,7 @@ pub fn render(ed: &mut Editor, frame: &mut xeno_tui::Frame, area: Rect, ctx: &Re
 			}
 		}
 
-		let content_area = block.inner(rect);
+		let content_area = crate::overlay::geom::pane_inner_rect(rect, &pane.style);
 		frame.render_widget(block, rect);
 
 		if content_area.width == 0 || content_area.height == 0 {

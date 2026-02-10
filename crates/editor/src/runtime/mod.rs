@@ -62,6 +62,17 @@ impl Editor {
 			self.frame_mut().needs_redraw = true;
 		}
 
+		#[cfg(feature = "lsp")]
+		if !self.state.frame.pending_workspace_edits.is_empty() {
+			let edits = std::mem::take(&mut self.state.frame.pending_workspace_edits);
+			for edit in edits {
+				if let Err(err) = self.apply_workspace_edit(edit).await {
+					self.notify(xeno_registry::notifications::keys::error(err.to_string()));
+				}
+			}
+			self.frame_mut().needs_redraw = true;
+		}
+
 		let needs_redraw = self.frame().needs_redraw;
 
 		let poll_timeout =

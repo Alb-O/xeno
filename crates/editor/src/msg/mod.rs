@@ -20,11 +20,13 @@
 mod dirty;
 mod io;
 mod lsp;
+mod overlay;
 mod theme;
 
 pub use dirty::Dirty;
 pub use io::IoMsg;
 pub use lsp::LspMsg;
+pub use overlay::OverlayMsg;
 pub use theme::ThemeMsg;
 use tokio::sync::mpsc;
 
@@ -47,6 +49,7 @@ pub enum EditorMsg {
 	Theme(ThemeMsg),
 	Io(IoMsg),
 	Lsp(LspMsg),
+	Overlay(OverlayMsg),
 }
 
 impl EditorMsg {
@@ -56,6 +59,7 @@ impl EditorMsg {
 			Self::Theme(msg) => msg.apply(editor),
 			Self::Io(msg) => msg.apply(editor),
 			Self::Lsp(msg) => msg.apply(editor),
+			Self::Overlay(msg) => msg.apply(editor),
 		}
 	}
 }
@@ -75,5 +79,11 @@ impl From<IoMsg> for EditorMsg {
 impl From<LspMsg> for EditorMsg {
 	fn from(msg: LspMsg) -> Self {
 		Self::Lsp(msg)
+	}
+}
+
+impl From<OverlayMsg> for EditorMsg {
+	fn from(msg: OverlayMsg) -> Self {
+		Self::Overlay(msg)
 	}
 }
