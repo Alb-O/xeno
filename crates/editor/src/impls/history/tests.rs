@@ -3,7 +3,7 @@
 use proptest::prelude::*;
 use xeno_primitives::range::CharIdx;
 use xeno_primitives::transaction::Change;
-use xeno_primitives::{EditOrigin, Selection, Transaction, UndoPolicy};
+use xeno_primitives::{EditOrigin, Mode, Selection, Transaction, UndoPolicy};
 
 use super::Editor;
 use crate::buffer::ViewId;
@@ -485,7 +485,7 @@ fn sibling_selection_sync_after_apply() {
 
 proptest! {
 	#[test]
-	fn undo_redo_roundtrip(ops in prop::collection::vec((0usize..100, "[a-z]{1,3}"), 1..20)) {
+fn undo_redo_roundtrip(ops in prop::collection::vec((0usize..100, "[a-z]{1,3}"), 1..20)) {
 		let mut editor = test_editor("");
 		let buffer_id = editor.focused_view();
 		let steps = ops.len();
@@ -578,4 +578,47 @@ proptest! {
 
 		prop_assert_eq!(editor.state.core.undo_manager.undo_len(), expected_groups);
 	}
+}
+
+#[test]
+fn terminal_paste_normalizes_line_endings() {
+	let mut editor = test_editor("");
+	editor.handle_paste("x\r\ny\rz".to_string());
+
+	let content = {
+		let focused = editor.focused_view();
+		editor
+			.state
+			.core
+			.buffers
+			.get_buffer(focused)
+			.expect("focused buffer exists")
+			.with_doc(|doc| doc.content().to_string())
+	};
+
+	assert_eq!(content, "x\ny\nz");
+	assert!(!content.contains('\r'));
+}
+
+#[test]
+fn terminal_paste_is_its_own_undo_step() {
+	let mut editor = test_editor("");
+	editor.set_mode(Mode::Insert);
+	editor.insert_text("A");
+	editor.handle_paste("B\nC".to_string());
+
+	editor.undo();
+
+	let content = {
+		let focused = editor.focused_view();
+		editor
+			.state
+			.core
+			.buffers
+			.get_buffer(focused)
+			.expect("focused buffer exists")
+			.with_doc(|doc| doc.content().to_string())
+	};
+
+	assert_eq!(content, "A");
 }

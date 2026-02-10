@@ -10,6 +10,7 @@ use xeno_registry::HookEventData;
 use xeno_registry::hooks::{HookContext, emit_sync_with as emit_hook_sync_with};
 
 use super::Editor;
+use crate::paste::normalize_to_lf;
 
 impl Editor {
 	/// Initializes the UI layer at editor startup.
@@ -159,8 +160,13 @@ impl Editor {
 
 	/// Handles paste events, delegating to UI or inserting text directly.
 	pub fn handle_paste(&mut self, content: String) {
+		let content = normalize_to_lf(content);
 		let mut ui = std::mem::take(&mut self.state.ui);
-		let handled = ui.handle_paste(self, content.clone());
+		let handled = if ui.focused_panel_id().is_some() {
+			ui.handle_paste(self, content.clone())
+		} else {
+			false
+		};
 		if ui.take_wants_redraw() {
 			self.state.effects.request_redraw();
 		}
@@ -173,7 +179,7 @@ impl Editor {
 			return;
 		}
 
-		self.insert_text(&content);
+		self.paste_text(&content);
 		self.flush_effects();
 	}
 

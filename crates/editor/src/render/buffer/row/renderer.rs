@@ -44,6 +44,22 @@ pub struct RowRenderInput<'a> {
 
 pub struct TextRowRenderer;
 
+fn render_safe_char(ch: char) -> char {
+	if ch == '\n' || ch == '\t' {
+		return ch;
+	}
+
+	if ch.is_ascii_control() {
+		return if ch == '\u{7f}' {
+			'\u{2421}'
+		} else {
+			char::from_u32(0x2400 + ch as u32).unwrap_or('\u{FFFD}')
+		};
+	}
+
+	ch
+}
+
 impl TextRowRenderer {
 	/// Renders the text portion of a visual row into a [`Line`].
 	///
@@ -116,7 +132,7 @@ impl TextRowRenderer {
 						base
 					};
 
-					builder.push_text(style, &glyph.ch.to_string());
+					builder.push_text(style, &render_safe_char(glyph.ch).to_string());
 					cols_used += glyph.width;
 				}
 
@@ -179,6 +195,21 @@ impl TextRowRenderer {
 			line = line.style(Style::default().bg(bg));
 		}
 		line
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::render_safe_char;
+
+	#[test]
+	fn maps_escape_to_control_picture() {
+		assert_eq!(render_safe_char('\x1b'), '\u{241b}');
+	}
+
+	#[test]
+	fn maps_cr_to_control_picture() {
+		assert_eq!(render_safe_char('\r'), '\u{240d}');
 	}
 }
 

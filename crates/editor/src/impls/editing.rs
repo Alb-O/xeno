@@ -131,6 +131,41 @@ impl Editor {
 		}
 	}
 
+	/// Pastes text at the current cursor position(s) as a standalone undo step.
+	pub fn paste_text(&mut self, text: &str) {
+		if text.is_empty() {
+			return;
+		}
+
+		let buffer_id = self.focused_view();
+
+		if !self.guard_readonly() {
+			return;
+		}
+
+		let (tx, new_selection) = {
+			let buffer = self
+				.state
+				.core
+				.buffers
+				.get_buffer_mut(buffer_id)
+				.expect("focused buffer must exist");
+			buffer.prepare_insert(text)
+		};
+
+		let applied = self.apply_edit(
+			buffer_id,
+			&tx,
+			Some(new_selection),
+			UndoPolicy::Record,
+			EditOrigin::Internal("paste"),
+		);
+
+		if !applied {
+			self.notify(keys::BUFFER_READONLY);
+		}
+	}
+
 	/// Copies the current selection to the yank register.
 	pub fn yank_selection(&mut self) {
 		if let Some(yank) = self.buffer_mut().yank_selection() {

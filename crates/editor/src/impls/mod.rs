@@ -76,6 +76,7 @@ use crate::lsp::LspHandle;
 use crate::lsp::LspSystem;
 use crate::msg::{MsgReceiver, MsgSender};
 pub use crate::overlay::{OverlayStore, OverlaySystem};
+use crate::paste::normalize_to_lf;
 pub use crate::separator::{DragState, MouseVelocityTracker, SeparatorHoverAnimation};
 pub use crate::types::{
 	ApplyEditPolicy, Config, EditorUndoGroup, FrameState, Invocation, InvocationPolicy,
@@ -242,7 +243,7 @@ impl Editor {
 	/// [`new_with_path`]: Self::new_with_path
 	pub async fn new(path: PathBuf) -> anyhow::Result<Self> {
 		let content = match tokio::fs::read_to_string(&path).await {
-			Ok(s) => s,
+			Ok(s) => normalize_to_lf(s),
 			Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
 			Err(e) => return Err(e.into()),
 		};

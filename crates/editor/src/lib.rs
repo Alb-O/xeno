@@ -58,6 +58,7 @@ pub mod metrics;
 pub mod msg;
 /// Type-erased UI overlay storage.
 pub mod overlay;
+pub(crate) mod paste;
 /// Platform-specific configuration paths.
 pub mod paths;
 /// Rendering utilities for buffers, status line, and completion.

@@ -11,6 +11,7 @@ use xeno_registry::hooks::{HookContext, emit as emit_hook, emit_sync_with as emi
 
 use super::{Editor, is_writable};
 use crate::buffer::ViewId;
+use crate::paste::normalize_to_lf;
 
 impl Editor {
 	/// Opens a new buffer from content, optionally with a path.
@@ -106,7 +107,7 @@ impl Editor {
 	/// If the file exists but is not writable, the buffer is opened in readonly mode.
 	pub async fn open_file(&mut self, path: PathBuf) -> anyhow::Result<ViewId> {
 		let content = match tokio::fs::read_to_string(&path).await {
-			Ok(s) => s,
+			Ok(s) => normalize_to_lf(s),
 			Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
 			Err(e) => return Err(e.into()),
 		};

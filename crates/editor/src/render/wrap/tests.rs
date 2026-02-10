@@ -113,3 +113,9 @@ fn wrap_line_ranges_rope_wide_char_progress() {
 		assert_eq!(seg.char_len, 1);
 	}
 }
+
+#[test]
+fn control_chars_have_single_cell_width() {
+	assert_eq!(cell_width('\x1b', 0, 4), 1);
+	assert_eq!(cell_width('\r', 0, 4), 1);
+}

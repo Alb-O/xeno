@@ -9,6 +9,7 @@ use super::Editor;
 #[cfg(feature = "lsp")]
 use crate::msg::LspMsg;
 use crate::msg::{EditorMsg, IoMsg, MsgSender, ThemeMsg};
+use crate::paste::normalize_to_lf;
 
 impl Editor {
 	/// Spawns a background task to load and register themes.
@@ -36,7 +37,7 @@ impl Editor {
 		tokio::spawn(async move {
 			match tokio::fs::read_to_string(&path).await {
 				Ok(content) => {
-					let rope = ropey::Rope::from_str(&content);
+					let rope = ropey::Rope::from_str(&normalize_to_lf(content));
 					let readonly = !is_writable(&path);
 					send(
 						&tx,
