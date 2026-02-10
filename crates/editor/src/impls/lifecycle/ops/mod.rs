@@ -3,14 +3,10 @@ use std::time::Instant;
 
 #[cfg(feature = "lsp")]
 use tokio::sync::oneshot;
-#[cfg(feature = "lsp")]
-use tracing::warn;
 
 use super::super::Editor;
 #[cfg(feature = "lsp")]
 use super::state::FlushHandle;
-#[cfg(feature = "lsp")]
-use crate::lsp::sync_manager::{LSP_MAX_INCREMENTAL_BYTES, LSP_MAX_INCREMENTAL_CHANGES};
 use crate::metrics::StatsSnapshot;
 use crate::types::{Invocation, InvocationPolicy, InvocationResult};
 
@@ -159,7 +155,8 @@ impl Editor {
 			let Some(path) = buffer.path() else {
 				continue;
 			};
-			let Some(uri) = xeno_lsp::uri_from_path(&path) else {
+			let abs_path = crate::paths::fast_abs(path);
+			let Some(uri) = xeno_lsp::uri_from_path(&abs_path) else {
 				continue;
 			};
 			if !uri_set.contains(uri.as_str()) {
@@ -177,11 +174,9 @@ impl Editor {
 	#[cfg(feature = "lsp")]
 	pub(super) fn tick_lsp_sync(&mut self) {
 		let sync = self.state.lsp.sync().clone();
-		let client_ready = sync.registry().any_server_ready();
 		let buffers = &self.state.core.buffers;
 		let stats = self.state.lsp.sync_manager_mut().tick(
 			Instant::now(),
-			client_ready,
 			&sync,
 			&self.state.metrics,
 			|doc_id| {
@@ -203,84 +198,21 @@ impl Editor {
 		&mut self,
 		buffer_id: crate::buffer::ViewId,
 	) -> Option<oneshot::Receiver<()>> {
+		self.maybe_track_lsp_for_buffer(buffer_id, false);
+
 		let buffer = self.state.core.buffers.get_buffer(buffer_id)?;
-		let (path, language) = (buffer.path()?, buffer.file_type()?);
 		let doc_id = buffer.document_id();
-
-		let (changes, force_full_sync, total_bytes) =
-			self.state.lsp.sync_manager_mut().take_immediate(doc_id)?;
-
-		let change_count = changes.len();
-		// FIXME: Leak of lsp::client through LspManager forces explicit Client usage or internal wrappers
-		// but since we're inside editor impls it's mostly fine
-		let use_incremental = !force_full_sync
-			&& self
-				.state
-				.lsp
-				.incremental_encoding_for_buffer(buffer)
-				.is_some()
-			&& change_count > 0
-			&& change_count <= LSP_MAX_INCREMENTAL_CHANGES
-			&& total_bytes <= LSP_MAX_INCREMENTAL_BYTES;
-
-		let content = buffer.with_doc(|doc| doc.content().clone());
+		let snapshot = buffer.with_doc(|doc| (doc.content().clone(), doc.version()));
 		let sync = self.state.lsp.sync().clone();
 		let metrics = self.state.metrics.clone();
-		let (tx, rx) = oneshot::channel();
 
-		tokio::spawn(async move {
-			let mut snapshot: Option<String> = None;
-			let mut snapshot_bytes: Option<u64> = None;
-			let mut take_snapshot = || {
-				if snapshot.is_none() {
-					snapshot_bytes = Some(content.len_bytes() as u64);
-					snapshot = Some(content.to_string());
-				}
-				(snapshot.take().unwrap(), snapshot_bytes.unwrap())
-			};
-
-			let result = if use_incremental {
-				// Clone changes to satisfy 'static requirement for async block
-				let changes: Vec<_> = changes.into_iter().collect();
-				match sync
-					.notify_change_incremental_no_content_with_barrier(&path, &language, changes)
-					.await
-				{
-					Ok(ack) => {
-						metrics.inc_incremental_sync();
-						Ok(ack)
-					}
-					Err(_) => {
-						metrics.inc_send_error();
-						let (snapshot, bytes) = take_snapshot();
-						metrics.add_snapshot_bytes(bytes);
-						sync.notify_change_full_with_barrier_text(&path, &language, snapshot)
-							.await
-							.inspect(|_| metrics.inc_full_sync())
-							.inspect_err(|_| metrics.inc_send_error())
-					}
-				}
-			} else {
-				let (snapshot, bytes) = take_snapshot();
-				metrics.add_snapshot_bytes(bytes);
-				sync.notify_change_full_with_barrier_text(&path, &language, snapshot)
-					.await
-					.inspect(|_| metrics.inc_full_sync())
-					.inspect_err(|_| metrics.inc_send_error())
-			};
-			match result {
-				Ok(Some(ack)) => {
-					let _ = ack.await;
-				}
-				Ok(None) => {}
-				Err(e) => {
-					warn!(error = %e, path = ?path, "LSP immediate change failed");
-				}
-			}
-			let _ = tx.send(());
-		});
-
-		Some(rx)
+		self.state.lsp.sync_manager_mut().flush_now(
+			Instant::now(),
+			doc_id,
+			&sync,
+			&metrics,
+			Some(snapshot),
+		)
 	}
 
 	/// Immediately flush LSP changes for specified buffers.
@@ -327,7 +259,6 @@ impl Editor {
 				InvocationResult::Quit | InvocationResult::ForceQuit => return true,
 				_ => {}
 			}
-
 		}
 		false
 	}

@@ -83,7 +83,9 @@ impl Editor {
 				return false;
 			}
 		} else if ui.focused_panel_id().is_some() {
-			ui.apply_requests(vec![crate::ui::UiRequest::Focus(crate::ui::UiFocus::editor())]);
+			ui.apply_requests(vec![crate::ui::UiRequest::Focus(
+				crate::ui::UiFocus::editor(),
+			)]);
 		}
 		if ui.take_wants_redraw() {
 			self.state.frame.needs_redraw = true;

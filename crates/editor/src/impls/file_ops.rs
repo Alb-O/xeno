@@ -119,68 +119,7 @@ impl Editor {
 		let file_type = buffer.file_type();
 
 		#[cfg(feature = "lsp")]
-		{
-			let doc_id = buffer.document_id();
-
-			// Initialize standard LSP session
-			if let Some(language) = &file_type
-				&& self.state.lsp_catalog_ready
-				&& self.state.lsp.registry().get_config(language).is_some()
-			{
-				let lsp_path = if path.is_absolute() {
-					path.clone()
-				} else {
-					std::env::current_dir().unwrap_or_default().join(&path)
-				};
-
-				let version = buffer.with_doc(|doc| doc.version());
-				let supports_incremental = self
-					.state
-					.lsp
-					.incremental_encoding_for_buffer(buffer)
-					.is_some();
-
-				self.state.lsp.sync_manager_mut().on_doc_open(
-					doc_id,
-					crate::lsp::sync_manager::LspDocumentConfig {
-						path: lsp_path.clone(),
-						language: language.clone(),
-						supports_incremental,
-					},
-					version,
-				);
-
-				let sync = self.state.lsp.sync_clone();
-				let path_for_lsp = lsp_path;
-				let rope_for_lsp = rope.clone();
-				let language = language.clone();
-				tokio::spawn(async move {
-					if let Some(uri) = xeno_lsp::uri_from_path(&path_for_lsp)
-						&& sync.documents().is_opened(&uri)
-					{
-						return;
-					}
-
-					let content = match tokio::task::spawn_blocking(move || rope_for_lsp.to_string()).await
-					{
-							Ok(content) => content,
-							Err(e) => {
-								tracing::warn!(
-									path = %path_for_lsp.display(),
-									language = %language,
-									error = %e,
-									"LSP snapshot conversion failed"
-								);
-							return;
-						}
-					};
-
-					if let Err(e) = sync.open_document_text(&path_for_lsp, &language, content).await {
-						tracing::warn!(path = %path_for_lsp.display(), language, error = %e, "Async LSP init failed");
-					}
-				});
-			}
-		}
+		self.maybe_track_lsp_for_buffer(buffer_id, true);
 
 		crate::impls::emit_hook_sync_with(
 			&HookContext::new(HookEventData::BufferOpen {

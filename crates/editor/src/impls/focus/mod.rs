@@ -467,7 +467,8 @@ impl Editor {
 	/// safely resolve the view later, handling cases where the view was closed
 	/// or repurposed.
 	pub fn lease_focused_view(&self) -> Option<ViewLease> {
-		if let FocusTarget::Buffer { buffer, .. } | FocusTarget::Overlay { buffer } = self.state.focus
+		if let FocusTarget::Buffer { buffer, .. } | FocusTarget::Overlay { buffer } =
+			self.state.focus
 			&& let Some(buf) = self.state.core.buffers.get_buffer(buffer)
 		{
 			return Some(ViewLease {

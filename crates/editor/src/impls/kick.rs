@@ -61,7 +61,10 @@ impl Editor {
 								&tx,
 								IoMsg::LoadFailed {
 									path,
-									error: std::io::Error::new(std::io::ErrorKind::Other, e.to_string()),
+									error: std::io::Error::new(
+										std::io::ErrorKind::Other,
+										e.to_string(),
+									),
 								},
 							);
 						}

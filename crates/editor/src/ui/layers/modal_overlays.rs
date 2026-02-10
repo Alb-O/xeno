@@ -85,7 +85,9 @@ pub fn render(ed: &mut Editor, frame: &mut xeno_tui::Frame, area: Rect, ctx: &Re
 
 		let mut block = Block::default().padding(pane.style.padding);
 		if pane.style.border {
-			block = block.borders(Borders::ALL).border_type(pane.style.border_type);
+			block = block
+				.borders(Borders::ALL)
+				.border_type(pane.style.border_type);
 			if let Some(title) = &pane.style.title {
 				block = block.title(title.as_str());
 			}

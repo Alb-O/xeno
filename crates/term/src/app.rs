@@ -2,8 +2,8 @@ use std::io::{self, Write};
 
 use termina::escape::csi::{Csi, Cursor};
 use termina::{PlatformTerminal, Terminal as _};
-use xeno_editor::{Editor, TerminalConfig};
 use xeno_editor::runtime::CursorStyle;
+use xeno_editor::{Editor, TerminalConfig};
 use xeno_registry::HookEventData;
 use xeno_registry::hooks::{HookContext, emit as emit_hook, emit_sync_with as emit_hook_sync_with};
 use xeno_tui::Terminal;

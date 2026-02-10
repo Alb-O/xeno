@@ -71,11 +71,11 @@ use xeno_primitives::range::{CharIdx, Range};
 use xeno_primitives::{Mode, Selection};
 use xeno_tui::layout::Rect;
 
+use super::WindowRole;
 use crate::buffer::ViewId;
 use crate::impls::FocusTarget;
 use crate::overlay::OverlayContext;
 use crate::window::{FloatingStyle, GutterSelector};
-use super::WindowRole;
 
 /// Renderable pane metadata for a modal overlay session.
 pub struct OverlayPane {

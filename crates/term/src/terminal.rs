@@ -65,11 +65,6 @@ fn sequence_to_csi(sequence: TerminalSequence) -> Csi {
 	}
 }
 
-/// Enables terminal features using auto-detected configuration.
-pub fn enable_terminal_features(terminal: &mut PlatformTerminal) -> io::Result<()> {
-	enable_terminal_features_with_config(terminal, TerminalConfig::detect())
-}
-
 /// Enables terminal features using the provided configuration.
 pub fn enable_terminal_features_with_config(
 	terminal: &mut PlatformTerminal,
@@ -80,11 +75,6 @@ pub fn enable_terminal_features_with_config(
 	terminal.flush()
 }
 
-/// Disables terminal features using auto-detected configuration.
-pub fn disable_terminal_features(terminal: &mut PlatformTerminal) -> io::Result<()> {
-	disable_terminal_features_with_config(terminal, TerminalConfig::detect())
-}
-
 /// Disables terminal features using the provided configuration.
 pub fn disable_terminal_features_with_config(
 	terminal: &mut PlatformTerminal,
@@ -93,11 +83,6 @@ pub fn disable_terminal_features_with_config(
 	write_sequences(terminal, config.exit_sequences)?;
 	terminal.enter_cooked_mode()?;
 	terminal.flush()
-}
-
-/// Installs a panic hook to restore terminal state on panic.
-pub fn install_panic_hook(terminal: &mut PlatformTerminal) {
-	install_panic_hook_with_config(terminal, TerminalConfig::detect());
 }
 
 /// Installs a panic hook with the provided configuration.

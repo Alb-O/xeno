@@ -4,8 +4,6 @@
 
 use std::path::PathBuf;
 
-#[cfg(feature = "lsp")]
-use tracing::warn;
 use xeno_registry::HookEventData;
 use xeno_registry::hooks::{HookContext, emit as emit_hook, emit_sync_with as emit_hook_sync_with};
 
@@ -40,34 +38,7 @@ impl Editor {
 		.await;
 
 		#[cfg(feature = "lsp")]
-		if let Some(buffer) = self.state.core.buffers.get_buffer_mut(buffer_id)
-			&& let Err(e) = self.state.lsp.on_buffer_open(buffer).await
-		{
-			warn!(error = %e, "LSP buffer open failed");
-		}
-
-		#[cfg(feature = "lsp")]
-		if let Some(buffer) = self.state.core.buffers.get_buffer_mut(buffer_id)
-			&& let (Some(path), Some(language)) = (buffer.path(), buffer.file_type())
-		{
-			let doc_id = buffer.document_id();
-			let version = buffer.with_doc(|doc| doc.version());
-			let supports_incremental = self
-				.state
-				.lsp
-				.incremental_encoding_for_buffer(buffer)
-				.is_some();
-
-			self.state.lsp.sync_manager_mut().on_doc_open(
-				doc_id,
-				crate::lsp::sync_manager::LspDocumentConfig {
-					path,
-					language,
-					supports_incremental,
-				},
-				version,
-			);
-		}
+		self.maybe_track_lsp_for_buffer(buffer_id, false);
 
 		buffer_id
 	}
@@ -144,35 +115,16 @@ impl Editor {
 	pub async fn init_lsp_for_open_buffers(&mut self) -> anyhow::Result<()> {
 		let mut seen_docs = std::collections::HashSet::new();
 		for buffer_id in self.state.core.buffers.buffer_ids().collect::<Vec<_>>() {
-			if let Some(buffer) = self.state.core.buffers.get_buffer_mut(buffer_id)
-				&& buffer.path().is_some()
-			{
-				let doc_id = buffer.document_id();
-				if !seen_docs.insert(doc_id) {
-					continue;
-				}
-
-				if let Err(e) = self.state.lsp.on_buffer_open(buffer).await {
-					tracing::warn!(error = %e, "Failed to initialize LSP for buffer");
-				} else if let (Some(path), Some(language)) = (buffer.path(), buffer.file_type()) {
-					let version = buffer.with_doc(|doc| doc.version());
-					let supports_incremental = self
-						.state
-						.lsp
-						.incremental_encoding_for_buffer(buffer)
-						.is_some();
-
-					self.state.lsp.sync_manager_mut().on_doc_open(
-						doc_id,
-						crate::lsp::sync_manager::LspDocumentConfig {
-							path,
-							language,
-							supports_incremental,
-						},
-						version,
-					);
-				}
+			let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
+				continue;
+			};
+			if buffer.path().is_none() {
+				continue;
 			}
+			if !seen_docs.insert(buffer.document_id()) {
+				continue;
+			}
+			self.maybe_track_lsp_for_buffer(buffer_id, false);
 		}
 		Ok(())
 	}
@@ -193,98 +145,79 @@ impl Editor {
 	#[cfg(feature = "lsp")]
 	pub fn kick_lsp_init_for_open_buffers(&mut self) {
 		use std::collections::HashSet;
-		use std::path::PathBuf;
 
-		let cwd = std::env::current_dir().unwrap_or_default();
 		let loading = self
 			.state
 			.loading_file
-			.clone()
-			.map(|path| if path.is_absolute() { path } else { cwd.join(path) });
+			.as_ref()
+			.map(|path| crate::paths::fast_abs(path));
 
 		let mut seen_docs = HashSet::new();
-		let specs: Vec<(PathBuf, String, ropey::Rope)> = self
-			.state
-			.core
-			.buffers
-			.buffer_ids()
-			.filter_map(|id| {
-				let buffer = self.state.core.buffers.get_buffer(id)?;
-				let doc_id = buffer.document_id();
-				if !seen_docs.insert(doc_id) {
-					return None;
-				}
-
-				let path = buffer.path()?;
-				let abs_path = if path.is_absolute() {
-					path.clone()
-				} else {
-					cwd.join(&path)
-				};
-
-				if loading.as_ref().is_some_and(|p| p == &abs_path) {
-					return None;
-				}
-
-				let language = buffer.file_type()?;
-				self.state.lsp.registry().get_config(&language)?;
-				let rope = buffer.with_doc(|doc| doc.content().clone());
-
-				let version = buffer.with_doc(|doc| doc.version());
-				let supports_incremental = self
-					.state
-					.lsp
-					.incremental_encoding_for_buffer(buffer)
-					.is_some();
-				self.state.lsp.sync_manager_mut().on_doc_open(
-					doc_id,
-					crate::lsp::sync_manager::LspDocumentConfig {
-						path: abs_path.clone(),
-						language: language.clone(),
-						supports_incremental,
-					},
-					version,
-				);
-
-				Some((abs_path, language, rope))
-			})
-			.collect();
-
-		if !specs.is_empty() {
-			tracing::debug!(count = specs.len(), "Kicking background LSP init");
-			let sync = self.state.lsp.sync_clone();
-
-			tokio::spawn(async move {
-				for (path, language, rope) in specs {
-					if let Some(uri) = xeno_lsp::uri_from_path(&path)
-						&& sync.documents().is_opened(&uri)
-					{
-						continue;
-					}
-
-					let content = match tokio::task::spawn_blocking(move || rope.to_string()).await {
-						Ok(content) => content,
-						Err(e) => {
-							tracing::warn!(
-								path = %path.display(),
-								language = %language,
-								error = %e,
-								"LSP snapshot conversion failed"
-							);
-							continue;
-						}
-					};
-
-					if let Err(e) = sync.open_document_text(&path, &language, content).await {
-						tracing::warn!(path = %path.display(), language, error = %e, "Background LSP init failed");
-					}
-				}
-			});
+		for buffer_id in self.state.core.buffers.buffer_ids().collect::<Vec<_>>() {
+			let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
+				continue;
+			};
+			if !seen_docs.insert(buffer.document_id()) {
+				continue;
+			}
+			let Some(path) = buffer.path() else {
+				continue;
+			};
+			let abs_path = crate::paths::fast_abs(path);
+			if loading.as_ref().is_some_and(|p| p == &abs_path) {
+				continue;
+			}
+			self.maybe_track_lsp_for_buffer(buffer_id, false);
 		}
 	}
 
 	#[cfg(not(feature = "lsp"))]
 	pub fn kick_lsp_init_for_open_buffers(&mut self) {}
+
+	#[cfg(feature = "lsp")]
+	pub(crate) fn maybe_track_lsp_for_buffer(&mut self, buffer_id: ViewId, reset: bool) {
+		if !self.state.lsp_catalog_ready {
+			return;
+		}
+
+		let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
+			return;
+		};
+		let Some(path) = buffer.path() else {
+			return;
+		};
+		let Some(language) = buffer.file_type() else {
+			return;
+		};
+		if self.state.lsp.registry().get_config(&language).is_none() {
+			return;
+		}
+
+		let doc_id = buffer.document_id();
+		let version = buffer.with_doc(|doc| doc.version());
+		let supports_incremental = self
+			.state
+			.lsp
+			.incremental_encoding_for_buffer(buffer)
+			.is_some();
+		let config = crate::lsp::sync_manager::LspDocumentConfig {
+			path: crate::paths::fast_abs(path),
+			language,
+			supports_incremental,
+		};
+
+		if reset {
+			self.state
+				.lsp
+				.sync_manager_mut()
+				.reset_tracked(doc_id, config, version);
+		} else {
+			self.state
+				.lsp
+				.sync_manager_mut()
+				.ensure_tracked(doc_id, config, version);
+		}
+	}
 
 	/// Removes a buffer and performs final cleanup for its associated document.
 	///

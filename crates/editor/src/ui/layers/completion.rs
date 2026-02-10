@@ -13,31 +13,31 @@ pub fn visible(ed: &Editor) -> bool {
 
 	#[cfg(feature = "lsp")]
 	{
-	use crate::completion::CompletionState;
+		use crate::completion::CompletionState;
 
-	let completions = ed
-		.overlays()
-		.get::<CompletionState>()
-		.cloned()
-		.unwrap_or_default();
-	if !completions.active || completions.items.is_empty() {
-		return false;
-	}
+		let completions = ed
+			.overlays()
+			.get::<CompletionState>()
+			.cloned()
+			.unwrap_or_default();
+		if !completions.active || completions.items.is_empty() {
+			return false;
+		}
 
-	let Some(menu_state) = ed
-		.overlays()
-		.get::<crate::lsp::LspMenuState>()
-		.and_then(|state| state.active())
-	else {
-		return false;
-	};
+		let Some(menu_state) = ed
+			.overlays()
+			.get::<crate::lsp::LspMenuState>()
+			.and_then(|state| state.active())
+		else {
+			return false;
+		};
 
-	let buffer_id = match menu_state {
-		crate::lsp::LspMenuKind::Completion { buffer_id, .. } => *buffer_id,
-		crate::lsp::LspMenuKind::CodeAction { buffer_id, .. } => *buffer_id,
-	};
+		let buffer_id = match menu_state {
+			crate::lsp::LspMenuKind::Completion { buffer_id, .. } => *buffer_id,
+			crate::lsp::LspMenuKind::CodeAction { buffer_id, .. } => *buffer_id,
+		};
 
-	buffer_id == ed.focused_view()
+		buffer_id == ed.focused_view()
 	}
 }
 
