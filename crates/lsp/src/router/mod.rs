@@ -281,10 +281,4 @@ impl<St> LspService for Router<St> {
 }
 
 #[cfg(test)]
-mod tests {
-	use super::*;
-
-	fn _assert_send<St: Send>(router: Router<St>) -> impl Send {
-		router
-	}
-}
+mod tests;
