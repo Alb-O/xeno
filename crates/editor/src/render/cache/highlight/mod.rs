@@ -4,11 +4,15 @@
 //! approach. Each tile covers TILE_SIZE lines (128 lines), allowing efficient
 //! caching and retrieval of highlight spans for large documents.
 
+mod builder;
+
 use std::collections::{HashMap, VecDeque};
 
-use xeno_primitives::transaction::Bias;
-use xeno_primitives::{ChangeSet, Rope};
-use xeno_runtime_language::highlight::{HighlightSpan, HighlightStyles};
+use builder::line_to_byte_or_eof;
+#[cfg(test)]
+use builder::remap_stale_span_to_current;
+use xeno_primitives::Rope;
+use xeno_runtime_language::highlight::HighlightSpan;
 use xeno_runtime_language::syntax::Syntax;
 use xeno_runtime_language::{LanguageId, LanguageLoader};
 use xeno_tui::style::Style;
@@ -23,43 +27,6 @@ pub const TILE_SIZE: usize = 128;
 const MAX_TILES: usize = 16;
 /// Maximum number of projected tiles cached for stale-tree rendering.
 const MAX_PROJECTED_TILES: usize = 24;
-
-#[inline]
-fn line_to_byte_or_eof(rope: &Rope, line: usize) -> u32 {
-	if line < rope.len_lines() {
-		rope.line_to_byte(line) as u32
-	} else {
-		rope.len_bytes() as u32
-	}
-}
-
-fn remap_stale_span_to_current(
-	span: &HighlightSpan,
-	old_rope: &Rope,
-	new_rope: &Rope,
-	changes: &ChangeSet,
-) -> Option<(u32, u32)> {
-	let old_len_bytes = old_rope.len_bytes();
-	let old_start_byte = (span.start as usize).min(old_len_bytes);
-	let old_end_byte = (span.end as usize).min(old_len_bytes);
-
-	let old_start_char = old_rope.byte_to_char(old_start_byte);
-	let old_end_char = old_rope.byte_to_char(old_end_byte);
-	let new_len_chars = new_rope.len_chars();
-
-	// Preserve half-open interval semantics when mapping through edits.
-	let new_start_char = changes
-		.map_pos(old_start_char, Bias::Right)
-		.min(new_len_chars);
-	let new_end_char = changes.map_pos(old_end_char, Bias::Left).min(new_len_chars);
-	if new_start_char >= new_end_char {
-		return None;
-	}
-
-	let new_start_byte = new_rope.char_to_byte(new_start_char) as u32;
-	let new_end_byte = new_rope.char_to_byte(new_end_char) as u32;
-	(new_start_byte < new_end_byte).then_some((new_start_byte, new_end_byte))
-}
 
 /// Key for identifying a highlight tile.
 ///
@@ -287,7 +254,7 @@ impl HighlightTiles {
 		let tile_start_line = tile_idx * TILE_SIZE;
 		let tile_end_line = ((tile_idx + 1) * TILE_SIZE).min(q.rope.len_lines());
 
-		let spans = self.build_tile_spans(
+		let spans = builder::build_tile_spans(
 			q.rope,
 			q.syntax,
 			q.language_loader,
@@ -318,7 +285,7 @@ impl HighlightTiles {
 			return tile_index;
 		}
 
-		let spans = self.project_spans_to_target(
+		let spans = builder::project_spans_to_target(
 			&self.tiles[source_tile_index].spans,
 			projection,
 			target_rope,
@@ -470,86 +437,6 @@ impl HighlightTiles {
 			self.projected_mru_order.remove(pos);
 		}
 		self.projected_mru_order.push_front(tile_index);
-	}
-
-	fn build_tile_spans<F>(
-		&self,
-		rope: &Rope,
-		syntax: &Syntax,
-		language_loader: &LanguageLoader,
-		style_resolver: &F,
-		start_line: usize,
-		end_line: usize,
-	) -> Vec<(HighlightSpan, Style)>
-	where
-		F: Fn(&str) -> Style,
-	{
-		// Hard rule: if the tree is out of bounds for the rope, return empty.
-		// This protects against crashes in tree-sitter highlighter.
-		let rope_len_bytes = rope.len_bytes() as u32;
-		if syntax.tree().root_node().end_byte() > rope_len_bytes {
-			return Vec::new();
-		}
-
-		let tile_start_byte = line_to_byte_or_eof(rope, start_line);
-		let tile_end_byte = if end_line < rope.len_lines() {
-			rope.line_to_byte(end_line) as u32
-		} else {
-			rope_len_bytes
-		};
-
-		let highlight_styles = HighlightStyles::new(
-			xeno_registry::themes::SyntaxStyles::scope_names(),
-			style_resolver,
-		);
-
-		let highlighter = syntax.highlighter(
-			rope.slice(..),
-			language_loader,
-			tile_start_byte..tile_end_byte,
-		);
-
-		highlighter
-			.filter_map(|mut span| {
-				// Clamp spans to both rope bounds and tile bounds to ensure safety and determinism
-				span.start = span.start.max(tile_start_byte).min(tile_end_byte);
-				span.end = span.end.max(tile_start_byte).min(tile_end_byte);
-
-				if span.start >= span.end {
-					return None;
-				}
-
-				let style = highlight_styles.style_for_highlight(span.highlight);
-				Some((span, style))
-			})
-			.collect()
-	}
-
-	fn project_spans_to_target(
-		&self,
-		source_spans: &[(HighlightSpan, Style)],
-		projection: HighlightProjectionCtx<'_>,
-		target_rope: &Rope,
-	) -> Vec<(HighlightSpan, Style)> {
-		source_spans
-			.iter()
-			.filter_map(|(span, style)| {
-				let (start, end) = remap_stale_span_to_current(
-					span,
-					projection.base_rope,
-					target_rope,
-					projection.composed_changes,
-				)?;
-				Some((
-					HighlightSpan {
-						start,
-						end,
-						highlight: span.highlight,
-					},
-					*style,
-				))
-			})
-			.collect()
 	}
 
 	/// Invalidates all cached tiles for a document.
