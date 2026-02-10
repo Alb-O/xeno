@@ -52,6 +52,11 @@ impl Editor {
 
 		let should_quit = self.drain_command_queue().await || self.take_quit_request();
 
+		if self.state.frame.pending_overlay_commit {
+			self.state.frame.pending_overlay_commit = false;
+			self.interaction_commit().await;
+		}
+
 		let msg_dirty = self.drain_messages();
 		if msg_dirty.needs_redraw() {
 			self.frame_mut().needs_redraw = true;

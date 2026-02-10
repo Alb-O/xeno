@@ -12,7 +12,7 @@ pub mod wrap;
 
 pub use buffer::{
 	BufferRenderContext, DiagnosticLineMap, DiagnosticRangeMap, DiagnosticSpan, GutterLayout,
-	LineSlice, LineSource, RenderResult, RowKind, ViewportPlan, WrapAccess,
+	LineSlice, LineSource, RenderBufferParams, RenderResult, RowKind, ViewportPlan, WrapAccess,
 	ensure_buffer_cursor_visible,
 };
 pub use cache::{

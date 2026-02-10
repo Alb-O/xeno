@@ -16,7 +16,7 @@ mod row;
 mod style_layers;
 mod viewport;
 
-pub use context::{BufferRenderContext, RenderResult};
+pub use context::{BufferRenderContext, RenderBufferParams, RenderResult};
 pub use diagnostics::{DiagnosticLineMap, DiagnosticRangeMap, DiagnosticSpan};
 pub use gutter::GutterLayout;
 pub use plan::{LineSlice, LineSource, RowKind, ViewportPlan, WrapAccess};

@@ -1,9 +1,13 @@
+pub mod compositor;
 pub mod dock;
 mod focus;
 pub mod keymap;
+pub mod layer;
+pub mod layers;
 mod manager;
 /// Panel traits and request types.
 pub mod panel;
+pub mod scene;
 
 pub use focus::UiFocus;
 pub use keymap::UiKeyChord;

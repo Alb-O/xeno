@@ -328,7 +328,6 @@ impl Editor {
 				_ => {}
 			}
 
-			self.flush_pending_overlay_commit().await;
 		}
 		false
 	}

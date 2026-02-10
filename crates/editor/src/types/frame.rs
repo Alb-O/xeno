@@ -13,11 +13,10 @@ pub struct FrameState {
 	pub needs_redraw: bool,
 	/// Whether a command requested the editor to quit.
 	pub pending_quit: bool,
-	/// Deferred overlay commit awaiting an async context.
+	/// Deferred overlay commit awaiting runtime pump.
 	///
 	/// Set when a `CloseModal { Commit }` effect arrives during the
-	/// synchronous flush loop; cleared by
-	/// [`crate::impls::Editor::flush_pending_overlay_commit`].
+	/// synchronous flush loop; consumed by [`crate::runtime::Editor::pump`].
 	pub pending_overlay_commit: bool,
 	/// Last tick timestamp.
 	pub last_tick: std::time::SystemTime,

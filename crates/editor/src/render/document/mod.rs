@@ -7,7 +7,7 @@ mod separator;
 mod whichkey;
 
 use xeno_registry::options::keys;
-use xeno_tui::layout::{Constraint, Direction, Layout, Rect};
+use xeno_tui::layout::Rect;
 use xeno_tui::style::Style;
 use xeno_tui::text::{Line, Span};
 use xeno_tui::widgets::{Block, Borders, Clear, Paragraph};
@@ -62,84 +62,7 @@ impl Editor {
 	/// # Parameters
 	/// - `frame`: The terminal frame to render into
 	pub fn render(&mut self, frame: &mut xeno_tui::Frame) {
-		// Clear the redraw latch at the start of rendering.
-		// Any redraw requests occurring during the render pass will persist for the next frame.
-		self.state.frame.needs_redraw = false;
-
-		self.ensure_syntax_for_buffers();
-
-		let use_block_cursor = true;
-
-		let area = frame.area();
-		self.state.viewport.width = Some(area.width);
-		self.state.viewport.height = Some(area.height);
-
-		frame.render_widget(Clear, area);
-
-		let bg_block =
-			Block::default().style(Style::default().bg(self.state.config.theme.colors.ui.bg));
-		frame.render_widget(bg_block, area);
-
-		let chunks = Layout::default()
-			.direction(Direction::Vertical)
-			.constraints([Constraint::Min(1), Constraint::Length(1)])
-			.split(area);
-
-		let main_area = chunks[0];
-		let status_area = chunks[1];
-
-		let mut ui = std::mem::take(&mut self.state.ui);
-		let dock_layout = ui.compute_layout(main_area);
-		let doc_area = dock_layout.doc_area;
-		self.state.viewport.doc_area = Some(doc_area);
-
-		if self.state.layout.hovered_separator.is_none()
-			&& self.state.layout.separator_under_mouse.is_some()
-			&& !self.state.layout.is_mouse_fast()
-		{
-			let old_hover = self.state.layout.hovered_separator.take();
-			self.state.layout.hovered_separator = self.state.layout.separator_under_mouse;
-			if old_hover != self.state.layout.hovered_separator {
-				self.state
-					.layout
-					.update_hover_animation(old_hover, self.state.layout.hovered_separator);
-				self.state.frame.needs_redraw = true;
-			}
-		}
-		if self.state.layout.animation_needs_redraw() {
-			self.state.frame.needs_redraw = true;
-		}
-
-		let ctx = self.render_ctx();
-		let doc_focused = ui.focus.focused().is_editor();
-
-		self.render_split_buffers(frame, doc_area, use_block_cursor && doc_focused, &ctx);
-		self.render_floating_windows(frame, use_block_cursor && doc_focused, &ctx);
-
-		if let Some(cursor_pos) = ui.render_panels(self, frame, &dock_layout, &ctx.theme) {
-			frame.set_cursor_position(cursor_pos);
-		}
-		if ui.take_wants_redraw() {
-			self.state.frame.needs_redraw = true;
-		}
-		self.state.ui = ui;
-
-		self.render_completion_popup(frame);
-
-		self.state.overlay_system.layers.render(self, frame);
-
-		let status_bg = Block::default().style(Style::default().bg(ctx.theme.colors.popup.bg));
-		frame.render_widget(status_bg, status_area);
-		frame.render_widget(self.render_status_line(), status_area);
-
-		let mut notifications_area = doc_area;
-		notifications_area.height = notifications_area.height.saturating_sub(1);
-		notifications_area.width = notifications_area.width.saturating_sub(1);
-		self.state
-			.notifications
-			.render(notifications_area, frame.buffer_mut());
-
-		self.render_whichkey_hud(frame, doc_area, &ctx);
+		crate::ui::compositor::render_frame(self, frame);
 	}
 
 	/// Renders all views and separators across all layout layers.
@@ -147,7 +70,7 @@ impl Editor {
 	/// Orchestrates a two-pass rendering process:
 	/// 1. Visibility pass: Ensures cursors are within visible viewports.
 	/// 2. Render pass: Draws buffer content and gutters using the render cache.
-	fn render_split_buffers(
+	pub(crate) fn render_split_buffers(
 		&mut self,
 		frame: &mut xeno_tui::Frame,
 		doc_area: Rect,
@@ -297,7 +220,7 @@ impl Editor {
 	}
 
 	/// Renders floating windows above the base layout.
-	fn render_floating_windows(
+	pub(crate) fn render_floating_windows(
 		&mut self,
 		frame: &mut xeno_tui::Frame,
 		use_block_cursor: bool,

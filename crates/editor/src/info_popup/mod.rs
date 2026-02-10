@@ -1,6 +1,6 @@
 //! Info popup panels for displaying documentation and contextual information.
 //!
-//! Info popups are read-only floating buffers used for:
+//! Info popups are read-only overlay buffers used for:
 //! - LSP hover documentation
 //! - Command completion info in the command palette
 //! - Any contextual help or documentation display
@@ -15,7 +15,7 @@ use xeno_tui::widgets::block::Padding;
 
 use crate::Editor;
 use crate::buffer::ViewId;
-use crate::window::{FloatingStyle, GutterSelector, Window, WindowId};
+use crate::window::{FloatingStyle, WindowId};
 
 /// Unique identifier for an info popup.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -26,12 +26,14 @@ pub struct InfoPopupId(pub u64);
 pub struct InfoPopup {
 	/// Unique identifier for this popup.
 	pub id: InfoPopupId,
-	/// The floating window containing the content.
-	pub window_id: WindowId,
 	/// The read-only buffer displaying content.
 	pub buffer_id: ViewId,
 	/// Anchor position for the popup (where it should appear relative to).
 	pub anchor: PopupAnchor,
+	/// Preferred content width (before border/padding).
+	pub content_width: u16,
+	/// Preferred content height (before border/padding).
+	pub content_height: u16,
 }
 
 /// Anchor point for positioning info popups.
@@ -96,11 +98,21 @@ pub fn compute_popup_rect(
 	Rect::new(x, y, width, height)
 }
 
+fn measure_content(content: &str) -> (u16, u16) {
+	let lines: Vec<&str> = content.lines().collect();
+	let content_height = lines.len().min(20) as u16;
+	let content_width = lines
+		.iter()
+		.map(|line| line.chars().count())
+		.max()
+		.unwrap_or(20)
+		.min(60) as u16;
+	(content_width, content_height)
+}
+
 /// Storage for active info popups, keyed by [`InfoPopupId`].
 ///
-/// Stored in [`OverlayManager`] to avoid adding fields to [`Editor`].
-///
-/// [`OverlayManager`]: crate::overlay::OverlayManager
+/// Stored in the type-erased overlay store to avoid adding fields to [`Editor`].
 #[derive(Default)]
 pub struct InfoPopupStore {
 	popups: HashMap<InfoPopupId, InfoPopup>,
@@ -130,6 +142,11 @@ impl InfoPopupStore {
 		self.popups.get(&id)
 	}
 
+	/// Returns a mutable reference to a popup by ID.
+	pub fn get_mut(&mut self, id: InfoPopupId) -> Option<&mut InfoPopup> {
+		self.popups.get_mut(&id)
+	}
+
 	/// Returns an iterator over all popup IDs.
 	pub fn ids(&self) -> impl Iterator<Item = InfoPopupId> + '_ {
 		self.popups.keys().copied()
@@ -157,18 +174,10 @@ impl Editor {
 		file_type: Option<&str>,
 		anchor: PopupAnchor,
 	) -> Option<InfoPopupId> {
-		let bounds = self.state.viewport.doc_area?;
-
-		let lines: Vec<&str> = content.lines().collect();
-		let content_height = lines.len().min(20) as u16;
-		let content_width = lines
-			.iter()
-			.map(|l| l.chars().count())
-			.max()
-			.unwrap_or(20)
-			.min(60) as u16;
-
-		let rect = compute_popup_rect(anchor, content_width, content_height, bounds);
+		if self.state.viewport.doc_area.is_none() {
+			return None;
+		}
+		let (content_width, content_height) = measure_content(content.as_str());
 
 		let buffer_id = self.state.core.buffers.create_scratch();
 		{
@@ -188,23 +197,14 @@ impl Editor {
 			buffer.set_readonly_override(Some(true));
 		}
 
-		let window_id = self.create_floating_window(buffer_id, rect, info_popup_style());
-
-		let Window::Floating(float) = self.state.windows.get_mut(window_id).expect("just created")
-		else {
-			unreachable!()
-		};
-		float.sticky = false;
-		float.dismiss_on_blur = true;
-		float.gutter = GutterSelector::Hidden;
-
 		let store = self.overlays_mut().get_or_default::<InfoPopupStore>();
 		let popup_id = store.next_id();
 		store.insert(InfoPopup {
 			id: popup_id,
-			window_id,
 			buffer_id,
 			anchor,
+			content_width,
+			content_height,
 		});
 
 		self.state.frame.needs_redraw = true;
@@ -220,7 +220,6 @@ impl Editor {
 		else {
 			return;
 		};
-		self.close_floating_window(popup.window_id);
 		self.finalize_buffer_removal(popup.buffer_id);
 		self.state.frame.needs_redraw = true;
 	}
@@ -245,10 +244,15 @@ impl Editor {
 		file_type: Option<&str>,
 	) -> bool {
 		let Some(buffer_id) = self
-			.overlays()
-			.get::<InfoPopupStore>()
-			.and_then(|s: &InfoPopupStore| s.get(popup_id))
-			.map(|p| p.buffer_id)
+			.overlays_mut()
+			.get_or_default::<InfoPopupStore>()
+			.get_mut(popup_id)
+			.map(|p| {
+				let (content_width, content_height) = measure_content(content.as_str());
+				p.content_width = content_width;
+				p.content_height = content_height;
+				p.buffer_id
+			})
 		else {
 			return false;
 		};

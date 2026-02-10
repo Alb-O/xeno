@@ -69,11 +69,25 @@ use std::collections::HashMap;
 
 use xeno_primitives::range::{CharIdx, Range};
 use xeno_primitives::{Mode, Selection};
+use xeno_tui::layout::Rect;
 
 use crate::buffer::ViewId;
 use crate::impls::FocusTarget;
 use crate::overlay::OverlayContext;
-use crate::window::WindowId;
+use crate::window::{FloatingStyle, GutterSelector};
+use super::WindowRole;
+
+/// Renderable pane metadata for a modal overlay session.
+pub struct OverlayPane {
+	pub role: WindowRole,
+	pub buffer: ViewId,
+	pub rect: Rect,
+	pub content_rect: Rect,
+	pub style: FloatingStyle,
+	pub gutter: GutterSelector,
+	pub dismiss_on_blur: bool,
+	pub sticky: bool,
+}
 
 /// State and resources for an active modal interaction session.
 ///
@@ -81,8 +95,8 @@ use crate::window::WindowId;
 /// It tracks all allocated UI resources and provides mechanisms for temporary
 /// state capture and restoration.
 pub struct OverlaySession {
-	/// List of floating window IDs allocated for this session.
-	pub windows: Vec<WindowId>,
+	/// List of panes rendered for this session.
+	pub panes: Vec<OverlayPane>,
 	/// List of scratch buffer IDs allocated for this session.
 	pub buffers: Vec<ViewId>,
 	/// The primary input buffer ID for the interaction.
@@ -204,12 +218,10 @@ impl OverlaySession {
 
 	/// Cleans up all resources allocated for the session.
 	///
-	/// Closes floating windows first, then removes scratch buffers.
+	/// Removes scratch buffers.
 	/// Safe to call multiple times.
 	pub fn teardown(&mut self, ctx: &mut dyn OverlayContext) {
-		for window_id in self.windows.drain(..) {
-			ctx.close_floating_window(window_id);
-		}
+		self.panes.clear();
 		for buffer_id in self.buffers.drain(..) {
 			ctx.finalize_buffer_removal(buffer_id);
 		}

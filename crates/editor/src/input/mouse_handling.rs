@@ -5,8 +5,9 @@
 use termina::event::MouseEventKind;
 use xeno_input::input::KeyResult;
 use xeno_primitives::{ScrollDirection, Selection};
+use xeno_tui::widgets::{Block, Borders};
 
-use crate::impls::{Editor, FocusTarget};
+use crate::impls::{Editor, FocusReason, FocusTarget};
 use crate::window::Window;
 
 impl Editor {
@@ -27,14 +28,62 @@ impl Editor {
 		let mut ui = std::mem::take(&mut self.state.ui);
 		let dock_layout = ui.compute_layout(main_area);
 
-		if ui.handle_mouse(self, mouse, &dock_layout) {
-			if ui.take_wants_redraw() {
-				self.state.frame.needs_redraw = true;
+		let screen_area = xeno_tui::layout::Rect {
+			x: 0,
+			y: 0,
+			width,
+			height,
+		};
+		let status_area = xeno_tui::layout::Rect {
+			x: 0,
+			y: main_height,
+			width,
+			height: height.saturating_sub(main_height),
+		};
+		let mut hit_builder = crate::ui::layer::SceneBuilder::new(
+			screen_area,
+			main_area,
+			dock_layout.doc_area,
+			status_area,
+		);
+
+		let mut panel_rects: Vec<_> = dock_layout.panel_areas.values().copied().collect();
+		panel_rects.sort_by_key(|r| (r.x, r.y, r.width, r.height));
+		for rect in panel_rects {
+			hit_builder.push(
+				crate::ui::scene::SurfaceKind::Panels,
+				30,
+				rect,
+				crate::ui::scene::SurfaceOp::Panels,
+				true,
+			);
+		}
+
+		hit_builder.push(
+			crate::ui::scene::SurfaceKind::Document,
+			10,
+			dock_layout.doc_area,
+			crate::ui::scene::SurfaceOp::Document,
+			true,
+		);
+
+		let hit_is_panel = hit_builder
+			.finish()
+			.hit_test(mouse.column, mouse.row)
+			.is_some_and(|surface| matches!(surface.kind, crate::ui::scene::SurfaceKind::Panels));
+
+		if hit_is_panel {
+			if ui.handle_mouse(self, mouse, &dock_layout) {
+				if ui.take_wants_redraw() {
+					self.state.frame.needs_redraw = true;
+				}
+				self.state.ui = ui;
+				self.sync_focus_from_ui();
+				self.interaction_on_buffer_edited();
+				return false;
 			}
-			self.state.ui = ui;
-			self.sync_focus_from_ui();
-			self.interaction_on_buffer_edited();
-			return false;
+		} else if ui.focused_panel_id().is_some() {
+			ui.apply_requests(vec![crate::ui::UiRequest::Focus(crate::ui::UiFocus::editor())]);
 		}
 		if ui.take_wants_redraw() {
 			self.state.frame.needs_redraw = true;
@@ -149,6 +198,78 @@ impl Editor {
 			}
 		}
 
+		let overlay_hit = self
+			.state
+			.overlay_system
+			.interaction
+			.active
+			.as_ref()
+			.and_then(|active| {
+				active
+					.session
+					.panes
+					.iter()
+					.rev()
+					.find(|pane| {
+						mouse_x >= pane.rect.x
+							&& mouse_x < pane.rect.x.saturating_add(pane.rect.width)
+							&& mouse_y >= pane.rect.y
+							&& mouse_y < pane.rect.y.saturating_add(pane.rect.height)
+					})
+					.map(|pane| (pane.buffer, pane.rect, pane.style.clone()))
+			});
+
+		if let Some((overlay_buffer, overlay_rect, overlay_style)) = overlay_hit {
+			let mut block = Block::default().padding(overlay_style.padding);
+			if overlay_style.border {
+				block = block
+					.borders(Borders::ALL)
+					.border_type(overlay_style.border_type);
+				if let Some(title) = &overlay_style.title {
+					block = block.title(title.as_str());
+				}
+			}
+			let inner = block.inner(overlay_rect);
+			if inner.width == 0 || inner.height == 0 {
+				return false;
+			}
+
+			let reason = if matches!(mouse.kind, MouseEventKind::Down(_)) {
+				FocusReason::Click
+			} else {
+				FocusReason::Programmatic
+			};
+			self.set_focus(
+				FocusTarget::Overlay {
+					buffer: overlay_buffer,
+				},
+				reason,
+			);
+
+			let clamped_x = mouse_x.clamp(inner.x, inner.right().saturating_sub(1));
+			let clamped_y = mouse_y.clamp(inner.y, inner.bottom().saturating_sub(1));
+			let local_row = clamped_y.saturating_sub(inner.y);
+			let local_col = clamped_x.saturating_sub(inner.x);
+
+			let result = self.buffer_mut().input.handle_mouse(mouse.into());
+			match result {
+				KeyResult::MouseClick { extend, .. } => {
+					self.state.layout.text_selection_origin = Some((overlay_buffer, inner));
+					self.handle_mouse_click_local(local_row, local_col, extend);
+				}
+				KeyResult::MouseDrag { .. } => {
+					self.handle_mouse_drag_local(local_row, local_col);
+				}
+				KeyResult::MouseScroll { direction, count } => {
+					self.handle_mouse_scroll(direction, count);
+				}
+				_ => {}
+			}
+
+			self.state.frame.needs_redraw = true;
+			return false;
+		}
+
 		let mut floating_hit = None;
 		for (window_id, window) in self.state.windows.floating_windows() {
 			if window.contains(mouse_x, mouse_y) {
@@ -240,6 +361,7 @@ impl Editor {
 
 		let focused_window = match &self.state.focus {
 			FocusTarget::Buffer { window, .. } => Some(*window),
+			FocusTarget::Overlay { .. } => None,
 			FocusTarget::Panel(_) => None,
 		};
 		let sticky_floating = focused_window
@@ -261,6 +383,7 @@ impl Editor {
 			FocusTarget::Buffer { window, buffer } => {
 				*window != target_window || *buffer != target_view
 			}
+			FocusTarget::Overlay { .. } => true,
 			FocusTarget::Panel(_) => true,
 		};
 		if needs_focus {
@@ -316,6 +439,9 @@ impl Editor {
 			&& let Some(Window::Floating(floating)) = self.state.windows.get(*window)
 		{
 			return floating.content_rect();
+		}
+		if let FocusTarget::Overlay { buffer } = &self.state.focus {
+			return self.view_area(*buffer);
 		}
 		let focused = self.focused_view();
 		for (view, area) in self

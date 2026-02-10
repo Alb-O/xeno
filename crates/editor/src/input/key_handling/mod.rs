@@ -63,7 +63,7 @@ impl Editor {
 		}
 
 		if self.state.overlay_system.interaction.is_open() && key.code == KeyCode::Enter {
-			self.interaction_commit().await;
+			self.state.frame.pending_overlay_commit = true;
 			self.state.frame.needs_redraw = true;
 			return false;
 		}
@@ -97,8 +97,6 @@ impl Editor {
 			quit = action_quit;
 			handled = true;
 		}
-
-		self.flush_pending_overlay_commit().await;
 
 		if !handled {
 			match result {
@@ -188,20 +186,6 @@ impl Editor {
 		let Some(Window::Floating(floating)) = self.state.windows.get(window) else {
 			return false;
 		};
-
-		if self.state.overlay_system.interaction.is_open()
-			&& self
-				.state
-				.overlay_system
-				.interaction
-				.active
-				.as_ref()
-				.is_some_and(|a| a.session.windows.contains(&window))
-		{
-			self.interaction_cancel();
-			self.state.frame.needs_redraw = true;
-			return true;
-		}
 
 		if floating.dismiss_on_blur {
 			self.close_floating_window(window);

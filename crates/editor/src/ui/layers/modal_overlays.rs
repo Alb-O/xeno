@@ -1,0 +1,196 @@
+use xeno_registry::options::keys;
+use xeno_tui::layout::Rect;
+use xeno_tui::style::Style;
+use xeno_tui::widgets::{Block, Borders, Clear, Paragraph};
+
+use crate::buffer::ViewId;
+use crate::impls::{Editor, FocusTarget};
+use crate::render::{
+	BufferRenderContext, GutterLayout, RenderBufferParams, RenderCtx, ensure_buffer_cursor_visible,
+};
+use crate::ui::layer::SceneBuilder;
+use crate::ui::scene::{SurfaceKind, SurfaceOp};
+use crate::window::{FloatingStyle, GutterSelector};
+
+#[derive(Clone)]
+struct PaneRenderData {
+	buffer: ViewId,
+	rect: Rect,
+	style: FloatingStyle,
+	gutter: GutterSelector,
+}
+
+fn clamp_rect(rect: Rect, bounds: Rect) -> Option<Rect> {
+	let x1 = rect.x.max(bounds.x);
+	let y1 = rect.y.max(bounds.y);
+	let x2 = rect.right().min(bounds.right());
+	let y2 = rect.bottom().min(bounds.bottom());
+
+	if x2 <= x1 || y2 <= y1 {
+		return None;
+	}
+
+	Some(Rect {
+		x: x1,
+		y: y1,
+		width: x2.saturating_sub(x1),
+		height: y2.saturating_sub(y1),
+	})
+}
+
+pub fn visible(ed: &Editor) -> bool {
+	ed.state.overlay_system.interaction.is_open()
+}
+
+pub fn push(builder: &mut SceneBuilder, area: Rect) {
+	builder.push(
+		SurfaceKind::ModalOverlays,
+		55,
+		area,
+		SurfaceOp::ModalOverlays,
+		false,
+	);
+}
+
+pub fn render(ed: &mut Editor, frame: &mut xeno_tui::Frame, area: Rect, ctx: &RenderCtx) {
+	let panes: Vec<PaneRenderData> = ed
+		.state
+		.overlay_system
+		.interaction
+		.active
+		.as_ref()
+		.map(|active| {
+			active
+				.session
+				.panes
+				.iter()
+				.map(|pane| PaneRenderData {
+					buffer: pane.buffer,
+					rect: pane.rect,
+					style: pane.style.clone(),
+					gutter: pane.gutter,
+				})
+				.collect()
+		})
+		.unwrap_or_default();
+
+	if panes.is_empty() {
+		return;
+	}
+
+	for pane in &panes {
+		let Some(rect) = clamp_rect(pane.rect, area) else {
+			continue;
+		};
+
+		let mut block = Block::default().padding(pane.style.padding);
+		if pane.style.border {
+			block = block.borders(Borders::ALL).border_type(pane.style.border_type);
+			if let Some(title) = &pane.style.title {
+				block = block.title(title.as_str());
+			}
+		}
+		let content_area = block.inner(rect);
+		if content_area.width == 0 || content_area.height == 0 {
+			continue;
+		}
+
+		let tab_width = ed.tab_width_for(pane.buffer);
+		let scroll_margin = ed.scroll_margin_for(pane.buffer);
+		if let Some(buffer) = ed.get_buffer_mut(pane.buffer) {
+			let total_lines = buffer.with_doc(|doc| doc.content().len_lines());
+			let is_diff_file = buffer.file_type().is_some_and(|ft| ft == "diff");
+			let effective_gutter = if is_diff_file {
+				BufferRenderContext::diff_gutter_selector(pane.gutter)
+			} else {
+				pane.gutter
+			};
+
+			let gutter_layout =
+				GutterLayout::from_selector(effective_gutter, total_lines, content_area.width);
+			let text_width = content_area.width.saturating_sub(gutter_layout.total_width) as usize;
+
+			ensure_buffer_cursor_visible(
+				buffer,
+				content_area,
+				text_width,
+				tab_width,
+				scroll_margin,
+			);
+		}
+	}
+
+	let focused_overlay = match &ed.state.focus {
+		FocusTarget::Overlay { buffer } => Some(*buffer),
+		_ => None,
+	};
+
+	let mut cache = std::mem::take(&mut ed.state.render_cache);
+	let language_loader = &ed.state.config.language_loader;
+
+	for pane in panes {
+		let Some(rect) = clamp_rect(pane.rect, area) else {
+			continue;
+		};
+
+		frame.render_widget(Clear, rect);
+
+		let mut block = Block::default()
+			.style(Style::default().bg(ctx.theme.colors.popup.bg))
+			.padding(pane.style.padding);
+		if pane.style.border {
+			block = block
+				.borders(Borders::ALL)
+				.border_type(pane.style.border_type)
+				.border_style(Style::default().fg(ctx.theme.colors.popup.fg));
+			if let Some(title) = &pane.style.title {
+				block = block.title(title.as_str());
+			}
+		}
+
+		let content_area = block.inner(rect);
+		frame.render_widget(block, rect);
+
+		if content_area.width == 0 || content_area.height == 0 {
+			continue;
+		}
+
+		if let Some(buffer) = ed.get_buffer(pane.buffer) {
+			let tab_width = (buffer.option(keys::TAB_WIDTH, ed) as usize).max(1);
+			let cursorline = buffer.option(keys::CURSORLINE, ed);
+
+			let buffer_ctx = BufferRenderContext {
+				theme: &ctx.theme,
+				language_loader,
+				syntax_manager: &ed.state.syntax_manager,
+				diagnostics: ctx.lsp.diagnostics_for(pane.buffer),
+				diagnostic_ranges: ctx.lsp.diagnostic_ranges_for(pane.buffer),
+			};
+			let result = buffer_ctx.render_buffer_with_gutter(RenderBufferParams {
+				buffer,
+				area: content_area,
+				use_block_cursor: true,
+				is_focused: focused_overlay == Some(pane.buffer),
+				gutter: pane.gutter,
+				tab_width,
+				cursorline,
+				cache: &mut cache,
+			});
+
+			let gutter_area = Rect {
+				width: result.gutter_width,
+				..content_area
+			};
+			let text_area = Rect {
+				x: content_area.x + result.gutter_width,
+				width: content_area.width.saturating_sub(result.gutter_width),
+				..content_area
+			};
+
+			frame.render_widget(Paragraph::new(result.gutter), gutter_area);
+			frame.render_widget(Paragraph::new(result.text), text_area);
+		}
+	}
+
+	ed.state.render_cache = cache;
+}

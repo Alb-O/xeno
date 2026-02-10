@@ -1,11 +1,12 @@
 use xeno_primitives::Mode;
 use xeno_tui::layout::Rect;
+use xeno_tui::widgets::{Block, Borders};
 
 use super::CloseReason;
-use super::session::OverlaySession;
+use super::session::{OverlayPane, OverlaySession};
 use crate::buffer::ViewId;
-use crate::impls::{Editor, FocusTarget};
-use crate::window::Window;
+use crate::impls::{Editor, FocusReason, FocusTarget};
+use crate::window::FloatingStyle;
 
 /// Low-level manager for UI resources used by overlays.
 ///
@@ -14,6 +15,17 @@ use crate::window::Window;
 pub struct OverlayHost;
 
 impl OverlayHost {
+	fn compute_content_rect(rect: Rect, style: &FloatingStyle) -> Rect {
+		let mut block = Block::default().padding(style.padding);
+		if style.border {
+			block = block.borders(Borders::ALL).border_type(style.border_type);
+			if let Some(title) = &style.title {
+				block = block.title(title.as_str());
+			}
+		}
+		block.inner(rect)
+	}
+
 	/// Allocates a new scratch buffer for overlay input or display.
 	pub fn create_input_buffer(ed: &mut Editor) -> ViewId {
 		ed.state.core.buffers.create_scratch()
@@ -27,7 +39,7 @@ impl OverlayHost {
 	/// 1. Window rectangles are resolved against the current screen dimensions.
 	/// 2. If resolution fails (e.g., screen too small, missing anchor), the operation aborts
 	///    before any buffers are created.
-	/// 3. Only after valid geometry is confirmed are scratch buffers and windows allocated.
+	/// 3. Only after valid geometry is confirmed are scratch buffers and panes allocated.
 	///
 	/// This prevents orphaned scratch buffers in cases of layout failure.
 	///
@@ -55,7 +67,7 @@ impl OverlayHost {
 		let origin_mode = ed.focused_buffer().input.mode();
 
 		let mut session = OverlaySession {
-			windows: Vec::with_capacity(1 + spec.windows.len()),
+			panes: Vec::with_capacity(1 + spec.windows.len()),
 			buffers: Vec::with_capacity(1 + spec.windows.len()),
 			input: ViewId(0), // Placeholder, replaced below
 			origin_focus,
@@ -69,15 +81,16 @@ impl OverlayHost {
 		let input_buffer = Self::create_input_buffer(ed);
 		session.input = input_buffer;
 		session.buffers.push(input_buffer);
-
-		let window_id = ed.create_floating_window(input_buffer, input_rect, spec.style);
-		session.windows.push(window_id);
-
-		if let Some(Window::Floating(float)) = ed.state.windows.get_mut(window_id) {
-			float.sticky = true;
-			float.dismiss_on_blur = true;
-			float.gutter = spec.gutter;
-		}
+		session.panes.push(OverlayPane {
+			role: super::WindowRole::Input,
+			buffer: input_buffer,
+			rect: input_rect,
+			content_rect: Self::compute_content_rect(input_rect, &spec.style),
+			style: spec.style,
+			gutter: spec.gutter,
+			dismiss_on_blur: true,
+			sticky: true,
+		});
 
 		// 3. Resolve & Allocate Auxiliary Windows
 		for win_spec in spec.windows {
@@ -99,21 +112,24 @@ impl OverlayHost {
 				}
 			}
 
-			let win_id = ed.create_floating_window(buffer_id, rect, win_spec.style);
-			session.windows.push(win_id);
-
-			if let Some(Window::Floating(float)) = ed.state.windows.get_mut(win_id) {
-				float.sticky = win_spec.sticky;
-				float.dismiss_on_blur = win_spec.dismiss_on_blur;
-				float.gutter = win_spec.gutter;
-			}
+			session.panes.push(OverlayPane {
+				role: win_spec.role,
+				buffer: buffer_id,
+				rect,
+				content_rect: Self::compute_content_rect(rect, &win_spec.style),
+				style: win_spec.style,
+				gutter: win_spec.gutter,
+				dismiss_on_blur: win_spec.dismiss_on_blur,
+				sticky: win_spec.sticky,
+			});
 		}
 
-		// Focus primary input window
-		ed.state.focus = FocusTarget::Buffer {
-			window: window_id,
-			buffer: input_buffer,
-		};
+		ed.set_focus(
+			FocusTarget::Overlay {
+				buffer: input_buffer,
+			},
+			FocusReason::Programmatic,
+		);
 		ed.state
 			.core
 			.buffers
@@ -130,7 +146,7 @@ impl OverlayHost {
 	/// This method:
 	/// 1. Notifies the controller about closure.
 	/// 2. Restores cursor and selection state unless committed.
-	/// 3. Closes all session windows and removes scratch buffers.
+	/// 3. Removes all session scratch buffers.
 	/// 4. Restores focus and mode to the captured values.
 	pub fn cleanup_session(
 		ed: &mut Editor,
@@ -147,7 +163,9 @@ impl OverlayHost {
 		session.teardown(ed);
 
 		// Restore original state
-		ed.state.focus = session.origin_focus;
+		if reason != CloseReason::Blur {
+			ed.state.focus = session.origin_focus;
+		}
 		if let Some(buffer) = ed.state.core.buffers.get_buffer_mut(session.origin_view) {
 			buffer.input.set_mode(session.origin_mode);
 		}

@@ -17,6 +17,7 @@ pub type PanelId = String;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FocusTarget {
 	Buffer { window: WindowId, buffer: ViewId },
+	Overlay { buffer: ViewId },
 	Panel(PanelId),
 }
 
@@ -142,10 +143,10 @@ impl Editor {
 			to: effective.clone(),
 		});
 
-		if let FocusTarget::Buffer { window, buffer } = effective
-			&& window == self.state.windows.base_id()
+		if let FocusTarget::Buffer { window, buffer } = &effective
+			&& *window == self.state.windows.base_id()
 		{
-			self.base_window_mut().focused_buffer = buffer;
+			self.base_window_mut().focused_buffer = *buffer;
 		}
 
 		self.state.focus_epoch.increment();
@@ -170,7 +171,17 @@ impl Editor {
 			);
 		}
 
+		let old_focus_for_blur = old_focus.clone();
 		self.handle_window_focus_change(old_focus, &effective);
+
+		let overlay_was_open = self.state.overlay_system.interaction.is_open();
+		let leaving_overlay = matches!(old_focus_for_blur, FocusTarget::Overlay { .. })
+			&& !matches!(effective, FocusTarget::Overlay { .. });
+		if overlay_was_open && leaving_overlay && !matches!(reason, FocusReason::Hover) {
+			let mut interaction = std::mem::take(&mut self.state.overlay_system.interaction);
+			interaction.close(self, crate::overlay::CloseReason::Blur);
+			self.state.overlay_system.interaction = interaction;
+		}
 
 		true
 	}
@@ -202,6 +213,13 @@ impl Editor {
 				}
 
 				Some(FocusTarget::Buffer { window, buffer })
+			}
+			FocusTarget::Overlay { buffer } => {
+				if self.state.core.buffers.get_buffer(buffer).is_some() {
+					Some(FocusTarget::Overlay { buffer })
+				} else {
+					self.fallback_buffer_focus()
+				}
 			}
 			FocusTarget::Panel(ref panel_id) => {
 				if self.state.ui.has_panel(panel_id) {
@@ -449,7 +467,7 @@ impl Editor {
 	/// safely resolve the view later, handling cases where the view was closed
 	/// or repurposed.
 	pub fn lease_focused_view(&self) -> Option<ViewLease> {
-		if let FocusTarget::Buffer { buffer, .. } = self.state.focus
+		if let FocusTarget::Buffer { buffer, .. } | FocusTarget::Overlay { buffer } = self.state.focus
 			&& let Some(buf) = self.state.core.buffers.get_buffer(buffer)
 		{
 			return Some(ViewLease {
@@ -480,21 +498,30 @@ impl Editor {
 	/// Use this in tests and debug builds to catch corruption early.
 	#[cfg(any(test, debug_assertions))]
 	pub fn debug_assert_invariants(&self) {
-		if let FocusTarget::Buffer { window, buffer } = &self.state.focus {
-			assert!(
-				self.state.windows.get(*window).is_some(),
-				"focused window must exist"
-			);
-			assert!(
-				self.state.core.buffers.get_buffer(*buffer).is_some(),
-				"focused buffer must exist"
-			);
-			if *window == self.state.windows.base_id() {
+		match &self.state.focus {
+			FocusTarget::Buffer { window, buffer } => {
 				assert!(
-					self.window_contains_view(*window, *buffer),
-					"focused buffer must be in window layout"
+					self.state.windows.get(*window).is_some(),
+					"focused window must exist"
+				);
+				assert!(
+					self.state.core.buffers.get_buffer(*buffer).is_some(),
+					"focused buffer must exist"
+				);
+				if *window == self.state.windows.base_id() {
+					assert!(
+						self.window_contains_view(*window, *buffer),
+						"focused buffer must be in window layout"
+					);
+				}
+			}
+			FocusTarget::Overlay { buffer } => {
+				assert!(
+					self.state.core.buffers.get_buffer(*buffer).is_some(),
+					"focused overlay buffer must exist"
 				);
 			}
+			FocusTarget::Panel(_) => {}
 		}
 
 		let base_focused = self.base_window().focused_buffer;
@@ -516,10 +543,12 @@ impl Editor {
 	) {
 		let old_window = match old_focus {
 			FocusTarget::Buffer { window, .. } => Some(window),
+			FocusTarget::Overlay { .. } => None,
 			FocusTarget::Panel(_) => None,
 		};
 		let new_window = match new_focus {
 			FocusTarget::Buffer { window, .. } => Some(*window),
+			FocusTarget::Overlay { .. } => None,
 			FocusTarget::Panel(_) => None,
 		};
 
@@ -552,18 +581,6 @@ impl Editor {
 				Some(Window::Floating(floating)) if floating.dismiss_on_blur
 			);
 			if should_close {
-				if self.state.overlay_system.interaction.is_open()
-					&& self
-						.state
-						.overlay_system
-						.interaction
-						.active
-						.as_ref()
-						.is_some_and(|a| a.session.windows.contains(&window))
-				{
-					self.interaction_cancel();
-					return;
-				}
 				self.close_floating_window(window);
 			}
 		}
