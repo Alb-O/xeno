@@ -16,7 +16,7 @@ use crate::overlay::{
 	CloseReason, OverlayContext, OverlayController, OverlaySession, OverlayUiSpec, RectPolicy,
 	WindowRole, WindowSpec,
 };
-use crate::window::{FloatingStyle, GutterSelector};
+use crate::window::{GutterSelector, SurfaceStyle};
 
 pub struct WorkspaceSearchOverlay {
 	list_buffer: Option<ViewId>,
@@ -79,7 +79,7 @@ impl OverlayController for WorkspaceSearchOverlay {
 			windows: vec![WindowSpec {
 				role: WindowRole::List,
 				rect: RectPolicy::Below(WindowRole::Input, 0, 15),
-				style: FloatingStyle {
+				style: SurfaceStyle {
 					border: true,
 					border_type: BorderType::Rounded,
 					padding: Padding::ZERO,

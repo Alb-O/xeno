@@ -38,7 +38,7 @@ impl OverlayHost {
 			super::WindowRole,
 			(
 				Rect,
-				crate::window::FloatingStyle,
+				crate::window::SurfaceStyle,
 				crate::window::GutterSelector,
 				bool,
 				bool,

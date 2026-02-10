@@ -66,13 +66,6 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame) {
 		SurfaceOp::Document,
 		true,
 	);
-	builder.push(
-		SurfaceKind::LegacyFloatingWindows,
-		20,
-		area,
-		SurfaceOp::LegacyFloatingWindows,
-		false,
-	);
 	if layers::info_popups::visible(ed) {
 		layers::info_popups::push(&mut builder, doc_area);
 	}
@@ -121,9 +114,6 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame) {
 			}
 			SurfaceOp::Document => {
 				ed.render_split_buffers(frame, doc_area, use_block_cursor && doc_focused, &ctx);
-			}
-			SurfaceOp::LegacyFloatingWindows => {
-				ed.render_floating_windows(frame, use_block_cursor && doc_focused, &ctx);
 			}
 			SurfaceOp::InfoPopups => layers::info_popups::render(ed, frame, doc_area, &ctx),
 			SurfaceOp::Panels => {

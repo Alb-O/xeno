@@ -7,7 +7,6 @@ use termina::event::{KeyCode, KeyEvent};
 use xeno_registry::notifications::Notification;
 
 use crate::buffer::{Buffer, ViewId};
-use crate::window::WindowId;
 
 pub mod controllers;
 pub(crate) mod geom;
@@ -24,11 +23,11 @@ pub use spec::*;
 use xeno_tui::widgets::BorderType;
 use xeno_tui::widgets::block::Padding;
 
-use crate::window::FloatingStyle;
+use crate::window::SurfaceStyle;
 
-/// Helper to create a consistent floating style for prompt windows.
-pub fn prompt_style(title: &str) -> FloatingStyle {
-	FloatingStyle {
+/// Helper to create a consistent surface style for prompt panes.
+pub fn prompt_style(title: &str) -> SurfaceStyle {
+	SurfaceStyle {
 		border: true,
 		border_type: BorderType::Stripe,
 		padding: Padding::horizontal(1),
@@ -196,8 +195,6 @@ pub trait OverlayContext {
 	fn queue_command(&mut self, name: &'static str, args: Vec<String>);
 	/// Returns the async message sender for background results.
 	fn msg_tx(&self) -> crate::msg::MsgSender;
-	/// Closes a floating window (legacy path for non-overlay floating UI).
-	fn close_floating_window(&mut self, window: WindowId);
 	/// Finalizes removal for a buffer.
 	fn finalize_buffer_removal(&mut self, view: ViewId);
 
@@ -301,10 +298,6 @@ impl OverlayContext for crate::impls::Editor {
 
 	fn msg_tx(&self) -> crate::msg::MsgSender {
 		self.msg_tx()
-	}
-
-	fn close_floating_window(&mut self, window: WindowId) {
-		self.close_floating_window(window);
 	}
 
 	fn finalize_buffer_removal(&mut self, view: ViewId) {

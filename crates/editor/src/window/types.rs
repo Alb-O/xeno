@@ -1,7 +1,6 @@
-//! Window and floating window types.
+//! Window and surface style types.
 
 use xeno_registry::gutter::{GutterCell, GutterLineContext};
-use xeno_tui::layout::Rect;
 use xeno_tui::widgets::BorderType;
 use xeno_tui::widgets::block::Padding;
 
@@ -45,15 +44,12 @@ pub enum GutterSelector {
 pub enum Window {
 	/// The base window containing the split tree.
 	Base(BaseWindow),
-	/// A floating window positioned over content.
-	Floating(FloatingWindow),
 }
 
 impl Window {
 	pub fn buffer(&self) -> ViewId {
 		match self {
 			Window::Base(b) => b.focused_buffer,
-			Window::Floating(f) => f.buffer,
 		}
 	}
 }
@@ -64,25 +60,9 @@ pub struct BaseWindow {
 	pub focused_buffer: ViewId,
 }
 
-/// A floating window with absolute positioning.
+/// Visual style for overlay surfaces.
 #[derive(Debug, Clone)]
-pub struct FloatingWindow {
-	pub id: WindowId,
-	pub buffer: ViewId,
-	pub rect: Rect,
-	/// Gutter configuration for this window.
-	pub gutter: GutterSelector,
-	/// If true, resists losing focus from mouse hover.
-	pub sticky: bool,
-	/// If true, closes when focus is lost.
-	pub dismiss_on_blur: bool,
-	/// Visual style (border, shadow, transparency).
-	pub style: FloatingStyle,
-}
-
-/// Visual style for floating windows.
-#[derive(Debug, Clone)]
-pub struct FloatingStyle {
+pub struct SurfaceStyle {
 	pub border: bool,
 	pub border_type: BorderType,
 	pub padding: Padding,
@@ -90,7 +70,7 @@ pub struct FloatingStyle {
 	pub title: Option<String>,
 }
 
-impl Default for FloatingStyle {
+impl Default for SurfaceStyle {
 	fn default() -> Self {
 		Self {
 			border: true,

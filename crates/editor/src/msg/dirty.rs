@@ -9,9 +9,11 @@ pub struct Dirty(u8);
 impl Dirty {
 	/// No redraw needed.
 	pub const NONE: Self = Self(0);
+	/// A redraw is needed.
+	pub const REDRAW: Self = Self(1);
 
-	/// Full redraw required.
-	pub const FULL: Self = Self(1);
+	/// Full recomputation/redraw required.
+	pub const FULL: Self = Self(Self::REDRAW.0 | 2);
 
 	/// Returns true if any redraw is needed.
 	#[inline]
@@ -31,5 +33,16 @@ impl BitOr for Dirty {
 impl BitOrAssign for Dirty {
 	fn bitor_assign(&mut self, rhs: Self) {
 		self.0 |= rhs.0;
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::Dirty;
+
+	#[test]
+	fn full_implies_redraw_and_is_superset() {
+		assert!(Dirty::FULL.needs_redraw());
+		assert_eq!(Dirty::FULL | Dirty::REDRAW, Dirty::FULL);
 	}
 }

@@ -10,8 +10,6 @@ use crate::Editor;
 pub enum OverlayMsg {
 	/// Emit a user notification.
 	Notify(Notification),
-	/// Request a redraw.
-	RequestRedraw,
 	/// Queue a workspace edit to be applied in runtime pump.
 	#[cfg(feature = "lsp")]
 	ApplyWorkspaceEdit(xeno_lsp::lsp_types::WorkspaceEdit),
@@ -23,16 +21,12 @@ impl OverlayMsg {
 		match self {
 			Self::Notify(notification) => {
 				editor.notify(notification);
-				Dirty::FULL
-			}
-			Self::RequestRedraw => {
-				editor.frame_mut().needs_redraw = true;
-				Dirty::FULL
+				Dirty::REDRAW
 			}
 			#[cfg(feature = "lsp")]
 			Self::ApplyWorkspaceEdit(edit) => {
 				editor.frame_mut().pending_workspace_edits.push(edit);
-				Dirty::FULL
+				Dirty::REDRAW
 			}
 		}
 	}

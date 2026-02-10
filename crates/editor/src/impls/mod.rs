@@ -65,7 +65,6 @@ use xeno_registry::hooks::{HookContext, WindowKind, emit_sync_with as emit_hook_
 use xeno_registry::options::OPTIONS;
 use xeno_registry::themes::THEMES;
 use xeno_runtime_language::LanguageLoader;
-use xeno_tui::layout::Rect;
 
 use crate::buffer::{Buffer, Layout, ViewId};
 pub use crate::command_queue::CommandQueue;
@@ -85,7 +84,7 @@ pub use crate::types::{
 };
 use crate::ui::UiManager;
 pub use crate::view_manager::ViewManager;
-use crate::window::{BaseWindow, FloatingStyle, WindowId, WindowManager};
+use crate::window::{BaseWindow, WindowManager};
 
 static REGISTRY_SUMMARY_ONCE: Once = Once::new();
 
@@ -147,7 +146,7 @@ pub(crate) struct EditorState {
 	/// and presentation concerns are kept separate in other Editor fields.
 	pub(crate) core: EditorCore,
 
-	/// Window management (base + floating).
+	/// Window management (base).
 	pub(crate) windows: WindowManager,
 
 	/// Current keyboard focus target.
@@ -439,43 +438,6 @@ impl Editor {
 	/// Returns the base window mutably.
 	pub fn base_window_mut(&mut self) -> &mut BaseWindow {
 		self.state.windows.base_window_mut()
-	}
-
-	/// Creates a floating window and emits a hook.
-	pub fn create_floating_window(
-		&mut self,
-		buffer: ViewId,
-		rect: Rect,
-		style: FloatingStyle,
-	) -> WindowId {
-		let id = self.state.windows.create_floating(buffer, rect, style);
-		emit_hook_sync_with(
-			&HookContext::new(HookEventData::WindowCreated {
-				window_id: id.into(),
-				kind: WindowKind::Base,
-			}),
-			&mut self.state.hook_runtime,
-		);
-		id
-	}
-
-	/// Closes a floating window and emits a hook.
-	pub fn close_floating_window(&mut self, id: WindowId) {
-		if !matches!(
-			self.state.windows.get(id),
-			Some(crate::window::Window::Floating(_))
-		) {
-			return;
-		}
-
-		self.state.windows.close_floating(id);
-		emit_hook_sync_with(
-			&HookContext::new(HookEventData::WindowClosed {
-				window_id: id.into(),
-			}),
-			&mut self.state.hook_runtime,
-		);
-		self.repair_invariants();
 	}
 
 	#[inline]

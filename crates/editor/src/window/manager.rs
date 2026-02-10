@@ -1,18 +1,14 @@
-//! Window manager for base and floating windows. See [`layout::manager`](crate::layout::manager) for full windowing architecture.
+//! Window manager for base window state. See [`layout::manager`](crate::layout::manager) for full windowing architecture.
 
 use std::collections::HashMap;
 
-use xeno_tui::layout::Rect;
-
-use super::types::{BaseWindow, FloatingStyle, FloatingWindow, Window, WindowId};
+use super::types::{BaseWindow, Window, WindowId};
 use crate::buffer::{Layout, ViewId};
 
 /// Tracks all editor windows and their ordering.
 pub struct WindowManager {
-	next_id: u64,
 	base: WindowId,
 	windows: HashMap<WindowId, Window>,
-	floating_order: Vec<WindowId>,
 }
 
 impl WindowManager {
@@ -27,10 +23,8 @@ impl WindowManager {
 		windows.insert(base_id, Window::Base(base_window));
 
 		Self {
-			next_id: base_id.0 + 1,
 			base: base_id,
 			windows,
-			floating_order: Vec::new(),
 		}
 	}
 
@@ -47,7 +41,6 @@ impl WindowManager {
 			.expect("base window must exist")
 		{
 			Window::Base(base) => base,
-			Window::Floating(_) => panic!("base window ID must reference base"),
 		}
 	}
 
@@ -59,7 +52,6 @@ impl WindowManager {
 			.expect("base window must exist")
 		{
 			Window::Base(base) => base,
-			Window::Floating(_) => panic!("base window ID must reference base"),
 		}
 	}
 
@@ -78,37 +70,5 @@ impl WindowManager {
 		self.windows.iter().map(|(id, w)| (*id, w))
 	}
 
-	/// Iterates floating windows in z-order from bottom to top.
-	pub fn floating_windows(&self) -> impl Iterator<Item = (WindowId, &FloatingWindow)> {
-		self.floating_order
-			.iter()
-			.filter_map(|id| match self.windows.get(id) {
-				Some(Window::Floating(window)) => Some((*id, window)),
-				_ => None,
-			})
-	}
-
-	/// Creates a new floating window and returns its ID.
-	pub fn create_floating(
-		&mut self,
-		buffer: ViewId,
-		rect: Rect,
-		style: FloatingStyle,
-	) -> WindowId {
-		let id = WindowId(self.next_id);
-		self.next_id += 1;
-
-		let window = FloatingWindow::new(id, buffer, rect, style);
-		self.windows.insert(id, Window::Floating(window));
-		self.floating_order.push(id);
-		id
-	}
-
-	/// Closes a floating window by ID.
-	pub fn close_floating(&mut self, id: WindowId) {
-		if matches!(self.windows.get(&id), Some(Window::Floating(_))) {
-			self.windows.remove(&id);
-			self.floating_order.retain(|window_id| *window_id != id);
-		}
-	}
+	// Floating-window APIs were removed in favor of surface layers.
 }

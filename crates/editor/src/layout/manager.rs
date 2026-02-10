@@ -2,15 +2,13 @@
 //!
 //! # Purpose
 //!
-//! Owns window containers (base + floating), stacked layout layers, split-tree geometry ([`crate::buffer::Layout`]), view navigation, separator hit/resize/drag state, and editor-level split/close integration.
+//! Owns window containers (base), stacked layout layers, split-tree geometry ([`crate::buffer::Layout`]), view navigation, separator hit/resize/drag state, and editor-level split/close integration.
 //!
-//! Does not own: buffer/document content (owned by buffer/document subsystems), UI widget styling (owned by renderer + widget layer), overlay session policy (owned by overlay system; windowing only hosts floating windows and overlay layouts).
+//! Does not own: buffer/document content (owned by buffer/document subsystems), UI widget styling (owned by renderer + widget layer), overlay session policy (owned by overlay system; windowing hosts base layout and overlay layers).
 //!
 //! Source of truth:
 //! - Layout/layers/splits/navigation: [`crate::layout::manager::LayoutManager`] + [`crate::buffer::Layout`]
-//! - Base/floating window containers: [`crate::window::WindowManager`],
-//!   [`crate::window::BaseWindow`],
-//!   [`crate::window::FloatingWindow`]
+//! - Base window containers: [`crate::window::WindowManager`], [`crate::window::BaseWindow`]
 //! - Editor integration: `Editor` split/close methods
 //!
 //! # Mental model
@@ -28,9 +26,8 @@
 //!
 //! | Type | Meaning | Constraints | Constructed / mutated in |
 //! |---|---|---|---|
-//! | [`crate::window::WindowManager`] | Owns all windows (base + floating) | Must always contain exactly one base window | `WindowManager::new`, `WindowManager::create_floating`, `WindowManager::close_floating` |
+//! | [`crate::window::WindowManager`] | Owns windows | Must always contain exactly one base window | `WindowManager::new` |
 //! | [`crate::window::BaseWindow`] | Base split tree container | `layout` is the base layer tree; `focused_buffer` must be a view in the base tree after repairs | editor state |
-//! | [`crate::window::FloatingWindow`] | Absolute-positioned overlay window | Pure data; policy fields are enforced elsewhere | `FloatingWindow::new` |
 //! | [`crate::layout::manager::LayoutManager`] | Owns overlay layers + separator interaction | `layers[0]` is a dummy slot; base layout lives outside slots | `LayoutManager` + `layout::*` methods |
 //! | [`crate::layout::types::LayerId`] | Generational layer handle | Must validate before deref unless `is_base()` | `layout::types` + `layout::layers` |
 //! | [`crate::layout::types::LayerSlot`] | Storage slot for overlay layer | `generation` must bump when layer identity ends (clear/replace) | `LayoutManager::set_layer`, `LayoutManager::remove_view` |

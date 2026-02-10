@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use xeno_registry::options::OptionValue;
 use xeno_tui::layout::Rect;
 
-use crate::window::{FloatingStyle, GutterSelector};
+use crate::window::{GutterSelector, SurfaceStyle};
 
 /// Declarative specification for an overlay's UI layout.
 ///
@@ -18,7 +18,7 @@ pub struct OverlayUiSpec {
 	/// Positioning policy for the primary window.
 	pub rect: RectPolicy,
 	/// Visual style (border, padding, shadow) for the primary window.
-	pub style: FloatingStyle,
+	pub style: SurfaceStyle,
 	/// List of auxiliary windows to spawn.
 	pub windows: Vec<WindowSpec>,
 }
@@ -31,7 +31,7 @@ pub struct WindowSpec {
 	/// Positioning policy for this window.
 	pub rect: RectPolicy,
 	/// Visual style for this window.
-	pub style: FloatingStyle,
+	pub style: SurfaceStyle,
 	/// Buffer-local options to apply to this window's scratch buffer.
 	pub buffer_options: HashMap<String, OptionValue>,
 	/// Whether to dismiss the entire overlay when this window loses focus.

@@ -8,8 +8,7 @@ use types::ActionDispatch;
 use xeno_input::input::KeyResult;
 use xeno_primitives::{Key, Mode};
 
-use crate::impls::{Editor, FocusTarget};
-use crate::window::Window;
+use crate::impls::Editor;
 
 impl Editor {
 	/// Processes a key event, routing to UI or input state machine.
@@ -70,10 +69,6 @@ impl Editor {
 
 		#[cfg(feature = "lsp")]
 		if self.handle_lsp_menu_key(&key).await {
-			return false;
-		}
-
-		if self.handle_floating_escape(&key) {
 			return false;
 		}
 
@@ -168,33 +163,6 @@ impl Editor {
 		);
 
 		quit
-	}
-
-	fn handle_floating_escape(&mut self, key: &termina::event::KeyEvent) -> bool {
-		if key.code != KeyCode::Escape {
-			return false;
-		}
-
-		let FocusTarget::Buffer { window, .. } = self.state.focus else {
-			return false;
-		};
-
-		if window == self.state.windows.base_id() {
-			return false;
-		}
-
-		let Some(Window::Floating(floating)) = self.state.windows.get(window) else {
-			return false;
-		};
-
-		if floating.dismiss_on_blur {
-			self.close_floating_window(window);
-		}
-
-		let base_buffer = self.base_window().focused_buffer;
-		self.focus_view(base_buffer);
-		self.state.frame.needs_redraw = true;
-		true
 	}
 }
 

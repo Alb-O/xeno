@@ -331,3 +331,20 @@ pub(crate) fn test_forced_close_restores_origin_focus() {
 
 	assert_eq!(*editor.focus(), origin_focus);
 }
+
+/// Must keep window manager state fixed to the base window for modal UI paths.
+///
+/// - Enforced in: `OverlayHost::setup_session`
+/// - Failure symptom: Overlay UI mutates window manager state unexpectedly.
+#[cfg_attr(test, test)]
+pub(crate) fn test_modal_ui_keeps_single_base_window() {
+	let mut editor = crate::impls::Editor::new_scratch();
+	editor.handle_window_resize(100, 40);
+
+	assert_eq!(editor.state.windows.windows().count(), 1);
+	assert!(editor.open_command_palette());
+	assert_eq!(editor.state.windows.windows().count(), 1);
+
+	editor.interaction_cancel();
+	assert_eq!(editor.state.windows.windows().count(), 1);
+}

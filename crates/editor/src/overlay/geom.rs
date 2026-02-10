@@ -1,9 +1,9 @@
 use xeno_tui::layout::Rect;
 use xeno_tui::widgets::{Block, Borders};
 
-use crate::window::FloatingStyle;
+use crate::window::SurfaceStyle;
 
-pub fn pane_inner_rect(rect: Rect, style: &FloatingStyle) -> Rect {
+pub fn pane_inner_rect(rect: Rect, style: &SurfaceStyle) -> Rect {
 	let mut block = Block::default().padding(style.padding);
 	if style.border {
 		block = block.borders(Borders::ALL).border_type(style.border_type);
@@ -21,12 +21,12 @@ mod tests {
 	use xeno_tui::widgets::block::Padding;
 
 	use super::pane_inner_rect;
-	use crate::window::FloatingStyle;
+	use crate::window::SurfaceStyle;
 
 	#[test]
 	fn pane_inner_rect_matches_block_inner() {
 		let rect = Rect::new(10, 5, 30, 9);
-		let style = FloatingStyle {
+		let style = SurfaceStyle {
 			border: true,
 			border_type: BorderType::Stripe,
 			padding: Padding::horizontal(1),

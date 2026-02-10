@@ -75,7 +75,7 @@ use super::WindowRole;
 use crate::buffer::ViewId;
 use crate::impls::FocusTarget;
 use crate::overlay::OverlayContext;
-use crate::window::{FloatingStyle, GutterSelector};
+use crate::window::{GutterSelector, SurfaceStyle};
 
 /// Renderable pane metadata for a modal overlay session.
 pub struct OverlayPane {
@@ -83,7 +83,7 @@ pub struct OverlayPane {
 	pub buffer: ViewId,
 	pub rect: Rect,
 	pub content_rect: Rect,
-	pub style: FloatingStyle,
+	pub style: SurfaceStyle,
 	pub gutter: GutterSelector,
 	pub dismiss_on_blur: bool,
 	pub sticky: bool,

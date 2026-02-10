@@ -7,7 +7,6 @@ use xeno_input::input::KeyResult;
 use xeno_primitives::{ScrollDirection, Selection};
 
 use crate::impls::{Editor, FocusReason, FocusTarget};
-use crate::window::Window;
 
 impl Editor {
 	/// Processes a mouse event, returning true if the event triggered a quit.
@@ -262,16 +261,7 @@ impl Editor {
 			return false;
 		}
 
-		let mut floating_hit = None;
-		for (window_id, window) in self.state.windows.floating_windows() {
-			if window.contains(mouse_x, mouse_y) {
-				floating_hit = Some((window_id, window));
-			}
-		}
-
-		let separator_hit = if floating_hit.is_some() {
-			None
-		} else {
+		let separator_hit = {
 			let base_layout = &self.base_window().layout;
 			self.state
 				.layout
@@ -338,9 +328,7 @@ impl Editor {
 			}
 		}
 
-		let view_hit = if let Some((window_id, window)) = floating_hit {
-			Some((window.buffer, window.content_rect(), window_id))
-		} else {
+		let view_hit = {
 			let base_layout = &self.base_window().layout;
 			self.state
 				.layout
@@ -350,26 +338,6 @@ impl Editor {
 		let Some((target_view, view_area, target_window)) = view_hit else {
 			return false;
 		};
-
-		let focused_window = match &self.state.focus {
-			FocusTarget::Buffer { window, .. } => Some(*window),
-			FocusTarget::Overlay { .. } => None,
-			FocusTarget::Panel(_) => None,
-		};
-		let sticky_floating = focused_window
-			.and_then(|id| self.state.windows.get(id))
-			.and_then(|window| match window {
-				Window::Floating(floating) => Some(floating.sticky),
-				Window::Base(_) => None,
-			})
-			.unwrap_or(false);
-
-		if matches!(mouse.kind, MouseEventKind::Moved)
-			&& sticky_floating
-			&& Some(target_window) != focused_window
-		{
-			return false;
-		}
 
 		let needs_focus = match &self.state.focus {
 			FocusTarget::Buffer { window, buffer } => {
@@ -426,12 +394,6 @@ impl Editor {
 	/// and then finds the focused view's rectangle within that area.
 	pub(crate) fn focused_view_area(&self) -> xeno_tui::layout::Rect {
 		let doc_area = self.doc_area();
-		if let FocusTarget::Buffer { window, .. } = &self.state.focus
-			&& *window != self.state.windows.base_id()
-			&& let Some(Window::Floating(floating)) = self.state.windows.get(*window)
-		{
-			return floating.content_rect();
-		}
 		if let FocusTarget::Overlay { buffer } = &self.state.focus {
 			return self.view_area(*buffer);
 		}

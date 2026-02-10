@@ -10,13 +10,13 @@ use crate::render::{
 };
 use crate::ui::layer::SceneBuilder;
 use crate::ui::scene::{SurfaceKind, SurfaceOp};
-use crate::window::{FloatingStyle, GutterSelector};
+use crate::window::{GutterSelector, SurfaceStyle};
 
 #[derive(Clone)]
 struct PaneRenderData {
 	buffer: ViewId,
 	rect: Rect,
-	style: FloatingStyle,
+	style: SurfaceStyle,
 	gutter: GutterSelector,
 }
 

@@ -73,11 +73,9 @@ impl Editor {
 	/// Checks if a window contains a specific view.
 	///
 	/// For BaseWindow: checks if view is in the layout tree.
-	/// For FloatingWindow: checks if view matches the window's buffer.
 	fn window_contains_view(&self, window_id: WindowId, view: ViewId) -> bool {
 		match self.state.windows.get(window_id) {
 			Some(Window::Base(base)) => self.state.layout.contains_view(&base.layout, view),
-			Some(Window::Floating(floating)) => floating.buffer == view,
 			None => false,
 		}
 	}
@@ -571,18 +569,6 @@ impl Editor {
 					}),
 					&mut self.state.hook_runtime,
 				);
-			}
-		}
-
-		if let Some(window) = old_window
-			&& old_window != new_window
-		{
-			let should_close = matches!(
-				self.state.windows.get(window),
-				Some(Window::Floating(floating)) if floating.dismiss_on_blur
-			);
-			if should_close {
-				self.close_floating_window(window);
 			}
 		}
 	}

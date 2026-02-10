@@ -9,7 +9,6 @@ pub struct SurfaceId(pub u64);
 pub enum SurfaceKind {
 	Background,
 	Document,
-	LegacyFloatingWindows,
 	InfoPopups,
 	Panels,
 	CompletionPopup,
@@ -24,7 +23,6 @@ pub enum SurfaceKind {
 pub enum SurfaceOp {
 	Background,
 	Document,
-	LegacyFloatingWindows,
 	InfoPopups,
 	Panels,
 	CompletionPopup,

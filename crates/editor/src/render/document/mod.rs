@@ -8,19 +8,16 @@ mod whichkey;
 
 use xeno_registry::options::keys;
 use xeno_tui::layout::Rect;
-use xeno_tui::style::Style;
 use xeno_tui::text::{Line, Span};
-use xeno_tui::widgets::{Block, Borders, Clear, Paragraph};
+use xeno_tui::widgets::Paragraph;
 
 use self::separator::{SeparatorStyle, junction_glyph};
 use super::buffer::{BufferRenderContext, GutterLayout, ensure_buffer_cursor_visible};
 use crate::Editor;
 use crate::buffer::{SplitDirection, ViewId};
-use crate::impls::FocusTarget;
 use crate::layout::LayerId;
 use crate::render::RenderCtx;
-use crate::render::buffer::context::types::RenderBufferParams;
-use crate::window::{GutterSelector, Window};
+use crate::window::GutterSelector;
 
 /// Per-layer rendering data: (layer_id, layer_area, view_areas, separators).
 type LayerRenderData = (
@@ -30,32 +27,13 @@ type LayerRenderData = (
 	Vec<(SplitDirection, u8, Rect)>,
 );
 
-/// Clamps a rectangle to a bounding area, returning the intersection.
-fn clamp_rect(rect: Rect, bounds: Rect) -> Option<Rect> {
-	let x1 = rect.x.max(bounds.x);
-	let y1 = rect.y.max(bounds.y);
-	let x2 = rect.right().min(bounds.right());
-	let y2 = rect.bottom().min(bounds.bottom());
-
-	if x2 <= x1 || y2 <= y1 {
-		return None;
-	}
-
-	Some(Rect {
-		x: x1,
-		y: y1,
-		width: x2.saturating_sub(x1),
-		height: y2.saturating_sub(y1),
-	})
-}
-
 impl Editor {
 	/// Renders the complete editor frame.
 	///
 	/// This is the main rendering entry point that orchestrates all UI elements:
 	/// - Document content with cursor and selections (including splits)
 	/// - UI panels and docks
-	/// - Floating windows and overlays
+	/// - Overlay surfaces
 	/// - Command/message line and status line
 	/// - Notifications
 	///
@@ -217,178 +195,6 @@ impl Editor {
 
 			self.render_separator_junctions(frame, separators, &sep_style);
 		}
-	}
-
-	/// Renders floating windows above the base layout.
-	pub(crate) fn render_floating_windows(
-		&mut self,
-		frame: &mut xeno_tui::Frame,
-		use_block_cursor: bool,
-		ctx: &RenderCtx,
-	) {
-		let bounds = frame.area();
-		let focused = match &self.state.focus {
-			FocusTarget::Buffer { window, buffer } => Some((*window, *buffer)),
-			_ => None,
-		};
-
-		// Collect only IDs to avoid cloning windows; borrow windows in tight scopes
-		let floating_ids: Vec<_> = self
-			.state
-			.windows
-			.floating_windows()
-			.map(|(id, _)| id)
-			.collect();
-
-		// First pass: ensure cursor visible (needs &mut self)
-		for &window_id in &floating_ids {
-			let (buffer_id, content_area, gutter_selector) = {
-				let Some(window) = self.state.windows.get(window_id) else {
-					continue;
-				};
-				let Window::Floating(window) = window else {
-					continue;
-				};
-				let Some(rect) = clamp_rect(window.rect, bounds) else {
-					continue;
-				};
-				let content_area = if window.style.border {
-					Rect {
-						x: rect.x.saturating_add(1),
-						y: rect.y.saturating_add(1),
-						width: rect.width.saturating_sub(2),
-						height: rect.height.saturating_sub(2),
-					}
-				} else {
-					rect
-				};
-
-				if content_area.width == 0 || content_area.height == 0 {
-					continue;
-				}
-				(window.buffer, content_area, window.gutter)
-			};
-
-			let tab_width = self.tab_width_for(buffer_id);
-			let scroll_margin = self.scroll_margin_for(buffer_id);
-			if let Some(buffer) = self.get_buffer_mut(buffer_id) {
-				let total_lines = buffer.with_doc(|doc| doc.content().len_lines());
-				let is_diff_file = buffer.file_type().is_some_and(|ft| ft == "diff");
-				let effective_gutter = if is_diff_file {
-					BufferRenderContext::diff_gutter_selector(gutter_selector)
-				} else {
-					gutter_selector
-				};
-
-				let gutter_layout =
-					GutterLayout::from_selector(effective_gutter, total_lines, content_area.width);
-				let text_width =
-					content_area.width.saturating_sub(gutter_layout.total_width) as usize;
-
-				ensure_buffer_cursor_visible(
-					buffer,
-					content_area,
-					text_width,
-					tab_width,
-					scroll_margin,
-				);
-			}
-		}
-
-		// Second pass: render (borrows windows again)
-		// Use mem::take to move cache out of self, allowing free use of &self in the loop
-		let mut cache = std::mem::take(&mut self.state.render_cache);
-		let language_loader = &self.state.config.language_loader;
-		for &window_id in &floating_ids {
-			let Some(window) = self.state.windows.get(window_id) else {
-				continue;
-			};
-			let Window::Floating(window) = window else {
-				continue;
-			};
-			let Some(rect) = clamp_rect(window.rect, bounds) else {
-				continue;
-			};
-
-			if window.style.shadow {
-				let shadow_rect = Rect {
-					x: rect.x.saturating_add(1),
-					y: rect.y.saturating_add(1),
-					width: rect.width,
-					height: rect.height,
-				};
-				if let Some(shadow) = clamp_rect(shadow_rect, bounds) {
-					let shadow_block =
-						Block::default().style(Style::default().bg(ctx.theme.colors.ui.bg));
-					frame.render_widget(shadow_block, shadow);
-				}
-			}
-
-			frame.render_widget(Clear, rect);
-
-			let mut block = Block::default()
-				.style(Style::default().bg(ctx.theme.colors.popup.bg))
-				.padding(window.style.padding);
-			if window.style.border {
-				block = block
-					.borders(Borders::ALL)
-					.border_type(window.style.border_type)
-					.border_style(Style::default().fg(ctx.theme.colors.popup.fg));
-				if let Some(title) = &window.style.title {
-					block = block.title(title.as_str());
-				}
-			}
-
-			let content_area = block.inner(rect);
-
-			frame.render_widget(block, rect);
-
-			if content_area.width == 0 || content_area.height == 0 {
-				continue;
-			}
-
-			if let Some(buffer) = self.state.core.buffers.get_buffer(window.buffer) {
-				let is_focused = focused
-					.map(|(win, buf)| win == window_id && buf == window.buffer)
-					.unwrap_or(false);
-				let tab_width = (buffer.option(keys::TAB_WIDTH, self) as usize).max(1);
-				let cursorline = buffer.option(keys::CURSORLINE, self);
-
-				let buffer_ctx = BufferRenderContext {
-					theme: &ctx.theme,
-					language_loader,
-					syntax_manager: &self.state.syntax_manager,
-					diagnostics: ctx.lsp.diagnostics_for(window.buffer),
-					diagnostic_ranges: ctx.lsp.diagnostic_ranges_for(window.buffer),
-				};
-				let result = buffer_ctx.render_buffer_with_gutter(RenderBufferParams {
-					buffer,
-					area: content_area,
-					use_block_cursor,
-					is_focused,
-					gutter: window.gutter,
-					tab_width,
-					cursorline,
-					cache: &mut cache,
-				});
-
-				let gutter_area = Rect {
-					width: result.gutter_width,
-					..content_area
-				};
-				let text_area = Rect {
-					x: content_area.x + result.gutter_width,
-					width: content_area.width.saturating_sub(result.gutter_width),
-					..content_area
-				};
-
-				frame.render_widget(Paragraph::new(result.gutter), gutter_area);
-				frame.render_widget(Paragraph::new(result.text), text_area);
-			}
-		}
-
-		// Put cache back
-		self.state.render_cache = cache;
 	}
 
 	/// Renders junction glyphs where separators intersect within a layer.

@@ -1,8 +1,7 @@
-//! Window abstractions for docked and floating views.
+//! Window abstractions for docked views.
 
-mod floating;
 mod manager;
 mod types;
 
 pub use manager::WindowManager;
-pub use types::{BaseWindow, FloatingStyle, FloatingWindow, GutterSelector, Window, WindowId};
+pub use types::{BaseWindow, GutterSelector, SurfaceStyle, Window, WindowId};

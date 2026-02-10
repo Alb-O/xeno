@@ -84,7 +84,7 @@ pub mod types;
 pub mod ui;
 /// View storage and management.
 pub mod view_manager;
-/// Window management and floating UI.
+/// Window management primitives.
 pub mod window;
 
 pub use buffer::{Buffer, HistoryResult, ViewId};

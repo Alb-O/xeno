@@ -32,7 +32,6 @@ impl Editor {
 			.layout
 			.views()
 			.into_iter()
-			.chain(self.state.windows.floating_windows().map(|(_, f)| f.buffer))
 			.collect();
 
 		if let Some(active) = self.state.overlay_system.interaction.active.as_ref() {
@@ -169,7 +168,7 @@ impl Editor {
 			let Some(path) = buffer.path() else {
 				continue;
 			};
-			let abs_path = crate::paths::fast_abs(path);
+			let abs_path = crate::paths::fast_abs(&path);
 			let Some(uri) = xeno_lsp::uri_from_path(&abs_path) else {
 				continue;
 			};

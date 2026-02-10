@@ -15,7 +15,7 @@ use xeno_tui::widgets::block::Padding;
 
 use crate::Editor;
 use crate::buffer::ViewId;
-use crate::window::{FloatingStyle, WindowId};
+use crate::window::{SurfaceStyle, WindowId};
 
 /// Unique identifier for an info popup.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -48,12 +48,12 @@ pub enum PopupAnchor {
 	Window(WindowId),
 }
 
-/// Default floating style for info popups.
+/// Default surface style for info popups.
 ///
 /// Uses the same stripe border as command palette and notifications
 /// for visual consistency.
-pub fn info_popup_style() -> FloatingStyle {
-	FloatingStyle {
+pub fn info_popup_style() -> SurfaceStyle {
+	SurfaceStyle {
 		border: true,
 		border_type: BorderType::Stripe,
 		padding: Padding::horizontal(1),

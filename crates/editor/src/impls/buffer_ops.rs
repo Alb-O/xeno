@@ -163,7 +163,7 @@ impl Editor {
 			let Some(path) = buffer.path() else {
 				continue;
 			};
-			let abs_path = crate::paths::fast_abs(path);
+			let abs_path = crate::paths::fast_abs(&path);
 			if loading.as_ref().is_some_and(|p| p == &abs_path) {
 				continue;
 			}
@@ -201,7 +201,7 @@ impl Editor {
 			.incremental_encoding_for_buffer(buffer)
 			.is_some();
 		let config = crate::lsp::sync_manager::LspDocumentConfig {
-			path: crate::paths::fast_abs(path),
+			path: crate::paths::fast_abs(&path),
 			language,
 			supports_incremental,
 		};

@@ -349,7 +349,7 @@ pub trait CommandQueueAccess {
 
 /// Command palette operations.
 ///
-/// Opens, closes, and executes the command palette floating input.
+/// Opens, closes, and executes the command palette overlay input.
 pub trait PaletteAccess {
 	/// Opens the command palette.
 	fn open_palette(&mut self);
