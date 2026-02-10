@@ -3,7 +3,7 @@
 //! Determines line types in diff files for full-line background styling.
 //! Also provides hunk header parsing and line number mapping for diff gutter.
 
-use ropey::Rope;
+use ropey::{Rope, RopeSlice};
 use xeno_registry::themes::Theme;
 use xeno_tui::style::Color;
 
@@ -113,17 +113,19 @@ pub fn compute_diff_line_numbers(text: &Rope) -> Vec<DiffLineNumbers> {
 	let mut old_line: Option<u32> = None;
 	let mut new_line: Option<u32> = None;
 
-	for line_idx in 0..text.len_lines() {
-		let line_str: String = text.line(line_idx).chars().take(256).collect();
+	for line in text.lines() {
+		let line_type = classify_diff_line(line);
 
-		if let Some(header) = HunkHeader::parse(&line_str) {
+		if matches!(line_type, DiffLineType::Hunk)
+			&& let Some(header) = parse_hunk_header(line)
+		{
 			old_line = (header.old_count > 0).then_some(header.old_start);
 			new_line = (header.new_count > 0).then_some(header.new_start);
 			result.push(DiffLineNumbers::default());
 			continue;
 		}
 
-		match DiffLineType::from_line(&line_str) {
+		match line_type {
 			DiffLineType::Addition => {
 				result.push(DiffLineNumbers {
 					old: None,
@@ -153,6 +155,25 @@ pub fn compute_diff_line_numbers(text: &Rope) -> Vec<DiffLineNumbers> {
 	}
 
 	result
+}
+
+fn classify_diff_line(line: RopeSlice<'_>) -> DiffLineType {
+	let mut chars = line.chars();
+	match chars.next() {
+		Some('@') if chars.next() == Some('@') => DiffLineType::Hunk,
+		Some('+') if !(chars.next() == Some('+') && chars.next() == Some('+')) => {
+			DiffLineType::Addition
+		}
+		Some('-') if !(chars.next() == Some('-') && chars.next() == Some('-')) => {
+			DiffLineType::Deletion
+		}
+		_ => DiffLineType::Context,
+	}
+}
+
+fn parse_hunk_header(line: RopeSlice<'_>) -> Option<HunkHeader> {
+	let line_str: String = line.chars().take(256).collect();
+	HunkHeader::parse(&line_str)
 }
 
 /// Computes the diff line background for a line in a diff file.

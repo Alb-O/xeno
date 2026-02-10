@@ -7,10 +7,12 @@
 //! - Future: layout calculations
 
 mod diagnostics;
+mod diff;
 mod highlight;
 mod wrap;
 
 pub use diagnostics::{DiagnosticsCache, DiagnosticsCacheKey, DiagnosticsEntry};
+pub use diff::{DiffLineNumbersCache, DiffLineNumbersEntry};
 pub use highlight::{HighlightKey, HighlightSpanQuery, HighlightTile, HighlightTiles, TILE_SIZE};
 pub use wrap::{WrapBucket, WrapBucketKey, WrapBuckets, WrapEntry};
 
@@ -29,6 +31,8 @@ pub struct RenderCache {
 	pub highlight: HighlightTiles,
 	/// Diagnostics caches per document (keyed by epoch).
 	pub diagnostics: DiagnosticsCache,
+	/// Diff line-number mappings keyed by document and version.
+	pub diff_line_numbers: DiffLineNumbersCache,
 	/// Theme epoch for cache invalidation.
 	pub theme_epoch: u64,
 }
@@ -46,6 +50,7 @@ impl RenderCache {
 		self.wrap.invalidate_document(doc_id);
 		self.highlight.invalidate_document(doc_id);
 		self.diagnostics.invalidate_document(doc_id);
+		self.diff_line_numbers.invalidate_document(doc_id);
 	}
 
 	/// Updates the theme epoch, invalidating the highlight cache if changed.

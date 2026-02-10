@@ -243,11 +243,25 @@ impl<'a> BufferRenderContext<'a> {
 		);
 		let highlight_index = HighlightIndex::new(highlight_spans);
 
-		let diff_line_numbers = if is_diff_file {
-			Some(compute_diff_line_numbers(&doc_content))
-		} else {
-			None
-		};
+		let needs_diff_line_numbers = is_diff_file
+			&& !matches!(
+				effective_gutter,
+				GutterSelector::Hidden | GutterSelector::Prompt(_)
+			);
+
+		let diff_line_numbers: Option<std::sync::Arc<Vec<DiffLineNumbers>>> =
+			if needs_diff_line_numbers {
+				Some(std::sync::Arc::clone(
+					&p.cache
+						.diff_line_numbers
+						.get_or_build(doc_id, doc_version, || {
+							compute_diff_line_numbers(&doc_content)
+						})
+						.line_numbers,
+				))
+			} else {
+				None
+			};
 
 		let mode_color = self.mode_color(p.buffer.mode());
 		let base_bg = self.theme.colors.ui.bg;
@@ -311,7 +325,7 @@ impl<'a> BufferRenderContext<'a> {
 
 			let diff_nums = diff_line_numbers
 				.as_ref()
-				.and_then(|nums: &Vec<DiffLineNumbers>| nums.get(line_idx));
+				.and_then(|nums| nums.get(line_idx));
 			let line_annotations = GutterAnnotations {
 				diagnostic_severity: self
 					.diagnostics

@@ -7,7 +7,7 @@
 mod cell_style;
 pub mod context;
 mod diagnostics;
-mod diff;
+pub(crate) mod diff;
 mod fill;
 mod gutter;
 mod index;
