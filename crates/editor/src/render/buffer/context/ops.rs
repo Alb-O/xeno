@@ -96,9 +96,9 @@ impl<'a> BufferRenderContext<'a> {
 			let viewport_end_byte = line_to_byte_or_eof(doc_content, end_line);
 
 			if let Some(coverage) = self.syntax_manager.syntax_coverage(doc_id)
-				&& (viewport_start_byte < coverage.start || viewport_end_byte > coverage.end)
+				&& (viewport_end_byte <= coverage.start || viewport_start_byte >= coverage.end)
 			{
-				// Not covered, skip highlighting for now (will trigger re-parse in tick/ensure_syntax)
+				// No overlap with partial coverage. Skip highlights until viewport parsing catches up.
 				return Vec::new();
 			}
 		}

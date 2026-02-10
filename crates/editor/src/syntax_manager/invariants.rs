@@ -6,7 +6,7 @@ use tokio::sync::Notify;
 use tokio::time::{sleep, timeout};
 use xeno_primitives::{ChangeSet, Rope};
 use xeno_runtime_language::LanguageLoader;
-use xeno_runtime_language::syntax::{Syntax, SyntaxError, SyntaxOptions};
+use xeno_runtime_language::syntax::{InjectionPolicy, Syntax, SyntaxError, SyntaxOptions};
 
 use super::*;
 use crate::core::document::DocumentId;
@@ -1464,4 +1464,256 @@ pub(crate) fn test_warm_hotness_prevents_immediate_drop() {
 	// Explicit remove (e.g. document close).
 	lru.remove(d2);
 	assert!(!lru.contains(d2), "d2 must be gone after remove");
+}
+
+/// Must apply viewport timeout cooldown for viewport tasks instead of full-parse cooldown.
+///
+/// - Enforced in: `SyntaxManager::ensure_syntax`
+/// - Failure symptom: Visible large-document highlighting remains disabled for multi-second
+///   windows after a viewport parse timeout.
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_viewport_timeout_uses_viewport_cooldown() {
+	let mut mgr = SyntaxManager::default();
+	let mut policy = TieredSyntaxPolicy::test_default();
+	policy.s_max_bytes_inclusive = 0;
+	policy.m_max_bytes_inclusive = 0;
+	policy.l.debounce = Duration::ZERO;
+	policy.l.cooldown_on_timeout = Duration::from_secs(5);
+	policy.l.viewport_cooldown_on_timeout = Duration::from_millis(20);
+	mgr.set_policy(policy);
+
+	let doc_id = DocumentId(1);
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang = loader.language_for_name("rust").unwrap();
+	let content = Rope::from("fn main() {}");
+
+	{
+		let entry = mgr.entry_mut(doc_id);
+		entry.slot.language_id = Some(lang);
+		entry.sched.completed = Some(CompletedSyntaxTask {
+			doc_version: 1,
+			lang_id: lang,
+			opts: OptKey {
+				injections: InjectionPolicy::Disabled,
+			},
+			result: Err(SyntaxError::Timeout),
+			class: TaskClass::Viewport,
+			injections: InjectionPolicy::Disabled,
+			elapsed: Duration::from_millis(1),
+		});
+	}
+
+	let r1 = mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 1,
+		language_id: Some(lang),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+		viewport: Some(0..10),
+	});
+	assert_eq!(r1.result, SyntaxPollResult::CoolingDown);
+
+	sleep(Duration::from_millis(30)).await;
+
+	let r2 = mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 1,
+		language_id: Some(lang),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+		viewport: Some(0..10),
+	});
+	assert_eq!(r2.result, SyntaxPollResult::Kicked);
+}
+
+/// Must install stale viewport results when monotonic and not-future to preserve continuity.
+///
+/// - Enforced in: `SyntaxManager::ensure_syntax`
+/// - Failure symptom: Highlighting disappears during rapid edits because viewport results are
+///   discarded unless they exactly match the current document version.
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_viewport_stale_install_continuity() {
+	let engine = Arc::new(MockEngine::new());
+	let _guard = EngineGuard(engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 1,
+			..Default::default()
+		},
+		engine.clone(),
+	);
+	let mut policy = TieredSyntaxPolicy::test_default();
+	policy.s_max_bytes_inclusive = 0;
+	policy.m_max_bytes_inclusive = 0;
+	policy.l.debounce = Duration::ZERO;
+	policy.l.viewport_stage_b_budget = None;
+	mgr.set_policy(policy);
+
+	let doc_id = DocumentId(1);
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang = loader.language_for_name("rust").unwrap();
+	let content = Rope::from("fn main() {}\n");
+
+	let r1 = mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 1,
+		language_id: Some(lang),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+		viewport: Some(0..10),
+	});
+	assert_eq!(r1.result, SyntaxPollResult::Kicked);
+
+	mgr.note_edit(doc_id, EditSource::Typing);
+
+	engine.proceed();
+	wait_for_finish(&mgr).await;
+	mgr.drain_finished_inflight();
+
+	let _ = mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 2,
+		language_id: Some(lang),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+		viewport: Some(0..10),
+	});
+
+	assert!(mgr.has_syntax(doc_id));
+	assert_eq!(mgr.syntax_doc_version(doc_id), Some(1));
+	assert!(mgr.is_dirty(doc_id));
+}
+
+/// Must preempt tracked full/incremental work when a visible large-doc viewport is uncovered.
+///
+/// - Enforced in: `SyntaxManager::ensure_syntax`
+/// - Failure symptom: Scrolling in large files shows blank text until an unrelated full parse
+///   completes.
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_viewport_preempts_inflight_full_parse() {
+	let engine = Arc::new(MockEngine::new());
+	let _guard = EngineGuard(engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 2,
+			..Default::default()
+		},
+		engine.clone(),
+	);
+	let mut policy = TieredSyntaxPolicy::test_default();
+	policy.s_max_bytes_inclusive = 0;
+	policy.m_max_bytes_inclusive = 0;
+	policy.l.debounce = Duration::ZERO;
+	policy.l.viewport_stage_b_budget = None;
+	mgr.set_policy(policy);
+
+	let doc_id = DocumentId(1);
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang = loader.language_for_name("rust").unwrap();
+	let content = Rope::from("x".repeat(400_000));
+
+	let r1 = mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 1,
+		language_id: Some(lang),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+		viewport: Some(0..10),
+	});
+	assert_eq!(r1.result, SyntaxPollResult::Kicked);
+
+	engine.proceed();
+	wait_for_finish(&mgr).await;
+	mgr.drain_finished_inflight();
+
+	let r2 = mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 1,
+		language_id: Some(lang),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+		viewport: Some(0..10),
+	});
+	assert_eq!(r2.result, SyntaxPollResult::Kicked);
+	assert_eq!(mgr.active_task_class(doc_id), Some(TaskClass::Full));
+
+	let r3 = mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 1,
+		language_id: Some(lang),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+		viewport: Some(300_000..300_050),
+	});
+	assert_eq!(r3.result, SyntaxPollResult::Kicked);
+	assert_eq!(mgr.active_task_class(doc_id), Some(TaskClass::Viewport));
+}
+
+/// Must clamp viewport scheduling span before coverage checks to prevent infinite Stage A loops.
+///
+/// - Enforced in: `SyntaxManager::ensure_syntax`
+/// - Failure symptom: Large single-line viewports keep re-kicking Stage A and never progress
+///   to catch-up full parsing.
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_viewport_span_cap_prevents_stage_a_loop() {
+	let engine = Arc::new(MockEngine::new());
+	let _guard = EngineGuard(engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 2,
+			..Default::default()
+		},
+		engine.clone(),
+	);
+	let mut policy = TieredSyntaxPolicy::test_default();
+	policy.s_max_bytes_inclusive = 0;
+	policy.m_max_bytes_inclusive = 0;
+	policy.l.debounce = Duration::ZERO;
+	policy.l.viewport_stage_b_budget = None;
+	policy.l.viewport_lookbehind = 0;
+	policy.l.viewport_lookahead = 0;
+	policy.l.viewport_window_max = 1024;
+	policy.l.viewport_visible_span_cap = 1024;
+	mgr.set_policy(policy);
+
+	let doc_id = DocumentId(1);
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang = loader.language_for_name("rust").unwrap();
+	let content = Rope::from("x".repeat(300_000));
+	let full_view = Some(0..300_000);
+
+	let r1 = mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 1,
+		language_id: Some(lang),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+		viewport: full_view.clone(),
+	});
+	assert_eq!(r1.result, SyntaxPollResult::Kicked);
+	assert_eq!(mgr.active_task_class(doc_id), Some(TaskClass::Viewport));
+
+	engine.proceed();
+	wait_for_finish(&mgr).await;
+	mgr.drain_finished_inflight();
+
+	let r2 = mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 1,
+		language_id: Some(lang),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+		viewport: full_view,
+	});
+	assert_eq!(r2.result, SyntaxPollResult::Kicked);
+	assert_eq!(mgr.active_task_class(doc_id), Some(TaskClass::Full));
 }

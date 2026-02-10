@@ -54,24 +54,43 @@ impl Editor {
 		for &view in &visible_ids {
 			if let Some(buffer) = self.state.core.buffers.get_buffer(view) {
 				let doc_id = buffer.document_id();
-				let viewport = buffer.with_doc(|doc| {
+				let tab_width = self.tab_width_for(view);
+				let height = self.view_area(view).height;
+				let gutter = buffer.gutter_width();
+
+				let start_char = buffer
+					.screen_to_doc_position(0, gutter, tab_width)
+					.unwrap_or(0);
+				let end_char = buffer
+					.screen_to_doc_position(height, gutter, tab_width)
+					.unwrap_or(start_char);
+
+				let (start_byte, end_byte, doc_bytes) = buffer.with_doc(|doc| {
 					let content = doc.content();
-					let total_lines = content.len_lines();
-					let start_line = buffer.scroll_line.min(total_lines);
-					let start_byte = if start_line < total_lines {
-						content.line_to_byte(start_line) as u32
-					} else {
-						content.len_bytes() as u32
-					};
-					let height = self.view_area(view).height as usize;
-					let end_line = start_line.saturating_add(height).min(total_lines);
-					let end_byte = if end_line < total_lines {
-						content.line_to_byte(end_line) as u32
-					} else {
-						content.len_bytes() as u32
-					};
-					start_byte..end_byte
+					let max_char = content.len_chars();
+					let mut lo = start_char.min(max_char);
+					let mut hi = end_char.min(max_char);
+					if hi < lo {
+						std::mem::swap(&mut lo, &mut hi);
+					}
+
+					let mut start_byte = content.char_to_byte(lo) as u32;
+					let mut end_byte = content.char_to_byte(hi) as u32;
+					let len_bytes = content.len_bytes() as u32;
+					if end_byte < start_byte {
+						std::mem::swap(&mut start_byte, &mut end_byte);
+					}
+					if end_byte == start_byte && start_byte < len_bytes {
+						end_byte = start_byte + 1;
+					}
+					(start_byte, end_byte.min(len_bytes), content.len_bytes())
 				});
+
+				let span_cap = self
+					.state
+					.syntax_manager
+					.viewport_visible_span_cap_for_bytes(doc_bytes);
+				let viewport = start_byte..end_byte.min(start_byte.saturating_add(span_cap));
 				doc_viewports
 					.entry(doc_id)
 					.and_modify(|v: &mut std::ops::Range<u32>| {

@@ -9,10 +9,15 @@ impl Default for SyntaxManager {
 
 impl SyntaxManager {
 	pub fn new(cfg: SyntaxManagerCfg) -> Self {
+		let max_concurrency = cfg.max_concurrency.max(1);
+		let cfg = SyntaxManagerCfg {
+			max_concurrency,
+			viewport_reserve: cfg.viewport_reserve.min(max_concurrency.saturating_sub(1)),
+		};
 		Self {
 			policy: TieredSyntaxPolicy::default(),
 			metrics: SyntaxMetrics::new(),
-			permits: Arc::new(Semaphore::new(cfg.max_concurrency.max(1))),
+			permits: Arc::new(Semaphore::new(max_concurrency)),
 			entries: HashMap::new(),
 			engine: Arc::new(RealSyntaxEngine),
 			collector: TaskCollector::new(),
@@ -22,10 +27,15 @@ impl SyntaxManager {
 
 	#[cfg(any(test, doc))]
 	pub fn new_with_engine(cfg: SyntaxManagerCfg, engine: Arc<dyn SyntaxEngine>) -> Self {
+		let max_concurrency = cfg.max_concurrency.max(1);
+		let cfg = SyntaxManagerCfg {
+			max_concurrency,
+			viewport_reserve: cfg.viewport_reserve.min(max_concurrency.saturating_sub(1)),
+		};
 		Self {
 			policy: TieredSyntaxPolicy::test_default(),
 			metrics: SyntaxMetrics::new(),
-			permits: Arc::new(Semaphore::new(cfg.max_concurrency.max(1))),
+			permits: Arc::new(Semaphore::new(max_concurrency)),
 			entries: HashMap::new(),
 			engine,
 			collector: TaskCollector::new(),

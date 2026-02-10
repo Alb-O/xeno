@@ -8,11 +8,22 @@ impl SyntaxManager {
 
 		// Calculate policy and options key
 		let bytes = ctx.content.len_bytes();
+		let bytes_u32 = bytes as u32;
 		let tier = self.policy.tier_for_bytes(bytes);
 		let cfg = self.policy.cfg(tier);
 		let current_opts_key = OptKey {
 			injections: cfg.injections,
 		};
+		let viewport = ctx.viewport.as_ref().map(|raw| {
+			let start = raw.start.min(bytes_u32);
+			let mut end = raw.end.min(bytes_u32);
+			if end < start {
+				end = start;
+			}
+			let capped_end = start.saturating_add(cfg.viewport_visible_span_cap);
+			end = end.min(capped_end);
+			start..end
+		});
 
 		let work_disabled = matches!(ctx.hotness, SyntaxHotness::Cold) && !cfg.parse_when_hidden;
 
@@ -91,7 +102,14 @@ impl SyntaxManager {
 							);
 
 							let allow_install = if class == TaskClass::Viewport {
-								done.doc_version == ctx.doc_version
+								let monotonic_ok = entry
+									.slot
+									.tree_doc_version
+									.is_none_or(|v| done.doc_version >= v);
+								let not_future = done.doc_version <= ctx.doc_version;
+								let requested_ok =
+									done.doc_version >= entry.sched.requested_doc_version;
+								monotonic_ok && not_future && requested_ok
 							} else {
 								Self::should_install_completed_parse(
 									done.doc_version,
@@ -178,14 +196,24 @@ impl SyntaxManager {
 						}
 					}
 					Err(xeno_runtime_language::syntax::SyntaxError::Timeout) => {
-						entry.sched.cooldown_until = Some(now + cfg.cooldown_on_timeout);
+						let cooldown = if class == TaskClass::Viewport {
+							cfg.viewport_cooldown_on_timeout
+						} else {
+							cfg.cooldown_on_timeout
+						};
+						entry.sched.cooldown_until = Some(now + cooldown);
 						Some((
 							lang_id, tier, class, injections, elapsed, true, false, false,
 						))
 					}
 					Err(e) => {
 						tracing::warn!(?doc_id, ?tier, error=%e, "Background syntax parse failed");
-						entry.sched.cooldown_until = Some(now + cfg.cooldown_on_error);
+						let cooldown = if class == TaskClass::Viewport {
+							cfg.viewport_cooldown_on_error
+						} else {
+							cfg.cooldown_on_error
+						};
+						entry.sched.cooldown_until = Some(now + cooldown);
 						Some((
 							lang_id, tier, class, injections, elapsed, false, true, false,
 						))
@@ -240,10 +268,29 @@ impl SyntaxManager {
 					entry.sched.invalidate();
 					was_updated = true;
 				} else {
-					return SyntaxPollOutcome {
-						result: SyntaxPollResult::Pending,
-						updated: was_updated,
-					};
+					let should_preempt_for_viewport = tier == SyntaxTier::L
+						&& ctx.hotness == SyntaxHotness::Visible
+						&& matches!(
+							entry.sched.active_task_class,
+							Some(TaskClass::Full | TaskClass::Incremental)
+						) && viewport.is_some()
+						&& entry.slot.current.as_ref().is_some_and(|s| s.is_partial())
+						&& match (&viewport, &entry.slot.coverage) {
+							(Some(vp), Some(coverage)) => {
+								vp.start < coverage.start || vp.end > coverage.end
+							}
+							(Some(_), None) => true,
+							_ => false,
+						};
+					if should_preempt_for_viewport {
+						entry.sched.invalidate();
+						entry.slot.dirty = true;
+					} else {
+						return SyntaxPollOutcome {
+							result: SyntaxPollResult::Pending,
+							updated: was_updated,
+						};
+					}
 				}
 			}
 
@@ -394,7 +441,7 @@ impl SyntaxManager {
 
 			if tier == SyntaxTier::L
 				&& ctx.hotness == SyntaxHotness::Visible
-				&& let Some(viewport) = &ctx.viewport
+				&& let Some(viewport) = &viewport
 			{
 				if let Some(current) = &entry.slot.current {
 					if current.is_partial() {
@@ -438,22 +485,19 @@ impl SyntaxManager {
 		if (needs_stage_a || really_needs_b) && self.entry_mut(doc_id).sched.active_task.is_none() {
 			let mut b_latch_to_set = false;
 			let (injections, win_start, win_end) = {
-				let entry = self.entry_mut(doc_id);
-				let viewport = ctx.viewport.as_ref().unwrap();
+				let viewport = viewport.as_ref().unwrap();
 
 				if needs_stage_a {
-					if entry.slot.current.as_ref().is_some_and(|s| s.is_partial()) {
-						entry.slot.drop_tree();
-						Self::mark_updated(&mut entry.slot);
-					}
-
 					let win_start = viewport.start.saturating_sub(cfg.viewport_lookbehind);
-					let mut win_end = (viewport.end + cfg.viewport_lookahead).min(bytes as u32);
+					let mut win_end = viewport
+						.end
+						.saturating_add(cfg.viewport_lookahead)
+						.min(bytes_u32);
 					let mut win_len = win_end.saturating_sub(win_start);
 
 					if win_len > cfg.viewport_window_max {
 						win_len = cfg.viewport_window_max;
-						win_end = (win_start + win_len).min(bytes as u32);
+						win_end = win_start.saturating_add(win_len).min(bytes_u32);
 					}
 					(cfg.viewport_injections, win_start, win_end)
 				} else {
@@ -502,6 +546,7 @@ impl SyntaxManager {
 				{
 					let entry = self.entries.get_mut(&doc_id).unwrap();
 					entry.sched.active_task = Some(task_id);
+					entry.sched.active_task_class = Some(class);
 					entry.sched.requested_doc_version = ctx.doc_version;
 					entry.sched.force_no_debounce = false;
 					if b_latch_to_set {
@@ -574,6 +619,7 @@ impl SyntaxManager {
 		{
 			let entry = self.entry_mut(doc_id);
 			entry.sched.active_task = Some(task_id);
+			entry.sched.active_task_class = Some(class);
 			entry.sched.requested_doc_version = ctx.doc_version;
 			entry.sched.force_no_debounce = false;
 			SyntaxPollOutcome {

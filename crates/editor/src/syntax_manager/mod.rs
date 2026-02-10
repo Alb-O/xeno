@@ -30,6 +30,8 @@
 //! - Must not regress installed tree doc version.
 //! - Must keep `syntax_version` monotonic on tree install/drop.
 //! - Must only expose highlight projection context when pending edits align to resident tree.
+//! - Must bound viewport scheduling to a capped visible byte span.
+//! - Must use viewport-specific cooldowns for viewport task failures.
 //!
 //! # Data flow
 //!
@@ -51,10 +53,12 @@
 //! - Global semaphore enforces parse concurrency.
 //! - Document epoch invalidates stale background completions.
 //! - Requested document version prevents old-task flicker installs.
+//! - Visible uncovered viewports may preempt tracked full/incremental work by epoch invalidation.
 //!
 //! # Failure modes & recovery
 //!
 //! - Timeouts/errors enter cooldown.
+//! - Viewport task failures use short viewport cooldowns so visible recovery stays responsive.
 //! - Retention drops trees for cold docs when configured.
 //! - Incremental misalignment falls back to full reparse.
 //!

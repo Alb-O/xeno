@@ -65,10 +65,10 @@ impl SyntaxManager {
 		if let Some(current) = &entry.slot.current
 			&& current.is_partial()
 		{
-			// Never attempt incremental updates on a partial tree.
-			// Drop it immediately to avoid stale highlighting.
-			entry.slot.drop_tree();
-			Self::mark_updated(&mut entry.slot);
+			// Never attempt incremental updates on a partial tree. Keep the
+			// partial tree installed for continuity and force immediate catch-up.
+			entry.slot.pending_incremental = None;
+			entry.sched.force_no_debounce = true;
 			return;
 		}
 

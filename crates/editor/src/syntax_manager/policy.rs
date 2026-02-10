@@ -71,6 +71,15 @@ pub struct TierCfg {
 	/// Budget for Stage B viewport-bounded parsing (with injections).
 	/// `None` disables Stage B.
 	pub viewport_stage_b_budget: Option<Duration>,
+	/// Maximum visible viewport byte span consumed by scheduler decisions.
+	///
+	/// Guards against pathological long-line viewports that would otherwise
+	/// appear as near-file-wide byte ranges.
+	pub viewport_visible_span_cap: u32,
+	/// Backoff duration after a viewport parse timeout.
+	pub viewport_cooldown_on_timeout: Duration,
+	/// Backoff duration after a viewport parse error.
+	pub viewport_cooldown_on_error: Duration,
 }
 
 /// Syntax tree retention policy for memory management.
@@ -121,6 +130,9 @@ impl Default for TieredSyntaxPolicy {
 				viewport_parse_timeout_max: Duration::from_millis(15),
 				viewport_injections: InjectionPolicy::Disabled,
 				viewport_stage_b_budget: Some(Duration::from_millis(25)),
+				viewport_visible_span_cap: 64 * 1024,
+				viewport_cooldown_on_timeout: Duration::from_millis(250),
+				viewport_cooldown_on_error: Duration::from_millis(100),
 			},
 			m: TierCfg {
 				parse_timeout_min: Duration::from_millis(100),
@@ -139,6 +151,9 @@ impl Default for TieredSyntaxPolicy {
 				viewport_parse_timeout_max: Duration::from_millis(15),
 				viewport_injections: InjectionPolicy::Disabled,
 				viewport_stage_b_budget: Some(Duration::from_millis(25)),
+				viewport_visible_span_cap: 64 * 1024,
+				viewport_cooldown_on_timeout: Duration::from_millis(300),
+				viewport_cooldown_on_error: Duration::from_millis(120),
 			},
 			l: TierCfg {
 				parse_timeout_min: Duration::from_millis(250),
@@ -157,6 +172,9 @@ impl Default for TieredSyntaxPolicy {
 				viewport_parse_timeout_max: Duration::from_millis(15),
 				viewport_injections: InjectionPolicy::Disabled,
 				viewport_stage_b_budget: Some(Duration::from_millis(45)),
+				viewport_visible_span_cap: 96 * 1024,
+				viewport_cooldown_on_timeout: Duration::from_millis(500),
+				viewport_cooldown_on_error: Duration::from_millis(200),
 			},
 		}
 	}
@@ -208,7 +226,7 @@ impl Default for SyntaxManagerCfg {
 	fn default() -> Self {
 		Self {
 			max_concurrency: 2,
-			viewport_reserve: 0,
+			viewport_reserve: 1,
 		}
 	}
 }

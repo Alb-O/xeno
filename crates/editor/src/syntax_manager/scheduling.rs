@@ -17,6 +17,7 @@ pub(crate) struct DocSched {
 	pub(super) last_visible_at: Instant,
 	pub(super) cooldown_until: Option<Instant>,
 	pub(super) active_task: Option<TaskId>,
+	pub(super) active_task_class: Option<TaskClass>,
 	pub(super) active_task_detached: bool,
 	/// Document version for which the last task was requested.
 	pub(super) requested_doc_version: u64,
@@ -33,6 +34,7 @@ impl DocSched {
 			last_visible_at: now,
 			cooldown_until: None,
 			active_task: None,
+			active_task_class: None,
 			active_task_detached: false,
 			requested_doc_version: 0,
 			completed: None,
@@ -47,6 +49,7 @@ impl DocSched {
 	pub(super) fn invalidate(&mut self) {
 		self.epoch = self.epoch.next();
 		self.active_task = None;
+		self.active_task_class = None;
 		self.active_task_detached = false;
 		self.requested_doc_version = 0;
 		self.completed = None;

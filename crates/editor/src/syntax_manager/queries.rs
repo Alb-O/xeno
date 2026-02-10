@@ -75,10 +75,20 @@ impl SyntaxManager {
 			.is_some_and(|e| e.sched.active_task.is_some())
 	}
 
+	#[cfg(test)]
+	pub(crate) fn active_task_class(&self, doc_id: DocumentId) -> Option<TaskClass> {
+		self.entries.get(&doc_id)?.sched.active_task_class
+	}
+
 	pub fn has_pending(&self, doc_id: DocumentId) -> bool {
 		self.entries
 			.get(&doc_id)
 			.is_some_and(|d| d.sched.active_task.is_some() && !d.sched.active_task_detached)
+	}
+
+	pub(crate) fn viewport_visible_span_cap_for_bytes(&self, bytes: usize) -> u32 {
+		let tier = self.policy.tier_for_bytes(bytes);
+		self.policy.cfg(tier).viewport_visible_span_cap
 	}
 
 	pub fn pending_count(&self) -> usize {

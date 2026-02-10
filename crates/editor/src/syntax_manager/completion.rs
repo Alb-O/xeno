@@ -11,6 +11,7 @@ impl SyntaxManager {
 				// Clear active_task if it matches the one that just finished, regardless of epoch
 				if entry.sched.active_task == Some(res.id) {
 					entry.sched.active_task = None;
+					entry.sched.active_task_class = None;
 					entry.sched.active_task_detached = false;
 				}
 
