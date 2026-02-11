@@ -7,7 +7,7 @@ use xeno_primitives::transaction::Change;
 use xeno_primitives::transaction::Bias;
 use xeno_primitives::{EditOrigin, Mode, Range, Selection, Transaction, UndoPolicy};
 
-use super::RenderedSnippet;
+use super::{RenderedSnippet, parse_snippet_template, render as render_snippet};
 use crate::buffer::ViewId;
 use crate::impls::Editor;
 
@@ -201,6 +201,70 @@ impl Editor {
 				true
 			}
 		}
+	}
+
+	pub fn insert_snippet_body(&mut self, body: &str) -> bool {
+		if !self.guard_readonly() {
+			return false;
+		}
+
+		if self.buffer().selection.len() != 1 {
+			self.cancel_snippet_session();
+			return false;
+		}
+
+		self.cancel_snippet_session();
+
+		let rendered = match parse_snippet_template(body) {
+			Ok(template) => render_snippet(&template),
+			Err(_) => {
+				self.insert_text(body);
+				return true;
+			}
+		};
+
+		let buffer_id = self.focused_view();
+		let (start, end) = {
+			let buffer = self.buffer();
+			let primary = buffer.selection.primary();
+			if primary.is_point() {
+				(buffer.cursor, buffer.cursor)
+			} else {
+				(primary.from(), primary.to())
+			}
+		};
+
+		let tx = self.buffer().with_doc(|doc| {
+			Transaction::change(
+				doc.content().slice(..),
+				vec![Change {
+					start,
+					end,
+					replacement: Some(rendered.text.clone().into()),
+				}],
+			)
+		});
+
+		if !self.apply_edit(
+			buffer_id,
+			&tx,
+			None,
+			UndoPolicy::Record,
+			EditOrigin::Internal("snippet"),
+		) {
+			return false;
+		}
+
+		let mapped_start = tx.changes().map_pos(start, Bias::Left);
+		if !rendered.tabstops.is_empty() && self.begin_snippet_session(buffer_id, mapped_start, &rendered) {
+			return true;
+		}
+
+		let cursor = mapped_start.saturating_add(rendered.text.chars().count());
+		if let Some(buffer) = self.state.core.buffers.get_buffer_mut(buffer_id) {
+			buffer.set_cursor_and_selection(cursor, Selection::point(cursor));
+		}
+		true
 	}
 
 	pub(crate) fn snippet_insert_text(&mut self, text: &str) -> bool {
@@ -520,7 +584,10 @@ fn selection_from_points(points: Vec<CharIdx>) -> Option<Selection> {
 
 #[cfg(test)]
 mod tests {
+	use termina::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, Modifiers};
+
 	use super::*;
+	use crate::impls::Editor;
 
 	#[test]
 	fn order_places_zero_last() {
@@ -538,42 +605,87 @@ mod tests {
 		assert_eq!(normalize_ranges(ranges), vec![1..8, 10..11]);
 	}
 
+	fn key_tab() -> KeyEvent {
+		KeyEvent {
+			code: KeyCode::Tab,
+			modifiers: Modifiers::NONE,
+			kind: KeyEventKind::Press,
+			state: KeyEventState::NONE,
+		}
+	}
+
+	fn key_char(c: char) -> KeyEvent {
+		KeyEvent {
+			code: KeyCode::Char(c),
+			modifiers: Modifiers::NONE,
+			kind: KeyEventKind::Press,
+			state: KeyEventState::NONE,
+		}
+	}
+
+	fn buffer_text(editor: &Editor) -> String {
+		editor.buffer().with_doc(|doc| doc.content().to_string())
+	}
+
+	fn primary_text(editor: &Editor) -> String {
+		let range = editor.buffer().selection.primary();
+		editor.buffer().with_doc(|doc| {
+			let (from, to) = range.extent_clamped(doc.content().len_chars());
+			doc.content().slice(from..to).to_string()
+		})
+	}
+
+	#[tokio::test]
+	async fn insert_snippet_body_starts_session_and_selects_first_placeholder() {
+		let mut editor = Editor::new_scratch();
+		editor.set_mode(Mode::Insert);
+
+		assert!(editor.insert_snippet_body("a ${1:x} b ${2:y} c $0"));
+		assert_eq!(buffer_text(&editor), "a x b y c ");
+		assert_eq!(primary_text(&editor), "x");
+		assert!(editor
+			.overlays()
+			.get::<SnippetSessionState>()
+			.and_then(|state| state.session.as_ref())
+			.is_some());
+	}
+
+	#[tokio::test]
+	async fn insert_snippet_body_allows_multichar_and_tab_flow() {
+		let mut editor = Editor::new_scratch();
+		editor.set_mode(Mode::Insert);
+
+		assert!(editor.insert_snippet_body("${1:x} ${2:y} $0"));
+		assert_eq!(buffer_text(&editor), "x y ");
+		assert_eq!(primary_text(&editor), "x");
+
+		let _ = editor.handle_key(key_char('Q')).await;
+		assert_eq!(buffer_text(&editor), "Q y ");
+		let _ = editor.handle_key(key_char('W')).await;
+		assert_eq!(buffer_text(&editor), "QW y ");
+
+		assert!(editor.handle_snippet_session_key(&key_tab()));
+		assert_eq!(primary_text(&editor), "y");
+
+		let _ = editor.handle_key(key_char('Z')).await;
+		assert_eq!(buffer_text(&editor), "QW Z ");
+
+		assert!(editor.handle_snippet_session_key(&key_tab()));
+		assert_eq!(primary_text(&editor), "");
+
+		assert!(editor.handle_snippet_session_key(&key_tab()));
+		assert!(editor
+			.overlays()
+			.get::<SnippetSessionState>()
+			.and_then(|state| state.session.as_ref())
+			.is_none());
+	}
+
 	#[cfg(feature = "lsp")]
 	mod lsp_tests {
-		use termina::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, Modifiers};
 		use xeno_lsp::lsp_types::{CompletionItem, InsertTextFormat};
 
 		use super::*;
-
-		fn key_tab() -> KeyEvent {
-			KeyEvent {
-				code: KeyCode::Tab,
-				modifiers: Modifiers::NONE,
-				kind: KeyEventKind::Press,
-				state: KeyEventState::NONE,
-			}
-		}
-
-		fn key_char(c: char) -> KeyEvent {
-			KeyEvent {
-				code: KeyCode::Char(c),
-				modifiers: Modifiers::NONE,
-				kind: KeyEventKind::Press,
-				state: KeyEventState::NONE,
-			}
-		}
-
-		fn buffer_text(editor: &Editor) -> String {
-			editor.buffer().with_doc(|doc| doc.content().to_string())
-		}
-
-		fn primary_text(editor: &Editor) -> String {
-			let range = editor.buffer().selection.primary();
-			editor.buffer().with_doc(|doc| {
-				let (from, to) = range.extent_clamped(doc.content().len_chars());
-				doc.content().slice(from..to).to_string()
-			})
-		}
 
 		#[tokio::test]
 		async fn lsp_snippet_session_tab_flow() {
