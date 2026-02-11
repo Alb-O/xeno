@@ -2,9 +2,9 @@
 name = "xeno-matcher"
 description = "Fast fuzzy matching via SIMD smith waterman, similar algorithm to FZF/FZY"
 license = "MIT"
-version = "0.7.0"
-edition = "2024"
-repository = "https://github.com/Alb-O/xeno"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
 
 [features]
 default = ["parallel_sort"]
