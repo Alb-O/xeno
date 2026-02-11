@@ -1,8 +1,9 @@
 use std::marker::PhantomData;
 
-use super::Appendable;
+use super::{Appendable, MAX_MATRIX_BYTES, exceeds_typo_budget};
 use crate::simd_lanes::{LaneCount, SupportedLaneCount};
-use crate::smith_waterman::simd::{smith_waterman, typos_from_score_matrix};
+use crate::smith_waterman::greedy::match_greedy;
+use crate::smith_waterman::simd::{smith_waterman, smith_waterman_scores, typos_from_score_matrix};
 use crate::{Config, Match, Scoring};
 
 #[derive(Debug)]
@@ -75,12 +76,42 @@ impl<'a, const W: usize, M: Appendable<Match>> FixedWidthBucket<'a, W, M> {
 			return;
 		}
 
-		let (scores, score_matrix, exact_matches) = smith_waterman::<W, L>(
-			self.needle,
-			&self.haystacks.get(0..L).unwrap().try_into().unwrap(),
-			self.max_typos,
-			&self.scoring,
-		);
+		let haystacks: &[&str; L] = self.haystacks.get(0..L).unwrap().try_into().unwrap();
+
+		if self.max_typos.is_none() {
+			let (scores, exact_matches) = smith_waterman_scores::<W, L>(self.needle, haystacks, &self.scoring);
+			for idx in 0..self.length {
+				let score_idx = self.idxs[idx];
+				matches.append(Match {
+					index: score_idx,
+					score: scores[idx],
+					exact: exact_matches[idx],
+				});
+			}
+			self.length = 0;
+			return;
+		}
+
+		let matrix_bytes = self.needle.len().saturating_mul(W).saturating_mul(L).saturating_mul(std::mem::size_of::<u16>());
+		if matrix_bytes > MAX_MATRIX_BYTES {
+			for idx in 0..self.length {
+				let haystack = self.haystacks[idx];
+				let (score, indices, exact) = match_greedy(self.needle, haystack, &self.scoring);
+				if exceeds_typo_budget(self.max_typos, self.needle, indices.len()) {
+					continue;
+				}
+
+				matches.append(Match {
+					index: self.idxs[idx],
+					score,
+					exact,
+				});
+			}
+			self.length = 0;
+			return;
+		}
+
+		let (scores, score_matrix, exact_matches) = smith_waterman::<W, L>(self.needle, haystacks, self.max_typos, &self.scoring);
 
 		let typos = self.max_typos.map(|max_typos| typos_from_score_matrix::<W, L>(&score_matrix, max_typos));
 

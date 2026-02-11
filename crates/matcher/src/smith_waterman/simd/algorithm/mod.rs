@@ -10,14 +10,34 @@ use crate::Scoring;
 use crate::simd_lanes::{LaneCount, SupportedLaneCount};
 
 #[inline(always)]
+fn delimiter_mask<const L: usize>(lowercase: Simd<u16, L>, delimiters: &[u8]) -> Mask<i16, L>
+where
+	LaneCount<L>: SupportedLaneCount,
+{
+	delimiters.iter().fold(Mask::splat(false), |mask, delimiter| {
+		mask | Simd::splat(delimiter.to_ascii_lowercase() as u16).simd_eq(lowercase)
+	})
+}
+
+#[inline(always)]
+pub(crate) fn delimiter_masks<const W: usize, const L: usize>(haystack: &[HaystackChar<L>; W], delimiters: &[u8]) -> [Mask<i16, L>; W]
+where
+	LaneCount<L>: SupportedLaneCount,
+{
+	std::array::from_fn(|idx| delimiter_mask(haystack[idx].lowercase, delimiters))
+}
+
+#[inline(always)]
 pub(crate) fn smith_waterman_inner<const L: usize>(
 	start: usize,
 	end: usize,
 	needle_char: NeedleChar<L>,
 	haystack: &[HaystackChar<L>],
+	haystack_delimiter_mask: &[Mask<i16, L>],
 	prev_score_col: Option<&[Simd<u16, L>]>,
 	curr_score_col: &mut [Simd<u16, L>],
 	scoring: &Scoring,
+	all_time_max_score: &mut Simd<u16, L>,
 ) where
 	LaneCount<L>: SupportedLaneCount,
 {
@@ -28,6 +48,7 @@ pub(crate) fn smith_waterman_inner<const L: usize>(
 
 	for haystack_idx in start..end {
 		let haystack_char = haystack[haystack_idx];
+		let haystack_is_delimiter_mask = haystack_delimiter_mask[haystack_idx];
 
 		let (diag, left) = if haystack_idx == 0 {
 			(Simd::splat(0), Simd::splat(0))
@@ -44,12 +65,13 @@ pub(crate) fn smith_waterman_inner<const L: usize>(
 		let match_score = if haystack_idx > 0 {
 			let match_score = {
 				let prev_haystack_char = haystack[haystack_idx - 1];
+				let prev_haystack_is_delimiter_mask = haystack_delimiter_mask[haystack_idx - 1];
 
 				// ignore capitalization on the prefix
 				let capitalization_bonus_mask: Mask<i16, L> = haystack_char.is_capital_mask & prev_haystack_char.is_lower_mask;
 				let capitalization_bonus = capitalization_bonus_mask.select(Simd::splat(scoring.capitalization_bonus), Simd::splat(0));
 
-				let delimiter_bonus_mask: Mask<i16, L> = prev_haystack_char.is_delimiter_mask & delimiter_bonus_enabled_mask & !haystack_char.is_delimiter_mask;
+				let delimiter_bonus_mask: Mask<i16, L> = prev_haystack_is_delimiter_mask & delimiter_bonus_enabled_mask & !haystack_is_delimiter_mask;
 				let delimiter_bonus = delimiter_bonus_mask.select(Simd::splat(scoring.delimiter_bonus), Simd::splat(0));
 
 				capitalization_bonus + delimiter_bonus + Simd::splat(scoring.match_score)
@@ -93,12 +115,65 @@ pub(crate) fn smith_waterman_inner<const L: usize>(
 		left_gap_penalty_mask = max_score.simd_ne(left_score) | diag_mask;
 
 		// Only enable delimiter bonus if we've seen a non-delimiter char
-		delimiter_bonus_enabled_mask |= haystack_char.is_delimiter_mask.not();
+		delimiter_bonus_enabled_mask |= haystack_is_delimiter_mask.not();
 
 		// Store the scores for the next iterations
 		up_score_simd = max_score;
 		curr_score_col[haystack_idx] = max_score;
+		*all_time_max_score = (*all_time_max_score).simd_max(max_score);
 	}
+}
+
+#[multiversion(targets(
+    // x86-64-v4 without lahfsahf
+    "x86_64+avx512f+avx512bw+avx512cd+avx512dq+avx512vl+avx+avx2+bmi1+bmi2+cmpxchg16b+f16c+fma+fxsr+lzcnt+movbe+popcnt+sse+sse2+sse3+sse4.1+sse4.2+ssse3+xsave",
+    // x86-64-v3 without lahfsahf
+    "x86_64+avx+avx2+bmi1+bmi2+cmpxchg16b+f16c+fma+fxsr+lzcnt+movbe+popcnt+sse+sse2+sse3+sse4.1+sse4.2+ssse3+xsave",
+    // x86-64-v2 without lahfsahf
+    "x86_64+cmpxchg16b+fxsr+popcnt+sse+sse2+sse3+sse4.1+sse4.2+ssse3",
+))]
+pub fn smith_waterman_scores<const W: usize, const L: usize>(needle_str: &str, haystack_strs: &[&str; L], scoring: &Scoring) -> ([u16; L], [bool; L])
+where
+	LaneCount<L>: SupportedLaneCount,
+{
+	let needle = needle_str.as_bytes();
+	let haystacks = interleave::<W, L>(*haystack_strs).map(HaystackChar::new);
+	let delimiters = scoring.delimiters.as_bytes();
+	let haystack_delimiter_mask = delimiter_masks(&haystacks, delimiters);
+
+	let mut prev_score_col = [Simd::splat(0); W];
+	let mut curr_score_col = [Simd::splat(0); W];
+	let mut all_time_max_score = Simd::splat(0);
+
+	for needle_idx in 0..needle.len() {
+		let needle_char = NeedleChar::new(needle[needle_idx] as u16);
+		let prev_col = if needle_idx == 0 { None } else { Some(prev_score_col.as_slice()) };
+
+		smith_waterman_inner(
+			0,
+			W,
+			needle_char,
+			&haystacks,
+			haystack_delimiter_mask.as_slice(),
+			prev_col,
+			curr_score_col.as_mut_slice(),
+			scoring,
+			&mut all_time_max_score,
+		);
+
+		std::mem::swap(&mut prev_score_col, &mut curr_score_col);
+	}
+
+	let exact_matches: [bool; L] = std::array::from_fn(|i| haystack_strs[i] == needle_str);
+	let max_scores = std::array::from_fn(|i| {
+		let mut score = all_time_max_score[i];
+		if exact_matches[i] {
+			score += scoring.exact_match_bonus;
+		}
+		score
+	});
+
+	(max_scores, exact_matches)
 }
 
 #[multiversion(targets(
@@ -120,9 +195,12 @@ where
 {
 	let needle = needle_str.as_bytes();
 	let haystacks = interleave::<W, L>(*haystack_strs).map(HaystackChar::new);
+	let delimiters = scoring.delimiters.as_bytes();
+	let haystack_delimiter_mask = delimiter_masks(&haystacks, delimiters);
 
 	// State
 	let mut score_matrix = vec![[Simd::splat(0); W]; needle.len()];
+	let mut all_time_max_score = Simd::splat(0);
 
 	for (needle_idx, haystack_start, haystack_end) in (0..needle.len()).map(|needle_idx| {
 		// When matching "asd" against "qwerty" with max_typos = 0, we can avoid matching "s"
@@ -145,14 +223,17 @@ where
 			(Some(a[needle_idx - 1].as_slice()), &mut b[0])
 		};
 
-		smith_waterman_inner(haystack_start, haystack_end, needle_char, &haystacks, prev_score_col, curr_score_col, scoring);
-	}
-
-	let mut all_time_max_score = Simd::splat(0);
-	for score_col in score_matrix.iter() {
-		for score in score_col {
-			all_time_max_score = score.simd_max(all_time_max_score);
-		}
+		smith_waterman_inner(
+			haystack_start,
+			haystack_end,
+			needle_char,
+			&haystacks,
+			haystack_delimiter_mask.as_slice(),
+			prev_score_col,
+			curr_score_col,
+			scoring,
+			&mut all_time_max_score,
+		);
 	}
 
 	let exact_matches: [bool; L] = std::array::from_fn(|i| haystack_strs[i] == needle_str);

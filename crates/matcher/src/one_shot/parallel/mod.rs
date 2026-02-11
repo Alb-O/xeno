@@ -1,14 +1,6 @@
-use std::sync::Arc;
-
 use super::match_list;
 use crate::one_shot::matcher::match_list_impl;
 use crate::{Config, Match};
-
-mod thread_slice;
-mod threaded_vec;
-
-use thread_slice::ThreadSlice;
-use threaded_vec::ThreadedVec;
 
 /// Computes the Smith-Waterman score with affine gaps for a needle against a list of haystacks
 /// with multithreading.
@@ -17,15 +9,40 @@ use threaded_vec::ThreadedVec;
 /// automatically chunk the haystacks based on string length to avoid unnecessary computation
 /// due to SIMD
 pub fn match_list_parallel<S1: AsRef<str>, S2: AsRef<str> + Sync + Send>(needle: S1, haystacks: &[S2], config: &Config, max_threads: usize) -> Vec<Match> {
+	let max_threads = max_threads.max(1);
 	let thread_count = choose_thread_count(haystacks.len(), config.max_typos).clamp(1, max_threads);
 	if thread_count == 1 {
 		return match_list(needle, haystacks, config);
 	}
 
-	let mut matches = match config.max_typos {
-		None => match_list_parallel_fixed(needle, haystacks, config, thread_count),
-		_ => match_list_parallel_expandable(needle, haystacks, config, thread_count),
+	let needle = needle.as_ref();
+	let items_per_thread = haystacks.len().div_ceil(thread_count);
+	let mut matches = if config.max_typos.is_none() {
+		Vec::with_capacity(haystacks.len())
+	} else {
+		Vec::new()
 	};
+
+	std::thread::scope(|s| {
+		let mut tasks = Vec::new();
+
+		for (thread_idx, haystacks) in haystacks.chunks(items_per_thread).enumerate() {
+			let index_offset = (thread_idx * items_per_thread) as u32;
+			tasks.push(s.spawn(move || {
+				let mut local_matches = if config.max_typos.is_none() {
+					Vec::with_capacity(haystacks.len())
+				} else {
+					Vec::new()
+				};
+				match_list_impl(needle, haystacks, index_offset, config, &mut local_matches);
+				local_matches
+			}));
+		}
+
+		for task in tasks {
+			matches.extend(task.join().expect("parallel match worker panicked"));
+		}
+	});
 
 	if config.sort {
 		#[cfg(feature = "parallel_sort")]
@@ -38,79 +55,6 @@ pub fn match_list_parallel<S1: AsRef<str>, S2: AsRef<str> + Sync + Send>(needle:
 	}
 
 	matches
-}
-
-/// Since max_typos is None, we may use an unitialized vector to store the matches and provide a slice
-/// to each thread based on the number of items it will process, since all items will be returned
-fn match_list_parallel_fixed<S1: AsRef<str>, S2: AsRef<str> + Sync + Send>(needle: S1, haystacks: &[S2], config: &Config, thread_count: usize) -> Vec<Match> {
-	assert!(config.max_typos.is_none(), "max_typos must be None");
-
-	let mut matches = Vec::with_capacity(haystacks.len());
-	#[allow(clippy::uninit_vec)]
-	unsafe {
-		matches.set_len(haystacks.len())
-	};
-	let mut matches_remaining_slice = matches.as_mut_slice();
-
-	let items_per_thread = haystacks.len().div_ceil(thread_count);
-	std::thread::scope(|s| {
-		let mut tasks = Vec::new();
-
-		for (thread_idx, haystacks) in haystacks.chunks(items_per_thread).enumerate() {
-			debug_assert!(thread_idx < thread_count, "thread index out of bounds");
-
-			let (matches_slice, remaining_slice) = matches_remaining_slice.split_at_mut(haystacks.len());
-			matches_remaining_slice = remaining_slice;
-			let expected_writes = haystacks.len();
-
-			let needle = needle.as_ref().to_owned();
-			let opts = config.clone();
-			tasks.push((
-				expected_writes,
-				s.spawn(move || {
-					let mut thread_slice = ThreadSlice::new(matches_slice);
-					match_list_impl(needle, haystacks, (thread_idx * items_per_thread) as u32, &opts, &mut thread_slice);
-					thread_slice.pos
-				}),
-			));
-		}
-
-		for (expected_writes, task) in tasks {
-			let written = task.join().expect("parallel match worker panicked");
-			assert_eq!(written, expected_writes, "parallel fixed matcher wrote an unexpected number of matches");
-		}
-	});
-
-	matches
-}
-
-/// Since max_typos is Some, we'll receive an unknown number of matches, so we use an thread safe
-/// batched expandable vec to store the matches. In the typical case (<20% matching), there
-/// shouldn't be a bottleneck when adding items to the vector.
-fn match_list_parallel_expandable<S1: AsRef<str>, S2: AsRef<str> + Sync + Send>(
-	needle: S1,
-	haystacks: &[S2],
-	config: &Config,
-	thread_count: usize,
-) -> Vec<Match> {
-	assert!(config.max_typos.is_some(), "max_typos must be Some");
-
-	let batch_size = 1024;
-	let matches = Arc::new(ThreadedVec::new(batch_size, thread_count));
-
-	let items_per_thread = haystacks.len().div_ceil(thread_count);
-	std::thread::scope(|s| {
-		for (thread_idx, haystacks) in haystacks.chunks(items_per_thread).enumerate() {
-			assert!(thread_idx < thread_count, "thread index out of bounds");
-
-			let needle = needle.as_ref().to_owned();
-			let mut matches = matches.clone();
-			let opts = config.clone();
-			s.spawn(move || match_list_impl(needle, haystacks, (thread_idx * items_per_thread) as u32, &opts, &mut matches));
-		}
-	});
-
-	Arc::try_unwrap(matches).unwrap().into_vec()
 }
 
 fn choose_thread_count(haystacks_len: usize, max_typos: Option<u16>) -> usize {

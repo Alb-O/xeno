@@ -1,8 +1,12 @@
-use crate::r#const::*;
+use crate::Scoring;
 
-pub fn smith_waterman(needle: &str, haystack: &str) -> (u16, Vec<Vec<u16>>, bool) {
+pub fn smith_waterman(needle: &str, haystack: &str, scoring: &Scoring) -> (u16, Vec<Vec<u16>>, bool) {
 	let needle = needle.as_bytes();
 	let haystack = haystack.as_bytes();
+	let mut delimiter_table = [false; 256];
+	for delimiter in scoring.delimiters.bytes() {
+		delimiter_table[delimiter.to_ascii_lowercase() as usize] = true;
+	}
 
 	// State
 	let mut score_matrix = vec![vec![0; haystack.len()]; needle.len()];
@@ -38,16 +42,16 @@ pub fn smith_waterman(needle: &str, haystack: &str) -> (u16, Vec<Vec<u16>>, bool
 			let haystack_is_lowercase = haystack_char.is_ascii_lowercase();
 			let haystack_char = haystack_char.to_ascii_lowercase();
 
-			let haystack_is_delimiter = [b' ', b'/', b'.', b',', b'_', b'-', b':'].contains(&haystack_char);
+			let haystack_is_delimiter = delimiter_table[haystack_char as usize];
 			let matched_casing_mask = needle_is_uppercase == haystack_is_uppercase;
 
 			// Give a bonus for prefix matches
 			let match_score = if is_prefix {
-				MATCH_SCORE + PREFIX_BONUS
+				scoring.match_score + scoring.prefix_bonus
 			} else if is_offset_prefix {
-				MATCH_SCORE + OFFSET_PREFIX_BONUS
+				scoring.match_score + scoring.offset_prefix_bonus
 			} else {
-				MATCH_SCORE
+				scoring.match_score
 			};
 
 			// Calculate diagonal (match/mismatch) scores
@@ -55,21 +59,41 @@ pub fn smith_waterman(needle: &str, haystack: &str) -> (u16, Vec<Vec<u16>>, bool
 			let is_match = needle_char == haystack_char;
 			let diag_score = if is_match {
 				diag + match_score
-                    + if prev_haystack_is_delimiter && delimiter_bonus_enabled && !haystack_is_delimiter { DELIMITER_BONUS } else { 0 }
+					+ if prev_haystack_is_delimiter && delimiter_bonus_enabled && !haystack_is_delimiter {
+						scoring.delimiter_bonus
+					} else {
+						0
+					}
                     // ignore capitalization on the prefix
-                    + if !is_prefix && haystack_is_uppercase && prev_haystack_is_lowercase { CAPITALIZATION_BONUS } else { 0 }
-                    + if matched_casing_mask { MATCHING_CASE_BONUS } else { 0 }
+					+ if !is_prefix && haystack_is_uppercase && prev_haystack_is_lowercase {
+						scoring.capitalization_bonus
+					} else {
+						0
+					}
+					+ if matched_casing_mask {
+						scoring.matching_case_bonus
+					} else {
+						0
+					}
 			} else {
-				diag.saturating_sub(MISMATCH_PENALTY)
+				diag.saturating_sub(scoring.mismatch_penalty)
 			};
 
 			// Load and calculate up scores (skipping char in haystack)
-			let up_gap_penalty = if up_gap_penalty_mask { GAP_OPEN_PENALTY } else { GAP_EXTEND_PENALTY };
+			let up_gap_penalty = if up_gap_penalty_mask {
+				scoring.gap_open_penalty
+			} else {
+				scoring.gap_extend_penalty
+			};
 			let up_score = up_score_simd.saturating_sub(up_gap_penalty);
 
 			// Load and calculate left scores (skipping char in needle)
 			let left = prev_col_scores[j];
-			let left_gap_penalty = if left_gap_penalty_mask { GAP_OPEN_PENALTY } else { GAP_EXTEND_PENALTY };
+			let left_gap_penalty = if left_gap_penalty_mask {
+				scoring.gap_open_penalty
+			} else {
+				scoring.gap_extend_penalty
+			};
 			let left_score = left.saturating_sub(left_gap_penalty);
 
 			// Calculate maximum scores
@@ -98,7 +122,7 @@ pub fn smith_waterman(needle: &str, haystack: &str) -> (u16, Vec<Vec<u16>>, bool
 	let mut max_score = all_time_max_score;
 	let exact = haystack == needle;
 	if exact {
-		max_score += EXACT_MATCH_BONUS;
+		max_score += scoring.exact_match_bonus;
 	}
 
 	(max_score, score_matrix, exact)
@@ -108,13 +132,18 @@ pub fn smith_waterman(needle: &str, haystack: &str) -> (u16, Vec<Vec<u16>>, bool
 mod tests {
 	use super::*;
 	use crate::Scoring;
+	use crate::r#const::*;
 	use crate::smith_waterman::simd::smith_waterman as smith_waterman_simd;
 
 	const CHAR_SCORE: u16 = MATCH_SCORE + MATCHING_CASE_BONUS;
 
 	fn get_score(needle: &str, haystack: &str) -> u16 {
-		let ref_score = smith_waterman(needle, haystack).0;
-		let simd_score = smith_waterman_simd::<16, 1>(needle, &[haystack], None, &Scoring::default()).0[0];
+		get_score_with_scoring(needle, haystack, &Scoring::default())
+	}
+
+	fn get_score_with_scoring(needle: &str, haystack: &str, scoring: &Scoring) -> u16 {
+		let ref_score = smith_waterman(needle, haystack, scoring).0;
+		let simd_score = smith_waterman_simd::<16, 1>(needle, &[haystack], None, scoring).0[0];
 
 		assert_eq!(ref_score, simd_score, "Reference and SIMD scores don't match");
 
@@ -187,5 +216,19 @@ mod tests {
 	fn test_score_prefix_beats_delimiter() {
 		assert!(get_score("swap", "swap(test)") > get_score("swap", "iter_swap(test)"));
 		assert!(get_score("_", "_private_member") > get_score("_", "public_member"));
+	}
+
+	#[test]
+	fn test_colon_delimiter_bonus_applies() {
+		assert_eq!(get_score("b", "a:b"), CHAR_SCORE + DELIMITER_BONUS);
+	}
+
+	#[test]
+	fn test_custom_delimiter_set_changes_bonus_behavior() {
+		let mut scoring = Scoring::default();
+		scoring.delimiters = "@".to_string();
+
+		assert_eq!(get_score_with_scoring("b", "a@b", &scoring), CHAR_SCORE + DELIMITER_BONUS);
+		assert_eq!(get_score_with_scoring("b", "a_b", &scoring), CHAR_SCORE);
 	}
 }

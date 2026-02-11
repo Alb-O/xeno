@@ -1,6 +1,6 @@
 use super::Appendable;
 use super::bucket::FixedWidthBucket;
-use crate::one_shot::match_too_large;
+use crate::one_shot::{exceeds_typo_budget, match_too_large};
 use crate::prefilter::Prefilter;
 use crate::smith_waterman::greedy::match_greedy;
 use crate::{Config, Match};
@@ -53,7 +53,8 @@ pub(crate) fn match_list_impl<S1: AsRef<str>, S2: AsRef<str>, M: Appendable<Matc
 		return;
 	}
 
-	let prefilter = Prefilter::new(needle, config.max_typos.unwrap_or(0));
+	let use_prefilter = config.prefilter && config.max_typos.is_some();
+	let prefilter = use_prefilter.then(|| Prefilter::new(needle, config.max_typos.unwrap_or(0)));
 
 	let mut bucket_size_4 = FixedWidthBucket::<4, M>::new(needle, config);
 	let mut bucket_size_8 = FixedWidthBucket::<8, M>::new(needle, config);
@@ -75,23 +76,33 @@ pub(crate) fn match_list_impl<S1: AsRef<str>, S2: AsRef<str>, M: Appendable<Matc
 
 	// If max_typos is set, we can ignore any haystacks that are shorter than the needle
 	// minus the max typos, since it's impossible for them to match
-	let min_haystack_len = config.max_typos.map(|max| needle.len() - (max as usize)).unwrap_or(0);
+	let min_haystack_len = config.max_typos.map(|max| needle.len().saturating_sub(max as usize)).unwrap_or(0);
 
 	for (i, haystack) in haystacks
 		.iter()
 		.map(|h| h.as_ref())
 		.enumerate()
 		.filter(|(_, h)| h.len() >= min_haystack_len)
-		.filter(|(_, h)| match config.max_typos {
-			None => true,
-			Some(0) => prefilter.match_haystack_unordered_insensitive(h.as_bytes()),
-			Some(_) => prefilter.match_haystack_unordered_typos_insensitive(h.as_bytes()),
+		.filter(|(_, h)| {
+			if !use_prefilter {
+				return true;
+			}
+
+			let prefilter = prefilter.as_ref().expect("prefilter exists when enabled");
+			match config.max_typos {
+				Some(0) => prefilter.match_haystack_unordered_insensitive(h.as_bytes()),
+				Some(_) => prefilter.match_haystack_unordered_typos_insensitive(h.as_bytes()),
+				None => true,
+			}
 		}) {
 		let i = i as u32 + index_offset;
 
 		// fallback to greedy matching
 		if match_too_large(needle, haystack) {
-			let (score, _, exact) = match_greedy(needle, haystack, &config.scoring);
+			let (score, indices, exact) = match_greedy(needle, haystack, &config.scoring);
+			if exceeds_typo_budget(config.max_typos, needle, indices.len()) {
+				continue;
+			}
 			matches.append(Match { index: i, score, exact });
 			continue;
 		}
@@ -118,7 +129,10 @@ pub(crate) fn match_list_impl<S1: AsRef<str>, S2: AsRef<str>, M: Appendable<Matc
 
 			// fallback to greedy matching
 			_ => {
-				let (score, _, exact) = match_greedy(needle, haystack, &config.scoring);
+				let (score, indices, exact) = match_greedy(needle, haystack, &config.scoring);
+				if exceeds_typo_budget(config.max_typos, needle, indices.len()) {
+					continue;
+				}
 				matches.append(Match { index: i, score, exact });
 				continue;
 			}
@@ -148,6 +162,7 @@ pub(crate) fn match_list_impl<S1: AsRef<str>, S2: AsRef<str>, M: Appendable<Matc
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::match_list_parallel;
 
 	#[test]
 	fn test_basic() {
@@ -228,5 +243,107 @@ mod tests {
 
 		assert_eq!(matches.len(), 1);
 		assert_eq!(matches[0].index, 0);
+	}
+
+	#[test]
+	fn parallel_matches_serial_without_typos() {
+		let needle = "deadbe";
+		let haystack = vec!["deadbeef", "deadbf", "deadbeefg", "deadbe", "rebuild", "debug", "debut", "dea"];
+
+		let config = Config {
+			max_typos: None,
+			sort: true,
+			..Config::default()
+		};
+		let serial = match_list(needle, &haystack, &config);
+		let parallel = match_list_parallel(needle, &haystack, &config, 4);
+
+		assert_eq!(parallel, serial);
+	}
+
+	#[test]
+	fn parallel_matches_serial_with_zero_typos() {
+		let needle = "tr";
+		let haystack = vec!["tracing", "tree", "error", "result", "to", "transport", "trace", "tar"];
+
+		let config = Config {
+			max_typos: Some(0),
+			sort: true,
+			..Config::default()
+		};
+		let serial = match_list(needle, &haystack, &config);
+		let parallel = match_list_parallel(needle, &haystack, &config, 4);
+
+		assert_eq!(parallel, serial);
+	}
+
+	#[test]
+	fn max_typos_larger_than_needle_len_does_not_underflow() {
+		let needle = "a";
+		let haystack = vec!["", "a", "bbb"];
+
+		let config = Config {
+			max_typos: Some(10),
+			..Config::default()
+		};
+		let matches = match_list(needle, &haystack, &config);
+
+		assert!(!matches.is_empty());
+	}
+
+	#[test]
+	fn disabling_prefilter_preserves_match_results() {
+		let needle = "solf";
+		let haystack = vec!["self::", "super::", "write", "solve", "slot", "shelf"];
+
+		let with_prefilter = Config {
+			max_typos: Some(1),
+			prefilter: true,
+			sort: true,
+			..Config::default()
+		};
+		let without_prefilter = Config {
+			max_typos: Some(1),
+			prefilter: false,
+			sort: true,
+			..Config::default()
+		};
+
+		let with_prefilter_matches = match_list(needle, &haystack, &with_prefilter);
+		let without_prefilter_matches = match_list(needle, &haystack, &without_prefilter);
+
+		assert_eq!(with_prefilter_matches, without_prefilter_matches);
+	}
+
+	#[test]
+	fn greedy_fallback_respects_typo_budget() {
+		let needle = "z".repeat(4096);
+		let haystack = vec!["a".repeat(5000)];
+		let haystack_refs: Vec<&str> = haystack.iter().map(String::as_str).collect();
+
+		let config = Config {
+			max_typos: Some(0),
+			prefilter: false,
+			..Config::default()
+		};
+		let matches = match_list(&needle, &haystack_refs, &config);
+
+		assert!(matches.is_empty());
+	}
+
+	#[test]
+	fn matrix_budget_fallback_respects_typo_budget() {
+		let needle = "z".repeat(128);
+		let haystack = vec!["a".repeat(100)];
+		let haystack_refs: Vec<&str> = haystack.iter().map(String::as_str).collect();
+
+		let config = Config {
+			max_typos: Some(0),
+			prefilter: false,
+			..Config::default()
+		};
+		let matches = match_list(&needle, &haystack_refs, &config);
+
+		assert!(matches.is_empty());
 	}
 }

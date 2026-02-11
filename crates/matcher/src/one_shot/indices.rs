@@ -1,4 +1,4 @@
-use super::match_too_large;
+use super::{exceeds_typo_budget, match_too_large};
 use crate::smith_waterman::greedy::match_greedy;
 use crate::smith_waterman::reference::{char_indices_from_score_matrix, smith_waterman, typos_from_score_matrix};
 use crate::{Config, MatchIndices};
@@ -15,14 +15,14 @@ pub fn match_indices<S1: AsRef<str>, S2: AsRef<str>>(needle: S1, haystack: S2, c
 	// Fallback to greedy matching
 	if match_too_large(needle, haystack) {
 		let (score, indices, exact) = match_greedy(needle, haystack, &config.scoring);
-		if score == 0 {
+		if score == 0 || exceeds_typo_budget(config.max_typos, needle, indices.len()) {
 			return None;
 		}
 		return Some(MatchIndices { score, indices, exact });
 	}
 
 	// Get score matrix
-	let (score, score_matrix, exact) = smith_waterman(needle, haystack);
+	let (score, score_matrix, exact) = smith_waterman(needle, haystack, &config.scoring);
 	let score_matrix_ref = score_matrix.iter().map(|v| v.as_slice()).collect::<Vec<_>>();
 
 	// Ensure there's not too many typos
@@ -36,4 +36,33 @@ pub fn match_indices<S1: AsRef<str>, S2: AsRef<str>>(needle: S1, haystack: S2, c
 	let indices = char_indices_from_score_matrix(&score_matrix_ref);
 
 	Some(MatchIndices { score, indices, exact })
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn greedy_fallback_respects_max_typos() {
+		let needle = "z".repeat(4096);
+		let haystack = "a".repeat(5000);
+		let config = Config {
+			max_typos: Some(0),
+			..Config::default()
+		};
+
+		assert!(match_indices(&needle, &haystack, &config).is_none());
+	}
+
+	#[test]
+	fn greedy_fallback_returns_exact_when_in_budget() {
+		let needle = "a".repeat(2000);
+		let haystack = "a".repeat(3000);
+		let config = Config {
+			max_typos: Some(0),
+			..Config::default()
+		};
+
+		assert!(match_indices(&needle, &haystack, &config).is_some());
+	}
 }

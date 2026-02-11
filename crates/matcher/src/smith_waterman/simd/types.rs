@@ -47,7 +47,6 @@ where
 	pub(crate) lowercase: Simd<u16, L>,
 	pub(crate) is_lower_mask: Mask<i16, L>,
 	pub(crate) is_capital_mask: Mask<i16, L>,
-	pub(crate) is_delimiter_mask: Mask<i16, L>,
 }
 impl<const L: usize> HaystackChar<L>
 where
@@ -56,17 +55,10 @@ where
 	#[inline(always)]
 	pub(crate) fn new(chars: Simd<u16, L>) -> Self {
 		let (is_capital_mask, is_lower_mask, lowercase) = simd_to_lowercase_with_mask::<L>(chars);
-		let is_delimiter_mask: Mask<i16, L> = Simd::splat(b' ' as u16).simd_eq(lowercase)
-			| Simd::splat(b'/' as u16).simd_eq(lowercase)
-			| Simd::splat(b'.' as u16).simd_eq(lowercase)
-			| Simd::splat(b',' as u16).simd_eq(lowercase)
-			| Simd::splat(b'_' as u16).simd_eq(lowercase)
-			| Simd::splat(b'-' as u16).simd_eq(lowercase);
 		Self {
 			lowercase,
 			is_lower_mask,
 			is_capital_mask,
-			is_delimiter_mask,
 		}
 	}
 
@@ -88,7 +80,6 @@ where
 			lowercase: Simd::splat(0),
 			is_lower_mask: Mask::splat(false),
 			is_capital_mask: Mask::splat(false),
-			is_delimiter_mask: Mask::splat(false),
 		}
 	}
 }

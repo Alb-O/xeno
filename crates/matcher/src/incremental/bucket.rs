@@ -2,7 +2,7 @@ use core::simd::Simd;
 use core::simd::cmp::SimdOrd;
 
 use crate::simd_lanes::{LaneCount, SupportedLaneCount};
-use crate::smith_waterman::simd::{HaystackChar, NeedleChar, smith_waterman_inner, typos_from_score_matrix};
+use crate::smith_waterman::simd::{HaystackChar, NeedleChar, delimiter_masks, smith_waterman_inner, typos_from_score_matrix};
 use crate::{Match, Scoring};
 
 pub(crate) trait IncrementalBucketTrait {
@@ -49,6 +49,8 @@ where
 			self.score_matrix.truncate(prefix_to_keep + new_needle_chars.len());
 		}
 
+		let mut ignored_max_score = Simd::splat(0);
+		let haystack_delimiter_masks = delimiter_masks(&self.haystacks, scoring.delimiters.as_bytes());
 		for (i, &needle_char) in new_needle_chars.iter().enumerate() {
 			let needle_idx = i + prefix_to_keep;
 
@@ -59,7 +61,17 @@ where
 				(Some(a[needle_idx - 1].as_ref()), b[0].as_mut())
 			};
 
-			smith_waterman_inner(0, W, needle_char, &self.haystacks, prev_score_col, curr_score_col, scoring);
+			smith_waterman_inner(
+				0,
+				W,
+				needle_char,
+				&self.haystacks,
+				haystack_delimiter_masks.as_slice(),
+				prev_score_col,
+				curr_score_col,
+				scoring,
+				&mut ignored_max_score,
+			);
 		}
 
 		let mut all_time_max_score = Simd::splat(0);
