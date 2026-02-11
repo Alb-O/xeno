@@ -132,6 +132,11 @@ pub struct CompletionState {
 	pub query: String,
 	/// Whether to render the kind column in completion rows.
 	pub show_kind: bool,
+	/// Mapping from displayed LSP completion row index to raw LSP item index.
+	///
+	/// This is populated only for active LSP completion menus and is empty for
+	/// non-LSP completion sources.
+	pub lsp_display_to_raw: Vec<usize>,
 }
 
 impl Default for CompletionState {
@@ -146,6 +151,7 @@ impl Default for CompletionState {
 			suppressed: false,
 			query: String::new(),
 			show_kind: true,
+			lsp_display_to_raw: Vec::new(),
 		}
 	}
 }

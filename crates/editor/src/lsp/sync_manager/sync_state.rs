@@ -226,7 +226,6 @@ impl DocSyncState {
 			}
 			FlushResult::Retryable => {
 				self.mark_error_retry();
-				self.needs_full = true;
 			}
 			FlushResult::Failed => {
 				self.mark_error_retry();

@@ -52,6 +52,7 @@ impl Editor {
 		});
 
 		if res {
+			self.on_snippet_session_transaction(buffer_id, tx);
 			self.notify_overlay_event(crate::overlay::LayerEvent::BufferEdited(buffer_id));
 		}
 		res

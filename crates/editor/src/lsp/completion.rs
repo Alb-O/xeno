@@ -10,25 +10,22 @@
 //!
 //! [`CompletionController`]: super::completion_controller::CompletionController
 
-use std::collections::BTreeMap;
-use std::ops::Range as StdRange;
-
 use xeno_lsp::lsp_types::{CompletionItem, CompletionTextEdit, CompletionTriggerKind, InsertTextFormat, TextEdit};
 use xeno_lsp::{CompletionRequest, CompletionTrigger, OffsetEncoding};
 use xeno_primitives::range::CharIdx;
 use xeno_primitives::transaction::Bias;
-use xeno_primitives::{Range, Selection};
+use xeno_primitives::Selection;
 use xeno_registry::notifications::keys;
 
 use super::completion_filter::{extract_query, filter_items};
 use super::events::map_completion_item_with_indices;
-use super::snippet::{Snippet, SnippetPlaceholder, parse_snippet};
 use super::types::{LspMenuKind, LspMenuState};
 use super::workspace_edit::{ApplyError, BufferEditPlan, PlannedTextEdit, convert_text_edit};
 use crate::CompletionItem as UiCompletionItem;
 use crate::buffer::ViewId;
 use crate::completion::{CompletionState, SelectionIntent};
 use crate::impls::Editor;
+use crate::snippet::{parse_snippet_template, render as render_snippet};
 
 impl Editor {
 	pub(crate) fn is_completion_trigger_key(&self, key: &termina::event::KeyEvent) -> bool {
@@ -123,6 +120,7 @@ impl Editor {
 
 		let completions = self.overlays_mut().get_or_default::<CompletionState>();
 		completions.items = display_items;
+		completions.lsp_display_to_raw = filtered.iter().map(|f| f.index).collect();
 		completions.selected_idx = None;
 		completions.selection_intent = SelectionIntent::Auto;
 		completions.scroll_offset = 0;
@@ -162,8 +160,11 @@ impl Editor {
 
 		let (raw_text_edit, raw_text) = normalize_completion_edit(&item);
 		let (insert_text, snippet) = match item.insert_text_format {
-			Some(InsertTextFormat::SNIPPET) => parse_snippet(&raw_text)
-				.map(|parsed| (parsed.text.clone(), Some(parsed)))
+			Some(InsertTextFormat::SNIPPET) => parse_snippet_template(&raw_text)
+				.map(|template| {
+					let rendered = render_snippet(&template);
+					(rendered.text.clone(), Some(rendered))
+				})
 				.unwrap_or((raw_text.clone(), None)),
 			_ => (raw_text.clone(), None),
 		};
@@ -212,19 +213,18 @@ impl Editor {
 		};
 
 		self.flush_lsp_sync_now(&[buffer_id]);
+		let mapped_start = tx.changes().map_pos(base_start, Bias::Left);
 
-		if let Some(selection) = completion_snippet_selection(&tx, base_start, snippet) {
-			if let Some(buffer) = self.state.core.buffers.get_buffer_mut(buffer_id) {
-				let cursor = selection.primary().head;
-				buffer.set_cursor_and_selection(cursor, selection);
-			}
+		if let Some(snippet) = snippet
+			&& self.begin_snippet_session(buffer_id, mapped_start, &snippet)
+		{
 			if let Some(command) = command {
 				self.execute_lsp_command(buffer_id, command.command, command.arguments).await;
 			}
 			return;
 		}
 
-		let new_cursor = tx.changes().map_pos(base_start, Bias::Left).saturating_add(insert_text.chars().count());
+		let new_cursor = mapped_start.saturating_add(insert_text.chars().count());
 		if let Some(buffer) = self.state.core.buffers.get_buffer_mut(buffer_id) {
 			buffer.set_cursor_and_selection(new_cursor, Selection::point(new_cursor));
 		}
@@ -324,36 +324,4 @@ fn validate_non_overlapping(edits: &mut [PlannedTextEdit], buffer_id: ViewId) ->
 		}
 	}
 	Ok(())
-}
-
-fn completion_snippet_selection(tx: &xeno_primitives::Transaction, base_start: CharIdx, snippet: Option<Snippet>) -> Option<Selection> {
-	let snippet = snippet?;
-	if snippet.placeholders.is_empty() {
-		return None;
-	}
-
-	let mapped_start = tx.changes().map_pos(base_start, Bias::Left);
-	let mut by_index: BTreeMap<u32, Vec<StdRange<CharIdx>>> = BTreeMap::new();
-	for SnippetPlaceholder { index, range } in snippet.placeholders {
-		let start = mapped_start.saturating_add(range.start);
-		let end = mapped_start.saturating_add(range.end);
-		by_index.entry(index).or_default().push(start..end);
-	}
-
-	let mut selection_ranges = by_index
-		.range(1..)
-		.next()
-		.map(|(_, ranges)| ranges.clone())
-		.or_else(|| by_index.get(&0).cloned())?;
-
-	if selection_ranges.is_empty() {
-		return None;
-	}
-
-	let primary = selection_ranges.remove(0);
-	let selection = Selection::new(
-		Range::new(primary.start, primary.end),
-		selection_ranges.into_iter().map(|range| Range::new(range.start, range.end)),
-	);
-	Some(selection)
 }

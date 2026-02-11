@@ -85,6 +85,7 @@ impl Editor {
 
 				let completions = self.overlays_mut().get_or_default::<CompletionState>();
 				completions.items = display_items;
+				completions.lsp_display_to_raw = filtered.iter().map(|f| f.index).collect();
 				completions.selected_idx = None;
 				completions.selection_intent = SelectionIntent::Auto;
 				completions.active = true;
@@ -128,6 +129,7 @@ impl Editor {
 		{
 			let completions = self.overlays_mut().get_or_default::<CompletionState>();
 			completions.items.clear();
+			completions.lsp_display_to_raw.clear();
 			completions.selected_idx = None;
 			completions.active = false;
 			completions.scroll_offset = 0;

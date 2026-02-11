@@ -24,8 +24,6 @@ pub(crate) mod signature_help;
 #[cfg(feature = "lsp")]
 pub mod smoke;
 #[cfg(feature = "lsp")]
-pub(crate) mod snippet;
-#[cfg(feature = "lsp")]
 pub(crate) mod sync_manager;
 #[cfg(feature = "lsp")]
 pub(crate) mod types;

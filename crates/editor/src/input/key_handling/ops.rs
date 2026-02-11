@@ -97,6 +97,7 @@ impl Editor {
 
 	/// Handles a mouse click with view-local coordinates.
 	pub(crate) fn handle_mouse_click_local(&mut self, local_row: u16, local_col: u16, extend: bool) {
+		self.cancel_snippet_session();
 		let tab_width = self.tab_width();
 		if let Some(doc_pos) = self.buffer().screen_to_doc_position(local_row, local_col, tab_width) {
 			let buffer = self.buffer_mut();
@@ -116,6 +117,7 @@ impl Editor {
 
 	/// Handles mouse drag with view-local coordinates.
 	pub(crate) fn handle_mouse_drag_local(&mut self, local_row: u16, local_col: u16) {
+		self.cancel_snippet_session();
 		let tab_width = self.tab_width();
 		if let Some(doc_pos) = self.buffer().screen_to_doc_position(local_row, local_col, tab_width) {
 			let buffer = self.buffer_mut();

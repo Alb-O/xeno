@@ -61,13 +61,15 @@ impl Editor {
 				return true;
 			}
 			KeyCode::Tab => {
-				let selected_idx = self.overlays().get::<CompletionState>().and_then(|state| state.selected_idx);
+				let state = self.overlays().get::<CompletionState>();
+				let selected_idx = state.and_then(|completion| completion.selected_idx);
 				if let Some(idx) = selected_idx {
+					let raw_idx = lsp_completion_raw_index(state, idx);
 					self.state.lsp.cancel_completion();
 					self.clear_lsp_menu();
 					match menu_kind {
 						LspMenuKind::Completion { buffer_id, items } => {
-							if let Some(item) = items.get(idx).cloned() {
+							if let Some(item) = items.get(raw_idx).cloned() {
 								self.apply_completion_item(buffer_id, item).await;
 							}
 						}
@@ -91,12 +93,13 @@ impl Editor {
 			KeyCode::Char('y') if key.modifiers.contains(Modifiers::CONTROL) => {
 				let state = self.overlays().get::<CompletionState>();
 				let idx = state.and_then(|s| s.selected_idx).or_else(|| state.filter(|s| !s.items.is_empty()).map(|_| 0));
+				let raw_idx = idx.map(|display_idx| lsp_completion_raw_index(state, display_idx));
 				self.state.lsp.cancel_completion();
 				self.clear_lsp_menu();
 				if let Some(idx) = idx {
 					match menu_kind {
 						LspMenuKind::Completion { buffer_id, items } => {
-							if let Some(item) = items.get(idx).cloned() {
+							if let Some(item) = raw_idx.and_then(|mapped| items.get(mapped).cloned()) {
 								self.apply_completion_item(buffer_id, item).await;
 							}
 						}
@@ -154,5 +157,96 @@ impl Editor {
 		state.selection_intent = SelectionIntent::Manual;
 		state.ensure_selected_visible();
 		self.state.frame.needs_redraw = true;
+	}
+}
+
+fn lsp_completion_raw_index(state: Option<&CompletionState>, display_idx: usize) -> usize {
+	state
+		.and_then(|completion| completion.lsp_display_to_raw.get(display_idx).copied())
+		.unwrap_or(display_idx)
+}
+
+#[cfg(test)]
+mod tests {
+	use termina::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, Modifiers};
+	use xeno_lsp::lsp_types::CompletionItem as LspCompletionItem;
+
+	use super::lsp_completion_raw_index;
+	use super::LspMenuKind;
+	use super::LspMenuState;
+	use crate::completion::CompletionState;
+	use crate::impls::Editor;
+
+	fn key_tab() -> KeyEvent {
+		KeyEvent {
+			code: KeyCode::Tab,
+			modifiers: Modifiers::NONE,
+			kind: KeyEventKind::Press,
+			state: KeyEventState::NONE,
+		}
+	}
+
+	#[test]
+	fn uses_display_to_raw_mapping_when_present() {
+		let mut state = CompletionState::default();
+		state.lsp_display_to_raw = vec![2, 0, 1];
+
+		assert_eq!(lsp_completion_raw_index(Some(&state), 0), 2);
+		assert_eq!(lsp_completion_raw_index(Some(&state), 1), 0);
+		assert_eq!(lsp_completion_raw_index(Some(&state), 2), 1);
+	}
+
+	#[test]
+	fn falls_back_to_display_index_when_mapping_missing() {
+		let state = CompletionState::default();
+
+		assert_eq!(lsp_completion_raw_index(Some(&state), 3), 3);
+		assert_eq!(lsp_completion_raw_index(None, 1), 1);
+	}
+
+	#[tokio::test]
+	async fn tab_accept_uses_display_to_raw_mapping_for_lsp_completions() {
+		let mut editor = Editor::new_scratch();
+		let buffer_id = editor.focused_view();
+
+		let raw_items = vec![
+			LspCompletionItem {
+				label: "alpha".to_string(),
+				insert_text: Some("alpha".to_string()),
+				..Default::default()
+			},
+			LspCompletionItem {
+				label: "beta".to_string(),
+				insert_text: Some("beta".to_string()),
+				..Default::default()
+			},
+		];
+
+		let completion_state = editor.overlays_mut().get_or_default::<CompletionState>();
+		completion_state.active = true;
+		completion_state.items = vec![crate::CompletionItem {
+			label: "beta".to_string(),
+			insert_text: "beta".to_string(),
+			detail: None,
+			filter_text: None,
+			kind: crate::CompletionKind::Command,
+			match_indices: None,
+			right: None,
+		}];
+		completion_state.lsp_display_to_raw = vec![1];
+		completion_state.selected_idx = Some(0);
+		completion_state.replace_start = 0;
+
+		let menu_state = editor.overlays_mut().get_or_default::<LspMenuState>();
+		menu_state.set(LspMenuKind::Completion {
+			buffer_id,
+			items: raw_items,
+		});
+
+		let consumed = editor.handle_lsp_menu_key(&key_tab()).await;
+		assert!(consumed);
+
+		let content = editor.buffer().with_doc(|doc| doc.content().to_string());
+		assert_eq!(content, "beta");
 	}
 }

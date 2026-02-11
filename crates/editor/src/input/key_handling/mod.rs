@@ -76,6 +76,10 @@ impl Editor {
 			self.trigger_lsp_completion(xeno_lsp::CompletionTrigger::Manual, None);
 			return false;
 		}
+
+		if self.handle_snippet_session_key(&key) {
+			return false;
+		}
 		let key_converted: Key = key.into();
 
 		let result = self.buffer_mut().input.handle_key(key_converted);
@@ -109,6 +113,7 @@ impl Editor {
 						.await;
 					}
 					if leaving_insert {
+						self.cancel_snippet_session();
 						self.buffer_mut().clear_undo_group();
 					}
 					#[cfg(feature = "lsp")]
@@ -120,7 +125,10 @@ impl Editor {
 					if !self.guard_readonly() {
 						return false;
 					}
-					self.insert_text(&c.to_string());
+					let text = c.to_string();
+					if !self.snippet_insert_text(&text) {
+						self.insert_text(&text);
+					}
 					#[cfg(feature = "lsp")]
 					{
 						inserted_char = Some(c);

@@ -1,6 +1,8 @@
 use std::path::PathBuf;
+use std::time::Duration;
 
 use super::*;
+use xeno_lsp::Error as LspError;
 
 fn test_config() -> LspDocumentConfig {
 	LspDocumentConfig {

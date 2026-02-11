@@ -69,6 +69,8 @@ pub mod runtime;
 pub mod scheduler;
 /// Separator drag and hover state.
 pub mod separator;
+/// Snippet parsing and rendering primitives.
+pub mod snippet;
 /// Style utilities and conversions.
 pub mod styles;
 /// Background syntax loading manager.
