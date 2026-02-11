@@ -14,6 +14,7 @@ pub mod lsp_servers;
 pub mod motions;
 pub mod notifications;
 pub mod options;
+pub mod snippets;
 pub mod statusline;
 pub mod textobj;
 pub mod themes;

@@ -11,6 +11,7 @@ lsp = ["dep:xeno-lsp", "dep:thiserror", "dep:tokio-util"]
 [dependencies]
 anyhow.workspace = true
 clap.workspace = true
+chrono.workspace = true
 dirs.workspace = true
 xeno-matcher.workspace = true
 inventory.workspace = true

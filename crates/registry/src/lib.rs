@@ -175,6 +175,8 @@ pub mod db;
 #[macro_use]
 pub mod domains;
 
+#[cfg(all(feature = "db", feature = "commands"))]
+pub use db::SNIPPETS;
 #[cfg(feature = "db")]
 pub use db::index;
 #[cfg(feature = "db")]
@@ -203,6 +205,8 @@ pub use domains::motions;
 pub use domains::notifications;
 #[cfg(feature = "options")]
 pub use domains::options;
+#[cfg(feature = "commands")]
+pub use domains::snippets;
 #[cfg(feature = "statusline")]
 pub use domains::statusline;
 #[cfg(feature = "textobj")]

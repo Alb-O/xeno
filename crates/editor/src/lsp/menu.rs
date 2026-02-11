@@ -171,9 +171,7 @@ mod tests {
 	use termina::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, Modifiers};
 	use xeno_lsp::lsp_types::CompletionItem as LspCompletionItem;
 
-	use super::LspMenuKind;
-	use super::LspMenuState;
-	use super::lsp_completion_raw_index;
+	use super::{LspMenuKind, LspMenuState, lsp_completion_raw_index};
 	use crate::completion::CompletionState;
 	use crate::impls::Editor;
 

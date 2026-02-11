@@ -15,5 +15,6 @@ fn main() {
 	xeno_registry_spec::statusline::compile::build(&ctx);
 	xeno_registry_spec::hooks::compile::build(&ctx);
 	xeno_registry_spec::notifications::compile::build(&ctx);
+	xeno_registry_spec::snippets::compile::build(&ctx);
 	xeno_registry_spec::themes::compile::build(&ctx);
 }

@@ -162,6 +162,20 @@ impl DenseId for OptionId {
 
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct SnippetId(pub u32);
+
+impl DenseId for SnippetId {
+	const INVALID: Self = SnippetId(u32::MAX);
+	fn from_u32(v: u32) -> Self {
+		SnippetId(v)
+	}
+	fn as_u32(self) -> u32 {
+		self.0
+	}
+}
+
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ThemeId(pub u32);
 
 impl DenseId for ThemeId {
@@ -294,6 +308,7 @@ impl_display_id!(
 	MotionId,
 	TextObjectId,
 	OptionId,
+	SnippetId,
 	ThemeId,
 	GutterId,
 	StatuslineId,

@@ -1,7 +1,8 @@
 use std::sync::{Arc, LazyLock, OnceLock};
 
 pub use crate::core::{
-	ActionId, CommandId, DenseId, GutterId, HookId, LanguageId, MotionId, OptionId, RegistryIndex, RuntimeRegistry, StatuslineId, TextObjectId, ThemeId,
+	ActionId, CommandId, DenseId, GutterId, HookId, LanguageId, MotionId, OptionId, RegistryIndex, RuntimeRegistry, SnippetId, StatuslineId, TextObjectId,
+	ThemeId,
 };
 
 pub mod builder;
@@ -24,6 +25,8 @@ use crate::languages::LanguagesRegistry;
 use crate::lsp_servers::LspServersRegistry;
 use crate::motions::MotionEntry;
 use crate::options::registry::OptionsRegistry;
+#[cfg(feature = "commands")]
+use crate::snippets::SnippetEntry;
 use crate::statusline::StatuslineEntry;
 use crate::textobj::registry::TextObjectRegistry;
 use crate::themes::theme::ThemeEntry;
@@ -34,6 +37,8 @@ pub struct RegistryDb {
 	pub motions: RuntimeRegistry<MotionEntry, MotionId>,
 	pub text_objects: TextObjectRegistry,
 	pub options: OptionsRegistry,
+	#[cfg(feature = "commands")]
+	pub snippets: RuntimeRegistry<SnippetEntry, SnippetId>,
 	pub themes: RuntimeRegistry<ThemeEntry, ThemeId>,
 	pub gutters: RuntimeRegistry<GutterEntry, GutterId>,
 	pub statusline: RuntimeRegistry<StatuslineEntry, StatuslineId>,
@@ -73,6 +78,8 @@ pub fn get_db() -> &'static RegistryDb {
 			motions: RuntimeRegistry::new("motions", indices.motions),
 			text_objects: TextObjectRegistry::new(indices.text_objects),
 			options: OptionsRegistry::new(indices.options),
+			#[cfg(feature = "commands")]
+			snippets: RuntimeRegistry::new("snippets", indices.snippets),
 			themes: RuntimeRegistry::new("themes", indices.themes),
 			gutters: RuntimeRegistry::new("gutters", indices.gutters),
 			statusline: RuntimeRegistry::new("statusline", indices.statusline),
@@ -92,6 +99,8 @@ pub static COMMANDS: LazyLock<&'static RuntimeRegistry<CommandEntry, CommandId>>
 pub static MOTIONS: LazyLock<&'static RuntimeRegistry<MotionEntry, MotionId>> = LazyLock::new(|| &get_db().motions);
 pub static TEXT_OBJECTS: LazyLock<&'static TextObjectRegistry> = LazyLock::new(|| &get_db().text_objects);
 pub static OPTIONS: LazyLock<&'static OptionsRegistry> = LazyLock::new(|| &get_db().options);
+#[cfg(feature = "commands")]
+pub static SNIPPETS: LazyLock<&'static RuntimeRegistry<SnippetEntry, SnippetId>> = LazyLock::new(|| &get_db().snippets);
 pub static THEMES: LazyLock<&'static RuntimeRegistry<ThemeEntry, ThemeId>> = LazyLock::new(|| &get_db().themes);
 pub static GUTTERS: LazyLock<&'static RuntimeRegistry<GutterEntry, GutterId>> = LazyLock::new(|| &get_db().gutters);
 pub static STATUSLINE_SEGMENTS: LazyLock<&'static RuntimeRegistry<StatuslineEntry, StatuslineId>> = LazyLock::new(|| &get_db().statusline);

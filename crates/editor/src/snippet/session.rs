@@ -1,13 +1,16 @@
 use std::collections::BTreeMap;
 use std::ops::Range as StdRange;
 
-use termina::event::{KeyCode, KeyEvent};
+use chrono::Local;
+use termina::event::{KeyCode, KeyEvent, Modifiers};
 use xeno_primitives::range::CharIdx;
-use xeno_primitives::transaction::Bias;
-use xeno_primitives::transaction::Change;
+use xeno_primitives::transaction::{Bias, Change};
 use xeno_primitives::{EditOrigin, Mode, Range, Selection, Transaction, UndoPolicy};
 
-use super::{RenderedSnippet, parse_snippet_template, render as render_snippet};
+#[cfg(feature = "lsp")]
+use super::RenderedSnippet;
+use super::vars::EditorSnippetResolver;
+use super::{TransformSource, parse_snippet_template};
 use crate::buffer::ViewId;
 use crate::impls::Editor;
 
@@ -20,10 +23,23 @@ pub struct SnippetSessionState {
 pub struct SnippetSession {
 	pub buffer_id: ViewId,
 	pub tabstops: BTreeMap<u32, Vec<StdRange<CharIdx>>>,
+	pub choices: BTreeMap<u32, Vec<String>>,
+	pub choice_idx: BTreeMap<u32, usize>,
+	transforms: Vec<TransformBinding>,
 	pub order: Vec<u32>,
 	pub active_i: usize,
 	pub span: StdRange<CharIdx>,
 	pub active_mode: ActiveMode,
+}
+
+#[derive(Clone, Debug)]
+struct TransformBinding {
+	source_idx: u32,
+	source_range: StdRange<CharIdx>,
+	target_range: StdRange<CharIdx>,
+	regex: String,
+	replace: String,
+	flags: String,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -40,8 +56,45 @@ enum AdvanceResult {
 }
 
 impl SnippetSession {
+	fn from_components(
+		buffer_id: ViewId,
+		mut tabstops: BTreeMap<u32, Vec<StdRange<CharIdx>>>,
+		mut choices: BTreeMap<u32, Vec<String>>,
+		mut transforms: Vec<TransformBinding>,
+	) -> Option<Self> {
+		for ranges in tabstops.values_mut() {
+			*ranges = normalize_ranges(std::mem::take(ranges));
+		}
+		tabstops.retain(|_, ranges| !ranges.is_empty());
+		choices.retain(|idx, options| tabstops.contains_key(idx) && !options.is_empty());
+		transforms.retain(|binding| tabstops.contains_key(&binding.source_idx));
+		let choice_idx: BTreeMap<u32, usize> = choices.keys().map(|idx| (*idx, 0usize)).collect();
+
+		let order = tabstop_order(&tabstops);
+		if order.is_empty() {
+			return None;
+		}
+
+		let span = compute_span(&tabstops)?;
+		let active_i = 0;
+		let active_mode = active_mode_for_tabstop(&tabstops, order[active_i]);
+
+		Some(Self {
+			buffer_id,
+			tabstops,
+			choices,
+			choice_idx,
+			transforms,
+			order,
+			active_i,
+			span,
+			active_mode,
+		})
+	}
+
+	#[cfg(feature = "lsp")]
 	fn from_rendered(buffer_id: ViewId, base_start: CharIdx, rendered: &RenderedSnippet) -> Option<Self> {
-		let mut tabstops: BTreeMap<u32, Vec<StdRange<CharIdx>>> = rendered
+		let tabstops: BTreeMap<u32, Vec<StdRange<CharIdx>>> = rendered
 			.tabstops
 			.iter()
 			.map(|(&index, ranges)| {
@@ -57,28 +110,35 @@ impl SnippetSession {
 			})
 			.collect();
 
-		for ranges in tabstops.values_mut() {
-			*ranges = normalize_ranges(std::mem::take(ranges));
-		}
-		tabstops.retain(|_, ranges| !ranges.is_empty());
+		let primary_sources: BTreeMap<u32, StdRange<CharIdx>> = rendered
+			.tabstops
+			.iter()
+			.filter_map(|(&idx, ranges)| {
+				let rel = primary_relative_range(ranges)?;
+				Some((idx, base_start.saturating_add(rel.start)..base_start.saturating_add(rel.end)))
+			})
+			.collect();
+		let transforms: Vec<TransformBinding> = rendered
+			.transforms
+			.iter()
+			.filter_map(|transform| {
+				let TransformSource::Tabstop(source_idx) = transform.source else {
+					return None;
+				};
+				let source_range = primary_sources.get(&source_idx)?.clone();
+				let target_range = base_start.saturating_add(transform.range.start)..base_start.saturating_add(transform.range.end);
+				Some(TransformBinding {
+					source_idx,
+					source_range,
+					target_range,
+					regex: transform.regex.clone(),
+					replace: transform.replace.clone(),
+					flags: transform.flags.clone(),
+				})
+			})
+			.collect();
 
-		let order = tabstop_order(&tabstops);
-		if order.is_empty() {
-			return None;
-		}
-
-		let span = compute_span(&tabstops)?;
-		let active_i = 0;
-		let active_mode = active_mode_for_tabstop(&tabstops, order[active_i]);
-
-		Some(Self {
-			buffer_id,
-			tabstops,
-			order,
-			active_i,
-			span,
-			active_mode,
-		})
+		Self::from_components(buffer_id, tabstops, rendered.choices.clone(), transforms)
 	}
 
 	fn active_tabstop(&self) -> Option<u32> {
@@ -125,6 +185,18 @@ impl SnippetSession {
 		}
 
 		self.tabstops.retain(|_, ranges| !ranges.is_empty());
+		for binding in &mut self.transforms {
+			let source_start = tx.changes().map_pos(binding.source_range.start, Bias::Left);
+			let source_end = tx.changes().map_pos(binding.source_range.end, Bias::Right);
+			binding.source_range.start = source_start;
+			binding.source_range.end = source_end.max(source_start);
+
+			let target_start = tx.changes().map_pos(binding.target_range.start, Bias::Left);
+			let target_end = tx.changes().map_pos(binding.target_range.end, Bias::Right);
+			binding.target_range.start = target_start;
+			binding.target_range.end = target_end.max(target_start);
+		}
+		self.transforms.retain(|binding| self.tabstops.contains_key(&binding.source_idx));
 		self.order = tabstop_order(&self.tabstops);
 		if self.order.is_empty() {
 			return false;
@@ -143,6 +215,7 @@ impl SnippetSession {
 }
 
 impl Editor {
+	#[cfg(feature = "lsp")]
 	pub(crate) fn begin_snippet_session(&mut self, buffer_id: ViewId, base_start: CharIdx, rendered: &RenderedSnippet) -> bool {
 		let Some(session) = SnippetSession::from_rendered(buffer_id, base_start, rendered) else {
 			return false;
@@ -166,6 +239,12 @@ impl Editor {
 			self.cancel_snippet_session();
 			return false;
 		}
+		if matches!(key.code, KeyCode::Char('n')) && key.modifiers.contains(Modifiers::CONTROL) {
+			return self.snippet_cycle_choice(1);
+		}
+		if matches!(key.code, KeyCode::Char('p')) && key.modifiers.contains(Modifiers::CONTROL) {
+			return self.snippet_cycle_choice(-1);
+		}
 
 		let direction = match key.code {
 			KeyCode::Tab => 1,
@@ -174,6 +253,20 @@ impl Editor {
 			_ => return false,
 		};
 		let focused = self.focused_view();
+		let prev_idx = {
+			let state = self.overlays_mut().get_or_default::<SnippetSessionState>();
+			let Some(session) = state.session.as_mut() else {
+				return false;
+			};
+			if session.buffer_id != focused {
+				state.session = None;
+				return false;
+			}
+			session.active_tabstop()
+		};
+		if let Some(idx) = prev_idx {
+			let _ = self.apply_transforms_for_source(idx);
+		}
 
 		let action = {
 			let state = self.overlays_mut().get_or_default::<SnippetSessionState>();
@@ -206,40 +299,63 @@ impl Editor {
 			return false;
 		}
 
-		if self.buffer().selection.len() != 1 {
-			self.cancel_snippet_session();
-			return false;
-		}
-
 		self.cancel_snippet_session();
+		let buffer_id = self.focused_view();
 
-		let rendered = match parse_snippet_template(body) {
-			Ok(template) => render_snippet(&template),
+		let template = match parse_snippet_template(body) {
+			Ok(template) => template,
 			Err(_) => {
 				self.insert_text(body);
 				return true;
 			}
 		};
 
-		let buffer_id = self.focused_view();
-		let (start, end) = {
+		let now = Local::now();
+		let mut edit_inputs: Vec<(StdRange<CharIdx>, String)> = {
 			let buffer = self.buffer();
-			let primary = buffer.selection.primary();
-			if primary.is_point() {
-				(buffer.cursor, buffer.cursor)
-			} else {
-				(primary.from(), primary.to())
-			}
+			buffer.with_doc(|doc| {
+				let doc_len = doc.content().len_chars();
+				buffer
+					.selection
+					.iter()
+					.map(|range| {
+						if range.is_point() {
+							(range.head..range.head, String::new())
+						} else {
+							let (from, to) = range.extent_clamped(doc_len);
+							(from..to, doc.content().slice(from..to).to_string())
+						}
+					})
+					.collect()
+			})
 		};
+		edit_inputs.sort_by_key(|(range, _)| (range.start, range.end));
+		let edit_ranges: Vec<StdRange<CharIdx>> = edit_inputs.iter().map(|(range, _)| range.clone()).collect();
+		if has_overlapping_ranges(&edit_ranges) {
+			self.cancel_snippet_session();
+			return false;
+		}
+
+		let rendered_snippets: Vec<_> = edit_inputs
+			.iter()
+			.map(|(_, selection_text)| {
+				let resolver = EditorSnippetResolver::new_for_selection(self, buffer_id, Some(selection_text.clone()), now.clone());
+				super::render_with_resolver(&template, &resolver)
+			})
+			.collect();
 
 		let tx = self.buffer().with_doc(|doc| {
 			Transaction::change(
 				doc.content().slice(..),
-				vec![Change {
-					start,
-					end,
-					replacement: Some(rendered.text.clone()),
-				}],
+				edit_inputs
+					.iter()
+					.zip(rendered_snippets.iter())
+					.map(|((range, _), rendered)| Change {
+						start: range.start,
+						end: range.end,
+						replacement: Some(rendered.text.clone()),
+					})
+					.collect::<Vec<_>>(),
 			)
 		});
 
@@ -247,14 +363,67 @@ impl Editor {
 			return false;
 		}
 
-		let mapped_start = tx.changes().map_pos(start, Bias::Left);
-		if !rendered.tabstops.is_empty() && self.begin_snippet_session(buffer_id, mapped_start, &rendered) {
-			return true;
+		let mapped_starts: Vec<CharIdx> = edit_inputs.iter().map(|(range, _)| tx.changes().map_pos(range.start, Bias::Left)).collect();
+
+		if rendered_snippets.iter().any(|rendered| !rendered.tabstops.is_empty()) {
+			let mut tabstops: BTreeMap<u32, Vec<StdRange<CharIdx>>> = BTreeMap::new();
+			let mut choices: BTreeMap<u32, Vec<String>> = BTreeMap::new();
+			let mut transforms: Vec<TransformBinding> = Vec::new();
+			for (mapped_start, rendered) in mapped_starts.iter().copied().zip(rendered_snippets.iter()) {
+				let primary_sources: BTreeMap<u32, StdRange<CharIdx>> = rendered
+					.tabstops
+					.iter()
+					.filter_map(|(&idx, ranges)| {
+						let rel = primary_relative_range(ranges)?;
+						Some((idx, mapped_start.saturating_add(rel.start)..mapped_start.saturating_add(rel.end)))
+					})
+					.collect();
+				for (&index, ranges) in &rendered.tabstops {
+					let entry = tabstops.entry(index).or_default();
+					for range in ranges {
+						let start = mapped_start.saturating_add(range.start);
+						let end = mapped_start.saturating_add(range.end);
+						entry.push(start..end);
+					}
+				}
+				for (&index, options) in &rendered.choices {
+					choices.entry(index).or_insert_with(|| options.clone());
+				}
+				for transform in &rendered.transforms {
+					let TransformSource::Tabstop(source_idx) = transform.source else {
+						continue;
+					};
+					let Some(source_range) = primary_sources.get(&source_idx).cloned() else {
+						continue;
+					};
+					transforms.push(TransformBinding {
+						source_idx,
+						source_range,
+						target_range: mapped_start.saturating_add(transform.range.start)..mapped_start.saturating_add(transform.range.end),
+						regex: transform.regex.clone(),
+						replace: transform.replace.clone(),
+						flags: transform.flags.clone(),
+					});
+				}
+			}
+
+			if let Some(session) = SnippetSession::from_components(buffer_id, tabstops, choices, transforms) {
+				self.overlays_mut().get_or_default::<SnippetSessionState>().session = Some(session);
+				return self.apply_active_snippet_selection();
+			}
 		}
 
-		let cursor = mapped_start.saturating_add(rendered.text.chars().count());
+		let points: Vec<CharIdx> = mapped_starts
+			.into_iter()
+			.zip(rendered_snippets.iter())
+			.map(|(mapped_start, rendered)| mapped_start.saturating_add(rendered.text.chars().count()))
+			.collect();
+		let Some(selection) = selection_from_points(points) else {
+			return false;
+		};
 		if let Some(buffer) = self.state.core.buffers.get_buffer_mut(buffer_id) {
-			buffer.set_cursor_and_selection(cursor, Selection::point(cursor));
+			let cursor = selection.primary().head;
+			buffer.set_cursor_and_selection(cursor, selection);
 		}
 		true
 	}
@@ -318,16 +487,17 @@ impl Editor {
 			EditOrigin::Internal("insert"),
 		);
 
-		if applied && active_mode == ActiveMode::Replace
+		if applied
+			&& active_mode == ActiveMode::Replace
 			&& let Some(session) = self
 				.overlays_mut()
 				.get_or_default::<SnippetSessionState>()
 				.session
 				.as_mut()
 				.filter(|session| session.buffer_id == focused)
-			{
-				session.active_mode = ActiveMode::Insert;
-			}
+		{
+			session.active_mode = ActiveMode::Insert;
+		}
 
 		applied
 	}
@@ -385,9 +555,9 @@ impl Editor {
 					.session
 					.as_mut()
 					.filter(|session| session.buffer_id == focused)
-				{
-					session.active_mode = ActiveMode::Insert;
-				}
+			{
+				session.active_mode = ActiveMode::Insert;
+			}
 			return true;
 		}
 
@@ -410,18 +580,144 @@ impl Editor {
 			EditOrigin::Internal("delete"),
 		);
 
-		if applied && active_mode == ActiveMode::Replace
+		if applied
+			&& active_mode == ActiveMode::Replace
 			&& let Some(session) = self
 				.overlays_mut()
 				.get_or_default::<SnippetSessionState>()
 				.session
 				.as_mut()
 				.filter(|session| session.buffer_id == focused)
-			{
-				session.active_mode = ActiveMode::Insert;
-			}
+		{
+			session.active_mode = ActiveMode::Insert;
+		}
 
 		true
+	}
+
+	fn snippet_cycle_choice(&mut self, direction: isize) -> bool {
+		let focused = self.focused_view();
+		let (active_ranges, replacement) = {
+			let state = self.overlays_mut().get_or_default::<SnippetSessionState>();
+			let Some(session) = state.session.as_mut() else {
+				return false;
+			};
+			if session.buffer_id != focused {
+				state.session = None;
+				return false;
+			}
+
+			let Some(index) = session.active_tabstop() else {
+				return false;
+			};
+			let Some(options) = session.choices.get(&index) else {
+				return false;
+			};
+			if options.is_empty() {
+				return false;
+			}
+
+			let current = *session.choice_idx.get(&index).unwrap_or(&0usize);
+			let len = options.len() as isize;
+			let next = (current as isize + direction).rem_euclid(len) as usize;
+			session.choice_idx.insert(index, next);
+			(session.active_ranges(), options[next].clone())
+		};
+
+		if active_ranges.is_empty() {
+			return false;
+		}
+
+		let tx = self.buffer().with_doc(|doc| {
+			let mut changes: Vec<Change> = active_ranges
+				.iter()
+				.map(|range| Change {
+					start: range.start,
+					end: range.end,
+					replacement: Some(replacement.clone()),
+				})
+				.collect();
+			changes.sort_by_key(|change| (change.start, change.end));
+			Transaction::change(doc.content().slice(..), changes)
+		});
+
+		let replacement_len = replacement.chars().count();
+		let mapped_points: Vec<CharIdx> = active_ranges
+			.iter()
+			.map(|range| tx.changes().map_pos(range.start, Bias::Left).saturating_add(replacement_len))
+			.collect();
+		let Some(new_selection) = selection_from_points(mapped_points) else {
+			return false;
+		};
+
+		let applied = self.apply_edit(
+			focused,
+			&tx,
+			Some(new_selection),
+			UndoPolicy::MergeWithCurrentGroup,
+			EditOrigin::Internal("snippet.choice"),
+		);
+
+		if applied
+			&& let Some(session) = self
+				.overlays_mut()
+				.get_or_default::<SnippetSessionState>()
+				.session
+				.as_mut()
+				.filter(|session| session.buffer_id == focused)
+		{
+			session.active_mode = ActiveMode::Insert;
+		}
+
+		applied
+	}
+
+	fn apply_transforms_for_source(&mut self, source_idx: u32) -> bool {
+		let focused = self.focused_view();
+		let bindings: Vec<TransformBinding> = {
+			let state = self.overlays_mut().get_or_default::<SnippetSessionState>();
+			let Some(session) = state.session.as_ref() else {
+				return false;
+			};
+			if session.buffer_id != focused {
+				state.session = None;
+				return false;
+			}
+			session.transforms.iter().filter(|binding| binding.source_idx == source_idx).cloned().collect()
+		};
+
+		if bindings.is_empty() {
+			return false;
+		}
+
+		let tx = self.buffer().with_doc(|doc| {
+			let doc_len = doc.content().len_chars();
+			let mut changes: Vec<Change> = bindings
+				.iter()
+				.map(|binding| {
+					let source_start = binding.source_range.start.min(doc_len);
+					let source_end = binding.source_range.end.min(doc_len).max(source_start);
+					let source_text = doc.content().slice(source_start..source_end).to_string();
+					let output = super::render::apply_transform(&source_text, &binding.regex, &binding.replace, &binding.flags);
+					Change {
+						start: binding.target_range.start,
+						end: binding.target_range.end,
+						replacement: Some(output),
+					}
+				})
+				.collect();
+			changes.sort_by_key(|change| (change.start, change.end));
+			if has_overlapping_changes(&changes) {
+				return None;
+			}
+			Some(Transaction::change(doc.content().slice(..), changes))
+		});
+
+		let Some(tx) = tx else {
+			return false;
+		};
+
+		self.apply_edit(focused, &tx, None, UndoPolicy::MergeWithCurrentGroup, EditOrigin::Internal("snippet.transform"))
 	}
 
 	pub(crate) fn on_snippet_session_transaction(&mut self, buffer_id: ViewId, tx: &Transaction) {
@@ -511,16 +807,31 @@ fn compute_span(tabstops: &BTreeMap<u32, Vec<StdRange<CharIdx>>>) -> Option<StdR
 	Some(min_start?..max_end?)
 }
 
+fn has_overlapping_ranges(ranges: &[StdRange<CharIdx>]) -> bool {
+	ranges.windows(2).any(|pair| pair[0].end > pair[1].start)
+}
+
+fn has_overlapping_changes(changes: &[Change]) -> bool {
+	changes.windows(2).any(|pair| pair[1].start < pair[0].end)
+}
+
+fn primary_relative_range(ranges: &[StdRange<usize>]) -> Option<StdRange<usize>> {
+	ranges.iter().min_by_key(|range| (range.start, range.end)).cloned()
+}
+
 fn normalize_ranges(mut ranges: Vec<StdRange<CharIdx>>) -> Vec<StdRange<CharIdx>> {
 	ranges.sort_by_key(|range| (range.start, range.end));
 	let mut out: Vec<StdRange<CharIdx>> = Vec::with_capacity(ranges.len());
 
 	for range in ranges {
-		if let Some(last) = out.last_mut()
-			&& range.start <= last.end
-		{
-			last.end = last.end.max(range.end);
-			continue;
+		if let Some(last) = out.last_mut() {
+			if range.start == last.start && range.end == last.end {
+				continue;
+			}
+			if range.start < last.end {
+				last.end = last.end.max(range.end);
+				continue;
+			}
 		}
 		out.push(range);
 	}
@@ -567,7 +878,19 @@ mod tests {
 	#[test]
 	fn normalize_ranges_sorts_and_merges() {
 		let ranges = vec![5..8, 1..3, 3..6, 10..11];
-		assert_eq!(normalize_ranges(ranges), vec![1..8, 10..11]);
+		assert_eq!(normalize_ranges(ranges), vec![1..3, 3..8, 10..11]);
+	}
+
+	#[test]
+	fn normalize_ranges_does_not_merge_adjacent() {
+		let ranges = vec![0..1, 1..2];
+		assert_eq!(normalize_ranges(ranges), vec![0..1, 1..2]);
+	}
+
+	#[test]
+	fn normalize_ranges_dedups_points() {
+		let ranges = vec![5..5, 5..5];
+		assert_eq!(normalize_ranges(ranges), vec![5..5]);
 	}
 
 	fn key_tab() -> KeyEvent {
@@ -588,6 +911,15 @@ mod tests {
 		}
 	}
 
+	fn key_ctrl(c: char) -> KeyEvent {
+		KeyEvent {
+			code: KeyCode::Char(c),
+			modifiers: Modifiers::CONTROL,
+			kind: KeyEventKind::Press,
+			state: KeyEventState::NONE,
+		}
+	}
+
 	fn buffer_text(editor: &Editor) -> String {
 		editor.buffer().with_doc(|doc| doc.content().to_string())
 	}
@@ -598,6 +930,22 @@ mod tests {
 			let (from, to) = range.extent_clamped(doc.content().len_chars());
 			doc.content().slice(from..to).to_string()
 		})
+	}
+
+	fn set_multicursor_points(editor: &mut Editor, points: &[CharIdx]) {
+		assert!(!points.is_empty(), "points must be non-empty");
+		let primary = Range::point(points[0]);
+		let others = points.iter().skip(1).copied().map(Range::point);
+		let selection = Selection::new(primary, others);
+		editor.buffer_mut().set_cursor_and_selection(points[0], selection);
+	}
+
+	fn set_multicursor_ranges(editor: &mut Editor, ranges: &[(CharIdx, CharIdx)]) {
+		assert!(!ranges.is_empty(), "ranges must be non-empty");
+		let primary = Range::from_exclusive(ranges[0].0, ranges[0].1);
+		let others = ranges.iter().skip(1).map(|(start, end)| Range::from_exclusive(*start, *end));
+		let selection = Selection::new(primary, others);
+		editor.buffer_mut().set_cursor_and_selection(ranges[0].1, selection);
 	}
 
 	#[tokio::test]
@@ -648,6 +996,308 @@ mod tests {
 				.and_then(|state| state.session.as_ref())
 				.is_none()
 		);
+	}
+
+	#[tokio::test]
+	async fn insert_snippet_body_adjacent_mirrors_do_not_merge() {
+		let mut editor = Editor::new_scratch();
+		editor.set_mode(Mode::Insert);
+
+		assert!(editor.insert_snippet_body("${1:a}${1:b}"));
+		assert_eq!(buffer_text(&editor), "ab");
+		assert_eq!(editor.buffer().selection.len(), 2);
+		assert_eq!(primary_text(&editor), "a");
+
+		let _ = editor.handle_key(key_char('X')).await;
+		assert_eq!(buffer_text(&editor), "XX");
+	}
+
+	#[tokio::test]
+	async fn insert_snippet_body_choice_cycles() {
+		let mut editor = Editor::new_scratch();
+		editor.set_mode(Mode::Insert);
+
+		assert!(editor.insert_snippet_body("${1|a,b,c|} $0"));
+		assert_eq!(buffer_text(&editor), "a ");
+		assert_eq!(primary_text(&editor), "a");
+
+		assert!(editor.handle_snippet_session_key(&key_ctrl('n')));
+		assert_eq!(buffer_text(&editor), "b ");
+		assert_eq!(editor.buffer().selection.primary().head, 1);
+
+		assert!(editor.handle_snippet_session_key(&key_ctrl('p')));
+		assert_eq!(buffer_text(&editor), "a ");
+		assert!(
+			editor
+				.overlays()
+				.get::<SnippetSessionState>()
+				.and_then(|state| state.session.as_ref())
+				.is_some()
+		);
+	}
+
+	#[tokio::test]
+	async fn insert_snippet_body_choice_cycles_mirrors() {
+		let mut editor = Editor::new_scratch();
+		editor.set_mode(Mode::Insert);
+
+		assert!(editor.insert_snippet_body("${1|a,b|} ${1|a,b|} $0"));
+		assert_eq!(buffer_text(&editor), "a a ");
+		assert_eq!(editor.buffer().selection.len(), 2);
+
+		assert!(editor.handle_snippet_session_key(&key_ctrl('n')));
+		assert_eq!(buffer_text(&editor), "b b ");
+	}
+
+	#[tokio::test]
+	async fn insert_snippet_body_choice_cycles_with_multicursor() {
+		let mut editor = Editor::new_scratch();
+		editor.set_mode(Mode::Insert);
+		editor.buffer_mut().reset_content("1\n2\n");
+		set_multicursor_points(&mut editor, &[0, 2]);
+
+		assert!(editor.insert_snippet_body("${1|x,y|} $0"));
+		assert_eq!(buffer_text(&editor), "x 1\nx 2\n");
+		assert_eq!(editor.buffer().selection.len(), 2);
+
+		assert!(editor.handle_snippet_session_key(&key_ctrl('n')));
+		assert_eq!(buffer_text(&editor), "y 1\ny 2\n");
+	}
+
+	#[tokio::test]
+	async fn snippet_command_named_lookup_inserts_and_starts_session() {
+		use crate::types::InvocationResult;
+
+		let mut editor = Editor::new_scratch();
+		editor.set_mode(Mode::Insert);
+
+		let result = editor.invoke_command("snippet", vec!["@fori".to_string()]).await;
+		assert!(matches!(result, InvocationResult::Ok));
+		assert_eq!(buffer_text(&editor), "for i in 0..n {\n\t\n}");
+		assert_eq!(primary_text(&editor), "i");
+		assert!(
+			editor
+				.overlays()
+				.get::<SnippetSessionState>()
+				.and_then(|state| state.session.as_ref())
+				.is_some()
+		);
+	}
+
+	#[tokio::test]
+	async fn insert_snippet_body_multicursor_points_starts_one_session() {
+		let mut editor = Editor::new_scratch();
+		editor.set_mode(Mode::Insert);
+		editor.buffer_mut().reset_content("a\nb\n");
+		set_multicursor_points(&mut editor, &[0, 2]);
+
+		assert!(editor.insert_snippet_body("${1:x} $0"));
+		assert_eq!(buffer_text(&editor), "x a\nx b\n");
+		assert_eq!(primary_text(&editor), "x");
+		assert_eq!(editor.buffer().selection.len(), 2);
+		assert!(
+			editor
+				.overlays()
+				.get::<SnippetSessionState>()
+				.and_then(|state| state.session.as_ref())
+				.is_some()
+		);
+
+		let _ = editor.handle_key(key_char('Q')).await;
+		assert_eq!(buffer_text(&editor), "Q a\nQ b\n");
+		let _ = editor.handle_key(key_char('W')).await;
+		assert_eq!(buffer_text(&editor), "QW a\nQW b\n");
+
+		assert!(editor.handle_snippet_session_key(&key_tab()));
+		assert_eq!(editor.buffer().selection.len(), 2);
+		assert!(editor.handle_snippet_session_key(&key_tab()));
+		assert!(
+			editor
+				.overlays()
+				.get::<SnippetSessionState>()
+				.and_then(|state| state.session.as_ref())
+				.is_none()
+		);
+	}
+
+	#[tokio::test]
+	async fn insert_snippet_body_multicursor_no_tabstops_sets_points_and_no_session() {
+		let mut editor = Editor::new_scratch();
+		editor.set_mode(Mode::Insert);
+		editor.buffer_mut().reset_content("a\nb\n");
+		set_multicursor_points(&mut editor, &[0, 2]);
+
+		assert!(editor.insert_snippet_body("hello"));
+		assert_eq!(buffer_text(&editor), "helloa\nhellob\n");
+		assert!(
+			editor
+				.overlays()
+				.get::<SnippetSessionState>()
+				.and_then(|state| state.session.as_ref())
+				.is_none()
+		);
+		assert_eq!(editor.buffer().selection.len(), 2);
+		let points: Vec<CharIdx> = editor.buffer().selection.iter().map(|range| range.head).collect();
+		assert_eq!(points, vec![5, 12]);
+	}
+
+	#[tokio::test]
+	async fn insert_snippet_body_selection_variable_uses_primary_selection() {
+		let mut editor = Editor::new_scratch();
+		editor.set_mode(Mode::Insert);
+		editor.buffer_mut().reset_content("hello world");
+		editor
+			.buffer_mut()
+			.set_cursor_and_selection(5, Selection::new(Range::from_exclusive(0, 5), std::iter::empty()));
+
+		assert!(editor.insert_snippet_body("$SELECTION"));
+		assert_eq!(buffer_text(&editor), "hello world");
+		assert!(
+			editor
+				.overlays()
+				.get::<SnippetSessionState>()
+				.and_then(|state| state.session.as_ref())
+				.is_none()
+		);
+	}
+
+	#[tokio::test]
+	async fn insert_snippet_body_tm_selected_text_alias_uses_primary_selection() {
+		let mut editor = Editor::new_scratch();
+		editor.set_mode(Mode::Insert);
+		editor.buffer_mut().reset_content("hello world");
+		editor
+			.buffer_mut()
+			.set_cursor_and_selection(5, Selection::new(Range::from_exclusive(0, 5), std::iter::empty()));
+
+		assert!(editor.insert_snippet_body("$TM_SELECTED_TEXT"));
+		assert_eq!(buffer_text(&editor), "hello world");
+		assert!(
+			editor
+				.overlays()
+				.get::<SnippetSessionState>()
+				.and_then(|state| state.session.as_ref())
+				.is_none()
+		);
+	}
+
+	#[tokio::test]
+	async fn insert_snippet_body_malformed_transform_remains_literal_and_keeps_session() {
+		let mut editor = Editor::new_scratch();
+		editor.set_mode(Mode::Insert);
+
+		assert!(editor.insert_snippet_body("a ${1:x} ${1/(.*)/$1"));
+		assert_eq!(buffer_text(&editor), "a x ${1/(.*)/$1");
+		assert_eq!(primary_text(&editor), "x");
+		assert!(
+			editor
+				.overlays()
+				.get::<SnippetSessionState>()
+				.and_then(|state| state.session.as_ref())
+				.is_some()
+		);
+
+		assert!(editor.handle_snippet_session_key(&key_tab()));
+		assert!(
+			editor
+				.overlays()
+				.get::<SnippetSessionState>()
+				.and_then(|state| state.session.as_ref())
+				.is_none()
+		);
+	}
+
+	#[tokio::test]
+	async fn insert_snippet_body_selection_variable_expands_per_selection() {
+		let mut editor = Editor::new_scratch();
+		editor.set_mode(Mode::Insert);
+		editor.buffer_mut().reset_content("hello world");
+		set_multicursor_ranges(&mut editor, &[(0, 5), (6, 11)]);
+
+		assert!(editor.insert_snippet_body("$SELECTION"));
+		assert_eq!(buffer_text(&editor), "hello world");
+		assert!(
+			editor
+				.overlays()
+				.get::<SnippetSessionState>()
+				.and_then(|state| state.session.as_ref())
+				.is_none()
+		);
+		let points: Vec<CharIdx> = editor.buffer().selection.iter().map(|range| range.head).collect();
+		assert_eq!(points, vec![5, 11]);
+	}
+
+	#[tokio::test]
+	async fn insert_snippet_body_selection_variable_expands_per_selection_with_tabstop() {
+		let mut editor = Editor::new_scratch();
+		editor.set_mode(Mode::Insert);
+		editor.buffer_mut().reset_content("hello world");
+		set_multicursor_ranges(&mut editor, &[(0, 5), (6, 11)]);
+
+		assert!(editor.insert_snippet_body("(${SELECTION})$0"));
+		assert_eq!(buffer_text(&editor), "(hello) (world)");
+		assert!(
+			editor
+				.overlays()
+				.get::<SnippetSessionState>()
+				.and_then(|state| state.session.as_ref())
+				.is_some()
+		);
+		let points: Vec<CharIdx> = editor.buffer().selection.iter().map(|range| range.head).collect();
+		assert_eq!(points, vec![7, 15]);
+	}
+
+	#[tokio::test]
+	async fn insert_snippet_body_current_second_uses_single_timestamp_across_cursors() {
+		let mut editor = Editor::new_scratch();
+		editor.set_mode(Mode::Insert);
+		editor.buffer_mut().reset_content("\n\n");
+		set_multicursor_points(&mut editor, &[0, 1]);
+
+		assert!(editor.insert_snippet_body("${CURRENT_SECOND}|${CURRENT_SECOND}"));
+		let text = buffer_text(&editor);
+		let lines: Vec<&str> = text.lines().collect();
+		assert_eq!(lines.len(), 2);
+		for line in &lines {
+			let parts: Vec<&str> = line.split('|').collect();
+			assert_eq!(parts.len(), 2);
+			assert_eq!(parts[0], parts[1]);
+			assert_eq!(parts[0].len(), 2);
+			assert!(parts[0].chars().all(|ch| ch.is_ascii_digit()));
+		}
+		assert_eq!(lines[0], lines[1]);
+	}
+
+	#[tokio::test]
+	async fn tabstop_transform_updates_on_tab() {
+		let mut editor = Editor::new_scratch();
+		editor.set_mode(Mode::Insert);
+
+		assert!(editor.insert_snippet_body("${1:foo} ${1/(.*)/$1_bar/} $0"));
+		assert_eq!(buffer_text(&editor), "foo foo_bar ");
+		assert_eq!(primary_text(&editor), "foo");
+
+		let _ = editor.handle_key(key_char('x')).await;
+		assert_eq!(buffer_text(&editor), "x foo_bar ");
+
+		assert!(editor.handle_snippet_session_key(&key_tab()));
+		assert_eq!(buffer_text(&editor), "x x_bar ");
+		assert_eq!(primary_text(&editor), "");
+	}
+
+	#[tokio::test]
+	async fn tabstop_transform_updates_per_selection_instance_on_tab() {
+		let mut editor = Editor::new_scratch();
+		editor.set_mode(Mode::Insert);
+		editor.buffer_mut().reset_content("foo\nbar\n");
+		set_multicursor_ranges(&mut editor, &[(0, 3), (4, 7)]);
+
+		assert!(editor.insert_snippet_body("${1:${SELECTION}} ${1/(.*)/$1_bar/} $0"));
+		assert_eq!(buffer_text(&editor), "foo foo_bar \nbar bar_bar \n");
+
+		assert!(editor.handle_snippet_session_key(&key_tab()));
+		assert_eq!(buffer_text(&editor), "foo foo_bar \nbar bar_bar \n");
+		assert_eq!(editor.buffer().selection.len(), 2);
 	}
 
 	#[cfg(feature = "lsp")]

@@ -25,6 +25,6 @@ pub use meta::{RegistryMeta, RegistryMetaStatic, RegistrySource, SymbolList};
 pub use plugin::PluginDef;
 pub use symbol::{
 	ActionId, CommandId, DenseId, FrozenInterner, GutterId, HookId, Interner, InternerBuilder, LanguageId, MotionId, NotificationId, OptionId, OverlayId,
-	StatuslineId, Symbol, TextObjectId, ThemeId,
+	SnippetId, StatuslineId, Symbol, TextObjectId, ThemeId,
 };
 pub use traits::{RegistryEntry, RegistryMetadata};

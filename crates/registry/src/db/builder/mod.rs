@@ -87,6 +87,8 @@ define_domains! {
 	{ stem: motion, domain: crate::db::domains::Motions, field: motions }
 	{ stem: text_object, domain: crate::db::domains::TextObjects, field: text_objects }
 	{ stem: option, domain: crate::db::domains::Options, field: options }
+	#[cfg(feature = "commands")]
+	{ stem: snippet, domain: crate::db::domains::Snippets, field: snippets }
 	{ stem: theme, domain: crate::db::domains::Themes, field: themes }
 	{ stem: gutter, domain: crate::db::domains::Gutters, field: gutters }
 	{ stem: statusline_segment, domain: crate::db::domains::Statusline, field: statusline }

@@ -568,6 +568,46 @@ pub(crate) fn test_palette_commit_preserves_quoted_snippet_body_argument() {
 }
 
 #[cfg_attr(test, test)]
+pub(crate) fn test_palette_snippet_name_completion_with_at_query() {
+	let mut editor = crate::impls::Editor::new_scratch();
+	editor.handle_window_resize(120, 40);
+	assert!(editor.open_command_palette());
+
+	let input = "snippet @f";
+	palette_set_input(&mut editor, input, input.chars().count());
+
+	let state = editor
+		.overlays()
+		.get::<crate::completion::CompletionState>()
+		.expect("completion state should exist");
+	assert!(state.active, "snippet completion should be active for @ query");
+	assert!(
+		state
+			.items
+			.iter()
+			.any(|item| item.kind == crate::completion::CompletionKind::Snippet && item.label == "@fori"),
+		"snippet name completion should include @fori"
+	);
+}
+
+#[cfg_attr(test, test)]
+pub(crate) fn test_palette_snippet_inline_body_has_no_name_completions() {
+	let mut editor = crate::impls::Editor::new_scratch();
+	editor.handle_window_resize(120, 40);
+	assert!(editor.open_command_palette());
+
+	let input = "snippet ${1:";
+	palette_set_input(&mut editor, input, input.chars().count());
+
+	let state = editor
+		.overlays()
+		.get::<crate::completion::CompletionState>()
+		.expect("completion state should exist");
+	assert!(!state.active);
+	assert!(state.items.is_empty());
+}
+
+#[cfg_attr(test, test)]
 pub(crate) fn test_palette_no_matches_hides_results_and_tab_noops() {
 	let mut editor = crate::impls::Editor::new_scratch();
 	editor.handle_window_resize(120, 40);

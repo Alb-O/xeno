@@ -25,7 +25,8 @@ use crate::CompletionItem as UiCompletionItem;
 use crate::buffer::ViewId;
 use crate::completion::{CompletionState, SelectionIntent};
 use crate::impls::Editor;
-use crate::snippet::{parse_snippet_template, render as render_snippet};
+use crate::snippet::vars::EditorSnippetResolver;
+use crate::snippet::{parse_snippet_template, render_with_resolver};
 
 impl Editor {
 	pub(crate) fn is_completion_trigger_key(&self, key: &termina::event::KeyEvent) -> bool {
@@ -130,6 +131,7 @@ impl Editor {
 	}
 
 	pub(crate) async fn apply_completion_item(&mut self, buffer_id: ViewId, item: CompletionItem) {
+		let resolver = EditorSnippetResolver::new(self, buffer_id);
 		let (encoding, selection, cursor, rope, readonly) = {
 			let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
 				return;
@@ -162,7 +164,7 @@ impl Editor {
 		let (insert_text, snippet) = match item.insert_text_format {
 			Some(InsertTextFormat::SNIPPET) => parse_snippet_template(&raw_text)
 				.map(|template| {
-					let rendered = render_snippet(&template);
+					let rendered = render_with_resolver(&template, &resolver);
 					(rendered.text.clone(), Some(rendered))
 				})
 				.unwrap_or((raw_text.clone(), None)),

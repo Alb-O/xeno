@@ -8,6 +8,7 @@ use xeno_primitives::Selection;
 use xeno_registry::commands::COMMANDS;
 use xeno_registry::notifications::keys;
 use xeno_registry::options::{OptionValue, keys as opt_keys};
+use xeno_registry::snippets::SNIPPETS;
 use xeno_registry::themes::{THEMES, ThemeVariant};
 
 use crate::completion::{CompletionItem, CompletionKind, CompletionState, SelectionIntent};
@@ -338,6 +339,63 @@ impl CommandPaletteOverlay {
 		matches!(cmd, "open" | "edit" | "e" | "cd")
 	}
 
+	fn is_snippet_command(cmd: &str) -> bool {
+		matches!(cmd, "snippet" | "snip")
+	}
+
+	fn build_snippet_items(query: &str) -> Vec<CompletionItem> {
+		let query = query.trim();
+		let query = query.strip_prefix('@').unwrap_or(query);
+		let mut scored: Vec<(i32, CompletionItem)> = SNIPPETS
+			.snapshot_guard()
+			.iter_refs()
+			.filter_map(|snippet| {
+				let name = snippet.name_str();
+				let label = format!("@{name}");
+				let mut best_score = i32::MIN;
+				let mut match_indices: Option<Vec<usize>> = None;
+
+				if let Some((score, _, indices)) = crate::completion::frizbee_match(query, name) {
+					best_score = score as i32 + 220;
+					if !indices.is_empty() {
+						match_indices = Some(indices.into_iter().map(|idx| idx.saturating_add(1)).collect());
+					}
+				}
+
+				for alias in snippet.keys_resolved() {
+					if let Some((score, _, _)) = crate::completion::frizbee_match(query, alias) {
+						best_score = best_score.max(score as i32 + 80);
+					}
+				}
+
+				if query.is_empty() {
+					best_score = 0;
+				}
+
+				if !query.is_empty() && best_score == i32::MIN {
+					return None;
+				}
+
+				Some((
+					best_score,
+					CompletionItem {
+						label: label.clone(),
+						insert_text: label,
+						detail: Some(snippet.description_str().to_string()),
+						filter_text: None,
+						kind: CompletionKind::Snippet,
+						match_indices,
+						right: None,
+					},
+				))
+			})
+			.collect();
+
+		scored.sort_by(|(score_a, item_a), (score_b, item_b)| score_b.cmp(score_a).then_with(|| item_a.label.cmp(&item_b.label)));
+
+		scored.into_iter().map(|(_, item)| item).collect()
+	}
+
 	fn file_completion_base_dir(ctx: &dyn OverlayContext, session: &OverlaySession) -> PathBuf {
 		ctx.buffer(session.origin_view)
 			.and_then(|buffer| buffer.path())
@@ -435,6 +493,14 @@ impl CommandPaletteOverlay {
 
 		if matches!(token.cmd.as_str(), "theme" | "colorscheme") && token.token_index == 1 {
 			return Self::build_theme_items(&token.query);
+		}
+
+		if Self::is_snippet_command(&token.cmd) && token.token_index == 1 {
+			let query = token.query.trim_start();
+			if !query.starts_with('@') {
+				return Vec::new();
+			}
+			return Self::build_snippet_items(query);
 		}
 
 		if Self::is_file_command(&token.cmd) && token.token_index >= 1 {
@@ -565,7 +631,7 @@ impl CommandPaletteOverlay {
 		let quoted_arg = selected.kind == CompletionKind::File && token.quoted.is_some();
 
 		let mut replacement = selected.insert_text.clone();
-		if matches!(selected.kind, CompletionKind::Command | CompletionKind::Theme)
+		if matches!(selected.kind, CompletionKind::Command | CompletionKind::Snippet | CompletionKind::Theme)
 			|| (selected.kind == CompletionKind::File && !is_dir_completion && !quoted_arg)
 		{
 			replacement.push(' ');
@@ -577,16 +643,19 @@ impl CommandPaletteOverlay {
 
 		let (mut new_input, mut new_cursor) = Self::replace_char_range(&input, token.start, replace_end, &replacement);
 
-		if selected.kind == CompletionKind::File && !is_dir_completion && quoted_arg
-			&& let Some(close_quote_idx) = token.close_quote_idx {
-				let close_quote_new = (close_quote_idx as isize + delta).max(0) as usize;
-				let mut after_quote = close_quote_new.saturating_add(1);
-				if Self::char_at(&new_input, after_quote).is_none_or(|ch| !ch.is_whitespace()) {
-					new_input = Self::insert_char_at(&new_input, after_quote, ' ');
-				}
-				after_quote = after_quote.saturating_add(1);
-				new_cursor = after_quote.min(Self::char_count(&new_input));
+		if selected.kind == CompletionKind::File
+			&& !is_dir_completion
+			&& quoted_arg
+			&& let Some(close_quote_idx) = token.close_quote_idx
+		{
+			let close_quote_new = (close_quote_idx as isize + delta).max(0) as usize;
+			let mut after_quote = close_quote_new.saturating_add(1);
+			if Self::char_at(&new_input, after_quote).is_none_or(|ch| !ch.is_whitespace()) {
+				new_input = Self::insert_char_at(&new_input, after_quote, ' ');
 			}
+			after_quote = after_quote.saturating_add(1);
+			new_cursor = after_quote.min(Self::char_count(&new_input));
+		}
 
 		ctx.reset_buffer_content(session.input, &new_input);
 		if let Some(buffer) = ctx.buffer_mut(session.input) {

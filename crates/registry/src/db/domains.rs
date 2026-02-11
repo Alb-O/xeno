@@ -7,6 +7,8 @@ pub use crate::lsp_servers::LspServers;
 pub use crate::motions::Motions;
 pub use crate::notifications::Notifications;
 pub use crate::options::Options;
+#[cfg(feature = "commands")]
+pub use crate::snippets::Snippets;
 pub use crate::statusline::Statusline;
 pub use crate::textobj::TextObjects;
 pub use crate::themes::Themes;

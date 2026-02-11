@@ -1,7 +1,8 @@
 mod render;
 mod session;
 mod syntax;
+pub(crate) mod vars;
 
-pub use render::{RenderedSnippet, render};
+pub use render::{RenderedSnippet, RenderedTransform, SnippetVarResolver, render, render_with_resolver};
 pub use session::{SnippetSession, SnippetSessionState};
-pub use syntax::{Field, FieldKind, Node, SnippetParseError, SnippetTemplate, parse_snippet_template};
+pub use syntax::{Field, FieldKind, Node, SnippetParseError, SnippetTemplate, Transform, TransformSource, Var, parse_snippet_template};

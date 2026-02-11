@@ -17,6 +17,8 @@ pub mod motions;
 pub mod notifications;
 #[cfg(feature = "options")]
 pub mod options;
+#[cfg(feature = "commands")]
+pub mod snippets;
 #[cfg(feature = "statusline")]
 pub mod statusline;
 #[cfg(feature = "textobj")]
