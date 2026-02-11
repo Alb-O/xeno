@@ -132,7 +132,7 @@ fn apply_user_config(editor: &mut Editor, config: Option<xeno_registry::config::
 
 /// Handles grammar fetch/build/sync subcommands.
 fn handle_grammar_command(action: GrammarAction) -> anyhow::Result<()> {
-	use xeno_runtime_language::build::{build_all_grammars, fetch_all_grammars, load_grammar_configs};
+	use xeno_language::build::{build_all_grammars, fetch_all_grammars, load_grammar_configs};
 
 	let configs = load_grammar_configs()?;
 
@@ -179,11 +179,11 @@ fn handle_grammar_command(action: GrammarAction) -> anyhow::Result<()> {
 /// Prints a summary of grammar fetch results to stdout.
 fn report_fetch_results(
 	results: &[(
-		xeno_runtime_language::build::GrammarConfig,
-		Result<xeno_runtime_language::build::FetchStatus, xeno_runtime_language::build::GrammarBuildError>,
+		xeno_language::build::GrammarConfig,
+		Result<xeno_language::build::FetchStatus, xeno_language::build::GrammarBuildError>,
 	)],
 ) {
-	use xeno_runtime_language::build::FetchStatus;
+	use xeno_language::build::FetchStatus;
 	let mut success = 0;
 	let mut skipped = 0;
 	let mut failed = 0;
@@ -216,11 +216,11 @@ fn report_fetch_results(
 /// Prints a summary of grammar build results to stdout.
 fn report_build_results(
 	results: &[(
-		xeno_runtime_language::build::GrammarConfig,
-		Result<xeno_runtime_language::build::BuildStatus, xeno_runtime_language::build::GrammarBuildError>,
+		xeno_language::build::GrammarConfig,
+		Result<xeno_language::build::BuildStatus, xeno_language::build::GrammarBuildError>,
 	)],
 ) {
-	use xeno_runtime_language::build::BuildStatus;
+	use xeno_language::build::BuildStatus;
 	let mut success = 0;
 	let mut skipped = 0;
 	let mut failed = 0;

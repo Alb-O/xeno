@@ -100,13 +100,13 @@ xeno-editor = { path = "crates/editor" }
 xeno-input = { path = "crates/input" }
 xeno-keymap-core = { path = "crates/keymap/core" }
 xeno-keymap-parser = { path = "crates/keymap/parser" }
+xeno-language = { path = "crates/language" }
 xeno-lsp = { path = "crates/lsp" }
 xeno-macros = { path = "crates/macros" }
 xeno-primitives = { path = "crates/primitives" }
 xeno-registry = { path = "crates/registry" }
 xeno-registry-spec = { path = "crates/registry-spec" }
 xeno-rpc = { path = "crates/rpc" }
-xeno-runtime-language = { path = "crates/language" }
 xeno-tui = { path = "crates/tui" }
 xxhash-rust = { version = "0.8", features = ["xxh3"] }
 

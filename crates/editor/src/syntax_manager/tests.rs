@@ -3,10 +3,10 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use tokio::time::sleep;
+use xeno_language::LanguageLoader;
+use xeno_language::syntax::InjectionPolicy;
 use xeno_primitives::transaction::Change;
 use xeno_primitives::{Rope, Transaction};
-use xeno_runtime_language::LanguageLoader;
-use xeno_runtime_language::syntax::InjectionPolicy;
 
 use super::invariants::{EngineGuard, MockEngine};
 use super::*;

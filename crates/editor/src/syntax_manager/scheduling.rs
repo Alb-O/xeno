@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 
-use xeno_runtime_language::LanguageId;
-use xeno_runtime_language::syntax::{InjectionPolicy, Syntax, SyntaxError};
+use xeno_language::LanguageId;
+use xeno_language::syntax::{InjectionPolicy, Syntax, SyntaxError};
 
 use super::tasks::TaskClass;
 use super::types::{DocEpoch, OptKey, TaskId};

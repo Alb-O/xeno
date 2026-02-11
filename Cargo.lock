@@ -3047,10 +3047,10 @@ dependencies = [
  "tracing-subscriber",
  "unicode-width 0.2.2",
  "xeno-input",
+ "xeno-language",
  "xeno-lsp",
  "xeno-primitives",
  "xeno-registry",
- "xeno-runtime-language",
  "xeno-tui",
 ]
 
@@ -3082,6 +3082,24 @@ dependencies = [
  "strum",
  "strum_macros",
  "toml",
+]
+
+[[package]]
+name = "xeno-language"
+version = "0.8.17"
+dependencies = [
+ "cc",
+ "kdl",
+ "regex",
+ "ropey",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tracing",
+ "tree-house",
+ "xeno-primitives",
+ "xeno-registry",
+ "xeno-registry-spec",
 ]
 
 [[package]]
@@ -3180,24 +3198,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "xeno-runtime-language"
-version = "0.8.17"
-dependencies = [
- "cc",
- "kdl",
- "regex",
- "ropey",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
- "tracing",
- "tree-house",
- "xeno-primitives",
- "xeno-registry",
- "xeno-registry-spec",
-]
-
-[[package]]
 name = "xeno-term"
 version = "0.8.17"
 dependencies = [
@@ -3218,8 +3218,8 @@ dependencies = [
  "uuid",
  "which",
  "xeno-editor",
+ "xeno-language",
  "xeno-registry",
- "xeno-runtime-language",
  "xeno-tui",
 ]
 

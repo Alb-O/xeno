@@ -1,6 +1,6 @@
+use xeno_language::syntax::{Syntax, SyntaxError, SyntaxOptions};
+use xeno_language::{LanguageId, LanguageLoader};
 use xeno_primitives::ChangeSet;
-use xeno_runtime_language::syntax::{Syntax, SyntaxError, SyntaxOptions};
-use xeno_runtime_language::{LanguageId, LanguageLoader};
 
 /// Abstract engine for parsing syntax (for test mockability).
 pub trait SyntaxEngine: Send + Sync {

@@ -83,11 +83,11 @@ pub use editing::ApplyPolicy;
 pub use layout::{Layout, SpatialDirection, SplitDirection, SplitPath};
 use parking_lot::RwLock;
 use xeno_input::input::InputHandler;
+use xeno_language::LanguageLoader;
 pub use xeno_primitives::ViewId;
 use xeno_primitives::range::CharIdx;
 use xeno_primitives::{Mode, Selection};
 use xeno_registry::options::{FromOptionValue, OptionKey, OptionStore, OptionValue, TypedOptionKey};
-use xeno_runtime_language::LanguageLoader;
 
 pub use crate::core::document::{Document, DocumentId, DocumentMetaOutcome};
 pub use crate::core::history::HistoryResult;

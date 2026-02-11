@@ -15,8 +15,8 @@ mod tests;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use xeno_language::LanguageLoader;
 use xeno_primitives::{CommitResult, EditCommit, EditError, ReadOnlyReason, ReadOnlyScope, Rope, Transaction, UndoPolicy, ViewId};
-use xeno_runtime_language::LanguageLoader;
 
 use super::undo_store::UndoBackend;
 
@@ -70,7 +70,7 @@ pub struct Document {
 	/// Detected file type (e.g., "rust").
 	file_type: Option<String>,
 	/// Language ID used for syntax highlighting.
-	language_id: Option<xeno_runtime_language::LanguageId>,
+	language_id: Option<xeno_language::LanguageId>,
 	/// Monotonic document version, incremented on every transaction.
 	version: u64,
 }
@@ -87,7 +87,7 @@ pub struct DocumentSnapshot {
 	/// Version of the document at the time the snapshot was taken.
 	pub version: u64,
 	/// Language identity.
-	pub language_id: Option<xeno_runtime_language::LanguageId>,
+	pub language_id: Option<xeno_language::LanguageId>,
 	/// Snapshot of the text content.
 	pub content: Rope,
 }
@@ -362,7 +362,7 @@ impl Document {
 	}
 
 	/// Returns the language ID for this document.
-	pub fn language_id(&self) -> Option<xeno_runtime_language::LanguageId> {
+	pub fn language_id(&self) -> Option<xeno_language::LanguageId> {
 		self.language_id
 	}
 }

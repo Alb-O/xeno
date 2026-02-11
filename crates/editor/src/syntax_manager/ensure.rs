@@ -68,7 +68,7 @@ impl SyntaxManager {
 				let class = done.class;
 				let injections = done.injections;
 				let elapsed = done.elapsed;
-				let is_timeout = matches!(done.result, Err(xeno_runtime_language::syntax::SyntaxError::Timeout));
+				let is_timeout = matches!(done.result, Err(xeno_language::syntax::SyntaxError::Timeout));
 				let is_error = done.result.is_err() && !is_timeout;
 
 				match done.result {
@@ -158,7 +158,7 @@ impl SyntaxManager {
 							Some((lang_id, tier, class, injections, elapsed, is_timeout, is_error, false))
 						}
 					}
-					Err(xeno_runtime_language::syntax::SyntaxError::Timeout) => {
+					Err(xeno_language::syntax::SyntaxError::Timeout) => {
 						let cooldown = if class == TaskClass::Viewport {
 							cfg.viewport_cooldown_on_timeout
 						} else {

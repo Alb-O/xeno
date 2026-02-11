@@ -73,9 +73,9 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use tokio::sync::Semaphore;
+use xeno_language::LanguageLoader;
+use xeno_language::syntax::{InjectionPolicy, Syntax, SyntaxOptions};
 use xeno_primitives::{ChangeSet, Rope};
-use xeno_runtime_language::LanguageLoader;
-use xeno_runtime_language::syntax::{InjectionPolicy, Syntax, SyntaxOptions};
 
 use crate::core::document::DocumentId;
 
@@ -106,7 +106,7 @@ use tasks::{TaskKind, TaskSpec};
 pub(crate) use types::PendingIncrementalEdits;
 pub use types::{DocEpoch, EditSource, EnsureSyntaxContext, HighlightProjectionCtx, OptKey, SyntaxPollOutcome, SyntaxPollResult, SyntaxSlot, TaskId};
 #[cfg(test)]
-pub(crate) use xeno_runtime_language::LanguageId;
+pub(crate) use xeno_language::LanguageId;
 
 struct DocEntry {
 	sched: DocSched,

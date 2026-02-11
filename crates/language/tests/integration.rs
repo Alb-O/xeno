@@ -9,10 +9,10 @@
 //! To get grammars, run: `XENO_RUNTIME=runtime xeno grammar fetch && xeno grammar build`
 
 use ropey::Rope;
-use xeno_runtime_language::LanguageLoader;
-use xeno_runtime_language::grammar::{grammar_search_paths, load_grammar};
-use xeno_runtime_language::highlight::{Highlight, HighlightStyles};
-use xeno_runtime_language::syntax::Syntax;
+use xeno_language::LanguageLoader;
+use xeno_language::grammar::{grammar_search_paths, load_grammar};
+use xeno_language::highlight::{Highlight, HighlightStyles};
+use xeno_language::syntax::Syntax;
 
 fn create_test_loader() -> (LanguageLoader, tree_house::Language) {
 	let loader = LanguageLoader::from_embedded();
@@ -114,7 +114,7 @@ fn test_syntax_creation_without_grammar() {
 	let lang = rust_lang;
 
 	// Try to create syntax - may fail without grammar
-	let syntax = Syntax::new(source.slice(..), lang, &loader, xeno_runtime_language::SyntaxOptions::default());
+	let syntax = Syntax::new(source.slice(..), lang, &loader, xeno_language::SyntaxOptions::default());
 
 	if let Ok(syntax) = syntax {
 		println!("Syntax created successfully!");
@@ -154,7 +154,7 @@ fn test_full_highlighting_pipeline() {
 
 	let source = Rope::from_str("fn main() {\n    let x = 42;\n}");
 
-	let syntax = match Syntax::new(source.slice(..), rust_lang, &loader, xeno_runtime_language::SyntaxOptions::default()) {
+	let syntax = match Syntax::new(source.slice(..), rust_lang, &loader, xeno_language::SyntaxOptions::default()) {
 		Ok(s) => s,
 		Err(e) => {
 			println!("Skipping highlight test - no grammar available: {:?}", e);
@@ -233,7 +233,7 @@ fn test_incremental_syntax_update() {
 
 	let mut source = Rope::from_str("fn main() {}");
 
-	let mut syntax = match Syntax::new(source.slice(..), rust_lang, &loader, xeno_runtime_language::SyntaxOptions::default()) {
+	let mut syntax = match Syntax::new(source.slice(..), rust_lang, &loader, xeno_language::SyntaxOptions::default()) {
 		Ok(s) => s,
 		Err(e) => {
 			println!("Skipping incremental update test - no grammar available: {:?}", e);
@@ -257,7 +257,7 @@ fn test_incremental_syntax_update() {
 			source.slice(..),
 			tx.changes(),
 			&loader,
-			xeno_runtime_language::SyntaxOptions::default(),
+			xeno_language::SyntaxOptions::default(),
 		)
 		.expect("Incremental update should succeed");
 
@@ -281,7 +281,7 @@ fn test_incremental_syntax_update() {
 			source.slice(..),
 			tx.changes(),
 			&loader,
-			xeno_runtime_language::SyntaxOptions::default(),
+			xeno_language::SyntaxOptions::default(),
 		)
 		.expect("Delete update should succeed");
 
@@ -322,7 +322,7 @@ fn main() {}
 "#,
 	);
 
-	let syntax = match Syntax::new(source.slice(..), rust_lang, &loader, xeno_runtime_language::SyntaxOptions::default()) {
+	let syntax = match Syntax::new(source.slice(..), rust_lang, &loader, xeno_language::SyntaxOptions::default()) {
 		Ok(s) => s,
 		Err(e) => {
 			println!("Skipping rustdoc injection test - no grammar available: {:?}", e);
@@ -523,7 +523,7 @@ fn test_highlight_span_positions_doc_comment() {
 
 	let source = Rope::from_str("//! Hello world\nfn main() {}");
 
-	let syntax = match Syntax::new(source.slice(..), rust_lang, &loader, xeno_runtime_language::SyntaxOptions::default()) {
+	let syntax = match Syntax::new(source.slice(..), rust_lang, &loader, xeno_language::SyntaxOptions::default()) {
 		Ok(s) => s,
 		Err(e) => {
 			println!("Skipping highlight span test - no grammar available: {:?}", e);

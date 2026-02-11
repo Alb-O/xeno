@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use xeno_runtime_language::syntax::InjectionPolicy;
+use xeno_language::syntax::InjectionPolicy;
 
 /// Visibility and urgency of a document for the syntax scheduler.
 ///

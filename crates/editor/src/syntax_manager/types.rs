@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
+use xeno_language::syntax::{InjectionPolicy, Syntax};
+use xeno_language::{LanguageId, LanguageLoader};
 use xeno_primitives::{ChangeSet, Rope};
-use xeno_runtime_language::syntax::{InjectionPolicy, Syntax};
-use xeno_runtime_language::{LanguageId, LanguageLoader};
 
 use crate::core::document::DocumentId;
 

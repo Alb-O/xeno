@@ -79,8 +79,8 @@ impl Editor {
 
 		tokio::spawn(async move {
 			let parsed = tokio::task::spawn_blocking(|| {
-				let server_defs = xeno_runtime_language::load_lsp_configs().map_err(|e| format!("failed to load LSP configs: {e}"))?;
-				let lang_mapping = xeno_runtime_language::language_db().lsp_mapping();
+				let server_defs = xeno_language::load_lsp_configs().map_err(|e| format!("failed to load LSP configs: {e}"))?;
+				let lang_mapping = xeno_language::language_db().lsp_mapping();
 				Ok::<_, String>((server_defs, lang_mapping))
 			})
 			.await;

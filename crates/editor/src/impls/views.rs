@@ -141,15 +141,14 @@ impl Editor {
 		}
 
 		for (_, window) in self.state.windows.windows() {
-			if window.buffer() == view_id
-				&& matches!(window, Window::Base(_)) {
-					let doc_area = self.doc_area();
-					for (v, area) in self.state.layout.compute_view_areas(&self.base_window().layout, doc_area) {
-						if v == view_id {
-							return area;
-						}
+			if window.buffer() == view_id && matches!(window, Window::Base(_)) {
+				let doc_area = self.doc_area();
+				for (v, area) in self.state.layout.compute_view_areas(&self.base_window().layout, doc_area) {
+					if v == view_id {
+						return area;
 					}
 				}
+			}
 		}
 		self.doc_area()
 	}

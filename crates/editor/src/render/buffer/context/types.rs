@@ -1,5 +1,5 @@
+use xeno_language::LanguageLoader;
 use xeno_registry::themes::Theme;
-use xeno_runtime_language::LanguageLoader;
 use xeno_tui::layout::Rect;
 use xeno_tui::style::Style;
 use xeno_tui::text::Line;

@@ -1,8 +1,8 @@
 use ropey::Rope;
+use xeno_language::LanguageId;
+use xeno_language::highlight::HighlightSpan;
 use xeno_primitives::{Mode, visible_line_count};
 use xeno_registry::gutter::GutterAnnotations;
-use xeno_runtime_language::LanguageId;
-use xeno_runtime_language::highlight::HighlightSpan;
 use xeno_tui::layout::Rect;
 use xeno_tui::style::{Modifier, Style};
 

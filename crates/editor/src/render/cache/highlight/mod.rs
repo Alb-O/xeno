@@ -11,10 +11,10 @@ use std::collections::{HashMap, VecDeque};
 use builder::line_to_byte_or_eof;
 #[cfg(test)]
 use builder::remap_stale_span_to_current;
+use xeno_language::highlight::HighlightSpan;
+use xeno_language::syntax::Syntax;
+use xeno_language::{LanguageId, LanguageLoader};
 use xeno_primitives::Rope;
-use xeno_runtime_language::highlight::HighlightSpan;
-use xeno_runtime_language::syntax::Syntax;
-use xeno_runtime_language::{LanguageId, LanguageLoader};
 use xeno_tui::style::Style;
 
 use crate::core::document::DocumentId;

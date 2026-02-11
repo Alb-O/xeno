@@ -1,4 +1,4 @@
-use xeno_runtime_language::highlight::Highlight;
+use xeno_language::highlight::Highlight;
 use xeno_tui::style::Color;
 
 use super::*;

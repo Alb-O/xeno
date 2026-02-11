@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use smallvec::SmallVec;
-use xeno_runtime_language::LanguageLoader;
+use xeno_language::LanguageLoader;
 
 use crate::buffer::{Buffer, DocumentId, ViewId};
 

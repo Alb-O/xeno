@@ -60,11 +60,11 @@ use std::sync::Once;
 pub use edit_executor::EditExecutor;
 pub use focus::{FocusReason, FocusTarget, PanelId};
 pub use navigation::Location;
+use xeno_language::LanguageLoader;
 use xeno_registry::HookEventData;
 use xeno_registry::hooks::{HookContext, WindowKind, emit_sync_with as emit_hook_sync_with};
 use xeno_registry::options::OPTIONS;
 use xeno_registry::themes::THEMES;
-use xeno_runtime_language::LanguageLoader;
 
 use crate::buffer::{Buffer, Layout, ViewId};
 pub use crate::command_queue::CommandQueue;

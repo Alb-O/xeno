@@ -29,8 +29,8 @@ unicode-width.workspace = true
 uuid.workspace = true
 which.workspace = true
 xeno-editor.workspace = true
+xeno-language.workspace = true
 xeno-registry.workspace = true
-xeno-runtime-language.workspace = true
 xeno-tui.workspace = true
 
 [dev-dependencies]

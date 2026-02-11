@@ -56,7 +56,7 @@ impl Editor {
 	}
 
 	/// Collects syntax highlight spans for the visible area of the buffer.
-	pub fn collect_highlight_spans(&self, area: xeno_tui::layout::Rect) -> Vec<(xeno_runtime_language::highlight::HighlightSpan, xeno_tui::style::Style)> {
+	pub fn collect_highlight_spans(&self, area: xeno_tui::layout::Rect) -> Vec<(xeno_language::highlight::HighlightSpan, xeno_tui::style::Style)> {
 		let buffer = self.buffer();
 		let scroll_line = buffer.scroll_line;
 		let doc_id = buffer.document_id();
@@ -82,9 +82,8 @@ impl Editor {
 				content.len_bytes() as u32
 			};
 
-			let highlight_styles = xeno_runtime_language::highlight::HighlightStyles::new(SyntaxStyles::scope_names(), |scope| {
-				self.state.config.theme.colors.syntax.resolve(scope)
-			});
+			let highlight_styles =
+				xeno_language::highlight::HighlightStyles::new(SyntaxStyles::scope_names(), |scope| self.state.config.theme.colors.syntax.resolve(scope));
 
 			let highlighter = syntax.highlighter(content.slice(..), &self.state.config.language_loader, start_byte..end_byte);
 
@@ -102,7 +101,7 @@ impl Editor {
 	pub fn style_for_byte_pos(
 		&self,
 		byte_pos: usize,
-		spans: &[(xeno_runtime_language::highlight::HighlightSpan, xeno_tui::style::Style)],
+		spans: &[(xeno_language::highlight::HighlightSpan, xeno_tui::style::Style)],
 	) -> Option<xeno_tui::style::Style> {
 		for (span, style) in spans.iter().rev() {
 			if byte_pos >= span.start as usize && byte_pos < span.end as usize {

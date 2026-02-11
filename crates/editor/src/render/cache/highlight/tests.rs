@@ -236,7 +236,7 @@ fn test_projected_tile_cache_reuses_same_target_version() {
 				HighlightSpan {
 					start: 0,
 					end: 3,
-					highlight: xeno_runtime_language::highlight::Highlight::new(0),
+					highlight: xeno_language::highlight::Highlight::new(0),
 				},
 				Style::default(),
 			)],
@@ -288,7 +288,7 @@ fn test_projected_tile_cache_keys_target_doc_version() {
 				HighlightSpan {
 					start: 0,
 					end: 3,
-					highlight: xeno_runtime_language::highlight::Highlight::new(0),
+					highlight: xeno_language::highlight::Highlight::new(0),
 				},
 				Style::default(),
 			)],
@@ -421,7 +421,7 @@ fn test_remap_stale_span_tracks_delete_before_span() {
 	let span = HighlightSpan {
 		start: 5,
 		end: 8,
-		highlight: xeno_runtime_language::highlight::Highlight::new(0),
+		highlight: xeno_language::highlight::Highlight::new(0),
 	};
 
 	let (start, end) = remap_stale_span_to_current(&span, &old_rope, &new_rope, tx.changes()).unwrap();
@@ -447,7 +447,7 @@ fn test_remap_stale_span_tracks_insert_before_span() {
 	let span = HighlightSpan {
 		start: 0,
 		end: 3,
-		highlight: xeno_runtime_language::highlight::Highlight::new(0),
+		highlight: xeno_language::highlight::Highlight::new(0),
 	};
 
 	let (start, end) = remap_stale_span_to_current(&span, &old_rope, &new_rope, tx.changes()).unwrap();

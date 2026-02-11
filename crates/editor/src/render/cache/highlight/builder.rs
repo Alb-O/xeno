@@ -1,8 +1,8 @@
+use xeno_language::LanguageLoader;
+use xeno_language::highlight::{HighlightSpan, HighlightStyles};
+use xeno_language::syntax::Syntax;
 use xeno_primitives::transaction::Bias;
 use xeno_primitives::{ChangeSet, Rope};
-use xeno_runtime_language::LanguageLoader;
-use xeno_runtime_language::highlight::{HighlightSpan, HighlightStyles};
-use xeno_runtime_language::syntax::Syntax;
 use xeno_tui::style::Style;
 
 use crate::syntax_manager::HighlightProjectionCtx;

@@ -3,9 +3,9 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use xeno_language::LanguageLoader;
 use xeno_registry::options::OptionStore;
 use xeno_registry::themes::Theme;
-use xeno_runtime_language::LanguageLoader;
 
 /// Editor configuration.
 ///

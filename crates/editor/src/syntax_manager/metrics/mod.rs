@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
-use xeno_runtime_language::LanguageId;
-use xeno_runtime_language::syntax::InjectionPolicy;
+use xeno_language::LanguageId;
+use xeno_language::syntax::InjectionPolicy;
 
 use super::policy::SyntaxTier;
 use super::tasks::TaskClass;
