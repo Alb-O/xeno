@@ -1,10 +1,10 @@
 [package]
-name = "frizbee"
+name = "xeno-matcher"
 description = "Fast fuzzy matching via SIMD smith waterman, similar algorithm to FZF/FZY"
 license = "MIT"
 version = "0.7.0"
 edition = "2024"
-repository = "https://github.com/saghen/frizbee"
+repository = "https://github.com/Alb-O/xeno"
 
 [features]
 default = ["parallel_sort"]

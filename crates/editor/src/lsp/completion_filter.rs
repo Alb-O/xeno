@@ -1,4 +1,4 @@
-//! Fuzzy filtering for LSP completion items using frizbee.
+//! Fuzzy filtering for LSP completion items using xeno-matcher.
 
 use ropey::Rope;
 use xeno_lsp::lsp_types::CompletionItem as LspCompletionItem;
@@ -43,13 +43,13 @@ pub fn filter_items(raw_items: &[LspCompletionItem], query: &str) -> Vec<Filtere
 		.collect();
 
 	let config = crate::completion::frizbee_config_for_query(query);
-	let matches = frizbee::match_list(query, &filter_texts, &config);
+	let matches = xeno_matcher::match_list(query, &filter_texts, &config);
 
 	matches
 		.into_iter()
 		.map(|m| {
 			let idx = m.index as usize;
-			let match_indices = frizbee::match_indices(query, &raw_items[idx].label, &config).map(|mi| mi.indices);
+			let match_indices = xeno_matcher::match_indices(query, &raw_items[idx].label, &config).map(|mi| mi.indices);
 			FilteredItem {
 				index: idx,
 				score: m.score,

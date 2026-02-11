@@ -632,15 +632,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "frizbee"
-version = "0.7.0"
-dependencies = [
- "multiversion",
- "rayon",
- "serde",
-]
-
-[[package]]
 name = "futures"
 version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3025,7 +3016,6 @@ dependencies = [
  "anyhow",
  "clap",
  "dirs",
- "frizbee",
  "futures",
  "inventory",
  "parking_lot",
@@ -3049,6 +3039,7 @@ dependencies = [
  "xeno-input",
  "xeno-language",
  "xeno-lsp",
+ "xeno-matcher",
  "xeno-primitives",
  "xeno-registry",
  "xeno-tui",
@@ -3135,6 +3126,15 @@ dependencies = [
  "quote",
  "syn 2.0.114",
  "xeno-keymap-parser",
+]
+
+[[package]]
+name = "xeno-matcher"
+version = "0.7.0"
+dependencies = [
+ "multiversion",
+ "rayon",
+ "serde",
 ]
 
 [[package]]
