@@ -2,12 +2,12 @@
 resolver = "3"
 members = [
     "crates/editor",
-    "crates/matcher",
     "crates/input",
     "crates/keymap/*",
     "crates/language",
     "crates/lsp",
     "crates/macros",
+    "crates/matcher",
     "crates/primitives",
     "crates/registry",
     "crates/registry-spec",
@@ -37,7 +37,6 @@ criterion = "0.8"
 crossterm = "0.29"
 dashmap = "6.1"
 dirs = "6.0"
-xeno-matcher = { path = "crates/matcher" }
 fs2 = "0.4"
 globset = "0.4"
 heed3 = "0.22"
@@ -103,6 +102,7 @@ xeno-keymap-parser = { path = "crates/keymap/parser" }
 xeno-language = { path = "crates/language" }
 xeno-lsp = { path = "crates/lsp" }
 xeno-macros = { path = "crates/macros" }
+xeno-matcher = { path = "crates/matcher" }
 xeno-primitives = { path = "crates/primitives" }
 xeno-registry = { path = "crates/registry" }
 xeno-registry-spec = { path = "crates/registry-spec" }

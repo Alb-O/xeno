@@ -63,7 +63,7 @@ pub fn find_snippet(key: &str) -> Option<SnippetRef> {
 
 	#[cfg(feature = "db")]
 	{
-		return SNIPPETS.get(key);
+		SNIPPETS.get(key)
 	}
 
 	#[cfg(not(feature = "db"))]

@@ -339,7 +339,7 @@ impl Editor {
 		let rendered_snippets: Vec<_> = edit_inputs
 			.iter()
 			.map(|(_, selection_text)| {
-				let resolver = EditorSnippetResolver::new_for_selection(self, buffer_id, Some(selection_text.clone()), now.clone());
+				let resolver = EditorSnippetResolver::new_for_selection(self, buffer_id, Some(selection_text.clone()), now);
 				super::render_with_resolver(&template, &resolver)
 			})
 			.collect();

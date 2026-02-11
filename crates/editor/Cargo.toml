@@ -10,10 +10,9 @@ default = []
 lsp = ["dep:xeno-lsp", "dep:thiserror", "dep:tokio-util"]
 [dependencies]
 anyhow.workspace = true
-clap.workspace = true
 chrono.workspace = true
+clap.workspace = true
 dirs.workspace = true
-xeno-matcher.workspace = true
 inventory.workspace = true
 parking_lot.workspace = true
 paste.workspace = true
@@ -33,6 +32,7 @@ unicode-width.workspace = true
 xeno-input.workspace = true
 xeno-language.workspace = true
 xeno-lsp = { workspace = true, features = ["position"], optional = true }
+xeno-matcher.workspace = true
 xeno-primitives.workspace = true
 xeno-registry.workspace = true
 xeno-tui.workspace = true

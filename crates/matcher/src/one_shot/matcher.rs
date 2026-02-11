@@ -318,7 +318,7 @@ mod tests {
 	#[test]
 	fn greedy_fallback_respects_typo_budget() {
 		let needle = "z".repeat(4096);
-		let haystack = vec!["a".repeat(5000)];
+		let haystack = ["a".repeat(5000)];
 		let haystack_refs: Vec<&str> = haystack.iter().map(String::as_str).collect();
 
 		let config = Config {
@@ -334,7 +334,7 @@ mod tests {
 	#[test]
 	fn matrix_budget_fallback_respects_typo_budget() {
 		let needle = "z".repeat(128);
-		let haystack = vec!["a".repeat(100)];
+		let haystack = ["a".repeat(100)];
 		let haystack_refs: Vec<&str> = haystack.iter().map(String::as_str).collect();
 
 		let config = Config {
