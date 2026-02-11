@@ -238,7 +238,7 @@ impl Editor {
 				vec![Change {
 					start,
 					end,
-					replacement: Some(rendered.text.clone().into()),
+					replacement: Some(rendered.text.clone()),
 				}],
 			)
 		});
@@ -298,7 +298,7 @@ impl Editor {
 				.map(|range| Change {
 					start: if active_mode == ActiveMode::Insert { range.end } else { range.start },
 					end: if active_mode == ActiveMode::Insert { range.end } else { range.end },
-					replacement: Some(text.to_string().into()),
+					replacement: Some(text.to_string()),
 				})
 				.collect();
 			changes.sort_by_key(|change| (change.start, change.end));
@@ -441,7 +441,6 @@ impl Editor {
 
 		if !remapped {
 			self.cancel_snippet_session();
-			return;
 		}
 	}
 

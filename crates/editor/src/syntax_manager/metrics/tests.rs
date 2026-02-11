@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn test_ema_update() {
-	let mut ema = EMA::default();
+	let mut ema = Ema::default();
 	ema.update(100.0);
 	assert_eq!(ema.value, 100.0);
 	ema.update(200.0);

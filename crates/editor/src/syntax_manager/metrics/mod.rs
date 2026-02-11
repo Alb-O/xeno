@@ -20,12 +20,12 @@ struct MetricsKey {
 }
 
 #[derive(Debug, Clone, Default)]
-struct EMA {
+struct Ema {
 	value: f64,
 	initialized: bool,
 }
 
-impl EMA {
+impl Ema {
 	fn update(&mut self, next: f64) {
 		if self.initialized {
 			self.value = EMA_ALPHA * next + (1.0 - EMA_ALPHA) * self.value;
@@ -38,10 +38,10 @@ impl EMA {
 
 #[derive(Debug, Clone, Default)]
 struct Entry {
-	duration_ms: EMA,
-	timeout_rate: EMA,
-	error_rate: EMA,
-	install_rate: EMA,
+	duration_ms: Ema,
+	timeout_rate: Ema,
+	error_rate: Ema,
+	install_rate: Ema,
 }
 
 #[derive(Debug, Clone, Default)]

@@ -87,7 +87,7 @@
 //! // Now you have two areas: top and bottom
 //! ```
 //!
-//! **Note**: When the number of layout areas is known at compile time, use destructuring
+//! When the number of layout areas is known at compile time, use destructuring
 //! assignment with descriptive variable names for better readability:
 //!
 //! ```rust

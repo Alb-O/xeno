@@ -371,10 +371,10 @@ impl CommandPaletteOverlay {
 			.flatten()
 			.flatten()
 			.take(200)
-			.filter_map(|entry| {
+			.map(|entry| {
 				let label = entry.file_name().to_string_lossy().to_string();
 				let is_dir = entry.file_type().ok().is_some_and(|ft| ft.is_dir());
-				Some((label, is_dir))
+				(label, is_dir)
 			})
 			.collect::<Vec<_>>();
 
@@ -565,9 +565,9 @@ impl CommandPaletteOverlay {
 		let quoted_arg = selected.kind == CompletionKind::File && token.quoted.is_some();
 
 		let mut replacement = selected.insert_text.clone();
-		if matches!(selected.kind, CompletionKind::Command | CompletionKind::Theme) {
-			replacement.push(' ');
-		} else if selected.kind == CompletionKind::File && !is_dir_completion && !quoted_arg {
+		if matches!(selected.kind, CompletionKind::Command | CompletionKind::Theme)
+			|| (selected.kind == CompletionKind::File && !is_dir_completion && !quoted_arg)
+		{
 			replacement.push(' ');
 		}
 
