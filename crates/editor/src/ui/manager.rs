@@ -6,15 +6,15 @@ use termina::event::{KeyEvent, MouseEvent};
 use xeno_registry::themes::Theme;
 use xeno_tui::layout::Rect;
 
-use super::dock::{DockLayout, DockManager};
+use super::dock::{DockLayout, DockManager, DockSlot, SizeSpec};
 use super::focus::{FocusManager, UiFocus};
+use super::ids::UTILITY_PANEL_ID;
 use super::keymap::{BindingScope, KeybindingRegistry};
 use super::panel::{Panel, PanelInitContext, UiEvent, UiRequest};
 
 /// Central coordinator for the editor UI subsystem.
 ///
 /// Manages panel registration, dock layout, focus tracking, and event routing.
-#[derive(Default)]
 pub struct UiManager {
 	/// Manages panel positions and layout constraints.
 	pub dock: DockManager,
@@ -26,17 +26,108 @@ pub struct UiManager {
 	panels: HashMap<String, Box<dyn Panel>>,
 	/// Flag indicating the UI needs to be redrawn.
 	wants_redraw: bool,
+	/// True when the utility panel was auto-opened for which-key.
+	utility_opened_for_whichkey: bool,
+	/// True when utility height is currently auto-sized for which-key.
+	utility_sized_for_whichkey: bool,
+	/// True when the utility panel was auto-opened for a modal overlay.
+	utility_opened_for_overlay: bool,
+	/// True when utility height is currently forced for modal overlay.
+	utility_sized_for_overlay: bool,
+	/// Baseline utility panel size when not auto-sized.
+	utility_default_size: SizeSpec,
+}
+
+impl Default for UiManager {
+	fn default() -> Self {
+		Self::new()
+	}
 }
 
 impl UiManager {
 	/// Creates a new UI manager with default dock configuration.
 	pub fn new() -> Self {
-		Self {
+		let utility_default_size = SizeSpec::Lines(10);
+		let mut ui = Self {
 			dock: DockManager::new(),
 			focus: FocusManager::new(),
 			keymap: KeybindingRegistry::new(),
 			panels: HashMap::new(),
 			wants_redraw: false,
+			utility_opened_for_whichkey: false,
+			utility_sized_for_whichkey: false,
+			utility_opened_for_overlay: false,
+			utility_sized_for_overlay: false,
+			utility_default_size,
+		};
+		let _ = ui
+			.dock
+			.set_slot_size(DockSlot::Bottom, utility_default_size);
+		ui.register_panel(Box::<super::panels::utility::UtilityPanel>::default());
+		ui
+	}
+
+	fn set_utility_size(&mut self, size: SizeSpec) {
+		if self.dock.set_slot_size(DockSlot::Bottom, size) {
+			self.wants_redraw = true;
+		}
+	}
+
+	/// Synchronizes utility panel visibility and size for which-key mode without stealing focus.
+	pub fn sync_utility_for_whichkey(&mut self, desired_height: Option<u16>) {
+		if let Some(height) = desired_height {
+			if !self.dock.is_open(UTILITY_PANEL_ID) {
+				self.set_open(UTILITY_PANEL_ID, true);
+				self.utility_opened_for_whichkey = true;
+			}
+			if !self.utility_sized_for_overlay {
+				self.set_utility_size(SizeSpec::Lines(height.clamp(4, 10)));
+				self.utility_sized_for_whichkey = true;
+			}
+			return;
+		}
+
+		if self.utility_sized_for_whichkey {
+			if !self.utility_sized_for_overlay {
+				self.set_utility_size(self.utility_default_size);
+			}
+			self.utility_sized_for_whichkey = false;
+		}
+
+		if self.utility_opened_for_whichkey {
+			if self.dock.is_open(UTILITY_PANEL_ID) && !self.utility_opened_for_overlay {
+				self.set_open(UTILITY_PANEL_ID, false);
+			}
+			self.utility_opened_for_whichkey = false;
+		}
+	}
+
+	/// Synchronizes utility panel visibility for modal overlays without stealing focus.
+	pub fn sync_utility_for_modal_overlay(&mut self, desired_height: Option<u16>) {
+		if let Some(height) = desired_height {
+			if !self.dock.is_open(UTILITY_PANEL_ID) {
+				self.set_open(UTILITY_PANEL_ID, true);
+				self.utility_opened_for_overlay = true;
+			}
+			self.set_utility_size(SizeSpec::Lines(height.clamp(1, 10)));
+			self.utility_sized_for_overlay = true;
+			return;
+		}
+
+		if self.utility_sized_for_overlay {
+			if self.utility_sized_for_whichkey {
+				// Keep which-key-driven height when it is active.
+			} else {
+				self.set_utility_size(self.utility_default_size);
+			}
+			self.utility_sized_for_overlay = false;
+		}
+
+		if self.utility_opened_for_overlay {
+			if self.dock.is_open(UTILITY_PANEL_ID) && !self.utility_opened_for_whichkey {
+				self.set_open(UTILITY_PANEL_ID, false);
+			}
+			self.utility_opened_for_overlay = false;
 		}
 	}
 

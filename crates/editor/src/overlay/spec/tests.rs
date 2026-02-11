@@ -126,3 +126,24 @@ fn test_screen_offset_handling() {
 	// Y should be screen.y (10) + 0 = 10.
 	assert_eq!(rect.y, 10);
 }
+
+#[test]
+fn test_top_center_respects_non_zero_container_origin() {
+	let container = Rect::new(4, 30, 72, 10);
+	let roles = HashMap::new();
+	let policy = RectPolicy::TopCenter {
+		width_percent: 100,
+		max_width: u16::MAX,
+		min_width: 1,
+		y_frac: (0, 1),
+		height: 1,
+	};
+
+	let rect = policy
+		.resolve_opt(container, &roles)
+		.expect("policy should resolve inside non-zero-origin container");
+	assert_eq!(rect.x, 4);
+	assert_eq!(rect.y, 30);
+	assert_eq!(rect.width, 72);
+	assert_eq!(rect.height, 1);
+}

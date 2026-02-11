@@ -70,7 +70,22 @@ impl Editor {
 			.hit_test(mouse.column, mouse.row)
 			.is_some_and(|surface| matches!(surface.kind, crate::ui::scene::SurfaceKind::Panels));
 
-		if hit_is_panel {
+		let hit_active_overlay = self
+			.state
+			.overlay_system
+			.interaction
+			.active
+			.as_ref()
+			.is_some_and(|active| {
+				active.session.panes.iter().any(|pane| {
+					mouse.column >= pane.rect.x
+						&& mouse.column < pane.rect.x.saturating_add(pane.rect.width)
+						&& mouse.row >= pane.rect.y
+						&& mouse.row < pane.rect.y.saturating_add(pane.rect.height)
+				})
+			});
+
+		if hit_is_panel && !hit_active_overlay {
 			if ui.handle_mouse(self, mouse, &dock_layout) {
 				if ui.take_wants_redraw() {
 					self.state.frame.needs_redraw = true;
@@ -456,7 +471,7 @@ mod tests {
 			.and_then(|active| active.session.panes.first())
 			.expect("overlay pane should exist");
 
-		let mouse = mouse_down(pane.rect.x.saturating_add(1), pane.rect.y.saturating_add(1));
+		let mouse = mouse_down(pane.rect.x, pane.rect.y);
 		let _ = editor.handle_mouse(mouse).await;
 
 		assert!(editor.state.overlay_system.interaction.is_open());

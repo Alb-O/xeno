@@ -19,10 +19,12 @@ fn build_highlighted_label(
 	highlight_style: Style,
 ) -> Vec<Span<'static>> {
 	let Some(indices) = match_indices else {
-		return vec![Span::styled(
-			format!("{:<width$}", label, width = min_width),
-			normal_style,
-		)];
+		let pad = min_width.saturating_sub(crate::render::cell_width(label));
+		let mut spans = vec![Span::styled(label.to_string(), normal_style)];
+		if pad > 0 {
+			spans.push(Span::styled(" ".repeat(pad), normal_style));
+		}
+		return spans;
 	};
 
 	let mut spans = Vec::new();
@@ -50,10 +52,10 @@ fn build_highlighted_label(
 		spans.push(Span::styled(segment, normal_style));
 	}
 
-	let current_len: usize = chars.len();
-	if current_len < min_width {
+	let current_width: usize = chars.iter().map(|c| crate::render::char_width(*c)).sum();
+	if current_width < min_width {
 		spans.push(Span::styled(
-			" ".repeat(min_width - current_len),
+			" ".repeat(min_width - current_width),
 			normal_style,
 		));
 	}
@@ -70,15 +72,17 @@ impl Editor {
 			.cloned()
 			.unwrap_or_default();
 
-		let max_label_len = completions
+		let max_label_width = completions
 			.items
 			.iter()
-			.map(|it| it.label.len())
+			.map(|it| crate::render::cell_width(&it.label))
 			.max()
 			.unwrap_or(0);
+		let show_kind = _area.width >= 24;
 
 		let visible_range = completions.visible_range();
 		let selected_idx = completions.selected_idx;
+		let target_row_width = _area.width.saturating_sub(1) as usize;
 		let items: Vec<ListItem> = completions
 			.items
 			.iter()
@@ -147,14 +151,26 @@ impl Editor {
 				let label_spans = build_highlighted_label(
 					&item.label,
 					item.match_indices.as_deref(),
-					max_label_len,
+					max_label_width,
 					label_style,
 					match_style,
 				);
 
-				let mut spans = vec![Span::styled(format!(" {} ", kind_icon), icon_style)];
+				let icon_text = format!(" {} ", kind_icon);
+				let mut row_width = crate::render::cell_width(&icon_text) + max_label_width;
+				let mut spans = vec![Span::styled(icon_text, icon_style)];
 				spans.extend(label_spans);
-				spans.push(Span::styled(format!(" {:>4}  ", kind_name), dim_style));
+				if show_kind {
+					let kind_text = format!(" {:>4}  ", kind_name);
+					row_width += crate::render::cell_width(&kind_text);
+					spans.push(Span::styled(kind_text, dim_style));
+				}
+				if row_width < target_row_width {
+					spans.push(Span::styled(
+						" ".repeat(target_row_width - row_width),
+						base_style,
+					));
+				}
 
 				let line = Line::from(spans);
 

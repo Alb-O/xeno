@@ -25,14 +25,14 @@ use xeno_tui::widgets::block::Padding;
 
 use crate::window::SurfaceStyle;
 
-/// Helper to create a consistent surface style for prompt panes.
-pub fn prompt_style(title: &str) -> SurfaceStyle {
+/// Helper to create a docked, inline prompt style for utility panel overlays.
+pub fn docked_prompt_style() -> SurfaceStyle {
 	SurfaceStyle {
-		border: true,
+		border: false,
 		border_type: BorderType::Stripe,
 		padding: Padding::horizontal(1),
 		shadow: false,
-		title: Some(title.to_string()),
+		title: None,
 	}
 }
 
@@ -452,6 +452,12 @@ impl OverlayManager {
 			return false;
 		}
 
+		let spec = controller.ui_spec(ed);
+		let desired_height = if spec.windows.is_empty() { 1 } else { 10 };
+		ed.state
+			.ui
+			.sync_utility_for_modal_overlay(Some(desired_height));
+
 		if let Some(mut session) = OverlayHost::setup_session(ed, &*controller) {
 			#[cfg(feature = "lsp")]
 			ed.clear_lsp_menu();
@@ -463,6 +469,7 @@ impl OverlayManager {
 			});
 			true
 		} else {
+			ed.state.ui.sync_utility_for_modal_overlay(None);
 			false
 		}
 	}

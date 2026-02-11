@@ -65,24 +65,35 @@ impl LspSystem {
 			return;
 		};
 
-		let max_label_len = completions
+		let view_area = editor.focused_view_area();
+		if view_area.width < 12 || view_area.height < 3 {
+			return;
+		}
+
+		let show_kind = view_area.width >= 24;
+		let max_label_width = completions
 			.items
 			.iter()
-			.map(|it| it.label.len())
+			.map(|it| crate::render::cell_width(&it.label))
 			.max()
 			.unwrap_or(0);
-		let width = (max_label_len + 10).max(12);
+		let border_cols = 1;
+		let icon_cols = 4;
+		let kind_cols = if show_kind { 7 } else { 0 };
+		let width = (border_cols + icon_cols + max_label_width + kind_cols).max(12);
 		let height = completions
 			.items
 			.len()
 			.clamp(1, CompletionState::MAX_VISIBLE);
 
-		let view_area = editor.focused_view_area();
 		let mut x = view_area.x.saturating_add(cursor_col);
 		let mut y = view_area.y.saturating_add(cursor_row.saturating_add(1));
 
-		let width_u16 = width.min(view_area.width as usize) as u16;
-		let height_u16 = height.min(view_area.height as usize) as u16;
+		let width_u16 = width.min(view_area.width.saturating_sub(1) as usize) as u16;
+		let height_u16 = height.min(view_area.height.saturating_sub(1) as usize) as u16;
+		if width_u16 == 0 || height_u16 == 0 {
+			return;
+		}
 
 		if x + width_u16 > view_area.right() {
 			x = view_area.right().saturating_sub(width_u16);

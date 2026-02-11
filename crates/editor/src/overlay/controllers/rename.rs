@@ -40,13 +40,13 @@ impl OverlayController for RenameOverlay {
 			title: Some("Rename".into()),
 			gutter: GutterSelector::Prompt('>'),
 			rect: RectPolicy::TopCenter {
-				width_percent: 60,
-				max_width: 80,
-				min_width: 40,
-				y_frac: (1, 5),
-				height: 3,
+				width_percent: 100,
+				max_width: u16::MAX,
+				min_width: 1,
+				y_frac: (0, 1),
+				height: 1,
 			},
-			style: crate::overlay::prompt_style("Rename"),
+			style: crate::overlay::docked_prompt_style(),
 			windows: vec![],
 		}
 	}

@@ -53,14 +53,65 @@ impl Editor {
 		};
 
 		let mut spans = Vec::new();
+		let mut current_width = 0usize;
+		let mut all_segments = Vec::new();
 
 		for seg in render_position(SegmentPosition::Left, &ctx) {
-			spans.push(self.segment_to_span(&seg));
+			all_segments.push(seg);
 		}
 		for seg in render_position(SegmentPosition::Center, &ctx) {
-			spans.push(self.segment_to_span(&seg));
+			all_segments.push(seg);
 		}
 		for seg in render_position(SegmentPosition::Right, &ctx) {
+			all_segments.push(seg);
+		}
+
+		let mut mode_segments = Vec::new();
+		let mut body_segments = Vec::new();
+		for seg in all_segments {
+			if matches!(seg.style, SegmentStyle::Mode) {
+				mode_segments.push(seg);
+			} else {
+				body_segments.push(seg);
+			}
+		}
+
+		let mode_width: usize = mode_segments
+			.iter()
+			.map(|seg| crate::render::cell_width(&seg.text))
+			.sum();
+
+		for seg in body_segments {
+			current_width += crate::render::cell_width(&seg.text);
+			spans.push(self.segment_to_span(&seg));
+		}
+
+		if let Some(active) = self.state.overlay_system.interaction.active.as_ref() {
+			let label = match active.controller.name() {
+				"CommandPalette" => "Cmd",
+				"Search" => "Search",
+				other => other,
+			};
+			let tag = format!(" [{label}]");
+			let viewport_width = self.state.viewport.width.unwrap_or(0) as usize;
+			let tag_width = crate::render::cell_width(&tag);
+			if viewport_width > 0 && current_width + tag_width + mode_width <= viewport_width {
+				spans.push(Span::styled(
+					tag,
+					Style::default().fg(self.state.config.theme.colors.semantic.dim),
+				));
+				current_width += tag_width;
+			}
+		}
+
+		let viewport_width = self.state.viewport.width.unwrap_or(0) as usize;
+		if viewport_width > 0 && mode_width > 0 && current_width + mode_width < viewport_width {
+			spans.push(Span::raw(
+				" ".repeat(viewport_width.saturating_sub(current_width + mode_width)),
+			));
+		}
+
+		for seg in mode_segments {
 			spans.push(self.segment_to_span(&seg));
 		}
 

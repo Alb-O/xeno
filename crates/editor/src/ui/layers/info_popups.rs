@@ -1,7 +1,7 @@
 use xeno_registry::options::keys;
 use xeno_tui::layout::Rect;
 use xeno_tui::style::Style;
-use xeno_tui::widgets::{Block, Borders, Clear, Paragraph};
+use xeno_tui::widgets::{Block, Clear, Paragraph};
 
 use crate::buffer::ViewId;
 use crate::impls::Editor;
@@ -60,19 +60,23 @@ pub fn render(ed: &mut Editor, frame: &mut xeno_tui::Frame, doc_area: Rect, ctx:
 	let style = info_popup_style();
 
 	for (_, buffer_id, anchor, content_width, content_height) in popups {
-		let rect = compute_popup_rect(anchor, content_width, content_height, doc_area);
+		let max_w = doc_area.width.saturating_sub(2).min(60);
+		let max_h = doc_area.height.saturating_sub(2).min(12);
+		if max_w == 0 || max_h == 0 {
+			continue;
+		}
+		let width = content_width.min(max_w);
+		let height = content_height.min(max_h);
+		let rect = compute_popup_rect(anchor, width, height, doc_area);
+		if rect.width == 0 || rect.height == 0 {
+			continue;
+		}
 
 		frame.render_widget(Clear, rect);
 
-		let mut block = Block::default()
+		let block = Block::default()
 			.style(Style::default().bg(ctx.theme.colors.popup.bg))
 			.padding(style.padding);
-		if style.border {
-			block = block
-				.borders(Borders::ALL)
-				.border_type(style.border_type)
-				.border_style(Style::default().fg(ctx.theme.colors.popup.fg));
-		}
 
 		let inner = block.inner(rect);
 		frame.render_widget(block, rect);

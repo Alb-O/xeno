@@ -7,6 +7,7 @@ use super::CloseReason;
 use super::session::{OverlayPane, OverlaySession};
 use crate::buffer::ViewId;
 use crate::impls::{Editor, FocusReason, FocusTarget};
+use crate::ui::ids::UTILITY_PANEL_ID;
 
 /// Low-level manager for UI resources used by overlays.
 ///
@@ -15,6 +16,17 @@ use crate::impls::{Editor, FocusReason, FocusTarget};
 pub struct OverlayHost;
 
 impl OverlayHost {
+	fn overlay_container_rect(ed: &Editor, width: u16, height: u16) -> Rect {
+		let main_area = Rect::new(0, 0, width, height.saturating_sub(1));
+		let layout = ed.state.ui.compute_layout(main_area);
+		layout
+			.panel_areas
+			.get(UTILITY_PANEL_ID)
+			.copied()
+			.filter(|rect| rect.width > 0 && rect.height > 0)
+			.unwrap_or(main_area)
+	}
+
 	pub fn reflow_session(
 		ed: &mut Editor,
 		controller: &dyn super::OverlayController,
@@ -25,7 +37,7 @@ impl OverlayHost {
 			(Some(w), Some(h)) => (w, h),
 			_ => return false,
 		};
-		let screen = Rect::new(0, 0, w, h);
+		let screen = Self::overlay_container_rect(ed, w, h);
 
 		let mut roles = HashMap::new();
 		let input_rect = match spec.rect.resolve_opt(screen, &roles) {
@@ -122,7 +134,7 @@ impl OverlayHost {
 	) -> Option<OverlaySession> {
 		let spec = controller.ui_spec(ed);
 		let (w, h) = (ed.state.viewport.width?, ed.state.viewport.height?);
-		let screen = Rect::new(0, 0, w, h);
+		let screen = Self::overlay_container_rect(ed, w, h);
 
 		let mut roles = std::collections::HashMap::new();
 

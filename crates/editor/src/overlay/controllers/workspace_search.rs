@@ -8,15 +8,13 @@ use std::pin::Pin;
 use termina::event::KeyEvent;
 use xeno_registry::notifications::keys;
 use xeno_registry::options::OptionValue;
-use xeno_tui::widgets::BorderType;
-use xeno_tui::widgets::block::Padding;
 
 use crate::buffer::ViewId;
 use crate::overlay::{
 	CloseReason, OverlayContext, OverlayController, OverlaySession, OverlayUiSpec, RectPolicy,
 	WindowRole, WindowSpec,
 };
-use crate::window::{GutterSelector, SurfaceStyle};
+use crate::window::GutterSelector;
 
 pub struct WorkspaceSearchOverlay {
 	list_buffer: Option<ViewId>,
@@ -69,23 +67,17 @@ impl OverlayController for WorkspaceSearchOverlay {
 			title: Some("Workspace Search".into()),
 			gutter: GutterSelector::Prompt('/'),
 			rect: RectPolicy::TopCenter {
-				width_percent: 70,
-				max_width: 100,
-				min_width: 50,
-				y_frac: (1, 6),
-				height: 3,
+				width_percent: 100,
+				max_width: u16::MAX,
+				min_width: 1,
+				y_frac: (0, 1),
+				height: 1,
 			},
-			style: crate::overlay::prompt_style("Workspace Search"),
+			style: crate::overlay::docked_prompt_style(),
 			windows: vec![WindowSpec {
 				role: WindowRole::List,
-				rect: RectPolicy::Below(WindowRole::Input, 0, 15),
-				style: SurfaceStyle {
-					border: true,
-					border_type: BorderType::Rounded,
-					padding: Padding::ZERO,
-					shadow: false,
-					title: None,
-				},
+				rect: RectPolicy::Below(WindowRole::Input, 1, 9),
+				style: crate::overlay::docked_prompt_style(),
 				buffer_options,
 				dismiss_on_blur: false,
 				sticky: false,

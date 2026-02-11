@@ -27,6 +27,8 @@ pub enum DockSlot {
 pub enum SizeSpec {
 	/// Size as a percentage of the available space (0-100).
 	Percent(u16),
+	/// Size as a fixed number of terminal lines/columns.
+	Lines(u16),
 }
 
 impl SizeSpec {
@@ -34,6 +36,7 @@ impl SizeSpec {
 	fn to_constraint(self) -> Constraint {
 		match self {
 			SizeSpec::Percent(p) => Constraint::Percentage(p),
+			SizeSpec::Lines(lines) => Constraint::Length(lines),
 		}
 	}
 }
@@ -80,7 +83,7 @@ impl DockManager {
 	/// Creates a new dock manager with default slot sizes.
 	pub fn new() -> Self {
 		let mut slots = HashMap::new();
-		slots.insert(DockSlot::Bottom, DockSlotState::new(SizeSpec::Percent(30)));
+		slots.insert(DockSlot::Bottom, DockSlotState::new(SizeSpec::Lines(10)));
 		slots.insert(DockSlot::Top, DockSlotState::new(SizeSpec::Percent(25)));
 		slots.insert(DockSlot::Left, DockSlotState::new(SizeSpec::Percent(25)));
 		slots.insert(DockSlot::Right, DockSlotState::new(SizeSpec::Percent(25)));
@@ -124,6 +127,24 @@ impl DockManager {
 	/// Returns whether any panel is currently open in any slot.
 	pub fn any_open(&self) -> bool {
 		self.slots.values().any(|s| !s.open.is_empty())
+	}
+
+	/// Returns the size spec currently configured for a dock slot.
+	pub fn slot_size(&self, slot: DockSlot) -> Option<SizeSpec> {
+		self.slots.get(&slot).map(|state| state.size)
+	}
+
+	/// Sets the size spec for a dock slot, returning true when it changes.
+	pub fn set_slot_size(&mut self, slot: DockSlot, size: SizeSpec) -> bool {
+		let state = self
+			.slots
+			.entry(slot)
+			.or_insert_with(|| DockSlotState::new(SizeSpec::Percent(30)));
+		if state.size == size {
+			return false;
+		}
+		state.size = size;
+		true
 	}
 
 	/// Returns the ID of the active panel in the given slot, if any.
@@ -243,5 +264,50 @@ impl DockManager {
 		}
 
 		layout
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use xeno_tui::layout::Rect;
+
+	use super::{DockManager, DockSlot, SizeSpec};
+
+	#[test]
+	fn bottom_slot_defaults_to_fixed_lines() {
+		let dock = DockManager::new();
+		let bottom = dock
+			.slots
+			.get(&DockSlot::Bottom)
+			.expect("bottom slot should exist");
+		assert_eq!(bottom.size, SizeSpec::Lines(10));
+	}
+
+	#[test]
+	fn fixed_bottom_height_reduces_doc_area_deterministically() {
+		let mut dock = DockManager::new();
+		dock.open_panel(DockSlot::Bottom, "utility".to_string());
+
+		let area = Rect::new(0, 0, 100, 40);
+		let layout = dock.compute_layout(area);
+
+		assert_eq!(layout.doc_area.height, 30);
+		assert_eq!(layout.doc_area.y, 0);
+		assert_eq!(
+			layout.panel_areas.get("utility").map(|r| r.height),
+			Some(10)
+		);
+	}
+
+	#[test]
+	fn fixed_bottom_height_clamps_under_tiny_viewports() {
+		let mut dock = DockManager::new();
+		dock.open_panel(DockSlot::Bottom, "utility".to_string());
+
+		let area = Rect::new(0, 0, 80, 8);
+		let layout = dock.compute_layout(area);
+
+		assert_eq!(layout.doc_area.height, 0);
+		assert_eq!(layout.panel_areas.get("utility").map(|r| r.height), Some(8));
 	}
 }

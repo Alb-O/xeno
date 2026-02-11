@@ -1,15 +1,13 @@
 use xeno_registry::options::keys;
 use xeno_tui::layout::Rect;
 use xeno_tui::style::Style;
-use xeno_tui::widgets::{Block, Borders, Clear, Paragraph};
+use xeno_tui::widgets::{Block, Borders, Paragraph};
 
 use crate::buffer::ViewId;
 use crate::impls::{Editor, FocusTarget};
 use crate::render::{
 	BufferRenderContext, GutterLayout, RenderBufferParams, RenderCtx, ensure_buffer_cursor_visible,
 };
-use crate::ui::layer::SceneBuilder;
-use crate::ui::scene::{SurfaceKind, SurfaceOp};
 use crate::window::{GutterSelector, SurfaceStyle};
 
 #[derive(Clone)]
@@ -38,18 +36,28 @@ fn clamp_rect(rect: Rect, bounds: Rect) -> Option<Rect> {
 	})
 }
 
-pub fn visible(ed: &Editor) -> bool {
-	ed.state.overlay_system.interaction.is_open()
-}
+fn pane_content_area(rect: Rect, style: &SurfaceStyle) -> Rect {
+	let mut area = rect;
+	if area.width == 0 || area.height == 0 {
+		return Rect::new(0, 0, 0, 0);
+	}
 
-pub fn push(builder: &mut SceneBuilder, area: Rect) {
-	builder.push(
-		SurfaceKind::ModalOverlays,
-		55,
-		area,
-		SurfaceOp::ModalOverlays,
-		false,
-	);
+	// Reserve one column for the docked stripe.
+	if area.width > 0 {
+		area.x = area.x.saturating_add(1);
+		area.width = area.width.saturating_sub(1);
+	}
+
+	area.x = area.x.saturating_add(style.padding.left);
+	area.y = area.y.saturating_add(style.padding.top);
+	area.width = area
+		.width
+		.saturating_sub(style.padding.left.saturating_add(style.padding.right));
+	area.height = area
+		.height
+		.saturating_sub(style.padding.top.saturating_add(style.padding.bottom));
+
+	area
 }
 
 pub fn render(ed: &mut Editor, frame: &mut xeno_tui::Frame, area: Rect, ctx: &RenderCtx) {
@@ -82,7 +90,7 @@ pub fn render(ed: &mut Editor, frame: &mut xeno_tui::Frame, area: Rect, ctx: &Re
 		let Some(rect) = clamp_rect(pane.rect, area) else {
 			continue;
 		};
-		let content_area = crate::overlay::geom::pane_inner_rect(rect, &pane.style);
+		let content_area = pane_content_area(rect, &pane.style);
 		if content_area.width == 0 || content_area.height == 0 {
 			continue;
 		}
@@ -125,22 +133,20 @@ pub fn render(ed: &mut Editor, frame: &mut xeno_tui::Frame, area: Rect, ctx: &Re
 			continue;
 		};
 
-		frame.render_widget(Clear, rect);
-
-		let mut block = Block::default()
+		let stripe_style = Style::default().fg(ctx.theme.colors.mode.normal.bg);
+		let stripe_border_set = xeno_tui::symbols::border::Set {
+			top_left: "▏",
+			vertical_left: "▏",
+			bottom_left: "▏",
+			..xeno_tui::symbols::border::EMPTY
+		};
+		let block = Block::default()
 			.style(Style::default().bg(ctx.theme.colors.popup.bg))
-			.padding(pane.style.padding);
-		if pane.style.border {
-			block = block
-				.borders(Borders::ALL)
-				.border_type(pane.style.border_type)
-				.border_style(Style::default().fg(ctx.theme.colors.popup.fg));
-			if let Some(title) = &pane.style.title {
-				block = block.title(title.as_str());
-			}
-		}
+			.borders(Borders::LEFT)
+			.border_set(stripe_border_set)
+			.border_style(stripe_style);
 
-		let content_area = crate::overlay::geom::pane_inner_rect(rect, &pane.style);
+		let content_area = pane_content_area(rect, &pane.style);
 		frame.render_widget(block, rect);
 
 		if content_area.width == 0 || content_area.height == 0 {

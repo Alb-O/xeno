@@ -8,7 +8,7 @@ use xeno_tui::layout::Rect;
 use crate::overlay::spec::RectPolicy;
 use crate::overlay::{
 	CloseReason, OverlayContext, OverlayController, OverlaySession, OverlayStatus, OverlayUiSpec,
-	WindowRole, WindowSpec, prompt_style,
+	WindowRole, WindowSpec,
 };
 use crate::window::GutterSelector;
 
@@ -24,17 +24,17 @@ impl OverlayController for ReflowTestOverlay {
 			title: Some("ReflowTest".to_string()),
 			gutter: GutterSelector::Prompt('>'),
 			rect: RectPolicy::TopCenter {
-				width_percent: 60,
-				max_width: 80,
-				min_width: 30,
-				y_frac: (1, 4),
-				height: 3,
+				width_percent: 100,
+				max_width: u16::MAX,
+				min_width: 1,
+				y_frac: (0, 1),
+				height: 1,
 			},
-			style: prompt_style("ReflowTest"),
+			style: crate::overlay::docked_prompt_style(),
 			windows: vec![WindowSpec {
 				role: WindowRole::List,
-				rect: RectPolicy::Below(WindowRole::Input, 5, 10),
-				style: prompt_style("List"),
+				rect: RectPolicy::Below(WindowRole::Input, 1, 1),
+				style: crate::overlay::docked_prompt_style(),
 				buffer_options: HashMap::new(),
 				dismiss_on_blur: true,
 				sticky: false,
@@ -278,7 +278,7 @@ pub(crate) fn test_modal_reflow_clears_unresolved_aux_panes() {
 	assert!(input_rect.width > 0 && input_rect.height > 0);
 	assert!(list_rect.width > 0 && list_rect.height > 0);
 
-	editor.handle_window_resize(100, 5);
+	editor.handle_window_resize(100, 2);
 
 	let active = editor
 		.state

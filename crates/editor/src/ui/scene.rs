@@ -13,10 +13,8 @@ pub enum SurfaceKind {
 	Panels,
 	CompletionPopup,
 	OverlayLayers,
-	ModalOverlays,
 	StatusLine,
 	Notifications,
-	WhichKeyHud,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -27,10 +25,8 @@ pub enum SurfaceOp {
 	Panels,
 	CompletionPopup,
 	OverlayLayers,
-	ModalOverlays,
 	StatusLine,
 	Notifications,
-	WhichKeyHud,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -27,6 +27,22 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame) {
 	let status_area = chunks[1];
 
 	let mut ui = std::mem::take(&mut ed.state.ui);
+	let overlay_height = ed
+		.state
+		.overlay_system
+		.interaction
+		.active
+		.as_ref()
+		.map(|active| {
+			if active.session.panes.len() <= 1 {
+				1
+			} else {
+				10
+			}
+		});
+	ui.sync_utility_for_modal_overlay(overlay_height);
+	let whichkey_height = crate::ui::panels::utility::UtilityPanel::whichkey_desired_height(ed);
+	ui.sync_utility_for_whichkey(whichkey_height);
 	let dock_layout = ui.compute_layout(main_area);
 	let doc_area = dock_layout.doc_area;
 	ed.state.viewport.doc_area = Some(doc_area);
@@ -80,9 +96,6 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame) {
 		SurfaceOp::OverlayLayers,
 		false,
 	);
-	if layers::modal_overlays::visible(ed) {
-		layers::modal_overlays::push(&mut builder, area);
-	}
 	builder.push(
 		SurfaceKind::StatusLine,
 		60,
@@ -97,10 +110,6 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame) {
 		SurfaceOp::Notifications,
 		false,
 	);
-	if layers::whichkey::visible(ed) {
-		layers::whichkey::push(&mut builder, doc_area);
-	}
-
 	let scene = builder.finish();
 	let mut result = SceneRenderResult::default();
 
@@ -123,10 +132,8 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame) {
 			}
 			SurfaceOp::CompletionPopup => layers::completion::render(ed, frame),
 			SurfaceOp::OverlayLayers => ed.state.overlay_system.layers.render(ed, frame),
-			SurfaceOp::ModalOverlays => layers::modal_overlays::render(ed, frame, area, &ctx),
 			SurfaceOp::StatusLine => {
-				let status_bg =
-					Block::default().style(Style::default().bg(ctx.theme.colors.popup.bg));
+				let status_bg = Block::default().style(Style::default().bg(ctx.theme.colors.ui.bg));
 				frame.render_widget(status_bg, status_area);
 				frame.render_widget(ed.render_status_line(), status_area);
 			}
@@ -138,7 +145,6 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame) {
 					.notifications
 					.render(notifications_area, frame.buffer_mut());
 			}
-			SurfaceOp::WhichKeyHud => layers::whichkey::render(ed, frame, doc_area, &ctx),
 		}
 	}
 

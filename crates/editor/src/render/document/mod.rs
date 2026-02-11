@@ -4,7 +4,6 @@
 //! separator styling and junction glyphs.
 
 mod separator;
-mod whichkey;
 
 use xeno_registry::options::keys;
 use xeno_tui::layout::Rect;
