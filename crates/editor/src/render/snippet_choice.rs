@@ -7,9 +7,27 @@ use xeno_tui::widgets::{Block, Borders, List, Widget};
 use crate::impls::Editor;
 use crate::snippet::SnippetChoiceOverlay;
 
+fn choice_window(total: usize, selected: usize, visible_rows: usize) -> (usize, usize) {
+	if total == 0 {
+		return (0, 0);
+	}
+	let rows = visible_rows.max(1).min(total);
+	if total <= rows {
+		return (0, total);
+	}
+
+	let clamped_selected = selected.min(total.saturating_sub(1));
+	let half = rows / 2;
+	let max_start = total.saturating_sub(rows);
+	let start = clamped_selected.saturating_sub(half).min(max_start);
+	(start, start + rows)
+}
+
 impl Editor {
 	pub fn render_snippet_choice_menu(&self, area: Rect, overlay: &SnippetChoiceOverlay) -> impl Widget + '_ {
 		let target_width = area.width.saturating_sub(1) as usize;
+		let (window_start, window_end) = choice_window(overlay.options.len(), overlay.selected, area.height as usize);
+		let selected = overlay.selected.min(overlay.options.len().saturating_sub(1));
 		let max_option_width = overlay
 			.options
 			.iter()
@@ -20,10 +38,12 @@ impl Editor {
 
 		let items: Vec<ListItem> = overlay
 			.options
+			[window_start..window_end]
 			.iter()
 			.enumerate()
 			.map(|(idx, option)| {
-				let is_selected = idx == overlay.selected;
+				let absolute_idx = window_start + idx;
+				let is_selected = absolute_idx == selected;
 				let row_style = if is_selected {
 					Style::default()
 						.bg(self.state.config.theme.colors.ui.selection_bg)
@@ -113,5 +133,24 @@ impl Editor {
 
 		let area = Rect::new(x, y, width_u16, height_u16);
 		frame.render_widget(self.render_snippet_choice_menu(area, &overlay), area);
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::choice_window;
+
+	#[test]
+	fn choice_window_shows_all_when_shorter_than_view() {
+		assert_eq!(choice_window(3, 0, 10), (0, 3));
+		assert_eq!(choice_window(3, 2, 10), (0, 3));
+	}
+
+	#[test]
+	fn choice_window_keeps_selected_visible() {
+		assert_eq!(choice_window(20, 0, 5), (0, 5));
+		assert_eq!(choice_window(20, 4, 5), (2, 7));
+		assert_eq!(choice_window(20, 10, 5), (8, 13));
+		assert_eq!(choice_window(20, 19, 5), (15, 20));
 	}
 }

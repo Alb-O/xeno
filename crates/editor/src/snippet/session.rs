@@ -773,7 +773,7 @@ impl Editor {
 			return false;
 		}
 
-		let active_ranges = {
+		let (active_idx, active_ranges) = {
 			let state = self.overlays_mut().get_or_default::<SnippetSessionState>();
 			let Some(session) = state.session.as_mut() else {
 				return false;
@@ -782,7 +782,7 @@ impl Editor {
 				state.session = None;
 				return false;
 			}
-			session.active_ranges()
+			(session.active_tabstop(), session.active_ranges())
 		};
 
 		if active_ranges.is_empty() {
@@ -828,6 +828,12 @@ impl Editor {
 				.filter(|session| session.buffer_id == focused)
 		{
 			session.active_mode = ActiveMode::Insert;
+		}
+
+		if applied
+			&& let Some(source_idx) = active_idx
+		{
+			let _ = self.apply_transforms_for_source(source_idx);
 		}
 
 		applied
@@ -1419,6 +1425,35 @@ mod tests {
 				.and_then(|state| state.session.as_ref())
 				.is_some()
 		);
+	}
+
+	#[tokio::test]
+	async fn choice_cycle_updates_transform_without_tab() {
+		let mut editor = Editor::new_scratch();
+		editor.set_mode(Mode::Insert);
+
+		assert!(editor.insert_snippet_body("${1|a,b|} ${1/(.*)/$1_bar/} $0"));
+		assert_eq!(buffer_text(&editor), "a a_bar ");
+
+		assert!(editor.handle_snippet_session_key(&key_ctrl('n')));
+		assert_eq!(buffer_text(&editor), "b b_bar ");
+	}
+
+	#[tokio::test]
+	async fn choice_overlay_commit_updates_transform_without_tab() {
+		let mut editor = Editor::new_scratch();
+		editor.set_mode(Mode::Insert);
+
+		assert!(editor.insert_snippet_body("${1|a,b|} ${1/(.*)/$1_bar/} $0"));
+		assert_eq!(buffer_text(&editor), "a a_bar ");
+
+		assert!(editor.handle_snippet_session_key(&key_ctrl_space()));
+		{
+			let overlay = editor.overlays_mut().get_or_default::<SnippetChoiceOverlay>();
+			overlay.selected = 1;
+		}
+		assert!(editor.handle_snippet_session_key(&key_enter()));
+		assert_eq!(buffer_text(&editor), "b b_bar ");
 	}
 
 	#[tokio::test]
