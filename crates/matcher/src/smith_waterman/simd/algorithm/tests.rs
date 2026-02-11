@@ -87,3 +87,23 @@ fn test_score_continuous_beats_delimiter() {
 fn test_score_continuous_beats_capitalization() {
 	assert!(get_score("fo", "foo") > get_score("fo", "faOo"));
 }
+
+#[test]
+fn scores_only_matches_matrix_scores() {
+	let scoring = Scoring::default();
+	let haystacks = ["alpha", "a-b", "forDist", "exact"];
+	let needle = "a";
+
+	let (scores_only, exact_only) = smith_waterman_scores::<16, 4>(needle, &haystacks, &scoring);
+	let (scores_matrix, _, exact_matrix) = smith_waterman::<16, 4>(needle, &haystacks, None, &scoring);
+
+	assert_eq!(scores_only, scores_matrix);
+	assert_eq!(exact_only, exact_matrix);
+
+	let needle_exact = "exact";
+	let (scores_only_exact, exact_only_exact) = smith_waterman_scores::<16, 4>(needle_exact, &haystacks, &scoring);
+	let (scores_matrix_exact, _, exact_matrix_exact) = smith_waterman::<16, 4>(needle_exact, &haystacks, None, &scoring);
+
+	assert_eq!(scores_only_exact, scores_matrix_exact);
+	assert_eq!(exact_only_exact, exact_matrix_exact);
+}
