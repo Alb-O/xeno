@@ -4,6 +4,7 @@ mod help;
 mod quit;
 mod registry;
 mod set;
+mod snippet;
 mod theme;
 mod write;
 

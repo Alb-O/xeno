@@ -365,6 +365,10 @@ fn palette_input_text(editor: &crate::impls::Editor) -> String {
 		.to_string()
 }
 
+fn drain_queued_commands(editor: &mut crate::impls::Editor) -> Vec<crate::command_queue::QueuedCommand> {
+	editor.state.core.workspace.command_queue.drain().collect()
+}
+
 #[cfg_attr(test, test)]
 pub(crate) fn test_palette_manual_selection_persists_within_token() {
 	let mut editor = crate::impls::Editor::new_scratch();
@@ -525,6 +529,42 @@ pub(crate) fn test_palette_commit_uses_selected_command_in_command_token() {
 
 	let usage = editor.state.command_usage.snapshot();
 	assert!(usage.count(&selected) > 0, "selected command should be recorded as used");
+}
+
+#[cfg_attr(test, test)]
+pub(crate) fn test_palette_commit_preserves_quoted_argument() {
+	let mut editor = crate::impls::Editor::new_scratch();
+	editor.handle_window_resize(120, 40);
+	assert!(editor.open_command_palette());
+
+	let input = "edit \"my file.rs\"";
+	palette_set_input(&mut editor, input, input.chars().count());
+	with_interaction(&mut editor, |interaction, ed| {
+		futures::executor::block_on(interaction.commit(ed));
+	});
+
+	let commands = drain_queued_commands(&mut editor);
+	assert_eq!(commands.len(), 1);
+	assert_eq!(commands[0].name, "edit");
+	assert_eq!(commands[0].args, vec!["my file.rs".to_string()]);
+}
+
+#[cfg_attr(test, test)]
+pub(crate) fn test_palette_commit_preserves_quoted_snippet_body_argument() {
+	let mut editor = crate::impls::Editor::new_scratch();
+	editor.handle_window_resize(120, 40);
+	assert!(editor.open_command_palette());
+
+	let input = "snippet \"${1:x} ${2:y}\"";
+	palette_set_input(&mut editor, input, input.chars().count());
+	with_interaction(&mut editor, |interaction, ed| {
+		futures::executor::block_on(interaction.commit(ed));
+	});
+
+	let commands = drain_queued_commands(&mut editor);
+	assert_eq!(commands.len(), 1);
+	assert_eq!(commands[0].name, "snippet");
+	assert_eq!(commands[0].args, vec!["${1:x} ${2:y}".to_string()]);
 }
 
 #[cfg_attr(test, test)]

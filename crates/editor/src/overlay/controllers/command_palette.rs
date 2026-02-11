@@ -673,11 +673,17 @@ impl OverlayController for CommandPaletteOverlay {
 		let input = session.input_text(ctx).trim().to_string();
 
 		if !input.is_empty() {
-			let mut parts = input.split_whitespace();
-			if let Some(typed_name) = parts.next() {
-				let args: Vec<String> = parts.map(String::from).collect();
+			let chars: Vec<char> = input.chars().collect();
+			let tokens = Self::tokenize(&chars);
+			if let Some(name_tok) = tokens.first() {
+				let typed_name: String = chars[name_tok.content_start..name_tok.content_end].iter().collect();
+				let args: Vec<String> = tokens
+					.iter()
+					.skip(1)
+					.map(|tok| chars[tok.content_start..tok.content_end].iter().collect())
+					.collect();
 				let token = Self::token_context(&input, Self::char_count(&input));
-				let mut command_name = typed_name.to_string();
+				let mut command_name = typed_name;
 
 				if token.token_index == 0
 					&& let Some(state) = ctx.completion_state()

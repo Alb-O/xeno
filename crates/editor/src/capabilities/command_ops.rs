@@ -102,6 +102,10 @@ impl CommandEditorOps for EditorCaps<'_> {
 		// TODO: Add CloseInfoPopups to OverlayRequest if needed
 	}
 
+	fn insert_snippet_body(&mut self, body: &str) -> bool {
+		self.ed.insert_snippet_body(body)
+	}
+
 	fn goto_file(&mut self, path: PathBuf, line: usize, column: usize) -> BoxFutureLocal<'_, Result<(), CommandError>> {
 		Box::pin(async move {
 			use crate::impls::Location;

@@ -113,6 +113,10 @@ pub trait CommandEditorOps {
 	fn open_info_popup(&mut self, content: &str, file_type: Option<&str>);
 	/// Closes all open info popups.
 	fn close_all_info_popups(&mut self);
+	/// Inserts a snippet body at the current cursor/selection.
+	///
+	/// Returns `true` when insertion succeeds.
+	fn insert_snippet_body(&mut self, body: &str) -> bool;
 
 	/// Opens a file and navigates to a specific line and column.
 	///

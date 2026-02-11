@@ -42,6 +42,9 @@ command setlocal description="Set an option for current buffer only" {
 command theme description="Set the editor theme" {
 	keys colorscheme
 }
+command snippet description="Insert a snippet at cursor/selection" {
+	keys snip
+}
 command registry_diag description="Show registry system diagnostics" {
 	keys registry.diag
 }
