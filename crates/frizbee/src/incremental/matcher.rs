@@ -1,5 +1,3 @@
-use std::cmp::Reverse;
-
 use super::bucket::IncrementalBucketTrait;
 use super::bucket_collection::IncrementalBucketCollection;
 use crate::{Config, Match};
@@ -8,15 +6,15 @@ pub struct IncrementalMatcher {
 	needle: Option<String>,
 	num_haystacks: usize,
 	buckets: Vec<Box<dyn IncrementalBucketTrait>>,
+	overflow_haystacks: Vec<(u32, String)>,
 }
 
 impl IncrementalMatcher {
 	pub fn new<S: AsRef<str>>(haystacks: &[S]) -> Self {
 		// group haystacks into buckets by length
 
-		// TODO: prefiltering? If yes, then haystacks can't be put into buckets yet
-
 		let mut buckets: Vec<Box<dyn IncrementalBucketTrait>> = vec![];
+		let mut overflow_haystacks = Vec::new();
 
 		let mut collection_size_4 = IncrementalBucketCollection::<'_, 4, 8>::new();
 		let mut collection_size_8 = IncrementalBucketCollection::<'_, 8, 8>::new();
@@ -57,8 +55,7 @@ impl IncrementalMatcher {
 				225..=256 => collection_size_256.add_haystack(haystack, i, &mut buckets),
 				257..=384 => collection_size_384.add_haystack(haystack, i, &mut buckets),
 				385..=512 => collection_size_512.add_haystack(haystack, i, &mut buckets),
-				// TODO: should return score = 0 or fallback to prefilter
-				_ => continue,
+				_ => overflow_haystacks.push((i, haystack.to_owned())),
 			};
 		}
 
@@ -84,16 +81,22 @@ impl IncrementalMatcher {
 			needle: None,
 			num_haystacks: haystacks.len(),
 			buckets,
+			overflow_haystacks,
 		}
 	}
 
 	pub fn match_needle<S: AsRef<str>>(&mut self, needle: S, config: &Config) -> Vec<Match> {
 		let needle = needle.as_ref();
 		if needle.is_empty() {
-			todo!();
+			self.needle = Some(String::new());
+			return (0..self.num_haystacks)
+				.map(|idx| Match {
+					index: idx as u32,
+					score: 0,
+					exact: false,
+				})
+				.collect();
 		}
-
-		let mut matches = Vec::with_capacity(self.num_haystacks);
 
 		let common_prefix_len = self
 			.needle
@@ -101,11 +104,14 @@ impl IncrementalMatcher {
 			.map(|prev_needle| needle.as_bytes().iter().zip(prev_needle.as_bytes()).take_while(|&(&a, &b)| a == b).count())
 			.unwrap_or(0);
 
+		let mut matches = Vec::with_capacity(self.num_haystacks);
+
 		self.process(common_prefix_len, needle, &mut matches, config);
+		self.process_overflow(needle, &mut matches, config);
 		self.needle = Some(needle.to_owned());
 
 		if config.sort {
-			matches.sort_unstable_by_key(|mtch| Reverse(mtch.score));
+			matches.sort_unstable();
 		}
 
 		matches
@@ -117,6 +123,21 @@ impl IncrementalMatcher {
 		for bucket in self.buckets.iter_mut() {
 			bucket.process(prefix_to_keep, needle, matches, config.max_typos, &config.scoring);
 		}
+	}
+
+	fn process_overflow(&self, needle: &str, matches: &mut Vec<Match>, config: &Config) {
+		if self.overflow_haystacks.is_empty() {
+			return;
+		}
+
+		let overflow_haystack_refs: Vec<&str> = self.overflow_haystacks.iter().map(|(_, haystack)| haystack.as_str()).collect();
+		let mut overflow_matches = crate::match_list(needle, &overflow_haystack_refs, config);
+
+		for mtch in &mut overflow_matches {
+			mtch.index = self.overflow_haystacks[mtch.index as usize].0;
+		}
+
+		matches.extend(overflow_matches);
 	}
 }
 
@@ -196,5 +217,29 @@ mod tests {
 	#[test]
 	fn test_score_prefix_beats_delimiter() {
 		assert!(get_score("swap", "swap(test)") > get_score("swap", "iter_swap(test)"),);
+	}
+
+	#[test]
+	fn test_empty_needle_returns_all_haystacks() {
+		let mut matcher = IncrementalMatcher::new(&["abc", "def", "ghi"]);
+		let matches = matcher.match_needle("", &Config::default());
+
+		assert_eq!(matches.len(), 3);
+		for (idx, mtch) in matches.iter().enumerate() {
+			assert_eq!(mtch.index, idx as u32);
+			assert_eq!(mtch.score, 0);
+			assert!(!mtch.exact);
+		}
+	}
+
+	#[test]
+	fn test_haystacks_larger_than_simd_limit_are_included() {
+		let long = "a".repeat(700);
+		let mut matcher = IncrementalMatcher::new(&[long]);
+		let matches = matcher.match_needle("a", &Config::default());
+
+		assert_eq!(matches.len(), 1);
+		assert_eq!(matches[0].index, 0);
+		assert!(matches[0].score > 0);
 	}
 }

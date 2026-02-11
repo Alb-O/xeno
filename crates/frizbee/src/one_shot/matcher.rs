@@ -82,8 +82,11 @@ pub(crate) fn match_list_impl<S1: AsRef<str>, S2: AsRef<str>, M: Appendable<Matc
 		.map(|h| h.as_ref())
 		.enumerate()
 		.filter(|(_, h)| h.len() >= min_haystack_len)
-		.filter(|(_, h)| config.max_typos.is_none() || prefilter.match_haystack_unordered_insensitive(h.as_bytes()))
-	{
+		.filter(|(_, h)| match config.max_typos {
+			None => true,
+			Some(0) => prefilter.match_haystack_unordered_insensitive(h.as_bytes()),
+			Some(_) => prefilter.match_haystack_unordered_typos_insensitive(h.as_bytes()),
+		}) {
 		let i = i as u32 + index_offset;
 
 		// fallback to greedy matching
@@ -207,5 +210,23 @@ mod tests {
 		for m in &exact_matches {
 			assert_eq!(haystack[m.index as usize], needle)
 		}
+	}
+
+	#[test]
+	fn test_prefilter_allows_typo_candidates() {
+		let needle = "solf";
+		let haystack = vec!["self::", "write"];
+
+		let matches = match_list(
+			needle,
+			&haystack,
+			&Config {
+				max_typos: Some(1),
+				..Config::default()
+			},
+		);
+
+		assert_eq!(matches.len(), 1);
+		assert_eq!(matches[0].index, 0);
 	}
 }

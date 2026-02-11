@@ -238,6 +238,23 @@ fn test_typos_single_character_needle() {
 	assert!(!match_haystack_unordered_typos("a", "", 0));
 }
 
+#[test]
+fn test_typos_scan_restarts_from_beginning() {
+	let haystack = format!("ad{}bc", "_".repeat(30));
+
+	assert!(match_haystack_unordered_typos("bacd", &haystack, 1));
+	assert!(match_haystack_unordered_typos_insensitive("BaCd", &haystack, 1));
+}
+
+#[test]
+fn test_empty_needle_matches_any_haystack() {
+	let prefilter = Prefilter::new("", 0);
+	assert!(prefilter.match_haystack(b""));
+	assert!(prefilter.match_haystack(b"abc"));
+	assert!(prefilter.match_haystack_unordered_typos(b"abc"));
+	assert!(prefilter.match_haystack_unordered_typos_insensitive(b"abc"));
+}
+
 fn normalize_haystack(haystack: &str) -> String {
 	if haystack.len() < 8 {
 		"_".repeat(8 - haystack.len()) + haystack

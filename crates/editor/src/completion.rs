@@ -175,7 +175,7 @@ impl CompletionState {
 	}
 }
 
-/// Shared frizbee matcher configuration for editor completion paths.
+/// Shared frizbee matcher baseline for editor completion paths.
 pub(crate) fn frizbee_config() -> &'static frizbee::Config {
 	static CONFIG: OnceLock<frizbee::Config> = OnceLock::new();
 	CONFIG.get_or_init(|| frizbee::Config {
@@ -189,6 +189,22 @@ pub(crate) fn frizbee_config() -> &'static frizbee::Config {
 	})
 }
 
+/// Chooses typo tolerance based on query length to reduce noise on short queries.
+fn max_typos_for_query(query: &str) -> u16 {
+	match query.chars().count() {
+		0..=3 => 0,
+		4..=9 => 1,
+		_ => 2,
+	}
+}
+
+/// Builds a query-aware frizbee config for completion matching.
+pub(crate) fn frizbee_config_for_query(query: &str) -> frizbee::Config {
+	let mut config = frizbee_config().clone();
+	config.max_typos = Some(max_typos_for_query(query));
+	config
+}
+
 /// Matches a query against a haystack using frizbee.
 ///
 /// Returns score/exact/match-indices when matched. Empty query always matches.
@@ -196,7 +212,8 @@ pub(crate) fn frizbee_match(query: &str, haystack: &str) -> Option<(u16, bool, V
 	if query.is_empty() {
 		return Some((0, false, Vec::new()));
 	}
-	frizbee::match_indices(query, haystack, frizbee_config()).map(|m| (m.score, m.exact, m.indices))
+	let config = frizbee_config_for_query(query);
+	frizbee::match_indices(query, haystack, &config).map(|m| (m.score, m.exact, m.indices))
 }
 
 /// In-memory command usage store for command palette ranking.
@@ -308,5 +325,31 @@ impl CompletionSource for CommandSource {
 
 		// Command completions replace from position 0 (entire input)
 		CompletionResult::new(0, items)
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::{frizbee_config_for_query, frizbee_match, max_typos_for_query};
+
+	#[test]
+	fn matching_allows_single_typo_by_default() {
+		assert!(frizbee_match("rtgistry", "registry_diag").is_some());
+	}
+
+	#[test]
+	fn short_queries_do_not_allow_typos() {
+		assert!(frizbee_match("ab", "a").is_none());
+	}
+
+	#[test]
+	fn typo_budget_scales_with_query_length() {
+		assert_eq!(max_typos_for_query("abc"), 0);
+		assert_eq!(max_typos_for_query("abcd"), 1);
+		assert_eq!(max_typos_for_query("abcdefghij"), 2);
+
+		assert_eq!(frizbee_config_for_query("ab").max_typos, Some(0));
+		assert_eq!(frizbee_config_for_query("rtgistry").max_typos, Some(1));
+		assert_eq!(frizbee_config_for_query("very_long_query").max_typos, Some(2));
 	}
 }

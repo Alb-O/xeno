@@ -54,18 +54,30 @@ fn match_list_parallel_fixed<S1: AsRef<str>, S2: AsRef<str> + Sync + Send>(needl
 
 	let items_per_thread = haystacks.len().div_ceil(thread_count);
 	std::thread::scope(|s| {
+		let mut tasks = Vec::new();
+
 		for (thread_idx, haystacks) in haystacks.chunks(items_per_thread).enumerate() {
 			debug_assert!(thread_idx < thread_count, "thread index out of bounds");
 
 			let (matches_slice, remaining_slice) = matches_remaining_slice.split_at_mut(haystacks.len());
 			matches_remaining_slice = remaining_slice;
+			let expected_writes = haystacks.len();
 
 			let needle = needle.as_ref().to_owned();
-			let mut thread_slice = ThreadSlice::new(matches_slice);
 			let opts = config.clone();
-			s.spawn(move || match_list_impl(needle, haystacks, (thread_idx * items_per_thread) as u32, &opts, &mut thread_slice));
+			tasks.push((
+				expected_writes,
+				s.spawn(move || {
+					let mut thread_slice = ThreadSlice::new(matches_slice);
+					match_list_impl(needle, haystacks, (thread_idx * items_per_thread) as u32, &opts, &mut thread_slice);
+					thread_slice.pos
+				}),
+			));
+		}
 
-			// TODO: assert that thread_slice.pos == haystaks.len()
+		for (expected_writes, task) in tasks {
+			let written = task.join().expect("parallel match worker panicked");
+			assert_eq!(written, expected_writes, "parallel fixed matcher wrote an unexpected number of matches");
 		}
 	});
 

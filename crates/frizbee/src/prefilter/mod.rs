@@ -14,6 +14,7 @@
 pub mod bitmask;
 pub mod scalar;
 pub mod simd;
+mod typos;
 #[cfg(target_arch = "x86_64")]
 pub mod x86_64;
 
@@ -86,6 +87,10 @@ impl Prefilter {
 
 	#[inline(always)]
 	fn match_haystack_runtime_detection<const ORDERED: bool, const CASE_SENSITIVE: bool, const TYPOS: bool>(&self, haystack: &[u8]) -> bool {
+		if self.needle.is_empty() {
+			return true;
+		}
+
 		match haystack.len() {
 			0 => return true,
 			1..8 => {

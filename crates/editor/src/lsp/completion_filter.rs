@@ -42,14 +42,14 @@ pub fn filter_items(raw_items: &[LspCompletionItem], query: &str) -> Vec<Filtere
 		.map(|item| item.filter_text.as_deref().unwrap_or(item.label.as_str()))
 		.collect();
 
-	let config = crate::completion::frizbee_config();
-	let matches = frizbee::match_list(query, &filter_texts, config);
+	let config = crate::completion::frizbee_config_for_query(query);
+	let matches = frizbee::match_list(query, &filter_texts, &config);
 
 	matches
 		.into_iter()
 		.map(|m| {
 			let idx = m.index as usize;
-			let match_indices = frizbee::match_indices(query, &raw_items[idx].label, config).map(|mi| mi.indices);
+			let match_indices = frizbee::match_indices(query, &raw_items[idx].label, &config).map(|mi| mi.indices);
 			FilteredItem {
 				index: idx,
 				score: m.score,
@@ -151,5 +151,30 @@ mod tests {
 		let indices = tracing_indices.unwrap();
 		assert!(indices.contains(&0)); // 't'
 		assert!(indices.contains(&1)); // 'r'
+	}
+
+	#[test]
+	fn allows_single_typo_by_default() {
+		let items = vec![make_item("registry_diag"), make_item("write")];
+		let filtered = filter_items(&items, "rtgistry");
+		assert_eq!(filtered.len(), 1);
+		assert_eq!(items[filtered[0].index].label, "registry_diag");
+	}
+
+	#[test]
+	fn short_queries_do_not_allow_typos() {
+		let items = vec![make_item("a"), make_item("ab")];
+		let filtered = filter_items(&items, "ab");
+		let labels: Vec<_> = filtered.iter().map(|f| items[f.index].label.as_str()).collect();
+		assert!(labels.contains(&"ab"));
+		assert!(!labels.contains(&"a"));
+	}
+
+	#[test]
+	fn lsp_symbol_with_single_typo_still_matches() {
+		let items = vec![make_item("self::"), make_item("super::")];
+		let filtered = filter_items(&items, "solf");
+		assert_eq!(filtered.len(), 1);
+		assert_eq!(items[filtered[0].index].label, "self::");
 	}
 }
