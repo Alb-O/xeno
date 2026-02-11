@@ -5,6 +5,7 @@ pub mod cache;
 mod completion;
 mod context;
 mod document;
+mod snippet_choice;
 /// Status line rendering.
 mod status;
 mod text_width;

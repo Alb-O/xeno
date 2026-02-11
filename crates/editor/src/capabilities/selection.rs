@@ -16,6 +16,7 @@ impl SelectionAccess for EditorCaps<'_> {
 	fn set_selection(&mut self, sel: Selection) {
 		let view = self.ed.focused_view();
 		self.ed.buffer_mut().set_selection(sel);
+		self.ed.snippet_session_on_cursor_moved(view);
 		self.ed.state.effects.push_layer_event(LayerEvent::CursorMoved { view });
 	}
 }

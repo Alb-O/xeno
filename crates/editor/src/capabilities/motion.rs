@@ -8,6 +8,7 @@ impl MotionAccess for EditorCaps<'_> {
 	fn move_visual_vertical(&mut self, direction: Direction, count: usize, extend: bool) {
 		let view = self.ed.focused_view();
 		self.ed.move_visual_vertical(direction, count, extend);
+		self.ed.snippet_session_on_cursor_moved(view);
 		self.ed.state.effects.push_layer_event(LayerEvent::CursorMoved { view });
 	}
 }

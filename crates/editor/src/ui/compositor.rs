@@ -73,6 +73,9 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame) {
 	if layers::completion::visible(ed) {
 		layers::completion::push(&mut builder, doc_area);
 	}
+	if layers::snippet_choice::visible(ed) {
+		layers::snippet_choice::push(&mut builder, doc_area);
+	}
 	builder.push(SurfaceKind::OverlayLayers, 50, area, SurfaceOp::OverlayLayers, false);
 	builder.push(SurfaceKind::StatusLine, 60, status_area, SurfaceOp::StatusLine, false);
 	builder.push(SurfaceKind::Notifications, 70, doc_area, SurfaceOp::Notifications, false);
@@ -96,6 +99,7 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame) {
 				}
 			}
 			SurfaceOp::CompletionPopup => layers::completion::render(ed, frame),
+			SurfaceOp::SnippetChoicePopup => layers::snippet_choice::render(ed, frame),
 			SurfaceOp::OverlayLayers => ed.state.overlay_system.layers.render(ed, frame),
 			SurfaceOp::StatusLine => {
 				let status_bg = Block::default().style(Style::default().bg(ctx.theme.colors.ui.bg));

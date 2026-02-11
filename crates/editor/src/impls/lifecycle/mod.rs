@@ -170,7 +170,9 @@ impl Editor {
 			return;
 		}
 
-		self.paste_text(&content);
+		if !self.snippet_replace_mode_insert(&content) {
+			self.paste_text(&content);
+		}
 		self.flush_effects();
 	}
 

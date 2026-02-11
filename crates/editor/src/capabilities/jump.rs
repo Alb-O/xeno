@@ -11,6 +11,7 @@ impl JumpAccess for EditorCaps<'_> {
 				self.ed.focus_buffer(buffer_id);
 			}
 			self.ed.buffer_mut().set_cursor(cursor);
+			self.ed.snippet_session_on_cursor_moved(buffer_id);
 			self.ed
 				.state
 				.effects
@@ -33,6 +34,7 @@ impl JumpAccess for EditorCaps<'_> {
 				self.ed.focus_buffer(buffer_id);
 			}
 			self.ed.buffer_mut().set_cursor(cursor);
+			self.ed.snippet_session_on_cursor_moved(buffer_id);
 			self.ed
 				.state
 				.effects

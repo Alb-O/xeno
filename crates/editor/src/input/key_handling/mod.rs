@@ -71,13 +71,13 @@ impl Editor {
 			return false;
 		}
 
-		#[cfg(feature = "lsp")]
-		if self.is_completion_trigger_key(&key) {
-			self.trigger_lsp_completion(xeno_lsp::CompletionTrigger::Manual, None);
+		if self.handle_snippet_session_key(&key) {
 			return false;
 		}
 
-		if self.handle_snippet_session_key(&key) {
+		#[cfg(feature = "lsp")]
+		if self.is_completion_trigger_key(&key) {
+			self.trigger_lsp_completion(xeno_lsp::CompletionTrigger::Manual, None);
 			return false;
 		}
 		let key_converted: Key = key.into();
@@ -126,7 +126,7 @@ impl Editor {
 						return false;
 					}
 					let text = c.to_string();
-					if !self.snippet_insert_text(&text) {
+					if !self.snippet_replace_mode_insert(&text) {
 						self.insert_text(&text);
 					}
 					#[cfg(feature = "lsp")]
