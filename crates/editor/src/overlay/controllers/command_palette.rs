@@ -577,8 +577,8 @@ impl CommandPaletteOverlay {
 
 		let (mut new_input, mut new_cursor) = Self::replace_char_range(&input, token.start, replace_end, &replacement);
 
-		if selected.kind == CompletionKind::File && !is_dir_completion && quoted_arg {
-			if let Some(close_quote_idx) = token.close_quote_idx {
+		if selected.kind == CompletionKind::File && !is_dir_completion && quoted_arg
+			&& let Some(close_quote_idx) = token.close_quote_idx {
 				let close_quote_new = (close_quote_idx as isize + delta).max(0) as usize;
 				let mut after_quote = close_quote_new.saturating_add(1);
 				if Self::char_at(&new_input, after_quote).is_none_or(|ch| !ch.is_whitespace()) {
@@ -587,7 +587,6 @@ impl CommandPaletteOverlay {
 				after_quote = after_quote.saturating_add(1);
 				new_cursor = after_quote.min(Self::char_count(&new_input));
 			}
-		}
 
 		ctx.reset_buffer_content(session.input, &new_input);
 		if let Some(buffer) = ctx.buffer_mut(session.input) {

@@ -188,8 +188,10 @@ mod tests {
 
 	#[test]
 	fn uses_display_to_raw_mapping_when_present() {
-		let mut state = CompletionState::default();
-		state.lsp_display_to_raw = vec![2, 0, 1];
+		let state = CompletionState {
+			lsp_display_to_raw: vec![2, 0, 1],
+			..Default::default()
+		};
 
 		assert_eq!(lsp_completion_raw_index(Some(&state), 0), 2);
 		assert_eq!(lsp_completion_raw_index(Some(&state), 1), 0);

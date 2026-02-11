@@ -56,10 +56,6 @@ impl LspSyncManager {
 		}
 	}
 
-	pub fn on_doc_open(&mut self, doc_id: DocumentId, config: LspDocumentConfig, version: u64) {
-		self.reset_tracked(doc_id, config, version);
-	}
-
 	pub fn ensure_tracked(&mut self, doc_id: DocumentId, config: LspDocumentConfig, version: u64) {
 		if let Some(state) = self.docs.get_mut(&doc_id) {
 			state.config = config;
@@ -114,25 +110,6 @@ impl LspSyncManager {
 			debug!(doc_id = doc_id.0, "lsp.sync_manager.escalate_full");
 			state.escalate_full();
 		}
-	}
-
-	/// Takes pending changes for immediate sync, bypassing debounce.
-	///
-	/// Returns `(changes, needs_full, bytes)` or `None` if nothing pending.
-	pub fn take_immediate(&mut self, doc_id: DocumentId) -> Option<(Vec<LspDocumentChange>, bool, usize)> {
-		let state = self.docs.get_mut(&doc_id)?;
-		if state.pending_changes.is_empty() && !state.needs_full {
-			return None;
-		}
-
-		let changes = std::mem::take(&mut state.pending_changes);
-		let bytes = state.pending_bytes;
-		state.pending_bytes = 0;
-		let needs_full = state.needs_full;
-		state.needs_full = false;
-		state.phase = SyncPhase::Idle;
-
-		Some((changes, needs_full, bytes))
 	}
 
 	/// Flushes one tracked document immediately, bypassing debounce.

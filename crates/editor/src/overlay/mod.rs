@@ -433,9 +433,7 @@ impl OverlayManager {
 		}
 
 		let spec = controller.ui_spec(ed);
-		let desired_height = if controller.name() == "CommandPalette" {
-			1
-		} else if spec.windows.is_empty() {
+		let desired_height = if controller.name() == "CommandPalette" || spec.windows.is_empty() {
 			1
 		} else {
 			10

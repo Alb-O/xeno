@@ -54,6 +54,7 @@ impl SyntaxMetrics {
 		Self::default()
 	}
 
+	#[allow(clippy::too_many_arguments, reason = "metrics recording has a flat parameter list")]
 	pub fn record_task_result(
 		&mut self,
 		lang_id: LanguageId,

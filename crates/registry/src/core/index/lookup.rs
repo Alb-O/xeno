@@ -227,6 +227,7 @@ fn resolve_stage_c<Id>(
 }
 
 /// Incremental update for append operations.
+#[allow(clippy::too_many_arguments, reason = "lookup pipeline has many orthogonal parameters")]
 pub(crate) fn update_stage_maps_append<T, Id>(
 	registry_label: &'static str,
 	table: &[Arc<T>],
@@ -455,6 +456,7 @@ fn entry_has_secondary_key<T: RegistryEntry>(entry: &Arc<T>, key_pool: &[Symbol]
 	key_pool[start..start + len].contains(&key)
 }
 
+#[allow(clippy::too_many_arguments, reason = "lookup pipeline has many orthogonal parameters")]
 fn recalculate_stage_c_winner<T, Id>(
 	registry_label: &'static str,
 	key: Symbol,

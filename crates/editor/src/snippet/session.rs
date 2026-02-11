@@ -297,7 +297,7 @@ impl Editor {
 				.iter()
 				.map(|range| Change {
 					start: if active_mode == ActiveMode::Insert { range.end } else { range.start },
-					end: if active_mode == ActiveMode::Insert { range.end } else { range.end },
+					end: range.end,
 					replacement: Some(text.to_string()),
 				})
 				.collect();
@@ -318,8 +318,8 @@ impl Editor {
 			EditOrigin::Internal("insert"),
 		);
 
-		if applied && active_mode == ActiveMode::Replace {
-			if let Some(session) = self
+		if applied && active_mode == ActiveMode::Replace
+			&& let Some(session) = self
 				.overlays_mut()
 				.get_or_default::<SnippetSessionState>()
 				.session
@@ -328,7 +328,6 @@ impl Editor {
 			{
 				session.active_mode = ActiveMode::Insert;
 			}
-		}
 
 		applied
 	}
@@ -379,8 +378,8 @@ impl Editor {
 		};
 
 		if changes.is_empty() {
-			if active_mode == ActiveMode::Replace {
-				if let Some(session) = self
+			if active_mode == ActiveMode::Replace
+				&& let Some(session) = self
 					.overlays_mut()
 					.get_or_default::<SnippetSessionState>()
 					.session
@@ -389,7 +388,6 @@ impl Editor {
 				{
 					session.active_mode = ActiveMode::Insert;
 				}
-			}
 			return true;
 		}
 
@@ -412,8 +410,8 @@ impl Editor {
 			EditOrigin::Internal("delete"),
 		);
 
-		if applied && active_mode == ActiveMode::Replace {
-			if let Some(session) = self
+		if applied && active_mode == ActiveMode::Replace
+			&& let Some(session) = self
 				.overlays_mut()
 				.get_or_default::<SnippetSessionState>()
 				.session
@@ -422,7 +420,6 @@ impl Editor {
 			{
 				session.active_mode = ActiveMode::Insert;
 			}
-		}
 
 		true
 	}
@@ -557,9 +554,12 @@ mod tests {
 	#[test]
 	fn order_places_zero_last() {
 		let mut tabstops = BTreeMap::new();
-		tabstops.insert(0, vec![9..9]);
-		tabstops.insert(3, vec![7..8]);
-		tabstops.insert(1, vec![3..4]);
+		#[allow(clippy::single_range_in_vec_init, reason = "these are single-element Vecs, not range expansions")]
+		{
+			tabstops.insert(0, vec![9..9]);
+			tabstops.insert(3, vec![7..8]);
+			tabstops.insert(1, vec![3..4]);
+		}
 
 		assert_eq!(tabstop_order(&tabstops), vec![1, 3, 0]);
 	}

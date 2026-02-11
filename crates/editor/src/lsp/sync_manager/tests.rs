@@ -17,7 +17,7 @@ fn test_doc_open_close() {
 	let mut mgr = LspSyncManager::new();
 	let doc_id = DocumentId(1);
 
-	mgr.on_doc_open(doc_id, test_config(), 1);
+	mgr.reset_tracked(doc_id, test_config(), 1);
 	assert!(mgr.is_tracked(&doc_id));
 	assert_eq!(mgr.doc_count(), 1);
 
@@ -40,7 +40,7 @@ fn test_change(text: &str) -> LspDocumentChange {
 fn test_record_changes() {
 	let mut mgr = LspSyncManager::new();
 	let doc_id = DocumentId(1);
-	mgr.on_doc_open(doc_id, test_config(), 1);
+	mgr.reset_tracked(doc_id, test_config(), 1);
 
 	mgr.on_doc_edit(doc_id, 1, 2, vec![test_change("hello")], 5);
 
@@ -55,7 +55,7 @@ fn test_record_changes() {
 fn test_threshold_escalation() {
 	let mut mgr = LspSyncManager::new();
 	let doc_id = DocumentId(1);
-	mgr.on_doc_open(doc_id, test_config(), 1);
+	mgr.reset_tracked(doc_id, test_config(), 1);
 
 	for i in 0..LSP_MAX_INCREMENTAL_CHANGES + 1 {
 		let prev = i as u64 + 1;

@@ -7,25 +7,6 @@ use crate::buffer::Buffer;
 
 #[cfg(feature = "lsp")]
 impl LspSystem {
-	pub async fn on_buffer_open(&self, buffer: &Buffer) -> xeno_lsp::Result<Option<xeno_lsp::ClientHandle>> {
-		let Some(path) = buffer.path() else {
-			return Ok(None);
-		};
-		let Some(language) = &buffer.file_type() else {
-			return Ok(None);
-		};
-
-		if self.registry().get_config(language).is_none() {
-			return Ok(None);
-		}
-
-		let abs_path = self.canonicalize_path(&path);
-
-		let content = buffer.with_doc(|doc| doc.content().clone());
-		let client = self.sync().open_document(&abs_path, language, &content).await?;
-		Ok(Some(client))
-	}
-
 	pub async fn on_buffer_will_save(&self, buffer: &Buffer) -> xeno_lsp::Result<()> {
 		let Some(path) = buffer.path().map(|p| p.to_path_buf()) else {
 			return Ok(());
