@@ -40,8 +40,7 @@ impl UtilityPanel {
 		let key_strs: Vec<String> = pending_keys.iter().map(|k| k.to_string()).collect();
 		let root = key_strs.first().cloned().unwrap_or_default();
 		let prefix_key = key_strs.join(" ");
-		let root_desc = xeno_registry::actions::find_prefix(binding_mode, &root)
-			.map(|prefix| prefix.description.to_string());
+		let root_desc = xeno_registry::actions::find_prefix(binding_mode, &root).map(|prefix| prefix.description.to_string());
 
 		let children: Vec<KeyTreeNode<'static>> = continuations
 			.iter()
@@ -49,13 +48,8 @@ impl UtilityPanel {
 				let key = cont.key.to_string();
 				match cont.kind {
 					ContinuationKind::Branch => {
-						let sub_prefix = if prefix_key.is_empty() {
-							key.clone()
-						} else {
-							format!("{prefix_key} {key}")
-						};
-						let desc = xeno_registry::actions::find_prefix(binding_mode, &sub_prefix)
-							.map_or(String::new(), |p| p.description.to_string());
+						let sub_prefix = if prefix_key.is_empty() { key.clone() } else { format!("{prefix_key} {key}") };
+						let desc = xeno_registry::actions::find_prefix(binding_mode, &sub_prefix).map_or(String::new(), |p| p.description.to_string());
 						KeyTreeNode::with_suffix(key, desc, "...")
 					}
 					ContinuationKind::Leaf => {
@@ -93,39 +87,22 @@ impl Panel for UtilityPanel {
 	}
 
 	fn on_register(&mut self, ctx: PanelInitContext<'_>) {
-		ctx.keybindings.register_global(
-			UiKeyChord::ctrl_char('u'),
-			100,
-			vec![UiRequest::TogglePanel(UTILITY_PANEL_ID.to_string())],
-		);
+		ctx.keybindings
+			.register_global(UiKeyChord::ctrl_char('u'), 100, vec![UiRequest::TogglePanel(UTILITY_PANEL_ID.to_string())]);
 	}
 
 	fn handle_event(&mut self, event: UiEvent, _editor: &mut Editor, focused: bool) -> EventResult {
 		match event {
-			UiEvent::Key(key) if focused && key.code == KeyCode::Escape => EventResult::consumed()
-				.with_request(UiRequest::ClosePanel(UTILITY_PANEL_ID.to_string())),
+			UiEvent::Key(key) if focused && key.code == KeyCode::Escape => {
+				EventResult::consumed().with_request(UiRequest::ClosePanel(UTILITY_PANEL_ID.to_string()))
+			}
 			_ => EventResult::not_consumed(),
 		}
 	}
 
-	fn render(
-		&mut self,
-		frame: &mut Frame<'_>,
-		area: Rect,
-		_editor: &mut Editor,
-		focused: bool,
-		theme: &Theme,
-	) -> Option<crate::ui::panel::CursorRequest> {
-		let bg = if focused {
-			theme.colors.ui.selection_bg
-		} else {
-			theme.colors.popup.bg
-		};
-		let fg = if focused {
-			theme.colors.ui.selection_fg
-		} else {
-			theme.colors.popup.fg
-		};
+	fn render(&mut self, frame: &mut Frame<'_>, area: Rect, _editor: &mut Editor, focused: bool, theme: &Theme) -> Option<crate::ui::panel::CursorRequest> {
+		let bg = if focused { theme.colors.ui.selection_bg } else { theme.colors.popup.bg };
+		let fg = if focused { theme.colors.ui.selection_fg } else { theme.colors.popup.fg };
 
 		let block = Block::default().style(Style::default().bg(bg).fg(fg));
 		let inner = block.inner(area);
@@ -137,11 +114,7 @@ impl Panel for UtilityPanel {
 				crate::ui::layers::modal_overlays::render(_editor, frame, area, &ctx);
 			} else if let Some((root, root_desc, children)) = Self::whichkey_data(_editor) {
 				let mut tree = KeyTree::new(root, children)
-					.key_style(
-						Style::default()
-							.fg(theme.colors.semantic.accent)
-							.add_modifier(Modifier::BOLD),
-					)
+					.key_style(Style::default().fg(theme.colors.semantic.accent).add_modifier(Modifier::BOLD))
 					.desc_style(Style::default().fg(fg).bg(bg))
 					.suffix_style(Style::default().fg(theme.colors.ui.gutter_fg).bg(bg))
 					.line_style(Style::default().fg(theme.colors.ui.gutter_fg).bg(bg));
@@ -151,10 +124,7 @@ impl Panel for UtilityPanel {
 				frame.render_widget(tree, inner);
 			} else {
 				let hint = "Utility panel: Ctrl-U toggle, Esc close";
-				frame.render_widget(
-					Paragraph::new(hint).style(Style::default().fg(fg).bg(bg)),
-					inner,
-				);
+				frame.render_widget(Paragraph::new(hint).style(Style::default().fg(fg).bg(bg)), inner);
 			}
 		}
 

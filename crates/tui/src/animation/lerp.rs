@@ -85,11 +85,7 @@ impl Animatable for i32 {
 impl Animatable for (u8, u8, u8) {
 	#[inline]
 	fn lerp(&self, target: &Self, t: f32) -> Self {
-		(
-			self.0.lerp(&target.0, t),
-			self.1.lerp(&target.1, t),
-			self.2.lerp(&target.2, t),
-		)
+		(self.0.lerp(&target.0, t), self.1.lerp(&target.1, t), self.2.lerp(&target.2, t))
 	}
 }
 

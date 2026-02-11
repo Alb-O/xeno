@@ -38,11 +38,7 @@ impl FileLocation {
 	/// Skips the first 2 chars when searching for colons to handle Windows
 	/// drive letters (e.g., `C:\foo\bar.txt:42`).
 	fn parse_colon_format(s: &str) -> Option<Self> {
-		let search_start = if s.len() > 2 && s.as_bytes().get(1) == Some(&b':') {
-			2
-		} else {
-			0
-		};
+		let search_start = if s.len() > 2 && s.as_bytes().get(1) == Some(&b':') { 2 } else { 0 };
 
 		let suffix = &s[search_start..];
 		let last_colon = suffix.rfind(':')?;

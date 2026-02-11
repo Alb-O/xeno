@@ -29,10 +29,7 @@ pub trait BuildCtxExt: BuildCtx {
 
 	/// Interns a slice of strings.
 	fn intern_slice(&mut self, ss: &[&str]) -> Arc<[Symbol]> {
-		ss.iter()
-			.map(|&s| self.intern(s))
-			.collect::<Vec<_>>()
-			.into()
+		ss.iter().map(|&s| self.intern(s)).collect::<Vec<_>>().into()
 	}
 
 	/// Interns an iterator of strings.
@@ -41,10 +38,7 @@ pub trait BuildCtxExt: BuildCtx {
 		I: IntoIterator,
 		I::Item: AsRef<str>,
 	{
-		it.into_iter()
-			.map(|s| self.intern(s.as_ref()))
-			.collect::<Vec<_>>()
-			.into()
+		it.into_iter().map(|s| self.intern(s.as_ref())).collect::<Vec<_>>().into()
 	}
 }
 
@@ -56,9 +50,7 @@ pub(crate) struct ProdBuildCtx<'a> {
 
 impl BuildCtx for ProdBuildCtx<'_> {
 	fn intern(&mut self, s: &str) -> Symbol {
-		self.interner
-			.get(s)
-			.expect("string not pre-interned in ProdBuildCtx")
+		self.interner.get(s).expect("string not pre-interned in ProdBuildCtx")
 	}
 
 	fn get(&self, s: &str) -> Option<Symbol> {
@@ -76,9 +68,7 @@ pub(crate) struct RuntimeBuildCtx<'a> {
 
 impl BuildCtx for RuntimeBuildCtx<'_> {
 	fn intern(&mut self, s: &str) -> Symbol {
-		self.interner
-			.get(s)
-			.expect("missing interned string in runtime build")
+		self.interner.get(s).expect("missing interned string in runtime build")
 	}
 
 	fn get(&self, s: &str) -> Option<Symbol> {
@@ -102,10 +92,7 @@ pub(crate) struct DebugBuildCtx<'a> {
 impl BuildCtx for DebugBuildCtx<'_> {
 	fn intern(&mut self, s: &str) -> Symbol {
 		if !self.collected.contains(s) {
-			panic!(
-				"BuildEntry::build() interned string not in collect_strings(): '{}'",
-				s
-			);
+			panic!("BuildEntry::build() interned string not in collect_strings(): '{}'", s);
 		}
 		self.used.insert(s.to_string());
 		self.inner.intern(s)
@@ -113,10 +100,7 @@ impl BuildCtx for DebugBuildCtx<'_> {
 
 	fn get(&self, s: &str) -> Option<Symbol> {
 		if !self.collected.contains(s) {
-			panic!(
-				"BuildEntry::build() looked up string not in collect_strings(): '{}'",
-				s
-			);
+			panic!("BuildEntry::build() looked up string not in collect_strings(): '{}'", s);
 		}
 		// used.insert would need &mut self
 		self.inner.get(s)
@@ -262,10 +246,7 @@ where
 
 	pub fn push(&mut self, def: Arc<In>) {
 		let ordinal = super::u32_index(self.defs.len(), self.label);
-		self.defs.push(IngestEntry {
-			ordinal,
-			inner: def,
-		});
+		self.defs.push(IngestEntry { ordinal, inner: def });
 	}
 
 	pub fn push_static(&mut self, def: &'static In)
@@ -306,30 +287,21 @@ where
 		// 4. Build canonical ID lookup (Stage A)
 		let mut by_id = rustc_hash::FxHashMap::default();
 		for (i, entry) in table.iter().enumerate() {
-			by_id.insert(
-				entry.meta().id,
-				Id::from_u32(super::u32_index(i, self.label)),
-			);
+			by_id.insert(entry.meta().id, Id::from_u32(super::u32_index(i, self.label)));
 		}
 
 		// 5. Build Stage B and C maps with collision tracking
-		let (by_name, by_key, key_collisions) =
-			build_stage_maps(self.label, &table, &parties, &key_pool, &by_id);
+		let (by_name, by_key, key_collisions) = build_stage_maps(self.label, &table, &parties, &key_pool, &by_id);
 
 		// 6. Finalize collisions
 		let mut all_collisions = Vec::with_capacity(id_collisions.len() + key_collisions.len());
 
 		// Rehydrate ID collisions (now that we have an interner)
 		for rec in id_collisions {
-			let winner_party = parties
-				.iter()
-				.find(|p| p.ordinal == rec.winner_ordinal)
-				.expect("winner party must exist");
+			let winner_party = parties.iter().find(|p| p.ordinal == rec.winner_ordinal).expect("winner party must exist");
 
 			// The loser has the same ID string as the winner, so it must be interned.
-			let loser_id_sym = interner
-				.get(&rec.id_str)
-				.expect("winner id string interned");
+			let loser_id_sym = interner.get(&rec.id_str).expect("winner id string interned");
 
 			let loser_party = Party {
 				def_id: loser_id_sym,
@@ -364,22 +336,13 @@ where
 	}
 }
 
-pub(crate) fn resolve_id_duplicates<In, Out>(
-	mut defs: Vec<IngestEntry<In>>,
-	policy: DuplicatePolicy,
-) -> (Vec<IngestEntry<In>>, Vec<IdCollisionRecord>)
+pub(crate) fn resolve_id_duplicates<In, Out>(mut defs: Vec<IngestEntry<In>>, policy: DuplicatePolicy) -> (Vec<IngestEntry<In>>, Vec<IdCollisionRecord>)
 where
 	In: BuildEntry<Out>,
 	Out: RegistryEntry,
 {
 	// Sort by canonical ID string for determinism, using ordinal as tie-break
-	defs.sort_by(|a, b| {
-		a.inner
-			.meta_ref()
-			.id
-			.cmp(b.inner.meta_ref().id)
-			.then_with(|| a.ordinal.cmp(&b.ordinal))
-	});
+	defs.sort_by(|a, b| a.inner.meta_ref().id.cmp(b.inner.meta_ref().id).then_with(|| a.ordinal.cmp(&b.ordinal)));
 
 	let mut winners = Vec::with_capacity(defs.len());
 	let mut collisions = Vec::new();
@@ -390,8 +353,7 @@ where
 			if def.inner.meta_ref().id == current_group[0].inner.meta_ref().id {
 				current_group.push(def);
 			} else {
-				let (winner, group_collisions) =
-					resolve_winners_in_group::<In, Out>(&current_group, policy);
+				let (winner, group_collisions) = resolve_winners_in_group::<In, Out>(&current_group, policy);
 				winners.push(IngestEntry {
 					ordinal: winner.ordinal,
 					inner: winner.inner.clone(),
@@ -401,8 +363,7 @@ where
 				current_group.push(def);
 			}
 		}
-		let (winner, group_collisions) =
-			resolve_winners_in_group::<In, Out>(&current_group, policy);
+		let (winner, group_collisions) = resolve_winners_in_group::<In, Out>(&current_group, policy);
 		winners.push(IngestEntry {
 			ordinal: winner.ordinal,
 			inner: winner.inner.clone(),
@@ -434,10 +395,7 @@ where
 	interner_builder.freeze()
 }
 
-fn build_table<In, Out>(
-	winners: &[IngestEntry<In>],
-	interner: &FrozenInterner,
-) -> (Vec<Arc<Out>>, Vec<Symbol>, Vec<Party>)
+fn build_table<In, Out>(winners: &[IngestEntry<In>], interner: &FrozenInterner) -> (Vec<Arc<Out>>, Vec<Symbol>, Vec<Party>)
 where
 	In: BuildEntry<Out>,
 	Out: RegistryEntry,
@@ -490,10 +448,7 @@ pub(crate) struct IdCollisionRecord {
 	pub(crate) loser_priority: i16,
 }
 
-fn resolve_winners_in_group<'a, In, Out>(
-	group: &[&'a IngestEntry<In>],
-	policy: DuplicatePolicy,
-) -> (&'a IngestEntry<In>, Vec<IdCollisionRecord>)
+fn resolve_winners_in_group<'a, In, Out>(group: &[&'a IngestEntry<In>], policy: DuplicatePolicy) -> (&'a IngestEntry<In>, Vec<IdCollisionRecord>)
 where
 	In: BuildEntry<Out>,
 	Out: RegistryEntry,

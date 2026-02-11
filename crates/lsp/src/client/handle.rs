@@ -57,12 +57,7 @@ impl std::fmt::Debug for ClientHandle {
 
 impl ClientHandle {
 	/// Create a new client handle.
-	pub fn new(
-		id: LanguageServerId,
-		name: String,
-		root_path: PathBuf,
-		transport: Arc<dyn LspTransport>,
-	) -> Self {
+	pub fn new(id: LanguageServerId, name: String, root_path: PathBuf, transport: Arc<dyn LspTransport>) -> Self {
 		let root_uri = crate::uri_from_path(&root_path);
 		Self {
 			id,
@@ -107,10 +102,7 @@ impl ClientHandle {
 	/// Uses `Release` ordering to ensure all prior writes (capabilities,
 	/// notify, etc.) are visible to any thread that observes `is_ready() == true`.
 	pub(crate) fn set_ready(&self, ready: bool) {
-		debug_assert!(
-			!ready || self.is_initialized(),
-			"set_ready(true) called before capabilities were set"
-		);
+		debug_assert!(!ready || self.is_initialized(), "set_ready(true) called before capabilities were set");
 		self.is_ready.store(ready, Ordering::Release);
 	}
 
@@ -123,62 +115,52 @@ impl ClientHandle {
 
 	/// Check if the server supports hover.
 	pub fn supports_hover(&self) -> bool {
-		self.capabilities()
-			.is_some_and(|c| c.hover_provider.is_some())
+		self.capabilities().is_some_and(|c| c.hover_provider.is_some())
 	}
 
 	/// Check if the server supports completion.
 	pub fn supports_completion(&self) -> bool {
-		self.capabilities()
-			.is_some_and(|c| c.completion_provider.is_some())
+		self.capabilities().is_some_and(|c| c.completion_provider.is_some())
 	}
 
 	/// Check if the server supports formatting.
 	pub fn supports_formatting(&self) -> bool {
-		self.capabilities()
-			.is_some_and(|c| c.document_formatting_provider.is_some())
+		self.capabilities().is_some_and(|c| c.document_formatting_provider.is_some())
 	}
 
 	/// Check if the server supports go to definition.
 	pub fn supports_definition(&self) -> bool {
-		self.capabilities()
-			.is_some_and(|c| c.definition_provider.is_some())
+		self.capabilities().is_some_and(|c| c.definition_provider.is_some())
 	}
 
 	/// Check if the server supports find references.
 	pub fn supports_references(&self) -> bool {
-		self.capabilities()
-			.is_some_and(|c| c.references_provider.is_some())
+		self.capabilities().is_some_and(|c| c.references_provider.is_some())
 	}
 
 	/// Check if the server supports document symbols.
 	pub fn supports_document_symbol(&self) -> bool {
-		self.capabilities()
-			.is_some_and(|c| c.document_symbol_provider.is_some())
+		self.capabilities().is_some_and(|c| c.document_symbol_provider.is_some())
 	}
 
 	/// Check if the server supports code actions.
 	pub fn supports_code_action(&self) -> bool {
-		self.capabilities()
-			.is_some_and(|c| c.code_action_provider.is_some())
+		self.capabilities().is_some_and(|c| c.code_action_provider.is_some())
 	}
 
 	/// Check if the server supports signature help.
 	pub fn supports_signature_help(&self) -> bool {
-		self.capabilities()
-			.is_some_and(|c| c.signature_help_provider.is_some())
+		self.capabilities().is_some_and(|c| c.signature_help_provider.is_some())
 	}
 
 	/// Check if the server supports rename.
 	pub fn supports_rename(&self) -> bool {
-		self.capabilities()
-			.is_some_and(|c| c.rename_provider.is_some())
+		self.capabilities().is_some_and(|c| c.rename_provider.is_some())
 	}
 
 	/// Check if the server supports execute command.
 	pub fn supports_execute_command(&self) -> bool {
-		self.capabilities()
-			.is_some_and(|c| c.execute_command_provider.is_some())
+		self.capabilities().is_some_and(|c| c.execute_command_provider.is_some())
 	}
 
 	/// Get the offset encoding negotiated with the server.
@@ -225,10 +207,7 @@ impl ClientHandle {
 			method: R::METHOD.into(),
 			params: serde_json::to_value(params).expect("Failed to serialize"),
 		};
-		let resp = self
-			.transport
-			.request(self.id, req, Some(self.timeout))
-			.await?;
+		let resp = self.transport.request(self.id, req, Some(self.timeout)).await?;
 		match resp.error {
 			None => Ok(serde_json::from_value(resp.result.unwrap_or_default())?),
 			Some(err) => Err(crate::Error::Response(err)),

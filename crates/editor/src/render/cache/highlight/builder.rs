@@ -16,12 +16,7 @@ pub(super) fn line_to_byte_or_eof(rope: &Rope, line: usize) -> u32 {
 	}
 }
 
-pub(super) fn remap_stale_span_to_current(
-	span: &HighlightSpan,
-	old_rope: &Rope,
-	new_rope: &Rope,
-	changes: &ChangeSet,
-) -> Option<(u32, u32)> {
+pub(super) fn remap_stale_span_to_current(span: &HighlightSpan, old_rope: &Rope, new_rope: &Rope, changes: &ChangeSet) -> Option<(u32, u32)> {
 	let old_len_bytes = old_rope.len_bytes();
 	let old_start_byte = (span.start as usize).min(old_len_bytes);
 	let old_end_byte = (span.end as usize).min(old_len_bytes);
@@ -31,9 +26,7 @@ pub(super) fn remap_stale_span_to_current(
 	let new_len_chars = new_rope.len_chars();
 
 	// Preserve half-open interval semantics when mapping through edits.
-	let new_start_char = changes
-		.map_pos(old_start_char, Bias::Right)
-		.min(new_len_chars);
+	let new_start_char = changes.map_pos(old_start_char, Bias::Right).min(new_len_chars);
 	let new_end_char = changes.map_pos(old_end_char, Bias::Left).min(new_len_chars);
 	if new_start_char >= new_end_char {
 		return None;
@@ -69,16 +62,9 @@ where
 		rope_len_bytes
 	};
 
-	let highlight_styles = HighlightStyles::new(
-		xeno_registry::themes::SyntaxStyles::scope_names(),
-		style_resolver,
-	);
+	let highlight_styles = HighlightStyles::new(xeno_registry::themes::SyntaxStyles::scope_names(), style_resolver);
 
-	let highlighter = syntax.highlighter(
-		rope.slice(..),
-		language_loader,
-		tile_start_byte..tile_end_byte,
-	);
+	let highlighter = syntax.highlighter(rope.slice(..), language_loader, tile_start_byte..tile_end_byte);
 
 	highlighter
 		.filter_map(|mut span| {
@@ -104,12 +90,7 @@ pub(super) fn project_spans_to_target(
 	source_spans
 		.iter()
 		.filter_map(|(span, style)| {
-			let (start, end) = remap_stale_span_to_current(
-				span,
-				projection.base_rope,
-				target_rope,
-				projection.composed_changes,
-			)?;
+			let (start, end) = remap_stale_span_to_current(span, projection.base_rope, target_rope, projection.composed_changes)?;
 			Some((
 				HighlightSpan {
 					start,

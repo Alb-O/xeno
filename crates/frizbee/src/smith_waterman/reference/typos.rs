@@ -68,10 +68,7 @@ mod tests {
 
 	fn get_typos(needle: &str, haystack: &str) -> u16 {
 		let (_, score_matrix, _) = smith_waterman(needle, haystack);
-		let score_matrix_ref = score_matrix
-			.iter()
-			.map(|v| v.as_slice())
-			.collect::<Vec<_>>();
+		let score_matrix_ref = score_matrix.iter().map(|v| v.as_slice()).collect::<Vec<_>>();
 		typos_from_score_matrix(&score_matrix_ref)
 	}
 

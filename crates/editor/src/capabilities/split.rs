@@ -14,10 +14,7 @@ impl SplitOps for EditorCaps<'_> {
 		};
 
 		if res.is_ok() {
-			self.ed
-				.state
-				.effects
-				.push_layer_event(LayerEvent::LayoutChanged);
+			self.ed.state.effects.push_layer_event(LayerEvent::LayoutChanged);
 		}
 
 		res.map_err(|e| match e {
@@ -28,10 +25,7 @@ impl SplitOps for EditorCaps<'_> {
 
 	fn close_split(&mut self) {
 		self.ed.close_current_buffer();
-		self.ed
-			.state
-			.effects
-			.push_layer_event(LayerEvent::LayoutChanged);
+		self.ed.state.effects.push_layer_event(LayerEvent::LayoutChanged);
 	}
 
 	fn close_other_buffers(&mut self) {
@@ -44,10 +38,7 @@ impl SplitOps for EditorCaps<'_> {
 			}
 		}
 		if closed {
-			self.ed
-				.state
-				.effects
-				.push_layer_event(LayerEvent::LayoutChanged);
+			self.ed.state.effects.push_layer_event(LayerEvent::LayoutChanged);
 		}
 	}
 }

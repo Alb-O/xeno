@@ -45,11 +45,7 @@ impl<'a> KeyTreeNode<'a> {
 	}
 
 	/// Creates a new node with a suffix.
-	pub fn with_suffix(
-		key: impl Into<Cow<'a, str>>,
-		description: impl Into<Cow<'a, str>>,
-		suffix: impl Into<Cow<'a, str>>,
-	) -> Self {
+	pub fn with_suffix(key: impl Into<Cow<'a, str>>, description: impl Into<Cow<'a, str>>, suffix: impl Into<Cow<'a, str>>) -> Self {
 		Self {
 			key: key.into(),
 			description: description.into(),
@@ -224,17 +220,8 @@ impl Widget for KeyTree<'_> {
 				buf.set_stringn(x + 2, y, &ancestor.key, key_width, self.ancestor_style);
 				let mut desc_x = x + 2 + key_width as u16 + 1;
 				if desc_x < area.right() && !ancestor.description.is_empty() {
-					let desc_width = ancestor
-						.description
-						.len()
-						.min((area.right() - desc_x) as usize);
-					buf.set_stringn(
-						desc_x,
-						y,
-						&ancestor.description,
-						desc_width,
-						self.desc_style,
-					);
+					let desc_width = ancestor.description.len().min((area.right() - desc_x) as usize);
+					buf.set_stringn(desc_x, y, &ancestor.description, desc_width, self.desc_style);
 					desc_x += desc_width as u16;
 				}
 				if has_children_below && desc_x < area.right() {
@@ -258,11 +245,7 @@ impl Widget for KeyTree<'_> {
 			}
 
 			let is_last = i == self.children.len() - 1;
-			let connector = if is_last {
-				self.symbols.corner
-			} else {
-				self.symbols.branch
-			};
+			let connector = if is_last { self.symbols.corner } else { self.symbols.branch };
 
 			let x = area.x + ancestor_indent;
 			if x < area.right() {

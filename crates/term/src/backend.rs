@@ -3,9 +3,7 @@ use std::io;
 use std::num::NonZeroU16;
 
 use termina::Terminal;
-use termina::escape::csi::{
-	Csi, Cursor, Edit, EraseInDisplay, Mode, Sgr, SgrAttributes, SgrModifiers,
-};
+use termina::escape::csi::{Csi, Cursor, Edit, EraseInDisplay, Mode, Sgr, SgrAttributes, SgrModifiers};
 use termina::style::{ColorSpec, RgbaColor};
 use unicode_width::UnicodeWidthStr;
 use xeno_tui::backend::{Backend, WindowSize};
@@ -64,15 +62,7 @@ impl<T: Terminal> Backend for TerminaBackend<T> {
 
 			if !appendable {
 				if in_run {
-					flush_run(
-						&mut out,
-						run_y,
-						run_x0,
-						&run_attrs,
-						&mut last_attrs,
-						&mut have_emitted_attrs,
-						&run_text,
-					);
+					flush_run(&mut out, run_y, run_x0, &run_attrs, &mut last_attrs, &mut have_emitted_attrs, &run_text);
 				}
 				run_y = y;
 				run_x0 = x;
@@ -86,15 +76,7 @@ impl<T: Terminal> Backend for TerminaBackend<T> {
 		}
 
 		if in_run {
-			flush_run(
-				&mut out,
-				run_y,
-				run_x0,
-				&run_attrs,
-				&mut last_attrs,
-				&mut have_emitted_attrs,
-				&run_text,
-			);
+			flush_run(&mut out, run_y, run_x0, &run_attrs, &mut last_attrs, &mut have_emitted_attrs, &run_text);
 		}
 
 		#[cfg(feature = "perf")]
@@ -111,11 +93,9 @@ impl<T: Terminal> Backend for TerminaBackend<T> {
 		write!(
 			self.terminal,
 			"{}",
-			Csi::Mode(Mode::ResetDecPrivateMode(
-				termina::escape::csi::DecPrivateMode::Code(
-					termina::escape::csi::DecPrivateModeCode::ShowCursor
-				)
-			))
+			Csi::Mode(Mode::ResetDecPrivateMode(termina::escape::csi::DecPrivateMode::Code(
+				termina::escape::csi::DecPrivateModeCode::ShowCursor
+			)))
 		)
 	}
 
@@ -123,11 +103,9 @@ impl<T: Terminal> Backend for TerminaBackend<T> {
 		write!(
 			self.terminal,
 			"{}",
-			Csi::Mode(Mode::SetDecPrivateMode(
-				termina::escape::csi::DecPrivateMode::Code(
-					termina::escape::csi::DecPrivateModeCode::ShowCursor
-				)
-			))
+			Csi::Mode(Mode::SetDecPrivateMode(termina::escape::csi::DecPrivateMode::Code(
+				termina::escape::csi::DecPrivateModeCode::ShowCursor
+			)))
 		)
 	}
 
@@ -151,40 +129,20 @@ impl<T: Terminal> Backend for TerminaBackend<T> {
 	}
 
 	fn clear(&mut self) -> io::Result<()> {
-		write!(
-			self.terminal,
-			"{}",
-			Csi::Edit(Edit::EraseInDisplay(EraseInDisplay::EraseDisplay))
-		)
+		write!(self.terminal, "{}", Csi::Edit(Edit::EraseInDisplay(EraseInDisplay::EraseDisplay)))
 	}
 
 	fn clear_region(&mut self, clear_type: xeno_tui::backend::ClearType) -> io::Result<()> {
 		use xeno_tui::backend::ClearType;
 		match clear_type {
 			ClearType::All => self.clear(),
-			ClearType::AfterCursor => write!(
-				self.terminal,
-				"{}",
-				Csi::Edit(Edit::EraseInDisplay(EraseInDisplay::EraseToEndOfDisplay))
-			),
-			ClearType::BeforeCursor => write!(
-				self.terminal,
-				"{}",
-				Csi::Edit(Edit::EraseInDisplay(EraseInDisplay::EraseToStartOfDisplay))
-			),
-			ClearType::CurrentLine => write!(
-				self.terminal,
-				"{}",
-				Csi::Edit(Edit::EraseInLine(
-					termina::escape::csi::EraseInLine::EraseLine
-				))
-			),
+			ClearType::AfterCursor => write!(self.terminal, "{}", Csi::Edit(Edit::EraseInDisplay(EraseInDisplay::EraseToEndOfDisplay))),
+			ClearType::BeforeCursor => write!(self.terminal, "{}", Csi::Edit(Edit::EraseInDisplay(EraseInDisplay::EraseToStartOfDisplay))),
+			ClearType::CurrentLine => write!(self.terminal, "{}", Csi::Edit(Edit::EraseInLine(termina::escape::csi::EraseInLine::EraseLine))),
 			ClearType::UntilNewLine => write!(
 				self.terminal,
 				"{}",
-				Csi::Edit(Edit::EraseInLine(
-					termina::escape::csi::EraseInLine::EraseToEndOfLine
-				))
+				Csi::Edit(Edit::EraseInLine(termina::escape::csi::EraseInLine::EraseToEndOfLine))
 			),
 		}
 	}
@@ -193,11 +151,7 @@ impl<T: Terminal> Backend for TerminaBackend<T> {
 		Ok(())
 	}
 
-	fn scroll_region_down(
-		&mut self,
-		_region: std::ops::Range<u16>,
-		_amount: u16,
-	) -> io::Result<()> {
+	fn scroll_region_down(&mut self, _region: std::ops::Range<u16>, _amount: u16) -> io::Result<()> {
 		Ok(())
 	}
 
@@ -241,10 +195,7 @@ fn attrs_from_cell(cell: &Cell) -> SgrAttributes {
 
 	let underline_style = if cell.underline_style != xeno_tui::style::UnderlineStyle::Reset {
 		cell.underline_style
-	} else if cell
-		.modifier
-		.contains(xeno_tui::style::Modifier::UNDERLINED)
-	{
+	} else if cell.modifier.contains(xeno_tui::style::Modifier::UNDERLINED) {
 		xeno_tui::style::UnderlineStyle::Line
 	} else {
 		xeno_tui::style::UnderlineStyle::Reset
@@ -265,16 +216,10 @@ fn attrs_from_cell(cell: &Cell) -> SgrAttributes {
 		}
 		attrs.modifiers |= modifier;
 	}
-	if cell
-		.modifier
-		.contains(xeno_tui::style::Modifier::SLOW_BLINK)
-	{
+	if cell.modifier.contains(xeno_tui::style::Modifier::SLOW_BLINK) {
 		attrs.modifiers |= SgrModifiers::BLINK_SLOW;
 	}
-	if cell
-		.modifier
-		.contains(xeno_tui::style::Modifier::RAPID_BLINK)
-	{
+	if cell.modifier.contains(xeno_tui::style::Modifier::RAPID_BLINK) {
 		attrs.modifiers |= SgrModifiers::BLINK_RAPID;
 	}
 	if cell.modifier.contains(xeno_tui::style::Modifier::REVERSED) {
@@ -283,10 +228,7 @@ fn attrs_from_cell(cell: &Cell) -> SgrAttributes {
 	if cell.modifier.contains(xeno_tui::style::Modifier::HIDDEN) {
 		attrs.modifiers |= SgrModifiers::INVISIBLE;
 	}
-	if cell
-		.modifier
-		.contains(xeno_tui::style::Modifier::CROSSED_OUT)
-	{
+	if cell.modifier.contains(xeno_tui::style::Modifier::CROSSED_OUT) {
 		attrs.modifiers |= SgrModifiers::STRIKE_THROUGH;
 	}
 
@@ -297,15 +239,7 @@ fn attrs_from_cell(cell: &Cell) -> SgrAttributes {
 ///
 /// Emits a cursor position, SGR change (only if attributes differ from the
 /// last emitted set), and the run's text content.
-fn flush_run(
-	out: &mut String,
-	y: u16,
-	x0: u16,
-	attrs: &SgrAttributes,
-	last_attrs: &mut SgrAttributes,
-	have_emitted: &mut bool,
-	text: &str,
-) {
+fn flush_run(out: &mut String, y: u16, x0: u16, attrs: &SgrAttributes, last_attrs: &mut SgrAttributes, have_emitted: &mut bool, text: &str) {
 	let line = NonZeroU16::new(y + 1).unwrap_or(NonZeroU16::MIN);
 	let col = NonZeroU16::new(x0 + 1).unwrap_or(NonZeroU16::MIN);
 	let _ = write!(

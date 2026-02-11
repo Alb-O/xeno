@@ -44,21 +44,10 @@ impl From<GrammarSpec> for GrammarConfig {
 	fn from(value: GrammarSpec) -> Self {
 		let source = match value.source {
 			GrammarSourceSpec::Local { path } => GrammarSource::Local { path },
-			GrammarSourceSpec::Git {
-				remote,
-				revision,
-				subpath,
-			} => GrammarSource::Git {
-				remote,
-				revision,
-				subpath,
-			},
+			GrammarSourceSpec::Git { remote, revision, subpath } => GrammarSource::Git { remote, revision, subpath },
 		};
 
-		Self {
-			grammar_id: value.id,
-			source,
-		}
+		Self { grammar_id: value.id, source }
 	}
 }
 
@@ -67,10 +56,7 @@ impl From<GrammarSpec> for GrammarConfig {
 /// Grammar sources are stored in the cache directory since they can be
 /// re-fetched at any time.
 pub fn grammar_sources_dir() -> PathBuf {
-	cache_dir()
-		.unwrap_or_else(runtime_dir)
-		.join("grammars")
-		.join("sources")
+	cache_dir().unwrap_or_else(runtime_dir).join("grammars").join("sources")
 }
 
 /// Returns the directory where compiled grammars are stored.
@@ -81,9 +67,7 @@ pub fn grammar_lib_dir() -> PathBuf {
 		return workspace.join("target").join("grammars");
 	}
 
-	cache_dir()
-		.map(|c| c.join("grammars"))
-		.unwrap_or_else(|| runtime_dir().join("grammars"))
+	cache_dir().map(|c| c.join("grammars")).unwrap_or_else(|| runtime_dir().join("grammars"))
 }
 
 /// Get the source directory for a grammar (where parser.c lives).

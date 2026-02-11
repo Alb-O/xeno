@@ -39,9 +39,7 @@ fn to_simd<const W: usize, const L: usize>(strs: [[u8; W]; L], offset: usize) ->
 where
 	LaneCount<L>: SupportedLaneCount,
 {
-	std::array::from_fn(|i| {
-		Simd::load_or_default(&strs[i][offset..(offset + L).min(W)]).cast::<u16>()
-	})
+	std::array::from_fn(|i| Simd::load_or_default(&strs[i][offset..(offset + L).min(W)]).cast::<u16>())
 }
 
 #[inline(never)]
@@ -89,12 +87,7 @@ mod tests {
 	where
 		LaneCount<L>: SupportedLaneCount,
 	{
-		let a = a.map(|a| {
-			a.to_array()
-				.into_iter()
-				.map(|x| x as u8)
-				.collect::<Vec<_>>()
-		});
+		let a = a.map(|a| a.to_array().into_iter().map(|x| x as u8).collect::<Vec<_>>());
 		assert_eq!(a, b);
 	}
 
@@ -109,10 +102,7 @@ mod tests {
 	fn test_interleave_simd_chunks_2() {
 		let strs = ["abcd", "efgh"];
 		let interleaved = interleave::<4, 2>(strs);
-		assert_matrix_eq(
-			interleaved,
-			[[b'a', b'e'], [b'b', b'f'], [b'c', b'g'], [b'd', b'h']],
-		);
+		assert_matrix_eq(interleaved, [[b'a', b'e'], [b'b', b'f'], [b'c', b'g'], [b'd', b'h']]);
 	}
 
 	#[test]

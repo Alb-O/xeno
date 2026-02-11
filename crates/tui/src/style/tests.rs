@@ -84,10 +84,7 @@ fn combine_individual_modifiers() {
 #[case(Modifier::HIDDEN, "HIDDEN")]
 #[case(Modifier::CROSSED_OUT, "CROSSED_OUT")]
 #[case(Modifier::BOLD | Modifier::DIM, "BOLD | DIM")]
-#[case(
-	Modifier::all(),
-	"BOLD | DIM | ITALIC | UNDERLINED | SLOW_BLINK | RAPID_BLINK | REVERSED | HIDDEN | CROSSED_OUT"
-)]
+#[case(Modifier::all(), "BOLD | DIM | ITALIC | UNDERLINED | SLOW_BLINK | RAPID_BLINK | REVERSED | HIDDEN | CROSSED_OUT")]
 fn modifier_debug(#[case] modifier: Modifier, #[case] expected: &str) {
 	assert_eq!(format!("{modifier:?}"), expected);
 }
@@ -108,11 +105,7 @@ fn style_can_be_const() {
 	const _ADD_BOLD_SHORT: Style = Style::new().bold();
 	const _REMOVE_ITALIC: Style = Style::new().remove_modifier(ITALIC);
 	const _REMOVE_ITALIC_SHORT: Style = Style::new().not_italic();
-	const ALL: Style = Style::new()
-		.fg(RED)
-		.bg(BLACK)
-		.add_modifier(BOLD)
-		.remove_modifier(ITALIC);
+	const ALL: Style = Style::new().fg(RED).bg(BLACK).add_modifier(BOLD).remove_modifier(ITALIC);
 	const ALL_SHORT: Style = Style::new().red().on_black().bold().not_italic();
 	assert_eq!(
 		ALL,
@@ -134,9 +127,7 @@ fn has_modifier_checks() {
 	assert!(!style.has_modifier(Modifier::UNDERLINED));
 
 	// removal prevents the modifier from being reported as present
-	let style = Style::new()
-		.add_modifier(Modifier::BOLD | Modifier::ITALIC)
-		.remove_modifier(Modifier::ITALIC);
+	let style = Style::new().add_modifier(Modifier::BOLD | Modifier::ITALIC).remove_modifier(Modifier::ITALIC);
 	assert!(style.has_modifier(Modifier::BOLD));
 	assert!(!style.has_modifier(Modifier::ITALIC));
 
@@ -226,19 +217,14 @@ fn from_color() {
 
 #[test]
 fn from_color_color() {
-	assert_eq!(
-		Style::from((Color::Red, Color::Blue)),
-		Style::new().fg(Color::Red).bg(Color::Blue)
-	);
+	assert_eq!(Style::from((Color::Red, Color::Blue)), Style::new().fg(Color::Red).bg(Color::Blue));
 }
 
 #[test]
 fn from_modifier() {
 	assert_eq!(
 		Style::from(Modifier::BOLD | Modifier::ITALIC),
-		Style::new()
-			.add_modifier(Modifier::BOLD)
-			.add_modifier(Modifier::ITALIC)
+		Style::new().add_modifier(Modifier::BOLD).add_modifier(Modifier::ITALIC)
 	);
 }
 
@@ -257,10 +243,7 @@ fn from_modifier_modifier() {
 fn from_color_modifier() {
 	assert_eq!(
 		Style::from((Color::Red, Modifier::BOLD | Modifier::ITALIC)),
-		Style::new()
-			.fg(Color::Red)
-			.add_modifier(Modifier::BOLD)
-			.add_modifier(Modifier::ITALIC)
+		Style::new().fg(Color::Red).add_modifier(Modifier::BOLD).add_modifier(Modifier::ITALIC)
 	);
 }
 
@@ -279,12 +262,7 @@ fn from_color_color_modifier() {
 #[test]
 fn from_color_color_modifier_modifier() {
 	assert_eq!(
-		Style::from((
-			Color::Red,
-			Color::Blue,
-			Modifier::BOLD | Modifier::ITALIC,
-			Modifier::DIM
-		)),
+		Style::from((Color::Red, Color::Blue, Modifier::BOLD | Modifier::ITALIC, Modifier::DIM)),
 		Style::new()
 			.fg(Color::Red)
 			.bg(Color::Blue)
@@ -320,10 +298,7 @@ fn serialize_then_deserialize() {
 
 	#[cfg(feature = "underline-color")]
 	{
-		expected_json
-			.as_object_mut()
-			.unwrap()
-			.insert("underline_color".into(), "3".into());
+		expected_json.as_object_mut().unwrap().insert("underline_color".into(), "3".into());
 	}
 
 	assert_eq!(json_value, expected_json);

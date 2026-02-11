@@ -39,10 +39,7 @@ impl PartialOrd for Match {
 }
 impl Ord for Match {
 	fn cmp(&self, other: &Self) -> Ordering {
-		self.score
-			.cmp(&other.score)
-			.reverse()
-			.then_with(|| self.index.cmp(&other.index))
+		self.score.cmp(&other.score).reverse().then_with(|| self.index.cmp(&other.index))
 	}
 }
 impl PartialEq for Match {

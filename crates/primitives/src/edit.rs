@@ -9,10 +9,7 @@ use crate::{Selection, Transaction};
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum EditError {
 	#[error("document is read-only: {scope:?} ({reason:?})")]
-	ReadOnly {
-		scope: ReadOnlyScope,
-		reason: ReadOnlyReason,
-	},
+	ReadOnly { scope: ReadOnlyScope, reason: ReadOnlyReason },
 
 	#[error("invalid selection: {0}")]
 	InvalidSelection(String),

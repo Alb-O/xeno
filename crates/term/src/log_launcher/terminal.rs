@@ -48,11 +48,7 @@ impl TerminalKind {
 	pub fn build_command(&self, program: &str, args: &[&OsStr]) -> Command {
 		let mut cmd = Command::new(self.executable());
 		match self {
-			TerminalKind::Kitty
-			| TerminalKind::Alacritty
-			| TerminalKind::Konsole
-			| TerminalKind::Xterm
-			| TerminalKind::Generic => {
+			TerminalKind::Kitty | TerminalKind::Alacritty | TerminalKind::Konsole | TerminalKind::Xterm | TerminalKind::Generic => {
 				cmd.arg("-e").arg(program).args(args);
 			}
 			TerminalKind::WezTerm => {
@@ -109,11 +105,7 @@ pub fn detect_terminal() -> Option<DetectedTerminal> {
 }
 
 /// Spawns xeno in a new terminal window with the given arguments.
-pub fn spawn_in_terminal(
-	xeno_path: &str,
-	args: &[&OsStr],
-	socket_path: &str,
-) -> std::io::Result<std::process::Child> {
+pub fn spawn_in_terminal(xeno_path: &str, args: &[&OsStr], socket_path: &str) -> std::io::Result<std::process::Child> {
 	let terminal = detect_terminal().ok_or_else(|| {
 		std::io::Error::new(
 			std::io::ErrorKind::NotFound,

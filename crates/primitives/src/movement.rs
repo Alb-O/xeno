@@ -16,11 +16,7 @@ pub fn is_word_char(c: char) -> bool {
 /// If `extend` is true, keeps anchor fixed, moves head to `new_head`.
 #[inline]
 pub fn make_range(range: Range, new_head: CharIdx, extend: bool) -> Range {
-	if extend {
-		Range::new(range.anchor, new_head)
-	} else {
-		Range::point(new_head)
-	}
+	if extend { Range::new(range.anchor, new_head) } else { Range::point(new_head) }
 }
 
 /// Creates a range for selection-extending motions.
@@ -40,14 +36,7 @@ pub fn make_range_select(range: Range, new_head: CharIdx, extend: bool) -> Range
 ///
 /// With `inclusive`, lands on target (`f`). Otherwise stops before (`t`).
 /// Skips `count - 1` occurrences for repeat motions.
-pub fn find_char_forward(
-	text: RopeSlice,
-	range: Range,
-	target: char,
-	count: usize,
-	inclusive: bool,
-	extend: bool,
-) -> Range {
+pub fn find_char_forward(text: RopeSlice, range: Range, target: char, count: usize, inclusive: bool, extend: bool) -> Range {
 	let len = text.len_chars();
 	let mut pos = range.head + 1;
 	let mut found_count = 0;
@@ -56,11 +45,7 @@ pub fn find_char_forward(
 		if text.char(pos) == target {
 			found_count += 1;
 			if found_count >= count {
-				let final_pos = if inclusive {
-					pos
-				} else {
-					pos.saturating_sub(1)
-				};
+				let final_pos = if inclusive { pos } else { pos.saturating_sub(1) };
 				return make_range_select(range, final_pos, extend);
 			}
 		}
@@ -71,14 +56,7 @@ pub fn find_char_forward(
 }
 
 /// Finds character backward (`F`/`T` commands).
-pub fn find_char_backward(
-	text: RopeSlice,
-	range: Range,
-	target: char,
-	count: usize,
-	inclusive: bool,
-	extend: bool,
-) -> Range {
+pub fn find_char_backward(text: RopeSlice, range: Range, target: char, count: usize, inclusive: bool, extend: bool) -> Range {
 	if range.head == 0 {
 		return range;
 	}

@@ -6,9 +6,7 @@ use super::*;
 
 #[test]
 fn offset_renders_shifted() {
-	let list = List::new([
-		"Item 0", "Item 1", "Item 2", "Item 3", "Item 4", "Item 5", "Item 6",
-	]);
+	let list = List::new(["Item 0", "Item 1", "Item 2", "Item 3", "Item 4", "Item 5", "Item 6"]);
 	let mut state = ListState::default().with_offset(3);
 	let buffer = stateful_widget(list, &mut state, 6, 3);
 
@@ -18,9 +16,7 @@ fn offset_renders_shifted() {
 
 #[test]
 fn selected_item_ensures_selected_item_is_visible_when_offset_is_before_visible_range() {
-	let items = [
-		"Item 0", "Item 1", "Item 2", "Item 3", "Item 4", "Item 5", "Item 6",
-	];
+	let items = ["Item 0", "Item 1", "Item 2", "Item 3", "Item 4", "Item 5", "Item 6"];
 	let list = List::new(items).highlight_symbol(">>");
 	// Set the initial visible range to items 3, 4, and 5
 	let mut state = ListState::default().with_selected(Some(1)).with_offset(3);
@@ -35,17 +31,12 @@ fn selected_item_ensures_selected_item_is_visible_when_offset_is_before_visible_
 
 	assert_eq!(buffer, expected);
 	assert_eq!(state.selected, Some(1));
-	assert_eq!(
-		state.offset, 1,
-		"did not scroll the selected item into view"
-	);
+	assert_eq!(state.offset, 1, "did not scroll the selected item into view");
 }
 
 #[test]
 fn selected_item_ensures_selected_item_is_visible_when_offset_is_after_visible_range() {
-	let items = [
-		"Item 0", "Item 1", "Item 2", "Item 3", "Item 4", "Item 5", "Item 6",
-	];
+	let items = ["Item 0", "Item 1", "Item 2", "Item 3", "Item 4", "Item 5", "Item 6"];
 	let list = List::new(items).highlight_symbol(">>");
 	// Set the initial visible range to items 3, 4, and 5
 	let mut state = ListState::default().with_selected(Some(6)).with_offset(3);
@@ -60,10 +51,7 @@ fn selected_item_ensures_selected_item_is_visible_when_offset_is_after_visible_r
 
 	assert_eq!(buffer, expected);
 	assert_eq!(state.selected, Some(6));
-	assert_eq!(
-		state.offset, 4,
-		"did not scroll the selected item into view"
-	);
+	assert_eq!(state.offset, 4, "did not scroll the selected item into view");
 }
 
 #[rstest]
@@ -187,9 +175,7 @@ fn padding_flicker() {
 	*state.offset_mut() = 2;
 	state.select(Some(4));
 
-	let items = [
-		"Item 0", "Item 1", "Item 2", "Item 3", "Item 4", "Item 5", "Item 6", "Item 7",
-	];
+	let items = ["Item 0", "Item 1", "Item 2", "Item 3", "Item 4", "Item 5", "Item 6", "Item 7"];
 	let list = List::new(items).scroll_padding(3).highlight_symbol(">> ");
 
 	StatefulWidget::render(&list, buffer.area, &mut buffer, &mut state);

@@ -14,9 +14,7 @@ editor_command!(
 	handler: cmd_hover
 );
 
-fn cmd_hover<'a>(
-	ctx: &'a mut EditorCommandContext<'a>,
-) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
+fn cmd_hover<'a>(ctx: &'a mut EditorCommandContext<'a>) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
 		let hover = ctx
 			.editor
@@ -42,9 +40,7 @@ editor_command!(
 	handler: cmd_goto_definition
 );
 
-fn cmd_goto_definition<'a>(
-	ctx: &'a mut EditorCommandContext<'a>,
-) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
+fn cmd_goto_definition<'a>(ctx: &'a mut EditorCommandContext<'a>) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
 		use crate::impls::Location;
 
@@ -58,15 +54,11 @@ fn cmd_goto_definition<'a>(
 
 		let location = match response {
 			xeno_lsp::lsp_types::GotoDefinitionResponse::Scalar(loc) => loc,
-			xeno_lsp::lsp_types::GotoDefinitionResponse::Array(locs) => locs
-				.into_iter()
-				.next()
-				.ok_or_else(|| CommandError::Failed("No definition found".into()))?,
+			xeno_lsp::lsp_types::GotoDefinitionResponse::Array(locs) => {
+				locs.into_iter().next().ok_or_else(|| CommandError::Failed("No definition found".into()))?
+			}
 			xeno_lsp::lsp_types::GotoDefinitionResponse::Link(links) => {
-				let link = links
-					.into_iter()
-					.next()
-					.ok_or_else(|| CommandError::Failed("No definition found".into()))?;
+				let link = links.into_iter().next().ok_or_else(|| CommandError::Failed("No definition found".into()))?;
 				xeno_lsp::lsp_types::Location {
 					uri: link.target_uri,
 					range: link.target_selection_range,
@@ -74,8 +66,7 @@ fn cmd_goto_definition<'a>(
 			}
 		};
 
-		let path = xeno_lsp::path_from_uri(&location.uri)
-			.ok_or_else(|| CommandError::Failed("Invalid file path in definition".into()))?;
+		let path = xeno_lsp::path_from_uri(&location.uri).ok_or_else(|| CommandError::Failed("Invalid file path in definition".into()))?;
 
 		ctx.editor
 			.goto_location(&Location::new(
@@ -104,11 +95,7 @@ fn format_marked_string(ms: &xeno_lsp::lsp_types::MarkedString) -> String {
 fn format_hover_contents(contents: &xeno_lsp::lsp_types::HoverContents) -> String {
 	match contents {
 		xeno_lsp::lsp_types::HoverContents::Scalar(ms) => format_marked_string(ms),
-		xeno_lsp::lsp_types::HoverContents::Array(parts) => parts
-			.iter()
-			.map(format_marked_string)
-			.collect::<Vec<_>>()
-			.join("\n\n"),
+		xeno_lsp::lsp_types::HoverContents::Array(parts) => parts.iter().map(format_marked_string).collect::<Vec<_>>().join("\n\n"),
 		xeno_lsp::lsp_types::HoverContents::Markup(m) => m.value.clone(),
 	}
 }
@@ -123,9 +110,7 @@ editor_command!(
 	handler: cmd_code_action
 );
 
-fn cmd_code_action<'a>(
-	ctx: &'a mut EditorCommandContext<'a>,
-) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
+fn cmd_code_action<'a>(ctx: &'a mut EditorCommandContext<'a>) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
 		ctx.editor.open_code_action_menu().await;
 		Ok(CommandOutcome::Ok)
@@ -142,9 +127,7 @@ editor_command!(
 	handler: cmd_rename
 );
 
-fn cmd_rename<'a>(
-	ctx: &'a mut EditorCommandContext<'a>,
-) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
+fn cmd_rename<'a>(ctx: &'a mut EditorCommandContext<'a>) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
 		ctx.editor.open_rename();
 		Ok(CommandOutcome::Ok)
@@ -160,9 +143,7 @@ editor_command!(
 	handler: cmd_diagnostic_next
 );
 
-fn cmd_diagnostic_next<'a>(
-	ctx: &'a mut EditorCommandContext<'a>,
-) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
+fn cmd_diagnostic_next<'a>(ctx: &'a mut EditorCommandContext<'a>) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
 		ctx.editor.goto_next_diagnostic();
 		Ok(CommandOutcome::Ok)
@@ -178,9 +159,7 @@ editor_command!(
 	handler: cmd_diagnostic_prev
 );
 
-fn cmd_diagnostic_prev<'a>(
-	ctx: &'a mut EditorCommandContext<'a>,
-) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
+fn cmd_diagnostic_prev<'a>(ctx: &'a mut EditorCommandContext<'a>) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
 		ctx.editor.goto_prev_diagnostic();
 		Ok(CommandOutcome::Ok)

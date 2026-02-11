@@ -34,11 +34,7 @@ pub fn max_cell_pos(text: RopeSlice) -> Option<CharIdx> {
 /// If the document is empty, returns 0.
 #[inline]
 pub fn clamp_to_cell(pos: CharIdx, text: RopeSlice) -> CharIdx {
-	if let Some(max) = max_cell_pos(text) {
-		pos.min(max)
-	} else {
-		0
-	}
+	if let Some(max) = max_cell_pos(text) { pos.min(max) } else { 0 }
 }
 
 #[cfg(test)]

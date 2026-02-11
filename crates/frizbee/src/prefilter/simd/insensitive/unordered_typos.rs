@@ -4,16 +4,10 @@ use core::simd::cmp::SimdPartialEq;
 use super::super::overlapping_load;
 
 #[inline(always)]
-pub fn match_haystack_unordered_typos_insensitive(
-	needle: &[(u8, u8)],
-	haystack: &[u8],
-	max_typos: u16,
-) -> bool {
+pub fn match_haystack_unordered_typos_insensitive(needle: &[(u8, u8)], haystack: &[u8], max_typos: u16) -> bool {
 	let len = haystack.len();
 
-	let mut needle_iter = needle
-		.iter()
-		.map(|&(c1, c2)| (Simd::splat(c1), Simd::splat(c2)));
+	let mut needle_iter = needle.iter().map(|&(c1, c2)| (Simd::splat(c1), Simd::splat(c2)));
 	let mut needle_char = needle_iter.next().unwrap();
 
 	let mut typos = 0;
@@ -30,9 +24,7 @@ pub fn match_haystack_unordered_typos_insensitive(
 			let haystack_chunk = overlapping_load(haystack, start, len);
 
 			loop {
-				if haystack_chunk.simd_eq(needle_char.0).any()
-					|| haystack_chunk.simd_eq(needle_char.1).any()
-				{
+				if haystack_chunk.simd_eq(needle_char.0).any() || haystack_chunk.simd_eq(needle_char.1).any() {
 					// Progress to next needle char, if available
 					if let Some(next_needle_char) = needle_iter.next() {
 						needle_char = next_needle_char;

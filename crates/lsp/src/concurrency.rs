@@ -22,9 +22,7 @@ use tokio::sync::{Notify, OwnedSemaphorePermit, Semaphore};
 use tower_layer::Layer;
 use tower_service::Service;
 
-use crate::{
-	AnyEvent, AnyNotification, AnyRequest, ErrorCode, LspService, RequestId, ResponseError, Result,
-};
+use crate::{AnyEvent, AnyNotification, AnyRequest, ErrorCode, LspService, RequestId, ResponseError, Result};
 
 struct CancelState {
 	notify: Notify,
@@ -40,8 +38,7 @@ impl Drop for DoneSignaller {
 	}
 }
 
-pub(super) type PermitFuture =
-	crate::router::BoxFutureStatic<Result<OwnedSemaphorePermit, tokio::sync::AcquireError>>;
+pub(super) type PermitFuture = crate::router::BoxFutureStatic<Result<OwnedSemaphorePermit, tokio::sync::AcquireError>>;
 
 /// The middleware for incoming request multiplexing limits and cancellation.
 ///
@@ -91,25 +88,17 @@ where
 			}
 			Poll::Ready(Err(_)) => {
 				// Semaphore closed? Should not happen in normal lifecycle.
-				Poll::Ready(Err(ResponseError::new(
-					ErrorCode::INTERNAL_ERROR,
-					"concurrency semaphore closed",
-				)
-				.into()))
+				Poll::Ready(Err(ResponseError::new(ErrorCode::INTERNAL_ERROR, "concurrency semaphore closed").into()))
 			}
 		}
 	}
 
 	fn call(&mut self, req: AnyRequest) -> Self::Future {
-		let permit = self
-			.ready_permit
-			.take()
-			.expect("poll_ready not called before call");
+		let permit = self.ready_permit.take().expect("poll_ready not called before call");
 
 		// Purge completed tasks
 		if self.ongoing.len() >= self.max_concurrency.get() * 2 {
-			self.ongoing
-				.retain(|_, st| !st.done.load(Ordering::Relaxed));
+			self.ongoing.retain(|_, st| !st.done.load(Ordering::Relaxed));
 		}
 
 		let st = Arc::new(CancelState {
@@ -152,11 +141,7 @@ where
 
 		// Fast path for cancellation
 		if this.st.cancelled.load(Ordering::Relaxed) {
-			return Poll::Ready(Err(ResponseError::new(
-				ErrorCode::REQUEST_CANCELLED,
-				"Client cancelled the request",
-			)
-			.into()));
+			return Poll::Ready(Err(ResponseError::new(ErrorCode::REQUEST_CANCELLED, "Client cancelled the request").into()));
 		}
 
 		// Poll the actual work
@@ -170,11 +155,7 @@ where
 		let mut n_pinned = unsafe { Pin::new_unchecked(&mut n) };
 		if let Poll::Ready(()) = n_pinned.as_mut().poll(cx) {
 			this.st.cancelled.store(true, Ordering::Relaxed);
-			return Poll::Ready(Err(ResponseError::new(
-				ErrorCode::REQUEST_CANCELLED,
-				"Client cancelled the request",
-			)
-			.into()));
+			return Poll::Ready(Err(ResponseError::new(ErrorCode::REQUEST_CANCELLED, "Client cancelled the request").into()));
 		}
 
 		Poll::Pending

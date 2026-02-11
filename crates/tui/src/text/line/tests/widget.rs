@@ -13,11 +13,7 @@ const ITALIC: Style = Style::new().italic();
 
 #[fixture]
 fn hello_world() -> Line<'static> {
-	Line::from(vec![
-		Span::styled("Hello ", BLUE),
-		Span::styled("world!", GREEN),
-	])
-	.style(ITALIC)
+	Line::from(vec![Span::styled("Hello ", BLUE), Span::styled("world!", GREEN)]).style(ITALIC)
 }
 
 #[test]
@@ -94,27 +90,21 @@ fn render_right_aligned() {
 #[test]
 fn render_truncates_left() {
 	let mut buf = Buffer::empty(Rect::new(0, 0, 5, 1));
-	Line::from("Hello world")
-		.left_aligned()
-		.render(buf.area, &mut buf);
+	Line::from("Hello world").left_aligned().render(buf.area, &mut buf);
 	assert_eq!(buf, Buffer::with_lines(["Hello"]));
 }
 
 #[test]
 fn render_truncates_right() {
 	let mut buf = Buffer::empty(Rect::new(0, 0, 5, 1));
-	Line::from("Hello world")
-		.right_aligned()
-		.render(buf.area, &mut buf);
+	Line::from("Hello world").right_aligned().render(buf.area, &mut buf);
 	assert_eq!(buf, Buffer::with_lines(["world"]));
 }
 
 #[test]
 fn render_truncates_center() {
 	let mut buf = Buffer::empty(Rect::new(0, 0, 5, 1));
-	Line::from("Hello world")
-		.centered()
-		.render(buf.area, &mut buf);
+	Line::from("Hello world").centered().render(buf.area, &mut buf);
 	assert_eq!(buf, Buffer::with_lines(["lo wo"]));
 }
 
@@ -122,16 +112,12 @@ fn render_truncates_center() {
 /// found panics with truncating lines that contained multi-byte characters.
 #[test]
 fn regression_1032() {
-	let line = Line::from(
-		"🦀 RFC8628 OAuth 2.0 Device Authorization GrantでCLIからGithubのaccess tokenを取得する",
-	);
+	let line = Line::from("🦀 RFC8628 OAuth 2.0 Device Authorization GrantでCLIからGithubのaccess tokenを取得する");
 	let mut buf = Buffer::empty(Rect::new(0, 0, 83, 1));
 	line.render(buf.area, &mut buf);
 	assert_eq!(
 		buf,
-		Buffer::with_lines([
-			"🦀 RFC8628 OAuth 2.0 Device Authorization GrantでCLIからGithubのaccess tokenを取得 "
-		])
+		Buffer::with_lines(["🦀 RFC8628 OAuth 2.0 Device Authorization GrantでCLIからGithubのaccess tokenを取得 "])
 	);
 }
 
@@ -159,11 +145,7 @@ fn crab_emoji_width() {
 #[case::right_5(HorizontalAlignment::Right, 5, " 7890")]
 #[case::right_6(HorizontalAlignment::Right, 6, "🦀7890")]
 #[case::right_7(HorizontalAlignment::Right, 7, "4🦀7890")]
-fn render_truncates_emoji(
-	#[case] alignment: HorizontalAlignment,
-	#[case] buf_width: u16,
-	#[case] expected: &str,
-) {
+fn render_truncates_emoji(#[case] alignment: HorizontalAlignment, #[case] buf_width: u16, #[case] expected: &str) {
 	let line = Line::from("1234🦀7890").alignment(alignment);
 	let mut buf = Buffer::empty(Rect::new(0, 0, buf_width, 1));
 	line.render(buf.area, &mut buf);
@@ -201,11 +183,7 @@ fn render_truncates_emoji(
 #[case::center_9_4(9, 4, "🦀cd")]
 #[case::center_9_5(9, 5, "🦀cde")]
 #[case::center_9_6(9, 6, "b🦀cde")]
-fn render_truncates_emoji_center(
-	#[case] line_width: u16,
-	#[case] buf_width: u16,
-	#[case] expected: &str,
-) {
+fn render_truncates_emoji_center(#[case] line_width: u16, #[case] buf_width: u16, #[case] expected: &str) {
 	// because the crab emoji is 2 characters wide, it will can cause the centering tests
 	// intersect with either the left or right part of the emoji, which causes the emoji to
 	// be not rendered. Checking for four different widths of the line is enough to cover
@@ -294,10 +272,7 @@ fn render_truncates_flag(#[case] buf_width: u16, #[case] expected: &str) {
 #[rstest]
 #[case::left(HorizontalAlignment::Left, "This is some content with a some")]
 #[case::right(HorizontalAlignment::Right, "horribly long Line over u16::MAX")]
-fn render_truncates_very_long_line_of_many_spans(
-	#[case] alignment: HorizontalAlignment,
-	#[case] expected: &str,
-) {
+fn render_truncates_very_long_line_of_many_spans(#[case] alignment: HorizontalAlignment, #[case] expected: &str) {
 	let part = "This is some content with a somewhat long width to be repeated over and over again to create horribly long Line over u16::MAX";
 	let min_width = usize::from(u16::MAX).saturating_add(1);
 
@@ -318,10 +293,7 @@ fn render_truncates_very_long_line_of_many_spans(
 #[rstest]
 #[case::left(HorizontalAlignment::Left, "This is some content with a some")]
 #[case::right(HorizontalAlignment::Right, "horribly long Line over u16::MAX")]
-fn render_truncates_very_long_single_span_line(
-	#[case] alignment: HorizontalAlignment,
-	#[case] expected: &str,
-) {
+fn render_truncates_very_long_single_span_line(#[case] alignment: HorizontalAlignment, #[case] expected: &str) {
 	let part = "This is some content with a somewhat long width to be repeated over and over again to create horribly long Line over u16::MAX";
 	let min_width = usize::from(u16::MAX).saturating_add(1);
 

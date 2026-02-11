@@ -205,10 +205,7 @@ pub fn cache_theme(theme: &Theme) {
 }
 
 fn create_bootstrap_theme(colors: &BootstrapColors) -> &'static Theme {
-	use xeno_registry::themes::{
-		ColorPair, ModeColors, NotificationColors, PopupColors, SemanticColors, SyntaxStyles,
-		ThemeColors, UiColors,
-	};
+	use xeno_registry::themes::{ColorPair, ModeColors, NotificationColors, PopupColors, SemanticColors, SyntaxStyles, ThemeColors, UiColors};
 	use xeno_registry::{RegistryMetaStatic, RegistrySource};
 
 	Box::leak(Box::new(Theme {

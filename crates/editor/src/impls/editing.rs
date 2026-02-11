@@ -33,14 +33,7 @@ impl Editor {
 	/// 1. Captures view snapshots (cursor, scroll) via the [`crate::types::UndoManager`].
 	/// 2. Applies the mutation to the local buffer.
 	/// 3. Notifies overlays.
-	pub(crate) fn apply_edit(
-		&mut self,
-		buffer_id: ViewId,
-		tx: &Transaction,
-		new_selection: Option<Selection>,
-		undo: UndoPolicy,
-		origin: EditOrigin,
-	) -> bool {
+	pub(crate) fn apply_edit(&mut self, buffer_id: ViewId, tx: &Transaction, new_selection: Option<Selection>, undo: UndoPolicy, origin: EditOrigin) -> bool {
 		let focused_view = self.focused_view();
 		let core = &mut self.state.core;
 		let mut host = EditorUndoHost {
@@ -54,14 +47,9 @@ impl Editor {
 			lsp: &mut self.state.lsp,
 		};
 
-		let res = core.undo_manager.with_edit(
-			&mut host,
-			buffer_id,
-			origin,
-			|host: &mut EditorUndoHost| {
-				host.apply_transaction_inner(buffer_id, tx, new_selection, undo)
-			},
-		);
+		let res = core.undo_manager.with_edit(&mut host, buffer_id, origin, |host: &mut EditorUndoHost| {
+			host.apply_transaction_inner(buffer_id, tx, new_selection, undo)
+		});
 
 		if res {
 			self.notify_overlay_event(crate::overlay::LayerEvent::BufferEdited(buffer_id));
@@ -81,9 +69,7 @@ impl Editor {
 				let line_idx = doc.content().char_to_line(cursor);
 				let line = doc.content().line(line_idx);
 
-				line.chars()
-					.take_while(|c| *c == ' ' || *c == '\t')
-					.collect::<String>()
+				line.chars().take_while(|c| *c == ' ' || *c == '\t').collect::<String>()
 			})
 		};
 
@@ -109,22 +95,11 @@ impl Editor {
 		};
 
 		let (tx, new_selection) = {
-			let buffer = self
-				.state
-				.core
-				.buffers
-				.get_buffer_mut(buffer_id)
-				.expect("focused buffer must exist");
+			let buffer = self.state.core.buffers.get_buffer_mut(buffer_id).expect("focused buffer must exist");
 			buffer.prepare_insert(text)
 		};
 
-		let applied = self.apply_edit(
-			buffer_id,
-			&tx,
-			Some(new_selection),
-			undo,
-			EditOrigin::Internal("insert"),
-		);
+		let applied = self.apply_edit(buffer_id, &tx, Some(new_selection), undo, EditOrigin::Internal("insert"));
 
 		if !applied {
 			self.notify(keys::BUFFER_READONLY);
@@ -144,22 +119,11 @@ impl Editor {
 		}
 
 		let (tx, new_selection) = {
-			let buffer = self
-				.state
-				.core
-				.buffers
-				.get_buffer_mut(buffer_id)
-				.expect("focused buffer must exist");
+			let buffer = self.state.core.buffers.get_buffer_mut(buffer_id).expect("focused buffer must exist");
 			buffer.prepare_insert(text)
 		};
 
-		let applied = self.apply_edit(
-			buffer_id,
-			&tx,
-			Some(new_selection),
-			UndoPolicy::Record,
-			EditOrigin::Internal("paste"),
-		);
+		let applied = self.apply_edit(buffer_id, &tx, Some(new_selection), UndoPolicy::Record, EditOrigin::Internal("paste"));
 
 		if !applied {
 			self.notify(keys::BUFFER_READONLY);
@@ -189,24 +153,13 @@ impl Editor {
 		let yank = self.state.core.workspace.registers.yank.joined();
 
 		let Some((tx, new_selection)) = ({
-			let buffer = self
-				.state
-				.core
-				.buffers
-				.get_buffer_mut(buffer_id)
-				.expect("focused buffer must exist");
+			let buffer = self.state.core.buffers.get_buffer_mut(buffer_id).expect("focused buffer must exist");
 			buffer.prepare_paste_after(&yank)
 		}) else {
 			return;
 		};
 
-		let applied = self.apply_edit(
-			buffer_id,
-			&tx,
-			Some(new_selection),
-			UndoPolicy::Record,
-			EditOrigin::Internal("paste"),
-		);
+		let applied = self.apply_edit(buffer_id, &tx, Some(new_selection), UndoPolicy::Record, EditOrigin::Internal("paste"));
 
 		if !applied {
 			self.notify(keys::BUFFER_READONLY);
@@ -227,24 +180,13 @@ impl Editor {
 		let yank = self.state.core.workspace.registers.yank.joined();
 
 		let Some((tx, new_selection)) = ({
-			let buffer = self
-				.state
-				.core
-				.buffers
-				.get_buffer_mut(buffer_id)
-				.expect("focused buffer must exist");
+			let buffer = self.state.core.buffers.get_buffer_mut(buffer_id).expect("focused buffer must exist");
 			buffer.prepare_paste_before(&yank)
 		}) else {
 			return;
 		};
 
-		let applied = self.apply_edit(
-			buffer_id,
-			&tx,
-			Some(new_selection),
-			UndoPolicy::Record,
-			EditOrigin::Internal("paste"),
-		);
+		let applied = self.apply_edit(buffer_id, &tx, Some(new_selection), UndoPolicy::Record, EditOrigin::Internal("paste"));
 
 		if !applied {
 			self.notify(keys::BUFFER_READONLY);
@@ -260,24 +202,13 @@ impl Editor {
 		let buffer_id = self.focused_view();
 
 		let Some((tx, new_selection)) = ({
-			let buffer = self
-				.state
-				.core
-				.buffers
-				.get_buffer_mut(buffer_id)
-				.expect("focused buffer must exist");
+			let buffer = self.state.core.buffers.get_buffer_mut(buffer_id).expect("focused buffer must exist");
 			buffer.prepare_delete_selection()
 		}) else {
 			return;
 		};
 
-		let applied = self.apply_edit(
-			buffer_id,
-			&tx,
-			Some(new_selection),
-			UndoPolicy::Record,
-			EditOrigin::Internal("delete"),
-		);
+		let applied = self.apply_edit(buffer_id, &tx, Some(new_selection), UndoPolicy::Record, EditOrigin::Internal("delete"));
 
 		if !applied {
 			self.notify(keys::BUFFER_READONLY);
@@ -287,12 +218,7 @@ impl Editor {
 	/// Triggers a full syntax reparse of the focused buffer.
 	pub fn reparse_syntax(&mut self) {
 		let buffer_id = self.focused_view();
-		let buffer = self
-			.state
-			.core
-			.buffers
-			.get_buffer(buffer_id)
-			.expect("focused buffer must exist");
+		let buffer = self.state.core.buffers.get_buffer(buffer_id).expect("focused buffer must exist");
 		self.state.syntax_manager.reset_syntax(buffer.document_id());
 	}
 }

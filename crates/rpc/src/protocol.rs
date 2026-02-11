@@ -83,9 +83,7 @@ pub trait Protocol: Send + 'static {
 	) -> impl std::future::Future<Output = std::result::Result<(), Self::LoopError>> + Send;
 
 	/// Classify an inbound message.
-	fn split_inbound(
-		msg: Self::Message,
-	) -> Inbound<Self::Request, Self::Response, Self::Notification>;
+	fn split_inbound(msg: Self::Message) -> Inbound<Self::Request, Self::Response, Self::Notification>;
 
 	/// Get the ID from a request.
 	fn request_id(req: &Self::Request) -> Self::Id;

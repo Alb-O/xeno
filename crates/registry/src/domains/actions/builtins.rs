@@ -18,9 +18,7 @@ pub fn register_builtins(builder: &mut RegistryDbBuilder) {
 	crate::actions::register_compiled(builder);
 }
 
-fn register_builtins_reg(
-	builder: &mut RegistryDbBuilder,
-) -> Result<(), crate::db::builder::RegistryError> {
+fn register_builtins_reg(builder: &mut RegistryDbBuilder) -> Result<(), crate::db::builder::RegistryError> {
 	register_builtins(builder);
 	Ok(())
 }

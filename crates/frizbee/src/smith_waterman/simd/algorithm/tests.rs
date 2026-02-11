@@ -31,14 +31,8 @@ fn test_score_offset_prefix() {
 
 #[test]
 fn test_score_exact_match() {
-	assert_eq!(
-		get_score("a", "a"),
-		CHAR_SCORE + EXACT_MATCH_BONUS + PREFIX_BONUS
-	);
-	assert_eq!(
-		get_score("abc", "abc"),
-		3 * CHAR_SCORE + EXACT_MATCH_BONUS + PREFIX_BONUS
-	);
+	assert_eq!(get_score("a", "a"), CHAR_SCORE + EXACT_MATCH_BONUS + PREFIX_BONUS);
+	assert_eq!(get_score("abc", "abc"), 3 * CHAR_SCORE + EXACT_MATCH_BONUS + PREFIX_BONUS);
 }
 
 #[test]
@@ -60,14 +54,8 @@ fn test_score_no_delimiter_for_delimiter_chars() {
 
 #[test]
 fn test_score_affine_gap() {
-	assert_eq!(
-		get_score("test", "Uterst"),
-		CHAR_SCORE * 4 - GAP_OPEN_PENALTY
-	);
-	assert_eq!(
-		get_score("test", "Uterrst"),
-		CHAR_SCORE * 4 - GAP_OPEN_PENALTY - GAP_EXTEND_PENALTY
-	);
+	assert_eq!(get_score("test", "Uterst"), CHAR_SCORE * 4 - GAP_OPEN_PENALTY);
+	assert_eq!(get_score("test", "Uterrst"), CHAR_SCORE * 4 - GAP_OPEN_PENALTY - GAP_EXTEND_PENALTY);
 }
 
 #[test]

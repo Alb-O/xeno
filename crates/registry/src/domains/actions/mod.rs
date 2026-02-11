@@ -4,8 +4,7 @@
 //! This module provides auto-registration via the [`action_handler!`] macro and O(1) lookup.
 
 pub use crate::core::{
-	Capability, CommandError, RegistryBuilder, RegistryEntry, RegistryMeta, RegistryMetaStatic,
-	RegistryMetadata, RegistryRef, RegistrySource, RuntimeRegistry,
+	Capability, CommandError, RegistryBuilder, RegistryEntry, RegistryMeta, RegistryMetaStatic, RegistryMetadata, RegistryRef, RegistrySource, RuntimeRegistry,
 };
 
 pub mod builtins;
@@ -27,10 +26,9 @@ pub mod editor_ctx;
 pub use context::{ActionArgs, ActionContext};
 pub use def::{ActionDef, ActionHandler};
 pub use editor_ctx::{
-	CommandQueueAccess, CursorAccess, EditAccess, EditorCapabilities, EditorContext, EditorOps,
-	FileOpsAccess, FocusOps, HandleOutcome, JumpAccess, MacroAccess, ModeAccess, MotionAccess,
-	MotionDispatchAccess, NotificationAccess, OptionAccess, PaletteAccess, ResultHandler,
-	SearchAccess, SelectionAccess, SplitOps, TextAccess, ThemeAccess, UndoAccess, ViewportAccess,
+	CommandQueueAccess, CursorAccess, EditAccess, EditorCapabilities, EditorContext, EditorOps, FileOpsAccess, FocusOps, HandleOutcome, JumpAccess,
+	MacroAccess, ModeAccess, MotionAccess, MotionDispatchAccess, NotificationAccess, OptionAccess, PaletteAccess, ResultHandler, SearchAccess, SelectionAccess,
+	SplitOps, TextAccess, ThemeAccess, UndoAccess, ViewportAccess,
 };
 pub use entry::ActionEntry;
 pub use handler::{ActionHandlerReg, ActionHandlerStatic};
@@ -45,18 +43,13 @@ pub type ActionKey = LookupKey<ActionEntry, ActionId>;
 /// Typed reference to a runtime action entry.
 pub type ActionRef = RegistryRef<ActionEntry, ActionId>;
 pub use builtins::{cursor_motion, selection_motion};
-pub use edit_op::{
-	CharMapKind, CursorAdjust, EditOp, EditPlan, PostEffect, PreEffect, SelectionOp, TextTransform,
-};
-pub use effects::{
-	ActionEffects, AppEffect, EditEffect, Effect, MotionKind, MotionRequest, ScrollAmount,
-	UiEffect, ViewEffect,
-};
+pub use edit_op::{CharMapKind, CursorAdjust, EditOp, EditPlan, PostEffect, PreEffect, SelectionOp, TextTransform};
+pub use effects::{ActionEffects, AppEffect, EditEffect, Effect, MotionKind, MotionRequest, ScrollAmount, UiEffect, ViewEffect};
 pub use keybindings::{BindingMode, KEY_PREFIXES, KeyBindingDef, KeyPrefixDef, find_prefix};
 pub use pending::PendingAction;
 pub use result::{
-	ActionResult, RESULT_EFFECTS_HANDLERS, RESULT_EXTENSION_HANDLERS, ResultHandlerRegistry,
-	ScreenPosition, dispatch_result, register_result_extension_handler, register_result_handler,
+	ActionResult, RESULT_EFFECTS_HANDLERS, RESULT_EXTENSION_HANDLERS, ResultHandlerRegistry, ScreenPosition, dispatch_result,
+	register_result_extension_handler, register_result_handler,
 };
 pub use xeno_primitives::direction::{Axis, SeqDirection, SpatialDirection};
 pub use xeno_primitives::{Mode, ObjectSelectionKind, PendingKind};
@@ -88,9 +81,7 @@ pub use builtins::register_builtins;
 pub use crate::db::ACTIONS;
 use crate::error::RegistryError;
 
-pub fn register_plugin(
-	db: &mut crate::db::builder::RegistryDbBuilder,
-) -> Result<(), RegistryError> {
+pub fn register_plugin(db: &mut crate::db::builder::RegistryDbBuilder) -> Result<(), RegistryError> {
 	register_builtins(db);
 	register_compiled(db);
 	Ok(())
@@ -99,9 +90,7 @@ pub fn register_plugin(
 /// Registers compiled actions and prefixes from the embedded spec.
 pub fn register_compiled(db: &mut crate::db::builder::RegistryDbBuilder) {
 	let spec = loader::load_actions_spec();
-	let handlers = inventory::iter::<handler::ActionHandlerReg>
-		.into_iter()
-		.map(|r| r.0);
+	let handlers = inventory::iter::<handler::ActionHandlerReg>.into_iter().map(|r| r.0);
 
 	let linked = link::link_actions(&spec, handlers);
 
@@ -130,9 +119,7 @@ impl crate::db::domain::DomainSpec for Actions {
 		def::ActionInput::Linked(def)
 	}
 
-	fn builder(
-		db: &mut crate::db::builder::RegistryDbBuilder,
-	) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
+	fn builder(db: &mut crate::db::builder::RegistryDbBuilder) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
 		&mut db.actions
 	}
 

@@ -52,10 +52,7 @@ impl Modifiers {
 
 	/// Returns a copy with Shift added.
 	pub fn shift(self) -> Self {
-		Self {
-			shift: true,
-			..self
-		}
+		Self { shift: true, ..self }
 	}
 
 	/// Returns true if no modifiers are set.

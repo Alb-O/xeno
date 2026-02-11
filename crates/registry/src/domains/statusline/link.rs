@@ -1,7 +1,5 @@
 use super::spec::StatuslineSpec;
-use crate::core::{
-	LinkedDef, LinkedMetaOwned, LinkedPayload, RegistryMeta, RegistrySource, Symbol,
-};
+use crate::core::{LinkedDef, LinkedMetaOwned, LinkedPayload, RegistryMeta, RegistrySource, Symbol};
 use crate::statusline::handler::{StatuslineHandlerStatic, StatuslineRenderHandler};
 use crate::statusline::{SegmentPosition, StatuslineEntry};
 
@@ -15,12 +13,7 @@ pub struct StatuslinePayload {
 }
 
 impl LinkedPayload<StatuslineEntry> for StatuslinePayload {
-	fn build_entry(
-		&self,
-		_ctx: &mut dyn crate::core::index::BuildCtx,
-		meta: RegistryMeta,
-		_short_desc: Symbol,
-	) -> StatuslineEntry {
+	fn build_entry(&self, _ctx: &mut dyn crate::core::index::BuildCtx, meta: RegistryMeta, _short_desc: Symbol) -> StatuslineEntry {
 		StatuslineEntry {
 			meta,
 			position: self.position,
@@ -39,10 +32,7 @@ fn parse_position(s: &str, name: &str) -> SegmentPosition {
 	}
 }
 
-pub fn link_statusline(
-	spec: &StatuslineSpec,
-	handlers: impl Iterator<Item = &'static StatuslineHandlerStatic>,
-) -> Vec<LinkedStatuslineDef> {
+pub fn link_statusline(spec: &StatuslineSpec, handlers: impl Iterator<Item = &'static StatuslineHandlerStatic>) -> Vec<LinkedStatuslineDef> {
 	crate::defs::link::link_by_name(
 		&spec.segments,
 		handlers,

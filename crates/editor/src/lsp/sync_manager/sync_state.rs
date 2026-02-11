@@ -131,13 +131,7 @@ impl DocSyncState {
 	/// Records changes with contiguity checking.
 	///
 	/// Detects version gaps or reorders and escalates to full sync if detected.
-	pub fn record_changes(
-		&mut self,
-		prev_version: u64,
-		new_version: u64,
-		changes: Vec<LspDocumentChange>,
-		bytes: usize,
-	) {
+	pub fn record_changes(&mut self, prev_version: u64, new_version: u64, changes: Vec<LspDocumentChange>, bytes: usize) {
 		self.last_edit_at = Instant::now();
 
 		if let Some(expected) = self.expected_prev
@@ -250,11 +244,7 @@ impl DocSyncState {
 			return false;
 		}
 
-		warn!(
-			version = info.version,
-			is_full = info.is_full,
-			"lsp.sync_write_timeout"
-		);
+		warn!(version = info.version, is_full = info.is_full, "lsp.sync_write_timeout");
 
 		self.inflight = None;
 		self.escalate_full();

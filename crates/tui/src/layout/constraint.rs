@@ -251,22 +251,14 @@ mod tests {
 
 	#[test]
 	fn from_lengths() {
-		let expected = [
-			Constraint::Length(1),
-			Constraint::Length(2),
-			Constraint::Length(3),
-		];
+		let expected = [Constraint::Length(1), Constraint::Length(2), Constraint::Length(3)];
 		assert_eq!(Constraint::from_lengths([1, 2, 3]), expected);
 		assert_eq!(Constraint::from_lengths(vec![1, 2, 3]), expected);
 	}
 
 	#[test]
 	fn from_percentages() {
-		let expected = [
-			Constraint::Percentage(25),
-			Constraint::Percentage(50),
-			Constraint::Percentage(25),
-		];
+		let expected = [Constraint::Percentage(25), Constraint::Percentage(50), Constraint::Percentage(25)];
 		assert_eq!(Constraint::from_percentages([25, 50, 25]), expected);
 		assert_eq!(Constraint::from_percentages(vec![25, 50, 25]), expected);
 	}

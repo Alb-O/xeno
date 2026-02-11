@@ -28,21 +28,13 @@ pub fn find_all_matches(text: RopeSlice, pattern: &str) -> Result<Vec<Range>, re
 }
 
 /// Finds the next regex match of `pattern` after `pos`, with document wraparound.
-pub fn find_next(
-	text: RopeSlice,
-	pattern: &str,
-	pos: CharIdx,
-) -> Result<Option<Range>, regex::Error> {
+pub fn find_next(text: RopeSlice, pattern: &str, pos: CharIdx) -> Result<Option<Range>, regex::Error> {
 	let re = Regex::new(pattern)?;
 	Ok(find_next_re(text, &re, pos))
 }
 
 /// Finds the previous regex match of `pattern` before `pos`, with document wraparound.
-pub fn find_prev(
-	text: RopeSlice,
-	pattern: &str,
-	pos: CharIdx,
-) -> Result<Option<Range>, regex::Error> {
+pub fn find_prev(text: RopeSlice, pattern: &str, pos: CharIdx) -> Result<Option<Range>, regex::Error> {
 	let re = Regex::new(pattern)?;
 	Ok(find_prev_re(text, &re, pos))
 }
@@ -109,10 +101,7 @@ fn byte_to_char_offset(s: &str, byte_offset: usize) -> CharIdx {
 
 /// Converts a character offset to a byte offset.
 fn char_to_byte_offset(s: &str, char_offset: CharIdx) -> usize {
-	s.char_indices()
-		.nth(char_offset)
-		.map(|(i, _)| i)
-		.unwrap_or(s.len())
+	s.char_indices().nth(char_offset).map(|(i, _)| i).unwrap_or(s.len())
 }
 
 #[cfg(test)]

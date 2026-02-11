@@ -2,10 +2,7 @@
 
 use xeno_registry::themes::{THEMES, ThemeVariant};
 
-use crate::completion::{
-	CompletionContext, CompletionItem, CompletionKind, CompletionResult, CompletionSource,
-	PROMPT_COMMAND,
-};
+use crate::completion::{CompletionContext, CompletionItem, CompletionKind, CompletionResult, CompletionSource, PROMPT_COMMAND};
 
 /// Completion source for theme names.
 pub struct ThemeSource;
@@ -32,10 +29,7 @@ impl CompletionSource for ThemeSource {
 		let mut items: Vec<_> = THEMES
 			.snapshot_guard()
 			.iter_refs()
-			.filter(|t| {
-				t.name_str().starts_with(prefix)
-					|| t.keys_resolved().iter().any(|a| a.starts_with(prefix))
-			})
+			.filter(|t| t.name_str().starts_with(prefix) || t.keys_resolved().iter().any(|a| a.starts_with(prefix)))
 			.map(|t| CompletionItem {
 				label: t.name_str().to_string(),
 				insert_text: t.name_str().to_string(),

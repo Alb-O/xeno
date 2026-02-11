@@ -25,8 +25,7 @@ impl<'a, const W: usize, M: Appendable<Match>> FixedWidthBucket<'a, W, M> {
 	pub fn new(needle: &'a str, config: &Config) -> Self {
 		FixedWidthBucket {
 			#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-			has_avx512: is_x86_feature_detected!("avx512f")
-				&& is_x86_feature_detected!("avx512bitalg"),
+			has_avx512: is_x86_feature_detected!("avx512f") && is_x86_feature_detected!("avx512bitalg"),
 			#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 			has_avx2: is_x86_feature_detected!("avx2"),
 
@@ -83,9 +82,7 @@ impl<'a, const W: usize, M: Appendable<Match>> FixedWidthBucket<'a, W, M> {
 			&self.scoring,
 		);
 
-		let typos = self
-			.max_typos
-			.map(|max_typos| typos_from_score_matrix::<W, L>(&score_matrix, max_typos));
+		let typos = self.max_typos.map(|max_typos| typos_from_score_matrix::<W, L>(&score_matrix, max_typos));
 
 		for idx in 0..self.length {
 			if let Some(max_typos) = self.max_typos

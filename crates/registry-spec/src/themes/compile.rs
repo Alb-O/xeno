@@ -19,9 +19,7 @@ pub fn build(ctx: &BuildCtx) {
 		let path = entry.path();
 		if path.extension().is_some_and(|ext| ext == "kdl") {
 			let kdl = fs::read_to_string(path).expect("failed to read theme kdl");
-			let doc: KdlDocument = kdl
-				.parse()
-				.unwrap_or_else(|e| panic!("failed to parse theme {}: {}", path.display(), e));
+			let doc: KdlDocument = kdl.parse().unwrap_or_else(|e| panic!("failed to parse theme {}: {}", path.display(), e));
 
 			let name = doc
 				.get("name")
@@ -41,12 +39,7 @@ pub fn build(ctx: &BuildCtx) {
 
 			let keys = doc
 				.get("keys")
-				.map(|n| {
-					n.entries()
-						.iter()
-						.filter_map(|e| e.value().as_string().map(String::from))
-						.collect()
-				})
+				.map(|n| n.entries().iter().filter_map(|e| e.value().as_string().map(String::from)).collect())
 				.unwrap_or_default();
 
 			let description = doc
@@ -135,26 +128,14 @@ fn parse_kdl_map(node: Option<&kdl::KdlNode>) -> HashMap<String, String> {
 	map
 }
 
-fn parse_syntax_recursive(
-	children: &kdl::KdlDocument,
-	prefix: &str,
-	map: &mut HashMap<String, RawStyle>,
-) {
+fn parse_syntax_recursive(children: &kdl::KdlDocument, prefix: &str, map: &mut HashMap<String, RawStyle>) {
 	for node in children.nodes() {
 		let name = node.name().value();
-		let scope = if prefix.is_empty() {
-			name.to_string()
-		} else {
-			format!("{prefix}.{name}")
-		};
+		let scope = if prefix.is_empty() { name.to_string() } else { format!("{prefix}.{name}") };
 
 		let fg = node.get("fg").and_then(|v| v.as_string()).map(String::from);
 		let bg = node.get("bg").and_then(|v| v.as_string()).map(String::from);
-		let modifiers = node
-			.get("mod")
-			.or_else(|| node.get("modifiers"))
-			.and_then(|v| v.as_string())
-			.map(String::from);
+		let modifiers = node.get("mod").or_else(|| node.get("modifiers")).and_then(|v| v.as_string()).map(String::from);
 
 		if fg.is_some() || bg.is_some() || modifiers.is_some() {
 			map.insert(scope.clone(), RawStyle { fg, bg, modifiers });

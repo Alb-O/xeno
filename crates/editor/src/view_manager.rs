@@ -60,13 +60,7 @@ impl ViewManager {
 	}
 
 	/// Creates a new buffer with syntax highlighting.
-	pub fn create_buffer(
-		&mut self,
-		content: String,
-		path: Option<PathBuf>,
-		language_loader: &LanguageLoader,
-		window_width: Option<u16>,
-	) -> ViewId {
+	pub fn create_buffer(&mut self, content: String, path: Option<PathBuf>, language_loader: &LanguageLoader, window_width: Option<u16>) -> ViewId {
 		let buffer_id = ViewId(self.next_buffer_id);
 		self.next_buffer_id += 1;
 
@@ -112,11 +106,7 @@ impl ViewManager {
 
 		let new_buffer = source_buffer.clone_for_split(new_id);
 		let doc_id = new_buffer.document_id();
-		debug_assert_eq!(
-			doc_id,
-			source_buffer.document_id(),
-			"split buffer must share document"
-		);
+		debug_assert_eq!(doc_id, source_buffer.document_id(), "split buffer must share document");
 		self.buffers.insert(new_id, new_buffer);
 		self.index_add(doc_id, new_id);
 		Some(new_id)
@@ -175,25 +165,17 @@ impl ViewManager {
 
 	/// Finds a buffer by its file path.
 	pub fn find_by_path(&self, path: &std::path::Path) -> Option<ViewId> {
-		self.buffers
-			.values()
-			.find(|b| b.path().as_deref() == Some(path))
-			.map(|b| b.id)
+		self.buffers.values().find(|b| b.path().as_deref() == Some(path)).map(|b| b.id)
 	}
 
 	/// Returns any view ID associated with the given document.
 	pub fn any_buffer_for_doc(&self, doc_id: DocumentId) -> Option<ViewId> {
-		self.doc_to_views
-			.get(&doc_id)
-			.and_then(|views| views.first().copied())
+		self.doc_to_views.get(&doc_id).and_then(|views| views.first().copied())
 	}
 
 	/// Returns all view IDs associated with the given document.
 	pub fn views_for_doc(&self, doc_id: DocumentId) -> &[ViewId] {
-		self.doc_to_views
-			.get(&doc_id)
-			.map(|v| v.as_slice())
-			.unwrap_or_default()
+		self.doc_to_views.get(&doc_id).map(|v| v.as_slice()).unwrap_or_default()
 	}
 
 	/// Adds a view to the reverse index for a document.

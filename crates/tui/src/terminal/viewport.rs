@@ -48,9 +48,6 @@ mod tests {
 	fn viewport_to_string() {
 		assert_eq!(Viewport::Fullscreen.to_string(), "Fullscreen");
 		assert_eq!(Viewport::Inline(5).to_string(), "Inline(5)");
-		assert_eq!(
-			Viewport::Fixed(Rect::new(0, 0, 5, 5)).to_string(),
-			"Fixed(5x5+0+0)"
-		);
+		assert_eq!(Viewport::Fixed(Rect::new(0, 0, 5, 5)).to_string(), "Fixed(5x5+0+0)");
 	}
 }

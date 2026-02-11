@@ -40,21 +40,13 @@ fn parse_lsp_server_node(node: &KdlNode) -> LspServerSpec {
 	let name = node.name().value().to_string();
 	let command = node
 		.entry(0)
-		.and_then(|e| {
-			if e.name().is_none() {
-				e.value().as_string().map(String::from)
-			} else {
-				None
-			}
-		})
+		.and_then(|e| if e.name().is_none() { e.value().as_string().map(String::from) } else { None })
 		.unwrap_or_else(|| name.clone());
 
 	let children = node.children();
 	let args = parse_string_args(children, "args");
 	let environment = parse_lsp_environment(children);
-	let config_json = children
-		.and_then(|c| c.get("config"))
-		.map(|n| kdl_node_to_json(n).to_string());
+	let config_json = children.and_then(|c| c.get("config")).map(|n| kdl_node_to_json(n).to_string());
 	let source = children
 		.and_then(|c| c.get("source"))
 		.and_then(|n| n.entry(0))

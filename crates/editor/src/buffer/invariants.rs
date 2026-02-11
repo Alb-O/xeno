@@ -38,10 +38,7 @@ pub(crate) fn test_selection_clamping() {
 	buffer.ensure_valid_selection();
 
 	let max_char = buffer.with_doc(|doc| doc.content().len_chars());
-	assert!(
-		buffer.cursor <= max_char,
-		"cursor should be clamped to document bounds"
-	);
+	assert!(buffer.cursor <= max_char, "cursor should be clamped to document bounds");
 }
 
 /// Invariant: Document versions MUST be monotonically increasing across edits.

@@ -25,9 +25,7 @@ impl OptionStore {
 
 	/// Creates a store sized for the given registry.
 	pub fn with_capacity(reg: &OptionsRegistry) -> Self {
-		Self {
-			values: vec![None; reg.len()],
-		}
+		Self { values: vec![None; reg.len()] }
 	}
 
 	fn ensure_len(&mut self, id: OptionId) {
@@ -45,15 +43,8 @@ impl OptionStore {
 	}
 
 	/// Sets an option value by KDL key (for config parsing).
-	pub fn set_by_kdl(
-		&mut self,
-		reg: &OptionsRegistry,
-		kdl_key: &str,
-		value: OptionValue,
-	) -> Result<(), OptionError> {
-		let opt = reg
-			.get(kdl_key)
-			.ok_or_else(|| OptionError::UnknownOption(kdl_key.to_string()))?;
+	pub fn set_by_kdl(&mut self, reg: &OptionsRegistry, kdl_key: &str, value: OptionValue) -> Result<(), OptionError> {
+		let opt = reg.get(kdl_key).ok_or_else(|| OptionError::UnknownOption(kdl_key.to_string()))?;
 
 		crate::options::validate_ref(&opt, &value)?;
 
@@ -83,9 +74,7 @@ impl OptionStore {
 
 	/// Removes an option from the store.
 	pub fn remove(&mut self, opt: OptionsRef) -> Option<OptionValue> {
-		self.values
-			.get_mut(opt.dense_id().as_u32() as usize)?
-			.take()
+		self.values.get_mut(opt.dense_id().as_u32() as usize)?.take()
 	}
 
 	/// Merges another store into this one.

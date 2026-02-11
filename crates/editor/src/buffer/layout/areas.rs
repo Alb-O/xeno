@@ -8,9 +8,9 @@ use super::types::{SplitDirection, SplitPath, ViewId};
 impl Layout {
 	/// Finds the view at the given screen coordinates.
 	pub fn view_at_position(&self, area: Rect, x: u16, y: u16) -> Option<(ViewId, Rect)> {
-		self.compute_view_areas(area).into_iter().find(|(_, rect)| {
-			x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height
-		})
+		self.compute_view_areas(area)
+			.into_iter()
+			.find(|(_, rect)| x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height)
 	}
 
 	/// Computes rectangular areas for each view in the layout.
@@ -23,8 +23,7 @@ impl Layout {
 				first,
 				second,
 			} => {
-				let (first_area, second_area, _) =
-					Self::compute_split_areas(area, *direction, *position);
+				let (first_area, second_area, _) = Self::compute_split_areas(area, *direction, *position);
 				let mut areas = first.compute_view_areas(first_area);
 				areas.extend(second.compute_view_areas(second_area));
 				areas
@@ -38,38 +37,20 @@ impl Layout {
 	}
 
 	/// Finds the separator at the given screen coordinates.
-	pub fn separator_at_position(
-		&self,
-		area: Rect,
-		x: u16,
-		y: u16,
-	) -> Option<(SplitDirection, Rect)> {
+	pub fn separator_at_position(&self, area: Rect, x: u16, y: u16) -> Option<(SplitDirection, Rect)> {
 		self.separator_positions(area)
 			.into_iter()
-			.find(|(_, _, rect)| {
-				x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height
-			})
+			.find(|(_, _, rect)| x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height)
 			.map(|(dir, _, rect)| (dir, rect))
 	}
 
 	/// Finds the separator and its path at the given screen coordinates.
-	pub fn separator_with_path_at_position(
-		&self,
-		area: Rect,
-		x: u16,
-		y: u16,
-	) -> Option<(SplitDirection, Rect, SplitPath)> {
+	pub fn separator_with_path_at_position(&self, area: Rect, x: u16, y: u16) -> Option<(SplitDirection, Rect, SplitPath)> {
 		self.find_separator_with_path(area, x, y, SplitPath::default())
 	}
 
 	/// Recursively searches for a separator at coordinates, building the path.
-	fn find_separator_with_path(
-		&self,
-		area: Rect,
-		x: u16,
-		y: u16,
-		current_path: SplitPath,
-	) -> Option<(SplitDirection, Rect, SplitPath)> {
+	fn find_separator_with_path(&self, area: Rect, x: u16, y: u16, current_path: SplitPath) -> Option<(SplitDirection, Rect, SplitPath)> {
 		let Layout::Split {
 			direction,
 			position,
@@ -80,14 +61,9 @@ impl Layout {
 			return None;
 		};
 
-		let (first_area, second_area, sep_rect) =
-			Self::compute_split_areas(area, *direction, *position);
+		let (first_area, second_area, sep_rect) = Self::compute_split_areas(area, *direction, *position);
 
-		if x >= sep_rect.x
-			&& x < sep_rect.x + sep_rect.width
-			&& y >= sep_rect.y
-			&& y < sep_rect.y + sep_rect.height
-		{
+		if x >= sep_rect.x && x < sep_rect.x + sep_rect.width && y >= sep_rect.y && y < sep_rect.y + sep_rect.height {
 			return Some((*direction, sep_rect, current_path));
 		}
 
@@ -110,12 +86,7 @@ impl Layout {
 	pub fn min_width(&self) -> u16 {
 		match self {
 			Layout::Single(_) => Self::MIN_WIDTH,
-			Layout::Split {
-				direction,
-				first,
-				second,
-				..
-			} => match direction {
+			Layout::Split { direction, first, second, .. } => match direction {
 				SplitDirection::Horizontal => first.min_width() + 1 + second.min_width(),
 				SplitDirection::Vertical => first.min_width().max(second.min_width()),
 			},
@@ -130,12 +101,7 @@ impl Layout {
 	pub fn min_height(&self) -> u16 {
 		match self {
 			Layout::Single(_) => Self::MIN_HEIGHT,
-			Layout::Split {
-				direction,
-				first,
-				second,
-				..
-			} => match direction {
+			Layout::Split { direction, first, second, .. } => match direction {
 				SplitDirection::Vertical => first.min_height() + 1 + second.min_height(),
 				SplitDirection::Horizontal => first.min_height().max(second.min_height()),
 			},
@@ -143,13 +109,7 @@ impl Layout {
 	}
 
 	/// Resizes the split at the given path based on mouse position.
-	pub fn resize_at_path(
-		&mut self,
-		area: Rect,
-		path: &SplitPath,
-		mouse_x: u16,
-		mouse_y: u16,
-	) -> bool {
+	pub fn resize_at_path(&mut self, area: Rect, path: &SplitPath, mouse_x: u16, mouse_y: u16) -> bool {
 		self.do_resize_at_path(area, &path.0, mouse_x, mouse_y)
 	}
 
@@ -192,20 +152,12 @@ impl Layout {
 	}
 
 	/// Gets the separator rect for a split at the given path.
-	pub fn separator_rect_at_path(
-		&self,
-		area: Rect,
-		path: &SplitPath,
-	) -> Option<(SplitDirection, Rect)> {
+	pub fn separator_rect_at_path(&self, area: Rect, path: &SplitPath) -> Option<(SplitDirection, Rect)> {
 		self.do_get_separator_at_path(area, &path.0)
 	}
 
 	/// Internal recursive implementation of path-based separator lookup.
-	fn do_get_separator_at_path(
-		&self,
-		area: Rect,
-		path: &[bool],
-	) -> Option<(SplitDirection, Rect)> {
+	fn do_get_separator_at_path(&self, area: Rect, path: &[bool]) -> Option<(SplitDirection, Rect)> {
 		let Layout::Split {
 			direction,
 			position,
@@ -216,8 +168,7 @@ impl Layout {
 			return None;
 		};
 
-		let (first_area, second_area, sep_rect) =
-			Self::compute_split_areas(area, *direction, *position);
+		let (first_area, second_area, sep_rect) = Self::compute_split_areas(area, *direction, *position);
 
 		if path.is_empty() {
 			return Some((*direction, sep_rect));
@@ -243,11 +194,7 @@ impl Layout {
 	///
 	/// The invariant `first_size + second_size + 1 == total_size` is maintained
 	/// when `total_size >= 1` (separator takes 1 cell).
-	pub(super) fn compute_split_areas(
-		area: Rect,
-		direction: SplitDirection,
-		position_local: u16,
-	) -> (Rect, Rect, Rect) {
+	pub(super) fn compute_split_areas(area: Rect, direction: SplitDirection, position_local: u16) -> (Rect, Rect, Rect) {
 		match direction {
 			SplitDirection::Horizontal => {
 				let total = area.width;
@@ -375,8 +322,7 @@ impl Layout {
 			return vec![];
 		};
 
-		let (first_area, second_area, sep_rect) =
-			Self::compute_split_areas(area, *direction, *position);
+		let (first_area, second_area, sep_rect) = Self::compute_split_areas(area, *direction, *position);
 
 		let mut separators = vec![(*direction, 0, sep_rect)];
 		separators.extend(first.separator_positions(first_area));

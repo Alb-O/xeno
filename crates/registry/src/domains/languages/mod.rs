@@ -9,9 +9,7 @@ pub mod types;
 pub use registry::LanguagesRegistry;
 pub use types::{LanguageEntry, LanguageInput};
 
-pub fn register_plugin(
-	db: &mut crate::db::builder::RegistryDbBuilder,
-) -> Result<(), crate::error::RegistryError> {
+pub fn register_plugin(db: &mut crate::db::builder::RegistryDbBuilder) -> Result<(), crate::error::RegistryError> {
 	register_compiled(db);
 	Ok(())
 }
@@ -44,9 +42,7 @@ impl crate::db::domain::DomainSpec for Languages {
 		LanguageInput::Linked(def)
 	}
 
-	fn builder(
-		db: &mut crate::db::builder::RegistryDbBuilder,
-	) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
+	fn builder(db: &mut crate::db::builder::RegistryDbBuilder) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
 		&mut db.languages
 	}
 }

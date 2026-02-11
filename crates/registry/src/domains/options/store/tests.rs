@@ -26,9 +26,7 @@ fn test_set_by_kdl() {
 	let mut store = OptionStore::new();
 	let options = &crate::db::OPTIONS;
 	let tab_width = options.get_key(&keys::TAB_WIDTH.untyped()).unwrap();
-	store
-		.set_by_kdl(options, "tab-width", OptionValue::Int(2))
-		.unwrap();
+	store.set_by_kdl(options, "tab-width", OptionValue::Int(2)).unwrap();
 
 	assert_eq!(store.get_int(tab_width.dense_id()), Some(2));
 }

@@ -11,10 +11,7 @@ mod parallel;
 use std::path::PathBuf;
 
 pub use compile::{BuildStatus, build_grammar};
-pub use config::{
-	GrammarConfig, GrammarSource, get_grammar_src_dir, grammar_lib_dir, grammar_sources_dir,
-	library_extension, load_grammar_configs,
-};
+pub use config::{GrammarConfig, GrammarSource, get_grammar_src_dir, grammar_lib_dir, grammar_sources_dir, library_extension, load_grammar_configs};
 pub use fetch::{FetchStatus, fetch_grammar};
 pub use parallel::{ProgressCallback, build_all_grammars, fetch_all_grammars};
 use thiserror::Error;

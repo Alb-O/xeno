@@ -7,9 +7,7 @@ fn overlay_store_get_or_default_is_stable_and_mutable() {
 		n: i32,
 	}
 
-	let mut s = OverlayStore {
-		inner: Default::default(),
-	};
+	let mut s = OverlayStore { inner: Default::default() };
 
 	let p1 = {
 		let r = s.get_or_default::<Foo>();

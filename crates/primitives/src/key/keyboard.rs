@@ -51,10 +51,7 @@ impl Key {
 	/// Add Ctrl modifier.
 	pub const fn with_ctrl(self) -> Self {
 		Self {
-			modifiers: Modifiers {
-				ctrl: true,
-				..self.modifiers
-			},
+			modifiers: Modifiers { ctrl: true, ..self.modifiers },
 			..self
 		}
 	}
@@ -73,10 +70,7 @@ impl Key {
 	/// Add Alt modifier.
 	pub const fn with_alt(self) -> Self {
 		Self {
-			modifiers: Modifiers {
-				alt: true,
-				..self.modifiers
-			},
+			modifiers: Modifiers { alt: true, ..self.modifiers },
 			..self
 		}
 	}
@@ -84,10 +78,7 @@ impl Key {
 	/// Add Shift modifier.
 	pub const fn with_shift(self) -> Self {
 		Self {
-			modifiers: Modifiers {
-				shift: true,
-				..self.modifiers
-			},
+			modifiers: Modifiers { shift: true, ..self.modifiers },
 			..self
 		}
 	}

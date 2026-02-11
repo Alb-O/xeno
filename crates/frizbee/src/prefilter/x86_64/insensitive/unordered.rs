@@ -18,9 +18,7 @@ use super::super::overlapping_load;
 pub unsafe fn match_haystack_unordered_insensitive(needle: &[(u8, u8)], haystack: &[u8]) -> bool {
 	let len = haystack.len();
 
-	let mut needle_iter = needle
-		.iter()
-		.map(|&(c1, c2)| unsafe { (_mm_set1_epi8(c1 as i8), _mm_set1_epi8(c2 as i8)) });
+	let mut needle_iter = needle.iter().map(|&(c1, c2)| unsafe { (_mm_set1_epi8(c1 as i8), _mm_set1_epi8(c2 as i8)) });
 	let mut needle_char = needle_iter.next().unwrap();
 
 	for start in (0..len).step_by(16) {
@@ -58,10 +56,7 @@ pub unsafe fn match_haystack_unordered_insensitive(needle: &[(u8, u8)], haystack
 /// When W <= 16, the caller must ensure that the minimum length of the haystack is >= 8.
 /// In all cases, the caller must ensure the needle.len() > 0 and that SSE2 and AVX2 are available.
 #[inline(always)]
-pub unsafe fn match_haystack_unordered_insensitive_avx2(
-	needle_simd: &[__m256i],
-	haystack: &[u8],
-) -> bool {
+pub unsafe fn match_haystack_unordered_insensitive_avx2(needle_simd: &[__m256i], haystack: &[u8]) -> bool {
 	let len = haystack.len();
 
 	let mut needle_iter = needle_simd.iter();
@@ -75,8 +70,7 @@ pub unsafe fn match_haystack_unordered_insensitive_avx2(
 		// last 16 bytes. This allows us to compare the uppercase and lowercase versions of
 		// the needle char in the same comparison.
 		loop {
-			if unsafe { _mm256_movemask_epi8(_mm256_cmpeq_epi8(needle_char, haystack_chunk)) } == 0
-			{
+			if unsafe { _mm256_movemask_epi8(_mm256_cmpeq_epi8(needle_char, haystack_chunk)) } == 0 {
 				// No match, advance to next chunk
 				break;
 			}

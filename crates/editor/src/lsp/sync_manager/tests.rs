@@ -27,14 +27,8 @@ fn test_doc_open_close() {
 fn test_change(text: &str) -> LspDocumentChange {
 	LspDocumentChange {
 		range: xeno_primitives::LspRange {
-			start: xeno_primitives::LspPosition {
-				line: 0,
-				character: 0,
-			},
-			end: xeno_primitives::LspPosition {
-				line: 0,
-				character: 0,
-			},
+			start: xeno_primitives::LspPosition { line: 0, character: 0 },
+			end: xeno_primitives::LspPosition { line: 0, character: 0 },
 		},
 		new_text: text.to_string(),
 	}
@@ -74,22 +68,10 @@ fn test_threshold_escalation() {
 
 #[test]
 fn test_flush_result_error_classification() {
-	assert_eq!(
-		FlushResult::from_error(&LspError::Backpressure),
-		FlushResult::Retryable
-	);
-	assert_eq!(
-		FlushResult::from_error(&LspError::NotReady),
-		FlushResult::Retryable
-	);
-	assert_eq!(
-		FlushResult::from_error(&LspError::Protocol("test".into())),
-		FlushResult::Failed
-	);
-	assert_eq!(
-		FlushResult::from_error(&LspError::ServiceStopped),
-		FlushResult::Failed
-	);
+	assert_eq!(FlushResult::from_error(&LspError::Backpressure), FlushResult::Retryable);
+	assert_eq!(FlushResult::from_error(&LspError::NotReady), FlushResult::Retryable);
+	assert_eq!(FlushResult::from_error(&LspError::Protocol("test".into())), FlushResult::Failed);
+	assert_eq!(FlushResult::from_error(&LspError::ServiceStopped), FlushResult::Failed);
 }
 
 #[test]

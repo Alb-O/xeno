@@ -107,8 +107,7 @@ where
 {
 	use serde::Deserialize;
 
-	Option::<Modifier>::deserialize(deserializer)
-		.map(|modifier| modifier.unwrap_or_else(Modifier::empty))
+	Option::<Modifier>::deserialize(deserializer).map(|modifier| modifier.unwrap_or_else(Modifier::empty))
 }
 
 /// Style lets you control the main characteristics of the displayed elements.
@@ -241,21 +240,13 @@ pub struct Style {
 	/// The modifiers to add.
 	#[cfg_attr(
 		feature = "serde",
-		serde(
-			default,
-			skip_serializing_if = "Modifier::is_empty",
-			deserialize_with = "deserialize_modifier"
-		)
+		serde(default, skip_serializing_if = "Modifier::is_empty", deserialize_with = "deserialize_modifier")
 	)]
 	pub add_modifier: Modifier,
 	/// The modifiers to remove.
 	#[cfg_attr(
 		feature = "serde",
-		serde(
-			default,
-			skip_serializing_if = "Modifier::is_empty",
-			deserialize_with = "deserialize_modifier"
-		)
+		serde(default, skip_serializing_if = "Modifier::is_empty", deserialize_with = "deserialize_modifier")
 	)]
 	pub sub_modifier: Modifier,
 }
@@ -498,9 +489,7 @@ impl Style {
 		}
 		#[cfg(feature = "underline-color")]
 		if let Some(underline_color) = self.underline_color {
-			underline_color
-				.stylize_debug(ColorDebugKind::Underline)
-				.fmt(f)?;
+			underline_color.stylize_debug(ColorDebugKind::Underline).fmt(f)?;
 		}
 		for modifier in self.add_modifier.iter() {
 			match modifier {

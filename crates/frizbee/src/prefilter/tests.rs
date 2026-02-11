@@ -33,11 +33,7 @@ fn match_haystack_unordered_typos(needle: &str, haystack: &str, max_typos: u16) 
 	match_haystack_generic::<false, true>(needle, haystack, max_typos)
 }
 
-fn match_haystack_unordered_typos_insensitive(
-	needle: &str,
-	haystack: &str,
-	max_typos: u16,
-) -> bool {
+fn match_haystack_unordered_typos_insensitive(needle: &str, haystack: &str, max_typos: u16) -> bool {
 	match_haystack_generic::<false, false>(needle, haystack, max_typos)
 }
 
@@ -99,19 +95,13 @@ fn test_chunk_boundary() {
 fn test_overlapping_load() {
 	// Because we load the last 16 bytes of the haystack in the final iteration,
 	// when the haystack.len() % 16 != 0, we end up matching on the 'o' twice
-	assert!(!match_haystack_ordered(
-		"foo",
-		"f_________________________o______"
-	));
+	assert!(!match_haystack_ordered("foo", "f_________________________o______"));
 }
 
 #[test]
 fn test_multiple_chunks() {
 	assert!(match_haystack("foo", "f_______________o_______________o"));
-	assert!(match_haystack(
-		"abc",
-		"a_______________b_______________c_______________"
-	));
+	assert!(match_haystack("abc", "a_______________b_______________c_______________"));
 }
 
 #[test]
@@ -220,9 +210,7 @@ fn test_typos_unordered_permutations() {
 fn test_typos_case_insensitive() {
 	// Case insensitive with typos
 	assert!(match_haystack_unordered_typos_insensitive("BAR", "ba", 1));
-	assert!(match_haystack_unordered_typos_insensitive(
-		"Hello", "HLL", 2
-	));
+	assert!(match_haystack_unordered_typos_insensitive("Hello", "HLL", 2));
 	assert!(match_haystack_unordered_typos_insensitive("TeSt", "ES", 2));
 	assert!(!match_haystack_unordered_typos_insensitive("TeSt", "ES", 1));
 }
@@ -238,17 +226,9 @@ fn test_typos_edge_cases() {
 
 #[test]
 fn test_typos_across_chunks() {
-	assert!(match_haystack_unordered_typos(
-		"abc",
-		"a_______________b",
-		1
-	));
+	assert!(match_haystack_unordered_typos("abc", "a_______________b", 1));
 
-	assert!(match_haystack_unordered_typos(
-		"test",
-		"t_______________s_______________t",
-		1
-	));
+	assert!(match_haystack_unordered_typos("test", "t_______________s_______________t", 1));
 }
 
 #[test]
@@ -266,11 +246,7 @@ fn normalize_haystack(haystack: &str) -> String {
 	}
 }
 
-fn match_haystack_generic<const ORDERED: bool, const CASE_SENSITIVE: bool>(
-	needle: &str,
-	haystack: &str,
-	max_typos: u16,
-) -> bool {
+fn match_haystack_generic<const ORDERED: bool, const CASE_SENSITIVE: bool>(needle: &str, haystack: &str, max_typos: u16) -> bool {
 	let prefilter = Prefilter::new(needle, max_typos);
 	let haystack = normalize_haystack(haystack);
 	let haystack = haystack.as_bytes();
@@ -280,9 +256,7 @@ fn match_haystack_generic<const ORDERED: bool, const CASE_SENSITIVE: bool>(
 
 		#[cfg(target_arch = "x86_64")]
 		{
-			let typo_result_x86_64 = unsafe {
-				prefilter.match_haystack_x86_64::<ORDERED, CASE_SENSITIVE, true, false>(haystack)
-			};
+			let typo_result_x86_64 = unsafe { prefilter.match_haystack_x86_64::<ORDERED, CASE_SENSITIVE, true, false>(haystack) };
 			assert_eq!(
 				typo_result, typo_result_x86_64,
 				"x86_64 typos (set to 0) and simd implementations produced different results"
@@ -296,26 +270,16 @@ fn match_haystack_generic<const ORDERED: bool, const CASE_SENSITIVE: bool>(
 
 	if !ORDERED {
 		let typo_result = prefilter.match_haystack_simd::<ORDERED, CASE_SENSITIVE, true>(haystack);
-		assert_eq!(
-			result, typo_result,
-			"regular and typos implementations (set to 0) produced different results"
-		);
+		assert_eq!(result, typo_result, "regular and typos implementations (set to 0) produced different results");
 	}
 
 	#[cfg(target_arch = "x86_64")]
 	{
-		let result_x86_64 = unsafe {
-			prefilter.match_haystack_x86_64::<ORDERED, CASE_SENSITIVE, false, false>(haystack)
-		};
-		assert_eq!(
-			result, result_x86_64,
-			"x86_64 and simd implementations produced different results"
-		);
+		let result_x86_64 = unsafe { prefilter.match_haystack_x86_64::<ORDERED, CASE_SENSITIVE, false, false>(haystack) };
+		assert_eq!(result, result_x86_64, "x86_64 and simd implementations produced different results");
 
 		if !ORDERED {
-			let typo_result_x86_64 = unsafe {
-				prefilter.match_haystack_x86_64::<ORDERED, CASE_SENSITIVE, true, false>(haystack)
-			};
+			let typo_result_x86_64 = unsafe { prefilter.match_haystack_x86_64::<ORDERED, CASE_SENSITIVE, true, false>(haystack) };
 			assert_eq!(
 				result, typo_result_x86_64,
 				"x86_64 typos (set to 0) and simd implementations produced different results"

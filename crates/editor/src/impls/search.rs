@@ -14,48 +14,33 @@ impl Editor {
 	/// * `hit` - The range of the matched text.
 	/// * `add_selection` - Whether to add the hit to existing selections.
 	/// * `extend` - Whether to extend the primary selection to the match start.
-	fn apply_search_hit(
-		&mut self,
-		hit: xeno_primitives::range::Range,
-		add_selection: bool,
-		extend: bool,
-	) {
+	fn apply_search_hit(&mut self, hit: xeno_primitives::range::Range, add_selection: bool, extend: bool) {
 		let start = hit.min();
 		let end = hit.max();
 
 		self.buffer_mut().set_cursor(start);
 
 		if add_selection {
-			self.buffer_mut()
-				.selection
-				.push(xeno_primitives::range::Range::new(start, end));
+			self.buffer_mut().selection.push(xeno_primitives::range::Range::new(start, end));
 			return;
 		}
 
 		if extend {
 			let anchor = self.buffer().selection.primary().anchor;
-			self.buffer_mut()
-				.set_selection(Selection::single(anchor, start));
+			self.buffer_mut().set_selection(Selection::single(anchor, start));
 		} else {
-			self.buffer_mut()
-				.set_selection(Selection::single(start, end));
+			self.buffer_mut().set_selection(Selection::single(start, end));
 		}
 	}
 
 	/// Searches forward for the current pattern.
 	pub(crate) fn do_search_next(&mut self, add_selection: bool, extend: bool) -> bool {
-		let search_info = self
-			.buffer()
-			.input
-			.last_search()
-			.map(|(p, r)| (p.to_string(), r));
+		let search_info = self.buffer().input.last_search().map(|(p, r)| (p.to_string(), r));
 		if let Some((pattern, _reverse)) = search_info {
 			let cursor_pos = self.buffer().cursor;
 			let from = cursor_pos.saturating_add(1);
 
-			let search_result = self
-				.buffer()
-				.with_doc(|doc| movement::find_next(doc.content().slice(..), &pattern, from));
+			let search_result = self.buffer().with_doc(|doc| movement::find_next(doc.content().slice(..), &pattern, from));
 			match search_result {
 				Ok(Some(range)) => {
 					self.apply_search_hit(range, add_selection, extend);
@@ -75,18 +60,12 @@ impl Editor {
 
 	/// Searches backward for the current pattern.
 	pub(crate) fn do_search_prev(&mut self, add_selection: bool, extend: bool) -> bool {
-		let search_info = self
-			.buffer()
-			.input
-			.last_search()
-			.map(|(p, r)| (p.to_string(), r));
+		let search_info = self.buffer().input.last_search().map(|(p, r)| (p.to_string(), r));
 		if let Some((pattern, _reverse)) = search_info {
 			let cursor_pos = self.buffer().cursor;
 			let from = cursor_pos.saturating_sub(1);
 
-			let search_result = self
-				.buffer()
-				.with_doc(|doc| movement::find_prev(doc.content().slice(..), &pattern, from));
+			let search_result = self.buffer().with_doc(|doc| movement::find_prev(doc.content().slice(..), &pattern, from));
 			match search_result {
 				Ok(Some(range)) => {
 					self.apply_search_hit(range, add_selection, extend);
@@ -115,17 +94,12 @@ impl Editor {
 				let pattern = movement::escape_pattern(&text);
 				(text, pattern)
 			});
-			self.buffer_mut()
-				.input
-				.set_last_search(pattern.clone(), false);
+			self.buffer_mut().input.set_last_search(pattern.clone(), false);
 			self.notify(keys::search_info(&text));
-			let search_result = self
-				.buffer()
-				.with_doc(|doc| movement::find_next(doc.content().slice(..), &pattern, to));
+			let search_result = self.buffer().with_doc(|doc| movement::find_next(doc.content().slice(..), &pattern, to));
 			match search_result {
 				Ok(Some(range)) => {
-					self.buffer_mut()
-						.set_selection(Selection::single(range.min(), range.max()));
+					self.buffer_mut().set_selection(Selection::single(range.min(), range.max()));
 				}
 				Ok(None) => {
 					self.notify(keys::NO_MORE_MATCHES);
@@ -151,9 +125,7 @@ impl Editor {
 			return false;
 		}
 
-		let search_result = self
-			.buffer()
-			.with_doc(|doc| movement::find_all_matches(doc.content().slice(from..to), pattern));
+		let search_result = self.buffer().with_doc(|doc| movement::find_all_matches(doc.content().slice(from..to), pattern));
 		match search_result {
 			Ok(matches) if !matches.is_empty() => {
 				let new_ranges: Vec<xeno_primitives::range::Range> = matches
@@ -161,8 +133,7 @@ impl Editor {
 					.map(|r| xeno_primitives::range::Range::new(from + r.min(), from + r.max()))
 					.collect();
 				let count = new_ranges.len();
-				self.buffer_mut()
-					.set_selection(Selection::from_vec(new_ranges, 0));
+				self.buffer_mut().set_selection(Selection::from_vec(new_ranges, 0));
 				self.notify(keys::matches_count(count));
 			}
 			Ok(_) => {
@@ -186,9 +157,7 @@ impl Editor {
 			return false;
 		}
 
-		let search_result = self
-			.buffer()
-			.with_doc(|doc| movement::find_all_matches(doc.content().slice(from..to), pattern));
+		let search_result = self.buffer().with_doc(|doc| movement::find_all_matches(doc.content().slice(from..to), pattern));
 		match search_result {
 			Ok(matches) if !matches.is_empty() => {
 				let mut new_ranges: Vec<xeno_primitives::range::Range> = Vec::new();
@@ -196,10 +165,7 @@ impl Editor {
 				for m in matches {
 					let match_start = from + m.min();
 					if match_start > last_end {
-						new_ranges.push(xeno_primitives::range::Range::from_exclusive(
-							last_end,
-							match_start,
-						));
+						new_ranges.push(xeno_primitives::range::Range::from_exclusive(last_end, match_start));
 					}
 					last_end = from + m.to();
 				}
@@ -208,8 +174,7 @@ impl Editor {
 				}
 				if !new_ranges.is_empty() {
 					let count = new_ranges.len();
-					self.buffer_mut()
-						.set_selection(Selection::from_vec(new_ranges, 0));
+					self.buffer_mut().set_selection(Selection::from_vec(new_ranges, 0));
 					self.notify(keys::splits_count(count));
 				} else {
 					self.notify(keys::SPLIT_NO_RANGES);
@@ -226,10 +191,7 @@ impl Editor {
 	}
 
 	/// Keeps only selections that match (or don't match) the pattern.
-	#[allow(
-		dead_code,
-		reason = "keep-matching filter will be re-enabled via picker UI"
-	)]
+	#[allow(dead_code, reason = "keep-matching filter will be re-enabled via picker UI")]
 	pub(crate) fn keep_matching(&mut self, pattern: &str, invert: bool) -> bool {
 		let ranges_with_text: Vec<(xeno_primitives::range::Range, String)> = {
 			let buffer = self.buffer();
@@ -273,20 +235,14 @@ impl Editor {
 			self.notify(keys::NO_SELECTIONS_REMAIN);
 		} else {
 			let count = kept_ranges.len();
-			self.buffer_mut()
-				.set_selection(Selection::from_vec(kept_ranges, 0));
+			self.buffer_mut().set_selection(Selection::from_vec(kept_ranges, 0));
 			self.notify(keys::selections_kept(count));
 		}
 		false
 	}
 
 	/// Repeat last search. `flip=false` => same direction as last; `flip=true` => opposite.
-	pub(crate) fn do_search_repeat(
-		&mut self,
-		flip: bool,
-		add_selection: bool,
-		extend: bool,
-	) -> bool {
+	pub(crate) fn do_search_repeat(&mut self, flip: bool, add_selection: bool, extend: bool) -> bool {
 		use xeno_registry::actions::SeqDirection;
 		let Some((_, reverse)) = self.buffer().input.last_search() else {
 			self.notify(keys::NO_SEARCH_PATTERN);

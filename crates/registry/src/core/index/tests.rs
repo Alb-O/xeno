@@ -1,8 +1,6 @@
 use std::sync::Arc;
 
-use super::test_fixtures::{
-	TestDef, TestEntry, make_def, make_def_with_keyes, make_def_with_source,
-};
+use super::test_fixtures::{TestDef, TestEntry, make_def, make_def_with_keyes, make_def_with_source};
 use crate::core::index::build::RegistryBuilder;
 use crate::core::index::runtime::{RegisterError, RuntimeRegistry};
 use crate::core::symbol::{ActionId, DenseId};
@@ -21,10 +19,7 @@ fn test_noop_snapshot_stability() {
 	let snap_after = registry.snapshot();
 
 	// Consecutive snapshot loads without mutation should return the same Arc
-	assert!(
-		Arc::ptr_eq(&snap_before, &snap_after),
-		"Snapshot should not change when no mutations occur"
-	);
+	assert!(Arc::ptr_eq(&snap_before, &snap_after), "Snapshot should not change when no mutations occur");
 }
 
 /// Verifies that the RuntimeRegistry correctly indexes entries and supports
@@ -44,9 +39,7 @@ fn test_lookup_consistency() {
 	assert_eq!(beta_ref.priority(), 20);
 
 	// Lookup by dense ID
-	let alpha_by_id = registry
-		.get_by_id(alpha_ref.dense_id())
-		.expect("alpha by id");
+	let alpha_by_id = registry.get_by_id(alpha_ref.dense_id()).expect("alpha by id");
 	assert_eq!(alpha_by_id.priority(), 10);
 
 	// Non-existent key returns None
@@ -64,11 +57,7 @@ fn test_register_rejected_by_priority() {
 	let registry = RuntimeRegistry::new("test", builder.build());
 
 	// Try to register a lower-priority entry with the same ID
-	let low: &'static TestDef = Box::leak(Box::new(make_def_with_source(
-		"X",
-		10,
-		RegistrySource::Runtime,
-	)));
+	let low: &'static TestDef = Box::leak(Box::new(make_def_with_source("X", 10, RegistrySource::Runtime)));
 	let result = registry.register(low);
 
 	assert!(result.is_err(), "Lower priority should be rejected");
@@ -100,11 +89,7 @@ fn test_register_replaces_existing() {
 	builder.push(Arc::new(make_def("Y", 5)));
 	let registry = RuntimeRegistry::new("test", builder.build());
 
-	let high: &'static TestDef = Box::leak(Box::new(make_def_with_source(
-		"X",
-		99,
-		RegistrySource::Runtime,
-	)));
+	let high: &'static TestDef = Box::leak(Box::new(make_def_with_source("X", 99, RegistrySource::Runtime)));
 	let result = registry.register(high);
 	assert!(result.is_ok(), "Higher priority should replace existing");
 
@@ -123,17 +108,11 @@ fn test_register_with_keys() {
 	builder.push(Arc::new(make_def("base", 0)));
 	let registry = RuntimeRegistry::new("test", builder.build());
 
-	let def: &'static TestDef = Box::leak(Box::new(make_def_with_keyes(
-		"my_action",
-		10,
-		&["ma", "myact"],
-	)));
+	let def: &'static TestDef = Box::leak(Box::new(make_def_with_keyes("my_action", 10, &["ma", "myact"])));
 	registry.register(def).expect("should succeed");
 
 	// Reachable by canonical ID
-	let by_id = registry
-		.get("my_action")
-		.expect("canonical ID must resolve");
+	let by_id = registry.get("my_action").expect("canonical ID must resolve");
 	assert_eq!(by_id.priority(), 10);
 
 	// Reachable by key
@@ -188,26 +167,17 @@ fn test_get_by_id_and_get_sym_after_register() {
 	builder.push(Arc::new(make_def("builtin", 0)));
 	let registry = RuntimeRegistry::new("test", builder.build());
 
-	let def: &'static TestDef = Box::leak(Box::new(make_def_with_source(
-		"runtime_entry",
-		10,
-		RegistrySource::Runtime,
-	)));
+	let def: &'static TestDef = Box::leak(Box::new(make_def_with_source("runtime_entry", 10, RegistrySource::Runtime)));
 	let reg_ref = registry.register(def).expect("register must succeed");
 	let dense_id = reg_ref.dense_id();
 
 	// get_by_id with the returned dense ID
-	let by_id = registry
-		.get_by_id(dense_id)
-		.expect("must resolve by dense ID");
+	let by_id = registry.get_by_id(dense_id).expect("must resolve by dense ID");
 	assert_eq!(by_id.priority(), 10);
 
 	// get_sym with the interned symbol
 	let snap = registry.snapshot();
-	let sym = snap
-		.interner
-		.get("runtime_entry")
-		.expect("must be interned");
+	let sym = snap.interner.get("runtime_entry").expect("must be interned");
 	let by_sym = registry.get_sym(sym).expect("must resolve by symbol");
 	assert_eq!(by_sym.priority(), 10);
 
@@ -223,16 +193,9 @@ fn test_runtime_source_wins_at_equal_priority() {
 	let registry = RuntimeRegistry::new("test", builder.build());
 
 	// Register a Runtime-sourced entry with the same priority
-	let def: &'static TestDef = Box::leak(Box::new(make_def_with_source(
-		"X",
-		10,
-		RegistrySource::Runtime,
-	)));
+	let def: &'static TestDef = Box::leak(Box::new(make_def_with_source("X", 10, RegistrySource::Runtime)));
 	let result = registry.register(def);
-	assert!(
-		result.is_ok(),
-		"Runtime source should win at equal priority"
-	);
+	assert!(result.is_ok(), "Runtime source should win at equal priority");
 
 	let entry = registry.get("X").unwrap();
 	assert_eq!(entry.source(), RegistrySource::Runtime);
@@ -281,9 +244,7 @@ fn test_canonical_collision_semantic_distinction() {
 
 	// Register entry with canonical ID "B"
 	let def_b: &'static TestDef = Box::leak(Box::new(make_def("B", 5)));
-	registry
-		.register(def_b)
-		.expect("register B should succeed (no canonical collision)");
+	registry.register(def_b).expect("register B should succeed (no canonical collision)");
 
 	// Now "B" should resolve to B (canonical ID Stage A beats prior secondary key Stage C)
 	let b_ref_new = registry.get("B").expect("B should resolve to B");
@@ -319,39 +280,22 @@ fn test_incremental_reference_equivalence() {
 
 	for def in ops {
 		let static_def: &'static TestDef = Box::leak(Box::new(def));
-		registry
-			.register(static_def)
-			.expect("register should succeed");
+		registry.register(static_def).expect("register should succeed");
 
 		// Compare current snapshot against full rebuild
 		let current_snap = registry.snapshot();
 
 		// Build reference maps using the same logic as initial build
 		let (ref_by_name, ref_by_key, ref_collisions) =
-			crate::core::index::lookup::build_stage_maps(
-				"test",
-				&current_snap.table,
-				&current_snap.parties,
-				&current_snap.key_pool,
-				&current_snap.by_id,
-			);
+			crate::core::index::lookup::build_stage_maps("test", &current_snap.table, &current_snap.parties, &current_snap.key_pool, &current_snap.by_id);
 
-		assert_eq!(
-			*current_snap.by_name, ref_by_name,
-			"by_name mismatch after register"
-		);
-		assert_eq!(
-			*current_snap.by_key, ref_by_key,
-			"by_key mismatch after register"
-		);
+		assert_eq!(*current_snap.by_name, ref_by_name, "by_name mismatch after register");
+		assert_eq!(*current_snap.by_key, ref_by_key, "by_key mismatch after register");
 		assert_eq!(
 			current_snap
 				.collisions
 				.iter()
-				.filter(|c| matches!(
-					c.kind,
-					crate::core::index::collision::CollisionKind::KeyConflict { .. }
-				))
+				.filter(|c| matches!(c.kind, crate::core::index::collision::CollisionKind::KeyConflict { .. }))
 				.cloned()
 				.collect::<Vec<_>>(),
 			ref_collisions,
@@ -381,9 +325,7 @@ fn test_stage_blocking_collisions() {
 	// B: id="B", name="B", keys=["A"] -> blocked by Stage A identity of "A"
 	builder.push(Arc::new(make_def_with_keyes("B", 20, &["A"])));
 	// C: id="C", name="A" -> blocked by Stage A identity of "A"
-	builder.push(Arc::new(super::test_fixtures::make_def_with_name(
-		"C", "A", 30,
-	)));
+	builder.push(Arc::new(super::test_fixtures::make_def_with_name("C", "A", 30)));
 
 	let registry = RuntimeRegistry::new("test", builder.build());
 	let snap = registry.snapshot();
@@ -392,11 +334,7 @@ fn test_stage_blocking_collisions() {
 	assert_eq!(registry.get("A").unwrap().id_str(), "A");
 
 	// 2. Verify collisions for "A"
-	let a_collisions: Vec<_> = snap
-		.collisions
-		.iter()
-		.filter(|c| snap.interner.resolve(c.key) == "A")
-		.collect();
+	let a_collisions: Vec<_> = snap.collisions.iter().filter(|c| snap.interner.resolve(c.key) == "A").collect();
 
 	// Should have 3 collisions for "A":
 	// - A blocks its own name (Stage A vs Stage B)
@@ -406,11 +344,7 @@ fn test_stage_blocking_collisions() {
 
 	for c in a_collisions {
 		match &c.kind {
-			CollisionKind::KeyConflict {
-				existing_kind,
-				resolution,
-				..
-			} => {
+			CollisionKind::KeyConflict { existing_kind, resolution, .. } => {
 				assert_eq!(*existing_kind, KeyKind::Canonical);
 				assert_eq!(*resolution, Resolution::KeptExisting);
 			}
@@ -420,17 +354,11 @@ fn test_stage_blocking_collisions() {
 
 	// 3. Runtime append: D: id="D", name="B" -> blocked by Stage A identity of "B"
 	registry
-		.register(Box::leak(Box::new(
-			super::test_fixtures::make_def_with_name("D", "B", 40),
-		)))
+		.register(Box::leak(Box::new(super::test_fixtures::make_def_with_name("D", "B", 40))))
 		.unwrap();
 
 	let snap = registry.snapshot();
-	let b_collisions: Vec<_> = snap
-		.collisions
-		.iter()
-		.filter(|c| snap.interner.resolve(c.key) == "B")
-		.collect();
+	let b_collisions: Vec<_> = snap.collisions.iter().filter(|c| snap.interner.resolve(c.key) == "B").collect();
 
 	// - B blocks its own name (Stage A vs Stage B)
 	// - B blocks D's name (Stage A identity vs Stage B name conflict)
@@ -439,11 +367,7 @@ fn test_stage_blocking_collisions() {
 	assert_eq!(b_collisions.len(), 2);
 	for c in b_collisions {
 		match &c.kind {
-			CollisionKind::KeyConflict {
-				existing_kind,
-				resolution,
-				..
-			} => {
+			CollisionKind::KeyConflict { existing_kind, resolution, .. } => {
 				assert_eq!(*existing_kind, KeyKind::Canonical);
 				assert_eq!(*resolution, Resolution::KeptExisting);
 			}
@@ -455,16 +379,10 @@ fn test_stage_blocking_collisions() {
 	assert_eq!(registry.get("B").unwrap().id_str(), "B");
 
 	// 5. Runtime append: E: id="E", name="E", keys=["B"] -> blocked by Stage A identity of "B"
-	registry
-		.register(Box::leak(Box::new(make_def_with_keyes("E", 50, &["B"]))))
-		.unwrap();
+	registry.register(Box::leak(Box::new(make_def_with_keyes("E", 50, &["B"])))).unwrap();
 
 	let snap = registry.snapshot();
-	let b_collisions: Vec<_> = snap
-		.collisions
-		.iter()
-		.filter(|c| snap.interner.resolve(c.key) == "B")
-		.collect();
+	let b_collisions: Vec<_> = snap.collisions.iter().filter(|c| snap.interner.resolve(c.key) == "B").collect();
 
 	// Should have 3 collisions for "B" now:
 	// - B blocks its own name (Stage A vs Stage B)
@@ -506,12 +424,7 @@ fn test_build_ctx_enforcement() {
 		fn build(&self, ctx: &mut dyn BuildCtx, key_pool: &mut Vec<Symbol>) -> TestEntry {
 			ctx.intern("secret"); // This should panic
 			TestEntry {
-				meta: crate::core::index::meta_build::build_meta(
-					ctx,
-					key_pool,
-					self.meta_ref(),
-					[],
-				),
+				meta: crate::core::index::meta_build::build_meta(ctx, key_pool, self.meta_ref(), []),
 			}
 		}
 	}

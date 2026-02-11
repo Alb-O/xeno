@@ -22,9 +22,6 @@ mod easing;
 mod lerp;
 mod tween;
 
-pub use easing::{
-	Easing, ease_in_cubic, ease_in_out_cubic, ease_in_out_quad, ease_in_quad, ease_out_cubic,
-	ease_out_quad,
-};
+pub use easing::{Easing, ease_in_cubic, ease_in_out_cubic, ease_in_out_quad, ease_in_quad, ease_out_cubic, ease_out_quad};
 pub use lerp::Animatable;
 pub use tween::{ToggleTween, Tween};

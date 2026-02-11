@@ -30,8 +30,7 @@ pub fn smith_waterman(needle: &str, haystack: &str) -> (u16, Vec<Vec<u16>>, bool
 
 		for j in 0..haystack.len() {
 			let is_prefix = j == 0;
-			let is_offset_prefix =
-				j == 1 && prev_col_scores[0] == 0 && !haystack[0].is_ascii_alphabetic();
+			let is_offset_prefix = j == 1 && prev_col_scores[0] == 0 && !haystack[0].is_ascii_alphabetic();
 
 			// Load chunk and remove casing
 			let haystack_char = haystack[j];
@@ -39,8 +38,7 @@ pub fn smith_waterman(needle: &str, haystack: &str) -> (u16, Vec<Vec<u16>>, bool
 			let haystack_is_lowercase = haystack_char.is_ascii_lowercase();
 			let haystack_char = haystack_char.to_ascii_lowercase();
 
-			let haystack_is_delimiter =
-				[b' ', b'/', b'.', b',', b'_', b'-', b':'].contains(&haystack_char);
+			let haystack_is_delimiter = [b' ', b'/', b'.', b',', b'_', b'-', b':'].contains(&haystack_char);
 			let matched_casing_mask = needle_is_uppercase == haystack_is_uppercase;
 
 			// Give a bonus for prefix matches
@@ -66,20 +64,12 @@ pub fn smith_waterman(needle: &str, haystack: &str) -> (u16, Vec<Vec<u16>>, bool
 			};
 
 			// Load and calculate up scores (skipping char in haystack)
-			let up_gap_penalty = if up_gap_penalty_mask {
-				GAP_OPEN_PENALTY
-			} else {
-				GAP_EXTEND_PENALTY
-			};
+			let up_gap_penalty = if up_gap_penalty_mask { GAP_OPEN_PENALTY } else { GAP_EXTEND_PENALTY };
 			let up_score = up_score_simd.saturating_sub(up_gap_penalty);
 
 			// Load and calculate left scores (skipping char in needle)
 			let left = prev_col_scores[j];
-			let left_gap_penalty = if left_gap_penalty_mask {
-				GAP_OPEN_PENALTY
-			} else {
-				GAP_EXTEND_PENALTY
-			};
+			let left_gap_penalty = if left_gap_penalty_mask { GAP_OPEN_PENALTY } else { GAP_EXTEND_PENALTY };
 			let left_score = left.saturating_sub(left_gap_penalty);
 
 			// Calculate maximum scores
@@ -124,13 +114,9 @@ mod tests {
 
 	fn get_score(needle: &str, haystack: &str) -> u16 {
 		let ref_score = smith_waterman(needle, haystack).0;
-		let simd_score =
-			smith_waterman_simd::<16, 1>(needle, &[haystack], None, &Scoring::default()).0[0];
+		let simd_score = smith_waterman_simd::<16, 1>(needle, &[haystack], None, &Scoring::default()).0[0];
 
-		assert_eq!(
-			ref_score, simd_score,
-			"Reference and SIMD scores don't match"
-		);
+		assert_eq!(ref_score, simd_score, "Reference and SIMD scores don't match");
 
 		ref_score
 	}
@@ -159,14 +145,8 @@ mod tests {
 
 	#[test]
 	fn test_score_exact_match() {
-		assert_eq!(
-			get_score("a", "a"),
-			CHAR_SCORE + EXACT_MATCH_BONUS + PREFIX_BONUS
-		);
-		assert_eq!(
-			get_score("abc", "abc"),
-			3 * CHAR_SCORE + EXACT_MATCH_BONUS + PREFIX_BONUS
-		);
+		assert_eq!(get_score("a", "a"), CHAR_SCORE + EXACT_MATCH_BONUS + PREFIX_BONUS);
+		assert_eq!(get_score("abc", "abc"), 3 * CHAR_SCORE + EXACT_MATCH_BONUS + PREFIX_BONUS);
 		assert_eq!(get_score("ab", "abc"), 2 * CHAR_SCORE + PREFIX_BONUS);
 		assert_eq!(get_score("abc", "ab"), 2 * CHAR_SCORE + PREFIX_BONUS);
 	}
@@ -190,14 +170,8 @@ mod tests {
 
 	#[test]
 	fn test_score_affine_gap() {
-		assert_eq!(
-			get_score("test", "Uterst"),
-			CHAR_SCORE * 4 - GAP_OPEN_PENALTY
-		);
-		assert_eq!(
-			get_score("test", "Uterrst"),
-			CHAR_SCORE * 4 - GAP_OPEN_PENALTY - GAP_EXTEND_PENALTY
-		);
+		assert_eq!(get_score("test", "Uterst"), CHAR_SCORE * 4 - GAP_OPEN_PENALTY);
+		assert_eq!(get_score("test", "Uterrst"), CHAR_SCORE * 4 - GAP_OPEN_PENALTY - GAP_EXTEND_PENALTY);
 	}
 
 	#[test]

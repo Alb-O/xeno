@@ -44,12 +44,7 @@ impl OverlayIndex {
 	/// - `primary_cursor`: The active cursor position.
 	/// - `_is_focused`: Unused focus flag (preserved for API compatibility).
 	/// - `rope`: Document content for line mapping.
-	pub fn new(
-		selection: &Selection,
-		primary_cursor: CharIdx,
-		_is_focused: bool,
-		rope: &xeno_primitives::Rope,
-	) -> Self {
+	pub fn new(selection: &Selection, primary_cursor: CharIdx, _is_focused: bool, rope: &xeno_primitives::Rope) -> Self {
 		let len = rope.len_chars();
 		let primary_cursor = primary_cursor.min(len);
 

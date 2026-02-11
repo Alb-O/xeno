@@ -1,17 +1,11 @@
 use super::*;
 
 fn wrap(text: &str, width: usize) -> Vec<String> {
-	wrap_line(text, width, 4)
-		.into_iter()
-		.map(|s| s.text)
-		.collect()
+	wrap_line(text, width, 4).into_iter().map(|s| s.text).collect()
 }
 
 fn wrap_with_indent(text: &str, width: usize) -> Vec<(String, usize)> {
-	wrap_line(text, width, 4)
-		.into_iter()
-		.map(|s| (s.text, s.indent_cols))
-		.collect()
+	wrap_line(text, width, 4).into_iter().map(|s| (s.text, s.indent_cols)).collect()
 }
 
 #[test]

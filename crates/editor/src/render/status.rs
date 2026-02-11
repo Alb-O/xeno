@@ -1,7 +1,5 @@
 use xeno_primitives::visible_line_count;
-use xeno_registry::statusline::{
-	RenderedSegment, SegmentPosition, SegmentStyle, StatuslineContext, render_position,
-};
+use xeno_registry::statusline::{RenderedSegment, SegmentPosition, SegmentStyle, StatuslineContext, render_position};
 use xeno_tui::style::{Modifier, Style};
 use xeno_tui::text::{Line, Span};
 use xeno_tui::widgets::{Paragraph, Widget};
@@ -21,10 +19,7 @@ impl Editor {
 
 		// Extract data before creating the context to avoid lifetime issues
 		let buffer = self.buffer();
-		let path_str: Option<String> = buffer
-			.path()
-			.as_ref()
-			.and_then(|p| p.to_str().map(|s| s.to_string()));
+		let path_str: Option<String> = buffer.path().as_ref().and_then(|p| p.to_str().map(|s| s.to_string()));
 		let file_type_str: Option<String> = buffer.file_type();
 		let modified = buffer.modified();
 		let readonly = buffer.is_readonly();
@@ -76,10 +71,7 @@ impl Editor {
 			}
 		}
 
-		let mode_width: usize = mode_segments
-			.iter()
-			.map(|seg| crate::render::cell_width(&seg.text))
-			.sum();
+		let mode_width: usize = mode_segments.iter().map(|seg| crate::render::cell_width(&seg.text)).sum();
 
 		for seg in body_segments {
 			current_width += crate::render::cell_width(&seg.text);
@@ -96,19 +88,14 @@ impl Editor {
 			let viewport_width = self.state.viewport.width.unwrap_or(0) as usize;
 			let tag_width = crate::render::cell_width(&tag);
 			if viewport_width > 0 && current_width + tag_width + mode_width <= viewport_width {
-				spans.push(Span::styled(
-					tag,
-					Style::default().fg(self.state.config.theme.colors.semantic.dim),
-				));
+				spans.push(Span::styled(tag, Style::default().fg(self.state.config.theme.colors.semantic.dim)));
 				current_width += tag_width;
 			}
 		}
 
 		let viewport_width = self.state.viewport.width.unwrap_or(0) as usize;
 		if viewport_width > 0 && mode_width > 0 && current_width + mode_width < viewport_width {
-			spans.push(Span::raw(
-				" ".repeat(viewport_width.saturating_sub(current_width + mode_width)),
-			));
+			spans.push(Span::raw(" ".repeat(viewport_width.saturating_sub(current_width + mode_width))));
 		}
 
 		for seg in mode_segments {

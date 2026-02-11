@@ -60,9 +60,7 @@ impl UiManager {
 			utility_sized_for_overlay: false,
 			utility_default_size,
 		};
-		let _ = ui
-			.dock
-			.set_slot_size(DockSlot::Bottom, utility_default_size);
+		let _ = ui.dock.set_slot_size(DockSlot::Bottom, utility_default_size);
 		ui.register_panel(Box::<super::panels::utility::UtilityPanel>::default());
 		ui
 	}
@@ -134,9 +132,7 @@ impl UiManager {
 	/// Registers a panel with the UI manager, calling its `on_register` hook.
 	pub fn register_panel(&mut self, mut panel: Box<dyn Panel>) {
 		let id = panel.id().to_string();
-		panel.on_register(PanelInitContext {
-			keybindings: &mut self.keymap,
-		});
+		panel.on_register(PanelInitContext { keybindings: &mut self.keymap });
 		self.panels.insert(id, panel);
 	}
 
@@ -185,9 +181,7 @@ impl UiManager {
 	/// Returns the cursor style for the currently focused panel, if any.
 	pub fn cursor_style(&self) -> Option<termina::style::CursorStyle> {
 		let panel_id = self.focused_panel_id()?;
-		self.panels
-			.get(panel_id)
-			.and_then(|p| p.cursor_style_when_focused())
+		self.panels.get(panel_id).and_then(|p| p.cursor_style_when_focused())
 	}
 
 	/// Handles a key event at the global scope, returning true if consumed.
@@ -230,22 +224,13 @@ impl UiManager {
 	}
 
 	/// Routes a mouse event to the appropriate panel based on hit testing.
-	pub fn handle_mouse(
-		&mut self,
-		editor: &mut crate::impls::Editor,
-		mouse: MouseEvent,
-		layout: &DockLayout,
-	) -> bool {
+	pub fn handle_mouse(&mut self, editor: &mut crate::impls::Editor, mouse: MouseEvent, layout: &DockLayout) -> bool {
 		let row = mouse.row;
 		let col = mouse.column;
 
 		let mut hit_panel: Option<String> = None;
 		for (id, area) in &layout.panel_areas {
-			if row >= area.y
-				&& row < area.y + area.height
-				&& col >= area.x
-				&& col < area.x + area.width
-			{
+			if row >= area.y && row < area.y + area.height && col >= area.x && col < area.x + area.width {
 				hit_panel = Some(id.clone());
 				break;
 			}

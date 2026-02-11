@@ -25,9 +25,7 @@ pub use entry::NotificationEntry;
 pub use crate::core::NotificationId;
 use crate::error::RegistryError;
 
-pub fn register_plugin(
-	db: &mut crate::db::builder::RegistryDbBuilder,
-) -> Result<(), RegistryError> {
+pub fn register_plugin(db: &mut crate::db::builder::RegistryDbBuilder) -> Result<(), RegistryError> {
 	register_builtins(db);
 	register_compiled(db);
 	Ok(())
@@ -61,9 +59,7 @@ impl crate::db::domain::DomainSpec for Notifications {
 		NotificationInput::Linked(def)
 	}
 
-	fn builder(
-		db: &mut crate::db::builder::RegistryDbBuilder,
-	) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
+	fn builder(db: &mut crate::db::builder::RegistryDbBuilder) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
 		&mut db.notifications
 	}
 }
@@ -122,12 +118,7 @@ pub struct Notification {
 
 impl Notification {
 	/// Creates a new fully-specified notification instance.
-	pub fn new(
-		id: impl Into<std::sync::Arc<str>>,
-		level: Level,
-		auto_dismiss: AutoDismiss,
-		message: impl Into<String>,
-	) -> Self {
+	pub fn new(id: impl Into<std::sync::Arc<str>>, level: Level, auto_dismiss: AutoDismiss, message: impl Into<String>) -> Self {
 		Self {
 			id: id.into(),
 			level: Some(level),
@@ -197,10 +188,7 @@ impl NotificationKey {
 
 impl core::fmt::Debug for NotificationKey {
 	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-		f.debug_struct("NotificationKey")
-			.field("id", &self.id)
-			.field("message", &self.message)
-			.finish()
+		f.debug_struct("NotificationKey").field("id", &self.id).field("message", &self.message).finish()
 	}
 }
 

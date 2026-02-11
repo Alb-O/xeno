@@ -21,30 +21,18 @@ impl LspSystem {
 	}
 
 	/// Renders the LSP completion popup if active.
-	pub fn render_completion_popup(
-		&self,
-		editor: &crate::impls::Editor,
-		frame: &mut xeno_tui::Frame,
-	) {
+	pub fn render_completion_popup(&self, editor: &crate::impls::Editor, frame: &mut xeno_tui::Frame) {
 		use xeno_tui::layout::Rect;
 
 		use crate::completion::CompletionState;
 		use crate::lsp::{LspMenuKind, LspMenuState};
 
-		let completions = editor
-			.overlays()
-			.get::<CompletionState>()
-			.cloned()
-			.unwrap_or_default();
+		let completions = editor.overlays().get::<CompletionState>().cloned().unwrap_or_default();
 		if !completions.active || completions.items.is_empty() {
 			return;
 		}
 
-		let Some(menu_state) = editor
-			.overlays()
-			.get::<LspMenuState>()
-			.and_then(|s: &LspMenuState| s.active())
-		else {
+		let Some(menu_state) = editor.overlays().get::<LspMenuState>().and_then(|s: &LspMenuState| s.active()) else {
 			return;
 		};
 		let buffer_id = match menu_state {
@@ -59,9 +47,7 @@ impl LspSystem {
 			return;
 		};
 		let tab_width = editor.tab_width_for(buffer_id);
-		let Some((cursor_row, cursor_col)) =
-			buffer.doc_to_screen_position(buffer.cursor, tab_width)
-		else {
+		let Some((cursor_row, cursor_col)) = buffer.doc_to_screen_position(buffer.cursor, tab_width) else {
 			return;
 		};
 
@@ -71,20 +57,12 @@ impl LspSystem {
 		}
 
 		let show_kind = view_area.width >= 24;
-		let max_label_width = completions
-			.items
-			.iter()
-			.map(|it| crate::render::cell_width(&it.label))
-			.max()
-			.unwrap_or(0);
+		let max_label_width = completions.items.iter().map(|it| crate::render::cell_width(&it.label)).max().unwrap_or(0);
 		let border_cols = 1;
 		let icon_cols = 4;
 		let kind_cols = if show_kind { 7 } else { 0 };
 		let width = (border_cols + icon_cols + max_label_width + kind_cols).max(12);
-		let height = completions
-			.items
-			.len()
-			.clamp(1, CompletionState::MAX_VISIBLE);
+		let height = completions.items.len().clamp(1, CompletionState::MAX_VISIBLE);
 
 		let mut x = view_area.x.saturating_add(cursor_col);
 		let mut y = view_area.y.saturating_add(cursor_row.saturating_add(1));
@@ -99,10 +77,7 @@ impl LspSystem {
 			x = view_area.right().saturating_sub(width_u16);
 		}
 		if y + height_u16 > view_area.bottom() {
-			let above = view_area
-				.y
-				.saturating_add(cursor_row)
-				.saturating_sub(height_u16);
+			let above = view_area.y.saturating_add(cursor_row).saturating_sub(height_u16);
 			y = above.max(view_area.y);
 		}
 
@@ -124,11 +99,7 @@ impl LspSystem {
 	}
 
 	/// Renders the LSP completion popup if active.
-	pub fn render_completion_popup(
-		&self,
-		_editor: &crate::impls::Editor,
-		_frame: &mut xeno_tui::Frame,
-	) {
+	pub fn render_completion_popup(&self, _editor: &crate::impls::Editor, _frame: &mut xeno_tui::Frame) {
 		// No-op when LSP is disabled
 	}
 }

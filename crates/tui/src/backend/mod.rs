@@ -216,11 +216,7 @@ pub trait Backend {
 	/// For examples of how this function is expected to work, refer to the tests for
 	/// [`TestBackend::scroll_region_up`].
 	#[cfg(feature = "scrolling-regions")]
-	fn scroll_region_up(
-		&mut self,
-		region: core::ops::Range<u16>,
-		line_count: u16,
-	) -> Result<(), Self::Error>;
+	fn scroll_region_up(&mut self, region: core::ops::Range<u16>, line_count: u16) -> Result<(), Self::Error>;
 
 	/// Scroll a region of the screen downwards, where a region is specified by a (half-open) range
 	/// of rows.
@@ -241,11 +237,7 @@ pub trait Backend {
 	/// For examples of how this function is expected to work, refer to the tests for
 	/// [`TestBackend::scroll_region_down`].
 	#[cfg(feature = "scrolling-regions")]
-	fn scroll_region_down(
-		&mut self,
-		region: core::ops::Range<u16>,
-		line_count: u16,
-	) -> Result<(), Self::Error>;
+	fn scroll_region_down(&mut self, region: core::ops::Range<u16>, line_count: u16) -> Result<(), Self::Error>;
 }
 
 impl std::fmt::Display for ClearType {

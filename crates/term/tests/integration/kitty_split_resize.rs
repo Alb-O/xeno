@@ -3,8 +3,7 @@
 use std::time::Duration;
 
 use kitty_test_harness::{
-	MouseButton, kitty_send_keys, pause_briefly, require_kitty, run_with_timeout,
-	send_mouse_drag_with_steps, wait_for_screen_text_clean, with_kitty_capture,
+	MouseButton, kitty_send_keys, pause_briefly, require_kitty, run_with_timeout, send_mouse_drag_with_steps, wait_for_screen_text_clean, with_kitty_capture,
 };
 use termwiz::input::{KeyCode, Modifiers};
 
@@ -62,17 +61,12 @@ fn split_resize_outer_preserves_inner_absolute_position() {
 			pause_briefly();
 
 			// Wait for all content to be visible
-			let (_raw, clean) =
-				wait_for_screen_text_clean(kitty, Duration::from_secs(5), |_raw, clean| {
-					clean.contains("AAA") && clean.contains("BBB") && clean.contains("CCC")
-				});
+			let (_raw, clean) = wait_for_screen_text_clean(kitty, Duration::from_secs(5), |_raw, clean| {
+				clean.contains("AAA") && clean.contains("BBB") && clean.contains("CCC")
+			});
 
 			let sep_rows = find_separator_rows(&clean);
-			assert!(
-				sep_rows.len() >= 2,
-				"Should have 2 separators, found: {:?}",
-				sep_rows
-			);
+			assert!(sep_rows.len() >= 2, "Should have 2 separators, found: {:?}", sep_rows);
 
 			let outer_sep = sep_rows[0];
 			let inner_sep_before = sep_rows[1];
@@ -86,26 +80,16 @@ fn split_resize_outer_preserves_inner_absolute_position() {
 			pause_briefly();
 
 			// Capture after resize
-			let (_raw2, clean2) =
-				wait_for_screen_text_clean(kitty, Duration::from_secs(3), |_raw, clean| {
-					clean.contains("AAA")
-				});
+			let (_raw2, clean2) = wait_for_screen_text_clean(kitty, Duration::from_secs(3), |_raw, clean| clean.contains("AAA"));
 
 			let sep_rows2 = find_separator_rows(&clean2);
-			assert!(
-				sep_rows2.len() >= 2,
-				"Should still have 2 separators after resize, found: {:?}",
-				sep_rows2
-			);
+			assert!(sep_rows2.len() >= 2, "Should still have 2 separators after resize, found: {:?}", sep_rows2);
 
 			let outer_sep_after = sep_rows2[0];
 			let inner_sep_after = sep_rows2[1];
 
 			// Outer separator should have moved
-			assert_ne!(
-				outer_sep, outer_sep_after,
-				"Outer separator should have moved after drag"
-			);
+			assert_ne!(outer_sep, outer_sep_after, "Outer separator should have moved after drag");
 
 			// Inner separator should stay at same ABSOLUTE position (or very close due to rounding)
 			// The key insight: if ratio-preservation works, inner_sep_after == inner_sep_before

@@ -130,9 +130,7 @@ impl LogViewer {
 				fields,
 				parent_id,
 			} => {
-				let depth = parent_id
-					.and_then(|pid| self.active_spans.get(&pid).map(|s| s.depth + 1))
-					.unwrap_or(0);
+				let depth = parent_id.and_then(|pid| self.active_spans.get(&pid).map(|s| s.depth + 1)).unwrap_or(0);
 
 				self.push_entry(StoredEntry::SpanEnter {
 					name: name.clone(),
@@ -183,10 +181,7 @@ impl LogViewer {
 		}
 
 		match key.code {
-			KeyCode::Char('q') | KeyCode::Char('C')
-				if key.code == KeyCode::Char('q')
-					|| key.modifiers.contains(KeyModifiers::CONTROL) =>
-			{
+			KeyCode::Char('q') | KeyCode::Char('C') if key.code == KeyCode::Char('q') || key.modifiers.contains(KeyModifiers::CONTROL) => {
 				return true;
 			}
 			KeyCode::Char('?') => self.show_help = true,
@@ -285,12 +280,7 @@ pub fn run_log_viewer(socket_path: &Path) -> io::Result<()> {
 
 	terminal::enable_raw_mode()?;
 	let mut stdout = io::stdout();
-	execute!(
-		stdout,
-		terminal::EnterAlternateScreen,
-		cursor::Hide,
-		terminal::Clear(ClearType::All)
-	)?;
+	execute!(stdout, terminal::EnterAlternateScreen, cursor::Hide, terminal::Clear(ClearType::All))?;
 
 	let mut viewer = LogViewer::new();
 	viewer.render(&mut stdout)?;
@@ -304,11 +294,7 @@ pub fn run_log_viewer(socket_path: &Path) -> io::Result<()> {
 	result
 }
 
-fn run_viewer_loop(
-	viewer: &mut LogViewer,
-	rx: &Receiver<LogMessage>,
-	stdout: &mut io::Stdout,
-) -> io::Result<()> {
+fn run_viewer_loop(viewer: &mut LogViewer, rx: &Receiver<LogMessage>, stdout: &mut io::Stdout) -> io::Result<()> {
 	loop {
 		if !viewer.paused {
 			while let Ok(msg) = rx.try_recv() {

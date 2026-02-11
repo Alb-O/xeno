@@ -15,10 +15,7 @@ mod tests;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use xeno_primitives::{
-	CommitResult, EditCommit, EditError, ReadOnlyReason, ReadOnlyScope, Rope, Transaction,
-	UndoPolicy, ViewId,
-};
+use xeno_primitives::{CommitResult, EditCommit, EditError, ReadOnlyReason, ReadOnlyScope, Rope, Transaction, UndoPolicy, ViewId};
 use xeno_runtime_language::LanguageLoader;
 
 use super::undo_store::UndoBackend;
@@ -179,11 +176,7 @@ impl Document {
 	/// # Errors
 	///
 	/// Returns [`EditError::ReadOnly`] if the document is flagged as read-only.
-	pub fn commit(
-		&mut self,
-		commit: EditCommit,
-		origin_view: Option<ViewId>,
-	) -> Result<CommitResult, EditError> {
+	pub fn commit(&mut self, commit: EditCommit, origin_view: Option<ViewId>) -> Result<CommitResult, EditError> {
 		self.ensure_writable()?;
 		Ok(self.apply_commit(commit, origin_view))
 	}
@@ -193,12 +186,7 @@ impl Document {
 	/// Access is gated by [`crate::buffer::CommitBypassToken`], which can only be constructed
 	/// within the `buffer` module. This ensures the caller has already
 	/// performed view-level readonly validation.
-	pub(crate) fn commit_unchecked(
-		&mut self,
-		commit: EditCommit,
-		origin_view: Option<ViewId>,
-		_token: crate::buffer::CommitBypassToken,
-	) -> CommitResult {
+	pub(crate) fn commit_unchecked(&mut self, commit: EditCommit, origin_view: Option<ViewId>, _token: crate::buffer::CommitBypassToken) -> CommitResult {
 		self.apply_commit(commit, origin_view)
 	}
 
@@ -218,12 +206,7 @@ impl Document {
 
 		let undo_recorded = match commit.undo {
 			UndoPolicy::Record | UndoPolicy::MergeWithCurrentGroup | UndoPolicy::Boundary => {
-				let recorded = self.undo_backend.record_commit(
-					&commit.tx,
-					&self.content,
-					commit.undo,
-					origin_view,
-				);
+				let recorded = self.undo_backend.record_commit(&commit.tx, &self.content, commit.undo, origin_view);
 				commit.tx.apply(&mut self.content);
 				recorded
 			}
@@ -235,10 +218,7 @@ impl Document {
 			}
 		};
 
-		self.version = self
-			.version
-			.checked_add(1)
-			.expect("document version overflow");
+		self.version = self.version.checked_add(1).expect("document version overflow");
 
 		CommitResult {
 			applied: true,
@@ -271,10 +251,7 @@ impl Document {
 		self.content = content.into();
 		self.undo_backend = UndoBackend::new();
 		self.undo_backend.clear_active_group_owner();
-		self.version = self
-			.version
-			.checked_add(1)
-			.expect("document version overflow");
+		self.version = self.version.checked_add(1).expect("document version overflow");
 		self.undo_backend.set_modified(false);
 	}
 
@@ -287,10 +264,7 @@ impl Document {
 		self.undo_backend = UndoBackend::new();
 		self.undo_backend.clear_active_group_owner();
 		self.undo_backend.set_modified(false);
-		self.version = self
-			.version
-			.checked_add(1)
-			.expect("document version overflow");
+		self.version = self.version.checked_add(1).expect("document version overflow");
 	}
 
 	/// Returns the associated file path.
@@ -304,11 +278,7 @@ impl Document {
 	}
 
 	/// Sets the file path and optionally updates syntax detection.
-	pub fn set_path(
-		&mut self,
-		path: Option<PathBuf>,
-		loader: Option<&LanguageLoader>,
-	) -> DocumentMetaOutcome {
+	pub fn set_path(&mut self, path: Option<PathBuf>, loader: Option<&LanguageLoader>) -> DocumentMetaOutcome {
 		let mut outcome = DocumentMetaOutcome::default();
 		if self.path != path {
 			self.path = path;

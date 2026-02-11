@@ -119,10 +119,7 @@ where
 {
 	type LoopError = Error;
 
-	fn notify(
-		&mut self,
-		notif: crate::types::AnyNotification,
-	) -> ControlFlow<std::result::Result<(), Self::LoopError>> {
+	fn notify(&mut self, notif: crate::types::AnyNotification) -> ControlFlow<std::result::Result<(), Self::LoopError>> {
 		self.service.notify(notif)
 	}
 
@@ -170,11 +167,7 @@ where
 	/// Shortcut to [`MainLoop::run`] that accept an `impl AsyncRead` and implicit wrap it in a
 	/// [`BufReader`].
 	#[allow(clippy::missing_errors_doc, reason = "errors documented in Self::run")]
-	pub async fn run_buffered(
-		self,
-		input: impl AsyncRead + Unpin + Send,
-		output: impl AsyncWrite + Unpin + Send,
-	) -> Result<()> {
+	pub async fn run_buffered(self, input: impl AsyncRead + Unpin + Send, output: impl AsyncWrite + Unpin + Send) -> Result<()> {
 		self.run(BufReader::new(input), output).await
 	}
 
@@ -186,11 +179,7 @@ where
 	/// - `Error::Deserialize` when the peer sends undecodable or invalid message.
 	/// - `Error::Protocol` when the peer violates Language Server Protocol.
 	/// - Other errors raised from service handlers.
-	pub async fn run(
-		self,
-		input: impl AsyncBufRead + Unpin + Send,
-		output: impl AsyncWrite + Unpin + Send,
-	) -> Result<()> {
+	pub async fn run(self, input: impl AsyncBufRead + Unpin + Send, output: impl AsyncWrite + Unpin + Send) -> Result<()> {
 		self.inner.run(input, output).await
 	}
 }

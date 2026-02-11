@@ -176,12 +176,8 @@ impl Buffer {
 	#[track_caller]
 	#[must_use]
 	pub fn index_of(&self, x: u16, y: u16) -> usize {
-		self.index_of_opt(Position { x, y }).unwrap_or_else(|| {
-			panic!(
-				"index outside of buffer: the area is {area:?} but index is ({x}, {y})",
-				area = self.area,
-			)
-		})
+		self.index_of_opt(Position { x, y })
+			.unwrap_or_else(|| panic!("index outside of buffer: the area is {area:?} but index is ({x}, {y})", area = self.area,))
 	}
 
 	/// Returns the index in the `Vec<Cell>` for the given global (x, y) coordinates.
@@ -261,14 +257,7 @@ impl Buffer {
 	/// until the end of the line. Skips zero-width graphemes and control characters.
 	///
 	/// Use [`Buffer::set_string`] when the maximum amount of characters can be printed.
-	pub fn set_stringn<T, S>(
-		&mut self,
-		mut x: u16,
-		y: u16,
-		string: T,
-		max_width: usize,
-		style: S,
-	) -> (u16, u16)
+	pub fn set_stringn<T, S>(&mut self, mut x: u16, y: u16, string: T, max_width: usize, style: S) -> (u16, u16)
 	where
 		T: AsRef<str>,
 		S: Into<Style>,
@@ -305,13 +294,7 @@ impl Buffer {
 			if remaining_width == 0 {
 				break;
 			}
-			let pos = self.set_stringn(
-				x,
-				y,
-				span.content.as_ref(),
-				remaining_width as usize,
-				line.style.patch(span.style),
-			);
+			let pos = self.set_stringn(x, y, span.content.as_ref(), remaining_width as usize, line.style.patch(span.style));
 			let w = pos.0.saturating_sub(x);
 			x = pos.0;
 			remaining_width = remaining_width.saturating_sub(w);
@@ -447,11 +430,7 @@ impl Buffer {
 	pub fn diff_into(&self, other: &Self, out: &mut Vec<DiffUpdate>) {
 		out.clear();
 		debug_assert_eq!(self.area, other.area, "diff_into: buffer areas must match");
-		debug_assert_eq!(
-			self.content.len(),
-			other.content.len(),
-			"diff_into: buffer content lengths must match"
-		);
+		debug_assert_eq!(self.content.len(), other.content.len(), "diff_into: buffer content lengths must match");
 		let previous_buffer = &self.content;
 		let next_buffer = &other.content;
 
@@ -475,11 +454,7 @@ impl Buffer {
 						let next_trailing = &next_buffer[j];
 						if !next_trailing.skip && prev_trailing != next_trailing {
 							let (tx, ty) = self.pos_of(j);
-							out.push(DiffUpdate {
-								x: tx,
-								y: ty,
-								idx: j,
-							});
+							out.push(DiffUpdate { x: tx, y: ty, idx: j });
 						}
 					}
 				}
@@ -599,9 +574,7 @@ impl fmt::Debug for Buffer {
 			}
 			f.write_str("\",")?;
 			if !overwritten.is_empty() {
-				f.write_fmt(format_args!(
-					" // hidden by multi-width symbols: {overwritten:?}"
-				))?;
+				f.write_fmt(format_args!(" // hidden by multi-width symbols: {overwritten:?}"))?;
 			}
 			f.write_str("\n")?;
 		}

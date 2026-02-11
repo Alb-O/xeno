@@ -1,12 +1,7 @@
 use super::*;
 
 fn make_rect(x: u16, y: u16, width: u16, height: u16) -> xeno_tui::layout::Rect {
-	xeno_tui::layout::Rect {
-		x,
-		y,
-		width,
-		height,
-	}
+	xeno_tui::layout::Rect { x, y, width, height }
 }
 
 fn get_position(layout: &Layout) -> Option<u16> {
@@ -93,11 +88,7 @@ fn resize_nested_splits_only_affects_target() {
 	// Outer split at position 15 (local), inner split within second half (y=16 to y=29)
 	// Inner area would be y=16, height=14, so inner separator at y=16+7=23 (rendered)
 	let inner_area = make_rect(0, 16, 80, 14);
-	let inner = Layout::stacked(
-		Layout::single(ViewId(2)),
-		Layout::single(ViewId(3)),
-		inner_area,
-	);
+	let inner = Layout::stacked(Layout::single(ViewId(2)), Layout::single(ViewId(3)), inner_area);
 	let mut layout = Layout::stacked(Layout::single(ViewId(1)), inner, area);
 
 	let outer_pos_before = get_position(&layout).unwrap();
@@ -105,21 +96,14 @@ fn resize_nested_splits_only_affects_target() {
 
 	// Inner separator is rendered at y=23 (16 + 7)
 	let inner_sep_info = layout.separator_with_path_at_position(area, 40, 23);
-	assert!(
-		inner_sep_info.is_some(),
-		"Should find inner separator at y=23"
-	);
+	assert!(inner_sep_info.is_some(), "Should find inner separator at y=23");
 	let (direction, _sep_rect, path) = inner_sep_info.unwrap();
 	assert_eq!(direction, SplitDirection::Vertical);
 	assert_eq!(path.0, vec![true]);
 
 	layout.resize_at_path(area, &path, 40, 26);
 
-	assert_eq!(
-		outer_pos_before,
-		get_position(&layout).unwrap(),
-		"Outer position should not change"
-	);
+	assert_eq!(outer_pos_before, get_position(&layout).unwrap(), "Outer position should not change");
 
 	// Inner position is now local: mouse_y (26) - inner_area.y (16) = 10
 	let inner_pos_after = get_inner_position(&layout).unwrap();
@@ -132,11 +116,7 @@ fn separator_rect_at_path() {
 	// Inner layout uses the area it will occupy (second half: y=16, height=14)
 	// Inner position = 14/2 = 7 (local offset within inner area)
 	let inner_area = make_rect(0, 16, 80, 14);
-	let inner = Layout::stacked(
-		Layout::single(ViewId(2)),
-		Layout::single(ViewId(3)),
-		inner_area,
-	);
+	let inner = Layout::stacked(Layout::single(ViewId(2)), Layout::single(ViewId(3)), inner_area);
 	let layout = Layout::stacked(Layout::single(ViewId(1)), inner, area);
 
 	let outer_sep = layout.separator_rect_at_path(area, &SplitPath(vec![]));
@@ -166,19 +146,13 @@ fn separator_positions_2x2_grid() {
 
 	assert_eq!(seps.len(), 3, "Expected 3 separators, got {:?}", seps);
 
-	let h_seps: Vec<_> = seps
-		.iter()
-		.filter(|(dir, _, _)| *dir == SplitDirection::Vertical)
-		.collect();
+	let h_seps: Vec<_> = seps.iter().filter(|(dir, _, _)| *dir == SplitDirection::Vertical).collect();
 	assert_eq!(h_seps.len(), 1, "Expected 1 horizontal separator");
 	let (_, _, h_rect) = h_seps[0];
 	assert_eq!(h_rect.height, 1);
 	assert_eq!(h_rect.width, 81);
 
-	let v_seps: Vec<_> = seps
-		.iter()
-		.filter(|(dir, _, _)| *dir == SplitDirection::Horizontal)
-		.collect();
+	let v_seps: Vec<_> = seps.iter().filter(|(dir, _, _)| *dir == SplitDirection::Horizontal).collect();
 	assert_eq!(v_seps.len(), 2, "Expected 2 vertical separators");
 
 	// Check vertical separator positions for junction rendering
@@ -212,10 +186,7 @@ fn absolute_position_stable_across_area_changes() {
 	let seps = layout.separator_positions(smaller_area);
 	assert_eq!(seps.len(), 1);
 	let (_, _, sep_rect) = &seps[0];
-	assert_eq!(
-		sep_rect.x, 40,
-		"Separator should stay at absolute position 40"
-	);
+	assert_eq!(sep_rect.x, 40, "Separator should stay at absolute position 40");
 }
 
 #[test]
@@ -280,8 +251,7 @@ fn min_width_nested_splits() {
 #[test]
 fn resize_respects_minimum_width() {
 	let area = make_rect(0, 0, 80, 30);
-	let mut layout =
-		Layout::side_by_side(Layout::single(ViewId(1)), Layout::single(ViewId(2)), area);
+	let mut layout = Layout::side_by_side(Layout::single(ViewId(1)), Layout::single(ViewId(2)), area);
 
 	// Try to drag separator to far left (would make first too small)
 	layout.resize_at_path(area, &SplitPath(vec![]), 0, 15);
@@ -317,8 +287,7 @@ fn resize_respects_minimum_height() {
 #[test]
 fn resize_respects_sibling_minimum_width() {
 	let area = make_rect(0, 0, 80, 30);
-	let mut layout =
-		Layout::side_by_side(Layout::single(ViewId(1)), Layout::single(ViewId(2)), area);
+	let mut layout = Layout::side_by_side(Layout::single(ViewId(1)), Layout::single(ViewId(2)), area);
 
 	// Try to drag separator to far right (would make second too small)
 	layout.resize_at_path(area, &SplitPath(vec![]), 200, 15);
@@ -339,11 +308,7 @@ fn resize_cannot_push_nested_split() {
 	let area = make_rect(0, 0, 80, 30);
 	// Create [A | [B | C]] - nested horizontal splits
 	let inner_area = make_rect(41, 0, 39, 30);
-	let inner = Layout::side_by_side(
-		Layout::single(ViewId(2)),
-		Layout::single(ViewId(3)),
-		inner_area,
-	);
+	let inner = Layout::side_by_side(Layout::single(ViewId(2)), Layout::single(ViewId(3)), inner_area);
 	let mut layout = Layout::side_by_side(Layout::single(ViewId(1)), inner, area);
 
 	// Inner split needs MIN_WIDTH + 1 + MIN_WIDTH
@@ -376,11 +341,7 @@ fn resize_nested_cannot_push_sibling() {
 	// Create stacked: top is single, bottom is [B | C]
 	// [[A] / [B | C]]
 	let inner_area = make_rect(0, 16, 80, 14);
-	let inner = Layout::side_by_side(
-		Layout::single(ViewId(2)),
-		Layout::single(ViewId(3)),
-		inner_area,
-	);
+	let inner = Layout::side_by_side(Layout::single(ViewId(2)), Layout::single(ViewId(3)), inner_area);
 	let mut layout = Layout::stacked(Layout::single(ViewId(1)), inner, area);
 
 	// Record outer separator position
@@ -392,10 +353,7 @@ fn resize_nested_cannot_push_sibling() {
 
 	// Outer position should be unchanged
 	let outer_pos_after = get_position(&layout).unwrap();
-	assert_eq!(
-		outer_pos_before, outer_pos_after,
-		"Outer split position should not change"
-	);
+	assert_eq!(outer_pos_before, outer_pos_after, "Outer split position should not change");
 }
 
 // =============================================================================
@@ -417,27 +375,13 @@ fn compute_split_areas_invariants_horizontal() {
 		let area = make_rect(0, 0, width, 10);
 		let position = width / 2;
 
-		let (first, second, sep) =
-			Layout::compute_split_areas(area, SplitDirection::Horizontal, position);
+		let (first, second, sep) = Layout::compute_split_areas(area, SplitDirection::Horizontal, position);
 
-		assert!(
-			first.x.saturating_add(first.width) >= first.x,
-			"first: overflow in x+width"
-		);
-		assert!(
-			second.x.saturating_add(second.width) >= second.x,
-			"second: overflow in x+width"
-		);
-		assert!(
-			sep.x.saturating_add(sep.width) >= sep.x,
-			"sep: overflow in x+width"
-		);
+		assert!(first.x.saturating_add(first.width) >= first.x, "first: overflow in x+width");
+		assert!(second.x.saturating_add(second.width) >= second.x, "second: overflow in x+width");
+		assert!(sep.x.saturating_add(sep.width) >= sep.x, "sep: overflow in x+width");
 
-		assert!(
-			sep.width <= 1,
-			"sep width should be 0 or 1, got {}",
-			sep.width
-		);
+		assert!(sep.width <= 1, "sep width should be 0 or 1, got {}", sep.width);
 
 		if width > 1 {
 			let total_used = first.width + second.width + sep.width;
@@ -447,29 +391,13 @@ fn compute_split_areas_invariants_horizontal() {
 				width, first.width, second.width, sep.width, total_used
 			);
 		} else {
-			assert_eq!(
-				first.width, 0,
-				"width {}: first should be 0 in degenerate case",
-				width
-			);
-			assert_eq!(
-				second.width, 0,
-				"width {}: second should be 0 in degenerate case",
-				width
-			);
-			assert_eq!(
-				sep.width, 0,
-				"width {}: sep should be 0 in degenerate case",
-				width
-			);
+			assert_eq!(first.width, 0, "width {}: first should be 0 in degenerate case", width);
+			assert_eq!(second.width, 0, "width {}: second should be 0 in degenerate case", width);
+			assert_eq!(sep.width, 0, "width {}: sep should be 0 in degenerate case", width);
 		}
 
 		if width >= 3 {
-			assert!(
-				first.width >= 1 || second.width >= 1,
-				"width {}: at least one child should be visible",
-				width
-			);
+			assert!(first.width >= 1 || second.width >= 1, "width {}: at least one child should be visible", width);
 		}
 
 		let soft_min_total = Layout::MIN_WIDTH * 2 + 1;
@@ -500,27 +428,13 @@ fn compute_split_areas_invariants_vertical() {
 		let area = make_rect(0, 0, 10, height);
 		let position = height / 2;
 
-		let (first, second, sep) =
-			Layout::compute_split_areas(area, SplitDirection::Vertical, position);
+		let (first, second, sep) = Layout::compute_split_areas(area, SplitDirection::Vertical, position);
 
-		assert!(
-			first.y.saturating_add(first.height) >= first.y,
-			"first: overflow in y+height"
-		);
-		assert!(
-			second.y.saturating_add(second.height) >= second.y,
-			"second: overflow in y+height"
-		);
-		assert!(
-			sep.y.saturating_add(sep.height) >= sep.y,
-			"sep: overflow in y+height"
-		);
+		assert!(first.y.saturating_add(first.height) >= first.y, "first: overflow in y+height");
+		assert!(second.y.saturating_add(second.height) >= second.y, "second: overflow in y+height");
+		assert!(sep.y.saturating_add(sep.height) >= sep.y, "sep: overflow in y+height");
 
-		assert!(
-			sep.height <= 1,
-			"sep height should be 0 or 1, got {}",
-			sep.height
-		);
+		assert!(sep.height <= 1, "sep height should be 0 or 1, got {}", sep.height);
 
 		if height > 1 {
 			let total_used = first.height + second.height + sep.height;
@@ -530,21 +444,9 @@ fn compute_split_areas_invariants_vertical() {
 				height, first.height, second.height, sep.height, total_used
 			);
 		} else {
-			assert_eq!(
-				first.height, 0,
-				"height {}: first should be 0 in degenerate case",
-				height
-			);
-			assert_eq!(
-				second.height, 0,
-				"height {}: second should be 0 in degenerate case",
-				height
-			);
-			assert_eq!(
-				sep.height, 0,
-				"height {}: sep should be 0 in degenerate case",
-				height
-			);
+			assert_eq!(first.height, 0, "height {}: first should be 0 in degenerate case", height);
+			assert_eq!(second.height, 0, "height {}: second should be 0 in degenerate case", height);
+			assert_eq!(sep.height, 0, "height {}: sep should be 0 in degenerate case", height);
 		}
 
 		if height >= 3 {
@@ -581,24 +483,12 @@ fn compute_split_areas_no_zero_sized_panes() {
 	let area = make_rect(0, 0, 5, 5);
 
 	let (first, second, _sep) = Layout::compute_split_areas(area, SplitDirection::Horizontal, 2);
-	assert!(
-		first.width >= 1 || second.width == 0,
-		"first should be >=1 when possible"
-	);
-	assert!(
-		second.width >= 1 || first.width == 0,
-		"second should be >=1 when possible"
-	);
+	assert!(first.width >= 1 || second.width == 0, "first should be >=1 when possible");
+	assert!(second.width >= 1 || first.width == 0, "second should be >=1 when possible");
 
 	let (first, second, _sep) = Layout::compute_split_areas(area, SplitDirection::Vertical, 2);
-	assert!(
-		first.height >= 1 || second.height == 0,
-		"first should be >=1 when possible"
-	);
-	assert!(
-		second.height >= 1 || first.height == 0,
-		"second should be >=1 when possible"
-	);
+	assert!(first.height >= 1 || second.height == 0, "first should be >=1 when possible");
+	assert!(second.height >= 1 || first.height == 0, "second should be >=1 when possible");
 }
 
 /// Verifies that extreme separator positions are clamped correctly by the soft-min policy.
@@ -606,16 +496,9 @@ fn compute_split_areas_no_zero_sized_panes() {
 fn compute_split_areas_extreme_position_clamping() {
 	let area = make_rect(0, 0, 80, 30);
 
-	let (first, _second, _sep) =
-		Layout::compute_split_areas(area, SplitDirection::Horizontal, 1000);
-	assert!(
-		first.width < area.width,
-		"first width should respect area bounds"
-	);
+	let (first, _second, _sep) = Layout::compute_split_areas(area, SplitDirection::Horizontal, 1000);
+	assert!(first.width < area.width, "first width should respect area bounds");
 
 	let (first, _second, _sep) = Layout::compute_split_areas(area, SplitDirection::Horizontal, 0);
-	assert!(
-		first.width >= 1 || area.width < 3,
-		"first should have hard minimum when possible"
-	);
+	assert!(first.width >= 1 || area.width < 3, "first should have hard minimum when possible");
 }

@@ -7,11 +7,7 @@ use super::types::{KeyResult, Mode};
 
 impl InputHandler {
 	/// Handles key input for pending actions (character find, text objects, etc.).
-	pub(crate) fn handle_pending_action_key(
-		&mut self,
-		key: Key,
-		pending: PendingKind,
-	) -> KeyResult {
+	pub(crate) fn handle_pending_action_key(&mut self, key: Key, pending: PendingKind) -> KeyResult {
 		let key = if key.modifiers.shift
 			&& let KeyCode::Char(c) = key.code
 			&& c.is_ascii_lowercase()
@@ -39,8 +35,7 @@ impl InputHandler {
 				let extend = self.extend;
 				let register = self.register;
 				self.reset_params();
-				let id = resolve_action_id(action_name)
-					.unwrap_or_else(|| panic!("{action_name} action not registered"));
+				let id = resolve_action_id(action_name).unwrap_or_else(|| panic!("{action_name} action not registered"));
 				KeyResult::ActionByIdWithChar {
 					id,
 					count,

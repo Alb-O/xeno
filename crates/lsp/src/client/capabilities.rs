@@ -1,12 +1,10 @@
 //! Client capabilities for LSP initialization.
 
 use lsp_types::{
-	ClientCapabilities, CompletionClientCapabilities, CompletionItemCapability,
-	CompletionItemCapabilityResolveSupport, DiagnosticClientCapabilities,
-	GeneralClientCapabilities, HoverClientCapabilities, MarkupKind, PositionEncodingKind,
-	PublishDiagnosticsClientCapabilities, RenameClientCapabilities,
-	SignatureHelpClientCapabilities, SignatureInformationSettings, TagSupport,
-	TextDocumentClientCapabilities, WindowClientCapabilities, WorkspaceClientCapabilities,
+	ClientCapabilities, CompletionClientCapabilities, CompletionItemCapability, CompletionItemCapabilityResolveSupport, DiagnosticClientCapabilities,
+	GeneralClientCapabilities, HoverClientCapabilities, MarkupKind, PositionEncodingKind, PublishDiagnosticsClientCapabilities, RenameClientCapabilities,
+	SignatureHelpClientCapabilities, SignatureInformationSettings, TagSupport, TextDocumentClientCapabilities, WindowClientCapabilities,
+	WorkspaceClientCapabilities,
 };
 
 /// Build client capabilities for initialization.
@@ -26,9 +24,7 @@ pub fn client_capabilities(enable_snippets: bool) -> ClientCapabilities {
 			execute_command: Some(lsp_types::DynamicRegistrationClientCapabilities {
 				dynamic_registration: Some(false),
 			}),
-			inlay_hint: Some(lsp_types::InlayHintWorkspaceClientCapabilities {
-				refresh_support: Some(false),
-			}),
+			inlay_hint: Some(lsp_types::InlayHintWorkspaceClientCapabilities { refresh_support: Some(false) }),
 			workspace_edit: Some(lsp_types::WorkspaceEditClientCapabilities {
 				document_changes: Some(true),
 				resource_operations: Some(vec![
@@ -49,9 +45,7 @@ pub fn client_capabilities(enable_snippets: bool) -> ClientCapabilities {
 				did_rename: Some(true),
 				..Default::default()
 			}),
-			diagnostic: Some(lsp_types::DiagnosticWorkspaceClientCapabilities {
-				refresh_support: Some(true),
-			}),
+			diagnostic: Some(lsp_types::DiagnosticWorkspaceClientCapabilities { refresh_support: Some(true) }),
 			..Default::default()
 		}),
 		text_document: Some(TextDocumentClientCapabilities {
@@ -59,11 +53,7 @@ pub fn client_capabilities(enable_snippets: bool) -> ClientCapabilities {
 				completion_item: Some(CompletionItemCapability {
 					snippet_support: Some(enable_snippets),
 					resolve_support: Some(CompletionItemCapabilityResolveSupport {
-						properties: vec![
-							String::from("documentation"),
-							String::from("detail"),
-							String::from("additionalTextEdits"),
-						],
+						properties: vec![String::from("documentation"), String::from("detail"), String::from("additionalTextEdits")],
 					}),
 					insert_replace_support: Some(true),
 					deprecated_support: Some(true),
@@ -72,9 +62,7 @@ pub fn client_capabilities(enable_snippets: bool) -> ClientCapabilities {
 					}),
 					..Default::default()
 				}),
-				completion_item_kind: Some(lsp_types::CompletionItemKindCapability {
-					..Default::default()
-				}),
+				completion_item_kind: Some(lsp_types::CompletionItemKindCapability { ..Default::default() }),
 				context_support: None,
 				..Default::default()
 			}),
@@ -135,10 +123,7 @@ pub fn client_capabilities(enable_snippets: bool) -> ClientCapabilities {
 			publish_diagnostics: Some(PublishDiagnosticsClientCapabilities {
 				version_support: Some(true),
 				tag_support: Some(TagSupport {
-					value_set: vec![
-						lsp_types::DiagnosticTag::UNNECESSARY,
-						lsp_types::DiagnosticTag::DEPRECATED,
-					],
+					value_set: vec![lsp_types::DiagnosticTag::UNNECESSARY, lsp_types::DiagnosticTag::DEPRECATED],
 				}),
 				..Default::default()
 			}),
@@ -154,11 +139,7 @@ pub fn client_capabilities(enable_snippets: bool) -> ClientCapabilities {
 			..Default::default()
 		}),
 		general: Some(GeneralClientCapabilities {
-			position_encodings: Some(vec![
-				PositionEncodingKind::UTF8,
-				PositionEncodingKind::UTF32,
-				PositionEncodingKind::UTF16,
-			]),
+			position_encodings: Some(vec![PositionEncodingKind::UTF8, PositionEncodingKind::UTF32, PositionEncodingKind::UTF16]),
 			..Default::default()
 		}),
 		..Default::default()

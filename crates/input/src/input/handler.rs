@@ -101,12 +101,7 @@ impl InputHandler {
 		let extend = self.extend;
 		let register = self.register;
 		self.reset_params();
-		KeyResult::ActionById {
-			id,
-			count,
-			extend,
-			register,
-		}
+		KeyResult::ActionById { id, count, extend, register }
 	}
 
 	/// Resets transient key-processing state to defaults.
@@ -153,12 +148,7 @@ impl InputHandler {
 	/// (Vim semantics: Shift+n looks up "N"). If the uppercase lookup fails,
 	/// the lowercase variant is tried with `extend = true` (Shift extends
 	/// selection). Non-alphabetic Shift keys follow the same extend fallback.
-	fn handle_mode_key(
-		&mut self,
-		key: Key,
-		binding_mode: BindingMode,
-		registry: &KeymapIndex,
-	) -> KeyResult {
+	fn handle_mode_key(&mut self, key: Key, binding_mode: BindingMode, registry: &KeymapIndex) -> KeyResult {
 		if binding_mode == BindingMode::Normal
 			&& let Some(digit) = key.as_digit()
 			&& (digit != 0 || self.count > 0)
@@ -233,11 +223,7 @@ impl InputHandler {
 			}
 			LookupResult::Pending { sticky } => {
 				if let Some(entry) = sticky {
-					debug!(
-						action = entry.action_name,
-						keys = self.key_sequence.len(),
-						"Pending with sticky action"
-					);
+					debug!(action = entry.action_name, keys = self.key_sequence.len(), "Pending with sticky action");
 				}
 				KeyResult::Pending {
 					keys_so_far: self.key_sequence.len(),
@@ -261,21 +247,14 @@ impl InputHandler {
 				row,
 				col,
 				..
-			} => KeyResult::MouseClick {
-				row,
-				col,
-				extend: self.extend,
-			},
+			} => KeyResult::MouseClick { row, col, extend: self.extend },
 			MouseEvent::Drag {
 				button: MouseButton::Left,
 				row,
 				col,
 				..
 			} => KeyResult::MouseDrag { row, col },
-			MouseEvent::Scroll { direction, .. } => KeyResult::MouseScroll {
-				direction,
-				count: 1,
-			},
+			MouseEvent::Scroll { direction, .. } => KeyResult::MouseScroll { direction, count: 1 },
 			_ => KeyResult::Consumed,
 		}
 	}

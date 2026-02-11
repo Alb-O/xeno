@@ -4,13 +4,7 @@ use xeno_runtime_language::{LanguageId, LanguageLoader};
 
 /// Abstract engine for parsing syntax (for test mockability).
 pub trait SyntaxEngine: Send + Sync {
-	fn parse(
-		&self,
-		content: ropey::RopeSlice<'_>,
-		lang: LanguageId,
-		loader: &LanguageLoader,
-		opts: SyntaxOptions,
-	) -> Result<Syntax, SyntaxError>;
+	fn parse(&self, content: ropey::RopeSlice<'_>, lang: LanguageId, loader: &LanguageLoader, opts: SyntaxOptions) -> Result<Syntax, SyntaxError>;
 
 	/// Incrementally updates an existing syntax tree via a composed changeset.
 	///
@@ -32,13 +26,7 @@ pub trait SyntaxEngine: Send + Sync {
 
 pub(super) struct RealSyntaxEngine;
 impl SyntaxEngine for RealSyntaxEngine {
-	fn parse(
-		&self,
-		content: ropey::RopeSlice<'_>,
-		lang: LanguageId,
-		loader: &LanguageLoader,
-		opts: SyntaxOptions,
-	) -> Result<Syntax, SyntaxError> {
+	fn parse(&self, content: ropey::RopeSlice<'_>, lang: LanguageId, loader: &LanguageLoader, opts: SyntaxOptions) -> Result<Syntax, SyntaxError> {
 		Syntax::new(content, lang, loader, opts)
 	}
 

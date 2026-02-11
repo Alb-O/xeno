@@ -84,10 +84,7 @@ impl Layout {
 	/// Use [`Self::split`] when the number of areas is only known at runtime.
 	pub fn areas<const N: usize>(&self, area: Rect) -> [Rect; N] {
 		let rects = self.split(area);
-		rects
-			.as_ref()
-			.try_into()
-			.unwrap_or_else(|_| panic!("expected {N} rects, got {}", rects.len()))
+		rects.as_ref().try_into().unwrap_or_else(|_| panic!("expected {N} rects, got {}", rects.len()))
 	}
 
 	/// Splits area into sub-rects using a deterministic algorithm.
@@ -127,11 +124,7 @@ impl Layout {
 		}
 
 		// Pass 3: distribute remainder to Min constraints
-		let min_count = self
-			.constraints
-			.iter()
-			.filter(|c| matches!(c, Constraint::Min(_)))
-			.count();
+		let min_count = self.constraints.iter().filter(|c| matches!(c, Constraint::Min(_))).count();
 		if min_count > 0 {
 			// First ensure minimums
 			for (i, c) in self.constraints.iter().enumerate() {
@@ -207,11 +200,7 @@ mod tests {
 
 	#[test]
 	fn vertical_pct_min_pct() {
-		let layout = Layout::vertical([
-			Constraint::Percentage(25),
-			Constraint::Min(1),
-			Constraint::Percentage(10),
-		]);
+		let layout = Layout::vertical([Constraint::Percentage(25), Constraint::Min(1), Constraint::Percentage(10)]);
 		let [top, mid, bot] = layout.areas(Rect::new(0, 0, 80, 100));
 		assert_eq!(top.height, 25);
 		assert_eq!(bot.height, 10);
@@ -220,11 +209,7 @@ mod tests {
 
 	#[test]
 	fn horizontal_split() {
-		let layout = Layout::horizontal([
-			Constraint::Percentage(25),
-			Constraint::Min(1),
-			Constraint::Percentage(25),
-		]);
+		let layout = Layout::horizontal([Constraint::Percentage(25), Constraint::Min(1), Constraint::Percentage(25)]);
 		let [left, mid, right] = layout.areas(Rect::new(0, 0, 80, 24));
 		assert_eq!(left.width, 20);
 		assert_eq!(right.width, 20);
@@ -233,11 +218,7 @@ mod tests {
 
 	#[test]
 	fn length_zero_collapses() {
-		let layout = Layout::vertical([
-			Constraint::Length(0),
-			Constraint::Min(1),
-			Constraint::Length(0),
-		]);
+		let layout = Layout::vertical([Constraint::Length(0), Constraint::Min(1), Constraint::Length(0)]);
 		let [top, mid, bot] = layout.areas(Rect::new(0, 0, 80, 24));
 		assert_eq!(top.height, 0);
 		assert_eq!(bot.height, 0);
@@ -246,11 +227,7 @@ mod tests {
 
 	#[test]
 	fn sum_equals_total() {
-		let layout = Layout::vertical([
-			Constraint::Percentage(30),
-			Constraint::Min(1),
-			Constraint::Length(5),
-		]);
+		let layout = Layout::vertical([Constraint::Percentage(30), Constraint::Min(1), Constraint::Length(5)]);
 		let rects = layout.split(Rect::new(0, 0, 80, 50));
 		let total_height: u16 = rects.iter().map(|r| r.height).sum();
 		assert_eq!(total_height, 50);
@@ -258,11 +235,7 @@ mod tests {
 
 	#[test]
 	fn contiguous_no_gaps() {
-		let layout = Layout::vertical([
-			Constraint::Percentage(30),
-			Constraint::Min(1),
-			Constraint::Length(5),
-		]);
+		let layout = Layout::vertical([Constraint::Percentage(30), Constraint::Min(1), Constraint::Length(5)]);
 		let rects = layout.split(Rect::new(0, 0, 80, 50));
 		for pair in rects.windows(2) {
 			assert_eq!(pair[0].y + pair[0].height, pair[1].y);

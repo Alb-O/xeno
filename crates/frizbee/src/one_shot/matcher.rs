@@ -10,11 +10,7 @@ use crate::{Config, Match};
 /// You should call this function with as many haystacks as you have available as it will
 /// automatically chunk the haystacks based on string length to avoid unnecessary computation
 /// due to SIMD
-pub fn match_list<S1: AsRef<str>, S2: AsRef<str>>(
-	needle: S1,
-	haystacks: &[S2],
-	config: &Config,
-) -> Vec<Match> {
+pub fn match_list<S1: AsRef<str>, S2: AsRef<str>>(needle: S1, haystacks: &[S2], config: &Config) -> Vec<Match> {
 	let mut matches = if config.max_typos.is_none() {
 		Vec::with_capacity(haystacks.len())
 	} else {
@@ -43,10 +39,7 @@ pub(crate) fn match_list_impl<S1: AsRef<str>, S2: AsRef<str>, M: Appendable<Matc
 	config: &Config,
 	matches: &mut M,
 ) {
-	assert!(
-		(index_offset as usize) + haystacks.len() < (u32::MAX as usize),
-		"haystack index overflow"
-	);
+	assert!((index_offset as usize) + haystacks.len() < (u32::MAX as usize), "haystack index overflow");
 
 	let needle = needle.as_ref();
 	if needle.is_empty() {
@@ -82,30 +75,21 @@ pub(crate) fn match_list_impl<S1: AsRef<str>, S2: AsRef<str>, M: Appendable<Matc
 
 	// If max_typos is set, we can ignore any haystacks that are shorter than the needle
 	// minus the max typos, since it's impossible for them to match
-	let min_haystack_len = config
-		.max_typos
-		.map(|max| needle.len() - (max as usize))
-		.unwrap_or(0);
+	let min_haystack_len = config.max_typos.map(|max| needle.len() - (max as usize)).unwrap_or(0);
 
 	for (i, haystack) in haystacks
 		.iter()
 		.map(|h| h.as_ref())
 		.enumerate()
 		.filter(|(_, h)| h.len() >= min_haystack_len)
-		.filter(|(_, h)| {
-			config.max_typos.is_none()
-				|| prefilter.match_haystack_unordered_insensitive(h.as_bytes())
-		}) {
+		.filter(|(_, h)| config.max_typos.is_none() || prefilter.match_haystack_unordered_insensitive(h.as_bytes()))
+	{
 		let i = i as u32 + index_offset;
 
 		// fallback to greedy matching
 		if match_too_large(needle, haystack) {
 			let (score, _, exact) = match_greedy(needle, haystack, &config.scoring);
-			matches.append(Match {
-				index: i,
-				score,
-				exact,
-			});
+			matches.append(Match { index: i, score, exact });
 			continue;
 		}
 
@@ -132,11 +116,7 @@ pub(crate) fn match_list_impl<S1: AsRef<str>, S2: AsRef<str>, M: Appendable<Matc
 			// fallback to greedy matching
 			_ => {
 				let (score, _, exact) = match_greedy(needle, haystack, &config.scoring);
-				matches.append(Match {
-					index: i,
-					score,
-					exact,
-				});
+				matches.append(Match { index: i, score, exact });
 				continue;
 			}
 		};
@@ -218,15 +198,7 @@ mod tests {
 	#[test]
 	fn test_exact_matches() {
 		let needle = "deadbe";
-		let haystack = vec![
-			"deadbe",
-			"deadbeef",
-			"deadbe",
-			"deadbf",
-			"deadbe",
-			"deadbeefg",
-			"deadbe",
-		];
+		let haystack = vec!["deadbe", "deadbeef", "deadbe", "deadbf", "deadbe", "deadbeefg", "deadbe"];
 
 		let matches = match_list(needle, &haystack, &Config::default());
 

@@ -30,10 +30,7 @@ pub(crate) fn test_deterministic_iteration() {
 	let index = builder.build();
 	assert_eq!(index.len(), 2);
 	// Builtins are sorted by canonical ID at build time
-	let ids: Vec<_> = index
-		.iter()
-		.map(|e| index.interner.resolve(e.meta().id))
-		.collect();
+	let ids: Vec<_> = index.iter().map(|e| index.interner.resolve(e.meta().id)).collect();
 	assert_eq!(ids, vec!["A", "B"]);
 }
 
@@ -80,10 +77,7 @@ pub(crate) fn test_key_collision_recording() {
 
 	let index = builder.build();
 	assert_eq!(index.len(), 2);
-	assert!(
-		!index.collisions().is_empty(),
-		"Alias collision should be recorded"
-	);
+	assert!(!index.collisions().is_empty(), "Alias collision should be recorded");
 }
 
 /// Must have unambiguous ID lookup (one winner per ID).
@@ -116,8 +110,7 @@ pub(crate) fn test_unambiguous_id_lookup() {
 pub(crate) fn test_id_override_eviction() {
 	use crate::core::index::collision::DuplicatePolicy;
 	// Use ByPriority explicitly to test priority-based eviction.
-	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> =
-		RegistryBuilder::with_policy("test", DuplicatePolicy::ByPriority);
+	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> = RegistryBuilder::with_policy("test", DuplicatePolicy::ByPriority);
 	let low = TestDef {
 		meta: RegistryMetaStatic {
 			id: "X",
@@ -172,10 +165,7 @@ pub(crate) fn test_snapshot_liveness_across_swap() {
 	// The original ref and snapshot must still be valid and readable
 	assert_eq!(ref_a.priority(), 10);
 	assert_eq!(snap.table.len(), 1);
-	assert!(
-		Arc::ptr_eq(&snap, &snap2),
-		"No mutation means same snapshot"
-	);
+	assert!(Arc::ptr_eq(&snap, &snap2), "No mutation means same snapshot");
 }
 
 /// Must provide linearizable writes without lost updates.
@@ -237,11 +227,7 @@ pub(crate) fn test_no_lost_updates() {
 	}
 
 	// All registrations should have succeeded (unique IDs, no conflicts)
-	assert_eq!(
-		success_count.load(Ordering::SeqCst),
-		total_regs,
-		"All concurrent registrations should succeed"
-	);
+	assert_eq!(success_count.load(Ordering::SeqCst), total_regs, "All concurrent registrations should succeed");
 
 	// Verify all entries are present and resolvable
 	assert_eq!(registry.len(), 1 + total_regs);
@@ -293,16 +279,8 @@ pub(crate) fn test_symbol_stability_across_swap() {
 	}
 
 	// Original reference must still resolve correctly
-	assert_eq!(
-		stable_ref.name_str(),
-		original_name,
-		"Name must be stable after swaps"
-	);
-	assert_eq!(
-		stable_ref.id_str(),
-		original_id,
-		"ID must be stable after swaps"
-	);
+	assert_eq!(stable_ref.name_str(), original_name, "Name must be stable after swaps");
+	assert_eq!(stable_ref.id_str(), original_id, "ID must be stable after swaps");
 	assert_eq!(stable_ref.priority(), 10, "Priority must be unchanged");
 }
 
@@ -313,8 +291,7 @@ pub(crate) fn test_symbol_stability_across_swap() {
 #[cfg_attr(test, test)]
 pub(crate) fn test_source_precedence() {
 	// 1. Build-time precedence: Runtime beats Builtin at same priority
-	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> =
-		RegistryBuilder::with_policy("test", DuplicatePolicy::ByPriority);
+	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> = RegistryBuilder::with_policy("test", DuplicatePolicy::ByPriority);
 
 	let builtin = TestDef {
 		meta: RegistryMetaStatic {
@@ -387,18 +364,13 @@ pub(crate) fn test_source_precedence() {
 	let res = registry.register(runtime_def);
 	assert!(res.is_ok(), "Runtime registration should succeed");
 	let entry2 = registry.get("cmd2").unwrap();
-	assert_eq!(
-		entry2.name_str(),
-		"runtime2",
-		"Runtime source must win over Builtin at same priority (runtime)"
-	);
+	assert_eq!(entry2.name_str(), "runtime2", "Runtime source must win over Builtin at same priority (runtime)");
 }
 
 /// On canonical ID conflicts with identical priority and source, later ingest (higher ordinal) wins.
 #[cfg_attr(test, test)]
 pub(crate) fn test_canonical_id_ordinal_tiebreaker() {
-	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> =
-		RegistryBuilder::with_policy("test", DuplicatePolicy::ByPriority);
+	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> = RegistryBuilder::with_policy("test", DuplicatePolicy::ByPriority);
 
 	let first = TestDef {
 		meta: RegistryMetaStatic {
@@ -441,8 +413,7 @@ pub(crate) fn test_canonical_id_ordinal_tiebreaker() {
 /// On key conflicts (name/key) with identical priority and source, later ingest wins (ordinal tie-break).
 #[cfg_attr(test, test)]
 pub(crate) fn test_key_conflict_ordinal_tiebreaker() {
-	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> =
-		RegistryBuilder::with_policy("test", DuplicatePolicy::ByPriority);
+	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> = RegistryBuilder::with_policy("test", DuplicatePolicy::ByPriority);
 
 	let def_first = TestDef {
 		meta: RegistryMetaStatic {
@@ -490,8 +461,7 @@ pub(crate) fn test_key_conflict_ordinal_tiebreaker() {
 /// because it has the higher ordinal.
 #[cfg_attr(test, test)]
 pub(crate) fn test_id_override_keeps_name_binding_on_tie() {
-	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> =
-		RegistryBuilder::with_policy("test", DuplicatePolicy::ByPriority);
+	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> = RegistryBuilder::with_policy("test", DuplicatePolicy::ByPriority);
 
 	// Def Z owns "shared" name
 	let def_z = TestDef {
@@ -548,11 +518,7 @@ pub(crate) fn test_id_override_keeps_name_binding_on_tie() {
 		"A",
 		"Overriding entry must win its name binding via ordinal tie-break"
 	);
-	assert_eq!(
-		index.interner.resolve(shared.meta().description),
-		"v2",
-		"Must be the latest version of A"
-	);
+	assert_eq!(index.interner.resolve(shared.meta().description), "v2", "Must be the latest version of A");
 }
 
 /// Runtime overrides of canonical IDs must be recorded as DuplicateId collisions.
@@ -576,9 +542,7 @@ pub(crate) fn test_runtime_duplicate_id_records_collision() {
 		},
 	}));
 
-	let _ = registry
-		.register(override_def)
-		.expect("Override must succeed");
+	let _ = registry.register(override_def).expect("Override must succeed");
 
 	let snap = registry.snapshot();
 	let collisions = snap.collisions.as_ref();
@@ -586,10 +550,7 @@ pub(crate) fn test_runtime_duplicate_id_records_collision() {
 	use crate::core::index::collision::CollisionKind;
 	let dup_collision = collisions
 		.iter()
-		.find(|c| {
-			matches!(c.kind, CollisionKind::DuplicateId { .. })
-				&& snap.interner.resolve(c.key) == "X"
-		})
+		.find(|c| matches!(c.kind, CollisionKind::DuplicateId { .. }) && snap.interner.resolve(c.key) == "X")
 		.expect("Must record DuplicateId collision on runtime override");
 
 	if let CollisionKind::DuplicateId { winner, loser, .. } = dup_collision.kind {

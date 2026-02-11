@@ -11,14 +11,10 @@ use super::{GrammarBuildError, Result};
 
 /// Returns the first compiler from `candidates` that executes successfully.
 fn find_compiler<'a>(candidates: &[&'a str]) -> Option<&'a str> {
-	candidates.iter().copied().find(|name| {
-		Command::new(name)
-			.arg("--version")
-			.stdout(Stdio::null())
-			.stderr(Stdio::null())
-			.status()
-			.is_ok()
-	})
+	candidates
+		.iter()
+		.copied()
+		.find(|name| Command::new(name).arg("--version").stdout(Stdio::null()).stderr(Stdio::null()).status().is_ok())
 }
 
 /// Resolves C and C++ compilers, preferring environment variables then probing common names.
@@ -26,8 +22,7 @@ fn find_compiler<'a>(candidates: &[&'a str]) -> Option<&'a str> {
 /// On Unix, probes `cc`, `clang`, `gcc`. On Windows, probes `cl`, `clang-cl`, `clang`, `gcc`.
 /// Returns `None` for a compiler if neither the environment variable nor any candidate is found.
 fn resolve_compilers() -> (Option<&'static str>, Option<&'static str>) {
-	static COMPILERS: std::sync::OnceLock<(Option<&'static str>, Option<&'static str>)> =
-		std::sync::OnceLock::new();
+	static COMPILERS: std::sync::OnceLock<(Option<&'static str>, Option<&'static str>)> = std::sync::OnceLock::new();
 	*COMPILERS.get_or_init(|| {
 		#[cfg(unix)]
 		const CC_CANDIDATES: &[&str] = &["cc", "clang", "gcc"];
@@ -42,14 +37,8 @@ fn resolve_compilers() -> (Option<&'static str>, Option<&'static str>) {
 		#[cfg(not(any(unix, windows)))]
 		const CXX_CANDIDATES: &[&str] = &["c++", "clang++", "g++"];
 
-		let cc = std::env::var("CC")
-			.ok()
-			.map(|s| s.leak() as &str)
-			.or_else(|| find_compiler(CC_CANDIDATES));
-		let cxx = std::env::var("CXX")
-			.ok()
-			.map(|s| s.leak() as &str)
-			.or_else(|| find_compiler(CXX_CANDIDATES));
+		let cc = std::env::var("CC").ok().map(|s| s.leak() as &str).or_else(|| find_compiler(CC_CANDIDATES));
+		let cxx = std::env::var("CXX").ok().map(|s| s.leak() as &str).or_else(|| find_compiler(CXX_CANDIDATES));
 		(cc, cxx)
 	})
 }
@@ -98,11 +87,7 @@ pub fn build_grammar(grammar: &GrammarConfig) -> Result<BuildStatus> {
 	let lib_dir = grammar_lib_dir();
 	fs::create_dir_all(&lib_dir)?;
 
-	let lib_path = lib_dir.join(format!(
-		"lib{}.{}",
-		grammar.grammar_id.replace('-', "_"),
-		library_extension()
-	));
+	let lib_path = lib_dir.join(format!("lib{}.{}", grammar.grammar_id.replace('-', "_"), library_extension()));
 
 	tracing::debug!(
 		grammar = %grammar.grammar_id,
@@ -128,11 +113,7 @@ pub fn build_grammar(grammar: &GrammarConfig) -> Result<BuildStatus> {
 			))
 		})?
 	} else {
-		cc.ok_or_else(|| {
-			GrammarBuildError::Compilation(
-				"C compiler required but none found. Install clang/gcc or set CC env var.".into(),
-			)
-		})?
+		cc.ok_or_else(|| GrammarBuildError::Compilation("C compiler required but none found. Install clang/gcc or set CC env var.".into()))?
 	};
 
 	compile_objects(&src_dir, &lib_dir, &grammar.grammar_id, compiler, needs_cxx)?;
@@ -149,13 +130,7 @@ pub fn build_grammar(grammar: &GrammarConfig) -> Result<BuildStatus> {
 	Ok(BuildStatus::Built)
 }
 
-fn compile_objects(
-	src_dir: &Path,
-	lib_dir: &Path,
-	grammar_id: &str,
-	compiler: &str,
-	needs_cxx: bool,
-) -> Result<()> {
+fn compile_objects(src_dir: &Path, lib_dir: &Path, grammar_id: &str, compiler: &str, needs_cxx: bool) -> Result<()> {
 	let target = std::env::var("TARGET").unwrap_or_else(|_| {
 		let arch = std::env::consts::ARCH;
 		if cfg!(target_os = "windows") {
@@ -191,18 +166,11 @@ fn compile_objects(
 	fs::create_dir_all(&obj_dir)?;
 	build.out_dir(&obj_dir);
 
-	build
-		.try_compile(grammar_id)
-		.map_err(|e| GrammarBuildError::Compilation(e.to_string()))
+	build.try_compile(grammar_id).map_err(|e| GrammarBuildError::Compilation(e.to_string()))
 }
 
 /// Links source files into a shared library using the system compiler.
-fn link_shared_library(
-	src_dir: &Path,
-	lib_path: &Path,
-	compiler: &str,
-	needs_cxx: bool,
-) -> Result<()> {
+fn link_shared_library(src_dir: &Path, lib_path: &Path, compiler: &str, needs_cxx: bool) -> Result<()> {
 	let scanner_cc = src_dir.join("scanner.cc");
 	let scanner_c = src_dir.join("scanner.c");
 
@@ -247,15 +215,11 @@ fn link_shared_library(
 }
 
 fn run_compiler(mut cmd: Command) -> Result<()> {
-	let output = cmd
-		.output()
-		.map_err(|e| GrammarBuildError::Compilation(e.to_string()))?;
+	let output = cmd.output().map_err(|e| GrammarBuildError::Compilation(e.to_string()))?;
 
 	if output.status.success() {
 		Ok(())
 	} else {
-		Err(GrammarBuildError::Compilation(
-			String::from_utf8_lossy(&output.stderr).into(),
-		))
+		Err(GrammarBuildError::Compilation(String::from_utf8_lossy(&output.stderr).into()))
 	}
 }

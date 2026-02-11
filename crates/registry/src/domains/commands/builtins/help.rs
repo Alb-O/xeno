@@ -1,16 +1,12 @@
 use xeno_primitives::BoxFutureLocal;
 
 use crate::command_handler;
-use crate::commands::{
-	CommandContext, CommandError, CommandOutcome, RegistryEntry, all_commands, find_command,
-};
+use crate::commands::{CommandContext, CommandError, CommandOutcome, RegistryEntry, all_commands, find_command};
 use crate::notifications::keys;
 
 command_handler!(help, handler: cmd_help);
 
-fn cmd_help<'a>(
-	ctx: &'a mut CommandContext<'a>,
-) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
+fn cmd_help<'a>(ctx: &'a mut CommandContext<'a>) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
 		if let Some(cmd_name) = ctx.args.first() {
 			if let Some(cmd) = find_command(cmd_name) {

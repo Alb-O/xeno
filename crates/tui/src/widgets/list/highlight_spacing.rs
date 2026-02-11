@@ -67,27 +67,15 @@ mod tests {
 	#[test]
 	fn to_string() {
 		assert_eq!(HighlightSpacing::Always.to_string(), "Always".to_string());
-		assert_eq!(
-			HighlightSpacing::WhenSelected.to_string(),
-			"WhenSelected".to_string()
-		);
+		assert_eq!(HighlightSpacing::WhenSelected.to_string(), "WhenSelected".to_string());
 		assert_eq!(HighlightSpacing::Never.to_string(), "Never".to_string());
 	}
 
 	#[test]
 	fn from_str() {
-		assert_eq!(
-			"Always".parse::<HighlightSpacing>(),
-			Ok(HighlightSpacing::Always)
-		);
-		assert_eq!(
-			"WhenSelected".parse::<HighlightSpacing>(),
-			Ok(HighlightSpacing::WhenSelected)
-		);
-		assert_eq!(
-			"Never".parse::<HighlightSpacing>(),
-			Ok(HighlightSpacing::Never)
-		);
+		assert_eq!("Always".parse::<HighlightSpacing>(), Ok(HighlightSpacing::Always));
+		assert_eq!("WhenSelected".parse::<HighlightSpacing>(), Ok(HighlightSpacing::WhenSelected));
+		assert_eq!("Never".parse::<HighlightSpacing>(), Ok(HighlightSpacing::Never));
 		assert!("".parse::<HighlightSpacing>().is_err());
 	}
 }

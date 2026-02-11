@@ -109,12 +109,5 @@ pub trait Panel {
 	fn handle_event(&mut self, event: UiEvent, editor: &mut Editor, focused: bool) -> EventResult;
 
 	/// Renders the panel content, returning an optional cursor request.
-	fn render(
-		&mut self,
-		frame: &mut Frame<'_>,
-		area: Rect,
-		editor: &mut Editor,
-		focused: bool,
-		theme: &Theme,
-	) -> Option<CursorRequest>;
+	fn render(&mut self, frame: &mut Frame<'_>, area: Rect, editor: &mut Editor, focused: bool, theme: &Theme) -> Option<CursorRequest>;
 }

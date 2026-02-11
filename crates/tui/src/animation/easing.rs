@@ -93,11 +93,7 @@ pub fn ease_out_quad(t: f32) -> f32 {
 /// Quadratic ease-in-out.
 #[inline]
 pub fn ease_in_out_quad(t: f32) -> f32 {
-	if t < 0.5 {
-		2.0 * t * t
-	} else {
-		1.0 - (-2.0 * t + 2.0).powi(2) / 2.0
-	}
+	if t < 0.5 { 2.0 * t * t } else { 1.0 - (-2.0 * t + 2.0).powi(2) / 2.0 }
 }
 
 /// Cubic ease-in: `t³`
@@ -115,11 +111,7 @@ pub fn ease_out_cubic(t: f32) -> f32 {
 /// Cubic ease-in-out.
 #[inline]
 pub fn ease_in_out_cubic(t: f32) -> f32 {
-	if t < 0.5 {
-		4.0 * t * t * t
-	} else {
-		1.0 - (-2.0 * t + 2.0).powi(3) / 2.0
-	}
+	if t < 0.5 { 4.0 * t * t * t } else { 1.0 - (-2.0 * t + 2.0).powi(3) / 2.0 }
 }
 
 #[cfg(test)]

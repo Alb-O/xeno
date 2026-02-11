@@ -51,14 +51,7 @@ fn test_link_by_name_duplicate_handler() {
 	];
 	let leaked_handlers: &'static [Handler] = Box::leak(handlers.into_boxed_slice());
 
-	link_by_name(
-		&metas,
-		leaked_handlers.iter(),
-		|m| &m.name,
-		|h| h.name,
-		|_, _| (),
-		"test",
-	);
+	link_by_name(&metas, leaked_handlers.iter(), |m| &m.name, |h| h.name, |_, _| (), "test");
 }
 
 #[test]
@@ -75,14 +68,7 @@ fn test_link_by_name_missing_handler() {
 	let handlers = vec![Handler { name: "bar" }];
 	let leaked_handlers: &'static [Handler] = Box::leak(handlers.into_boxed_slice());
 
-	link_by_name(
-		&metas,
-		leaked_handlers.iter(),
-		|m| &m.name,
-		|h| h.name,
-		|_, _| (),
-		"test",
-	);
+	link_by_name(&metas, leaked_handlers.iter(), |m| &m.name, |h| h.name, |_, _| (), "test");
 }
 
 #[test]
@@ -102,14 +88,7 @@ fn test_link_by_name_unused_handler() {
 	];
 	let leaked_handlers: &'static [Handler] = Box::leak(handlers.into_boxed_slice());
 
-	link_by_name(
-		&metas,
-		leaked_handlers.iter(),
-		|m| &m.name,
-		|h| h.name,
-		|_, _| (),
-		"test",
-	);
+	link_by_name(&metas, leaked_handlers.iter(), |m| &m.name, |h| h.name, |_, _| (), "test");
 }
 
 #[test]
@@ -122,42 +101,19 @@ fn test_link_by_name_aggregate_report() {
 	}
 
 	let metas = vec![
-		Meta {
-			name: "missing".into(),
-		},
-		Meta {
-			name: "dup_meta".into(),
-		},
-		Meta {
-			name: "dup_meta".into(),
-		},
+		Meta { name: "missing".into() },
+		Meta { name: "dup_meta".into() },
+		Meta { name: "dup_meta".into() },
 	];
-	let handlers = vec![
-		Handler { name: "extra" },
-		Handler {
-			name: "dup_handler",
-		},
-		Handler {
-			name: "dup_handler",
-		},
-	];
+	let handlers = vec![Handler { name: "extra" }, Handler { name: "dup_handler" }, Handler { name: "dup_handler" }];
 	let leaked_handlers: &'static [Handler] = Box::leak(handlers.into_boxed_slice());
 
 	let result = std::panic::catch_unwind(|| {
-		link_by_name(
-			&metas,
-			leaked_handlers.iter(),
-			|m| &m.name,
-			|h| h.name,
-			|_, _| (),
-			"test",
-		);
+		link_by_name(&metas, leaked_handlers.iter(), |m| &m.name, |h| h.name, |_, _| (), "test");
 	});
 
 	let err = result.expect_err("should have panicked");
-	let msg = err
-		.downcast_ref::<String>()
-		.expect("panic msg should be String");
+	let msg = err.downcast_ref::<String>().expect("panic msg should be String");
 
 	assert!(msg.contains("link_by_name(test) failed:"));
 	assert!(msg.contains("duplicate handlers (1):"));

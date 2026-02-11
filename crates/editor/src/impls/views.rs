@@ -24,21 +24,9 @@ impl Editor {
 	/// Returns the currently focused window.
 	pub fn focused_window(&self) -> &Window {
 		match &self.state.focus {
-			FocusTarget::Buffer { window, .. } => self
-				.state
-				.windows
-				.get(*window)
-				.expect("focused window must exist"),
-			FocusTarget::Overlay { .. } => self
-				.state
-				.windows
-				.get(self.state.windows.base_id())
-				.expect("base window must exist"),
-			FocusTarget::Panel(_) => self
-				.state
-				.windows
-				.get(self.state.windows.base_id())
-				.expect("base window must exist"),
+			FocusTarget::Buffer { window, .. } => self.state.windows.get(*window).expect("focused window must exist"),
+			FocusTarget::Overlay { .. } => self.state.windows.get(self.state.windows.base_id()).expect("base window must exist"),
+			FocusTarget::Panel(_) => self.state.windows.get(self.state.windows.base_id()).expect("base window must exist"),
 		}
 	}
 
@@ -46,22 +34,14 @@ impl Editor {
 	#[inline]
 	pub fn focused_buffer(&self) -> &Buffer {
 		let buffer_id = self.focused_view();
-		self.state
-			.core
-			.buffers
-			.get_buffer(buffer_id)
-			.expect("focused buffer must exist")
+		self.state.core.buffers.get_buffer(buffer_id).expect("focused buffer must exist")
 	}
 
 	/// Returns a mutable reference to the currently focused text buffer.
 	#[inline]
 	pub fn focused_buffer_mut(&mut self) -> &mut Buffer {
 		let buffer_id = self.focused_view();
-		self.state
-			.core
-			.buffers
-			.get_buffer_mut(buffer_id)
-			.expect("focused buffer must exist")
+		self.state.core.buffers.get_buffer_mut(buffer_id).expect("focused buffer must exist")
 	}
 
 	/// Returns the currently focused view (buffer ID).
@@ -155,30 +135,21 @@ impl Editor {
 	/// Returns the screen area of a specific view.
 	pub fn view_area(&self, view_id: ViewId) -> xeno_tui::layout::Rect {
 		if let Some(active) = self.state.overlay_system.interaction.active.as_ref()
-			&& let Some(pane) = active
-				.session
-				.panes
-				.iter()
-				.find(|pane| pane.buffer == view_id)
+			&& let Some(pane) = active.session.panes.iter().find(|pane| pane.buffer == view_id)
 		{
 			return pane.content_rect;
 		}
 
 		for (_, window) in self.state.windows.windows() {
-			if window.buffer() == view_id {
-				if matches!(window, Window::Base(_)) {
+			if window.buffer() == view_id
+				&& matches!(window, Window::Base(_)) {
 					let doc_area = self.doc_area();
-					for (v, area) in self
-						.state
-						.layout
-						.compute_view_areas(&self.base_window().layout, doc_area)
-					{
+					for (v, area) in self.state.layout.compute_view_areas(&self.base_window().layout, doc_area) {
 						if v == view_id {
 							return area;
 						}
 					}
 				}
-			}
 		}
 		self.doc_area()
 	}

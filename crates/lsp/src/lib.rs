@@ -97,17 +97,14 @@ pub use omni_trait::{LanguageClient, LanguageServer};
 pub mod client;
 #[cfg(feature = "client")]
 pub use client::{
-	ClientHandle, LanguageServerId, LocalTransport, LogLevel, LspEventHandler, NoOpEventHandler,
-	OffsetEncoding, ServerConfig, ServerState, SharedEventHandler,
+	ClientHandle, LanguageServerId, LocalTransport, LogLevel, LspEventHandler, NoOpEventHandler, OffsetEncoding, ServerConfig, ServerState, SharedEventHandler,
 };
 
 #[cfg(feature = "position")]
 #[cfg_attr(docsrs, doc(cfg(feature = "position")))]
 pub mod position;
 #[cfg(feature = "position")]
-pub use position::{
-	char_range_to_lsp_range, char_to_lsp_position, lsp_position_to_char, lsp_range_to_char_range,
-};
+pub use position::{char_range_to_lsp_range, char_to_lsp_position, lsp_position_to_char, lsp_range_to_char_range};
 
 #[cfg(feature = "position")]
 #[cfg_attr(docsrs, doc(cfg(feature = "position")))]
@@ -126,10 +123,7 @@ pub use registry::{LanguageServerConfig, Registry};
 #[cfg_attr(docsrs, doc(cfg(feature = "client")))]
 pub mod document;
 #[cfg(feature = "client")]
-pub use document::{
-	DiagnosticsEvent, DiagnosticsEventReceiver, DiagnosticsEventSender, DocumentState,
-	DocumentStateManager,
-};
+pub use document::{DiagnosticsEvent, DiagnosticsEventReceiver, DiagnosticsEventSender, DocumentState, DocumentStateManager};
 
 #[cfg(feature = "position")]
 #[cfg_attr(docsrs, doc(cfg(feature = "position")))]
@@ -218,9 +212,7 @@ pub fn uri_from_path(path: &std::path::Path) -> Option<lsp_types::Uri> {
 	let abs_path = if path.is_absolute() {
 		path.canonicalize().unwrap_or_else(|_| path.to_path_buf())
 	} else {
-		path.canonicalize()
-			.or_else(|_| std::env::current_dir().map(|cwd| cwd.join(path)))
-			.ok()?
+		path.canonicalize().or_else(|_| std::env::current_dir().map(|cwd| cwd.join(path))).ok()?
 	};
 
 	let url = url::Url::from_file_path(abs_path).ok()?;

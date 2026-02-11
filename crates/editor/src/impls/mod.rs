@@ -78,9 +78,8 @@ pub use crate::overlay::{OverlayStore, OverlaySystem};
 use crate::paste::normalize_to_lf;
 pub use crate::separator::{DragState, MouseVelocityTracker, SeparatorHoverAnimation};
 pub use crate::types::{
-	ApplyEditPolicy, Config, EditorUndoGroup, FrameState, Invocation, InvocationPolicy,
-	InvocationResult, JumpList, JumpLocation, MacroState, PreparedEdit, Registers, UndoHost,
-	UndoManager, ViewSnapshot, Viewport, Workspace,
+	ApplyEditPolicy, Config, EditorUndoGroup, FrameState, Invocation, InvocationPolicy, InvocationResult, JumpList, JumpLocation, MacroState, PreparedEdit,
+	Registers, UndoHost, UndoManager, ViewSnapshot, Viewport, Workspace,
 };
 use crate::ui::UiManager;
 pub use crate::view_manager::ViewManager;
@@ -295,9 +294,7 @@ impl Editor {
 
 		let scratch_path = PathBuf::from("[scratch]");
 		let hook_path = path.as_ref().unwrap_or(&scratch_path);
-		let buffer = view_manager
-			.get_buffer(buffer_id)
-			.expect("initial buffer exists");
+		let buffer = view_manager.get_buffer(buffer_id).expect("initial buffer exists");
 		let content = buffer.with_doc(|doc| doc.content().clone());
 
 		emit_hook_sync_with(
@@ -327,12 +324,10 @@ impl Editor {
 					.max_visible(Some(5))
 					.overflow(xeno_tui::widgets::notifications::Overflow::DropOldest),
 				lsp: LspSystem::new(),
-				syntax_manager: crate::syntax_manager::SyntaxManager::new(
-					crate::syntax_manager::SyntaxManagerCfg {
-						max_concurrency: 2,
-						..Default::default()
-					},
-				),
+				syntax_manager: crate::syntax_manager::SyntaxManager::new(crate::syntax_manager::SyntaxManagerCfg {
+					max_concurrency: 2,
+					..Default::default()
+				}),
 				hook_runtime,
 				overlay_system: OverlaySystem::default(),
 				effects: crate::effects::sink::EffectSink::default(),
@@ -349,11 +344,7 @@ impl Editor {
 	}
 
 	/// Configure a language server.
-	pub fn configure_language_server(
-		&mut self,
-		_language: impl Into<String>,
-		_config: crate::lsp::api::LanguageServerConfig,
-	) {
+	pub fn configure_language_server(&mut self, _language: impl Into<String>, _config: crate::lsp::api::LanguageServerConfig) {
 		#[cfg(feature = "lsp")]
 		self.state.lsp.configure_server(_language, _config);
 	}

@@ -7,10 +7,7 @@ use crate::buffer::Buffer;
 
 #[cfg(feature = "lsp")]
 impl LspSystem {
-	pub async fn on_buffer_open(
-		&self,
-		buffer: &Buffer,
-	) -> xeno_lsp::Result<Option<xeno_lsp::ClientHandle>> {
+	pub async fn on_buffer_open(&self, buffer: &Buffer) -> xeno_lsp::Result<Option<xeno_lsp::ClientHandle>> {
 		let Some(path) = buffer.path() else {
 			return Ok(None);
 		};
@@ -25,10 +22,7 @@ impl LspSystem {
 		let abs_path = self.canonicalize_path(&path);
 
 		let content = buffer.with_doc(|doc| doc.content().clone());
-		let client = self
-			.sync()
-			.open_document(&abs_path, language, &content)
-			.await?;
+		let client = self.sync().open_document(&abs_path, language, &content).await?;
 		Ok(Some(client))
 	}
 
@@ -43,11 +37,7 @@ impl LspSystem {
 		self.sync().notify_will_save(&abs_path, &language).await
 	}
 
-	pub async fn on_buffer_did_save(
-		&self,
-		buffer: &Buffer,
-		include_text: bool,
-	) -> xeno_lsp::Result<()> {
+	pub async fn on_buffer_did_save(&self, buffer: &Buffer, include_text: bool) -> xeno_lsp::Result<()> {
 		let Some(path) = buffer.path().map(|p| p.to_path_buf()) else {
 			return Ok(());
 		};
@@ -55,15 +45,7 @@ impl LspSystem {
 			return Ok(());
 		};
 		let abs_path = self.canonicalize_path(&path);
-		let text = buffer.with_doc(|doc| {
-			if include_text {
-				Some(doc.content().clone())
-			} else {
-				None
-			}
-		});
-		self.sync()
-			.notify_did_save(&abs_path, &language, include_text, text.as_ref())
-			.await
+		let text = buffer.with_doc(|doc| if include_text { Some(doc.content().clone()) } else { None });
+		self.sync().notify_did_save(&abs_path, &language, include_text, text.as_ref()).await
 	}
 }

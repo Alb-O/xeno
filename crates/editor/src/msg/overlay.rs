@@ -65,12 +65,7 @@ mod tests {
 	fn drain_messages_processes_overlaymsg() {
 		let mut editor = Editor::new_scratch();
 		let tx = editor.msg_tx();
-		assert!(
-			tx.send(EditorMsg::Overlay(OverlayMsg::ApplyWorkspaceEdit(
-				empty_edit()
-			)))
-			.is_ok()
-		);
+		assert!(tx.send(EditorMsg::Overlay(OverlayMsg::ApplyWorkspaceEdit(empty_edit()))).is_ok());
 
 		let dirty = editor.drain_messages();
 
@@ -82,10 +77,7 @@ mod tests {
 	#[tokio::test]
 	async fn pump_drains_pending_workspace_edits_queue() {
 		let mut editor = Editor::new_scratch();
-		editor
-			.frame_mut()
-			.pending_workspace_edits
-			.push(empty_edit());
+		editor.frame_mut().pending_workspace_edits.push(empty_edit());
 		assert_eq!(editor.frame().pending_workspace_edits.len(), 1);
 
 		let _ = editor.pump().await;

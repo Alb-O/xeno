@@ -26,20 +26,9 @@ pub fn build(ctx: &BuildCtx) {
 		let context = format!("text_object '{name}'");
 		let description = require_str(node, "description", &context);
 		let keys = collect_keys(node);
-		let short_desc = node
-			.get("short-desc")
-			.and_then(|v| v.as_string())
-			.map(String::from);
-		let priority = node
-			.get("priority")
-			.and_then(|v| v.as_integer())
-			.map(|v| v as i16)
-			.unwrap_or(0);
-		let flags = node
-			.get("flags")
-			.and_then(|v| v.as_integer())
-			.map(|v| v as u32)
-			.unwrap_or(0);
+		let short_desc = node.get("short-desc").and_then(|v| v.as_string()).map(String::from);
+		let priority = node.get("priority").and_then(|v| v.as_integer()).map(|v| v as i16).unwrap_or(0);
+		let flags = node.get("flags").and_then(|v| v.as_integer()).map(|v| v as u32).unwrap_or(0);
 		if let Some(children) = node.children()
 			&& children.get("caps").is_some()
 		{
@@ -74,10 +63,7 @@ pub fn build(ctx: &BuildCtx) {
 		});
 	}
 
-	let pairs: Vec<(String, String)> = text_objects
-		.iter()
-		.map(|t| (t.common.name.clone(), String::new()))
-		.collect();
+	let pairs: Vec<(String, String)> = text_objects.iter().map(|t| (t.common.name.clone(), String::new())).collect();
 	validate_unique(&pairs, "text_object");
 
 	let spec = TextObjectsSpec { text_objects };

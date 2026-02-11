@@ -8,10 +8,7 @@ mod word;
 pub use find::{find_char_backward, find_char_forward};
 pub use objects::{select_surround_object, select_word_object};
 use ropey::RopeSlice;
-pub use search::{
-	escape_pattern, find_all_matches, find_next, find_next_re, find_prev, find_prev_re,
-	matches_pattern,
-};
+pub use search::{escape_pattern, find_all_matches, find_next, find_next_re, find_prev, find_prev_re, matches_pattern};
 pub use word::{move_to_next_word_end, move_to_next_word_start, move_to_prev_word_start};
 use xeno_primitives::graphemes::{next_grapheme_boundary, prev_grapheme_boundary};
 use xeno_primitives::range::{CharIdx, Direction, Range};
@@ -36,11 +33,7 @@ pub(crate) fn is_word_char(c: char) -> bool {
 /// When `extend` is false, collapses to a point at `new_head`.
 /// When `extend` is true, keeps the existing anchor.
 pub(crate) fn make_range(range: Range, new_head: CharIdx, extend: bool) -> Range {
-	if extend {
-		Range::new(range.anchor, new_head)
-	} else {
-		Range::point(new_head)
-	}
+	if extend { Range::new(range.anchor, new_head) } else { Range::point(new_head) }
 }
 
 /// Produces a range for a selection-creating motion (e.g., `f`, `w`).
@@ -57,13 +50,7 @@ pub(crate) fn make_range_select(range: Range, new_head: CharIdx, extend: bool) -
 }
 
 /// Moves the cursor horizontally by the given number of graphemes.
-pub fn move_horizontally(
-	text: RopeSlice,
-	range: Range,
-	direction: Direction,
-	count: usize,
-	extend: bool,
-) -> Range {
+pub fn move_horizontally(text: RopeSlice, range: Range, direction: Direction, count: usize, extend: bool) -> Range {
 	let pos: CharIdx = range.head;
 	let max_pos = max_cursor_pos(text);
 	let new_pos: CharIdx = match direction {
@@ -91,13 +78,7 @@ pub fn move_horizontally(
 }
 
 /// Moves the cursor vertically by the given number of lines.
-pub fn move_vertically(
-	text: RopeSlice,
-	range: Range,
-	direction: Direction,
-	count: usize,
-	extend: bool,
-) -> Range {
+pub fn move_vertically(text: RopeSlice, range: Range, direction: Direction, count: usize, extend: bool) -> Range {
 	let pos: CharIdx = range.head;
 	let line = text.char_to_line(pos);
 	let line_start = text.line_to_char(line);
@@ -113,11 +94,7 @@ pub fn move_vertically(
 	let new_line_content = text.line(new_line);
 	let new_line_len = new_line_content.len_chars();
 	let has_newline = new_line_len > 0 && new_line_content.char(new_line_len - 1) == '\n';
-	let line_end_offset = if has_newline {
-		new_line_len - 1
-	} else {
-		new_line_len
-	};
+	let line_end_offset = if has_newline { new_line_len - 1 } else { new_line_len };
 
 	let new_col = col.min(line_end_offset);
 	let new_pos: CharIdx = new_line_start + new_col;

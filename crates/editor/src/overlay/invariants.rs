@@ -6,10 +6,7 @@ use xeno_primitives::Selection;
 use xeno_tui::layout::Rect;
 
 use crate::overlay::spec::RectPolicy;
-use crate::overlay::{
-	CloseReason, OverlayContext, OverlayController, OverlaySession, OverlayStatus, OverlayUiSpec,
-	WindowRole, WindowSpec,
-};
+use crate::overlay::{CloseReason, OverlayContext, OverlayController, OverlaySession, OverlayStatus, OverlayUiSpec, WindowRole, WindowSpec};
 use crate::window::GutterSelector;
 
 struct ReflowTestOverlay;
@@ -45,29 +42,13 @@ impl OverlayController for ReflowTestOverlay {
 
 	fn on_open(&mut self, _ctx: &mut dyn OverlayContext, _session: &mut OverlaySession) {}
 
-	fn on_input_changed(
-		&mut self,
-		_ctx: &mut dyn OverlayContext,
-		_session: &mut OverlaySession,
-		_text: &str,
-	) {
-	}
+	fn on_input_changed(&mut self, _ctx: &mut dyn OverlayContext, _session: &mut OverlaySession, _text: &str) {}
 
-	fn on_commit<'a>(
-		&'a mut self,
-		_ctx: &'a mut dyn OverlayContext,
-		_session: &'a mut OverlaySession,
-	) -> Pin<Box<dyn Future<Output = ()> + 'a>> {
+	fn on_commit<'a>(&'a mut self, _ctx: &'a mut dyn OverlayContext, _session: &'a mut OverlaySession) -> Pin<Box<dyn Future<Output = ()> + 'a>> {
 		Box::pin(async {})
 	}
 
-	fn on_close(
-		&mut self,
-		_ctx: &mut dyn OverlayContext,
-		_session: &mut OverlaySession,
-		_reason: CloseReason,
-	) {
-	}
+	fn on_close(&mut self, _ctx: &mut dyn OverlayContext, _session: &mut OverlaySession, _reason: CloseReason) {}
 }
 
 /// Must gate state restoration on captured buffer version matching.
@@ -80,12 +61,7 @@ pub(crate) fn test_versioned_restore() {
 	let view = editor.focused_view();
 
 	{
-		let buffer = editor
-			.state
-			.core
-			.buffers
-			.get_buffer_mut(view)
-			.expect("focused buffer must exist");
+		let buffer = editor.state.core.buffers.get_buffer_mut(view).expect("focused buffer must exist");
 		buffer.set_cursor_and_selection(0, Selection::single(0, 0));
 	}
 
@@ -102,24 +78,14 @@ pub(crate) fn test_versioned_restore() {
 	session.capture_view(&editor, view);
 
 	{
-		let buffer = editor
-			.state
-			.core
-			.buffers
-			.get_buffer_mut(view)
-			.expect("focused buffer must exist");
+		let buffer = editor.state.core.buffers.get_buffer_mut(view).expect("focused buffer must exist");
 		buffer.reset_content("changed");
 		buffer.set_cursor_and_selection(3, Selection::single(3, 3));
 	}
 
 	session.restore_all(&mut editor);
 
-	let buffer = editor
-		.state
-		.core
-		.buffers
-		.get_buffer(view)
-		.expect("focused buffer must exist");
+	let buffer = editor.state.core.buffers.get_buffer(view).expect("focused buffer must exist");
 	assert_eq!(buffer.cursor, 3);
 	assert_eq!(buffer.selection, Selection::single(3, 3));
 }
@@ -166,10 +132,7 @@ pub(crate) fn test_rect_policy_clamps_to_screen() {
 		height: 20,
 	};
 	let rect_low = policy_low.resolve_opt(screen, &roles).unwrap();
-	assert!(
-		rect_low.y + rect_low.height <= screen.y + screen.height,
-		"rect must be shifted up to fit"
-	);
+	assert!(rect_low.y + rect_low.height <= screen.y + screen.height, "rect must be shifted up to fit");
 
 	let zero = Rect::new(0, 0, 0, 0);
 	assert!(policy.resolve_opt(zero, &roles).is_none());
@@ -254,13 +217,7 @@ pub(crate) fn test_modal_reflow_clears_unresolved_aux_panes() {
 	assert!(interaction.open(&mut editor, Box::new(ReflowTestOverlay)));
 	editor.state.overlay_system.interaction = interaction;
 
-	let active = editor
-		.state
-		.overlay_system
-		.interaction
-		.active
-		.as_ref()
-		.expect("overlay should be open");
+	let active = editor.state.overlay_system.interaction.active.as_ref().expect("overlay should be open");
 	let input_rect = active
 		.session
 		.panes
@@ -280,13 +237,7 @@ pub(crate) fn test_modal_reflow_clears_unresolved_aux_panes() {
 
 	editor.handle_window_resize(100, 2);
 
-	let active = editor
-		.state
-		.overlay_system
-		.interaction
-		.active
-		.as_ref()
-		.expect("overlay should remain open");
+	let active = editor.state.overlay_system.interaction.active.as_ref().expect("overlay should remain open");
 	let input_rect = active
 		.session
 		.panes

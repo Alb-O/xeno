@@ -28,10 +28,7 @@ impl Selection {
 		let mut ranges: SmallVec<[Range; 1]> = smallvec![primary];
 		ranges.extend(others);
 
-		let mut sel = Self {
-			ranges,
-			primary_index: 0,
-		};
+		let mut sel = Self { ranges, primary_index: 0 };
 		sel.normalize();
 		sel
 	}
@@ -105,10 +102,7 @@ impl Selection {
 	/// Returns the number of ranges in this selection.
 	///
 	/// This is always at least 1 (Selection cannot be empty).
-	#[allow(
-		clippy::len_without_is_empty,
-		reason = "Selection is never empty by design"
-	)]
+	#[allow(clippy::len_without_is_empty, reason = "Selection is never empty by design")]
 	pub fn len(&self) -> usize {
 		self.ranges.len()
 	}
@@ -136,12 +130,7 @@ impl Selection {
 		F: FnMut(&Range) -> Range,
 	{
 		let primary = f(&self.primary());
-		let others = self
-			.ranges
-			.iter()
-			.enumerate()
-			.filter(|&(i, _)| i != self.primary_index)
-			.map(|(_, r)| f(r));
+		let others = self.ranges.iter().enumerate().filter(|&(i, _)| i != self.primary_index).map(|(_, r)| f(r));
 
 		Self::new(primary, others)
 	}

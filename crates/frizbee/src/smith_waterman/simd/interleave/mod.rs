@@ -15,10 +15,7 @@ where
 {
 	match L {
 		#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-		32 if is_x86_feature_detected!("avx512f")
-			&& is_x86_feature_detected!("avx512bw")
-			&& is_x86_feature_detected!("avx2") =>
-		unsafe {
+		32 if is_x86_feature_detected!("avx512f") && is_x86_feature_detected!("avx512bw") && is_x86_feature_detected!("avx2") => unsafe {
 			let strs_ptr = &strs as *const [&str; L] as *const [&str; 32];
 			let result = avx512::interleave::<W>(*strs_ptr);
 			let result_ptr = &result as *const [Simd<u16, 32>; W] as *const [Simd<u16, L>; W];

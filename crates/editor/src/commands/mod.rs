@@ -50,10 +50,7 @@ pub struct EditorCommandContext<'a> {
 }
 
 /// Function signature for async editor-direct command handlers.
-pub type EditorCommandHandler =
-	for<'a> fn(
-		&'a mut EditorCommandContext<'a>,
-	) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>>;
+pub type EditorCommandHandler = for<'a> fn(&'a mut EditorCommandContext<'a>) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>>;
 
 /// A registered editor-direct command definition.
 pub struct EditorCommandDef {
@@ -78,17 +75,16 @@ pub struct EditorCommandDef {
 }
 
 /// O(1) editor command lookup index by name and keys.
-static EDITOR_CMD_INDEX: LazyLock<HashMap<&'static str, &'static EditorCommandDef>> =
-	LazyLock::new(|| {
-		let mut map = HashMap::new();
-		for reg in inventory::iter::<EditorCommandReg> {
-			map.insert(reg.0.name, reg.0);
-			for &key in reg.0.keys {
-				map.insert(key, reg.0);
-			}
+static EDITOR_CMD_INDEX: LazyLock<HashMap<&'static str, &'static EditorCommandDef>> = LazyLock::new(|| {
+	let mut map = HashMap::new();
+	for reg in inventory::iter::<EditorCommandReg> {
+		map.insert(reg.0.name, reg.0);
+		for &key in reg.0.keys {
+			map.insert(key, reg.0);
 		}
-		map
-	});
+	}
+	map
+});
 
 /// Lazy reference to all editor commands for iteration.
 pub static EDITOR_COMMANDS: LazyLock<Vec<&'static EditorCommandDef>> = LazyLock::new(|| {

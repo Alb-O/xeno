@@ -17,18 +17,9 @@ pub enum TryFromColorError {
 impl std::fmt::Display for TryFromColorError {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
-			Self::Ansi256 => write!(
-				f,
-				"cannot convert Ratatui Color to an Ansi256Color as it is not an indexed color"
-			),
-			Self::Ansi => write!(
-				f,
-				"cannot convert Ratatui Color to AnsiColor as it is not a 4-bit color"
-			),
-			Self::RgbColor => write!(
-				f,
-				"cannot convert Ratatui Color to RgbColor as it is not an RGB color"
-			),
+			Self::Ansi256 => write!(f, "cannot convert Ratatui Color to an Ansi256Color as it is not an indexed color"),
+			Self::Ansi => write!(f, "cannot convert Ratatui Color to AnsiColor as it is not a 4-bit color"),
+			Self::RgbColor => write!(f, "cannot convert Ratatui Color to RgbColor as it is not an RGB color"),
 		}
 	}
 }

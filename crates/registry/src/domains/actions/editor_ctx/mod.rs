@@ -29,10 +29,9 @@ mod capabilities;
 mod handlers;
 
 pub use capabilities::{
-	CommandQueueAccess, CursorAccess, EditAccess, EditorOps, FileOpsAccess, FocusOps, JumpAccess,
-	MacroAccess, ModeAccess, MotionAccess, MotionDispatchAccess, NotificationAccess, OptionAccess,
-	OverlayAccess, OverlayCloseReason, OverlayRequest, PaletteAccess, SearchAccess,
-	SelectionAccess, SplitError, SplitOps, TextAccess, ThemeAccess, UndoAccess, ViewportAccess,
+	CommandQueueAccess, CursorAccess, EditAccess, EditorOps, FileOpsAccess, FocusOps, JumpAccess, MacroAccess, ModeAccess, MotionAccess, MotionDispatchAccess,
+	NotificationAccess, OptionAccess, OverlayAccess, OverlayCloseReason, OverlayRequest, PaletteAccess, SearchAccess, SelectionAccess, SplitError, SplitOps,
+	TextAccess, ThemeAccess, UndoAccess, ViewportAccess,
 };
 pub use handlers::{HandleOutcome, ResultHandler};
 use xeno_primitives::range::CharIdx;
@@ -128,9 +127,7 @@ impl<'a> EditorContext<'a> {
 
 	/// Returns search access or an error if not available.
 	pub fn require_search(&mut self) -> Result<&mut dyn SearchAccess, CommandError> {
-		self.inner
-			.search()
-			.ok_or(CommandError::MissingCapability(Capability::Search))
+		self.inner.search().ok_or(CommandError::MissingCapability(Capability::Search))
 	}
 
 	/// Returns undo access if the capability is available.
@@ -140,9 +137,7 @@ impl<'a> EditorContext<'a> {
 
 	/// Returns undo access or an error if not available.
 	pub fn require_undo(&mut self) -> Result<&mut dyn UndoAccess, CommandError> {
-		self.inner
-			.undo()
-			.ok_or(CommandError::MissingCapability(Capability::Undo))
+		self.inner.undo().ok_or(CommandError::MissingCapability(Capability::Undo))
 	}
 
 	/// Returns edit access if the capability is available.
@@ -152,9 +147,7 @@ impl<'a> EditorContext<'a> {
 
 	/// Returns edit access or an error if not available.
 	pub fn require_edit(&mut self) -> Result<&mut dyn EditAccess, CommandError> {
-		self.inner
-			.edit()
-			.ok_or(CommandError::MissingCapability(Capability::Edit))
+		self.inner.edit().ok_or(CommandError::MissingCapability(Capability::Edit))
 	}
 
 	/// Returns motion access if the capability is available.
@@ -204,9 +197,7 @@ impl<'a> EditorContext<'a> {
 
 	/// Returns overlay access or an error if not available.
 	pub fn require_overlay(&mut self) -> Result<&mut dyn OverlayAccess, CommandError> {
-		self.inner
-			.overlay()
-			.ok_or(CommandError::MissingCapability(Capability::Overlay))
+		self.inner.overlay().ok_or(CommandError::MissingCapability(Capability::Overlay))
 	}
 
 	/// Opens the command palette.
@@ -320,9 +311,7 @@ impl<'a> EditorContext<'a> {
 ///     }
 /// }
 /// ```
-pub trait EditorCapabilities:
-	CursorAccess + SelectionAccess + ModeAccess + NotificationAccess
-{
+pub trait EditorCapabilities: CursorAccess + SelectionAccess + ModeAccess + NotificationAccess {
 	/// Access to search operations (optional).
 	fn search(&mut self) -> Option<&mut dyn SearchAccess> {
 		None

@@ -43,23 +43,14 @@ fn test_render_paragraph_with_styled_text() {
 	]);
 
 	let mut expected_buffer = Buffer::with_lines(["Hello, world!"]);
-	expected_buffer.set_style(
-		Rect::new(0, 0, 7, 1),
-		Style::default().fg(Color::Red).bg(Color::Green),
-	);
-	expected_buffer.set_style(
-		Rect::new(7, 0, 6, 1),
-		Style::default().fg(Color::Blue).bg(Color::Green),
-	);
+	expected_buffer.set_style(Rect::new(0, 0, 7, 1), Style::default().fg(Color::Red).bg(Color::Green));
+	expected_buffer.set_style(Rect::new(7, 0, 6, 1), Style::default().fg(Color::Blue).bg(Color::Green));
 
 	for paragraph in [
 		Paragraph::new(text.clone()),
 		Paragraph::new(text.clone()).wrap(Wrap { trim: false }),
 		Paragraph::new(text.clone()).wrap(Wrap { trim: true }),
 	] {
-		test_case(
-			&paragraph.style(Style::default().bg(Color::Green)),
-			&expected_buffer,
-		);
+		test_case(&paragraph.style(Style::default().bg(Color::Green)), &expected_buffer);
 	}
 }

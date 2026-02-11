@@ -27,8 +27,5 @@ pub fn test_mutation_side_effect_invariant() {
 	}
 
 	let drained = ed.state.effects.drain();
-	assert!(
-		!drained.layer_events.is_empty(),
-		"Mutation must enqueue a layer event"
-	);
+	assert!(!drained.layer_events.is_empty(), "Mutation must enqueue a layer event");
 }

@@ -29,10 +29,7 @@ pub(crate) fn test_layerid_generation_rejects_stale() {
 	let _new_id = mgr.set_layer(1, Some(Layout::text(ViewId(2))));
 
 	assert!(!mgr.is_valid_layer(id));
-	assert!(matches!(
-		mgr.validate_layer(id),
-		Err(LayerError::StaleLayer)
-	));
+	assert!(matches!(mgr.validate_layer(id), Err(LayerError::StaleLayer)));
 }
 
 /// Must preserve `LayerId` generation between split preflight and apply.
@@ -84,10 +81,7 @@ pub(crate) fn test_close_view_hooks_after_removal() {
 	let mut base_layout = Layout::text(ViewId(0));
 
 	let suggestion = mgr.remove_view(&mut base_layout, ViewId(0), doc_area());
-	assert!(
-		suggestion.is_none(),
-		"removing last base view must be denied"
-	);
+	assert!(suggestion.is_none(), "removing last base view must be denied");
 	assert!(base_layout.contains(ViewId(0)));
 }
 
@@ -100,8 +94,7 @@ pub(crate) fn test_close_view_focus_uses_overlap_suggestion() {
 	let mut mgr = LayoutManager::new();
 	let area = doc_area();
 
-	let mut base_layout =
-		Layout::side_by_side(Layout::text(ViewId(0)), Layout::text(ViewId(1)), area);
+	let mut base_layout = Layout::side_by_side(Layout::text(ViewId(0)), Layout::text(ViewId(1)), area);
 
 	let suggestion = mgr.remove_view(&mut base_layout, ViewId(0), area);
 	assert_eq!(suggestion, Some(ViewId(1)));
@@ -123,10 +116,7 @@ pub(crate) fn test_compute_split_areas_soft_min_respected() {
 	let layout = Layout::side_by_side(Layout::text(ViewId(0)), Layout::text(ViewId(1)), area);
 	let areas = layout.compute_areas(area);
 	for (view, rect) in &areas {
-		assert!(
-			rect.width > 0 && rect.height > 0,
-			"view {view:?} has zero-sized area: {rect:?}"
-		);
+		assert!(rect.width > 0 && rect.height > 0, "view {view:?} has zero-sized area: {rect:?}");
 	}
 }
 

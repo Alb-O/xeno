@@ -23,9 +23,7 @@ pub use handler::{CommandHandlerReg, CommandHandlerStatic};
 
 use crate::error::RegistryError;
 
-pub fn register_plugin(
-	db: &mut crate::db::builder::RegistryDbBuilder,
-) -> Result<(), RegistryError> {
+pub fn register_plugin(db: &mut crate::db::builder::RegistryDbBuilder) -> Result<(), RegistryError> {
 	register_builtins(db);
 	register_compiled(db);
 	Ok(())
@@ -34,9 +32,7 @@ pub fn register_plugin(
 /// Registers compiled commands from the embedded spec.
 pub fn register_compiled(db: &mut crate::db::builder::RegistryDbBuilder) {
 	let spec = loader::load_commands_spec();
-	let handlers = inventory::iter::<handler::CommandHandlerReg>
-		.into_iter()
-		.map(|r| r.0);
+	let handlers = inventory::iter::<handler::CommandHandlerReg>.into_iter().map(|r| r.0);
 
 	let linked = link::link_commands(&spec, handlers);
 
@@ -63,9 +59,7 @@ impl crate::db::domain::DomainSpec for Commands {
 		def::CommandInput::Linked(def)
 	}
 
-	fn builder(
-		db: &mut crate::db::builder::RegistryDbBuilder,
-	) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
+	fn builder(db: &mut crate::db::builder::RegistryDbBuilder) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
 		&mut db.commands
 	}
 }
@@ -73,8 +67,7 @@ impl crate::db::domain::DomainSpec for Commands {
 // Re-export macros
 pub use crate::command_handler;
 pub use crate::core::{
-	Capability, CommandError, RegistryBuilder, RegistryEntry, RegistryMeta, RegistryMetaStatic,
-	RegistryMetadata, RegistryRef, RegistrySource, RuntimeRegistry,
+	Capability, CommandError, RegistryBuilder, RegistryEntry, RegistryMeta, RegistryMetaStatic, RegistryMetadata, RegistryRef, RegistrySource, RuntimeRegistry,
 };
 
 /// Typed reference to a runtime command entry.
@@ -124,12 +117,7 @@ pub trait CommandEditorOps {
 	/// Opens a file and navigates to a specific line and column.
 	///
 	/// If the file is already open, switches to it. Line and column are 0-indexed.
-	fn goto_file(
-		&mut self,
-		path: PathBuf,
-		line: usize,
-		column: usize,
-	) -> BoxFutureLocal<'_, Result<(), CommandError>>;
+	fn goto_file(&mut self, path: PathBuf, line: usize, column: usize) -> BoxFutureLocal<'_, Result<(), CommandError>>;
 }
 
 /// Context provided to command handlers.
@@ -174,12 +162,7 @@ impl<'a> CommandContext<'a> {
 				let any: &dyn Any = d;
 				any.downcast_ref::<T>()
 			})
-			.ok_or_else(|| {
-				CommandError::Other(format!(
-					"Missing or invalid user data for command (expected {})",
-					std::any::type_name::<T>()
-				))
-			})
+			.ok_or_else(|| CommandError::Other(format!("Missing or invalid user data for command (expected {})", std::any::type_name::<T>())))
 	}
 }
 

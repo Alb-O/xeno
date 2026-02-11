@@ -232,10 +232,7 @@ impl<'a> Paragraph<'a> {
 	/// Scrollable Widgets]() on GitHub.
 	#[must_use = "method moves the value of self and returns the modified value"]
 	pub const fn scroll(mut self, offset: (Vertical, Horizontal)) -> Self {
-		self.scroll = Position {
-			x: offset.1,
-			y: offset.0,
-		};
+		self.scroll = Position { x: offset.1, y: offset.0 };
 		self
 	}
 
@@ -331,18 +328,11 @@ impl<'a> Paragraph<'a> {
 			return 0;
 		}
 
-		let (top, bottom) = self
-			.block
-			.as_ref()
-			.map(Block::vertical_space)
-			.unwrap_or_default();
+		let (top, bottom) = self.block.as_ref().map(Block::vertical_space).unwrap_or_default();
 
 		let count = if let Some(Wrap { trim }) = self.wrap {
 			let styled = self.text.iter().map(|line| {
-				let graphemes = line
-					.spans
-					.iter()
-					.flat_map(|span| span.styled_graphemes(self.style));
+				let graphemes = line.spans.iter().flat_map(|span| span.styled_graphemes(self.style));
 				let alignment = line.alignment.unwrap_or(self.alignment);
 				(graphemes, alignment)
 			});
@@ -356,9 +346,7 @@ impl<'a> Paragraph<'a> {
 			self.text.height()
 		};
 
-		count
-			.saturating_add(top as usize)
-			.saturating_add(bottom as usize)
+		count.saturating_add(top as usize).saturating_add(bottom as usize)
 	}
 
 	/// Calculates the shortest line width needed to avoid any word being wrapped or truncated.
@@ -380,15 +368,9 @@ impl<'a> Paragraph<'a> {
 	/// ```
 	pub fn line_width(&self) -> usize {
 		let width = self.text.iter().map(Line::width).max().unwrap_or_default();
-		let (left, right) = self
-			.block
-			.as_ref()
-			.map(Block::horizontal_space)
-			.unwrap_or_default();
+		let (left, right) = self.block.as_ref().map(Block::horizontal_space).unwrap_or_default();
 
-		width
-			.saturating_add(left as usize)
-			.saturating_add(right as usize)
+		width.saturating_add(left as usize).saturating_add(right as usize)
 	}
 }
 
@@ -487,11 +469,7 @@ fn render_line(wrapped: &WrappedLine<'_, '_>, area: Rect, buf: &mut Buffer, y: u
 }
 
 /// Calculates the horizontal offset for a line based on alignment.
-const fn get_line_offset(
-	line_width: u16,
-	text_area_width: u16,
-	alignment: HorizontalAlignment,
-) -> u16 {
+const fn get_line_offset(line_width: u16, text_area_width: u16, alignment: HorizontalAlignment) -> u16 {
 	match alignment {
 		HorizontalAlignment::Center => (text_area_width / 2).saturating_sub(line_width / 2),
 		HorizontalAlignment::Right => text_area_width.saturating_sub(line_width),

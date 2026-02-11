@@ -60,13 +60,7 @@ where
 {
 	/// Creates a new snapshot from a builtin index.
 	pub(super) fn from_builtins(b: &super::types::RegistryIndex<T, Id>) -> Self {
-		let next_ordinal = b
-			.parties
-			.iter()
-			.map(|p| p.ordinal)
-			.max()
-			.unwrap_or(0)
-			.saturating_add(1);
+		let next_ordinal = b.parties.iter().map(|p| p.ordinal).max().unwrap_or(0).saturating_add(1);
 		Self {
 			table: b.table.clone(),
 			by_id: b.by_id.clone(),
@@ -107,10 +101,7 @@ where
 	T: super::RuntimeEntry,
 {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		f.debug_struct("RegistryRef")
-			.field("id", &self.id)
-			.field("name", &self.name_str())
-			.finish()
+		f.debug_struct("RegistryRef").field("id", &self.id).field("name", &self.name_str()).finish()
 	}
 }
 
@@ -153,10 +144,7 @@ where
 		let meta = self.meta();
 		let start = meta.keys.start as usize;
 		let end = start + meta.keys.len as usize;
-		self.snap.key_pool[start..end]
-			.iter()
-			.map(|&sym| self.snap.interner.resolve(sym))
-			.collect()
+		self.snap.key_pool[start..end].iter().map(|&sym| self.snap.interner.resolve(sym)).collect()
 	}
 }
 
@@ -190,12 +178,11 @@ where
 
 	/// Returns an iterator over (Id, &T) pairs.
 	pub fn iter_items(&self) -> impl Iterator<Item = (Id, &T)> + '_ {
-		self.snap.table.iter().enumerate().map(|(idx, arc)| {
-			(
-				Id::from_u32(super::u32_index(idx, "snapshot_iter")),
-				arc.as_ref(),
-			)
-		})
+		self.snap
+			.table
+			.iter()
+			.enumerate()
+			.map(|(idx, arc)| (Id::from_u32(super::u32_index(idx, "snapshot_iter")), arc.as_ref()))
 	}
 
 	/// Returns an iterator over [`RegistryRef`] handles.

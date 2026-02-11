@@ -16,31 +16,15 @@ pub fn build(ctx: &BuildCtx) {
 
 	let mut hooks = Vec::new();
 	for node in doc.nodes() {
-		assert_eq!(
-			node.name().value(),
-			"hook",
-			"unexpected top-level node '{}' in hooks.kdl",
-			node.name().value()
-		);
+		assert_eq!(node.name().value(), "hook", "unexpected top-level node '{}' in hooks.kdl", node.name().value());
 		let name = node_name_arg(node, "hook");
 		let context = format!("hook '{name}'");
 		let event = require_str(node, "event", &context);
 		let description = require_str(node, "description", &context);
 		let keys = collect_keys(node);
-		let short_desc = node
-			.get("short-desc")
-			.and_then(|v| v.as_string())
-			.map(String::from);
-		let priority = node
-			.get("priority")
-			.and_then(|v| v.as_integer())
-			.map(|v| v as i16)
-			.unwrap_or(0);
-		let flags = node
-			.get("flags")
-			.and_then(|v| v.as_integer())
-			.map(|v| v as u32)
-			.unwrap_or(0);
+		let short_desc = node.get("short-desc").and_then(|v| v.as_string()).map(String::from);
+		let priority = node.get("priority").and_then(|v| v.as_integer()).map(|v| v as i16).unwrap_or(0);
+		let flags = node.get("flags").and_then(|v| v.as_integer()).map(|v| v as u32).unwrap_or(0);
 		if let Some(children) = node.children()
 			&& children.get("caps").is_some()
 		{
@@ -61,10 +45,7 @@ pub fn build(ctx: &BuildCtx) {
 		});
 	}
 
-	let pairs: Vec<(String, String)> = hooks
-		.iter()
-		.map(|h| (h.common.name.clone(), String::new()))
-		.collect();
+	let pairs: Vec<(String, String)> = hooks.iter().map(|h| (h.common.name.clone(), String::new())).collect();
 	validate_unique(&pairs, "hook");
 
 	let spec = HooksSpec { hooks };

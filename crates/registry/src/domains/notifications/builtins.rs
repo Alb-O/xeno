@@ -7,10 +7,7 @@ use crate::db::builder::RegistryDbBuilder;
 notif!(unknown_action(name: &str), format!("Unknown action: {}", name));
 notif!(action_error(err: impl core::fmt::Display), err.to_string());
 
-notif!(
-	unsaved_changes_force_quit,
-	"Buffer has unsaved changes (use :q! to force quit)"
-);
+notif!(unsaved_changes_force_quit, "Buffer has unsaved changes (use :q! to force quit)");
 notif!(no_collisions, "All good! No collisions found.");
 notif!(unknown_command(cmd: &str), format!("Unknown command: {}", cmd));
 notif!(command_error(err: &str), format!("Command failed: {}", err));
@@ -23,19 +20,13 @@ notif!(help_text(text: impl Into<String>), text);
 notif!(diagnostic_output(text: impl Into<String>), text);
 notif!(diagnostic_warning(text: impl Into<String>), text);
 
-notif!(
-	viewport_unavailable,
-	"Viewport info unavailable for screen motion"
-);
+notif!(viewport_unavailable, "Viewport info unavailable for screen motion");
 notif_alias!(
 	viewport_height_unavailable,
 	viewport_unavailable,
 	"Viewport height unavailable for screen motion"
 );
-notif!(
-	screen_motion_unavailable,
-	"Screen motion target is unavailable"
-);
+notif!(screen_motion_unavailable, "Screen motion target is unavailable");
 notif!(pending_prompt(prompt: &str), prompt.to_string());
 notif!(count_display(count: usize), count.to_string());
 
@@ -49,11 +40,7 @@ notif!(nothing_to_redo, "Nothing to redo");
 notif!(undo, "Undo");
 notif!(redo, "Redo");
 notif!(no_selection, "No selection");
-notif_alias!(
-	no_selection_to_search,
-	no_selection,
-	"No selection to search in"
-);
+notif_alias!(no_selection_to_search, no_selection, "No selection to search in");
 notif_alias!(no_selection_to_split, no_selection, "No selection to split");
 notif!(no_selections_remain, "No selections remain");
 notif!(search_wrapped, "Search wrapped to beginning");
@@ -95,18 +82,13 @@ notif!(debug(msg: impl Into<String>), msg);
 
 notif!(sync_taking_ownership, "Taking ownership...");
 notif!(sync_ownership_denied, "Ownership denied.");
-notif!(
-	sync_history_unavailable,
-	"Undo unavailable: history store failed to initialize"
-);
+notif!(sync_history_unavailable, "Undo unavailable: history store failed to initialize");
 
 pub fn register_builtins(builder: &mut RegistryDbBuilder) {
 	crate::notifications::register_compiled(builder);
 }
 
-fn register_builtins_reg(
-	builder: &mut RegistryDbBuilder,
-) -> Result<(), crate::db::builder::RegistryError> {
+fn register_builtins_reg(builder: &mut RegistryDbBuilder) -> Result<(), crate::db::builder::RegistryError> {
 	register_builtins(builder);
 	Ok(())
 }

@@ -162,25 +162,16 @@ async fn test_background_hooks_dropped_under_backlog() {
 	let mut runtime = HookRuntime::new();
 
 	for _ in 0..BACKGROUND_DROP_THRESHOLD {
-		runtime.schedule(
-			Box::pin(async { HookResult::Continue }),
-			HookPriority::Background,
-		);
+		runtime.schedule(Box::pin(async { HookResult::Continue }), HookPriority::Background);
 	}
 	assert_eq!(runtime.background_count(), BACKGROUND_DROP_THRESHOLD);
 	assert_eq!(runtime.dropped_total(), 0);
 
-	runtime.schedule(
-		Box::pin(async { HookResult::Continue }),
-		HookPriority::Background,
-	);
+	runtime.schedule(Box::pin(async { HookResult::Continue }), HookPriority::Background);
 	assert_eq!(runtime.background_count(), BACKGROUND_DROP_THRESHOLD);
 	assert_eq!(runtime.dropped_total(), 1);
 
-	runtime.schedule(
-		Box::pin(async { HookResult::Continue }),
-		HookPriority::Interactive,
-	);
+	runtime.schedule(Box::pin(async { HookResult::Continue }), HookPriority::Interactive);
 	assert_eq!(runtime.interactive_count(), 1);
 }
 
@@ -189,15 +180,9 @@ async fn test_drop_background() {
 	let mut runtime = HookRuntime::new();
 
 	for _ in 0..10 {
-		runtime.schedule(
-			Box::pin(async { HookResult::Continue }),
-			HookPriority::Background,
-		);
+		runtime.schedule(Box::pin(async { HookResult::Continue }), HookPriority::Background);
 	}
-	runtime.schedule(
-		Box::pin(async { HookResult::Continue }),
-		HookPriority::Interactive,
-	);
+	runtime.schedule(Box::pin(async { HookResult::Continue }), HookPriority::Interactive);
 
 	assert_eq!(runtime.background_count(), 10);
 	assert_eq!(runtime.interactive_count(), 1);
@@ -235,10 +220,7 @@ async fn test_backlog_threshold_exceeded() {
 	let mut runtime = HookRuntime::new();
 
 	for _ in 0..HOOK_BACKLOG_HIGH_WATER + 1 {
-		runtime.schedule(
-			Box::pin(async { HookResult::Continue }),
-			HookPriority::Interactive,
-		);
+		runtime.schedule(Box::pin(async { HookResult::Continue }), HookPriority::Interactive);
 	}
 
 	assert!(runtime.pending_count() > HOOK_BACKLOG_HIGH_WATER);

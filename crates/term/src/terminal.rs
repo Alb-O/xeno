@@ -6,9 +6,7 @@
 use std::io::{self, Write};
 use std::time::Duration;
 
-use termina::escape::csi::{
-	Csi, Cursor, DecPrivateMode, DecPrivateModeCode, Keyboard, KittyKeyboardFlags, Mode,
-};
+use termina::escape::csi::{Csi, Cursor, DecPrivateMode, DecPrivateModeCode, Keyboard, KittyKeyboardFlags, Mode};
 use termina::event::Event;
 use termina::style::CursorStyle;
 use termina::{EventReader, PlatformTerminal, Terminal as _, WindowSize};
@@ -25,61 +23,33 @@ fn write_sequences<W: io::Write>(writer: &mut W, sequences: &[TerminalSequence])
 /// Converts a terminal sequence enum to a CSI escape sequence.
 fn sequence_to_csi(sequence: TerminalSequence) -> Csi {
 	match sequence {
-		TerminalSequence::EnableAlternateScreen => Csi::Mode(Mode::SetDecPrivateMode(
-			DecPrivateMode::Code(DecPrivateModeCode::ClearAndEnableAlternateScreen),
-		)),
-		TerminalSequence::DisableAlternateScreen => Csi::Mode(Mode::ResetDecPrivateMode(
-			DecPrivateMode::Code(DecPrivateModeCode::ClearAndEnableAlternateScreen),
-		)),
-		TerminalSequence::EnableMouseTracking => Csi::Mode(Mode::SetDecPrivateMode(
-			DecPrivateMode::Code(DecPrivateModeCode::MouseTracking),
-		)),
-		TerminalSequence::DisableMouseTracking => Csi::Mode(Mode::ResetDecPrivateMode(
-			DecPrivateMode::Code(DecPrivateModeCode::MouseTracking),
-		)),
-		TerminalSequence::EnableSgrMouse => Csi::Mode(Mode::SetDecPrivateMode(
-			DecPrivateMode::Code(DecPrivateModeCode::SGRMouse),
-		)),
-		TerminalSequence::DisableSgrMouse => Csi::Mode(Mode::ResetDecPrivateMode(
-			DecPrivateMode::Code(DecPrivateModeCode::SGRMouse),
-		)),
-		TerminalSequence::EnableAnyEventMouse => Csi::Mode(Mode::SetDecPrivateMode(
-			DecPrivateMode::Code(DecPrivateModeCode::AnyEventMouse),
-		)),
-		TerminalSequence::DisableAnyEventMouse => Csi::Mode(Mode::ResetDecPrivateMode(
-			DecPrivateMode::Code(DecPrivateModeCode::AnyEventMouse),
-		)),
-		TerminalSequence::PushKittyKeyboardDisambiguate => Csi::Keyboard(Keyboard::PushFlags(
-			KittyKeyboardFlags::DISAMBIGUATE_ESCAPE_CODES,
-		)),
+		TerminalSequence::EnableAlternateScreen => Csi::Mode(Mode::SetDecPrivateMode(DecPrivateMode::Code(DecPrivateModeCode::ClearAndEnableAlternateScreen))),
+		TerminalSequence::DisableAlternateScreen => Csi::Mode(Mode::ResetDecPrivateMode(DecPrivateMode::Code(
+			DecPrivateModeCode::ClearAndEnableAlternateScreen,
+		))),
+		TerminalSequence::EnableMouseTracking => Csi::Mode(Mode::SetDecPrivateMode(DecPrivateMode::Code(DecPrivateModeCode::MouseTracking))),
+		TerminalSequence::DisableMouseTracking => Csi::Mode(Mode::ResetDecPrivateMode(DecPrivateMode::Code(DecPrivateModeCode::MouseTracking))),
+		TerminalSequence::EnableSgrMouse => Csi::Mode(Mode::SetDecPrivateMode(DecPrivateMode::Code(DecPrivateModeCode::SGRMouse))),
+		TerminalSequence::DisableSgrMouse => Csi::Mode(Mode::ResetDecPrivateMode(DecPrivateMode::Code(DecPrivateModeCode::SGRMouse))),
+		TerminalSequence::EnableAnyEventMouse => Csi::Mode(Mode::SetDecPrivateMode(DecPrivateMode::Code(DecPrivateModeCode::AnyEventMouse))),
+		TerminalSequence::DisableAnyEventMouse => Csi::Mode(Mode::ResetDecPrivateMode(DecPrivateMode::Code(DecPrivateModeCode::AnyEventMouse))),
+		TerminalSequence::PushKittyKeyboardDisambiguate => Csi::Keyboard(Keyboard::PushFlags(KittyKeyboardFlags::DISAMBIGUATE_ESCAPE_CODES)),
 		TerminalSequence::PopKittyKeyboardFlags => Csi::Keyboard(Keyboard::PopFlags(1)),
-		TerminalSequence::ResetCursorStyle => {
-			Csi::Cursor(Cursor::CursorStyle(CursorStyle::Default))
-		}
-		TerminalSequence::EnableBracketedPaste => Csi::Mode(Mode::SetDecPrivateMode(
-			DecPrivateMode::Code(DecPrivateModeCode::BracketedPaste),
-		)),
-		TerminalSequence::DisableBracketedPaste => Csi::Mode(Mode::ResetDecPrivateMode(
-			DecPrivateMode::Code(DecPrivateModeCode::BracketedPaste),
-		)),
+		TerminalSequence::ResetCursorStyle => Csi::Cursor(Cursor::CursorStyle(CursorStyle::Default)),
+		TerminalSequence::EnableBracketedPaste => Csi::Mode(Mode::SetDecPrivateMode(DecPrivateMode::Code(DecPrivateModeCode::BracketedPaste))),
+		TerminalSequence::DisableBracketedPaste => Csi::Mode(Mode::ResetDecPrivateMode(DecPrivateMode::Code(DecPrivateModeCode::BracketedPaste))),
 	}
 }
 
 /// Enables terminal features using the provided configuration.
-pub fn enable_terminal_features_with_config(
-	terminal: &mut PlatformTerminal,
-	config: TerminalConfig,
-) -> io::Result<()> {
+pub fn enable_terminal_features_with_config(terminal: &mut PlatformTerminal, config: TerminalConfig) -> io::Result<()> {
 	terminal.enter_raw_mode()?;
 	write_sequences(terminal, config.enter_sequences)?;
 	terminal.flush()
 }
 
 /// Disables terminal features using the provided configuration.
-pub fn disable_terminal_features_with_config(
-	terminal: &mut PlatformTerminal,
-	config: TerminalConfig,
-) -> io::Result<()> {
+pub fn disable_terminal_features_with_config(terminal: &mut PlatformTerminal, config: TerminalConfig) -> io::Result<()> {
 	write_sequences(terminal, config.exit_sequences)?;
 	terminal.enter_cooked_mode()?;
 	terminal.flush()

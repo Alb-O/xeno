@@ -33,9 +33,7 @@ fn pos_of_panics_on_out_of_bounds() {
 #[case::top(10, 9)]
 #[case::right(20, 10)]
 #[case::bottom(10, 20)]
-#[should_panic(
-	expected = "index outside of buffer: the area is Rect { x: 10, y: 10, width: 10, height: 10 } but index is"
-)]
+#[should_panic(expected = "index outside of buffer: the area is Rect { x: 10, y: 10, width: 10, height: 10 } but index is")]
 fn index_of_panics_on_out_of_bounds(#[case] x: u16, #[case] y: u16) {
 	let _ = Buffer::empty(Rect::new(10, 10, 10, 10)).index_of(x, y);
 }
@@ -81,9 +79,7 @@ fn index() {
 #[case::top(10, 9)]
 #[case::right(20, 10)]
 #[case::bottom(10, 20)]
-#[should_panic(
-	expected = "index outside of buffer: the area is Rect { x: 10, y: 10, width: 10, height: 10 } but index is"
-)]
+#[should_panic(expected = "index outside of buffer: the area is Rect { x: 10, y: 10, width: 10, height: 10 } but index is")]
 fn index_out_of_bounds_panics(#[case] x: u16, #[case] y: u16) {
 	let rect = Rect::new(10, 10, 10, 10);
 	let buf = Buffer::empty(rect);
@@ -103,9 +99,7 @@ fn index_mut() {
 #[case::top(10, 9)]
 #[case::right(20, 10)]
 #[case::bottom(10, 20)]
-#[should_panic(
-	expected = "index outside of buffer: the area is Rect { x: 10, y: 10, width: 10, height: 10 } but index is"
-)]
+#[should_panic(expected = "index outside of buffer: the area is Rect { x: 10, y: 10, width: 10, height: 10 } but index is")]
 fn index_mut_out_of_bounds_panics(#[case] x: u16, #[case] y: u16) {
 	let mut buf = Buffer::empty(Rect::new(10, 10, 10, 10));
 	buf[(x, y)].set_symbol("A");

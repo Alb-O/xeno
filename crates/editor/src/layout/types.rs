@@ -23,10 +23,7 @@ impl LayerId {
 	/// The base layer identifier.
 	///
 	/// The base layer is always valid; its generation is always 0.
-	pub const BASE: LayerId = LayerId {
-		idx: 0,
-		generation: 0,
-	};
+	pub const BASE: LayerId = LayerId { idx: 0, generation: 0 };
 
 	/// Creates a new `LayerId`.
 	pub(crate) fn new(idx: u16, generation: u16) -> Self {
@@ -59,10 +56,7 @@ pub(crate) struct LayerSlot {
 impl LayerSlot {
 	/// Creates a new empty layer slot starting at generation 0.
 	pub fn empty() -> Self {
-		Self {
-			generation: 0,
-			layout: None,
-		}
+		Self { generation: 0, layout: None }
 	}
 }
 

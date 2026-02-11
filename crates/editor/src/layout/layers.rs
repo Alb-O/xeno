@@ -48,11 +48,7 @@ impl LayoutManager {
 	/// # Errors
 	///
 	/// Returns [`LayerError`] if the ID is invalid, stale, or the layer is empty.
-	pub fn layer<'a>(
-		&'a self,
-		base_layout: &'a Layout,
-		id: LayerId,
-	) -> Result<&'a Layout, LayerError> {
+	pub fn layer<'a>(&'a self, base_layout: &'a Layout, id: LayerId) -> Result<&'a Layout, LayerError> {
 		if id.is_base() {
 			return Ok(base_layout);
 		}
@@ -65,11 +61,7 @@ impl LayoutManager {
 	/// # Errors
 	///
 	/// Returns [`LayerError`] if the ID is invalid, stale, or the layer is empty.
-	pub(crate) fn layer_mut<'a>(
-		&'a mut self,
-		base_layout: &'a mut Layout,
-		id: LayerId,
-	) -> Result<&'a mut Layout, LayerError> {
+	pub(crate) fn layer_mut<'a>(&'a mut self, base_layout: &'a mut Layout, id: LayerId) -> Result<&'a mut Layout, LayerError> {
 		if id.is_base() {
 			return Ok(base_layout);
 		}
@@ -85,12 +77,7 @@ impl LayoutManager {
 	/// # Errors
 	///
 	/// Returns [`LayerError`] if the ID is invalid, stale, or the layer is empty.
-	pub fn with_layer_mut<R>(
-		&mut self,
-		base_layout: &mut Layout,
-		id: LayerId,
-		f: impl FnOnce(&mut Layout) -> R,
-	) -> Result<R, LayerError> {
+	pub fn with_layer_mut<R>(&mut self, base_layout: &mut Layout, id: LayerId, f: impl FnOnce(&mut Layout) -> R) -> Result<R, LayerError> {
 		let layout = self.layer_mut(base_layout, id)?;
 		let out = f(layout);
 		self.increment_revision();

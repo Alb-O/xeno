@@ -53,10 +53,7 @@ pub fn coalesce_changes(changes: Vec<LspDocumentChange>) -> Vec<LspDocumentChang
 /// Attempts to merge two consecutive changes.
 ///
 /// Returns `Some(merged)` if the changes can be combined, `None` otherwise.
-fn try_merge(
-	prev: Option<&mut LspDocumentChange>,
-	curr: &LspDocumentChange,
-) -> Option<LspDocumentChange> {
+fn try_merge(prev: Option<&mut LspDocumentChange>, curr: &LspDocumentChange) -> Option<LspDocumentChange> {
 	let prev = prev?;
 
 	let prev_is_insert = is_point_range(&prev.range);

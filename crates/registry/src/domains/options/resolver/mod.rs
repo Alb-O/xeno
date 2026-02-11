@@ -99,10 +99,7 @@ impl<'a> OptionResolver<'a> {
 			"option type mismatch; falling back to default",
 		);
 
-		opt.default
-			.to_value()
-			.as_bool()
-			.expect("validated at build")
+		opt.default.to_value().as_bool().expect("validated at build")
 	}
 
 	/// Resolves a string option through the hierarchy.
@@ -119,10 +116,6 @@ impl<'a> OptionResolver<'a> {
 			"option type mismatch; falling back to default",
 		);
 
-		opt.default
-			.to_value()
-			.as_str()
-			.expect("validated at build")
-			.to_string()
+		opt.default.to_value().as_str().expect("validated at build").to_string()
 	}
 }

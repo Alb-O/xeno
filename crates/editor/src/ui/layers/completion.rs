@@ -15,20 +15,12 @@ pub fn visible(ed: &Editor) -> bool {
 	{
 		use crate::completion::CompletionState;
 
-		let completions = ed
-			.overlays()
-			.get::<CompletionState>()
-			.cloned()
-			.unwrap_or_default();
+		let completions = ed.overlays().get::<CompletionState>().cloned().unwrap_or_default();
 		if !completions.active || completions.items.is_empty() {
 			return false;
 		}
 
-		let Some(menu_state) = ed
-			.overlays()
-			.get::<crate::lsp::LspMenuState>()
-			.and_then(|state| state.active())
-		else {
+		let Some(menu_state) = ed.overlays().get::<crate::lsp::LspMenuState>().and_then(|state| state.active()) else {
 			return false;
 		};
 
@@ -42,13 +34,7 @@ pub fn visible(ed: &Editor) -> bool {
 }
 
 pub fn push(builder: &mut SceneBuilder, doc_area: Rect) {
-	builder.push(
-		SurfaceKind::CompletionPopup,
-		40,
-		doc_area,
-		SurfaceOp::CompletionPopup,
-		false,
-	);
+	builder.push(SurfaceKind::CompletionPopup, 40, doc_area, SurfaceOp::CompletionPopup, false);
 }
 
 pub fn render(ed: &Editor, frame: &mut xeno_tui::Frame) {

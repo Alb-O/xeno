@@ -106,12 +106,7 @@ pub(super) async fn run_server_io(
 	// Clean up pending barriers in the outbound queue
 	while let Ok(out) = outbound_rx.try_recv() {
 		match out {
-			Outbound::Notify {
-				written: Some(tx), ..
-			}
-			| Outbound::Reply {
-				written: Some(tx), ..
-			} => {
+			Outbound::Notify { written: Some(tx), .. } | Outbound::Reply { written: Some(tx), .. } => {
 				let _ = tx.send(Err(Error::ServiceStopped));
 			}
 			Outbound::Request { pending: p } => {
@@ -123,11 +118,7 @@ pub(super) async fn run_server_io(
 }
 
 /// Writes a JSON-RPC request to the server's stdin.
-async fn write_message(
-	stdin: &mut tokio::process::ChildStdin,
-	_protocol: &JsonRpcProtocol,
-	req: &AnyRequest,
-) -> Result<()> {
+async fn write_message(stdin: &mut tokio::process::ChildStdin, _protocol: &JsonRpcProtocol, req: &AnyRequest) -> Result<()> {
 	let json = serde_json::to_string(&serde_json::json!({
 		"jsonrpc": "2.0",
 		"id": req.id,
@@ -142,11 +133,7 @@ async fn write_message(
 }
 
 /// Writes a JSON-RPC notification to the server's stdin.
-async fn write_notification(
-	stdin: &mut tokio::process::ChildStdin,
-	_protocol: &JsonRpcProtocol,
-	notif: &AnyNotification,
-) -> Result<()> {
+async fn write_notification(stdin: &mut tokio::process::ChildStdin, _protocol: &JsonRpcProtocol, notif: &AnyNotification) -> Result<()> {
 	let json = serde_json::to_string(&serde_json::json!({
 		"jsonrpc": "2.0",
 		"method": notif.method,
@@ -160,11 +147,7 @@ async fn write_notification(
 }
 
 /// Writes a JSON-RPC response to the server's stdin.
-async fn write_response(
-	stdin: &mut tokio::process::ChildStdin,
-	id: RequestId,
-	resp: std::result::Result<JsonValue, ResponseError>,
-) -> Result<()> {
+async fn write_response(stdin: &mut tokio::process::ChildStdin, id: RequestId, resp: std::result::Result<JsonValue, ResponseError>) -> Result<()> {
 	let obj = match resp {
 		Ok(result) => serde_json::json!({
 			"jsonrpc": "2.0",
@@ -186,11 +169,7 @@ async fn write_response(
 }
 
 /// Reads a JSON-RPC message from the server's stdout.
-async fn read_message(
-	reader: &mut BufReader<tokio::process::ChildStdout>,
-	_protocol: &JsonRpcProtocol,
-	buf: &mut String,
-) -> Result<Option<JsonValue>> {
+async fn read_message(reader: &mut BufReader<tokio::process::ChildStdout>, _protocol: &JsonRpcProtocol, buf: &mut String) -> Result<Option<JsonValue>> {
 	// Read headers
 	let mut content_length: Option<usize> = None;
 	loop {
@@ -252,14 +231,8 @@ fn handle_inbound_message(
 		if method == "textDocument/publishDiagnostics"
 			&& let Some(uri) = params.get("uri").and_then(|u| u.as_str())
 		{
-			let version = params
-				.get("version")
-				.and_then(|v| v.as_u64())
-				.map(|v| v as u32);
-			let diagnostics = params
-				.get("diagnostics")
-				.cloned()
-				.unwrap_or(JsonValue::Array(vec![]));
+			let version = params.get("version").and_then(|v| v.as_u64()).map(|v| v as u32);
+			let diagnostics = params.get("diagnostics").cloned().unwrap_or(JsonValue::Array(vec![]));
 			let _ = event_tx.send(TransportEvent::Diagnostics {
 				server: id,
 				uri: uri.to_string(),

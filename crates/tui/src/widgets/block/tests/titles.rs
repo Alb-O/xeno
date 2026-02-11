@@ -32,10 +32,7 @@ fn title_alignment() {
 	];
 	for (alignment, expected) in tests {
 		let mut buffer = Buffer::empty(Rect::new(0, 0, 8, 1));
-		Block::new()
-			.title_alignment(alignment)
-			.title("test")
-			.render(buffer.area, &mut buffer);
+		Block::new().title_alignment(alignment).title("test").render(buffer.area, &mut buffer);
 		assert_eq!(buffer, Buffer::with_lines([expected]));
 	}
 }
@@ -43,21 +40,9 @@ fn title_alignment() {
 #[test]
 fn title_alignment_overrides_block_title_alignment() {
 	let tests = vec![
-		(
-			HorizontalAlignment::Right,
-			HorizontalAlignment::Left,
-			"test    ",
-		),
-		(
-			HorizontalAlignment::Left,
-			HorizontalAlignment::Center,
-			"  test  ",
-		),
-		(
-			HorizontalAlignment::Center,
-			HorizontalAlignment::Right,
-			"    test",
-		),
+		(HorizontalAlignment::Right, HorizontalAlignment::Left, "test    "),
+		(HorizontalAlignment::Left, HorizontalAlignment::Center, "  test  "),
+		(HorizontalAlignment::Center, HorizontalAlignment::Right, "    test"),
 	];
 	for (block_title_alignment, alignment, expected) in tests {
 		let mut buffer = Buffer::empty(Rect::new(0, 0, 8, 1));
@@ -93,20 +78,14 @@ fn title_position() {
 #[test]
 fn left_titles() {
 	let mut buffer = Buffer::empty(Rect::new(0, 0, 10, 1));
-	Block::new()
-		.title("L12")
-		.title("L34")
-		.render(buffer.area, &mut buffer);
+	Block::new().title("L12").title("L34").render(buffer.area, &mut buffer);
 	assert_eq!(buffer, Buffer::with_lines(["L12 L34   "]));
 }
 
 #[test]
 fn left_titles_truncated() {
 	let mut buffer = Buffer::empty(Rect::new(0, 0, 10, 1));
-	Block::new()
-		.title("L12345")
-		.title("L67890")
-		.render(buffer.area, &mut buffer);
+	Block::new().title("L12345").title("L67890").render(buffer.area, &mut buffer);
 	assert_eq!(buffer, Buffer::with_lines(["L12345 L67"]));
 }
 

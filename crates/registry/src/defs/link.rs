@@ -14,12 +14,7 @@ pub fn linked_meta_from_spec(common: &MetaCommonSpec) -> LinkedMetaOwned {
 		flags: common.flags,
 		source: RegistrySource::Crate(env!("CARGO_PKG_NAME")),
 		required_caps: vec![],
-		short_desc: Some(
-			common
-				.short_desc
-				.clone()
-				.unwrap_or_else(|| common.description.clone()),
-		),
+		short_desc: Some(common.short_desc.clone().unwrap_or_else(|| common.description.clone())),
 	}
 }
 
@@ -71,11 +66,7 @@ pub fn link_by_name<M, H: 'static, Out>(
 		.map(|&s| s.to_string())
 		.collect();
 
-	if !dup_handlers.is_empty()
-		|| !dup_metas.is_empty()
-		|| !missing_handlers.is_empty()
-		|| !extra_handlers.is_empty()
-	{
+	if !dup_handlers.is_empty() || !dup_metas.is_empty() || !missing_handlers.is_empty() || !extra_handlers.is_empty() {
 		let mut report = format!("link_by_name({}) failed:\n", what);
 
 		fn append_list(report: &mut String, title: &str, mut list: Vec<String>) {
@@ -91,11 +82,7 @@ pub fn link_by_name<M, H: 'static, Out>(
 
 		append_list(&mut report, "duplicate handlers", dup_handlers);
 		append_list(&mut report, "duplicate spec entries", dup_metas);
-		append_list(
-			&mut report,
-			"spec entries missing handlers",
-			missing_handlers,
-		);
+		append_list(&mut report, "spec entries missing handlers", missing_handlers);
 		append_list(&mut report, "handlers missing spec entries", extra_handlers);
 
 		panic!("{}", report);
@@ -105,10 +92,7 @@ pub fn link_by_name<M, H: 'static, Out>(
 }
 
 /// Builds a name-to-handler map from an iterator of statics.
-pub fn build_name_map<H: 'static>(
-	handlers: impl Iterator<Item = &'static H>,
-	name: impl Fn(&'static H) -> &'static str,
-) -> HashMap<&'static str, &'static H> {
+pub fn build_name_map<H: 'static>(handlers: impl Iterator<Item = &'static H>, name: impl Fn(&'static H) -> &'static str) -> HashMap<&'static str, &'static H> {
 	let mut out = HashMap::new();
 	for h in handlers {
 		let n = name(h);

@@ -60,10 +60,7 @@ pub fn emit_sync(ctx: &HookContext<'_>) -> HookResult {
 				}
 			}
 			HookAction::Async(_) => {
-				warn!(
-					hook = hook.name_str(),
-					"Hook returned async action but emit_sync was called; skipping"
-				);
+				warn!(hook = hook.name_str(), "Hook returned async action but emit_sync was called; skipping");
 			}
 		}
 	}

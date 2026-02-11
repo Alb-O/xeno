@@ -103,35 +103,19 @@ fn set_line_raw(mut small_one_line_buffer: Buffer, #[case] content: &str, #[case
 #[case::one("1", "1    ")]
 #[case::full("12345", "12345")]
 #[case::overflow("123456", "12345")]
-fn set_line_styled(
-	mut small_one_line_buffer: Buffer,
-	#[case] content: &str,
-	#[case] expected: &str,
-) {
+fn set_line_styled(mut small_one_line_buffer: Buffer, #[case] content: &str, #[case] expected: &str) {
 	let color = Color::Blue;
 	let line = Line::styled(content, color);
 	small_one_line_buffer.set_line(0, 0, &line, 5);
 
 	// note: manually testing the contents here as the Buffer::with_lines calls set_line
-	let actual_contents = small_one_line_buffer
-		.content
-		.iter()
-		.map(Cell::symbol)
-		.collect::<Vec<_>>()
-		.join("");
-	let actual_styles = small_one_line_buffer
-		.content
-		.iter()
-		.map(|c| c.fg)
-		.collect::<Vec<_>>();
+	let actual_contents = small_one_line_buffer.content.iter().map(Cell::symbol).collect::<Vec<_>>().join("");
+	let actual_styles = small_one_line_buffer.content.iter().map(|c| c.fg).collect::<Vec<_>>();
 
 	// set_line only sets the style for non-empty cells (unlike Line::render which sets the
 	// style for all cells)
 	let expected_styles = iter::repeat_n(color, content.len().min(5))
-		.chain(iter::repeat_n(
-			Color::default(),
-			5_usize.saturating_sub(content.len()),
-		))
+		.chain(iter::repeat_n(Color::default(), 5_usize.saturating_sub(content.len())))
 		.collect::<Vec<_>>();
 	assert_eq!(actual_contents, expected);
 	assert_eq!(actual_styles, expected_styles);
@@ -170,11 +154,7 @@ fn control_sequence_rendered_full() {
 	let mut buffer = Buffer::filled(Rect::new(0, 0, 25, 3), Cell::new("x"));
 	buffer.set_string(1, 1, text, Style::new());
 
-	let expected = Buffer::with_lines([
-		"xxxxxxxxxxxxxxxxxxxxxxxxx",
-		"xI [0;36mwas[0m here!xxxx",
-		"xxxxxxxxxxxxxxxxxxxxxxxxx",
-	]);
+	let expected = Buffer::with_lines(["xxxxxxxxxxxxxxxxxxxxxxxxx", "xI [0;36mwas[0m here!xxxx", "xxxxxxxxxxxxxxxxxxxxxxxxx"]);
 	assert_eq!(buffer, expected);
 }
 
@@ -225,12 +205,7 @@ fn renders_emoji(#[case] input: &str, #[case] expected: &str) {
 	dbg!(
 		input
 			.chars()
-			.map(|char| (
-				char,
-				char.escape_unicode().to_string(),
-				char.width(),
-				char.is_control()
-			))
+			.map(|char| (char, char.escape_unicode().to_string(), char.width(), char.is_control()))
 			.collect::<Vec<_>>()
 	);
 

@@ -22,10 +22,7 @@ inventory::collect!(PluginDef);
 impl PluginDef {
 	/// Creates a new plugin definition.
 	#[cfg(feature = "db")]
-	pub const fn new(
-		meta: RegistryMetaStatic,
-		register: fn(&mut RegistryDbBuilder) -> Result<(), RegistryError>,
-	) -> Self {
+	pub const fn new(meta: RegistryMetaStatic, register: fn(&mut RegistryDbBuilder) -> Result<(), RegistryError>) -> Self {
 		Self { meta, register }
 	}
 }

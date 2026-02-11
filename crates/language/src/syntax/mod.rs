@@ -101,19 +101,10 @@ pub struct ViewportMetadata {
 
 impl Syntax {
 	/// Creates a new syntax tree with the given options.
-	pub fn new(
-		source: RopeSlice,
-		language: Language,
-		loader: &LanguageLoader,
-		opts: SyntaxOptions,
-	) -> Result<Self, SyntaxError> {
+	pub fn new(source: RopeSlice, language: Language, loader: &LanguageLoader, opts: SyntaxOptions) -> Result<Self, SyntaxError> {
 		let loader = loader.with_injections(matches!(opts.injections, InjectionPolicy::Eager));
 		let inner = tree_house::Syntax::new(source, language, opts.parse_timeout, &loader)?;
-		Ok(Self {
-			inner,
-			opts,
-			viewport: None,
-		})
+		Ok(Self { inner, opts, viewport: None })
 	}
 
 	/// Creates a new viewport-first syntax tree from a window.
@@ -138,13 +129,7 @@ impl Syntax {
 	}
 
 	/// Updates the syntax tree after edits (incremental) with the given options.
-	pub fn update(
-		&mut self,
-		source: RopeSlice,
-		edits: &[InputEdit],
-		loader: &LanguageLoader,
-		opts: SyntaxOptions,
-	) -> Result<(), SyntaxError> {
+	pub fn update(&mut self, source: RopeSlice, edits: &[InputEdit], loader: &LanguageLoader, opts: SyntaxOptions) -> Result<(), SyntaxError> {
 		if edits.is_empty() {
 			return Ok(());
 		}
@@ -153,8 +138,7 @@ impl Syntax {
 		// but in Xeno we typically replace them with a background full parse result.
 		self.viewport = None;
 		let loader = loader.with_injections(matches!(opts.injections, InjectionPolicy::Eager));
-		self.inner
-			.update(source, opts.parse_timeout, edits, &loader)?;
+		self.inner.update(source, opts.parse_timeout, edits, &loader)?;
 		Ok(())
 	}
 
@@ -232,12 +216,7 @@ impl Syntax {
 	}
 
 	/// Creates a highlighter for the given range.
-	pub fn highlighter<'a>(
-		&'a self,
-		source: RopeSlice<'a>,
-		loader: &'a LanguageLoader,
-		range: impl RangeBounds<u32>,
-	) -> Highlighter<'a> {
+	pub fn highlighter<'a>(&'a self, source: RopeSlice<'a>, loader: &'a LanguageLoader, range: impl RangeBounds<u32>) -> Highlighter<'a> {
 		if let Some(meta) = &self.viewport {
 			Highlighter::new_mapped(
 				&self.inner,

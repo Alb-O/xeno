@@ -15,10 +15,7 @@ rust-analyzer {
 	assert_eq!(ra.name, "rust-analyzer");
 	assert_eq!(ra.command, "rust-analyzer");
 	assert!(ra.args.is_empty());
-	assert_eq!(
-		ra.source,
-		Some("https://github.com/rust-lang/rust-analyzer".to_string())
-	);
+	assert_eq!(ra.source, Some("https://github.com/rust-lang/rust-analyzer".to_string()));
 	assert_eq!(ra.nix, Some("rust-analyzer".to_string()));
 }
 
@@ -81,10 +78,7 @@ fn load_embedded_lsp_configs() {
 	assert!(!servers.is_empty());
 
 	// Check rust-analyzer exists
-	let ra = servers
-		.iter()
-		.find(|s| s.name == "rust-analyzer")
-		.expect("rust-analyzer should exist");
+	let ra = servers.iter().find(|s| s.name == "rust-analyzer").expect("rust-analyzer should exist");
 	assert_eq!(ra.command, "rust-analyzer");
 
 	// Check typescript-language-server exists

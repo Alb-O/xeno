@@ -26,25 +26,11 @@ pub fn build(ctx: &BuildCtx) {
 		let context = format!("segment '{name}'");
 		let description = require_str(node, "description", &context);
 		let keys = collect_keys(node);
-		let short_desc = node
-			.get("short-desc")
-			.and_then(|v| v.as_string())
-			.map(String::from);
+		let short_desc = node.get("short-desc").and_then(|v| v.as_string()).map(String::from);
 		let position = require_str(node, "position", &context);
-		assert!(
-			VALID_POSITIONS.contains(&position.as_str()),
-			"{context}: unknown position '{position}'"
-		);
-		let priority = node
-			.get("priority")
-			.and_then(|v| v.as_integer())
-			.map(|v| v as i16)
-			.unwrap_or(0);
-		let flags = node
-			.get("flags")
-			.and_then(|v| v.as_integer())
-			.map(|v| v as u32)
-			.unwrap_or(0);
+		assert!(VALID_POSITIONS.contains(&position.as_str()), "{context}: unknown position '{position}'");
+		let priority = node.get("priority").and_then(|v| v.as_integer()).map(|v| v as i16).unwrap_or(0);
+		let flags = node.get("flags").and_then(|v| v.as_integer()).map(|v| v as u32).unwrap_or(0);
 		if let Some(children) = node.children()
 			&& children.get("caps").is_some()
 		{
@@ -65,10 +51,7 @@ pub fn build(ctx: &BuildCtx) {
 		});
 	}
 
-	let pairs: Vec<(String, String)> = segments
-		.iter()
-		.map(|s| (s.common.name.clone(), String::new()))
-		.collect();
+	let pairs: Vec<(String, String)> = segments.iter().map(|s| (s.common.name.clone(), String::new())).collect();
 	validate_unique(&pairs, "segment");
 
 	let spec = StatuslineSpec { segments };

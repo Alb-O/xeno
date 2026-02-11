@@ -71,10 +71,7 @@ pub(crate) mod runtime;
 pub(crate) mod snapshot;
 mod types;
 
-pub use build::{
-	BuildCtx, BuildCtxExt, BuildEntry, RegistryBuilder, RegistryMetaRef, StrListRef,
-	StringCollector,
-};
+pub use build::{BuildCtx, BuildCtxExt, BuildEntry, RegistryBuilder, RegistryMetaRef, StrListRef, StringCollector};
 pub(crate) use collision::cmp_party;
 pub use collision::{Collision, CollisionKind, DuplicatePolicy, KeyKind, Party, Resolution};
 pub use runtime::{RegisterError, RuntimeEntry, RuntimeRegistry};

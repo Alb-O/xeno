@@ -76,11 +76,7 @@ fn render_centered_even_with_truncation() {
 
 #[test]
 fn render_one_line_right() {
-	let text = Text::from(vec![
-		"foo".into(),
-		Line::from("bar").alignment(HorizontalAlignment::Center),
-	])
-	.alignment(HorizontalAlignment::Right);
+	let text = Text::from(vec!["foo".into(), Line::from("bar").alignment(HorizontalAlignment::Center)]).alignment(HorizontalAlignment::Right);
 	let area = Rect::new(0, 0, 5, 2);
 	let mut buf = Buffer::empty(area);
 	text.render(area, &mut buf);

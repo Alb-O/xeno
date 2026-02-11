@@ -5,24 +5,21 @@ use crate::overlay::{CloseReason, controllers};
 impl Editor {
 	pub fn interaction_on_buffer_edited(&mut self) {
 		let view_id = self.focused_view();
-		let mut interaction: crate::overlay::OverlayManager =
-			std::mem::take(&mut self.state.overlay_system.interaction);
+		let mut interaction: crate::overlay::OverlayManager = std::mem::take(&mut self.state.overlay_system.interaction);
 		interaction.on_buffer_edited(self, view_id);
 		self.state.overlay_system.interaction = interaction;
 		self.flush_effects();
 	}
 
 	pub async fn interaction_commit(&mut self) {
-		let mut interaction: crate::overlay::OverlayManager =
-			std::mem::take(&mut self.state.overlay_system.interaction);
+		let mut interaction: crate::overlay::OverlayManager = std::mem::take(&mut self.state.overlay_system.interaction);
 		interaction.commit(self).await;
 		self.state.overlay_system.interaction = interaction;
 		self.flush_effects();
 	}
 
 	pub fn interaction_cancel(&mut self) {
-		let mut interaction: crate::overlay::OverlayManager =
-			std::mem::take(&mut self.state.overlay_system.interaction);
+		let mut interaction: crate::overlay::OverlayManager = std::mem::take(&mut self.state.overlay_system.interaction);
 		interaction.close(self, CloseReason::Cancel);
 		self.state.overlay_system.interaction = interaction;
 		self.flush_effects();
@@ -30,8 +27,7 @@ impl Editor {
 
 	pub fn open_search(&mut self, reverse: bool) -> bool {
 		let ctl = controllers::SearchOverlay::new(self.focused_view(), reverse);
-		let mut interaction: crate::overlay::OverlayManager =
-			std::mem::take(&mut self.state.overlay_system.interaction);
+		let mut interaction: crate::overlay::OverlayManager = std::mem::take(&mut self.state.overlay_system.interaction);
 		let result = interaction.open(self, Box::new(ctl));
 		self.state.overlay_system.interaction = interaction;
 		self.flush_effects();
@@ -40,8 +36,7 @@ impl Editor {
 
 	pub fn open_command_palette(&mut self) -> bool {
 		let ctl = controllers::CommandPaletteOverlay::new();
-		let mut interaction: crate::overlay::OverlayManager =
-			std::mem::take(&mut self.state.overlay_system.interaction);
+		let mut interaction: crate::overlay::OverlayManager = std::mem::take(&mut self.state.overlay_system.interaction);
 		let result = interaction.open(self, Box::new(ctl));
 		self.state.overlay_system.interaction = interaction;
 		self.flush_effects();
@@ -50,8 +45,7 @@ impl Editor {
 
 	pub fn open_workspace_search(&mut self) -> bool {
 		let ctl = controllers::WorkspaceSearchOverlay::new();
-		let mut interaction: crate::overlay::OverlayManager =
-			std::mem::take(&mut self.state.overlay_system.interaction);
+		let mut interaction: crate::overlay::OverlayManager = std::mem::take(&mut self.state.overlay_system.interaction);
 		let result = interaction.open(self, Box::new(ctl));
 		self.state.overlay_system.interaction = interaction;
 		self.flush_effects();
@@ -76,9 +70,7 @@ impl Editor {
 		let rename_supported = false;
 
 		if !rename_supported {
-			self.notify(xeno_registry::notifications::keys::warn(
-				"Rename not supported for this buffer",
-			));
+			self.notify(xeno_registry::notifications::keys::warn("Rename not supported for this buffer"));
 			self.flush_effects();
 			return false;
 		}
@@ -87,8 +79,7 @@ impl Editor {
 		let word = word_at_cursor(buffer);
 
 		let ctl = controllers::RenameOverlay::new(buffer_id, cursor, word);
-		let mut interaction: crate::overlay::OverlayManager =
-			std::mem::take(&mut self.state.overlay_system.interaction);
+		let mut interaction: crate::overlay::OverlayManager = std::mem::take(&mut self.state.overlay_system.interaction);
 		let result = interaction.open(self, Box::new(ctl));
 		self.state.overlay_system.interaction = interaction;
 		self.flush_effects();
@@ -121,20 +112,10 @@ impl Editor {
 				gutter
 			};
 
-			let gutter_layout = crate::render::GutterLayout::from_selector(
-				effective_gutter,
-				total_lines,
-				area.width,
-			);
+			let gutter_layout = crate::render::GutterLayout::from_selector(effective_gutter, total_lines, area.width);
 			let text_width = area.width.saturating_sub(gutter_layout.total_width) as usize;
 
-			crate::render::ensure_buffer_cursor_visible(
-				buffer,
-				area,
-				text_width,
-				tab_width,
-				scroll_margin,
-			);
+			crate::render::ensure_buffer_cursor_visible(buffer, area, text_width, tab_width, scroll_margin);
 			self.state.effects.request_redraw();
 		}
 		self.flush_effects();

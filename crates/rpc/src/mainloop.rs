@@ -24,9 +24,7 @@ type PendingMessage<M> = (M, Vec<M>);
 /// Service trait for RPC handlers.
 ///
 /// This combines `tower::Service` for requests with handlers for notifications and events.
-pub trait RpcService<P: Protocol>:
-	Service<P::Request, Response = P::ReqResult, Error = P::ReqError>
-{
+pub trait RpcService<P: Protocol>: Service<P::Request, Response = P::ReqResult, Error = P::ReqError> {
 	/// Error type for notification/event handling.
 	type LoopError: From<std::io::Error> + From<P::LoopError> + Send;
 
@@ -34,10 +32,7 @@ pub trait RpcService<P: Protocol>:
 	///
 	/// Notifications are delivered in order and synchronously.
 	/// The return value controls whether to continue or break the main loop.
-	fn notify(
-		&mut self,
-		notif: P::Notification,
-	) -> ControlFlow<std::result::Result<(), Self::LoopError>>;
+	fn notify(&mut self, notif: P::Notification) -> ControlFlow<std::result::Result<(), Self::LoopError>>;
 
 	/// Handle an arbitrary loopback event.
 	///
@@ -69,17 +64,11 @@ pub struct MainLoop<S, P: Protocol> {
 }
 
 type MainLoopOutput<S, P> = (
-	ControlFlow<
-		std::result::Result<(), <S as RpcService<P>>::LoopError>,
-		Option<PendingMessage<<P as Protocol>::Message>>,
-	>,
+	ControlFlow<std::result::Result<(), <S as RpcService<P>>::LoopError>, Option<PendingMessage<<P as Protocol>::Message>>>,
 	bool,
 );
 
-type MainLoopControl<S, P> = ControlFlow<
-	std::result::Result<(), <S as RpcService<P>>::LoopError>,
-	Option<PendingMessage<<P as Protocol>::Message>>,
->;
+type MainLoopControl<S, P> = ControlFlow<std::result::Result<(), <S as RpcService<P>>::LoopError>, Option<PendingMessage<<P as Protocol>::Message>>>;
 
 type MainLoopNew<S, P> = (
 	MainLoop<S, P>,
@@ -95,11 +84,7 @@ where
 	/// Create a new main loop with the given service builder and protocol.
 	///
 	/// Returns the main loop and a peer socket for communication.
-	pub fn new(
-		builder: impl FnOnce(PeerSocket<P::Message, P::Request, P::Response>) -> S,
-		protocol: P,
-		id_gen: P::IdGen,
-	) -> MainLoopNew<S, P> {
+	pub fn new(builder: impl FnOnce(PeerSocket<P::Message, P::Request, P::Response>) -> S, protocol: P, id_gen: P::IdGen) -> MainLoopNew<S, P> {
 		let (tx, rx) = mpsc::unbounded_channel();
 		let socket = PeerSocket { tx };
 		let this = Self {
@@ -133,13 +118,10 @@ where
 	) -> std::result::Result<(), S::LoopError> {
 		let mut task_budget_remaining = TASK_DRAIN_MAX;
 		let mut task_budget_completed = 0u64;
-		let mut task_budget_deadline =
-			tokio::time::Instant::now() + tokio::time::Duration::from_millis(TASK_DRAIN_WINDOW_MS);
+		let mut task_budget_deadline = tokio::time::Instant::now() + tokio::time::Duration::from_millis(TASK_DRAIN_WINDOW_MS);
 
 		let ret = loop {
-			let drain_active = !self.tasks.is_empty()
-				&& task_budget_remaining > 0
-				&& tokio::time::Instant::now() < task_budget_deadline;
+			let drain_active = !self.tasks.is_empty() && task_budget_remaining > 0 && tokio::time::Instant::now() < task_budget_deadline;
 
 			let (ctl, from_task) = if drain_active {
 				tokio::select! {
@@ -212,8 +194,7 @@ where
 				}
 				task_budget_remaining = TASK_DRAIN_MAX;
 				task_budget_completed = 0;
-				task_budget_deadline = tokio::time::Instant::now()
-					+ tokio::time::Duration::from_millis(TASK_DRAIN_WINDOW_MS);
+				task_budget_deadline = tokio::time::Instant::now() + tokio::time::Duration::from_millis(TASK_DRAIN_WINDOW_MS);
 			}
 
 			for payload in std::iter::once(&main_msg).chain(extras.iter()) {
@@ -228,19 +209,14 @@ where
 
 		if let Err(e) = output.shutdown().await {
 			match e.kind() {
-				std::io::ErrorKind::BrokenPipe
-				| std::io::ErrorKind::ConnectionReset
-				| std::io::ErrorKind::UnexpectedEof => {}
+				std::io::ErrorKind::BrokenPipe | std::io::ErrorKind::ConnectionReset | std::io::ErrorKind::UnexpectedEof => {}
 				_ => return Err(S::LoopError::from(e)),
 			}
 		}
 		ret
 	}
 
-	fn handle_task_response(
-		&self,
-		resp: Option<Result<P::Response, tokio::task::JoinError>>,
-	) -> MainLoopOutput<S, P> {
+	fn handle_task_response(&self, resp: Option<Result<P::Response, tokio::task::JoinError>>) -> MainLoopOutput<S, P> {
 		match resp {
 			Some(Ok(resp)) => {
 				let extras = P::post_response_messages(&resp);
@@ -294,10 +270,7 @@ where
 	}
 
 	/// Routes an internal event (outgoing message or user event).
-	fn dispatch_event(
-		&mut self,
-		event: MainLoopEvent<P::Message, P::Request, P::Response>,
-	) -> MainLoopControl<S, P> {
+	fn dispatch_event(&mut self, event: MainLoopEvent<P::Message, P::Request, P::Response>) -> MainLoopControl<S, P> {
 		match event {
 			MainLoopEvent::OutgoingRequest(mut req, resp_tx) => {
 				let id = if P::should_assign_id(&req) {

@@ -96,11 +96,7 @@ pub struct Collision {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CollisionKind {
 	/// Multiple defs had the same canonical id string; losers dropped before table build.
-	DuplicateId {
-		winner: Party,
-		loser: Party,
-		policy: DuplicatePolicy,
-	},
+	DuplicateId { winner: Party, loser: Party, policy: DuplicatePolicy },
 
 	/// A binding attempt for `key` conflicted with an existing binding.
 	///

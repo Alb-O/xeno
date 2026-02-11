@@ -86,9 +86,7 @@ use xeno_input::input::InputHandler;
 pub use xeno_primitives::ViewId;
 use xeno_primitives::range::CharIdx;
 use xeno_primitives::{Mode, Selection};
-use xeno_registry::options::{
-	FromOptionValue, OptionKey, OptionStore, OptionValue, TypedOptionKey,
-};
+use xeno_registry::options::{FromOptionValue, OptionKey, OptionStore, OptionValue, TypedOptionKey};
 use xeno_runtime_language::LanguageLoader;
 
 pub use crate::core::document::{Document, DocumentId, DocumentMetaOutcome};
@@ -179,10 +177,7 @@ impl LockGuard {
 		ACTIVE_DOC_LOCKS.with(|locks| {
 			let mut locks = locks.borrow_mut();
 			if locks.contains(&doc_id) {
-				panic!(
-					"Deadlock detected: re-entrant lock on DocumentId({})",
-					doc_id.0
-				);
+				panic!("Deadlock detected: re-entrant lock on DocumentId({})", doc_id.0);
 			}
 			locks.insert(doc_id);
 		});
@@ -309,11 +304,7 @@ impl Buffer {
 		self.with_doc(|doc| doc.path().cloned())
 	}
 
-	pub fn set_path(
-		&mut self,
-		path: Option<PathBuf>,
-		loader: Option<&LanguageLoader>,
-	) -> DocumentMetaOutcome {
+	pub fn set_path(&mut self, path: Option<PathBuf>, loader: Option<&LanguageLoader>) -> DocumentMetaOutcome {
 		self.with_doc_mut(|doc| doc.set_path(path, loader))
 	}
 
@@ -347,11 +338,7 @@ impl Buffer {
 	/// `Some(false)` is treated identically to `None` (it cannot bypass
 	/// document-level readonly).
 	pub fn set_readonly_override(&mut self, readonly: Option<bool>) {
-		self.readonly_override = if readonly == Some(true) {
-			Some(true)
-		} else {
-			None
-		};
+		self.readonly_override = if readonly == Some(true) { Some(true) } else { None };
 	}
 
 	/// Replaces the document content wholesale, clearing history.
@@ -450,12 +437,7 @@ impl Buffer {
 				len,
 				self.selection
 			);
-			debug_assert!(
-				self.cursor <= len,
-				"cursor out of bounds: cursor={}, len={}",
-				self.cursor,
-				len
-			);
+			debug_assert!(self.cursor <= len, "cursor out of bounds: cursor={}, len={}", self.cursor, len);
 		});
 	}
 
@@ -475,15 +457,9 @@ impl Buffer {
 	}
 
 	/// Resolves a typed option for this buffer.
-	pub fn option<T: FromOptionValue>(
-		&self,
-		key: TypedOptionKey<T>,
-		editor: &crate::impls::Editor,
-	) -> T {
+	pub fn option<T: FromOptionValue>(&self, key: TypedOptionKey<T>, editor: &crate::impls::Editor) -> T {
 		let untyped = key.untyped();
-		let opt = xeno_registry::db::OPTIONS
-			.get_key(&untyped)
-			.expect("typed option key missing from registry");
+		let opt = xeno_registry::db::OPTIONS.get_key(&untyped).expect("typed option key missing from registry");
 
 		T::from_option(&self.option_raw(untyped, editor))
 			.or_else(|| T::from_option(&opt.default.to_value()))

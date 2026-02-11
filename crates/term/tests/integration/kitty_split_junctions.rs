@@ -2,10 +2,7 @@
 
 use std::time::Duration;
 
-use kitty_test_harness::{
-	kitty_send_keys, pause_briefly, require_kitty, run_with_timeout, wait_for_screen_text_clean,
-	with_kitty_capture,
-};
+use kitty_test_harness::{kitty_send_keys, pause_briefly, require_kitty, run_with_timeout, wait_for_screen_text_clean, with_kitty_capture};
 use termwiz::input::{KeyCode, Modifiers};
 
 use crate::helpers::{insert_text, reset_test_file, workspace_dir, xeno_cmd_debug_theme};
@@ -66,10 +63,9 @@ fn split_left_pane_with_right_horizontal() {
 			pause_briefly();
 
 			// Wait for all content
-			let (_raw, clean) =
-				wait_for_screen_text_clean(kitty, Duration::from_secs(5), |_raw, clean| {
-					clean.contains("AAAA") && clean.contains("BBBB") && clean.contains("CCCC")
-				});
+			let (_raw, clean) = wait_for_screen_text_clean(kitty, Duration::from_secs(5), |_raw, clean| {
+				clean.contains("AAAA") && clean.contains("BBBB") && clean.contains("CCCC")
+			});
 
 			// Check for junction characters
 			let has_left_t = clean.contains('├');
@@ -78,10 +74,7 @@ fn split_left_pane_with_right_horizontal() {
 
 			assert!(has_h_line, "Should have horizontal separator ─\n{clean}");
 			assert!(has_v_line, "Should have vertical separator │\n{clean}");
-			assert!(
-				has_left_t,
-				"Should have ├ junction (opens right) where horizontal meets vertical\n{clean}"
-			);
+			assert!(has_left_t, "Should have ├ junction (opens right) where horizontal meets vertical\n{clean}");
 		});
 	});
 }
@@ -129,10 +122,9 @@ fn split_vertical_starts_at_horizontal() {
 			pause_briefly();
 
 			// Wait for all content
-			let (_raw, clean) =
-				wait_for_screen_text_clean(kitty, Duration::from_secs(5), |_raw, clean| {
-					clean.contains("AAA") && clean.contains("BBB") && clean.contains("CCC")
-				});
+			let (_raw, clean) = wait_for_screen_text_clean(kitty, Duration::from_secs(5), |_raw, clean| {
+				clean.contains("AAA") && clean.contains("BBB") && clean.contains("CCC")
+			});
 
 			// Check for junction characters - should have ┬ where vertical starts below horizontal
 			let has_down_t = clean.contains('┬');
@@ -141,10 +133,7 @@ fn split_vertical_starts_at_horizontal() {
 
 			assert!(has_h_line, "Should have horizontal separator ─\n{clean}");
 			assert!(has_v_line, "Should have vertical separator │\n{clean}");
-			assert!(
-				has_down_t,
-				"Should have ┬ junction where vertical starts below horizontal\n{clean}"
-			);
+			assert!(has_down_t, "Should have ┬ junction where vertical starts below horizontal\n{clean}");
 		});
 	});
 }
@@ -187,10 +176,7 @@ fn split_t_junction_down() {
 			pause_briefly();
 
 			// Wait for layout to stabilize
-			let (_raw, clean) =
-				wait_for_screen_text_clean(kitty, Duration::from_secs(5), |_raw, clean| {
-					clean.contains('│') && clean.contains('─')
-				});
+			let (_raw, clean) = wait_for_screen_text_clean(kitty, Duration::from_secs(5), |_raw, clean| clean.contains('│') && clean.contains('─'));
 
 			// Should have ┬ junction (down T) where vertical meets horizontal from below
 			let has_down_t = clean.contains('┬');
@@ -199,10 +185,7 @@ fn split_t_junction_down() {
 
 			assert!(has_h_line, "Should have horizontal separator ─\n{clean}");
 			assert!(has_v_line, "Should have vertical separator │\n{clean}");
-			assert!(
-				has_down_t,
-				"Should have down-T junction ┬ where vertical meets horizontal from below\n{clean}"
-			);
+			assert!(has_down_t, "Should have down-T junction ┬ where vertical meets horizontal from below\n{clean}");
 		});
 	});
 }

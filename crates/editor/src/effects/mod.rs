@@ -77,10 +77,7 @@ impl crate::impls::Editor {
 	/// Validates an [`OverlayRequest`] for correctness without applying it.
 	///
 	/// Use this for synchronous error reporting at the capability boundary.
-	pub(crate) fn validate_overlay_request(
-		&self,
-		req: &OverlayRequest,
-	) -> Result<(), CommandError> {
+	pub(crate) fn validate_overlay_request(&self, req: &OverlayRequest) -> Result<(), CommandError> {
 		use xeno_registry::actions::editor_ctx::OverlayRequest::*;
 
 		match req {
@@ -98,10 +95,7 @@ impl crate::impls::Editor {
 	/// Commit closes are deferred via [`crate::types::FrameState::pending_overlay_commit`]
 	/// because [`crate::overlay::OverlayController::on_commit`] is async and cannot run inside
 	/// the synchronous effect flush loop.
-	pub(crate) fn handle_overlay_request(
-		&mut self,
-		req: OverlayRequest,
-	) -> Result<(), CommandError> {
+	pub(crate) fn handle_overlay_request(&mut self, req: OverlayRequest) -> Result<(), CommandError> {
 		use xeno_registry::actions::editor_ctx::OverlayCloseReason;
 		use xeno_registry::actions::editor_ctx::OverlayRequest::*;
 
@@ -135,8 +129,7 @@ impl crate::impls::Editor {
 							OverlayCloseReason::Forced => CloseReason::Forced,
 							OverlayCloseReason::Commit => unreachable!(),
 						};
-						let mut interaction =
-							std::mem::take(&mut self.state.overlay_system.interaction);
+						let mut interaction = std::mem::take(&mut self.state.overlay_system.interaction);
 						interaction.close(self, reason);
 						self.state.overlay_system.interaction = interaction;
 					}

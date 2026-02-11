@@ -66,11 +66,7 @@ pub fn match_haystack_typos(needle: &[u8], haystack: &[u8], max_typos: u16) -> b
 }
 
 #[inline(always)]
-pub fn match_haystack_typos_insensitive(
-	needle: &[(u8, u8)],
-	haystack: &[u8],
-	max_typos: u16,
-) -> bool {
+pub fn match_haystack_typos_insensitive(needle: &[(u8, u8)], haystack: &[u8], max_typos: u16) -> bool {
 	let mut haystack_idx = 0;
 	let mut typos = 0;
 	for needle in needle.iter() {

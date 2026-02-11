@@ -24,19 +24,11 @@ pub struct LspHandle {
 
 #[cfg(feature = "lsp")]
 impl LspHandle {
-	pub async fn close_document(
-		&self,
-		path: std::path::PathBuf,
-		language: String,
-	) -> xeno_lsp::Result<()> {
+	pub async fn close_document(&self, path: std::path::PathBuf, language: String) -> xeno_lsp::Result<()> {
 		self.sync.close_document(&path, &language).await
 	}
 
-	pub async fn on_buffer_close(
-		&self,
-		path: std::path::PathBuf,
-		language: String,
-	) -> xeno_lsp::Result<()> {
+	pub async fn on_buffer_close(&self, path: std::path::PathBuf, language: String) -> xeno_lsp::Result<()> {
 		self.close_document(path, language).await
 	}
 }
@@ -104,15 +96,9 @@ impl LspSystem {
 		self.inner.manager.diagnostics_version()
 	}
 
-	pub fn configure_server(
-		&self,
-		language: impl Into<String>,
-		config: crate::lsp::api::LanguageServerConfig,
-	) {
+	pub fn configure_server(&self, language: impl Into<String>, config: crate::lsp::api::LanguageServerConfig) {
 		let internal_config = config.into_xeno_lsp();
-		self.inner
-			.manager
-			.configure_server(language, internal_config);
+		self.inner.manager.configure_server(language, internal_config);
 	}
 
 	pub fn remove_server(&self, language: &str) {
@@ -135,15 +121,8 @@ impl LspSystem {
 		self.inner.manager.documents()
 	}
 
-	pub(crate) fn get_raw_diagnostics(
-		&self,
-		buffer: &Buffer,
-	) -> Vec<xeno_lsp::lsp_types::Diagnostic> {
-		buffer
-			.path()
-			.as_ref()
-			.map(|p| self.sync().get_diagnostics(p))
-			.unwrap_or_default()
+	pub(crate) fn get_raw_diagnostics(&self, buffer: &Buffer) -> Vec<xeno_lsp::lsp_types::Diagnostic> {
+		buffer.path().as_ref().map(|p| self.sync().get_diagnostics(p)).unwrap_or_default()
 	}
 
 	pub fn get_diagnostics(&self, buffer: &Buffer) -> Vec<crate::lsp::api::Diagnostic> {
@@ -178,19 +157,11 @@ impl LspSystem {
 	}
 
 	pub fn error_count(&self, buffer: &Buffer) -> usize {
-		buffer
-			.path()
-			.as_ref()
-			.map(|p| self.sync().error_count(p))
-			.unwrap_or(0)
+		buffer.path().as_ref().map(|p| self.sync().error_count(p)).unwrap_or(0)
 	}
 
 	pub fn warning_count(&self, buffer: &Buffer) -> usize {
-		buffer
-			.path()
-			.as_ref()
-			.map(|p| self.sync().warning_count(p))
-			.unwrap_or(0)
+		buffer.path().as_ref().map(|p| self.sync().warning_count(p)).unwrap_or(0)
 	}
 
 	pub fn total_error_count(&self) -> usize {
@@ -201,13 +172,7 @@ impl LspSystem {
 		self.inner.manager.sync().total_warning_count()
 	}
 
-	pub fn on_local_edit(
-		&mut self,
-		buffer: &Buffer,
-		before: Option<Rope>,
-		tx: &Transaction,
-		result: &CommitResult,
-	) {
+	pub fn on_local_edit(&mut self, buffer: &Buffer, before: Option<Rope>, tx: &Transaction, result: &CommitResult) {
 		if !result.applied {
 			return;
 		}
@@ -229,13 +194,8 @@ impl LspSystem {
 					return;
 				}
 				let lsp_bytes: usize = changes.iter().map(|c| c.new_text.len()).sum();
-				self.sync_manager_mut().on_doc_edit(
-					doc_id,
-					result.version_before,
-					result.version_after,
-					changes,
-					lsp_bytes,
-				);
+				self.sync_manager_mut()
+					.on_doc_edit(doc_id, result.version_before, result.version_after, changes, lsp_bytes);
 			}
 			xeno_lsp::IncrementalResult::FallbackToFull => {
 				self.sync_manager_mut().escalate_full(doc_id);
@@ -259,23 +219,17 @@ impl LspSystem {
 		self.inner.completion.generation()
 	}
 
-	pub(crate) fn trigger_completion(
-		&mut self,
-		request: xeno_lsp::CompletionRequest<crate::buffer::ViewId>,
-	) {
+	pub(crate) fn trigger_completion(&mut self, request: xeno_lsp::CompletionRequest<crate::buffer::ViewId>) {
 		use crate::lsp::LspUiEvent;
 		let ui_tx = self.inner.ui_tx.clone();
-		self.inner.completion.trigger(
-			request,
-			move |generation, buffer_id, replace_start, response| {
-				let _ = ui_tx.send(LspUiEvent::CompletionResult {
-					generation,
-					buffer_id,
-					replace_start,
-					response,
-				});
-			},
-		);
+		self.inner.completion.trigger(request, move |generation, buffer_id, replace_start, response| {
+			let _ = ui_tx.send(LspUiEvent::CompletionResult {
+				generation,
+				buffer_id,
+				replace_start,
+				response,
+			});
+		});
 	}
 
 	pub(crate) fn cancel_completion(&mut self) {
@@ -291,16 +245,11 @@ impl LspSystem {
 		self.inner.signature_gen
 	}
 
-	pub(crate) fn set_signature_help_cancel(
-		&mut self,
-		cancel: tokio_util::sync::CancellationToken,
-	) {
+	pub(crate) fn set_signature_help_cancel(&mut self, cancel: tokio_util::sync::CancellationToken) {
 		self.inner.signature_cancel = Some(cancel);
 	}
 
-	pub(crate) fn take_signature_help_cancel(
-		&mut self,
-	) -> Option<tokio_util::sync::CancellationToken> {
+	pub(crate) fn take_signature_help_cancel(&mut self) -> Option<tokio_util::sync::CancellationToken> {
 		self.inner.signature_cancel.take()
 	}
 
@@ -313,7 +262,6 @@ impl LspSystem {
 	}
 
 	pub(crate) fn canonicalize_path(&self, path: &std::path::Path) -> std::path::PathBuf {
-		path.canonicalize()
-			.unwrap_or_else(|_| std::env::current_dir().unwrap_or_default().join(path))
+		path.canonicalize().unwrap_or_else(|_| std::env::current_dir().unwrap_or_default().join(path))
 	}
 }

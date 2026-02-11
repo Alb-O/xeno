@@ -97,19 +97,14 @@ mod types;
 use engine::RealSyntaxEngine;
 pub use engine::SyntaxEngine;
 pub use metrics::SyntaxMetrics;
-pub use policy::{
-	RetentionPolicy, SyntaxHotness, SyntaxManagerCfg, SyntaxTier, TierCfg, TieredSyntaxPolicy,
-};
+pub use policy::{RetentionPolicy, SyntaxHotness, SyntaxManagerCfg, SyntaxTier, TierCfg, TieredSyntaxPolicy};
 use scheduling::CompletedSyntaxTask;
 pub(crate) use scheduling::DocSched;
 pub use tasks::TaskClass;
 pub(crate) use tasks::TaskCollector;
 use tasks::{TaskKind, TaskSpec};
 pub(crate) use types::PendingIncrementalEdits;
-pub use types::{
-	DocEpoch, EditSource, EnsureSyntaxContext, HighlightProjectionCtx, OptKey, SyntaxPollOutcome,
-	SyntaxPollResult, SyntaxSlot, TaskId,
-};
+pub use types::{DocEpoch, EditSource, EnsureSyntaxContext, HighlightProjectionCtx, OptKey, SyntaxPollOutcome, SyntaxPollResult, SyntaxSlot, TaskId};
 #[cfg(test)]
 pub(crate) use xeno_runtime_language::LanguageId;
 

@@ -1,7 +1,5 @@
 use super::spec::GuttersSpec;
-use crate::core::{
-	LinkedDef, LinkedMetaOwned, LinkedPayload, RegistryMeta, RegistrySource, Symbol,
-};
+use crate::core::{LinkedDef, LinkedMetaOwned, LinkedPayload, RegistryMeta, RegistrySource, Symbol};
 use crate::gutter::handler::{GutterHandlerStatic, GutterRenderHandler};
 use crate::gutter::{GutterEntry, GutterWidth, GutterWidthContext};
 
@@ -15,12 +13,7 @@ pub struct GutterPayload {
 }
 
 impl LinkedPayload<GutterEntry> for GutterPayload {
-	fn build_entry(
-		&self,
-		_ctx: &mut dyn crate::core::index::BuildCtx,
-		meta: RegistryMeta,
-		_short_desc: Symbol,
-	) -> GutterEntry {
+	fn build_entry(&self, _ctx: &mut dyn crate::core::index::BuildCtx, meta: RegistryMeta, _short_desc: Symbol) -> GutterEntry {
 		GutterEntry {
 			meta,
 			default_enabled: self.default_enabled,
@@ -44,10 +37,7 @@ fn parse_width(raw: &str, name: &str) -> GutterWidth {
 	}
 }
 
-pub fn link_gutters(
-	spec: &GuttersSpec,
-	handlers: impl Iterator<Item = &'static GutterHandlerStatic>,
-) -> Vec<LinkedGutterDef> {
+pub fn link_gutters(spec: &GuttersSpec, handlers: impl Iterator<Item = &'static GutterHandlerStatic>) -> Vec<LinkedGutterDef> {
 	crate::defs::link::link_by_name(
 		&spec.gutters,
 		handlers,

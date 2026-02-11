@@ -6,17 +6,13 @@
 use std::time::Duration;
 
 use kitty_test_harness::{
-	AnsiColor, cleanup_test_log, create_test_log, extract_row_colors_parsed,
-	find_separator_rows_at_col, find_vertical_separator_col, kitty_send_keys, pause_briefly,
-	read_test_log, require_kitty, run_with_timeout, send_mouse_move, wait_for_log_line,
-	wait_for_screen_text_clean, with_kitty_capture,
+	AnsiColor, cleanup_test_log, create_test_log, extract_row_colors_parsed, find_separator_rows_at_col, find_vertical_separator_col, kitty_send_keys,
+	pause_briefly, read_test_log, require_kitty, run_with_timeout, send_mouse_move, wait_for_log_line, wait_for_screen_text_clean, with_kitty_capture,
 };
 use serde::Deserialize;
 use termwiz::input::{KeyCode, Modifiers};
 
-use crate::helpers::{
-	insert_text, reset_test_file, workspace_dir, xeno_cmd_debug_theme, xeno_cmd_debug_with_log,
-};
+use crate::helpers::{insert_text, reset_test_file, workspace_dir, xeno_cmd_debug_theme, xeno_cmd_debug_with_log};
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(20);
 
@@ -28,19 +24,12 @@ enum TestEvent {
 	#[serde(rename = "separator_animation_start")]
 	AnimationStart { direction: String },
 	#[serde(rename = "separator_animation_frame")]
-	AnimationFrame {
-		intensity: f32,
-		fg: (u8, u8, u8),
-		bg: (u8, u8, u8),
-	},
+	AnimationFrame { intensity: f32, fg: (u8, u8, u8), bg: (u8, u8, u8) },
 }
 
 /// Parse test events from log lines.
 fn parse_test_events(lines: &[String]) -> Vec<TestEvent> {
-	lines
-		.iter()
-		.filter_map(|line| serde_json::from_str(line).ok())
-		.collect()
+	lines.iter().filter_map(|line| serde_json::from_str(line).ok()).collect()
 }
 
 /// Creates a horizontal split (Ctrl+w s h) - top/bottom panes with horizontal separator.
@@ -85,12 +74,7 @@ fn find_animation_start(events: &[TestEvent], direction: &str) -> Option<usize> 
 }
 
 /// Find a lerped color in animation frame events after the given index.
-fn find_lerped_frame_after(
-	events: &[TestEvent],
-	start: usize,
-	from: (u8, u8, u8),
-	to: (u8, u8, u8),
-) -> Option<(u8, u8, u8)> {
+fn find_lerped_frame_after(events: &[TestEvent], start: usize, from: (u8, u8, u8), to: (u8, u8, u8)) -> Option<(u8, u8, u8)> {
 	events[start..]
 		.iter()
 		.filter_map(|e| match e {
@@ -120,11 +104,7 @@ fn find_separator_fg_color(colors: &[AnsiColor]) -> Option<(u8, u8, u8)> {
 	}
 
 	// Fallback to last foreground color
-	colors
-		.iter()
-		.filter(|c| c.is_foreground && c.rgb.is_some())
-		.filter_map(|c| c.rgb)
-		.next_back()
+	colors.iter().filter(|c| c.is_foreground && c.rgb.is_some()).filter_map(|c| c.rgb).next_back()
 }
 
 /// Tests that hovering over a separator triggers an animated fade-in.
@@ -153,10 +133,9 @@ fn separator_hover_shows_lerped_animation() {
 			insert_text(kitty, "RIGHT PANE");
 			pause_briefly();
 
-			let (raw_before, clean) =
-				wait_for_screen_text_clean(kitty, Duration::from_secs(5), |_raw, clean| {
-					clean.contains("LEFT PANE") && clean.contains("RIGHT PANE")
-				});
+			let (raw_before, clean) = wait_for_screen_text_clean(kitty, Duration::from_secs(5), |_raw, clean| {
+				clean.contains("LEFT PANE") && clean.contains("RIGHT PANE")
+			});
 
 			let sep_col = find_vertical_separator_col(&clean);
 			assert!(sep_col.is_some(), "Should have a vertical separator");
@@ -176,16 +155,12 @@ fn separator_hover_shows_lerped_animation() {
 			send_mouse_move(kitty, sep_col, sep_row);
 
 			// Wait for animation start event in log
-			wait_for_log_line(&log_path_clone, Duration::from_secs(2), |line| {
-				line.contains("fade_in")
-			})
-			.expect("Expected fade-in animation to start");
+			wait_for_log_line(&log_path_clone, Duration::from_secs(2), |line| line.contains("fade_in")).expect("Expected fade-in animation to start");
 
 			// Wait for animation to complete
 			std::thread::sleep(Duration::from_millis(200));
 
-			let (raw_after, _) =
-				wait_for_screen_text_clean(kitty, Duration::from_millis(100), |_, _| true);
+			let (raw_after, _) = wait_for_screen_text_clean(kitty, Duration::from_millis(100), |_, _| true);
 			let colors_after = extract_row_colors_parsed(&raw_after, sep_row as usize);
 			let hover_color = find_separator_fg_color(&colors_after);
 
@@ -196,11 +171,9 @@ fn separator_hover_shows_lerped_animation() {
 			let log_lines = read_test_log(&log_path_clone);
 			let events = parse_test_events(&log_lines);
 
-			let anim_start = find_animation_start(&events, "fade_in")
-				.expect("Expected fade-in animation start event");
+			let anim_start = find_animation_start(&events, "fade_in").expect("Expected fade-in animation start event");
 			let during_color =
-				find_lerped_frame_after(&events, anim_start, normal_color, hover_color)
-					.expect("Should have lerped separator color in animation frames");
+				find_lerped_frame_after(&events, anim_start, normal_color, hover_color).expect("Should have lerped separator color in animation frames");
 
 			assert!(
 				is_lerped_color(during_color, normal_color, hover_color),
@@ -217,14 +190,10 @@ fn separator_hover_shows_lerped_animation() {
 			send_mouse_move(kitty, 10, sep_row);
 			pause_briefly();
 
-			let (_, clean_after) =
-				wait_for_screen_text_clean(kitty, Duration::from_secs(2), |_, clean| {
-					clean.contains("LEFT PANE") && clean.contains("RIGHT PANE")
-				});
-			assert!(
-				find_vertical_separator_col(&clean_after).is_some(),
-				"Separator should still exist"
-			);
+			let (_, clean_after) = wait_for_screen_text_clean(kitty, Duration::from_secs(2), |_, clean| {
+				clean.contains("LEFT PANE") && clean.contains("RIGHT PANE")
+			});
+			assert!(find_vertical_separator_col(&clean_after).is_some(), "Separator should still exist");
 		});
 	});
 	cleanup_test_log(&log_path);
@@ -256,10 +225,7 @@ fn separator_fadeout_shows_lerped_animation() {
 			insert_text(kitty, "RIGHT");
 			pause_briefly();
 
-			let (raw_normal, clean) =
-				wait_for_screen_text_clean(kitty, Duration::from_secs(5), |_, clean| {
-					clean.contains("LEFT") && clean.contains("RIGHT")
-				});
+			let (raw_normal, clean) = wait_for_screen_text_clean(kitty, Duration::from_secs(5), |_, clean| clean.contains("LEFT") && clean.contains("RIGHT"));
 
 			let sep_col = find_vertical_separator_col(&clean);
 			assert!(sep_col.is_some(), "Should have separator");
@@ -275,8 +241,7 @@ fn separator_fadeout_shows_lerped_animation() {
 			send_mouse_move(kitty, sep_col, sep_row);
 			std::thread::sleep(Duration::from_millis(200));
 
-			let (raw_hovered, _) =
-				wait_for_screen_text_clean(kitty, Duration::from_millis(100), |_, _| true);
+			let (raw_hovered, _) = wait_for_screen_text_clean(kitty, Duration::from_millis(100), |_, _| true);
 			let colors_hovered = extract_row_colors_parsed(&raw_hovered, sep_row as usize);
 			let hover_color = find_separator_fg_color(&colors_hovered);
 
@@ -284,10 +249,7 @@ fn separator_fadeout_shows_lerped_animation() {
 			send_mouse_move(kitty, 10, sep_row);
 
 			// Wait for fade-out animation start event
-			wait_for_log_line(&log_path_clone, Duration::from_secs(2), |line| {
-				line.contains("fade_out")
-			})
-			.expect("Expected fade-out animation to start");
+			wait_for_log_line(&log_path_clone, Duration::from_secs(2), |line| line.contains("fade_out")).expect("Expected fade-out animation to start");
 
 			std::thread::sleep(Duration::from_millis(200));
 
@@ -301,14 +263,11 @@ fn separator_fadeout_shows_lerped_animation() {
 			// Find the LAST fade_out start (there may be a fade_in before it)
 			let fadeout_start = events
 				.iter()
-				.rposition(
-					|e| matches!(e, TestEvent::AnimationStart { direction } if direction == "fade_out"),
-				)
+				.rposition(|e| matches!(e, TestEvent::AnimationStart { direction } if direction == "fade_out"))
 				.expect("Expected fade-out animation start event");
 
 			let fadeout_color =
-				find_lerped_frame_after(&events, fadeout_start, hover_color, normal_color)
-					.expect("Should have lerped separator color during fadeout");
+				find_lerped_frame_after(&events, fadeout_start, hover_color, normal_color).expect("Should have lerped separator color during fadeout");
 
 			assert!(
 				is_lerped_color(fadeout_color, hover_color, normal_color),
@@ -346,10 +305,7 @@ fn fast_mouse_suppresses_separator_hover() {
 			insert_text(kitty, "RIGHT");
 			pause_briefly();
 
-			let (raw_baseline, clean) =
-				wait_for_screen_text_clean(kitty, Duration::from_secs(5), |_, clean| {
-					clean.contains("LEFT") && clean.contains("RIGHT")
-				});
+			let (raw_baseline, clean) = wait_for_screen_text_clean(kitty, Duration::from_secs(5), |_, clean| clean.contains("LEFT") && clean.contains("RIGHT"));
 
 			let sep_col = find_vertical_separator_col(&clean);
 			assert!(sep_col.is_some(), "Should have separator");
@@ -368,27 +324,17 @@ fn fast_mouse_suppresses_separator_hover() {
 			}
 
 			// Capture immediately - hover should NOT be active
-			let (raw_after_fast, _) =
-				wait_for_screen_text_clean(kitty, Duration::from_millis(100), |_, _| true);
+			let (raw_after_fast, _) = wait_for_screen_text_clean(kitty, Duration::from_millis(100), |_, _| true);
 			let colors_after_fast = extract_row_colors_parsed(&raw_after_fast, sep_row as usize);
 			let after_fast_color = find_separator_fg_color(&colors_after_fast);
 
 			// Colors should remain at baseline (no hover triggered)
 			if let (Some(baseline), Some(after)) = (baseline_color, after_fast_color) {
-				assert_eq!(
-					baseline, after,
-					"Fast mouse movement should not trigger hover"
-				);
+				assert_eq!(baseline, after, "Fast mouse movement should not trigger hover");
 			}
 
-			let (_, clean_after) =
-				wait_for_screen_text_clean(kitty, Duration::from_secs(2), |_, clean| {
-					clean.contains("LEFT") && clean.contains("RIGHT")
-				});
-			assert!(
-				find_vertical_separator_col(&clean_after).is_some(),
-				"Separator should still be rendered"
-			);
+			let (_, clean_after) = wait_for_screen_text_clean(kitty, Duration::from_secs(2), |_, clean| clean.contains("LEFT") && clean.contains("RIGHT"));
+			assert!(find_vertical_separator_col(&clean_after).is_some(), "Separator should still be rendered");
 		});
 	});
 }

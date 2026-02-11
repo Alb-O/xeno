@@ -73,8 +73,7 @@ fn reset_style() {
 
 #[test]
 fn patch_style() {
-	let span = Span::styled("test content", Style::new().green().on_yellow())
-		.patch_style(Style::new().red().bold());
+	let span = Span::styled("test content", Style::new().green().on_yellow()).patch_style(Style::new().red().bold());
 	assert_eq!(span.style, Style::new().red().on_yellow().bold());
 }
 
@@ -133,12 +132,6 @@ fn issue_1160() {
 	span.render(buf.area, &mut buf);
 	assert_eq!(
 		buf.content(),
-		[
-			Cell::new("H"),
-			Cell::new("e"),
-			Cell::new("l"),
-			Cell::new("l"),
-			Cell::new("o\u{200E}"),
-		]
+		[Cell::new("H"), Cell::new("e"), Cell::new("l"), Cell::new("l"), Cell::new("o\u{200E}"),]
 	);
 }

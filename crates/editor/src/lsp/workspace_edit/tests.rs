@@ -4,9 +4,7 @@ use super::*;
 
 #[test]
 fn workspace_edit_plan_manual_construct() {
-	let plan = WorkspaceEditPlan {
-		per_buffer: Vec::new(),
-	};
+	let plan = WorkspaceEditPlan { per_buffer: Vec::new() };
 	assert!(plan.affected_buffer_ids().is_empty());
 }
 
@@ -32,14 +30,8 @@ fn convert_text_edit_utf16() {
 	let rope = xeno_primitives::Rope::from("a😀b\n");
 	let edit = TextEdit {
 		range: lsp_types::Range {
-			start: lsp_types::Position {
-				line: 0,
-				character: 1,
-			},
-			end: lsp_types::Position {
-				line: 0,
-				character: 3,
-			},
+			start: lsp_types::Position { line: 0, character: 1 },
+			end: lsp_types::Position { line: 0, character: 3 },
 		},
 		new_text: "X".into(),
 	};

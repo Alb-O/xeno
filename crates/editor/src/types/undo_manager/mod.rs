@@ -76,10 +76,7 @@ pub trait UndoHost {
 	fn collect_view_snapshots(&self, doc_id: DocumentId) -> HashMap<ViewId, ViewSnapshot>;
 
 	/// Captures current view snapshots for all buffers viewing the given documents.
-	fn capture_current_view_snapshots(
-		&self,
-		doc_ids: &[DocumentId],
-	) -> HashMap<ViewId, ViewSnapshot>;
+	fn capture_current_view_snapshots(&self, doc_ids: &[DocumentId]) -> HashMap<ViewId, ViewSnapshot>;
 
 	/// Restores view snapshots to their corresponding buffers.
 	fn restore_view_snapshots(&mut self, snapshots: &HashMap<ViewId, ViewSnapshot>);
@@ -166,12 +163,7 @@ impl UndoManager {
 	/// Prepares an edit operation by capturing pre-edit state.
 	///
 	/// Should be called before applying a transaction.
-	pub fn prepare_edit(
-		&self,
-		host: &impl UndoHost,
-		buffer_id: ViewId,
-		origin: EditOrigin,
-	) -> PreparedEdit {
+	pub fn prepare_edit(&self, host: &impl UndoHost, buffer_id: ViewId, origin: EditOrigin) -> PreparedEdit {
 		let doc_id = host.doc_id_for_buffer(buffer_id);
 		let pre_views = host.collect_view_snapshots(doc_id);
 
@@ -207,13 +199,7 @@ impl UndoManager {
 	}
 
 	/// Executes a closure as an undoable edit operation.
-	pub fn with_edit<H, F>(
-		&mut self,
-		host: &mut H,
-		buffer_id: ViewId,
-		origin: EditOrigin,
-		apply: F,
-	) -> bool
+	pub fn with_edit<H, F>(&mut self, host: &mut H, buffer_id: ViewId, origin: EditOrigin, apply: F) -> bool
 	where
 		H: UndoHost,
 		F: FnOnce(&mut H) -> CommitResult,

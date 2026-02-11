@@ -13,17 +13,10 @@ pub struct LanguageQueryPayload {
 #[derive(Clone)]
 pub enum ViewportRepairRulePayload {
 	/// e.g. /* ... */
-	BlockComment {
-		open: String,
-		close: String,
-		nestable: bool,
-	},
+	BlockComment { open: String, close: String, nestable: bool },
 
 	/// e.g. "..." or '...'
-	String {
-		quote: String,
-		escape: Option<String>,
-	},
+	String { quote: String, escape: Option<String> },
 
 	/// e.g. //
 	LineComment { start: String },
@@ -57,10 +50,7 @@ pub struct LanguagePayload {
 }
 
 impl LinkedPayload<LanguageEntry> for LanguagePayload {
-	fn collect_payload_strings<'b>(
-		&'b self,
-		collector: &mut crate::core::index::StringCollector<'_, 'b>,
-	) {
+	fn collect_payload_strings<'b>(&'b self, collector: &mut crate::core::index::StringCollector<'_, 'b>) {
 		collector.opt(self.scope.as_deref());
 		collector.opt(self.grammar_name.as_deref());
 		collector.opt(self.injection_regex.as_deref());
@@ -98,98 +88,43 @@ impl LinkedPayload<LanguageEntry> for LanguagePayload {
 		}
 	}
 
-	fn build_entry(
-		&self,
-		ctx: &mut dyn crate::core::index::BuildCtx,
-		meta: RegistryMeta,
-		_short_desc: Symbol,
-	) -> LanguageEntry {
+	fn build_entry(&self, ctx: &mut dyn crate::core::index::BuildCtx, meta: RegistryMeta, _short_desc: Symbol) -> LanguageEntry {
 		LanguageEntry {
 			meta,
 			scope: self.scope.as_ref().map(|s| ctx.intern(s)),
 			grammar_name: self.grammar_name.as_ref().map(|s| ctx.intern(s)),
 			injection_regex: self.injection_regex.as_ref().map(|s| ctx.intern(s)),
 			auto_format: self.auto_format,
-			extensions: self
-				.extensions
-				.iter()
-				.map(|s| ctx.intern(s))
-				.collect::<Vec<_>>()
-				.into(),
-			filenames: self
-				.filenames
-				.iter()
-				.map(|s| ctx.intern(s))
-				.collect::<Vec<_>>()
-				.into(),
-			globs: self
-				.globs
-				.iter()
-				.map(|s| ctx.intern(s))
-				.collect::<Vec<_>>()
-				.into(),
-			shebangs: self
-				.shebangs
-				.iter()
-				.map(|s| ctx.intern(s))
-				.collect::<Vec<_>>()
-				.into(),
-			comment_tokens: self
-				.comment_tokens
-				.iter()
-				.map(|s| ctx.intern(s))
-				.collect::<Vec<_>>()
-				.into(),
-			block_comment: self
-				.block_comment
-				.as_ref()
-				.map(|(s1, s2)| (ctx.intern(s1), ctx.intern(s2))),
-			lsp_servers: self
-				.lsp_servers
-				.iter()
-				.map(|s| ctx.intern(s))
-				.collect::<Vec<_>>()
-				.into(),
-			roots: self
-				.roots
-				.iter()
-				.map(|s| ctx.intern(s))
-				.collect::<Vec<_>>()
-				.into(),
-			viewport_repair: self.viewport_repair.as_ref().map(|r| {
-				super::types::ViewportRepairEntry {
-					enabled: r.enabled,
-					max_scan_bytes: r.max_scan_bytes,
-					prefer_real_closer: r.prefer_real_closer,
-					max_forward_search_bytes: r.max_forward_search_bytes,
-					rules: r
-						.rules
-						.iter()
-						.map(|rule| match rule {
-							ViewportRepairRulePayload::BlockComment {
-								open,
-								close,
-								nestable,
-							} => super::types::ViewportRepairRuleEntry::BlockComment {
-								open: ctx.intern(open),
-								close: ctx.intern(close),
-								nestable: *nestable,
-							},
-							ViewportRepairRulePayload::String { quote, escape } => {
-								super::types::ViewportRepairRuleEntry::String {
-									quote: ctx.intern(quote),
-									escape: escape.as_ref().map(|s| ctx.intern(s)),
-								}
-							}
-							ViewportRepairRulePayload::LineComment { start } => {
-								super::types::ViewportRepairRuleEntry::LineComment {
-									start: ctx.intern(start),
-								}
-							}
-						})
-						.collect::<Vec<_>>()
-						.into(),
-				}
+			extensions: self.extensions.iter().map(|s| ctx.intern(s)).collect::<Vec<_>>().into(),
+			filenames: self.filenames.iter().map(|s| ctx.intern(s)).collect::<Vec<_>>().into(),
+			globs: self.globs.iter().map(|s| ctx.intern(s)).collect::<Vec<_>>().into(),
+			shebangs: self.shebangs.iter().map(|s| ctx.intern(s)).collect::<Vec<_>>().into(),
+			comment_tokens: self.comment_tokens.iter().map(|s| ctx.intern(s)).collect::<Vec<_>>().into(),
+			block_comment: self.block_comment.as_ref().map(|(s1, s2)| (ctx.intern(s1), ctx.intern(s2))),
+			lsp_servers: self.lsp_servers.iter().map(|s| ctx.intern(s)).collect::<Vec<_>>().into(),
+			roots: self.roots.iter().map(|s| ctx.intern(s)).collect::<Vec<_>>().into(),
+			viewport_repair: self.viewport_repair.as_ref().map(|r| super::types::ViewportRepairEntry {
+				enabled: r.enabled,
+				max_scan_bytes: r.max_scan_bytes,
+				prefer_real_closer: r.prefer_real_closer,
+				max_forward_search_bytes: r.max_forward_search_bytes,
+				rules: r
+					.rules
+					.iter()
+					.map(|rule| match rule {
+						ViewportRepairRulePayload::BlockComment { open, close, nestable } => super::types::ViewportRepairRuleEntry::BlockComment {
+							open: ctx.intern(open),
+							close: ctx.intern(close),
+							nestable: *nestable,
+						},
+						ViewportRepairRulePayload::String { quote, escape } => super::types::ViewportRepairRuleEntry::String {
+							quote: ctx.intern(quote),
+							escape: escape.as_ref().map(|s| ctx.intern(s)),
+						},
+						ViewportRepairRulePayload::LineComment { start } => super::types::ViewportRepairRuleEntry::LineComment { start: ctx.intern(start) },
+					})
+					.collect::<Vec<_>>()
+					.into(),
 			}),
 			queries: self
 				.queries
@@ -231,26 +166,16 @@ pub fn link_languages(spec: &LanguagesSpec) -> Vec<LinkedLanguageDef> {
 						.rules
 						.iter()
 						.map(|rule| match rule {
-							super::spec::ViewportRepairRuleSpec::BlockComment {
-								open,
-								close,
-								nestable,
-							} => ViewportRepairRulePayload::BlockComment {
+							super::spec::ViewportRepairRuleSpec::BlockComment { open, close, nestable } => ViewportRepairRulePayload::BlockComment {
 								open: open.clone(),
 								close: close.clone(),
 								nestable: *nestable,
 							},
-							super::spec::ViewportRepairRuleSpec::String { quote, escape } => {
-								ViewportRepairRulePayload::String {
-									quote: quote.clone(),
-									escape: escape.clone(),
-								}
-							}
-							super::spec::ViewportRepairRuleSpec::LineComment { start } => {
-								ViewportRepairRulePayload::LineComment {
-									start: start.clone(),
-								}
-							}
+							super::spec::ViewportRepairRuleSpec::String { quote, escape } => ViewportRepairRulePayload::String {
+								quote: quote.clone(),
+								escape: escape.clone(),
+							},
+							super::spec::ViewportRepairRuleSpec::LineComment { start } => ViewportRepairRulePayload::LineComment { start: start.clone() },
 						})
 						.collect(),
 				}),

@@ -173,8 +173,7 @@ impl Editor {
 		self.handle_window_focus_change(old_focus, &effective);
 
 		let overlay_was_open = self.state.overlay_system.interaction.is_open();
-		let leaving_overlay = matches!(old_focus_for_blur, FocusTarget::Overlay { .. })
-			&& !matches!(effective, FocusTarget::Overlay { .. });
+		let leaving_overlay = matches!(old_focus_for_blur, FocusTarget::Overlay { .. }) && !matches!(effective, FocusTarget::Overlay { .. });
 		if overlay_was_open && leaving_overlay && !matches!(reason, FocusReason::Hover) {
 			let mut interaction = std::mem::take(&mut self.state.overlay_system.interaction);
 			interaction.close(self, crate::overlay::CloseReason::Blur);
@@ -241,9 +240,7 @@ impl Editor {
 		let base_id = self.state.windows.base_id();
 		let base_focused = self.base_window().focused_buffer;
 
-		if self.state.core.buffers.get_buffer(base_focused).is_some()
-			&& self.window_contains_view(base_id, base_focused)
-		{
+		if self.state.core.buffers.get_buffer(base_focused).is_some() && self.window_contains_view(base_id, base_focused) {
 			return Some(FocusTarget::Buffer {
 				window: base_id,
 				buffer: base_focused,
@@ -251,17 +248,11 @@ impl Editor {
 		}
 
 		if let Some(buffer) = self.first_live_buffer_in_layout() {
-			return Some(FocusTarget::Buffer {
-				window: base_id,
-				buffer,
-			});
+			return Some(FocusTarget::Buffer { window: base_id, buffer });
 		}
 
 		if let Some(buffer) = self.state.core.buffers.buffer_ids().next() {
-			return Some(FocusTarget::Buffer {
-				window: base_id,
-				buffer,
-			});
+			return Some(FocusTarget::Buffer { window: base_id, buffer });
 		}
 
 		None
@@ -296,21 +287,12 @@ impl Editor {
 	/// Internal focus implementation for backwards compatibility.
 	///
 	/// Prefer calling `set_focus()` directly with appropriate FocusReason.
-	pub(crate) fn focus_buffer_in_window(
-		&mut self,
-		window_id: WindowId,
-		view: ViewId,
-		explicit: bool,
-	) -> bool {
+	pub(crate) fn focus_buffer_in_window(&mut self, window_id: WindowId, view: ViewId, explicit: bool) -> bool {
 		let target = FocusTarget::Buffer {
 			window: window_id,
 			buffer: view,
 		};
-		let reason = if explicit {
-			FocusReason::Click
-		} else {
-			FocusReason::Programmatic
-		};
+		let reason = if explicit { FocusReason::Click } else { FocusReason::Programmatic };
 		self.set_focus(target, reason)
 	}
 
@@ -323,39 +305,27 @@ impl Editor {
 
 	/// Focuses the next view in the layout.
 	pub fn focus_next_view(&mut self) {
-		let next = self
-			.state
-			.layout
-			.next_view(&self.base_window().layout, self.focused_view());
+		let next = self.state.layout.next_view(&self.base_window().layout, self.focused_view());
 		self.focus_view(next);
 	}
 
 	/// Focuses the previous view in the layout.
 	pub fn focus_prev_view(&mut self) {
-		let prev = self
-			.state
-			.layout
-			.prev_view(&self.base_window().layout, self.focused_view());
+		let prev = self.state.layout.prev_view(&self.base_window().layout, self.focused_view());
 		self.focus_view(prev);
 	}
 
 	/// Focuses the next text buffer in the layout.
 	pub fn focus_next_buffer(&mut self) {
 		let current_id = self.focused_view();
-		let next_id = self
-			.state
-			.layout
-			.next_buffer(&self.base_window().layout, current_id);
+		let next_id = self.state.layout.next_buffer(&self.base_window().layout, current_id);
 		self.focus_buffer(next_id);
 	}
 
 	/// Focuses the previous text buffer in the layout.
 	pub fn focus_prev_buffer(&mut self) {
 		let current_id = self.focused_view();
-		let prev_id = self
-			.state
-			.layout
-			.prev_buffer(&self.base_window().layout, current_id);
+		let prev_id = self.state.layout.prev_buffer(&self.base_window().layout, current_id);
 		self.focus_buffer(prev_id);
 	}
 
@@ -365,13 +335,7 @@ impl Editor {
 		let current = self.focused_view();
 		let hint = self.cursor_screen_pos(direction, area);
 
-		if let Some(target) = self.state.layout.view_in_direction(
-			&self.base_window().layout,
-			area,
-			current,
-			direction,
-			hint,
-		) {
+		if let Some(target) = self.state.layout.view_in_direction(&self.base_window().layout, area, current, direction, hint) {
 			self.focus_view(target);
 		}
 	}
@@ -409,9 +373,7 @@ impl Editor {
 			}
 			SpatialDirection::Up | SpatialDirection::Down => {
 				let gutter = buffer.gutter_width();
-				view_rect.x
-					+ gutter + (buffer.cursor_col() as u16)
-					.min(view_rect.width.saturating_sub(gutter + 1))
+				view_rect.x + gutter + (buffer.cursor_col() as u16).min(view_rect.width.saturating_sub(gutter + 1))
 			}
 		}
 	}
@@ -465,8 +427,7 @@ impl Editor {
 	/// safely resolve the view later, handling cases where the view was closed
 	/// or repurposed.
 	pub fn lease_focused_view(&self) -> Option<ViewLease> {
-		if let FocusTarget::Buffer { buffer, .. } | FocusTarget::Overlay { buffer } =
-			self.state.focus
+		if let FocusTarget::Buffer { buffer, .. } | FocusTarget::Overlay { buffer } = self.state.focus
 			&& let Some(buf) = self.state.core.buffers.get_buffer(buffer)
 		{
 			return Some(ViewLease {
@@ -499,26 +460,14 @@ impl Editor {
 	pub fn debug_assert_invariants(&self) {
 		match &self.state.focus {
 			FocusTarget::Buffer { window, buffer } => {
-				assert!(
-					self.state.windows.get(*window).is_some(),
-					"focused window must exist"
-				);
-				assert!(
-					self.state.core.buffers.get_buffer(*buffer).is_some(),
-					"focused buffer must exist"
-				);
+				assert!(self.state.windows.get(*window).is_some(), "focused window must exist");
+				assert!(self.state.core.buffers.get_buffer(*buffer).is_some(), "focused buffer must exist");
 				if *window == self.state.windows.base_id() {
-					assert!(
-						self.window_contains_view(*window, *buffer),
-						"focused buffer must be in window layout"
-					);
+					assert!(self.window_contains_view(*window, *buffer), "focused buffer must be in window layout");
 				}
 			}
 			FocusTarget::Overlay { buffer } => {
-				assert!(
-					self.state.core.buffers.get_buffer(*buffer).is_some(),
-					"focused overlay buffer must exist"
-				);
+				assert!(self.state.core.buffers.get_buffer(*buffer).is_some(), "focused overlay buffer must exist");
 			}
 			FocusTarget::Panel(_) => {}
 		}
@@ -529,17 +478,10 @@ impl Editor {
 			"base window return buffer must exist"
 		);
 
-		assert!(
-			self.state.core.buffers.buffer_count() > 0,
-			"must have at least one buffer"
-		);
+		assert!(self.state.core.buffers.buffer_count() > 0, "must have at least one buffer");
 	}
 
-	pub(crate) fn handle_window_focus_change(
-		&mut self,
-		old_focus: FocusTarget,
-		new_focus: &FocusTarget,
-	) {
+	pub(crate) fn handle_window_focus_change(&mut self, old_focus: FocusTarget, new_focus: &FocusTarget) {
 		let old_window = match old_focus {
 			FocusTarget::Buffer { window, .. } => Some(window),
 			FocusTarget::Overlay { .. } => None,

@@ -3,10 +3,7 @@ use tree_house::tree_sitter::{InputEdit, Point};
 use xeno_primitives::transaction::Operation;
 
 /// Generates tree-sitter InputEdits from a Xeno ChangeSet.
-pub(super) fn generate_edits(
-	old_text: RopeSlice,
-	changeset: &xeno_primitives::ChangeSet,
-) -> Vec<InputEdit> {
+pub(super) fn generate_edits(old_text: RopeSlice, changeset: &xeno_primitives::ChangeSet) -> Vec<InputEdit> {
 	fn add_delta(start: Point, text: &str) -> Point {
 		let bytes = text.as_bytes();
 		let mut row = start.row;

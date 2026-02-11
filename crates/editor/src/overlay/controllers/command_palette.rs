@@ -4,9 +4,7 @@ use std::pin::Pin;
 use xeno_registry::notifications::keys;
 use xeno_registry::options::{OptionValue, keys as opt_keys};
 
-use crate::overlay::{
-	CloseReason, OverlayContext, OverlayController, OverlaySession, OverlayUiSpec, RectPolicy,
-};
+use crate::overlay::{CloseReason, OverlayContext, OverlayController, OverlaySession, OverlayUiSpec, RectPolicy};
 use crate::window::GutterSelector;
 
 pub struct CommandPaletteOverlay;
@@ -53,19 +51,9 @@ impl OverlayController for CommandPaletteOverlay {
 		}
 	}
 
-	fn on_input_changed(
-		&mut self,
-		_ctx: &mut dyn OverlayContext,
-		_session: &mut OverlaySession,
-		_text: &str,
-	) {
-	}
+	fn on_input_changed(&mut self, _ctx: &mut dyn OverlayContext, _session: &mut OverlaySession, _text: &str) {}
 
-	fn on_commit<'a>(
-		&'a mut self,
-		ctx: &'a mut dyn OverlayContext,
-		session: &'a mut OverlaySession,
-	) -> Pin<Box<dyn Future<Output = ()> + 'a>> {
+	fn on_commit<'a>(&'a mut self, ctx: &'a mut dyn OverlayContext, session: &'a mut OverlaySession) -> Pin<Box<dyn Future<Output = ()> + 'a>> {
 		let input = session.input_text(ctx).trim().to_string();
 
 		if !input.is_empty() {
@@ -87,11 +75,5 @@ impl OverlayController for CommandPaletteOverlay {
 		Box::pin(async {})
 	}
 
-	fn on_close(
-		&mut self,
-		_ctx: &mut dyn OverlayContext,
-		_session: &mut OverlaySession,
-		_reason: CloseReason,
-	) {
-	}
+	fn on_close(&mut self, _ctx: &mut dyn OverlayContext, _session: &mut OverlaySession, _reason: CloseReason) {}
 }

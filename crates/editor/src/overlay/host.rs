@@ -27,11 +27,7 @@ impl OverlayHost {
 			.unwrap_or(main_area)
 	}
 
-	pub fn reflow_session(
-		ed: &mut Editor,
-		controller: &dyn super::OverlayController,
-		session: &mut OverlaySession,
-	) -> bool {
+	pub fn reflow_session(ed: &mut Editor, controller: &dyn super::OverlayController, session: &mut OverlaySession) -> bool {
 		let spec = controller.ui_spec(ed);
 		let (w, h) = match (ed.state.viewport.width, ed.state.viewport.height) {
 			(Some(w), Some(h)) => (w, h),
@@ -46,20 +42,8 @@ impl OverlayHost {
 		};
 		roles.insert(super::WindowRole::Input, input_rect);
 
-		let mut resolved: HashMap<
-			super::WindowRole,
-			(
-				Rect,
-				crate::window::SurfaceStyle,
-				crate::window::GutterSelector,
-				bool,
-				bool,
-			),
-		> = HashMap::new();
-		resolved.insert(
-			super::WindowRole::Input,
-			(input_rect, spec.style, spec.gutter, true, true),
-		);
+		let mut resolved: HashMap<super::WindowRole, (Rect, crate::window::SurfaceStyle, crate::window::GutterSelector, bool, bool)> = HashMap::new();
+		resolved.insert(super::WindowRole::Input, (input_rect, spec.style, spec.gutter, true, true));
 
 		for win_spec in spec.windows {
 			debug_assert!(
@@ -73,13 +57,7 @@ impl OverlayHost {
 			roles.insert(win_spec.role, rect);
 			resolved.insert(
 				win_spec.role,
-				(
-					rect,
-					win_spec.style,
-					win_spec.gutter,
-					win_spec.dismiss_on_blur,
-					win_spec.sticky,
-				),
+				(rect, win_spec.style, win_spec.gutter, win_spec.dismiss_on_blur, win_spec.sticky),
 			);
 		}
 
@@ -128,10 +106,7 @@ impl OverlayHost {
 	/// Returns `None` if:
 	/// - The terminal viewport dimensions are not available.
 	/// - The primary input window geometry fails to resolve.
-	pub fn setup_session(
-		ed: &mut Editor,
-		controller: &dyn super::OverlayController,
-	) -> Option<OverlaySession> {
+	pub fn setup_session(ed: &mut Editor, controller: &dyn super::OverlayController) -> Option<OverlaySession> {
 		let spec = controller.ui_spec(ed);
 		let (w, h) = (ed.state.viewport.width?, ed.state.viewport.height?);
 		let screen = Self::overlay_container_rect(ed, w, h);
@@ -191,9 +166,7 @@ impl OverlayHost {
 
 			if let Some(buffer) = ed.state.core.buffers.get_buffer_mut(buffer_id) {
 				for (k, v) in win_spec.buffer_options {
-					let _ = buffer
-						.local_options
-						.set_by_kdl(&xeno_registry::db::OPTIONS, &k, v);
+					let _ = buffer.local_options.set_by_kdl(&xeno_registry::db::OPTIONS, &k, v);
 				}
 			}
 
@@ -209,19 +182,8 @@ impl OverlayHost {
 			});
 		}
 
-		ed.set_focus(
-			FocusTarget::Overlay {
-				buffer: input_buffer,
-			},
-			FocusReason::Programmatic,
-		);
-		ed.state
-			.core
-			.buffers
-			.get_buffer_mut(input_buffer)
-			.unwrap()
-			.input
-			.set_mode(Mode::Insert);
+		ed.set_focus(FocusTarget::Overlay { buffer: input_buffer }, FocusReason::Programmatic);
+		ed.state.core.buffers.get_buffer_mut(input_buffer).unwrap().input.set_mode(Mode::Insert);
 
 		Some(session)
 	}
@@ -233,12 +195,7 @@ impl OverlayHost {
 	/// 2. Restores cursor and selection state unless committed.
 	/// 3. Removes all session scratch buffers.
 	/// 4. Restores focus and mode to the captured values.
-	pub fn cleanup_session(
-		ed: &mut Editor,
-		controller: &mut dyn super::OverlayController,
-		mut session: OverlaySession,
-		reason: CloseReason,
-	) {
+	pub fn cleanup_session(ed: &mut Editor, controller: &mut dyn super::OverlayController, mut session: OverlaySession, reason: CloseReason) {
 		controller.on_close(ed, &mut session, reason);
 
 		if reason != CloseReason::Commit {

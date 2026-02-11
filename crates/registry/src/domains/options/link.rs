@@ -16,19 +16,11 @@ pub struct OptionPayload {
 }
 
 impl LinkedPayload<OptionEntry> for OptionPayload {
-	fn collect_extra_keys<'b>(
-		&'b self,
-		collector: &mut crate::core::index::StringCollector<'_, 'b>,
-	) {
+	fn collect_extra_keys<'b>(&'b self, collector: &mut crate::core::index::StringCollector<'_, 'b>) {
 		collector.push(self.kdl_key.as_str());
 	}
 
-	fn build_entry(
-		&self,
-		ctx: &mut dyn crate::core::index::BuildCtx,
-		meta: RegistryMeta,
-		_short_desc: Symbol,
-	) -> OptionEntry {
+	fn build_entry(&self, ctx: &mut dyn crate::core::index::BuildCtx, meta: RegistryMeta, _short_desc: Symbol) -> OptionEntry {
 		OptionEntry {
 			meta,
 			kdl_key: ctx.intern(&self.kdl_key),
@@ -41,10 +33,7 @@ impl LinkedPayload<OptionEntry> for OptionPayload {
 }
 
 /// Links option specs with validator statics, producing `LinkedOptionDef`s.
-pub fn link_options(
-	spec: &OptionsSpec,
-	validators: impl Iterator<Item = &'static OptionValidatorStatic>,
-) -> Vec<LinkedOptionDef> {
+pub fn link_options(spec: &OptionsSpec, validators: impl Iterator<Item = &'static OptionValidatorStatic>) -> Vec<LinkedOptionDef> {
 	let validator_map = crate::defs::link::build_name_map(validators, |v| v.name);
 
 	let mut defs = Vec::new();
@@ -53,12 +42,8 @@ pub fn link_options(
 		let value_type = parse_option_type(&meta.value_type);
 		let scope = parse_option_scope(&meta.scope);
 		let default = match value_type {
-			OptionType::Bool => {
-				OptionDefault::Value(OptionValue::Bool(parse_boolish(&meta.default)))
-			}
-			OptionType::Int => {
-				OptionDefault::Value(OptionValue::Int(parse_i64(&meta.default, "int default")))
-			}
+			OptionType::Bool => OptionDefault::Value(OptionValue::Bool(parse_boolish(&meta.default))),
+			OptionType::Int => OptionDefault::Value(OptionValue::Int(parse_i64(&meta.default, "int default"))),
 			OptionType::String => OptionDefault::Value(OptionValue::String(meta.default.clone())),
 		};
 
@@ -66,12 +51,7 @@ pub fn link_options(
 			validator_map
 				.get(name)
 				.map(|v| v.validator)
-				.unwrap_or_else(|| {
-					panic!(
-						"Option '{}' references unknown validator '{}'",
-						meta.common.name, name
-					)
-				})
+				.unwrap_or_else(|| panic!("Option '{}' references unknown validator '{}'", meta.common.name, name))
 		});
 
 		defs.push(LinkedDef {
@@ -115,6 +95,5 @@ fn parse_boolish(s: &str) -> bool {
 }
 
 fn parse_i64(s: &str, field: &'static str) -> i64 {
-	s.parse::<i64>()
-		.unwrap_or_else(|_| panic!("invalid {field}: '{s}'"))
+	s.parse::<i64>().unwrap_or_else(|_| panic!("invalid {field}: '{s}'"))
 }

@@ -95,13 +95,7 @@ mod parsing {
 		let name = node.name().value().to_string();
 		let command = node
 			.entry(0)
-			.and_then(|e| {
-				if e.name().is_none() {
-					e.value().as_string().map(String::from)
-				} else {
-					None
-				}
-			})
+			.and_then(|e| if e.name().is_none() { e.value().as_string().map(String::from) } else { None })
 			.unwrap_or_else(|| name.clone());
 
 		let children = node.children();
@@ -195,9 +189,7 @@ mod parsing {
 		}
 	}
 
-	pub fn parse_language_lsp_mapping(
-		input: &str,
-	) -> std::result::Result<LanguageLspMapping, ParseError> {
+	pub fn parse_language_lsp_mapping(input: &str) -> std::result::Result<LanguageLspMapping, ParseError> {
 		let doc: KdlDocument = input.parse()?;
 		let mut mapping = HashMap::new();
 

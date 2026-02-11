@@ -88,9 +88,7 @@ pub mod view_manager;
 pub mod window;
 
 pub use buffer::{Buffer, HistoryResult, ViewId};
-pub use completion::{
-	CompletionContext, CompletionItem, CompletionKind, CompletionSource, CompletionState,
-};
+pub use completion::{CompletionContext, CompletionItem, CompletionKind, CompletionSource, CompletionState};
 pub use editor_ctx::{EditorCapabilities, EditorContext, EditorOps, HandleOutcome, apply_effects};
 pub use impls::{Editor, Editor as EditorApp};
 #[cfg(feature = "lsp")]
@@ -103,7 +101,4 @@ pub use msg::{Dirty, EditorMsg, IoMsg, LspMsg, MsgSender, ThemeMsg};
 pub use terminal_config::{TerminalConfig, TerminalSequence};
 pub use theme_source::ThemeSource;
 pub use ui::UiManager;
-pub use xeno_registry::themes::{
-	ColorPair, ModeColors, PopupColors, SemanticColors, THEMES, Theme, ThemeColors, UiColors,
-	blend_colors, suggest_theme,
-};
+pub use xeno_registry::themes::{ColorPair, ModeColors, PopupColors, SemanticColors, THEMES, Theme, ThemeColors, UiColors, blend_colors, suggest_theme};

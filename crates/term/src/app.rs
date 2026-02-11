@@ -9,10 +9,7 @@ use xeno_registry::hooks::{HookContext, emit as emit_hook, emit_sync_with as emi
 use xeno_tui::Terminal;
 
 use crate::backend::TerminaBackend;
-use crate::terminal::{
-	coalesce_resize_events, disable_terminal_features_with_config,
-	enable_terminal_features_with_config, install_panic_hook_with_config,
-};
+use crate::terminal::{coalesce_resize_events, disable_terminal_features_with_config, enable_terminal_features_with_config, install_panic_hook_with_config};
 
 /// Runs the editor main loop.
 pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
@@ -56,11 +53,7 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 
 			let style = Cursor::CursorStyle(to_termina_cursor_style(dir.cursor_style));
 			if last_cursor_style.as_ref() != Some(&style) {
-				write!(
-					terminal.backend_mut().terminal_mut(),
-					"{}",
-					Csi::Cursor(style)
-				)?;
+				write!(terminal.backend_mut().terminal_mut(), "{}", Csi::Cursor(style))?;
 				terminal.backend_mut().terminal_mut().flush()?;
 				last_cursor_style = Some(style);
 			}
@@ -78,8 +71,7 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 
 			let mut event = events.read(&mut filter)?;
 			if let termina::event::Event::WindowResized(size) = event {
-				event =
-					termina::event::Event::WindowResized(coalesce_resize_events(&events, size)?);
+				event = termina::event::Event::WindowResized(coalesce_resize_events(&events, size)?);
 			}
 
 			dir = editor.on_event(event).await;

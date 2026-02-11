@@ -65,18 +65,9 @@ pub fn info_popup_style() -> SurfaceStyle {
 /// Computes the popup rectangle based on anchor and content size.
 ///
 /// Clamps to stay within bounds.
-pub fn compute_popup_rect(
-	anchor: PopupAnchor,
-	content_width: u16,
-	content_height: u16,
-	bounds: Rect,
-) -> Rect {
-	let width = content_width
-		.saturating_add(2)
-		.min(bounds.width.saturating_sub(4));
-	let height = content_height
-		.saturating_add(2)
-		.min(bounds.height.saturating_sub(2));
+pub fn compute_popup_rect(anchor: PopupAnchor, content_width: u16, content_height: u16, bounds: Rect) -> Rect {
+	let width = content_width.saturating_add(2).min(bounds.width.saturating_sub(4));
+	let height = content_height.saturating_add(2).min(bounds.height.saturating_sub(2));
 
 	let (x, y) = match anchor {
 		PopupAnchor::Center => (
@@ -84,10 +75,8 @@ pub fn compute_popup_rect(
 			bounds.y + bounds.height.saturating_sub(height) / 2,
 		),
 		PopupAnchor::Point { x, y } => (
-			x.max(bounds.x)
-				.min(bounds.x + bounds.width.saturating_sub(width)),
-			y.max(bounds.y)
-				.min(bounds.y + bounds.height.saturating_sub(height)),
+			x.max(bounds.x).min(bounds.x + bounds.width.saturating_sub(width)),
+			y.max(bounds.y).min(bounds.y + bounds.height.saturating_sub(height)),
 		),
 		PopupAnchor::Window(_) => (
 			bounds.x + bounds.width.saturating_sub(width) / 2,
@@ -101,12 +90,7 @@ pub fn compute_popup_rect(
 fn measure_content(content: &str) -> (u16, u16) {
 	let lines: Vec<&str> = content.lines().collect();
 	let content_height = lines.len().min(20) as u16;
-	let content_width = lines
-		.iter()
-		.map(|line| line.chars().count())
-		.max()
-		.unwrap_or(20)
-		.min(60) as u16;
+	let content_width = lines.iter().map(|line| line.chars().count()).max().unwrap_or(20).min(60) as u16;
 	(content_width, content_height)
 }
 
@@ -168,30 +152,16 @@ impl Editor {
 	///
 	/// The popup is positioned relative to the anchor point. Content is displayed
 	/// in a read-only buffer with syntax highlighting based on the optional file type.
-	pub fn open_info_popup(
-		&mut self,
-		content: String,
-		file_type: Option<&str>,
-		anchor: PopupAnchor,
-	) -> Option<InfoPopupId> {
-		if self.state.viewport.doc_area.is_none() {
-			return None;
-		}
+	pub fn open_info_popup(&mut self, content: String, file_type: Option<&str>, anchor: PopupAnchor) -> Option<InfoPopupId> {
+		self.state.viewport.doc_area?;
 		let (content_width, content_height) = measure_content(content.as_str());
 
 		let buffer_id = self.state.core.buffers.create_scratch();
 		{
-			let buffer = self
-				.state
-				.core
-				.buffers
-				.get_buffer_mut(buffer_id)
-				.expect("just created");
+			let buffer = self.state.core.buffers.get_buffer_mut(buffer_id).expect("just created");
 			buffer.reset_content(content.as_str());
 			if let Some(ft) = file_type {
-				buffer.with_doc_mut(|doc| {
-					doc.init_syntax_for_language(ft, &self.state.config.language_loader)
-				});
+				buffer.with_doc_mut(|doc| doc.init_syntax_for_language(ft, &self.state.config.language_loader));
 			}
 			self.state.syntax_manager.reset_syntax(buffer.document_id());
 			buffer.set_readonly_override(Some(true));
@@ -213,11 +183,7 @@ impl Editor {
 
 	/// Closes an info popup by ID.
 	pub fn close_info_popup(&mut self, popup_id: InfoPopupId) {
-		let Some(popup) = self
-			.overlays_mut()
-			.get_or_default::<InfoPopupStore>()
-			.remove(popup_id)
-		else {
+		let Some(popup) = self.overlays_mut().get_or_default::<InfoPopupStore>().remove(popup_id) else {
 			return;
 		};
 		self.finalize_buffer_removal(popup.buffer_id);
@@ -226,34 +192,20 @@ impl Editor {
 
 	/// Closes all open info popups.
 	pub fn close_all_info_popups(&mut self) {
-		let popup_ids: Vec<_> = self
-			.overlays_mut()
-			.get_or_default::<InfoPopupStore>()
-			.ids()
-			.collect();
+		let popup_ids: Vec<_> = self.overlays_mut().get_or_default::<InfoPopupStore>().ids().collect();
 		for id in popup_ids {
 			self.close_info_popup(id);
 		}
 	}
 
 	/// Updates the content of an existing info popup.
-	pub fn update_info_popup(
-		&mut self,
-		popup_id: InfoPopupId,
-		content: String,
-		file_type: Option<&str>,
-	) -> bool {
-		let Some(buffer_id) = self
-			.overlays_mut()
-			.get_or_default::<InfoPopupStore>()
-			.get_mut(popup_id)
-			.map(|p| {
-				let (content_width, content_height) = measure_content(content.as_str());
-				p.content_width = content_width;
-				p.content_height = content_height;
-				p.buffer_id
-			})
-		else {
+	pub fn update_info_popup(&mut self, popup_id: InfoPopupId, content: String, file_type: Option<&str>) -> bool {
+		let Some(buffer_id) = self.overlays_mut().get_or_default::<InfoPopupStore>().get_mut(popup_id).map(|p| {
+			let (content_width, content_height) = measure_content(content.as_str());
+			p.content_width = content_width;
+			p.content_height = content_height;
+			p.buffer_id
+		}) else {
 			return false;
 		};
 
@@ -267,9 +219,7 @@ impl Editor {
 		if let Some(ft) = file_type {
 			let current_ft = buffer.file_type();
 			if current_ft.as_deref() != Some(ft) {
-				buffer.with_doc_mut(|doc| {
-					doc.init_syntax_for_language(ft, &self.state.config.language_loader)
-				});
+				buffer.with_doc_mut(|doc| doc.init_syntax_for_language(ft, &self.state.config.language_loader));
 			}
 		}
 
@@ -281,9 +231,7 @@ impl Editor {
 
 	/// Returns the number of open info popups.
 	pub fn info_popup_count(&self) -> usize {
-		self.overlays()
-			.get::<InfoPopupStore>()
-			.map_or(0, |s: &InfoPopupStore| s.len())
+		self.overlays().get::<InfoPopupStore>().map_or(0, |s: &InfoPopupStore| s.len())
 	}
 }
 

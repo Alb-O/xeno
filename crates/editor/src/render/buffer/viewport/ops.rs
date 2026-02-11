@@ -11,13 +11,7 @@ use crate::render::wrap::{WrappedSegment, wrap_line_ranges_rope};
 /// Adjusts `buffer.scroll_line` and `buffer.scroll_segment` to keep the cursor
 /// inside the visible area while preserving the configured scroll margin when
 /// possible.
-pub fn ensure_buffer_cursor_visible(
-	buffer: &mut Buffer,
-	area: Rect,
-	text_width: usize,
-	tab_width: usize,
-	scroll_margin: usize,
-) {
+pub fn ensure_buffer_cursor_visible(buffer: &mut Buffer, area: Rect, text_width: usize, tab_width: usize, scroll_margin: usize) {
 	let total_lines = buffer.with_doc(|doc: &Document| visible_line_count(doc.content().slice(..)));
 	let viewport_height = area.height as usize;
 
@@ -36,13 +30,7 @@ pub fn ensure_buffer_cursor_visible(
 		buffer.scroll_line = total_lines.saturating_sub(1);
 		buffer.scroll_segment = 0;
 	}
-	buffer.scroll_segment = clamp_segment_for_line(
-		buffer,
-		buffer.scroll_line,
-		buffer.scroll_segment,
-		text_width,
-		tab_width,
-	);
+	buffer.scroll_segment = clamp_segment_for_line(buffer, buffer.scroll_line, buffer.scroll_segment, text_width, tab_width);
 
 	let cursor_line = buffer.cursor_line();
 	let (cursor_col, cursor_segments) = buffer.with_doc(|doc: &Document| {
@@ -51,11 +39,7 @@ pub fn ensure_buffer_cursor_visible(
 		let line_slice = doc.content().line(cursor_line);
 		let line_len = line_slice.len_chars();
 		let has_newline = line_len > 0 && line_slice.char(line_len - 1) == '\n';
-		let content = if has_newline {
-			line_slice.slice(..line_len - 1)
-		} else {
-			line_slice
-		};
+		let content = if has_newline { line_slice.slice(..line_len - 1) } else { line_slice };
 		let segments = wrap_line_ranges_rope(content, text_width, tab_width);
 		(col, segments)
 	});
@@ -63,9 +47,7 @@ pub fn ensure_buffer_cursor_visible(
 
 	let effective_margin = scroll_margin.min(viewport_height.saturating_sub(1) / 2);
 	let min_row = effective_margin;
-	let max_row = viewport_height
-		.saturating_sub(1)
-		.saturating_sub(effective_margin);
+	let max_row = viewport_height.saturating_sub(1).saturating_sub(effective_margin);
 
 	let cursor_row = cursor_row_in_viewport(
 		buffer,
@@ -79,10 +61,7 @@ pub fn ensure_buffer_cursor_visible(
 	);
 
 	let needs_scroll_up = match cursor_row {
-		None => {
-			cursor_line < buffer.scroll_line
-				|| (cursor_line == buffer.scroll_line && cursor_segment < buffer.scroll_segment)
-		}
+		None => cursor_line < buffer.scroll_line || (cursor_line == buffer.scroll_line && cursor_segment < buffer.scroll_segment),
 		Some(row) => row < min_row && buffer.scroll_line > 0,
 	};
 
@@ -130,14 +109,7 @@ pub fn ensure_buffer_cursor_visible(
 	};
 
 	if let Some(row) = target_row {
-		let (new_line, new_seg) = scroll_position_for_cursor_at_row(
-			buffer,
-			cursor_line,
-			cursor_segment,
-			row,
-			text_width,
-			tab_width,
-		);
+		let (new_line, new_seg) = scroll_position_for_cursor_at_row(buffer, cursor_line, cursor_segment, row, text_width, tab_width);
 		buffer.scroll_line = new_line;
 		buffer.scroll_segment = new_seg;
 		buffer.suppress_auto_scroll = false;
@@ -145,11 +117,7 @@ pub fn ensure_buffer_cursor_visible(
 
 	let new_scroll = (buffer.scroll_line, buffer.scroll_segment);
 	if new_scroll != original_scroll {
-		let action = if needs_scroll_up {
-			"scroll_up"
-		} else {
-			"scroll_down"
-		};
+		let action = if needs_scroll_up { "scroll_up" } else { "scroll_down" };
 		ViewportEnsureEvent::log(
 			action,
 			buffer,
@@ -201,25 +169,13 @@ fn line_segment_count(buffer: &Buffer, line: usize, text_width: usize, tab_width
 		let line_slice = doc.content().line(line);
 		let line_len = line_slice.len_chars();
 		let has_newline = line_len > 0 && line_slice.char(line_len - 1) == '\n';
-		let content = if has_newline {
-			line_slice.slice(..line_len - 1)
-		} else {
-			line_slice
-		};
-		wrap_line_ranges_rope(content, text_width, tab_width)
-			.len()
-			.max(1)
+		let content = if has_newline { line_slice.slice(..line_len - 1) } else { line_slice };
+		wrap_line_ranges_rope(content, text_width, tab_width).len().max(1)
 	})
 }
 
 /// Clamps a segment index to valid range for a given line.
-fn clamp_segment_for_line(
-	buffer: &Buffer,
-	line: usize,
-	segment: usize,
-	text_width: usize,
-	tab_width: usize,
-) -> usize {
+fn clamp_segment_for_line(buffer: &Buffer, line: usize, segment: usize, text_width: usize, tab_width: usize) -> usize {
 	buffer.with_doc(|doc: &Document| {
 		let total_lines = doc.content().len_lines();
 		if line >= total_lines {
@@ -229,11 +185,7 @@ fn clamp_segment_for_line(
 		let line_slice = doc.content().line(line);
 		let line_len = line_slice.len_chars();
 		let has_newline = line_len > 0 && line_slice.char(line_len - 1) == '\n';
-		let content = if has_newline {
-			line_slice.slice(..line_len - 1)
-		} else {
-			line_slice
-		};
+		let content = if has_newline { line_slice.slice(..line_len - 1) } else { line_slice };
 		let segments = wrap_line_ranges_rope(content, text_width, tab_width);
 		let num_segments = segments.len().max(1);
 
@@ -289,13 +241,7 @@ fn cursor_row_in_viewport(
 }
 
 /// Advances the viewport position by one visual row.
-fn advance_one_visual_row(
-	buffer: &Buffer,
-	line: &mut usize,
-	segment: &mut usize,
-	text_width: usize,
-	tab_width: usize,
-) -> bool {
+fn advance_one_visual_row(buffer: &Buffer, line: &mut usize, segment: &mut usize, text_width: usize, tab_width: usize) -> bool {
 	let (total_lines, num_segments) = buffer.with_doc(|doc: &Document| {
 		let content = doc.content();
 		let total = visible_line_count(content.slice(..));
@@ -306,14 +252,8 @@ fn advance_one_visual_row(
 		let line_slice = content.line(*line);
 		let line_len = line_slice.len_chars();
 		let has_newline = line_len > 0 && line_slice.char(line_len - 1) == '\n';
-		let content = if has_newline {
-			line_slice.slice(..line_len - 1)
-		} else {
-			line_slice
-		};
-		let n = wrap_line_ranges_rope(content, text_width, tab_width)
-			.len()
-			.max(1);
+		let content = if has_newline { line_slice.slice(..line_len - 1) } else { line_slice };
+		let n = wrap_line_ranges_rope(content, text_width, tab_width).len().max(1);
 		(total, n)
 	});
 

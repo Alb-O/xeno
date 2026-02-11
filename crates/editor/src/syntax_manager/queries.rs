@@ -2,30 +2,19 @@ use super::*;
 
 impl SyntaxManager {
 	pub fn has_syntax(&self, doc_id: DocumentId) -> bool {
-		self.entries
-			.get(&doc_id)
-			.and_then(|e| e.slot.current.as_ref())
-			.is_some()
+		self.entries.get(&doc_id).and_then(|e| e.slot.current.as_ref()).is_some()
 	}
 
 	pub fn is_dirty(&self, doc_id: DocumentId) -> bool {
-		self.entries
-			.get(&doc_id)
-			.map(|e| e.slot.dirty)
-			.unwrap_or(false)
+		self.entries.get(&doc_id).map(|e| e.slot.dirty).unwrap_or(false)
 	}
 
 	pub fn syntax_for_doc(&self, doc_id: DocumentId) -> Option<&Syntax> {
-		self.entries
-			.get(&doc_id)
-			.and_then(|e| e.slot.current.as_ref())
+		self.entries.get(&doc_id).and_then(|e| e.slot.current.as_ref())
 	}
 
 	pub fn syntax_version(&self, doc_id: DocumentId) -> u64 {
-		self.entries
-			.get(&doc_id)
-			.map(|e| e.slot.version)
-			.unwrap_or(0)
+		self.entries.get(&doc_id).map(|e| e.slot.version).unwrap_or(0)
 	}
 
 	/// Returns the document version that the installed syntax tree corresponds to.
@@ -38,11 +27,7 @@ impl SyntaxManager {
 	///
 	/// Returns `None` when tree and target versions already match, or when no
 	/// aligned pending window exists.
-	pub(crate) fn highlight_projection_ctx(
-		&self,
-		doc_id: DocumentId,
-		doc_version: u64,
-	) -> Option<HighlightProjectionCtx<'_>> {
+	pub(crate) fn highlight_projection_ctx(&self, doc_id: DocumentId, doc_version: u64) -> Option<HighlightProjectionCtx<'_>> {
 		let entry = self.entries.get(&doc_id)?;
 		let tree_doc_version = entry.slot.tree_doc_version?;
 		if tree_doc_version == doc_version {
@@ -70,9 +55,7 @@ impl SyntaxManager {
 	/// Returns true if a background task is currently active for a document (even if detached).
 	#[cfg(test)]
 	pub(crate) fn has_inflight_task(&self, doc_id: DocumentId) -> bool {
-		self.entries
-			.get(&doc_id)
-			.is_some_and(|e| e.sched.active_task.is_some())
+		self.entries.get(&doc_id).is_some_and(|e| e.sched.active_task.is_some())
 	}
 
 	#[cfg(test)]
@@ -106,10 +89,7 @@ impl SyntaxManager {
 	}
 
 	pub fn dirty_docs(&self) -> impl Iterator<Item = DocumentId> + '_ {
-		self.entries
-			.iter()
-			.filter(|(_, e)| e.slot.dirty)
-			.map(|(id, _)| *id)
+		self.entries.iter().filter(|(_, e)| e.slot.dirty).map(|(id, _)| *id)
 	}
 
 	/// Returns true if any background task has completed its work.

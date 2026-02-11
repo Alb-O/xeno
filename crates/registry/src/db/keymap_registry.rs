@@ -121,9 +121,7 @@ impl KeymapIndex {
 			let action_entry = &actions.table[id.as_u32() as usize];
 			let action_id_str = actions.interner.resolve(action_entry.id()).to_string();
 
-			if let Some((kept_action, kept_priority)) =
-				seen.get(&(def.mode, Arc::clone(&def.keys))).cloned()
-			{
+			if let Some((kept_action, kept_priority)) = seen.get(&(def.mode, Arc::clone(&def.keys))).cloned() {
 				registry.conflicts.push(KeymapConflict {
 					mode: def.mode,
 					keys: Arc::clone(&def.keys),
@@ -142,22 +140,13 @@ impl KeymapIndex {
 				continue;
 			};
 
-			seen.insert(
-				(def.mode, Arc::clone(&def.keys)),
-				(action_id_str.clone(), def.priority),
-			);
+			seen.insert((def.mode, Arc::clone(&def.keys)), (action_id_str.clone(), def.priority));
 
 			let entry = BindingEntry {
 				action_id: id,
 				action_name: actions.interner.resolve(action_entry.name()).to_string(),
-				description: actions
-					.interner
-					.resolve(action_entry.description())
-					.to_string(),
-				short_desc: actions
-					.interner
-					.resolve(action_entry.short_desc)
-					.to_string(),
+				description: actions.interner.resolve(action_entry.description()).to_string(),
+				short_desc: actions.interner.resolve(action_entry.short_desc).to_string(),
 				keys: keys.clone(),
 			};
 
@@ -166,30 +155,18 @@ impl KeymapIndex {
 
 		if !registry.conflicts.is_empty() {
 			let samples: Vec<_> = registry.conflicts.iter().take(5).collect();
-			tracing::debug!(
-				count = registry.conflicts.len(),
-				?samples,
-				"Keymap conflicts detected"
-			);
+			tracing::debug!(count = registry.conflicts.len(), ?samples, "Keymap conflicts detected");
 		}
 
 		if !parse_failures.is_empty() {
-			warn!(
-				count = parse_failures.len(),
-				?parse_failures,
-				"Failed to parse keybinding sequences"
-			);
+			warn!(count = parse_failures.len(), ?parse_failures, "Failed to parse keybinding sequences");
 		}
 
 		registry
 	}
 
 	/// Returns available continuations at a given key prefix.
-	pub fn continuations_at(
-		&self,
-		mode: BindingMode,
-		prefix: &[Node],
-	) -> Vec<(&Node, Option<&BindingEntry>)> {
+	pub fn continuations_at(&self, mode: BindingMode, prefix: &[Node]) -> Vec<(&Node, Option<&BindingEntry>)> {
 		let Some(matcher) = self.matchers.get(&mode) else {
 			return Vec::new();
 		};
@@ -197,11 +174,7 @@ impl KeymapIndex {
 	}
 
 	/// Returns continuations with classification (leaf vs branch).
-	pub fn continuations_with_kind(
-		&self,
-		mode: BindingMode,
-		prefix: &[Node],
-	) -> Vec<ContinuationEntry<'_, BindingEntry>> {
+	pub fn continuations_with_kind(&self, mode: BindingMode, prefix: &[Node]) -> Vec<ContinuationEntry<'_, BindingEntry>> {
 		let Some(matcher) = self.matchers.get(&mode) else {
 			return Vec::new();
 		};

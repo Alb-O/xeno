@@ -8,11 +8,7 @@ pub fn pretty_print_tree<W: Write>(fmt: &mut W, node: Node) -> std::fmt::Result 
 		if node.is_named() {
 			write!(fmt, "({})", node.kind())
 		} else {
-			write!(
-				fmt,
-				"\"{}\"",
-				node.kind().replace('\\', "\\\\").replace('"', "\\\"")
-			)
+			write!(fmt, "\"{}\"", node.kind().replace('\\', "\\\\").replace('"', "\\\""))
 		}
 	} else {
 		pretty_print_tree_impl(fmt, &mut node.walk(), 0)
@@ -20,14 +16,9 @@ pub fn pretty_print_tree<W: Write>(fmt: &mut W, node: Node) -> std::fmt::Result 
 }
 
 /// Recursive implementation of tree pretty-printing.
-fn pretty_print_tree_impl<W: Write>(
-	fmt: &mut W,
-	cursor: &mut tree_house::tree_sitter::TreeCursor,
-	depth: usize,
-) -> std::fmt::Result {
+fn pretty_print_tree_impl<W: Write>(fmt: &mut W, cursor: &mut tree_house::tree_sitter::TreeCursor, depth: usize) -> std::fmt::Result {
 	let node = cursor.node();
-	let visible = node.is_missing()
-		|| (node.is_named() && node.grammar().node_kind_is_visible(node.kind_id()));
+	let visible = node.is_missing() || (node.is_named() && node.grammar().node_kind_is_visible(node.kind_id()));
 
 	if visible {
 		let indent = depth * 2;
@@ -39,11 +30,7 @@ fn pretty_print_tree_impl<W: Write>(
 
 		write!(fmt, "({}", node.kind())?;
 	} else {
-		write!(
-			fmt,
-			" \"{}\"",
-			node.kind().replace('\\', "\\\\").replace('"', "\\\"")
-		)?;
+		write!(fmt, " \"{}\"", node.kind().replace('\\', "\\\\").replace('"', "\\\""))?;
 	}
 
 	if cursor.goto_first_child() {

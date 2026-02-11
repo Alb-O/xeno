@@ -17,16 +17,10 @@ impl ModeAccess for EditorCaps<'_> {
 		}
 		#[cfg(feature = "lsp")]
 		if matches!(mode, Mode::Insert) {
-			self.ed
-				.overlays_mut()
-				.get_or_default::<crate::completion::CompletionState>()
-				.suppressed = false;
+			self.ed.overlays_mut().get_or_default::<crate::completion::CompletionState>().suppressed = false;
 		}
 		let view = self.ed.focused_view();
 		self.ed.buffer_mut().input.set_mode(mode.clone());
-		self.ed
-			.state
-			.effects
-			.push_layer_event(LayerEvent::ModeChanged { view, mode });
+		self.ed.state.effects.push_layer_event(LayerEvent::ModeChanged { view, mode });
 	}
 }

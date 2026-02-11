@@ -11,10 +11,7 @@ fn test_borders_debug() {
 	assert_eq!(format!("{:?}", Borders::ALL), "ALL");
 	assert_eq!(format!("{:?}", Borders::all()), "ALL");
 
-	assert_eq!(
-		format!("{:?}", Borders::TOP | Borders::BOTTOM),
-		"TOP | BOTTOM"
-	);
+	assert_eq!(format!("{:?}", Borders::TOP | Borders::BOTTOM), "TOP | BOTTOM");
 }
 
 #[test]

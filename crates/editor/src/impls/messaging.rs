@@ -8,11 +8,7 @@ use xeno_tui::widgets::notifications::{self as notif, Anchor, Toast, ToastIcon, 
 use crate::impls::Editor;
 use crate::types::Config;
 
-pub(super) fn push_notification(
-	config: &Config,
-	notifications: &mut ToastManager,
-	notification: Notification,
-) {
+pub(super) fn push_notification(config: &Config, notifications: &mut ToastManager, notification: Notification) {
 	let level = notification.level();
 	let auto_dismiss = notification.auto_dismiss();
 
@@ -62,11 +58,7 @@ impl Editor {
 
 	/// Shows a typed notification (internal).
 	pub fn show_notification(&mut self, notification: Notification) {
-		push_notification(
-			&self.state.config,
-			&mut self.state.notifications,
-			notification,
-		);
+		push_notification(&self.state.config, &mut self.state.notifications, notification);
 	}
 
 	/// Clears all visible notifications.

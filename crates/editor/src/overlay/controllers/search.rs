@@ -8,9 +8,7 @@ use xeno_primitives::range::Range;
 use xeno_registry::notifications::keys;
 
 use crate::buffer::ViewId;
-use crate::overlay::{
-	CloseReason, OverlayContext, OverlayController, OverlaySession, OverlayUiSpec, RectPolicy,
-};
+use crate::overlay::{CloseReason, OverlayContext, OverlayController, OverlaySession, OverlayUiSpec, RectPolicy};
 use crate::window::GutterSelector;
 
 pub struct SearchOverlay {
@@ -34,12 +32,7 @@ impl SearchOverlay {
 		}
 	}
 
-	fn search_preview_find(
-		&self,
-		ctx: &dyn OverlayContext,
-		session: &OverlaySession,
-		re: &Regex,
-	) -> Result<Option<Range>, regex::Error> {
+	fn search_preview_find(&self, ctx: &dyn OverlayContext, session: &OverlaySession, re: &Regex) -> Result<Option<Range>, regex::Error> {
 		const PREVIEW_WINDOW_CHARS: usize = 200_000;
 		const FULL_SCAN_PREVIEW_MAX: usize = 500_000;
 
@@ -47,12 +40,7 @@ impl SearchOverlay {
 			return Ok(None);
 		};
 
-		let origin_cursor = session
-			.capture
-			.per_view
-			.get(&self.target)
-			.map(|c| c.cursor)
-			.unwrap_or(buffer.cursor);
+		let origin_cursor = session.capture.per_view.get(&self.target).map(|c| c.cursor).unwrap_or(buffer.cursor);
 
 		buffer.with_doc(|doc| {
 			let content = doc.content();
@@ -96,11 +84,7 @@ impl OverlayController for SearchOverlay {
 
 	fn ui_spec(&self, _ctx: &dyn OverlayContext) -> OverlayUiSpec {
 		OverlayUiSpec {
-			title: Some(if self.reverse {
-				"Search (reverse)".into()
-			} else {
-				"Search".into()
-			}),
+			title: Some(if self.reverse { "Search (reverse)".into() } else { "Search".into() }),
 			gutter: GutterSelector::Prompt(if self.reverse { '?' } else { '/' }),
 			rect: RectPolicy::TopCenter {
 				width_percent: 100,
@@ -118,12 +102,7 @@ impl OverlayController for SearchOverlay {
 		session.capture_view(ctx, self.target);
 	}
 
-	fn on_input_changed(
-		&mut self,
-		ctx: &mut dyn OverlayContext,
-		session: &mut OverlaySession,
-		text: &str,
-	) {
+	fn on_input_changed(&mut self, ctx: &mut dyn OverlayContext, session: &mut OverlaySession, text: &str) {
 		let input = text.trim_end_matches('\n').to_string();
 		if input == self.last_input {
 			return;
@@ -188,27 +167,14 @@ impl OverlayController for SearchOverlay {
 		}
 	}
 
-	fn on_commit<'a>(
-		&'a mut self,
-		ctx: &'a mut dyn OverlayContext,
-		session: &'a mut OverlaySession,
-	) -> Pin<Box<dyn Future<Output = ()> + 'a>> {
-		let input = session
-			.input_text(ctx)
-			.trim_end_matches('\n')
-			.trim()
-			.to_string();
+	fn on_commit<'a>(&'a mut self, ctx: &'a mut dyn OverlayContext, session: &'a mut OverlaySession) -> Pin<Box<dyn Future<Output = ()> + 'a>> {
+		let input = session.input_text(ctx).trim_end_matches('\n').trim().to_string();
 
 		if input.is_empty() {
 			return Box::pin(async {});
 		}
 
-		let origin_cursor = session
-			.capture
-			.per_view
-			.get(&self.target)
-			.map(|c| c.cursor)
-			.unwrap_or(0);
+		let origin_cursor = session.capture.per_view.get(&self.target).map(|c| c.cursor).unwrap_or(0);
 
 		let result = ctx.buffer(self.target).map(|b| {
 			b.with_doc(|doc| {
@@ -247,11 +213,5 @@ impl OverlayController for SearchOverlay {
 		Box::pin(async {})
 	}
 
-	fn on_close(
-		&mut self,
-		_ctx: &mut dyn OverlayContext,
-		_session: &mut OverlaySession,
-		_reason: CloseReason,
-	) {
-	}
+	fn on_close(&mut self, _ctx: &mut dyn OverlayContext, _session: &mut OverlaySession, _reason: CloseReason) {}
 }

@@ -151,10 +151,7 @@ impl TracingBuilder {
 
 	/// Build the middleware with the current configuration.
 	pub fn build<S>(&self, service: S) -> Tracing<S> {
-		Tracing {
-			service,
-			spans: self.clone(),
-		}
+		Tracing { service, spans: self.clone() }
 	}
 }
 

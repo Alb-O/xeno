@@ -11,9 +11,7 @@ impl SyntaxManager {
 		let bytes_u32 = bytes as u32;
 		let tier = self.policy.tier_for_bytes(bytes);
 		let cfg = self.policy.cfg(tier);
-		let current_opts_key = OptKey {
-			injections: cfg.injections,
-		};
+		let current_opts_key = OptKey { injections: cfg.injections };
 		let viewport = ctx.viewport.as_ref().map(|raw| {
 			let start = raw.start.min(bytes_u32);
 			let mut end = raw.end.min(bytes_u32);
@@ -46,11 +44,7 @@ impl SyntaxManager {
 				entry.sched.last_visible_at = now;
 			}
 
-			if entry
-				.slot
-				.last_opts_key
-				.is_some_and(|k| k != current_opts_key)
-			{
+			if entry.slot.last_opts_key.is_some_and(|k| k != current_opts_key) {
 				entry.sched.invalidate();
 				entry.slot.dirty = true;
 				entry.slot.drop_tree();
@@ -74,10 +68,7 @@ impl SyntaxManager {
 				let class = done.class;
 				let injections = done.injections;
 				let elapsed = done.elapsed;
-				let is_timeout = matches!(
-					done.result,
-					Err(xeno_runtime_language::syntax::SyntaxError::Timeout)
-				);
+				let is_timeout = matches!(done.result, Err(xeno_runtime_language::syntax::SyntaxError::Timeout));
 				let is_error = done.result.is_err() && !is_timeout;
 
 				match done.result {
@@ -86,29 +77,19 @@ impl SyntaxManager {
 							let lang_ok = lang_id == current_lang;
 							let opts_ok = if class == TaskClass::Viewport {
 								let stage_a_ok = injections == cfg.viewport_injections;
-								let stage_b_ok = injections == InjectionPolicy::Eager
-									&& cfg.viewport_stage_b_budget.is_some();
+								let stage_b_ok = injections == InjectionPolicy::Eager && cfg.viewport_stage_b_budget.is_some();
 								stage_a_ok || stage_b_ok
 							} else {
 								done.opts == current_opts_key
 							};
 							let version_match = done.doc_version == ctx.doc_version;
 
-							let retain_ok = Self::retention_allows_install(
-								now,
-								&entry.sched,
-								cfg.retention_hidden,
-								ctx.hotness,
-							);
+							let retain_ok = Self::retention_allows_install(now, &entry.sched, cfg.retention_hidden, ctx.hotness);
 
 							let allow_install = if class == TaskClass::Viewport {
-								let monotonic_ok = entry
-									.slot
-									.tree_doc_version
-									.is_none_or(|v| done.doc_version >= v);
+								let monotonic_ok = entry.slot.tree_doc_version.is_none_or(|v| done.doc_version >= v);
 								let not_future = done.doc_version <= ctx.doc_version;
-								let requested_ok =
-									done.doc_version >= entry.sched.requested_doc_version;
+								let requested_ok = done.doc_version >= entry.sched.requested_doc_version;
 								monotonic_ok && not_future && requested_ok
 							} else {
 								Self::should_install_completed_parse(
@@ -121,10 +102,7 @@ impl SyntaxManager {
 							};
 
 							let is_installed = if work_disabled {
-								tracing::trace!(
-									?doc_id,
-									"Discarding syntax result because work is disabled (Cold)"
-								);
+								tracing::trace!(?doc_id, "Discarding syntax result because work is disabled (Cold)");
 								false
 							} else if lang_ok && opts_ok && retain_ok && allow_install {
 								let is_viewport = class == TaskClass::Viewport;
@@ -134,10 +112,7 @@ impl SyntaxManager {
 								}
 
 								if let Some(meta) = &syntax_tree.viewport {
-									entry.slot.coverage = Some(
-										meta.base_offset
-											..meta.base_offset.saturating_add(meta.real_len),
-									);
+									entry.slot.coverage = Some(meta.base_offset..meta.base_offset.saturating_add(meta.real_len));
 								} else {
 									entry.slot.coverage = None;
 								}
@@ -178,21 +153,9 @@ impl SyntaxManager {
 								false
 							};
 
-							Some((
-								lang_id,
-								tier,
-								class,
-								injections,
-								elapsed,
-								is_timeout,
-								is_error,
-								is_installed,
-							))
+							Some((lang_id, tier, class, injections, elapsed, is_timeout, is_error, is_installed))
 						} else {
-							Some((
-								lang_id, tier, class, injections, elapsed, is_timeout, is_error,
-								false,
-							))
+							Some((lang_id, tier, class, injections, elapsed, is_timeout, is_error, false))
 						}
 					}
 					Err(xeno_runtime_language::syntax::SyntaxError::Timeout) => {
@@ -202,9 +165,7 @@ impl SyntaxManager {
 							cfg.cooldown_on_timeout
 						};
 						entry.sched.cooldown_until = Some(now + cooldown);
-						Some((
-							lang_id, tier, class, injections, elapsed, true, false, false,
-						))
+						Some((lang_id, tier, class, injections, elapsed, true, false, false))
 					}
 					Err(e) => {
 						tracing::warn!(?doc_id, ?tier, error=%e, "Background syntax parse failed");
@@ -214,9 +175,7 @@ impl SyntaxManager {
 							cfg.cooldown_on_error
 						};
 						entry.sched.cooldown_until = Some(now + cooldown);
-						Some((
-							lang_id, tier, class, injections, elapsed, false, true, false,
-						))
+						Some((lang_id, tier, class, injections, elapsed, false, true, false))
 					}
 				}
 			} else {
@@ -224,27 +183,9 @@ impl SyntaxManager {
 			}
 		};
 
-		if let Some((
-			lang_id,
-			tier,
-			class,
-			injections,
-			elapsed,
-			is_timeout,
-			is_error,
-			is_installed,
-		)) = task_record
-		{
-			self.metrics.record_task_result(
-				lang_id,
-				tier,
-				class,
-				injections,
-				elapsed,
-				is_timeout,
-				is_error,
-				is_installed,
-			);
+		if let Some((lang_id, tier, class, injections, elapsed, is_timeout, is_error, is_installed)) = task_record {
+			self.metrics
+				.record_task_result(lang_id, tier, class, injections, elapsed, is_timeout, is_error, is_installed);
 			if is_timeout || is_error {
 				return SyntaxPollOutcome {
 					result: SyntaxPollResult::CoolingDown,
@@ -257,28 +198,17 @@ impl SyntaxManager {
 			let entry = self.entry_mut(doc_id);
 
 			if entry.sched.active_task.is_some() && !entry.sched.active_task_detached {
-				if Self::apply_retention(
-					now,
-					&entry.sched,
-					cfg.retention_hidden,
-					ctx.hotness,
-					&mut entry.slot,
-					doc_id,
-				) {
+				if Self::apply_retention(now, &entry.sched, cfg.retention_hidden, ctx.hotness, &mut entry.slot, doc_id) {
 					entry.sched.invalidate();
 					was_updated = true;
 				} else {
 					let should_preempt_for_viewport = tier == SyntaxTier::L
 						&& ctx.hotness == SyntaxHotness::Visible
-						&& matches!(
-							entry.sched.active_task_class,
-							Some(TaskClass::Full | TaskClass::Incremental)
-						) && viewport.is_some()
+						&& matches!(entry.sched.active_task_class, Some(TaskClass::Full | TaskClass::Incremental))
+						&& viewport.is_some()
 						&& entry.slot.current.as_ref().is_some_and(|s| s.is_partial())
 						&& match (&viewport, &entry.slot.coverage) {
-							(Some(vp), Some(coverage)) => {
-								vp.start < coverage.start || vp.end > coverage.end
-							}
+							(Some(vp), Some(coverage)) => vp.start < coverage.start || vp.end > coverage.end,
 							(Some(_), None) => true,
 							_ => false,
 						};
@@ -310,14 +240,7 @@ impl SyntaxManager {
 				};
 			};
 
-			if Self::apply_retention(
-				now,
-				&entry.sched,
-				cfg.retention_hidden,
-				ctx.hotness,
-				&mut entry.slot,
-				doc_id,
-			) {
+			if Self::apply_retention(now, &entry.sched, cfg.retention_hidden, ctx.hotness, &mut entry.slot, doc_id) {
 				if !work_disabled {
 					entry.sched.invalidate();
 				}
@@ -340,10 +263,7 @@ impl SyntaxManager {
 				};
 			}
 
-			if entry.slot.current.is_some()
-				&& !entry.sched.force_no_debounce
-				&& now.duration_since(entry.sched.last_edit_at) < cfg.debounce
-			{
+			if entry.slot.current.is_some() && !entry.sched.force_no_debounce && now.duration_since(entry.sched.last_edit_at) < cfg.debounce {
 				return SyntaxPollOutcome {
 					result: SyntaxPollResult::Pending,
 					updated: was_updated,
@@ -394,10 +314,7 @@ impl SyntaxManager {
 				parse_timeout: sync_timeout.unwrap(),
 				injections: cfg.injections,
 			};
-			Some(
-				self.engine
-					.parse(ctx.content.slice(..), lang_id, ctx.loader, sync_opts),
-			)
+			Some(self.engine.parse(ctx.content.slice(..), lang_id, ctx.loader, sync_opts))
 		} else {
 			None
 		};
@@ -409,11 +326,7 @@ impl SyntaxManager {
 			// Re-check invariants after dropping and re-acquiring borrow
 			let is_bootstrap = entry.slot.current.is_none();
 			let is_visible = matches!(ctx.hotness, SyntaxHotness::Visible);
-			if entry.sched.epoch == pre_epoch
-				&& is_bootstrap
-				&& is_visible
-				&& entry.sched.active_task.is_none()
-			{
+			if entry.sched.epoch == pre_epoch && is_bootstrap && is_visible && entry.sched.active_task.is_none() {
 				entry.slot.current = Some(syntax);
 				entry.slot.language_id = Some(lang_id);
 				entry.slot.tree_doc_version = Some(ctx.doc_version);
@@ -469,12 +382,7 @@ impl SyntaxManager {
 		let mut really_needs_b = false;
 		if needs_stage_b {
 			let budget = cfg.viewport_stage_b_budget.unwrap();
-			let predicted = self.metrics.predict_duration(
-				lang_id,
-				tier,
-				TaskClass::Viewport,
-				InjectionPolicy::Eager,
-			);
+			let predicted = self.metrics.predict_duration(lang_id, tier, TaskClass::Viewport, InjectionPolicy::Eager);
 
 			// If no metrics yet, we assume it's within budget (optimistic)
 			if predicted.map(|p| p <= budget).unwrap_or(true) {
@@ -489,10 +397,7 @@ impl SyntaxManager {
 
 				if needs_stage_a {
 					let win_start = viewport.start.saturating_sub(cfg.viewport_lookbehind);
-					let mut win_end = viewport
-						.end
-						.saturating_add(cfg.viewport_lookahead)
-						.min(bytes_u32);
+					let mut win_end = viewport.end.saturating_add(cfg.viewport_lookahead).min(bytes_u32);
 					let mut win_len = win_end.saturating_sub(win_start);
 
 					if win_len > cfg.viewport_window_max {
@@ -510,14 +415,9 @@ impl SyntaxManager {
 
 			if win_end > win_start {
 				let class = TaskClass::Viewport;
-				let parse_timeout = self.metrics.derive_timeout(
-					lang_id,
-					tier,
-					class,
-					injections,
-					cfg.viewport_parse_timeout_min,
-					cfg.viewport_parse_timeout_max,
-				);
+				let parse_timeout =
+					self.metrics
+						.derive_timeout(lang_id, tier, class, injections, cfg.viewport_parse_timeout_min, cfg.viewport_parse_timeout_max);
 
 				let entry = self.entry_mut(doc_id);
 				let spec = TaskSpec {
@@ -526,10 +426,7 @@ impl SyntaxManager {
 					doc_version: ctx.doc_version,
 					lang_id,
 					opts_key: current_opts_key,
-					opts: SyntaxOptions {
-						parse_timeout,
-						injections,
-					},
+					opts: SyntaxOptions { parse_timeout, injections },
 					kind: TaskKind::ViewportParse {
 						content: ctx.content.clone(),
 						window: win_start..win_end,
@@ -540,10 +437,7 @@ impl SyntaxManager {
 				let permits = Arc::clone(&self.permits);
 				let engine = Arc::clone(&self.engine);
 
-				if let Some(task_id) =
-					self.collector
-						.spawn(permits, engine, spec, self.cfg.viewport_reserve)
-				{
+				if let Some(task_id) = self.collector.spawn(permits, engine, spec, self.cfg.viewport_reserve) {
 					let entry = self.entries.get_mut(&doc_id).unwrap();
 					entry.sched.active_task = Some(task_id);
 					entry.sched.active_task_class = Some(class);
@@ -564,10 +458,7 @@ impl SyntaxManager {
 		let (kind, class) = {
 			let entry = self.entry_mut(doc_id);
 			let incremental = match entry.slot.pending_incremental.as_ref() {
-				Some(pending)
-					if entry.slot.current.is_some()
-						&& entry.slot.tree_doc_version == Some(pending.base_tree_doc_version) =>
-				{
+				Some(pending) if entry.slot.current.is_some() && entry.slot.tree_doc_version == Some(pending.base_tree_doc_version) => {
 					Some(TaskKind::Incremental {
 						base: entry.slot.current.as_ref().unwrap().clone(),
 						old_rope: pending.old_rope.clone(),
@@ -578,22 +469,15 @@ impl SyntaxManager {
 				_ => None,
 			};
 
-			let kind = incremental.unwrap_or_else(|| TaskKind::FullParse {
-				content: ctx.content.clone(),
-			});
+			let kind = incremental.unwrap_or_else(|| TaskKind::FullParse { content: ctx.content.clone() });
 			let class = kind.class();
 			(kind, class)
 		};
 
 		let injections = cfg.injections;
-		let parse_timeout = self.metrics.derive_timeout(
-			lang_id,
-			tier,
-			class,
-			injections,
-			cfg.parse_timeout_min,
-			cfg.parse_timeout_max,
-		);
+		let parse_timeout = self
+			.metrics
+			.derive_timeout(lang_id, tier, class, injections, cfg.parse_timeout_min, cfg.parse_timeout_max);
 
 		let entry = self.entry_mut(doc_id);
 		let spec = TaskSpec {
@@ -602,10 +486,7 @@ impl SyntaxManager {
 			doc_version: ctx.doc_version,
 			lang_id,
 			opts_key: current_opts_key,
-			opts: SyntaxOptions {
-				parse_timeout,
-				injections,
-			},
+			opts: SyntaxOptions { parse_timeout, injections },
 			kind,
 			loader: Arc::clone(ctx.loader),
 		};
@@ -613,10 +494,7 @@ impl SyntaxManager {
 		let permits = Arc::clone(&self.permits);
 		let engine = Arc::clone(&self.engine);
 
-		if let Some(task_id) =
-			self.collector
-				.spawn(permits, engine, spec, self.cfg.viewport_reserve)
-		{
+		if let Some(task_id) = self.collector.spawn(permits, engine, spec, self.cfg.viewport_reserve) {
 			let entry = self.entry_mut(doc_id);
 			entry.sched.active_task = Some(task_id);
 			entry.sched.active_task_class = Some(class);

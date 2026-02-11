@@ -86,41 +86,23 @@ fn test_scope_prefix_matching() {
 	];
 
 	// Exact match
-	assert_eq!(
-		find_best_scope_match("keyword.control", scopes),
-		Some("keyword.control")
-	);
+	assert_eq!(find_best_scope_match("keyword.control", scopes), Some("keyword.control"));
 
 	// Prefix match - more specific capture falls back to less specific scope
-	assert_eq!(
-		find_best_scope_match("keyword.control.flow", scopes),
-		Some("keyword.control")
-	);
+	assert_eq!(find_best_scope_match("keyword.control.flow", scopes), Some("keyword.control"));
 
 	// Longer prefix wins
-	assert_eq!(
-		find_best_scope_match("keyword.control.import.default", scopes),
-		Some("keyword.control.import")
-	);
+	assert_eq!(find_best_scope_match("keyword.control.import.default", scopes), Some("keyword.control.import"));
 
 	// Falls back to base scope
-	assert_eq!(
-		find_best_scope_match("keyword.operator", scopes),
-		Some("keyword")
-	);
+	assert_eq!(find_best_scope_match("keyword.operator", scopes), Some("keyword"));
 
 	// No match at all
 	assert_eq!(find_best_scope_match("comment", scopes), None);
 
 	// Markup test
-	assert_eq!(
-		find_best_scope_match("markup.heading.marker", scopes),
-		Some("markup.heading")
-	);
+	assert_eq!(find_best_scope_match("markup.heading.marker", scopes), Some("markup.heading"));
 
 	// String special paths
-	assert_eq!(
-		find_best_scope_match("string.special.path", scopes),
-		Some("string.special")
-	);
+	assert_eq!(find_best_scope_match("string.special.path", scopes), Some("string.special"));
 }

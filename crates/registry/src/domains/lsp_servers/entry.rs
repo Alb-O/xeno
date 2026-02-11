@@ -44,10 +44,7 @@ impl BuildEntry<LspServerEntry> for LspServerDef {
 		""
 	}
 
-	fn collect_payload_strings<'b>(
-		&'b self,
-		collector: &mut crate::core::index::StringCollector<'_, 'b>,
-	) {
+	fn collect_payload_strings<'b>(&'b self, collector: &mut crate::core::index::StringCollector<'_, 'b>) {
 		collector.push(self.command);
 		collector.extend(self.args.iter().copied());
 		for (k, v) in self.environment {
@@ -59,11 +56,7 @@ impl BuildEntry<LspServerEntry> for LspServerDef {
 		collector.opt(self.nix);
 	}
 
-	fn build(
-		&self,
-		ctx: &mut dyn crate::core::index::BuildCtx,
-		key_pool: &mut Vec<Symbol>,
-	) -> LspServerEntry {
+	fn build(&self, ctx: &mut dyn crate::core::index::BuildCtx, key_pool: &mut Vec<Symbol>) -> LspServerEntry {
 		use crate::core::index::BuildCtxExt;
 
 		let meta = crate::core::index::meta_build::build_meta(ctx, key_pool, self.meta_ref(), []);
@@ -72,12 +65,7 @@ impl BuildEntry<LspServerEntry> for LspServerDef {
 			meta,
 			command: ctx.intern(self.command),
 			args: ctx.intern_slice(self.args),
-			environment: self
-				.environment
-				.iter()
-				.map(|(k, v)| (ctx.intern(k), ctx.intern(v)))
-				.collect::<Vec<_>>()
-				.into(),
+			environment: self.environment.iter().map(|(k, v)| (ctx.intern(k), ctx.intern(v))).collect::<Vec<_>>().into(),
 			config_json: self.config_json.map(|s| ctx.intern(s)),
 			source: self.source.map(|s| ctx.intern(s)),
 			nix: self.nix.map(|s| ctx.intern(s)),
@@ -85,8 +73,7 @@ impl BuildEntry<LspServerEntry> for LspServerDef {
 	}
 }
 
-pub type LspServerInput =
-	crate::core::def_input::DefInput<LspServerDef, crate::core::LinkedDef<LspServerPayload>>;
+pub type LspServerInput = crate::core::def_input::DefInput<LspServerDef, crate::core::LinkedDef<LspServerPayload>>;
 
 #[derive(Clone)]
 pub struct LspServerPayload {
@@ -99,10 +86,7 @@ pub struct LspServerPayload {
 }
 
 impl crate::core::LinkedPayload<LspServerEntry> for LspServerPayload {
-	fn collect_payload_strings<'b>(
-		&'b self,
-		collector: &mut crate::core::index::StringCollector<'_, 'b>,
-	) {
+	fn collect_payload_strings<'b>(&'b self, collector: &mut crate::core::index::StringCollector<'_, 'b>) {
 		collector.push(&self.command);
 		collector.extend(self.args.iter().map(|s| s.as_str()));
 		for (k, v) in &self.environment {
@@ -114,27 +98,12 @@ impl crate::core::LinkedPayload<LspServerEntry> for LspServerPayload {
 		collector.opt(self.nix.as_deref());
 	}
 
-	fn build_entry(
-		&self,
-		ctx: &mut dyn crate::core::index::BuildCtx,
-		meta: RegistryMeta,
-		_short_desc: Symbol,
-	) -> LspServerEntry {
+	fn build_entry(&self, ctx: &mut dyn crate::core::index::BuildCtx, meta: RegistryMeta, _short_desc: Symbol) -> LspServerEntry {
 		LspServerEntry {
 			meta,
 			command: ctx.intern(&self.command),
-			args: self
-				.args
-				.iter()
-				.map(|s| ctx.intern(s))
-				.collect::<Vec<_>>()
-				.into(),
-			environment: self
-				.environment
-				.iter()
-				.map(|(k, v)| (ctx.intern(k), ctx.intern(v)))
-				.collect::<Vec<_>>()
-				.into(),
+			args: self.args.iter().map(|s| ctx.intern(s)).collect::<Vec<_>>().into(),
+			environment: self.environment.iter().map(|(k, v)| (ctx.intern(k), ctx.intern(v))).collect::<Vec<_>>().into(),
 			config_json: self.config_json.as_ref().map(|s| ctx.intern(s)),
 			source: self.source.as_ref().map(|s| ctx.intern(s)),
 			nix: self.nix.as_ref().map(|s| ctx.intern(s)),
@@ -142,9 +111,7 @@ impl crate::core::LinkedPayload<LspServerEntry> for LspServerPayload {
 	}
 }
 
-pub fn link_lsp_servers(
-	spec: &super::spec::LspServersSpec,
-) -> Vec<crate::core::LinkedDef<LspServerPayload>> {
+pub fn link_lsp_servers(spec: &super::spec::LspServersSpec) -> Vec<crate::core::LinkedDef<LspServerPayload>> {
 	spec.servers
 		.iter()
 		.map(|s| crate::core::LinkedDef {

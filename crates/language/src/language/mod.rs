@@ -19,10 +19,7 @@ impl LanguageData {
 	}
 
 	pub fn grammar_name(&self) -> &str {
-		self.entry
-			.grammar_name
-			.map(|s| self.entry.resolve(s))
-			.unwrap_or_else(|| self.entry.name_str())
+		self.entry.grammar_name.map(|s| self.entry.resolve(s)).unwrap_or_else(|| self.entry.name_str())
 	}
 
 	pub fn extensions(&self) -> impl Iterator<Item = &str> {
@@ -42,34 +39,22 @@ impl LanguageData {
 	}
 
 	pub fn comment_tokens(&self) -> impl Iterator<Item = &str> {
-		self.entry
-			.comment_tokens
-			.iter()
-			.map(|&s| self.entry.resolve(s))
+		self.entry.comment_tokens.iter().map(|&s| self.entry.resolve(s))
 	}
 
 	pub fn block_comment(&self) -> Option<(&str, &str)> {
-		self.entry
-			.block_comment
-			.map(|(s1, s2)| (self.entry.resolve(s1), self.entry.resolve(s2)))
+		self.entry.block_comment.map(|(s1, s2)| (self.entry.resolve(s1), self.entry.resolve(s2)))
 	}
 
 	pub fn injection_regex(&self) -> Option<regex::Regex> {
 		self.entry
 			.injection_regex
 			.map(|s| self.entry.resolve(s))
-			.and_then(|r| {
-				regex::Regex::new(r)
-					.map_err(|e| warn!(regex = r, error = %e, "Invalid injection regex"))
-					.ok()
-			})
+			.and_then(|r| regex::Regex::new(r).map_err(|e| warn!(regex = r, error = %e, "Invalid injection regex")).ok())
 	}
 
 	pub fn lsp_servers(&self) -> impl Iterator<Item = &str> {
-		self.entry
-			.lsp_servers
-			.iter()
-			.map(|&s| self.entry.resolve(s))
+		self.entry.lsp_servers.iter().map(|&s| self.entry.resolve(s))
 	}
 
 	pub fn roots(&self) -> impl Iterator<Item = &str> {
@@ -86,30 +71,19 @@ impl LanguageData {
 				rules: repair
 					.rules
 					.iter()
-					.map(|rule| {
-						match rule {
-						xeno_registry::languages::types::ViewportRepairRuleEntry::BlockComment {
-							open,
-							close,
-							nestable,
-						} => ViewportRepairRule::BlockComment {
+					.map(|rule| match rule {
+						xeno_registry::languages::types::ViewportRepairRuleEntry::BlockComment { open, close, nestable } => ViewportRepairRule::BlockComment {
 							open: self.entry.resolve(*open).to_string(),
 							close: self.entry.resolve(*close).to_string(),
 							nestable: *nestable,
 						},
-						xeno_registry::languages::types::ViewportRepairRuleEntry::String {
-							quote,
-							escape,
-						} => ViewportRepairRule::String {
+						xeno_registry::languages::types::ViewportRepairRuleEntry::String { quote, escape } => ViewportRepairRule::String {
 							quote: self.entry.resolve(*quote).to_string(),
 							escape: escape.map(|s| self.entry.resolve(s).to_string()),
 						},
-						xeno_registry::languages::types::ViewportRepairRuleEntry::LineComment {
-							start,
-						} => ViewportRepairRule::LineComment {
+						xeno_registry::languages::types::ViewportRepairRuleEntry::LineComment { start } => ViewportRepairRule::LineComment {
 							start: self.entry.resolve(*start).to_string(),
 						},
-					}
 					})
 					.collect(),
 			};
@@ -129,9 +103,7 @@ impl LanguageData {
 
 		// Line comments
 		for token in self.comment_tokens() {
-			rules.push(ViewportRepairRule::LineComment {
-				start: token.to_string(),
-			});
+			rules.push(ViewportRepairRule::LineComment { start: token.to_string() });
 		}
 
 		// Strings (common defaults)

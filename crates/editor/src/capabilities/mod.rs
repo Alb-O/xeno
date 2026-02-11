@@ -49,21 +49,13 @@ pub(crate) fn parse_option_value(kdl_key: &str, value: &str) -> Result<OptionVal
 		OptionError::UnknownOption(key) => {
 			let suggestion = parse::suggest_option(&key);
 			match suggestion {
-				Some(s) => CommandError::InvalidArgument(format!(
-					"unknown option: {key} (did you mean '{s}'?)"
-				)),
+				Some(s) => CommandError::InvalidArgument(format!("unknown option: {key} (did you mean '{s}'?)")),
 				None => CommandError::InvalidArgument(format!("unknown option: {key}")),
 			}
 		}
-		OptionError::InvalidValue { option, reason } => {
-			CommandError::InvalidArgument(format!("invalid value for {option}: {reason}"))
+		OptionError::InvalidValue { option, reason } => CommandError::InvalidArgument(format!("invalid value for {option}: {reason}")),
+		OptionError::TypeMismatch { option, expected, got } => {
+			CommandError::InvalidArgument(format!("type mismatch for {option}: expected {expected:?}, got {got}"))
 		}
-		OptionError::TypeMismatch {
-			option,
-			expected,
-			got,
-		} => CommandError::InvalidArgument(format!(
-			"type mismatch for {option}: expected {expected:?}, got {got}"
-		)),
 	})
 }

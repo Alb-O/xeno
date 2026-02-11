@@ -33,13 +33,7 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame) {
 		.interaction
 		.active
 		.as_ref()
-		.map(|active| {
-			if active.session.panes.len() <= 1 {
-				1
-			} else {
-				10
-			}
-		});
+		.map(|active| if active.session.panes.len() <= 1 { 1 } else { 10 });
 	ui.sync_utility_for_modal_overlay(overlay_height);
 	let whichkey_height = crate::ui::panels::utility::UtilityPanel::whichkey_desired_height(ed);
 	ui.sync_utility_for_whichkey(whichkey_height);
@@ -47,16 +41,11 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame) {
 	let doc_area = dock_layout.doc_area;
 	ed.state.viewport.doc_area = Some(doc_area);
 
-	if ed.state.layout.hovered_separator.is_none()
-		&& ed.state.layout.separator_under_mouse.is_some()
-		&& !ed.state.layout.is_mouse_fast()
-	{
+	if ed.state.layout.hovered_separator.is_none() && ed.state.layout.separator_under_mouse.is_some() && !ed.state.layout.is_mouse_fast() {
 		let old_hover = ed.state.layout.hovered_separator.take();
 		ed.state.layout.hovered_separator = ed.state.layout.separator_under_mouse;
 		if old_hover != ed.state.layout.hovered_separator {
-			ed.state
-				.layout
-				.update_hover_animation(old_hover, ed.state.layout.hovered_separator);
+			ed.state.layout.update_hover_animation(old_hover, ed.state.layout.hovered_separator);
 			ed.state.frame.needs_redraw = true;
 		}
 	}
@@ -68,20 +57,8 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame) {
 	let doc_focused = ui.focus.focused().is_editor();
 
 	let mut builder = SceneBuilder::new(area, main_area, doc_area, status_area);
-	builder.push(
-		SurfaceKind::Background,
-		0,
-		area,
-		SurfaceOp::Background,
-		false,
-	);
-	builder.push(
-		SurfaceKind::Document,
-		10,
-		doc_area,
-		SurfaceOp::Document,
-		true,
-	);
+	builder.push(SurfaceKind::Background, 0, area, SurfaceOp::Background, false);
+	builder.push(SurfaceKind::Document, 10, doc_area, SurfaceOp::Document, true);
 	if layers::info_popups::visible(ed) {
 		layers::info_popups::push(&mut builder, doc_area);
 	}
@@ -89,27 +66,9 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame) {
 	if layers::completion::visible(ed) {
 		layers::completion::push(&mut builder, doc_area);
 	}
-	builder.push(
-		SurfaceKind::OverlayLayers,
-		50,
-		area,
-		SurfaceOp::OverlayLayers,
-		false,
-	);
-	builder.push(
-		SurfaceKind::StatusLine,
-		60,
-		status_area,
-		SurfaceOp::StatusLine,
-		false,
-	);
-	builder.push(
-		SurfaceKind::Notifications,
-		70,
-		doc_area,
-		SurfaceOp::Notifications,
-		false,
-	);
+	builder.push(SurfaceKind::OverlayLayers, 50, area, SurfaceOp::OverlayLayers, false);
+	builder.push(SurfaceKind::StatusLine, 60, status_area, SurfaceOp::StatusLine, false);
+	builder.push(SurfaceKind::Notifications, 70, doc_area, SurfaceOp::Notifications, false);
 	let scene = builder.finish();
 	let mut result = SceneRenderResult::default();
 
@@ -117,8 +76,7 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame) {
 		match surface.op {
 			SurfaceOp::Background => {
 				frame.render_widget(Clear, area);
-				let bg_block =
-					Block::default().style(Style::default().bg(ed.state.config.theme.colors.ui.bg));
+				let bg_block = Block::default().style(Style::default().bg(ed.state.config.theme.colors.ui.bg));
 				frame.render_widget(bg_block, area);
 			}
 			SurfaceOp::Document => {
@@ -141,9 +99,7 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame) {
 				let mut notifications_area = doc_area;
 				notifications_area.height = notifications_area.height.saturating_sub(1);
 				notifications_area.width = notifications_area.width.saturating_sub(1);
-				ed.state
-					.notifications
-					.render(notifications_area, frame.buffer_mut());
+				ed.state.notifications.render(notifications_area, frame.buffer_mut());
 			}
 		}
 	}

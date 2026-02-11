@@ -25,9 +25,7 @@ impl Editor {
 			let path_owned = match &self.buffer().path() {
 				Some(p) => p.clone(),
 				None => {
-					return Err(CommandError::InvalidArgument(
-						"No filename. Use :write <filename>".to_string(),
-					));
+					return Err(CommandError::InvalidArgument("No filename. Use :write <filename>".to_string()));
 				}
 			};
 
@@ -57,14 +55,10 @@ impl Editor {
 			if let Some(parent) = path_owned.parent()
 				&& !parent.as_os_str().is_empty()
 			{
-				tokio::fs::create_dir_all(parent)
-					.await
-					.map_err(|e| CommandError::Io(e.to_string()))?;
+				tokio::fs::create_dir_all(parent).await.map_err(|e| CommandError::Io(e.to_string()))?;
 			}
 
-			tokio::fs::write(&path_owned, &content)
-				.await
-				.map_err(|e| CommandError::Io(e.to_string()))?;
+			tokio::fs::write(&path_owned, &content).await.map_err(|e| CommandError::Io(e.to_string()))?;
 
 			let _ = self.buffer_mut().set_modified(false);
 			self.show_notification(xeno_registry::notifications::keys::file_saved(&path_owned));
@@ -74,10 +68,7 @@ impl Editor {
 				warn!(error = %e, "LSP did_save notification failed");
 			}
 
-			emit_hook(&HookContext::new(HookEventData::BufferWrite {
-				path: &path_owned,
-			}))
-			.await;
+			emit_hook(&HookContext::new(HookEventData::BufferWrite { path: &path_owned })).await;
 
 			Ok(())
 		})

@@ -40,11 +40,7 @@ fn to_simd(str_bytes: [&[u8]; 16], str_lens: [usize; 16], offset: usize) -> [__m
 				_mm_loadu_si128(str_bytes[i][offset..].as_ptr() as *const __m128i)
 			} else {
 				let mut data = _mm_setzero_si128();
-				std::ptr::copy_nonoverlapping(
-					str_bytes[i][offset..].as_ptr(),
-					&mut data as *mut __m128i as *mut u8,
-					load_len,
-				);
+				std::ptr::copy_nonoverlapping(str_bytes[i][offset..].as_ptr(), &mut data as *mut __m128i as *mut u8, load_len);
 				data
 			}
 		})
@@ -109,16 +105,14 @@ mod tests {
 	#[test]
 	fn test_interleave_avx2() {
 		// TODO: what the fuck
-		let strings_owned: [String; 16] =
-			std::array::from_fn(|i| -> [u8; 32] { std::array::from_fn(|j| (i * 16 + j) as u8) })
-				.map(|str| unsafe { String::from_utf8_unchecked(str.to_vec()) });
+		let strings_owned: [String; 16] = std::array::from_fn(|i| -> [u8; 32] { std::array::from_fn(|j| (i * 16 + j) as u8) })
+			.map(|str| unsafe { String::from_utf8_unchecked(str.to_vec()) });
 		let strings = strings_owned.iter().map(|s| s.as_str()).collect::<Vec<_>>();
 		let strings: &[&str; 16] = strings.as_slice().try_into().unwrap();
 
 		let transposed = unsafe { interleave::<32>(*strings) };
 
-		let expected: [[u16; 16]; 32] =
-			std::array::from_fn(|i| std::array::from_fn(|j| ((j * 16 + i) % 256) as u16));
+		let expected: [[u16; 16]; 32] = std::array::from_fn(|i| std::array::from_fn(|j| ((j * 16 + i) % 256) as u16));
 
 		assert_eq!(transposed.map(|simd| simd.to_array()), expected);
 	}

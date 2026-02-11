@@ -27,10 +27,7 @@ impl Future for PeerSocketResponseFuture {
 				None => Ok(resp.result.unwrap_or_default()),
 				Some(resp_err) => Err(resp_err),
 			}),
-			Poll::Ready(Err(_closed)) => Poll::Ready(Err(ResponseError::new(
-				ErrorCode::INTERNAL_ERROR,
-				"forwarding service stopped",
-			))),
+			Poll::Ready(Err(_closed)) => Poll::Ready(Err(ResponseError::new(ErrorCode::INTERNAL_ERROR, "forwarding service stopped"))),
 			Poll::Pending => Poll::Pending,
 		}
 	}

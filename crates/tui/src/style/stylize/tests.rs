@@ -5,10 +5,7 @@ use super::*;
 #[test]
 fn str_styled() {
 	assert_eq!("hello".style(), Style::default());
-	assert_eq!(
-		"hello".set_style(Style::new().cyan()),
-		Span::styled("hello", Style::new().cyan())
-	);
+	assert_eq!("hello".set_style(Style::new().cyan()), Span::styled("hello", Style::new().cyan()));
 	assert_eq!("hello".black(), Span::from("hello").black());
 	assert_eq!("hello".red(), Span::from("hello").red());
 	assert_eq!("hello".green(), Span::from("hello").green());
@@ -36,19 +33,10 @@ fn str_styled() {
 	assert_eq!("hello".on_gray(), Span::from("hello").on_gray());
 	assert_eq!("hello".on_dark_gray(), Span::from("hello").on_dark_gray());
 	assert_eq!("hello".on_light_red(), Span::from("hello").on_light_red());
-	assert_eq!(
-		"hello".on_light_green(),
-		Span::from("hello").on_light_green()
-	);
-	assert_eq!(
-		"hello".on_light_yellow(),
-		Span::from("hello").on_light_yellow()
-	);
+	assert_eq!("hello".on_light_green(), Span::from("hello").on_light_green());
+	assert_eq!("hello".on_light_yellow(), Span::from("hello").on_light_yellow());
 	assert_eq!("hello".on_light_blue(), Span::from("hello").on_light_blue());
-	assert_eq!(
-		"hello".on_light_magenta(),
-		Span::from("hello").on_light_magenta()
-	);
+	assert_eq!("hello".on_light_magenta(), Span::from("hello").on_light_magenta());
 	assert_eq!("hello".on_light_cyan(), Span::from("hello").on_light_cyan());
 	assert_eq!("hello".on_white(), Span::from("hello").on_white());
 
@@ -65,24 +53,12 @@ fn str_styled() {
 	assert_eq!("hello".not_bold(), Span::from("hello").not_bold());
 	assert_eq!("hello".not_dim(), Span::from("hello").not_dim());
 	assert_eq!("hello".not_italic(), Span::from("hello").not_italic());
-	assert_eq!(
-		"hello".not_underlined(),
-		Span::from("hello").not_underlined()
-	);
-	assert_eq!(
-		"hello".not_slow_blink(),
-		Span::from("hello").not_slow_blink()
-	);
-	assert_eq!(
-		"hello".not_rapid_blink(),
-		Span::from("hello").not_rapid_blink()
-	);
+	assert_eq!("hello".not_underlined(), Span::from("hello").not_underlined());
+	assert_eq!("hello".not_slow_blink(), Span::from("hello").not_slow_blink());
+	assert_eq!("hello".not_rapid_blink(), Span::from("hello").not_rapid_blink());
 	assert_eq!("hello".not_reversed(), Span::from("hello").not_reversed());
 	assert_eq!("hello".not_hidden(), Span::from("hello").not_hidden());
-	assert_eq!(
-		"hello".not_crossed_out(),
-		Span::from("hello").not_crossed_out()
-	);
+	assert_eq!("hello".not_crossed_out(), Span::from("hello").not_crossed_out());
 
 	assert_eq!("hello".reset(), Span::from("hello").reset());
 }
@@ -91,10 +67,7 @@ fn str_styled() {
 fn string_styled() {
 	let s = String::from("hello");
 	assert_eq!(s.style(), Style::default());
-	assert_eq!(
-		s.clone().set_style(Style::new().cyan()),
-		Span::styled("hello", Style::new().cyan())
-	);
+	assert_eq!(s.clone().set_style(Style::new().cyan()), Span::styled("hello", Style::new().cyan()));
 	assert_eq!(s.clone().black(), Span::from("hello").black());
 	assert_eq!(s.clone().on_black(), Span::from("hello").on_black());
 	assert_eq!(s.clone().bold(), Span::from("hello").bold());
@@ -119,10 +92,7 @@ fn temporary_string_styled() {
 	// format!() is used to create a temporary String inside a closure, which suffers the same
 	// issue as above without the `Styled` trait impl for `String`
 	let items = [String::from("a"), String::from("b")];
-	let sss = items
-		.iter()
-		.map(|s| format!("{s}{s}").red())
-		.collect::<Vec<_>>();
+	let sss = items.iter().map(|s| format!("{s}{s}").red()).collect::<Vec<_>>();
 	assert_eq!(sss, [Span::from("aa").red(), Span::from("bb").red()]);
 }
 
@@ -148,10 +118,7 @@ fn other_primitives_styled() {
 
 #[test]
 fn reset() {
-	assert_eq!(
-		"hello".on_cyan().light_red().bold().underlined().reset(),
-		Span::styled("hello", Style::reset())
-	);
+	assert_eq!("hello".on_cyan().light_red().bold().underlined().reset(), Span::styled("hello", Style::reset()));
 }
 
 #[test]
@@ -170,9 +137,7 @@ fn bg() {
 
 #[test]
 fn color_modifier() {
-	let cyan_bold = Style::default()
-		.fg(Color::Cyan)
-		.add_modifier(Modifier::BOLD);
+	let cyan_bold = Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD);
 
 	assert_eq!("hello".cyan().bold(), Span::styled("hello", cyan_bold));
 }
@@ -199,24 +164,9 @@ fn all_chained() {
 	let all_modifier_black = Style::default()
 		.bg(Color::Black)
 		.fg(Color::Black)
-		.add_modifier(
-			Modifier::UNDERLINED
-				| Modifier::BOLD
-				| Modifier::DIM
-				| Modifier::SLOW_BLINK
-				| Modifier::REVERSED
-				| Modifier::CROSSED_OUT,
-		);
+		.add_modifier(Modifier::UNDERLINED | Modifier::BOLD | Modifier::DIM | Modifier::SLOW_BLINK | Modifier::REVERSED | Modifier::CROSSED_OUT);
 	assert_eq!(
-		"hello"
-			.on_black()
-			.black()
-			.bold()
-			.underlined()
-			.dim()
-			.slow_blink()
-			.crossed_out()
-			.reversed(),
+		"hello".on_black().black().bold().underlined().dim().slow_blink().crossed_out().reversed(),
 		Span::styled("hello", all_modifier_black)
 	);
 }

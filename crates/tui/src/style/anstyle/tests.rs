@@ -106,19 +106,10 @@ fn style_to_anstyle_style() {
 		..Default::default()
 	};
 	let anstyle_style = anstyle::Style::from(style);
-	assert_eq!(
-		anstyle_style.get_fg_color(),
-		Some(anstyle::Color::Ansi(AnsiColor::Red))
-	);
-	assert_eq!(
-		anstyle_style.get_bg_color(),
-		Some(anstyle::Color::Ansi(AnsiColor::Blue))
-	);
+	assert_eq!(anstyle_style.get_fg_color(), Some(anstyle::Color::Ansi(AnsiColor::Red)));
+	assert_eq!(anstyle_style.get_bg_color(), Some(anstyle::Color::Ansi(AnsiColor::Blue)));
 	#[cfg(feature = "underline-color")]
-	assert_eq!(
-		anstyle_style.get_underline_color(),
-		Some(anstyle::Color::Ansi(AnsiColor::Green))
-	);
+	assert_eq!(anstyle_style.get_underline_color(), Some(anstyle::Color::Ansi(AnsiColor::Green)));
 	assert!(anstyle_style.get_effects().contains(Effects::BOLD));
 	assert!(anstyle_style.get_effects().contains(Effects::ITALIC));
 }

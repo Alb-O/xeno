@@ -28,9 +28,7 @@ editor_command!(
 	handler: cmd_registry
 );
 
-fn cmd_stats<'a>(
-	ctx: &'a mut EditorCommandContext<'a>,
-) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
+fn cmd_stats<'a>(ctx: &'a mut EditorCommandContext<'a>) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
 		let stats = ctx.editor.stats_snapshot();
 
@@ -70,12 +68,7 @@ fn cmd_stats<'a>(
 			stats.lsp_snapshot_bytes_tick,
 		);
 
-		crate::impls::Editor::open_info_popup(
-			ctx.editor,
-			content,
-			Some("markdown"),
-			PopupAnchor::Center,
-		);
+		crate::impls::Editor::open_info_popup(ctx.editor, content, Some("markdown"), PopupAnchor::Center);
 
 		Ok(CommandOutcome::Ok)
 	})
@@ -142,18 +135,11 @@ struct RegistryItem {
 	flags: u32,
 }
 
-fn cmd_registry<'a>(
-	ctx: &'a mut EditorCommandContext<'a>,
-) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
+fn cmd_registry<'a>(ctx: &'a mut EditorCommandContext<'a>) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
 		let (kind, prefix) = parse_registry_args(ctx.args);
 		let content = build_registry_report(kind, prefix);
-		crate::impls::Editor::open_info_popup(
-			ctx.editor,
-			content,
-			Some("markdown"),
-			PopupAnchor::Center,
-		);
+		crate::impls::Editor::open_info_popup(ctx.editor, content, Some("markdown"), PopupAnchor::Center);
 		Ok(CommandOutcome::Ok)
 	})
 }
@@ -213,12 +199,7 @@ fn build_registry_report(kind: Option<RegistryKind>, prefix: Option<&str>) -> St
 	out
 }
 
-fn append_registry_section(
-	out: &mut String,
-	kind: RegistryKind,
-	prefix: Option<&str>,
-	show_empty: bool,
-) -> usize {
+fn append_registry_section(out: &mut String, kind: RegistryKind, prefix: Option<&str>, show_empty: bool) -> usize {
 	let mut items = collect_registry_items(kind);
 	items.retain(|item| matches_prefix(item, prefix));
 
@@ -276,28 +257,14 @@ fn collect_registry_items(kind: RegistryKind) -> Vec<RegistryItem> {
 				description: def.description.to_string(),
 				priority: def.priority,
 				source: def.source,
-				required_caps: format!(
-					"{:?}",
-					xeno_registry::CapabilitySet::from_iter(def.required_caps.iter().cloned())
-				),
+				required_caps: format!("{:?}", xeno_registry::CapabilitySet::from_iter(def.required_caps.iter().cloned())),
 				flags: 0,
 			})
 			.collect(),
 		RegistryKind::Motions => all_motions().iter().map(registry_item_from_ref).collect(),
-		RegistryKind::TextObjects => all_text_objects()
-			.iter()
-			.map(registry_item_from_ref)
-			.collect(),
-		RegistryKind::Gutters => GUTTERS
-			.snapshot_guard()
-			.iter_refs()
-			.map(|r| registry_item_from_ref(&r))
-			.collect(),
-		RegistryKind::Hooks => HOOKS
-			.snapshot_guard()
-			.iter_refs()
-			.map(|r| registry_item_from_ref(&r))
-			.collect(),
+		RegistryKind::TextObjects => all_text_objects().iter().map(registry_item_from_ref).collect(),
+		RegistryKind::Gutters => GUTTERS.snapshot_guard().iter_refs().map(|r| registry_item_from_ref(&r)).collect(),
+		RegistryKind::Hooks => HOOKS.snapshot_guard().iter_refs().map(|r| registry_item_from_ref(&r)).collect(),
 		RegistryKind::Notifications => NOTIFICATIONS
 			.snapshot_guard()
 			.iter_refs()
@@ -311,21 +278,9 @@ fn collect_registry_items(kind: RegistryKind) -> Vec<RegistryItem> {
 				flags: 0,
 			})
 			.collect(),
-		RegistryKind::Options => OPTIONS
-			.snapshot_guard()
-			.iter_refs()
-			.map(|r| registry_item_from_ref(&r))
-			.collect(),
-		RegistryKind::Statusline => STATUSLINE_SEGMENTS
-			.snapshot_guard()
-			.iter_refs()
-			.map(|r| registry_item_from_ref(&r))
-			.collect(),
-		RegistryKind::Themes => THEMES
-			.snapshot_guard()
-			.iter_refs()
-			.map(|r| registry_item_from_ref(&r))
-			.collect(),
+		RegistryKind::Options => OPTIONS.snapshot_guard().iter_refs().map(|r| registry_item_from_ref(&r)).collect(),
+		RegistryKind::Statusline => STATUSLINE_SEGMENTS.snapshot_guard().iter_refs().map(|r| registry_item_from_ref(&r)).collect(),
+		RegistryKind::Themes => THEMES.snapshot_guard().iter_refs().map(|r| registry_item_from_ref(&r)).collect(),
 	}
 }
 

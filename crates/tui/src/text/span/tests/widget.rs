@@ -10,10 +10,7 @@ fn render() {
 	let span = Span::styled("test content", style);
 	let mut buf = Buffer::empty(Rect::new(0, 0, 15, 1));
 	span.render(buf.area, &mut buf);
-	let expected = Buffer::with_lines([Line::from(vec![
-		"test content".green().on_yellow(),
-		"   ".into(),
-	])]);
+	let expected = Buffer::with_lines([Line::from(vec!["test content".green().on_yellow(), "   ".into()])]);
 	assert_eq!(buf, expected);
 }
 
@@ -37,10 +34,7 @@ fn render_truncates_too_long_content() {
 	let mut buf = Buffer::empty(Rect::new(0, 0, 10, 1));
 	span.render(Rect::new(0, 0, 5, 1), &mut buf);
 
-	let expected = Buffer::with_lines([Line::from(vec![
-		"test ".green().on_yellow(),
-		"     ".into(),
-	])]);
+	let expected = Buffer::with_lines([Line::from(vec!["test ".green().on_yellow(), "     ".into()])]);
 	assert_eq!(buf, expected);
 }
 
@@ -53,10 +47,7 @@ fn render_patches_existing_style() {
 	let mut buf = Buffer::empty(Rect::new(0, 0, 15, 1));
 	buf.set_style(buf.area, Style::new().italic());
 	span.render(buf.area, &mut buf);
-	let expected = Buffer::with_lines([Line::from(vec![
-		"test content".green().on_yellow().italic(),
-		"   ".italic(),
-	])]);
+	let expected = Buffer::with_lines([Line::from(vec!["test content".green().on_yellow().italic(), "   ".italic()])]);
 	assert_eq!(buf, expected);
 }
 
@@ -98,10 +89,7 @@ fn render_overflowing_area_truncates() {
 	let mut buf = Buffer::empty(Rect::new(0, 0, 15, 1));
 	span.render(Rect::new(10, 0, 20, 1), &mut buf);
 
-	let expected = Buffer::with_lines([Line::from(vec![
-		"          ".into(),
-		"test ".green().on_yellow(),
-	])]);
+	let expected = Buffer::with_lines([Line::from(vec!["          ".into(), "test ".green().on_yellow()])]);
 	assert_eq!(buf, expected);
 }
 
@@ -110,10 +98,7 @@ fn render_first_zero_width() {
 	let span = Span::raw("\u{200B}abc");
 	let mut buf = Buffer::empty(Rect::new(0, 0, 3, 1));
 	span.render(buf.area, &mut buf);
-	assert_eq!(
-		buf.content(),
-		[Cell::new("\u{200B}a"), Cell::new("b"), Cell::new("c"),]
-	);
+	assert_eq!(buf.content(), [Cell::new("\u{200B}a"), Cell::new("b"), Cell::new("c"),]);
 }
 
 #[test]
@@ -121,10 +106,7 @@ fn render_second_zero_width() {
 	let span = Span::raw("a\u{200B}bc");
 	let mut buf = Buffer::empty(Rect::new(0, 0, 3, 1));
 	span.render(buf.area, &mut buf);
-	assert_eq!(
-		buf.content(),
-		[Cell::new("a\u{200B}"), Cell::new("b"), Cell::new("c")]
-	);
+	assert_eq!(buf.content(), [Cell::new("a\u{200B}"), Cell::new("b"), Cell::new("c")]);
 }
 
 #[test]
@@ -132,10 +114,7 @@ fn render_middle_zero_width() {
 	let span = Span::raw("ab\u{200B}c");
 	let mut buf = Buffer::empty(Rect::new(0, 0, 3, 1));
 	span.render(buf.area, &mut buf);
-	assert_eq!(
-		buf.content(),
-		[Cell::new("a"), Cell::new("b\u{200B}"), Cell::new("c")]
-	);
+	assert_eq!(buf.content(), [Cell::new("a"), Cell::new("b\u{200B}"), Cell::new("c")]);
 }
 
 #[test]
@@ -143,10 +122,7 @@ fn render_last_zero_width() {
 	let span = Span::raw("abc\u{200B}");
 	let mut buf = Buffer::empty(Rect::new(0, 0, 3, 1));
 	span.render(buf.area, &mut buf);
-	assert_eq!(
-		buf.content(),
-		[Cell::new("a"), Cell::new("b"), Cell::new("c\u{200B}")]
-	);
+	assert_eq!(buf.content(), [Cell::new("a"), Cell::new("b"), Cell::new("c\u{200B}")]);
 }
 
 #[test]

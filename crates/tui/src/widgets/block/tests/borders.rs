@@ -7,9 +7,7 @@ use super::*;
 #[test]
 fn render_padded_border() {
 	let mut buffer = Buffer::empty(Rect::new(0, 0, 10, 3));
-	Block::bordered()
-		.border_type(BorderType::Padded)
-		.render(buffer.area, &mut buffer);
+	Block::bordered().border_type(BorderType::Padded).render(buffer.area, &mut buffer);
 	#[rustfmt::skip]
 	let expected = Buffer::with_lines([
 		"          ",
@@ -22,9 +20,7 @@ fn render_padded_border() {
 #[test]
 fn render_stripe_border() {
 	let mut buffer = Buffer::empty(Rect::new(0, 0, 10, 3));
-	Block::bordered()
-		.border_type(BorderType::Stripe)
-		.render(buffer.area, &mut buffer);
+	Block::bordered().border_type(BorderType::Stripe).render(buffer.area, &mut buffer);
 	#[rustfmt::skip]
 	let expected = Buffer::with_lines([
 		"▏         ",
@@ -38,61 +34,21 @@ fn render_stripe_border() {
 fn render_border_types() {
 	// Test all border type renderings in a single test using a helper
 	fn check_border(border_type: BorderType, expected: [&str; 3]) {
-		render_test!(
-			Block::bordered().border_type(border_type),
-			(10, 3),
-			[expected[0], expected[1], expected[2]]
-		);
+		render_test!(Block::bordered().border_type(border_type), (10, 3), [expected[0], expected[1], expected[2]]);
 	}
 
-	check_border(
-		BorderType::Plain,
-		["┌────────┐", "│        │", "└────────┘"],
-	);
-	check_border(
-		BorderType::Rounded,
-		["╭────────╮", "│        │", "╰────────╯"],
-	);
-	check_border(
-		BorderType::Double,
-		["╔════════╗", "║        ║", "╚════════╝"],
-	);
-	check_border(
-		BorderType::QuadrantInside,
-		["▗▄▄▄▄▄▄▄▄▖", "▐        ▌", "▝▀▀▀▀▀▀▀▀▘"],
-	);
-	check_border(
-		BorderType::QuadrantOutside,
-		["▛▀▀▀▀▀▀▀▀▜", "▌        ▐", "▙▄▄▄▄▄▄▄▄▟"],
-	);
-	check_border(
-		BorderType::Thick,
-		["┏━━━━━━━━┓", "┃        ┃", "┗━━━━━━━━┛"],
-	);
-	check_border(
-		BorderType::LightDoubleDashed,
-		["┌╌╌╌╌╌╌╌╌┐", "╎        ╎", "└╌╌╌╌╌╌╌╌┘"],
-	);
-	check_border(
-		BorderType::HeavyDoubleDashed,
-		["┏╍╍╍╍╍╍╍╍┓", "╏        ╏", "┗╍╍╍╍╍╍╍╍┛"],
-	);
-	check_border(
-		BorderType::LightTripleDashed,
-		["┌┄┄┄┄┄┄┄┄┐", "┆        ┆", "└┄┄┄┄┄┄┄┄┘"],
-	);
-	check_border(
-		BorderType::HeavyTripleDashed,
-		["┏┅┅┅┅┅┅┅┅┓", "┇        ┇", "┗┅┅┅┅┅┅┅┅┛"],
-	);
-	check_border(
-		BorderType::LightQuadrupleDashed,
-		["┌┈┈┈┈┈┈┈┈┐", "┊        ┊", "└┈┈┈┈┈┈┈┈┘"],
-	);
-	check_border(
-		BorderType::HeavyQuadrupleDashed,
-		["┏┉┉┉┉┉┉┉┉┓", "┋        ┋", "┗┉┉┉┉┉┉┉┉┛"],
-	);
+	check_border(BorderType::Plain, ["┌────────┐", "│        │", "└────────┘"]);
+	check_border(BorderType::Rounded, ["╭────────╮", "│        │", "╰────────╯"]);
+	check_border(BorderType::Double, ["╔════════╗", "║        ║", "╚════════╝"]);
+	check_border(BorderType::QuadrantInside, ["▗▄▄▄▄▄▄▄▄▖", "▐        ▌", "▝▀▀▀▀▀▀▀▀▘"]);
+	check_border(BorderType::QuadrantOutside, ["▛▀▀▀▀▀▀▀▀▜", "▌        ▐", "▙▄▄▄▄▄▄▄▄▟"]);
+	check_border(BorderType::Thick, ["┏━━━━━━━━┓", "┃        ┃", "┗━━━━━━━━┛"]);
+	check_border(BorderType::LightDoubleDashed, ["┌╌╌╌╌╌╌╌╌┐", "╎        ╎", "└╌╌╌╌╌╌╌╌┘"]);
+	check_border(BorderType::HeavyDoubleDashed, ["┏╍╍╍╍╍╍╍╍┓", "╏        ╏", "┗╍╍╍╍╍╍╍╍┛"]);
+	check_border(BorderType::LightTripleDashed, ["┌┄┄┄┄┄┄┄┄┐", "┆        ┆", "└┄┄┄┄┄┄┄┄┘"]);
+	check_border(BorderType::HeavyTripleDashed, ["┏┅┅┅┅┅┅┅┅┓", "┇        ┇", "┗┅┅┅┅┅┅┅┅┛"]);
+	check_border(BorderType::LightQuadrupleDashed, ["┌┈┈┈┈┈┈┈┈┐", "┊        ┊", "└┈┈┈┈┈┈┈┈┘"]);
+	check_border(BorderType::HeavyQuadrupleDashed, ["┏┉┉┉┉┉┉┉┉┓", "┋        ┋", "┗┉┉┉┉┉┉┉┉┛"]);
 }
 
 #[test]

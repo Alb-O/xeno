@@ -47,24 +47,14 @@ impl Editor {
 
 					match built {
 						Ok((rope, readonly)) => {
-							send(
-								&tx,
-								IoMsg::FileLoaded {
-									path,
-									rope,
-									readonly,
-								},
-							);
+							send(&tx, IoMsg::FileLoaded { path, rope, readonly });
 						}
 						Err(e) => {
 							send(
 								&tx,
 								IoMsg::LoadFailed {
 									path,
-									error: std::io::Error::new(
-										std::io::ErrorKind::Other,
-										e.to_string(),
-									),
+									error: std::io::Error::other(e.to_string()),
 								},
 							);
 						}
@@ -89,8 +79,7 @@ impl Editor {
 
 		tokio::spawn(async move {
 			let parsed = tokio::task::spawn_blocking(|| {
-				let server_defs = xeno_runtime_language::load_lsp_configs()
-					.map_err(|e| format!("failed to load LSP configs: {e}"))?;
+				let server_defs = xeno_runtime_language::load_lsp_configs().map_err(|e| format!("failed to load LSP configs: {e}"))?;
 				let lang_mapping = xeno_runtime_language::language_db().lsp_mapping();
 				Ok::<_, String>((server_defs, lang_mapping))
 			})
@@ -110,15 +99,10 @@ impl Editor {
 				}
 			};
 
-			let server_map: std::collections::HashMap<_, _> =
-				server_defs.iter().map(|s| (s.name.as_str(), s)).collect();
+			let server_map: std::collections::HashMap<_, _> = server_defs.iter().map(|s| (s.name.as_str(), s)).collect();
 
 			for (language, info) in &lang_mapping {
-				let Some(server_def) = info
-					.servers
-					.iter()
-					.find_map(|name| server_map.get(name.as_str()))
-				else {
+				let Some(server_def) = info.servers.iter().find_map(|name| server_map.get(name.as_str())) else {
 					continue;
 				};
 
@@ -153,10 +137,7 @@ impl Editor {
 ///
 /// Embedded themes are seeded into the data directory before loading so users
 /// can discover and customize them on disk.
-async fn load_themes_blocking(
-	config_themes_dir: Option<PathBuf>,
-	data_themes_dir: Option<PathBuf>,
-) -> Vec<(String, String)> {
+async fn load_themes_blocking(config_themes_dir: Option<PathBuf>, data_themes_dir: Option<PathBuf>) -> Vec<(String, String)> {
 	tokio::task::spawn_blocking(move || {
 		let mut errors = Vec::new();
 		let mut all_themes: Vec<xeno_registry::themes::LinkedThemeDef> = Vec::new();
@@ -184,11 +165,7 @@ async fn load_themes_blocking(
 }
 
 /// Loads themes from `dir` into the accumulator vectors, logging on failure.
-fn collect_dir_themes(
-	dir: &std::path::Path,
-	themes: &mut Vec<xeno_registry::themes::LinkedThemeDef>,
-	errors: &mut Vec<(String, String)>,
-) {
+fn collect_dir_themes(dir: &std::path::Path, themes: &mut Vec<xeno_registry::themes::LinkedThemeDef>, errors: &mut Vec<(String, String)>) {
 	use xeno_registry::config::kdl::parse_theme_standalone_str;
 
 	if !dir.exists() {
@@ -206,11 +183,7 @@ fn collect_dir_themes(
 	for entry in entries.flatten() {
 		let path = entry.path();
 		if path.extension().is_some_and(|ext| ext == "kdl") {
-			let filename = path
-				.file_name()
-				.unwrap_or_default()
-				.to_string_lossy()
-				.into_owned();
+			let filename = path.file_name().unwrap_or_default().to_string_lossy().into_owned();
 
 			match std::fs::read_to_string(&path) {
 				Ok(content) => match parse_theme_standalone_str(&content) {

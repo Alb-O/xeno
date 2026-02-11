@@ -3,9 +3,7 @@
 //! Provides a single source of truth for resolving option values through the
 //! layered configuration system.
 
-use xeno_registry::options::{
-	FromOptionValue, OptionKey, OptionResolver, OptionStore, OptionValue, TypedOptionKey,
-};
+use xeno_registry::options::{FromOptionValue, OptionKey, OptionResolver, OptionStore, OptionValue, TypedOptionKey};
 
 use super::Editor;
 use crate::buffer::ViewId;
@@ -31,36 +29,18 @@ impl Editor {
 	/// let value = editor.resolve_option(buffer_id, keys::TAB_WIDTH.untyped());
 	/// ```
 	pub fn resolve_option(&self, buffer_id: ViewId, key: OptionKey) -> OptionValue {
-		let opt = xeno_registry::db::OPTIONS
-			.get_key(&key)
-			.expect("option key missing from registry");
+		let opt = xeno_registry::db::OPTIONS.get_key(&key).expect("option key missing from registry");
 
 		self.resolve_option_ref(buffer_id, &opt)
 	}
 
 	/// Resolves an option for a specific buffer using a resolved reference.
-	pub fn resolve_option_ref(
-		&self,
-		buffer_id: ViewId,
-		opt: &xeno_registry::options::OptionsRef,
-	) -> OptionValue {
-		let buffer = self
-			.state
-			.core
-			.buffers
-			.get_buffer(buffer_id)
-			.expect("buffer must exist");
+	pub fn resolve_option_ref(&self, buffer_id: ViewId, opt: &xeno_registry::options::OptionsRef) -> OptionValue {
+		let buffer = self.state.core.buffers.get_buffer(buffer_id).expect("buffer must exist");
 
-		let language_store = buffer
-			.file_type()
-			.and_then(|ft| self.state.config.language_options.get(&ft));
+		let language_store = buffer.file_type().and_then(|ft| self.state.config.language_options.get(&ft));
 
-		Self::resolve_with_stores(
-			&buffer.local_options,
-			language_store,
-			&self.state.config.global_options,
-			opt,
-		)
+		Self::resolve_with_stores(&buffer.local_options, language_store, &self.state.config.global_options, opt)
 	}
 
 	/// Resolves a typed option for a specific buffer.
@@ -75,11 +55,7 @@ impl Editor {
 	///
 	/// let width: i64 = editor.resolve_typed_option(buffer_id, keys::TAB_WIDTH);
 	/// ```
-	pub fn resolve_typed_option<T: FromOptionValue>(
-		&self,
-		buffer_id: ViewId,
-		key: TypedOptionKey<T>,
-	) -> T {
+	pub fn resolve_typed_option<T: FromOptionValue>(&self, buffer_id: ViewId, key: TypedOptionKey<T>) -> T {
 		let opt = xeno_registry::db::OPTIONS
 			.get_key(&key.untyped())
 			.expect("typed option key missing from registry");
@@ -120,9 +96,7 @@ impl Editor {
 				.with_language(lang_store)
 				.with_global(global_options)
 		} else {
-			OptionResolver::new()
-				.with_buffer(buffer_options)
-				.with_global(global_options)
+			OptionResolver::new().with_buffer(buffer_options).with_global(global_options)
 		};
 
 		resolver.resolve(opt)

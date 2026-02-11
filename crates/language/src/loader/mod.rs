@@ -43,9 +43,7 @@ impl LanguageLoader {
 
 	/// Creates a loader backed by the global language database.
 	pub fn from_embedded() -> Self {
-		Self {
-			db: Arc::clone(language_db()),
-		}
+		Self { db: Arc::clone(language_db()) }
 	}
 
 	/// Creates a loader from a custom database.
@@ -60,16 +58,12 @@ impl LanguageLoader {
 
 	/// Finds a language by name.
 	pub fn language_for_name(&self, name: &str) -> Option<Language> {
-		LANGUAGES
-			.get(name)
-			.map(|r: LanguageRef| r.dense_id().to_tree_house())
+		LANGUAGES.get(name).map(|r: LanguageRef| r.dense_id().to_tree_house())
 	}
 
 	/// Finds a language by file path.
 	pub fn language_for_path(&self, path: &Path) -> Option<Language> {
-		LANGUAGES
-			.resolve_path(path)
-			.map(|r: LanguageRef| r.dense_id().to_tree_house())
+		LANGUAGES.resolve_path(path).map(|r: LanguageRef| r.dense_id().to_tree_house())
 	}
 
 	/// Finds a language by shebang line.
@@ -81,8 +75,7 @@ impl LanguageLoader {
 		let line = first_line.trim_start_matches("#!");
 		let parts: Vec<&str> = line.split_whitespace().collect();
 
-		let interpreter = if parts.first() == Some(&"/usr/bin/env") || parts.first() == Some(&"env")
-		{
+		let interpreter = if parts.first() == Some(&"/usr/bin/env") || parts.first() == Some(&"env") {
 			parts.get(1).copied()
 		} else {
 			parts.first().and_then(|p| p.rsplit('/').next())
@@ -90,23 +83,18 @@ impl LanguageLoader {
 
 		interpreter.and_then(|interp| {
 			let base = interp.trim_end_matches(|c: char| c.is_ascii_digit());
-			LANGUAGES
-				.language_for_shebang(base)
-				.map(|r: LanguageRef| r.dense_id().to_tree_house())
+			LANGUAGES.language_for_shebang(base).map(|r: LanguageRef| r.dense_id().to_tree_house())
 		})
 	}
 
 	/// Finds a language by matching text against injection regexes.
 	fn language_for_injection_match(&self, text: &str) -> Option<Language> {
-		LANGUAGES
-			.snapshot_guard()
-			.iter_refs()
-			.find_map(|l: LanguageRef| {
-				let data = LanguageData { entry: l };
-				data.injection_regex()
-					.filter(|r| r.is_match(text))
-					.map(|_| data.entry.dense_id().to_tree_house())
-			})
+		LANGUAGES.snapshot_guard().iter_refs().find_map(|l: LanguageRef| {
+			let data = LanguageData { entry: l };
+			data.injection_regex()
+				.filter(|r| r.is_match(text))
+				.map(|_| data.entry.dense_id().to_tree_house())
+		})
 	}
 
 	/// Returns all registered languages.
@@ -129,10 +117,7 @@ impl LanguageLoader {
 
 	/// Returns a loader view with the specified injection policy.
 	pub fn with_injections(&self, injections: bool) -> LoaderView<'_> {
-		LoaderView {
-			base: self,
-			injections,
-		}
+		LoaderView { base: self, injections }
 	}
 }
 
@@ -159,15 +144,9 @@ impl tree_house::LanguageLoader for LanguageLoader {
 	fn language_for_marker(&self, marker: InjectionLanguageMarker) -> Option<Language> {
 		match marker {
 			InjectionLanguageMarker::Name(name) => self.language_for_name(name),
-			InjectionLanguageMarker::Match(text) => {
-				self.language_for_injection_match(&Cow::<str>::from(text))
-			}
-			InjectionLanguageMarker::Filename(text) => {
-				self.language_for_path(Path::new(Cow::<str>::from(text).as_ref()))
-			}
-			InjectionLanguageMarker::Shebang(text) => {
-				self.language_for_shebang(&Cow::<str>::from(text))
-			}
+			InjectionLanguageMarker::Match(text) => self.language_for_injection_match(&Cow::<str>::from(text)),
+			InjectionLanguageMarker::Filename(text) => self.language_for_path(Path::new(Cow::<str>::from(text).as_ref())),
+			InjectionLanguageMarker::Shebang(text) => self.language_for_shebang(&Cow::<str>::from(text)),
 		}
 	}
 

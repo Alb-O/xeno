@@ -53,11 +53,7 @@ impl LineSource {
 			false
 		};
 
-		let content_end_char = if has_newline {
-			end_char_incl_nl.saturating_sub(1)
-		} else {
-			end_char_incl_nl
-		};
+		let content_end_char = if has_newline { end_char_incl_nl.saturating_sub(1) } else { end_char_incl_nl };
 
 		Some(LineSlice {
 			line_idx,

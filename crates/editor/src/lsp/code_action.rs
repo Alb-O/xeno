@@ -27,13 +27,7 @@ impl Editor {
 		let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
 			return false;
 		};
-		let Some((client, uri, _)) = self
-			.state
-			.lsp
-			.prepare_position_request(buffer)
-			.ok()
-			.flatten()
-		else {
+		let Some((client, uri, _)) = self.state.lsp.prepare_position_request(buffer).ok().flatten() else {
 			return false;
 		};
 
@@ -43,30 +37,14 @@ impl Editor {
 		}
 
 		let selection = buffer.selection.primary();
-		let start = if selection.is_point() {
-			buffer.cursor
-		} else {
-			selection.from()
-		};
-		let end = if selection.is_point() {
-			buffer.cursor
-		} else {
-			selection.to()
-		};
+		let start = if selection.is_point() { buffer.cursor } else { selection.from() };
+		let end = if selection.is_point() { buffer.cursor } else { selection.to() };
 		let encoding = client.offset_encoding();
-		let Some(range) = buffer
-			.with_doc(|doc| xeno_lsp::char_range_to_lsp_range(doc.content(), start, end, encoding))
-		else {
+		let Some(range) = buffer.with_doc(|doc| xeno_lsp::char_range_to_lsp_range(doc.content(), start, end, encoding)) else {
 			self.notify(keys::error("Invalid range for code actions"));
 			return false;
 		};
-		let diagnostics = buffer.with_doc(|doc| {
-			diagnostics_for_range(
-				&self.state.lsp.get_diagnostics(buffer),
-				doc.content(),
-				start..end,
-			)
-		});
+		let diagnostics = buffer.with_doc(|doc| diagnostics_for_range(&self.state.lsp.get_diagnostics(buffer), doc.content(), start..end));
 		let lsp_diagnostics: Vec<xeno_lsp::lsp_types::Diagnostic> = diagnostics
 			.into_iter()
 			.map(|d| xeno_lsp::lsp_types::Diagnostic {
@@ -83,9 +61,7 @@ impl Editor {
 				severity: Some(match d.severity {
 					DiagnosticSeverity::Error => xeno_lsp::lsp_types::DiagnosticSeverity::ERROR,
 					DiagnosticSeverity::Warning => xeno_lsp::lsp_types::DiagnosticSeverity::WARNING,
-					DiagnosticSeverity::Info => {
-						xeno_lsp::lsp_types::DiagnosticSeverity::INFORMATION
-					}
+					DiagnosticSeverity::Info => xeno_lsp::lsp_types::DiagnosticSeverity::INFORMATION,
 					DiagnosticSeverity::Hint => xeno_lsp::lsp_types::DiagnosticSeverity::HINT,
 				}),
 				code: d.code.map(xeno_lsp::lsp_types::NumberOrString::String),
@@ -123,8 +99,7 @@ impl Editor {
 			return false;
 		}
 
-		let display_items: Vec<UiCompletionItem> =
-			actions.iter().map(map_code_action_item).collect();
+		let display_items: Vec<UiCompletionItem> = actions.iter().map(map_code_action_item).collect();
 
 		let completions = self.overlays_mut().get_or_default::<CompletionState>();
 		completions.items = display_items;
@@ -140,15 +115,10 @@ impl Editor {
 		true
 	}
 
-	pub(crate) async fn apply_code_action_or_command(
-		&mut self,
-		buffer_id: ViewId,
-		action: CodeActionOrCommand,
-	) {
+	pub(crate) async fn apply_code_action_or_command(&mut self, buffer_id: ViewId, action: CodeActionOrCommand) {
 		match action {
 			CodeActionOrCommand::Command(command) => {
-				self.execute_lsp_command(buffer_id, command.command, command.arguments)
-					.await;
+				self.execute_lsp_command(buffer_id, command.command, command.arguments).await;
 			}
 			CodeActionOrCommand::CodeAction(action) => {
 				if let Some(disabled) = action.disabled {
@@ -163,29 +133,17 @@ impl Editor {
 					return;
 				}
 				if let Some(command) = action.command {
-					self.execute_lsp_command(buffer_id, command.command, command.arguments)
-						.await;
+					self.execute_lsp_command(buffer_id, command.command, command.arguments).await;
 				}
 			}
 		}
 	}
 
-	pub(crate) async fn execute_lsp_command(
-		&mut self,
-		buffer_id: ViewId,
-		command: String,
-		arguments: Option<Vec<serde_json::Value>>,
-	) {
+	pub(crate) async fn execute_lsp_command(&mut self, buffer_id: ViewId, command: String, arguments: Option<Vec<serde_json::Value>>) {
 		let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
 			return;
 		};
-		let Some((client, _, _)) = self
-			.state
-			.lsp
-			.prepare_position_request(buffer)
-			.ok()
-			.flatten()
-		else {
+		let Some((client, _, _)) = self.state.lsp.prepare_position_request(buffer).ok().flatten() else {
 			self.notify(keys::error("LSP client unavailable for command"));
 			return;
 		};
@@ -203,10 +161,7 @@ impl Editor {
 fn map_code_action_item(action: &CodeActionOrCommand) -> UiCompletionItem {
 	let (label, detail) = match action {
 		CodeActionOrCommand::Command(command) => (command.title.clone(), None),
-		CodeActionOrCommand::CodeAction(action) => (
-			action.title.clone(),
-			action.kind.as_ref().map(|kind| kind.as_str().to_string()),
-		),
+		CodeActionOrCommand::CodeAction(action) => (action.title.clone(), action.kind.as_ref().map(|kind| kind.as_str().to_string())),
 	};
 
 	UiCompletionItem {
@@ -219,11 +174,7 @@ fn map_code_action_item(action: &CodeActionOrCommand) -> UiCompletionItem {
 	}
 }
 
-fn diagnostics_for_range(
-	diagnostics: &[Diagnostic],
-	rope: &xeno_primitives::Rope,
-	selection: StdRange<CharIdx>,
-) -> Vec<Diagnostic> {
+fn diagnostics_for_range(diagnostics: &[Diagnostic], rope: &xeno_primitives::Rope, selection: StdRange<CharIdx>) -> Vec<Diagnostic> {
 	let mut out = Vec::new();
 	for diag in diagnostics {
 		let (start_line, start_char, end_line, end_char) = diag.range;

@@ -83,13 +83,8 @@ impl ToastState {
 			_ => Duration::ZERO,
 		};
 
-		if !phase_duration.is_zero()
-			&& matches!(
-				self.phase,
-				AnimationPhase::Entering | AnimationPhase::Exiting
-			) {
-			self.progress =
-				(self.progress + delta.as_secs_f32() / phase_duration.as_secs_f32()).min(1.0);
+		if !phase_duration.is_zero() && matches!(self.phase, AnimationPhase::Entering | AnimationPhase::Exiting) {
+			self.progress = (self.progress + delta.as_secs_f32() / phase_duration.as_secs_f32()).min(1.0);
 
 			if self.progress >= 1.0 {
 				match self.phase {
@@ -129,9 +124,6 @@ impl ToastState {
 
 	/// Returns true if this toast can be stacked with another having the same content.
 	pub(super) fn can_stack(&self) -> bool {
-		!matches!(
-			self.phase,
-			AnimationPhase::Exiting | AnimationPhase::Finished
-		)
+		!matches!(self.phase, AnimationPhase::Exiting | AnimationPhase::Finished)
 	}
 }

@@ -10,16 +10,12 @@ const LOWER_END: u16 = 122; // z
 const TO_LOWERCASE_MASK: u16 = 0x20;
 
 #[inline(always)]
-pub(crate) fn simd_to_lowercase_with_mask<const L: usize>(
-	data: Simd<u16, L>,
-) -> (Mask<i16, L>, Mask<i16, L>, Simd<u16, L>)
+pub(crate) fn simd_to_lowercase_with_mask<const L: usize>(data: Simd<u16, L>) -> (Mask<i16, L>, Mask<i16, L>, Simd<u16, L>)
 where
 	LaneCount<L>: SupportedLaneCount,
 {
-	let is_capital_mask: Mask<i16, L> =
-		data.simd_ge(Simd::splat(CAPITAL_START)) & data.simd_le(Simd::splat(CAPITAL_END));
-	let is_lower_mask: Mask<i16, L> =
-		data.simd_ge(Simd::splat(LOWER_START)) & data.simd_le(Simd::splat(LOWER_END));
+	let is_capital_mask: Mask<i16, L> = data.simd_ge(Simd::splat(CAPITAL_START)) & data.simd_le(Simd::splat(CAPITAL_END));
+	let is_lower_mask: Mask<i16, L> = data.simd_ge(Simd::splat(LOWER_START)) & data.simd_le(Simd::splat(LOWER_END));
 	let lowercase = data | is_capital_mask.select(Simd::splat(TO_LOWERCASE_MASK), Simd::splat(0));
 	(is_capital_mask, is_lower_mask, lowercase)
 }
@@ -39,10 +35,7 @@ where
 	#[inline(always)]
 	pub(crate) fn new(char: u16) -> Self {
 		let (is_capital_mask, _, lowercase) = simd_to_lowercase_with_mask::<L>(Simd::splat(char));
-		Self {
-			lowercase,
-			is_capital_mask,
-		}
+		Self { lowercase, is_capital_mask }
 	}
 }
 
@@ -80,9 +73,7 @@ where
 	#[inline(always)]
 	pub(crate) fn from_haystack(haystacks: &[&str; L], i: usize) -> Self {
 		// Convert haystacks to a static array of bytes chunked for SIMD
-		let chars = std::array::from_fn(|j| {
-			*haystacks[j].as_bytes().get(i).to_owned().unwrap_or(&0) as u16
-		});
+		let chars = std::array::from_fn(|j| *haystacks[j].as_bytes().get(i).to_owned().unwrap_or(&0) as u16);
 		// pre-compute haystack case mask, delimiter mask, and lowercase
 		HaystackChar::new(Simd::from_array(chars))
 	}

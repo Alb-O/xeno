@@ -27,11 +27,7 @@ use super::*;
 #[case::all_1(Borders::ALL, Rect::new(0, 0, 1, 1), Rect::new(1, 1, 0, 0))]
 #[case::all_2(Borders::ALL, Rect::new(0, 0, 2, 2), Rect::new(1, 1, 0, 0))]
 #[case::all_3(Borders::ALL, Rect::new(0, 0, 3, 3), Rect::new(1, 1, 1, 1))]
-fn inner_takes_into_account_the_borders(
-	#[case] borders: Borders,
-	#[case] area: Rect,
-	#[case] expected: Rect,
-) {
+fn inner_takes_into_account_the_borders(#[case] borders: Borders, #[case] area: Rect, #[case] expected: Rect) {
 	let block = Block::new().borders(borders);
 	assert_eq!(block.inner(area), expected);
 }
@@ -89,10 +85,7 @@ fn has_title_at_position_takes_into_account_all_positioning_declarations() {
 #[case::bottom_right(Borders::BOTTOM | Borders::RIGHT, (0, 1))]
 #[case::bottom_left(Borders::BOTTOM | Borders::LEFT, (0, 1))]
 #[case::left_right(Borders::LEFT | Borders::RIGHT, (0, 0))]
-fn vertical_space_takes_into_account_borders(
-	#[case] borders: Borders,
-	#[case] vertical_space: (u16, u16),
-) {
+fn vertical_space_takes_into_account_borders(#[case] borders: Borders, #[case] vertical_space: (u16, u16)) {
 	let block = Block::new().borders(borders);
 	assert_eq!(block.vertical_space(), vertical_space);
 }
@@ -105,11 +98,7 @@ fn vertical_space_takes_into_account_borders(
 #[case::top_bottom_border_all_p3(Borders::TOP | Borders::BOTTOM, Padding::new(100, 100, 4, 5), (5, 6))]
 #[case::no_border(Borders::NONE, Padding::new(100, 100, 10, 13), (10, 13))]
 #[case::all(Borders::ALL, Padding::new(100, 100, 1, 3), (2, 4))]
-fn vertical_space_takes_into_account_padding(
-	#[case] borders: Borders,
-	#[case] padding: Padding,
-	#[case] vertical_space: (u16, u16),
-) {
+fn vertical_space_takes_into_account_padding(#[case] borders: Borders, #[case] padding: Padding, #[case] vertical_space: (u16, u16)) {
 	let block = Block::new().borders(borders).padding(padding);
 	assert_eq!(block.vertical_space(), vertical_space);
 }
@@ -179,11 +168,7 @@ fn horizontal_space_takes_into_account_padding() {
 #[case::left_bordered_right_padded(Block::new().borders(Borders::LEFT), Padding::new(0, 1, 0, 0), (1, 1))]
 #[case::right_bordered_right_padded(Block::new().borders(Borders::RIGHT), Padding::new(0, 1, 0, 0), (0, 2))]
 #[case::right_bordered_left_padded(Block::new().borders(Borders::RIGHT), Padding::new(1, 0, 0, 0), (1, 1))]
-fn horizontal_space_takes_into_account_borders_and_padding(
-	#[case] block: Block,
-	#[case] padding: Padding,
-	#[case] horizontal_space: (u16, u16),
-) {
+fn horizontal_space_takes_into_account_borders_and_padding(#[case] block: Block, #[case] padding: Padding, #[case] horizontal_space: (u16, u16)) {
 	let block = block.padding(padding);
 	assert_eq!(block.horizontal_space(), horizontal_space);
 }

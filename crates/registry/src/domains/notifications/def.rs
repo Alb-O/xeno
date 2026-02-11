@@ -1,9 +1,7 @@
 use super::entry::NotificationEntry;
 use super::{AutoDismiss, Level};
 use crate::core::index::{BuildEntry, RegistryMetaRef, StrListRef};
-use crate::core::{
-	LinkedDef, LinkedPayload, RegistryMeta, RegistryMetaStatic, RegistrySource, Symbol,
-};
+use crate::core::{LinkedDef, LinkedPayload, RegistryMeta, RegistryMetaStatic, RegistrySource, Symbol};
 
 /// Static notification definition (for transition and direct use).
 #[derive(Debug, Clone, Copy)]
@@ -14,12 +12,7 @@ pub struct NotificationDef {
 }
 
 impl NotificationDef {
-	pub const fn new(
-		id: &'static str,
-		level: Level,
-		auto_dismiss: AutoDismiss,
-		_source: RegistrySource,
-	) -> Self {
+	pub const fn new(id: &'static str, level: Level, auto_dismiss: AutoDismiss, _source: RegistrySource) -> Self {
 		Self {
 			meta: RegistryMetaStatic::minimal(id, "", ""), // Minimal meta for now
 			level,
@@ -35,12 +28,7 @@ pub struct NotificationPayload {
 }
 
 impl LinkedPayload<NotificationEntry> for NotificationPayload {
-	fn build_entry(
-		&self,
-		_ctx: &mut dyn crate::core::index::BuildCtx,
-		meta: RegistryMeta,
-		_short_desc: Symbol,
-	) -> NotificationEntry {
+	fn build_entry(&self, _ctx: &mut dyn crate::core::index::BuildCtx, meta: RegistryMeta, _short_desc: Symbol) -> NotificationEntry {
 		NotificationEntry {
 			meta,
 			level: self.level,
@@ -70,17 +58,9 @@ impl BuildEntry<NotificationEntry> for NotificationDef {
 		self.meta.name
 	}
 
-	fn collect_payload_strings<'b>(
-		&'b self,
-		_collector: &mut crate::core::index::StringCollector<'_, 'b>,
-	) {
-	}
+	fn collect_payload_strings<'b>(&'b self, _collector: &mut crate::core::index::StringCollector<'_, 'b>) {}
 
-	fn build(
-		&self,
-		ctx: &mut dyn crate::core::index::BuildCtx,
-		key_pool: &mut Vec<Symbol>,
-	) -> NotificationEntry {
+	fn build(&self, ctx: &mut dyn crate::core::index::BuildCtx, key_pool: &mut Vec<Symbol>) -> NotificationEntry {
 		let meta = crate::core::index::meta_build::build_meta(ctx, key_pool, self.meta_ref(), []);
 
 		NotificationEntry {
@@ -91,5 +71,4 @@ impl BuildEntry<NotificationEntry> for NotificationDef {
 	}
 }
 
-pub type NotificationInput =
-	crate::core::def_input::DefInput<NotificationDef, LinkedNotificationDef>;
+pub type NotificationInput = crate::core::def_input::DefInput<NotificationDef, LinkedNotificationDef>;

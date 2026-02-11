@@ -2,14 +2,9 @@ use std::cell::Cell;
 
 use xeno_primitives::range::CharIdx;
 use xeno_primitives::{BoxFutureLocal, Mode, Selection};
-use xeno_registry::actions::{
-	ActionEffects, ActionResult, CursorAccess, EditorCapabilities, ModeAccess, NotificationAccess,
-	SelectionAccess,
-};
+use xeno_registry::actions::{ActionEffects, ActionResult, CursorAccess, EditorCapabilities, ModeAccess, NotificationAccess, SelectionAccess};
 use xeno_registry::commands::{CommandContext, CommandOutcome};
-use xeno_registry::hooks::{
-	HookAction, HookContext, HookDef, HookHandler, HookMutability, HookPriority,
-};
+use xeno_registry::hooks::{HookAction, HookContext, HookDef, HookHandler, HookMutability, HookPriority};
 use xeno_registry::notifications::Notification;
 use xeno_registry::{Capability, CommandError};
 
@@ -24,43 +19,41 @@ fn handler_invocation_test_action(_ctx: &xeno_registry::actions::ActionContext) 
 	ActionResult::Effects(ActionEffects::ok())
 }
 
-static ACTION_INVOCATION_TEST: xeno_registry::actions::ActionDef =
-	xeno_registry::actions::ActionDef {
-		meta: xeno_registry::RegistryMetaStatic {
-			id: "xeno-editor::invocation_test_action",
-			name: "invocation_test_action",
-			keys: &[],
-			description: "Invocation test action",
-			priority: 0,
-			source: xeno_registry::RegistrySource::Crate("xeno-editor"),
-			required_caps: &[],
-			flags: 0,
-		},
-		short_desc: "Invocation test action",
-		handler: handler_invocation_test_action,
-		bindings: &[],
-	};
+static ACTION_INVOCATION_TEST: xeno_registry::actions::ActionDef = xeno_registry::actions::ActionDef {
+	meta: xeno_registry::RegistryMetaStatic {
+		id: "xeno-editor::invocation_test_action",
+		name: "invocation_test_action",
+		keys: &[],
+		description: "Invocation test action",
+		priority: 0,
+		source: xeno_registry::RegistrySource::Crate("xeno-editor"),
+		required_caps: &[],
+		flags: 0,
+	},
+	short_desc: "Invocation test action",
+	handler: handler_invocation_test_action,
+	bindings: &[],
+};
 
 fn handler_invocation_edit_action(_ctx: &xeno_registry::actions::ActionContext) -> ActionResult {
 	ActionResult::Effects(ActionEffects::ok())
 }
 
-static ACTION_INVOCATION_EDIT: xeno_registry::actions::ActionDef =
-	xeno_registry::actions::ActionDef {
-		meta: xeno_registry::RegistryMetaStatic {
-			id: "xeno-editor::invocation_edit_action",
-			name: "invocation_edit_action",
-			keys: &[],
-			description: "Invocation edit action",
-			priority: 0,
-			source: xeno_registry::RegistrySource::Crate("xeno-editor"),
-			required_caps: &[Capability::Edit],
-			flags: 0,
-		},
-		short_desc: "Invocation edit action",
-		handler: handler_invocation_edit_action,
-		bindings: &[],
-	};
+static ACTION_INVOCATION_EDIT: xeno_registry::actions::ActionDef = xeno_registry::actions::ActionDef {
+	meta: xeno_registry::RegistryMetaStatic {
+		id: "xeno-editor::invocation_edit_action",
+		name: "invocation_edit_action",
+		keys: &[],
+		description: "Invocation edit action",
+		priority: 0,
+		source: xeno_registry::RegistrySource::Crate("xeno-editor"),
+		required_caps: &[Capability::Edit],
+		flags: 0,
+	},
+	short_desc: "Invocation edit action",
+	handler: handler_invocation_edit_action,
+	bindings: &[],
+};
 
 fn hook_handler_action_pre(ctx: &HookContext) -> HookAction {
 	if let xeno_registry::HookEventData::ActionPre { .. } = &ctx.data {
@@ -110,9 +103,7 @@ static HOOK_ACTION_POST: HookDef = HookDef {
 	handler: HookHandler::Immutable(hook_handler_action_post),
 };
 
-fn invocation_test_command_fail<'a>(
-	_ctx: &'a mut CommandContext<'a>,
-) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
+fn invocation_test_command_fail<'a>(_ctx: &'a mut CommandContext<'a>) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move { Err(CommandError::Failed("boom".into())) })
 }
 
@@ -131,24 +122,12 @@ static CMD_TEST_FAIL: xeno_registry::commands::CommandDef = xeno_registry::comma
 	user_data: None,
 };
 
-fn register_invocation_test_plugin(
-	db: &mut xeno_registry::db::builder::RegistryDbBuilder,
-) -> Result<(), xeno_registry::RegistryError> {
-	db.push_domain::<xeno_registry::db::domains::Actions>(
-		xeno_registry::actions::def::ActionInput::Static(ACTION_INVOCATION_TEST.clone()),
-	);
-	db.push_domain::<xeno_registry::db::domains::Actions>(
-		xeno_registry::actions::def::ActionInput::Static(ACTION_INVOCATION_EDIT.clone()),
-	);
-	db.push_domain::<xeno_registry::db::domains::Commands>(
-		xeno_registry::commands::def::CommandInput::Static(CMD_TEST_FAIL.clone()),
-	);
-	db.push_domain::<xeno_registry::db::domains::Hooks>(xeno_registry::hooks::HookInput::Static(
-		HOOK_ACTION_PRE,
-	));
-	db.push_domain::<xeno_registry::db::domains::Hooks>(xeno_registry::hooks::HookInput::Static(
-		HOOK_ACTION_POST,
-	));
+fn register_invocation_test_plugin(db: &mut xeno_registry::db::builder::RegistryDbBuilder) -> Result<(), xeno_registry::RegistryError> {
+	db.push_domain::<xeno_registry::db::domains::Actions>(xeno_registry::actions::def::ActionInput::Static(ACTION_INVOCATION_TEST.clone()));
+	db.push_domain::<xeno_registry::db::domains::Actions>(xeno_registry::actions::def::ActionInput::Static(ACTION_INVOCATION_EDIT.clone()));
+	db.push_domain::<xeno_registry::db::domains::Commands>(xeno_registry::commands::def::CommandInput::Static(CMD_TEST_FAIL.clone()));
+	db.push_domain::<xeno_registry::db::domains::Hooks>(xeno_registry::hooks::HookInput::Static(HOOK_ACTION_PRE));
+	db.push_domain::<xeno_registry::db::domains::Hooks>(xeno_registry::hooks::HookInput::Static(HOOK_ACTION_POST));
 	Ok(())
 }
 
@@ -237,22 +216,10 @@ impl EditorCapabilities for MockEditor {}
 
 #[test]
 fn invocation_describe() {
-	assert_eq!(
-		Invocation::action("move_left").describe(),
-		"action:move_left"
-	);
-	assert_eq!(
-		Invocation::action_with_count("move_down", 5).describe(),
-		"action:move_downx5"
-	);
-	assert_eq!(
-		Invocation::command("write", vec!["file.txt".into()]).describe(),
-		"cmd:write file.txt"
-	);
-	assert_eq!(
-		Invocation::editor_command("quit", vec![]).describe(),
-		"editor_cmd:quit"
-	);
+	assert_eq!(Invocation::action("move_left").describe(), "action:move_left");
+	assert_eq!(Invocation::action_with_count("move_down", 5).describe(), "action:move_downx5");
+	assert_eq!(Invocation::command("write", vec!["file.txt".into()]).describe(), "cmd:write file.txt");
+	assert_eq!(Invocation::editor_command("quit", vec![]).describe(), "editor_cmd:quit");
 }
 
 #[test]
@@ -270,45 +237,28 @@ fn invocation_policy_defaults() {
 fn capability_enforcement_blocks_when_enforced() {
 	let mut editor = MockEditor::new();
 	let mut ctx = EditorContext::new(&mut editor);
-	let error = ctx
-		.check_all_capabilities(&[Capability::Search])
-		.expect_err("expected missing capability");
+	let error = ctx.check_all_capabilities(&[Capability::Search]).expect_err("expected missing capability");
 
 	let notified = Cell::new(false);
 	let logged = Cell::new(false);
 
-	let result = handle_capability_violation(
-		InvocationPolicy::enforcing(),
-		error,
-		|_err| notified.set(true),
-		|_err| logged.set(true),
-	);
+	let result = handle_capability_violation(InvocationPolicy::enforcing(), error, |_err| notified.set(true), |_err| logged.set(true));
 
 	assert!(notified.get());
 	assert!(!logged.get());
-	assert!(matches!(
-		result,
-		Some(InvocationResult::CapabilityDenied(Capability::Search))
-	));
+	assert!(matches!(result, Some(InvocationResult::CapabilityDenied(Capability::Search))));
 }
 
 #[test]
 fn capability_enforcement_logs_in_log_only_mode() {
 	let mut editor = MockEditor::new();
 	let mut ctx = EditorContext::new(&mut editor);
-	let error = ctx
-		.check_all_capabilities(&[Capability::Search])
-		.expect_err("expected missing capability");
+	let error = ctx.check_all_capabilities(&[Capability::Search]).expect_err("expected missing capability");
 
 	let notified = Cell::new(false);
 	let logged = Cell::new(false);
 
-	let result = handle_capability_violation(
-		InvocationPolicy::log_only(),
-		error,
-		|_err| notified.set(true),
-		|_err| logged.set(true),
-	);
+	let result = handle_capability_violation(InvocationPolicy::log_only(), error, |_err| notified.set(true), |_err| logged.set(true));
 
 	assert!(result.is_none());
 	assert!(!notified.get());
@@ -338,14 +288,7 @@ fn readonly_enforcement_blocks_edit_actions() {
 	let mut editor = Editor::new_scratch();
 	editor.buffer_mut().set_readonly(true);
 
-	let result = editor.run_action_invocation(
-		"invocation_edit_action",
-		1,
-		false,
-		None,
-		None,
-		InvocationPolicy::enforcing(),
-	);
+	let result = editor.run_action_invocation("invocation_edit_action", 1, false, None, None, InvocationPolicy::enforcing());
 
 	assert!(matches!(result, InvocationResult::ReadonlyDenied));
 }
@@ -356,14 +299,7 @@ fn readonly_disabled_allows_edit_actions() {
 	let mut editor = Editor::new_scratch();
 	editor.buffer_mut().set_readonly(true);
 
-	let result = editor.run_action_invocation(
-		"invocation_edit_action",
-		1,
-		false,
-		None,
-		None,
-		InvocationPolicy::log_only(),
-	);
+	let result = editor.run_action_invocation("invocation_edit_action", 1, false, None, None, InvocationPolicy::log_only());
 
 	assert!(matches!(result, InvocationResult::Ok));
 }
@@ -372,15 +308,8 @@ fn readonly_disabled_allows_edit_actions() {
 fn command_error_propagates() {
 	// Test defs registered via inventory::submit!(PluginDef) at DB init time.
 	let mut editor = Editor::new_scratch();
-	let rt = tokio::runtime::Builder::new_current_thread()
-		.enable_all()
-		.build()
-		.unwrap();
-	let result = rt.block_on(editor.run_command_invocation(
-		"invocation_test_command_fail",
-		Vec::new(),
-		InvocationPolicy::enforcing(),
-	));
+	let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+	let result = rt.block_on(editor.run_command_invocation("invocation_test_command_fail", Vec::new(), InvocationPolicy::enforcing()));
 
 	assert!(matches!(
 		result,

@@ -47,35 +47,15 @@ pub fn build(ctx: &BuildCtx) {
 
 fn parse_languages_kdl(input: &str) -> Vec<LanguageSpec> {
 	let doc: KdlDocument = input.parse().expect("failed to parse languages.kdl");
-	doc.nodes()
-		.iter()
-		.filter(|n| n.name().value() == "language")
-		.map(parse_language_node)
-		.collect()
+	doc.nodes().iter().filter(|n| n.name().value() == "language").map(parse_language_node).collect()
 }
 
 fn parse_language_node(node: &KdlNode) -> LanguageSpec {
-	let name = node
-		.get("name")
-		.and_then(|v| v.as_string())
-		.expect("language missing name")
-		.to_string();
-	let scope = node
-		.get("scope")
-		.and_then(|v| v.as_string())
-		.map(String::from);
-	let grammar = node
-		.get("grammar")
-		.and_then(|v| v.as_string())
-		.map(String::from);
-	let injection_regex = node
-		.get("injection-regex")
-		.and_then(|v| v.as_string())
-		.map(String::from);
-	let auto_format = node
-		.get("auto-format")
-		.and_then(|v| v.as_bool())
-		.unwrap_or(false);
+	let name = node.get("name").and_then(|v| v.as_string()).expect("language missing name").to_string();
+	let scope = node.get("scope").and_then(|v| v.as_string()).map(String::from);
+	let grammar = node.get("grammar").and_then(|v| v.as_string()).map(String::from);
+	let injection_regex = node.get("injection-regex").and_then(|v| v.as_string()).map(String::from);
+	let auto_format = node.get("auto-format").and_then(|v| v.as_bool()).unwrap_or(false);
 
 	let children = node.children();
 	let (extensions, filenames, globs) = parse_file_types(children);
@@ -97,11 +77,7 @@ fn parse_language_node(node: &KdlNode) -> LanguageSpec {
 			description: String::new(),
 			short_desc: None,
 			keys: Vec::new(),
-			priority: node
-				.get("priority")
-				.and_then(|v| v.as_integer())
-				.map(|v| v as i16)
-				.unwrap_or(0),
+			priority: node.get("priority").and_then(|v| v.as_integer()).map(|v| v as i16).unwrap_or(0),
 			caps: Vec::new(),
 			flags: 0,
 		},
@@ -188,10 +164,7 @@ fn parse_block_comment(node: &KdlNode, children: Option<&KdlDocument>) -> Option
 	let children = children?;
 	let bc_node = children.get("block-comment-tokens")?;
 
-	if let (Some(start), Some(end)) = (
-		bc_node.get("start").and_then(|v| v.as_string()),
-		bc_node.get("end").and_then(|v| v.as_string()),
-	) {
+	if let (Some(start), Some(end)) = (bc_node.get("start").and_then(|v| v.as_string()), bc_node.get("end").and_then(|v| v.as_string())) {
 		return Some((start.to_string(), end.to_string()));
 	}
 

@@ -28,11 +28,7 @@ fn test_simple_overlap() {
 
 #[test]
 fn test_nested_overlap() {
-	let spans = vec![
-		s(0, 10, Color::Red),
-		s(2, 8, Color::Blue),
-		s(4, 6, Color::Green),
-	];
+	let spans = vec![s(0, 10, Color::Red), s(2, 8, Color::Blue), s(4, 6, Color::Green)];
 	let index = HighlightIndex::new(spans);
 	// Expect Red, Blue, Green, Blue, Red
 	assert_eq!(index.spans.len(), 5);

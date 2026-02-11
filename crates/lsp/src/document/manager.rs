@@ -100,11 +100,7 @@ impl DocumentStateManager {
 		let uri = crate::uri_from_path(path)?;
 		let key = self.uri_key(&uri);
 		let docs = self.documents.read();
-		if docs.contains_key(&key) {
-			Some(uri)
-		} else {
-			None
-		}
+		if docs.contains_key(&key) { Some(uri) } else { None }
 	}
 
 	/// Get document state by URI.
@@ -119,9 +115,7 @@ impl DocumentStateManager {
 		let key = self.uri_key(&uri);
 
 		let mut docs = self.documents.write();
-		let state = docs
-			.entry(key)
-			.or_insert_with(|| DocumentState::from_uri(uri.clone()));
+		let state = docs.entry(key).or_insert_with(|| DocumentState::from_uri(uri.clone()));
 
 		if let Some(lang) = language_id {
 			state.set_language_id(lang);
@@ -140,20 +134,9 @@ impl DocumentStateManager {
 	///
 	/// Creates document state on-demand if the document isn't registered,
 	/// enabling project-wide diagnostics from LSP servers.
-	pub fn update_diagnostics(
-		&self,
-		uri: &Uri,
-		diagnostics: Vec<Diagnostic>,
-		version: Option<i32>,
-	) {
-		let error_count = diagnostics
-			.iter()
-			.filter(|d| d.severity == Some(DiagnosticSeverity::ERROR))
-			.count();
-		let warning_count = diagnostics
-			.iter()
-			.filter(|d| d.severity == Some(DiagnosticSeverity::WARNING))
-			.count();
+	pub fn update_diagnostics(&self, uri: &Uri, diagnostics: Vec<Diagnostic>, version: Option<i32>) {
+		let error_count = diagnostics.iter().filter(|d| d.severity == Some(DiagnosticSeverity::ERROR)).count();
+		let warning_count = diagnostics.iter().filter(|d| d.severity == Some(DiagnosticSeverity::WARNING)).count();
 
 		let uri_key = self.uri_key(uri);
 
@@ -195,14 +178,7 @@ impl DocumentStateManager {
 	fn send_diagnostics_event(&self, uri: &Uri, error_count: usize, warning_count: usize) {
 		let has_sender = self.event_sender.is_some();
 		let path = crate::path_from_uri(uri);
-		debug!(
-			uri = uri.as_str(),
-			?path,
-			error_count,
-			warning_count,
-			has_sender,
-			"Sending diagnostics event"
-		);
+		debug!(uri = uri.as_str(), ?path, error_count, warning_count, has_sender, "Sending diagnostics event");
 		if let Some(ref sender) = self.event_sender
 			&& let Some(path) = path
 		{
@@ -321,20 +297,12 @@ impl DocumentStateManager {
 
 	/// Get total error count across all documents.
 	pub fn total_error_count(&self) -> usize {
-		self.documents
-			.read()
-			.values()
-			.map(|s| s.error_count())
-			.sum()
+		self.documents.read().values().map(|s| s.error_count()).sum()
 	}
 
 	/// Get total warning count across all documents.
 	pub fn total_warning_count(&self) -> usize {
-		self.documents
-			.read()
-			.values()
-			.map(|s| s.warning_count())
-			.sum()
+		self.documents.read().values().map(|s| s.warning_count()).sum()
 	}
 
 	/// Handle a progress notification from a language server.
@@ -421,9 +389,7 @@ impl DocumentStateManager {
 
 	/// Clear all progress for a specific server (e.g., when server crashes).
 	pub fn clear_server_progress(&self, server_id: LanguageServerId) {
-		self.progress
-			.write()
-			.retain(|(sid, _), _| *sid != server_id);
+		self.progress.write().retain(|(sid, _), _| *sid != server_id);
 	}
 
 	/// Returns the number of pending changes for a document.
@@ -431,8 +397,6 @@ impl DocumentStateManager {
 	pub fn pending_change_count(&self, uri: &Uri) -> usize {
 		let key = self.uri_key(uri);
 		let docs = self.documents.read();
-		docs.get(&key)
-			.map(|s| s.pending_versions_len())
-			.unwrap_or(0)
+		docs.get(&key).map(|s| s.pending_versions_len()).unwrap_or(0)
 	}
 }

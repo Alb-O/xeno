@@ -126,11 +126,7 @@ impl Range {
 	/// Returns the direction of this range.
 	#[inline]
 	pub fn direction(&self) -> Direction {
-		if self.head < self.anchor {
-			Direction::Backward
-		} else {
-			Direction::Forward
-		}
+		if self.head < self.anchor { Direction::Backward } else { Direction::Forward }
 	}
 
 	/// Returns a new range with anchor and head swapped.
@@ -143,11 +139,7 @@ impl Range {
 
 	/// Returns a range with the specified direction, flipping if needed.
 	pub fn with_direction(self, direction: Direction) -> Self {
-		if self.direction() == direction {
-			self
-		} else {
-			self.flip()
-		}
+		if self.direction() == direction { self } else { self.flip() }
 	}
 
 	/// Applies a function to both anchor and head.

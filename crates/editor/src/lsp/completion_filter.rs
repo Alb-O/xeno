@@ -49,8 +49,7 @@ pub fn filter_items(raw_items: &[LspCompletionItem], query: &str) -> Vec<Filtere
 		.into_iter()
 		.map(|m| {
 			let idx = m.index as usize;
-			let match_indices =
-				frizbee::match_indices(query, &raw_items[idx].label, &config).map(|mi| mi.indices);
+			let match_indices = frizbee::match_indices(query, &raw_items[idx].label, &config).map(|mi| mi.indices);
 			FilteredItem {
 				index: idx,
 				score: m.score,
@@ -116,18 +115,10 @@ mod tests {
 
 	#[test]
 	fn filters_by_prefix() {
-		let items = vec![
-			make_item("tracing"),
-			make_item("error"),
-			make_item("tree"),
-			make_item("result"),
-		];
+		let items = vec![make_item("tracing"), make_item("error"), make_item("tree"), make_item("result")];
 		let filtered = filter_items(&items, "tr");
 		assert_eq!(filtered.len(), 2);
-		let labels: Vec<_> = filtered
-			.iter()
-			.map(|f| items[f.index].label.as_str())
-			.collect();
+		let labels: Vec<_> = filtered.iter().map(|f| items[f.index].label.as_str()).collect();
 		assert!(labels.contains(&"tracing"));
 		assert!(labels.contains(&"tree"));
 	}

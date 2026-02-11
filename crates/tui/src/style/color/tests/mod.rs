@@ -45,31 +45,19 @@ fn luminance_color_weights() {
 	let green = Color::Rgb(0, 255, 0).luminance();
 	let blue = Color::Rgb(0, 0, 255).luminance();
 
-	assert!(
-		green > red,
-		"green ({green}) should be brighter than red ({red})"
-	);
-	assert!(
-		red > blue,
-		"red ({red}) should be brighter than blue ({blue})"
-	);
+	assert!(green > red, "green ({green}) should be brighter than red ({red})");
+	assert!(red > blue, "red ({red}) should be brighter than blue ({blue})");
 }
 
 #[test]
 fn contrast_ratio_extremes() {
 	// Black vs white = maximum contrast (21:1)
 	let ratio = Color::Black.contrast_ratio(Color::White);
-	assert!(
-		(ratio - 21.0).abs() < 0.1,
-		"black/white contrast was {ratio}"
-	);
+	assert!((ratio - 21.0).abs() < 0.1, "black/white contrast was {ratio}");
 
 	// Same color = minimum contrast (1:1)
 	let ratio = Color::Blue.contrast_ratio(Color::Blue);
-	assert!(
-		(ratio - 1.0).abs() < 0.001,
-		"same color contrast was {ratio}"
-	);
+	assert!((ratio - 1.0).abs() < 0.001, "same color contrast was {ratio}");
 }
 
 #[test]
@@ -79,10 +67,7 @@ fn contrast_ratio_symmetry() {
 	let b = Color::Rgb(200, 180, 50);
 	let ratio_ab = a.contrast_ratio(b);
 	let ratio_ba = b.contrast_ratio(a);
-	assert!(
-		(ratio_ab - ratio_ba).abs() < 0.001,
-		"contrast should be symmetric: {ratio_ab} vs {ratio_ba}"
-	);
+	assert!((ratio_ab - ratio_ba).abs() < 0.001, "contrast should be symmetric: {ratio_ab} vs {ratio_ba}");
 }
 
 #[test]
@@ -102,25 +87,16 @@ fn ensure_min_contrast_boosts_on_dark_bg() {
 
 	// Initial contrast is very low
 	let initial_ratio = too_dark.contrast_ratio(dark_bg);
-	assert!(
-		initial_ratio < 1.2,
-		"initial contrast should be low: {initial_ratio}"
-	);
+	assert!(initial_ratio < 1.2, "initial contrast should be low: {initial_ratio}");
 
 	// After boosting, contrast meets minimum
 	let boosted = too_dark.ensure_min_contrast(dark_bg, 1.5);
 	let boosted_ratio = boosted.contrast_ratio(dark_bg);
-	assert!(
-		boosted_ratio >= 1.5,
-		"boosted contrast {boosted_ratio} should be >= 1.5"
-	);
+	assert!(boosted_ratio >= 1.5, "boosted contrast {boosted_ratio} should be >= 1.5");
 
 	// Should have shifted toward white (higher RGB values)
 	let (r, g, b) = boosted.to_rgb();
-	assert!(
-		r > 40 && g > 40 && b > 40,
-		"should shift toward white on dark bg"
-	);
+	assert!(r > 40 && g > 40 && b > 40, "should shift toward white on dark bg");
 }
 
 #[test]
@@ -130,23 +106,14 @@ fn ensure_min_contrast_boosts_on_light_bg() {
 
 	// Initial contrast is very low
 	let initial_ratio = too_light.contrast_ratio(light_bg);
-	assert!(
-		initial_ratio < 1.2,
-		"initial contrast should be low: {initial_ratio}"
-	);
+	assert!(initial_ratio < 1.2, "initial contrast should be low: {initial_ratio}");
 
 	// After boosting, contrast meets minimum
 	let boosted = too_light.ensure_min_contrast(light_bg, 1.5);
 	let boosted_ratio = boosted.contrast_ratio(light_bg);
-	assert!(
-		boosted_ratio >= 1.5,
-		"boosted contrast {boosted_ratio} should be >= 1.5"
-	);
+	assert!(boosted_ratio >= 1.5, "boosted contrast {boosted_ratio} should be >= 1.5");
 
 	// Should have shifted toward black (lower RGB values)
 	let (r, g, b) = boosted.to_rgb();
-	assert!(
-		r < 220 && g < 220 && b < 220,
-		"should shift toward black on light bg"
-	);
+	assert!(r < 220 && g < 220 && b < 220, "should shift toward black on light bg");
 }

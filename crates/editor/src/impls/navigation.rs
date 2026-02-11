@@ -56,8 +56,7 @@ impl Editor {
 	/// Resolves the `tab-width` option and delegates to Buffer.
 	pub fn move_visual_vertical(&mut self, direction: MoveDir, count: usize, extend: bool) {
 		let tab_width = self.tab_width();
-		self.buffer_mut()
-			.move_visual_vertical(direction, count, extend, tab_width);
+		self.buffer_mut().move_visual_vertical(direction, count, extend, tab_width);
 	}
 
 	/// Handles mouse scroll events.
@@ -66,8 +65,7 @@ impl Editor {
 	pub(crate) fn handle_mouse_scroll(&mut self, direction: ScrollDirection, count: usize) {
 		let scroll_lines = (self.option(keys::SCROLL_LINES) as usize).max(1);
 		let tab_width = self.tab_width();
-		self.buffer_mut()
-			.handle_mouse_scroll(direction, count * scroll_lines, tab_width);
+		self.buffer_mut().handle_mouse_scroll(direction, count * scroll_lines, tab_width);
 		self.state.frame.needs_redraw = true;
 	}
 

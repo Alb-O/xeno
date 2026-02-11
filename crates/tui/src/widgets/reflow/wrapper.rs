@@ -81,16 +81,11 @@ where
 
 			let word_found = non_whitespace_previous && is_whitespace;
 			// current word would overflow after removing whitespace
-			let trimmed_overflow = pending_line.is_empty()
-				&& self.trim && word_width + symbol_width > self.max_line_width;
+			let trimmed_overflow = pending_line.is_empty() && self.trim && word_width + symbol_width > self.max_line_width;
 			// separated whitespace would overflow on its own
-			let whitespace_overflow = pending_line.is_empty()
-				&& self.trim && whitespace_width + symbol_width
-				> self.max_line_width;
+			let whitespace_overflow = pending_line.is_empty() && self.trim && whitespace_width + symbol_width > self.max_line_width;
 			// current full word (including whitespace) would overflow
-			let untrimmed_overflow = pending_line.is_empty()
-				&& !self.trim
-				&& word_width + whitespace_width + symbol_width > self.max_line_width;
+			let untrimmed_overflow = pending_line.is_empty() && !self.trim && word_width + whitespace_width + symbol_width > self.max_line_width;
 
 			// append finished segment to current line
 			if word_found || trimmed_overflow || whitespace_overflow || untrimmed_overflow {
@@ -110,8 +105,7 @@ where
 			// pending line fills up limit
 			let line_full = line_width >= self.max_line_width;
 			// pending word would overflow line limit
-			let pending_word_overflow = symbol_width > 0
-				&& line_width + whitespace_width + word_width >= self.max_line_width;
+			let pending_word_overflow = symbol_width > 0 && line_width + whitespace_width + word_width >= self.max_line_width;
 
 			// add finished wrapped line to remaining lines
 			if line_full || pending_word_overflow {
@@ -152,11 +146,7 @@ where
 		}
 
 		// append remaining text parts
-		if pending_line.is_empty()
-			&& self.pending_word.is_empty()
-			&& !self.pending_whitespace.is_empty()
-			&& self.trim
-		{
+		if pending_line.is_empty() && self.pending_word.is_empty() && !self.pending_whitespace.is_empty() && self.trim {
 			self.wrapped_lines.push_back(vec![]);
 		}
 		if !pending_line.is_empty() || !self.trim {
@@ -199,10 +189,7 @@ where
 		loop {
 			// emit next cached line if present
 			if let Some(line) = self.wrapped_lines.pop_front() {
-				let line_width = line
-					.iter()
-					.map(|grapheme| grapheme.symbol.width() as u16)
-					.sum();
+				let line_width = line.iter().map(|grapheme| grapheme.symbol.width() as u16).sum();
 
 				self.replace_current_line(line);
 				return Some(WrappedLine {

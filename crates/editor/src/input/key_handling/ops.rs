@@ -8,19 +8,11 @@ impl Editor {
 	/// Dispatches an action based on the key result.
 	pub(crate) fn dispatch_action(&mut self, result: &KeyResult) -> ActionDispatch {
 		match result {
-			KeyResult::ActionById {
-				id,
-				count,
-				extend,
-				register,
-			} => {
+			KeyResult::ActionById { id, count, extend, register } => {
 				let quit = if let Some(action) = xeno_registry::ACTIONS.get_by_id(*id) {
-					self.invoke_action(action.name_str(), *count, *extend, *register, None)
-						.is_quit()
+					self.invoke_action(action.name_str(), *count, *extend, *register, None).is_quit()
 				} else {
-					self.show_notification(xeno_registry::notifications::keys::unknown_action(
-						&id.to_string(),
-					));
+					self.show_notification(xeno_registry::notifications::keys::unknown_action(&id.to_string()));
 					false
 				};
 				ActionDispatch::Executed(quit)
@@ -33,18 +25,9 @@ impl Editor {
 				char_arg,
 			} => {
 				let quit = if let Some(action) = xeno_registry::ACTIONS.get_by_id(*id) {
-					self.invoke_action(
-						action.name_str(),
-						*count,
-						*extend,
-						*register,
-						Some(*char_arg),
-					)
-					.is_quit()
+					self.invoke_action(action.name_str(), *count, *extend, *register, Some(*char_arg)).is_quit()
 				} else {
-					self.show_notification(xeno_registry::notifications::keys::unknown_action(
-						&id.to_string(),
-					));
+					self.show_notification(xeno_registry::notifications::keys::unknown_action(&id.to_string()));
 					false
 				};
 				ActionDispatch::Executed(quit)
@@ -80,15 +63,8 @@ impl Editor {
 		let content_changed = old_version != self.buffer().version();
 
 		let cursor = self.buffer().cursor;
-		let menu_active = self
-			.overlays()
-			.get::<CompletionState>()
-			.is_some_and(|s| s.active);
-		let replace_start = self
-			.overlays()
-			.get::<CompletionState>()
-			.map(|s| s.replace_start)
-			.unwrap_or(0);
+		let menu_active = self.overlays().get::<CompletionState>().is_some_and(|s| s.active);
+		let replace_start = self.overlays().get::<CompletionState>().map(|s| s.replace_start).unwrap_or(0);
 
 		if cursor < replace_start {
 			self.state.lsp.cancel_completion();
@@ -103,8 +79,7 @@ impl Editor {
 			self.clear_lsp_menu();
 		} else if content_changed {
 			self.cancel_signature_help();
-			if self.buffer().mode() == xeno_primitives::Mode::Insert && !self.buffer().is_readonly()
-			{
+			if self.buffer().mode() == xeno_primitives::Mode::Insert && !self.buffer().is_readonly() {
 				// Refilter existing menu immediately (no LSP round-trip)
 				if menu_active {
 					self.refilter_completion();
@@ -121,17 +96,9 @@ impl Editor {
 	}
 
 	/// Handles a mouse click with view-local coordinates.
-	pub(crate) fn handle_mouse_click_local(
-		&mut self,
-		local_row: u16,
-		local_col: u16,
-		extend: bool,
-	) {
+	pub(crate) fn handle_mouse_click_local(&mut self, local_row: u16, local_col: u16, extend: bool) {
 		let tab_width = self.tab_width();
-		if let Some(doc_pos) = self
-			.buffer()
-			.screen_to_doc_position(local_row, local_col, tab_width)
-		{
+		if let Some(doc_pos) = self.buffer().screen_to_doc_position(local_row, local_col, tab_width) {
 			let buffer = self.buffer_mut();
 			if extend {
 				let anchor = buffer.selection.primary().anchor;
@@ -150,10 +117,7 @@ impl Editor {
 	/// Handles mouse drag with view-local coordinates.
 	pub(crate) fn handle_mouse_drag_local(&mut self, local_row: u16, local_col: u16) {
 		let tab_width = self.tab_width();
-		if let Some(doc_pos) = self
-			.buffer()
-			.screen_to_doc_position(local_row, local_col, tab_width)
-		{
+		if let Some(doc_pos) = self.buffer().screen_to_doc_position(local_row, local_col, tab_width) {
 			let buffer = self.buffer_mut();
 			let anchor = buffer.selection.primary().anchor;
 			buffer.set_selection(Selection::single(anchor, doc_pos));

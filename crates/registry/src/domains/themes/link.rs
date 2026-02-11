@@ -5,8 +5,7 @@ use super::spec::ThemesSpec;
 use crate::core::LinkedDef;
 use crate::themes::theme::{LinkedThemeDef, ThemePayload};
 use crate::themes::{
-	Color, ColorPair, ModeColors, Modifier, NotificationColors, PopupColors, SemanticColors,
-	SyntaxStyle, SyntaxStyles, ThemeColors, ThemeVariant, UiColors,
+	Color, ColorPair, ModeColors, Modifier, NotificationColors, PopupColors, SemanticColors, SyntaxStyle, SyntaxStyles, ThemeColors, ThemeVariant, UiColors,
 };
 
 pub fn link_themes(spec: &ThemesSpec) -> Vec<LinkedThemeDef> {
@@ -64,25 +63,15 @@ pub fn link_themes(spec: &ThemesSpec) -> Vec<LinkedThemeDef> {
 
 fn parse_color(s: &str, palette: &HashMap<String, Color>) -> Result<Color, String> {
 	if let Some(name) = s.strip_prefix('$') {
-		return palette
-			.get(name)
-			.copied()
-			.ok_or_else(|| format!("unknown palette color: {name}"));
+		return palette.get(name).copied().ok_or_else(|| format!("unknown palette color: {name}"));
 	}
 	Color::from_str(s).map_err(|_| format!("invalid color: {s}"))
 }
 
-fn build_ui_colors(
-	map: &HashMap<String, String>,
-	palette: &HashMap<String, Color>,
-	theme_name: &str,
-) -> UiColors {
+fn build_ui_colors(map: &HashMap<String, String>, palette: &HashMap<String, Color>, theme_name: &str) -> UiColors {
 	let get = |key: &str, default: Color| {
 		map.get(key)
-			.map(|s| {
-				parse_color(s, palette)
-					.unwrap_or_else(|e| panic!("Theme '{}' UI error: {}: {}", theme_name, key, e))
-			})
+			.map(|s| parse_color(s, palette).unwrap_or_else(|e| panic!("Theme '{}' UI error: {}: {}", theme_name, key, e)))
 			.unwrap_or(default)
 	};
 	let bg = get("bg", Color::Reset);
@@ -101,51 +90,24 @@ fn build_ui_colors(
 	}
 }
 
-fn build_mode_colors(
-	map: &HashMap<String, String>,
-	palette: &HashMap<String, Color>,
-	theme_name: &str,
-) -> ModeColors {
+fn build_mode_colors(map: &HashMap<String, String>, palette: &HashMap<String, Color>, theme_name: &str) -> ModeColors {
 	let get = |key: &str, default: Color| {
 		map.get(key)
-			.map(|s| {
-				parse_color(s, palette)
-					.unwrap_or_else(|e| panic!("Theme '{}' mode error: {}: {}", theme_name, key, e))
-			})
+			.map(|s| parse_color(s, palette).unwrap_or_else(|e| panic!("Theme '{}' mode error: {}: {}", theme_name, key, e)))
 			.unwrap_or(default)
 	};
 	ModeColors {
-		normal: ColorPair::new(
-			get("normal-bg", Color::Blue),
-			get("normal-fg", Color::White),
-		),
-		insert: ColorPair::new(
-			get("insert-bg", Color::Green),
-			get("insert-fg", Color::Black),
-		),
-		prefix: ColorPair::new(
-			get("prefix-bg", Color::Magenta),
-			get("prefix-fg", Color::White),
-		),
-		command: ColorPair::new(
-			get("command-bg", Color::Yellow),
-			get("command-fg", Color::Black),
-		),
+		normal: ColorPair::new(get("normal-bg", Color::Blue), get("normal-fg", Color::White)),
+		insert: ColorPair::new(get("insert-bg", Color::Green), get("insert-fg", Color::Black)),
+		prefix: ColorPair::new(get("prefix-bg", Color::Magenta), get("prefix-fg", Color::White)),
+		command: ColorPair::new(get("command-bg", Color::Yellow), get("command-fg", Color::Black)),
 	}
 }
 
-fn build_semantic_colors(
-	map: &HashMap<String, String>,
-	palette: &HashMap<String, Color>,
-	theme_name: &str,
-) -> SemanticColors {
+fn build_semantic_colors(map: &HashMap<String, String>, palette: &HashMap<String, Color>, theme_name: &str) -> SemanticColors {
 	let get = |key: &str, default: Color| {
 		map.get(key)
-			.map(|s| {
-				parse_color(s, palette).unwrap_or_else(|e| {
-					panic!("Theme '{}' semantic error: {}: {}", theme_name, key, e)
-				})
-			})
+			.map(|s| parse_color(s, palette).unwrap_or_else(|e| panic!("Theme '{}' semantic error: {}: {}", theme_name, key, e)))
 			.unwrap_or(default)
 	};
 	SemanticColors {
@@ -161,18 +123,10 @@ fn build_semantic_colors(
 	}
 }
 
-fn build_popup_colors(
-	map: &HashMap<String, String>,
-	palette: &HashMap<String, Color>,
-	theme_name: &str,
-) -> PopupColors {
+fn build_popup_colors(map: &HashMap<String, String>, palette: &HashMap<String, Color>, theme_name: &str) -> PopupColors {
 	let get = |key: &str, default: Color| {
 		map.get(key)
-			.map(|s| {
-				parse_color(s, palette).unwrap_or_else(|e| {
-					panic!("Theme '{}' popup error: {}: {}", theme_name, key, e)
-				})
-			})
+			.map(|s| parse_color(s, palette).unwrap_or_else(|e| panic!("Theme '{}' popup error: {}: {}", theme_name, key, e)))
 			.unwrap_or(default)
 	};
 	PopupColors {
@@ -183,24 +137,18 @@ fn build_popup_colors(
 	}
 }
 
-fn build_syntax_styles(
-	map: &HashMap<String, super::spec::RawStyle>,
-	palette: &HashMap<String, Color>,
-	theme_name: &str,
-) -> SyntaxStyles {
+fn build_syntax_styles(map: &HashMap<String, super::spec::RawStyle>, palette: &HashMap<String, Color>, theme_name: &str) -> SyntaxStyles {
 	let mut styles = SyntaxStyles::minimal();
 	for (scope, raw) in map {
 		let style = SyntaxStyle {
-			fg: raw.fg.as_ref().map(|s| {
-				parse_color(s, palette).unwrap_or_else(|e| {
-					panic!("Theme '{}' syntax fg error: {}: {}", theme_name, scope, e)
-				})
-			}),
-			bg: raw.bg.as_ref().map(|s| {
-				parse_color(s, palette).unwrap_or_else(|e| {
-					panic!("Theme '{}' syntax bg error: {}: {}", theme_name, scope, e)
-				})
-			}),
+			fg: raw
+				.fg
+				.as_ref()
+				.map(|s| parse_color(s, palette).unwrap_or_else(|e| panic!("Theme '{}' syntax fg error: {}: {}", theme_name, scope, e))),
+			bg: raw
+				.bg
+				.as_ref()
+				.map(|s| parse_color(s, palette).unwrap_or_else(|e| panic!("Theme '{}' syntax bg error: {}: {}", theme_name, scope, e))),
 			modifiers: raw
 				.modifiers
 				.as_ref()
@@ -225,10 +173,7 @@ pub(crate) fn parse_modifiers(s: &str, theme_name: &str, scope: &str) -> Modifie
 			"reversed" => modifiers.insert(Modifier::REVERSED),
 			"dim" => modifiers.insert(Modifier::DIM),
 			"crossed-out" => modifiers.insert(Modifier::CROSSED_OUT),
-			other => panic!(
-				"Theme '{}' scope '{}' unknown modifier: '{}'",
-				theme_name, scope, other
-			),
+			other => panic!("Theme '{}' scope '{}' unknown modifier: '{}'", theme_name, scope, other),
 		}
 	}
 	modifiers

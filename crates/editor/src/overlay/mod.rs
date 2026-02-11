@@ -80,14 +80,10 @@ impl OverlayStore {
 		T: Any + Send + Sync + Default,
 	{
 		let type_id = TypeId::of::<T>();
-		let slot = self
-			.inner
-			.entry(type_id)
-			.or_insert_with(|| Box::<T>::default());
+		let slot = self.inner.entry(type_id).or_insert_with(|| Box::<T>::default());
 
-		slot.downcast_mut::<T>().expect(
-			"OverlayStore invariant violation: TypeId present with non-matching concrete type",
-		)
+		slot.downcast_mut::<T>()
+			.expect("OverlayStore invariant violation: TypeId present with non-matching concrete type")
 	}
 
 	/// Inserts a value of type `T` into the store.
@@ -202,13 +198,7 @@ pub trait OverlayContext {
 	fn lsp_prepare_position_request(
 		&self,
 		buffer: &Buffer,
-	) -> xeno_lsp::Result<
-		Option<(
-			xeno_lsp::ClientHandle,
-			xeno_lsp::lsp_types::Uri,
-			xeno_lsp::lsp_types::Position,
-		)>,
-	>;
+	) -> xeno_lsp::Result<Option<(xeno_lsp::ClientHandle, xeno_lsp::lsp_types::Uri, xeno_lsp::lsp_types::Position)>>;
 
 	#[cfg(feature = "lsp")]
 	fn apply_workspace_edit<'a>(
@@ -229,38 +219,19 @@ pub trait OverlayController: Send + Sync {
 	fn on_open(&mut self, ctx: &mut dyn OverlayContext, session: &mut OverlaySession);
 
 	/// Called when the primary input buffer content changes.
-	fn on_input_changed(
-		&mut self,
-		ctx: &mut dyn OverlayContext,
-		session: &mut OverlaySession,
-		text: &str,
-	);
+	fn on_input_changed(&mut self, ctx: &mut dyn OverlayContext, session: &mut OverlaySession, text: &str);
 
 	/// Processes raw key events. Returns `true` if the event was handled.
-	fn on_key(
-		&mut self,
-		ctx: &mut dyn OverlayContext,
-		session: &mut OverlaySession,
-		key: KeyEvent,
-	) -> bool {
+	fn on_key(&mut self, ctx: &mut dyn OverlayContext, session: &mut OverlaySession, key: KeyEvent) -> bool {
 		let _ = (ctx, session, key);
 		false
 	}
 
 	/// Performs the interaction's final action. Called when the session is committed.
-	fn on_commit<'a>(
-		&'a mut self,
-		ctx: &'a mut dyn OverlayContext,
-		session: &'a mut OverlaySession,
-	) -> Pin<Box<dyn Future<Output = ()> + 'a>>;
+	fn on_commit<'a>(&'a mut self, ctx: &'a mut dyn OverlayContext, session: &'a mut OverlaySession) -> Pin<Box<dyn Future<Output = ()> + 'a>>;
 
 	/// Final cleanup hook. Called when the session is closed for any reason.
-	fn on_close(
-		&mut self,
-		ctx: &mut dyn OverlayContext,
-		session: &mut OverlaySession,
-		reason: CloseReason,
-	);
+	fn on_close(&mut self, ctx: &mut dyn OverlayContext, session: &mut OverlaySession, reason: CloseReason);
 }
 
 impl OverlayContext for crate::impls::Editor {
@@ -308,13 +279,7 @@ impl OverlayContext for crate::impls::Editor {
 	fn lsp_prepare_position_request(
 		&self,
 		buffer: &Buffer,
-	) -> xeno_lsp::Result<
-		Option<(
-			xeno_lsp::ClientHandle,
-			xeno_lsp::lsp_types::Uri,
-			xeno_lsp::lsp_types::Position,
-		)>,
-	> {
+	) -> xeno_lsp::Result<Option<(xeno_lsp::ClientHandle, xeno_lsp::lsp_types::Uri, xeno_lsp::lsp_types::Position)>> {
 		self.state.lsp.prepare_position_request(buffer)
 	}
 
@@ -338,19 +303,10 @@ pub trait OverlayLayer: Send + Sync {
 	fn is_visible(&self, ed: &crate::impls::Editor) -> bool;
 
 	/// Computes the screen area for the layer based on the current viewport.
-	fn layout(
-		&self,
-		ed: &crate::impls::Editor,
-		screen: xeno_tui::layout::Rect,
-	) -> Option<xeno_tui::layout::Rect>;
+	fn layout(&self, ed: &crate::impls::Editor, screen: xeno_tui::layout::Rect) -> Option<xeno_tui::layout::Rect>;
 
 	/// Renders the layer content into the terminal frame.
-	fn render(
-		&self,
-		ed: &crate::impls::Editor,
-		frame: &mut xeno_tui::Frame,
-		area: xeno_tui::layout::Rect,
-	);
+	fn render(&self, ed: &crate::impls::Editor, frame: &mut xeno_tui::Frame, area: xeno_tui::layout::Rect);
 
 	/// Optional key interception for visible layers (e.g. Tab/Enter in completion menus).
 	fn on_key(&mut self, _ed: &mut crate::impls::Editor, _key: KeyEvent) -> bool {
@@ -366,10 +322,7 @@ pub enum LayerEvent {
 	/// Primary cursor moved in the focused buffer.
 	CursorMoved { view: ViewId },
 	/// Global editor mode changed (e.g. Insert -> Normal).
-	ModeChanged {
-		view: ViewId,
-		mode: xeno_primitives::Mode,
-	},
+	ModeChanged { view: ViewId, mode: xeno_primitives::Mode },
 	/// Content of a buffer was modified.
 	BufferEdited(ViewId),
 	/// Focus shifted between windows or panels.
@@ -443,30 +396,21 @@ impl OverlayManager {
 	/// Starts a new modal interaction session.
 	///
 	/// Fails and returns `false` if an interaction is already active.
-	pub fn open(
-		&mut self,
-		ed: &mut crate::impls::Editor,
-		mut controller: Box<dyn OverlayController>,
-	) -> bool {
+	pub fn open(&mut self, ed: &mut crate::impls::Editor, mut controller: Box<dyn OverlayController>) -> bool {
 		if self.is_open() {
 			return false;
 		}
 
 		let spec = controller.ui_spec(ed);
 		let desired_height = if spec.windows.is_empty() { 1 } else { 10 };
-		ed.state
-			.ui
-			.sync_utility_for_modal_overlay(Some(desired_height));
+		ed.state.ui.sync_utility_for_modal_overlay(Some(desired_height));
 
 		if let Some(mut session) = OverlayHost::setup_session(ed, &*controller) {
 			#[cfg(feature = "lsp")]
 			ed.clear_lsp_menu();
 
 			controller.on_open(ed, &mut session);
-			self.active = Some(ActiveOverlay {
-				session,
-				controller,
-			});
+			self.active = Some(ActiveOverlay { session, controller });
 			true
 		} else {
 			ed.state.ui.sync_utility_for_modal_overlay(None);
@@ -485,12 +429,7 @@ impl OverlayManager {
 	pub async fn commit(&mut self, ed: &mut crate::impls::Editor) {
 		if let Some(mut active) = self.active.take() {
 			active.controller.on_commit(ed, &mut active.session).await;
-			OverlayHost::cleanup_session(
-				ed,
-				&mut *active.controller,
-				active.session,
-				CloseReason::Commit,
-			);
+			OverlayHost::cleanup_session(ed, &mut *active.controller, active.session, CloseReason::Commit);
 		}
 	}
 
@@ -526,9 +465,7 @@ impl OverlayManager {
 		}
 
 		let text = active.session.input_text(ed);
-		active
-			.controller
-			.on_input_changed(ed, &mut active.session, &text);
+		active.controller.on_input_changed(ed, &mut active.session, &text);
 	}
 
 	/// Called when terminal viewport dimensions change.
@@ -543,12 +480,7 @@ impl OverlayManager {
 			return;
 		}
 
-		OverlayHost::cleanup_session(
-			ed,
-			&mut *active.controller,
-			active.session,
-			CloseReason::Forced,
-		);
+		OverlayHost::cleanup_session(ed, &mut *active.controller, active.session, CloseReason::Forced);
 	}
 }
 

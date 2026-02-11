@@ -82,16 +82,8 @@ impl LineStyleContext {
 	///
 	/// # Returns
 	/// The computed background color, or None if default should be used.
-	#[allow(
-		dead_code,
-		reason = "utility method, cell_style module handles full style resolution"
-	)]
-	pub fn cell_bg(
-		&self,
-		syntax_bg: Option<Color>,
-		in_selection: bool,
-		syntax_fg: Option<Color>,
-	) -> Option<Color> {
+	#[allow(dead_code, reason = "utility method, cell_style module handles full style resolution")]
+	pub fn cell_bg(&self, syntax_bg: Option<Color>, in_selection: bool, syntax_fg: Option<Color>) -> Option<Color> {
 		if in_selection {
 			let fg = syntax_fg.unwrap_or(self.base_bg);
 			let selection_bg = self

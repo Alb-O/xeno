@@ -12,10 +12,7 @@ mod tests {
 	use crate::window::GutterSelector;
 
 	fn theme_from_entry(
-		theme_ref: xeno_registry::core::RegistryRef<
-			xeno_registry::themes::theme::ThemeEntry,
-			xeno_registry::core::ThemeId,
-		>,
+		theme_ref: xeno_registry::core::RegistryRef<xeno_registry::themes::theme::ThemeEntry, xeno_registry::core::ThemeId>,
 	) -> xeno_registry::themes::Theme {
 		xeno_registry::themes::Theme {
 			meta: xeno_registry::RegistryMetaStatic::minimal("test", "test", ""),
@@ -41,18 +38,16 @@ mod tests {
 
 		let area = Rect::new(0, 0, 20, 3);
 		let mut cache = crate::render::cache::RenderCache::new();
-		let result = ctx.render_buffer_with_gutter(
-			crate::render::buffer::context::types::RenderBufferParams {
-				buffer: &buffer,
-				area,
-				use_block_cursor: true,
-				is_focused: true,
-				gutter: GutterSelector::Registry,
-				tab_width: 4,
-				cursorline: false,
-				cache: &mut cache,
-			},
-		);
+		let result = ctx.render_buffer_with_gutter(crate::render::buffer::context::types::RenderBufferParams {
+			buffer: &buffer,
+			area,
+			use_block_cursor: true,
+			is_focused: true,
+			gutter: GutterSelector::Registry,
+			tab_width: 4,
+			cursorline: false,
+			cache: &mut cache,
+		});
 
 		let backend = TestBackend::new(20, 3);
 		let mut terminal = Terminal::new(backend).unwrap();
@@ -81,15 +76,11 @@ mod tests {
 
 		assert!(result.gutter_width > 0);
 
-		let line0: String = (0..20)
-			.map(|x| tui_buffer[(x, 0)].symbol().to_string())
-			.collect();
+		let line0: String = (0..20).map(|x| tui_buffer[(x, 0)].symbol().to_string()).collect();
 		assert!(line0.contains("Hello world"));
 		assert!(line0.contains("1"));
 
-		let line1: String = (0..20)
-			.map(|x| tui_buffer[(x, 1)].symbol().to_string())
-			.collect();
+		let line1: String = (0..20).map(|x| tui_buffer[(x, 1)].symbol().to_string()).collect();
 		assert!(line1.contains("~"));
 	}
 
@@ -112,18 +103,16 @@ mod tests {
 		// 30 width, gutter will take ~6, leaving ~24 for text
 		let area = Rect::new(0, 0, 30, 5);
 		let mut cache = crate::render::cache::RenderCache::new();
-		let result = ctx.render_buffer_with_gutter(
-			crate::render::buffer::context::types::RenderBufferParams {
-				buffer: &buffer,
-				area,
-				use_block_cursor: true,
-				is_focused: true,
-				gutter: GutterSelector::Registry,
-				tab_width: 4,
-				cursorline: false,
-				cache: &mut cache,
-			},
-		);
+		let result = ctx.render_buffer_with_gutter(crate::render::buffer::context::types::RenderBufferParams {
+			buffer: &buffer,
+			area,
+			use_block_cursor: true,
+			is_focused: true,
+			gutter: GutterSelector::Registry,
+			tab_width: 4,
+			cursorline: false,
+			cache: &mut cache,
+		});
 
 		let backend = TestBackend::new(30, 5);
 		let mut terminal = Terminal::new(backend).unwrap();
@@ -151,9 +140,7 @@ mod tests {
 		let tui_buffer = terminal.backend().buffer();
 
 		// Row 0: Gutter "1 ", text "One two three four five"
-		let row0: String = (0..30)
-			.map(|x| tui_buffer[(x, 0)].symbol().to_string())
-			.collect();
+		let row0: String = (0..30).map(|x| tui_buffer[(x, 0)].symbol().to_string()).collect();
 		assert!(row0.contains("1"));
 		assert!(row0.contains("One two three four five"));
 	}

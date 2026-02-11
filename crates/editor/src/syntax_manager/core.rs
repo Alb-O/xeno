@@ -63,8 +63,6 @@ impl SyntaxManager {
 	}
 
 	pub(super) fn entry_mut(&mut self, doc_id: DocumentId) -> &mut DocEntry {
-		self.entries
-			.entry(doc_id)
-			.or_insert_with(|| DocEntry::new(Instant::now()))
+		self.entries.entry(doc_id).or_insert_with(|| DocEntry::new(Instant::now()))
 	}
 }

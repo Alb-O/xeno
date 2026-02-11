@@ -3,9 +3,7 @@ use std::collections::HashMap;
 use xeno_primitives::BoxFutureLocal;
 
 use crate::command_handler;
-use crate::commands::{
-	COMMANDS, CommandContext, CommandError, CommandOutcome, CommandRef, RegistryEntry,
-};
+use crate::commands::{COMMANDS, CommandContext, CommandError, CommandOutcome, CommandRef, RegistryEntry};
 use crate::db::{MOTIONS, TEXT_OBJECTS};
 use crate::motions::MotionRef;
 use crate::notifications::keys;
@@ -62,13 +60,7 @@ struct EntryMeta {
 	priority: i16,
 }
 
-fn register_collision(
-	kind: CollisionKind,
-	key: String,
-	current: EntryMeta,
-	map: &mut HashMap<String, EntryMeta>,
-	collisions: &mut Vec<CollisionReport>,
-) {
+fn register_collision(kind: CollisionKind, key: String, current: EntryMeta, map: &mut HashMap<String, EntryMeta>, collisions: &mut Vec<CollisionReport>) {
 	if let Some(existing) = map.get(&key) {
 		let current_won = current.priority > existing.priority;
 		let (winner, shadowed) = if current_won {
@@ -109,29 +101,11 @@ fn collect_command_collisions(collisions: &mut Vec<CollisionReport>) {
 			priority: cmd.priority(),
 		};
 
-		register_collision(
-			CollisionKind::Id,
-			cmd.id_str().to_string(),
-			meta.clone(),
-			&mut by_id,
-			collisions,
-		);
-		register_collision(
-			CollisionKind::Name,
-			cmd.name_str().to_string(),
-			meta.clone(),
-			&mut by_name,
-			collisions,
-		);
+		register_collision(CollisionKind::Id, cmd.id_str().to_string(), meta.clone(), &mut by_id, collisions);
+		register_collision(CollisionKind::Name, cmd.name_str().to_string(), meta.clone(), &mut by_name, collisions);
 		for alias in cmd.keys_resolved() {
 			let alias: &str = alias;
-			register_collision(
-				CollisionKind::Alias,
-				alias.to_string(),
-				meta.clone(),
-				&mut by_alias,
-				collisions,
-			);
+			register_collision(CollisionKind::Alias, alias.to_string(), meta.clone(), &mut by_alias, collisions);
 		}
 	}
 }
@@ -149,28 +123,10 @@ fn collect_motion_collisions(collisions: &mut Vec<CollisionReport>) {
 			priority: motion.priority(),
 		};
 
-		register_collision(
-			CollisionKind::Id,
-			motion.id_str().to_string(),
-			meta.clone(),
-			&mut by_id,
-			collisions,
-		);
-		register_collision(
-			CollisionKind::Name,
-			motion.name_str().to_string(),
-			meta.clone(),
-			&mut by_name,
-			collisions,
-		);
+		register_collision(CollisionKind::Id, motion.id_str().to_string(), meta.clone(), &mut by_id, collisions);
+		register_collision(CollisionKind::Name, motion.name_str().to_string(), meta.clone(), &mut by_name, collisions);
 		for alias in motion.keys_resolved() {
-			register_collision(
-				CollisionKind::Alias,
-				alias.to_string(),
-				meta.clone(),
-				&mut by_alias,
-				collisions,
-			);
+			register_collision(CollisionKind::Alias, alias.to_string(), meta.clone(), &mut by_alias, collisions);
 		}
 	}
 }
@@ -186,21 +142,9 @@ fn collect_text_object_collisions(collisions: &mut Vec<CollisionReport>) {
 			priority: obj.priority(),
 		};
 
-		register_collision(
-			CollisionKind::Trigger,
-			obj.trigger.to_string(),
-			meta.clone(),
-			&mut by_trigger,
-			collisions,
-		);
+		register_collision(CollisionKind::Trigger, obj.trigger.to_string(), meta.clone(), &mut by_trigger, collisions);
 		for &trigger in &*obj.alt_triggers {
-			register_collision(
-				CollisionKind::Trigger,
-				trigger.to_string(),
-				meta.clone(),
-				&mut by_trigger,
-				collisions,
-			);
+			register_collision(CollisionKind::Trigger, trigger.to_string(), meta.clone(), &mut by_trigger, collisions);
 		}
 	}
 }
@@ -215,9 +159,7 @@ impl Clone for EntryMeta {
 	}
 }
 
-fn cmd_registry_diag<'a>(
-	ctx: &'a mut CommandContext<'a>,
-) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
+fn cmd_registry_diag<'a>(ctx: &'a mut CommandContext<'a>) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
 		let report = diagnostics();
 		if report.collisions.is_empty() {
@@ -251,9 +193,7 @@ fn cmd_registry_diag<'a>(
 	})
 }
 
-fn cmd_registry_doctor<'a>(
-	ctx: &'a mut CommandContext<'a>,
-) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
+fn cmd_registry_doctor<'a>(ctx: &'a mut CommandContext<'a>) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
 		let report = diagnostics();
 		if report.collisions.is_empty() {

@@ -232,19 +232,11 @@ impl<'a> Text<'a> {
 impl UnicodeWidthStr for Text<'_> {
 	/// Returns the max width of all the lines.
 	fn width(&self) -> usize {
-		self.lines
-			.iter()
-			.map(UnicodeWidthStr::width)
-			.max()
-			.unwrap_or_default()
+		self.lines.iter().map(UnicodeWidthStr::width).max().unwrap_or_default()
 	}
 
 	fn width_cjk(&self) -> usize {
-		self.lines
-			.iter()
-			.map(UnicodeWidthStr::width_cjk)
-			.max()
-			.unwrap_or_default()
+		self.lines.iter().map(UnicodeWidthStr::width_cjk).max().unwrap_or_default()
 	}
 }
 
@@ -313,10 +305,7 @@ impl<'a> From<Line<'a>> for Text<'a> {
 
 impl<'a> From<Vec<Line<'a>>> for Text<'a> {
 	fn from(lines: Vec<Line<'a>>) -> Self {
-		Self {
-			lines,
-			..Default::default()
-		}
+		Self { lines, ..Default::default() }
 	}
 }
 
@@ -326,10 +315,7 @@ where
 {
 	fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
 		let lines = iter.into_iter().map(Into::into).collect();
-		Self {
-			lines,
-			..Default::default()
-		}
+		Self { lines, ..Default::default() }
 	}
 }
 

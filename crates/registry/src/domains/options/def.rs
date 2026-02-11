@@ -35,8 +35,7 @@ impl core::fmt::Debug for OptionDef {
 
 /// Unified input for option registration — either a static `OptionDef`
 /// (from `derive_option`) or a `LinkedOptionDef` assembled from KDL metadata.
-pub type OptionInput =
-	crate::core::def_input::DefInput<OptionDef, crate::options::link::LinkedOptionDef>;
+pub type OptionInput = crate::core::def_input::DefInput<OptionDef, crate::options::link::LinkedOptionDef>;
 
 impl BuildEntry<OptionEntry> for OptionDef {
 	fn meta_ref(&self) -> RegistryMetaRef<'_> {
@@ -56,24 +55,12 @@ impl BuildEntry<OptionEntry> for OptionDef {
 		self.meta.name
 	}
 
-	fn collect_payload_strings<'b>(
-		&'b self,
-		collector: &mut crate::core::index::StringCollector<'_, 'b>,
-	) {
+	fn collect_payload_strings<'b>(&'b self, collector: &mut crate::core::index::StringCollector<'_, 'b>) {
 		collector.push(self.kdl_key);
 	}
 
-	fn build(
-		&self,
-		ctx: &mut dyn crate::core::index::BuildCtx,
-		key_pool: &mut Vec<Symbol>,
-	) -> OptionEntry {
-		let meta = crate::core::index::meta_build::build_meta(
-			ctx,
-			key_pool,
-			self.meta_ref(),
-			[self.kdl_key],
-		);
+	fn build(&self, ctx: &mut dyn crate::core::index::BuildCtx, key_pool: &mut Vec<Symbol>) -> OptionEntry {
+		let meta = crate::core::index::meta_build::build_meta(ctx, key_pool, self.meta_ref(), [self.kdl_key]);
 
 		OptionEntry {
 			meta,

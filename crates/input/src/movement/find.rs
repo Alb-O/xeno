@@ -26,14 +26,7 @@ use super::make_range_select;
 /// // 2f command: finds second 'o', moves to position 7
 /// find_char_forward(text, range, 'o', 2, true, false);
 /// ```
-pub fn find_char_forward(
-	text: RopeSlice,
-	range: Range,
-	target: char,
-	count: usize,
-	inclusive: bool,
-	extend: bool,
-) -> Range {
+pub fn find_char_forward(text: RopeSlice, range: Range, target: char, count: usize, inclusive: bool, extend: bool) -> Range {
 	let len = text.len_chars();
 	let mut pos = range.head + 1;
 	let mut found_count = 0;
@@ -42,11 +35,7 @@ pub fn find_char_forward(
 		if text.char(pos) == target {
 			found_count += 1;
 			if found_count >= count {
-				let final_pos = if inclusive {
-					pos
-				} else {
-					pos.saturating_sub(1)
-				};
+				let final_pos = if inclusive { pos } else { pos.saturating_sub(1) };
 				return make_range_select(range, final_pos, extend);
 			}
 		}
@@ -59,14 +48,7 @@ pub fn find_char_forward(
 /// Finds a character backward (`F` and `T` commands).
 ///
 /// Mirrors [`find_char_forward`] with reversed search direction.
-pub fn find_char_backward(
-	text: RopeSlice,
-	range: Range,
-	target: char,
-	count: usize,
-	inclusive: bool,
-	extend: bool,
-) -> Range {
+pub fn find_char_backward(text: RopeSlice, range: Range, target: char, count: usize, inclusive: bool, extend: bool) -> Range {
 	if range.head == 0 {
 		return range;
 	}

@@ -21,8 +21,7 @@ pub fn read_query(lang: &str, filename: &str) -> String {
 
 	tree_house::read_query(lang, |query_lang| {
 		if let Some(lang_ref) = xeno_registry::LANGUAGES.get(query_lang)
-			&& let Some(content) =
-				xeno_registry::languages::queries::get_query_text(&lang_ref, query_type)
+			&& let Some(content) = xeno_registry::languages::queries::get_query_text(&lang_ref, query_type)
 		{
 			return content.to_string();
 		}
@@ -54,17 +53,12 @@ pub struct IndentQuery {
 
 impl IndentQuery {
 	/// Compiles an indent query from source.
-	pub fn new(
-		grammar: Grammar,
-		source: &str,
-	) -> Result<Self, tree_house::tree_sitter::query::ParseError> {
+	pub fn new(grammar: Grammar, source: &str) -> Result<Self, tree_house::tree_sitter::query::ParseError> {
 		let query = Query::new(grammar, source, |_pattern, predicate| {
 			// Allow common indent predicates
 			match predicate {
 				UserPredicate::SetProperty {
-					key:
-						"indent.begin" | "indent.end" | "indent.dedent" | "indent.branch"
-						| "indent.ignore" | "indent.align",
+					key: "indent.begin" | "indent.end" | "indent.dedent" | "indent.branch" | "indent.ignore" | "indent.align",
 					..
 				} => Ok(()),
 				_ => Err(InvalidPredicateError::unknown(predicate)),
@@ -94,10 +88,7 @@ pub struct TextObjectQuery {
 
 impl TextObjectQuery {
 	/// Compiles a text object query from source.
-	pub fn new(
-		grammar: Grammar,
-		source: &str,
-	) -> Result<Self, tree_house::tree_sitter::query::ParseError> {
+	pub fn new(grammar: Grammar, source: &str) -> Result<Self, tree_house::tree_sitter::query::ParseError> {
 		let query = Query::new(grammar, source, |_, _| Ok(()))?;
 		Ok(Self { query })
 	}
@@ -105,16 +96,10 @@ impl TextObjectQuery {
 	/// Captures nodes matching the given capture name.
 	///
 	/// Returns an iterator of captured nodes for text object selection.
-	pub fn capture_nodes<'a>(
-		&'a self,
-		capture_name: &str,
-		node: &Node<'a>,
-		source: RopeSlice<'a>,
-	) -> Option<impl Iterator<Item = CapturedNode<'a>>> {
+	pub fn capture_nodes<'a>(&'a self, capture_name: &str, node: &Node<'a>, source: RopeSlice<'a>) -> Option<impl Iterator<Item = CapturedNode<'a>>> {
 		let capture = self.query.get_capture(capture_name)?;
 
-		let mut cursor = InactiveQueryCursor::new(0..u32::MAX, TREE_SITTER_MATCH_LIMIT)
-			.execute_query(&self.query, node, RopeInput::new(source));
+		let mut cursor = InactiveQueryCursor::new(0..u32::MAX, TREE_SITTER_MATCH_LIMIT).execute_query(&self.query, node, RopeInput::new(source));
 
 		let capture_node = iter::from_fn(move || {
 			let mat = cursor.next_match()?;
@@ -132,18 +117,10 @@ impl TextObjectQuery {
 	}
 
 	/// Captures nodes matching any of the given capture names.
-	pub fn capture_nodes_any<'a>(
-		&'a self,
-		capture_names: &[&str],
-		node: &Node<'a>,
-		source: RopeSlice<'a>,
-	) -> Option<impl Iterator<Item = CapturedNode<'a>>> {
-		let capture = capture_names
-			.iter()
-			.find_map(|name| self.query.get_capture(name))?;
+	pub fn capture_nodes_any<'a>(&'a self, capture_names: &[&str], node: &Node<'a>, source: RopeSlice<'a>) -> Option<impl Iterator<Item = CapturedNode<'a>>> {
+		let capture = capture_names.iter().find_map(|name| self.query.get_capture(name))?;
 
-		let mut cursor = InactiveQueryCursor::new(0..u32::MAX, TREE_SITTER_MATCH_LIMIT)
-			.execute_query(&self.query, node, RopeInput::new(source));
+		let mut cursor = InactiveQueryCursor::new(0..u32::MAX, TREE_SITTER_MATCH_LIMIT).execute_query(&self.query, node, RopeInput::new(source));
 
 		let capture_node = iter::from_fn(move || {
 			let mat = cursor.next_match()?;
@@ -202,10 +179,7 @@ pub struct TagQuery {
 
 impl TagQuery {
 	/// Compiles a tag query from source.
-	pub fn new(
-		grammar: Grammar,
-		source: &str,
-	) -> Result<Self, tree_house::tree_sitter::query::ParseError> {
+	pub fn new(grammar: Grammar, source: &str) -> Result<Self, tree_house::tree_sitter::query::ParseError> {
 		let query = Query::new(grammar, source, |_pattern, predicate| {
 			// Allow tag-specific predicates
 			match predicate {
@@ -235,19 +209,14 @@ pub struct RainbowQuery {
 
 impl RainbowQuery {
 	/// Compiles a rainbow query from source.
-	pub fn new(
-		grammar: Grammar,
-		source: &str,
-	) -> Result<Self, tree_house::tree_sitter::query::ParseError> {
+	pub fn new(grammar: Grammar, source: &str) -> Result<Self, tree_house::tree_sitter::query::ParseError> {
 		let query = Query::new(grammar, source, |_pattern, predicate| match predicate {
 			UserPredicate::SetProperty {
 				key: "rainbow.include-children",
 				val,
 			} => {
 				if val.is_some() {
-					return Err(
-						"property 'rainbow.include-children' does not take an argument".into(),
-					);
+					return Err("property 'rainbow.include-children' does not take an argument".into());
 				}
 				Ok(())
 			}

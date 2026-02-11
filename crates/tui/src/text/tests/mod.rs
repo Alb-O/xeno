@@ -19,10 +19,7 @@ pub(super) fn small_buf() -> Buffer {
 #[test]
 fn raw() {
 	let text = Text::raw("The first line\nThe second line");
-	assert_eq!(
-		text.lines,
-		vec![Line::from("The first line"), Line::from("The second line")]
-	);
+	assert_eq!(text.lines, vec![Line::from("The first line"), Line::from("The second line")]);
 }
 
 #[test]
@@ -71,10 +68,7 @@ fn reset_style() {
 #[test]
 fn stylize() {
 	assert_eq!(Text::default().green().style, Color::Green.into());
-	assert_eq!(
-		Text::default().on_green().style,
-		Style::new().bg(Color::Green)
-	);
+	assert_eq!(Text::default().on_green().style, Style::new().bg(Color::Green));
 	assert_eq!(Text::default().italic().style, Modifier::ITALIC.into());
 }
 
@@ -102,15 +96,7 @@ fn push_line() {
 	text.push_line(Line::from("B"));
 	text.push_line(Span::from("C"));
 	text.push_line("D");
-	assert_eq!(
-		text.lines,
-		vec![
-			Line::raw("A"),
-			Line::raw("B"),
-			Line::raw("C"),
-			Line::raw("D")
-		]
-	);
+	assert_eq!(text.lines, vec![Line::raw("A"), Line::raw("B"), Line::raw("C"), Line::raw("D")]);
 }
 
 #[test]
@@ -125,14 +111,7 @@ fn push_span() {
 	let mut text = Text::from("A");
 	text.push_span(Span::raw("B"));
 	text.push_span("C");
-	assert_eq!(
-		text.lines,
-		vec![Line::from(vec![
-			Span::raw("A"),
-			Span::raw("B"),
-			Span::raw("C")
-		])],
-	);
+	assert_eq!(text.lines, vec![Line::from(vec![Span::raw("A"), Span::raw("B"), Span::raw("C")])],);
 }
 
 #[test]

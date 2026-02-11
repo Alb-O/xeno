@@ -6,11 +6,7 @@ use crate::Scoring;
 
 const DELIMITERS: [u8; 7] = [b' ', b'/', b'.', b',', b'_', b'-', b':'];
 
-pub fn match_greedy<S1: AsRef<str>, S2: AsRef<str>>(
-	needle: S1,
-	haystack: S2,
-	scoring: &Scoring,
-) -> (u16, Vec<usize>, bool) {
+pub fn match_greedy<S1: AsRef<str>, S2: AsRef<str>>(needle: S1, haystack: S2, scoring: &Scoring) -> (u16, Vec<usize>, bool) {
 	let needle = needle.as_ref().as_bytes();
 	let haystack = haystack.as_ref().as_bytes();
 
@@ -26,16 +22,8 @@ pub fn match_greedy<S1: AsRef<str>, S2: AsRef<str>>(
 		let needle_is_upper = (65..=90).contains(&needle_char);
 		let needle_is_lower = (97..=122).contains(&needle_char);
 
-		let needle_lower_char = if needle_is_upper {
-			needle_char + 32
-		} else {
-			needle_char
-		};
-		let needle_upper_char = if needle_is_lower {
-			needle_char - 32
-		} else {
-			needle_char
-		};
+		let needle_lower_char = if needle_is_upper { needle_char + 32 } else { needle_char };
+		let needle_upper_char = if needle_is_lower { needle_char - 32 } else { needle_char };
 
 		let haystack_start_idx = haystack_idx;
 		while haystack_idx <= (haystack.len() - needle.len() + needle_idx) {
@@ -61,11 +49,8 @@ pub fn match_greedy<S1: AsRef<str>, S2: AsRef<str>>(
 
 			// gap penalty
 			if haystack_idx != haystack_start_idx && needle_idx != 0 {
-				score = score.saturating_sub(
-					scoring.gap_open_penalty
-						+ scoring.gap_extend_penalty
-							* (haystack_idx - haystack_start_idx).saturating_sub(1) as u16,
-				);
+				score =
+					score.saturating_sub(scoring.gap_open_penalty + scoring.gap_extend_penalty * (haystack_idx - haystack_start_idx).saturating_sub(1) as u16);
 			}
 
 			// bonuses (see constant documentation for details)
@@ -119,10 +104,7 @@ mod tests {
 		assert_eq!(get_score("c", "abc"), CHAR_SCORE);
 		assert_eq!(
 			get_score("fbb", "barbazfoobarbaz"),
-			CHAR_SCORE - GAP_OPEN_PENALTY - GAP_EXTEND_PENALTY + CHAR_SCORE
-				- GAP_OPEN_PENALTY
-				- GAP_EXTEND_PENALTY
-				+ CHAR_SCORE
+			CHAR_SCORE - GAP_OPEN_PENALTY - GAP_EXTEND_PENALTY + CHAR_SCORE - GAP_OPEN_PENALTY - GAP_EXTEND_PENALTY + CHAR_SCORE
 		);
 	}
 
@@ -141,14 +123,8 @@ mod tests {
 
 	#[test]
 	fn test_score_exact_match() {
-		assert_eq!(
-			get_score("a", "a"),
-			CHAR_SCORE + EXACT_MATCH_BONUS + PREFIX_BONUS
-		);
-		assert_eq!(
-			get_score("abc", "abc"),
-			3 * CHAR_SCORE + EXACT_MATCH_BONUS + PREFIX_BONUS
-		);
+		assert_eq!(get_score("a", "a"), CHAR_SCORE + EXACT_MATCH_BONUS + PREFIX_BONUS);
+		assert_eq!(get_score("abc", "abc"), 3 * CHAR_SCORE + EXACT_MATCH_BONUS + PREFIX_BONUS);
 	}
 
 	#[test]
@@ -170,24 +146,15 @@ mod tests {
 
 	#[test]
 	fn test_score_affine_gap() {
-		assert_eq!(
-			get_score("test", "Uterst"),
-			CHAR_SCORE * 4 - GAP_OPEN_PENALTY
-		);
-		assert_eq!(
-			get_score("test", "Uterrst"),
-			CHAR_SCORE * 4 - GAP_OPEN_PENALTY - GAP_EXTEND_PENALTY
-		);
+		assert_eq!(get_score("test", "Uterst"), CHAR_SCORE * 4 - GAP_OPEN_PENALTY);
+		assert_eq!(get_score("test", "Uterrst"), CHAR_SCORE * 4 - GAP_OPEN_PENALTY - GAP_EXTEND_PENALTY);
 	}
 
 	#[test]
 	fn test_score_capital_bonus() {
 		assert_eq!(get_score("a", "A"), MATCH_SCORE + PREFIX_BONUS);
 		assert_eq!(get_score("A", "Aa"), CHAR_SCORE + PREFIX_BONUS);
-		assert_eq!(
-			get_score("d", "forDist"),
-			MATCH_SCORE + CAPITALIZATION_BONUS
-		);
+		assert_eq!(get_score("d", "forDist"), MATCH_SCORE + CAPITALIZATION_BONUS);
 		assert_eq!(get_score("D", "forDist"), CHAR_SCORE + CAPITALIZATION_BONUS);
 		assert_eq!(get_score("D", "foRDist"), CHAR_SCORE);
 		assert_eq!(get_score("D", "FOR_DIST"), CHAR_SCORE + DELIMITER_BONUS);

@@ -87,19 +87,13 @@ impl DockManager {
 		slots.insert(DockSlot::Top, DockSlotState::new(SizeSpec::Percent(25)));
 		slots.insert(DockSlot::Left, DockSlotState::new(SizeSpec::Percent(25)));
 		slots.insert(DockSlot::Right, DockSlotState::new(SizeSpec::Percent(25)));
-		slots.insert(
-			DockSlot::Overlay,
-			DockSlotState::new(SizeSpec::Percent(100)),
-		);
+		slots.insert(DockSlot::Overlay, DockSlotState::new(SizeSpec::Percent(100)));
 		Self { slots }
 	}
 
 	/// Opens a panel in the specified dock slot, making it active.
 	pub fn open_panel(&mut self, slot: DockSlot, id: String) {
-		let state = self
-			.slots
-			.entry(slot)
-			.or_insert_with(|| DockSlotState::new(SizeSpec::Percent(30)));
+		let state = self.slots.entry(slot).or_insert_with(|| DockSlotState::new(SizeSpec::Percent(30)));
 		if !state.open.iter().any(|p| p == &id) {
 			state.open.push(id.clone());
 		}
@@ -136,10 +130,7 @@ impl DockManager {
 
 	/// Sets the size spec for a dock slot, returning true when it changes.
 	pub fn set_slot_size(&mut self, slot: DockSlot, size: SizeSpec) -> bool {
-		let state = self
-			.slots
-			.entry(slot)
-			.or_insert_with(|| DockSlotState::new(SizeSpec::Percent(30)));
+		let state = self.slots.entry(slot).or_insert_with(|| DockSlotState::new(SizeSpec::Percent(30)));
 		if state.size == size {
 			return false;
 		}
@@ -162,16 +153,8 @@ impl DockManager {
 			..Default::default()
 		};
 
-		let has_top = self
-			.slots
-			.get(&DockSlot::Top)
-			.map(|s| !s.open.is_empty())
-			.unwrap_or(false);
-		let has_bottom = self
-			.slots
-			.get(&DockSlot::Bottom)
-			.map(|s| !s.open.is_empty())
-			.unwrap_or(false);
+		let has_top = self.slots.get(&DockSlot::Top).map(|s| !s.open.is_empty()).unwrap_or(false);
+		let has_bottom = self.slots.get(&DockSlot::Bottom).map(|s| !s.open.is_empty()).unwrap_or(false);
 
 		let mut vertical_parts = vec![area];
 		let mut top_area = None;
@@ -210,16 +193,8 @@ impl DockManager {
 			layout.doc_area = vertical_parts[1];
 		}
 
-		let has_left = self
-			.slots
-			.get(&DockSlot::Left)
-			.map(|s| !s.open.is_empty())
-			.unwrap_or(false);
-		let has_right = self
-			.slots
-			.get(&DockSlot::Right)
-			.map(|s| !s.open.is_empty())
-			.unwrap_or(false);
+		let has_left = self.slots.get(&DockSlot::Left).map(|s| !s.open.is_empty()).unwrap_or(false);
+		let has_right = self.slots.get(&DockSlot::Right).map(|s| !s.open.is_empty()).unwrap_or(false);
 
 		if has_left || has_right {
 			let left_c = if has_left {
@@ -276,10 +251,7 @@ mod tests {
 	#[test]
 	fn bottom_slot_defaults_to_fixed_lines() {
 		let dock = DockManager::new();
-		let bottom = dock
-			.slots
-			.get(&DockSlot::Bottom)
-			.expect("bottom slot should exist");
+		let bottom = dock.slots.get(&DockSlot::Bottom).expect("bottom slot should exist");
 		assert_eq!(bottom.size, SizeSpec::Lines(10));
 	}
 
@@ -293,10 +265,7 @@ mod tests {
 
 		assert_eq!(layout.doc_area.height, 30);
 		assert_eq!(layout.doc_area.y, 0);
-		assert_eq!(
-			layout.panel_areas.get("utility").map(|r| r.height),
-			Some(10)
-		);
+		assert_eq!(layout.panel_areas.get("utility").map(|r| r.height), Some(10));
 	}
 
 	#[test]

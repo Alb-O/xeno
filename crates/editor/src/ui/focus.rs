@@ -61,9 +61,7 @@ impl Default for FocusManager {
 impl FocusManager {
 	/// Creates a new focus manager with focus on the editor.
 	pub fn new() -> Self {
-		Self {
-			focused: UiFocus::editor(),
-		}
+		Self { focused: UiFocus::editor() }
 	}
 
 	/// Returns the currently focused element.

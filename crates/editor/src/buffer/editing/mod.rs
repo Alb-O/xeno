@@ -70,9 +70,7 @@ impl Buffer {
 		let mut insertion_points = self.selection.clone();
 		insertion_points.transform_mut(|r| *r = Range::point(r.head));
 
-		let tx = self.with_doc(|doc| {
-			Transaction::insert(doc.content().slice(..), &insertion_points, text.to_string())
-		});
+		let tx = self.with_doc(|doc| Transaction::insert(doc.content().slice(..), &insertion_points, text.to_string()));
 		let new_selection = tx.map_selection(&self.selection);
 
 		(tx, new_selection)
@@ -120,31 +118,17 @@ impl Buffer {
 	}
 
 	/// Prepares a paste operation after each cursor.
-	pub fn prepare_paste_after(
-		&mut self,
-		text: &str,
-	) -> Option<(Transaction, xeno_primitives::Selection)> {
+	pub fn prepare_paste_after(&mut self, text: &str) -> Option<(Transaction, xeno_primitives::Selection)> {
 		(!text.is_empty()).then(|| {
 			self.ensure_valid_selection();
 			let new_ranges: Vec<_> = self.with_doc(|doc| {
 				self.selection
 					.ranges()
 					.iter()
-					.map(|r| {
-						movement::move_horizontally(
-							doc.content().slice(..),
-							*r,
-							xeno_primitives::range::Direction::Forward,
-							1,
-							false,
-						)
-					})
+					.map(|r| movement::move_horizontally(doc.content().slice(..), *r, xeno_primitives::range::Direction::Forward, 1, false))
 					.collect()
 			});
-			self.set_selection(xeno_primitives::Selection::from_vec(
-				new_ranges,
-				self.selection.primary_index(),
-			));
+			self.set_selection(xeno_primitives::Selection::from_vec(new_ranges, self.selection.primary_index()));
 			self.prepare_insert(text)
 		})
 	}
@@ -160,10 +144,7 @@ impl Buffer {
 	}
 
 	/// Prepares a paste operation before each cursor.
-	pub fn prepare_paste_before(
-		&mut self,
-		text: &str,
-	) -> Option<(Transaction, xeno_primitives::Selection)> {
+	pub fn prepare_paste_before(&mut self, text: &str) -> Option<(Transaction, xeno_primitives::Selection)> {
 		(!text.is_empty()).then(|| {
 			self.ensure_valid_selection();
 			self.prepare_insert(text)
@@ -181,9 +162,7 @@ impl Buffer {
 	}
 
 	/// Prepares deletion of the current selection.
-	pub fn prepare_delete_selection(
-		&mut self,
-	) -> Option<(Transaction, xeno_primitives::Selection)> {
+	pub fn prepare_delete_selection(&mut self) -> Option<(Transaction, xeno_primitives::Selection)> {
 		self.ensure_valid_selection();
 		let tx = self.with_doc(|doc| Transaction::delete(doc.content().slice(..), &self.selection));
 		let new_selection = tx.map_selection(&self.selection);
@@ -208,9 +187,7 @@ impl Buffer {
 			return CommitResult::blocked(self.version());
 		}
 
-		let commit = EditCommit::new(tx.clone())
-			.with_undo(policy.undo)
-			.with_syntax(policy.syntax);
+		let commit = EditCommit::new(tx.clone()).with_undo(policy.undo).with_syntax(policy.syntax);
 
 		let token = CommitBypassToken::new();
 		self.with_doc_mut(|doc| doc.commit_unchecked(commit, Some(self.id), token))

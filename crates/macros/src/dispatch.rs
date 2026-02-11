@@ -24,30 +24,21 @@ pub fn derive_dispatch_result(input: TokenStream) -> TokenStream {
 	for attr in &input.attrs {
 		if attr.path().is_ident("handler_coverage") {
 			let Meta::NameValue(meta) = &attr.meta else {
-				return syn::Error::new_spanned(
-					attr,
-					"handler_coverage must be a name-value attribute",
-				)
-				.to_compile_error()
-				.into();
+				return syn::Error::new_spanned(attr, "handler_coverage must be a name-value attribute")
+					.to_compile_error()
+					.into();
 			};
 			let Expr::Lit(expr) = &meta.value else {
-				return syn::Error::new_spanned(attr, "handler_coverage must be a string")
-					.to_compile_error()
-					.into();
+				return syn::Error::new_spanned(attr, "handler_coverage must be a string").to_compile_error().into();
 			};
 			let Lit::Str(lit) = &expr.lit else {
-				return syn::Error::new_spanned(attr, "handler_coverage must be a string")
-					.to_compile_error()
-					.into();
+				return syn::Error::new_spanned(attr, "handler_coverage must be a string").to_compile_error().into();
 			};
 			let value = lit.value();
 			if value == "error" {
 				coverage_error = true;
 			} else {
-				return syn::Error::new_spanned(attr, "handler_coverage must be \"error\"")
-					.to_compile_error()
-					.into();
+				return syn::Error::new_spanned(attr, "handler_coverage must be \"error\"").to_compile_error().into();
 			}
 		}
 	}
@@ -100,10 +91,7 @@ pub fn derive_dispatch_result(input: TokenStream) -> TokenStream {
 	}
 
 	let coverage_test = if coverage_error {
-		let coverage_fn = format_ident!(
-			"handler_coverage_{}",
-			to_screaming_snake_case(&enum_name.to_string()).to_lowercase()
-		);
+		let coverage_fn = format_ident!("handler_coverage_{}", to_screaming_snake_case(&enum_name.to_string()).to_lowercase());
 		quote! {
 			#[cfg(test)]
 			#[test]

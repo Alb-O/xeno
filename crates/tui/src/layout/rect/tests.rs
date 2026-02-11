@@ -56,25 +56,16 @@ fn bottom() {
 
 #[test]
 fn inner() {
-	assert_eq!(
-		Rect::new(1, 2, 3, 4).inner(Margin::new(1, 2)),
-		Rect::new(2, 4, 1, 0)
-	);
+	assert_eq!(Rect::new(1, 2, 3, 4).inner(Margin::new(1, 2)), Rect::new(2, 4, 1, 0));
 }
 
 #[test]
 fn outer() {
 	// enough space to grow on all sides
-	assert_eq!(
-		Rect::new(100, 200, 10, 20).outer(Margin::new(20, 30)),
-		Rect::new(80, 170, 50, 80)
-	);
+	assert_eq!(Rect::new(100, 200, 10, 20).outer(Margin::new(20, 30)), Rect::new(80, 170, 50, 80));
 
 	// left / top saturation should truncate the size (10 less on left / top)
-	assert_eq!(
-		Rect::new(10, 20, 10, 20).outer(Margin::new(20, 30)),
-		Rect::new(0, 0, 40, 70),
-	);
+	assert_eq!(Rect::new(10, 20, 10, 20).outer(Margin::new(20, 30)), Rect::new(0, 0, 40, 70),);
 
 	// right / bottom saturation should truncate the size (10 less on bottom / right)
 	assert_eq!(
@@ -85,26 +76,17 @@ fn outer() {
 
 #[test]
 fn offset() {
-	assert_eq!(
-		Rect::new(1, 2, 3, 4).offset(Offset { x: 5, y: 6 }),
-		Rect::new(6, 8, 3, 4),
-	);
+	assert_eq!(Rect::new(1, 2, 3, 4).offset(Offset { x: 5, y: 6 }), Rect::new(6, 8, 3, 4),);
 }
 
 #[test]
 fn negative_offset() {
-	assert_eq!(
-		Rect::new(4, 3, 3, 4).offset(Offset { x: -2, y: -1 }),
-		Rect::new(2, 2, 3, 4),
-	);
+	assert_eq!(Rect::new(4, 3, 3, 4).offset(Offset { x: -2, y: -1 }), Rect::new(2, 2, 3, 4),);
 }
 
 #[test]
 fn negative_offset_saturate() {
-	assert_eq!(
-		Rect::new(1, 2, 3, 4).offset(Offset { x: -5, y: -6 }),
-		Rect::new(0, 0, 3, 4),
-	);
+	assert_eq!(Rect::new(1, 2, 3, 4).offset(Offset { x: -5, y: -6 }), Rect::new(0, 0, 3, 4),);
 }
 
 /// Offsets a [`Rect`] making it go outside [`u16::MAX`], it should keep its size.
@@ -118,26 +100,17 @@ fn offset_saturate_max() {
 
 #[test]
 fn union() {
-	assert_eq!(
-		Rect::new(1, 2, 3, 4).union(Rect::new(2, 3, 4, 5)),
-		Rect::new(1, 2, 5, 6)
-	);
+	assert_eq!(Rect::new(1, 2, 3, 4).union(Rect::new(2, 3, 4, 5)), Rect::new(1, 2, 5, 6));
 }
 
 #[test]
 fn intersection() {
-	assert_eq!(
-		Rect::new(1, 2, 3, 4).intersection(Rect::new(2, 3, 4, 5)),
-		Rect::new(2, 3, 2, 3)
-	);
+	assert_eq!(Rect::new(1, 2, 3, 4).intersection(Rect::new(2, 3, 4, 5)), Rect::new(2, 3, 2, 3));
 }
 
 #[test]
 fn intersection_underflow() {
-	assert_eq!(
-		Rect::new(1, 1, 2, 2).intersection(Rect::new(4, 4, 2, 2)),
-		Rect::new(4, 4, 0, 0)
-	);
+	assert_eq!(Rect::new(1, 1, 2, 2).intersection(Rect::new(4, 4, 2, 2)), Rect::new(4, 4, 0, 0));
 }
 
 #[test]
@@ -169,11 +142,7 @@ fn mutual_intersect(#[case] rect0: Rect, #[case] rect1: Rect) {
 #[case::outside_top_left(Rect::new(1, 2, 3, 4), Position { x: 0, y: 1 }, false)]
 #[case::outside_bottom_right(Rect::new(1, 2, 3, 4), Position { x: 4, y: 6 }, false)]
 fn contains(#[case] rect: Rect, #[case] position: Position, #[case] expected: bool) {
-	assert_eq!(
-		rect.contains(position),
-		expected,
-		"rect: {rect:?}, position: {position:?}",
-	);
+	assert_eq!(rect.contains(position), expected, "rect: {rect:?}, position: {position:?}",);
 }
 
 #[test]
@@ -232,8 +201,7 @@ fn can_be_const() {
 
 #[test]
 fn split() {
-	let [a, b] = Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
-		.areas(Rect::new(0, 0, 2, 1));
+	let [a, b] = Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)]).areas(Rect::new(0, 0, 2, 1));
 	assert_eq!(a, Rect::new(0, 0, 1, 1));
 	assert_eq!(b, Rect::new(1, 0, 1, 1));
 }
@@ -278,11 +246,7 @@ fn columns() {
 	let area = Rect::new(0, 0, 3, 2);
 	let columns: Vec<Rect> = area.columns().collect();
 
-	let expected_columns: Vec<Rect> = vec![
-		Rect::new(0, 0, 1, 2),
-		Rect::new(1, 0, 1, 2),
-		Rect::new(2, 0, 1, 2),
-	];
+	let expected_columns: Vec<Rect> = vec![Rect::new(0, 0, 1, 2), Rect::new(1, 0, 1, 2), Rect::new(2, 0, 1, 2)];
 
 	assert_eq!(columns, expected_columns);
 }
@@ -297,22 +261,13 @@ fn as_position() {
 
 #[test]
 fn as_size() {
-	assert_eq!(
-		Rect::new(1, 2, 3, 4).as_size(),
-		Size {
-			width: 3,
-			height: 4
-		}
-	);
+	assert_eq!(Rect::new(1, 2, 3, 4).as_size(), Size { width: 3, height: 4 });
 }
 
 #[test]
 fn from_position_and_size() {
 	let position = Position { x: 1, y: 2 };
-	let size = Size {
-		width: 3,
-		height: 4,
-	};
+	let size = Size { width: 3, height: 4 };
 	assert_eq!(
 		Rect::from((position, size)),
 		Rect {
@@ -326,10 +281,7 @@ fn from_position_and_size() {
 
 #[test]
 fn from_size() {
-	let size = Size {
-		width: 3,
-		height: 4,
-	};
+	let size = Size { width: 3, height: 4 };
 	assert_eq!(
 		Rect::from(size),
 		Rect {
@@ -344,28 +296,19 @@ fn from_size() {
 #[test]
 fn centered_horizontally() {
 	let rect = Rect::new(0, 0, 5, 5);
-	assert_eq!(
-		rect.centered_horizontally(Constraint::Length(3)),
-		Rect::new(1, 0, 3, 5)
-	);
+	assert_eq!(rect.centered_horizontally(Constraint::Length(3)), Rect::new(1, 0, 3, 5));
 }
 
 #[test]
 fn centered_vertically() {
 	let rect = Rect::new(0, 0, 5, 5);
-	assert_eq!(
-		rect.centered_vertically(Constraint::Length(1)),
-		Rect::new(0, 2, 5, 1)
-	);
+	assert_eq!(rect.centered_vertically(Constraint::Length(1)), Rect::new(0, 2, 5, 1));
 }
 
 #[test]
 fn centered() {
 	let rect = Rect::new(0, 0, 5, 5);
-	assert_eq!(
-		rect.centered(Constraint::Length(3), Constraint::Length(1)),
-		Rect::new(1, 2, 3, 1)
-	);
+	assert_eq!(rect.centered(Constraint::Length(3), Constraint::Length(1)), Rect::new(1, 2, 3, 1));
 }
 
 #[test]
@@ -413,7 +356,5 @@ fn try_layout() {
 #[test]
 fn try_layout_invalid_number_of_rects() {
 	let layout = Layout::horizontal([Constraint::Length(1)]);
-	Rect::new(0, 0, 10, 10)
-		.try_layout::<3>(&layout)
-		.unwrap_err();
+	Rect::new(0, 0, 10, 10).try_layout::<3>(&layout).unwrap_err();
 }

@@ -25,13 +25,7 @@ impl MockEngine {
 	pub(crate) fn new() -> Self {
 		let loader = LanguageLoader::from_embedded();
 		let lang = loader.language_for_name("rust").unwrap();
-		let syntax = Syntax::new(
-			Rope::from("").slice(..),
-			lang,
-			&loader,
-			SyntaxOptions::default(),
-		)
-		.unwrap();
+		let syntax = Syntax::new(Rope::from("").slice(..), lang, &loader, SyntaxOptions::default()).unwrap();
 
 		Self {
 			parse_count: AtomicUsize::new(0),
@@ -54,13 +48,7 @@ impl MockEngine {
 }
 
 impl SyntaxEngine for MockEngine {
-	fn parse(
-		&self,
-		_content: ropey::RopeSlice<'_>,
-		_lang: LanguageId,
-		_loader: &LanguageLoader,
-		_opts: SyntaxOptions,
-	) -> Result<Syntax, SyntaxError> {
+	fn parse(&self, _content: ropey::RopeSlice<'_>, _lang: LanguageId, _loader: &LanguageLoader, _opts: SyntaxOptions) -> Result<Syntax, SyntaxError> {
 		self.parse_count.fetch_add(1, Ordering::SeqCst);
 		futures::executor::block_on(self.notify.notified());
 
@@ -97,13 +85,7 @@ impl TimeoutSensitiveEngine {
 	pub(crate) fn new(threshold: Duration) -> Self {
 		let loader = LanguageLoader::from_embedded();
 		let lang = loader.language_for_name("rust").unwrap();
-		let syntax = Syntax::new(
-			Rope::from("").slice(..),
-			lang,
-			&loader,
-			SyntaxOptions::default(),
-		)
-		.unwrap();
+		let syntax = Syntax::new(Rope::from("").slice(..), lang, &loader, SyntaxOptions::default()).unwrap();
 
 		Self {
 			parse_count: AtomicUsize::new(0),
@@ -114,13 +96,7 @@ impl TimeoutSensitiveEngine {
 }
 
 impl SyntaxEngine for TimeoutSensitiveEngine {
-	fn parse(
-		&self,
-		_content: ropey::RopeSlice<'_>,
-		_lang: LanguageId,
-		_loader: &LanguageLoader,
-		opts: SyntaxOptions,
-	) -> Result<Syntax, SyntaxError> {
+	fn parse(&self, _content: ropey::RopeSlice<'_>, _lang: LanguageId, _loader: &LanguageLoader, opts: SyntaxOptions) -> Result<Syntax, SyntaxError> {
 		self.parse_count.fetch_add(1, Ordering::SeqCst);
 		if opts.parse_timeout <= self.threshold {
 			Err(SyntaxError::Timeout)
@@ -185,24 +161,10 @@ pub(crate) async fn test_single_flight_per_doc() {
 	let lang_id = loader.language_for_name("rust").unwrap();
 	let content = Rope::from("test");
 
-	let r1 = mgr.ensure_syntax(make_ctx(
-		doc_id,
-		1,
-		Some(lang_id),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	let r1 = mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang_id), &content, SyntaxHotness::Visible, &loader));
 	assert_eq!(r1.result, SyntaxPollResult::Kicked);
 
-	let r2 = mgr.ensure_syntax(make_ctx(
-		doc_id,
-		1,
-		Some(lang_id),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	let r2 = mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang_id), &content, SyntaxHotness::Visible, &loader));
 	assert_eq!(r2.result, SyntaxPollResult::Pending);
 
 	engine.proceed();
@@ -234,14 +196,7 @@ pub(crate) async fn test_inflight_drained_even_if_doc_marked_clean() {
 	let lang = loader.language_for_name("rust").unwrap();
 	let content = Rope::from("test");
 
-	mgr.ensure_syntax(make_ctx(
-		doc_id,
-		1,
-		Some(lang),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang), &content, SyntaxHotness::Visible, &loader));
 	assert!(mgr.has_pending(doc_id));
 
 	mgr.force_clean(doc_id);
@@ -251,14 +206,7 @@ pub(crate) async fn test_inflight_drained_even_if_doc_marked_clean() {
 	mgr.drain_finished_inflight();
 	assert!(!mgr.has_pending(doc_id));
 
-	mgr.ensure_syntax(make_ctx(
-		doc_id,
-		1,
-		Some(lang),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang), &content, SyntaxHotness::Visible, &loader));
 	assert!(mgr.has_syntax(doc_id));
 }
 
@@ -288,50 +236,21 @@ pub(crate) async fn test_stale_parse_does_not_overwrite_clean_incremental() {
 	let content = Rope::from("test");
 
 	// Establish initial tree at V1
-	mgr.ensure_syntax(make_ctx(
-		doc_id,
-		1,
-		Some(lang),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang), &content, SyntaxHotness::Visible, &loader));
 	engine.proceed();
 	wait_for_finish(&mgr).await;
 
 	mgr.drain_finished_inflight();
-	mgr.ensure_syntax(make_ctx(
-		doc_id,
-		1,
-		Some(lang),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang), &content, SyntaxHotness::Visible, &loader));
 	assert_eq!(mgr.syntax_doc_version(doc_id), Some(1));
 
 	// Kick background reparse at V1 (stale)
 	mgr.mark_dirty(doc_id);
-	mgr.ensure_syntax(make_ctx(
-		doc_id,
-		1,
-		Some(lang),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang), &content, SyntaxHotness::Visible, &loader));
 	assert!(mgr.has_pending(doc_id));
 
 	// Sync incremental catchup to V2
-	mgr.note_edit_incremental(
-		doc_id,
-		2,
-		&content,
-		&content,
-		&ChangeSet::new(content.slice(..)),
-		&loader,
-		EditSource::Typing,
-	);
+	mgr.note_edit_incremental(doc_id, 2, &content, &content, &ChangeSet::new(content.slice(..)), &loader, EditSource::Typing);
 	assert_eq!(mgr.syntax_doc_version(doc_id), Some(2));
 	assert!(!mgr.is_dirty(doc_id));
 
@@ -341,19 +260,8 @@ pub(crate) async fn test_stale_parse_does_not_overwrite_clean_incremental() {
 
 	mgr.drain_finished_inflight();
 
-	mgr.ensure_syntax(make_ctx(
-		doc_id,
-		2,
-		Some(lang),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
-	assert_eq!(
-		mgr.syntax_doc_version(doc_id),
-		Some(2),
-		"Stale V1 must not overwrite clean V2"
-	);
+	mgr.ensure_syntax(make_ctx(doc_id, 2, Some(lang), &content, SyntaxHotness::Visible, &loader));
+	assert_eq!(mgr.syntax_doc_version(doc_id), Some(2), "Stale V1 must not overwrite clean V2");
 }
 
 /// Must install completed parses for continuity when the slot is dirty,
@@ -382,14 +290,7 @@ pub(crate) async fn test_stale_install_continuity() {
 	let content = Rope::from("test");
 
 	// Kick parse at V1
-	mgr.ensure_syntax(make_ctx(
-		doc_id,
-		1,
-		Some(lang),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang), &content, SyntaxHotness::Visible, &loader));
 
 	// Edit to V2 while parse is inflight
 	mgr.note_edit(doc_id, EditSource::Typing);
@@ -400,19 +301,9 @@ pub(crate) async fn test_stale_install_continuity() {
 	mgr.drain_finished_inflight();
 
 	// Poll - should install V1 even if stale because slot is dirty
-	mgr.ensure_syntax(make_ctx(
-		doc_id,
-		2,
-		Some(lang),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	mgr.ensure_syntax(make_ctx(doc_id, 2, Some(lang), &content, SyntaxHotness::Visible, &loader));
 	assert_eq!(mgr.syntax_doc_version(doc_id), Some(1));
-	assert!(
-		mgr.is_dirty(doc_id),
-		"Should remain dirty for catch-up reparse"
-	);
+	assert!(mgr.is_dirty(doc_id), "Should remain dirty for catch-up reparse");
 }
 
 /// Must call `note_edit_incremental` or `note_edit` on every document mutation.
@@ -441,26 +332,12 @@ pub(crate) async fn test_note_edit_updates_timestamp() {
 	let content = Rope::from("test");
 
 	// Establish initial tree
-	mgr.ensure_syntax(make_ctx(
-		doc_id,
-		1,
-		Some(lang),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang), &content, SyntaxHotness::Visible, &loader));
 	engine.proceed();
 	wait_for_finish(&mgr).await;
 
 	mgr.drain_finished_inflight();
-	mgr.ensure_syntax(make_ctx(
-		doc_id,
-		1,
-		Some(lang),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang), &content, SyntaxHotness::Visible, &loader));
 	assert!(mgr.has_syntax(doc_id));
 
 	// Note edit (Typing)
@@ -468,26 +345,12 @@ pub(crate) async fn test_note_edit_updates_timestamp() {
 	assert!(mgr.is_dirty(doc_id));
 
 	// Poll immediately - should be Pending (debounced)
-	let r = mgr.ensure_syntax(make_ctx(
-		doc_id,
-		2,
-		Some(lang),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	let r = mgr.ensure_syntax(make_ctx(doc_id, 2, Some(lang), &content, SyntaxHotness::Visible, &loader));
 	assert_eq!(r.result, SyntaxPollResult::Pending);
 
 	// Wait for debounce
 	sleep(Duration::from_millis(150)).await;
-	let r2 = mgr.ensure_syntax(make_ctx(
-		doc_id,
-		2,
-		Some(lang),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	let r2 = mgr.ensure_syntax(make_ctx(doc_id, 2, Some(lang), &content, SyntaxHotness::Visible, &loader));
 	assert_eq!(r2.result, SyntaxPollResult::Kicked);
 }
 
@@ -515,14 +378,7 @@ pub(crate) async fn test_bootstrap_parse_skips_debounce() {
 	let lang = loader.language_for_name("rust").unwrap();
 	let content = Rope::from("test");
 
-	let r = mgr.ensure_syntax(make_ctx(
-		doc_id,
-		1,
-		Some(lang),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	let r = mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang), &content, SyntaxHotness::Visible, &loader));
 	assert_eq!(r.result, SyntaxPollResult::Kicked);
 }
 
@@ -551,14 +407,7 @@ pub(crate) async fn test_idle_tick_polls_inflight_parse() {
 	let lang = loader.language_for_name("rust").unwrap();
 	let content = Rope::from("test");
 
-	mgr.ensure_syntax(make_ctx(
-		doc_id,
-		1,
-		Some(lang),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang), &content, SyntaxHotness::Visible, &loader));
 	assert!(mgr.has_pending(doc_id));
 	assert!(!mgr.any_task_finished());
 
@@ -595,26 +444,12 @@ pub(crate) async fn test_syntax_version_bumps_on_install() {
 
 	let v0 = mgr.syntax_version(doc_id);
 
-	mgr.ensure_syntax(make_ctx(
-		doc_id,
-		1,
-		Some(lang),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang), &content, SyntaxHotness::Visible, &loader));
 	engine.proceed();
 	wait_for_finish(&mgr).await;
 
 	mgr.drain_finished_inflight();
-	mgr.ensure_syntax(make_ctx(
-		doc_id,
-		1,
-		Some(lang),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang), &content, SyntaxHotness::Visible, &loader));
 
 	let v1 = mgr.syntax_version(doc_id);
 	assert!(v1 > v0);
@@ -648,24 +483,10 @@ pub(crate) async fn test_language_switch_discards_old_parse() {
 	let content = Rope::from("test");
 
 	// Kick Rust parse
-	mgr.ensure_syntax(make_ctx(
-		doc_id,
-		1,
-		Some(lang_rust),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang_rust), &content, SyntaxHotness::Visible, &loader));
 
 	// Switch to Python - invalidates Rust epoch, new task throttled
-	let r = mgr.ensure_syntax(make_ctx(
-		doc_id,
-		1,
-		Some(lang_py),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	let r = mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang_py), &content, SyntaxHotness::Visible, &loader));
 	assert_eq!(r.result, SyntaxPollResult::Throttled);
 
 	// Rust result ready but discarded
@@ -674,28 +495,14 @@ pub(crate) async fn test_language_switch_discards_old_parse() {
 
 	mgr.drain_finished_inflight();
 
-	let r = mgr.ensure_syntax(make_ctx(
-		doc_id,
-		1,
-		Some(lang_py),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	let r = mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang_py), &content, SyntaxHotness::Visible, &loader));
 	assert_eq!(r.result, SyntaxPollResult::Kicked);
 
 	engine.proceed();
 	wait_for_finish(&mgr).await;
 	mgr.drain_finished_inflight();
 
-	let r = mgr.ensure_syntax(make_ctx(
-		doc_id,
-		1,
-		Some(lang_py),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	let r = mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang_py), &content, SyntaxHotness::Visible, &loader));
 	assert_eq!(r.result, SyntaxPollResult::Ready);
 	assert!(mgr.has_syntax(doc_id));
 }
@@ -726,25 +533,11 @@ pub(crate) async fn test_invalidate_does_not_release_permit_until_task_finishes(
 	let content = Rope::from("test");
 
 	// Kick task for Doc 1
-	mgr.ensure_syntax(make_ctx(
-		DocumentId(1),
-		1,
-		Some(lang_rust),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	mgr.ensure_syntax(make_ctx(DocumentId(1), 1, Some(lang_rust), &content, SyntaxHotness::Visible, &loader));
 	assert_eq!(mgr.pending_count(), 1);
 
 	// Switch language -> invalidates epoch, but permit still held
-	let r = mgr.ensure_syntax(make_ctx(
-		DocumentId(1),
-		1,
-		Some(lang_py),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	let r = mgr.ensure_syntax(make_ctx(DocumentId(1), 1, Some(lang_py), &content, SyntaxHotness::Visible, &loader));
 	assert_eq!(r.result, SyntaxPollResult::Throttled);
 
 	// Allow first task to finish
@@ -754,14 +547,7 @@ pub(crate) async fn test_invalidate_does_not_release_permit_until_task_finishes(
 	mgr.drain_finished_inflight();
 
 	// Now the new task can be kicked
-	let r = mgr.ensure_syntax(make_ctx(
-		DocumentId(1),
-		1,
-		Some(lang_py),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	let r = mgr.ensure_syntax(make_ctx(DocumentId(1), 1, Some(lang_py), &content, SyntaxHotness::Visible, &loader));
 	assert_eq!(r.result, SyntaxPollResult::Kicked);
 }
 
@@ -788,59 +574,22 @@ pub(crate) async fn test_monotonic_version_guard() {
 	let content = Rope::from("test");
 
 	// Establish syntax at V5
-	mgr.ensure_syntax(make_ctx(
-		doc_id,
-		5,
-		Some(lang_id),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	mgr.ensure_syntax(make_ctx(doc_id, 5, Some(lang_id), &content, SyntaxHotness::Visible, &loader));
 	engine.proceed();
 	wait_for_finish(&mgr).await;
 
 	mgr.drain_finished_inflight();
-	mgr.ensure_syntax(make_ctx(
-		doc_id,
-		5,
-		Some(lang_id),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	mgr.ensure_syntax(make_ctx(doc_id, 5, Some(lang_id), &content, SyntaxHotness::Visible, &loader));
 	assert_eq!(mgr.syntax_doc_version(doc_id), Some(5));
 
 	// Kick another parse at V5 (slow redundant one)
 	mgr.mark_dirty(doc_id);
-	mgr.ensure_syntax(make_ctx(
-		doc_id,
-		5,
-		Some(lang_id),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	mgr.ensure_syntax(make_ctx(doc_id, 5, Some(lang_id), &content, SyntaxHotness::Visible, &loader));
 	assert!(mgr.has_pending(doc_id));
 
 	// Advance to V7 via sync incremental updates
-	mgr.note_edit_incremental(
-		doc_id,
-		6,
-		&content,
-		&content,
-		&ChangeSet::new(content.slice(..)),
-		&loader,
-		EditSource::Typing,
-	);
-	mgr.note_edit_incremental(
-		doc_id,
-		7,
-		&content,
-		&content,
-		&ChangeSet::new(content.slice(..)),
-		&loader,
-		EditSource::Typing,
-	);
+	mgr.note_edit_incremental(doc_id, 6, &content, &content, &ChangeSet::new(content.slice(..)), &loader, EditSource::Typing);
+	mgr.note_edit_incremental(doc_id, 7, &content, &content, &ChangeSet::new(content.slice(..)), &loader, EditSource::Typing);
 	assert_eq!(mgr.syntax_doc_version(doc_id), Some(7));
 
 	// Complete the V5 parse
@@ -849,19 +598,8 @@ pub(crate) async fn test_monotonic_version_guard() {
 	mgr.drain_finished_inflight();
 
 	// V5 must not clobber V7.
-	mgr.ensure_syntax(make_ctx(
-		doc_id,
-		10,
-		Some(lang_id),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
-	assert_eq!(
-		mgr.syntax_doc_version(doc_id),
-		Some(7),
-		"V5 should not clobber V7"
-	);
+	mgr.ensure_syntax(make_ctx(doc_id, 10, Some(lang_id), &content, SyntaxHotness::Visible, &loader));
+	assert_eq!(mgr.syntax_doc_version(doc_id), Some(7), "V5 should not clobber V7");
 }
 
 /// History edits bypass debounce.
@@ -886,26 +624,12 @@ pub(crate) async fn test_history_op_bypasses_debounce() {
 	let content = Rope::from("test");
 
 	// Establish initial tree
-	mgr.ensure_syntax(make_ctx(
-		doc_id,
-		1,
-		Some(lang),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang), &content, SyntaxHotness::Visible, &loader));
 	engine.proceed();
 	wait_for_finish(&mgr).await;
 
 	mgr.drain_finished_inflight();
-	mgr.ensure_syntax(make_ctx(
-		doc_id,
-		1,
-		Some(lang),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang), &content, SyntaxHotness::Visible, &loader));
 	assert!(mgr.has_syntax(doc_id));
 
 	// Note edit (History)
@@ -913,14 +637,7 @@ pub(crate) async fn test_history_op_bypasses_debounce() {
 	assert!(mgr.is_dirty(doc_id));
 
 	// Poll immediately - should NOT be debounced because History
-	let r = mgr.ensure_syntax(make_ctx(
-		doc_id,
-		2,
-		Some(lang),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	let r = mgr.ensure_syntax(make_ctx(doc_id, 2, Some(lang), &content, SyntaxHotness::Visible, &loader));
 	assert_eq!(r.result, SyntaxPollResult::Kicked);
 }
 
@@ -948,48 +665,20 @@ pub(crate) async fn test_cold_eviction_reload() {
 	let content = Rope::from("test");
 
 	// Establish syntax
-	mgr.ensure_syntax(make_ctx(
-		doc_id,
-		1,
-		Some(lang_id),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang_id), &content, SyntaxHotness::Visible, &loader));
 	engine.proceed();
 	wait_for_finish(&mgr).await;
 
 	mgr.drain_finished_inflight();
-	mgr.ensure_syntax(make_ctx(
-		doc_id,
-		1,
-		Some(lang_id),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang_id), &content, SyntaxHotness::Visible, &loader));
 	assert!(mgr.has_syntax(doc_id));
 
 	// Trigger eviction
-	mgr.ensure_syntax(make_ctx(
-		doc_id,
-		1,
-		Some(lang_id),
-		&content,
-		SyntaxHotness::Cold,
-		&loader,
-	));
+	mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang_id), &content, SyntaxHotness::Cold, &loader));
 	assert!(!mgr.has_syntax(doc_id));
 
 	// Become visible again - should Kick bootstrap immediately
-	let poll = mgr.ensure_syntax(make_ctx(
-		doc_id,
-		1,
-		Some(lang_id),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	let poll = mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang_id), &content, SyntaxHotness::Visible, &loader));
 	assert_eq!(poll.result, SyntaxPollResult::Kicked);
 }
 
@@ -1017,51 +706,23 @@ pub(crate) async fn test_cold_throttles_work() {
 	let content = Rope::from("test");
 
 	// Start inflight parse
-	mgr.ensure_syntax(make_ctx(
-		doc_id,
-		1,
-		Some(lang_id),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang_id), &content, SyntaxHotness::Visible, &loader));
 	assert!(mgr.has_pending(doc_id));
 
 	// Drop hotness to Cold - should invalidate and return Disabled
-	let poll = mgr.ensure_syntax(make_ctx(
-		doc_id,
-		1,
-		Some(lang_id),
-		&content,
-		SyntaxHotness::Cold,
-		&loader,
-	));
+	let poll = mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang_id), &content, SyntaxHotness::Cold, &loader));
 	assert_eq!(poll.result, SyntaxPollResult::Disabled);
 	assert!(!mgr.has_pending(doc_id));
 
 	// Permit still held - another doc is throttled
-	let poll2 = mgr.ensure_syntax(make_ctx(
-		DocumentId(2),
-		1,
-		Some(lang_id),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	let poll2 = mgr.ensure_syntax(make_ctx(DocumentId(2), 1, Some(lang_id), &content, SyntaxHotness::Visible, &loader));
 	assert_eq!(poll2.result, SyntaxPollResult::Throttled);
 
 	engine.proceed();
 	wait_for_finish(&mgr).await;
 	mgr.drain_finished_inflight();
 
-	let poll3 = mgr.ensure_syntax(make_ctx(
-		DocumentId(2),
-		1,
-		Some(lang_id),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	let poll3 = mgr.ensure_syntax(make_ctx(DocumentId(2), 1, Some(lang_id), &content, SyntaxHotness::Visible, &loader));
 	assert_eq!(poll3.result, SyntaxPollResult::Kicked);
 }
 
@@ -1091,14 +752,7 @@ pub(crate) async fn test_detached_task_reattach() {
 	let content = Rope::from("test");
 
 	// 1. Visible -> kick task
-	mgr.ensure_syntax(make_ctx(
-		doc_id,
-		1,
-		Some(lang_id),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang_id), &content, SyntaxHotness::Visible, &loader));
 	assert!(mgr.has_pending(doc_id));
 
 	// Wait for background task to actually enter engine.parse
@@ -1110,26 +764,12 @@ pub(crate) async fn test_detached_task_reattach() {
 	assert_eq!(engine.parse_count.load(Ordering::SeqCst), 1);
 
 	// 2. Visible -> Cold. Should be Disabled and not pending.
-	let r1 = mgr.ensure_syntax(make_ctx(
-		doc_id,
-		1,
-		Some(lang_id),
-		&content,
-		SyntaxHotness::Cold,
-		&loader,
-	));
+	let r1 = mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang_id), &content, SyntaxHotness::Cold, &loader));
 	assert_eq!(r1.result, SyntaxPollResult::Disabled);
 	assert!(!mgr.has_pending(doc_id));
 
 	// 3. Cold -> Visible. Should be Pending again (reattached).
-	let r2 = mgr.ensure_syntax(make_ctx(
-		doc_id,
-		1,
-		Some(lang_id),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	let r2 = mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang_id), &content, SyntaxHotness::Visible, &loader));
 	assert_eq!(r2.result, SyntaxPollResult::Pending);
 	assert!(mgr.has_pending(doc_id));
 	assert!(mgr.has_inflight_task(doc_id), "task should be reattached");
@@ -1143,14 +783,7 @@ pub(crate) async fn test_detached_task_reattach() {
 	mgr.drain_finished_inflight();
 
 	// 6. Install
-	let r3 = mgr.ensure_syntax(make_ctx(
-		doc_id,
-		1,
-		Some(lang_id),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	let r3 = mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang_id), &content, SyntaxHotness::Visible, &loader));
 	assert_eq!(r3.result, SyntaxPollResult::Ready);
 	assert!(mgr.has_syntax(doc_id));
 }
@@ -1182,14 +815,7 @@ pub(crate) async fn test_sync_bootstrap_success() {
 	let content = Rope::from("test");
 
 	// First poll should return Ready immediately
-	let r = mgr.ensure_syntax(make_ctx(
-		doc_id,
-		1,
-		Some(lang),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	let r = mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang), &content, SyntaxHotness::Visible, &loader));
 
 	assert_eq!(r.result, SyntaxPollResult::Ready);
 	assert!(mgr.has_syntax(doc_id));
@@ -1224,14 +850,7 @@ pub(crate) async fn test_sync_bootstrap_timeout_fallback() {
 	let content = Rope::from("test");
 
 	// First poll should return Kicked (fell back to background)
-	let r = mgr.ensure_syntax(make_ctx(
-		doc_id,
-		1,
-		Some(lang),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	let r = mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang), &content, SyntaxHotness::Visible, &loader));
 
 	assert_eq!(r.result, SyntaxPollResult::Kicked);
 	assert!(mgr.has_pending(doc_id));
@@ -1249,14 +868,7 @@ pub(crate) async fn test_sync_bootstrap_timeout_fallback() {
 	wait_for_finish(&mgr).await;
 	mgr.drain_finished_inflight();
 
-	let r2 = mgr.ensure_syntax(make_ctx(
-		doc_id,
-		1,
-		Some(lang),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	let r2 = mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang), &content, SyntaxHotness::Visible, &loader));
 	assert_eq!(r2.result, SyntaxPollResult::Ready);
 }
 
@@ -1286,38 +898,17 @@ pub(crate) async fn test_sync_bootstrap_attempted_only_once_when_throttled() {
 	let content = Rope::from("test");
 
 	// 1. Occupy the only permit with Document 1
-	mgr.ensure_syntax(make_ctx(
-		DocumentId(1),
-		1,
-		Some(lang),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	mgr.ensure_syntax(make_ctx(DocumentId(1), 1, Some(lang), &content, SyntaxHotness::Visible, &loader));
 	assert!(mgr.has_pending(DocumentId(1)));
 
 	// 2. Poll Document 2 - should try sync (fail) then return Throttled
-	let r = mgr.ensure_syntax(make_ctx(
-		DocumentId(2),
-		1,
-		Some(lang),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	let r = mgr.ensure_syntax(make_ctx(DocumentId(2), 1, Some(lang), &content, SyntaxHotness::Visible, &loader));
 	assert_eq!(r.result, SyntaxPollResult::Throttled);
 	// 1 (Doc 1 background) + 1 (Doc 2 sync)
 	assert_eq!(engine.parse_count.load(Ordering::SeqCst), 2);
 
 	// 3. Poll Document 2 again - should NOT try sync again
-	let r2 = mgr.ensure_syntax(make_ctx(
-		DocumentId(2),
-		1,
-		Some(lang),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	let r2 = mgr.ensure_syntax(make_ctx(DocumentId(2), 1, Some(lang), &content, SyntaxHotness::Visible, &loader));
 	assert_eq!(r2.result, SyntaxPollResult::Throttled);
 	// Should still be 2
 	assert_eq!(engine.parse_count.load(Ordering::SeqCst), 2);
@@ -1349,26 +940,12 @@ pub(crate) async fn test_highlight_skips_stale_tree_version() {
 	let content = Rope::from("fn main() {}");
 
 	// Install syntax at V1.
-	mgr.ensure_syntax(make_ctx(
-		doc_id,
-		1,
-		Some(lang),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang), &content, SyntaxHotness::Visible, &loader));
 	engine.proceed();
 	wait_for_finish(&mgr).await;
 
 	mgr.drain_finished_inflight();
-	mgr.ensure_syntax(make_ctx(
-		doc_id,
-		1,
-		Some(lang),
-		&content,
-		SyntaxHotness::Visible,
-		&loader,
-	));
+	mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang), &content, SyntaxHotness::Visible, &loader));
 	assert_eq!(mgr.syntax_doc_version(doc_id), Some(1));
 
 	// Record an edit (moves to V2) but don't sync incrementally.

@@ -69,9 +69,7 @@ impl From<(Modifier, Modifier)> for Style {
 	/// let style = Style::from((Modifier::BOLD | Modifier::ITALIC, Modifier::DIM));
 	/// ```
 	fn from((add_modifier, sub_modifier): (Modifier, Modifier)) -> Self {
-		Self::new()
-			.add_modifier(add_modifier)
-			.remove_modifier(sub_modifier)
+		Self::new().add_modifier(add_modifier).remove_modifier(sub_modifier)
 	}
 }
 
@@ -129,10 +127,6 @@ impl From<(Color, Color, Modifier, Modifier)> for Style {
 	/// ));
 	/// ```
 	fn from((fg, bg, add_modifier, sub_modifier): (Color, Color, Modifier, Modifier)) -> Self {
-		Self::new()
-			.fg(fg)
-			.bg(bg)
-			.add_modifier(add_modifier)
-			.remove_modifier(sub_modifier)
+		Self::new().fg(fg).bg(bg).add_modifier(add_modifier).remove_modifier(sub_modifier)
 	}
 }

@@ -11,21 +11,12 @@ use crate::{Result, uri_from_path};
 
 impl ClientHandle {
 	/// Initialize the language server.
-	pub async fn initialize(
-		&self,
-		enable_snippets: bool,
-		config: Option<Value>,
-	) -> Result<InitializeResult> {
-		#[allow(
-			deprecated,
-			reason = "root_path field deprecated but required by some servers"
-		)]
+	pub async fn initialize(&self, enable_snippets: bool, config: Option<Value>) -> Result<InitializeResult> {
+		#[allow(deprecated, reason = "root_path field deprecated but required by some servers")]
 		let params = InitializeParams {
 			process_id: Some(std::process::id()),
 			workspace_folders: Some(vec![workspace_folder_from_uri(
-				self.root_uri
-					.clone()
-					.unwrap_or_else(|| uri_from_path(&self.root_path).expect("valid path")),
+				self.root_uri.clone().unwrap_or_else(|| uri_from_path(&self.root_path).expect("valid path")),
 			)]),
 			root_path: self.root_path.to_str().map(String::from),
 			root_uri: self.root_uri.clone(),
@@ -40,9 +31,7 @@ impl ClientHandle {
 			work_done_progress_params: Default::default(),
 		};
 
-		let result = self
-			.request::<lsp_types::request::Initialize>(params)
-			.await?;
+		let result = self.request::<lsp_types::request::Initialize>(params).await?;
 
 		let _ = self.capabilities.set(result.capabilities.clone());
 		self.initialize_notify.notify_waiters();
@@ -53,8 +42,7 @@ impl ClientHandle {
 				self.id,
 				AnyNotification {
 					method: lsp_types::notification::Initialized::METHOD.into(),
-					params: serde_json::to_value(lsp_types::InitializedParams {})
-						.expect("serialize"),
+					params: serde_json::to_value(lsp_types::InitializedParams {}).expect("serialize"),
 				},
 			)
 			.await?;
@@ -93,33 +81,20 @@ impl ClientHandle {
 	}
 
 	/// Notify the server that a document was opened.
-	pub async fn text_document_did_open(
-		&self,
-		uri: Uri,
-		language_id: String,
-		version: i32,
-		text: String,
-	) -> Result<()> {
-		self.notify::<lsp_types::notification::DidOpenTextDocument>(
-			lsp_types::DidOpenTextDocumentParams {
-				text_document: lsp_types::TextDocumentItem {
-					uri,
-					language_id,
-					version,
-					text,
-				},
+	pub async fn text_document_did_open(&self, uri: Uri, language_id: String, version: i32, text: String) -> Result<()> {
+		self.notify::<lsp_types::notification::DidOpenTextDocument>(lsp_types::DidOpenTextDocumentParams {
+			text_document: lsp_types::TextDocumentItem {
+				uri,
+				language_id,
+				version,
+				text,
 			},
-		)
+		})
 		.await
 	}
 
 	/// Notify the server that a document was changed (full sync).
-	pub async fn text_document_did_change_full(
-		&self,
-		uri: Uri,
-		version: i32,
-		text: String,
-	) -> Result<()> {
+	pub async fn text_document_did_change_full(&self, uri: Uri, version: i32, text: String) -> Result<()> {
 		let notification = AnyNotification {
 			method: lsp_types::notification::DidChangeTextDocument::METHOD.into(),
 			params: serde_json::to_value(lsp_types::DidChangeTextDocumentParams {
@@ -136,12 +111,7 @@ impl ClientHandle {
 	}
 
 	/// Notify the server that a document was changed (full sync) with a write barrier.
-	pub async fn text_document_did_change_full_with_barrier(
-		&self,
-		uri: Uri,
-		version: i32,
-		text: String,
-	) -> Result<oneshot::Receiver<Result<()>>> {
+	pub async fn text_document_did_change_full_with_barrier(&self, uri: Uri, version: i32, text: String) -> Result<oneshot::Receiver<Result<()>>> {
 		let notification = AnyNotification {
 			method: lsp_types::notification::DidChangeTextDocument::METHOD.into(),
 			params: serde_json::to_value(lsp_types::DidChangeTextDocumentParams {
@@ -154,18 +124,11 @@ impl ClientHandle {
 			})
 			.expect("Failed to serialize"),
 		};
-		self.transport
-			.notify_with_barrier(self.id, notification)
-			.await
+		self.transport.notify_with_barrier(self.id, notification).await
 	}
 
 	/// Notify the server that a document was changed (incremental sync).
-	pub async fn text_document_did_change(
-		&self,
-		uri: Uri,
-		version: i32,
-		changes: Vec<lsp_types::TextDocumentContentChangeEvent>,
-	) -> Result<()> {
+	pub async fn text_document_did_change(&self, uri: Uri, version: i32, changes: Vec<lsp_types::TextDocumentContentChangeEvent>) -> Result<()> {
 		let notification = AnyNotification {
 			method: lsp_types::notification::DidChangeTextDocument::METHOD.into(),
 			params: serde_json::to_value(lsp_types::DidChangeTextDocumentParams {
@@ -192,53 +155,37 @@ impl ClientHandle {
 			})
 			.expect("Failed to serialize"),
 		};
-		self.transport
-			.notify_with_barrier(self.id, notification)
-			.await
+		self.transport.notify_with_barrier(self.id, notification).await
 	}
 
 	/// Notify the server that a document will be saved.
-	pub async fn text_document_will_save(
-		&self,
-		uri: Uri,
-		reason: lsp_types::TextDocumentSaveReason,
-	) -> Result<()> {
-		self.notify::<lsp_types::notification::WillSaveTextDocument>(
-			lsp_types::WillSaveTextDocumentParams {
-				text_document: lsp_types::TextDocumentIdentifier { uri },
-				reason,
-			},
-		)
+	pub async fn text_document_will_save(&self, uri: Uri, reason: lsp_types::TextDocumentSaveReason) -> Result<()> {
+		self.notify::<lsp_types::notification::WillSaveTextDocument>(lsp_types::WillSaveTextDocumentParams {
+			text_document: lsp_types::TextDocumentIdentifier { uri },
+			reason,
+		})
 		.await
 	}
 
 	/// Notify the server that a document was saved.
 	pub async fn text_document_did_save(&self, uri: Uri, text: Option<String>) -> Result<()> {
-		self.notify::<lsp_types::notification::DidSaveTextDocument>(
-			lsp_types::DidSaveTextDocumentParams {
-				text_document: lsp_types::TextDocumentIdentifier { uri },
-				text,
-			},
-		)
+		self.notify::<lsp_types::notification::DidSaveTextDocument>(lsp_types::DidSaveTextDocumentParams {
+			text_document: lsp_types::TextDocumentIdentifier { uri },
+			text,
+		})
 		.await
 	}
 
 	/// Notify the server that a document was closed.
 	pub async fn text_document_did_close(&self, uri: Uri) -> Result<()> {
-		self.notify::<lsp_types::notification::DidCloseTextDocument>(
-			lsp_types::DidCloseTextDocumentParams {
-				text_document: lsp_types::TextDocumentIdentifier { uri },
-			},
-		)
+		self.notify::<lsp_types::notification::DidCloseTextDocument>(lsp_types::DidCloseTextDocumentParams {
+			text_document: lsp_types::TextDocumentIdentifier { uri },
+		})
 		.await
 	}
 
 	/// Request hover information.
-	pub async fn hover(
-		&self,
-		uri: Uri,
-		position: lsp_types::Position,
-	) -> Result<Option<lsp_types::Hover>> {
+	pub async fn hover(&self, uri: Uri, position: lsp_types::Position) -> Result<Option<lsp_types::Hover>> {
 		if !self.supports_hover() {
 			return Ok(None);
 		}
@@ -275,11 +222,7 @@ impl ClientHandle {
 	}
 
 	/// Request go to definition.
-	pub async fn goto_definition(
-		&self,
-		uri: Uri,
-		position: lsp_types::Position,
-	) -> Result<Option<lsp_types::GotoDefinitionResponse>> {
+	pub async fn goto_definition(&self, uri: Uri, position: lsp_types::Position) -> Result<Option<lsp_types::GotoDefinitionResponse>> {
 		if !self.supports_definition() {
 			return Ok(None);
 		}
@@ -295,12 +238,7 @@ impl ClientHandle {
 	}
 
 	/// Request references.
-	pub async fn references(
-		&self,
-		uri: Uri,
-		position: lsp_types::Position,
-		include_declaration: bool,
-	) -> Result<Option<Vec<lsp_types::Location>>> {
+	pub async fn references(&self, uri: Uri, position: lsp_types::Position, include_declaration: bool) -> Result<Option<Vec<lsp_types::Location>>> {
 		if !self.supports_references() {
 			return Ok(None);
 		}
@@ -311,18 +249,13 @@ impl ClientHandle {
 			},
 			work_done_progress_params: Default::default(),
 			partial_result_params: Default::default(),
-			context: lsp_types::ReferenceContext {
-				include_declaration,
-			},
+			context: lsp_types::ReferenceContext { include_declaration },
 		})
 		.await
 	}
 
 	/// Request document symbols.
-	pub async fn document_symbol(
-		&self,
-		uri: Uri,
-	) -> Result<Option<lsp_types::DocumentSymbolResponse>> {
+	pub async fn document_symbol(&self, uri: Uri) -> Result<Option<lsp_types::DocumentSymbolResponse>> {
 		if !self.supports_document_symbol() {
 			return Ok(None);
 		}
@@ -335,11 +268,7 @@ impl ClientHandle {
 	}
 
 	/// Request formatting.
-	pub async fn formatting(
-		&self,
-		uri: Uri,
-		options: lsp_types::FormattingOptions,
-	) -> Result<Option<Vec<lsp_types::TextEdit>>> {
+	pub async fn formatting(&self, uri: Uri, options: lsp_types::FormattingOptions) -> Result<Option<Vec<lsp_types::TextEdit>>> {
 		if !self.supports_formatting() {
 			return Ok(None);
 		}
@@ -352,12 +281,7 @@ impl ClientHandle {
 	}
 
 	/// Request code actions.
-	pub async fn code_action(
-		&self,
-		uri: Uri,
-		range: lsp_types::Range,
-		context: lsp_types::CodeActionContext,
-	) -> Result<Option<lsp_types::CodeActionResponse>> {
+	pub async fn code_action(&self, uri: Uri, range: lsp_types::Range, context: lsp_types::CodeActionContext) -> Result<Option<lsp_types::CodeActionResponse>> {
 		if !self.supports_code_action() {
 			return Ok(None);
 		}
@@ -372,11 +296,7 @@ impl ClientHandle {
 	}
 
 	/// Request signature help.
-	pub async fn signature_help(
-		&self,
-		uri: Uri,
-		position: lsp_types::Position,
-	) -> Result<Option<lsp_types::SignatureHelp>> {
+	pub async fn signature_help(&self, uri: Uri, position: lsp_types::Position) -> Result<Option<lsp_types::SignatureHelp>> {
 		if !self.supports_signature_help() {
 			return Ok(None);
 		}
@@ -392,12 +312,7 @@ impl ClientHandle {
 	}
 
 	/// Request rename.
-	pub async fn rename(
-		&self,
-		uri: Uri,
-		position: lsp_types::Position,
-		new_name: String,
-	) -> Result<Option<lsp_types::WorkspaceEdit>> {
+	pub async fn rename(&self, uri: Uri, position: lsp_types::Position, new_name: String) -> Result<Option<lsp_types::WorkspaceEdit>> {
 		if !self.supports_rename() {
 			return Ok(None);
 		}
@@ -413,11 +328,7 @@ impl ClientHandle {
 	}
 
 	/// Execute a command on the server.
-	pub async fn execute_command(
-		&self,
-		command: String,
-		arguments: Option<Vec<Value>>,
-	) -> Result<Option<Value>> {
+	pub async fn execute_command(&self, command: String, arguments: Option<Vec<Value>>) -> Result<Option<Value>> {
 		if !self.supports_execute_command() {
 			return Ok(None);
 		}

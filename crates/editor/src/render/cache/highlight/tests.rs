@@ -347,14 +347,7 @@ fn test_highlight_tiles_key_mismatch() {
 	};
 
 	// Insert tile with old key
-	cache.insert_tile(
-		doc_id,
-		0,
-		HighlightTile {
-			key: old_key,
-			spans: vec![],
-		},
-	);
+	cache.insert_tile(doc_id, 0, HighlightTile { key: old_key, spans: vec![] });
 
 	// Getting with new key should return None (cache miss)
 	assert!(cache.get_cached_tile(doc_id, 0, &new_key).is_none());
@@ -431,8 +424,7 @@ fn test_remap_stale_span_tracks_delete_before_span() {
 		highlight: xeno_runtime_language::highlight::Highlight::new(0),
 	};
 
-	let (start, end) =
-		remap_stale_span_to_current(&span, &old_rope, &new_rope, tx.changes()).unwrap();
+	let (start, end) = remap_stale_span_to_current(&span, &old_rope, &new_rope, tx.changes()).unwrap();
 	assert_eq!(start, 0);
 	assert_eq!(end, 3);
 }
@@ -458,8 +450,7 @@ fn test_remap_stale_span_tracks_insert_before_span() {
 		highlight: xeno_runtime_language::highlight::Highlight::new(0),
 	};
 
-	let (start, end) =
-		remap_stale_span_to_current(&span, &old_rope, &new_rope, tx.changes()).unwrap();
+	let (start, end) = remap_stale_span_to_current(&span, &old_rope, &new_rope, tx.changes()).unwrap();
 	assert_eq!(start, 3);
 	assert_eq!(end, 6);
 }

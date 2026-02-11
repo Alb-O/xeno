@@ -10,13 +10,7 @@ impl LspSystem {
 	pub(crate) fn prepare_position_request(
 		&self,
 		buffer: &Buffer,
-	) -> xeno_lsp::Result<
-		Option<(
-			xeno_lsp::ClientHandle,
-			xeno_lsp::lsp_types::Uri,
-			xeno_lsp::lsp_types::Position,
-		)>,
-	> {
+	) -> xeno_lsp::Result<Option<(xeno_lsp::ClientHandle, xeno_lsp::lsp_types::Uri, xeno_lsp::lsp_types::Position)>> {
 		let Some(path) = buffer.path() else {
 			return Ok(None);
 		};
@@ -33,8 +27,7 @@ impl LspSystem {
 			return Ok(None);
 		}
 
-		let uri = xeno_lsp::uri_from_path(&abs_path)
-			.ok_or_else(|| xeno_lsp::Error::Protocol("Invalid path".into()))?;
+		let uri = xeno_lsp::uri_from_path(&abs_path).ok_or_else(|| xeno_lsp::Error::Protocol("Invalid path".into()))?;
 
 		let encoding = client.offset_encoding();
 		let position = buffer
@@ -44,10 +37,7 @@ impl LspSystem {
 		Ok(Some((client, uri, position)))
 	}
 
-	pub async fn hover(
-		&self,
-		buffer: &Buffer,
-	) -> xeno_lsp::Result<Option<xeno_lsp::lsp_types::Hover>> {
+	pub async fn hover(&self, buffer: &Buffer) -> xeno_lsp::Result<Option<xeno_lsp::lsp_types::Hover>> {
 		let Some((client, uri, position)) = self.prepare_position_request(buffer)? else {
 			return Ok(None);
 		};
@@ -55,20 +45,14 @@ impl LspSystem {
 	}
 
 	#[allow(dead_code)]
-	pub async fn completion(
-		&self,
-		buffer: &Buffer,
-	) -> xeno_lsp::Result<Option<xeno_lsp::lsp_types::CompletionResponse>> {
+	pub async fn completion(&self, buffer: &Buffer) -> xeno_lsp::Result<Option<xeno_lsp::lsp_types::CompletionResponse>> {
 		let Some((client, uri, position)) = self.prepare_position_request(buffer)? else {
 			return Ok(None);
 		};
 		client.completion(uri, position, None).await
 	}
 
-	pub async fn goto_definition(
-		&self,
-		buffer: &Buffer,
-	) -> xeno_lsp::Result<Option<xeno_lsp::lsp_types::GotoDefinitionResponse>> {
+	pub async fn goto_definition(&self, buffer: &Buffer) -> xeno_lsp::Result<Option<xeno_lsp::lsp_types::GotoDefinitionResponse>> {
 		let Some((client, uri, position)) = self.prepare_position_request(buffer)? else {
 			return Ok(None);
 		};
@@ -76,11 +60,7 @@ impl LspSystem {
 	}
 
 	#[allow(dead_code)]
-	pub async fn references(
-		&self,
-		buffer: &Buffer,
-		include_declaration: bool,
-	) -> xeno_lsp::Result<Option<Vec<xeno_lsp::lsp_types::Location>>> {
+	pub async fn references(&self, buffer: &Buffer, include_declaration: bool) -> xeno_lsp::Result<Option<Vec<xeno_lsp::lsp_types::Location>>> {
 		let Some((client, uri, position)) = self.prepare_position_request(buffer)? else {
 			return Ok(None);
 		};
@@ -88,10 +68,7 @@ impl LspSystem {
 	}
 
 	#[allow(dead_code)]
-	pub async fn format(
-		&self,
-		buffer: &Buffer,
-	) -> xeno_lsp::Result<Option<Vec<xeno_lsp::lsp_types::TextEdit>>> {
+	pub async fn format(&self, buffer: &Buffer) -> xeno_lsp::Result<Option<Vec<xeno_lsp::lsp_types::TextEdit>>> {
 		let Some((client, uri, _)) = self.prepare_position_request(buffer)? else {
 			return Ok(None);
 		};

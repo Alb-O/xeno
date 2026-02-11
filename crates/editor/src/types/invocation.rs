@@ -73,18 +73,12 @@ impl Invocation {
 
 	/// Creates a command invocation.
 	pub fn command(name: impl Into<String>, args: Vec<String>) -> Self {
-		Self::Command {
-			name: name.into(),
-			args,
-		}
+		Self::Command { name: name.into(), args }
 	}
 
 	/// Creates an editor command invocation.
 	pub fn editor_command(name: impl Into<String>, args: Vec<String>) -> Self {
-		Self::EditorCommand {
-			name: name.into(),
-			args,
-		}
+		Self::EditorCommand { name: name.into(), args }
 	}
 
 	/// Short description for tracing/logging.

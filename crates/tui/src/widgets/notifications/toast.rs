@@ -220,11 +220,7 @@ impl Toast {
 
 	/// Returns the width needed for the icon column, if an icon is present.
 	pub fn icon_column_width(&self) -> u16 {
-		if self.icon.is_some() {
-			ICON_COLUMN_WIDTH
-		} else {
-			0
-		}
+		if self.icon.is_some() { ICON_COLUMN_WIDTH } else { 0 }
 	}
 
 	/// Creates a block for rendering this toast.

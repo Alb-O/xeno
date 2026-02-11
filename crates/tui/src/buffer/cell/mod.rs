@@ -112,10 +112,7 @@ impl Cell {
 	///
 	/// [Box Drawing Unicode block]: https://en.wikipedia.org/wiki/Box_Drawing
 	pub fn merge_symbol(&mut self, symbol: &str, strategy: MergeStrategy) -> &mut Self {
-		let merged_symbol = self
-			.symbol
-			.as_ref()
-			.map_or(symbol, |s| strategy.merge(s, symbol));
+		let merged_symbol = self.symbol.as_ref().map_or(symbol, |s| strategy.merge(s, symbol));
 		self.symbol = Some(CompactString::new(merged_symbol));
 		self
 	}
@@ -219,17 +216,11 @@ impl PartialEq for Cell {
 		let symbols_eq = self.symbol() == other.symbol();
 
 		#[cfg(feature = "underline-color")]
-		let underline_eq = self.underline_color == other.underline_color
-			&& self.underline_style == other.underline_style;
+		let underline_eq = self.underline_color == other.underline_color && self.underline_style == other.underline_style;
 		#[cfg(not(feature = "underline-color"))]
 		let underline_eq = true;
 
-		symbols_eq
-			&& underline_eq
-			&& self.fg == other.fg
-			&& self.bg == other.bg
-			&& self.modifier == other.modifier
-			&& self.skip == other.skip
+		symbols_eq && underline_eq && self.fg == other.fg && self.bg == other.bg && self.modifier == other.modifier && self.skip == other.skip
 	}
 }
 

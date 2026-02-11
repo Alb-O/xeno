@@ -22,10 +22,7 @@ impl WindowManager {
 		let mut windows = HashMap::new();
 		windows.insert(base_id, Window::Base(base_window));
 
-		Self {
-			base: base_id,
-			windows,
-		}
+		Self { base: base_id, windows }
 	}
 
 	/// Returns the base window ID.
@@ -35,22 +32,14 @@ impl WindowManager {
 
 	/// Returns the base window.
 	pub fn base_window(&self) -> &BaseWindow {
-		match self
-			.windows
-			.get(&self.base)
-			.expect("base window must exist")
-		{
+		match self.windows.get(&self.base).expect("base window must exist") {
 			Window::Base(base) => base,
 		}
 	}
 
 	/// Returns the base window mutably.
 	pub fn base_window_mut(&mut self) -> &mut BaseWindow {
-		match self
-			.windows
-			.get_mut(&self.base)
-			.expect("base window must exist")
-		{
+		match self.windows.get_mut(&self.base).expect("base window must exist") {
 			Window::Base(base) => base,
 		}
 	}

@@ -31,12 +31,7 @@ pub fn xeno_cmd_debug_theme(name: &str) -> String {
 /// Use `kitty_test_harness::create_test_log()` to create the log file.
 #[allow(dead_code, reason = "test helper used by individual test files")]
 pub fn xeno_cmd_debug_with_log(name: &str, log_path: &Path) -> String {
-	format!(
-		"XENO_TEST_LOG={} {} --theme debug {}",
-		log_path.display(),
-		xeno_cmd(),
-		name
-	)
+	format!("XENO_TEST_LOG={} {} --theme debug {}", log_path.display(), xeno_cmd(), name)
 }
 
 /// Returns the workspace directory.

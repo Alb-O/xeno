@@ -16,21 +16,12 @@ use crate::buffer::{Layout, SplitDirection};
 
 impl LayoutManager {
 	/// Returns separator positions for rendering the base layer.
-	pub fn separator_positions(
-		&self,
-		base_layout: &Layout,
-		area: Rect,
-	) -> Vec<(SplitDirection, u8, Rect)> {
+	pub fn separator_positions(&self, base_layout: &Layout, area: Rect) -> Vec<(SplitDirection, u8, Rect)> {
 		base_layout.separator_positions(area)
 	}
 
 	/// Returns separator positions for a specific layer.
-	pub fn separator_positions_for_layer(
-		&self,
-		base_layout: &Layout,
-		layer: LayerId,
-		area: Rect,
-	) -> Vec<(SplitDirection, u8, Rect)> {
+	pub fn separator_positions_for_layer(&self, base_layout: &Layout, layer: LayerId, area: Rect) -> Vec<(SplitDirection, u8, Rect)> {
 		match self.layer(base_layout, layer) {
 			Ok(l) => l.separator_positions(area),
 			Err(_) => Vec::new(),
@@ -41,13 +32,7 @@ impl LayoutManager {
 	///
 	/// Returns the separator direction and rectangle. For interactive hit testing
 	/// that needs a stable identifier, use [`Self::separator_hit_at_position`].
-	pub fn separator_at_position(
-		&self,
-		base_layout: &Layout,
-		area: Rect,
-		x: u16,
-		y: u16,
-	) -> Option<(SplitDirection, Rect)> {
+	pub fn separator_at_position(&self, base_layout: &Layout, area: Rect, x: u16, y: u16) -> Option<(SplitDirection, Rect)> {
 		for i in (1..self.layers.len()).rev() {
 			if let Some(ref layout) = self.layers[i].layout {
 				let layer_id = LayerId::new(i as u16, self.layers[i].generation);
@@ -64,25 +49,14 @@ impl LayoutManager {
 	///
 	/// Searches separators top-down through layers, constructing a generational
 	/// [`SeparatorId`] for stable references during interactions.
-	pub fn separator_hit_at_position(
-		&self,
-		base_layout: &Layout,
-		area: Rect,
-		x: u16,
-		y: u16,
-	) -> Option<SeparatorHit> {
+	pub fn separator_hit_at_position(&self, base_layout: &Layout, area: Rect, x: u16, y: u16) -> Option<SeparatorHit> {
 		for i in (1..self.layers.len()).rev() {
 			if let Some(ref layout) = self.layers[i].layout {
 				let layer_id = LayerId::new(i as u16, self.layers[i].generation);
 				let layer_area = self.layer_area(layer_id, area);
-				if let Some((direction, rect, path)) =
-					layout.separator_with_path_at_position(layer_area, x, y)
-				{
+				if let Some((direction, rect, path)) = layout.separator_with_path_at_position(layer_area, x, y) {
 					return Some(SeparatorHit {
-						id: SeparatorId::Split {
-							path,
-							layer: layer_id,
-						},
+						id: SeparatorId::Split { path, layer: layer_id },
 						direction,
 						rect,
 					});
@@ -93,10 +67,7 @@ impl LayoutManager {
 		base_layout
 			.separator_with_path_at_position(area, x, y)
 			.map(|(direction, rect, path)| SeparatorHit {
-				id: SeparatorId::Split {
-					path,
-					layer: LayerId::BASE,
-				},
+				id: SeparatorId::Split { path, layer: LayerId::BASE },
 				direction,
 				rect,
 			})
@@ -119,12 +90,7 @@ impl LayoutManager {
 	/// Gets the rectangle for the given separator identifier.
 	///
 	/// Returns `None` if the layer is no longer valid or the path no longer exists.
-	pub fn separator_rect(
-		&self,
-		base_layout: &Layout,
-		area: Rect,
-		id: &SeparatorId,
-	) -> Option<Rect> {
+	pub fn separator_rect(&self, base_layout: &Layout, area: Rect, id: &SeparatorId) -> Option<Rect> {
 		match id {
 			SeparatorId::Split { path, layer } => {
 				let layer_area = self.layer_area(*layer, area);
@@ -140,14 +106,7 @@ impl LayoutManager {
 	///
 	/// This method validates the identifier before resizing. If the ID is stale,
 	/// the operation is ignored. Increments the layout revision on success.
-	pub fn resize_separator(
-		&mut self,
-		base_layout: &mut Layout,
-		area: Rect,
-		id: &SeparatorId,
-		mouse_x: u16,
-		mouse_y: u16,
-	) {
+	pub fn resize_separator(&mut self, base_layout: &mut Layout, area: Rect, id: &SeparatorId, mouse_x: u16, mouse_y: u16) {
 		match id {
 			SeparatorId::Split { path, layer } => {
 				let layer_area = self.layer_area(*layer, area);

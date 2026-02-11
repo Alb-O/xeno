@@ -40,24 +40,15 @@ impl xeno_rpc::Protocol for JsonRpcProtocol {
 		RequestId::Number(id_gen.next() as i32)
 	}
 
-	async fn read_message(
-		&mut self,
-		input: &mut (impl AsyncBufRead + Unpin + Send),
-	) -> Result<Self::Message> {
+	async fn read_message(&mut self, input: &mut (impl AsyncBufRead + Unpin + Send)) -> Result<Self::Message> {
 		Message::read(input).await
 	}
 
-	async fn write_message(
-		&mut self,
-		output: &mut (impl AsyncWrite + Unpin + Send),
-		msg: &Self::Message,
-	) -> Result<()> {
+	async fn write_message(&mut self, output: &mut (impl AsyncWrite + Unpin + Send), msg: &Self::Message) -> Result<()> {
 		msg.write(output).await
 	}
 
-	fn split_inbound(
-		msg: Self::Message,
-	) -> xeno_rpc::Inbound<Self::Request, Self::Response, Self::Notification> {
+	fn split_inbound(msg: Self::Message) -> xeno_rpc::Inbound<Self::Request, Self::Response, Self::Notification> {
 		match msg {
 			Message::Request(req) => xeno_rpc::Inbound::Request(req),
 			Message::Response(resp) => xeno_rpc::Inbound::Response(resp),

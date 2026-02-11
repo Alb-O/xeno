@@ -6,13 +6,7 @@ use xeno_primitives::range::{Direction, Range};
 use super::make_range;
 
 /// Moves the cursor to the next or previous paragraph.
-pub fn move_paragraph(
-	text: RopeSlice,
-	range: Range,
-	direction: Direction,
-	count: usize,
-	extend: bool,
-) -> Range {
+pub fn move_paragraph(text: RopeSlice, range: Range, direction: Direction, count: usize, extend: bool) -> Range {
 	let len = text.len_chars();
 	if len == 0 {
 		return range;
@@ -69,9 +63,5 @@ fn next_line_start(text: RopeSlice, pos: usize) -> usize {
 
 fn prev_line_start(text: RopeSlice, pos: usize) -> usize {
 	let line_idx = text.char_to_line(pos);
-	if line_idx > 0 {
-		text.line_to_char(line_idx - 1)
-	} else {
-		0
-	}
+	if line_idx > 0 { text.line_to_char(line_idx - 1) } else { 0 }
 }

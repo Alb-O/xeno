@@ -74,10 +74,7 @@ async fn main() -> anyhow::Result<()> {
 		let opt = xeno_registry::db::OPTIONS
 			.get_key(&keys::THEME.untyped())
 			.expect("theme option missing from registry");
-		editor
-			.config_mut()
-			.global_options
-			.set(opt, OptionValue::String(theme_name));
+		editor.config_mut().global_options.set(opt, OptionValue::String(theme_name));
 	}
 
 	run_editor(editor).await?;
@@ -135,19 +132,14 @@ fn apply_user_config(editor: &mut Editor, config: Option<xeno_registry::config::
 
 /// Handles grammar fetch/build/sync subcommands.
 fn handle_grammar_command(action: GrammarAction) -> anyhow::Result<()> {
-	use xeno_runtime_language::build::{
-		build_all_grammars, fetch_all_grammars, load_grammar_configs,
-	};
+	use xeno_runtime_language::build::{build_all_grammars, fetch_all_grammars, load_grammar_configs};
 
 	let configs = load_grammar_configs()?;
 
 	match action {
 		GrammarAction::Fetch { only } => {
 			let configs: Vec<_> = if let Some(ref names) = only {
-				configs
-					.into_iter()
-					.filter(|c| names.contains(&c.grammar_id))
-					.collect()
+				configs.into_iter().filter(|c| names.contains(&c.grammar_id)).collect()
 			} else {
 				configs
 			};
@@ -157,10 +149,7 @@ fn handle_grammar_command(action: GrammarAction) -> anyhow::Result<()> {
 		}
 		GrammarAction::Build { only } => {
 			let configs: Vec<_> = if let Some(ref names) = only {
-				configs
-					.into_iter()
-					.filter(|c| names.contains(&c.grammar_id))
-					.collect()
+				configs.into_iter().filter(|c| names.contains(&c.grammar_id)).collect()
 			} else {
 				configs
 			};
@@ -170,10 +159,7 @@ fn handle_grammar_command(action: GrammarAction) -> anyhow::Result<()> {
 		}
 		GrammarAction::Sync { only } => {
 			let configs: Vec<_> = if let Some(ref names) = only {
-				configs
-					.into_iter()
-					.filter(|c| names.contains(&c.grammar_id))
-					.collect()
+				configs.into_iter().filter(|c| names.contains(&c.grammar_id)).collect()
 			} else {
 				configs
 			};
@@ -194,10 +180,7 @@ fn handle_grammar_command(action: GrammarAction) -> anyhow::Result<()> {
 fn report_fetch_results(
 	results: &[(
 		xeno_runtime_language::build::GrammarConfig,
-		Result<
-			xeno_runtime_language::build::FetchStatus,
-			xeno_runtime_language::build::GrammarBuildError,
-		>,
+		Result<xeno_runtime_language::build::FetchStatus, xeno_runtime_language::build::GrammarBuildError>,
 	)],
 ) {
 	use xeno_runtime_language::build::FetchStatus;
@@ -234,10 +217,7 @@ fn report_fetch_results(
 fn report_build_results(
 	results: &[(
 		xeno_runtime_language::build::GrammarConfig,
-		Result<
-			xeno_runtime_language::build::BuildStatus,
-			xeno_runtime_language::build::GrammarBuildError,
-		>,
+		Result<xeno_runtime_language::build::BuildStatus, xeno_runtime_language::build::GrammarBuildError>,
 	)],
 ) {
 	use xeno_runtime_language::build::BuildStatus;
@@ -281,11 +261,7 @@ fn run_log_launcher_mode(cli: &Cli) -> anyhow::Result<()> {
 		args.push(OsStr::new(theme));
 	}
 
-	let _child = log_launcher::spawn_in_terminal(
-		&xeno_path.to_string_lossy(),
-		&args,
-		&socket_path.to_string_lossy(),
-	)?;
+	let _child = log_launcher::spawn_in_terminal(&xeno_path.to_string_lossy(), &args, &socket_path.to_string_lossy())?;
 
 	log_launcher::run_log_viewer(&socket_path)?;
 	Ok(())
@@ -309,13 +285,9 @@ fn setup_socket_tracing(socket_path: &str) {
 		return;
 	};
 
-	let filter = EnvFilter::try_from_env("XENO_LOG")
-		.unwrap_or_else(|_| EnvFilter::new("debug,hyper=info,tower=info"));
+	let filter = EnvFilter::try_from_env("XENO_LOG").unwrap_or_else(|_| EnvFilter::new("debug,hyper=info,tower=info"));
 
-	tracing_subscriber::registry()
-		.with(filter)
-		.with(layer)
-		.init();
+	tracing_subscriber::registry().with(filter).with(layer).init();
 
 	info!("Socket tracing initialized");
 }
@@ -389,10 +361,7 @@ fn setup_tracing() {
 		.with_span_events(FmtSpan::CLOSE)
 		.with_target(true);
 
-	tracing_subscriber::registry()
-		.with(filter)
-		.with(file_layer)
-		.init();
+	tracing_subscriber::registry().with(filter).with(file_layer).init();
 
 	info!(path = ?log_path, "Tracing initialized");
 }

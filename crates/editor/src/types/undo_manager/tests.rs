@@ -45,10 +45,7 @@ impl UndoHost for TestHost {
 		}
 	}
 
-	fn capture_current_view_snapshots(
-		&self,
-		doc_ids: &[DocumentId],
-	) -> HashMap<ViewId, ViewSnapshot> {
+	fn capture_current_view_snapshots(&self, doc_ids: &[DocumentId]) -> HashMap<ViewId, ViewSnapshot> {
 		if doc_ids.contains(&self.doc_id) {
 			HashMap::from([(self.buffer_id, self.snapshot())])
 		} else {
@@ -81,12 +78,7 @@ fn with_edit_pushes_group_on_apply() {
 	let mut host = TestHost::new();
 	let buffer_id = host.buffer_id;
 
-	let applied = manager.with_edit(
-		&mut host,
-		buffer_id,
-		EditOrigin::Internal("test"),
-		|_host| CommitResult::stub(0),
-	);
+	let applied = manager.with_edit(&mut host, buffer_id, EditOrigin::Internal("test"), |_host| CommitResult::stub(0));
 
 	assert!(applied);
 	assert_eq!(manager.undo_len(), 1);
@@ -100,12 +92,7 @@ fn with_edit_calls_finalize_on_failure() {
 	let mut host = TestHost::new();
 	let buffer_id = host.buffer_id;
 
-	let applied = manager.with_edit(
-		&mut host,
-		buffer_id,
-		EditOrigin::Internal("test"),
-		|_host| CommitResult::blocked(0),
-	);
+	let applied = manager.with_edit(&mut host, buffer_id, EditOrigin::Internal("test"), |_host| CommitResult::blocked(0));
 
 	assert!(!applied);
 	assert_eq!(manager.undo_len(), 0);

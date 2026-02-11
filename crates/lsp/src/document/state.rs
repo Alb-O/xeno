@@ -194,21 +194,12 @@ impl DocumentState {
 
 	/// Get diagnostics filtered by severity.
 	pub fn diagnostics_by_severity(&self, severity: DiagnosticSeverity) -> Vec<Diagnostic> {
-		self.diagnostics
-			.read()
-			.iter()
-			.filter(|d| d.severity == Some(severity))
-			.cloned()
-			.collect()
+		self.diagnostics.read().iter().filter(|d| d.severity == Some(severity)).cloned().collect()
 	}
 
 	/// Get error count.
 	pub fn error_count(&self) -> usize {
-		self.diagnostics
-			.read()
-			.iter()
-			.filter(|d| d.severity == Some(DiagnosticSeverity::ERROR))
-			.count()
+		self.diagnostics.read().iter().filter(|d| d.severity == Some(DiagnosticSeverity::ERROR)).count()
 	}
 
 	/// Get warning count.

@@ -50,8 +50,7 @@ pub struct UiScene {
 
 impl UiScene {
 	pub fn sort_stable(&mut self) {
-		self.surfaces
-			.sort_by_key(|surface| (surface.z, surface.id.0));
+		self.surfaces.sort_by_key(|surface| (surface.z, surface.id.0));
 	}
 
 	pub fn hit_test(&self, x: u16, y: u16) -> Option<&Surface> {

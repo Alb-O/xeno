@@ -29,10 +29,7 @@ impl BuildCtx {
 	pub fn new() -> Self {
 		let manifest_dir = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
 		let out_dir = PathBuf::from(std::env::var("OUT_DIR").unwrap());
-		Self {
-			manifest_dir,
-			out_dir,
-		}
+		Self { manifest_dir, out_dir }
 	}
 
 	pub fn asset(&self, rel: &str) -> PathBuf {
@@ -57,8 +54,7 @@ impl BuildCtx {
 		let path = self.out_dir.join(filename);
 		let mut file = fs::File::create(&path).expect("failed to create blob");
 		file.write_all(MAGIC).expect("failed to write magic");
-		file.write_all(&SCHEMA_VERSION.to_le_bytes())
-			.expect("failed to write version");
+		file.write_all(&SCHEMA_VERSION.to_le_bytes()).expect("failed to write version");
 		file.write_all(data).expect("failed to write data");
 	}
 }
@@ -66,13 +62,7 @@ impl BuildCtx {
 /// Extracts the first positional string argument from a KDL node.
 pub fn node_name_arg(node: &kdl::KdlNode, domain: &str) -> String {
 	node.entry(0)
-		.and_then(|e| {
-			if e.name().is_none() {
-				e.value().as_string().map(String::from)
-			} else {
-				None
-			}
-		})
+		.and_then(|e| if e.name().is_none() { e.value().as_string().map(String::from) } else { None })
 		.unwrap_or_else(|| panic!("{domain} node missing name argument"))
 }
 

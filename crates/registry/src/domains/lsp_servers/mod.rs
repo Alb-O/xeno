@@ -6,9 +6,7 @@ pub mod spec;
 pub use entry::{LspServerEntry, LspServerInput};
 pub use registry::LspServersRegistry;
 
-pub fn register_plugin(
-	db: &mut crate::db::builder::RegistryDbBuilder,
-) -> Result<(), crate::error::RegistryError> {
+pub fn register_plugin(db: &mut crate::db::builder::RegistryDbBuilder) -> Result<(), crate::error::RegistryError> {
 	register_compiled(db);
 	Ok(())
 }
@@ -41,9 +39,7 @@ impl crate::db::domain::DomainSpec for LspServers {
 		LspServerInput::Linked(def)
 	}
 
-	fn builder(
-		db: &mut crate::db::builder::RegistryDbBuilder,
-	) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
+	fn builder(db: &mut crate::db::builder::RegistryDbBuilder) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
 		&mut db.lsp_servers
 	}
 }

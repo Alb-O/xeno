@@ -104,10 +104,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::task::JoinHandle;
 
 use crate::client::transport::{LspTransport, TransportEvent};
-use crate::{
-	DiagnosticsEvent, DiagnosticsEventReceiver, DocumentStateManager, DocumentSync,
-	LanguageServerConfig, Registry,
-};
+use crate::{DiagnosticsEvent, DiagnosticsEventReceiver, DocumentStateManager, DocumentSync, LanguageServerConfig, Registry};
 
 #[derive(Debug, thiserror::Error)]
 pub enum SpawnRouterError {
@@ -128,8 +125,7 @@ pub struct LspManager {
 impl LspManager {
 	/// Create a new LSP manager with the given transport.
 	pub fn new(transport: Arc<dyn LspTransport>) -> Self {
-		let (sync, _registry, _documents, diagnostics_receiver) =
-			DocumentSync::create(transport.clone());
+		let (sync, _registry, _documents, diagnostics_receiver) = DocumentSync::create(transport.clone());
 
 		Self {
 			sync,
@@ -189,17 +185,11 @@ impl LspManager {
 						let Ok(uri) = uri.parse::<lsp_types::Uri>() else {
 							continue;
 						};
-						let Ok(diags) =
-							serde_json::from_value::<Vec<lsp_types::Diagnostic>>(diagnostics)
-						else {
+						let Ok(diags) = serde_json::from_value::<Vec<lsp_types::Diagnostic>>(diagnostics) else {
 							continue;
 						};
 
-						documents.update_diagnostics(
-							&uri,
-							diags,
-							version.and_then(|v| i32::try_from(v).ok()),
-						);
+						documents.update_diagnostics(&uri, diags, version.and_then(|v| i32::try_from(v).ok()));
 					}
 
 					TransportEvent::Message { server, message } => {
@@ -214,10 +204,7 @@ impl LspManager {
 								);
 								let req_id = req.id.clone();
 
-								let result = super::server_requests::handle_server_request(
-									&sync, server, req,
-								)
-								.await;
+								let result = super::server_requests::handle_server_request(&sync, server, req).await;
 
 								if let Err(e) = transport.reply(server, req_id, result).await {
 									tracing::error!(
@@ -230,15 +217,10 @@ impl LspManager {
 
 							Message::Notification(notif) => {
 								if notif.method == "$/progress" {
-									if let Ok(params) = serde_json::from_value::<
-										lsp_types::ProgressParams,
-									>(notif.params)
-									{
+									if let Ok(params) = serde_json::from_value::<lsp_types::ProgressParams>(notif.params) {
 										documents.update_progress(server, params);
 									}
-								} else if notif.method == "window/logMessage"
-									|| notif.method == "window/showMessage"
-								{
+								} else if notif.method == "window/logMessage" || notif.method == "window/showMessage" {
 									tracing::debug!(
 										server_id = %server,
 										method = %notif.method,

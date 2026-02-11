@@ -8,12 +8,7 @@ use super::{WordType, is_word_char};
 /// Select a word object (inner or around).
 /// Inner: just the word characters
 /// Around: word + trailing whitespace (or leading if at end)
-pub fn select_word_object(
-	text: RopeSlice,
-	range: Range,
-	word_type: WordType,
-	inner: bool,
-) -> Range {
+pub fn select_word_object(text: RopeSlice, range: Range, word_type: WordType, inner: bool) -> Range {
 	let len = text.len_chars();
 	if len == 0 {
 		return range;
@@ -90,13 +85,7 @@ pub fn select_word_object(
 /// Select a surround/paired object (parentheses, braces, quotes, etc).
 /// Inner: content between delimiters (exclusive)
 /// Around: content including delimiters (inclusive)
-pub fn select_surround_object(
-	text: RopeSlice,
-	range: Range,
-	open: char,
-	close: char,
-	inner: bool,
-) -> Option<Range> {
+pub fn select_surround_object(text: RopeSlice, range: Range, open: char, close: char, inner: bool) -> Option<Range> {
 	let len = text.len_chars();
 	if len == 0 {
 		return None;

@@ -128,15 +128,8 @@ pub fn get_color_field(doc: &KdlDocument, name: &str, ctx: &ParseContext) -> Res
 /// Gets an optional color field from a KDL document.
 ///
 /// Returns `Ok(None)` if the field is absent, `Ok(Some(color))` if present and valid.
-pub fn get_color_field_opt(
-	doc: &KdlDocument,
-	name: &str,
-	ctx: &ParseContext,
-) -> Result<Option<Color>> {
-	doc.get_arg(name)
-		.and_then(|v| v.as_string())
-		.map(|value| ctx.resolve_color(value))
-		.transpose()
+pub fn get_color_field_opt(doc: &KdlDocument, name: &str, ctx: &ParseContext) -> Result<Option<Color>> {
+	doc.get_arg(name).and_then(|v| v.as_string()).map(|value| ctx.resolve_color(value)).transpose()
 }
 
 /// Parse a palette block into the context.
@@ -154,20 +147,14 @@ pub fn parse_palette(node: &kdl::KdlNode, ctx: &mut ParseContext) -> Result<()> 
 }
 
 /// Parses UI colors from a KDL node.
-pub fn parse_ui_colors(
-	node: Option<&kdl::KdlNode>,
-	ctx: &ParseContext,
-) -> Result<crate::themes::UiColors> {
+pub fn parse_ui_colors(node: Option<&kdl::KdlNode>, ctx: &ParseContext) -> Result<crate::themes::UiColors> {
 	use crate::themes::UiColors;
 
 	let node = node.ok_or_else(|| ConfigError::MissingField("ui".into()))?;
-	let children = node
-		.children()
-		.ok_or_else(|| ConfigError::MissingField("ui".into()))?;
+	let children = node.children().ok_or_else(|| ConfigError::MissingField("ui".into()))?;
 
 	let bg = get_color_field(children, "bg", ctx)?;
-	let nontext_bg = get_color_field_opt(children, "nontext-bg", ctx)?
-		.unwrap_or_else(|| bg.blend(xeno_primitives::Color::Black, 0.85));
+	let nontext_bg = get_color_field_opt(children, "nontext-bg", ctx)?.unwrap_or_else(|| bg.blend(xeno_primitives::Color::Black, 0.85));
 
 	Ok(UiColors {
 		bg,
@@ -185,16 +172,11 @@ pub fn parse_ui_colors(
 }
 
 /// Parses mode indicator colors from a KDL node.
-pub fn parse_mode_colors(
-	node: Option<&kdl::KdlNode>,
-	ctx: &ParseContext,
-) -> Result<crate::themes::ModeColors> {
+pub fn parse_mode_colors(node: Option<&kdl::KdlNode>, ctx: &ParseContext) -> Result<crate::themes::ModeColors> {
 	use crate::themes::{ColorPair, ModeColors};
 
 	let node = node.ok_or_else(|| ConfigError::MissingField("mode".into()))?;
-	let children = node
-		.children()
-		.ok_or_else(|| ConfigError::MissingField("mode".into()))?;
+	let children = node.children().ok_or_else(|| ConfigError::MissingField("mode".into()))?;
 
 	let parse_pair = |prefix: &str| -> Result<ColorPair> {
 		Ok(ColorPair {
@@ -212,16 +194,11 @@ pub fn parse_mode_colors(
 }
 
 /// Parses semantic colors from a KDL node.
-pub fn parse_semantic_colors(
-	node: Option<&kdl::KdlNode>,
-	ctx: &ParseContext,
-) -> Result<crate::themes::SemanticColors> {
+pub fn parse_semantic_colors(node: Option<&kdl::KdlNode>, ctx: &ParseContext) -> Result<crate::themes::SemanticColors> {
 	use crate::themes::SemanticColors;
 
 	let node = node.ok_or_else(|| ConfigError::MissingField("semantic".into()))?;
-	let children = node
-		.children()
-		.ok_or_else(|| ConfigError::MissingField("semantic".into()))?;
+	let children = node.children().ok_or_else(|| ConfigError::MissingField("semantic".into()))?;
 
 	Ok(SemanticColors {
 		error: get_color_field(children, "error", ctx)?,
@@ -237,16 +214,11 @@ pub fn parse_semantic_colors(
 }
 
 /// Parses popup/menu colors from a KDL node.
-pub fn parse_popup_colors(
-	node: Option<&kdl::KdlNode>,
-	ctx: &ParseContext,
-) -> Result<crate::themes::PopupColors> {
+pub fn parse_popup_colors(node: Option<&kdl::KdlNode>, ctx: &ParseContext) -> Result<crate::themes::PopupColors> {
 	use crate::themes::PopupColors;
 
 	let node = node.ok_or_else(|| ConfigError::MissingField("popup".into()))?;
-	let children = node
-		.children()
-		.ok_or_else(|| ConfigError::MissingField("popup".into()))?;
+	let children = node.children().ok_or_else(|| ConfigError::MissingField("popup".into()))?;
 
 	Ok(PopupColors {
 		bg: get_color_field(children, "bg", ctx)?,
@@ -257,10 +229,7 @@ pub fn parse_popup_colors(
 }
 
 /// Parses syntax highlighting styles from a KDL node.
-pub fn parse_syntax_styles(
-	node: Option<&kdl::KdlNode>,
-	ctx: &ParseContext,
-) -> Result<crate::themes::SyntaxStyles> {
+pub fn parse_syntax_styles(node: Option<&kdl::KdlNode>, ctx: &ParseContext) -> Result<crate::themes::SyntaxStyles> {
 	let Some(node) = node else {
 		return Ok(crate::themes::SyntaxStyles::minimal());
 	};
@@ -276,18 +245,9 @@ pub fn parse_syntax_styles(
 }
 
 /// Parses a syntax node and its children recursively.
-fn parse_syntax_node(
-	node: &kdl::KdlNode,
-	prefix: &str,
-	styles: &mut crate::themes::SyntaxStyles,
-	ctx: &ParseContext,
-) -> Result<()> {
+fn parse_syntax_node(node: &kdl::KdlNode, prefix: &str, styles: &mut crate::themes::SyntaxStyles, ctx: &ParseContext) -> Result<()> {
 	let name = node.name().value();
-	let scope = if prefix.is_empty() {
-		name.to_string()
-	} else {
-		format!("{prefix}.{name}")
-	};
+	let scope = if prefix.is_empty() { name.to_string() } else { format!("{prefix}.{name}") };
 
 	let style = parse_style_from_node(node, ctx)?;
 	set_syntax_style(styles, &scope, style);
@@ -302,10 +262,7 @@ fn parse_syntax_node(
 }
 
 /// Parses a style definition from a KDL node's attributes.
-fn parse_style_from_node(
-	node: &kdl::KdlNode,
-	ctx: &ParseContext,
-) -> Result<crate::themes::SyntaxStyle> {
+fn parse_style_from_node(node: &kdl::KdlNode, ctx: &ParseContext) -> Result<crate::themes::SyntaxStyle> {
 	let mut style = crate::themes::SyntaxStyle::NONE;
 
 	if let Some(fg) = node.get("fg").and_then(|v| v.as_string()) {
@@ -314,11 +271,7 @@ fn parse_style_from_node(
 	if let Some(bg) = node.get("bg").and_then(|v| v.as_string()) {
 		style.bg = Some(ctx.resolve_color(bg)?);
 	}
-	if let Some(m) = node
-		.get("mod")
-		.or_else(|| node.get("modifiers"))
-		.and_then(|v| v.as_string())
-	{
+	if let Some(m) = node.get("mod").or_else(|| node.get("modifiers")).and_then(|v| v.as_string()) {
 		style.modifiers = parse_modifier(m)?;
 	}
 
@@ -326,11 +279,7 @@ fn parse_style_from_node(
 }
 
 /// Sets a syntax style for the given scope name.
-fn set_syntax_style(
-	styles: &mut crate::themes::SyntaxStyles,
-	scope: &str,
-	style: crate::themes::SyntaxStyle,
-) {
+fn set_syntax_style(styles: &mut crate::themes::SyntaxStyles, scope: &str, style: crate::themes::SyntaxStyle) {
 	if style.fg.is_none() && style.bg.is_none() && style.modifiers.is_empty() {
 		return;
 	}

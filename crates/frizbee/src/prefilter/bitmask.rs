@@ -26,19 +26,14 @@ pub fn string_to_bitmask(s: &[u8]) -> u64 {
 		let simd_chunk = Simd::<u8, LANES>::load_or_default(&s[i..(i + LANES).min(s.len())]);
 
 		// Convert to uppercase
-		let is_lower =
-			simd_chunk.simd_ge(Simd::splat(b'a')) & simd_chunk.simd_le(Simd::splat(b'z'));
+		let is_lower = simd_chunk.simd_ge(Simd::splat(b'a')) & simd_chunk.simd_le(Simd::splat(b'z'));
 		let simd_chunk = simd_chunk - is_lower.select(to_uppercase, zero);
 
 		// Check if characters are in the valid range [33, 90]
-		let in_range =
-			simd_chunk.simd_ge(Simd::splat(32u8)) & simd_chunk.simd_le(Simd::splat(90u8));
+		let in_range = simd_chunk.simd_ge(Simd::splat(32u8)) & simd_chunk.simd_le(Simd::splat(90u8));
 
 		// Compute indices
-		let indices = in_range.cast::<i64>().select(
-			one << (simd_chunk - Simd::splat(32u8)).cast::<u64>(),
-			zero_wide,
-		);
+		let indices = in_range.cast::<i64>().select(one << (simd_chunk - Simd::splat(32u8)).cast::<u64>(), zero_wide);
 
 		mask |= indices.reduce_or();
 
@@ -68,10 +63,7 @@ mod tests {
 
 	#[test]
 	fn test_case_insensitive() {
-		assert_eq!(
-			string_to_bitmask("ABC".as_bytes()),
-			string_to_bitmask("abc".as_bytes())
-		);
+		assert_eq!(string_to_bitmask("ABC".as_bytes()), string_to_bitmask("abc".as_bytes()));
 	}
 
 	#[test]

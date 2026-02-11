@@ -63,12 +63,7 @@ impl DiagnosticsCache {
 	///
 	/// Returns a cached entry if the epoch matches. Otherwise, executes the
 	/// provided closure to build new maps and caches the result.
-	pub fn get_or_build<F>(
-		&mut self,
-		doc_id: DocumentId,
-		epoch: u64,
-		build_fn: F,
-	) -> &DiagnosticsEntry
+	pub fn get_or_build<F>(&mut self, doc_id: DocumentId, epoch: u64, build_fn: F) -> &DiagnosticsEntry
 	where
 		F: FnOnce() -> (DiagnosticLineMap, DiagnosticRangeMap),
 	{

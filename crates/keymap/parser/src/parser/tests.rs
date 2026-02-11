@@ -16,10 +16,7 @@ fn test_parse() {
 		("alt-f", Ok(Node::new(Modifier::Alt as u8, Key::Char('f')))),
 		("space", Ok(Node::new(0, Key::Space))),
 		("delta", err("expect end of input, found: e", 1)),
-		(
-			"shift-a",
-			Ok(Node::new(Modifier::Shift as u8, Key::Char('a'))),
-		),
+		("shift-a", Ok(Node::new(Modifier::Shift as u8, Key::Char('a')))),
 		("shift-a-delete", err("expect end of input, found: -", 7)),
 		("al", err("expect end of input, found: l", 1)),
 	] {
@@ -32,10 +29,7 @@ fn test_parse() {
 fn test_parse_seq() {
 	for (s, v) in [
 		("ctrl-b", Ok(vec![parse("ctrl-b").unwrap()])),
-		(
-			"ctrl-b l",
-			Ok(vec![parse("ctrl-b").unwrap(), parse("l").unwrap()]),
-		),
+		("ctrl-b l", Ok(vec![parse("ctrl-b").unwrap(), parse("l").unwrap()])),
 		("ctrl-b -l", Err(parse("-l").unwrap_err())), // Invalid: dangling separator
 	] {
 		assert_eq!(super::parse_seq(s), v);
@@ -85,22 +79,12 @@ fn test_parse_char_groups() {
 	// Test invalid group names
 	let result = parse("@invalid");
 	assert!(result.is_err());
-	assert!(
-		result
-			.unwrap_err()
-			.message
-			.contains("unknown char group: '@invalid'")
-	);
+	assert!(result.unwrap_err().message.contains("unknown char group: '@invalid'"));
 
 	// Test incomplete group syntax
 	let result = parse("@x");
 	assert!(result.is_err());
-	assert!(
-		result
-			.unwrap_err()
-			.message
-			.contains("unknown char group: '@x'")
-	);
+	assert!(result.unwrap_err().message.contains("unknown char group: '@x'"));
 }
 
 #[test]
@@ -114,14 +98,8 @@ fn test_format() {
 		(Node::new(0, Key::Group(CharGroup::Digit)), "@digit"),
 		(Node::new(0, Key::Group(CharGroup::Lower)), "@lower"),
 		(Node::new(Modifier::Alt as u8, Key::Char('f')), "alt-f"),
-		(
-			Node::new(Modifier::Alt as u8, Key::Group(CharGroup::Alpha)),
-			"alt-@alpha",
-		),
-		(
-			Node::new(Modifier::Shift as u8 | Modifier::Cmd as u8, Key::Char('f')),
-			"cmd-shift-f",
-		),
+		(Node::new(Modifier::Alt as u8, Key::Group(CharGroup::Alpha)), "alt-@alpha"),
+		(Node::new(Modifier::Shift as u8 | Modifier::Cmd as u8, Key::Char('f')), "cmd-shift-f"),
 	] {
 		assert_eq!(expected, format!("{node}"));
 	}

@@ -55,11 +55,7 @@ where
 	/// Uses 3-stage fallback: canonical ID → primary name → secondary keys.
 	#[inline]
 	pub fn get_sym(&self, sym: Symbol) -> Option<&T> {
-		let id = self
-			.by_id
-			.get(&sym)
-			.or_else(|| self.by_name.get(&sym))
-			.or_else(|| self.by_key.get(&sym))?;
+		let id = self.by_id.get(&sym).or_else(|| self.by_name.get(&sym)).or_else(|| self.by_key.get(&sym))?;
 		Some(&self.table[id.as_u32() as usize])
 	}
 

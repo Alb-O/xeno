@@ -254,10 +254,7 @@ pub trait FileOpsAccess {
 	/// Saves the buffer to its current file path.
 	fn save(&mut self) -> BoxFutureLocal<'_, Result<(), crate::actions::CommandError>>;
 	/// Saves the buffer to a specific file path, updating the buffer's path.
-	fn save_as(
-		&mut self,
-		path: std::path::PathBuf,
-	) -> BoxFutureLocal<'_, Result<(), crate::actions::CommandError>>;
+	fn save_as(&mut self, path: std::path::PathBuf) -> BoxFutureLocal<'_, Result<(), crate::actions::CommandError>>;
 }
 
 /// Theme operations (optional).
@@ -408,9 +405,7 @@ pub trait OptionAccess {
 		Self: Sized,
 	{
 		let untyped = key.untyped();
-		let opt = crate::db::OPTIONS
-			.get_key(&untyped)
-			.expect("typed option key missing from registry");
+		let opt = crate::db::OPTIONS.get_key(&untyped).expect("typed option key missing from registry");
 
 		T::from_option(&self.option_raw(untyped))
 			.or_else(|| T::from_option(&opt.default.to_value()))
@@ -423,10 +418,7 @@ pub trait OptionAccess {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OverlayRequest {
 	/// Open a named modal overlay (editor resolves name -> controller).
-	OpenModal {
-		kind: &'static str,
-		args: Vec<String>,
-	},
+	OpenModal { kind: &'static str, args: Vec<String> },
 
 	/// Close the active modal overlay (if any).
 	CloseModal { reason: OverlayCloseReason },

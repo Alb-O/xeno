@@ -27,14 +27,7 @@ fn test_highlighter_mapped_offsets() {
 	));
 
 	// Create a viewport syntax tree
-	let syntax = Syntax::new_viewport(
-		sealed,
-		rust_lang,
-		&loader,
-		SyntaxOptions::default(),
-		base_offset,
-	)
-	.expect("Failed to create viewport syntax");
+	let syntax = Syntax::new_viewport(sealed, rust_lang, &loader, SyntaxOptions::default(), base_offset).expect("Failed to create viewport syntax");
 
 	// Get highlighter for the viewport (doc-global range matching the window)
 	let range = base_offset..(base_offset + real_len);
@@ -56,12 +49,7 @@ fn test_highlighter_mapped_offsets() {
 
 	assert!(!spans.is_empty(), "Should produce highlights for viewport");
 	for span in &spans {
-		assert!(
-			span.start >= base_offset,
-			"Span start {} should be >= base_offset {}",
-			span.start,
-			base_offset
-		);
+		assert!(span.start >= base_offset, "Span start {} should be >= base_offset {}", span.start, base_offset);
 		assert!(
 			span.end <= base_offset + real_len,
 			"Span end {} should be <= window end {}",
@@ -77,13 +65,7 @@ fn test_highlighter_full_doc_non_zero_start() {
 	let rust_lang = loader.language_for_name("rust").expect("rust has grammar");
 
 	let source = Rope::from_str("fn main() {\n    let x = 42;\n}");
-	let syntax = Syntax::new(
-		source.slice(..),
-		rust_lang,
-		&loader,
-		SyntaxOptions::default(),
-	)
-	.expect("Failed to create syntax");
+	let syntax = Syntax::new(source.slice(..), rust_lang, &loader, SyntaxOptions::default()).expect("Failed to create syntax");
 
 	// Highlight starting from a non-zero offset (e.g. after 'fn ')
 	let start_offset = 3;
@@ -102,16 +84,8 @@ fn test_highlighter_full_doc_non_zero_start() {
 		);
 	}
 
-	assert!(
-		!spans.is_empty(),
-		"Should produce highlights starting from non-zero offset"
-	);
+	assert!(!spans.is_empty(), "Should produce highlights starting from non-zero offset");
 	for span in &spans {
-		assert!(
-			span.start >= start_offset,
-			"Span start {} should be >= {}",
-			span.start,
-			start_offset
-		);
+		assert!(span.start >= start_offset, "Span start {} should be >= {}", span.start, start_offset);
 	}
 }

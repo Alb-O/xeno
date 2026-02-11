@@ -90,9 +90,7 @@ impl SeparatorStyle {
 	/// Checks if the position lies on a hovered/dragged/animated separator to maintain
 	/// continuous highlight across junctions.
 	pub fn for_junction(&self, x: u16, y: u16, priority: u8) -> Style {
-		let point_on_rect = |rect: Rect| -> bool {
-			x >= rect.x && x < rect.right() && y >= rect.y && y < rect.bottom()
-		};
+		let point_on_rect = |rect: Rect| -> bool { x >= rect.x && x < rect.right() && y >= rect.y && y < rect.bottom() };
 
 		let idx = (priority as usize).min(self.base_bg.len() - 1);
 		let normal_fg = self.base_fg[idx];

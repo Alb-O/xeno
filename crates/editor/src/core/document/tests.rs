@@ -1,7 +1,5 @@
 use xeno_primitives::transaction::Change;
-use xeno_primitives::{
-	EditCommit, EditError, EditOrigin, SyntaxPolicy, Transaction, UndoPolicy, ViewId,
-};
+use xeno_primitives::{EditCommit, EditError, EditOrigin, SyntaxPolicy, Transaction, UndoPolicy, ViewId};
 
 use super::Document;
 
@@ -302,10 +300,7 @@ fn undo_redo_to_clean_state() {
 	assert!(doc.is_modified());
 
 	doc.undo();
-	assert!(
-		!doc.is_modified(),
-		"Undo to original state should clear modified flag"
-	);
+	assert!(!doc.is_modified(), "Undo to original state should clear modified flag");
 
 	doc.redo();
 	assert!(doc.is_modified(), "Redo should set modified flag again");

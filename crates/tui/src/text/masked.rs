@@ -33,10 +33,7 @@ pub struct Masked<'a> {
 impl<'a> Masked<'a> {
 	/// Creates a new `Masked` string with the given content and mask character.
 	pub fn new(s: impl Into<Cow<'a, str>>, mask_char: char) -> Self {
-		Self {
-			inner: s.into(),
-			mask_char,
-		}
+		Self { inner: s.into(), mask_char }
 	}
 
 	/// The character to use for masking.

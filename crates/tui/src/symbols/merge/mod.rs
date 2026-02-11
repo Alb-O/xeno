@@ -303,10 +303,7 @@ impl MergeStrategy {
 		}
 
 		match (BorderSymbol::from_str(prev), BorderSymbol::from_str(next)) {
-			(Ok(prev_symbol), Ok(next_symbol)) => prev_symbol
-				.merge(next_symbol, self)
-				.try_into()
-				.unwrap_or(next),
+			(Ok(prev_symbol), Ok(next_symbol)) => prev_symbol.merge(next_symbol, self).try_into().unwrap_or(next),
 			// Non-border symbols take precedence in strategies other than Replace.
 			(Err(_), Ok(_)) => prev,
 			(_, Err(_)) => next,
@@ -334,22 +331,14 @@ impl BorderSymbol {
 	/// Creates a new [`BorderSymbol`], based on individual line styles.
 	#[must_use]
 	const fn new(right: LineStyle, up: LineStyle, left: LineStyle, down: LineStyle) -> Self {
-		Self {
-			right,
-			up,
-			left,
-			down,
-		}
+		Self { right, up, left, down }
 	}
 
 	/// Finds the closest representation of the [`BorderSymbol`], that has a corresponding unicode
 	/// character.
 	#[must_use]
 	fn fuzzy(mut self, other: Self) -> Self {
-		#[allow(
-			clippy::enum_glob_use,
-			reason = "improves readability for pattern matching"
-		)]
+		#[allow(clippy::enum_glob_use, reason = "improves readability for pattern matching")]
 		use LineStyle::*;
 
 		// Dashes only include vertical and horizontal lines.
@@ -393,8 +382,7 @@ impl BorderSymbol {
 	/// Return true only if the symbol is a line and both parts have the same [`LineStyle`].
 	fn is_straight(self) -> bool {
 		use LineStyle::Nothing;
-		(self.up == self.down && self.left == self.right)
-			&& (self.up == Nothing || self.left == Nothing)
+		(self.up == self.down && self.left == self.right) && (self.up == Nothing || self.left == Nothing)
 	}
 
 	/// Return true only if the symbol is a corner and both parts have the same [`LineStyle`].
@@ -453,10 +441,7 @@ impl std::fmt::Display for BorderSymbolError {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
 			Self::CannotParse(s) => write!(f, "cannot parse &str `{s}` to BorderSymbol"),
-			Self::Unrepresentable(sym) => write!(
-				f,
-				"cannot convert BorderSymbol `{sym:#?}` to &str: no such symbol exists"
-			),
+			Self::Unrepresentable(sym) => write!(f, "cannot convert BorderSymbol `{sym:#?}` to &str: no such symbol exists"),
 		}
 	}
 }

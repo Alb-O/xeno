@@ -1,9 +1,7 @@
 use std::sync::Arc;
 
 use super::spec::TextObjectsSpec;
-use crate::core::{
-	LinkedDef, LinkedMetaOwned, LinkedPayload, RegistryMeta, RegistrySource, Symbol,
-};
+use crate::core::{LinkedDef, LinkedMetaOwned, LinkedPayload, RegistryMeta, RegistrySource, Symbol};
 use crate::textobj::handler::TextObjectHandlerStatic;
 use crate::textobj::{TextObjectEntry, TextObjectHandler};
 
@@ -18,12 +16,7 @@ pub struct TextObjectPayload {
 }
 
 impl LinkedPayload<TextObjectEntry> for TextObjectPayload {
-	fn build_entry(
-		&self,
-		_ctx: &mut dyn crate::core::index::BuildCtx,
-		meta: RegistryMeta,
-		_short_desc: Symbol,
-	) -> TextObjectEntry {
+	fn build_entry(&self, _ctx: &mut dyn crate::core::index::BuildCtx, meta: RegistryMeta, _short_desc: Symbol) -> TextObjectEntry {
 		TextObjectEntry {
 			meta,
 			trigger: self.trigger,
@@ -36,22 +29,12 @@ impl LinkedPayload<TextObjectEntry> for TextObjectPayload {
 
 fn parse_trigger(s: &str, name: &str) -> char {
 	let mut chars = s.chars();
-	let c = chars
-		.next()
-		.unwrap_or_else(|| panic!("text object '{}' has empty trigger", name));
-	assert!(
-		chars.next().is_none(),
-		"text object '{}' trigger '{}' is not a single character",
-		name,
-		s
-	);
+	let c = chars.next().unwrap_or_else(|| panic!("text object '{}' has empty trigger", name));
+	assert!(chars.next().is_none(), "text object '{}' trigger '{}' is not a single character", name, s);
 	c
 }
 
-pub fn link_text_objects(
-	spec: &TextObjectsSpec,
-	handlers: impl Iterator<Item = &'static TextObjectHandlerStatic>,
-) -> Vec<LinkedTextObjectDef> {
+pub fn link_text_objects(spec: &TextObjectsSpec, handlers: impl Iterator<Item = &'static TextObjectHandlerStatic>) -> Vec<LinkedTextObjectDef> {
 	crate::defs::link::link_by_name(
 		&spec.text_objects,
 		handlers,
@@ -62,11 +45,7 @@ pub fn link_text_objects(
 			let id = format!("xeno-registry::{}", common.name);
 
 			let trigger = parse_trigger(&meta.trigger, &common.name);
-			let alt_triggers: Vec<char> = meta
-				.alt_triggers
-				.iter()
-				.map(|s| parse_trigger(s, &common.name))
-				.collect();
+			let alt_triggers: Vec<char> = meta.alt_triggers.iter().map(|s| parse_trigger(s, &common.name)).collect();
 
 			LinkedDef {
 				meta: LinkedMetaOwned {
@@ -78,12 +57,7 @@ pub fn link_text_objects(
 					source: RegistrySource::Crate(handler.crate_name),
 					required_caps: vec![],
 					flags: common.flags,
-					short_desc: Some(
-						common
-							.short_desc
-							.clone()
-							.unwrap_or_else(|| common.description.clone()),
-					),
+					short_desc: Some(common.short_desc.clone().unwrap_or_else(|| common.description.clone())),
 				},
 				payload: TextObjectPayload {
 					trigger,

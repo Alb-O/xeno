@@ -23,16 +23,14 @@ pub enum CursorStyle {
 }
 
 /// Runtime policy constants.
-const HOOK_BUDGET_FAST: crate::hook_runtime::HookDrainBudget =
-	crate::hook_runtime::HookDrainBudget {
-		duration: Duration::from_millis(1),
-		max_completions: 32,
-	};
-const HOOK_BUDGET_SLOW: crate::hook_runtime::HookDrainBudget =
-	crate::hook_runtime::HookDrainBudget {
-		duration: Duration::from_millis(3),
-		max_completions: 64,
-	};
+const HOOK_BUDGET_FAST: crate::hook_runtime::HookDrainBudget = crate::hook_runtime::HookDrainBudget {
+	duration: Duration::from_millis(1),
+	max_completions: 32,
+};
+const HOOK_BUDGET_SLOW: crate::hook_runtime::HookDrainBudget = crate::hook_runtime::HookDrainBudget {
+	duration: Duration::from_millis(3),
+	max_completions: 64,
+};
 
 impl Editor {
 	/// Runs one maintenance cycle.
@@ -47,8 +45,7 @@ impl Editor {
 		};
 
 		let hook_stats = self.hook_runtime_mut().drain_budget(hook_budget).await;
-		self.metrics()
-			.record_hook_tick(hook_stats.completed, hook_stats.pending);
+		self.metrics().record_hook_tick(hook_stats.completed, hook_stats.pending);
 
 		let should_quit = self.drain_command_queue().await || self.take_quit_request();
 
@@ -75,12 +72,11 @@ impl Editor {
 
 		let needs_redraw = self.frame().needs_redraw;
 
-		let poll_timeout =
-			if matches!(self.mode(), Mode::Insert) || self.any_panel_open() || needs_redraw {
-				Some(Duration::from_millis(16))
-			} else {
-				Some(Duration::from_millis(50))
-			};
+		let poll_timeout = if matches!(self.mode(), Mode::Insert) || self.any_panel_open() || needs_redraw {
+			Some(Duration::from_millis(16))
+		} else {
+			Some(Duration::from_millis(50))
+		};
 
 		LoopDirective {
 			poll_timeout,
@@ -93,12 +89,7 @@ impl Editor {
 	/// Handle a single terminal event and then run `pump`.
 	pub async fn on_event(&mut self, ev: termina::event::Event) -> LoopDirective {
 		match ev {
-			termina::event::Event::Key(key)
-				if matches!(
-					key.kind,
-					termina::event::KeyEventKind::Press | termina::event::KeyEventKind::Repeat
-				) =>
-			{
+			termina::event::Event::Key(key) if matches!(key.kind, termina::event::KeyEventKind::Press | termina::event::KeyEventKind::Repeat) => {
 				let _ = self.handle_key(key).await;
 			}
 			termina::event::Event::Mouse(mouse) => {
@@ -125,19 +116,14 @@ impl Editor {
 	fn derive_cursor_style(&self) -> CursorStyle {
 		use termina::style::CursorStyle as TerminaStyle;
 
-		let style = self
-			.ui()
-			.cursor_style()
-			.unwrap_or_else(|| match self.mode() {
-				Mode::Insert => TerminaStyle::SteadyBar,
-				_ => TerminaStyle::SteadyBlock,
-			});
+		let style = self.ui().cursor_style().unwrap_or_else(|| match self.mode() {
+			Mode::Insert => TerminaStyle::SteadyBar,
+			_ => TerminaStyle::SteadyBlock,
+		});
 
 		match style {
 			TerminaStyle::SteadyBar | TerminaStyle::BlinkingBar => CursorStyle::Beam,
-			TerminaStyle::SteadyUnderline | TerminaStyle::BlinkingUnderline => {
-				CursorStyle::Underline
-			}
+			TerminaStyle::SteadyUnderline | TerminaStyle::BlinkingUnderline => CursorStyle::Underline,
 			_ => CursorStyle::Block,
 		}
 	}

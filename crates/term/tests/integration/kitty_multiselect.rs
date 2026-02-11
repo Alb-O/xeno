@@ -3,8 +3,7 @@
 use std::time::Duration;
 
 use kitty_test_harness::{
-	kitty_send_keys, pause_briefly, require_kitty, run_with_timeout, wait_for_clean_contains,
-	wait_for_screen_text_clean, with_kitty_capture,
+	kitty_send_keys, pause_briefly, require_kitty, run_with_timeout, wait_for_clean_contains, wait_for_screen_text_clean, with_kitty_capture,
 };
 use termwiz::input::KeyCode;
 
@@ -36,10 +35,9 @@ fn insert_mode_types_at_all_cursors() {
 			kitty_send_keys!(kitty, KeyCode::Char('X'));
 			kitty_send_keys!(kitty, KeyCode::Escape);
 
-			let (_raw, clean) =
-				wait_for_screen_text_clean(kitty, Duration::from_secs(3), |_raw, clean| {
-					clean.contains("Xone") && clean.contains("Xtwo") && clean.contains("Xthree")
-				});
+			let (_raw, clean) = wait_for_screen_text_clean(kitty, Duration::from_secs(3), |_raw, clean| {
+				clean.contains("Xone") && clean.contains("Xtwo") && clean.contains("Xthree")
+			});
 
 			assert!(clean.contains("Xone"), "clean: {clean:?}");
 			assert!(clean.contains("Xtwo"), "clean: {clean:?}");
@@ -66,10 +64,7 @@ fn insert_a_appends_after_each_cursor_across_selections() {
 			pause_briefly();
 
 			let clean_initial = wait_for_clean_contains(kitty, Duration::from_secs(3), "three");
-			assert!(
-				clean_initial.contains("one"),
-				"clean_initial: {clean_initial:?}"
-			);
+			assert!(clean_initial.contains("one"), "clean_initial: {clean_initial:?}");
 
 			// Per-line cursors (split lines creates backward selections 4..0, 8..4 etc, heads at start)
 			// so 'a' should append after the first character of each line.
@@ -79,17 +74,11 @@ fn insert_a_appends_after_each_cursor_across_selections() {
 			kitty_send_keys!(kitty, KeyCode::Char('+'));
 			kitty_send_keys!(kitty, KeyCode::Escape);
 
-			let (_raw, clean) =
-				wait_for_screen_text_clean(kitty, Duration::from_secs(3), |_raw, clean| {
-					clean.contains("t+wo") && clean.contains("t+hree")
-				});
+			let (_raw, clean) = wait_for_screen_text_clean(kitty, Duration::from_secs(3), |_raw, clean| clean.contains("t+wo") && clean.contains("t+hree"));
 
 			assert!(clean.contains("t+wo"), "clean: {clean:?}");
 			assert!(clean.contains("t+hree"), "clean: {clean:?}");
-			assert!(
-				!clean.contains("+one"),
-				"append-after should not insert at the start, clean: {clean:?}"
-			);
+			assert!(!clean.contains("+one"), "append-after should not insert at the start, clean: {clean:?}");
 		});
 	});
 }

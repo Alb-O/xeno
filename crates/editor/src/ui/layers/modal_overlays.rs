@@ -5,9 +5,7 @@ use xeno_tui::widgets::{Block, Borders, Paragraph};
 
 use crate::buffer::ViewId;
 use crate::impls::{Editor, FocusTarget};
-use crate::render::{
-	BufferRenderContext, GutterLayout, RenderBufferParams, RenderCtx, ensure_buffer_cursor_visible,
-};
+use crate::render::{BufferRenderContext, GutterLayout, RenderBufferParams, RenderCtx, ensure_buffer_cursor_visible};
 use crate::window::{GutterSelector, SurfaceStyle};
 
 #[derive(Clone)]
@@ -50,12 +48,8 @@ fn pane_content_area(rect: Rect, style: &SurfaceStyle) -> Rect {
 
 	area.x = area.x.saturating_add(style.padding.left);
 	area.y = area.y.saturating_add(style.padding.top);
-	area.width = area
-		.width
-		.saturating_sub(style.padding.left.saturating_add(style.padding.right));
-	area.height = area
-		.height
-		.saturating_sub(style.padding.top.saturating_add(style.padding.bottom));
+	area.width = area.width.saturating_sub(style.padding.left.saturating_add(style.padding.right));
+	area.height = area.height.saturating_sub(style.padding.top.saturating_add(style.padding.bottom));
 
 	area
 }
@@ -106,17 +100,10 @@ pub fn render(ed: &mut Editor, frame: &mut xeno_tui::Frame, area: Rect, ctx: &Re
 				pane.gutter
 			};
 
-			let gutter_layout =
-				GutterLayout::from_selector(effective_gutter, total_lines, content_area.width);
+			let gutter_layout = GutterLayout::from_selector(effective_gutter, total_lines, content_area.width);
 			let text_width = content_area.width.saturating_sub(gutter_layout.total_width) as usize;
 
-			ensure_buffer_cursor_visible(
-				buffer,
-				content_area,
-				text_width,
-				tab_width,
-				scroll_margin,
-			);
+			ensure_buffer_cursor_visible(buffer, content_area, text_width, tab_width, scroll_margin);
 		}
 	}
 

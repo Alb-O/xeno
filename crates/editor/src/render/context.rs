@@ -27,11 +27,9 @@ pub struct LayoutSnapshot {
 
 impl LayoutSnapshot {
 	fn new(layout: &LayoutManager, base_layout: &Layout, viewport: Viewport) -> Self {
-		let dragging_rect = viewport.doc_area.and_then(|doc_area| {
-			layout
-				.drag_state()
-				.and_then(|drag| layout.separator_rect(base_layout, doc_area, &drag.id))
-		});
+		let dragging_rect = viewport
+			.doc_area
+			.and_then(|doc_area| layout.drag_state().and_then(|drag| layout.separator_rect(base_layout, doc_area, &drag.id)));
 
 		Self {
 			hovered_separator: layout.hovered_separator,
@@ -54,9 +52,7 @@ impl LspRenderSnapshot {
 	}
 
 	pub fn diagnostic_ranges_for(&self, buffer_id: ViewId) -> Option<&DiagnosticRangeMap> {
-		self.diagnostic_ranges
-			.get(&buffer_id)
-			.map(|arc| arc.as_ref())
+		self.diagnostic_ranges.get(&buffer_id).map(|arc| arc.as_ref())
 	}
 }
 
@@ -69,11 +65,7 @@ impl Editor {
 		RenderCtx {
 			theme: self.state.config.theme,
 			viewport: self.state.viewport,
-			layout: LayoutSnapshot::new(
-				&self.state.layout,
-				&self.base_window().layout,
-				self.state.viewport,
-			),
+			layout: LayoutSnapshot::new(&self.state.layout, &self.base_window().layout, self.state.viewport),
 			lsp: self.lsp_render_snapshot(),
 		}
 	}
@@ -95,24 +87,13 @@ impl Editor {
 		for buffer in self.state.core.buffers.buffers() {
 			let doc_id = buffer.document_id();
 
-			let entry = self
-				.state
-				.render_cache
-				.diagnostics
-				.get_or_build(doc_id, epoch, || {
-					let diagnostics = self.state.lsp.get_diagnostics(buffer);
-					(
-						build_diagnostic_line_map(&diagnostics),
-						build_diagnostic_range_map(&diagnostics),
-					)
-				});
+			let entry = self.state.render_cache.diagnostics.get_or_build(doc_id, epoch, || {
+				let diagnostics = self.state.lsp.get_diagnostics(buffer);
+				(build_diagnostic_line_map(&diagnostics), build_diagnostic_range_map(&diagnostics))
+			});
 
-			snapshot
-				.diagnostics
-				.insert(buffer.id, entry.line_map.clone());
-			snapshot
-				.diagnostic_ranges
-				.insert(buffer.id, entry.range_map.clone());
+			snapshot.diagnostics.insert(buffer.id, entry.line_map.clone());
+			snapshot.diagnostic_ranges.insert(buffer.id, entry.range_map.clone());
 		}
 
 		snapshot

@@ -93,11 +93,7 @@ impl LayoutManager {
 	}
 
 	/// Updates the separator hover animation when hover state changes.
-	pub fn update_hover_animation(
-		&mut self,
-		old: Option<(SplitDirection, Rect)>,
-		new: Option<(SplitDirection, Rect)>,
-	) {
+	pub fn update_hover_animation(&mut self, old: Option<(SplitDirection, Rect)>, new: Option<(SplitDirection, Rect)>) {
 		match (old, new) {
 			(None, Some((_, rect))) => {
 				SeparatorAnimationEvent::start(AnimationDirection::FadeIn);
@@ -105,19 +101,10 @@ impl LayoutManager {
 			}
 			(Some((_, old_rect)), None) => {
 				SeparatorAnimationEvent::start(AnimationDirection::FadeOut);
-				if self
-					.separator_hover_animation
-					.as_ref()
-					.is_some_and(|a| a.rect == old_rect)
-				{
-					self.separator_hover_animation
-						.as_mut()
-						.unwrap()
-						.set_hovering(false);
+				if self.separator_hover_animation.as_ref().is_some_and(|a| a.rect == old_rect) {
+					self.separator_hover_animation.as_mut().unwrap().set_hovering(false);
 				} else {
-					self.separator_hover_animation = Some(
-						SeparatorHoverAnimation::new_at_intensity(old_rect, 1.0, false),
-					);
+					self.separator_hover_animation = Some(SeparatorHoverAnimation::new_at_intensity(old_rect, 1.0, false));
 				}
 			}
 			(Some((_, old_rect)), Some((_, new_rect))) if old_rect != new_rect => {
@@ -130,16 +117,12 @@ impl LayoutManager {
 
 	/// Returns `true` if the hover animation needs a redraw.
 	pub fn animation_needs_redraw(&self) -> bool {
-		self.separator_hover_animation
-			.as_ref()
-			.is_some_and(|a| a.needs_redraw())
+		self.separator_hover_animation.as_ref().is_some_and(|a| a.needs_redraw())
 	}
 
 	/// Returns the animation intensity for the given separator rect.
 	pub fn animation_intensity(&self) -> f32 {
-		self.separator_hover_animation
-			.as_ref()
-			.map_or(0.0, |a| a.intensity())
+		self.separator_hover_animation.as_ref().map_or(0.0, |a| a.intensity())
 	}
 
 	/// Returns the rect being animated, if any.

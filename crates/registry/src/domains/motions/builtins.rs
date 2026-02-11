@@ -6,13 +6,7 @@ use xeno_primitives::range::{CharIdx, Direction, Range};
 
 use crate::motions::movement::{self, WordType, make_range};
 
-pub fn move_horizontally(
-	text: RopeSlice,
-	range: Range,
-	direction: Direction,
-	count: usize,
-	extend: bool,
-) -> Range {
+pub fn move_horizontally(text: RopeSlice, range: Range, direction: Direction, count: usize, extend: bool) -> Range {
 	let pos: CharIdx = range.head;
 	let max_pos = xeno_primitives::rope::max_cell_pos(text).unwrap_or(0);
 	let new_pos: CharIdx = match direction {
@@ -55,36 +49,15 @@ motion_handler!(down, |text, range, count, extend| {
 });
 
 motion_handler!(next_word_start, |text, range, count, extend| {
-	movement::move_word(
-		text,
-		range,
-		Direction::Forward,
-		movement::WordBoundary::Start,
-		count,
-		extend,
-	)
+	movement::move_word(text, range, Direction::Forward, movement::WordBoundary::Start, count, extend)
 });
 
 motion_handler!(next_word_end, |text, range, count, extend| {
-	movement::move_word(
-		text,
-		range,
-		Direction::Forward,
-		movement::WordBoundary::End,
-		count,
-		extend,
-	)
+	movement::move_word(text, range, Direction::Forward, movement::WordBoundary::End, count, extend)
 });
 
 motion_handler!(prev_word_start, |text, range, count, extend| {
-	movement::move_word(
-		text,
-		range,
-		Direction::Backward,
-		movement::WordBoundary::Start,
-		count,
-		extend,
-	)
+	movement::move_word(text, range, Direction::Backward, movement::WordBoundary::Start, count, extend)
 });
 
 motion_handler!(next_long_word_start, |text, range, count, extend| {
@@ -111,9 +84,7 @@ motion_handler!(first_nonwhitespace, |text, range, _count, extend| {
 	movement::move_to_line_boundary(text, range, movement::LineBoundary::FirstNonBlank, extend)
 });
 
-motion_handler!(document_start, |_text, range, _count, extend| {
-	make_range(range, 0, extend)
-});
+motion_handler!(document_start, |_text, range, _count, extend| make_range(range, 0, extend));
 
 motion_handler!(document_end, |text, range, _count, extend| {
 	let pos = xeno_primitives::rope::clamp_to_cell(text.len_chars(), text);
@@ -140,9 +111,7 @@ pub fn register_builtins(builder: &mut crate::db::builder::RegistryDbBuilder) {
 	crate::motions::register_compiled(builder);
 }
 
-fn register_builtins_reg(
-	builder: &mut crate::db::builder::RegistryDbBuilder,
-) -> Result<(), crate::db::builder::RegistryError> {
+fn register_builtins_reg(builder: &mut crate::db::builder::RegistryDbBuilder) -> Result<(), crate::db::builder::RegistryError> {
 	register_builtins(builder);
 	Ok(())
 }

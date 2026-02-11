@@ -42,17 +42,9 @@ impl BuildEntry<ActionEntry> for ActionDef {
 		self.short_desc
 	}
 
-	fn collect_payload_strings<'b>(
-		&'b self,
-		_collector: &mut crate::core::index::StringCollector<'_, 'b>,
-	) {
-	}
+	fn collect_payload_strings<'b>(&'b self, _collector: &mut crate::core::index::StringCollector<'_, 'b>) {}
 
-	fn build(
-		&self,
-		ctx: &mut dyn crate::core::index::BuildCtx,
-		key_pool: &mut Vec<Symbol>,
-	) -> ActionEntry {
+	fn build(&self, ctx: &mut dyn crate::core::index::BuildCtx, key_pool: &mut Vec<Symbol>) -> ActionEntry {
 		let meta = crate::core::index::meta_build::build_meta(ctx, key_pool, self.meta_ref(), []);
 
 		ActionEntry {
@@ -71,5 +63,4 @@ impl BuildEntry<ActionEntry> for ActionDef {
 pub type ActionHandler = fn(&ActionContext) -> ActionResult;
 
 /// Unified action input: either a static `ActionDef` or a KDL-linked definition.
-pub type ActionInput =
-	crate::core::def_input::DefInput<ActionDef, crate::actions::link::LinkedActionDef>;
+pub type ActionInput = crate::core::def_input::DefInput<ActionDef, crate::actions::link::LinkedActionDef>;

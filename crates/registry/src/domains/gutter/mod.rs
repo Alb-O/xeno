@@ -19,9 +19,7 @@ pub use handler::{GutterHandlerReg, GutterHandlerStatic};
 
 use crate::error::RegistryError;
 
-pub fn register_plugin(
-	db: &mut crate::db::builder::RegistryDbBuilder,
-) -> Result<(), RegistryError> {
+pub fn register_plugin(db: &mut crate::db::builder::RegistryDbBuilder) -> Result<(), RegistryError> {
 	register_builtins(db);
 	register_compiled(db);
 	Ok(())
@@ -30,9 +28,7 @@ pub fn register_plugin(
 /// Registers compiled gutters from the embedded spec.
 pub fn register_compiled(db: &mut crate::db::builder::RegistryDbBuilder) {
 	let spec = loader::load_gutters_spec();
-	let handlers = inventory::iter::<handler::GutterHandlerReg>
-		.into_iter()
-		.map(|r| r.0);
+	let handlers = inventory::iter::<handler::GutterHandlerReg>.into_iter().map(|r| r.0);
 
 	let linked = link::link_gutters(&spec, handlers);
 
@@ -59,18 +55,15 @@ impl crate::db::domain::DomainSpec for Gutters {
 		GutterInput::Linked(def)
 	}
 
-	fn builder(
-		db: &mut crate::db::builder::RegistryDbBuilder,
-	) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
+	fn builder(db: &mut crate::db::builder::RegistryDbBuilder) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
 		&mut db.gutters
 	}
 }
 
 use crate::core::index::{BuildCtx, BuildEntry, RegistryMetaRef, StrListRef};
 pub use crate::core::{
-	CapabilitySet, FrozenInterner, GutterId, RegistryBuilder, RegistryEntry, RegistryIndex,
-	RegistryMeta, RegistryMetaStatic, RegistryMetadata, RegistryRef, RegistrySource,
-	RuntimeRegistry, Symbol, SymbolList,
+	CapabilitySet, FrozenInterner, GutterId, RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta, RegistryMetaStatic, RegistryMetadata, RegistryRef,
+	RegistrySource, RuntimeRegistry, Symbol, SymbolList,
 };
 // Re-export macros
 pub use crate::gutter_handler;
@@ -109,11 +102,7 @@ pub struct GutterCell {
 impl GutterCell {
 	pub fn new(text: impl Into<String>, fg: Option<Color>, dim: bool) -> Self {
 		Self {
-			segments: vec![GutterSegment {
-				text: text.into(),
-				fg,
-				dim,
-			}],
+			segments: vec![GutterSegment { text: text.into(), fg, dim }],
 		}
 	}
 
@@ -181,11 +170,7 @@ impl BuildEntry<GutterEntry> for GutterDef {
 		self.meta.name
 	}
 
-	fn collect_payload_strings<'b>(
-		&'b self,
-		_collector: &mut crate::core::index::StringCollector<'_, 'b>,
-	) {
-	}
+	fn collect_payload_strings<'b>(&'b self, _collector: &mut crate::core::index::StringCollector<'_, 'b>) {}
 
 	fn build(&self, ctx: &mut dyn BuildCtx, key_pool: &mut Vec<Symbol>) -> GutterEntry {
 		let meta = crate::core::index::meta_build::build_meta(ctx, key_pool, self.meta_ref(), []);
@@ -200,19 +185,14 @@ impl BuildEntry<GutterEntry> for GutterDef {
 }
 
 /// Unified input for gutter registration.
-pub type GutterInput =
-	crate::core::def_input::DefInput<GutterDef, crate::gutter::link::LinkedGutterDef>;
+pub type GutterInput = crate::core::def_input::DefInput<GutterDef, crate::gutter::link::LinkedGutterDef>;
 
 #[cfg(feature = "db")]
 pub use crate::db::GUTTERS;
 
 #[cfg(feature = "db")]
 pub fn enabled_gutters() -> Vec<RegistryRef<GutterEntry, GutterId>> {
-	GUTTERS
-		.snapshot_guard()
-		.iter_refs()
-		.filter(|g| g.default_enabled)
-		.collect()
+	GUTTERS.snapshot_guard().iter_refs().filter(|g| g.default_enabled).collect()
 }
 
 #[cfg(feature = "db")]
@@ -240,8 +220,5 @@ pub fn total_width(ctx: &GutterWidthContext) -> u16 {
 
 #[cfg(feature = "db")]
 pub fn column_widths(ctx: &GutterWidthContext) -> Vec<(u16, RegistryRef<GutterEntry, GutterId>)> {
-	enabled_gutters()
-		.into_iter()
-		.map(|g| (column_width(&g, ctx), g))
-		.collect()
+	enabled_gutters().into_iter().map(|g| (column_width(&g, ctx), g)).collect()
 }

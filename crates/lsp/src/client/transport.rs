@@ -79,27 +79,13 @@ pub trait LspTransport: Send + Sync {
 
 	/// Sends a notification and returns a receiver that fires when the message
 	/// has been written to the underlying transport.
-	async fn notify_with_barrier(
-		&self,
-		server: LanguageServerId,
-		notif: AnyNotification,
-	) -> crate::Result<oneshot::Receiver<crate::Result<()>>>;
+	async fn notify_with_barrier(&self, server: LanguageServerId, notif: AnyNotification) -> crate::Result<oneshot::Receiver<crate::Result<()>>>;
 
 	/// Sends a synchronous request to the server and awaits its response.
-	async fn request(
-		&self,
-		server: LanguageServerId,
-		req: AnyRequest,
-		timeout: Option<Duration>,
-	) -> crate::Result<AnyResponse>;
+	async fn request(&self, server: LanguageServerId, req: AnyRequest, timeout: Option<Duration>) -> crate::Result<AnyResponse>;
 
 	/// Replies to a request initiated by the server.
-	async fn reply(
-		&self,
-		server: LanguageServerId,
-		id: crate::types::RequestId,
-		resp: Result<JsonValue, ResponseError>,
-	) -> crate::Result<()>;
+	async fn reply(&self, server: LanguageServerId, id: crate::types::RequestId, resp: Result<JsonValue, ResponseError>) -> crate::Result<()>;
 
 	/// Stops a language server process.
 	async fn stop(&self, server: LanguageServerId) -> crate::Result<()>;

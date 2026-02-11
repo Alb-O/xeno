@@ -25,14 +25,7 @@ impl Editor {
 		use crate::syntax_manager::{EnsureSyntaxContext, SyntaxHotness};
 
 		let loader = std::sync::Arc::clone(&self.state.config.language_loader);
-		let mut visible_ids: HashSet<_> = self
-			.state
-			.windows
-			.base_window()
-			.layout
-			.views()
-			.into_iter()
-			.collect();
+		let mut visible_ids: HashSet<_> = self.state.windows.base_window().layout.views().into_iter().collect();
 
 		if let Some(active) = self.state.overlay_system.interaction.active.as_ref() {
 			for pane in &active.session.panes {
@@ -58,12 +51,8 @@ impl Editor {
 				let height = self.view_area(view).height;
 				let gutter = buffer.gutter_width();
 
-				let start_char = buffer
-					.screen_to_doc_position(0, gutter, tab_width)
-					.unwrap_or(0);
-				let end_char = buffer
-					.screen_to_doc_position(height, gutter, tab_width)
-					.unwrap_or(start_char);
+				let start_char = buffer.screen_to_doc_position(0, gutter, tab_width).unwrap_or(0);
+				let end_char = buffer.screen_to_doc_position(height, gutter, tab_width).unwrap_or(start_char);
 
 				let (start_byte, end_byte, doc_bytes) = buffer.with_doc(|doc| {
 					let content = doc.content();
@@ -86,10 +75,7 @@ impl Editor {
 					(start_byte, end_byte.min(len_bytes), content.len_bytes())
 				});
 
-				let span_cap = self
-					.state
-					.syntax_manager
-					.viewport_visible_span_cap_for_bytes(doc_bytes);
+				let span_cap = self.state.syntax_manager.viewport_visible_span_cap_for_bytes(doc_bytes);
 				let viewport = start_byte..end_byte.min(start_byte.saturating_add(span_cap));
 				doc_viewports
 					.entry(doc_id)
@@ -122,12 +108,7 @@ impl Editor {
 				.or_insert(hotness);
 		}
 
-		let mut workset: HashSet<_> = self
-			.state
-			.syntax_manager
-			.pending_docs()
-			.chain(self.state.syntax_manager.dirty_docs())
-			.collect();
+		let mut workset: HashSet<_> = self.state.syntax_manager.pending_docs().chain(self.state.syntax_manager.dirty_docs()).collect();
 
 		for (&doc_id, &hotness) in &doc_hotness {
 			if hotness == SyntaxHotness::Visible {
@@ -143,28 +124,21 @@ impl Editor {
 				continue;
 			};
 
-			let (version, lang_id, content) =
-				buffer.with_doc(|doc| (doc.version(), doc.language_id(), doc.content().clone()));
+			let (version, lang_id, content) = buffer.with_doc(|doc| (doc.version(), doc.language_id(), doc.content().clone()));
 
-			let hotness = doc_hotness
-				.get(&doc_id)
-				.copied()
-				.unwrap_or(SyntaxHotness::Warm);
+			let hotness = doc_hotness.get(&doc_id).copied().unwrap_or(SyntaxHotness::Warm);
 
 			let viewport = doc_viewports.get(&doc_id).cloned();
 
-			let outcome = self
-				.state
-				.syntax_manager
-				.ensure_syntax(EnsureSyntaxContext {
-					doc_id,
-					doc_version: version,
-					language_id: lang_id,
-					content: &content,
-					hotness,
-					loader: &loader,
-					viewport,
-				});
+			let outcome = self.state.syntax_manager.ensure_syntax(EnsureSyntaxContext {
+				doc_id,
+				doc_version: version,
+				language_id: lang_id,
+				content: &content,
+				hotness,
+				loader: &loader,
+				viewport,
+			});
 
 			if outcome.updated {
 				self.state.effects.request_redraw();
@@ -195,10 +169,7 @@ impl Editor {
 				continue;
 			}
 
-			self.state
-				.lsp
-				.sync_manager_mut()
-				.escalate_full(buffer.document_id());
+			self.state.lsp.sync_manager_mut().escalate_full(buffer.document_id());
 		}
 	}
 
@@ -207,29 +178,19 @@ impl Editor {
 	pub(super) fn tick_lsp_sync(&mut self) {
 		let sync = self.state.lsp.sync().clone();
 		let buffers = &self.state.core.buffers;
-		let stats = self.state.lsp.sync_manager_mut().tick(
-			Instant::now(),
-			&sync,
-			&self.state.metrics,
-			|doc_id| {
-				let view_id = buffers.any_buffer_for_doc(doc_id)?;
-				let buffer = buffers.get_buffer(view_id)?;
-				Some(buffer.with_doc(|doc| (doc.content().clone(), doc.version())))
-			},
-		);
-		self.state.metrics.record_lsp_tick(
-			stats.full_syncs,
-			stats.incremental_syncs,
-			stats.snapshot_bytes,
-		);
+		let stats = self.state.lsp.sync_manager_mut().tick(Instant::now(), &sync, &self.state.metrics, |doc_id| {
+			let view_id = buffers.any_buffer_for_doc(doc_id)?;
+			let buffer = buffers.get_buffer(view_id)?;
+			Some(buffer.with_doc(|doc| (doc.content().clone(), doc.version())))
+		});
+		self.state
+			.metrics
+			.record_lsp_tick(stats.full_syncs, stats.incremental_syncs, stats.snapshot_bytes);
 	}
 
 	/// Queues an immediate LSP change and returns a receiver for write completion.
 	#[cfg(feature = "lsp")]
-	pub(super) fn queue_lsp_change_immediate(
-		&mut self,
-		buffer_id: crate::buffer::ViewId,
-	) -> Option<oneshot::Receiver<()>> {
+	pub(super) fn queue_lsp_change_immediate(&mut self, buffer_id: crate::buffer::ViewId) -> Option<oneshot::Receiver<()>> {
 		self.maybe_track_lsp_for_buffer(buffer_id, false);
 
 		let buffer = self.state.core.buffers.get_buffer(buffer_id)?;
@@ -238,13 +199,10 @@ impl Editor {
 		let sync = self.state.lsp.sync().clone();
 		let metrics = self.state.metrics.clone();
 
-		self.state.lsp.sync_manager_mut().flush_now(
-			Instant::now(),
-			doc_id,
-			&sync,
-			&metrics,
-			Some(snapshot),
-		)
+		self.state
+			.lsp
+			.sync_manager_mut()
+			.flush_now(Instant::now(), doc_id, &sync, &metrics, Some(snapshot))
 	}
 
 	/// Immediately flush LSP changes for specified buffers.
@@ -280,9 +238,7 @@ impl Editor {
 					};
 					match self.run_invocation(invocation, policy).await {
 						InvocationResult::NotFound(_) => {
-							self.show_notification(
-								xeno_registry::notifications::keys::unknown_command(cmd.name),
-							);
+							self.show_notification(xeno_registry::notifications::keys::unknown_command(cmd.name));
 						}
 						InvocationResult::Quit | InvocationResult::ForceQuit => return true,
 						_ => {}
@@ -298,10 +254,7 @@ impl Editor {
 	/// Collects a snapshot of current editor statistics.
 	pub fn stats_snapshot(&self) -> StatsSnapshot {
 		#[cfg(feature = "lsp")]
-		let (lsp_pending_docs, lsp_in_flight) = (
-			self.state.lsp.sync_manager().pending_count(),
-			self.state.lsp.sync_manager().in_flight_count(),
-		);
+		let (lsp_pending_docs, lsp_in_flight) = (self.state.lsp.sync_manager().pending_count(), self.state.lsp.sync_manager().in_flight_count());
 		#[cfg(not(feature = "lsp"))]
 		let (lsp_pending_docs, lsp_in_flight) = (0, 0);
 

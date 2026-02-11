@@ -25,10 +25,7 @@ use std::time::Instant;
 use tracing::{trace, trace_span};
 use xeno_primitives::{Mode, Selection};
 pub use xeno_registry::actions::editor_ctx::*;
-use xeno_registry::actions::{
-	ActionEffects, ActionResult, AppEffect, EditEffect, Effect, ScreenPosition, ScrollAmount,
-	UiEffect, ViewEffect,
-};
+use xeno_registry::actions::{ActionEffects, ActionResult, AppEffect, EditEffect, Effect, ScreenPosition, ScrollAmount, UiEffect, ViewEffect};
 use xeno_registry::hooks::{HookContext, emit_sync as emit_hook_sync};
 use xeno_registry::notifications::keys;
 use xeno_registry::{HookEventData, result_handler};
@@ -39,11 +36,7 @@ use xeno_registry::{HookEventData, result_handler};
 /// avoiding the duplication present in individual result handlers.
 ///
 /// Returns `true` if the editor should quit.
-pub fn apply_effects(
-	effects: &ActionEffects,
-	ctx: &mut xeno_registry::actions::editor_ctx::EditorContext,
-	extend: bool,
-) -> HandleOutcome {
+pub fn apply_effects(effects: &ActionEffects, ctx: &mut xeno_registry::actions::editor_ctx::EditorContext, extend: bool) -> HandleOutcome {
 	if !effects.is_empty() {
 		trace!(count = effects.len(), "applying effects");
 	}
@@ -72,10 +65,7 @@ pub fn apply_effects(
 				trace!(?effect, "unhandled effect variant");
 			}
 		}
-		trace!(
-			duration_ms = start.elapsed().as_millis() as u64,
-			"effect.applied"
-		);
+		trace!(duration_ms = start.elapsed().as_millis() as u64, "effect.applied");
 	}
 
 	outcome
@@ -92,11 +82,7 @@ fn effect_kind(effect: &Effect) -> (&'static str, bool) {
 }
 
 /// Applies a view-related effect.
-fn apply_view_effect(
-	effect: &ViewEffect,
-	ctx: &mut xeno_registry::actions::editor_ctx::EditorContext,
-	extend: bool,
-) {
+fn apply_view_effect(effect: &ViewEffect, ctx: &mut xeno_registry::actions::editor_ctx::EditorContext, extend: bool) {
 	match effect {
 		ViewEffect::SetCursor(pos) => {
 			ctx.set_cursor(*pos);
@@ -147,10 +133,7 @@ fn apply_view_effect(
 			}
 		}
 
-		ViewEffect::Search {
-			direction,
-			add_selection,
-		} => {
+		ViewEffect::Search { direction, add_selection } => {
 			if let Some(search) = ctx.search() {
 				search.search(*direction, *add_selection, extend);
 			}
@@ -180,10 +163,7 @@ fn apply_view_effect(
 }
 
 /// Applies a text editing effect.
-fn apply_edit_effect(
-	effect: &EditEffect,
-	ctx: &mut xeno_registry::actions::editor_ctx::EditorContext,
-) {
+fn apply_edit_effect(effect: &EditEffect, ctx: &mut xeno_registry::actions::editor_ctx::EditorContext) {
 	match effect {
 		EditEffect::EditOp(op) => {
 			if let Some(edit) = ctx.edit() {
@@ -239,10 +219,7 @@ fn apply_ui_effect(effect: &UiEffect, ctx: &mut xeno_registry::actions::editor_c
 /// Applies an application-level effect.
 ///
 /// Returns `Some(HandleOutcome::Quit)` if this is a quit effect.
-fn apply_app_effect(
-	effect: &AppEffect,
-	ctx: &mut xeno_registry::actions::editor_ctx::EditorContext,
-) -> Option<HandleOutcome> {
+fn apply_app_effect(effect: &AppEffect, ctx: &mut xeno_registry::actions::editor_ctx::EditorContext) -> Option<HandleOutcome> {
 	match effect {
 		AppEffect::SetMode(mode) => {
 			ctx.set_mode(mode.clone());
@@ -334,12 +311,7 @@ fn emit_selection_hook(_ctx: &xeno_registry::actions::editor_ctx::EditorContext,
 }
 
 /// Applies a screen-relative motion (H/M/L).
-fn apply_screen_motion(
-	ctx: &mut xeno_registry::actions::editor_ctx::EditorContext,
-	position: ScreenPosition,
-	count: usize,
-	extend: bool,
-) {
+fn apply_screen_motion(ctx: &mut xeno_registry::actions::editor_ctx::EditorContext, position: ScreenPosition, count: usize, extend: bool) {
 	let Some(viewport) = ctx.viewport() else {
 		ctx.emit(keys::VIEWPORT_UNAVAILABLE);
 		return;
@@ -388,15 +360,10 @@ fn apply_screen_motion(
 }
 
 // Register the handler for ActionResult::Effects
-result_handler!(
-	RESULT_EFFECTS_HANDLERS,
-	HANDLE_EFFECTS,
-	"effects",
-	|r, ctx, extend| {
-		let ActionResult::Effects(effects) = r;
-		apply_effects(effects, ctx, extend)
-	}
-);
+result_handler!(RESULT_EFFECTS_HANDLERS, HANDLE_EFFECTS, "effects", |r, ctx, extend| {
+	let ActionResult::Effects(effects) = r;
+	apply_effects(effects, ctx, extend)
+});
 
 pub(crate) fn register_result_handlers() {
 	xeno_registry::actions::register_result_handler(&HANDLE_EFFECTS);

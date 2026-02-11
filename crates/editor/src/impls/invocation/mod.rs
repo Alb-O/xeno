@@ -4,9 +4,7 @@
 //! checking, hook emission, and error handling.
 
 use tracing::{debug, trace, trace_span, warn};
-use xeno_registry::actions::{
-	ActionArgs, ActionContext, ActionResult, EditorContext, dispatch_result, find_action,
-};
+use xeno_registry::actions::{ActionArgs, ActionContext, ActionResult, EditorContext, dispatch_result, find_action};
 use xeno_registry::commands::{CommandContext, find_command};
 use xeno_registry::hooks::{HookContext, emit_sync_with as emit_hook_sync_with};
 use xeno_registry::{CommandError, HookEventData, RegistryEntry};
@@ -20,28 +18,13 @@ mod tests;
 
 impl Editor {
 	/// Executes a named action with enforcement defaults.
-	pub fn invoke_action(
-		&mut self,
-		name: &str,
-		count: usize,
-		extend: bool,
-		register: Option<char>,
-		char_arg: Option<char>,
-	) -> InvocationResult {
-		self.run_action_invocation(
-			name,
-			count,
-			extend,
-			register,
-			char_arg,
-			InvocationPolicy::enforcing(),
-		)
+	pub fn invoke_action(&mut self, name: &str, count: usize, extend: bool, register: Option<char>, char_arg: Option<char>) -> InvocationResult {
+		self.run_action_invocation(name, count, extend, register, char_arg, InvocationPolicy::enforcing())
 	}
 
 	/// Executes a registry command with enforcement defaults.
 	pub async fn invoke_command(&mut self, name: &str, args: Vec<String>) -> InvocationResult {
-		self.run_command_invocation(name, args, InvocationPolicy::enforcing())
-			.await
+		self.run_command_invocation(name, args, InvocationPolicy::enforcing()).await
 	}
 
 	/// Executes an invocation with capability gating and hook emission.
@@ -58,22 +41,13 @@ impl Editor {
 	/// # Hook Emission
 	///
 	/// Pre/post hooks are emitted for actions. Command hooks may be added later.
-	pub async fn run_invocation(
-		&mut self,
-		invocation: Invocation,
-		policy: InvocationPolicy,
-	) -> InvocationResult {
+	pub async fn run_invocation(&mut self, invocation: Invocation, policy: InvocationPolicy) -> InvocationResult {
 		let span = trace_span!("run_invocation", invocation = %invocation.describe());
 		let _guard = span.enter();
 		trace!(policy = ?policy, "Running invocation");
 
 		match invocation {
-			Invocation::Action {
-				name,
-				count,
-				extend,
-				register,
-			} => self.run_action_invocation(&name, count, extend, register, None, policy),
+			Invocation::Action { name, count, extend, register } => self.run_action_invocation(&name, count, extend, register, None, policy),
 
 			Invocation::ActionWithChar {
 				name,
@@ -83,14 +57,9 @@ impl Editor {
 				char_arg,
 			} => self.run_action_invocation(&name, count, extend, register, Some(char_arg), policy),
 
-			Invocation::Command { name, args } => {
-				self.run_command_invocation(&name, args, policy).await
-			}
+			Invocation::Command { name, args } => self.run_command_invocation(&name, args, policy).await,
 
-			Invocation::EditorCommand { name, args } => {
-				self.run_editor_command_invocation(&name, args, policy)
-					.await
-			}
+			Invocation::EditorCommand { name, args } => self.run_editor_command_invocation(&name, args, policy).await,
 		}
 	}
 
@@ -126,10 +95,7 @@ impl Editor {
 			return result;
 		}
 
-		if policy.enforce_readonly
-			&& requires_edit_capability_set(required_caps)
-			&& self.buffer().is_readonly()
-		{
+		if policy.enforce_readonly && requires_edit_capability_set(required_caps) && self.buffer().is_readonly() {
 			return notify_readonly_denied(self);
 		}
 
@@ -137,9 +103,7 @@ impl Editor {
 		let action_name_str = action.name_str().to_string();
 
 		emit_hook_sync_with(
-			&HookContext::new(HookEventData::ActionPre {
-				action_id: &action_id_str,
-			}),
+			&HookContext::new(HookEventData::ActionPre { action_id: &action_id_str }),
 			&mut self.state.hook_runtime,
 		);
 
@@ -155,11 +119,7 @@ impl Editor {
 		self.buffer_mut().ensure_valid_selection();
 		let (content, cursor, selection) = {
 			let buffer = self.buffer();
-			(
-				buffer.with_doc(|doc| doc.content().clone()),
-				buffer.cursor,
-				buffer.selection.clone(),
-			)
+			(buffer.with_doc(|doc| doc.content().clone()), buffer.cursor, buffer.selection.clone())
 		};
 
 		let handler = action.handler;
@@ -171,10 +131,7 @@ impl Editor {
 			count,
 			extend,
 			register,
-			args: ActionArgs {
-				char: char_arg,
-				string: None,
-			},
+			args: ActionArgs { char: char_arg, string: None },
 		};
 
 		let result = handler(&ctx);
@@ -190,12 +147,7 @@ impl Editor {
 		outcome
 	}
 
-	async fn run_command_invocation(
-		&mut self,
-		name: &str,
-		args: Vec<String>,
-		policy: InvocationPolicy,
-	) -> InvocationResult {
+	async fn run_command_invocation(&mut self, name: &str, args: Vec<String>, policy: InvocationPolicy) -> InvocationResult {
 		let Some(command_def) = find_command(name) else {
 			// Don't notify - caller may want to try editor commands next
 			return InvocationResult::NotFound(format!("command:{name}"));
@@ -225,10 +177,7 @@ impl Editor {
 			return result;
 		}
 
-		if policy.enforce_readonly
-			&& requires_edit_capability_set(required_caps)
-			&& self.buffer().is_readonly()
-		{
+		if policy.enforce_readonly && requires_edit_capability_set(required_caps) && self.buffer().is_readonly() {
 			return notify_readonly_denied(self);
 		}
 
@@ -254,9 +203,7 @@ impl Editor {
 			Ok(CommandOutcome::Quit) => InvocationResult::Quit,
 			Ok(CommandOutcome::ForceQuit) => InvocationResult::ForceQuit,
 			Err(e) => {
-				self.show_notification(xeno_registry::notifications::keys::command_error(
-					&e.to_string(),
-				));
+				self.show_notification(xeno_registry::notifications::keys::command_error(&e.to_string()));
 				InvocationResult::CommandError(e.to_string())
 			}
 		};
@@ -266,12 +213,7 @@ impl Editor {
 	}
 
 	/// Executes editor-direct commands with capability gating and policy checks.
-	async fn run_editor_command_invocation(
-		&mut self,
-		name: &str,
-		args: Vec<String>,
-		policy: InvocationPolicy,
-	) -> InvocationResult {
+	async fn run_editor_command_invocation(&mut self, name: &str, args: Vec<String>, policy: InvocationPolicy) -> InvocationResult {
 		let Some(editor_cmd) = find_editor_command(name) else {
 			return InvocationResult::NotFound(format!("editor_command:{name}"));
 		};
@@ -302,10 +244,7 @@ impl Editor {
 			return result;
 		}
 
-		if policy.enforce_readonly
-			&& requires_edit_capability(required_caps)
-			&& self.buffer().is_readonly()
-		{
+		if policy.enforce_readonly && requires_edit_capability(required_caps) && self.buffer().is_readonly() {
 			return notify_readonly_denied(self);
 		}
 
@@ -323,9 +262,7 @@ impl Editor {
 			Ok(CommandOutcome::Quit) => InvocationResult::Quit,
 			Ok(CommandOutcome::ForceQuit) => InvocationResult::ForceQuit,
 			Err(e) => {
-				self.show_notification(xeno_registry::notifications::keys::command_error(
-					&e.to_string(),
-				));
+				self.show_notification(xeno_registry::notifications::keys::command_error(&e.to_string()));
 				InvocationResult::CommandError(e.to_string())
 			}
 		};
@@ -335,12 +272,7 @@ impl Editor {
 	}
 
 	/// Dispatches an action result to handlers and emits post-action hook.
-	pub(crate) fn apply_action_result(
-		&mut self,
-		action_id: &str,
-		result: ActionResult,
-		extend: bool,
-	) -> bool {
+	pub(crate) fn apply_action_result(&mut self, action_id: &str, result: ActionResult, extend: bool) -> bool {
 		let (should_quit, result_variant) = {
 			let mut caps = self.caps();
 			let mut ctx = EditorContext::new(&mut caps);
@@ -350,10 +282,7 @@ impl Editor {
 		};
 
 		emit_hook_sync_with(
-			&HookContext::new(HookEventData::ActionPost {
-				action_id,
-				result_variant,
-			}),
+			&HookContext::new(HookEventData::ActionPost { action_id, result_variant }),
 			&mut self.state.hook_runtime,
 		);
 		should_quit
@@ -367,9 +296,7 @@ enum InvocationKind {
 
 fn notify_capability_denied(editor: &mut Editor, kind: InvocationKind, error: &CommandError) {
 	match kind {
-		InvocationKind::Action => {
-			editor.show_notification(xeno_registry::notifications::keys::action_error(error))
-		}
+		InvocationKind::Action => editor.show_notification(xeno_registry::notifications::keys::action_error(error)),
 		InvocationKind::EditorCommand => {
 			let error = error.to_string();
 			editor.show_notification(xeno_registry::notifications::keys::command_error(&error));
@@ -387,8 +314,7 @@ fn requires_edit_capability_set(caps: xeno_registry::CapabilitySet) -> bool {
 }
 
 fn requires_edit_capability(caps: &[xeno_registry::Capability]) -> bool {
-	caps.iter()
-		.any(|c| matches!(c, xeno_registry::Capability::Edit))
+	caps.iter().any(|c| matches!(c, xeno_registry::Capability::Edit))
 }
 
 fn capability_error_result(error: &CommandError) -> InvocationResult {

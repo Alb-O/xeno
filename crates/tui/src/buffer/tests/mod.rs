@@ -47,10 +47,7 @@ fn debug_some_example() {
 		0,
 		1,
 		"G'day World!",
-		Style::default()
-			.fg(Color::Green)
-			.bg(Color::Yellow)
-			.add_modifier(Modifier::BOLD),
+		Style::default().fg(Color::Green).bg(Color::Yellow).add_modifier(Modifier::BOLD),
 	);
 	let result = format!("{buffer:?}");
 	println!("{result}");

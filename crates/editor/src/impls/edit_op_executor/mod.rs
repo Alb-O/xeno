@@ -36,13 +36,7 @@ impl Editor {
 
 		if let Some((tx, new_selection)) = self.build_transform_transaction(&plan) {
 			let buffer_id = self.focused_view();
-			self.apply_edit(
-				buffer_id,
-				&tx,
-				Some(new_selection),
-				plan.undo_policy,
-				EditOrigin::Internal("edit_op"),
-			);
+			self.apply_edit(buffer_id, &tx, Some(new_selection), plan.undo_policy, EditOrigin::Internal("edit_op"));
 		}
 
 		for post in &plan.op.post {

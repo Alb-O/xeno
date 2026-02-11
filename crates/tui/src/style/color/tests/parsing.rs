@@ -67,20 +67,9 @@ fn from_ansi_color() -> Result<(), Box<dyn Error>> {
 
 #[test]
 fn from_invalid_colors() {
-	let bad_colors = [
-		"invalid_color",
-		"abcdef0",
-		" bcdefa",
-		"#abcdef00",
-		"#1🦀2",
-		"resets",
-		"lightblackk",
-	];
+	let bad_colors = ["invalid_color", "abcdef0", " bcdefa", "#abcdef00", "#1🦀2", "resets", "lightblackk"];
 
 	for bad_color in bad_colors {
-		assert!(
-			Color::from_str(bad_color).is_err(),
-			"bad color: '{bad_color}'"
-		);
+		assert!(Color::from_str(bad_color).is_err(), "bad color: '{bad_color}'");
 	}
 }

@@ -14,9 +14,7 @@ struct MockTransport {
 
 #[async_trait]
 impl LspTransport for MockTransport {
-	fn events(
-		&self,
-	) -> tokio::sync::mpsc::UnboundedReceiver<crate::client::transport::TransportEvent> {
+	fn events(&self) -> tokio::sync::mpsc::UnboundedReceiver<crate::client::transport::TransportEvent> {
 		let (_, rx) = tokio::sync::mpsc::unbounded_channel();
 		rx
 	}
@@ -32,31 +30,17 @@ impl LspTransport for MockTransport {
 		Ok(())
 	}
 
-	async fn notify_with_barrier(
-		&self,
-		_server: LanguageServerId,
-		_notif: AnyNotification,
-	) -> Result<tokio::sync::oneshot::Receiver<crate::Result<()>>> {
+	async fn notify_with_barrier(&self, _server: LanguageServerId, _notif: AnyNotification) -> Result<tokio::sync::oneshot::Receiver<crate::Result<()>>> {
 		let (tx, rx) = tokio::sync::oneshot::channel();
 		let _ = tx.send(Ok(()));
 		Ok(rx)
 	}
 
-	async fn request(
-		&self,
-		_server: LanguageServerId,
-		_req: AnyRequest,
-		_timeout: Option<Duration>,
-	) -> Result<AnyResponse> {
+	async fn request(&self, _server: LanguageServerId, _req: AnyRequest, _timeout: Option<Duration>) -> Result<AnyResponse> {
 		unimplemented!()
 	}
 
-	async fn reply(
-		&self,
-		_server: LanguageServerId,
-		_id: crate::types::RequestId,
-		_resp: std::result::Result<Value, ResponseError>,
-	) -> Result<()> {
+	async fn reply(&self, _server: LanguageServerId, _id: crate::types::RequestId, _resp: std::result::Result<Value, ResponseError>) -> Result<()> {
 		Ok(())
 	}
 

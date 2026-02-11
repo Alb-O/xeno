@@ -37,16 +37,11 @@ pub mod syntax;
 mod utils;
 
 pub use db::{LanguageDb, language_db};
-pub use grammar::{
-	GrammarError, GrammarSource, cache_dir, grammar_search_paths, load_grammar,
-	load_grammar_or_build, query_search_paths, runtime_dir,
-};
+pub use grammar::{GrammarError, GrammarSource, cache_dir, grammar_search_paths, load_grammar, load_grammar_or_build, query_search_paths, runtime_dir};
 pub use highlight::{Highlight, HighlightEvent, HighlightSpan, HighlightStyles, Highlighter};
 pub use ids::{RegistryLanguageIdExt, TreeHouseLanguageExt};
 pub use language::LanguageData;
 pub use loader::{LanguageId, LanguageLoader};
-pub use lsp_config::{
-	LanguageLspInfo, LanguageLspMapping, LspConfigError, LspServerDef, load_lsp_configs,
-};
+pub use lsp_config::{LanguageLspInfo, LanguageLspMapping, LspConfigError, LspServerDef, load_lsp_configs};
 pub use query::{CapturedNode, IndentQuery, RainbowQuery, TagQuery, TextObjectQuery, read_query};
 pub use syntax::{InjectionPolicy, SealedSource, Syntax, SyntaxError, SyntaxOptions};

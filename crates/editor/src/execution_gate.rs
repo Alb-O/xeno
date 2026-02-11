@@ -46,9 +46,7 @@ impl ExecutionGate {
 			// Register interest before checking condition to avoid race
 			let notified = self.state_notify.notified();
 
-			if self.background_open_depth.load(Ordering::SeqCst) > 0
-				|| self.interactive_in_flight.load(Ordering::SeqCst) == 0
-			{
+			if self.background_open_depth.load(Ordering::SeqCst) > 0 || self.interactive_in_flight.load(Ordering::SeqCst) == 0 {
 				return;
 			}
 
@@ -122,10 +120,7 @@ mod tests {
 
 		// Drop guard, background should proceed
 		drop(guard);
-		tokio::time::timeout(Duration::from_millis(50), background)
-			.await
-			.unwrap()
-			.unwrap();
+		tokio::time::timeout(Duration::from_millis(50), background).await.unwrap().unwrap();
 	}
 
 	#[tokio::test]
@@ -142,10 +137,7 @@ mod tests {
 		assert!(!background.is_finished());
 
 		let _scope = gate.open_background_scope();
-		tokio::time::timeout(Duration::from_millis(50), background)
-			.await
-			.unwrap()
-			.unwrap();
+		tokio::time::timeout(Duration::from_millis(50), background).await.unwrap().unwrap();
 	}
 
 	#[tokio::test]
@@ -166,10 +158,7 @@ mod tests {
 		let background = tokio::spawn(async move {
 			gate_clone.wait_for_background().await;
 		});
-		tokio::time::timeout(Duration::from_millis(50), background)
-			.await
-			.unwrap()
-			.unwrap();
+		tokio::time::timeout(Duration::from_millis(50), background).await.unwrap().unwrap();
 
 		drop(_scope1);
 		assert!(gate.background_open_depth.load(Ordering::SeqCst) == 0);

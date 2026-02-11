@@ -13,18 +13,9 @@ pub struct ViewportRepair {
 /// A rule for detecting unclosed constructs in viewport windows.
 #[derive(Debug, Clone)]
 pub enum ViewportRepairRule {
-	BlockComment {
-		open: String,
-		close: String,
-		nestable: bool,
-	},
-	String {
-		quote: String,
-		escape: Option<String>,
-	},
-	LineComment {
-		start: String,
-	},
+	BlockComment { open: String, close: String, nestable: bool },
+	String { quote: String, escape: Option<String> },
+	LineComment { start: String },
 }
 
 /// Result of a viewport repair scan.
@@ -116,11 +107,7 @@ impl ViewportRepair {
 								break;
 							}
 						}
-						ViewportRepairRule::BlockComment {
-							open,
-							close,
-							nestable,
-						} => {
+						ViewportRepairRule::BlockComment { open, close, nestable } => {
 							if chunk_bytes[chunk_idx..].starts_with(open.as_bytes()) {
 								block_comment_depth += 1;
 								chunk_idx += open.len();
@@ -129,8 +116,7 @@ impl ViewportRepair {
 								if !*nestable {
 									// skip until closer in the same chunk (simplified)
 									// FIXME: this should handle closer spanning chunks
-									while chunk_idx < chunk_bytes.len() && bytes_read < total_bytes
-									{
+									while chunk_idx < chunk_bytes.len() && bytes_read < total_bytes {
 										if chunk_bytes[chunk_idx..].starts_with(close.as_bytes()) {
 											block_comment_depth -= 1;
 											chunk_idx += close.len();
@@ -182,13 +168,9 @@ impl ViewportRepair {
 				let current_limit = (search_limit - search_bytes_read).min(chunk_bytes.len());
 
 				if block_comment_depth > 0 {
-					if let Some(ViewportRepairRule::BlockComment { close, .. }) = self
-						.rules
-						.iter()
-						.find(|r| matches!(r, ViewportRepairRule::BlockComment { .. }))
-						&& let Some(pos) = chunk_bytes[..current_limit]
-							.windows(close.len())
-							.position(|w| w == close.as_bytes())
+					if let Some(ViewportRepairRule::BlockComment { close, .. }) =
+						self.rules.iter().find(|r| matches!(r, ViewportRepairRule::BlockComment { .. }))
+						&& let Some(pos) = chunk_bytes[..current_limit].windows(close.len()).position(|w| w == close.as_bytes())
 					{
 						return SealPlan {
 							suffix: String::new(),
@@ -197,9 +179,7 @@ impl ViewportRepair {
 					}
 				} else if let Some(rule_idx) = in_string
 					&& let ViewportRepairRule::String { quote, .. } = &self.rules[rule_idx]
-					&& let Some(pos) = chunk_bytes[..current_limit]
-						.windows(quote.len())
-						.position(|w| w == quote.as_bytes())
+					&& let Some(pos) = chunk_bytes[..current_limit].windows(quote.len()).position(|w| w == quote.as_bytes())
 				{
 					return SealPlan {
 						suffix: String::new(),
@@ -217,11 +197,7 @@ impl ViewportRepair {
 		let mut suffix = String::new();
 		if block_comment_depth > 0 {
 			// find first block comment rule to get closer
-			if let Some(ViewportRepairRule::BlockComment { close, .. }) = self
-				.rules
-				.iter()
-				.find(|r| matches!(r, ViewportRepairRule::BlockComment { .. }))
-			{
+			if let Some(ViewportRepairRule::BlockComment { close, .. }) = self.rules.iter().find(|r| matches!(r, ViewportRepairRule::BlockComment { .. })) {
 				for _ in 0..block_comment_depth {
 					suffix.push_str(close);
 				}
@@ -232,9 +208,6 @@ impl ViewportRepair {
 			suffix.push_str(quote);
 		}
 
-		SealPlan {
-			suffix,
-			extension_bytes: 0,
-		}
+		SealPlan { suffix, extension_bytes: 0 }
 	}
 }

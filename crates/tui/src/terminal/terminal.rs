@@ -82,9 +82,7 @@ where
 		};
 		let (viewport_area, cursor_pos) = match options.viewport {
 			Viewport::Fullscreen => (area, Position::ORIGIN),
-			Viewport::Inline(height) => {
-				compute_inline_size(&mut backend, height, area.as_size(), 0)?
-			}
+			Viewport::Inline(height) => compute_inline_size(&mut backend, height, area.as_size(), 0)?,
 			Viewport::Fixed(area) => (area, area.as_position()),
 		};
 		Ok(Self {
@@ -154,33 +152,17 @@ where
 		}
 
 		if let Some(last) = self.diff_scratch.last() {
-			self.last_known_cursor_pos = Position {
-				x: last.x,
-				y: last.y,
-			};
+			self.last_known_cursor_pos = Position { x: last.x, y: last.y };
 		}
-		self.backend.draw(
-			self.diff_scratch
-				.iter()
-				.map(|u| (u.x, u.y, &current_buffer.content[u.idx])),
-		)
+		self.backend.draw(self.diff_scratch.iter().map(|u| (u.x, u.y, &current_buffer.content[u.idx])))
 	}
 
 	/// Resizes internal buffers to match the given area. Clears the screen.
 	pub fn resize(&mut self, area: Rect) -> Result<(), B::Error> {
 		let next_area = match self.viewport {
 			Viewport::Inline(height) => {
-				let offset_in_previous_viewport = self
-					.last_known_cursor_pos
-					.y
-					.saturating_sub(self.viewport_area.top());
-				compute_inline_size(
-					&mut self.backend,
-					height,
-					area.as_size(),
-					offset_in_previous_viewport,
-				)?
-				.0
+				let offset_in_previous_viewport = self.last_known_cursor_pos.y.saturating_sub(self.viewport_area.top());
+				compute_inline_size(&mut self.backend, height, area.as_size(), offset_in_previous_viewport)?.0
 			}
 			Viewport::Fixed(_) | Viewport::Fullscreen => area,
 		};
@@ -300,8 +282,7 @@ where
 		match self.viewport {
 			Viewport::Fullscreen => self.backend.clear_region(ClearType::All)?,
 			Viewport::Inline(_) => {
-				self.backend
-					.set_cursor_position(self.viewport_area.as_position())?;
+				self.backend.set_cursor_position(self.viewport_area.as_position())?;
 				self.backend.clear_region(ClearType::AfterCursor)?;
 			}
 			Viewport::Fixed(_) => {
@@ -341,9 +322,7 @@ pub(super) fn compute_inline_size<B: Backend>(
 
 	let max_height = size.height.min(height);
 
-	let lines_after_cursor = height
-		.saturating_sub(offset_in_previous_viewport)
-		.saturating_sub(1);
+	let lines_after_cursor = height.saturating_sub(offset_in_previous_viewport).saturating_sub(1);
 
 	backend.append_lines(lines_after_cursor)?;
 

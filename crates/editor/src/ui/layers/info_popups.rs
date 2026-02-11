@@ -12,19 +12,11 @@ use crate::ui::scene::{SurfaceKind, SurfaceOp};
 use crate::window::GutterSelector;
 
 pub fn visible(ed: &Editor) -> bool {
-	ed.overlays()
-		.get::<InfoPopupStore>()
-		.is_some_and(|store| !store.is_empty())
+	ed.overlays().get::<InfoPopupStore>().is_some_and(|store| !store.is_empty())
 }
 
 pub fn push(builder: &mut SceneBuilder, doc_area: Rect) {
-	builder.push(
-		SurfaceKind::InfoPopups,
-		25,
-		doc_area,
-		SurfaceOp::InfoPopups,
-		false,
-	);
+	builder.push(SurfaceKind::InfoPopups, 25, doc_area, SurfaceOp::InfoPopups, false);
 }
 
 pub fn render(ed: &mut Editor, frame: &mut xeno_tui::Frame, doc_area: Rect, ctx: &RenderCtx) {
@@ -35,15 +27,9 @@ pub fn render(ed: &mut Editor, frame: &mut xeno_tui::Frame, doc_area: Rect, ctx:
 			store
 				.ids()
 				.filter_map(|id| {
-					store.get(id).map(|popup| {
-						(
-							id.0,
-							popup.buffer_id,
-							popup.anchor,
-							popup.content_width,
-							popup.content_height,
-						)
-					})
+					store
+						.get(id)
+						.map(|popup| (id.0, popup.buffer_id, popup.anchor, popup.content_width, popup.content_height))
 				})
 				.collect()
 		})
@@ -74,9 +60,7 @@ pub fn render(ed: &mut Editor, frame: &mut xeno_tui::Frame, doc_area: Rect, ctx:
 
 		frame.render_widget(Clear, rect);
 
-		let block = Block::default()
-			.style(Style::default().bg(ctx.theme.colors.popup.bg))
-			.padding(style.padding);
+		let block = Block::default().style(Style::default().bg(ctx.theme.colors.popup.bg)).padding(style.padding);
 
 		let inner = block.inner(rect);
 		frame.render_widget(block, rect);

@@ -12,13 +12,12 @@ mod text_width;
 pub mod wrap;
 
 pub use buffer::{
-	BufferRenderContext, DiagnosticLineMap, DiagnosticRangeMap, DiagnosticSpan, GutterLayout,
-	LineSlice, LineSource, RenderBufferParams, RenderResult, RowKind, ViewportPlan, WrapAccess,
-	ensure_buffer_cursor_visible,
+	BufferRenderContext, DiagnosticLineMap, DiagnosticRangeMap, DiagnosticSpan, GutterLayout, LineSlice, LineSource, RenderBufferParams, RenderResult, RowKind,
+	ViewportPlan, WrapAccess, ensure_buffer_cursor_visible,
 };
 pub use cache::{
-	DiagnosticsCache, DiagnosticsCacheKey, DiagnosticsEntry, HighlightKey, HighlightTile,
-	HighlightTiles, RenderCache, TILE_SIZE, WrapBucket, WrapBucketKey, WrapBuckets, WrapEntry,
+	DiagnosticsCache, DiagnosticsCacheKey, DiagnosticsEntry, HighlightKey, HighlightTile, HighlightTiles, RenderCache, TILE_SIZE, WrapBucket, WrapBucketKey,
+	WrapBuckets, WrapEntry,
 };
 pub use context::{LayoutSnapshot, LspRenderSnapshot, RenderCtx};
 pub use text_width::{cell_width, char_width};

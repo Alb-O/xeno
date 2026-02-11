@@ -109,9 +109,7 @@ impl EditOp {
 	pub fn compile(&self) -> EditPlan {
 		let (undo_policy, syntax_policy) = match &self.transform {
 			TextTransform::None => (UndoPolicy::NoUndo, SyntaxPolicy::None),
-			TextTransform::Undo | TextTransform::Redo => {
-				(UndoPolicy::NoUndo, SyntaxPolicy::FullReparseNow)
-			}
+			TextTransform::Undo | TextTransform::Redo => (UndoPolicy::NoUndo, SyntaxPolicy::FullReparseNow),
 			TextTransform::Delete
 			| TextTransform::Replace(_)
 			| TextTransform::Insert(_)
@@ -336,9 +334,7 @@ pub fn delete(yank: bool) -> EditOp {
 /// # Arguments
 /// * `yank` - If true, yank selection before deleting.
 pub fn change(yank: bool) -> EditOp {
-	let mut op = EditOp::new()
-		.with_transform(TextTransform::Delete)
-		.with_post(PostEffect::SetMode(Mode::Insert));
+	let mut op = EditOp::new().with_transform(TextTransform::Delete).with_post(PostEffect::SetMode(Mode::Insert));
 	if yank {
 		op = op.with_pre(PreEffect::Yank);
 	}
@@ -402,9 +398,7 @@ pub fn delete_back() -> EditOp {
 
 /// Creates a delete-forward (delete key) operation.
 pub fn delete_forward() -> EditOp {
-	EditOp::new()
-		.with_selection(SelectionOp::SelectCharAfter)
-		.with_transform(TextTransform::Delete)
+	EditOp::new().with_selection(SelectionOp::SelectCharAfter).with_transform(TextTransform::Delete)
 }
 
 /// Creates a delete-word-back operation.
@@ -416,9 +410,7 @@ pub fn delete_word_back() -> EditOp {
 
 /// Creates a delete-word-forward operation.
 pub fn delete_word_forward() -> EditOp {
-	EditOp::new()
-		.with_selection(SelectionOp::SelectWordAfter)
-		.with_transform(TextTransform::Delete)
+	EditOp::new().with_selection(SelectionOp::SelectWordAfter).with_transform(TextTransform::Delete)
 }
 
 /// Creates a newline insertion with smart indentation.

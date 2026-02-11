@@ -7,10 +7,7 @@ use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 
 use thiserror::Error;
-use xeno_lsp::lsp_types::{
-	AnnotatedTextEdit, DocumentChangeOperation, DocumentChanges, OneOf, TextDocumentEdit, TextEdit,
-	Uri, WorkspaceEdit,
-};
+use xeno_lsp::lsp_types::{AnnotatedTextEdit, DocumentChangeOperation, DocumentChanges, OneOf, TextDocumentEdit, TextEdit, Uri, WorkspaceEdit};
 use xeno_lsp::{OffsetEncoding, lsp_range_to_char_range};
 use xeno_primitives::range::CharIdx;
 use xeno_primitives::transaction::{Change, Tendril};
@@ -98,19 +95,12 @@ impl Editor {
 	}
 
 	/// Validates and converts a [`WorkspaceEdit`] into an executable plan.
-	async fn plan_workspace_edit(
-		&mut self,
-		edit: WorkspaceEdit,
-	) -> Result<WorkspaceEditPlan, ApplyError> {
+	async fn plan_workspace_edit(&mut self, edit: WorkspaceEdit) -> Result<WorkspaceEditPlan, ApplyError> {
 		let mut per_uri: HashMap<String, (Uri, Vec<TextEdit>)> = HashMap::new();
 		if let Some(changes) = edit.changes {
 			for (uri, edits) in changes {
 				let key = uri.to_string();
-				per_uri
-					.entry(key)
-					.or_insert_with(|| (uri, Vec::new()))
-					.1
-					.extend(edits);
+				per_uri.entry(key).or_insert_with(|| (uri, Vec::new())).1.extend(edits);
 			}
 		}
 
@@ -166,33 +156,21 @@ impl Editor {
 		Ok(WorkspaceEditPlan { per_buffer })
 	}
 
-	fn collect_text_document_edit(
-		&self,
-		edit: TextDocumentEdit,
-		per_uri: &mut HashMap<String, (Uri, Vec<TextEdit>)>,
-	) -> Result<(), ApplyError> {
+	fn collect_text_document_edit(&self, edit: TextDocumentEdit, per_uri: &mut HashMap<String, (Uri, Vec<TextEdit>)>) -> Result<(), ApplyError> {
 		let uri = edit.text_document.uri;
 		let key = uri.to_string();
 		let edits = normalize_text_document_edits(edit.edits);
-		per_uri
-			.entry(key)
-			.or_insert_with(|| (uri, Vec::new()))
-			.1
-			.extend(edits);
+		per_uri.entry(key).or_insert_with(|| (uri, Vec::new())).1.extend(edits);
 		Ok(())
 	}
 
 	async fn resolve_uri_to_buffer(&mut self, uri: &Uri) -> Result<(ViewId, bool), ApplyError> {
-		let path =
-			xeno_lsp::path_from_uri(uri).ok_or_else(|| ApplyError::InvalidUri(uri.to_string()))?;
+		let path = xeno_lsp::path_from_uri(uri).ok_or_else(|| ApplyError::InvalidUri(uri.to_string()))?;
 		if let Some(buffer_id) = self.state.core.buffers.find_by_path(&path) {
 			self.finalize_buffer_removal(buffer_id);
 		}
 
-		let buffer_id = self
-			.open_file(path.clone())
-			.await
-			.map_err(|_| ApplyError::BufferNotFound(uri.to_string()))?;
+		let buffer_id = self.open_file(path.clone()).await.map_err(|_| ApplyError::BufferNotFound(uri.to_string()))?;
 		Ok((buffer_id, true))
 	}
 
@@ -236,10 +214,7 @@ impl Editor {
 	}
 
 	/// Executes the edit plan for a specific buffer.
-	pub(crate) fn apply_buffer_edit_plan(
-		&mut self,
-		plan: &BufferEditPlan,
-	) -> Result<Transaction, ApplyError> {
+	pub(crate) fn apply_buffer_edit_plan(&mut self, plan: &BufferEditPlan) -> Result<Transaction, ApplyError> {
 		let buffer_id = plan.buffer_id;
 		let doc_id = {
 			let buffer = self
@@ -257,11 +232,7 @@ impl Editor {
 			.map(|edit| Change {
 				start: edit.range.start,
 				end: edit.range.end,
-				replacement: if edit.replacement.is_empty() {
-					None
-				} else {
-					Some(edit.replacement.clone())
-				},
+				replacement: if edit.replacement.is_empty() { None } else { Some(edit.replacement.clone()) },
 			})
 			.collect();
 
@@ -334,12 +305,7 @@ impl Editor {
 	}
 
 	fn close_temporary_buffers(&mut self, plan: &WorkspaceEditPlan) {
-		let buffer_ids: Vec<_> = plan
-			.per_buffer
-			.iter()
-			.filter(|p| p.opened_temporarily)
-			.map(|p| p.buffer_id)
-			.collect();
+		let buffer_ids: Vec<_> = plan.per_buffer.iter().filter(|p| p.opened_temporarily).map(|p| p.buffer_id).collect();
 		for buffer_id in buffer_ids {
 			self.close_headless_buffer(buffer_id);
 		}
@@ -349,10 +315,7 @@ impl Editor {
 		let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
 			return;
 		};
-		if let (Some(path), Some(lang)) = (
-			buffer.path().map(|p| p.to_path_buf()),
-			buffer.file_type().map(|s| s.to_string()),
-		) {
+		if let (Some(path), Some(lang)) = (buffer.path().map(|p| p.to_path_buf()), buffer.file_type().map(|s| s.to_string())) {
 			let lsp_handle = self.state.lsp.handle();
 			tokio::spawn(async move {
 				if let Err(e) = lsp_handle.close_document(path, lang).await {
@@ -366,11 +329,7 @@ impl Editor {
 }
 
 /// Converts an LSP [`TextEdit`] into a character-offset based [`PlannedTextEdit`].
-pub(crate) fn convert_text_edit(
-	rope: &xeno_primitives::Rope,
-	encoding: OffsetEncoding,
-	edit: &TextEdit,
-) -> Option<PlannedTextEdit> {
+pub(crate) fn convert_text_edit(rope: &xeno_primitives::Rope, encoding: OffsetEncoding, edit: &TextEdit) -> Option<PlannedTextEdit> {
 	let (start, end) = lsp_range_to_char_range(rope, edit.range, encoding)?;
 	Some(PlannedTextEdit {
 		range: start..end,
@@ -383,10 +342,7 @@ pub(crate) fn convert_text_edit(
 /// # Errors
 ///
 /// Returns [`ApplyError::OverlappingEdits`] if any edits target intersecting regions.
-pub(crate) fn coalesce_and_validate(
-	edits: &mut Vec<PlannedTextEdit>,
-	uri: &Uri,
-) -> Result<(), ApplyError> {
+pub(crate) fn coalesce_and_validate(edits: &mut Vec<PlannedTextEdit>, uri: &Uri) -> Result<(), ApplyError> {
 	edits.sort_by_key(|edit| (edit.range.start, edit.range.end));
 	let mut out: Vec<PlannedTextEdit> = Vec::with_capacity(edits.len());
 	for edit in edits.drain(..) {

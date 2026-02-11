@@ -57,10 +57,7 @@ fn add_assign_line() {
 #[test]
 fn extend() {
 	let mut text = Text::from("The first line\nThe second line");
-	text.extend(vec![
-		Line::from("The third line"),
-		Line::from("The fourth line"),
-	]);
+	text.extend(vec![Line::from("The third line"), Line::from("The fourth line")]);
 	assert_eq!(
 		text.lines,
 		vec![
@@ -75,10 +72,7 @@ fn extend() {
 #[test]
 fn extend_from_iter() {
 	let mut text = Text::from("The first line\nThe second line");
-	text.extend(vec![
-		Line::from("The third line"),
-		Line::from("The fourth line"),
-	]);
+	text.extend(vec![Line::from("The third line"), Line::from("The fourth line")]);
 	assert_eq!(
 		text.lines,
 		vec![

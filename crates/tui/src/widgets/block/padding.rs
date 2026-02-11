@@ -48,12 +48,7 @@ impl Padding {
 	///
 	/// Note: the order of the fields does not match the order of the CSS properties.
 	pub const fn new(left: u16, right: u16, top: u16, bottom: u16) -> Self {
-		Self {
-			left,
-			right,
-			top,
-			bottom,
-		}
+		Self { left, right, top, bottom }
 	}
 
 	/// Creates a `Padding` with the same value for `left` and `right`.

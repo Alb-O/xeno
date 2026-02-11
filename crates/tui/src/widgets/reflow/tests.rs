@@ -10,39 +10,24 @@ enum Composer {
 	LineTruncator,
 }
 
-fn run_composer<'a>(
-	which: Composer,
-	text: impl Into<Text<'a>>,
-	text_area_width: u16,
-) -> (Vec<String>, Vec<u16>, Vec<HorizontalAlignment>) {
+fn run_composer<'a>(which: Composer, text: impl Into<Text<'a>>, text_area_width: u16) -> (Vec<String>, Vec<u16>, Vec<HorizontalAlignment>) {
 	let text = text.into();
 	let styled_lines = text.iter().map(|line| {
 		(
-			line.iter()
-				.flat_map(|span| span.styled_graphemes(Style::default())),
+			line.iter().flat_map(|span| span.styled_graphemes(Style::default())),
 			line.alignment.unwrap_or(HorizontalAlignment::Left),
 		)
 	});
 
 	let mut composer: Box<dyn LineComposer> = match which {
-		Composer::WordWrapper { trim } => {
-			Box::new(WordWrapper::new(styled_lines, text_area_width, trim))
-		}
+		Composer::WordWrapper { trim } => Box::new(WordWrapper::new(styled_lines, text_area_width, trim)),
 		Composer::LineTruncator => Box::new(LineTruncator::new(styled_lines, text_area_width)),
 	};
 	let mut lines = vec![];
 	let mut widths = vec![];
 	let mut alignments = vec![];
-	while let Some(WrappedLine {
-		graphemes,
-		width,
-		alignment,
-	}) = composer.next_line()
-	{
-		let line = graphemes
-			.iter()
-			.map(|StyledGrapheme { symbol, .. }| *symbol)
-			.collect::<String>();
+	while let Some(WrappedLine { graphemes, width, alignment }) = composer.next_line() {
+		let line = graphemes.iter().map(|StyledGrapheme { symbol, .. }| *symbol).collect::<String>();
 		assert!(width <= text_area_width);
 		lines.push(line);
 		widths.push(width);
@@ -56,8 +41,7 @@ fn line_composer_one_line() {
 	let width = 40;
 	for i in 1..width {
 		let text = "a".repeat(i);
-		let (word_wrapper, _, _) =
-			run_composer(Composer::WordWrapper { trim: true }, &*text, width as u16);
+		let (word_wrapper, _, _) = run_composer(Composer::WordWrapper { trim: true }, &*text, width as u16);
 		let (line_truncator, _, _) = run_composer(Composer::LineTruncator, &*text, width as u16);
 		let expected = vec![text];
 		assert_eq!(word_wrapper, expected);
@@ -81,8 +65,7 @@ fn line_composer_short_lines() {
 fn line_composer_long_word() {
 	let width = 20;
 	let text = "abcdefghijklmnopabcdefghijklmnopabcdefghijklmnopabcdefghijklmno";
-	let (word_wrapper, _, _) =
-		run_composer(Composer::WordWrapper { trim: true }, text, width as u16);
+	let (word_wrapper, _, _) = run_composer(Composer::WordWrapper { trim: true }, text, width as u16);
 	let (line_truncator, _, _) = run_composer(Composer::LineTruncator, text, width as u16);
 
 	let wrapped = vec![
@@ -105,22 +88,11 @@ fn line_composer_long_sentence() {
 	let text = "abcd efghij klmnopabcd efgh ijklmnopabcdefg hijkl mnopab c d e f g h i j k l m n o";
 	let text_multi_space = "abcd efghij    klmnopabcd efgh     ijklmnopabcdefg hijkl mnopab c d e f g h i j k l \
          m n o";
-	let (word_wrapper_single_space, _, _) =
-		run_composer(Composer::WordWrapper { trim: true }, text, width as u16);
-	let (word_wrapper_multi_space, _, _) = run_composer(
-		Composer::WordWrapper { trim: true },
-		text_multi_space,
-		width as u16,
-	);
+	let (word_wrapper_single_space, _, _) = run_composer(Composer::WordWrapper { trim: true }, text, width as u16);
+	let (word_wrapper_multi_space, _, _) = run_composer(Composer::WordWrapper { trim: true }, text_multi_space, width as u16);
 	let (line_truncator, _, _) = run_composer(Composer::LineTruncator, text, width as u16);
 
-	let word_wrapped = vec![
-		"abcd efghij",
-		"klmnopabcd efgh",
-		"ijklmnopabcdefg",
-		"hijkl mnopab c d e f",
-		"g h i j k l m n o",
-	];
+	let word_wrapped = vec!["abcd efghij", "klmnopabcd efgh", "ijklmnopabcdefg", "hijkl mnopab c d e f", "g h i j k l m n o"];
 	assert_eq!(word_wrapper_single_space, word_wrapped);
 	assert_eq!(word_wrapper_multi_space, word_wrapped);
 
@@ -172,13 +144,7 @@ fn line_composer_word_wrapper_mixed_length() {
 	let (word_wrapper, _, _) = run_composer(Composer::WordWrapper { trim: true }, text, width);
 	assert_eq!(
 		word_wrapper,
-		vec![
-			"abcd efghij",
-			"klmnopabcdefghijklmn",
-			"opabcdefghijkl",
-			"mnopab cdefghi j",
-			"klmno",
-		]
+		vec!["abcd efghij", "klmnopabcdefghijklmn", "opabcdefghijkl", "mnopab cdefghi j", "klmno",]
 	);
 }
 
@@ -187,8 +153,7 @@ fn line_composer_double_width_chars() {
 	let width = 20;
 	let text = "コンピュータ上で文字を扱う場合、典型的には文字による通信を行う場合にその両端点\
                 では、";
-	let (word_wrapper, word_wrapper_width, _) =
-		run_composer(Composer::WordWrapper { trim: true }, text, width);
+	let (word_wrapper, word_wrapper_width, _) = run_composer(Composer::WordWrapper { trim: true }, text, width);
 	let (line_truncator, _, _) = run_composer(Composer::LineTruncator, text, width);
 	assert_eq!(line_truncator, ["コンピュータ上で文字"]);
 	let wrapped = [
@@ -238,10 +203,8 @@ fn line_composer_char_plus_lots_of_spaces() {
 #[test]
 fn line_composer_word_wrapper_double_width_chars_mixed_with_spaces() {
 	let width = 20;
-	let text =
-		"コンピュ ータ上で文字を扱う場合、 典型的には文 字による 通信を行 う場合にその両端点では、";
-	let (word_wrapper, word_wrapper_width, _) =
-		run_composer(Composer::WordWrapper { trim: true }, text, width);
+	let text = "コンピュ ータ上で文字を扱う場合、 典型的には文 字による 通信を行 う場合にその両端点では、";
+	let (word_wrapper, word_wrapper_width, _) = run_composer(Composer::WordWrapper { trim: true }, text, width);
 	assert_eq!(
 		word_wrapper,
 		vec![
@@ -262,15 +225,13 @@ fn line_composer_word_wrapper_double_width_chars_mixed_with_spaces() {
 fn line_composer_word_wrapper_nbsp() {
 	let width = 20;
 	let text = "AAAAAAAAAAAAAAA AAAA\u{00a0}AAA";
-	let (word_wrapper, word_wrapper_widths, _) =
-		run_composer(Composer::WordWrapper { trim: true }, text, width);
+	let (word_wrapper, word_wrapper_widths, _) = run_composer(Composer::WordWrapper { trim: true }, text, width);
 	assert_eq!(word_wrapper, ["AAAAAAAAAAAAAAA", "AAAA\u{00a0}AAA"]);
 	assert_eq!(word_wrapper_widths, [15, 8]);
 
 	// Ensure that if the character was a regular space, it would be wrapped differently.
 	let text_space = text.replace('\u{00a0}', " ");
-	let (word_wrapper_space, word_wrapper_widths, _) =
-		run_composer(Composer::WordWrapper { trim: true }, text_space, width);
+	let (word_wrapper_space, word_wrapper_widths, _) = run_composer(Composer::WordWrapper { trim: true }, text_space, width);
 	assert_eq!(word_wrapper_space, ["AAAAAAAAAAAAAAA AAAA", "AAA"]);
 	assert_eq!(word_wrapper_widths, [20, 3]);
 }
@@ -288,10 +249,7 @@ fn line_composer_word_wrapper_preserve_indentation_with_wrap() {
 	let width = 10;
 	let text = "AAA AAA AAAAA AA AAAAAA\n B\n  C\n   D";
 	let (word_wrapper, _, _) = run_composer(Composer::WordWrapper { trim: false }, text, width);
-	assert_eq!(
-		word_wrapper,
-		vec!["AAA AAA", "AAAAA AA", "AAAAAA", " B", "  C", "   D"]
-	);
+	assert_eq!(word_wrapper, vec!["AAA AAA", "AAAAA AA", "AAAAAA", " B", "  C", "   D"]);
 }
 
 #[test]
@@ -299,17 +257,7 @@ fn line_composer_word_wrapper_preserve_indentation_lots_of_whitespace() {
 	let width = 10;
 	let text = "               4 Indent\n                 must wrap!";
 	let (word_wrapper, _, _) = run_composer(Composer::WordWrapper { trim: false }, text, width);
-	assert_eq!(
-		word_wrapper,
-		vec![
-			"          ",
-			"    4",
-			"Indent",
-			"          ",
-			"      must",
-			"wrap!"
-		]
-	);
+	assert_eq!(word_wrapper, vec!["          ", "    4", "Indent", "          ", "      must", "wrap!"]);
 }
 
 #[test]
@@ -330,8 +278,7 @@ fn line_composer_preserves_line_alignment() {
 		Line::from("This is right aligned and half short.").alignment(HorizontalAlignment::Right),
 		Line::from("This should sit in the center.").alignment(HorizontalAlignment::Center),
 	];
-	let (_, _, wrapped_alignments) =
-		run_composer(Composer::WordWrapper { trim: true }, lines.clone(), width);
+	let (_, _, wrapped_alignments) = run_composer(Composer::WordWrapper { trim: true }, lines.clone(), width);
 	let (_, _, truncated_alignments) = run_composer(Composer::LineTruncator, lines, width);
 	assert_eq!(
 		wrapped_alignments,
@@ -347,11 +294,7 @@ fn line_composer_preserves_line_alignment() {
 	);
 	assert_eq!(
 		truncated_alignments,
-		vec![
-			HorizontalAlignment::Left,
-			HorizontalAlignment::Right,
-			HorizontalAlignment::Center
-		]
+		vec![HorizontalAlignment::Left, HorizontalAlignment::Right, HorizontalAlignment::Center]
 	);
 }
 

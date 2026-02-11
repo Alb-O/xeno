@@ -92,11 +92,7 @@ pub struct ServerConfig {
 
 impl ServerConfig {
 	/// Create a new server configuration.
-	pub fn new(
-		id: LanguageServerId,
-		command: impl Into<String>,
-		root_path: impl Into<PathBuf>,
-	) -> Self {
+	pub fn new(id: LanguageServerId, command: impl Into<String>, root_path: impl Into<PathBuf>) -> Self {
 		Self {
 			id,
 			command: command.into(),
@@ -115,10 +111,7 @@ impl ServerConfig {
 	}
 
 	/// Add environment variables.
-	pub fn env(
-		mut self,
-		env: impl IntoIterator<Item = (impl Into<String>, impl Into<String>)>,
-	) -> Self {
+	pub fn env(mut self, env: impl IntoIterator<Item = (impl Into<String>, impl Into<String>)>) -> Self {
 		self.env = env.into_iter().map(|(k, v)| (k.into(), v.into())).collect();
 		self
 	}
@@ -142,18 +135,9 @@ mod tests {
 
 	#[test]
 	fn test_offset_encoding_from_lsp() {
-		assert_eq!(
-			OffsetEncoding::from_lsp(&PositionEncodingKind::UTF8),
-			Some(OffsetEncoding::Utf8)
-		);
-		assert_eq!(
-			OffsetEncoding::from_lsp(&PositionEncodingKind::UTF16),
-			Some(OffsetEncoding::Utf16)
-		);
-		assert_eq!(
-			OffsetEncoding::from_lsp(&PositionEncodingKind::UTF32),
-			Some(OffsetEncoding::Utf32)
-		);
+		assert_eq!(OffsetEncoding::from_lsp(&PositionEncodingKind::UTF8), Some(OffsetEncoding::Utf8));
+		assert_eq!(OffsetEncoding::from_lsp(&PositionEncodingKind::UTF16), Some(OffsetEncoding::Utf16));
+		assert_eq!(OffsetEncoding::from_lsp(&PositionEncodingKind::UTF32), Some(OffsetEncoding::Utf32));
 	}
 
 	#[test]

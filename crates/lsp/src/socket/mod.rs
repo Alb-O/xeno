@@ -116,10 +116,7 @@ impl PeerSocket {
 		// If this fails, the oneshot channel will also be closed, and it is handled by
 		// `PeerSocketRequestFuture`.
 		let _: Result<_, _> = self.send(MainLoopEvent::OutgoingRequest(req, tx));
-		PeerSocketRequestFuture {
-			rx,
-			_marker: PhantomData,
-		}
+		PeerSocketRequestFuture { rx, _marker: PhantomData }
 	}
 
 	/// Sends a typed notification to the peer.
@@ -155,11 +152,7 @@ impl<T: DeserializeOwned> Future for PeerSocketRequestFuture<T> {
 	type Output = Result<T>;
 
 	fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-		let resp = ready!(
-			Pin::new(&mut self.rx)
-				.poll(cx)
-				.map_err(|_| Error::ServiceStopped)
-		)?;
+		let resp = ready!(Pin::new(&mut self.rx).poll(cx).map_err(|_| Error::ServiceStopped))?;
 		Poll::Ready(match resp.error {
 			None => Ok(serde_json::from_value(resp.result.unwrap_or_default())?),
 			Some(err) => Err(Error::Response(err)),

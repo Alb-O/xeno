@@ -35,21 +35,13 @@ impl Parse for NotificationInput {
 			fields.push((name, val));
 		}
 
-		Ok(NotificationInput {
-			static_name,
-			id,
-			fields,
-		})
+		Ok(NotificationInput { static_name, id, fields })
 	}
 }
 
 /// Entry point for the `register_notification!` macro.
 pub fn register_notification(input: TokenStream) -> TokenStream {
-	let NotificationInput {
-		static_name,
-		id,
-		fields,
-	} = parse_macro_input!(input as NotificationInput);
+	let NotificationInput { static_name, id, fields } = parse_macro_input!(input as NotificationInput);
 
 	let mut level = quote! { xeno_registry::notifications::Level::Info };
 	let mut semantic = quote! { xeno_registry::themes::SEMANTIC_INFO };
@@ -73,9 +65,7 @@ pub fn register_notification(input: TokenStream) -> TokenStream {
 			"animation" => animation = quote! { #val },
 			"timing" => timing = quote! { #val },
 			_ => {
-				return syn::Error::new(name.span(), "Unknown notification field")
-					.to_compile_error()
-					.into();
+				return syn::Error::new(name.span(), "Unknown notification field").to_compile_error().into();
 			}
 		}
 	}

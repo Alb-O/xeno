@@ -4,9 +4,8 @@ use std::sync::Arc;
 use crate::actions::KeyPrefixDef;
 use crate::core::plugin::PluginDef;
 pub use crate::core::{
-	ActionId, Capability, CommandError, CommandId, DuplicatePolicy, GutterId, HookId, KeyKind,
-	LanguageId, MotionId, OptionId, RegistryBuilder, RegistryEntry, RegistryError, RegistryIndex,
-	RegistryMeta, RegistrySource, RuntimeRegistry, StatuslineId, TextObjectId, ThemeId,
+	ActionId, Capability, CommandError, CommandId, DuplicatePolicy, GutterId, HookId, KeyKind, LanguageId, MotionId, OptionId, RegistryBuilder, RegistryEntry,
+	RegistryError, RegistryIndex, RegistryMeta, RegistrySource, RuntimeRegistry, StatuslineId, TextObjectId, ThemeId,
 };
 use crate::options::OptionDef;
 
@@ -125,10 +124,7 @@ impl RegistryDbBuilder {
 
 	pub fn register_plugin(&mut self, plugin: &'static PluginDef) -> Result<(), RegistryError> {
 		if !self.plugin_ids.insert(plugin.meta.id) {
-			return Err(RegistryError::Plugin(format!(
-				"duplicate plugin id {}",
-				plugin.meta.id
-			)));
+			return Err(RegistryError::Plugin(format!("duplicate plugin id {}", plugin.meta.id)));
 		}
 
 		let before = DomainCounts::snapshot(self);

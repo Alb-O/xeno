@@ -98,14 +98,7 @@ impl IncrementalMatcher {
 		let common_prefix_len = self
 			.needle
 			.as_ref()
-			.map(|prev_needle| {
-				needle
-					.as_bytes()
-					.iter()
-					.zip(prev_needle.as_bytes())
-					.take_while(|&(&a, &b)| a == b)
-					.count()
-			})
+			.map(|prev_needle| needle.as_bytes().iter().zip(prev_needle.as_bytes()).take_while(|&(&a, &b)| a == b).count())
 			.unwrap_or(0);
 
 		self.process(common_prefix_len, needle, &mut matches, config);
@@ -118,23 +111,11 @@ impl IncrementalMatcher {
 		matches
 	}
 
-	fn process(
-		&mut self,
-		prefix_to_keep: usize,
-		needle: &str,
-		matches: &mut Vec<Match>,
-		config: &Config,
-	) {
+	fn process(&mut self, prefix_to_keep: usize, needle: &str, matches: &mut Vec<Match>, config: &Config) {
 		let needle = &needle.as_bytes()[prefix_to_keep..];
 
 		for bucket in self.buckets.iter_mut() {
-			bucket.process(
-				prefix_to_keep,
-				needle,
-				matches,
-				config.max_typos,
-				&config.scoring,
-			);
+			bucket.process(prefix_to_keep, needle, matches, config.max_typos, &config.scoring);
 		}
 	}
 }
@@ -176,14 +157,8 @@ mod tests {
 	#[test]
 	#[ignore = "Incremental matcher doesn't support exact matches until we implement them in SIMD"]
 	fn test_score_exact_match() {
-		assert_eq!(
-			get_score("a", "a"),
-			CHAR_SCORE + EXACT_MATCH_BONUS + PREFIX_BONUS
-		);
-		assert_eq!(
-			get_score("abc", "abc"),
-			3 * CHAR_SCORE + EXACT_MATCH_BONUS + PREFIX_BONUS
-		);
+		assert_eq!(get_score("a", "a"), CHAR_SCORE + EXACT_MATCH_BONUS + PREFIX_BONUS);
+		assert_eq!(get_score("abc", "abc"), 3 * CHAR_SCORE + EXACT_MATCH_BONUS + PREFIX_BONUS);
 		assert_eq!(get_score("ab", "abc"), 2 * CHAR_SCORE + PREFIX_BONUS);
 		// assert_eq!(run_single("abc", "ab"), 2 * CHAR_SCORE + PREFIX_BONUS);
 	}
@@ -206,14 +181,8 @@ mod tests {
 
 	#[test]
 	fn test_score_affine_gap() {
-		assert_eq!(
-			get_score("test", "Uterst"),
-			CHAR_SCORE * 4 - GAP_OPEN_PENALTY
-		);
-		assert_eq!(
-			get_score("test", "Uterrst"),
-			CHAR_SCORE * 4 - GAP_OPEN_PENALTY - GAP_EXTEND_PENALTY
-		);
+		assert_eq!(get_score("test", "Uterst"), CHAR_SCORE * 4 - GAP_OPEN_PENALTY);
+		assert_eq!(get_score("test", "Uterrst"), CHAR_SCORE * 4 - GAP_OPEN_PENALTY - GAP_EXTEND_PENALTY);
 	}
 
 	#[test]

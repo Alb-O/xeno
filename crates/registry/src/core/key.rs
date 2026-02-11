@@ -41,9 +41,7 @@ impl OptionValue {
 	pub fn matches_type(&self, ty: OptionType) -> bool {
 		matches!(
 			(self, ty),
-			(OptionValue::Bool(_), OptionType::Bool)
-				| (OptionValue::Int(_), OptionType::Int)
-				| (OptionValue::String(_), OptionType::String)
+			(OptionValue::Bool(_), OptionType::Bool) | (OptionValue::Int(_), OptionType::Int) | (OptionValue::String(_), OptionType::String)
 		)
 	}
 
@@ -248,10 +246,7 @@ where
 	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
 		match self {
 			Self::Static(id) => f.debug_tuple("LookupKey::Static").field(id).finish(),
-			Self::Ref(r) => f
-				.debug_tuple("LookupKey::Ref")
-				.field(&r.dense_id())
-				.finish(),
+			Self::Ref(r) => f.debug_tuple("LookupKey::Ref").field(&r.dense_id()).finish(),
 		}
 	}
 }

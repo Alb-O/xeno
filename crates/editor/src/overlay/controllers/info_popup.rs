@@ -13,9 +13,7 @@ impl OverlayLayer for InfoPopupLayer {
 	}
 
 	fn is_visible(&self, ed: &Editor) -> bool {
-		ed.overlays()
-			.get::<InfoPopupStore>()
-			.is_some_and(|s| !s.is_empty())
+		ed.overlays().get::<InfoPopupStore>().is_some_and(|s| !s.is_empty())
 	}
 
 	fn layout(&self, _ed: &Editor, _screen: Rect) -> Option<Rect> {
@@ -30,9 +28,7 @@ impl OverlayLayer for InfoPopupLayer {
 
 	fn on_event(&mut self, ed: &mut Editor, event: &LayerEvent) {
 		match event {
-			LayerEvent::CursorMoved { .. }
-			| LayerEvent::ModeChanged { .. }
-			| LayerEvent::FocusChanged { .. } => {
+			LayerEvent::CursorMoved { .. } | LayerEvent::ModeChanged { .. } | LayerEvent::FocusChanged { .. } => {
 				ed.close_all_info_popups();
 			}
 			_ => {}

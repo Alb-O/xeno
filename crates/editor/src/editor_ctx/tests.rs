@@ -2,9 +2,7 @@
 
 use xeno_primitives::range::CharIdx;
 use xeno_primitives::{Mode, Selection};
-use xeno_registry::actions::editor_ctx::{
-	CursorAccess, EditorCapabilities, ModeAccess, NotificationAccess, SelectionAccess,
-};
+use xeno_registry::actions::editor_ctx::{CursorAccess, EditorCapabilities, ModeAccess, NotificationAccess, SelectionAccess};
 use xeno_registry::actions::{ActionEffects, AppEffect, UiEffect, ViewEffect};
 use xeno_registry::notifications::Notification;
 
@@ -59,8 +57,7 @@ impl SelectionAccess for MockEditor {
 	}
 
 	fn set_selection(&mut self, sel: Selection) {
-		self.effect_log
-			.push(format!("set_selection:{}", sel.primary().head));
+		self.effect_log.push(format!("set_selection:{}", sel.primary().head));
 		self.selection = sel;
 	}
 }
@@ -96,9 +93,7 @@ fn effects_apply_in_order() {
 
 	let effects = ActionEffects::new()
 		.with(ViewEffect::SetCursor(CharIdx::from(10usize)))
-		.with(ViewEffect::SetSelection(Selection::point(CharIdx::from(
-			20usize,
-		))))
+		.with(ViewEffect::SetSelection(Selection::point(CharIdx::from(20usize))))
 		.with(AppEffect::SetMode(Mode::Insert));
 
 	apply_effects(&effects, &mut ctx, false);
@@ -142,11 +137,7 @@ fn multiple_cursor_updates_apply_sequentially() {
 
 	assert_eq!(editor.cursor, 15);
 
-	let cursor_calls: Vec<_> = editor
-		.effect_log
-		.iter()
-		.filter(|s| s.starts_with("set_cursor:"))
-		.collect();
+	let cursor_calls: Vec<_> = editor.effect_log.iter().filter(|s| s.starts_with("set_cursor:")).collect();
 	assert_eq!(cursor_calls.len(), 3);
 	assert_eq!(cursor_calls[0], "set_cursor:5");
 	assert_eq!(cursor_calls[1], "set_cursor:10");
@@ -158,9 +149,7 @@ fn notify_effect_emits_notification() {
 	let mut editor = MockEditor::new();
 	let mut ctx = xeno_registry::actions::editor_ctx::EditorContext::new(&mut editor);
 
-	let effects = ActionEffects::from_effect(
-		UiEffect::Notify(xeno_registry::notifications::keys::UNDO.into()).into(),
-	);
+	let effects = ActionEffects::from_effect(UiEffect::Notify(xeno_registry::notifications::keys::UNDO.into()).into());
 	apply_effects(&effects, &mut ctx, false);
 
 	assert_eq!(editor.notifications.len(), 1);
@@ -199,10 +188,7 @@ fn quit_effect_returns_quit_outcome() {
 	let effects = ActionEffects::quit();
 	let outcome = apply_effects(&effects, &mut ctx, false);
 
-	assert!(matches!(
-		outcome,
-		xeno_registry::actions::editor_ctx::HandleOutcome::Quit
-	));
+	assert!(matches!(outcome, xeno_registry::actions::editor_ctx::HandleOutcome::Quit));
 }
 
 #[test]
@@ -213,10 +199,7 @@ fn non_quit_effects_return_handled_outcome() {
 	let effects = ActionEffects::cursor(CharIdx::from(10usize));
 	let outcome = apply_effects(&effects, &mut ctx, false);
 
-	assert!(matches!(
-		outcome,
-		xeno_registry::actions::editor_ctx::HandleOutcome::Handled
-	));
+	assert!(matches!(outcome, xeno_registry::actions::editor_ctx::HandleOutcome::Handled));
 }
 
 /// Selection must be applied before mode change so mode-entry logic sees
@@ -231,21 +214,10 @@ fn selection_applied_before_mode_change() {
 
 	apply_effects(&effects, &mut ctx, false);
 
-	let sel_idx = editor
-		.effect_log
-		.iter()
-		.position(|s| s.starts_with("set_selection:"))
-		.unwrap();
-	let mode_idx = editor
-		.effect_log
-		.iter()
-		.position(|s| s.starts_with("set_mode:"))
-		.unwrap();
+	let sel_idx = editor.effect_log.iter().position(|s| s.starts_with("set_selection:")).unwrap();
+	let mode_idx = editor.effect_log.iter().position(|s| s.starts_with("set_mode:")).unwrap();
 
-	assert!(
-		sel_idx < mode_idx,
-		"Selection must be applied before mode change"
-	);
+	assert!(sel_idx < mode_idx, "Selection must be applied before mode change");
 	assert_eq!(editor.mode, Mode::Insert);
 	assert_eq!(editor.cursor, 42);
 }
@@ -263,10 +235,7 @@ fn effects_after_quit_still_execute() {
 
 	let outcome = apply_effects(&effects, &mut ctx, false);
 
-	assert!(matches!(
-		outcome,
-		xeno_registry::actions::editor_ctx::HandleOutcome::Quit
-	));
+	assert!(matches!(outcome, xeno_registry::actions::editor_ctx::HandleOutcome::Quit));
 	assert_eq!(editor.cursor, 99);
 	assert_eq!(editor.mode, Mode::Insert);
 }
@@ -279,9 +248,7 @@ fn notifications_are_side_effects() {
 
 	let effects = ActionEffects::new()
 		.with(ViewEffect::SetCursor(CharIdx::from(10usize)))
-		.with(UiEffect::Notify(
-			xeno_registry::notifications::keys::UNDO.into(),
-		))
+		.with(UiEffect::Notify(xeno_registry::notifications::keys::UNDO.into()))
 		.with(ViewEffect::SetCursor(CharIdx::from(20usize)));
 
 	apply_effects(&effects, &mut ctx, false);

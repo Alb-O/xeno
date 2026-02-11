@@ -48,13 +48,7 @@ fn highlight_spacing_default_when_selected() {
 		let list = List::new(["Item 0", "Item 1", "Item 2"]).highlight_symbol(">>");
 		let mut state = ListState::default();
 		let buffer = stateful_widget(list, &mut state, 10, 5);
-		let expected = Buffer::with_lines([
-			"Item 0    ",
-			"Item 1    ",
-			"Item 2    ",
-			"          ",
-			"          ",
-		]);
+		let expected = Buffer::with_lines(["Item 0    ", "Item 1    ", "Item 2    ", "          ", "          "]);
 		assert_eq!(buffer, expected);
 	}
 
@@ -64,13 +58,7 @@ fn highlight_spacing_default_when_selected() {
 		let mut state = ListState::default();
 		state.select(Some(1));
 		let buffer = stateful_widget(list, &mut state, 10, 5);
-		let expected = Buffer::with_lines([
-			"  Item 0  ",
-			">>Item 1  ",
-			"  Item 2  ",
-			"          ",
-			"          ",
-		]);
+		let expected = Buffer::with_lines(["  Item 0  ", ">>Item 1  ", "  Item 2  ", "          ", "          "]);
 		assert_eq!(buffer, expected);
 	}
 }
@@ -84,13 +72,7 @@ fn highlight_spacing_default_always() {
 			.highlight_spacing(HighlightSpacing::Always);
 		let mut state = ListState::default();
 		let buffer = stateful_widget(list, &mut state, 10, 5);
-		let expected = Buffer::with_lines([
-			"  Item 0  ",
-			"  Item 1  ",
-			"  Item 2  ",
-			"          ",
-			"          ",
-		]);
+		let expected = Buffer::with_lines(["  Item 0  ", "  Item 1  ", "  Item 2  ", "          ", "          "]);
 		assert_eq!(buffer, expected);
 	}
 
@@ -102,13 +84,7 @@ fn highlight_spacing_default_always() {
 		let mut state = ListState::default();
 		state.select(Some(1));
 		let buffer = stateful_widget(list, &mut state, 10, 5);
-		let expected = Buffer::with_lines([
-			"  Item 0  ",
-			">>Item 1  ",
-			"  Item 2  ",
-			"          ",
-			"          ",
-		]);
+		let expected = Buffer::with_lines(["  Item 0  ", ">>Item 1  ", "  Item 2  ", "          ", "          "]);
 		assert_eq!(buffer, expected);
 	}
 }
@@ -122,13 +98,7 @@ fn highlight_spacing_default_never() {
 			.highlight_spacing(HighlightSpacing::Never);
 		let mut state = ListState::default();
 		let buffer = stateful_widget(list, &mut state, 10, 5);
-		let expected = Buffer::with_lines([
-			"Item 0    ",
-			"Item 1    ",
-			"Item 2    ",
-			"          ",
-			"          ",
-		]);
+		let expected = Buffer::with_lines(["Item 0    ", "Item 1    ", "Item 2    ", "          ", "          "]);
 		assert_eq!(buffer, expected);
 	}
 
@@ -140,13 +110,7 @@ fn highlight_spacing_default_never() {
 		let mut state = ListState::default();
 		state.select(Some(1));
 		let buffer = stateful_widget(list, &mut state, 10, 5);
-		let expected = Buffer::with_lines([
-			"Item 0    ",
-			"Item 1    ",
-			"Item 2    ",
-			"          ",
-			"          ",
-		]);
+		let expected = Buffer::with_lines(["Item 0    ", "Item 1    ", "Item 2    ", "          ", "          "]);
 		assert_eq!(buffer, expected);
 	}
 }
@@ -179,12 +143,7 @@ fn repeat_highlight_symbol() {
 #[case::under(">>>>", "Item1", ">>>>Item1 ")] // enough space to render the highlight symbol
 #[case::exact(">>>>>", "Item1", ">>>>>Item1")] // exact space to render the highlight symbol
 #[case::overflow(">>>>>>", "Item1", ">>>>>>Item")] // not enough space
-fn highlight_symbol_overflow(
-	#[case] highlight_symbol: &str,
-	#[case] item: &str,
-	#[case] expected: &str,
-	mut single_line_buf: Buffer,
-) {
+fn highlight_symbol_overflow(#[case] highlight_symbol: &str, #[case] item: &str, #[case] expected: &str, mut single_line_buf: Buffer) {
 	let list = List::new([item]).highlight_symbol(highlight_symbol);
 	let mut state = ListState::default();
 	state.select(Some(0));

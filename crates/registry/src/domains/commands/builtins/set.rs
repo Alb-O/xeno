@@ -8,9 +8,7 @@ command_handler!(set, handler: cmd_set);
 
 command_handler!(setlocal, handler: cmd_setlocal);
 
-fn cmd_set<'a>(
-	ctx: &'a mut CommandContext<'a>,
-) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
+fn cmd_set<'a>(ctx: &'a mut CommandContext<'a>) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
 		if ctx.args.is_empty() {
 			return Ok(CommandOutcome::Ok);
@@ -23,9 +21,7 @@ fn cmd_set<'a>(
 	})
 }
 
-fn cmd_setlocal<'a>(
-	ctx: &'a mut CommandContext<'a>,
-) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
+fn cmd_setlocal<'a>(ctx: &'a mut CommandContext<'a>) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
 		if ctx.args.is_empty() {
 			return Ok(CommandOutcome::Ok);

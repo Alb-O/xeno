@@ -5,9 +5,7 @@ use crate::actions::def::ActionHandler;
 use crate::actions::entry::ActionEntry;
 use crate::actions::handler::ActionHandlerStatic;
 use crate::actions::{BindingMode, KeyBindingDef, KeyPrefixDef};
-use crate::core::{
-	Capability, LinkedDef, LinkedMetaOwned, LinkedPayload, RegistryMeta, RegistrySource, Symbol,
-};
+use crate::core::{Capability, LinkedDef, LinkedMetaOwned, LinkedPayload, RegistryMeta, RegistrySource, Symbol};
 
 /// An action definition assembled from spec + Rust handler.
 pub type LinkedActionDef = LinkedDef<ActionPayload>;
@@ -19,12 +17,7 @@ pub struct ActionPayload {
 }
 
 impl LinkedPayload<ActionEntry> for ActionPayload {
-	fn build_entry(
-		&self,
-		_ctx: &mut dyn crate::core::index::BuildCtx,
-		meta: RegistryMeta,
-		short_desc: Symbol,
-	) -> ActionEntry {
+	fn build_entry(&self, _ctx: &mut dyn crate::core::index::BuildCtx, meta: RegistryMeta, short_desc: Symbol) -> ActionEntry {
 		ActionEntry {
 			meta,
 			short_desc,
@@ -72,10 +65,7 @@ pub(crate) fn parse_capability(name: &str) -> Capability {
 }
 
 /// Links spec with handler statics, producing `LinkedActionDef`s.
-pub fn link_actions(
-	spec: &ActionsSpec,
-	handlers: impl Iterator<Item = &'static ActionHandlerStatic>,
-) -> Vec<LinkedActionDef> {
+pub fn link_actions(spec: &ActionsSpec, handlers: impl Iterator<Item = &'static ActionHandlerStatic>) -> Vec<LinkedActionDef> {
 	crate::defs::link::link_by_name(
 		&spec.actions,
 		handlers,
@@ -100,12 +90,7 @@ pub fn link_actions(
 					source: RegistrySource::Crate(handler.crate_name),
 					required_caps,
 					flags: common.flags,
-					short_desc: Some(
-						common
-							.short_desc
-							.clone()
-							.unwrap_or_else(|| common.description.clone()),
-					),
+					short_desc: Some(common.short_desc.clone().unwrap_or_else(|| common.description.clone())),
 				},
 				payload: ActionPayload {
 					handler: handler.handler,

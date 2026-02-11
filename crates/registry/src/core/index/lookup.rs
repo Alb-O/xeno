@@ -17,16 +17,10 @@ use std::sync::Arc;
 
 use rustc_hash::FxHashMap;
 
-use crate::core::{
-	Collision, CollisionKind, DenseId, KeyKind, Party, RegistryEntry, Resolution, Snapshot, Symbol,
-};
+use crate::core::{Collision, CollisionKind, DenseId, KeyKind, Party, RegistryEntry, Resolution, Snapshot, Symbol};
 
 /// Collects all lookup symbols for an entry that may require collision recalculation.
-pub(crate) fn collect_symbols_for_collision_recalc<T: RegistryEntry>(
-	entry: &T,
-	key_pool: &[Symbol],
-	sink: &mut std::collections::HashSet<Symbol>,
-) {
+pub(crate) fn collect_symbols_for_collision_recalc<T: RegistryEntry>(entry: &T, key_pool: &[Symbol], sink: &mut std::collections::HashSet<Symbol>) {
 	sink.insert(entry.id());
 	sink.insert(entry.name());
 	let meta = entry.meta();
@@ -80,15 +74,7 @@ where
 		}
 
 		// Within-stage conflict resolution
-		resolve_stage_b(
-			registry_label,
-			name_sym,
-			dense_id,
-			party,
-			parties,
-			&mut by_name,
-			&mut collisions,
-		);
+		resolve_stage_b(registry_label, name_sym, dense_id, party, parties, &mut by_name, &mut collisions);
 	}
 
 	// Stage C: Secondary Keys
@@ -138,15 +124,7 @@ where
 			}
 
 			// Within-stage conflict resolution
-			resolve_stage_c(
-				registry_label,
-				key,
-				dense_id,
-				party,
-				parties,
-				&mut by_key,
-				&mut collisions,
-			);
+			resolve_stage_c(registry_label, key, dense_id, party, parties, &mut by_key, &mut collisions);
 		}
 	}
 
@@ -289,15 +267,7 @@ where
 			},
 		});
 	} else {
-		resolve_stage_b(
-			registry_label,
-			name_sym,
-			dense_id,
-			party,
-			parties,
-			&mut by_name,
-			&mut collisions,
-		);
+		resolve_stage_b(registry_label, name_sym, dense_id, party, parties, &mut by_name, &mut collisions);
 	}
 
 	// Stage C: Secondary Keys
@@ -339,15 +309,7 @@ where
 			continue;
 		}
 
-		resolve_stage_c(
-			registry_label,
-			key,
-			dense_id,
-			party,
-			parties,
-			&mut by_key,
-			&mut collisions,
-		);
+		resolve_stage_c(registry_label, key, dense_id, party, parties, &mut by_key, &mut collisions);
 	}
 
 	collisions.sort_by(Collision::stable_cmp);
@@ -373,54 +335,26 @@ where
 
 	// Collect all affected keys from old and new entry
 	let mut affected_keys = std::collections::HashSet::default();
-	collect_symbols_for_collision_recalc(
-		old_snap.table[replaced_idx].as_ref(),
-		old_snap.key_pool.as_ref(),
-		&mut affected_keys,
-	);
-	collect_symbols_for_collision_recalc(
-		table[replaced_idx].as_ref(),
-		key_pool,
-		&mut affected_keys,
-	);
+	collect_symbols_for_collision_recalc(old_snap.table[replaced_idx].as_ref(), old_snap.key_pool.as_ref(), &mut affected_keys);
+	collect_symbols_for_collision_recalc(table[replaced_idx].as_ref(), key_pool, &mut affected_keys);
 
 	// Filter out collisions for affected keys (will be recomputed)
 	// Note: We preserve DuplicateId collisions as they record overrides, not key conflicts.
 	let mut collisions: Vec<Collision> = old_snap
 		.collisions
 		.iter()
-		.filter(|c| {
-			matches!(c.kind, CollisionKind::DuplicateId { .. }) || !affected_keys.contains(&c.key)
-		})
+		.filter(|c| matches!(c.kind, CollisionKind::DuplicateId { .. }) || !affected_keys.contains(&c.key))
 		.cloned()
 		.collect();
 
 	// Recalculate winners for affected keys
 	// First Stage B, then Stage C (because Stage C depends on Stage B)
 	for &key in &affected_keys {
-		recalculate_stage_b_winner(
-			registry_label,
-			key,
-			&mut by_name,
-			&mut collisions,
-			table,
-			parties,
-			new_by_id,
-		);
+		recalculate_stage_b_winner(registry_label, key, &mut by_name, &mut collisions, table, parties, new_by_id);
 	}
 
 	for &key in &affected_keys {
-		recalculate_stage_c_winner(
-			registry_label,
-			key,
-			&mut by_key,
-			&mut collisions,
-			table,
-			parties,
-			key_pool,
-			new_by_id,
-			&by_name,
-		);
+		recalculate_stage_c_winner(registry_label, key, &mut by_key, &mut collisions, table, parties, key_pool, new_by_id, &by_name);
 	}
 
 	collisions.sort_by(Collision::stable_cmp);
@@ -514,11 +448,7 @@ fn recalculate_stage_b_winner<T, Id>(
 	by_name.insert(key, winner_id);
 }
 
-fn entry_has_secondary_key<T: RegistryEntry>(
-	entry: &Arc<T>,
-	key_pool: &[Symbol],
-	key: Symbol,
-) -> bool {
+fn entry_has_secondary_key<T: RegistryEntry>(entry: &Arc<T>, key_pool: &[Symbol], key: Symbol) -> bool {
 	let meta = entry.meta();
 	let start = meta.keys.start as usize;
 	let len = meta.keys.len as usize;

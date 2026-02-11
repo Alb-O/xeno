@@ -5,9 +5,7 @@ use rustc_hash::FxHashMap;
 use tokio::sync::Semaphore;
 use tokio::task::JoinHandle;
 use xeno_primitives::{ChangeSet, Rope};
-use xeno_runtime_language::syntax::{
-	InjectionPolicy, SealedSource, Syntax, SyntaxError, SyntaxOptions,
-};
+use xeno_runtime_language::syntax::{InjectionPolicy, SealedSource, Syntax, SyntaxError, SyntaxOptions};
 use xeno_runtime_language::{LanguageId, LanguageLoader};
 
 use super::engine::SyntaxEngine;
@@ -89,13 +87,7 @@ impl TaskCollector {
 		}
 	}
 
-	pub(super) fn spawn(
-		&mut self,
-		permits: Arc<Semaphore>,
-		engine: Arc<dyn SyntaxEngine>,
-		spec: TaskSpec,
-		reserve: usize,
-	) -> Option<TaskId> {
+	pub(super) fn spawn(&mut self, permits: Arc<Semaphore>, engine: Arc<dyn SyntaxEngine>, spec: TaskSpec, reserve: usize) -> Option<TaskId> {
 		let is_viewport = matches!(spec.kind, TaskKind::ViewportParse { .. });
 
 		let permit = if is_viewport {
@@ -120,35 +112,19 @@ impl TaskCollector {
 
 			let t0 = Instant::now();
 			let result = match spec.kind {
-				TaskKind::FullParse { content } => {
-					engine.parse(content.slice(..), spec.lang_id, &spec.loader, spec.opts)
-				}
+				TaskKind::FullParse { content } => engine.parse(content.slice(..), spec.lang_id, &spec.loader, spec.opts),
 				TaskKind::ViewportParse { content, window } => {
 					if let Some(data) = spec.loader.get(spec.lang_id) {
-						let repair: xeno_runtime_language::syntax::ViewportRepair =
-							data.viewport_repair();
+						let repair: xeno_runtime_language::syntax::ViewportRepair = data.viewport_repair();
 						let forward_haystack = if window.end < content.len_bytes() as u32 {
 							Some(content.byte_slice(window.end as usize..))
 						} else {
 							None
 						};
-						let plan = repair.scan(
-							content.byte_slice(window.start as usize..window.end as usize),
-							forward_haystack,
-						);
-						let end = (window.end as usize + plan.extension_bytes as usize)
-							.min(content.len_bytes());
-						let sealed = Arc::new(SealedSource::from_window(
-							content.byte_slice(window.start as usize..end),
-							&plan.suffix,
-						));
-						Syntax::new_viewport(
-							sealed,
-							spec.lang_id,
-							&spec.loader,
-							spec.opts,
-							window.start,
-						)
+						let plan = repair.scan(content.byte_slice(window.start as usize..window.end as usize), forward_haystack);
+						let end = (window.end as usize + plan.extension_bytes as usize).min(content.len_bytes());
+						let sealed = Arc::new(SealedSource::from_window(content.byte_slice(window.start as usize..end), &plan.suffix));
+						Syntax::new_viewport(sealed, spec.lang_id, &spec.loader, spec.opts, window.start)
 					} else {
 						Err(SyntaxError::NoLanguage)
 					}
@@ -158,15 +134,7 @@ impl TaskCollector {
 					old_rope,
 					new_rope,
 					composed,
-				} => engine.update_incremental(
-					base,
-					old_rope.slice(..),
-					new_rope.slice(..),
-					&composed,
-					spec.lang_id,
-					&spec.loader,
-					spec.opts,
-				),
+				} => engine.update_incremental(base, old_rope.slice(..), new_rope.slice(..), &composed, spec.lang_id, &spec.loader, spec.opts),
 			};
 			let elapsed = t0.elapsed();
 

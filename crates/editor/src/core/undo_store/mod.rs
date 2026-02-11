@@ -149,12 +149,7 @@ impl TxnUndoStore {
 	/// - Clears the redo stack.
 	/// - Evicts oldest steps if [`MAX_UNDO`] or [`MAX_UNDO_BYTES`] limits are met.
 	/// - Invalidates `clean_pos` if history branches away from it.
-	pub fn record_transaction(
-		&mut self,
-		redo_tx: Transaction,
-		undo_tx: Transaction,
-		merge: bool,
-	) -> bool {
+	pub fn record_transaction(&mut self, redo_tx: Transaction, undo_tx: Transaction, merge: bool) -> bool {
 		// Invalidate clean_pos if a new edit branches history.
 		// We check against old head_pos before incrementing.
 		if !self.redo_stack.is_empty()
@@ -176,14 +171,8 @@ impl TxnUndoStore {
 			true
 		};
 
-		self.head_pos = self
-			.head_pos
-			.checked_add(1)
-			.expect("undo store: head_pos overflow");
-		self.undo_tx_count = self
-			.undo_tx_count
-			.checked_add(1)
-			.expect("undo store: undo_tx_count overflow");
+		self.head_pos = self.head_pos.checked_add(1).expect("undo store: head_pos overflow");
+		self.undo_tx_count = self.undo_tx_count.checked_add(1).expect("undo store: undo_tx_count overflow");
 
 		self.clear_redo();
 		self.enforce_limits();
@@ -250,10 +239,7 @@ impl TxnUndoStore {
 		// Invalidate clean_pos if it points to evicted history.
 		if let Some(cp) = self.clean_pos {
 			let min_undo_pos = self.head_pos.saturating_sub(self.undo_tx_count);
-			let max_redo_pos = self
-				.head_pos
-				.checked_add(self.redo_tx_count)
-				.expect("undo store: max_redo_pos overflow");
+			let max_redo_pos = self.head_pos.checked_add(self.redo_tx_count).expect("undo store: max_redo_pos overflow");
 
 			if cp < min_undo_pos || cp > max_redo_pos {
 				self.clean_pos = None;
@@ -271,10 +257,7 @@ impl TxnUndoStore {
 		let tx_len = step.undo.len() as u64;
 
 		self.undo_bytes = self.undo_bytes.saturating_sub(step.bytes);
-		self.undo_tx_count = self
-			.undo_tx_count
-			.checked_sub(tx_len)
-			.expect("undo store: undo_tx_count underflow during undo");
+		self.undo_tx_count = self.undo_tx_count.checked_sub(tx_len).expect("undo store: undo_tx_count underflow during undo");
 
 		let mut applied = Vec::with_capacity(step.undo.len());
 		for tx in step.undo.iter().rev() {
@@ -282,15 +265,9 @@ impl TxnUndoStore {
 			applied.push(tx.clone());
 		}
 
-		self.head_pos = self
-			.head_pos
-			.checked_sub(tx_len)
-			.expect("undo store: head_pos underflow during undo");
+		self.head_pos = self.head_pos.checked_sub(tx_len).expect("undo store: head_pos underflow during undo");
 		self.redo_bytes += step.bytes;
-		self.redo_tx_count = self
-			.redo_tx_count
-			.checked_add(tx_len)
-			.expect("undo store: redo_tx_count overflow during undo");
+		self.redo_tx_count = self.redo_tx_count.checked_add(tx_len).expect("undo store: redo_tx_count overflow during undo");
 		self.redo_stack.push_back(step);
 		self.enforce_limits();
 
@@ -308,25 +285,16 @@ impl TxnUndoStore {
 		let step = self.redo_stack.pop_back()?;
 		let tx_len = step.redo.len() as u64;
 		self.redo_bytes = self.redo_bytes.saturating_sub(step.bytes);
-		self.redo_tx_count = self
-			.redo_tx_count
-			.checked_sub(tx_len)
-			.expect("undo store: redo_tx_count underflow during redo");
+		self.redo_tx_count = self.redo_tx_count.checked_sub(tx_len).expect("undo store: redo_tx_count underflow during redo");
 
 		for tx in &step.redo {
 			tx.apply(content);
 		}
 
-		self.head_pos = self
-			.head_pos
-			.checked_add(tx_len)
-			.expect("undo store: head_pos overflow during redo");
+		self.head_pos = self.head_pos.checked_add(tx_len).expect("undo store: head_pos overflow during redo");
 		let redo_txs = step.redo.clone();
 		self.undo_bytes += step.bytes;
-		self.undo_tx_count = self
-			.undo_tx_count
-			.checked_add(tx_len)
-			.expect("undo store: undo_tx_count overflow during redo");
+		self.undo_tx_count = self.undo_tx_count.checked_add(tx_len).expect("undo store: undo_tx_count overflow during redo");
 		self.undo_stack.push_back(step);
 		self.enforce_limits();
 
@@ -375,18 +343,9 @@ impl TxnUndoStore {
 
 		assert_eq!(self.undo_bytes, actual_undo_bytes, "undo_bytes mismatch");
 		assert_eq!(self.redo_bytes, actual_redo_bytes, "redo_bytes mismatch");
-		assert_eq!(
-			self.undo_tx_count, actual_undo_tx_count,
-			"undo_tx_count mismatch"
-		);
-		assert_eq!(
-			self.redo_tx_count, actual_redo_tx_count,
-			"redo_tx_count mismatch"
-		);
-		assert!(
-			self.undo_bytes + self.redo_bytes <= MAX_UNDO_BYTES,
-			"total memory usage exceeds limit"
-		);
+		assert_eq!(self.undo_tx_count, actual_undo_tx_count, "undo_tx_count mismatch");
+		assert_eq!(self.redo_tx_count, actual_redo_tx_count, "redo_tx_count mismatch");
+		assert!(self.undo_bytes + self.redo_bytes <= MAX_UNDO_BYTES, "total memory usage exceeds limit");
 
 		if let Some(cp) = self.clean_pos {
 			let min_undo_pos = self.head_pos.saturating_sub(self.undo_tx_count);
@@ -446,18 +405,10 @@ impl UndoBackend {
 	///
 	/// If `undo_policy` allows merging and the origin view matches the current
 	/// group owner, it appends to the current group.
-	pub fn record_commit(
-		&mut self,
-		tx: &Transaction,
-		before: &Rope,
-		undo_policy: UndoPolicy,
-		origin_view: Option<ViewId>,
-	) -> bool {
+	pub fn record_commit(&mut self, tx: &Transaction, before: &Rope, undo_policy: UndoPolicy, origin_view: Option<ViewId>) -> bool {
 		let undo_tx = tx.invert(before);
 		let merge = match undo_policy {
-			UndoPolicy::MergeWithCurrentGroup => {
-				self.store.active_group_owner == origin_view && origin_view.is_some()
-			}
+			UndoPolicy::MergeWithCurrentGroup => self.store.active_group_owner == origin_view && origin_view.is_some(),
 			_ => false,
 		};
 
@@ -465,10 +416,7 @@ impl UndoBackend {
 
 		// Single-writer rule: only UndoBackend mutates active_group_owner.
 		// Store-level methods (undo/redo/clear_all) reset it, but never set it.
-		if matches!(
-			undo_policy,
-			UndoPolicy::MergeWithCurrentGroup | UndoPolicy::Boundary
-		) {
+		if matches!(undo_policy, UndoPolicy::MergeWithCurrentGroup | UndoPolicy::Boundary) {
 			self.store.active_group_owner = origin_view;
 		} else {
 			self.store.active_group_owner = None;

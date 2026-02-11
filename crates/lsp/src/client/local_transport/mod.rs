@@ -79,11 +79,7 @@ impl LocalTransport {
 	}
 
 	/// Spawn a server process and set up communication channels.
-	async fn spawn_server(
-		&self,
-		id: LanguageServerId,
-		cfg: &ServerConfig,
-	) -> Result<ServerProcess> {
+	async fn spawn_server(&self, id: LanguageServerId, cfg: &ServerConfig) -> Result<ServerProcess> {
 		let mut cmd = Command::new(&cfg.command);
 		cmd.args(&cfg.args)
 			.stdin(Stdio::piped())
@@ -135,10 +131,7 @@ impl Default for LocalTransport {
 #[async_trait]
 impl LspTransport for LocalTransport {
 	fn events(&self) -> mpsc::UnboundedReceiver<TransportEvent> {
-		self.event_rx
-			.write()
-			.take()
-			.expect("events() can only be called once")
+		self.event_rx.write().take().expect("events() can only be called once")
 	}
 
 	async fn start(&self, cfg: ServerConfig) -> Result<StartedServer> {
@@ -168,51 +161,30 @@ impl LspTransport for LocalTransport {
 
 	async fn notify(&self, server: LanguageServerId, notif: AnyNotification) -> Result<()> {
 		let servers = self.servers.read();
-		let process = servers
-			.get(&server)
-			.ok_or_else(|| Error::Protocol(format!("server {server:?} not found")))?;
+		let process = servers.get(&server).ok_or_else(|| Error::Protocol(format!("server {server:?} not found")))?;
 		process
 			.outbound_tx
-			.send(Outbound::Notify {
-				notif,
-				written: None,
-			})
+			.send(Outbound::Notify { notif, written: None })
 			.map_err(|_| Error::ServiceStopped)
 	}
 
-	async fn notify_with_barrier(
-		&self,
-		server: LanguageServerId,
-		notif: AnyNotification,
-	) -> Result<oneshot::Receiver<Result<()>>> {
+	async fn notify_with_barrier(&self, server: LanguageServerId, notif: AnyNotification) -> Result<oneshot::Receiver<Result<()>>> {
 		let (tx, rx) = oneshot::channel();
 		let servers = self.servers.read();
-		let process = servers
-			.get(&server)
-			.ok_or_else(|| Error::Protocol(format!("server {server:?} not found")))?;
+		let process = servers.get(&server).ok_or_else(|| Error::Protocol(format!("server {server:?} not found")))?;
 		process
 			.outbound_tx
-			.send(Outbound::Notify {
-				notif,
-				written: Some(tx),
-			})
+			.send(Outbound::Notify { notif, written: Some(tx) })
 			.map_err(|_| Error::ServiceStopped)?;
 		Ok(rx)
 	}
 
-	async fn request(
-		&self,
-		server: LanguageServerId,
-		req: AnyRequest,
-		timeout: Option<Duration>,
-	) -> Result<AnyResponse> {
+	async fn request(&self, server: LanguageServerId, req: AnyRequest, timeout: Option<Duration>) -> Result<AnyResponse> {
 		let (response_tx, response_rx) = oneshot::channel();
 
 		{
 			let servers = self.servers.read();
-			let process = servers
-				.get(&server)
-				.ok_or_else(|| Error::Protocol(format!("server {server:?} not found")))?;
+			let process = servers.get(&server).ok_or_else(|| Error::Protocol(format!("server {server:?} not found")))?;
 			process
 				.outbound_tx
 				.send(Outbound::Request {
@@ -232,16 +204,9 @@ impl LspTransport for LocalTransport {
 		}
 	}
 
-	async fn reply(
-		&self,
-		server: LanguageServerId,
-		id: RequestId,
-		resp: std::result::Result<JsonValue, ResponseError>,
-	) -> Result<()> {
+	async fn reply(&self, server: LanguageServerId, id: RequestId, resp: std::result::Result<JsonValue, ResponseError>) -> Result<()> {
 		let servers = self.servers.read();
-		let process = servers
-			.get(&server)
-			.ok_or_else(|| Error::Protocol(format!("server {server:?} not found")))?;
+		let process = servers.get(&server).ok_or_else(|| Error::Protocol(format!("server {server:?} not found")))?;
 		process
 			.outbound_tx
 			.send(Outbound::Reply {

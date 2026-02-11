@@ -15,46 +15,25 @@ impl LspTransport for StubTransport {
 		rx
 	}
 
-	async fn start(
-		&self,
-		_cfg: crate::client::ServerConfig,
-	) -> crate::Result<crate::client::transport::StartedServer> {
+	async fn start(&self, _cfg: crate::client::ServerConfig) -> crate::Result<crate::client::transport::StartedServer> {
 		Err(crate::Error::Protocol("StubTransport".into()))
 	}
 
-	async fn notify(
-		&self,
-		_server: LanguageServerId,
-		_notif: AnyNotification,
-	) -> crate::Result<()> {
+	async fn notify(&self, _server: LanguageServerId, _notif: AnyNotification) -> crate::Result<()> {
 		Ok(())
 	}
 
-	async fn notify_with_barrier(
-		&self,
-		_server: LanguageServerId,
-		_notif: AnyNotification,
-	) -> crate::Result<oneshot::Receiver<crate::Result<()>>> {
+	async fn notify_with_barrier(&self, _server: LanguageServerId, _notif: AnyNotification) -> crate::Result<oneshot::Receiver<crate::Result<()>>> {
 		let (tx, rx) = oneshot::channel();
 		let _ = tx.send(Ok(()));
 		Ok(rx)
 	}
 
-	async fn request(
-		&self,
-		_server: LanguageServerId,
-		_req: AnyRequest,
-		_timeout: Option<std::time::Duration>,
-	) -> crate::Result<AnyResponse> {
+	async fn request(&self, _server: LanguageServerId, _req: AnyRequest, _timeout: Option<std::time::Duration>) -> crate::Result<AnyResponse> {
 		Err(crate::Error::Protocol("StubTransport".into()))
 	}
 
-	async fn reply(
-		&self,
-		_server: LanguageServerId,
-		_id: crate::types::RequestId,
-		_resp: Result<JsonValue, ResponseError>,
-	) -> crate::Result<()> {
+	async fn reply(&self, _server: LanguageServerId, _id: crate::types::RequestId, _resp: Result<JsonValue, ResponseError>) -> crate::Result<()> {
 		Ok(())
 	}
 

@@ -25,9 +25,7 @@ impl Default for ResultHandlerRegistry {
 impl ResultHandlerRegistry {
 	/// Creates a new empty registry.
 	pub const fn new() -> Self {
-		Self {
-			handlers: OnceLock::new(),
-		}
+		Self { handlers: OnceLock::new() }
 	}
 
 	/// Returns the number of registered handlers.
@@ -45,10 +43,7 @@ impl ResultHandlerRegistry {
 	pub fn register(&self, handler: &'static ResultHandler) {
 		let handlers = self.handlers.get_or_init(|| Mutex::new(Vec::new()));
 		let mut handlers = handlers.lock();
-		if handlers
-			.iter()
-			.any(|&existing| std::ptr::eq(existing, handler))
-		{
+		if handlers.iter().any(|&existing| std::ptr::eq(existing, handler)) {
 			return;
 		}
 		handlers.push(handler);

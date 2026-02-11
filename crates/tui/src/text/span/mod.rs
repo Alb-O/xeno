@@ -302,10 +302,7 @@ impl<'a> Span<'a> {
 	/// ```
 	///
 	/// [`Color`]: crate::style::Color
-	pub fn styled_graphemes<S: Into<Style>>(
-		&'a self,
-		base_style: S,
-	) -> impl Iterator<Item = StyledGrapheme<'a>> {
+	pub fn styled_graphemes<S: Into<Style>>(&'a self, base_style: S) -> impl Iterator<Item = StyledGrapheme<'a>> {
 		let style = base_style.into().patch(self.style);
 		self.content
 			.as_ref()
@@ -418,21 +415,13 @@ impl Widget for &Span<'_> {
 
 			if i == 0 {
 				// the first grapheme is always set on the cell
-				buf[(x, y)]
-					.set_symbol(grapheme.symbol)
-					.set_style(grapheme.style);
+				buf[(x, y)].set_symbol(grapheme.symbol).set_style(grapheme.style);
 			} else if x == area.x {
-				buf[(x, y)]
-					.append_symbol(grapheme.symbol)
-					.set_style(grapheme.style);
+				buf[(x, y)].append_symbol(grapheme.symbol).set_style(grapheme.style);
 			} else if symbol_width == 0 {
-				buf[(x - 1, y)]
-					.append_symbol(grapheme.symbol)
-					.set_style(grapheme.style);
+				buf[(x - 1, y)].append_symbol(grapheme.symbol).set_style(grapheme.style);
 			} else {
-				buf[(x, y)]
-					.set_symbol(grapheme.symbol)
-					.set_style(grapheme.style);
+				buf[(x, y)].set_symbol(grapheme.symbol).set_style(grapheme.style);
 			}
 
 			for x_hidden in (x + 1)..next_x {

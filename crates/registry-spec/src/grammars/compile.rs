@@ -58,9 +58,7 @@ fn parse_grammars_kdl(input: &str) -> Vec<GrammarSpec> {
 				.unwrap_or_else(|| panic!("grammar '{}' source node missing URL value", id))
 				.to_string();
 
-			let rev_node = children
-				.get("rev")
-				.unwrap_or_else(|| panic!("grammar '{}' missing 'rev' child", id));
+			let rev_node = children.get("rev").unwrap_or_else(|| panic!("grammar '{}' missing 'rev' child", id));
 
 			let revision = rev_node
 				.entry(0)
@@ -74,11 +72,7 @@ fn parse_grammars_kdl(input: &str) -> Vec<GrammarSpec> {
 				.and_then(|e| e.value().as_string())
 				.map(|s| s.to_string());
 
-			GrammarSourceSpec::Git {
-				remote,
-				revision,
-				subpath,
-			}
+			GrammarSourceSpec::Git { remote, revision, subpath }
 		};
 
 		grammars.push(GrammarSpec { id, source });

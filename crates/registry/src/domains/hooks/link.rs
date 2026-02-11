@@ -1,8 +1,6 @@
 use super::spec::HooksSpec;
 use crate::HookEvent;
-use crate::core::{
-	LinkedDef, LinkedMetaOwned, LinkedPayload, RegistryMeta, RegistrySource, Symbol,
-};
+use crate::core::{LinkedDef, LinkedMetaOwned, LinkedPayload, RegistryMeta, RegistrySource, Symbol};
 use crate::hooks::handler::HookHandlerStatic;
 use crate::hooks::{HookEntry, HookHandler, HookMutability, HookPriority};
 
@@ -17,12 +15,7 @@ pub struct HookPayload {
 }
 
 impl LinkedPayload<HookEntry> for HookPayload {
-	fn build_entry(
-		&self,
-		_ctx: &mut dyn crate::core::index::BuildCtx,
-		meta: RegistryMeta,
-		_short_desc: Symbol,
-	) -> HookEntry {
+	fn build_entry(&self, _ctx: &mut dyn crate::core::index::BuildCtx, meta: RegistryMeta, _short_desc: Symbol) -> HookEntry {
 		HookEntry {
 			meta,
 			event: self.event,
@@ -33,10 +26,7 @@ impl LinkedPayload<HookEntry> for HookPayload {
 	}
 }
 
-pub fn link_hooks(
-	spec: &HooksSpec,
-	handlers: impl Iterator<Item = &'static HookHandlerStatic>,
-) -> Vec<LinkedHookDef> {
+pub fn link_hooks(spec: &HooksSpec, handlers: impl Iterator<Item = &'static HookHandlerStatic>) -> Vec<LinkedHookDef> {
 	crate::defs::link::link_by_name(
 		&spec.hooks,
 		handlers,
@@ -67,12 +57,7 @@ pub fn link_hooks(
 					source: RegistrySource::Crate(handler.crate_name),
 					required_caps: vec![],
 					flags: common.flags,
-					short_desc: Some(
-						common
-							.short_desc
-							.clone()
-							.unwrap_or_else(|| common.description.clone()),
-					),
+					short_desc: Some(common.short_desc.clone().unwrap_or_else(|| common.description.clone())),
 				},
 				payload: HookPayload {
 					event: handler.handler.event,

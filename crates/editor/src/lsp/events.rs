@@ -1,8 +1,6 @@
 //! LSP UI event handling (completions, signature help).
 
-use xeno_lsp::lsp_types::{
-	CompletionItem as LspCompletionItem, CompletionList, CompletionResponse,
-};
+use xeno_lsp::lsp_types::{CompletionItem as LspCompletionItem, CompletionList, CompletionResponse};
 use xeno_primitives::range::CharIdx;
 
 use super::completion_filter::{extract_query, filter_items};
@@ -66,16 +64,13 @@ impl Editor {
 					return;
 				}
 
-				let items = response
-					.map(completion_items_from_response)
-					.unwrap_or_default();
+				let items = response.map(completion_items_from_response).unwrap_or_default();
 				if items.is_empty() {
 					self.clear_lsp_menu();
 					return;
 				}
 
-				let query = buffer
-					.with_doc(|doc| extract_query(doc.content(), replace_start, buffer.cursor));
+				let query = buffer.with_doc(|doc| extract_query(doc.content(), replace_start, buffer.cursor));
 				let filtered = filter_items(&items, &query);
 
 				if filtered.is_empty() {
@@ -85,9 +80,7 @@ impl Editor {
 
 				let display_items: Vec<CompletionItem> = filtered
 					.iter()
-					.map(|f| {
-						map_completion_item_with_indices(&items[f.index], f.match_indices.clone())
-					})
+					.map(|f| map_completion_item_with_indices(&items[f.index], f.match_indices.clone()))
 					.collect();
 
 				let completions = self.overlays_mut().get_or_default::<CompletionState>();
@@ -164,14 +157,8 @@ fn completion_items_from_response(response: CompletionResponse) -> Vec<LspComple
 ///
 /// Extracts label, insert text, detail, and kind from the LSP item. The `match_indices`
 /// are passed through for highlight rendering in the completion menu.
-pub(crate) fn map_completion_item_with_indices(
-	item: &LspCompletionItem,
-	match_indices: Option<Vec<usize>>,
-) -> CompletionItem {
-	let insert_text = item
-		.insert_text
-		.clone()
-		.unwrap_or_else(|| item.label.clone());
+pub(crate) fn map_completion_item_with_indices(item: &LspCompletionItem, match_indices: Option<Vec<usize>>) -> CompletionItem {
+	let insert_text = item.insert_text.clone().unwrap_or_else(|| item.label.clone());
 	let kind = match item.insert_text_format {
 		Some(xeno_lsp::lsp_types::InsertTextFormat::SNIPPET) => CompletionKind::Snippet,
 		_ => CompletionKind::Command,

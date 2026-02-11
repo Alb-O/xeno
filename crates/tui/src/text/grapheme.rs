@@ -26,10 +26,7 @@ impl<'a> StyledGrapheme<'a> {
 	///
 	/// [`Color`]: crate::style::Color
 	pub fn new<S: Into<Style>>(symbol: &'a str, style: S) -> Self {
-		Self {
-			symbol,
-			style: style.into(),
-		}
+		Self { symbol, style: style.into() }
 	}
 
 	/// Returns true if the grapheme is whitespace.

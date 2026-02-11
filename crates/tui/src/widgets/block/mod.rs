@@ -232,30 +232,22 @@ impl<'a> Block<'a> {
 		if self.borders.intersects(Borders::RIGHT) {
 			inner.width = inner.width.saturating_sub(1);
 		}
-		if self.borders.intersects(Borders::BOTTOM)
-			|| self.has_title_at_position(TitlePosition::Bottom)
-		{
+		if self.borders.intersects(Borders::BOTTOM) || self.has_title_at_position(TitlePosition::Bottom) {
 			inner.height = inner.height.saturating_sub(1);
 		}
 
 		inner.x = inner.x.saturating_add(self.padding.left);
 		inner.y = inner.y.saturating_add(self.padding.top);
 
-		inner.width = inner
-			.width
-			.saturating_sub(self.padding.left + self.padding.right);
-		inner.height = inner
-			.height
-			.saturating_sub(self.padding.top + self.padding.bottom);
+		inner.width = inner.width.saturating_sub(self.padding.left + self.padding.right);
+		inner.height = inner.height.saturating_sub(self.padding.top + self.padding.bottom);
 
 		inner
 	}
 
 	/// Returns true if any title is positioned at the given position (top or bottom).
 	fn has_title_at_position(&self, position: TitlePosition) -> bool {
-		self.titles
-			.iter()
-			.any(|(pos, _)| pos.unwrap_or(self.titles_position) == position)
+		self.titles.iter().any(|(pos, _)| pos.unwrap_or(self.titles_position) == position)
 	}
 }
 
@@ -303,38 +295,16 @@ impl Block<'_> {
 		let bottom_inset = bottom - u16::from(is_replace && self.borders.contains(Borders::BOTTOM));
 
 		let sides = [
-			(
-				Borders::LEFT,
-				left..=left,
-				top_inset..=bottom_inset,
-				self.border_set.vertical_left,
-			),
-			(
-				Borders::TOP,
-				left_inset..=right_inset,
-				top..=top,
-				self.border_set.horizontal_top,
-			),
-			(
-				Borders::RIGHT,
-				right..=right,
-				top_inset..=bottom_inset,
-				self.border_set.vertical_right,
-			),
-			(
-				Borders::BOTTOM,
-				left_inset..=right_inset,
-				bottom..=bottom,
-				self.border_set.horizontal_bottom,
-			),
+			(Borders::LEFT, left..=left, top_inset..=bottom_inset, self.border_set.vertical_left),
+			(Borders::TOP, left_inset..=right_inset, top..=top, self.border_set.horizontal_top),
+			(Borders::RIGHT, right..=right, top_inset..=bottom_inset, self.border_set.vertical_right),
+			(Borders::BOTTOM, left_inset..=right_inset, bottom..=bottom, self.border_set.horizontal_bottom),
 		];
 		for (border, x_range, y_range, symbol) in sides {
 			if self.borders.contains(border) {
 				for x in x_range {
 					for y in y_range.clone() {
-						buf[(x, y)]
-							.merge_symbol(symbol, self.merge_borders)
-							.set_style(self.border_style);
+						buf[(x, y)].merge_symbol(symbol, self.merge_borders).set_style(self.border_style);
 					}
 				}
 			}
@@ -350,31 +320,14 @@ impl Block<'_> {
 				area.bottom() - 1,
 				self.border_set.bottom_right,
 			),
-			(
-				Borders::RIGHT | Borders::TOP,
-				area.right() - 1,
-				area.top(),
-				self.border_set.top_right,
-			),
-			(
-				Borders::LEFT | Borders::BOTTOM,
-				area.left(),
-				area.bottom() - 1,
-				self.border_set.bottom_left,
-			),
-			(
-				Borders::LEFT | Borders::TOP,
-				area.left(),
-				area.top(),
-				self.border_set.top_left,
-			),
+			(Borders::RIGHT | Borders::TOP, area.right() - 1, area.top(), self.border_set.top_right),
+			(Borders::LEFT | Borders::BOTTOM, area.left(), area.bottom() - 1, self.border_set.bottom_left),
+			(Borders::LEFT | Borders::TOP, area.left(), area.top(), self.border_set.top_left),
 		];
 
 		for (border, x, y, symbol) in corners {
 			if self.borders.contains(border) {
-				buf[(x, y)]
-					.merge_symbol(symbol, self.merge_borders)
-					.set_style(self.border_style);
+				buf[(x, y)].merge_symbol(symbol, self.merge_borders).set_style(self.border_style);
 			}
 		}
 	}
@@ -410,10 +363,7 @@ impl Block<'_> {
 			}
 			let title_width = title.width() as u16;
 			let title_area = Rect {
-				x: titles_area
-					.right()
-					.saturating_sub(title_width)
-					.max(titles_area.left()),
+				x: titles_area.right().saturating_sub(title_width).max(titles_area.left()),
 				width: title_width.min(titles_area.width),
 				..titles_area
 			};
@@ -421,25 +371,16 @@ impl Block<'_> {
 			title.render(title_area, buf);
 
 			// bump the width of the titles area to the left
-			titles_area.width = titles_area
-				.width
-				.saturating_sub(title_width)
-				.saturating_sub(1);
+			titles_area.width = titles_area.width.saturating_sub(title_width).saturating_sub(1);
 		}
 	}
 
 	/// Render titles in the center of the block
 	fn render_center_titles(&self, position: TitlePosition, area: Rect, buf: &mut Buffer) {
 		let area = self.titles_area(area, position);
-		let titles = self
-			.filtered_titles(position, HorizontalAlignment::Center)
-			.collect::<Vec<_>>();
+		let titles = self.filtered_titles(position, HorizontalAlignment::Center).collect::<Vec<_>>();
 		// titles are rendered with a space after each title except the last one
-		let total_width = titles
-			.iter()
-			.map(|title| title.width() as u16 + 1)
-			.sum::<u16>()
-			.saturating_sub(1);
+		let total_width = titles.iter().map(|title| title.width() as u16 + 1).sum::<u16>().saturating_sub(1);
 
 		if total_width <= area.width {
 			self.render_centered_titles_without_truncation(titles, total_width, area, buf);
@@ -449,13 +390,7 @@ impl Block<'_> {
 	}
 
 	/// Renders center-aligned titles when they fit within the available width.
-	fn render_centered_titles_without_truncation(
-		&self,
-		titles: Vec<&Line<'_>>,
-		total_width: u16,
-		area: Rect,
-		buf: &mut Buffer,
-	) {
+	fn render_centered_titles_without_truncation(&self, titles: Vec<&Line<'_>>, total_width: u16, area: Rect, buf: &mut Buffer) {
 		// titles fit in the area, center them
 		let x = area.left() + area.width.saturating_sub(total_width) / 2;
 		let mut area = Rect { x, ..area };
@@ -471,13 +406,7 @@ impl Block<'_> {
 	}
 
 	/// Renders center-aligned titles with truncation when they exceed available width.
-	fn render_centered_titles_with_truncation(
-		&self,
-		titles: Vec<&Line<'_>>,
-		total_width: u16,
-		mut area: Rect,
-		buf: &mut Buffer,
-	) {
+	fn render_centered_titles_with_truncation(&self, titles: Vec<&Line<'_>>, total_width: u16, mut area: Rect, buf: &mut Buffer) {
 		// titles do not fit in the area, truncate the left side using an offset. The right side
 		// is truncated by the area width.
 		let mut offset = total_width.saturating_sub(area.width) / 2;
@@ -526,11 +455,7 @@ impl Block<'_> {
 	}
 
 	/// An iterator over the titles that match the position and alignment
-	fn filtered_titles(
-		&self,
-		position: TitlePosition,
-		alignment: HorizontalAlignment,
-	) -> impl DoubleEndedIterator<Item = &Line<'_>> {
+	fn filtered_titles(&self, position: TitlePosition, alignment: HorizontalAlignment) -> impl DoubleEndedIterator<Item = &Line<'_>> {
 		self.titles
 			.iter()
 			.filter(move |(pos, _)| pos.unwrap_or(self.titles_position) == position)
@@ -549,10 +474,7 @@ impl Block<'_> {
 				TitlePosition::Top => area.top(),
 				TitlePosition::Bottom => area.bottom() - 1,
 			},
-			width: area
-				.width
-				.saturating_sub(left_border)
-				.saturating_sub(right_border),
+			width: area.width.saturating_sub(left_border).saturating_sub(right_border),
 			height: 1,
 		}
 	}
@@ -561,14 +483,8 @@ impl Block<'_> {
 	///
 	/// The result takes the [`Block`]'s, [`Borders`], and [`Padding`] into account.
 	pub(crate) fn horizontal_space(&self) -> (u16, u16) {
-		let left = self
-			.padding
-			.left
-			.saturating_add(u16::from(self.borders.contains(Borders::LEFT)));
-		let right = self
-			.padding
-			.right
-			.saturating_add(u16::from(self.borders.contains(Borders::RIGHT)));
+		let left = self.padding.left.saturating_add(u16::from(self.borders.contains(Borders::LEFT)));
+		let right = self.padding.right.saturating_add(u16::from(self.borders.contains(Borders::RIGHT)));
 		(left, right)
 	}
 
@@ -577,11 +493,9 @@ impl Block<'_> {
 	/// Takes the [`Padding`], [`TitlePosition`], and the [`Borders`] that are selected into
 	/// account when calculating the result.
 	pub(crate) fn vertical_space(&self) -> (u16, u16) {
-		let has_top =
-			self.borders.contains(Borders::TOP) || self.has_title_at_position(TitlePosition::Top);
+		let has_top = self.borders.contains(Borders::TOP) || self.has_title_at_position(TitlePosition::Top);
 		let top = self.padding.top + u16::from(has_top);
-		let has_bottom = self.borders.contains(Borders::BOTTOM)
-			|| self.has_title_at_position(TitlePosition::Bottom);
+		let has_bottom = self.borders.contains(Borders::BOTTOM) || self.has_title_at_position(TitlePosition::Bottom);
 		let bottom = self.padding.bottom + u16::from(has_bottom);
 		(top, bottom)
 	}

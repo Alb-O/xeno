@@ -5,36 +5,17 @@ use xeno_primitives::range::{CharIdx, Direction, Range};
 
 use super::{WordBoundary, WordType, is_word_char, make_range_select};
 
-pub fn move_word(
-	text: RopeSlice,
-	range: Range,
-	direction: Direction,
-	boundary: WordBoundary,
-	count: usize,
-	extend: bool,
-) -> Range {
+pub fn move_word(text: RopeSlice, range: Range, direction: Direction, boundary: WordBoundary, count: usize, extend: bool) -> Range {
 	match (direction, boundary) {
-		(Direction::Forward, WordBoundary::Start) => {
-			move_to_next_word_start(text, range, count, WordType::Word, extend)
-		}
-		(Direction::Forward, WordBoundary::End) => {
-			move_to_next_word_end(text, range, count, WordType::Word, extend)
-		}
-		(Direction::Backward, WordBoundary::Start) => {
-			move_to_prev_word_start(text, range, count, WordType::Word, extend)
-		}
+		(Direction::Forward, WordBoundary::Start) => move_to_next_word_start(text, range, count, WordType::Word, extend),
+		(Direction::Forward, WordBoundary::End) => move_to_next_word_end(text, range, count, WordType::Word, extend),
+		(Direction::Backward, WordBoundary::Start) => move_to_prev_word_start(text, range, count, WordType::Word, extend),
 		_ => range, // Not implemented
 	}
 }
 
 /// Move to next word start.
-pub fn move_to_next_word_start(
-	text: RopeSlice,
-	range: Range,
-	count: usize,
-	word_type: WordType,
-	extend: bool,
-) -> Range {
+pub fn move_to_next_word_start(text: RopeSlice, range: Range, count: usize, word_type: WordType, extend: bool) -> Range {
 	let len = text.len_chars();
 	if len == 0 {
 		return range;
@@ -79,13 +60,7 @@ pub fn move_to_next_word_start(
 }
 
 /// Move to next word end.
-pub fn move_to_next_word_end(
-	text: RopeSlice,
-	range: Range,
-	count: usize,
-	word_type: WordType,
-	extend: bool,
-) -> Range {
+pub fn move_to_next_word_end(text: RopeSlice, range: Range, count: usize, word_type: WordType, extend: bool) -> Range {
 	let len = text.len_chars();
 	if len == 0 {
 		return range;
@@ -130,13 +105,7 @@ pub fn move_to_next_word_end(
 }
 
 /// Move to previous word start.
-pub fn move_to_prev_word_start(
-	text: RopeSlice,
-	range: Range,
-	count: usize,
-	word_type: WordType,
-	extend: bool,
-) -> Range {
+pub fn move_to_prev_word_start(text: RopeSlice, range: Range, count: usize, word_type: WordType, extend: bool) -> Range {
 	let len = text.len_chars();
 	if len == 0 {
 		return range;

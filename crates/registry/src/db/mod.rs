@@ -1,8 +1,7 @@
 use std::sync::{Arc, LazyLock, OnceLock};
 
 pub use crate::core::{
-	ActionId, CommandId, DenseId, GutterId, HookId, LanguageId, MotionId, OptionId, RegistryIndex,
-	RuntimeRegistry, StatuslineId, TextObjectId, ThemeId,
+	ActionId, CommandId, DenseId, GutterId, HookId, LanguageId, MotionId, OptionId, RegistryIndex, RuntimeRegistry, StatuslineId, TextObjectId, ThemeId,
 };
 
 pub mod builder;
@@ -39,10 +38,7 @@ pub struct RegistryDb {
 	pub gutters: RuntimeRegistry<GutterEntry, GutterId>,
 	pub statusline: RuntimeRegistry<StatuslineEntry, StatuslineId>,
 	pub hooks: HooksRegistry,
-	pub notifications: RuntimeRegistry<
-		crate::notifications::NotificationEntry,
-		crate::notifications::NotificationId,
-	>,
+	pub notifications: RuntimeRegistry<crate::notifications::NotificationEntry, crate::notifications::NotificationId>,
 	pub languages: LanguagesRegistry,
 	pub lsp_servers: LspServersRegistry,
 	pub key_prefixes: Vec<KeyPrefixDef>,
@@ -91,39 +87,22 @@ pub fn get_db() -> &'static RegistryDb {
 	})
 }
 
-pub static ACTIONS: LazyLock<&'static RuntimeRegistry<ActionEntry, ActionId>> =
-	LazyLock::new(|| &get_db().actions);
-pub static COMMANDS: LazyLock<&'static RuntimeRegistry<CommandEntry, CommandId>> =
-	LazyLock::new(|| &get_db().commands);
-pub static MOTIONS: LazyLock<&'static RuntimeRegistry<MotionEntry, MotionId>> =
-	LazyLock::new(|| &get_db().motions);
-pub static TEXT_OBJECTS: LazyLock<&'static TextObjectRegistry> =
-	LazyLock::new(|| &get_db().text_objects);
+pub static ACTIONS: LazyLock<&'static RuntimeRegistry<ActionEntry, ActionId>> = LazyLock::new(|| &get_db().actions);
+pub static COMMANDS: LazyLock<&'static RuntimeRegistry<CommandEntry, CommandId>> = LazyLock::new(|| &get_db().commands);
+pub static MOTIONS: LazyLock<&'static RuntimeRegistry<MotionEntry, MotionId>> = LazyLock::new(|| &get_db().motions);
+pub static TEXT_OBJECTS: LazyLock<&'static TextObjectRegistry> = LazyLock::new(|| &get_db().text_objects);
 pub static OPTIONS: LazyLock<&'static OptionsRegistry> = LazyLock::new(|| &get_db().options);
-pub static THEMES: LazyLock<&'static RuntimeRegistry<ThemeEntry, ThemeId>> =
-	LazyLock::new(|| &get_db().themes);
-pub static GUTTERS: LazyLock<&'static RuntimeRegistry<GutterEntry, GutterId>> =
-	LazyLock::new(|| &get_db().gutters);
-pub static STATUSLINE_SEGMENTS: LazyLock<&'static RuntimeRegistry<StatuslineEntry, StatuslineId>> =
-	LazyLock::new(|| &get_db().statusline);
+pub static THEMES: LazyLock<&'static RuntimeRegistry<ThemeEntry, ThemeId>> = LazyLock::new(|| &get_db().themes);
+pub static GUTTERS: LazyLock<&'static RuntimeRegistry<GutterEntry, GutterId>> = LazyLock::new(|| &get_db().gutters);
+pub static STATUSLINE_SEGMENTS: LazyLock<&'static RuntimeRegistry<StatuslineEntry, StatuslineId>> = LazyLock::new(|| &get_db().statusline);
 pub static HOOKS: LazyLock<&'static HooksRegistry> = LazyLock::new(|| &get_db().hooks);
-pub static NOTIFICATIONS: LazyLock<
-	&'static RuntimeRegistry<
-		crate::notifications::NotificationEntry,
-		crate::notifications::NotificationId,
-	>,
-> = LazyLock::new(|| &get_db().notifications);
+pub static NOTIFICATIONS: LazyLock<&'static RuntimeRegistry<crate::notifications::NotificationEntry, crate::notifications::NotificationId>> =
+	LazyLock::new(|| &get_db().notifications);
 pub static LANGUAGES: LazyLock<&'static LanguagesRegistry> = LazyLock::new(|| &get_db().languages);
-pub static LSP_SERVERS: LazyLock<&'static LspServersRegistry> =
-	LazyLock::new(|| &get_db().lsp_servers);
+pub static LSP_SERVERS: LazyLock<&'static LspServersRegistry> = LazyLock::new(|| &get_db().lsp_servers);
 
 impl RegistryDb {
-	pub fn notifications_reg(
-		&self,
-	) -> &RuntimeRegistry<
-		crate::notifications::NotificationEntry,
-		crate::notifications::NotificationId,
-	> {
+	pub fn notifications_reg(&self) -> &RuntimeRegistry<crate::notifications::NotificationEntry, crate::notifications::NotificationId> {
 		&self.notifications
 	}
 }
@@ -134,8 +113,5 @@ pub fn resolve_action_id_typed(id: ActionId) -> Option<Arc<ActionEntry>> {
 
 pub fn resolve_action_id_from_static(id: &str) -> ActionId {
 	let db = get_db();
-	db.actions
-		.get(id)
-		.map(|r: crate::actions::ActionRef| r.dense_id())
-		.unwrap_or(ActionId::INVALID)
+	db.actions.get(id).map(|r: crate::actions::ActionRef| r.dense_id()).unwrap_or(ActionId::INVALID)
 }

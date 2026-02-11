@@ -119,13 +119,7 @@ impl SyntaxManager {
 		};
 
 		if syntax
-			.update_from_changeset(
-				pending.old_rope.slice(..),
-				new_rope.slice(..),
-				&pending.composed,
-				loader,
-				opts,
-			)
+			.update_from_changeset(pending.old_rope.slice(..), new_rope.slice(..), &pending.composed, loader, opts)
 			.is_ok()
 		{
 			entry.slot.pending_incremental = None;
@@ -133,10 +127,7 @@ impl SyntaxManager {
 			entry.slot.tree_doc_version = Some(doc_version);
 			Self::mark_updated(&mut entry.slot);
 		} else {
-			tracing::debug!(
-				?doc_id,
-				"Sync incremental update failed; keeping pending for catch-up"
-			);
+			tracing::debug!(?doc_id, "Sync incremental update failed; keeping pending for catch-up");
 		}
 	}
 

@@ -127,24 +127,15 @@ pub fn compute_diff_line_numbers(text: &Rope) -> Vec<DiffLineNumbers> {
 
 		match line_type {
 			DiffLineType::Addition => {
-				result.push(DiffLineNumbers {
-					old: None,
-					new: new_line,
-				});
+				result.push(DiffLineNumbers { old: None, new: new_line });
 				new_line = new_line.map(|n| n + 1);
 			}
 			DiffLineType::Deletion => {
-				result.push(DiffLineNumbers {
-					old: old_line,
-					new: None,
-				});
+				result.push(DiffLineNumbers { old: old_line, new: None });
 				old_line = old_line.map(|n| n + 1);
 			}
 			DiffLineType::Context if old_line.is_some() || new_line.is_some() => {
-				result.push(DiffLineNumbers {
-					old: old_line,
-					new: new_line,
-				});
+				result.push(DiffLineNumbers { old: old_line, new: new_line });
 				old_line = old_line.map(|n| n + 1);
 				new_line = new_line.map(|n| n + 1);
 			}
@@ -161,12 +152,8 @@ fn classify_diff_line(line: RopeSlice<'_>) -> DiffLineType {
 	let mut chars = line.chars();
 	match chars.next() {
 		Some('@') if chars.next() == Some('@') => DiffLineType::Hunk,
-		Some('+') if !(chars.next() == Some('+') && chars.next() == Some('+')) => {
-			DiffLineType::Addition
-		}
-		Some('-') if !(chars.next() == Some('-') && chars.next() == Some('-')) => {
-			DiffLineType::Deletion
-		}
+		Some('+') if !(chars.next() == Some('+') && chars.next() == Some('+')) => DiffLineType::Addition,
+		Some('-') if !(chars.next() == Some('-') && chars.next() == Some('-')) => DiffLineType::Deletion,
 		_ => DiffLineType::Context,
 	}
 }

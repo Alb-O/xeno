@@ -14,9 +14,7 @@ use thiserror::Error;
 ///
 /// See:
 /// <https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#errorCodes>
-#[derive(
-	Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, Error,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, Error)]
 #[error("jsonrpc error {0}")]
 pub struct ErrorCode(pub i32);
 
@@ -191,10 +189,7 @@ impl AnyNotification {
 	/// Create a new notification with the given method and params.
 	#[must_use]
 	pub fn new(method: impl Into<String>, params: JsonValue) -> Self {
-		Self {
-			method: method.into(),
-			params,
-		}
+		Self { method: method.into(), params }
 	}
 }
 

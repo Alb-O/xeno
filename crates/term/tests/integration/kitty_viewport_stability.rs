@@ -3,9 +3,8 @@
 use std::time::Duration;
 
 use kitty_test_harness::{
-	KeyPress, MouseButton, cleanup_test_log, create_test_log, kitty_send_keys, pause_briefly,
-	read_test_log, require_kitty, run_with_timeout, send_keys, send_mouse_drag_with_steps,
-	wait_for_screen_text_clean, with_kitty_capture,
+	KeyPress, MouseButton, cleanup_test_log, create_test_log, kitty_send_keys, pause_briefly, read_test_log, require_kitty, run_with_timeout, send_keys,
+	send_mouse_drag_with_steps, wait_for_screen_text_clean, with_kitty_capture,
 };
 use termwiz::input::{KeyCode, Modifiers};
 
@@ -95,151 +94,125 @@ fn viewport_stable_during_adjacent_split_resize() {
 	let log_path = create_test_log();
 	let log_path_clone = log_path.clone();
 	run_with_timeout(TEST_TIMEOUT, move || {
-		with_kitty_capture(
-			&workspace_dir(),
-			&xeno_cmd_debug_with_log(file, &log_path_clone),
-			|kitty| {
-				pause_briefly();
+		with_kitty_capture(&workspace_dir(), &xeno_cmd_debug_with_log(file, &log_path_clone), |kitty| {
+			pause_briefly();
 
-				// Create horizontal split (top/bottom stacked)
-				create_horizontal_split(kitty);
-				pause_briefly();
+			// Create horizontal split (top/bottom stacked)
+			create_horizontal_split(kitty);
+			pause_briefly();
 
-				// Focus the top buffer (Ctrl+w f k)
-				focus_up(kitty);
+			// Focus the top buffer (Ctrl+w f k)
+			focus_up(kitty);
 
-				// Insert many numbered lines so we can track scroll position.
-				// We need enough lines that the viewport will be scrolled and
-				// the cursor can be at the bottom edge.
-				send_keys(kitty, &[KeyPress::from(KeyCode::Char('i'))]);
-				for i in 1..=60 {
-					type_chars(kitty, &format!("LINE_{:02}", i));
-					send_keys(kitty, &[KeyPress::from(KeyCode::Enter)]);
-				}
-				send_keys(kitty, &[KeyPress::from(KeyCode::Escape)]);
-				pause_briefly();
+			// Insert many numbered lines so we can track scroll position.
+			// We need enough lines that the viewport will be scrolled and
+			// the cursor can be at the bottom edge.
+			send_keys(kitty, &[KeyPress::from(KeyCode::Char('i'))]);
+			for i in 1..=60 {
+				type_chars(kitty, &format!("LINE_{:02}", i));
+				send_keys(kitty, &[KeyPress::from(KeyCode::Enter)]);
+			}
+			send_keys(kitty, &[KeyPress::from(KeyCode::Escape)]);
+			pause_briefly();
 
-				// Go to line 30 using gg then 29 j movements
-				send_keys(kitty, &[KeyPress::from(KeyCode::Char('g'))]);
-				send_keys(kitty, &[KeyPress::from(KeyCode::Char('g'))]);
-				for _ in 0..29 {
-					send_keys(kitty, &[KeyPress::from(KeyCode::Char('j'))]);
-				}
-				pause_briefly();
+			// Go to line 30 using gg then 29 j movements
+			send_keys(kitty, &[KeyPress::from(KeyCode::Char('g'))]);
+			send_keys(kitty, &[KeyPress::from(KeyCode::Char('g'))]);
+			for _ in 0..29 {
+				send_keys(kitty, &[KeyPress::from(KeyCode::Char('j'))]);
+			}
+			pause_briefly();
 
-				// Capture screen to find the separator position
-				let (_raw, clean_initial) =
-					wait_for_screen_text_clean(kitty, Duration::from_secs(5), |_raw, clean| {
-						clean.contains("LINE_30")
-					});
+			// Capture screen to find the separator position
+			let (_raw, clean_initial) = wait_for_screen_text_clean(kitty, Duration::from_secs(5), |_raw, clean| clean.contains("LINE_30"));
 
-				let sep_rows = find_separator_rows(&clean_initial);
-				assert!(
-					!sep_rows.is_empty(),
-					"Should have a separator, screen:\n{}",
-					clean_initial
-				);
-				let separator_row = sep_rows[0];
+			let sep_rows = find_separator_rows(&clean_initial);
+			assert!(!sep_rows.is_empty(), "Should have a separator, screen:\n{}", clean_initial);
+			let separator_row = sep_rows[0];
 
-				// Now we need to position the cursor at the very last visible row
-				// before the separator. The top buffer spans rows 0 to separator_row-1.
-				// First go to the top of the file
-				send_keys(kitty, &[KeyPress::from(KeyCode::Char('g'))]);
-				send_keys(kitty, &[KeyPress::from(KeyCode::Char('g'))]);
-				pause_briefly();
+			// Now we need to position the cursor at the very last visible row
+			// before the separator. The top buffer spans rows 0 to separator_row-1.
+			// First go to the top of the file
+			send_keys(kitty, &[KeyPress::from(KeyCode::Char('g'))]);
+			send_keys(kitty, &[KeyPress::from(KeyCode::Char('g'))]);
+			pause_briefly();
 
-				// Now move down to the last visible row (separator_row - 1).
-				// This puts the cursor right at the bottom edge of the viewport.
-				for _ in 0..(separator_row.saturating_sub(1)) {
-					send_keys(kitty, &[KeyPress::from(KeyCode::Char('j'))]);
-				}
-				pause_briefly();
+			// Now move down to the last visible row (separator_row - 1).
+			// This puts the cursor right at the bottom edge of the viewport.
+			for _ in 0..(separator_row.saturating_sub(1)) {
+				send_keys(kitty, &[KeyPress::from(KeyCode::Char('j'))]);
+			}
+			pause_briefly();
 
-				// Capture screen before resize
-				let (_raw, clean_before) =
-					wait_for_screen_text_clean(kitty, Duration::from_secs(3), |_raw, clean| {
-						clean.contains("LINE_01")
-					});
+			// Capture screen before resize
+			let (_raw, clean_before) = wait_for_screen_text_clean(kitty, Duration::from_secs(3), |_raw, clean| clean.contains("LINE_01"));
 
-				// Find first visible line before resize (row 1 is first content after menu)
-				let first_line_before = find_line_number_at_row(&clean_before, 1);
-				assert!(
-					first_line_before.is_some(),
-					"Should find first visible line number, screen:\n{}",
-					clean_before
-				);
-				let first_line_before = first_line_before.unwrap();
+			// Find first visible line before resize (row 1 is first content after menu)
+			let first_line_before = find_line_number_at_row(&clean_before, 1);
+			assert!(first_line_before.is_some(), "Should find first visible line number, screen:\n{}", clean_before);
+			let first_line_before = first_line_before.unwrap();
 
-				eprintln!("Before resize:");
-				eprintln!("  Separator at row: {}", separator_row);
-				eprintln!("  First visible line: {}", first_line_before);
-				eprintln!(
-					"  Cursor should be at row {} (bottom of viewport)",
-					separator_row - 1
-				);
-				eprintln!("Screen:\n{}", clean_before);
+			eprintln!("Before resize:");
+			eprintln!("  Separator at row: {}", separator_row);
+			eprintln!("  First visible line: {}", first_line_before);
+			eprintln!("  Cursor should be at row {} (bottom of viewport)", separator_row - 1);
+			eprintln!("Screen:\n{}", clean_before);
 
-				// Drag the separator UP by 5 rows to shrink the top buffer
-				let start_row = separator_row as u16;
-				let end_row = start_row.saturating_sub(5);
+			// Drag the separator UP by 5 rows to shrink the top buffer
+			let start_row = separator_row as u16;
+			let end_row = start_row.saturating_sub(5);
 
-				send_mouse_drag_with_steps(kitty, MouseButton::Left, 40, start_row, 40, end_row, 5);
-				pause_briefly();
-				pause_briefly();
+			send_mouse_drag_with_steps(kitty, MouseButton::Left, 40, start_row, 40, end_row, 5);
+			pause_briefly();
+			pause_briefly();
 
-				// Capture screen after resize
-				let (_raw2, clean_after) =
-					wait_for_screen_text_clean(kitty, Duration::from_secs(3), |_raw, clean| {
-						// Wait for screen to stabilize
-						!clean.is_empty()
-					});
+			// Capture screen after resize
+			let (_raw2, clean_after) = wait_for_screen_text_clean(kitty, Duration::from_secs(3), |_raw, clean| {
+				// Wait for screen to stabilize
+				!clean.is_empty()
+			});
 
-				let sep_rows_after = find_separator_rows(&clean_after);
-				assert!(
-					!sep_rows_after.is_empty(),
-					"Should still have separator after resize, screen:\n{}",
-					clean_after
-				);
-				let separator_row_after = sep_rows_after[0];
+			let sep_rows_after = find_separator_rows(&clean_after);
+			assert!(!sep_rows_after.is_empty(), "Should still have separator after resize, screen:\n{}", clean_after);
+			let separator_row_after = sep_rows_after[0];
 
-				// Find first visible line after resize
-				let first_line_after = find_line_number_at_row(&clean_after, 1);
-				assert!(
-					first_line_after.is_some(),
-					"Should find first visible line after resize, screen:\n{}",
-					clean_after
-				);
-				let first_line_after = first_line_after.unwrap();
+			// Find first visible line after resize
+			let first_line_after = find_line_number_at_row(&clean_after, 1);
+			assert!(
+				first_line_after.is_some(),
+				"Should find first visible line after resize, screen:\n{}",
+				clean_after
+			);
+			let first_line_after = first_line_after.unwrap();
 
-				eprintln!("After resize:");
-				eprintln!("  Separator at row: {}", separator_row_after);
-				eprintln!("  First visible line: {}", first_line_after);
-				eprintln!("Screen:\n{}", clean_after);
+			eprintln!("After resize:");
+			eprintln!("  Separator at row: {}", separator_row_after);
+			eprintln!("  First visible line: {}", first_line_after);
+			eprintln!("Screen:\n{}", clean_after);
 
-				// Verify separator moved up
-				assert!(
-					separator_row_after < separator_row,
-					"Separator should have moved up. Before: {}, After: {}",
-					separator_row,
-					separator_row_after
-				);
+			// Verify separator moved up
+			assert!(
+				separator_row_after < separator_row,
+				"Separator should have moved up. Before: {}, After: {}",
+				separator_row,
+				separator_row_after
+			);
 
-				// Print test log for debugging
-				let log_content = read_test_log(&log_path_clone);
-				eprintln!("Test log:\n{}", log_content.join("\n"));
+			// Print test log for debugging
+			let log_content = read_test_log(&log_path_clone);
+			eprintln!("Test log:\n{}", log_content.join("\n"));
 
-				// KEY ASSERTION: First visible line should NOT have changed!
-				// This is the bug we're testing for. Before the fix, the viewport
-				// would scroll down to keep the cursor visible, changing the first line.
-				assert_eq!(
-					first_line_before, first_line_after,
-					"First visible line should remain stable during resize!\n\
+			// KEY ASSERTION: First visible line should NOT have changed!
+			// This is the bug we're testing for. Before the fix, the viewport
+			// would scroll down to keep the cursor visible, changing the first line.
+			assert_eq!(
+				first_line_before, first_line_after,
+				"First visible line should remain stable during resize!\n\
 				 Before: LINE_{:02}, After: LINE_{:02}\n\
 				 The viewport scrolled when it shouldn't have.",
-					first_line_before, first_line_after
-				);
-			},
-		);
+				first_line_before, first_line_after
+			);
+		});
 	});
 	cleanup_test_log(&log_path);
 }

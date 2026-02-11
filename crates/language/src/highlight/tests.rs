@@ -13,14 +13,8 @@ fn test_highlight_styles() {
 	});
 
 	assert_eq!(styles.len(), 2);
-	assert_eq!(
-		styles.style_for_highlight(Highlight::new(0)),
-		Style::new().fg(Color::Red)
-	);
-	assert_eq!(
-		styles.style_for_highlight(Highlight::new(1)),
-		Style::new().fg(Color::Green)
-	);
+	assert_eq!(styles.style_for_highlight(Highlight::new(0)), Style::new().fg(Color::Red));
+	assert_eq!(styles.style_for_highlight(Highlight::new(1)), Style::new().fg(Color::Green));
 }
 
 #[test]

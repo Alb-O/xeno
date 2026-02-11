@@ -36,8 +36,7 @@ use serde::Serialize;
 /// Returns the test log file path if `XENO_TEST_LOG` is set.
 fn test_log_path() -> Option<&'static str> {
 	static PATH: OnceLock<Option<String>> = OnceLock::new();
-	PATH.get_or_init(|| std::env::var("XENO_TEST_LOG").ok())
-		.as_deref()
+	PATH.get_or_init(|| std::env::var("XENO_TEST_LOG").ok()).as_deref()
 }
 
 /// Writes a structured event to the test log file.
@@ -53,11 +52,7 @@ pub fn write_test_event<T: Serialize>(event: &T) {
 		return;
 	};
 
-	let Ok(mut file) = std::fs::OpenOptions::new()
-		.create(true)
-		.append(true)
-		.open(path)
-	else {
+	let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(path) else {
 		return;
 	};
 

@@ -44,18 +44,12 @@ impl EditorUndoHost<'_> {
 		};
 
 		let before_rope = {
-			let buffer = self
-				.buffers
-				.get_buffer(buffer_id)
-				.expect("buffer must exist");
+			let buffer = self.buffers.get_buffer(buffer_id).expect("buffer must exist");
 			buffer.with_doc(|doc| doc.content().clone())
 		};
 
 		let result = {
-			let buffer = self
-				.buffers
-				.get_buffer_mut(buffer_id)
-				.expect("buffer must exist");
+			let buffer = self.buffers.get_buffer_mut(buffer_id).expect("buffer must exist");
 			let result = buffer.apply(tx, policy);
 			if result.applied
 				&& let Some(selection) = new_selection
@@ -67,22 +61,14 @@ impl EditorUndoHost<'_> {
 
 		#[cfg(feature = "lsp")]
 		{
-			let buffer = self
-				.buffers
-				.get_buffer(buffer_id)
-				.expect("buffer must exist");
-			self.lsp
-				.on_local_edit(buffer, Some(before_rope.clone()), tx, &result);
+			let buffer = self.buffers.get_buffer(buffer_id).expect("buffer must exist");
+			self.lsp.on_local_edit(buffer, Some(before_rope.clone()), tx, &result);
 		}
 
 		if result.applied {
-			let buffer = self
-				.buffers
-				.get_buffer(buffer_id)
-				.expect("buffer must exist");
+			let buffer = self.buffers.get_buffer(buffer_id).expect("buffer must exist");
 			let doc_id = buffer.document_id();
-			let (after_rope, version) =
-				buffer.with_doc(|doc| (doc.content().clone(), doc.version()));
+			let (after_rope, version) = buffer.with_doc(|doc| (doc.content().clone(), doc.version()));
 			self.syntax_manager.note_edit_incremental(
 				doc_id,
 				version,
@@ -92,17 +78,9 @@ impl EditorUndoHost<'_> {
 				&self.config.language_loader,
 				crate::syntax_manager::EditSource::Typing,
 			);
-			self.sync_all_view_selections_for_doc(
-				doc_id,
-				std::slice::from_ref(tx),
-				Some(buffer_id),
-			);
+			self.sync_all_view_selections_for_doc(doc_id, std::slice::from_ref(tx), Some(buffer_id));
 			for id in self.buffers.buffer_ids() {
-				if self
-					.buffers
-					.get_buffer(id)
-					.is_some_and(|b| b.document_id() == doc_id)
-				{
+				if self.buffers.get_buffer(id).is_some_and(|b| b.document_id() == doc_id) {
 					self.frame.dirty_buffers.insert(id);
 				}
 			}
@@ -129,21 +107,12 @@ impl EditorUndoHost<'_> {
 
 	/// Synchronizes selections of all sibling buffers viewing the same document.
 	/// Synchronizes selections of all views viewing the same document.
-	fn sync_all_view_selections_for_doc(
-		&mut self,
-		doc_id: DocumentId,
-		txs: &[Transaction],
-		exclude_view: Option<ViewId>,
-	) {
+	fn sync_all_view_selections_for_doc(&mut self, doc_id: DocumentId, txs: &[Transaction], exclude_view: Option<ViewId>) {
 		let view_ids: Vec<_> = self
 			.buffers
 			.buffer_ids()
 			.filter(|&id| Some(id) != exclude_view)
-			.filter(|&id| {
-				self.buffers
-					.get_buffer(id)
-					.is_some_and(|b| b.document_id() == doc_id)
-			})
+			.filter(|&id| self.buffers.get_buffer(id).is_some_and(|b| b.document_id() == doc_id))
 			.collect();
 
 		for view_id in view_ids {
@@ -162,11 +131,7 @@ impl EditorUndoHost<'_> {
 		let view_ids: Vec<_> = self
 			.buffers
 			.buffer_ids()
-			.filter(|&id| {
-				self.buffers
-					.get_buffer(id)
-					.is_some_and(|b| b.document_id() == doc_id)
-			})
+			.filter(|&id| self.buffers.get_buffer(id).is_some_and(|b| b.document_id() == doc_id))
 			.collect();
 
 		for view_id in view_ids {
@@ -189,33 +154,17 @@ impl EditorUndoHost<'_> {
 	///
 	/// Applies the operation to the document and synchronizes all associated views,
 	/// including incremental syntax updates and selection mapping.
-	fn apply_history_op(
-		&mut self,
-		doc_id: DocumentId,
-		op: impl FnOnce(&mut crate::buffer::Document) -> Option<Vec<Transaction>>,
-	) -> bool {
-		let buffer_id = self
-			.buffers
-			.buffers()
-			.find(|b| b.document_id() == doc_id)
-			.map(|b| b.id);
+	fn apply_history_op(&mut self, doc_id: DocumentId, op: impl FnOnce(&mut crate::buffer::Document) -> Option<Vec<Transaction>>) -> bool {
+		let buffer_id = self.buffers.buffers().find(|b| b.document_id() == doc_id).map(|b| b.id);
 
 		let Some(buffer_id) = buffer_id else {
 			warn!(doc_id = ?doc_id, "History op: no buffer for document");
 			return false;
 		};
 
-		let before_rope = self
-			.buffers
-			.get_buffer(buffer_id)
-			.expect("buffer exists")
-			.with_doc(|doc| doc.content().clone());
+		let before_rope = self.buffers.get_buffer(buffer_id).expect("buffer exists").with_doc(|doc| doc.content().clone());
 
-		let txs = self
-			.buffers
-			.get_buffer_mut(buffer_id)
-			.expect("buffer exists")
-			.with_doc_mut(op);
+		let txs = self.buffers.get_buffer_mut(buffer_id).expect("buffer exists").with_doc_mut(op);
 
 		let Some(txs) = txs else {
 			return false;
@@ -247,11 +196,7 @@ impl EditorUndoHost<'_> {
 
 		self.sync_all_view_selections_for_doc(doc_id, &txs, None);
 		for id in self.buffers.buffer_ids() {
-			if self
-				.buffers
-				.get_buffer(id)
-				.is_some_and(|b| b.document_id() == doc_id)
-			{
+			if self.buffers.get_buffer(id).is_some_and(|b| b.document_id() == doc_id) {
 				self.frame.dirty_buffers.insert(id);
 			}
 		}
@@ -263,10 +208,7 @@ impl EditorUndoHost<'_> {
 
 impl UndoHost for EditorUndoHost<'_> {
 	fn guard_readonly(&mut self) -> bool {
-		let buffer = self
-			.buffers
-			.get_buffer(self.focused_view)
-			.expect("focused buffer must exist");
+		let buffer = self.buffers.get_buffer(self.focused_view).expect("focused buffer must exist");
 		if buffer.is_readonly() {
 			self.notify(keys::BUFFER_READONLY);
 			return false;
@@ -275,10 +217,7 @@ impl UndoHost for EditorUndoHost<'_> {
 	}
 
 	fn doc_id_for_buffer(&self, buffer_id: ViewId) -> DocumentId {
-		self.buffers
-			.get_buffer(buffer_id)
-			.expect("buffer must exist")
-			.document_id()
+		self.buffers.get_buffer(buffer_id).expect("buffer must exist").document_id()
 	}
 
 	fn collect_view_snapshots(&self, doc_id: DocumentId) -> HashMap<ViewId, ViewSnapshot> {
@@ -289,10 +228,7 @@ impl UndoHost for EditorUndoHost<'_> {
 			.collect()
 	}
 
-	fn capture_current_view_snapshots(
-		&self,
-		doc_ids: &[DocumentId],
-	) -> HashMap<ViewId, ViewSnapshot> {
+	fn capture_current_view_snapshots(&self, doc_ids: &[DocumentId]) -> HashMap<ViewId, ViewSnapshot> {
 		self.buffers
 			.buffers()
 			.filter(|b| doc_ids.contains(&b.document_id()))

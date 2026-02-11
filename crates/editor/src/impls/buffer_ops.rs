@@ -17,12 +17,11 @@ impl Editor {
 	/// This async version awaits all hooks including async ones (e.g., LSP).
 	/// For sync contexts like split operations, use [`open_buffer_sync`](Self::open_buffer_sync).
 	pub async fn open_buffer(&mut self, content: String, path: Option<PathBuf>) -> ViewId {
-		let buffer_id = self.state.core.buffers.create_buffer(
-			content,
-			path.clone(),
-			&self.state.config.language_loader,
-			self.state.viewport.width,
-		);
+		let buffer_id = self
+			.state
+			.core
+			.buffers
+			.create_buffer(content, path.clone(), &self.state.config.language_loader, self.state.viewport.width);
 
 		let scratch_path = PathBuf::from("[scratch]");
 		let hook_path = path.as_ref().unwrap_or(&scratch_path);
@@ -48,12 +47,11 @@ impl Editor {
 	/// Use this in sync contexts like split operations. Async hooks are queued
 	/// in the hook runtime and will execute when the main loop drains them.
 	pub fn open_buffer_sync(&mut self, content: String, path: Option<PathBuf>) -> ViewId {
-		let buffer_id = self.state.core.buffers.create_buffer(
-			content,
-			path.clone(),
-			&self.state.config.language_loader,
-			self.state.viewport.width,
-		);
+		let buffer_id = self
+			.state
+			.core
+			.buffers
+			.create_buffer(content, path.clone(), &self.state.config.language_loader, self.state.viewport.width);
 
 		let scratch_path = PathBuf::from("[scratch]");
 		let hook_path = path.as_ref().unwrap_or(&scratch_path);
@@ -99,11 +97,7 @@ impl Editor {
 	/// but have independent cursor/selection/scroll state.
 	pub fn clone_buffer_for_split(&mut self) -> ViewId {
 		let focused = self.focused_view();
-		self.state
-			.core
-			.buffers
-			.clone_buffer_for_split(focused)
-			.expect("focused buffer must exist")
+		self.state.core.buffers.clone_buffer_for_split(focused).expect("focused buffer must exist")
 	}
 
 	/// Initializes LSP for all currently open buffers.
@@ -146,11 +140,7 @@ impl Editor {
 	pub fn kick_lsp_init_for_open_buffers(&mut self) {
 		use std::collections::HashSet;
 
-		let loading = self
-			.state
-			.loading_file
-			.as_ref()
-			.map(|path| crate::paths::fast_abs(path));
+		let loading = self.state.loading_file.as_ref().map(|path| crate::paths::fast_abs(path));
 
 		let mut seen_docs = HashSet::new();
 		for buffer_id in self.state.core.buffers.buffer_ids().collect::<Vec<_>>() {
@@ -195,11 +185,7 @@ impl Editor {
 
 		let doc_id = buffer.document_id();
 		let version = buffer.with_doc(|doc| doc.version());
-		let supports_incremental = self
-			.state
-			.lsp
-			.incremental_encoding_for_buffer(buffer)
-			.is_some();
+		let supports_incremental = self.state.lsp.incremental_encoding_for_buffer(buffer).is_some();
 		let config = crate::lsp::sync_manager::LspDocumentConfig {
 			path: crate::paths::fast_abs(&path),
 			language,
@@ -207,15 +193,9 @@ impl Editor {
 		};
 
 		if reset {
-			self.state
-				.lsp
-				.sync_manager_mut()
-				.reset_tracked(doc_id, config, version);
+			self.state.lsp.sync_manager_mut().reset_tracked(doc_id, config, version);
 		} else {
-			self.state
-				.lsp
-				.sync_manager_mut()
-				.ensure_tracked(doc_id, config, version);
+			self.state.lsp.sync_manager_mut().ensure_tracked(doc_id, config, version);
 		}
 	}
 

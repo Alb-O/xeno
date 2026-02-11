@@ -62,8 +62,7 @@ impl Parse for EventDef {
 		let fields = if input.peek(syn::token::Brace) {
 			let content;
 			braced!(content in input);
-			let fields: Punctuated<EventField, Token![,]> =
-				content.parse_terminated(EventField::parse, Token![,])?;
+			let fields: Punctuated<EventField, Token![,]> = content.parse_terminated(EventField::parse, Token![,])?;
 			fields.into_iter().collect()
 		} else {
 			Vec::new()
@@ -80,8 +79,7 @@ impl Parse for EventDef {
 
 impl Parse for EventDefs {
 	fn parse(input: ParseStream) -> Result<Self> {
-		let events: Punctuated<EventDef, Token![,]> =
-			input.parse_terminated(EventDef::parse, Token![,])?;
+		let events: Punctuated<EventDef, Token![,]> = input.parse_terminated(EventDef::parse, Token![,])?;
 		Ok(EventDefs {
 			events: events.into_iter().collect(),
 		})

@@ -23,9 +23,7 @@ impl SocketLayer {
 	pub fn new(socket_path: &str) -> std::io::Result<Self> {
 		let socket = UnixStream::connect(socket_path)?;
 		socket.set_nonblocking(false)?;
-		Ok(Self {
-			socket: Mutex::new(socket),
-		})
+		Ok(Self { socket: Mutex::new(socket) })
 	}
 
 	/// Sends a log message over the socket.
@@ -148,9 +146,7 @@ where
 						let data = extensions.get::<SpanData>();
 						SpanInfo {
 							name: span.name().to_string(),
-							target: data
-								.map(|d| d.target.clone())
-								.unwrap_or_else(|| span.metadata().target().to_string()),
+							target: data.map(|d| d.target.clone()).unwrap_or_else(|| span.metadata().target().to_string()),
 							fields: data.map(|d| d.fields.clone()).unwrap_or_default(),
 						}
 					})
@@ -177,8 +173,7 @@ struct FieldVisitor<'a>(&'a mut Vec<(String, String)>);
 
 impl tracing::field::Visit for FieldVisitor<'_> {
 	fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
-		self.0
-			.push((field.name().to_string(), format!("{:?}", value)));
+		self.0.push((field.name().to_string(), format!("{:?}", value)));
 	}
 
 	fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
@@ -209,8 +204,7 @@ impl tracing::field::Visit for EventVisitor<'_> {
 		if field.name() == "message" {
 			*self.message = format!("{:?}", value);
 		} else {
-			self.fields
-				.push((field.name().to_string(), format!("{:?}", value)));
+			self.fields.push((field.name().to_string(), format!("{:?}", value)));
 		}
 	}
 
@@ -218,23 +212,19 @@ impl tracing::field::Visit for EventVisitor<'_> {
 		if field.name() == "message" {
 			*self.message = value.to_string();
 		} else {
-			self.fields
-				.push((field.name().to_string(), value.to_string()));
+			self.fields.push((field.name().to_string(), value.to_string()));
 		}
 	}
 
 	fn record_i64(&mut self, field: &tracing::field::Field, value: i64) {
-		self.fields
-			.push((field.name().to_string(), value.to_string()));
+		self.fields.push((field.name().to_string(), value.to_string()));
 	}
 
 	fn record_u64(&mut self, field: &tracing::field::Field, value: u64) {
-		self.fields
-			.push((field.name().to_string(), value.to_string()));
+		self.fields.push((field.name().to_string(), value.to_string()));
 	}
 
 	fn record_bool(&mut self, field: &tracing::field::Field, value: bool) {
-		self.fields
-			.push((field.name().to_string(), value.to_string()));
+		self.fields.push((field.name().to_string(), value.to_string()));
 	}
 }

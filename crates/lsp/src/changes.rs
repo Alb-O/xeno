@@ -16,11 +16,7 @@ pub enum IncrementalResult {
 }
 
 /// Computes LSP change events from a transaction against pre-change text.
-pub fn compute_lsp_changes(
-	rope: &Rope,
-	tx: &Transaction,
-	encoding: OffsetEncoding,
-) -> IncrementalResult {
+pub fn compute_lsp_changes(rope: &Rope, tx: &Transaction, encoding: OffsetEncoding) -> IncrementalResult {
 	let mut changes = Vec::new();
 	if tx.changes().is_empty() {
 		return IncrementalResult::Incremental(changes);
@@ -103,10 +99,7 @@ mod tests {
 		};
 
 		assert_eq!(changes.len(), 1);
-		assert_eq!(
-			changes[0].range,
-			LspRange::new(LspPosition::new(1, 0), LspPosition::new(2, 0))
-		);
+		assert_eq!(changes[0].range, LspRange::new(LspPosition::new(1, 0), LspPosition::new(2, 0)));
 		assert_eq!(changes[0].new_text, "");
 	}
 

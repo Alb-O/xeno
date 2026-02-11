@@ -80,10 +80,7 @@ impl LanguagesRegistry {
 
 	pub fn globs(&self) -> Vec<(String, LanguageId)> {
 		let snap = self.inner.snapshot();
-		self.globs
-			.iter()
-			.map(|(sym, id)| (snap.interner.resolve(*sym).to_string(), *id))
-			.collect()
+		self.globs.iter().map(|(sym, id)| (snap.interner.resolve(*sym).to_string(), *id)).collect()
 	}
 
 	pub fn resolve_path(&self, path: &Path) -> Option<LanguageRef> {
@@ -105,10 +102,7 @@ impl LanguagesRegistry {
 		for (pattern_sym, id) in &self.globs {
 			let pattern = snap.interner.resolve(*pattern_sym);
 			if glob_matches(pattern, &path_str, filename) {
-				return Some(RegistryRef {
-					snap: snap.clone(),
-					id: *id,
-				});
+				return Some(RegistryRef { snap: snap.clone(), id: *id });
 			}
 		}
 

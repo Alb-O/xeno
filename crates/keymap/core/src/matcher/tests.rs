@@ -46,10 +46,7 @@ fn groups() {
 
 #[test]
 fn sequences() {
-	matches(&[
-		("a enter", "a enter", true),
-		("ctrl-@any shift-@upper", "ctrl-x shift-B", true),
-	]);
+	matches(&[("a enter", "a enter", true), ("ctrl-@any shift-@upper", "ctrl-x shift-B", true)]);
 }
 
 #[test]
@@ -58,14 +55,8 @@ fn lookup_complete() {
 	matcher.add(parse_seq("a").unwrap(), 1);
 	matcher.add(parse_seq("b").unwrap(), 2);
 
-	assert_eq!(
-		matcher.lookup(&parse_seq("a").unwrap()),
-		MatchResult::Complete(&1)
-	);
-	assert_eq!(
-		matcher.lookup(&parse_seq("b").unwrap()),
-		MatchResult::Complete(&2)
-	);
+	assert_eq!(matcher.lookup(&parse_seq("a").unwrap()), MatchResult::Complete(&1));
+	assert_eq!(matcher.lookup(&parse_seq("b").unwrap()), MatchResult::Complete(&2));
 }
 
 #[test]
@@ -81,10 +72,7 @@ fn lookup_partial() {
 	}
 
 	// "g g" is complete
-	assert_eq!(
-		matcher.lookup(&parse_seq("g g").unwrap()),
-		MatchResult::Complete(&1)
-	);
+	assert_eq!(matcher.lookup(&parse_seq("g g").unwrap()), MatchResult::Complete(&1));
 }
 
 #[test]
@@ -95,9 +83,7 @@ fn lookup_partial_with_value() {
 
 	// "g" is partial but also has a value (sticky mode behavior)
 	match matcher.lookup(&parse_seq("g").unwrap()) {
-		MatchResult::Partial {
-			has_value: Some(&1),
-		} => {}
+		MatchResult::Partial { has_value: Some(&1) } => {}
 		other => panic!("Expected Partial with value 1, got {other:?}"),
 	}
 }
@@ -108,10 +94,7 @@ fn lookup_none() {
 	matcher.add(parse_seq("a").unwrap(), 1);
 
 	assert_eq!(matcher.lookup(&parse_seq("x").unwrap()), MatchResult::None);
-	assert_eq!(
-		matcher.lookup(&parse_seq("a b").unwrap()),
-		MatchResult::None
-	);
+	assert_eq!(matcher.lookup(&parse_seq("a b").unwrap()), MatchResult::None);
 }
 
 #[test]
@@ -124,11 +107,7 @@ fn continuations_with_kind_leaf() {
 	assert_eq!(conts.len(), 2);
 
 	for cont in &conts {
-		assert_eq!(
-			cont.kind,
-			ContinuationKind::Leaf,
-			"Expected leaf for terminal binding"
-		);
+		assert_eq!(cont.kind, ContinuationKind::Leaf, "Expected leaf for terminal binding");
 		assert!(cont.value.is_some(), "Leaf should have a value");
 	}
 }
@@ -146,18 +125,10 @@ fn continuations_with_kind_branch() {
 	let f_cont = conts.iter().find(|c| format!("{}", c.key) == "f").unwrap();
 	let s_cont = conts.iter().find(|c| format!("{}", c.key) == "s").unwrap();
 
-	assert_eq!(
-		f_cont.kind,
-		ContinuationKind::Branch,
-		"'f' should be a branch (has children)"
-	);
+	assert_eq!(f_cont.kind, ContinuationKind::Branch, "'f' should be a branch (has children)");
 	assert!(f_cont.value.is_none(), "Branch without sticky action");
 
-	assert_eq!(
-		s_cont.kind,
-		ContinuationKind::Leaf,
-		"'s' should be a leaf (no children)"
-	);
+	assert_eq!(s_cont.kind, ContinuationKind::Leaf, "'s' should be a leaf (no children)");
 	assert!(s_cont.value.is_some(), "Leaf should have a value");
 }
 
@@ -170,10 +141,6 @@ fn continuations_with_kind_branch_with_sticky() {
 	let conts = matcher.continuations_with_kind(&[]);
 	let g_cont = conts.iter().find(|c| format!("{}", c.key) == "g").unwrap();
 
-	assert_eq!(
-		g_cont.kind,
-		ContinuationKind::Branch,
-		"'g' is a branch (has 'g g' child)"
-	);
+	assert_eq!(g_cont.kind, ContinuationKind::Branch, "'g' is a branch (has 'g g' child)");
 	assert_eq!(g_cont.value, Some(&1), "'g' has sticky value");
 }

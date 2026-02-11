@@ -14,11 +14,7 @@ use super::super::overlapping_load;
 /// When W <= 16, the caller must ensure that the minimum length of the haystack is >= 8.
 /// In all cases, the caller must ensure the needle.len() > 0 and that SSE2 is available.
 #[inline(always)]
-pub unsafe fn match_haystack_unordered_typos(
-	needle: &[u8],
-	haystack: &[u8],
-	max_typos: u16,
-) -> bool {
+pub unsafe fn match_haystack_unordered_typos(needle: &[u8], haystack: &[u8], max_typos: u16) -> bool {
 	let len = haystack.len();
 
 	let mut needle_iter = needle.iter().map(|&c| unsafe { _mm_set1_epi8(c as i8) });

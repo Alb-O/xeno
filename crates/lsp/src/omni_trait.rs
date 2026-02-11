@@ -21,16 +21,10 @@ mod sealed {
 
 	impl NotifyResult for ControlFlow<crate::Result<()>> {
 		fn fallback<N: Notification>() -> Self {
-			if N::METHOD.starts_with("$/")
-				|| N::METHOD == notification::Exit::METHOD
-				|| N::METHOD == notification::Initialized::METHOD
-			{
+			if N::METHOD.starts_with("$/") || N::METHOD == notification::Exit::METHOD || N::METHOD == notification::Initialized::METHOD {
 				ControlFlow::Continue(())
 			} else {
-				ControlFlow::Break(Err(crate::Error::Routing(format!(
-					"Unhandled notification: {}",
-					N::METHOD,
-				))))
+				ControlFlow::Break(Err(crate::Error::Routing(format!("Unhandled notification: {}", N::METHOD,))))
 			}
 		}
 	}

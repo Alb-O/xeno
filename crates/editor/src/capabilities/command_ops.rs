@@ -46,11 +46,7 @@ impl CommandEditorOps for EditorCaps<'_> {
 
 	fn set_option(&mut self, kdl_key: &str, value: &str) -> Result<(), CommandError> {
 		let opt_value = super::parse_option_value(kdl_key, value)?;
-		let _ = self.ed.state.config.global_options.set_by_kdl(
-			&xeno_registry::db::OPTIONS,
-			kdl_key,
-			opt_value,
-		);
+		let _ = self.ed.state.config.global_options.set_by_kdl(&xeno_registry::db::OPTIONS, kdl_key, opt_value);
 
 		if let Some(def) = find(kdl_key) {
 			let resolved_key = def.name_str();
@@ -82,11 +78,7 @@ impl CommandEditorOps for EditorCaps<'_> {
 		}
 
 		let opt_value = super::parse_option_value(kdl_key, value)?;
-		let _ = self.ed.buffer_mut().local_options.set_by_kdl(
-			&xeno_registry::db::OPTIONS,
-			kdl_key,
-			opt_value,
-		);
+		let _ = self.ed.buffer_mut().local_options.set_by_kdl(&xeno_registry::db::OPTIONS, kdl_key, opt_value);
 
 		let resolved_key = def.name_str();
 		emit_hook_sync_with(
@@ -100,25 +92,17 @@ impl CommandEditorOps for EditorCaps<'_> {
 	}
 
 	fn open_info_popup(&mut self, content: &str, _file_type: Option<&str>) {
-		self.ed
-			.state
-			.effects
-			.overlay_request(OverlayRequest::ShowInfoPopup {
-				title: None,
-				body: content.to_string(),
-			});
+		self.ed.state.effects.overlay_request(OverlayRequest::ShowInfoPopup {
+			title: None,
+			body: content.to_string(),
+		});
 	}
 
 	fn close_all_info_popups(&mut self) {
 		// TODO: Add CloseInfoPopups to OverlayRequest if needed
 	}
 
-	fn goto_file(
-		&mut self,
-		path: PathBuf,
-		line: usize,
-		column: usize,
-	) -> BoxFutureLocal<'_, Result<(), CommandError>> {
+	fn goto_file(&mut self, path: PathBuf, line: usize, column: usize) -> BoxFutureLocal<'_, Result<(), CommandError>> {
 		Box::pin(async move {
 			use crate::impls::Location;
 			self.ed

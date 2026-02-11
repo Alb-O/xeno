@@ -39,11 +39,7 @@ fn to_simd(str_bytes: [&[u8]; 32], str_lens: [usize; 32], offset: usize) -> [__m
 				_mm256_loadu_si256(str_bytes[i][offset..].as_ptr() as *const __m256i)
 			} else {
 				let mut temp = _mm256_setzero_si256();
-				std::ptr::copy_nonoverlapping(
-					str_bytes[i][offset..].as_ptr(),
-					&mut temp as *mut __m256i as *mut u8,
-					load_len,
-				);
+				std::ptr::copy_nonoverlapping(str_bytes[i][offset..].as_ptr(), &mut temp as *mut __m256i as *mut u8, load_len);
 				temp
 			}
 		})

@@ -13,9 +13,7 @@
 use std::collections::BTreeMap;
 use std::ops::Range as StdRange;
 
-use xeno_lsp::lsp_types::{
-	CompletionItem, CompletionTextEdit, CompletionTriggerKind, InsertTextFormat, TextEdit,
-};
+use xeno_lsp::lsp_types::{CompletionItem, CompletionTextEdit, CompletionTriggerKind, InsertTextFormat, TextEdit};
 use xeno_lsp::{CompletionRequest, CompletionTrigger, OffsetEncoding};
 use xeno_primitives::range::CharIdx;
 use xeno_primitives::transaction::Bias;
@@ -41,23 +39,13 @@ impl Editor {
 			&& !key.modifiers.contains(Modifiers::SHIFT)
 	}
 
-	pub(crate) fn trigger_lsp_completion(
-		&mut self,
-		trigger: CompletionTrigger,
-		trigger_char: Option<char>,
-	) {
+	pub(crate) fn trigger_lsp_completion(&mut self, trigger: CompletionTrigger, trigger_char: Option<char>) {
 		let is_trigger_char = trigger_char.is_some_and(is_completion_trigger_char);
 		let is_manual = matches!(trigger, CompletionTrigger::Manual);
 
 		if is_trigger_char || is_manual {
-			self.overlays_mut()
-				.get_or_default::<CompletionState>()
-				.suppressed = false;
-		} else if self
-			.overlays()
-			.get::<CompletionState>()
-			.is_some_and(|s| s.suppressed)
-		{
+			self.overlays_mut().get_or_default::<CompletionState>().suppressed = false;
+		} else if self.overlays().get::<CompletionState>().is_some_and(|s| s.suppressed) {
 			return;
 		}
 
@@ -69,13 +57,7 @@ impl Editor {
 			return;
 		}
 
-		let Some((client, uri, position)) = self
-			.state
-			.lsp
-			.prepare_position_request(buffer)
-			.ok()
-			.flatten()
-		else {
+		let Some((client, uri, position)) = self.state.lsp.prepare_position_request(buffer).ok().flatten() else {
 			return;
 		};
 
@@ -108,10 +90,7 @@ impl Editor {
 	/// Called when the user types or deletes while a completion menu is visible,
 	/// to update filtering without waiting for a new LSP response.
 	pub(crate) fn refilter_completion(&mut self) {
-		let menu_kind = self
-			.overlays()
-			.get::<LspMenuState>()
-			.and_then(|s: &LspMenuState| s.active());
+		let menu_kind = self.overlays().get::<LspMenuState>().and_then(|s: &LspMenuState| s.active());
 		let Some(LspMenuKind::Completion { buffer_id, items }) = menu_kind else {
 			return;
 		};
@@ -122,19 +101,14 @@ impl Editor {
 			return;
 		};
 
-		let replace_start = self
-			.overlays()
-			.get::<CompletionState>()
-			.map(|s| s.replace_start)
-			.unwrap_or(0);
+		let replace_start = self.overlays().get::<CompletionState>().map(|s| s.replace_start).unwrap_or(0);
 
 		if buffer.cursor < replace_start {
 			self.clear_lsp_menu();
 			return;
 		}
 
-		let query =
-			buffer.with_doc(|doc| extract_query(doc.content(), replace_start, buffer.cursor));
+		let query = buffer.with_doc(|doc| extract_query(doc.content(), replace_start, buffer.cursor));
 		let filtered = filter_items(&items, &query);
 
 		if filtered.is_empty() {
@@ -184,11 +158,7 @@ impl Editor {
 		} else {
 			selection.from()
 		};
-		let replace_end = if selection.is_point() {
-			cursor
-		} else {
-			selection.to()
-		};
+		let replace_end = if selection.is_point() { cursor } else { selection.to() };
 
 		let (raw_text_edit, raw_text) = normalize_completion_edit(&item);
 		let (insert_text, snippet) = match item.insert_text_format {
@@ -198,14 +168,7 @@ impl Editor {
 			_ => (raw_text.clone(), None),
 		};
 
-		let (mut edits, base_start) = match completion_text_edit(
-			&rope,
-			encoding,
-			raw_text_edit,
-			replace_start,
-			replace_end,
-			&insert_text,
-		) {
+		let (mut edits, base_start) = match completion_text_edit(&rope, encoding, raw_text_edit, replace_start, replace_end, &insert_text) {
 			Ok(result) => result,
 			Err(err) => {
 				self.notify(keys::error(err));
@@ -215,8 +178,7 @@ impl Editor {
 
 		if let Some(additional) = item.additional_text_edits {
 			for edit in additional {
-				let planned = convert_text_edit(&rope, encoding, &edit)
-					.ok_or_else(|| ApplyError::RangeConversionFailed(buffer_id.0.to_string()));
+				let planned = convert_text_edit(&rope, encoding, &edit).ok_or_else(|| ApplyError::RangeConversionFailed(buffer_id.0.to_string()));
 				match planned {
 					Ok(planned) => edits.push(planned),
 					Err(err) => {
@@ -257,34 +219,24 @@ impl Editor {
 				buffer.set_cursor_and_selection(cursor, selection);
 			}
 			if let Some(command) = command {
-				self.execute_lsp_command(buffer_id, command.command, command.arguments)
-					.await;
+				self.execute_lsp_command(buffer_id, command.command, command.arguments).await;
 			}
 			return;
 		}
 
-		let new_cursor = tx
-			.changes()
-			.map_pos(base_start, Bias::Left)
-			.saturating_add(insert_text.chars().count());
+		let new_cursor = tx.changes().map_pos(base_start, Bias::Left).saturating_add(insert_text.chars().count());
 		if let Some(buffer) = self.state.core.buffers.get_buffer_mut(buffer_id) {
 			buffer.set_cursor_and_selection(new_cursor, Selection::point(new_cursor));
 		}
 		if let Some(command) = command {
-			self.execute_lsp_command(buffer_id, command.command, command.arguments)
-				.await;
+			self.execute_lsp_command(buffer_id, command.command, command.arguments).await;
 		}
 	}
 }
 
-fn completion_trigger_kind(
-	trigger: &CompletionTrigger,
-	trigger_char: Option<char>,
-) -> CompletionTriggerKind {
+fn completion_trigger_kind(trigger: &CompletionTrigger, trigger_char: Option<char>) -> CompletionTriggerKind {
 	match trigger {
-		CompletionTrigger::Typing if trigger_char.is_some() => {
-			CompletionTriggerKind::TRIGGER_CHARACTER
-		}
+		CompletionTrigger::Typing if trigger_char.is_some() => CompletionTriggerKind::TRIGGER_CHARACTER,
 		CompletionTrigger::Manual | CompletionTrigger::Typing => CompletionTriggerKind::INVOKED,
 	}
 }
@@ -345,8 +297,7 @@ fn completion_text_edit(
 	let mut edits = Vec::new();
 	let base_start = if let Some(mut edit) = text_edit {
 		edit.new_text = insert_text.to_string();
-		let planned = convert_text_edit(rope, encoding, &edit)
-			.ok_or_else(|| "Failed to convert completion textEdit".to_string())?;
+		let planned = convert_text_edit(rope, encoding, &edit).ok_or_else(|| "Failed to convert completion textEdit".to_string())?;
 		let base_start = planned.range.start;
 		edits.push(planned);
 		base_start
@@ -363,10 +314,7 @@ fn completion_text_edit(
 	Ok((edits, base_start))
 }
 
-fn validate_non_overlapping(
-	edits: &mut [PlannedTextEdit],
-	buffer_id: ViewId,
-) -> Result<(), ApplyError> {
+fn validate_non_overlapping(edits: &mut [PlannedTextEdit], buffer_id: ViewId) -> Result<(), ApplyError> {
 	edits.sort_by_key(|edit| (edit.range.start, edit.range.end));
 	for window in edits.windows(2) {
 		let prev = &window[0];
@@ -378,11 +326,7 @@ fn validate_non_overlapping(
 	Ok(())
 }
 
-fn completion_snippet_selection(
-	tx: &xeno_primitives::Transaction,
-	base_start: CharIdx,
-	snippet: Option<Snippet>,
-) -> Option<Selection> {
+fn completion_snippet_selection(tx: &xeno_primitives::Transaction, base_start: CharIdx, snippet: Option<Snippet>) -> Option<Selection> {
 	let snippet = snippet?;
 	if snippet.placeholders.is_empty() {
 		return None;
@@ -409,9 +353,7 @@ fn completion_snippet_selection(
 	let primary = selection_ranges.remove(0);
 	let selection = Selection::new(
 		Range::new(primary.start, primary.end),
-		selection_ranges
-			.into_iter()
-			.map(|range| Range::new(range.start, range.end)),
+		selection_ranges.into_iter().map(|range| Range::new(range.start, range.end)),
 	);
 	Some(selection)
 }

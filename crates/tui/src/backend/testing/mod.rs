@@ -128,8 +128,7 @@ impl TestBackend {
 	pub fn resize(&mut self, width: u16, height: u16) {
 		self.buffer.resize(Rect::new(0, 0, width, height));
 		let scrollback_height = self.scrollback.area.height;
-		self.scrollback
-			.resize(Rect::new(0, 0, width, scrollback_height));
+		self.scrollback.resize(Rect::new(0, 0, width, scrollback_height));
 	}
 
 	/// Asserts that the `TestBackend`'s buffer is equal to the expected buffer.
@@ -333,10 +332,9 @@ impl Backend for TestBackend {
 
 			append_to_scrollback(
 				&mut self.scrollback,
-				self.buffer.content.splice(
-					0..cells_to_scrollback,
-					iter::repeat_with(Default::default).take(cells_to_scrollback),
-				),
+				self.buffer
+					.content
+					.splice(0..cells_to_scrollback, iter::repeat_with(Default::default).take(cells_to_scrollback)),
 			);
 			self.buffer.content.rotate_left(cells_to_scrollback);
 			append_to_scrollback(
@@ -357,10 +355,7 @@ impl Backend for TestBackend {
 
 	fn window_size(&mut self) -> Result<WindowSize> {
 		// Some arbitrary window pixel size, probably doesn't need much testing.
-		const WINDOW_PIXEL_SIZE: Size = Size {
-			width: 640,
-			height: 480,
-		};
+		const WINDOW_PIXEL_SIZE: Size = Size { width: 640, height: 480 };
 		Ok(WindowSize {
 			columns_rows: self.buffer.area.as_size(),
 			pixels: WINDOW_PIXEL_SIZE,
@@ -386,10 +381,8 @@ impl Backend for TestBackend {
 				self.buffer.content[cell_region_start..cell_region_end].fill_with(Default::default);
 			} else {
 				// Scroll up by rotating, then filling in the bottom with empty cells.
-				self.buffer.content[cell_region_start..cell_region_end]
-					.rotate_left(cells_to_scroll_by);
-				self.buffer.content[cell_region_end - cells_to_scroll_by..cell_region_end]
-					.fill_with(Default::default);
+				self.buffer.content[cell_region_start..cell_region_end].rotate_left(cells_to_scroll_by);
+				self.buffer.content[cell_region_end - cells_to_scroll_by..cell_region_end].fill_with(Default::default);
 			}
 			return Ok(());
 		}
@@ -399,10 +392,9 @@ impl Backend for TestBackend {
 		let cells_from_region = cell_region_len.min(cells_to_scroll_by);
 		append_to_scrollback(
 			&mut self.scrollback,
-			self.buffer.content.splice(
-				0..cells_from_region,
-				iter::repeat_with(Default::default).take(cells_from_region),
-			),
+			self.buffer
+				.content
+				.splice(0..cells_from_region, iter::repeat_with(Default::default).take(cells_from_region)),
 		);
 		if cells_to_scroll_by < cell_region_len {
 			// Rotate the remaining cells to the front of the region.
@@ -430,10 +422,8 @@ impl Backend for TestBackend {
 			self.buffer.content[cell_region_start..cell_region_end].fill_with(Default::default);
 		} else {
 			// Scroll up by rotating, then filling in the top with empty cells.
-			self.buffer.content[cell_region_start..cell_region_end]
-				.rotate_right(cells_to_scroll_by);
-			self.buffer.content[cell_region_start..cell_region_start + cells_to_scroll_by]
-				.fill_with(Default::default);
+			self.buffer.content[cell_region_start..cell_region_end].rotate_right(cells_to_scroll_by);
+			self.buffer.content[cell_region_start..cell_region_start + cells_to_scroll_by].fill_with(Default::default);
 		}
 		Ok(())
 	}
@@ -446,10 +436,7 @@ fn append_to_scrollback(scrollback: &mut Buffer, cells: impl IntoIterator<Item =
 	scrollback.content.extend(cells);
 	let width = scrollback.area.width as usize;
 	let new_height = (scrollback.content.len() / width).min(u16::MAX as usize);
-	let keep_from = scrollback
-		.content
-		.len()
-		.saturating_sub(width * u16::MAX as usize);
+	let keep_from = scrollback.content.len().saturating_sub(width * u16::MAX as usize);
 	scrollback.content.drain(0..keep_from);
 	scrollback.area.height = new_height as u16;
 }

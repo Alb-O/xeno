@@ -1,7 +1,5 @@
 use super::spec::MotionsSpec;
-use crate::core::{
-	LinkedDef, LinkedMetaOwned, LinkedPayload, RegistryMeta, RegistrySource, Symbol,
-};
+use crate::core::{LinkedDef, LinkedMetaOwned, LinkedPayload, RegistryMeta, RegistrySource, Symbol};
 use crate::motions::handler::MotionHandlerStatic;
 use crate::motions::{MotionEntry, MotionHandler};
 
@@ -13,23 +11,12 @@ pub struct MotionPayload {
 }
 
 impl LinkedPayload<MotionEntry> for MotionPayload {
-	fn build_entry(
-		&self,
-		_ctx: &mut dyn crate::core::index::BuildCtx,
-		meta: RegistryMeta,
-		_short_desc: Symbol,
-	) -> MotionEntry {
-		MotionEntry {
-			meta,
-			handler: self.handler,
-		}
+	fn build_entry(&self, _ctx: &mut dyn crate::core::index::BuildCtx, meta: RegistryMeta, _short_desc: Symbol) -> MotionEntry {
+		MotionEntry { meta, handler: self.handler }
 	}
 }
 
-pub fn link_motions(
-	spec: &MotionsSpec,
-	handlers: impl Iterator<Item = &'static MotionHandlerStatic>,
-) -> Vec<LinkedMotionDef> {
+pub fn link_motions(spec: &MotionsSpec, handlers: impl Iterator<Item = &'static MotionHandlerStatic>) -> Vec<LinkedMotionDef> {
 	crate::defs::link::link_by_name(
 		&spec.motions,
 		handlers,
@@ -51,9 +38,7 @@ pub fn link_motions(
 					flags: common.flags,
 					short_desc: Some(common.name.clone()),
 				},
-				payload: MotionPayload {
-					handler: handler.handler,
-				},
+				payload: MotionPayload { handler: handler.handler },
 			}
 		},
 		"motion",

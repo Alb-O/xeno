@@ -36,9 +36,7 @@ pub fn derive_option(input: TokenStream) -> TokenStream {
 	};
 
 	let Some(option_attr) = item.attrs.iter().find(|a| a.path().is_ident("option")) else {
-		return syn::Error::new_spanned(&item, "missing #[option(...)] attribute")
-			.to_compile_error()
-			.into();
+		return syn::Error::new_spanned(&item, "missing #[option(...)] attribute").to_compile_error().into();
 	};
 
 	let mut kdl_key: Option<String> = None;
@@ -101,35 +99,14 @@ pub fn derive_option(input: TokenStream) -> TokenStream {
 	let ty_str = quote!(#ty).to_string();
 
 	let (option_type, value_wrapper, key_type): (_, _, syn::Type) = match ty_str.as_str() {
-		"i64" => (
-			format_ident!("Int"),
-			format_ident!("Int"),
-			syn::parse_quote!(i64),
-		),
-		"bool" => (
-			format_ident!("Bool"),
-			format_ident!("Bool"),
-			syn::parse_quote!(bool),
-		),
-		"String" => (
-			format_ident!("String"),
-			format_ident!("String"),
-			syn::parse_quote!(String),
-		),
-		"& 'static str" | "&'static str" => (
-			format_ident!("String"),
-			format_ident!("String"),
-			syn::parse_quote!(String),
-		),
+		"i64" => (format_ident!("Int"), format_ident!("Int"), syn::parse_quote!(i64)),
+		"bool" => (format_ident!("Bool"), format_ident!("Bool"), syn::parse_quote!(bool)),
+		"String" => (format_ident!("String"), format_ident!("String"), syn::parse_quote!(String)),
+		"& 'static str" | "&'static str" => (format_ident!("String"), format_ident!("String"), syn::parse_quote!(String)),
 		_ => {
-			return syn::Error::new_spanned(
-				ty,
-				format!(
-					"unsupported option type: {ty_str}. Supported: i64, bool, String, &'static str"
-				),
-			)
-			.to_compile_error()
-			.into();
+			return syn::Error::new_spanned(ty, format!("unsupported option type: {ty_str}. Supported: i64, bool, String, &'static str"))
+				.to_compile_error()
+				.into();
 		}
 	};
 
@@ -161,19 +138,11 @@ pub fn derive_option(input: TokenStream) -> TokenStream {
 		.collect::<Vec<_>>()
 		.join(" ");
 
-	let description = if description.is_empty() {
-		name_str.clone()
-	} else {
-		description
-	};
+	let description = if description.is_empty() { name_str.clone() } else { description };
 
 	let internal_static = format_ident!("__OPT_{}", name_str);
 	let vis = &item.vis;
-	let other_attrs: Vec<_> = item
-		.attrs
-		.iter()
-		.filter(|a| !a.path().is_ident("option"))
-		.collect();
+	let other_attrs: Vec<_> = item.attrs.iter().filter(|a| !a.path().is_ident("option")).collect();
 
 	let validator_expr = match validator {
 		Some(v) => quote! { Some(::xeno_registry::options::validators::#v) },

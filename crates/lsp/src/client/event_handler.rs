@@ -16,14 +16,7 @@ use super::config::LanguageServerId;
 /// implement the events you care about.
 pub trait LspEventHandler: Send + Sync {
 	/// Called when the server publishes diagnostics for a document.
-	fn on_diagnostics(
-		&self,
-		_server_id: LanguageServerId,
-		_uri: Uri,
-		_diagnostics: Vec<Diagnostic>,
-		_version: Option<i32>,
-	) {
-	}
+	fn on_diagnostics(&self, _server_id: LanguageServerId, _uri: Uri, _diagnostics: Vec<Diagnostic>, _version: Option<i32>) {}
 
 	/// Called when the server reports progress (e.g., "Indexing...").
 	fn on_progress(&self, _server_id: LanguageServerId, _params: ProgressParams) {}

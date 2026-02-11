@@ -2,9 +2,7 @@ use super::spec::CommandsSpec;
 use crate::commands::def::CommandHandler;
 use crate::commands::entry::CommandEntry;
 use crate::commands::handler::CommandHandlerStatic;
-use crate::core::{
-	LinkedDef, LinkedMetaOwned, LinkedPayload, RegistryMeta, RegistrySource, Symbol,
-};
+use crate::core::{LinkedDef, LinkedMetaOwned, LinkedPayload, RegistryMeta, RegistrySource, Symbol};
 
 /// A command definition assembled from spec + Rust handler.
 pub type LinkedCommandDef = LinkedDef<CommandPayload>;
@@ -15,12 +13,7 @@ pub struct CommandPayload {
 }
 
 impl LinkedPayload<CommandEntry> for CommandPayload {
-	fn build_entry(
-		&self,
-		_ctx: &mut dyn crate::core::index::BuildCtx,
-		meta: RegistryMeta,
-		_short_desc: Symbol,
-	) -> CommandEntry {
+	fn build_entry(&self, _ctx: &mut dyn crate::core::index::BuildCtx, meta: RegistryMeta, _short_desc: Symbol) -> CommandEntry {
 		CommandEntry {
 			meta,
 			handler: self.handler,
@@ -30,10 +23,7 @@ impl LinkedPayload<CommandEntry> for CommandPayload {
 }
 
 /// Links spec with handler statics, producing `LinkedCommandDef`s.
-pub fn link_commands(
-	spec: &CommandsSpec,
-	handlers: impl Iterator<Item = &'static CommandHandlerStatic>,
-) -> Vec<LinkedCommandDef> {
+pub fn link_commands(spec: &CommandsSpec, handlers: impl Iterator<Item = &'static CommandHandlerStatic>) -> Vec<LinkedCommandDef> {
 	crate::defs::link::link_by_name(
 		&spec.commands,
 		handlers,
@@ -55,9 +45,7 @@ pub fn link_commands(
 					flags: common.flags,
 					short_desc: Some(common.name.clone()), // commands.rs used name as short_desc
 				},
-				payload: CommandPayload {
-					handler: handler.handler,
-				},
+				payload: CommandPayload { handler: handler.handler },
 			}
 		},
 		"command",

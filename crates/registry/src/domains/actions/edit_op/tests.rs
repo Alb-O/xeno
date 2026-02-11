@@ -25,10 +25,7 @@ fn test_change_enters_insert_mode() {
 fn test_open_below_composition() {
 	let op = open_below();
 	assert!(matches!(op.selection, SelectionOp::ToLineEnd));
-	assert!(matches!(
-		op.transform,
-		TextTransform::InsertNewlineWithIndent
-	));
+	assert!(matches!(op.transform, TextTransform::InsertNewlineWithIndent));
 	assert!(op.post.contains(&PostEffect::SetMode(Mode::Insert)));
 }
 

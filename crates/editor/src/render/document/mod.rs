@@ -19,12 +19,7 @@ use crate::render::RenderCtx;
 use crate::window::GutterSelector;
 
 /// Per-layer rendering data: (layer_id, layer_area, view_areas, separators).
-type LayerRenderData = (
-	LayerId,
-	Rect,
-	Vec<(ViewId, Rect)>,
-	Vec<(SplitDirection, u8, Rect)>,
-);
+type LayerRenderData = (LayerId, Rect, Vec<(ViewId, Rect)>, Vec<(SplitDirection, u8, Rect)>);
 
 impl Editor {
 	/// Renders the complete editor frame.
@@ -47,13 +42,7 @@ impl Editor {
 	/// Orchestrates a two-pass rendering process:
 	/// 1. Visibility pass: Ensures cursors are within visible viewports.
 	/// 2. Render pass: Draws buffer content and gutters using the render cache.
-	pub(crate) fn render_split_buffers(
-		&mut self,
-		frame: &mut xeno_tui::Frame,
-		doc_area: Rect,
-		use_block_cursor: bool,
-		ctx: &RenderCtx,
-	) {
+	pub(crate) fn render_split_buffers(&mut self, frame: &mut xeno_tui::Frame, doc_area: Rect, use_block_cursor: bool, ctx: &RenderCtx) {
 		let focused_view = self.focused_view();
 		let base_layout = &self.base_window().layout;
 
@@ -64,14 +53,8 @@ impl Editor {
 		{
 			let layer_id = LayerId::BASE;
 			let layer_area = self.state.layout.layer_area(layer_id, doc_area);
-			let view_areas =
-				self.state
-					.layout
-					.compute_view_areas_for_layer(base_layout, layer_id, layer_area);
-			let separators =
-				self.state
-					.layout
-					.separator_positions_for_layer(base_layout, layer_id, layer_area);
+			let view_areas = self.state.layout.compute_view_areas_for_layer(base_layout, layer_id, layer_area);
+			let separators = self.state.layout.separator_positions_for_layer(base_layout, layer_id, layer_area);
 			layer_data.push((layer_id, layer_area, view_areas, separators));
 		}
 
@@ -81,16 +64,8 @@ impl Editor {
 				let generation = self.state.layout.layer_slot_generation(layer_idx);
 				let layer_id = LayerId::new(layer_idx as u16, generation);
 				let layer_area = self.state.layout.layer_area(layer_id, doc_area);
-				let view_areas = self.state.layout.compute_view_areas_for_layer(
-					base_layout,
-					layer_id,
-					layer_area,
-				);
-				let separators = self.state.layout.separator_positions_for_layer(
-					base_layout,
-					layer_id,
-					layer_area,
-				);
+				let view_areas = self.state.layout.compute_view_areas_for_layer(base_layout, layer_id, layer_area);
+				let separators = self.state.layout.separator_positions_for_layer(base_layout, layer_id, layer_area);
 				layer_data.push((layer_id, layer_area, view_areas, separators));
 			}
 		}
@@ -99,11 +74,7 @@ impl Editor {
 		for (_, _, view_areas, _) in &layer_data {
 			for (buffer_id, area) in view_areas {
 				let tab_width = self.tab_width_for(*buffer_id);
-				let scroll_margin = if mouse_drag_active {
-					0
-				} else {
-					self.scroll_margin_for(*buffer_id)
-				};
+				let scroll_margin = if mouse_drag_active { 0 } else { self.scroll_margin_for(*buffer_id) };
 
 				if let Some(buffer) = self.get_buffer_mut(*buffer_id) {
 					let total_lines = buffer.with_doc(|doc| doc.content().len_lines());
@@ -115,17 +86,10 @@ impl Editor {
 						gutter
 					};
 
-					let gutter_layout =
-						GutterLayout::from_selector(effective_gutter, total_lines, area.width);
+					let gutter_layout = GutterLayout::from_selector(effective_gutter, total_lines, area.width);
 					let text_width = area.width.saturating_sub(gutter_layout.total_width) as usize;
 
-					ensure_buffer_cursor_visible(
-						buffer,
-						*area,
-						text_width,
-						tab_width,
-						scroll_margin,
-					);
+					ensure_buffer_cursor_visible(buffer, *area, text_width, tab_width, scroll_margin);
 				}
 			}
 		}
@@ -149,15 +113,7 @@ impl Editor {
 						diagnostics: ctx.lsp.diagnostics_for(*buffer_id),
 						diagnostic_ranges: ctx.lsp.diagnostic_ranges_for(*buffer_id),
 					};
-					let result = buffer_ctx.render_buffer(
-						buffer,
-						*area,
-						use_block_cursor,
-						is_focused,
-						tab_width,
-						cursorline,
-						&mut cache,
-					);
+					let result = buffer_ctx.render_buffer(buffer, *area, use_block_cursor, is_focused, tab_width, cursorline, &mut cache);
 
 					let gutter_area = Rect {
 						width: result.gutter_width,
@@ -181,13 +137,8 @@ impl Editor {
 			for (direction, priority, sep_rect) in separators {
 				let style = sep_style.for_rect(*sep_rect, *priority);
 				let lines: Vec<Line> = match direction {
-					SplitDirection::Horizontal => (0..sep_rect.height)
-						.map(|_| Line::from(Span::styled("\u{2502}", style)))
-						.collect(),
-					SplitDirection::Vertical => vec![Line::from(Span::styled(
-						"\u{2500}".repeat(sep_rect.width as usize),
-						style,
-					))],
+					SplitDirection::Horizontal => (0..sep_rect.height).map(|_| Line::from(Span::styled("\u{2502}", style))).collect(),
+					SplitDirection::Vertical => vec![Line::from(Span::styled("\u{2500}".repeat(sep_rect.width as usize), style))],
 				};
 				frame.render_widget(Paragraph::new(lines), *sep_rect);
 			}
@@ -202,12 +153,7 @@ impl Editor {
 	/// then derives junction connectivity from neighbor relationships. This is
 	/// simpler and more correct than the previous O(n²) rectangle intersection
 	/// logic with complex adjacency predicates.
-	fn render_separator_junctions(
-		&self,
-		frame: &mut xeno_tui::Frame,
-		separators: &[(SplitDirection, u8, Rect)],
-		sep_style: &SeparatorStyle,
-	) {
+	fn render_separator_junctions(&self, frame: &mut xeno_tui::Frame, separators: &[(SplitDirection, u8, Rect)], sep_style: &SeparatorStyle) {
 		use std::collections::HashMap;
 
 		/// Occupancy state for a separator cell.
@@ -272,8 +218,7 @@ impl Editor {
 				continue;
 			}
 
-			let connectivity =
-				(up as u8) | ((down as u8) << 1) | ((left as u8) << 2) | ((right as u8) << 3);
+			let connectivity = (up as u8) | ((down as u8) << 1) | ((left as u8) << 2) | ((right as u8) << 3);
 
 			if connectivity == 0b0011 {
 				continue; // Just a horizontal line segment

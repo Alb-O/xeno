@@ -15,36 +15,20 @@ impl crate::client::transport::LspTransport for SimpleStubTransport {
 		let (_, rx) = mpsc::unbounded_channel();
 		rx
 	}
-	async fn start(
-		&self,
-		_cfg: crate::client::ServerConfig,
-	) -> crate::Result<crate::client::transport::StartedServer> {
+	async fn start(&self, _cfg: crate::client::ServerConfig) -> crate::Result<crate::client::transport::StartedServer> {
 		Ok(crate::client::transport::StartedServer {
 			id: LanguageServerId::new(1, 0),
 		})
 	}
-	async fn notify(
-		&self,
-		_server: LanguageServerId,
-		_notif: crate::AnyNotification,
-	) -> crate::Result<()> {
+	async fn notify(&self, _server: LanguageServerId, _notif: crate::AnyNotification) -> crate::Result<()> {
 		Ok(())
 	}
-	async fn notify_with_barrier(
-		&self,
-		_server: LanguageServerId,
-		_notif: crate::AnyNotification,
-	) -> crate::Result<oneshot::Receiver<crate::Result<()>>> {
+	async fn notify_with_barrier(&self, _server: LanguageServerId, _notif: crate::AnyNotification) -> crate::Result<oneshot::Receiver<crate::Result<()>>> {
 		let (tx, rx) = oneshot::channel();
 		let _ = tx.send(Ok(()));
 		Ok(rx)
 	}
-	async fn request(
-		&self,
-		_server: LanguageServerId,
-		_req: crate::AnyRequest,
-		_timeout: Option<std::time::Duration>,
-	) -> crate::Result<crate::AnyResponse> {
+	async fn request(&self, _server: LanguageServerId, _req: crate::AnyRequest, _timeout: Option<std::time::Duration>) -> crate::Result<crate::AnyResponse> {
 		Err(crate::Error::Protocol("SimpleStubTransport".into()))
 	}
 	async fn reply(
@@ -113,26 +97,15 @@ async fn test_document_sync_returns_not_ready_before_init() {
 			let (_, rx) = mpsc::unbounded_channel();
 			rx
 		}
-		async fn start(
-			&self,
-			_cfg: crate::client::ServerConfig,
-		) -> crate::Result<crate::client::transport::StartedServer> {
+		async fn start(&self, _cfg: crate::client::ServerConfig) -> crate::Result<crate::client::transport::StartedServer> {
 			Ok(crate::client::transport::StartedServer {
 				id: LanguageServerId::new(1, 0),
 			})
 		}
-		async fn notify(
-			&self,
-			_server: LanguageServerId,
-			_notif: crate::AnyNotification,
-		) -> crate::Result<()> {
+		async fn notify(&self, _server: LanguageServerId, _notif: crate::AnyNotification) -> crate::Result<()> {
 			Ok(())
 		}
-		async fn notify_with_barrier(
-			&self,
-			_server: LanguageServerId,
-			_notif: crate::AnyNotification,
-		) -> crate::Result<oneshot::Receiver<crate::Result<()>>> {
+		async fn notify_with_barrier(&self, _server: LanguageServerId, _notif: crate::AnyNotification) -> crate::Result<oneshot::Receiver<crate::Result<()>>> {
 			let (tx, rx) = oneshot::channel();
 			let _ = tx.send(Ok(()));
 			Ok(rx)

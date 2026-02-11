@@ -63,9 +63,11 @@ impl ToastManager {
 	/// If a toast with identical content and anchor already exists (and is not
 	/// exiting), increments its stack count and resets the dismiss timer.
 	pub fn push(&mut self, toast: Toast) -> u64 {
-		if let Some((&id, state)) = self.states.iter_mut().find(|(_, s)| {
-			s.can_stack() && s.toast.anchor == toast.anchor && s.toast.content == toast.content
-		}) {
+		if let Some((&id, state)) = self
+			.states
+			.iter_mut()
+			.find(|(_, s)| s.can_stack() && s.toast.anchor == toast.anchor && s.toast.content == toast.content)
+		{
 			state.increment_stack();
 			return id;
 		}
@@ -137,17 +139,11 @@ impl ToastManager {
 
 	/// Returns the ID of the oldest toast.
 	fn oldest_id(&self) -> Option<u64> {
-		self.states
-			.iter()
-			.min_by_key(|(_, s)| s.created_at)
-			.map(|(&id, _)| id)
+		self.states.iter().min_by_key(|(_, s)| s.created_at).map(|(&id, _)| id)
 	}
 
 	/// Returns the ID of the newest toast.
 	fn newest_id(&self) -> Option<u64> {
-		self.states
-			.iter()
-			.max_by_key(|(_, s)| s.created_at)
-			.map(|(&id, _)| id)
+		self.states.iter().max_by_key(|(_, s)| s.created_at).map(|(&id, _)| id)
 	}
 }

@@ -7,11 +7,7 @@ gutter_handler!(line_numbers, |ctx| {
 	if ctx.is_continuation {
 		Some(GutterCell::new("┆", None, true))
 	} else {
-		Some(GutterCell::new(
-			format!("{}", ctx.line_idx + 1),
-			None,
-			false,
-		))
+		Some(GutterCell::new(format!("{}", ctx.line_idx + 1), None, false))
 	}
 });
 
@@ -28,11 +24,7 @@ gutter_handler!(hybrid, |ctx| {
 	if ctx.is_continuation {
 		Some(GutterCell::new("┆", None, true))
 	} else if ctx.is_cursor_line {
-		Some(GutterCell::new(
-			format!("{}", ctx.line_idx + 1),
-			None,
-			false,
-		))
+		Some(GutterCell::new(format!("{}", ctx.line_idx + 1), None, false))
 	} else {
 		let rel = (ctx.line_idx as isize - ctx.cursor_line as isize).unsigned_abs();
 		Some(GutterCell::new(format!("{}", rel), None, false))
@@ -75,9 +67,7 @@ pub fn register_builtins(builder: &mut crate::db::builder::RegistryDbBuilder) {
 	crate::gutter::register_compiled(builder);
 }
 
-fn register_builtins_reg(
-	builder: &mut crate::db::builder::RegistryDbBuilder,
-) -> Result<(), crate::db::builder::RegistryError> {
+fn register_builtins_reg(builder: &mut crate::db::builder::RegistryDbBuilder) -> Result<(), crate::db::builder::RegistryError> {
 	register_builtins(builder);
 	Ok(())
 }

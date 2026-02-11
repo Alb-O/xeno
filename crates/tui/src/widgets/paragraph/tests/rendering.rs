@@ -41,14 +41,8 @@ fn test_render_single_line_paragraph() {
 	] {
 		test_case(&paragraph, &Buffer::with_lines(["Hello, world!  "]));
 		test_case(&paragraph, &Buffer::with_lines(["Hello, world!"]));
-		test_case(
-			&paragraph,
-			&Buffer::with_lines(["Hello, world!  ", "               "]),
-		);
-		test_case(
-			&paragraph,
-			&Buffer::with_lines(["Hello, world!", "             "]),
-		);
+		test_case(&paragraph, &Buffer::with_lines(["Hello, world!  ", "               "]));
+		test_case(&paragraph, &Buffer::with_lines(["Hello, world!", "             "]));
 	}
 }
 
@@ -60,23 +54,11 @@ fn test_render_multi_line_paragraph() {
 		Paragraph::new(text).wrap(Wrap { trim: false }),
 		Paragraph::new(text).wrap(Wrap { trim: true }),
 	] {
+		test_case(&paragraph, &Buffer::with_lines(["This is a ", "multiline ", "paragraph."]));
+		test_case(&paragraph, &Buffer::with_lines(["This is a      ", "multiline      ", "paragraph.     "]));
 		test_case(
 			&paragraph,
-			&Buffer::with_lines(["This is a ", "multiline ", "paragraph."]),
-		);
-		test_case(
-			&paragraph,
-			&Buffer::with_lines(["This is a      ", "multiline      ", "paragraph.     "]),
-		);
-		test_case(
-			&paragraph,
-			&Buffer::with_lines([
-				"This is a      ",
-				"multiline      ",
-				"paragraph.     ",
-				"               ",
-				"               ",
-			]),
+			&Buffer::with_lines(["This is a      ", "multiline      ", "paragraph.     ", "               ", "               "]),
 		);
 	}
 }
@@ -86,11 +68,7 @@ fn test_render_paragraph_with_block() {
 	// We use the slightly unconventional "worlds" instead of "world" here to make sure when we
 	// can truncate this without triggering the typos linter.
 	let text = "Hello, worlds!";
-	let truncated_paragraph = Paragraph::new(text).block(
-		Block::bordered()
-			.border_type(BorderType::Plain)
-			.title("Title"),
-	);
+	let truncated_paragraph = Paragraph::new(text).block(Block::bordered().border_type(BorderType::Plain).title("Title"));
 	let wrapped_paragraph = truncated_paragraph.clone().wrap(Wrap { trim: false });
 	let trimmed_paragraph = truncated_paragraph.clone().wrap(Wrap { trim: true });
 
@@ -106,49 +84,25 @@ fn test_render_paragraph_with_block() {
             );
 		test_case(
 			paragraph,
-			&Buffer::with_lines([
-				"┌Title───────────┐",
-				"│Hello, worlds!  │",
-				"└────────────────┘",
-			]),
+			&Buffer::with_lines(["┌Title───────────┐", "│Hello, worlds!  │", "└────────────────┘"]),
 		);
 		test_case(
 			paragraph,
-			&Buffer::with_lines([
-				"┌Title────────────┐",
-				"│Hello, worlds!   │",
-				"│                 │",
-				"└─────────────────┘",
-			]),
+			&Buffer::with_lines(["┌Title────────────┐", "│Hello, worlds!   │", "│                 │", "└─────────────────┘"]),
 		);
 	}
 
 	test_case(
 		&truncated_paragraph,
-		&Buffer::with_lines([
-			"┌Title───────┐",
-			"│Hello, world│",
-			"│            │",
-			"└────────────┘",
-		]),
+		&Buffer::with_lines(["┌Title───────┐", "│Hello, world│", "│            │", "└────────────┘"]),
 	);
 	test_case(
 		&wrapped_paragraph,
-		&Buffer::with_lines([
-			"┌Title──────┐",
-			"│Hello,     │",
-			"│worlds!    │",
-			"└───────────┘",
-		]),
+		&Buffer::with_lines(["┌Title──────┐", "│Hello,     │", "│worlds!    │", "└───────────┘"]),
 	);
 	test_case(
 		&trimmed_paragraph,
-		&Buffer::with_lines([
-			"┌Title──────┐",
-			"│Hello,     │",
-			"│worlds!    │",
-			"└───────────┘",
-		]),
+		&Buffer::with_lines(["┌Title──────┐", "│Hello,     │", "│worlds!    │", "└───────────┘"]),
 	);
 }
 
@@ -160,10 +114,7 @@ fn test_render_paragraph_with_block_with_bottom_title_and_border() {
 		.title_position(TitlePosition::Bottom)
 		.title("Title");
 	let paragraph = Paragraph::new("Hello, world!").block(block);
-	test_case(
-		&paragraph,
-		&Buffer::with_lines(["Hello, world!  ", "Title──────────"]),
-	);
+	test_case(&paragraph, &Buffer::with_lines(["Hello, world!  ", "Title──────────"]));
 }
 
 #[test]
@@ -174,21 +125,12 @@ fn test_render_paragraph_with_scroll_offset() {
 	let trimmed_paragraph = truncated_paragraph.clone().wrap(Wrap { trim: true });
 
 	for paragraph in [&truncated_paragraph, &wrapped_paragraph, &trimmed_paragraph] {
-		test_case(
-			paragraph,
-			&Buffer::with_lines(["multiline   ", "paragraph.  ", "            "]),
-		);
+		test_case(paragraph, &Buffer::with_lines(["multiline   ", "paragraph.  ", "            "]));
 		test_case(paragraph, &Buffer::with_lines(["multiline   "]));
 	}
 
-	test_case(
-		&truncated_paragraph.clone().scroll((2, 4)),
-		&Buffer::with_lines(["iline   ", "graph.  "]),
-	);
-	test_case(
-		&wrapped_paragraph,
-		&Buffer::with_lines(["cool   ", "multili", "ne     "]),
-	);
+	test_case(&truncated_paragraph.clone().scroll((2, 4)), &Buffer::with_lines(["iline   ", "graph.  "]));
+	test_case(&wrapped_paragraph, &Buffer::with_lines(["cool   ", "multili", "ne     "]));
 }
 
 /// Regression test for
@@ -203,11 +145,7 @@ fn paragraph_block_text_style() {
 	let mut buf = Buffer::empty(Rect::new(0, 0, 20, 3));
 	paragraph.render(Rect::new(0, 0, 20, 3), &mut buf);
 
-	let mut expected = Buffer::with_lines([
-		"┌──────────────────┐",
-		"│Styled text       │",
-		"└──────────────────┘",
-	]);
+	let mut expected = Buffer::with_lines(["┌──────────────────┐", "│Styled text       │", "└──────────────────┘"]);
 	expected.set_style(Rect::new(1, 1, 11, 1), Style::default().fg(Color::Green));
 	assert_eq!(buf, expected);
 }

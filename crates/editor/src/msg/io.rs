@@ -12,11 +12,7 @@ use crate::Editor;
 #[derive(Debug)]
 pub enum IoMsg {
 	/// File loaded successfully.
-	FileLoaded {
-		path: PathBuf,
-		rope: Rope,
-		readonly: bool,
-	},
+	FileLoaded { path: PathBuf, rope: Rope, readonly: bool },
 	/// File load failed.
 	LoadFailed { path: PathBuf, error: io::Error },
 }
@@ -24,11 +20,7 @@ pub enum IoMsg {
 impl IoMsg {
 	pub fn apply(self, editor: &mut Editor) -> Dirty {
 		match self {
-			Self::FileLoaded {
-				path,
-				rope,
-				readonly,
-			} => {
+			Self::FileLoaded { path, rope, readonly } => {
 				editor.apply_loaded_file(path, rope, readonly);
 				Dirty::FULL
 			}

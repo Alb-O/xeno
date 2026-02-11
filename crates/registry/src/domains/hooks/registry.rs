@@ -43,18 +43,11 @@ impl HooksRegistry {
 
 	pub fn for_event(&self, event: HookEvent) -> Vec<HooksRef> {
 		let snap = self.inner.snapshot();
-		let ids = self
-			.by_event
-			.get(&event)
-			.map(|v| v.as_slice())
-			.unwrap_or(&[]);
+		let ids = self.by_event.get(&event).map(|v| v.as_slice()).unwrap_or(&[]);
 
 		let mut refs = Vec::with_capacity(ids.len());
 		for &id in ids {
-			refs.push(RegistryRef {
-				snap: snap.clone(),
-				id,
-			});
+			refs.push(RegistryRef { snap: snap.clone(), id });
 		}
 		refs
 	}

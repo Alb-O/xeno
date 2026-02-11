@@ -39,13 +39,7 @@ impl DocumentSyncEventHandler {
 }
 
 impl LspEventHandler for DocumentSyncEventHandler {
-	fn on_diagnostics(
-		&self,
-		server_id: LanguageServerId,
-		uri: Uri,
-		diagnostics: Vec<Diagnostic>,
-		version: Option<i32>,
-	) {
+	fn on_diagnostics(&self, server_id: LanguageServerId, uri: Uri, diagnostics: Vec<Diagnostic>, version: Option<i32>) {
 		tracing::debug!(
 			server_id = %server_id,
 			uri = uri.as_str(),
@@ -53,8 +47,7 @@ impl LspEventHandler for DocumentSyncEventHandler {
 			version = ?version,
 			"Diagnostics received by event handler"
 		);
-		self.documents
-			.update_diagnostics(&uri, diagnostics, version);
+		self.documents.update_diagnostics(&uri, diagnostics, version);
 	}
 
 	fn on_progress(&self, server_id: LanguageServerId, params: lsp_types::ProgressParams) {
@@ -74,21 +67,11 @@ pub struct DocumentSync {
 impl DocumentSync {
 	/// Create a new document sync coordinator with a pre-configured registry.
 	pub fn with_registry(registry: Arc<Registry>, documents: Arc<DocumentStateManager>) -> Self {
-		Self {
-			registry,
-			documents,
-		}
+		Self { registry, documents }
 	}
 
 	/// Create a document sync coordinator and a properly configured registry.
-	pub fn create(
-		transport: Arc<dyn crate::client::transport::LspTransport>,
-	) -> (
-		Self,
-		Arc<Registry>,
-		Arc<DocumentStateManager>,
-		DiagnosticsEventReceiver,
-	) {
+	pub fn create(transport: Arc<dyn crate::client::transport::LspTransport>) -> (Self, Arc<Registry>, Arc<DocumentStateManager>, DiagnosticsEventReceiver) {
 		let (documents, event_receiver) = DocumentStateManager::with_events();
 		let documents = Arc::new(documents);
 		let registry = Arc::new(Registry::new(transport));
@@ -102,23 +85,12 @@ impl DocumentSync {
 	}
 
 	/// Open a document with the appropriate language server.
-	pub async fn open_document(
-		&self,
-		path: &Path,
-		language: &str,
-		text: &Rope,
-	) -> Result<ClientHandle> {
-		self.open_document_text(path, language, text.to_string())
-			.await
+	pub async fn open_document(&self, path: &Path, language: &str, text: &Rope) -> Result<ClientHandle> {
+		self.open_document_text(path, language, text.to_string()).await
 	}
 
 	/// Open a document using an owned snapshot.
-	pub async fn open_document_text(
-		&self,
-		path: &Path,
-		language: &str,
-		text: String,
-	) -> Result<ClientHandle> {
+	pub async fn open_document_text(&self, path: &Path, language: &str, text: String) -> Result<ClientHandle> {
 		let client = self.registry.get_or_start(language, path).await?;
 
 		let uri = self
@@ -128,9 +100,7 @@ impl DocumentSync {
 
 		let version = self.documents.get_version(&uri).unwrap_or(0);
 
-		client
-			.text_document_did_open(uri.clone(), language.to_string(), version, text)
-			.await?;
+		client.text_document_did_open(uri.clone(), language.to_string(), version, text).await?;
 
 		self.documents.mark_opened(&uri, version);
 
@@ -139,19 +109,12 @@ impl DocumentSync {
 
 	/// Notify language servers of a document change.
 	pub async fn notify_change_full(&self, path: &Path, language: &str, text: &Rope) -> Result<()> {
-		self.notify_change_full_text(path, language, text.to_string())
-			.await
+		self.notify_change_full_text(path, language, text.to_string()).await
 	}
 
 	/// Notify language servers of a full document change using an owned snapshot.
-	pub async fn notify_change_full_text(
-		&self,
-		path: &Path,
-		language: &str,
-		text: String,
-	) -> Result<()> {
-		let uri = crate::uri_from_path(path)
-			.ok_or_else(|| crate::Error::Protocol("Invalid path".into()))?;
+	pub async fn notify_change_full_text(&self, path: &Path, language: &str, text: String) -> Result<()> {
+		let uri = crate::uri_from_path(path).ok_or_else(|| crate::Error::Protocol("Invalid path".into()))?;
 
 		if !self.documents.is_opened(&uri) {
 			self.open_document_text(path, language, text).await?;
@@ -172,10 +135,7 @@ impl DocumentSync {
 			.queue_change(&uri)
 			.ok_or_else(|| crate::Error::Protocol("Document not registered".into()))?;
 
-		if let Err(err) = client
-			.text_document_did_change_full(uri.clone(), version, text)
-			.await
-		{
+		if let Err(err) = client.text_document_did_change_full(uri.clone(), version, text).await {
 			self.documents.mark_force_full_sync(&uri);
 			return Err(err);
 		}
@@ -185,25 +145,13 @@ impl DocumentSync {
 	}
 
 	/// Notify language servers of a document change with a barrier after write.
-	pub async fn notify_change_full_with_barrier(
-		&self,
-		path: &Path,
-		language: &str,
-		text: &Rope,
-	) -> Result<Option<oneshot::Receiver<()>>> {
-		self.notify_change_full_with_barrier_text(path, language, text.to_string())
-			.await
+	pub async fn notify_change_full_with_barrier(&self, path: &Path, language: &str, text: &Rope) -> Result<Option<oneshot::Receiver<()>>> {
+		self.notify_change_full_with_barrier_text(path, language, text.to_string()).await
 	}
 
 	/// Notify language servers of a full document change with a barrier and owned snapshot.
-	pub async fn notify_change_full_with_barrier_text(
-		&self,
-		path: &Path,
-		language: &str,
-		text: String,
-	) -> Result<Option<oneshot::Receiver<()>>> {
-		let uri = crate::uri_from_path(path)
-			.ok_or_else(|| crate::Error::Protocol("Invalid path".into()))?;
+	pub async fn notify_change_full_with_barrier_text(&self, path: &Path, language: &str, text: String) -> Result<Option<oneshot::Receiver<()>>> {
+		let uri = crate::uri_from_path(path).ok_or_else(|| crate::Error::Protocol("Invalid path".into()))?;
 
 		if !self.documents.is_opened(&uri) {
 			self.open_document_text(path, language, text).await?;
@@ -224,10 +172,7 @@ impl DocumentSync {
 			.queue_change(&uri)
 			.ok_or_else(|| crate::Error::Protocol("Document not registered".into()))?;
 
-		let barrier = match client
-			.text_document_did_change_full_with_barrier(uri.clone(), version, text)
-			.await
-		{
+		let barrier = match client.text_document_did_change_full_with_barrier(uri.clone(), version, text).await {
 			Ok(barrier) => barrier,
 			Err(err) => {
 				self.documents.mark_force_full_sync(&uri);
@@ -238,23 +183,15 @@ impl DocumentSync {
 	}
 
 	/// Notify language servers of an incremental document change without content.
-	pub async fn notify_change_incremental_no_content(
-		&self,
-		path: &Path,
-		language: &str,
-		changes: Vec<LspDocumentChange>,
-	) -> Result<()> {
+	pub async fn notify_change_incremental_no_content(&self, path: &Path, language: &str, changes: Vec<LspDocumentChange>) -> Result<()> {
 		if changes.is_empty() {
 			return Ok(());
 		}
 
-		let uri = crate::uri_from_path(path)
-			.ok_or_else(|| crate::Error::Protocol("Invalid path".into()))?;
+		let uri = crate::uri_from_path(path).ok_or_else(|| crate::Error::Protocol("Invalid path".into()))?;
 
 		if !self.documents.is_opened(&uri) {
-			return Err(crate::Error::Protocol(
-				"Document not opened for incremental sync".into(),
-			));
+			return Err(crate::Error::Protocol("Document not opened for incremental sync".into()));
 		}
 
 		let Some(client) = self.registry.get(language, path) else {
@@ -279,10 +216,7 @@ impl DocumentSync {
 			.queue_change(&uri)
 			.ok_or_else(|| crate::Error::Protocol("Document not registered".into()))?;
 
-		if let Err(err) = client
-			.text_document_did_change(uri.clone(), version, content_changes)
-			.await
-		{
+		if let Err(err) = client.text_document_did_change(uri.clone(), version, content_changes).await {
 			self.documents.mark_force_full_sync(&uri);
 			return Err(err);
 		}
@@ -302,13 +236,10 @@ impl DocumentSync {
 			return Ok(None);
 		}
 
-		let uri = crate::uri_from_path(path)
-			.ok_or_else(|| crate::Error::Protocol("Invalid path".into()))?;
+		let uri = crate::uri_from_path(path).ok_or_else(|| crate::Error::Protocol("Invalid path".into()))?;
 
 		if !self.documents.is_opened(&uri) {
-			return Err(crate::Error::Protocol(
-				"Document not opened for incremental sync".into(),
-			));
+			return Err(crate::Error::Protocol("Document not opened for incremental sync".into()));
 		}
 
 		let Some(client) = self.registry.get(language, path) else {
@@ -333,10 +264,7 @@ impl DocumentSync {
 			.queue_change(&uri)
 			.ok_or_else(|| crate::Error::Protocol("Document not registered".into()))?;
 
-		let barrier = match client
-			.text_document_did_change_with_barrier(uri.clone(), version, content_changes)
-			.await
-		{
+		let barrier = match client.text_document_did_change_with_barrier(uri.clone(), version, content_changes).await {
 			Ok(barrier) => barrier,
 			Err(err) => {
 				self.documents.mark_force_full_sync(&uri);
@@ -346,12 +274,7 @@ impl DocumentSync {
 		Ok(Some(self.wrap_barrier(uri, version, barrier)))
 	}
 
-	fn wrap_barrier(
-		&self,
-		uri: Uri,
-		version: i32,
-		barrier: oneshot::Receiver<crate::Result<()>>,
-	) -> oneshot::Receiver<()> {
+	fn wrap_barrier(&self, uri: Uri, version: i32, barrier: oneshot::Receiver<crate::Result<()>>) -> oneshot::Receiver<()> {
 		let (tx, rx) = oneshot::channel();
 		let documents = self.documents.clone();
 		tokio::spawn(async move {
@@ -377,34 +300,20 @@ impl DocumentSync {
 
 	/// Notify language servers that a document will be saved.
 	pub async fn notify_will_save(&self, path: &Path, language: &str) -> Result<()> {
-		let uri = crate::uri_from_path(path)
-			.ok_or_else(|| crate::Error::Protocol("Invalid path".into()))?;
+		let uri = crate::uri_from_path(path).ok_or_else(|| crate::Error::Protocol("Invalid path".into()))?;
 
 		if let Some(client) = self.registry.get(language, path) {
-			client
-				.text_document_will_save(uri, TextDocumentSaveReason::MANUAL)
-				.await?;
+			client.text_document_will_save(uri, TextDocumentSaveReason::MANUAL).await?;
 		}
 
 		Ok(())
 	}
 
 	/// Notify language servers that a document was saved.
-	pub async fn notify_did_save(
-		&self,
-		path: &Path,
-		language: &str,
-		include_text: bool,
-		text: Option<&Rope>,
-	) -> Result<()> {
-		let uri = crate::uri_from_path(path)
-			.ok_or_else(|| crate::Error::Protocol("Invalid path".into()))?;
+	pub async fn notify_did_save(&self, path: &Path, language: &str, include_text: bool, text: Option<&Rope>) -> Result<()> {
+		let uri = crate::uri_from_path(path).ok_or_else(|| crate::Error::Protocol("Invalid path".into()))?;
 
-		let text_content = if include_text {
-			text.map(|t| t.to_string())
-		} else {
-			None
-		};
+		let text_content = if include_text { text.map(|t| t.to_string()) } else { None };
 
 		if let Some(client) = self.registry.get(language, path) {
 			client.text_document_did_save(uri, text_content).await?;
@@ -415,8 +324,7 @@ impl DocumentSync {
 
 	/// Close a document with language servers.
 	pub async fn close_document(&self, path: &Path, language: &str) -> Result<()> {
-		let uri = crate::uri_from_path(path)
-			.ok_or_else(|| crate::Error::Protocol("Invalid path".into()))?;
+		let uri = crate::uri_from_path(path).ok_or_else(|| crate::Error::Protocol("Invalid path".into()))?;
 
 		if self.documents.is_opened(&uri)
 			&& let Some(client) = self.registry.get(language, path)
@@ -442,10 +350,7 @@ impl DocumentSync {
 	pub fn error_count(&self, path: &Path) -> usize {
 		if let Some(uri) = crate::uri_from_path(path) {
 			let diags = self.documents.get_diagnostics(&uri);
-			diags
-				.iter()
-				.filter(|d| d.severity == Some(lsp_types::DiagnosticSeverity::ERROR))
-				.count()
+			diags.iter().filter(|d| d.severity == Some(lsp_types::DiagnosticSeverity::ERROR)).count()
 		} else {
 			0
 		}
@@ -455,10 +360,7 @@ impl DocumentSync {
 	pub fn warning_count(&self, path: &Path) -> usize {
 		if let Some(uri) = crate::uri_from_path(path) {
 			let diags = self.documents.get_diagnostics(&uri);
-			diags
-				.iter()
-				.filter(|d| d.severity == Some(lsp_types::DiagnosticSeverity::WARNING))
-				.count()
+			diags.iter().filter(|d| d.severity == Some(lsp_types::DiagnosticSeverity::WARNING)).count()
 		} else {
 			0
 		}

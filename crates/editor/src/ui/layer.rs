@@ -23,14 +23,7 @@ impl SceneBuilder {
 		}
 	}
 
-	pub fn push(
-		&mut self,
-		kind: SurfaceKind,
-		z: ZIndex,
-		area: Rect,
-		op: SurfaceOp,
-		accepts_mouse: bool,
-	) -> SurfaceId {
+	pub fn push(&mut self, kind: SurfaceKind, z: ZIndex, area: Rect, op: SurfaceOp, accepts_mouse: bool) -> SurfaceId {
 		let id = SurfaceId(self.next_id);
 		self.next_id += 1;
 		self.surfaces.push(Surface {

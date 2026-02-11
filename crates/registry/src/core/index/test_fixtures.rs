@@ -1,8 +1,6 @@
 //! Shared test helpers for registry index tests.
 
-use crate::core::index::build::{
-	BuildCtx, BuildEntry, RegistryMetaRef, StrListRef, StringCollector,
-};
+use crate::core::index::build::{BuildCtx, BuildEntry, RegistryMetaRef, StrListRef, StringCollector};
 use crate::core::{RegistryEntry, RegistryMeta, RegistryMetaStatic, RegistrySource, Symbol};
 
 /// Minimal test entry type for proofs.
@@ -61,11 +59,7 @@ pub(crate) fn make_def(id: &'static str, priority: i16) -> TestDef {
 	}
 }
 
-pub(crate) fn make_def_with_source(
-	id: &'static str,
-	priority: i16,
-	source: RegistrySource,
-) -> TestDef {
+pub(crate) fn make_def_with_source(id: &'static str, priority: i16, source: RegistrySource) -> TestDef {
 	TestDef {
 		meta: RegistryMetaStatic {
 			id,
@@ -95,11 +89,7 @@ pub(crate) fn make_def_with_name(id: &'static str, name: &'static str, priority:
 	}
 }
 
-pub(crate) fn make_def_with_keyes(
-	id: &'static str,
-	priority: i16,
-	keys: &'static [&'static str],
-) -> TestDef {
+pub(crate) fn make_def_with_keyes(id: &'static str, priority: i16, keys: &'static [&'static str]) -> TestDef {
 	TestDef {
 		meta: RegistryMetaStatic {
 			id,

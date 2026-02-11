@@ -104,9 +104,7 @@ impl MouseEvent {
 	/// Returns the modifiers active during this mouse event.
 	pub fn modifiers(&self) -> Modifiers {
 		match self {
-			MouseEvent::Press { modifiers, .. }
-			| MouseEvent::Drag { modifiers, .. }
-			| MouseEvent::Scroll { modifiers, .. } => *modifiers,
+			MouseEvent::Press { modifiers, .. } | MouseEvent::Drag { modifiers, .. } | MouseEvent::Scroll { modifiers, .. } => *modifiers,
 			MouseEvent::Release { .. } | MouseEvent::Move { .. } => Modifiers::NONE,
 		}
 	}

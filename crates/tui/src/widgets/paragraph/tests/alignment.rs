@@ -15,14 +15,8 @@ fn test_render_paragraph_with_left_alignment() {
 	}
 
 	test_case(&truncated_paragraph, &Buffer::with_lines(["Hello, wor"]));
-	test_case(
-		&wrapped_paragraph,
-		&Buffer::with_lines(["Hello,    ", "world!    "]),
-	);
-	test_case(
-		&trimmed_paragraph,
-		&Buffer::with_lines(["Hello,    ", "world!    "]),
-	);
+	test_case(&wrapped_paragraph, &Buffer::with_lines(["Hello,    ", "world!    "]));
+	test_case(&trimmed_paragraph, &Buffer::with_lines(["Hello,    ", "world!    "]));
 }
 
 #[test]
@@ -40,14 +34,8 @@ fn test_render_paragraph_with_center_alignment() {
 	}
 
 	test_case(&truncated_paragraph, &Buffer::with_lines(["Hello, wor"]));
-	test_case(
-		&wrapped_paragraph,
-		&Buffer::with_lines(["  Hello,  ", "  world!  "]),
-	);
-	test_case(
-		&trimmed_paragraph,
-		&Buffer::with_lines(["  Hello,  ", "  world!  "]),
-	);
+	test_case(&wrapped_paragraph, &Buffer::with_lines(["  Hello,  ", "  world!  "]));
+	test_case(&trimmed_paragraph, &Buffer::with_lines(["  Hello,  ", "  world!  "]));
 }
 
 #[test]
@@ -63,12 +51,6 @@ fn test_render_paragraph_with_right_alignment() {
 	}
 
 	test_case(&truncated_paragraph, &Buffer::with_lines(["Hello, wor"]));
-	test_case(
-		&wrapped_paragraph,
-		&Buffer::with_lines(["    Hello,", "    world!"]),
-	);
-	test_case(
-		&trimmed_paragraph,
-		&Buffer::with_lines(["    Hello,", "    world!"]),
-	);
+	test_case(&wrapped_paragraph, &Buffer::with_lines(["    Hello,", "    world!"]));
+	test_case(&trimmed_paragraph, &Buffer::with_lines(["    Hello,", "    world!"]));
 }

@@ -70,22 +70,11 @@ fn parse_action_node(node: &kdl::KdlNode, group_name: Option<&str>) -> ActionSpe
 
 	let description = require_str(node, "description", &context);
 
-	let short_desc = node
-		.get("short-desc")
-		.and_then(|v| v.as_string())
-		.map(String::from);
+	let short_desc = node.get("short-desc").and_then(|v| v.as_string()).map(String::from);
 
-	let priority = node
-		.get("priority")
-		.and_then(|v| v.as_integer())
-		.map(|v| v as i16)
-		.unwrap_or(0);
+	let priority = node.get("priority").and_then(|v| v.as_integer()).map(|v| v as i16).unwrap_or(0);
 
-	let flags = node
-		.get("flags")
-		.and_then(|v| v.as_integer())
-		.map(|v| v as u32)
-		.unwrap_or(0);
+	let flags = node.get("flags").and_then(|v| v.as_integer()).map(|v| v as u32).unwrap_or(0);
 
 	let children = node.children();
 
@@ -109,10 +98,7 @@ fn parse_action_node(node: &kdl::KdlNode, group_name: Option<&str>) -> ActionSpe
 				if entry.name().is_none()
 					&& let Some(s) = entry.value().as_string()
 				{
-					assert!(
-						VALID_CAPS.contains(&s),
-						"{context}: unknown capability '{s}'"
-					);
+					assert!(VALID_CAPS.contains(&s), "{context}: unknown capability '{s}'");
 					caps.push(s.to_string());
 				}
 			}
@@ -123,10 +109,7 @@ fn parse_action_node(node: &kdl::KdlNode, group_name: Option<&str>) -> ActionSpe
 		{
 			for mode_node in bindings_children.nodes() {
 				let mode = mode_node.name().value().to_string();
-				assert!(
-					VALID_MODES.contains(&mode.as_str()),
-					"{context}: unknown binding mode '{mode}'"
-				);
+				assert!(VALID_MODES.contains(&mode.as_str()), "{context}: unknown binding mode '{mode}'");
 				for entry in mode_node.entries() {
 					if entry.name().is_none()
 						&& let Some(keys) = entry.value().as_string()
@@ -158,10 +141,7 @@ fn parse_action_node(node: &kdl::KdlNode, group_name: Option<&str>) -> ActionSpe
 
 fn parse_prefix_node(node: &kdl::KdlNode) -> KeyPrefixSpec {
 	let mode = require_str(node, "mode", "prefix");
-	assert!(
-		VALID_MODES.contains(&mode.as_str()),
-		"prefix: unknown mode '{mode}'"
-	);
+	assert!(VALID_MODES.contains(&mode.as_str()), "prefix: unknown mode '{mode}'");
 
 	KeyPrefixSpec {
 		keys: require_str(node, "keys", "prefix"),

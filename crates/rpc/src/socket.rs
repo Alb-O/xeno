@@ -27,9 +27,7 @@ pub struct PeerSocket<M, Req, Resp> {
 
 impl<M, Req, Resp> Clone for PeerSocket<M, Req, Resp> {
 	fn clone(&self) -> Self {
-		Self {
-			tx: self.tx.clone(),
-		}
+		Self { tx: self.tx.clone() }
 	}
 }
 

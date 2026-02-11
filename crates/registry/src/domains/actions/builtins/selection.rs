@@ -193,10 +193,7 @@ fn duplicate_selections_down_impl(ctx: &crate::actions::ActionContext) -> Action
 		}
 	}
 
-	ActionResult::Effects(ActionEffects::selection(Selection::from_vec(
-		new_ranges,
-		primary_index,
-	)))
+	ActionResult::Effects(ActionEffects::selection(Selection::from_vec(new_ranges, primary_index)))
 }
 
 action_handler!(duplicate_selections_up, handler: duplicate_selections_up_impl);
@@ -232,10 +229,7 @@ fn duplicate_selections_up_impl(ctx: &crate::actions::ActionContext) -> ActionRe
 		}
 	}
 
-	ActionResult::Effects(ActionEffects::selection(Selection::from_vec(
-		new_ranges,
-		primary_index,
-	)))
+	ActionResult::Effects(ActionEffects::selection(Selection::from_vec(new_ranges, primary_index)))
 }
 
 fn line_col_to_char(text: &ropey::RopeSlice, line: usize, col: usize) -> usize {

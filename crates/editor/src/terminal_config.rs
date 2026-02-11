@@ -85,15 +85,11 @@ const NO_KITTY_EXIT: &[TerminalSequence] = &[
 
 /// Detects kitty terminal via environment variables or TERM.
 fn supports_kitty_keyboard() -> bool {
-	if std::env::var_os("KITTY_WINDOW_ID").is_some()
-		|| std::env::var_os("KITTY_LISTEN_ON").is_some()
-	{
+	if std::env::var_os("KITTY_WINDOW_ID").is_some() || std::env::var_os("KITTY_LISTEN_ON").is_some() {
 		return true;
 	}
 
-	std::env::var("TERM")
-		.map(|term| term.contains("kitty"))
-		.unwrap_or(false)
+	std::env::var("TERM").map(|term| term.contains("kitty")).unwrap_or(false)
 }
 
 impl TerminalConfig {

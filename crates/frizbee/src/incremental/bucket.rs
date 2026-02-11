@@ -2,20 +2,11 @@ use core::simd::Simd;
 use core::simd::cmp::SimdOrd;
 
 use crate::simd_lanes::{LaneCount, SupportedLaneCount};
-use crate::smith_waterman::simd::{
-	HaystackChar, NeedleChar, smith_waterman_inner, typos_from_score_matrix,
-};
+use crate::smith_waterman::simd::{HaystackChar, NeedleChar, smith_waterman_inner, typos_from_score_matrix};
 use crate::{Match, Scoring};
 
 pub(crate) trait IncrementalBucketTrait {
-	fn process(
-		&mut self,
-		prefix_to_keep: usize,
-		new_needle_chars: &[u8],
-		matches: &mut Vec<Match>,
-		max_typos: Option<u16>,
-		scoring: &Scoring,
-	);
+	fn process(&mut self, prefix_to_keep: usize, new_needle_chars: &[u8], matches: &mut Vec<Match>, max_typos: Option<u16>, scoring: &Scoring);
 }
 
 pub(crate) struct IncrementalBucket<const W: usize, const L: usize>
@@ -47,28 +38,15 @@ where
 	LaneCount<L>: SupportedLaneCount,
 {
 	#[inline]
-	fn process(
-		&mut self,
-		prefix_to_keep: usize,
-		new_needle_chars: &[u8],
-		matches: &mut Vec<Match>,
-		max_typos: Option<u16>,
-		scoring: &Scoring,
-	) {
-		let new_needle_chars = new_needle_chars
-			.iter()
-			.map(|&x| NeedleChar::new(x.into()))
-			.collect::<Box<[_]>>();
+	fn process(&mut self, prefix_to_keep: usize, new_needle_chars: &[u8], matches: &mut Vec<Match>, max_typos: Option<u16>, scoring: &Scoring) {
+		let new_needle_chars = new_needle_chars.iter().map(|&x| NeedleChar::new(x.into())).collect::<Box<[_]>>();
 
 		// Adjust score matrix to the new size
 		if new_needle_chars.len() > prefix_to_keep {
-			self.score_matrix.extend(std::iter::repeat_n(
-				[Simd::splat(0); W],
-				new_needle_chars.len() - prefix_to_keep,
-			));
-		} else if new_needle_chars.len() < prefix_to_keep {
 			self.score_matrix
-				.truncate(prefix_to_keep + new_needle_chars.len());
+				.extend(std::iter::repeat_n([Simd::splat(0); W], new_needle_chars.len() - prefix_to_keep));
+		} else if new_needle_chars.len() < prefix_to_keep {
+			self.score_matrix.truncate(prefix_to_keep + new_needle_chars.len());
 		}
 
 		for (i, &needle_char) in new_needle_chars.iter().enumerate() {
@@ -81,15 +59,7 @@ where
 				(Some(a[needle_idx - 1].as_ref()), b[0].as_mut())
 			};
 
-			smith_waterman_inner(
-				0,
-				W,
-				needle_char,
-				&self.haystacks,
-				prev_score_col,
-				curr_score_col,
-				scoring,
-			);
+			smith_waterman_inner(0, W, needle_char, &self.haystacks, prev_score_col, curr_score_col, scoring);
 		}
 
 		let mut all_time_max_score = Simd::splat(0);
@@ -101,8 +71,7 @@ where
 		let scores: [u16; L] = all_time_max_score.to_array();
 
 		// TODO: typos
-		let typos = max_typos
-			.map(|max_typos| typos_from_score_matrix::<W, L>(&self.score_matrix, max_typos));
+		let typos = max_typos.map(|max_typos| typos_from_score_matrix::<W, L>(&self.score_matrix, max_typos));
 
 		#[allow(clippy::needless_range_loop)]
 		for idx in 0..self.length {

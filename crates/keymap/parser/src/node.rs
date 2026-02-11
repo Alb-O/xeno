@@ -31,11 +31,7 @@ pub struct Node {
 impl Node {
 	/// Creates a new `Node` from the given modifiers and key.
 	pub fn new(modifiers: Modifiers, key: Key) -> Self {
-		Self {
-			modifiers,
-			key,
-			state: None,
-		}
+		Self { modifiers, key, state: None }
 	}
 }
 
@@ -95,12 +91,7 @@ impl BitOr for Modifier {
 pub type Modifiers = u8;
 
 /// Array of all possible modifier variants (excluding `None`).
-pub(crate) const MODIFIERS: [Modifier; 4] = [
-	Modifier::Alt,
-	Modifier::Cmd,
-	Modifier::Ctrl,
-	Modifier::Shift,
-];
+pub(crate) const MODIFIERS: [Modifier; 4] = [Modifier::Alt, Modifier::Cmd, Modifier::Ctrl, Modifier::Shift];
 
 /// Supported keyboard key types for input nodes.
 ///

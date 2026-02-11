@@ -12,9 +12,7 @@ pub mod spec;
 pub use syntax::{SyntaxStyle, SyntaxStyles};
 pub use theme::{LinkedThemeDef, ThemeDef as Theme, *};
 
-pub fn register_plugin(
-	db: &mut crate::db::builder::RegistryDbBuilder,
-) -> Result<(), crate::error::RegistryError> {
+pub fn register_plugin(db: &mut crate::db::builder::RegistryDbBuilder) -> Result<(), crate::error::RegistryError> {
 	register_compiled(db);
 	Ok(())
 }
@@ -47,9 +45,7 @@ impl crate::db::domain::DomainSpec for Themes {
 		ThemeInput::Linked(def)
 	}
 
-	fn builder(
-		db: &mut crate::db::builder::RegistryDbBuilder,
-	) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
+	fn builder(db: &mut crate::db::builder::RegistryDbBuilder) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
 		&mut db.themes
 	}
 }
@@ -58,9 +54,7 @@ pub fn register_builtins(builder: &mut crate::db::builder::RegistryDbBuilder) {
 	register_compiled(builder);
 }
 
-fn register_builtins_reg(
-	builder: &mut crate::db::builder::RegistryDbBuilder,
-) -> Result<(), crate::db::builder::RegistryError> {
+fn register_builtins_reg(builder: &mut crate::db::builder::RegistryDbBuilder) -> Result<(), crate::db::builder::RegistryError> {
 	register_builtins(builder);
 	Ok(())
 }

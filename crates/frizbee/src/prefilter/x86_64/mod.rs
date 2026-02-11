@@ -15,9 +15,7 @@ pub use sensitive::*;
 pub unsafe fn needle_to_avx2(needle_cased: &[(u8, u8)]) -> Vec<std::arch::x86_64::__m256i> {
 	needle_cased
 		.iter()
-		.map(|&(c1, c2)| unsafe {
-			_mm256_loadu2_m128i(&_mm_set1_epi8(c1 as i8), &_mm_set1_epi8(c2 as i8))
-		})
+		.map(|&(c1, c2)| unsafe { _mm256_loadu2_m128i(&_mm_set1_epi8(c1 as i8), &_mm_set1_epi8(c2 as i8)) })
 		.collect::<Vec<_>>()
 }
 

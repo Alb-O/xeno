@@ -13,10 +13,7 @@ use crate::simd_lanes::{LaneCount, SupportedLaneCount};
     // x86-64-v2 without lahfsahf
     "x86_64+cmpxchg16b+fxsr+popcnt+sse+sse2+sse3+sse4.1+sse4.2+ssse3",
 ))]
-pub fn typos_from_score_matrix<const W: usize, const L: usize>(
-	score_matrix: &[[Simd<u16, L>; W]],
-	max_typos: u16,
-) -> [u16; L]
+pub fn typos_from_score_matrix<const W: usize, const L: usize>(score_matrix: &[[Simd<u16, L>; W]], max_typos: u16) -> [u16; L]
 where
 	LaneCount<L>: SupportedLaneCount,
 {
@@ -94,10 +91,7 @@ mod tests {
 	use crate::smith_waterman::simd::smith_waterman;
 
 	fn get_typos(needle: &str, haystack: &str) -> u16 {
-		typos_from_score_matrix(
-			&smith_waterman::<4, 1>(needle, &[haystack; 1], Some(1), &Scoring::default()).1,
-			100,
-		)[0]
+		typos_from_score_matrix(&smith_waterman::<4, 1>(needle, &[haystack; 1], Some(1), &Scoring::default()).1, 100)[0]
 	}
 
 	#[test]

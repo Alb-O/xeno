@@ -15,13 +15,7 @@ impl LogViewer {
 				let cont = self.line_prefix(event.spans.len(), true);
 				let ts = format_relative_time(*relative_ms);
 				let target = truncate_target(&event.target);
-				let mut lines = vec![format!(
-					"{}{} {} {}",
-					indent,
-					dim(&ts),
-					event.level.colored(),
-					event.layer.colored()
-				)];
+				let mut lines = vec![format!("{}{} {} {}", indent, dim(&ts), event.level.colored(), event.layer.colored())];
 				for (i, msg_line) in event.message.lines().enumerate() {
 					if i == 0 {
 						lines.push(format!("{}{} > {}", cont, dim(&target), msg_line));
@@ -29,20 +23,11 @@ impl LogViewer {
 						lines.push(format!("{}  {}", cont, msg_line));
 					}
 				}
-				let fields: Vec<_> = event
-					.fields
-					.iter()
-					.filter(|(k, _)| !k.starts_with("log."))
-					.collect();
+				let fields: Vec<_> = event.fields.iter().filter(|(k, _)| !k.starts_with("log.")).collect();
 				let max_key = fields.iter().map(|(k, _)| k.len()).max().unwrap_or(0);
 				for (key, value) in fields {
 					let value = value.replace('\n', " ");
-					lines.push(format!(
-						"{}    {} = {}",
-						cont,
-						dim(&format!("{:>width$}", key, width = max_key)),
-						value
-					));
+					lines.push(format!("{}    {} = {}", cont, dim(&format!("{:>width$}", key, width = max_key)), value));
 				}
 				lines
 			}
@@ -60,37 +45,18 @@ impl LogViewer {
 				let ts = format_relative_time(*relative_ms);
 				let target = truncate_target(target);
 				let mut lines = vec![
-					format!(
-						"{}{} {} {}",
-						indent,
-						dim(&ts),
-						level.colored(),
-						layer.colored()
-					),
+					format!("{}{} {} {}", indent, dim(&ts), level.colored(), layer.colored()),
 					format!("{}{} {}", cont, dim(&target), cyan(name)),
 				];
-				let fields: Vec<_> = fields
-					.iter()
-					.filter(|(k, _)| !k.starts_with("log."))
-					.collect();
+				let fields: Vec<_> = fields.iter().filter(|(k, _)| !k.starts_with("log.")).collect();
 				let max_key = fields.iter().map(|(k, _)| k.len()).max().unwrap_or(0);
 				for (key, value) in fields {
 					let value = value.replace('\n', " ");
-					lines.push(format!(
-						"{}    {} = {}",
-						cont,
-						dim(&format!("{:>width$}", key, width = max_key)),
-						value
-					));
+					lines.push(format!("{}    {} = {}", cont, dim(&format!("{:>width$}", key, width = max_key)), value));
 				}
 				lines
 			}
-			StoredEntry::SpanClose {
-				name,
-				duration_us,
-				depth,
-				..
-			} => {
+			StoredEntry::SpanClose { name, duration_us, depth, .. } => {
 				let duration = format_duration(*duration_us);
 				let prefix = self.line_prefix(*depth, true);
 				vec![format!("{}← {} {}", prefix, cyan(name), dim(&duration))]
@@ -110,11 +76,7 @@ impl LogViewer {
 			.collect();
 
 		let total_lines = all_lines.len();
-		let visible_entries = self
-			.entries
-			.iter()
-			.filter(|e| self.matches_filter(e))
-			.count();
+		let visible_entries = self.entries.iter().filter(|e| self.matches_filter(e)).count();
 
 		if total_lines == 0 {
 			for row in 0..content_height {
@@ -252,12 +214,7 @@ impl LogViewer {
 
 		for (i, line) in HELP.iter().enumerate() {
 			queue!(stdout, cursor::MoveTo(start_col, start_row + i as u16))?;
-			write!(
-				stdout,
-				"\x1b[44;97m{:width$}\x1b[0m",
-				line,
-				width = box_width
-			)?;
+			write!(stdout, "\x1b[44;97m{:width$}\x1b[0m", line, width = box_width)?;
 		}
 
 		Ok(())
@@ -269,11 +226,7 @@ impl LogViewer {
 			.last_updated
 			.map(|t| {
 				let secs = t.elapsed().as_secs();
-				if secs < 60 {
-					format!("{}s ago", secs)
-				} else {
-					format!("{}m ago", secs / 60)
-				}
+				if secs < 60 { format!("{}s ago", secs) } else { format!("{}m ago", secs / 60) }
 			})
 			.unwrap_or_else(|| "never".to_string());
 
@@ -305,12 +258,7 @@ impl LogViewer {
 
 		for (i, line) in lines.iter().enumerate() {
 			queue!(stdout, cursor::MoveTo(start_col, start_row + i as u16))?;
-			write!(
-				stdout,
-				"\x1b[42;30m{:width$}\x1b[0m",
-				line,
-				width = box_width
-			)?;
+			write!(stdout, "\x1b[42;30m{:width$}\x1b[0m", line, width = box_width)?;
 		}
 
 		Ok(())

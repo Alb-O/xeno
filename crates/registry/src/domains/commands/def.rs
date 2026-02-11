@@ -5,12 +5,8 @@ use crate::core::index::{BuildEntry, RegistryMetaRef, StrListRef};
 use crate::core::{RegistryMetaStatic, Symbol};
 
 /// Function signature for async command handlers.
-pub type CommandHandler = for<'a> fn(
-	&'a mut super::CommandContext<'a>,
-) -> xeno_primitives::BoxFutureLocal<
-	'a,
-	Result<super::CommandOutcome, crate::core::CommandError>,
->;
+pub type CommandHandler =
+	for<'a> fn(&'a mut super::CommandContext<'a>) -> xeno_primitives::BoxFutureLocal<'a, Result<super::CommandOutcome, crate::core::CommandError>>;
 
 /// A registered command definition (static input for builder).
 #[derive(Clone)]
@@ -41,17 +37,9 @@ impl BuildEntry<CommandEntry> for CommandDef {
 		self.meta.name
 	}
 
-	fn collect_payload_strings<'b>(
-		&'b self,
-		_collector: &mut crate::core::index::StringCollector<'_, 'b>,
-	) {
-	}
+	fn collect_payload_strings<'b>(&'b self, _collector: &mut crate::core::index::StringCollector<'_, 'b>) {}
 
-	fn build(
-		&self,
-		ctx: &mut dyn crate::core::index::BuildCtx,
-		key_pool: &mut Vec<Symbol>,
-	) -> CommandEntry {
+	fn build(&self, ctx: &mut dyn crate::core::index::BuildCtx, key_pool: &mut Vec<Symbol>) -> CommandEntry {
 		let meta = crate::core::index::meta_build::build_meta(ctx, key_pool, self.meta_ref(), []);
 
 		CommandEntry {
@@ -63,5 +51,4 @@ impl BuildEntry<CommandEntry> for CommandDef {
 }
 
 /// Unified command input: either a static `CommandDef` or a KDL-linked definition.
-pub type CommandInput =
-	crate::core::def_input::DefInput<CommandDef, crate::commands::link::LinkedCommandDef>;
+pub type CommandInput = crate::core::def_input::DefInput<CommandDef, crate::commands::link::LinkedCommandDef>;

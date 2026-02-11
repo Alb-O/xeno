@@ -5,9 +5,8 @@ use xeno_primitives::Range;
 
 use crate::core::index::{BuildCtx, BuildEntry, RegistryMetaRef, StrListRef};
 pub use crate::core::{
-	Capability, CapabilitySet, FrozenInterner, MotionId, RegistryBuilder, RegistryEntry,
-	RegistryIndex, RegistryMeta, RegistryMetaStatic, RegistryMetadata, RegistryRef, RegistrySource,
-	RuntimeRegistry, Symbol, SymbolList,
+	Capability, CapabilitySet, FrozenInterner, MotionId, RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta, RegistryMetaStatic, RegistryMetadata,
+	RegistryRef, RegistrySource, RuntimeRegistry, Symbol, SymbolList,
 };
 
 #[macro_use]
@@ -25,9 +24,7 @@ pub use handler::{MotionHandlerReg, MotionHandlerStatic};
 
 use crate::error::RegistryError;
 
-pub fn register_plugin(
-	db: &mut crate::db::builder::RegistryDbBuilder,
-) -> Result<(), RegistryError> {
+pub fn register_plugin(db: &mut crate::db::builder::RegistryDbBuilder) -> Result<(), RegistryError> {
 	register_builtins(db);
 	register_compiled(db);
 	Ok(())
@@ -36,9 +33,7 @@ pub fn register_plugin(
 /// Registers compiled motions from the embedded spec.
 pub fn register_compiled(db: &mut crate::db::builder::RegistryDbBuilder) {
 	let spec = loader::load_motions_spec();
-	let handlers = inventory::iter::<handler::MotionHandlerReg>
-		.into_iter()
-		.map(|r| r.0);
+	let handlers = inventory::iter::<handler::MotionHandlerReg>.into_iter().map(|r| r.0);
 
 	let linked = link::link_motions(&spec, handlers);
 
@@ -65,9 +60,7 @@ impl crate::db::domain::DomainSpec for Motions {
 		MotionInput::Linked(def)
 	}
 
-	fn builder(
-		db: &mut crate::db::builder::RegistryDbBuilder,
-	) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
+	fn builder(db: &mut crate::db::builder::RegistryDbBuilder) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
 		&mut db.motions
 	}
 }
@@ -121,19 +114,12 @@ impl BuildEntry<MotionEntry> for MotionDef {
 		self.meta.name
 	}
 
-	fn collect_payload_strings<'b>(
-		&'b self,
-		_collector: &mut crate::core::index::StringCollector<'_, 'b>,
-	) {
-	}
+	fn collect_payload_strings<'b>(&'b self, _collector: &mut crate::core::index::StringCollector<'_, 'b>) {}
 
 	fn build(&self, ctx: &mut dyn BuildCtx, key_pool: &mut Vec<Symbol>) -> MotionEntry {
 		let meta = crate::core::index::meta_build::build_meta(ctx, key_pool, self.meta_ref(), []);
 
-		MotionEntry {
-			meta,
-			handler: self.handler,
-		}
+		MotionEntry { meta, handler: self.handler }
 	}
 }
 
@@ -156,5 +142,4 @@ pub fn all() -> Vec<MotionRef> {
 }
 
 /// Unified motion input: either a static `MotionDef` or a KDL-linked definition.
-pub type MotionInput =
-	crate::core::def_input::DefInput<MotionDef, crate::motions::link::LinkedMotionDef>;
+pub type MotionInput = crate::core::def_input::DefInput<MotionDef, crate::motions::link::LinkedMotionDef>;

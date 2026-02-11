@@ -17,12 +17,7 @@ fn collect_list_from_iterator() {
 #[test]
 fn can_be_stylized() {
 	assert_eq!(
-		List::new::<Vec<&str>>(vec![])
-			.black()
-			.on_white()
-			.bold()
-			.not_dim()
-			.style,
+		List::new::<Vec<&str>>(vec![]).black().on_white().bold().not_dim().style,
 		Style::default()
 			.fg(Color::Black)
 			.bg(Color::White)
@@ -54,10 +49,7 @@ fn styled_text() {
 
 	list.render(buffer.area, &mut buffer, &mut ListState::default());
 
-	assert_eq!(
-		buffer,
-		Buffer::with_lines([Line::from(vec!["  ".to_span(), "Item 1  ".bold(),])])
-	);
+	assert_eq!(buffer, Buffer::with_lines([Line::from(vec!["  ".to_span(), "Item 1  ".bold(),])]));
 }
 
 #[test]
@@ -66,17 +58,12 @@ fn styled_list_item() {
 	// note this avoids using the `Stylize' methods as that gets then combines the style
 	// instead of setting it directly (which is not the same for some implementations)
 	let item = ListItem::new(text).style(Modifier::ITALIC);
-	let list = List::new([item])
-		.highlight_symbol(">>")
-		.highlight_spacing(HighlightSpacing::Always);
+	let list = List::new([item]).highlight_symbol(">>").highlight_spacing(HighlightSpacing::Always);
 	let mut buffer = Buffer::empty(Rect::new(0, 0, 10, 1));
 
 	list.render(buffer.area, &mut buffer, &mut ListState::default());
 
-	assert_eq!(
-		buffer,
-		Buffer::with_lines([Line::from_iter(["  Item 1  ".italic()])])
-	);
+	assert_eq!(buffer, Buffer::with_lines([Line::from_iter(["  Item 1  ".italic()])]));
 }
 
 #[test]
@@ -85,17 +72,12 @@ fn styled_text_and_list_item() {
 	// note this avoids using the `Stylize' methods as that gets then combines the style
 	// instead of setting it directly (which is not the same for some implementations)
 	let item = ListItem::new(text).style(Modifier::ITALIC);
-	let list = List::new([item])
-		.highlight_symbol(">>")
-		.highlight_spacing(HighlightSpacing::Always);
+	let list = List::new([item]).highlight_symbol(">>").highlight_spacing(HighlightSpacing::Always);
 	let mut buffer = Buffer::empty(Rect::new(0, 0, 10, 1));
 
 	list.render(buffer.area, &mut buffer, &mut ListState::default());
 
-	assert_eq!(
-		buffer,
-		Buffer::with_lines([Line::from(vec!["  ".italic(), "Item 1  ".bold().italic()])])
-	);
+	assert_eq!(buffer, Buffer::with_lines([Line::from(vec!["  ".italic(), "Item 1  ".bold().italic()])]));
 }
 
 #[test]
@@ -105,19 +87,14 @@ fn styled_highlight() {
 	// instead of setting it directly (which is not the same for some implementations)
 	let item = ListItem::new(text).style(Modifier::ITALIC);
 	let mut state = ListState::default().with_selected(Some(0));
-	let list = List::new([item])
-		.highlight_symbol(">>")
-		.highlight_style(Color::Red);
+	let list = List::new([item]).highlight_symbol(">>").highlight_style(Color::Red);
 
 	let mut buffer = Buffer::empty(Rect::new(0, 0, 10, 1));
 	list.render(buffer.area, &mut buffer, &mut state);
 
 	assert_eq!(
 		buffer,
-		Buffer::with_lines([Line::from(vec![
-			">>".italic().red(),
-			"Item 1  ".bold().italic().red(),
-		])])
+		Buffer::with_lines([Line::from(vec![">>".italic().red(), "Item 1  ".bold().italic().red(),])])
 	);
 }
 
@@ -147,14 +124,8 @@ fn style_inheritance() {
 			vec!["  Item 1  ".on_blue()],
 			vec!["  ".on_blue(), "Item 2  ".bold().on_blue()],
 			vec!["  Item 3  ".italic().on_blue()],
-			vec![
-				"  ".italic().on_blue(),
-				"Item 4  ".bold().italic().on_blue(),
-			],
-			vec![
-				">>".italic().red().on_blue(),
-				"Item 5  ".bold().italic().red().on_blue(),
-			],
+			vec!["  ".italic().on_blue(), "Item 4  ".bold().italic().on_blue(),],
+			vec![">>".italic().red().on_blue(), "Item 5  ".bold().italic().red().on_blue(),],
 		])
 	);
 }
@@ -163,11 +134,7 @@ fn style_inheritance() {
 fn render_in_minimal_buffer() {
 	let mut buffer = Buffer::empty(Rect::new(0, 0, 1, 1));
 	let mut state = ListState::default().with_selected(None);
-	let items = vec![
-		ListItem::new("Item 1"),
-		ListItem::new("Item 2"),
-		ListItem::new("Item 3"),
-	];
+	let items = vec![ListItem::new("Item 1"), ListItem::new("Item 2"), ListItem::new("Item 3")];
 	let list = List::new(items);
 	// This should not panic, even if the buffer is too small to render the list.
 	list.render(buffer.area, &mut buffer, &mut state);
@@ -178,11 +145,7 @@ fn render_in_minimal_buffer() {
 fn render_in_zero_size_buffer() {
 	let mut buffer = Buffer::empty(Rect::ZERO);
 	let mut state = ListState::default().with_selected(None);
-	let items = vec![
-		ListItem::new("Item 1"),
-		ListItem::new("Item 2"),
-		ListItem::new("Item 3"),
-	];
+	let items = vec![ListItem::new("Item 1"), ListItem::new("Item 2"), ListItem::new("Item 3")];
 	let list = List::new(items);
 	// This should not panic, even if the buffer has zero size.
 	list.render(buffer.area, &mut buffer, &mut state);

@@ -76,11 +76,7 @@ pub fn wrap_line_ranges(line: &str, max_width: usize, tab_width: usize) -> Vec<W
 	let mut is_first = true;
 
 	while pos < chars.len() {
-		let effective_width = if is_first {
-			max_width
-		} else {
-			continuation_width
-		};
+		let effective_width = if is_first { max_width } else { continuation_width };
 		let mut col = 0usize;
 		let mut end = pos;
 
@@ -139,9 +135,7 @@ pub fn wrap_line(line: &str, max_width: usize, tab_width: usize) -> Vec<WrapSegm
 	wrap_line_ranges(line, max_width, tab_width)
 		.into_iter()
 		.map(|s| WrapSegment {
-			text: chars[s.start_char_offset..s.start_char_offset + s.char_len]
-				.iter()
-				.collect(),
+			text: chars[s.start_char_offset..s.start_char_offset + s.char_len].iter().collect(),
 			start_offset: s.start_char_offset,
 			indent_cols: s.indent_cols,
 		})
@@ -162,17 +156,11 @@ fn leading_indent_width(chars: &[char], tab_width: usize) -> usize {
 }
 
 fn is_trailing_punct(ch: char) -> bool {
-	matches!(
-		ch,
-		'.' | ',' | ':' | ';' | '!' | '?' | ')' | ']' | '}' | '>' | '"' | '\'' | '`'
-	)
+	matches!(ch, '.' | ',' | ':' | ';' | '!' | '?' | ')' | ']' | '}' | '>' | '"' | '\'' | '`')
 }
 
 fn is_leading_punct(ch: char) -> bool {
-	matches!(
-		ch,
-		'(' | '[' | '{' | '<' | '@' | '#' | '$' | '"' | '\'' | '`'
-	)
+	matches!(ch, '(' | '[' | '{' | '<' | '@' | '#' | '$' | '"' | '\'' | '`')
 }
 
 fn can_break_after(chars: &[char], i: usize) -> bool {
@@ -219,11 +207,7 @@ fn find_wrap_break(chars: &[char], start: usize, max_end: usize) -> usize {
 /// # Empty Lines
 /// Returns a single segment of length 0 for empty lines, ensuring they can be
 /// rendered with a cursor.
-pub fn wrap_line_ranges_rope(
-	line: RopeSlice<'_>,
-	max_width: usize,
-	tab_width: usize,
-) -> Vec<WrappedSegment> {
+pub fn wrap_line_ranges_rope(line: RopeSlice<'_>, max_width: usize, tab_width: usize) -> Vec<WrappedSegment> {
 	if max_width == 0 {
 		return vec![];
 	}
@@ -249,11 +233,7 @@ pub fn wrap_line_ranges_rope(
 	let mut is_first = true;
 
 	while pos < line_len {
-		let effective_width = if is_first {
-			max_width
-		} else {
-			continuation_width
-		};
+		let effective_width = if is_first { max_width } else { continuation_width };
 
 		let mut col = 0usize;
 		let mut end = pos;

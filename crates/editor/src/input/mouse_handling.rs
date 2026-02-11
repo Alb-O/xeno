@@ -26,35 +26,19 @@ impl Editor {
 		let mut ui = std::mem::take(&mut self.state.ui);
 		let dock_layout = ui.compute_layout(main_area);
 
-		let screen_area = xeno_tui::layout::Rect {
-			x: 0,
-			y: 0,
-			width,
-			height,
-		};
+		let screen_area = xeno_tui::layout::Rect { x: 0, y: 0, width, height };
 		let status_area = xeno_tui::layout::Rect {
 			x: 0,
 			y: main_height,
 			width,
 			height: height.saturating_sub(main_height),
 		};
-		let mut hit_builder = crate::ui::layer::SceneBuilder::new(
-			screen_area,
-			main_area,
-			dock_layout.doc_area,
-			status_area,
-		);
+		let mut hit_builder = crate::ui::layer::SceneBuilder::new(screen_area, main_area, dock_layout.doc_area, status_area);
 
 		let mut panel_rects: Vec<_> = dock_layout.panel_areas.values().copied().collect();
 		panel_rects.sort_by_key(|r| (r.x, r.y, r.width, r.height));
 		for rect in panel_rects {
-			hit_builder.push(
-				crate::ui::scene::SurfaceKind::Panels,
-				30,
-				rect,
-				crate::ui::scene::SurfaceOp::Panels,
-				true,
-			);
+			hit_builder.push(crate::ui::scene::SurfaceKind::Panels, 30, rect, crate::ui::scene::SurfaceOp::Panels, true);
 		}
 
 		hit_builder.push(
@@ -70,20 +54,14 @@ impl Editor {
 			.hit_test(mouse.column, mouse.row)
 			.is_some_and(|surface| matches!(surface.kind, crate::ui::scene::SurfaceKind::Panels));
 
-		let hit_active_overlay = self
-			.state
-			.overlay_system
-			.interaction
-			.active
-			.as_ref()
-			.is_some_and(|active| {
-				active.session.panes.iter().any(|pane| {
-					mouse.column >= pane.rect.x
-						&& mouse.column < pane.rect.x.saturating_add(pane.rect.width)
-						&& mouse.row >= pane.rect.y
-						&& mouse.row < pane.rect.y.saturating_add(pane.rect.height)
-				})
-			});
+		let hit_active_overlay = self.state.overlay_system.interaction.active.as_ref().is_some_and(|active| {
+			active.session.panes.iter().any(|pane| {
+				mouse.column >= pane.rect.x
+					&& mouse.column < pane.rect.x.saturating_add(pane.rect.width)
+					&& mouse.row >= pane.rect.y
+					&& mouse.row < pane.rect.y.saturating_add(pane.rect.height)
+			})
+		});
 
 		if hit_is_panel && !hit_active_overlay {
 			if ui.handle_mouse(self, mouse, &dock_layout) {
@@ -96,9 +74,7 @@ impl Editor {
 				return false;
 			}
 		} else if ui.focused_panel_id().is_some() {
-			ui.apply_requests(vec![crate::ui::UiRequest::Focus(
-				crate::ui::UiFocus::editor(),
-			)]);
+			ui.apply_requests(vec![crate::ui::UiRequest::Focus(crate::ui::UiFocus::editor())]);
 		}
 		if ui.take_wants_redraw() {
 			self.state.frame.needs_redraw = true;
@@ -126,11 +102,7 @@ impl Editor {
 	///
 	/// Text selection drags are confined to the view where they started.
 	/// This prevents selection from crossing split boundaries.
-	pub(crate) async fn handle_mouse_in_doc_area(
-		&mut self,
-		mouse: termina::event::MouseEvent,
-		doc_area: xeno_tui::layout::Rect,
-	) -> bool {
+	pub(crate) async fn handle_mouse_in_doc_area(&mut self, mouse: termina::event::MouseEvent, doc_area: xeno_tui::layout::Rect) -> bool {
 		let mouse_x = mouse.column;
 		let mouse_y = mouse.row;
 
@@ -138,13 +110,7 @@ impl Editor {
 			match mouse.kind {
 				MouseEventKind::Drag(_) => {
 					let base_layout = &mut self.state.windows.base_window_mut().layout;
-					self.state.layout.resize_separator(
-						base_layout,
-						doc_area,
-						&drag_state.id,
-						mouse_x,
-						mouse_y,
-					);
+					self.state.layout.resize_separator(base_layout, doc_area, &drag_state.id, mouse_x, mouse_y);
 					self.state.frame.needs_redraw = true;
 					return false;
 				}
@@ -161,10 +127,8 @@ impl Editor {
 		if let Some((origin_view, origin_area)) = self.state.layout.text_selection_origin {
 			match mouse.kind {
 				MouseEventKind::Drag(_) | MouseEventKind::ScrollUp | MouseEventKind::ScrollDown => {
-					let clamped_x =
-						mouse_x.clamp(origin_area.x, origin_area.right().saturating_sub(1));
-					let clamped_y =
-						mouse_y.clamp(origin_area.y, origin_area.bottom().saturating_sub(1));
+					let clamped_x = mouse_x.clamp(origin_area.x, origin_area.right().saturating_sub(1));
+					let clamped_y = mouse_y.clamp(origin_area.y, origin_area.bottom().saturating_sub(1));
 					let local_row = clamped_y.saturating_sub(origin_area.y);
 					let local_col = clamped_x.saturating_sub(origin_area.x);
 
@@ -181,20 +145,12 @@ impl Editor {
 						}
 
 						let _ = buffer.input.handle_mouse(mouse.into());
-						let doc_pos = buffer
-							.screen_to_doc_position(local_row, local_col, tab_width)
-							.or_else(|| {
-								let gutter_width = buffer.gutter_width();
-								(local_col < gutter_width)
-									.then(|| {
-										buffer.screen_to_doc_position(
-											local_row,
-											gutter_width,
-											tab_width,
-										)
-									})
-									.flatten()
-							});
+						let doc_pos = buffer.screen_to_doc_position(local_row, local_col, tab_width).or_else(|| {
+							let gutter_width = buffer.gutter_width();
+							(local_col < gutter_width)
+								.then(|| buffer.screen_to_doc_position(local_row, gutter_width, tab_width))
+								.flatten()
+						});
 
 						if let Some(doc_pos) = doc_pos {
 							let anchor = buffer.selection.primary().anchor;
@@ -213,26 +169,20 @@ impl Editor {
 			}
 		}
 
-		let overlay_hit = self
-			.state
-			.overlay_system
-			.interaction
-			.active
-			.as_ref()
-			.and_then(|active| {
-				active
-					.session
-					.panes
-					.iter()
-					.rev()
-					.find(|pane| {
-						mouse_x >= pane.rect.x
-							&& mouse_x < pane.rect.x.saturating_add(pane.rect.width)
-							&& mouse_y >= pane.rect.y
-							&& mouse_y < pane.rect.y.saturating_add(pane.rect.height)
-					})
-					.map(|pane| (pane.buffer, pane.rect, pane.style.clone()))
-			});
+		let overlay_hit = self.state.overlay_system.interaction.active.as_ref().and_then(|active| {
+			active
+				.session
+				.panes
+				.iter()
+				.rev()
+				.find(|pane| {
+					mouse_x >= pane.rect.x
+						&& mouse_x < pane.rect.x.saturating_add(pane.rect.width)
+						&& mouse_y >= pane.rect.y
+						&& mouse_y < pane.rect.y.saturating_add(pane.rect.height)
+				})
+				.map(|pane| (pane.buffer, pane.rect, pane.style.clone()))
+		});
 
 		if let Some((overlay_buffer, overlay_rect, overlay_style)) = overlay_hit {
 			let inner = crate::overlay::geom::pane_inner_rect(overlay_rect, &overlay_style);
@@ -245,12 +195,7 @@ impl Editor {
 			} else {
 				FocusReason::Programmatic
 			};
-			self.set_focus(
-				FocusTarget::Overlay {
-					buffer: overlay_buffer,
-				},
-				reason,
-			);
+			self.set_focus(FocusTarget::Overlay { buffer: overlay_buffer }, reason);
 
 			let clamped_x = mouse_x.clamp(inner.x, inner.right().saturating_sub(1));
 			let clamped_y = mouse_y.clamp(inner.y, inner.bottom().saturating_sub(1));
@@ -278,9 +223,7 @@ impl Editor {
 
 		let separator_hit = {
 			let base_layout = &self.base_window().layout;
-			self.state
-				.layout
-				.separator_hit_at_position(base_layout, doc_area, mouse_x, mouse_y)
+			self.state.layout.separator_hit_at_position(base_layout, doc_area, mouse_x, mouse_y)
 		};
 
 		self.state.layout.update_mouse_velocity(mouse_x, mouse_y);
@@ -305,9 +248,7 @@ impl Editor {
 				};
 
 				if old_hover != self.state.layout.hovered_separator {
-					self.state
-						.layout
-						.update_hover_animation(old_hover, self.state.layout.hovered_separator);
+					self.state.layout.update_hover_animation(old_hover, self.state.layout.hovered_separator);
 					self.state.frame.needs_redraw = true;
 				}
 
@@ -355,17 +296,13 @@ impl Editor {
 		};
 
 		let needs_focus = match &self.state.focus {
-			FocusTarget::Buffer { window, buffer } => {
-				*window != target_window || *buffer != target_view
-			}
+			FocusTarget::Buffer { window, buffer } => *window != target_window || *buffer != target_view,
 			FocusTarget::Overlay { .. } => true,
 			FocusTarget::Panel(_) => true,
 		};
 		if needs_focus {
 			let focus_changed = match mouse.kind {
-				MouseEventKind::Down(_) => {
-					self.focus_buffer_in_window(target_window, target_view, true)
-				}
+				MouseEventKind::Down(_) => self.focus_buffer_in_window(target_window, target_view, true),
 				_ => {
 					if target_window == self.state.windows.base_id() {
 						self.focus_view_implicit(target_view)
@@ -413,11 +350,7 @@ impl Editor {
 			return self.view_area(*buffer);
 		}
 		let focused = self.focused_view();
-		for (view, area) in self
-			.state
-			.layout
-			.compute_view_areas(&self.base_window().layout, doc_area)
-		{
+		for (view, area) in self.state.layout.compute_view_areas(&self.base_window().layout, doc_area) {
 			if view == focused {
 				return area;
 			}

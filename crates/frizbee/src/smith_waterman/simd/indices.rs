@@ -5,9 +5,7 @@ use std::collections::HashSet;
 use crate::simd_lanes::{LaneCount, SupportedLaneCount};
 
 #[inline]
-pub fn char_indices_from_score_matrix<const W: usize, const L: usize>(
-	score_matrices: &[[Simd<u16, L>; W]],
-) -> Vec<Vec<usize>>
+pub fn char_indices_from_score_matrix<const W: usize, const L: usize>(score_matrices: &[[Simd<u16, L>; W]]) -> Vec<Vec<usize>>
 where
 	LaneCount<L>: SupportedLaneCount,
 {
@@ -47,16 +45,8 @@ where
 			} else {
 				score_matrices[col_idx - 1][row_idx - 1][idx]
 			};
-			let left = if col_idx == 0 {
-				0
-			} else {
-				score_matrices[col_idx - 1][row_idx][idx]
-			};
-			let up = if row_idx == 0 {
-				0
-			} else {
-				score_matrices[col_idx][row_idx - 1][idx]
-			};
+			let left = if col_idx == 0 { 0 } else { score_matrices[col_idx - 1][row_idx][idx] };
+			let up = if row_idx == 0 { 0 } else { score_matrices[col_idx][row_idx - 1][idx] };
 
 			// Diagonal (match/mismatch)
 			if diag >= left && diag >= up {
@@ -109,8 +99,7 @@ mod tests {
 
 	fn get_indices(needle: &str, haystack: &str) -> Vec<usize> {
 		let haystacks = [haystack; 1];
-		let (_, score_matrices, _) =
-			smith_waterman::<16, 1>(needle, &haystacks, None, &Scoring::default());
+		let (_, score_matrices, _) = smith_waterman::<16, 1>(needle, &haystacks, None, &Scoring::default());
 		let indices = char_indices_from_score_matrix(&score_matrices);
 		indices[0].clone()
 	}
@@ -137,8 +126,7 @@ mod tests {
 			"toolbar",
 		];
 
-		let (_, score_matrices, _) =
-			smith_waterman::<16, 16>(needle, &haystacks, None, &Scoring::default());
+		let (_, score_matrices, _) = smith_waterman::<16, 16>(needle, &haystacks, None, &Scoring::default());
 		let indices = char_indices_from_score_matrix(&score_matrices);
 		for indices in indices.into_iter() {
 			assert_eq!(indices, [0])

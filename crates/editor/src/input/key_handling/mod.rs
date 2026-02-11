@@ -53,8 +53,7 @@ impl Editor {
 		#[cfg(feature = "lsp")]
 		let old_version = self.buffer().version();
 
-		let mut interaction: crate::overlay::OverlayManager =
-			std::mem::take(&mut self.state.overlay_system.interaction);
+		let mut interaction: crate::overlay::OverlayManager = std::mem::take(&mut self.state.overlay_system.interaction);
 		let handled = interaction.handle_key(self, key);
 		self.state.overlay_system.interaction = interaction;
 		if handled {
@@ -102,10 +101,7 @@ impl Editor {
 					let leaving_insert = !matches!(new_mode, Mode::Insert);
 					if new_mode != old_mode {
 						let view = self.focused_view();
-						self.notify_overlay_event(crate::overlay::LayerEvent::ModeChanged {
-							view,
-							mode: new_mode.clone(),
-						});
+						self.notify_overlay_event(crate::overlay::LayerEvent::ModeChanged { view, mode: new_mode.clone() });
 						emit_hook(&HookContext::new(HookEventData::ModeChange {
 							old_mode,
 							new_mode: new_mode.clone(),
@@ -154,13 +150,7 @@ impl Editor {
 		}
 
 		#[cfg(feature = "lsp")]
-		self.update_lsp_completion_state(
-			mode_change.as_ref(),
-			old_buffer_id,
-			old_cursor,
-			old_version,
-			inserted_char,
-		);
+		self.update_lsp_completion_state(mode_change.as_ref(), old_buffer_id, old_cursor, old_version, inserted_char);
 
 		quit
 	}

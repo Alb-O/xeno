@@ -118,14 +118,10 @@ fn widgets_paragraph_line_width_accounts_for_block() {
 	assert_eq!(paragraph.line_width(), 12);
 
 	let block = Block::new().borders(Borders::LEFT);
-	let paragraph = Paragraph::new("Hello World")
-		.block(block)
-		.wrap(Wrap { trim: true });
+	let paragraph = Paragraph::new("Hello World").block(block).wrap(Wrap { trim: true });
 	assert_eq!(paragraph.line_width(), 12);
 
 	let block = Block::new().borders(Borders::LEFT);
-	let paragraph = Paragraph::new("Hello World")
-		.block(block)
-		.wrap(Wrap { trim: false });
+	let paragraph = Paragraph::new("Hello World").block(block).wrap(Wrap { trim: false });
 	assert_eq!(paragraph.line_width(), 12);
 }

@@ -235,11 +235,9 @@ impl<T: Animatable> ToggleTween<T> {
 		// Start from current position
 		let current = self.value();
 		if active {
-			self.tween = Tween::new(current, self.on_value.clone(), self.tween.duration)
-				.with_easing(self.tween.easing);
+			self.tween = Tween::new(current, self.on_value.clone(), self.tween.duration).with_easing(self.tween.easing);
 		} else {
-			self.tween = Tween::new(current, self.off_value.clone(), self.tween.duration)
-				.with_easing(self.tween.easing);
+			self.tween = Tween::new(current, self.off_value.clone(), self.tween.duration).with_easing(self.tween.easing);
 		}
 		true
 	}

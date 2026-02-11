@@ -7,9 +7,7 @@ use super::super::overlapping_load;
 pub fn match_haystack_insensitive(needle: &[(u8, u8)], haystack: &[u8]) -> bool {
 	let len = haystack.len();
 
-	let mut needle_iter = needle
-		.iter()
-		.map(|&(c1, c2)| (Simd::splat(c1), Simd::splat(c2)));
+	let mut needle_iter = needle.iter().map(|&(c1, c2)| (Simd::splat(c1), Simd::splat(c2)));
 	let mut needle_char = needle_iter.next().unwrap();
 
 	for start in (0..len).step_by(16) {
@@ -17,8 +15,7 @@ pub fn match_haystack_insensitive(needle: &[(u8, u8)], haystack: &[u8]) -> bool 
 
 		let mut last_match_idx = None;
 		loop {
-			let mut mask = haystack_chunk.simd_eq(needle_char.0).to_bitmask()
-				| haystack_chunk.simd_eq(needle_char.1).to_bitmask();
+			let mut mask = haystack_chunk.simd_eq(needle_char.0).to_bitmask() | haystack_chunk.simd_eq(needle_char.1).to_bitmask();
 
 			// If we've already found a match on this chunk, 0 out the bits that come before the
 			// last match

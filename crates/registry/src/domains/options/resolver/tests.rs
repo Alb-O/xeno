@@ -34,9 +34,7 @@ fn test_resolve_language_overrides_global() {
 	let mut language = OptionStore::new();
 	language.set(tab_width.clone(), OptionValue::Int(2));
 
-	let resolver = OptionResolver::new()
-		.with_global(&global)
-		.with_language(&language);
+	let resolver = OptionResolver::new().with_global(&global).with_language(&language);
 
 	assert_eq!(resolver.resolve_int(&tab_width), 2);
 }
@@ -54,10 +52,7 @@ fn test_resolve_buffer_overrides_all() {
 	let mut buffer = OptionStore::new();
 	buffer.set(tab_width.clone(), OptionValue::Int(8));
 
-	let resolver = OptionResolver::new()
-		.with_global(&global)
-		.with_language(&language)
-		.with_buffer(&buffer);
+	let resolver = OptionResolver::new().with_global(&global).with_language(&language).with_buffer(&buffer);
 
 	assert_eq!(resolver.resolve_int(&tab_width), 8);
 }
@@ -75,9 +70,7 @@ fn test_resolve_fallthrough() {
 	let mut buffer = OptionStore::new();
 	buffer.set(theme.clone(), OptionValue::String("monokai".to_string()));
 
-	let resolver = OptionResolver::new()
-		.with_global(&global)
-		.with_buffer(&buffer);
+	let resolver = OptionResolver::new().with_global(&global).with_buffer(&buffer);
 
 	// tab_width from global (buffer doesn't have it)
 	assert_eq!(resolver.resolve_int(&tab_width), 4);

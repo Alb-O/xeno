@@ -9,12 +9,7 @@ use super::{WordType, is_word_char};
 ///
 /// `inner` selects only the word characters. `around` extends to include
 /// trailing whitespace, or leading whitespace if no trailing space exists.
-pub fn select_word_object(
-	text: RopeSlice,
-	range: Range,
-	word_type: WordType,
-	inner: bool,
-) -> Range {
+pub fn select_word_object(text: RopeSlice, range: Range, word_type: WordType, inner: bool) -> Range {
 	let len = text.len_chars();
 	if len == 0 {
 		return range;
@@ -88,13 +83,7 @@ pub fn select_word_object(
 /// `inner` selects the content between delimiters (exclusive).
 /// `around` includes the delimiters themselves (inclusive).
 /// Returns `None` if no matching delimiter pair is found around the cursor.
-pub fn select_surround_object(
-	text: RopeSlice,
-	range: Range,
-	open: char,
-	close: char,
-	inner: bool,
-) -> Option<Range> {
+pub fn select_surround_object(text: RopeSlice, range: Range, open: char, close: char, inner: bool) -> Option<Range> {
 	let len = text.len_chars();
 	if len == 0 {
 		return None;

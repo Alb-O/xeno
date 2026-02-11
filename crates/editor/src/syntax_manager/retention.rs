@@ -28,12 +28,7 @@ impl SyntaxManager {
 	}
 
 	/// Evaluates if the retention policy allows installing a new syntax tree.
-	pub(super) fn retention_allows_install(
-		now: Instant,
-		st: &DocSched,
-		policy: RetentionPolicy,
-		hotness: SyntaxHotness,
-	) -> bool {
+	pub(super) fn retention_allows_install(now: Instant, st: &DocSched, policy: RetentionPolicy, hotness: SyntaxHotness) -> bool {
 		if matches!(hotness, SyntaxHotness::Visible | SyntaxHotness::Warm) {
 			return true;
 		}
@@ -77,9 +72,7 @@ impl SyntaxManager {
 				}
 			}
 			RetentionPolicy::DropAfter(ttl) => {
-				if (state.current.is_some() || state.dirty)
-					&& now.duration_since(st.last_visible_at) > ttl
-				{
+				if (state.current.is_some() || state.dirty) && now.duration_since(st.last_visible_at) > ttl {
 					state.drop_tree();
 					state.dirty = false;
 					Self::mark_updated(state);

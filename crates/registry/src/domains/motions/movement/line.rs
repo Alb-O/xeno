@@ -5,12 +5,7 @@ use xeno_primitives::range::{CharIdx, Range};
 
 use super::{LineBoundary, make_range};
 
-pub fn move_to_line_boundary(
-	text: RopeSlice,
-	range: Range,
-	boundary: LineBoundary,
-	extend: bool,
-) -> Range {
+pub fn move_to_line_boundary(text: RopeSlice, range: Range, boundary: LineBoundary, extend: bool) -> Range {
 	match boundary {
 		LineBoundary::Start => move_to_line_start(text, range, extend),
 		LineBoundary::End => move_to_line_end(text, range, extend),

@@ -97,9 +97,7 @@ impl<S: LspService> LspService for ClientProcessMonitor<S> {
 
 	fn emit(&mut self, event: AnyEvent) -> ControlFlow<Result<()>> {
 		match event.downcast::<ClientProcessExited>() {
-			Ok(ClientProcessExited) => {
-				ControlFlow::Break(Err(Error::Protocol("Client process exited".into())))
-			}
+			Ok(ClientProcessExited) => ControlFlow::Break(Err(Error::Protocol("Client process exited".into()))),
 			Err(event) => self.service.emit(event),
 		}
 	}

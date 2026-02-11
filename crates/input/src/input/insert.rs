@@ -40,11 +40,7 @@ impl InputHandler {
 
 		let key = if let KeyCode::Char(c) = key.code {
 			if key.modifiers.shift {
-				if c.is_ascii_lowercase() {
-					key.normalize()
-				} else {
-					key.drop_shift()
-				}
+				if c.is_ascii_lowercase() { key.normalize() } else { key.drop_shift() }
 			} else {
 				key
 			}
@@ -58,26 +54,19 @@ impl InputHandler {
 		let registry = get_keymap_registry();
 
 		if let Ok(node) = key.to_keymap() {
-			if let LookupResult::Match(entry) =
-				registry.lookup(BindingMode::Insert, std::slice::from_ref(&node))
-			{
+			if let LookupResult::Match(entry) = registry.lookup(BindingMode::Insert, std::slice::from_ref(&node)) {
 				return self.consume_action(entry.action_id);
 			}
 
-			let is_navigation_key =
-				!matches!(key.code, KeyCode::Char(_)) || key.modifiers.ctrl || key.modifiers.alt;
+			let is_navigation_key = !matches!(key.code, KeyCode::Char(_)) || key.modifiers.ctrl || key.modifiers.alt;
 
-			if is_navigation_key
-				&& let LookupResult::Match(entry) = registry.lookup(BindingMode::Normal, &[node])
-			{
+			if is_navigation_key && let LookupResult::Match(entry) = registry.lookup(BindingMode::Normal, &[node]) {
 				return self.consume_action(entry.action_id);
 			}
 		}
 
 		match key.code {
-			KeyCode::Char(c) if key.modifiers.is_empty() || key.modifiers == Modifiers::SHIFT => {
-				KeyResult::InsertChar(c)
-			}
+			KeyCode::Char(c) if key.modifiers.is_empty() || key.modifiers == Modifiers::SHIFT => KeyResult::InsertChar(c),
 			KeyCode::Space => KeyResult::InsertChar(' '),
 			KeyCode::Enter => KeyResult::InsertChar('\n'),
 			KeyCode::Tab => KeyResult::InsertChar('\t'),

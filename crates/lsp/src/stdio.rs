@@ -58,10 +58,7 @@ impl<T: AsFd> NonBlocking<T> {
 	/// Creates a new non-blocking wrapper, setting O_NONBLOCK on the file descriptor.
 	fn new(inner: T) -> Result<Self> {
 		let ft = FileType::from_raw_mode(fstat(&inner)?.st_mode);
-		if !matches!(
-			ft,
-			FileType::Fifo | FileType::Socket | FileType::CharacterDevice
-		) {
+		if !matches!(ft, FileType::Fifo | FileType::Socket | FileType::CharacterDevice) {
 			return Err(Error::other(format!("File type {ft:?} is not pipe-like")));
 		}
 
@@ -209,11 +206,7 @@ mod tokio_impl {
 	}
 
 	impl tokio::io::AsyncRead for TokioPipeStdin {
-		fn poll_read(
-			self: Pin<&mut Self>,
-			cx: &mut Context<'_>,
-			buf: &mut ReadBuf<'_>,
-		) -> Poll<io::Result<()>> {
+		fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<io::Result<()>> {
 			let len = loop {
 				let mut guard = ready!(self.inner.poll_read_ready(cx))?;
 				match guard.try_io(|inner| {
@@ -258,11 +251,7 @@ mod tokio_impl {
 	}
 
 	impl tokio::io::AsyncWrite for TokioPipeStdout {
-		fn poll_write(
-			self: Pin<&mut Self>,
-			cx: &mut Context<'_>,
-			buf: &[u8],
-		) -> Poll<Result<usize>> {
+		fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<Result<usize>> {
 			loop {
 				let mut guard = ready!(self.inner.poll_write_ready(cx))?;
 				match guard.try_io(|inner| inner.get_ref().write(buf)) {

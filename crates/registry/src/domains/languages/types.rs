@@ -11,17 +11,10 @@ pub struct LanguageQueryEntry {
 #[derive(Clone)]
 pub enum ViewportRepairRuleEntry {
 	/// e.g. /* ... */
-	BlockComment {
-		open: Symbol,
-		close: Symbol,
-		nestable: bool,
-	},
+	BlockComment { open: Symbol, close: Symbol, nestable: bool },
 
 	/// e.g. "..." or '...'
-	String {
-		quote: Symbol,
-		escape: Option<Symbol>,
-	},
+	String { quote: Symbol, escape: Option<Symbol> },
 
 	/// e.g. //
 	LineComment { start: Symbol },
@@ -92,10 +85,7 @@ impl BuildEntry<LanguageEntry> for LanguageDef {
 		""
 	}
 
-	fn collect_payload_strings<'b>(
-		&'b self,
-		collector: &mut crate::core::index::StringCollector<'_, 'b>,
-	) {
+	fn collect_payload_strings<'b>(&'b self, collector: &mut crate::core::index::StringCollector<'_, 'b>) {
 		collector.opt(self.scope);
 		collector.opt(self.grammar_name);
 		collector.opt(self.injection_regex);
@@ -113,11 +103,7 @@ impl BuildEntry<LanguageEntry> for LanguageDef {
 		// Static defs don't have queries or viewport_repair usually
 	}
 
-	fn build(
-		&self,
-		ctx: &mut dyn crate::core::index::BuildCtx,
-		key_pool: &mut Vec<Symbol>,
-	) -> LanguageEntry {
+	fn build(&self, ctx: &mut dyn crate::core::index::BuildCtx, key_pool: &mut Vec<Symbol>) -> LanguageEntry {
 		use crate::core::index::BuildCtxExt;
 
 		let meta = crate::core::index::meta_build::build_meta(ctx, key_pool, self.meta_ref(), []);
@@ -133,9 +119,7 @@ impl BuildEntry<LanguageEntry> for LanguageDef {
 			globs: ctx.intern_slice(self.globs),
 			shebangs: ctx.intern_slice(self.shebangs),
 			comment_tokens: ctx.intern_slice(self.comment_tokens),
-			block_comment: self
-				.block_comment
-				.map(|(s1, s2)| (ctx.intern(s1), ctx.intern(s2))),
+			block_comment: self.block_comment.map(|(s1, s2)| (ctx.intern(s1), ctx.intern(s2))),
 			lsp_servers: ctx.intern_slice(self.lsp_servers),
 			roots: ctx.intern_slice(self.roots),
 			viewport_repair: None,
@@ -144,5 +128,4 @@ impl BuildEntry<LanguageEntry> for LanguageDef {
 	}
 }
 
-pub type LanguageInput =
-	crate::core::def_input::DefInput<LanguageDef, super::link::LinkedLanguageDef>;
+pub type LanguageInput = crate::core::def_input::DefInput<LanguageDef, super::link::LinkedLanguageDef>;

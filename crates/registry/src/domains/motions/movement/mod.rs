@@ -60,11 +60,7 @@ pub fn is_word_char(c: char) -> bool {
 /// If `extend` is false, this performs a "move": the range collapses to a single point at `new_head`.
 /// If `extend` is true, this performs a "selection extension": the anchor remains fixed, and the head moves to `new_head`.
 pub fn make_range(range: Range, new_head: CharIdx, extend: bool) -> Range {
-	if extend {
-		Range::new(range.anchor, new_head)
-	} else {
-		Range::point(new_head)
-	}
+	if extend { Range::new(range.anchor, new_head) } else { Range::point(new_head) }
 }
 
 /// Creates a range for selection-creating motions.

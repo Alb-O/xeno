@@ -125,11 +125,7 @@ impl RectPolicy {
 				let min_w = u32::from(*min_width);
 				let fixed_h = u32::from(*height);
 
-				let (safe_min, safe_max) = if min_w > max_w {
-					(max_w, min_w)
-				} else {
-					(min_w, max_w)
-				};
+				let (safe_min, safe_max) = if min_w > max_w { (max_w, min_w) } else { (min_w, max_w) };
 
 				let target_w = (sw.saturating_mul(w_pct) / 100).clamp(safe_min, safe_max);
 				let width = target_w.min(sw);
@@ -154,16 +150,7 @@ impl RectPolicy {
 				let anchor = roles.get(role)?;
 				let y = u32::from(anchor.y) + u32::from(anchor.height) + u32::from(*offset_y);
 
-				Self::intersect(
-					sx,
-					sy,
-					sw,
-					sh,
-					u32::from(anchor.x),
-					y,
-					u32::from(anchor.width),
-					u32::from(*height),
-				)
+				Self::intersect(sx, sy, sw, sh, u32::from(anchor.x), y, u32::from(anchor.width), u32::from(*height))
 			}
 		}
 	}
@@ -171,16 +158,7 @@ impl RectPolicy {
 	/// Computes the intersection of two rectangles in `u32` space.
 	///
 	/// Returns `None` if the intersection is empty or invalid.
-	fn intersect(
-		sx: u32,
-		sy: u32,
-		sw: u32,
-		sh: u32,
-		rx: u32,
-		ry: u32,
-		rw: u32,
-		rh: u32,
-	) -> Option<Rect> {
+	fn intersect(sx: u32, sy: u32, sw: u32, sh: u32, rx: u32, ry: u32, rw: u32, rh: u32) -> Option<Rect> {
 		let x = sx.max(rx);
 		let y = sy.max(ry);
 		let right = (sx + sw).min(rx + rw);

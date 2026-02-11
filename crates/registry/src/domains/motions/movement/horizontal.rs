@@ -8,13 +8,7 @@ use xeno_primitives::range::{CharIdx, Direction, Range};
 use super::make_range;
 
 /// Moves the cursor horizontally by the given number of graphemes.
-pub fn move_horizontally(
-	text: RopeSlice,
-	range: Range,
-	direction: Direction,
-	count: usize,
-	extend: bool,
-) -> Range {
+pub fn move_horizontally(text: RopeSlice, range: Range, direction: Direction, count: usize, extend: bool) -> Range {
 	let pos: CharIdx = range.head;
 	let max_pos = max_cursor_pos(text);
 	let new_pos: CharIdx = match direction {

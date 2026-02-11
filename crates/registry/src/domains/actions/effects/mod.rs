@@ -96,9 +96,7 @@ impl ActionEffects {
 	/// Creates an effect set from a single effect.
 	#[inline]
 	pub fn from_effect(effect: Effect) -> Self {
-		Self {
-			effects: vec![effect],
-		}
+		Self { effects: vec![effect] }
 	}
 
 	/// Adds an effect to this set, returning self for chaining.
@@ -231,27 +229,13 @@ impl ActionEffects {
 	/// Scrolls the viewport.
 	#[inline]
 	pub fn scroll(direction: Direction, amount: ScrollAmount, extend: bool) -> Self {
-		Self::from_effect(
-			ViewEffect::Scroll {
-				direction,
-				amount,
-				extend,
-			}
-			.into(),
-		)
+		Self::from_effect(ViewEffect::Scroll { direction, amount, extend }.into())
 	}
 
 	/// Moves cursor visually (wrapped lines).
 	#[inline]
 	pub fn visual_move(direction: Direction, count: usize, extend: bool) -> Self {
-		Self::from_effect(
-			ViewEffect::VisualMove {
-				direction,
-				count,
-				extend,
-			}
-			.into(),
-		)
+		Self::from_effect(ViewEffect::VisualMove { direction, count, extend }.into())
 	}
 
 	/// Pastes from yank register.

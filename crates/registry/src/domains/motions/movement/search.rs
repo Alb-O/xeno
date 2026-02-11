@@ -29,11 +29,7 @@ pub fn find_all_matches(text: RopeSlice, pattern: &str) -> Result<Vec<Range>, re
 }
 
 /// Find the next match after the given position.
-pub fn find_next(
-	text: RopeSlice,
-	pattern: &str,
-	pos: CharIdx,
-) -> Result<Option<Range>, regex::Error> {
+pub fn find_next(text: RopeSlice, pattern: &str, pos: CharIdx) -> Result<Option<Range>, regex::Error> {
 	let re = Regex::new(pattern)?;
 	let text_str: String = text.chars().collect();
 
@@ -59,11 +55,7 @@ pub fn find_next(
 }
 
 /// Find the previous match before the given position.
-pub fn find_prev(
-	text: RopeSlice,
-	pattern: &str,
-	pos: CharIdx,
-) -> Result<Option<Range>, regex::Error> {
+pub fn find_prev(text: RopeSlice, pattern: &str, pos: CharIdx) -> Result<Option<Range>, regex::Error> {
 	let re = Regex::new(pattern)?;
 	let text_str: String = text.chars().collect();
 
@@ -101,10 +93,7 @@ fn byte_to_char_offset(s: &str, byte_offset: usize) -> CharIdx {
 
 /// Converts a character offset to a byte offset in a string.
 fn char_to_byte_offset(s: &str, char_offset: CharIdx) -> usize {
-	s.char_indices()
-		.nth(char_offset)
-		.map(|(i, _)| i)
-		.unwrap_or(s.len())
+	s.char_indices().nth(char_offset).map(|(i, _)| i).unwrap_or(s.len())
 }
 
 #[cfg(test)]

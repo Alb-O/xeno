@@ -151,14 +151,9 @@ impl<'a> Line<'a> {
 	}
 
 	/// Returns an iterator over styled graphemes, with `base_style` merged with line style.
-	pub fn styled_graphemes<S: Into<Style>>(
-		&'a self,
-		base_style: S,
-	) -> impl Iterator<Item = StyledGrapheme<'a>> {
+	pub fn styled_graphemes<S: Into<Style>>(&'a self, base_style: S) -> impl Iterator<Item = StyledGrapheme<'a>> {
 		let style = base_style.into().patch(self.style);
-		self.spans
-			.iter()
-			.flat_map(move |span| span.styled_graphemes(style))
+		self.spans.iter().flat_map(move |span| span.styled_graphemes(style))
 	}
 
 	/// Adds modifiers from the given style without overwriting existing style.
@@ -260,10 +255,7 @@ impl<'a> From<Cow<'a, str>> for Line<'a> {
 
 impl<'a> From<Vec<Span<'a>>> for Line<'a> {
 	fn from(spans: Vec<Span<'a>>) -> Self {
-		Self {
-			spans,
-			..Default::default()
-		}
+		Self { spans, ..Default::default() }
 	}
 }
 
@@ -337,12 +329,7 @@ impl Widget for &Line<'_> {
 impl Line<'_> {
 	/// An internal implementation method for `Widget::render` that allows the parent widget to
 	/// define a default alignment, to be used if `Line::alignment` is `None`.
-	pub(crate) fn render_with_alignment(
-		&self,
-		area: Rect,
-		buf: &mut Buffer,
-		parent_alignment: Option<HorizontalAlignment>,
-	) {
+	pub(crate) fn render_with_alignment(&self, area: Rect, buf: &mut Buffer, parent_alignment: Option<HorizontalAlignment>) {
 		let area = area.intersection(buf.area);
 		if area.is_empty() {
 			return;
@@ -396,10 +383,7 @@ fn render_spans(spans: &[Span], mut area: Rect, buf: &mut Buffer, span_skip_widt
 
 /// Returns an iterator over the spans that lie after a given skip width from the start of the
 /// `Line` (including a partially visible span if the `skip_width` lands within a span).
-fn spans_after_width<'a>(
-	spans: &'a [Span],
-	mut skip_width: usize,
-) -> impl Iterator<Item = (Span<'a>, usize, u16)> {
+fn spans_after_width<'a>(spans: &'a [Span], mut skip_width: usize) -> impl Iterator<Item = (Span<'a>, usize, u16)> {
 	spans
 		.iter()
 		.map(|span| (span, span.width()))
@@ -431,11 +415,7 @@ fn spans_after_width<'a>(
 			// that takes that into account by indenting the start of the area
 			let first_grapheme_offset = available_width.saturating_sub(actual_width);
 			let first_grapheme_offset = u16::try_from(first_grapheme_offset).unwrap_or(u16::MAX);
-			(
-				Span::styled(content, span.style),
-				actual_width,
-				first_grapheme_offset,
-			)
+			(Span::styled(content, span.style), actual_width, first_grapheme_offset)
 		})
 }
 

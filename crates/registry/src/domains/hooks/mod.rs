@@ -1,8 +1,6 @@
 //! Async hook system for editor events.
 
-pub use crate::core::{
-	HookId, RegistryBuilder, RegistryEntry, RegistryIndex, RegistryRef, RuntimeRegistry,
-};
+pub use crate::core::{HookId, RegistryBuilder, RegistryEntry, RegistryIndex, RegistryRef, RuntimeRegistry};
 
 pub mod builtins;
 mod context;
@@ -20,9 +18,7 @@ pub use registry::HooksRegistry;
 
 use crate::error::RegistryError;
 
-pub fn register_plugin(
-	db: &mut crate::db::builder::RegistryDbBuilder,
-) -> Result<(), RegistryError> {
+pub fn register_plugin(db: &mut crate::db::builder::RegistryDbBuilder) -> Result<(), RegistryError> {
 	register_builtins(db);
 	register_compiled(db);
 	Ok(())
@@ -31,9 +27,7 @@ pub fn register_plugin(
 /// Registers compiled hooks from the embedded spec.
 pub fn register_compiled(db: &mut crate::db::builder::RegistryDbBuilder) {
 	let spec = loader::load_hooks_spec();
-	let handlers = inventory::iter::<handler::HookHandlerReg>
-		.into_iter()
-		.map(|r| r.0);
+	let handlers = inventory::iter::<handler::HookHandlerReg>.into_iter().map(|r| r.0);
 
 	let linked = link::link_hooks(&spec, handlers);
 
@@ -60,25 +54,17 @@ impl crate::db::domain::DomainSpec for Hooks {
 		HookInput::Linked(def)
 	}
 
-	fn builder(
-		db: &mut crate::db::builder::RegistryDbBuilder,
-	) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
+	fn builder(db: &mut crate::db::builder::RegistryDbBuilder) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
 		&mut db.hooks
 	}
 
 	fn on_push(_db: &mut crate::db::builder::RegistryDbBuilder, _input: &Self::Input) {}
 }
 
-pub use context::{
-	Bool, HookContext, MutableHookContext, OptionViewId, SplitDirection, Str, ViewId, WindowId,
-	WindowKind,
-};
+pub use context::{Bool, HookContext, MutableHookContext, OptionViewId, SplitDirection, Str, ViewId, WindowId, WindowKind};
 pub use emit::{HookScheduler, emit, emit_mutable, emit_sync, emit_sync_with};
 pub use handler::{HookHandlerReg, HookHandlerStatic};
-pub use types::{
-	HookAction, HookDef, HookEntry, HookFuture, HookHandler, HookInput, HookMutability,
-	HookPriority, HookResult,
-};
+pub use types::{HookAction, HookDef, HookEntry, HookFuture, HookHandler, HookInput, HookMutability, HookPriority, HookResult};
 pub use xeno_primitives::Mode;
 
 #[cfg(feature = "db")]

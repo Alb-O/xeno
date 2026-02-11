@@ -14,10 +14,7 @@ mod unit_tests {
 	use crate::render::wrap::WrappedSegment;
 
 	fn theme_from_entry(
-		theme_ref: xeno_registry::core::RegistryRef<
-			xeno_registry::themes::theme::ThemeEntry,
-			xeno_registry::core::ThemeId,
-		>,
+		theme_ref: xeno_registry::core::RegistryRef<xeno_registry::themes::theme::ThemeEntry, xeno_registry::core::ThemeId>,
 	) -> xeno_registry::themes::Theme {
 		xeno_registry::themes::Theme {
 			meta: xeno_registry::RegistryMetaStatic::minimal("test", "test", ""),
@@ -107,24 +104,14 @@ mod unit_tests {
 		let line = TextRowRenderer::render_row(&input);
 		let spans = line.spans;
 
-		let tab_spans: Vec<_> = spans
-			.iter()
-			.take_while(|s| s.content.chars().all(|c| c == ' '))
-			.collect();
+		let tab_spans: Vec<_> = spans.iter().take_while(|s| s.content.chars().all(|c| c == ' ')).collect();
 		let total_tab_width: usize = tab_spans.iter().map(|s| s.content.len()).sum();
 		assert_eq!(total_tab_width, tab_width);
 
 		// Verify that the spans covering the tab width have the cursor background.
 		// Since styles merge, we might get one span of 4 spaces with red bg.
-		let cursor_width: usize = tab_spans
-			.iter()
-			.filter(|s| s.style.bg == Some(Color::Red))
-			.map(|s| s.content.len())
-			.sum();
-		assert_eq!(
-			cursor_width, tab_width,
-			"The cursor background should span the full tab width"
-		);
+		let cursor_width: usize = tab_spans.iter().filter(|s| s.style.bg == Some(Color::Red)).map(|s| s.content.len()).sum();
+		assert_eq!(cursor_width, tab_width, "The cursor background should span the full tab width");
 	}
 
 	#[test]
@@ -208,18 +195,12 @@ mod unit_tests {
 		let line = TextRowRenderer::render_row(&input);
 		let spans = line.spans;
 
-		let tab_spans: Vec<_> = spans
-			.iter()
-			.take_while(|s| s.content.chars().all(|c| c == ' '))
-			.collect();
+		let tab_spans: Vec<_> = spans.iter().take_while(|s| s.content.chars().all(|c| c == ' ')).collect();
 		let total_tab_width: usize = tab_spans.iter().map(|s| s.content.len()).sum();
 		assert_eq!(total_tab_width, tab_width);
 
 		for span in tab_spans {
-			assert!(
-				span.style.bg.is_some(),
-				"Tab cell should have selection background"
-			);
+			assert!(span.style.bg.is_some(), "Tab cell should have selection background");
 		}
 	}
 
@@ -308,10 +289,7 @@ mod unit_tests {
 		let spans = line.spans;
 
 		// Consume prefix of 4 spaces from the span list
-		fn take_prefix<'a>(
-			spans: &'a [xeno_tui::text::Span<'static>],
-			mut n: usize,
-		) -> Vec<(&'a xeno_tui::style::Style, String)> {
+		fn take_prefix<'a>(spans: &'a [xeno_tui::text::Span<'static>], mut n: usize) -> Vec<(&'a xeno_tui::style::Style, String)> {
 			let mut out = Vec::new();
 			for sp in spans {
 				if n == 0 {
@@ -335,11 +313,7 @@ mod unit_tests {
 		// 2) None of those prefix cells have cursor bg.
 		for (style, chunk) in prefix {
 			if !chunk.is_empty() {
-				assert_ne!(
-					style.bg,
-					Some(Color::Red),
-					"Indent cell should not have cursor background"
-				);
+				assert_ne!(style.bg, Some(Color::Red), "Indent cell should not have cursor background");
 			}
 		}
 	}

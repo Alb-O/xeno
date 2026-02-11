@@ -63,10 +63,7 @@ mod tests {
 		assert_eq!(Color::from(Srgb::new(65535u16, 0, 0)), RED);
 		assert_eq!(Color::from(Srgb::new(1.0f32, 0.0, 0.0)), RED);
 
-		assert_eq!(
-			Color::from(Srgb::new(0.5f32, 0.5, 0.5)),
-			Color::Rgb(128, 128, 128)
-		);
+		assert_eq!(Color::from(Srgb::new(0.5f32, 0.5, 0.5)), Color::Rgb(128, 128, 128));
 	}
 
 	#[test]
@@ -75,9 +72,6 @@ mod tests {
 		assert_eq!(Color::from(LinSrgb::new(1.0f32, 0.0, 0.0)), RED);
 		assert_eq!(Color::from(LinSrgb::new(1.0f64, 0.0, 0.0)), RED);
 
-		assert_eq!(
-			Color::from(LinSrgb::new(0.5f32, 0.5, 0.5)),
-			Color::Rgb(188, 188, 188)
-		);
+		assert_eq!(Color::from(LinSrgb::new(0.5f32, 0.5, 0.5)), Color::Rgb(188, 188, 188));
 	}
 }

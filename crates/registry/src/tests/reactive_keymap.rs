@@ -1,8 +1,6 @@
 use std::sync::Arc;
 
-use crate::actions::{
-	ActionContext, ActionDef, ActionEffects, ActionResult, BindingMode, KeyBindingDef,
-};
+use crate::actions::{ActionContext, ActionDef, ActionEffects, ActionResult, BindingMode, KeyBindingDef};
 use crate::core::{RegistryMetaStatic, RegistrySource};
 use crate::db::ACTIONS;
 use crate::db::keymap_registry::get_keymap_registry;
@@ -48,9 +46,7 @@ fn test_reactive_keymap_updates() {
 		ActionResult::Effects(ActionEffects::default())
 	}
 
-	ACTIONS
-		.register(def)
-		.expect("Failed to register test action");
+	ACTIONS.register(def).expect("Failed to register test action");
 
 	// 3. Verify that the old snapshot still doesn't have the binding (Isolation)
 	let old_keymap = crate::db::get_db().keymap.for_snapshot(old_snap);

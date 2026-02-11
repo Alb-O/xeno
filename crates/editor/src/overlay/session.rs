@@ -148,9 +148,7 @@ pub enum StatusKind {
 impl OverlaySession {
 	/// Returns the current text content of the primary input buffer.
 	pub fn input_text(&self, ctx: &dyn OverlayContext) -> String {
-		ctx.buffer(self.input)
-			.map(|b| b.with_doc(|doc| doc.content().to_string()))
-			.unwrap_or_default()
+		ctx.buffer(self.input).map(|b| b.with_doc(|doc| doc.content().to_string())).unwrap_or_default()
 	}
 
 	/// Captures the current state of a view if it hasn't been captured yet.

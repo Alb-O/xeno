@@ -9,13 +9,7 @@ use super::{WordType, is_word_char, make_range_select};
 ///
 /// Advances past the current word boundary and any following whitespace,
 /// stopping at a newline if encountered.
-pub fn move_to_next_word_start(
-	text: RopeSlice,
-	range: Range,
-	count: usize,
-	word_type: WordType,
-	extend: bool,
-) -> Range {
+pub fn move_to_next_word_start(text: RopeSlice, range: Range, count: usize, word_type: WordType, extend: bool) -> Range {
 	let len = text.len_chars();
 	if len == 0 {
 		return range;
@@ -59,13 +53,7 @@ pub fn move_to_next_word_start(
 }
 
 /// Moves to the end of the next word (`e` command).
-pub fn move_to_next_word_end(
-	text: RopeSlice,
-	range: Range,
-	count: usize,
-	word_type: WordType,
-	extend: bool,
-) -> Range {
+pub fn move_to_next_word_end(text: RopeSlice, range: Range, count: usize, word_type: WordType, extend: bool) -> Range {
 	let len = text.len_chars();
 	if len == 0 {
 		return range;
@@ -111,13 +99,7 @@ pub fn move_to_next_word_end(
 }
 
 /// Moves to the start of the previous word (`b` command).
-pub fn move_to_prev_word_start(
-	text: RopeSlice,
-	range: Range,
-	count: usize,
-	word_type: WordType,
-	extend: bool,
-) -> Range {
+pub fn move_to_prev_word_start(text: RopeSlice, range: Range, count: usize, word_type: WordType, extend: bool) -> Range {
 	let len = text.len_chars();
 	if len == 0 {
 		return range;

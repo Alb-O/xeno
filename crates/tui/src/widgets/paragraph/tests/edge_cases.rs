@@ -42,14 +42,8 @@ fn test_render_paragraph_with_special_characters() {
 	] {
 		test_case(&paragraph, &Buffer::with_lines(["Hello, <world>!"]));
 		test_case(&paragraph, &Buffer::with_lines(["Hello, <world>!     "]));
-		test_case(
-			&paragraph,
-			&Buffer::with_lines(["Hello, <world>!     ", "                    "]),
-		);
-		test_case(
-			&paragraph,
-			&Buffer::with_lines(["Hello, <world>!", "               "]),
-		);
+		test_case(&paragraph, &Buffer::with_lines(["Hello, <world>!     ", "                    "]));
+		test_case(&paragraph, &Buffer::with_lines(["Hello, <world>!", "               "]));
 	}
 }
 
@@ -62,24 +56,12 @@ fn test_render_paragraph_with_unicode_characters() {
 
 	for paragraph in [&truncated_paragraph, &wrapped_paragraph, &trimmed_paragraph] {
 		test_case(paragraph, &Buffer::with_lines(["こんにちは, 世界! 😃"]));
-		test_case(
-			paragraph,
-			&Buffer::with_lines(["こんにちは, 世界! 😃     "]),
-		);
+		test_case(paragraph, &Buffer::with_lines(["こんにちは, 世界! 😃     "]));
 	}
 
-	test_case(
-		&truncated_paragraph,
-		&Buffer::with_lines(["こんにちは, 世 "]),
-	);
-	test_case(
-		&wrapped_paragraph,
-		&Buffer::with_lines(["こんにちは,    ", "世界! 😃      "]),
-	);
-	test_case(
-		&trimmed_paragraph,
-		&Buffer::with_lines(["こんにちは,    ", "世界! 😃      "]),
-	);
+	test_case(&truncated_paragraph, &Buffer::with_lines(["こんにちは, 世 "]));
+	test_case(&wrapped_paragraph, &Buffer::with_lines(["こんにちは,    ", "世界! 😃      "]));
+	test_case(&trimmed_paragraph, &Buffer::with_lines(["こんにちは,    ", "世界! 😃      "]));
 }
 
 #[rstest]
@@ -96,14 +78,7 @@ fn test_render_paragraph_out_of_bounds(#[case] area: Rect) {
 fn partial_out_of_bounds() {
 	let mut buffer = Buffer::empty(Rect::new(0, 0, 15, 3));
 	Paragraph::new("Hello World").render(Rect::new(10, 0, 10, 3), &mut buffer);
-	assert_eq!(
-		buffer,
-		Buffer::with_lines(vec![
-			"          Hello",
-			"               ",
-			"               ",
-		])
-	);
+	assert_eq!(buffer, Buffer::with_lines(vec!["          Hello", "               ", "               ",]));
 }
 
 #[test]

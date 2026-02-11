@@ -31,8 +31,6 @@ fn assert_cursor_position() {
 #[test]
 fn set_cursor_position() {
 	let mut backend = TestBackend::new(10, 10);
-	backend
-		.set_cursor_position(Position { x: 5, y: 5 })
-		.unwrap();
+	backend.set_cursor_position(Position { x: 5, y: 5 }).unwrap();
 	assert_eq!(backend.pos, (5, 5));
 }

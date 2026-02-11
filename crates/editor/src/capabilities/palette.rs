@@ -5,31 +5,22 @@ use crate::capabilities::provider::EditorCaps;
 
 impl PaletteAccess for EditorCaps<'_> {
 	fn open_palette(&mut self) {
-		self.ed
-			.state
-			.effects
-			.overlay_request(OverlayRequest::OpenModal {
-				kind: "command_palette",
-				args: vec![],
-			});
+		self.ed.state.effects.overlay_request(OverlayRequest::OpenModal {
+			kind: "command_palette",
+			args: vec![],
+		});
 	}
 
 	fn close_palette(&mut self) {
-		self.ed
-			.state
-			.effects
-			.overlay_request(OverlayRequest::CloseModal {
-				reason: OverlayCloseReason::Cancel,
-			});
+		self.ed.state.effects.overlay_request(OverlayRequest::CloseModal {
+			reason: OverlayCloseReason::Cancel,
+		});
 	}
 
 	fn execute_palette(&mut self) {
-		self.ed
-			.state
-			.effects
-			.overlay_request(OverlayRequest::CloseModal {
-				reason: OverlayCloseReason::Commit,
-			});
+		self.ed.state.effects.overlay_request(OverlayRequest::CloseModal {
+			reason: OverlayCloseReason::Commit,
+		});
 	}
 
 	fn palette_is_open(&self) -> bool {

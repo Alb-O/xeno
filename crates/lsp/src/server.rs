@@ -19,9 +19,7 @@ use pin_project_lite::pin_project;
 use tower_layer::Layer;
 use tower_service::Service;
 
-use crate::{
-	AnyEvent, AnyNotification, AnyRequest, Error, ErrorCode, LspService, ResponseError, Result,
-};
+use crate::{AnyEvent, AnyNotification, AnyRequest, Error, ErrorCode, LspService, ResponseError, Result};
 
 pin_project! {
 	#[project = EitherProj]
@@ -102,9 +100,7 @@ where
 		let inner = match (self.state, &*req.method) {
 			(State::Uninitialized, request::Initialize::METHOD) => {
 				self.state = State::Initializing;
-				Either::Left {
-					inner: self.service.call(req),
-				}
+				Either::Left { inner: self.service.call(req) }
 			}
 			(State::Uninitialized | State::Initializing, _) => Either::Right {
 				inner: ready(Err(ResponseError {
@@ -126,9 +122,7 @@ where
 				if req.method == request::Shutdown::METHOD {
 					self.state = State::ShuttingDown;
 				}
-				Either::Left {
-					inner: self.service.call(req),
-				}
+				Either::Left { inner: self.service.call(req) }
 			}
 			(State::ShuttingDown, _) => Either::Right {
 				inner: ready(Err(ResponseError {
@@ -155,10 +149,7 @@ where
 			}
 			notification::Initialized::METHOD => {
 				if self.state != State::Initializing {
-					return ControlFlow::Break(Err(Error::Protocol(format!(
-						"Unexpected initialized notification on state {:?}",
-						self.state
-					))));
+					return ControlFlow::Break(Err(Error::Protocol(format!("Unexpected initialized notification on state {:?}", self.state))));
 				}
 				self.state = State::Ready;
 				self.service.notify(notif)?;

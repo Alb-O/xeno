@@ -9,16 +9,13 @@ pub mod spec;
 
 use crate::core::index::{BuildCtx, BuildEntry, RegistryMetaRef, StrListRef};
 pub use crate::core::{
-	CapabilitySet, FrozenInterner, RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta,
-	RegistryMetaStatic, RegistryMetadata, RegistryRef, RegistrySource, RuntimeRegistry,
-	StatuslineId, Symbol, SymbolList,
+	CapabilitySet, FrozenInterner, RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta, RegistryMetaStatic, RegistryMetadata, RegistryRef,
+	RegistrySource, RuntimeRegistry, StatuslineId, Symbol, SymbolList,
 };
 // Re-export macros
 pub use crate::segment_handler;
 
-pub fn register_plugin(
-	db: &mut crate::db::builder::RegistryDbBuilder,
-) -> Result<(), crate::error::RegistryError> {
+pub fn register_plugin(db: &mut crate::db::builder::RegistryDbBuilder) -> Result<(), crate::error::RegistryError> {
 	register_compiled(db);
 	Ok(())
 }
@@ -26,9 +23,7 @@ pub fn register_plugin(
 /// Registers compiled statusline segments from the embedded spec.
 pub fn register_compiled(db: &mut crate::db::builder::RegistryDbBuilder) {
 	let spec = loader::load_statusline_spec();
-	let handlers = inventory::iter::<handler::StatuslineHandlerReg>
-		.into_iter()
-		.map(|r| r.0);
+	let handlers = inventory::iter::<handler::StatuslineHandlerReg>.into_iter().map(|r| r.0);
 
 	let linked = link::link_statusline(&spec, handlers);
 
@@ -55,9 +50,7 @@ impl crate::db::domain::DomainSpec for Statusline {
 		StatuslineInput::Linked(def)
 	}
 
-	fn builder(
-		db: &mut crate::db::builder::RegistryDbBuilder,
-	) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
+	fn builder(db: &mut crate::db::builder::RegistryDbBuilder) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
 		&mut db.statusline
 	}
 }
@@ -148,11 +141,7 @@ impl BuildEntry<StatuslineEntry> for StatuslineSegmentDef {
 		self.meta.name
 	}
 
-	fn collect_payload_strings<'b>(
-		&'b self,
-		_collector: &mut crate::core::index::StringCollector<'_, 'b>,
-	) {
-	}
+	fn collect_payload_strings<'b>(&'b self, _collector: &mut crate::core::index::StringCollector<'_, 'b>) {}
 
 	fn build(&self, ctx: &mut dyn BuildCtx, key_pool: &mut Vec<Symbol>) -> StatuslineEntry {
 		let meta = crate::core::index::meta_build::build_meta(ctx, key_pool, self.meta_ref(), []);
@@ -167,18 +156,13 @@ impl BuildEntry<StatuslineEntry> for StatuslineSegmentDef {
 }
 
 /// Unified input for statusline segment registration.
-pub type StatuslineInput = crate::core::def_input::DefInput<
-	StatuslineSegmentDef,
-	crate::statusline::link::LinkedStatuslineDef,
->;
+pub type StatuslineInput = crate::core::def_input::DefInput<StatuslineSegmentDef, crate::statusline::link::LinkedStatuslineDef>;
 
 #[cfg(feature = "db")]
 pub use crate::db::STATUSLINE_SEGMENTS;
 
 #[cfg(feature = "db")]
-pub fn segments_for_position(
-	position: SegmentPosition,
-) -> Vec<RegistryRef<StatuslineEntry, StatuslineId>> {
+pub fn segments_for_position(position: SegmentPosition) -> Vec<RegistryRef<StatuslineEntry, StatuslineId>> {
 	STATUSLINE_SEGMENTS
 		.snapshot_guard()
 		.iter_refs()
@@ -190,10 +174,7 @@ pub fn segments_for_position(
 pub fn render_position(position: SegmentPosition, ctx: &StatuslineContext) -> Vec<RenderedSegment> {
 	let mut segments = segments_for_position(position);
 	segments.sort_by(|a, b| b.meta().priority.cmp(&a.meta().priority));
-	segments
-		.into_iter()
-		.filter_map(|seg| (seg.render)(ctx))
-		.collect()
+	segments.into_iter().filter_map(|seg| (seg.render)(ctx)).collect()
 }
 
 #[cfg(feature = "db")]

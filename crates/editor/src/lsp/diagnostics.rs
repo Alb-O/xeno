@@ -21,9 +21,7 @@ pub fn build_diagnostic_line_map(diagnostics: &[Diagnostic]) -> DiagnosticLineMa
 			DiagnosticSeverity::Info => 2,
 			DiagnosticSeverity::Hint => 1,
 		};
-		map.entry(line)
-			.and_modify(|e| *e = (*e).max(severity))
-			.or_insert(severity);
+		map.entry(line).and_modify(|e| *e = (*e).max(severity)).or_insert(severity);
 	}
 
 	map
@@ -54,19 +52,11 @@ pub fn build_diagnostic_range_map(diagnostics: &[Diagnostic]) -> DiagnosticRange
 			continue;
 		}
 
-		let effective_end_line = if end_line > start_line && end_char == 0 {
-			end_line - 1
-		} else {
-			end_line
-		};
+		let effective_end_line = if end_line > start_line && end_char == 0 { end_line - 1 } else { end_line };
 
 		for line in start_line..=effective_end_line {
 			let line_start_char = if line == start_line { start_char } else { 0 };
-			let line_end_char = if line == end_line {
-				end_char
-			} else {
-				usize::MAX
-			};
+			let line_end_char = if line == end_line { end_char } else { usize::MAX };
 			map.entry(line).or_default().push(DiagnosticSpan {
 				start_char: line_start_char,
 				end_char: line_end_char,
@@ -128,11 +118,7 @@ impl Editor {
 
 		let cursor = buffer.cursor;
 		let next_pos = match direction {
-			NavDirection::Next => positions
-				.iter()
-				.find(|&&pos| pos > cursor)
-				.copied()
-				.unwrap_or_else(|| positions[0]),
+			NavDirection::Next => positions.iter().find(|&&pos| pos > cursor).copied().unwrap_or_else(|| positions[0]),
 			NavDirection::Prev => positions
 				.iter()
 				.rev()

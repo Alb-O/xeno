@@ -16,12 +16,7 @@ impl MotionDispatchAccess for EditorCaps<'_> {
 		let selection = xeno_registry::actions::SelectionAccess::selection(self).clone();
 		let is_normal = xeno_registry::actions::ModeAccess::mode(self) == Mode::Normal;
 
-		let MotionRequest {
-			count,
-			extend,
-			kind,
-			..
-		} = *req;
+		let MotionRequest { count, extend, kind, .. } = *req;
 
 		let new_ranges = self.ed.buffer().with_doc(|doc| {
 			let text = doc.content().slice(..);
@@ -36,16 +31,10 @@ impl MotionDispatchAccess for EditorCaps<'_> {
 					}
 
 					match kind {
-						MotionKind::Cursor if extend => {
-							xeno_primitives::Range::new(range.anchor, target.head)
-						}
+						MotionKind::Cursor if extend => xeno_primitives::Range::new(range.anchor, target.head),
 						MotionKind::Cursor => xeno_primitives::Range::point(target.head),
-						MotionKind::Selection => {
-							xeno_primitives::Range::new(range.anchor, target.head)
-						}
-						MotionKind::Word if extend => {
-							xeno_primitives::Range::new(range.anchor, target.head)
-						}
+						MotionKind::Selection => xeno_primitives::Range::new(range.anchor, target.head),
+						MotionKind::Word if extend => xeno_primitives::Range::new(range.anchor, target.head),
 						MotionKind::Word => target,
 					}
 				})

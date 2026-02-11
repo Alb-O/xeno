@@ -1,7 +1,4 @@
-#![allow(
-	clippy::unreadable_literal,
-	reason = "hex color literals are more readable without underscores"
-)]
+#![allow(clippy::unreadable_literal, reason = "hex color literals are more readable without underscores")]
 
 use core::fmt;
 use core::str::FromStr;
@@ -197,8 +194,8 @@ impl<'de> serde::Deserialize<'de> for Color {
 	where
 		D: serde::Deserializer<'de>,
 	{
-		let value = <String as serde::Deserialize>::deserialize(deserializer)
-			.map_err(|err| serde::de::Error::custom(format!("Failed to parse Colors: {err}")))?;
+		let value =
+			<String as serde::Deserialize>::deserialize(deserializer).map_err(|err| serde::de::Error::custom(format!("Failed to parse Colors: {err}")))?;
 		FromStr::from_str(&value).map_err(serde::de::Error::custom)
 	}
 }
@@ -378,12 +375,7 @@ impl Color {
 	pub fn from_hsl(hsl: palette::Hsl) -> Self {
 		use palette::{Clamp, FromColor, Srgb};
 		let hsl = hsl.clamp();
-		let Srgb {
-			red,
-			green,
-			blue,
-			standard: _,
-		}: Srgb<u8> = Srgb::from_color(hsl).into();
+		let Srgb { red, green, blue, standard: _ }: Srgb<u8> = Srgb::from_color(hsl).into();
 
 		Self::Rgb(red, green, blue)
 	}
@@ -432,12 +424,7 @@ impl Color {
 	pub fn from_hsluv(hsluv: palette::Hsluv) -> Self {
 		use palette::{Clamp, FromColor, Srgb};
 		let hsluv = hsluv.clamp();
-		let Srgb {
-			red,
-			green,
-			blue,
-			standard: _,
-		}: Srgb<u8> = Srgb::from_color(hsluv).into();
+		let Srgb { red, green, blue, standard: _ }: Srgb<u8> = Srgb::from_color(hsluv).into();
 
 		Self::Rgb(red, green, blue)
 	}
@@ -514,11 +501,7 @@ impl Color {
 		let (r, g, b) = self.to_rgb();
 		let to_linear = |c: u8| {
 			let c = c as f32 / 255.0;
-			if c <= 0.04045 {
-				c / 12.92
-			} else {
-				((c + 0.055) / 1.055).powf(2.4)
-			}
+			if c <= 0.04045 { c / 12.92 } else { ((c + 0.055) / 1.055).powf(2.4) }
 		};
 		0.2126 * to_linear(r) + 0.7152 * to_linear(g) + 0.0722 * to_linear(b)
 	}
@@ -572,11 +555,7 @@ impl Color {
 		}
 
 		let bg_lum = background.luminance();
-		let target = if bg_lum > 0.5 {
-			Self::Black
-		} else {
-			Self::White
-		};
+		let target = if bg_lum > 0.5 { Self::Black } else { Self::White };
 
 		let mut low = 0.0_f32;
 		let mut high = 1.0_f32;

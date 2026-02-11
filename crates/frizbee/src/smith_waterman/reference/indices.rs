@@ -30,16 +30,8 @@ pub fn char_indices_from_score_matrix(score_matrix: &[&[u16]]) -> Vec<usize> {
 		} else {
 			score_matrix[col_idx - 1][row_idx - 1]
 		};
-		let left = if col_idx == 0 {
-			0
-		} else {
-			score_matrix[col_idx - 1][row_idx]
-		};
-		let up = if row_idx == 0 {
-			0
-		} else {
-			score_matrix[col_idx][row_idx - 1]
-		};
+		let left = if col_idx == 0 { 0 } else { score_matrix[col_idx - 1][row_idx] };
+		let up = if row_idx == 0 { 0 } else { score_matrix[col_idx][row_idx - 1] };
 
 		// Diagonal (match/mismatch)
 		if diag >= left && diag >= up {
@@ -85,10 +77,7 @@ mod tests {
 
 	fn get_indices(needle: &str, haystack: &str) -> Vec<usize> {
 		let (_, score_matrix, _) = smith_waterman(needle, haystack);
-		let score_matrix_ref = score_matrix
-			.iter()
-			.map(|v| v.as_slice())
-			.collect::<Vec<_>>();
+		let score_matrix_ref = score_matrix.iter().map(|v| v.as_slice()).collect::<Vec<_>>();
 		char_indices_from_score_matrix(&score_matrix_ref)
 	}
 

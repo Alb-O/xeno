@@ -6,10 +6,7 @@ use super::*;
 fn run_diff<'a>(prev: &Buffer, next: &'a Buffer) -> Vec<(u16, u16, &'a Cell)> {
 	let mut updates = Vec::new();
 	prev.diff_into(next, &mut updates);
-	updates
-		.iter()
-		.map(|u| (u.x, u.y, &next.content[u.idx]))
-		.collect()
+	updates.iter().map(|u| (u.x, u.y, &next.content[u.idx])).collect()
 }
 
 #[test]
@@ -41,20 +38,8 @@ fn diff_filled_filled() {
 
 #[test]
 fn diff_single_width() {
-	let prev = Buffer::with_lines([
-		"          ",
-		"┌Title─┐  ",
-		"│      │  ",
-		"│      │  ",
-		"└──────┘  ",
-	]);
-	let next = Buffer::with_lines([
-		"          ",
-		"┌TITLE─┐  ",
-		"│      │  ",
-		"│      │  ",
-		"└──────┘  ",
-	]);
+	let prev = Buffer::with_lines(["          ", "┌Title─┐  ", "│      │  ", "│      │  ", "└──────┘  "]);
+	let next = Buffer::with_lines(["          ", "┌TITLE─┐  ", "│      │  ", "│      │  ", "└──────┘  "]);
 	let diff = run_diff(&prev, &next);
 	assert_eq!(
 		diff,
@@ -98,14 +83,7 @@ fn diff_multi_width_offset() {
 	let next = Buffer::with_lines(["┌─称号─┐"]);
 
 	let diff = run_diff(&prev, &next);
-	assert_eq!(
-		diff,
-		[
-			(1, 0, &Cell::new("─")),
-			(2, 0, &Cell::new("称")),
-			(4, 0, &Cell::new("号")),
-		]
-	);
+	assert_eq!(diff, [(1, 0, &Cell::new("─")), (2, 0, &Cell::new("称")), (4, 0, &Cell::new("号")),]);
 }
 
 #[test]
@@ -138,16 +116,10 @@ fn diff_clears_trailing_cell_for_wide_grapheme() {
 	// terminal behavior, it may or may not be necessary to explicitly clear (1,0).
 	// At minimum, ensure the first cell is updated and nothing incorrect is emitted.
 	let diff = run_diff(&prev, &next);
-	assert!(
-		diff.iter()
-			.any(|(x, y, c)| *x == 0 && *y == 0 && c.symbol() == "⌨️")
-	);
+	assert!(diff.iter().any(|(x, y, c)| *x == 0 && *y == 0 && c.symbol() == "⌨️"));
 	// And it should explicitly clear the trailing cell (1,0) to avoid leftovers on terminals
 	// that don't automatically clear the following cell for wide characters.
-	assert!(
-		diff.iter()
-			.any(|(x, y, c)| *x == 1 && *y == 0 && c.symbol() == " ")
-	);
+	assert!(diff.iter().any(|(x, y, c)| *x == 1 && *y == 0 && c.symbol() == " "));
 }
 
 #[test]

@@ -22,10 +22,7 @@ pub async fn run_lsp_smoke(workspace: Option<std::path::PathBuf>) -> anyhow::Res
 		.ok_or_else(|| anyhow::anyhow!("Could not determine workspace path"))?;
 
 	if !workspace_path.join("Cargo.toml").exists() {
-		anyhow::bail!(
-			"Workspace does not contain Cargo.toml: {}",
-			workspace_path.display()
-		);
+		anyhow::bail!("Workspace does not contain Cargo.toml: {}", workspace_path.display());
 	}
 
 	let lsp_system = LspSystem::new();
@@ -57,10 +54,9 @@ pub async fn run_lsp_smoke(workspace: Option<std::path::PathBuf>) -> anyhow::Res
 	}
 
 	let registry = lsp_system.registry();
-	let (h1, h2) = tokio::join!(
-		async { registry.get_or_start("rust", &test_file).await },
-		async { registry.get_or_start("rust", &test_file).await }
-	);
+	let (h1, h2) = tokio::join!(async { registry.get_or_start("rust", &test_file).await }, async {
+		registry.get_or_start("rust", &test_file).await
+	});
 
 	let handle1 = h1.map_err(|e| anyhow::anyhow!(e))?;
 	let _handle2 = h2.map_err(|e| anyhow::anyhow!(e))?;
@@ -81,16 +77,10 @@ pub async fn run_lsp_smoke(workspace: Option<std::path::PathBuf>) -> anyhow::Res
 
 	info!("Test 3: Trigger hover to force server→client requests");
 	let uri = xeno_lsp::uri_from_path(&test_file).ok_or_else(|| anyhow::anyhow!("Invalid path"))?;
-	let position = xeno_lsp::lsp_types::Position {
-		line: 0,
-		character: 0,
-	};
+	let position = xeno_lsp::lsp_types::Position { line: 0, character: 0 };
 	match client.hover(uri, position).await {
 		Ok(_) => info!("Hover request completed"),
-		Err(e) => warn!(
-			"Hover request failed (expected during initialization): {}",
-			e
-		),
+		Err(e) => warn!("Hover request failed (expected during initialization): {}", e),
 	}
 
 	tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;

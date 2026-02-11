@@ -19,9 +19,7 @@ fn does_not_render_in_small_space() {
 	Widget::render(list.clone(), Rect::new(0, 0, 15, 0), &mut buffer);
 	assert_eq!(&buffer, &Buffer::empty(buffer.area));
 
-	let list = List::new(items)
-		.highlight_symbol(">>")
-		.block(Block::bordered().border_type(BorderType::Plain));
+	let list = List::new(items).highlight_symbol(">>").block(Block::bordered().border_type(BorderType::Plain));
 	// attempt to render into an area of the buffer with zero height after
 	// setting the block borders
 	Widget::render(list, Rect::new(0, 0, 15, 2), &mut buffer);
@@ -38,53 +36,23 @@ fn does_not_render_in_small_space() {
 fn items() {
 	let list = List::default().items(["Item 0", "Item 1", "Item 2"]);
 	let buffer = widget(list, 10, 5);
-	let expected = Buffer::with_lines([
-		"Item 0    ",
-		"Item 1    ",
-		"Item 2    ",
-		"          ",
-		"          ",
-	]);
+	let expected = Buffer::with_lines(["Item 0    ", "Item 1    ", "Item 2    ", "          ", "          "]);
 	assert_eq!(buffer, expected);
 }
 
 #[test]
 fn empty_strings() {
-	let list = List::new(["Item 0", "", "", "Item 1", "Item 2"]).block(
-		Block::bordered()
-			.border_type(BorderType::Plain)
-			.title("List"),
-	);
+	let list = List::new(["Item 0", "", "", "Item 1", "Item 2"]).block(Block::bordered().border_type(BorderType::Plain).title("List"));
 	let buffer = widget(list, 10, 7);
-	let expected = Buffer::with_lines([
-		"┌List────┐",
-		"│Item 0  │",
-		"│        │",
-		"│        │",
-		"│Item 1  │",
-		"│Item 2  │",
-		"└────────┘",
-	]);
+	let expected = Buffer::with_lines(["┌List────┐", "│Item 0  │", "│        │", "│        │", "│Item 1  │", "│Item 2  │", "└────────┘"]);
 	assert_eq!(buffer, expected);
 }
 
 #[test]
 fn block() {
-	let list = List::new(["Item 0", "Item 1", "Item 2"]).block(
-		Block::bordered()
-			.border_type(BorderType::Plain)
-			.title("List"),
-	);
+	let list = List::new(["Item 0", "Item 1", "Item 2"]).block(Block::bordered().border_type(BorderType::Plain).title("List"));
 	let buffer = widget(list, 10, 7);
-	let expected = Buffer::with_lines([
-		"┌List────┐",
-		"│Item 0  │",
-		"│Item 1  │",
-		"│Item 2  │",
-		"│        │",
-		"│        │",
-		"└────────┘",
-	]);
+	let expected = Buffer::with_lines(["┌List────┐", "│Item 0  │", "│Item 1  │", "│Item 2  │", "│        │", "│        │", "└────────┘"]);
 	assert_eq!(buffer, expected);
 }
 
@@ -154,11 +122,7 @@ where
 	Lines: IntoIterator,
 	Lines::Item: Into<Line<'line>>,
 {
-	let items = [
-		"Item 0 with a very long line that will be truncated",
-		"Item 1",
-		"Item 2",
-	];
+	let items = ["Item 0 with a very long line that will be truncated", "Item 1", "Item 2"];
 	let list = List::new(items).highlight_symbol(">>");
 	let mut state = ListState::default().with_selected(selected);
 	let buffer = stateful_widget(list, &mut state, 15, 3);

@@ -1,10 +1,7 @@
 use xeno_primitives::Color;
 
 use super::super::syntax::SyntaxStyles;
-use super::types::{
-	ColorPair, LinkedThemeDef, ModeColors, NotificationColors, PopupColors, SemanticColors,
-	ThemeColors, ThemeDef, ThemeEntry, UiColors,
-};
+use super::types::{ColorPair, LinkedThemeDef, ModeColors, NotificationColors, PopupColors, SemanticColors, ThemeColors, ThemeDef, ThemeEntry, UiColors};
 use crate::core::{RegistryMetaStatic, RegistrySource};
 
 /// Register runtime themes.

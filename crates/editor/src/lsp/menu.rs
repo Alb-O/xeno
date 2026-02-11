@@ -21,11 +21,7 @@ impl Editor {
 	///
 	/// Returns `true` if the key was consumed by the menu, `false` otherwise.
 	pub(crate) async fn handle_lsp_menu_key(&mut self, key: &KeyEvent) -> bool {
-		let menu_kind = self
-			.overlays()
-			.get::<LspMenuState>()
-			.and_then(|state: &LspMenuState| state.active())
-			.cloned();
+		let menu_kind = self.overlays().get::<LspMenuState>().and_then(|state: &LspMenuState| state.active()).cloned();
 		let Some(menu_kind) = menu_kind else {
 			return false;
 		};
@@ -42,14 +38,8 @@ impl Editor {
 		match key.code {
 			KeyCode::Escape => {
 				self.state.lsp.cancel_completion();
-				if self
-					.overlays()
-					.get::<CompletionState>()
-					.is_some_and(|s| s.active)
-				{
-					self.overlays_mut()
-						.get_or_default::<CompletionState>()
-						.suppressed = true;
+				if self.overlays().get::<CompletionState>().is_some_and(|s| s.active) {
+					self.overlays_mut().get_or_default::<CompletionState>().suppressed = true;
 				}
 				self.clear_lsp_menu();
 				return true;
@@ -71,10 +61,7 @@ impl Editor {
 				return true;
 			}
 			KeyCode::Tab => {
-				let selected_idx = self
-					.overlays()
-					.get::<CompletionState>()
-					.and_then(|state| state.selected_idx);
+				let selected_idx = self.overlays().get::<CompletionState>().and_then(|state| state.selected_idx);
 				if let Some(idx) = selected_idx {
 					self.state.lsp.cancel_completion();
 					self.clear_lsp_menu();
@@ -103,9 +90,7 @@ impl Editor {
 			}
 			KeyCode::Char('y') if key.modifiers.contains(Modifiers::CONTROL) => {
 				let state = self.overlays().get::<CompletionState>();
-				let idx = state
-					.and_then(|s| s.selected_idx)
-					.or_else(|| state.filter(|s| !s.items.is_empty()).map(|_| 0));
+				let idx = state.and_then(|s| s.selected_idx).or_else(|| state.filter(|s| !s.items.is_empty()).map(|_| 0));
 				self.state.lsp.cancel_completion();
 				self.clear_lsp_menu();
 				if let Some(idx) = idx {

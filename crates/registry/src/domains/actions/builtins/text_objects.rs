@@ -1,13 +1,8 @@
 use xeno_primitives::range::Range;
 
-use crate::actions::{
-	ActionEffects, ActionResult, ObjectSelectionKind, PendingAction, PendingKind, action_handler,
-};
+use crate::actions::{ActionEffects, ActionResult, ObjectSelectionKind, PendingAction, PendingKind, action_handler};
 
-fn select_object_with_trigger(
-	ctx: &crate::actions::ActionContext,
-	selection_kind: ObjectSelectionKind,
-) -> ActionResult {
+fn select_object_with_trigger(ctx: &crate::actions::ActionContext, selection_kind: ObjectSelectionKind) -> ActionResult {
 	let Some(trigger) = ctx.args.char else {
 		return ActionResult::Effects(ActionEffects::pending(PendingAction {
 			kind: PendingKind::Object(selection_kind),
@@ -21,10 +16,7 @@ fn select_object_with_trigger(
 	};
 
 	let Some(obj) = crate::textobj::find_by_trigger(trigger) else {
-		return ActionResult::Effects(ActionEffects::error(format!(
-			"Unknown text object: {}",
-			trigger
-		)));
+		return ActionResult::Effects(ActionEffects::error(format!("Unknown text object: {}", trigger)));
 	};
 
 	let mut new_sel = ctx.selection.clone();
@@ -44,12 +36,7 @@ fn select_object_with_trigger(
 	ActionResult::Effects(ActionEffects::selection(new_sel))
 }
 
-fn select_to_boundary(
-	ctx: &crate::actions::ActionContext,
-	obj: &crate::textobj::TextObjectEntry,
-	pos: usize,
-	to_start: bool,
-) -> Option<Range> {
+fn select_to_boundary(ctx: &crate::actions::ActionContext, obj: &crate::textobj::TextObjectEntry, pos: usize, to_start: bool) -> Option<Range> {
 	let range = (obj.around)(ctx.text, pos)?;
 	if to_start {
 		Some(Range::new(pos, range.min()))
@@ -58,19 +45,7 @@ fn select_to_boundary(
 	}
 }
 
-action_handler!(select_object_inner, |ctx| select_object_with_trigger(
-	ctx,
-	ObjectSelectionKind::Inner
-));
-action_handler!(select_object_around, |ctx| select_object_with_trigger(
-	ctx,
-	ObjectSelectionKind::Around
-));
-action_handler!(select_object_to_start, |ctx| select_object_with_trigger(
-	ctx,
-	ObjectSelectionKind::ToStart
-));
-action_handler!(select_object_to_end, |ctx| select_object_with_trigger(
-	ctx,
-	ObjectSelectionKind::ToEnd
-));
+action_handler!(select_object_inner, |ctx| select_object_with_trigger(ctx, ObjectSelectionKind::Inner));
+action_handler!(select_object_around, |ctx| select_object_with_trigger(ctx, ObjectSelectionKind::Around));
+action_handler!(select_object_to_start, |ctx| select_object_with_trigger(ctx, ObjectSelectionKind::ToStart));
+action_handler!(select_object_to_end, |ctx| select_object_with_trigger(ctx, ObjectSelectionKind::ToEnd));

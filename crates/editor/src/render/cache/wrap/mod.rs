@@ -35,21 +35,14 @@ pub struct WrapBucket {
 impl WrapBucket {
 	/// Creates a new empty wrap bucket.
 	pub fn new(key: WrapBucketKey) -> Self {
-		Self {
-			key,
-			lines: Vec::new(),
-		}
+		Self { key, lines: Vec::new() }
 	}
 }
 
 impl WrapAccess for WrapBucket {
 	/// Returns the number of segments for a line.
 	fn segment_count(&self, line_idx: usize) -> usize {
-		self.lines
-			.get(line_idx)
-			.and_then(|e| e.as_ref())
-			.map(|e| e.segments.len())
-			.unwrap_or(0)
+		self.lines.get(line_idx).and_then(|e| e.as_ref()).map(|e| e.segments.len()).unwrap_or(0)
 	}
 }
 
@@ -154,10 +147,7 @@ impl WrapBuckets {
 			lru_idx
 		};
 
-		self.index
-			.entry(doc_id)
-			.or_default()
-			.insert(key, bucket_idx);
+		self.index.entry(doc_id).or_default().insert(key, bucket_idx);
 
 		self.mru_order.push_front(bucket_idx);
 
@@ -189,15 +179,7 @@ impl WrapBuckets {
 	/// Builds wrap entries for lines in the given range.
 	///
 	/// This populates the cache by wrapping lines from the rope.
-	pub fn build_range(
-		&mut self,
-		doc_id: DocumentId,
-		key: WrapBucketKey,
-		rope: &Rope,
-		doc_version: u64,
-		start_line: usize,
-		end_line: usize,
-	) {
+	pub fn build_range(&mut self, doc_id: DocumentId, key: WrapBucketKey, rope: &Rope, doc_version: u64, start_line: usize, end_line: usize) {
 		let bucket = self.get_or_build(doc_id, key);
 
 		for line_idx in start_line..end_line.min(rope.len_lines()) {
@@ -212,11 +194,7 @@ impl WrapBuckets {
 			let line = rope.line(line_idx);
 			let line_len = line.len_chars();
 			let has_newline = line_len > 0 && line.char(line_len - 1) == '\n';
-			let content = if has_newline {
-				line.slice(..line_len - 1)
-			} else {
-				line
-			};
+			let content = if has_newline { line.slice(..line_len - 1) } else { line };
 
 			let segments = wrap_line_ranges_rope(content, key.0, key.1);
 

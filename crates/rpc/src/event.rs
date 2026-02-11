@@ -16,9 +16,7 @@ pub struct AnyEvent {
 
 impl fmt::Debug for AnyEvent {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		f.debug_struct("AnyEvent")
-			.field("type_name", &self.type_name)
-			.finish_non_exhaustive()
+		f.debug_struct("AnyEvent").field("type_name", &self.type_name).finish_non_exhaustive()
 	}
 }
 

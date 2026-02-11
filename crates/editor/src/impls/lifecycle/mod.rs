@@ -28,9 +28,7 @@ impl Editor {
 	/// does not freeze or jump animations.
 	pub fn ui_tick(&mut self) {
 		let now = SystemTime::now();
-		let delta = now
-			.duration_since(self.state.frame.last_tick)
-			.unwrap_or(Duration::from_millis(16));
+		let delta = now.duration_since(self.state.frame.last_tick).unwrap_or(Duration::from_millis(16));
 		self.state.frame.last_tick = now;
 
 		let had_notifications = !self.state.notifications.is_empty();
@@ -102,10 +100,7 @@ impl Editor {
 		#[cfg(feature = "lsp")]
 		self.tick_lsp_sync();
 
-		emit_hook_sync_with(
-			&HookContext::new(HookEventData::EditorTick),
-			&mut self.state.hook_runtime,
-		);
+		emit_hook_sync_with(&HookContext::new(HookEventData::EditorTick), &mut self.state.hook_runtime);
 
 		self.flush_effects();
 	}
@@ -136,30 +131,21 @@ impl Editor {
 		self.state.overlay_system.interaction = interaction;
 
 		self.state.effects.request_redraw();
-		emit_hook_sync_with(
-			&HookContext::new(HookEventData::WindowResize { width, height }),
-			&mut self.state.hook_runtime,
-		);
+		emit_hook_sync_with(&HookContext::new(HookEventData::WindowResize { width, height }), &mut self.state.hook_runtime);
 		self.flush_effects();
 	}
 
 	/// Handles terminal focus gained events, emitting the FocusGained hook.
 	pub fn handle_focus_in(&mut self) {
 		self.state.effects.request_redraw();
-		emit_hook_sync_with(
-			&HookContext::new(HookEventData::FocusGained),
-			&mut self.state.hook_runtime,
-		);
+		emit_hook_sync_with(&HookContext::new(HookEventData::FocusGained), &mut self.state.hook_runtime);
 		self.flush_effects();
 	}
 
 	/// Handles terminal focus lost events, emitting the FocusLost hook.
 	pub fn handle_focus_out(&mut self) {
 		self.state.effects.request_redraw();
-		emit_hook_sync_with(
-			&HookContext::new(HookEventData::FocusLost),
-			&mut self.state.hook_runtime,
-		);
+		emit_hook_sync_with(&HookContext::new(HookEventData::FocusLost), &mut self.state.hook_runtime);
 		self.flush_effects();
 	}
 

@@ -31,10 +31,7 @@ pub struct HookDrainBudget {
 
 impl HookDrainBudget {
 	pub fn new(duration: Duration, max_completions: usize) -> Self {
-		Self {
-			duration,
-			max_completions,
-		}
+		Self { duration, max_completions }
 	}
 }
 

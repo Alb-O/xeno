@@ -85,9 +85,6 @@ impl KeybindingRegistry {
 	pub fn match_key(&self, scope: &BindingScope, key: &KeyEvent) -> Option<&Keybinding> {
 		let chord = UiKeyChord::from(key);
 		let indices = self.index.get(&(scope.clone(), chord))?;
-		indices
-			.iter()
-			.filter_map(|i| self.bindings.get(*i))
-			.min_by_key(|b| b.priority)
+		indices.iter().filter_map(|i| self.bindings.get(*i)).min_by_key(|b| b.priority)
 	}
 }

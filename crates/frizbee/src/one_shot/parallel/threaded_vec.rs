@@ -49,12 +49,10 @@ impl<T> ThreadedVec<T> {
 							"too many threads attempting to use expandable batched vec"
 						);
 
-						match self.thread_idx.compare_exchange(
-							current_thread_idx,
-							current_thread_idx + 1,
-							Ordering::Relaxed,
-							Ordering::Relaxed,
-						) {
+						match self
+							.thread_idx
+							.compare_exchange(current_thread_idx, current_thread_idx + 1, Ordering::Relaxed, Ordering::Relaxed)
+						{
 							Ok(_) => {
 								thread_idx.replace(current_thread_idx);
 								return current_thread_idx;
@@ -134,10 +132,7 @@ struct ThreadBatch<T> {
 impl<T> ThreadBatch<T> {
 	pub fn new(len: usize) -> Self {
 		let layout = Layout::array::<T>(len).unwrap();
-		assert!(
-			layout.size() > 0,
-			"Batch size and elements must be greater than 0"
-		);
+		assert!(layout.size() > 0, "Batch size and elements must be greater than 0");
 
 		let data = unsafe { alloc(Layout::array::<T>(len).unwrap()) };
 		assert!(!data.is_null(), "Failed to allocate memory for batch");

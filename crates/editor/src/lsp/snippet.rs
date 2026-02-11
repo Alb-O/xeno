@@ -54,10 +54,7 @@ pub fn parse_snippet(input: &str) -> Option<Snippet> {
 						let default = parse_default_text(&mut chars)?;
 						text.push_str(&default);
 						out_len += default.chars().count();
-						placeholders.push(SnippetPlaceholder {
-							index,
-							range: start..out_len,
-						});
+						placeholders.push(SnippetPlaceholder { index, range: start..out_len });
 					}
 					Some('}') => {
 						chars.next();

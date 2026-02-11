@@ -21,10 +21,7 @@ pub enum FetchStatus {
 
 /// Check if git is available on PATH.
 fn ensure_git_available() -> Result<()> {
-	Command::new("git")
-		.arg("--version")
-		.output()
-		.map_err(|_| GrammarBuildError::GitNotAvailable)?;
+	Command::new("git").arg("--version").output().map_err(|_| GrammarBuildError::GitNotAvailable)?;
 	Ok(())
 }
 
@@ -33,10 +30,7 @@ fn ensure_git_available() -> Result<()> {
 /// Checks the current revision before fetching to avoid unnecessary network calls.
 /// Returns [`FetchStatus::Local`] for non-git sources.
 pub fn fetch_grammar(grammar: &GrammarConfig) -> Result<FetchStatus> {
-	let GrammarSource::Git {
-		remote, revision, ..
-	} = &grammar.source
-	else {
+	let GrammarSource::Git { remote, revision, .. } = &grammar.source else {
 		return Ok(FetchStatus::Local);
 	};
 
@@ -56,11 +50,7 @@ fn is_valid_git_repo(dir: &std::path::Path) -> bool {
 	dir.join(".git").join("HEAD").exists()
 }
 
-fn update_existing_repo(
-	grammar_dir: &std::path::Path,
-	grammar_id: &str,
-	revision: &str,
-) -> Result<FetchStatus> {
+fn update_existing_repo(grammar_dir: &std::path::Path, grammar_id: &str, revision: &str) -> Result<FetchStatus> {
 	let current_rev = git_rev_parse(grammar_dir)?;
 
 	if current_rev.starts_with(revision) || revision.starts_with(&current_rev) {
@@ -74,12 +64,7 @@ fn update_existing_repo(
 	Ok(FetchStatus::Updated)
 }
 
-fn clone_fresh(
-	grammar_dir: &std::path::Path,
-	grammar_id: &str,
-	remote: &str,
-	revision: &str,
-) -> Result<FetchStatus> {
+fn clone_fresh(grammar_dir: &std::path::Path, grammar_id: &str, remote: &str, revision: &str) -> Result<FetchStatus> {
 	if grammar_dir.exists() {
 		fs::remove_dir_all(grammar_dir)?;
 		fs::create_dir_all(grammar_dir)?;
@@ -125,9 +110,7 @@ fn git_clone(remote: &str, dest: &std::path::Path) -> Result<()> {
 	if output.status.success() {
 		Ok(())
 	} else {
-		Err(GrammarBuildError::GitCommand(
-			String::from_utf8_lossy(&output.stderr).into(),
-		))
+		Err(GrammarBuildError::GitCommand(String::from_utf8_lossy(&output.stderr).into()))
 	}
 }
 
@@ -141,8 +124,6 @@ fn run_git(dir: &std::path::Path, args: &[&str]) -> Result<()> {
 	if output.status.success() {
 		Ok(())
 	} else {
-		Err(GrammarBuildError::GitCommand(
-			String::from_utf8_lossy(&output.stderr).into(),
-		))
+		Err(GrammarBuildError::GitCommand(String::from_utf8_lossy(&output.stderr).into()))
 	}
 }

@@ -76,8 +76,7 @@ impl Message {
 				content_len = Some(value);
 			}
 		}
-		let content_len =
-			content_len.ok_or_else(|| Error::Protocol("Missing content-length".into()))?;
+		let content_len = content_len.ok_or_else(|| Error::Protocol("Missing content-length".into()))?;
 		let mut buf = vec![0u8; content_len];
 		reader.read_exact(&mut buf).await?;
 		::tracing::trace!(msg = %String::from_utf8_lossy(&buf), "incoming");
@@ -89,9 +88,7 @@ impl Message {
 	pub async fn write(&self, mut writer: impl AsyncWrite + Unpin) -> Result<()> {
 		let buf = serde_json::to_string(&RawMessage::new(self))?;
 		::tracing::trace!(msg = %buf, "outgoing");
-		writer
-			.write_all(format!("{}: {}\r\n\r\n", Self::CONTENT_LENGTH, buf.len()).as_bytes())
-			.await?;
+		writer.write_all(format!("{}: {}\r\n\r\n", Self::CONTENT_LENGTH, buf.len()).as_bytes()).await?;
 		writer.write_all(buf.as_bytes()).await?;
 		writer.flush().await?;
 		Ok(())

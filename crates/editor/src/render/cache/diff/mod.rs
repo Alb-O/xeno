@@ -47,12 +47,7 @@ impl DiffLineNumbersCache {
 	}
 
 	/// Returns a cached mapping, or builds and stores it if missing.
-	pub fn get_or_build<F>(
-		&mut self,
-		doc_id: DocumentId,
-		doc_version: u64,
-		build_fn: F,
-	) -> &DiffLineNumbersEntry
+	pub fn get_or_build<F>(&mut self, doc_id: DocumentId, doc_version: u64, build_fn: F) -> &DiffLineNumbersEntry
 	where
 		F: FnOnce() -> Vec<DiffLineNumbers>,
 	{

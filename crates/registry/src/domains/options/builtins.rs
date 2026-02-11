@@ -19,8 +19,7 @@ pub const SCROLL_MARGIN: TypedOptionKey<i64> = TypedOptionKey::new("xeno-registr
 pub const THEME: TypedOptionKey<String> = TypedOptionKey::new("xeno-registry::theme");
 
 /// Fallback theme ID if preferred theme is unavailable.
-pub const DEFAULT_THEME_ID: TypedOptionKey<String> =
-	TypedOptionKey::new("xeno-registry::default_theme_id");
+pub const DEFAULT_THEME_ID: TypedOptionKey<String> = TypedOptionKey::new("xeno-registry::default_theme_id");
 
 // Register standard validators
 crate::option_validator!(positive_int, super::validators::positive_int);
@@ -29,9 +28,7 @@ pub fn register_builtins(builder: &mut RegistryDbBuilder) {
 	crate::options::register_compiled(builder);
 }
 
-fn register_builtins_reg(
-	builder: &mut RegistryDbBuilder,
-) -> Result<(), crate::db::builder::RegistryError> {
+fn register_builtins_reg(builder: &mut RegistryDbBuilder) -> Result<(), crate::db::builder::RegistryError> {
 	register_builtins(builder);
 	Ok(())
 }

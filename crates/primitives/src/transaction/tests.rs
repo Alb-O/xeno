@@ -211,11 +211,7 @@ fn arb_change(doc_len: usize) -> impl Strategy<Value = Change> {
 			.prop_flat_map(move |start| (Just(start), start..=doc_len, any::<Option<String>>()))
 			.prop_map(|(start, end, replacement)| {
 				let replacement = replacement.map(|s| s.chars().take(50).collect::<String>());
-				Change {
-					start,
-					end,
-					replacement,
-				}
+				Change { start, end, replacement }
 			})
 			.boxed()
 	}
@@ -227,11 +223,7 @@ fn arb_changes(doc_len: usize) -> impl Strategy<Value = Vec<Change>> {
 		prop::collection::vec(
 			any::<Option<String>>().prop_map(|replacement| {
 				let replacement = replacement.map(|s| s.chars().take(20).collect::<String>());
-				Change {
-					start: 0,
-					end: 0,
-					replacement,
-				}
+				Change { start: 0, end: 0, replacement }
 			}),
 			0..3,
 		)
@@ -251,11 +243,7 @@ fn arb_changes(doc_len: usize) -> impl Strategy<Value = Vec<Change>> {
 					}
 					let end = (start + delete_len).min(doc_len);
 					let replacement = replacement.map(|s| s.chars().take(20).collect::<String>());
-					changes.push(Change {
-						start,
-						end,
-						replacement,
-					});
+					changes.push(Change { start, end, replacement });
 					last_end = end;
 				}
 				changes

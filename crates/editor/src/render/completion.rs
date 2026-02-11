@@ -11,13 +11,7 @@ use crate::{CompletionKind, CompletionState, Editor};
 /// Splits the `label` into segments, applying `highlight_style` to characters at
 /// `match_indices` and `normal_style` elsewhere. Pads to `min_width` for alignment.
 /// Returns a single padded span if no match indices are provided.
-fn build_highlighted_label(
-	label: &str,
-	match_indices: Option<&[usize]>,
-	min_width: usize,
-	normal_style: Style,
-	highlight_style: Style,
-) -> Vec<Span<'static>> {
+fn build_highlighted_label(label: &str, match_indices: Option<&[usize]>, min_width: usize, normal_style: Style, highlight_style: Style) -> Vec<Span<'static>> {
 	let Some(indices) = match_indices else {
 		let pad = min_width.saturating_sub(crate::render::cell_width(label));
 		let mut spans = vec![Span::styled(label.to_string(), normal_style)];
@@ -54,10 +48,7 @@ fn build_highlighted_label(
 
 	let current_width: usize = chars.iter().map(|c| crate::render::char_width(*c)).sum();
 	if current_width < min_width {
-		spans.push(Span::styled(
-			" ".repeat(min_width - current_width),
-			normal_style,
-		));
+		spans.push(Span::styled(" ".repeat(min_width - current_width), normal_style));
 	}
 
 	spans
@@ -66,18 +57,9 @@ fn build_highlighted_label(
 impl Editor {
 	/// Creates a widget for rendering the completion popup menu.
 	pub fn render_completion_menu(&self, _area: Rect) -> impl Widget + '_ {
-		let completions = self
-			.overlays()
-			.get::<CompletionState>()
-			.cloned()
-			.unwrap_or_default();
+		let completions = self.overlays().get::<CompletionState>().cloned().unwrap_or_default();
 
-		let max_label_width = completions
-			.items
-			.iter()
-			.map(|it| crate::render::cell_width(&it.label))
-			.max()
-			.unwrap_or(0);
+		let max_label_width = completions.items.iter().map(|it| crate::render::cell_width(&it.label)).max().unwrap_or(0);
 		let show_kind = _area.width >= 24;
 
 		let visible_range = completions.visible_range();
@@ -120,16 +102,10 @@ impl Editor {
 				let icon_style = if is_selected {
 					base_style.fg(kind_color).add_modifier(Modifier::BOLD)
 				} else {
-					Style::default()
-						.fg(kind_color)
-						.bg(self.state.config.theme.colors.popup.bg)
+					Style::default().fg(kind_color).bg(self.state.config.theme.colors.popup.bg)
 				};
 
-				let label_style = if is_selected {
-					base_style.add_modifier(Modifier::BOLD)
-				} else {
-					base_style
-				};
+				let label_style = if is_selected { base_style.add_modifier(Modifier::BOLD) } else { base_style };
 
 				let kind_name = match item.kind {
 					CompletionKind::Command => "Cmd",
@@ -148,13 +124,7 @@ impl Editor {
 				};
 
 				let match_style = label_style.fg(self.state.config.theme.colors.semantic.match_hl);
-				let label_spans = build_highlighted_label(
-					&item.label,
-					item.match_indices.as_deref(),
-					max_label_width,
-					label_style,
-					match_style,
-				);
+				let label_spans = build_highlighted_label(&item.label, item.match_indices.as_deref(), max_label_width, label_style, match_style);
 
 				let icon_text = format!(" {} ", kind_icon);
 				let mut row_width = crate::render::cell_width(&icon_text) + max_label_width;
@@ -166,10 +136,7 @@ impl Editor {
 					spans.push(Span::styled(kind_text, dim_style));
 				}
 				if row_width < target_row_width {
-					spans.push(Span::styled(
-						" ".repeat(target_row_width - row_width),
-						base_style,
-					));
+					spans.push(Span::styled(" ".repeat(target_row_width - row_width), base_style));
 				}
 
 				let line = Line::from(spans);

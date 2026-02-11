@@ -50,31 +50,21 @@ impl StatefulWidget for &List<'_> {
 
 		let list_height = list_area.height as usize;
 
-		let (first_visible_index, last_visible_index) =
-			self.get_items_bounds(state.selected, state.offset, list_height);
+		let (first_visible_index, last_visible_index) = self.get_items_bounds(state.selected, state.offset, list_height);
 
 		// Important: this changes the state's offset to be the beginning of the now viewable items
 		state.offset = first_visible_index;
 
 		// Get our set highlighted symbol (if one was set)
 		let default_highlight_symbol = Line::default();
-		let highlight_symbol = self
-			.highlight_symbol
-			.as_ref()
-			.unwrap_or(&default_highlight_symbol);
+		let highlight_symbol = self.highlight_symbol.as_ref().unwrap_or(&default_highlight_symbol);
 		let highlight_symbol_width = highlight_symbol.width() as u16;
 		let empty_symbol = " ".repeat(highlight_symbol_width as usize);
 		let empty_symbol = empty_symbol.to_line();
 
 		let mut current_height = 0;
 		let selection_spacing = self.highlight_spacing.should_add(state.selected.is_some());
-		for (i, item) in self
-			.items
-			.iter()
-			.enumerate()
-			.skip(state.offset)
-			.take(last_visible_index - first_visible_index)
-		{
+		for (i, item) in self.items.iter().enumerate().skip(state.offset).take(last_visible_index - first_visible_index) {
 			let (x, y) = if self.direction == ListDirection::BottomToTop {
 				current_height += item.height() as u16;
 				(list_area.left(), list_area.bottom() - current_height)
@@ -125,12 +115,7 @@ impl StatefulWidget for &List<'_> {
 
 impl List<'_> {
 	/// Given an offset, calculate which items can fit in a given area
-	fn get_items_bounds(
-		&self,
-		selected: Option<usize>,
-		offset: usize,
-		max_height: usize,
-	) -> (usize, usize) {
+	fn get_items_bounds(&self, selected: Option<usize>, offset: usize, max_height: usize) -> (usize, usize) {
 		let offset = offset.min(self.items.len().saturating_sub(1));
 
 		// Note: visible here implies visible in the given area
@@ -153,12 +138,7 @@ impl List<'_> {
 		}
 
 		let index_to_display = self
-			.apply_scroll_padding_to_selected_index(
-				selected,
-				max_height,
-				first_visible_index,
-				last_visible_index,
-			)
+			.apply_scroll_padding_to_selected_index(selected, max_height, first_visible_index, last_visible_index)
 			.unwrap_or(offset);
 
 		// Recall that last_visible_index is the index of what we
@@ -166,16 +146,14 @@ impl List<'_> {
 		// If we have an item selected that is out of the viewable area (or
 		// the offset is still set), we still need to show this item
 		while index_to_display >= last_visible_index {
-			height_from_offset =
-				height_from_offset.saturating_add(self.items[last_visible_index].height());
+			height_from_offset = height_from_offset.saturating_add(self.items[last_visible_index].height());
 
 			last_visible_index += 1;
 
 			// Now we need to hide previous items since we didn't have space
 			// for the selected/offset item
 			while height_from_offset > max_height {
-				height_from_offset =
-					height_from_offset.saturating_sub(self.items[first_visible_index].height());
+				height_from_offset = height_from_offset.saturating_sub(self.items[first_visible_index].height());
 
 				// Remove this item to view by starting at the next item index
 				first_visible_index += 1;
@@ -187,15 +165,13 @@ impl List<'_> {
 		while index_to_display < first_visible_index {
 			first_visible_index -= 1;
 
-			height_from_offset =
-				height_from_offset.saturating_add(self.items[first_visible_index].height());
+			height_from_offset = height_from_offset.saturating_add(self.items[first_visible_index].height());
 
 			// Don't show an item if it is beyond our viewable height
 			while height_from_offset > max_height {
 				last_visible_index -= 1;
 
-				height_from_offset =
-					height_from_offset.saturating_sub(self.items[last_visible_index].height());
+				height_from_offset = height_from_offset.saturating_sub(self.items[last_visible_index].height());
 			}
 		}
 
@@ -223,11 +199,7 @@ impl List<'_> {
 		let mut scroll_padding = self.scroll_padding;
 		while scroll_padding > 0 {
 			let mut height_around_selected = 0;
-			for index in selected.saturating_sub(scroll_padding)
-				..=selected
-					.saturating_add(scroll_padding)
-					.min(last_valid_index)
-			{
+			for index in selected.saturating_sub(scroll_padding)..=selected.saturating_add(scroll_padding).min(last_valid_index) {
 				height_around_selected += self.items[index].height();
 			}
 			if height_around_selected <= max_height {

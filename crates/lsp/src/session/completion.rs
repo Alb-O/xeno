@@ -96,9 +96,7 @@ impl CompletionController {
 		}
 
 		let cancel = CancellationToken::new();
-		self.in_flight = Some(InFlightCompletion {
-			cancel: cancel.clone(),
-		});
+		self.in_flight = Some(InFlightCompletion { cancel: cancel.clone() });
 
 		tokio::spawn(async move {
 			if request.debounce > Duration::ZERO {

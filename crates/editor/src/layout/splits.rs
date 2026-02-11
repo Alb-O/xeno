@@ -27,19 +27,10 @@ impl LayoutManager {
 	///
 	/// - [`SplitError::ViewNotFound`] if the view is not found in any layer.
 	/// - [`SplitError::AreaTooSmall`] if the view area height is less than 3.
-	pub fn can_split_horizontal(
-		&self,
-		base_layout: &Layout,
-		current_view: ViewId,
-		doc_area: Rect,
-	) -> Result<(LayerId, Rect), SplitError> {
-		let layer = self
-			.layer_of_view(base_layout, current_view)
-			.ok_or(SplitError::ViewNotFound)?;
+	pub fn can_split_horizontal(&self, base_layout: &Layout, current_view: ViewId, doc_area: Rect) -> Result<(LayerId, Rect), SplitError> {
+		let layer = self.layer_of_view(base_layout, current_view).ok_or(SplitError::ViewNotFound)?;
 
-		let view_area = self
-			.view_area(base_layout, current_view, doc_area)
-			.ok_or(SplitError::ViewNotFound)?;
+		let view_area = self.view_area(base_layout, current_view, doc_area).ok_or(SplitError::ViewNotFound)?;
 
 		if view_area.height < 3 {
 			return Err(SplitError::AreaTooSmall);
@@ -57,19 +48,10 @@ impl LayoutManager {
 	///
 	/// - [`SplitError::ViewNotFound`] if the view is not found in any layer.
 	/// - [`SplitError::AreaTooSmall`] if the view area width is less than 3.
-	pub fn can_split_vertical(
-		&self,
-		base_layout: &Layout,
-		current_view: ViewId,
-		doc_area: Rect,
-	) -> Result<(LayerId, Rect), SplitError> {
-		let layer = self
-			.layer_of_view(base_layout, current_view)
-			.ok_or(SplitError::ViewNotFound)?;
+	pub fn can_split_vertical(&self, base_layout: &Layout, current_view: ViewId, doc_area: Rect) -> Result<(LayerId, Rect), SplitError> {
+		let layer = self.layer_of_view(base_layout, current_view).ok_or(SplitError::ViewNotFound)?;
 
-		let view_area = self
-			.view_area(base_layout, current_view, doc_area)
-			.ok_or(SplitError::ViewNotFound)?;
+		let view_area = self.view_area(base_layout, current_view, doc_area).ok_or(SplitError::ViewNotFound)?;
 
 		if view_area.width < 3 {
 			return Err(SplitError::AreaTooSmall);
@@ -84,32 +66,18 @@ impl LayoutManager {
 	///
 	/// Panics if the view is not found or its area cannot be computed.
 	/// The caller must call [`Self::can_split_horizontal`] first.
-	pub fn split_horizontal(
-		&mut self,
-		base_layout: &mut Layout,
-		current_view: ViewId,
-		new_buffer_id: ViewId,
-		doc_area: Rect,
-	) {
-		let layer = self
-			.layer_of_view(base_layout, current_view)
-			.expect("view must exist (preflight required)");
+	pub fn split_horizontal(&mut self, base_layout: &mut Layout, current_view: ViewId, new_buffer_id: ViewId, doc_area: Rect) {
+		let layer = self.layer_of_view(base_layout, current_view).expect("view must exist (preflight required)");
 		let view_area = self
 			.view_area(base_layout, current_view, doc_area)
 			.expect("view must have area (preflight required)");
 
-		let new_layout = Layout::stacked(
-			Layout::single(current_view),
-			Layout::text(new_buffer_id),
-			view_area,
-		);
+		let new_layout = Layout::stacked(Layout::single(current_view), Layout::text(new_buffer_id), view_area);
 
 		if layer.is_base() {
 			base_layout.replace_view(current_view, new_layout);
 		} else {
-			let layout = self
-				.layer_mut(base_layout, layer)
-				.expect("overlay layer must exist (preflight required)");
+			let layout = self.layer_mut(base_layout, layer).expect("overlay layer must exist (preflight required)");
 			layout.replace_view(current_view, new_layout);
 		}
 		self.increment_revision();
@@ -121,44 +89,25 @@ impl LayoutManager {
 	///
 	/// Panics if the view is not found or its area cannot be computed.
 	/// The caller must call [`Self::can_split_vertical`] first.
-	pub fn split_vertical(
-		&mut self,
-		base_layout: &mut Layout,
-		current_view: ViewId,
-		new_buffer_id: ViewId,
-		doc_area: Rect,
-	) {
-		let layer = self
-			.layer_of_view(base_layout, current_view)
-			.expect("view must exist (preflight required)");
+	pub fn split_vertical(&mut self, base_layout: &mut Layout, current_view: ViewId, new_buffer_id: ViewId, doc_area: Rect) {
+		let layer = self.layer_of_view(base_layout, current_view).expect("view must exist (preflight required)");
 		let view_area = self
 			.view_area(base_layout, current_view, doc_area)
 			.expect("view must have area (preflight required)");
 
-		let new_layout = Layout::side_by_side(
-			Layout::single(current_view),
-			Layout::text(new_buffer_id),
-			view_area,
-		);
+		let new_layout = Layout::side_by_side(Layout::single(current_view), Layout::text(new_buffer_id), view_area);
 
 		if layer.is_base() {
 			base_layout.replace_view(current_view, new_layout);
 		} else {
-			let layout = self
-				.layer_mut(base_layout, layer)
-				.expect("overlay layer must exist (preflight required)");
+			let layout = self.layer_mut(base_layout, layer).expect("overlay layer must exist (preflight required)");
 			layout.replace_view(current_view, new_layout);
 		}
 		self.increment_revision();
 	}
 
 	/// Gets the area of a specific view.
-	pub(super) fn view_area(
-		&self,
-		base_layout: &Layout,
-		view: ViewId,
-		doc_area: Rect,
-	) -> Option<Rect> {
+	pub(super) fn view_area(&self, base_layout: &Layout, view: ViewId, doc_area: Rect) -> Option<Rect> {
 		let layer = self.layer_of_view(base_layout, view)?;
 		let layer_area = self.layer_area(layer, doc_area);
 		self.layer(base_layout, layer)
@@ -181,12 +130,7 @@ impl LayoutManager {
 	/// - The view is not found in any layer.
 	/// - The view is the last one in the base layer (closing denied).
 	/// - Structural removal fails internally.
-	pub fn remove_view(
-		&mut self,
-		base_layout: &mut Layout,
-		view: ViewId,
-		doc_area: Rect,
-	) -> Option<ViewId> {
+	pub fn remove_view(&mut self, base_layout: &mut Layout, view: ViewId, doc_area: Rect) -> Option<ViewId> {
 		let layer = self.layer_of_view(base_layout, view)?;
 
 		if layer.is_base() && base_layout.count() <= 1 {
@@ -199,18 +143,14 @@ impl LayoutManager {
 			base_layout.compute_view_areas(layer_area)
 		} else {
 			let idx = self.validate_layer(layer).ok()?;
-			self.layers[idx]
-				.layout
-				.as_ref()?
-				.compute_view_areas(layer_area)
+			self.layers[idx].layout.as_ref()?.compute_view_areas(layer_area)
 		};
 
 		if layer.is_base() {
 			*base_layout = base_layout.remove_view(view)?;
 			self.increment_revision();
 			let after = base_layout.compute_view_areas(layer_area);
-			return suggested_focus_after_close(&before, &after, view)
-				.or_else(|| Some(base_layout.first_view()));
+			return suggested_focus_after_close(&before, &after, view).or_else(|| Some(base_layout.first_view()));
 		}
 
 		let idx = self.validate_layer(layer).ok()?;
@@ -233,13 +173,8 @@ impl LayoutManager {
 		if cleared {
 			Some(self.first_view(base_layout))
 		} else {
-			let after = self.layers[idx]
-				.layout
-				.as_ref()
-				.unwrap()
-				.compute_view_areas(layer_area);
-			suggested_focus_after_close(&before, &after, view)
-				.or_else(|| Some(self.layers[idx].layout.as_ref().unwrap().first_view()))
+			let after = self.layers[idx].layout.as_ref().unwrap().compute_view_areas(layer_area);
+			suggested_focus_after_close(&before, &after, view).or_else(|| Some(self.layers[idx].layout.as_ref().unwrap().first_view()))
 		}
 	}
 }
@@ -249,21 +184,11 @@ impl LayoutManager {
 /// Prefers the view with the most overlap with the closed view's area (i.e., the
 /// view that expanded to fill the hole). On ties, prefers views closer to the
 /// closed view's center.
-fn suggested_focus_after_close(
-	before: &[(ViewId, Rect)],
-	after: &[(ViewId, Rect)],
-	closed: ViewId,
-) -> Option<ViewId> {
+fn suggested_focus_after_close(before: &[(ViewId, Rect)], after: &[(ViewId, Rect)], closed: ViewId) -> Option<ViewId> {
 	let closed_rect = before.iter().find(|(v, _)| *v == closed)?.1;
 	after
 		.iter()
-		.map(|(v, r)| {
-			(
-				*v,
-				overlap_area(closed_rect, *r),
-				center_dist_sq(closed_rect, *r),
-			)
-		})
+		.map(|(v, r)| (*v, overlap_area(closed_rect, *r), center_dist_sq(closed_rect, *r)))
 		.max_by(|a, b| a.1.cmp(&b.1).then_with(|| b.2.cmp(&a.2)))
 		.map(|(v, _, _)| v)
 }

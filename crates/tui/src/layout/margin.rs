@@ -45,10 +45,7 @@ pub struct Margin {
 impl Margin {
 	/// Create a new margin with the given horizontal and vertical values.
 	pub const fn new(horizontal: u16, vertical: u16) -> Self {
-		Self {
-			horizontal,
-			vertical,
-		}
+		Self { horizontal, vertical }
 	}
 }
 
@@ -69,12 +66,6 @@ mod tests {
 
 	#[test]
 	fn margin_new() {
-		assert_eq!(
-			Margin::new(1, 2),
-			Margin {
-				horizontal: 1,
-				vertical: 2
-			}
-		);
+		assert_eq!(Margin::new(1, 2), Margin { horizontal: 1, vertical: 2 });
 	}
 }

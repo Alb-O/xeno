@@ -6,13 +6,7 @@ fn render_to_lines(tree: KeyTree<'_>, width: u16, height: u16) -> Vec<String> {
 	tree.render(area, &mut buf);
 
 	(0..height)
-		.map(|y| {
-			(0..width)
-				.map(|x| buf[(x, y)].symbol().to_string())
-				.collect::<String>()
-				.trim_end()
-				.to_string()
-		})
+		.map(|y| (0..width).map(|x| buf[(x, y)].symbol().to_string()).collect::<String>().trim_end().to_string())
 		.collect()
 }
 
@@ -35,11 +29,7 @@ fn root_with_single_child() {
 
 #[test]
 fn root_with_multiple_children() {
-	let children = vec![
-		KeyTreeNode::new("g", "start"),
-		KeyTreeNode::new("e", "end"),
-		KeyTreeNode::new("h", "home"),
-	];
+	let children = vec![KeyTreeNode::new("g", "start"), KeyTreeNode::new("e", "end"), KeyTreeNode::new("h", "home")];
 	let tree = KeyTree::new("g", children);
 	let lines = render_to_lines(tree, 20, 6);
 	assert_eq!(lines[0], "g");
@@ -61,13 +51,8 @@ fn truncates_to_area() {
 #[test]
 fn renders_with_ancestors() {
 	let ancestors = vec![KeyTreeNode::new("b", "Buffer")];
-	let children = vec![
-		KeyTreeNode::new("n", "Next"),
-		KeyTreeNode::new("p", "Previous"),
-	];
-	let tree = KeyTree::new("ctrl-w", children)
-		.root_desc("Window")
-		.ancestors(ancestors);
+	let children = vec![KeyTreeNode::new("n", "Next"), KeyTreeNode::new("p", "Previous")];
+	let tree = KeyTree::new("ctrl-w", children).root_desc("Window").ancestors(ancestors);
 	let lines = render_to_lines(tree, 25, 7);
 	assert!(lines[0].contains("ctrl-w"));
 	assert!(lines[0].contains("Window"));

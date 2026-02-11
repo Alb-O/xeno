@@ -2,10 +2,7 @@ use xeno_primitives::{Color, Mode, Style};
 
 use super::super::syntax::SyntaxStyles;
 use crate::core::index::{BuildEntry, RegistryMetaRef, StrListRef};
-pub use crate::core::{
-	CapabilitySet, FrozenInterner, RegistryMeta, RegistryMetaStatic, RegistryRef, RegistrySource,
-	Symbol, SymbolList, ThemeId,
-};
+pub use crate::core::{CapabilitySet, FrozenInterner, RegistryMeta, RegistryMetaStatic, RegistryRef, RegistrySource, Symbol, SymbolList, ThemeId};
 use crate::core::{LinkedDef, LinkedPayload};
 
 /// Whether a theme uses a light or dark background.
@@ -103,10 +100,7 @@ pub struct NotificationColors {
 }
 
 impl NotificationColors {
-	pub const INHERITED: Self = Self {
-		border: None,
-		overrides: &[],
-	};
+	pub const INHERITED: Self = Self { border: None, overrides: &[] };
 }
 
 pub const SEMANTIC_INFO: &str = "info";
@@ -133,12 +127,7 @@ impl ThemeColors {
 	}
 
 	pub fn notification_style(&self, semantic: &str) -> Style {
-		let override_pair = self
-			.notification
-			.overrides
-			.iter()
-			.find(|(id, _)| *id == semantic)
-			.map(|(_, pair)| pair);
+		let override_pair = self.notification.overrides.iter().find(|(id, _)| *id == semantic).map(|(_, pair)| pair);
 
 		let bg = override_pair.and_then(|p| p.bg).unwrap_or(self.popup.bg);
 
@@ -177,12 +166,7 @@ pub struct ThemePayload {
 }
 
 impl LinkedPayload<ThemeEntry> for ThemePayload {
-	fn build_entry(
-		&self,
-		_ctx: &mut dyn crate::core::index::BuildCtx,
-		meta: RegistryMeta,
-		_short_desc: Symbol,
-	) -> ThemeEntry {
+	fn build_entry(&self, _ctx: &mut dyn crate::core::index::BuildCtx, meta: RegistryMeta, _short_desc: Symbol) -> ThemeEntry {
 		ThemeEntry {
 			meta,
 			variant: self.variant,
@@ -221,17 +205,9 @@ impl BuildEntry<ThemeEntry> for ThemeDef {
 		self.meta.name
 	}
 
-	fn collect_payload_strings<'b>(
-		&'b self,
-		_collector: &mut crate::core::index::StringCollector<'_, 'b>,
-	) {
-	}
+	fn collect_payload_strings<'b>(&'b self, _collector: &mut crate::core::index::StringCollector<'_, 'b>) {}
 
-	fn build(
-		&self,
-		ctx: &mut dyn crate::core::index::BuildCtx,
-		key_pool: &mut Vec<Symbol>,
-	) -> ThemeEntry {
+	fn build(&self, ctx: &mut dyn crate::core::index::BuildCtx, key_pool: &mut Vec<Symbol>) -> ThemeEntry {
 		let meta = crate::core::index::meta_build::build_meta(ctx, key_pool, self.meta_ref(), []);
 
 		ThemeEntry {

@@ -74,10 +74,7 @@ pub fn load_grammar_or_build(name: &str) -> Result<Grammar, GrammarError> {
 	match load_grammar(name) {
 		Ok(grammar) => return Ok(grammar),
 		Err(GrammarError::NotFound(_)) => {
-			info!(
-				grammar = name,
-				"Grammar not found in bundle/cache; JIT build is fallback"
-			);
+			info!(grammar = name, "Grammar not found in bundle/cache; JIT build is fallback");
 		}
 		Err(e) => return Err(e),
 	}
@@ -97,20 +94,16 @@ pub fn load_grammar_or_build(name: &str) -> Result<Grammar, GrammarError> {
 
 /// Fetches grammar source from git and compiles it to a shared library.
 fn auto_build_grammar(name: &str) -> Result<(), GrammarError> {
-	use crate::build::{
-		BuildStatus, FetchStatus, build_grammar, fetch_grammar, load_grammar_configs,
-	};
+	use crate::build::{BuildStatus, FetchStatus, build_grammar, fetch_grammar, load_grammar_configs};
 
-	let configs = load_grammar_configs()
-		.map_err(|e| GrammarError::Io(std::io::Error::other(e.to_string())))?;
+	let configs = load_grammar_configs().map_err(|e| GrammarError::Io(std::io::Error::other(e.to_string())))?;
 
 	let config = configs
 		.into_iter()
 		.find(|c| c.grammar_id == name)
 		.ok_or_else(|| GrammarError::NotFound(format!("{} (no config in grammars.kdl)", name)))?;
 
-	let fetch_status = fetch_grammar(&config)
-		.map_err(|e| GrammarError::Io(std::io::Error::other(format!("fetch failed: {}", e))))?;
+	let fetch_status = fetch_grammar(&config).map_err(|e| GrammarError::Io(std::io::Error::other(format!("fetch failed: {}", e))))?;
 
 	match fetch_status {
 		FetchStatus::Updated => {
@@ -119,8 +112,7 @@ fn auto_build_grammar(name: &str) -> Result<(), GrammarError> {
 		FetchStatus::UpToDate | FetchStatus::Local => {}
 	}
 
-	let build_status = build_grammar(&config)
-		.map_err(|e| GrammarError::Io(std::io::Error::other(format!("build failed: {}", e))))?;
+	let build_status = build_grammar(&config).map_err(|e| GrammarError::Io(std::io::Error::other(format!("build failed: {}", e))))?;
 
 	match build_status {
 		BuildStatus::Built => {
@@ -139,10 +131,7 @@ fn auto_build_grammar(name: &str) -> Result<(), GrammarError> {
 /// Loads a tree-sitter grammar from a dynamic library, which requires
 /// the library to export the expected `tree_sitter_{name}` symbol.
 fn load_grammar_from_path(path: &Path, name: &str) -> Result<Grammar, GrammarError> {
-	unsafe {
-		Grammar::new(name, path)
-			.map_err(|e| GrammarError::LoadError(format!("{}: {}", path.display(), e)))
-	}
+	unsafe { Grammar::new(name, path).map_err(|e| GrammarError::LoadError(format!("{}: {}", path.display(), e))) }
 }
 
 /// Returns the platform-specific library filename for a grammar.
@@ -177,9 +166,7 @@ pub fn runtime_dir() -> PathBuf {
 		return PathBuf::from(runtime);
 	}
 
-	data_local_dir()
-		.map(|d| d.join("xeno"))
-		.unwrap_or_else(|| PathBuf::from("."))
+	data_local_dir().map(|d| d.join("xeno")).unwrap_or_else(|| PathBuf::from("."))
 }
 
 /// Returns the cache directory: `~/.cache/xeno/`.
@@ -215,11 +202,7 @@ pub fn grammar_search_paths() -> Vec<PathBuf> {
 		&& let Some(bin_dir) = exe.parent()
 	{
 		// <bin>/../share/xeno/grammars
-		let share = bin_dir
-			.join("..")
-			.join("share")
-			.join("xeno")
-			.join("grammars");
+		let share = bin_dir.join("..").join("share").join("xeno").join("grammars");
 		dirs.push(share);
 	}
 
@@ -269,9 +252,7 @@ fn data_local_dir() -> Option<PathBuf> {
 	{
 		std::env::var_os("XDG_DATA_HOME")
 			.map(PathBuf::from)
-			.or_else(|| {
-				std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local").join("share"))
-			})
+			.or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local").join("share")))
 	}
 	#[cfg(windows)]
 	{

@@ -19,9 +19,7 @@ pub use registry::{TextObjectRef, TextObjectRegistry};
 
 use crate::error::RegistryError;
 
-pub fn register_plugin(
-	db: &mut crate::db::builder::RegistryDbBuilder,
-) -> Result<(), RegistryError> {
+pub fn register_plugin(db: &mut crate::db::builder::RegistryDbBuilder) -> Result<(), RegistryError> {
 	register_builtins(db);
 	register_compiled(db);
 	Ok(())
@@ -30,9 +28,7 @@ pub fn register_plugin(
 /// Registers compiled text objects from the embedded spec.
 pub fn register_compiled(db: &mut crate::db::builder::RegistryDbBuilder) {
 	let spec = loader::load_text_objects_spec();
-	let handlers = inventory::iter::<handler::TextObjectHandlerReg>
-		.into_iter()
-		.map(|r| r.0);
+	let handlers = inventory::iter::<handler::TextObjectHandlerReg>.into_iter().map(|r| r.0);
 
 	let linked = link::link_text_objects(&spec, handlers);
 
@@ -59,18 +55,15 @@ impl crate::db::domain::DomainSpec for TextObjects {
 		TextObjectInput::Linked(def)
 	}
 
-	fn builder(
-		db: &mut crate::db::builder::RegistryDbBuilder,
-	) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
+	fn builder(db: &mut crate::db::builder::RegistryDbBuilder) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
 		&mut db.text_objects
 	}
 }
 
 use crate::core::index::{BuildCtx, BuildEntry, RegistryMetaRef, StrListRef};
 pub use crate::core::{
-	Capability, CapabilitySet, DuplicatePolicy, FrozenInterner, RegistryBuilder, RegistryEntry,
-	RegistryIndex, RegistryMeta, RegistryMetaStatic, RegistryMetadata, RegistryRef, RegistrySource,
-	Symbol, SymbolList, TextObjectId,
+	Capability, CapabilitySet, DuplicatePolicy, FrozenInterner, RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta, RegistryMetaStatic,
+	RegistryMetadata, RegistryRef, RegistrySource, Symbol, SymbolList, TextObjectId,
 };
 // Re-export macros
 pub use crate::text_object_handler;
@@ -90,13 +83,7 @@ pub struct TextObjectDef {
 impl TextObjectDef {
 	#[doc(hidden)]
 	#[allow(clippy::too_many_arguments, reason = "macro-generated constructor")]
-	pub const fn new(
-		meta: RegistryMetaStatic,
-		trigger: char,
-		alt_triggers: &'static [char],
-		inner: TextObjectHandler,
-		around: TextObjectHandler,
-	) -> Self {
+	pub const fn new(meta: RegistryMetaStatic, trigger: char, alt_triggers: &'static [char], inner: TextObjectHandler, around: TextObjectHandler) -> Self {
 		Self {
 			meta,
 			trigger,
@@ -136,11 +123,7 @@ impl BuildEntry<TextObjectEntry> for TextObjectDef {
 		self.meta.name
 	}
 
-	fn collect_payload_strings<'b>(
-		&'b self,
-		_collector: &mut crate::core::index::StringCollector<'_, 'b>,
-	) {
-	}
+	fn collect_payload_strings<'b>(&'b self, _collector: &mut crate::core::index::StringCollector<'_, 'b>) {}
 
 	fn build(&self, ctx: &mut dyn BuildCtx, key_pool: &mut Vec<Symbol>) -> TextObjectEntry {
 		let meta = crate::core::index::meta_build::build_meta(ctx, key_pool, self.meta_ref(), []);
@@ -157,8 +140,7 @@ impl BuildEntry<TextObjectEntry> for TextObjectDef {
 
 /// Unified input for text object registration — either a static `TextObjectDef`
 /// or a `LinkedTextObjectDef` assembled from KDL metadata + Rust handlers.
-pub type TextObjectInput =
-	crate::core::def_input::DefInput<TextObjectDef, crate::textobj::link::LinkedTextObjectDef>;
+pub type TextObjectInput = crate::core::def_input::DefInput<TextObjectDef, crate::textobj::link::LinkedTextObjectDef>;
 
 #[cfg(feature = "db")]
 pub use crate::db::TEXT_OBJECTS;

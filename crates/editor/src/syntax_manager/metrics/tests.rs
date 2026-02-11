@@ -21,31 +21,13 @@ fn test_derive_timeout_scales_with_timeouts() {
 	let max = Duration::from_millis(1000);
 
 	// Record a fast parse
-	metrics.record_task_result(
-		lang,
-		tier,
-		class,
-		injections,
-		Duration::from_millis(100),
-		false,
-		false,
-		true,
-	);
+	metrics.record_task_result(lang, tier, class, injections, Duration::from_millis(100), false, false, true);
 	let t1 = metrics.derive_timeout(lang, tier, class, injections, min, max);
 	// 100 * 2.5 * 1.0 = 250ms
 	assert_eq!(t1.as_millis(), 250);
 
 	// Record a timeout
-	metrics.record_task_result(
-		lang,
-		tier,
-		class,
-		injections,
-		Duration::from_millis(250),
-		true,
-		false,
-		false,
-	);
+	metrics.record_task_result(lang, tier, class, injections, Duration::from_millis(250), true, false, false);
 	let t2 = metrics.derive_timeout(lang, tier, class, injections, min, max);
 	// EMA ms: 0.2 * 250 + 0.8 * 100 = 130
 	// Timeout rate: 0.2 * 1.0 + 0.8 * 0.0 = 0.2

@@ -16,12 +16,7 @@ use threaded_vec::ThreadedVec;
 /// You should call this function with as many haystacks as you have available as it will
 /// automatically chunk the haystacks based on string length to avoid unnecessary computation
 /// due to SIMD
-pub fn match_list_parallel<S1: AsRef<str>, S2: AsRef<str> + Sync + Send>(
-	needle: S1,
-	haystacks: &[S2],
-	config: &Config,
-	max_threads: usize,
-) -> Vec<Match> {
+pub fn match_list_parallel<S1: AsRef<str>, S2: AsRef<str> + Sync + Send>(needle: S1, haystacks: &[S2], config: &Config, max_threads: usize) -> Vec<Match> {
 	let thread_count = choose_thread_count(haystacks.len(), config.max_typos).clamp(1, max_threads);
 	if thread_count == 1 {
 		return match_list(needle, haystacks, config);
@@ -47,12 +42,7 @@ pub fn match_list_parallel<S1: AsRef<str>, S2: AsRef<str> + Sync + Send>(
 
 /// Since max_typos is None, we may use an unitialized vector to store the matches and provide a slice
 /// to each thread based on the number of items it will process, since all items will be returned
-fn match_list_parallel_fixed<S1: AsRef<str>, S2: AsRef<str> + Sync + Send>(
-	needle: S1,
-	haystacks: &[S2],
-	config: &Config,
-	thread_count: usize,
-) -> Vec<Match> {
+fn match_list_parallel_fixed<S1: AsRef<str>, S2: AsRef<str> + Sync + Send>(needle: S1, haystacks: &[S2], config: &Config, thread_count: usize) -> Vec<Match> {
 	assert!(config.max_typos.is_none(), "max_typos must be None");
 
 	let mut matches = Vec::with_capacity(haystacks.len());
@@ -67,22 +57,13 @@ fn match_list_parallel_fixed<S1: AsRef<str>, S2: AsRef<str> + Sync + Send>(
 		for (thread_idx, haystacks) in haystacks.chunks(items_per_thread).enumerate() {
 			debug_assert!(thread_idx < thread_count, "thread index out of bounds");
 
-			let (matches_slice, remaining_slice) =
-				matches_remaining_slice.split_at_mut(haystacks.len());
+			let (matches_slice, remaining_slice) = matches_remaining_slice.split_at_mut(haystacks.len());
 			matches_remaining_slice = remaining_slice;
 
 			let needle = needle.as_ref().to_owned();
 			let mut thread_slice = ThreadSlice::new(matches_slice);
 			let opts = config.clone();
-			s.spawn(move || {
-				match_list_impl(
-					needle,
-					haystacks,
-					(thread_idx * items_per_thread) as u32,
-					&opts,
-					&mut thread_slice,
-				)
-			});
+			s.spawn(move || match_list_impl(needle, haystacks, (thread_idx * items_per_thread) as u32, &opts, &mut thread_slice));
 
 			// TODO: assert that thread_slice.pos == haystaks.len()
 		}
@@ -113,15 +94,7 @@ fn match_list_parallel_expandable<S1: AsRef<str>, S2: AsRef<str> + Sync + Send>(
 			let needle = needle.as_ref().to_owned();
 			let mut matches = matches.clone();
 			let opts = config.clone();
-			s.spawn(move || {
-				match_list_impl(
-					needle,
-					haystacks,
-					(thread_idx * items_per_thread) as u32,
-					&opts,
-					&mut matches,
-				)
-			});
+			s.spawn(move || match_list_impl(needle, haystacks, (thread_idx * items_per_thread) as u32, &opts, &mut matches));
 		}
 	});
 

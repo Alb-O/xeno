@@ -417,10 +417,7 @@ async fn test_viewport_policy_flip_discard() {
 		loader: &loader,
 		viewport: Some(0..10),
 	});
-	assert_eq!(
-		mgr.syntax_for_doc(doc_id).unwrap().opts().injections,
-		InjectionPolicy::Disabled
-	);
+	assert_eq!(mgr.syntax_for_doc(doc_id).unwrap().opts().injections, InjectionPolicy::Disabled);
 }
 
 #[test]

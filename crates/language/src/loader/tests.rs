@@ -49,14 +49,8 @@ fn shebang_detection() {
 	let lang = loader.language_for_name("python").unwrap();
 
 	assert_eq!(loader.language_for_shebang("#!/usr/bin/python"), Some(lang));
-	assert_eq!(
-		loader.language_for_shebang("#!/usr/bin/env python"),
-		Some(lang)
-	);
-	assert_eq!(
-		loader.language_for_shebang("#!/usr/bin/python3"),
-		Some(lang)
-	);
+	assert_eq!(loader.language_for_shebang("#!/usr/bin/env python"), Some(lang));
+	assert_eq!(loader.language_for_shebang("#!/usr/bin/python3"), Some(lang));
 	assert_eq!(loader.language_for_shebang("not a shebang"), None);
 }
 

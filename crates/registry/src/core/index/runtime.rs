@@ -179,11 +179,7 @@ where
 	}
 
 	/// Creates a new runtime registry with the given builtins and duplicate policy.
-	pub fn with_policy(
-		label: &'static str,
-		builtins: RegistryIndex<T, Id>,
-		policy: DuplicatePolicy,
-	) -> Self {
+	pub fn with_policy(label: &'static str, builtins: RegistryIndex<T, Id>, policy: DuplicatePolicy) -> Self {
 		let snap = Snapshot::from_builtins(&builtins);
 		Self {
 			label,
@@ -213,11 +209,7 @@ where
 	}
 
 	#[inline]
-	fn get_sym_with_snap(
-		&self,
-		snap: Arc<Snapshot<T, Id>>,
-		sym: Symbol,
-	) -> Option<RegistryRef<T, Id>> {
+	fn get_sym_with_snap(&self, snap: Arc<Snapshot<T, Id>>, sym: Symbol) -> Option<RegistryRef<T, Id>> {
 		let id = snap
 			.by_id
 			.get(&sym)
@@ -237,9 +229,7 @@ where
 
 	/// Returns a snapshot guard for efficient iteration.
 	pub fn snapshot_guard(&self) -> SnapshotGuard<T, Id> {
-		SnapshotGuard {
-			snap: self.snap.load_full(),
-		}
+		SnapshotGuard { snap: self.snap.load_full() }
 	}
 
 	/// Looks up a definition by its dense ID.
@@ -273,20 +263,14 @@ where
 	/// The implementation of [`super::build::BuildEntry::build`] must produce a fully-owned `T`.
 	/// It MUST NOT store references to the input definition `In` inside `T`, as the input
 	/// definition is dropped after registration (unless it was already static).
-	pub fn register_owned<In>(
-		&self,
-		def: Arc<In>,
-	) -> Result<RegistryRef<T, Id>, RegisterError<T, Id>>
+	pub fn register_owned<In>(&self, def: Arc<In>) -> Result<RegistryRef<T, Id>, RegisterError<T, Id>>
 	where
 		In: super::build::BuildEntry<T>,
 	{
 		self.register_internal(&*def)
 	}
 
-	fn register_internal(
-		&self,
-		def: &dyn super::build::BuildEntry<T>,
-	) -> Result<RegistryRef<T, Id>, RegisterError<T, Id>> {
+	fn register_internal(&self, def: &dyn super::build::BuildEntry<T>) -> Result<RegistryRef<T, Id>, RegisterError<T, Id>> {
 		loop {
 			let old = self.snap.load_full();
 
@@ -304,9 +288,7 @@ where
 
 			// 2. Extend key pool
 			let mut key_pool = old.key_pool.to_vec();
-			let mut runtime_ctx = super::build::RuntimeBuildCtx {
-				interner: &interner,
-			};
+			let mut runtime_ctx = super::build::RuntimeBuildCtx { interner: &interner };
 
 			#[cfg(any(debug_assertions, feature = "registry-contracts"))]
 			let new_entry = {
@@ -360,14 +342,9 @@ where
 				let is_better = match self.policy {
 					DuplicatePolicy::FirstWins => false,
 					DuplicatePolicy::LastWins => true,
-					DuplicatePolicy::ByPriority => {
-						super::cmp_party(&new_party, &existing_party) == Ordering::Greater
-					}
+					DuplicatePolicy::ByPriority => super::cmp_party(&new_party, &existing_party) == Ordering::Greater,
 					DuplicatePolicy::Panic => {
-						panic!(
-							"Duplicate runtime registry key: {}",
-							interner.resolve(new_entry.meta().id)
-						)
+						panic!("Duplicate runtime registry key: {}", interner.resolve(new_entry.meta().id))
 					}
 				};
 
@@ -380,10 +357,7 @@ where
 					// New entry lost - return error with existing ref
 					let existing_id_id = Id::from_u32(super::u32_index(idx, self.label));
 					return Err(RegisterError::Rejected {
-						existing: RegistryRef {
-							snap: old,
-							id: existing_id_id,
-						},
+						existing: RegistryRef { snap: old, id: existing_id_id },
 						incoming_id: def.meta_ref().id.to_string(),
 						policy: self.policy,
 						existing_party,
@@ -405,9 +379,7 @@ where
 
 			// 4. Update stage maps (by_name, by_key) and collisions incrementally
 			let (by_name, by_key, mut key_collisions) = if let Some((idx, _, _)) = replaced_info {
-				super::lookup::update_stage_maps_replace(
-					self.label, &new_table, &parties, &key_pool, idx, &old, &new_by_id,
-				)
+				super::lookup::update_stage_maps_replace(self.label, &new_table, &parties, &key_pool, idx, &old, &new_by_id)
 			} else {
 				// Incremental append
 				super::lookup::update_stage_maps_append(
@@ -428,9 +400,7 @@ where
 				use crate::core::index::collision::{Collision, CollisionKind};
 
 				// Remove any existing DuplicateId record for this canonical ID to keep it bounded
-				key_collisions.retain(|c| {
-					!matches!(c.kind, CollisionKind::DuplicateId { .. }) || c.key != id_sym
-				});
+				key_collisions.retain(|c| !matches!(c.kind, CollisionKind::DuplicateId { .. }) || c.key != id_sym);
 
 				key_collisions.push(Collision {
 					registry: self.label,
@@ -465,10 +435,7 @@ where
 				let result_id = replaced_info
 					.map(|(i, _, _)| Id::from_u32(super::u32_index(i, self.label)))
 					.unwrap_or_else(|| Id::from_u32(super::u32_index(new_idx, self.label)));
-				return Ok(RegistryRef {
-					snap: new_arc,
-					id: result_id,
-				});
+				return Ok(RegistryRef { snap: new_arc, id: result_id });
 			}
 			// CAS failed, retry with updated snapshot
 		}

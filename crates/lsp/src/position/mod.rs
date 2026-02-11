@@ -38,11 +38,7 @@ pub fn lsp_position_to_char(text: &Rope, pos: Position, encoding: OffsetEncoding
 /// Convert a character index in the rope to an LSP Position.
 ///
 /// Returns `None` if the index is out of bounds.
-pub fn char_to_lsp_position(
-	text: &Rope,
-	char_idx: usize,
-	encoding: OffsetEncoding,
-) -> Option<Position> {
+pub fn char_to_lsp_position(text: &Rope, char_idx: usize, encoding: OffsetEncoding) -> Option<Position> {
 	if char_idx > text.len_chars() {
 		return None;
 	}
@@ -60,23 +56,14 @@ pub fn char_to_lsp_position(
 }
 
 /// Convert an LSP Range to a character range (start, end).
-pub fn lsp_range_to_char_range(
-	text: &Rope,
-	range: Range,
-	encoding: OffsetEncoding,
-) -> Option<(usize, usize)> {
+pub fn lsp_range_to_char_range(text: &Rope, range: Range, encoding: OffsetEncoding) -> Option<(usize, usize)> {
 	let start = lsp_position_to_char(text, range.start, encoding)?;
 	let end = lsp_position_to_char(text, range.end, encoding)?;
 	Some((start, end))
 }
 
 /// Convert a character range to an LSP Range.
-pub fn char_range_to_lsp_range(
-	text: &Rope,
-	start: usize,
-	end: usize,
-	encoding: OffsetEncoding,
-) -> Option<Range> {
+pub fn char_range_to_lsp_range(text: &Rope, start: usize, end: usize, encoding: OffsetEncoding) -> Option<Range> {
 	let start_pos = char_to_lsp_position(text, start, encoding)?;
 	let end_pos = char_to_lsp_position(text, end, encoding)?;
 	Some(Range {
@@ -86,11 +73,7 @@ pub fn char_range_to_lsp_range(
 }
 
 /// Convert an LSP character column to a rope character offset within a line.
-fn lsp_col_to_char_offset(
-	line: RopeSlice,
-	lsp_col: u32,
-	encoding: OffsetEncoding,
-) -> Option<usize> {
+fn lsp_col_to_char_offset(line: RopeSlice, lsp_col: u32, encoding: OffsetEncoding) -> Option<usize> {
 	match encoding {
 		OffsetEncoding::Utf32 => {
 			// UTF-32: LSP col == char offset
@@ -163,11 +146,7 @@ fn char_offset_to_lsp_col(line: RopeSlice, char_offset: usize, encoding: OffsetE
 /// Get the character length of a line, excluding the trailing newline if present.
 fn line_char_len_without_newline(line: RopeSlice) -> usize {
 	let len = line.len_chars();
-	if len > 0 && line.char(len - 1) == '\n' {
-		len - 1
-	} else {
-		len
-	}
+	if len > 0 && line.char(len - 1) == '\n' { len - 1 } else { len }
 }
 
 #[cfg(test)]

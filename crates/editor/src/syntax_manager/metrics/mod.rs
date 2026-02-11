@@ -74,60 +74,33 @@ impl SyntaxMetrics {
 		let entry = self.entries.entry(key).or_default();
 
 		entry.duration_ms.update(elapsed.as_secs_f64() * 1000.0);
-		entry
-			.timeout_rate
-			.update(if is_timeout { 1.0 } else { 0.0 });
+		entry.timeout_rate.update(if is_timeout { 1.0 } else { 0.0 });
 		entry.error_rate.update(if is_error { 1.0 } else { 0.0 });
-		entry
-			.install_rate
-			.update(if is_installed { 1.0 } else { 0.0 });
+		entry.install_rate.update(if is_installed { 1.0 } else { 0.0 });
 	}
 
-	pub fn avg_duration(
-		&self,
-		lang_id: LanguageId,
-		tier: SyntaxTier,
-		class: TaskClass,
-		injections: InjectionPolicy,
-	) -> Option<Duration> {
+	pub fn avg_duration(&self, lang_id: LanguageId, tier: SyntaxTier, class: TaskClass, injections: InjectionPolicy) -> Option<Duration> {
 		let key = MetricsKey {
 			lang_id,
 			tier,
 			class,
 			injections,
 		};
-		self.entries
-			.get(&key)
-			.map(|e| Duration::from_secs_f64(e.duration_ms.value / 1000.0))
+		self.entries.get(&key).map(|e| Duration::from_secs_f64(e.duration_ms.value / 1000.0))
 	}
 
-	pub fn timeout_rate(
-		&self,
-		lang_id: LanguageId,
-		tier: SyntaxTier,
-		class: TaskClass,
-		injections: InjectionPolicy,
-	) -> f64 {
+	pub fn timeout_rate(&self, lang_id: LanguageId, tier: SyntaxTier, class: TaskClass, injections: InjectionPolicy) -> f64 {
 		let key = MetricsKey {
 			lang_id,
 			tier,
 			class,
 			injections,
 		};
-		self.entries
-			.get(&key)
-			.map(|e| e.timeout_rate.value)
-			.unwrap_or(0.0)
+		self.entries.get(&key).map(|e| e.timeout_rate.value).unwrap_or(0.0)
 	}
 
 	/// Predicts the duration for a task without clamping to policy bounds.
-	pub fn predict_duration(
-		&self,
-		lang_id: LanguageId,
-		tier: SyntaxTier,
-		class: TaskClass,
-		injections: InjectionPolicy,
-	) -> Option<Duration> {
+	pub fn predict_duration(&self, lang_id: LanguageId, tier: SyntaxTier, class: TaskClass, injections: InjectionPolicy) -> Option<Duration> {
 		let key = MetricsKey {
 			lang_id,
 			tier,

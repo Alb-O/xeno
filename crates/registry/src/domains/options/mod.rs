@@ -21,9 +21,7 @@ pub use resolver::OptionResolver;
 pub use store::OptionStore;
 pub use typed_keys::TypedOptionKey;
 
-pub fn register_plugin(
-	db: &mut crate::db::builder::RegistryDbBuilder,
-) -> Result<(), crate::db::builder::RegistryError> {
+pub fn register_plugin(db: &mut crate::db::builder::RegistryDbBuilder) -> Result<(), crate::db::builder::RegistryError> {
 	register_builtins(db);
 	register_compiled(db);
 	Ok(())
@@ -32,9 +30,7 @@ pub fn register_plugin(
 /// Registers compiled options from the embedded spec.
 pub fn register_compiled(db: &mut crate::db::builder::RegistryDbBuilder) {
 	let spec = loader::load_options_spec();
-	let validators = inventory::iter::<OptionValidatorReg>
-		.into_iter()
-		.map(|r| r.0);
+	let validators = inventory::iter::<OptionValidatorReg>.into_iter().map(|r| r.0);
 
 	let linked = link::link_options(&spec, validators);
 
@@ -61,9 +57,7 @@ impl crate::db::domain::DomainSpec for Options {
 		OptionInput::Linked(def)
 	}
 
-	fn builder(
-		db: &mut crate::db::builder::RegistryDbBuilder,
-	) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
+	fn builder(db: &mut crate::db::builder::RegistryDbBuilder) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
 		&mut db.options
 	}
 
@@ -76,19 +70,14 @@ impl crate::db::domain::DomainSpec for Options {
 
 /// Typed handles for built-in options.
 pub mod option_keys {
-	pub use crate::options::builtins::{
-		CURSORLINE, DEFAULT_THEME_ID, SCROLL_LINES, SCROLL_MARGIN, TAB_WIDTH, THEME,
-	};
+	pub use crate::options::builtins::{CURSORLINE, DEFAULT_THEME_ID, SCROLL_LINES, SCROLL_MARGIN, TAB_WIDTH, THEME};
 }
 
 // Re-export for backward compatibility in tests
 pub use option_keys as keys;
 
 // Re-exports for convenience and compatibility
-pub use crate::core::{
-	FromOptionValue, OptionDefault, OptionId, OptionType, OptionValue, RegistryMetaStatic,
-	RegistrySource,
-};
+pub use crate::core::{FromOptionValue, OptionDefault, OptionId, OptionType, OptionValue, RegistryMetaStatic, RegistrySource};
 
 /// Untyped handle to an option definition (canonical ID string or resolved reference).
 pub type OptionKey = crate::core::LookupKey<OptionEntry, OptionId>;
@@ -139,9 +128,7 @@ pub fn all() -> Vec<OptionsRef> {
 /// Validates a parsed option value against the registry definition.
 #[cfg(feature = "db")]
 pub fn validate(kdl_key: &str, value: &OptionValue) -> Result<(), OptionError> {
-	let entry = OPTIONS
-		.get(kdl_key)
-		.ok_or_else(|| OptionError::UnknownOption(kdl_key.to_string()))?;
+	let entry = OPTIONS.get(kdl_key).ok_or_else(|| OptionError::UnknownOption(kdl_key.to_string()))?;
 	validate_ref(&entry, value)
 }
 
@@ -167,30 +154,16 @@ pub fn validate_ref(opt: &OptionsRef, value: &OptionValue) -> Result<(), OptionE
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptionError {
 	UnknownOption(String),
-	TypeMismatch {
-		option: String,
-		expected: OptionType,
-		got: &'static str,
-	},
-	InvalidValue {
-		option: String,
-		reason: String,
-	},
+	TypeMismatch { option: String, expected: OptionType, got: &'static str },
+	InvalidValue { option: String, reason: String },
 }
 
 impl core::fmt::Display for OptionError {
 	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
 		match self {
 			OptionError::UnknownOption(key) => write!(f, "unknown option: {key}"),
-			OptionError::TypeMismatch {
-				option,
-				expected,
-				got,
-			} => {
-				write!(
-					f,
-					"type mismatch for option '{option}': expected {expected:?}, got {got}"
-				)
+			OptionError::TypeMismatch { option, expected, got } => {
+				write!(f, "type mismatch for option '{option}': expected {expected:?}, got {got}")
 			}
 			OptionError::InvalidValue { option, reason } => {
 				write!(f, "invalid value for option '{option}': {reason}")

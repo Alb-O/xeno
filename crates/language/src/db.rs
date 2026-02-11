@@ -50,30 +50,22 @@ impl LanguageDb {
 
 	/// Returns the index for a language name.
 	pub fn index_for_name(&self, name: &str) -> Option<usize> {
-		LANGUAGES
-			.get(name)
-			.map(|r: LanguageRef| r.dense_id().as_u32() as usize)
+		LANGUAGES.get(name).map(|r: LanguageRef| r.dense_id().as_u32() as usize)
 	}
 
 	/// Returns the index for a file extension.
 	pub fn index_for_extension(&self, ext: &str) -> Option<usize> {
-		LANGUAGES
-			.language_for_extension(ext)
-			.map(|r: LanguageRef| r.dense_id().as_u32() as usize)
+		LANGUAGES.language_for_extension(ext).map(|r: LanguageRef| r.dense_id().as_u32() as usize)
 	}
 
 	/// Returns the index for an exact filename.
 	pub fn index_for_filename(&self, filename: &str) -> Option<usize> {
-		LANGUAGES
-			.language_for_filename(filename)
-			.map(|r: LanguageRef| r.dense_id().as_u32() as usize)
+		LANGUAGES.language_for_filename(filename).map(|r: LanguageRef| r.dense_id().as_u32() as usize)
 	}
 
 	/// Returns the index for a shebang interpreter.
 	pub fn index_for_shebang(&self, interpreter: &str) -> Option<usize> {
-		LANGUAGES
-			.language_for_shebang(interpreter)
-			.map(|r: LanguageRef| r.dense_id().as_u32() as usize)
+		LANGUAGES.language_for_shebang(interpreter).map(|r: LanguageRef| r.dense_id().as_u32() as usize)
 	}
 
 	/// Returns glob patterns with their language indices.
@@ -121,16 +113,8 @@ impl LanguageDb {
 			return None;
 		}
 		Some(LanguageLspInfo {
-			servers: entry
-				.lsp_servers
-				.iter()
-				.map(|&s| entry.resolve(s).to_string())
-				.collect(),
-			roots: entry
-				.roots
-				.iter()
-				.map(|&s| entry.resolve(s).to_string())
-				.collect(),
+			servers: entry.lsp_servers.iter().map(|&s| entry.resolve(s).to_string()).collect(),
+			roots: entry.roots.iter().map(|&s| entry.resolve(s).to_string()).collect(),
 		})
 	}
 
@@ -144,11 +128,7 @@ impl LanguageDb {
 				(
 					l.name_str().to_string(),
 					LanguageLspInfo {
-						servers: l
-							.lsp_servers
-							.iter()
-							.map(|&s| l.resolve(s).to_string())
-							.collect(),
+						servers: l.lsp_servers.iter().map(|&s| l.resolve(s).to_string()).collect(),
 						roots: l.roots.iter().map(|&s| l.resolve(s).to_string()).collect(),
 					},
 				)
@@ -165,8 +145,6 @@ impl Default for LanguageDb {
 
 impl std::fmt::Debug for LanguageDb {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		f.debug_struct("LanguageDb")
-			.field("languages", &LANGUAGES.len())
-			.finish_non_exhaustive()
+		f.debug_struct("LanguageDb").field("languages", &LANGUAGES.len()).finish_non_exhaustive()
 	}
 }

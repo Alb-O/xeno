@@ -136,9 +136,7 @@ impl Layout {
 	pub fn contains_view(&self, buffer_id: ViewId) -> bool {
 		match self {
 			Layout::Single(id) => *id == buffer_id,
-			Layout::Split { first, second, .. } => {
-				first.contains_view(buffer_id) || second.contains_view(buffer_id)
-			}
+			Layout::Split { first, second, .. } => first.contains_view(buffer_id) || second.contains_view(buffer_id),
 		}
 	}
 
@@ -155,10 +153,7 @@ impl Layout {
 				true
 			}
 			Layout::Single(_) => false,
-			Layout::Split { first, second, .. } => {
-				first.replace_view(target, new_layout.clone())
-					|| second.replace_view(target, new_layout)
-			}
+			Layout::Split { first, second, .. } => first.replace_view(target, new_layout.clone()) || second.replace_view(target, new_layout),
 		}
 	}
 

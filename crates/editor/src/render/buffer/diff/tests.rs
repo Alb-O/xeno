@@ -2,51 +2,33 @@ use super::*;
 
 #[test]
 fn detect_addition() {
-	assert_eq!(
-		DiffLineType::from_line("+added line"),
-		DiffLineType::Addition
-	);
+	assert_eq!(DiffLineType::from_line("+added line"), DiffLineType::Addition);
 	assert_eq!(DiffLineType::from_line("+ "), DiffLineType::Addition);
 }
 
 #[test]
 fn detect_deletion() {
-	assert_eq!(
-		DiffLineType::from_line("-removed line"),
-		DiffLineType::Deletion
-	);
+	assert_eq!(DiffLineType::from_line("-removed line"), DiffLineType::Deletion);
 	assert_eq!(DiffLineType::from_line("- "), DiffLineType::Deletion);
 }
 
 #[test]
 fn detect_hunk() {
-	assert_eq!(
-		DiffLineType::from_line("@@ -1,3 +1,4 @@"),
-		DiffLineType::Hunk
-	);
+	assert_eq!(DiffLineType::from_line("@@ -1,3 +1,4 @@"), DiffLineType::Hunk);
 }
 
 #[test]
 fn detect_context() {
-	assert_eq!(
-		DiffLineType::from_line(" context line"),
-		DiffLineType::Context
-	);
+	assert_eq!(DiffLineType::from_line(" context line"), DiffLineType::Context);
 	assert_eq!(DiffLineType::from_line("plain line"), DiffLineType::Context);
 }
 
 #[test]
 fn file_headers_are_context() {
 	assert_eq!(DiffLineType::from_line("+++"), DiffLineType::Context);
-	assert_eq!(
-		DiffLineType::from_line("+++ a/file.rs"),
-		DiffLineType::Context
-	);
+	assert_eq!(DiffLineType::from_line("+++ a/file.rs"), DiffLineType::Context);
 	assert_eq!(DiffLineType::from_line("---"), DiffLineType::Context);
-	assert_eq!(
-		DiffLineType::from_line("--- b/file.rs"),
-		DiffLineType::Context
-	);
+	assert_eq!(DiffLineType::from_line("--- b/file.rs"), DiffLineType::Context);
 }
 
 #[test]
@@ -116,40 +98,16 @@ fn compute_line_numbers_simple() {
 	assert_eq!(nums[3], DiffLineNumbers::default());
 
 	// Line 4: context (old:1, new:1)
-	assert_eq!(
-		nums[4],
-		DiffLineNumbers {
-			old: Some(1),
-			new: Some(1)
-		}
-	);
+	assert_eq!(nums[4], DiffLineNumbers { old: Some(1), new: Some(1) });
 
 	// Line 5: addition (new:2 only)
-	assert_eq!(
-		nums[5],
-		DiffLineNumbers {
-			old: None,
-			new: Some(2)
-		}
-	);
+	assert_eq!(nums[5], DiffLineNumbers { old: None, new: Some(2) });
 
 	// Line 6: context (old:2, new:3)
-	assert_eq!(
-		nums[6],
-		DiffLineNumbers {
-			old: Some(2),
-			new: Some(3)
-		}
-	);
+	assert_eq!(nums[6], DiffLineNumbers { old: Some(2), new: Some(3) });
 
 	// Line 7: context (old:3, new:4)
-	assert_eq!(
-		nums[7],
-		DiffLineNumbers {
-			old: Some(3),
-			new: Some(4)
-		}
-	);
+	assert_eq!(nums[7], DiffLineNumbers { old: Some(3), new: Some(4) });
 }
 
 #[test]
@@ -166,29 +124,11 @@ fn compute_line_numbers_deletion() {
 	assert_eq!(nums[0], DiffLineNumbers::default());
 
 	// Line 1: context (old:1, new:1)
-	assert_eq!(
-		nums[1],
-		DiffLineNumbers {
-			old: Some(1),
-			new: Some(1)
-		}
-	);
+	assert_eq!(nums[1], DiffLineNumbers { old: Some(1), new: Some(1) });
 
 	// Line 2: deletion (old:2 only)
-	assert_eq!(
-		nums[2],
-		DiffLineNumbers {
-			old: Some(2),
-			new: None
-		}
-	);
+	assert_eq!(nums[2], DiffLineNumbers { old: Some(2), new: None });
 
 	// Line 3: context (old:3, new:2)
-	assert_eq!(
-		nums[3],
-		DiffLineNumbers {
-			old: Some(3),
-			new: Some(2)
-		}
-	);
+	assert_eq!(nums[3], DiffLineNumbers { old: Some(3), new: Some(2) });
 }

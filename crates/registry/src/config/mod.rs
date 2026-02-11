@@ -54,15 +54,8 @@ pub enum ConfigWarning {
 impl std::fmt::Display for ConfigWarning {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
-			ConfigWarning::ScopeMismatch {
-				option,
-				found_in,
-				expected,
-			} => {
-				write!(
-					f,
-					"'{option}' in {found_in} will be ignored (should be in {expected})"
-				)
+			ConfigWarning::ScopeMismatch { option, found_in, expected } => {
+				write!(f, "'{option}' in {found_in} will be ignored (should be in {expected})")
 			}
 		}
 	}
@@ -155,9 +148,7 @@ impl std::fmt::Debug for Config {
 			s.field("options", &self.options);
 		}
 
-		s.field("languages", &self.languages)
-			.field("warnings", &self.warnings)
-			.finish()
+		s.field("languages", &self.languages).field("warnings", &self.warnings).finish()
 	}
 }
 

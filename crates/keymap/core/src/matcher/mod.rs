@@ -207,11 +207,7 @@ impl<T> Matcher<T> {
 			ContinuationEntry {
 				key,
 				value: child.value.as_ref(),
-				kind: if has_children {
-					ContinuationKind::Branch
-				} else {
-					ContinuationKind::Leaf
-				},
+				kind: if has_children { ContinuationKind::Branch } else { ContinuationKind::Leaf },
 			}
 		});
 
@@ -220,11 +216,7 @@ impl<T> Matcher<T> {
 			ContinuationEntry {
 				key,
 				value: child.value.as_ref(),
-				kind: if has_children {
-					ContinuationKind::Branch
-				} else {
-					ContinuationKind::Leaf
-				},
+				kind: if has_children { ContinuationKind::Branch } else { ContinuationKind::Leaf },
 			}
 		});
 
@@ -277,19 +269,13 @@ fn search<'a, T>(node: &'a Trie<T>, nodes: &[Node], pos: usize) -> Option<&'a T>
 
 	let input_node = &nodes[pos];
 
-	if let Some(result) = node
-		.exact
-		.get(input_node)
-		.and_then(|child| search(child, nodes, pos + 1))
-	{
+	if let Some(result) = node.exact.get(input_node).and_then(|child| search(child, nodes, pos + 1)) {
 		return Some(result);
 	}
 
 	if let Key::Char(ch) = input_node.key
 		&& let Some(result) = node.groups.iter().find_map(|(n, child)| match n.key {
-			Key::Group(group) if n.modifiers == input_node.modifiers && group.matches(ch) => {
-				search(child, nodes, pos + 1)
-			}
+			Key::Group(group) if n.modifiers == input_node.modifiers && group.matches(ch) => search(child, nodes, pos + 1),
 			_ => None,
 		}) {
 		return Some(result);

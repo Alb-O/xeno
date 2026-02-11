@@ -10,9 +10,7 @@ use lsp_types::notification::Notification;
 use lsp_types::request::Request;
 use tower_service::Service;
 
-use crate::{
-	AnyEvent, AnyNotification, AnyRequest, ErrorCode, JsonValue, LspService, ResponseError, Result,
-};
+use crate::{AnyEvent, AnyNotification, AnyRequest, ErrorCode, JsonValue, LspService, ResponseError, Result};
 
 /// Boxed future type for static dispatch.
 pub type BoxFutureStatic<T> = Pin<Box<dyn Future<Output = T> + Send + 'static>>;
@@ -81,18 +79,13 @@ impl<St, Error: Send + 'static> Router<St, Error> {
 	/// Add a synchronous notification handler for a specific LSP notification `N`.
 	///
 	/// If handler for the method already exists, it replaces the old one.
-	pub fn notification<N: Notification>(
-		&mut self,
-		handler: impl Fn(&mut St, N::Params) -> ControlFlow<Result<()>> + Send + 'static,
-	) -> &mut Self {
+	pub fn notification<N: Notification>(&mut self, handler: impl Fn(&mut St, N::Params) -> ControlFlow<Result<()>> + Send + 'static) -> &mut Self {
 		self.notif_handlers.insert(
 			N::METHOD,
-			Box::new(
-				move |state, notif| match serde_json::from_value::<N::Params>(notif.params) {
-					Ok(params) => handler(state, params),
-					Err(err) => ControlFlow::Break(Err(err.into())),
-				},
-			),
+			Box::new(move |state, notif| match serde_json::from_value::<N::Params>(notif.params) {
+				Ok(params) => handler(state, params),
+				Err(err) => ControlFlow::Break(Err(err.into())),
+			}),
 		);
 		self
 	}
@@ -100,10 +93,7 @@ impl<St, Error: Send + 'static> Router<St, Error> {
 	/// Add a synchronous event handler for event type `E`.
 	///
 	/// If handler for the method already exists, it replaces the old one.
-	pub fn event<E: Send + 'static>(
-		&mut self,
-		handler: impl Fn(&mut St, E) -> ControlFlow<Result<()>> + Send + 'static,
-	) -> &mut Self {
+	pub fn event<E: Send + 'static>(&mut self, handler: impl Fn(&mut St, E) -> ControlFlow<Result<()>> + Send + 'static) -> &mut Self {
 		self.event_handlers.insert(
 			TypeId::of::<E>(),
 			Box::new(move |state, event| {
@@ -121,10 +111,7 @@ impl<St, Error: Send + 'static> Router<St, Error> {
 	///
 	/// The default handler (when using [`Router::new`]) responds with
 	/// [`ErrorCode::METHOD_NOT_FOUND`].
-	pub fn unhandled_request<Fut>(
-		&mut self,
-		handler: impl Fn(&mut St, AnyRequest) -> Fut + Send + 'static,
-	) -> &mut Self
+	pub fn unhandled_request<Fut>(&mut self, handler: impl Fn(&mut St, AnyRequest) -> Fut + Send + 'static) -> &mut Self
 	where
 		Fut: Future<Output = Result<JsonValue, Error>> + Send + 'static,
 	{
@@ -142,10 +129,7 @@ impl<St, Error: Send + 'static> Router<St, Error> {
 	/// methods. Typically notifications are critical and losing them can break state
 	/// synchronization, easily leading to catastrophic failures after incorrect incremental
 	/// changes.
-	pub fn unhandled_notification(
-		&mut self,
-		handler: impl Fn(&mut St, AnyNotification) -> ControlFlow<Result<()>> + Send + 'static,
-	) -> &mut Self {
+	pub fn unhandled_notification(&mut self, handler: impl Fn(&mut St, AnyNotification) -> ControlFlow<Result<()>> + Send + 'static) -> &mut Self {
 		self.unhandled_notif = Box::new(handler);
 		self
 	}
@@ -158,10 +142,7 @@ impl<St, Error: Send + 'static> Router<St, Error> {
 	/// The default handler (when using [`Router::new`]) breaks the main loop with
 	/// [`Error::Routing`][crate::Error::Routing]. Since events are emitted internally,
 	/// mishandling are typically logic errors.
-	pub fn unhandled_event(
-		&mut self,
-		handler: impl Fn(&mut St, AnyEvent) -> ControlFlow<Result<()>> + Send + 'static,
-	) -> &mut Self {
+	pub fn unhandled_event(&mut self, handler: impl Fn(&mut St, AnyEvent) -> ControlFlow<Result<()>> + Send + 'static) -> &mut Self {
 		self.unhandled_event = Box::new(handler);
 		self
 	}
@@ -196,17 +177,10 @@ where
 				if notif.method.starts_with("$/") {
 					ControlFlow::Continue(())
 				} else {
-					ControlFlow::Break(Err(crate::Error::Routing(format!(
-						"Unhandled notification: {}",
-						notif.method,
-					))))
+					ControlFlow::Break(Err(crate::Error::Routing(format!("Unhandled notification: {}", notif.method,))))
 				}
 			}),
-			unhandled_event: Box::new(|_, event| {
-				ControlFlow::Break(Err(crate::Error::Routing(format!(
-					"Unhandled event: {event:?}"
-				))))
-			}),
+			unhandled_event: Box::new(|_, event| ControlFlow::Break(Err(crate::Error::Routing(format!("Unhandled event: {event:?}"))))),
 		}
 	}
 
@@ -214,31 +188,24 @@ where
 	///
 	/// This method requires `Error: From<ResponseError>` to handle deserialization failures.
 	/// If handler for the method already exists, it replaces the old one.
-	pub fn request<R: Request, Fut>(
-		&mut self,
-		handler: impl Fn(&mut St, R::Params) -> Fut + Send + 'static,
-	) -> &mut Self
+	pub fn request<R: Request, Fut>(&mut self, handler: impl Fn(&mut St, R::Params) -> Fut + Send + 'static) -> &mut Self
 	where
 		Fut: Future<Output = Result<R::Result, Error>> + Send + 'static,
 	{
 		self.req_handlers.insert(
 			R::METHOD,
-			Box::new(
-				move |state, req| match serde_json::from_value::<R::Params>(req.params) {
-					Ok(params) => {
-						let fut = handler(state, params);
-						Box::pin(async move {
-							Ok(serde_json::to_value(fut.await?).expect("Serialization failed"))
-						})
-					}
-					Err(err) => Box::pin(ready(Err(ResponseError {
-						code: ErrorCode::INVALID_PARAMS,
-						message: format!("Failed to deserialize parameters: {err}"),
-						data: None,
-					}
-					.into()))),
-				},
-			),
+			Box::new(move |state, req| match serde_json::from_value::<R::Params>(req.params) {
+				Ok(params) => {
+					let fut = handler(state, params);
+					Box::pin(async move { Ok(serde_json::to_value(fut.await?).expect("Serialization failed")) })
+				}
+				Err(err) => Box::pin(ready(Err(ResponseError {
+					code: ErrorCode::INVALID_PARAMS,
+					message: format!("Failed to deserialize parameters: {err}"),
+					data: None,
+				}
+				.into()))),
+			}),
 		);
 		self
 	}
@@ -254,28 +221,19 @@ impl<St, Error> Service<AnyRequest> for Router<St, Error> {
 	}
 
 	fn call(&mut self, req: AnyRequest) -> Self::Future {
-		let h = self
-			.req_handlers
-			.get(&*req.method)
-			.unwrap_or(&self.unhandled_req);
+		let h = self.req_handlers.get(&*req.method).unwrap_or(&self.unhandled_req);
 		h(&mut self.state, req)
 	}
 }
 
 impl<St> LspService for Router<St> {
 	fn notify(&mut self, notif: AnyNotification) -> ControlFlow<Result<()>> {
-		let h = self
-			.notif_handlers
-			.get(&*notif.method)
-			.unwrap_or(&self.unhandled_notif);
+		let h = self.notif_handlers.get(&*notif.method).unwrap_or(&self.unhandled_notif);
 		h(&mut self.state, notif)
 	}
 
 	fn emit(&mut self, event: AnyEvent) -> ControlFlow<Result<()>> {
-		let h = self
-			.event_handlers
-			.get(&event.inner_type_id())
-			.unwrap_or(&self.unhandled_event);
+		let h = self.event_handlers.get(&event.inner_type_id()).unwrap_or(&self.unhandled_event);
 		h(&mut self.state, event)
 	}
 }

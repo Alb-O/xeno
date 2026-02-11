@@ -22,53 +22,19 @@ pub enum XenoLayer {
 }
 
 const LAYER_INFO: &[(XenoLayer, &str, &str, &[&str])] = &[
-	(
-		XenoLayer::Core,
-		"CORE",
-		"\x1b[95mCORE\x1b[0m",
-		&["xeno_primitives", "xeno_registry"],
-	),
-	(
-		XenoLayer::Api,
-		"API",
-		"\x1b[96mAPI \x1b[0m",
-		&["xeno_editor"],
-	),
+	(XenoLayer::Core, "CORE", "\x1b[95mCORE\x1b[0m", &["xeno_primitives", "xeno_registry"]),
+	(XenoLayer::Api, "API", "\x1b[96mAPI \x1b[0m", &["xeno_editor"]),
 	(XenoLayer::Lsp, "LSP", "\x1b[93mLSP \x1b[0m", &["xeno_lsp"]),
-	(
-		XenoLayer::Lang,
-		"LANG",
-		"\x1b[94mLANG\x1b[0m",
-		&["xeno_language"],
-	),
-	(
-		XenoLayer::Config,
-		"CFG",
-		"\x1b[90mCFG \x1b[0m",
-		&["xeno_config"],
-	),
-	(
-		XenoLayer::Ui,
-		"UI",
-		"\x1b[92mUI  \x1b[0m",
-		&["xeno_term", "xeno_tui"],
-	),
-	(
-		XenoLayer::Registry,
-		"REG",
-		"\x1b[90mREG \x1b[0m",
-		&["xeno_registry"],
-	),
+	(XenoLayer::Lang, "LANG", "\x1b[94mLANG\x1b[0m", &["xeno_language"]),
+	(XenoLayer::Config, "CFG", "\x1b[90mCFG \x1b[0m", &["xeno_config"]),
+	(XenoLayer::Ui, "UI", "\x1b[92mUI  \x1b[0m", &["xeno_term", "xeno_tui"]),
+	(XenoLayer::Registry, "REG", "\x1b[90mREG \x1b[0m", &["xeno_registry"]),
 	(XenoLayer::External, "EXT", "\x1b[90mEXT \x1b[0m", &[]),
 ];
 
 impl XenoLayer {
 	pub fn short_name(&self) -> &'static str {
-		LAYER_INFO
-			.iter()
-			.find(|(l, ..)| l == self)
-			.map(|(_, n, ..)| *n)
-			.unwrap_or("EXT")
+		LAYER_INFO.iter().find(|(l, ..)| l == self).map(|(_, n, ..)| *n).unwrap_or("EXT")
 	}
 
 	pub fn colored(&self) -> &'static str {

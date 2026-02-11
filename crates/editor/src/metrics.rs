@@ -66,19 +66,15 @@ impl EditorMetrics {
 
 	/// Records per-tick hook drain stats.
 	pub fn record_hook_tick(&self, completed: u64, pending: usize) {
-		self.hooks_completed_tick
-			.store(completed, Ordering::Relaxed);
-		self.hooks_pending_tick
-			.store(pending as u64, Ordering::Relaxed);
+		self.hooks_completed_tick.store(completed, Ordering::Relaxed);
+		self.hooks_pending_tick.store(pending as u64, Ordering::Relaxed);
 	}
 
 	/// Records per-tick LSP sync counts.
 	pub fn record_lsp_tick(&self, full_syncs: u64, incremental_syncs: u64, snapshot_bytes: u64) {
 		self.lsp_full_sync_tick.store(full_syncs, Ordering::Relaxed);
-		self.lsp_incremental_sync_tick
-			.store(incremental_syncs, Ordering::Relaxed);
-		self.lsp_snapshot_bytes_tick
-			.store(snapshot_bytes, Ordering::Relaxed);
+		self.lsp_incremental_sync_tick.store(incremental_syncs, Ordering::Relaxed);
+		self.lsp_snapshot_bytes_tick.store(snapshot_bytes, Ordering::Relaxed);
 	}
 
 	/// Returns the current full sync count.

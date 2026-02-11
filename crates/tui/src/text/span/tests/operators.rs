@@ -6,20 +6,11 @@ use super::*;
 
 #[test]
 fn add() {
-	assert_eq!(
-		Span::default() + Span::default(),
-		Line::from(vec![Span::default(), Span::default()])
-	);
+	assert_eq!(Span::default() + Span::default(), Line::from(vec![Span::default(), Span::default()]));
 
-	assert_eq!(
-		Span::default() + Span::raw("test"),
-		Line::from(vec![Span::default(), Span::raw("test")])
-	);
+	assert_eq!(Span::default() + Span::raw("test"), Line::from(vec![Span::default(), Span::raw("test")]));
 
-	assert_eq!(
-		Span::raw("test") + Span::default(),
-		Line::from(vec![Span::raw("test"), Span::default()])
-	);
+	assert_eq!(Span::raw("test") + Span::default(), Line::from(vec![Span::raw("test"), Span::default()]));
 
 	assert_eq!(
 		Span::raw("test") + Span::raw("content"),

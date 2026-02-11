@@ -51,14 +51,8 @@ impl Parse for ParseKeybindingsInput {
 }
 
 /// Generates a keybinding list for an action using `LazyLock`.
-fn generate_keybindings(
-	action_name: &str,
-	kdl_str: &str,
-	action_id: &Expr,
-) -> Result<proc_macro2::TokenStream, String> {
-	let doc: kdl::KdlDocument = kdl_str
-		.parse()
-		.map_err(|e: kdl::KdlError| format!("KDL parse error: {e}"))?;
+fn generate_keybindings(action_name: &str, kdl_str: &str, action_id: &Expr) -> Result<proc_macro2::TokenStream, String> {
+	let doc: kdl::KdlDocument = kdl_str.parse().map_err(|e: kdl::KdlError| format!("KDL parse error: {e}"))?;
 
 	let mut bindings = Vec::new();
 
@@ -72,9 +66,7 @@ fn generate_keybindings(
 			"match" => quote! { Match },
 			"space" => quote! { Space },
 			other => {
-				return Err(format!(
-					"Unknown mode: {other}. Valid modes: normal, insert, window, match, space"
-				));
+				return Err(format!("Unknown mode: {other}. Valid modes: normal, insert, window, match, space"));
 			}
 		};
 
@@ -88,8 +80,7 @@ fn generate_keybindings(
 			};
 
 			// Validate the key sequence at compile time
-			xeno_keymap_parser::parse_seq(key_str)
-				.map_err(|e| format!("Invalid key sequence \"{key_str}\": {e}"))?;
+			xeno_keymap_parser::parse_seq(key_str).map_err(|e| format!("Invalid key sequence \"{key_str}\": {e}"))?;
 
 			bindings.push(quote! {
 				xeno_registry::actions::KeyBindingDef {

@@ -33,39 +33,21 @@ impl LayoutManager {
 
 	/// Returns the total number of views across all layers.
 	pub fn count(&self, base_layout: &Layout) -> usize {
-		let overlay_count: usize = self
-			.layers
-			.iter()
-			.skip(1)
-			.filter_map(|slot| slot.layout.as_ref())
-			.map(|l| l.count())
-			.sum();
+		let overlay_count: usize = self.layers.iter().skip(1).filter_map(|slot| slot.layout.as_ref()).map(|l| l.count()).sum();
 		base_layout.count() + overlay_count
 	}
 
 	/// Returns all views present in all layers.
 	pub fn views(&self, base_layout: &Layout) -> Vec<ViewId> {
 		let mut views = base_layout.views();
-		views.extend(
-			self.layers
-				.iter()
-				.skip(1)
-				.filter_map(|slot| slot.layout.as_ref())
-				.flat_map(|l| l.views()),
-		);
+		views.extend(self.layers.iter().skip(1).filter_map(|slot| slot.layout.as_ref()).flat_map(|l| l.views()));
 		views
 	}
 
 	/// Returns all text buffer identifiers across all layers.
 	pub fn buffer_ids(&self, base_layout: &Layout) -> Vec<ViewId> {
 		let mut ids = base_layout.buffer_ids();
-		ids.extend(
-			self.layers
-				.iter()
-				.skip(1)
-				.filter_map(|slot| slot.layout.as_ref())
-				.flat_map(|l| l.buffer_ids()),
-		);
+		ids.extend(self.layers.iter().skip(1).filter_map(|slot| slot.layout.as_ref()).flat_map(|l| l.buffer_ids()));
 		ids
 	}
 
@@ -112,13 +94,7 @@ impl LayoutManager {
 	}
 
 	/// Finds the view at the given screen coordinates, searching layers top-down.
-	pub fn view_at_position(
-		&self,
-		base_layout: &Layout,
-		area: Rect,
-		x: u16,
-		y: u16,
-	) -> Option<(ViewId, Rect)> {
+	pub fn view_at_position(&self, base_layout: &Layout, area: Rect, x: u16, y: u16) -> Option<(ViewId, Rect)> {
 		for i in (1..self.layers.len()).rev() {
 			if let Some(layout) = self.layers[i].layout.as_ref() {
 				let layer_id = LayerId::new(i as u16, self.layers[i].generation);
@@ -137,15 +113,8 @@ impl LayoutManager {
 	}
 
 	/// Computes rectangular areas for views in a specific layer.
-	pub fn compute_view_areas_for_layer(
-		&self,
-		base_layout: &Layout,
-		layer: LayerId,
-		area: Rect,
-	) -> Vec<(ViewId, Rect)> {
-		self.layer(base_layout, layer)
-			.map(|l| l.compute_view_areas(area))
-			.unwrap_or_default()
+	pub fn compute_view_areas_for_layer(&self, base_layout: &Layout, layer: LayerId, area: Rect) -> Vec<(ViewId, Rect)> {
+		self.layer(base_layout, layer).map(|l| l.compute_view_areas(area)).unwrap_or_default()
 	}
 
 	/// Computes rectangular areas for each buffer in the base layer.
@@ -154,14 +123,7 @@ impl LayoutManager {
 	}
 
 	/// Finds the view in the given direction, searching within the current view's layer.
-	pub fn view_in_direction(
-		&self,
-		base_layout: &Layout,
-		area: Rect,
-		current: ViewId,
-		direction: SpatialDirection,
-		hint: u16,
-	) -> Option<ViewId> {
+	pub fn view_in_direction(&self, base_layout: &Layout, area: Rect, current: ViewId, direction: SpatialDirection, hint: u16) -> Option<ViewId> {
 		if let Some(layer) = self.layer_of_view(base_layout, current)
 			&& let Some(layout) = self.overlay_layout(layer)
 		{

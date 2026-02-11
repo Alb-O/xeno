@@ -18,35 +18,23 @@ impl LspSystem {
 		let client = self.sync().registry().get(language, &abs_path)?;
 		let caps = client.capabilities()?;
 		let supports_incremental = match &caps.text_document_sync {
-			Some(TextDocumentSyncCapability::Kind(kind)) => {
-				*kind == TextDocumentSyncKind::INCREMENTAL
-			}
+			Some(TextDocumentSyncCapability::Kind(kind)) => *kind == TextDocumentSyncKind::INCREMENTAL,
 			Some(TextDocumentSyncCapability::Options(options)) => {
 				matches!(options.change, Some(TextDocumentSyncKind::INCREMENTAL))
 			}
 			None => false,
 		};
 
-		if supports_incremental {
-			Some(client.offset_encoding())
-		} else {
-			None
-		}
+		if supports_incremental { Some(client.offset_encoding()) } else { None }
 	}
 
-	pub(crate) fn incremental_encoding_for_buffer(
-		&self,
-		buffer: &crate::buffer::Buffer,
-	) -> Option<xeno_lsp::OffsetEncoding> {
+	pub(crate) fn incremental_encoding_for_buffer(&self, buffer: &crate::buffer::Buffer) -> Option<xeno_lsp::OffsetEncoding> {
 		let path = buffer.path()?;
 		let language = buffer.file_type()?;
 		self.incremental_encoding(&path, &language)
 	}
 
-	pub(crate) fn offset_encoding_for_buffer(
-		&self,
-		buffer: &crate::buffer::Buffer,
-	) -> xeno_lsp::OffsetEncoding {
+	pub(crate) fn offset_encoding_for_buffer(&self, buffer: &crate::buffer::Buffer) -> xeno_lsp::OffsetEncoding {
 		let Some(path) = buffer.path() else {
 			return OffsetEncoding::Utf16;
 		};

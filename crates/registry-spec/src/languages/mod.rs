@@ -48,17 +48,10 @@ pub struct ViewportRepairSpec {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ViewportRepairRuleSpec {
 	/// e.g. /* ... */
-	BlockComment {
-		open: String,
-		close: String,
-		nestable: bool,
-	},
+	BlockComment { open: String, close: String, nestable: bool },
 
 	/// e.g. "..." or '...'
-	String {
-		quote: String,
-		escape: Option<String>,
-	},
+	String { quote: String, escape: Option<String> },
 
 	/// e.g. //
 	LineComment { start: String },

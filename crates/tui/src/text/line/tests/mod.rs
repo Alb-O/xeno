@@ -56,24 +56,14 @@ fn spans_vec() {
 	let line = Line::default().spans(vec!["Hello".blue(), " world!".green()]);
 	assert_eq!(
 		line.spans,
-		vec![
-			Span::styled("Hello", Style::new().blue()),
-			Span::styled(" world!", Style::new().green()),
-		]
+		vec![Span::styled("Hello", Style::new().blue()), Span::styled(" world!", Style::new().green()),]
 	);
 }
 
 #[test]
 fn spans_iter() {
 	let line = Line::default().spans([1, 2, 3].iter().map(|i| format!("Item {i}")));
-	assert_eq!(
-		line.spans,
-		vec![
-			Span::raw("Item 1"),
-			Span::raw("Item 2"),
-			Span::raw("Item 3"),
-		]
-	);
+	assert_eq!(line.spans, vec![Span::raw("Item 1"), Span::raw("Item 2"), Span::raw("Item 3"),]);
 }
 
 #[test]
@@ -93,10 +83,7 @@ fn alignment() {
 
 #[test]
 fn width() {
-	let line = Line::from(vec![
-		Span::styled("My", Style::default().fg(Color::Yellow)),
-		Span::raw(" text"),
-	]);
+	let line = Line::from(vec![Span::styled("My", Style::default().fg(Color::Yellow)), Span::raw(" text")]);
 	assert_eq!(7, line.width());
 
 	let empty_line = Line::default();
@@ -124,10 +111,7 @@ fn reset_style() {
 #[test]
 fn stylize() {
 	assert_eq!(Line::default().green().style, Color::Green.into());
-	assert_eq!(
-		Line::default().on_green().style,
-		Style::new().bg(Color::Green)
-	);
+	assert_eq!(Line::default().on_green().style, Style::new().bg(Color::Green));
 	assert_eq!(Line::default().italic().style, Modifier::ITALIC.into());
 }
 
@@ -174,24 +158,16 @@ fn from_iter() {
 	let line = Line::from_iter(vec!["Hello".blue(), " world!".green()]);
 	assert_eq!(
 		line.spans,
-		vec![
-			Span::styled("Hello", Style::new().blue()),
-			Span::styled(" world!", Style::new().green()),
-		]
+		vec![Span::styled("Hello", Style::new().blue()), Span::styled(" world!", Style::new().green()),]
 	);
 }
 
 #[test]
 fn collect() {
-	let line: Line = iter::once("Hello".blue())
-		.chain(iter::once(" world!".green()))
-		.collect();
+	let line: Line = iter::once("Hello".blue()).chain(iter::once(" world!".green())).collect();
 	assert_eq!(
 		line.spans,
-		vec![
-			Span::styled("Hello", Style::new().blue()),
-			Span::styled(" world!", Style::new().green()),
-		]
+		vec![Span::styled("Hello", Style::new().blue()), Span::styled(" world!", Style::new().green()),]
 	);
 }
 
@@ -248,14 +224,7 @@ fn extend() {
 
 	let mut line = Line::from("Hello, ");
 	line.extend([Span::raw("world! "), Span::raw("How are you?")]);
-	assert_eq!(
-		line.spans,
-		[
-			Span::raw("Hello, "),
-			Span::raw("world! "),
-			Span::raw("How are you?")
-		]
-	);
+	assert_eq!(line.spans, [Span::raw("Hello, "), Span::raw("world! "), Span::raw("How are you?")]);
 }
 
 #[test]
@@ -277,14 +246,8 @@ fn styled_graphemes() {
 	const GREEN_ON_WHITE: Style = Style::new().green().on_white();
 	const BLUE_ON_WHITE: Style = Style::new().blue().on_white();
 
-	let line = Line::from(vec![
-		Span::styled("He", RED),
-		Span::styled("ll", GREEN),
-		Span::styled("o!", BLUE),
-	]);
-	let styled_graphemes = line
-		.styled_graphemes(Style::new().bg(Color::White))
-		.collect::<Vec<StyledGrapheme>>();
+	let line = Line::from(vec![Span::styled("He", RED), Span::styled("ll", GREEN), Span::styled("o!", BLUE)]);
+	let styled_graphemes = line.styled_graphemes(Style::new().bg(Color::White)).collect::<Vec<StyledGrapheme>>();
 	assert_eq!(
 		styled_graphemes,
 		vec![
@@ -343,27 +306,18 @@ pub fn push_span() {
 	let mut line = Line::from("A");
 	line.push_span(Span::raw("B"));
 	line.push_span("C");
-	assert_eq!(
-		line.spans,
-		vec![Span::raw("A"), Span::raw("B"), Span::raw("C")]
-	);
+	assert_eq!(line.spans, vec![Span::raw("A"), Span::raw("B"), Span::raw("C")]);
 }
 
 #[rstest]
 #[case::empty(Line::default(), "Line::default()")]
 #[case::raw(Line::raw("Hello, world!"), r#"Line::from("Hello, world!")"#)]
-#[case::styled(
-	Line::styled("Hello, world!", Color::Yellow),
-	r#"Line::from("Hello, world!").yellow()"#
-)]
+#[case::styled(Line::styled("Hello, world!", Color::Yellow), r#"Line::from("Hello, world!").yellow()"#)]
 #[case::styled_complex(
         Line::from(String::from("Hello, world!")).green().on_blue().bold().italic().not_dim(),
         r#"Line::from("Hello, world!").green().on_blue().bold().italic().not_dim()"#
     )]
-#[case::styled_span(
-	Line::from(Span::styled("Hello, world!", Color::Yellow)),
-	r#"Line::from(Span::from("Hello, world!").yellow())"#
-)]
+#[case::styled_span(Line::from(Span::styled("Hello, world!", Color::Yellow)), r#"Line::from(Span::from("Hello, world!").yellow())"#)]
 #[case::styled_line_and_span(
         Line::from(vec![
             Span::styled("Hello", Color::Yellow),

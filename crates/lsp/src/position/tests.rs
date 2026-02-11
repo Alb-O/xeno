@@ -6,28 +6,16 @@ fn test_utf32_round_trip() {
 	let encoding = OffsetEncoding::Utf32;
 
 	// First line
-	let pos = Position {
-		line: 0,
-		character: 3,
-	};
+	let pos = Position { line: 0, character: 3 };
 	let char_idx = lsp_position_to_char(&text, pos, encoding).unwrap();
 	assert_eq!(char_idx, 3);
-	assert_eq!(
-		char_to_lsp_position(&text, char_idx, encoding).unwrap(),
-		pos
-	);
+	assert_eq!(char_to_lsp_position(&text, char_idx, encoding).unwrap(), pos);
 
 	// Second line
-	let pos = Position {
-		line: 1,
-		character: 2,
-	};
+	let pos = Position { line: 1, character: 2 };
 	let char_idx = lsp_position_to_char(&text, pos, encoding).unwrap();
 	assert_eq!(char_idx, 8); // "hello\n" = 6 chars, + 2 = 8
-	assert_eq!(
-		char_to_lsp_position(&text, char_idx, encoding).unwrap(),
-		pos
-	);
+	assert_eq!(char_to_lsp_position(&text, char_idx, encoding).unwrap(), pos);
 }
 
 #[test]
@@ -37,18 +25,12 @@ fn test_utf16_with_emoji() {
 	let encoding = OffsetEncoding::Utf16;
 
 	// Position after 'a' (before emoji)
-	let pos = Position {
-		line: 0,
-		character: 1,
-	};
+	let pos = Position { line: 0, character: 1 };
 	let char_idx = lsp_position_to_char(&text, pos, encoding).unwrap();
 	assert_eq!(char_idx, 1);
 
 	// Position after emoji (in UTF-16, this is character 3 because emoji takes 2 units)
-	let pos = Position {
-		line: 0,
-		character: 3,
-	};
+	let pos = Position { line: 0, character: 3 };
 	let char_idx = lsp_position_to_char(&text, pos, encoding).unwrap();
 	assert_eq!(char_idx, 2); // In rope chars: a=0, U+1F600=1, b=2
 
@@ -64,10 +46,7 @@ fn test_utf8_with_multibyte() {
 	let encoding = OffsetEncoding::Utf8;
 
 	// Position at 'f' (index 2 in chars, but byte offset 2)
-	let pos = Position {
-		line: 0,
-		character: 3,
-	};
+	let pos = Position { line: 0, character: 3 };
 	let char_idx = lsp_position_to_char(&text, pos, encoding).unwrap();
 	assert_eq!(char_idx, 3); // c=1byte, a=1byte, f=1byte -> 3 bytes = 3 chars here
 
@@ -84,10 +63,7 @@ fn test_out_of_bounds() {
 	let encoding = OffsetEncoding::Utf32;
 
 	// Line out of bounds
-	let pos = Position {
-		line: 5,
-		character: 0,
-	};
+	let pos = Position { line: 5, character: 0 };
 	assert!(lsp_position_to_char(&text, pos, encoding).is_none());
 
 	// Char index out of bounds
@@ -100,10 +76,7 @@ fn test_clamp_column() {
 	let encoding = OffsetEncoding::Utf32;
 
 	// Column past end of line should clamp
-	let pos = Position {
-		line: 0,
-		character: 100,
-	};
+	let pos = Position { line: 0, character: 100 };
 	let char_idx = lsp_position_to_char(&text, pos, encoding).unwrap();
 	assert_eq!(char_idx, 2); // "hi" has 2 chars, clamped to end
 }
@@ -114,14 +87,8 @@ fn test_range_conversion() {
 	let encoding = OffsetEncoding::Utf32;
 
 	let lsp_range = Range {
-		start: Position {
-			line: 0,
-			character: 1,
-		},
-		end: Position {
-			line: 1,
-			character: 3,
-		},
+		start: Position { line: 0, character: 1 },
+		end: Position { line: 1, character: 3 },
 	};
 
 	let (start, end) = lsp_range_to_char_range(&text, lsp_range, encoding).unwrap();

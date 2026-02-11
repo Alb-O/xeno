@@ -11,18 +11,12 @@ impl FocusOps for EditorCaps<'_> {
 			SeqDirection::Prev => self.ed.focus_prev_buffer(),
 		}
 		let view = self.ed.focused_view();
-		self.ed
-			.state
-			.effects
-			.push_layer_event(LayerEvent::CursorMoved { view });
+		self.ed.state.effects.push_layer_event(LayerEvent::CursorMoved { view });
 	}
 
 	fn focus(&mut self, direction: SpatialDirection) {
 		self.ed.focus_direction(direction);
 		let view = self.ed.focused_view();
-		self.ed
-			.state
-			.effects
-			.push_layer_event(LayerEvent::CursorMoved { view });
+		self.ed.state.effects.push_layer_event(LayerEvent::CursorMoved { view });
 	}
 }

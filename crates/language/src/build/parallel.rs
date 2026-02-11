@@ -12,15 +12,9 @@ use super::fetch::{FetchStatus, fetch_grammar};
 pub type ProgressCallback = Box<dyn Fn(&str, &str) + Send + Sync>;
 
 /// Fetch all grammars in parallel.
-pub fn fetch_all_grammars(
-	grammars: Vec<GrammarConfig>,
-	on_progress: Option<ProgressCallback>,
-) -> Vec<(GrammarConfig, Result<FetchStatus>)> {
+pub fn fetch_all_grammars(grammars: Vec<GrammarConfig>, on_progress: Option<ProgressCallback>) -> Vec<(GrammarConfig, Result<FetchStatus>)> {
 	let (tx, rx) = mpsc::channel();
-	let num_jobs = std::thread::available_parallelism()
-		.map(|n| n.get())
-		.unwrap_or(4)
-		.min(8);
+	let num_jobs = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4).min(8);
 
 	let chunk_size = (grammars.len() / num_jobs).max(1);
 	let chunks: Vec<Vec<GrammarConfig>> = grammars.chunks(chunk_size).map(|c| c.to_vec()).collect();
@@ -56,15 +50,9 @@ pub fn fetch_all_grammars(
 }
 
 /// Build all grammars in parallel.
-pub fn build_all_grammars(
-	grammars: Vec<GrammarConfig>,
-	on_progress: Option<ProgressCallback>,
-) -> Vec<(GrammarConfig, Result<BuildStatus>)> {
+pub fn build_all_grammars(grammars: Vec<GrammarConfig>, on_progress: Option<ProgressCallback>) -> Vec<(GrammarConfig, Result<BuildStatus>)> {
 	let (tx, rx) = mpsc::channel();
-	let num_jobs = std::thread::available_parallelism()
-		.map(|n| n.get())
-		.unwrap_or(4)
-		.min(8);
+	let num_jobs = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4).min(8);
 
 	let chunk_size = (grammars.len() / num_jobs).max(1);
 	let chunks: Vec<Vec<GrammarConfig>> = grammars.chunks(chunk_size).map(|c| c.to_vec()).collect();

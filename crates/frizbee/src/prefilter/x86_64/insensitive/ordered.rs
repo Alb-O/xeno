@@ -17,9 +17,7 @@ use super::super::overlapping_load;
 pub unsafe fn match_haystack_insensitive(needle: &[(u8, u8)], haystack: &[u8]) -> bool {
 	let len = haystack.len();
 
-	let mut needle_iter = needle
-		.iter()
-		.map(|&(c1, c2)| unsafe { (_mm_set1_epi8(c1 as i8), _mm_set1_epi8(c2 as i8)) });
+	let mut needle_iter = needle.iter().map(|&(c1, c2)| unsafe { (_mm_set1_epi8(c1 as i8), _mm_set1_epi8(c2 as i8)) });
 	let mut needle_char = needle_iter.next().unwrap();
 
 	for start in (0..len).step_by(16) {
@@ -32,12 +30,7 @@ pub unsafe fn match_haystack_insensitive(needle: &[(u8, u8)], haystack: &[u8]) -
 		let mut last_match_idx = None;
 		loop {
 			// Compare each byte (0xFF if equal, 0x00 if not)
-			let cmp = unsafe {
-				_mm_or_si128(
-					_mm_cmpeq_epi8(needle_char.0, haystack_chunk),
-					_mm_cmpeq_epi8(needle_char.1, haystack_chunk),
-				)
-			};
+			let cmp = unsafe { _mm_or_si128(_mm_cmpeq_epi8(needle_char.0, haystack_chunk), _mm_cmpeq_epi8(needle_char.1, haystack_chunk)) };
 
 			// Convert comparison result to bitmask
 			let mut mask = unsafe { _mm_movemask_epi8(cmp) } as u16;

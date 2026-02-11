@@ -35,9 +35,7 @@ pub struct KeyPrefixDef {
 
 /// Finds a prefix definition for the given mode and key sequence.
 pub fn find_prefix(mode: BindingMode, keys: &str) -> Option<&'static KeyPrefixDef> {
-	KEY_PREFIXES
-		.iter()
-		.find(|p| p.mode == mode && &*p.keys == keys)
+	KEY_PREFIXES.iter().find(|p| p.mode == mode && &*p.keys == keys)
 }
 
 /// Key sequence binding definition.

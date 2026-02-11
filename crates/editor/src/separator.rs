@@ -68,17 +68,12 @@ impl MouseVelocityTracker {
 	///
 	/// Accounts for idle time - if mouse hasn't moved recently, velocity is zero.
 	pub fn is_fast(&self) -> bool {
-		self.last_time
-			.is_some_and(|lt| lt.elapsed() <= Self::IDLE_TIMEOUT)
-			&& self.velocity > Self::FAST_THRESHOLD
+		self.last_time.is_some_and(|lt| lt.elapsed() <= Self::IDLE_TIMEOUT) && self.velocity > Self::FAST_THRESHOLD
 	}
 
 	/// Returns the current smoothed velocity, accounting for idle time.
 	pub fn velocity(&self) -> f32 {
-		if self
-			.last_time
-			.is_some_and(|lt| lt.elapsed() > Self::IDLE_TIMEOUT)
-		{
+		if self.last_time.is_some_and(|lt| lt.elapsed() > Self::IDLE_TIMEOUT) {
 			0.0
 		} else {
 			self.velocity
@@ -103,8 +98,7 @@ impl SeparatorHoverAnimation {
 
 	/// Creates a new hover animation for the given separator.
 	pub fn new(rect: Rect, hovering: bool) -> Self {
-		let mut tween =
-			ToggleTween::new(0.0f32, 1.0f32, Self::FADE_DURATION).with_easing(Easing::EaseOut);
+		let mut tween = ToggleTween::new(0.0f32, 1.0f32, Self::FADE_DURATION).with_easing(Easing::EaseOut);
 		tween.set_active(hovering);
 		Self { rect, tween }
 	}
@@ -114,8 +108,7 @@ impl SeparatorHoverAnimation {
 	/// This is useful for creating fade-out animations that should start
 	/// from a fully hovered state (intensity 1.0).
 	pub fn new_at_intensity(rect: Rect, intensity: f32, hovering: bool) -> Self {
-		let tween = ToggleTween::new_at(0.0f32, 1.0f32, Self::FADE_DURATION, intensity, hovering)
-			.with_easing(Easing::EaseOut);
+		let tween = ToggleTween::new_at(0.0f32, 1.0f32, Self::FADE_DURATION, intensity, hovering).with_easing(Easing::EaseOut);
 		Self { rect, tween }
 	}
 

@@ -48,19 +48,8 @@ fn test_set_focus_normalizes_invalid_buffer() {
 	);
 
 	// Then check focused_view()
-	assert_eq!(
-		editor.focused_view(),
-		buffer1,
-		"focused_view() should return buffer1"
-	);
-	assert!(
-		editor
-			.state
-			.core
-			.buffers
-			.get_buffer(editor.focused_view())
-			.is_some()
-	);
+	assert_eq!(editor.focused_view(), buffer1, "focused_view() should return buffer1");
+	assert!(editor.state.core.buffers.get_buffer(editor.focused_view()).is_some());
 }
 
 #[test]

@@ -40,11 +40,7 @@ pub struct ParseError {
 
 impl std::fmt::Display for ParseError {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(
-			f,
-			"Parse error at position {}: {}",
-			self.position, self.message
-		)
+		write!(f, "Parse error at position {}: {}", self.position, self.message)
 	}
 }
 
@@ -189,10 +185,7 @@ pub fn parse(s: &str) -> Result<Node, ParseError> {
 	let node = parse_node(&mut parser)?;
 
 	if !parser.is_end() {
-		return Err(parser.error(format!(
-			"expect end of input, found: {}",
-			parser.peek().unwrap()
-		)));
+		return Err(parser.error(format!("expect end of input, found: {}", parser.peek().unwrap())));
 	}
 
 	Ok(node)
@@ -234,12 +227,7 @@ fn try_parse_modifier(parser: &mut Parser) -> Result<Option<Modifier>, ParseErro
 
 /// Parses a key value, which may be a function key, named key, character group, or ASCII char.
 fn parse_key(parser: &mut Parser) -> Result<Key, ParseError> {
-	match parser.alt(&[
-		try_parse_fn_key,
-		try_parse_named_key,
-		try_parse_group,
-		try_parse_char,
-	])? {
+	match parser.alt(&[try_parse_fn_key, try_parse_named_key, try_parse_group, try_parse_char])? {
 		Some(key) => Ok(key),
 		None => Err(parser.error("expected a valid key".to_string())),
 	}

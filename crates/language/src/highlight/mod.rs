@@ -48,10 +48,7 @@ impl HighlightStyles {
 	/// Resolves a highlight index to a style.
 	#[inline]
 	pub fn style_for_highlight(&self, highlight: Highlight) -> Style {
-		self.styles
-			.get(highlight.idx())
-			.copied()
-			.unwrap_or_default()
+		self.styles.get(highlight.idx()).copied().unwrap_or_default()
 	}
 }
 
@@ -78,20 +75,11 @@ impl<'a> Highlighter<'a> {
 	/// Translates a window-local byte offset to a document-global offset,
 	/// preserving the `u32::MAX` sentinel.
 	fn doc_offset(base: u32, local: u32) -> u32 {
-		if local == u32::MAX {
-			u32::MAX
-		} else {
-			base.saturating_add(local)
-		}
+		if local == u32::MAX { u32::MAX } else { base.saturating_add(local) }
 	}
 
 	/// Creates a new highlighter for the given syntax tree and range.
-	pub fn new(
-		syntax: &'a tree_house::Syntax,
-		source: RopeSlice<'a>,
-		loader: &'a LanguageLoader,
-		range: impl RangeBounds<u32>,
-	) -> Self {
+	pub fn new(syntax: &'a tree_house::Syntax, source: RopeSlice<'a>, loader: &'a LanguageLoader, range: impl RangeBounds<u32>) -> Self {
 		let start = match range.start_bound() {
 			Bound::Included(&n) => n,
 			Bound::Excluded(&n) => n + 1,
@@ -142,12 +130,7 @@ impl<'a> Highlighter<'a> {
 		let end_local_cap = end_doc.saturating_sub(base);
 		end_local = end_local.min(end_local_cap);
 
-		let inner = tree_house::highlighter::Highlighter::new(
-			syntax,
-			source,
-			loader,
-			start_local..end_local,
-		);
+		let inner = tree_house::highlighter::Highlighter::new(syntax, source, loader, start_local..end_local);
 
 		Self {
 			current_start: Self::doc_offset(base, inner.next_event_offset()),

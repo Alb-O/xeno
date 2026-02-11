@@ -52,15 +52,8 @@ impl<'a> EditExecutor<'a> {
 	/// 1. Prepares the edit via `UndoManager` (captures view snapshots)
 	/// 2. Applies the transaction
 	/// 3. Finalizes via `UndoManager` (pushes `EditorUndoGroup` if needed)
-	pub fn apply_transaction(
-		&mut self,
-		buffer_id: ViewId,
-		tx: &Transaction,
-		new_selection: Option<Selection>,
-		policy: ApplyEditPolicy,
-	) -> bool {
-		self.editor
-			.apply_edit(buffer_id, tx, new_selection, policy.undo, policy.origin)
+	pub fn apply_transaction(&mut self, buffer_id: ViewId, tx: &Transaction, new_selection: Option<Selection>, policy: ApplyEditPolicy) -> bool {
+		self.editor.apply_edit(buffer_id, tx, new_selection, policy.undo, policy.origin)
 	}
 
 	/// Executes a data-oriented edit operation.

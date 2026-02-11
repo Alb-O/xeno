@@ -72,9 +72,7 @@ impl<S: LspService> Service<AnyRequest> for CatchUnwind<S> {
 	fn call(&mut self, req: AnyRequest) -> Self::Future {
 		let method = req.method.clone();
 		// SAFETY: See module-level documentation on unwind safety implications.
-		match catch_unwind(AssertUnwindSafe(|| self.service.call(req)))
-			.map_err(|err| (self.handler)(&method, err))
-		{
+		match catch_unwind(AssertUnwindSafe(|| self.service.call(req))).map_err(|err| (self.handler)(&method, err)) {
 			Ok(fut) => ResponseFuture {
 				inner: ResponseFutureInner::Future {
 					fut,
@@ -120,11 +118,7 @@ where
 
 	fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
 		match self.project().inner.project() {
-			ResponseFutureProj::Future {
-				fut,
-				method,
-				handler,
-			} => {
+			ResponseFutureProj::Future { fut, method, handler } => {
 				// SAFETY: See module-level documentation on unwind safety implications.
 				match catch_unwind(AssertUnwindSafe(|| fut.poll(cx))) {
 					Ok(poll) => poll,

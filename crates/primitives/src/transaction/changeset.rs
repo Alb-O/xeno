@@ -67,9 +67,7 @@ impl ChangeSet {
 	/// An identity transformation only contains Retain operations and does
 	/// not change the document content or length.
 	pub fn is_identity(&self) -> bool {
-		self.changes
-			.iter()
-			.all(|op| matches!(op, Operation::Retain(_)))
+		self.changes.iter().all(|op| matches!(op, Operation::Retain(_)))
 	}
 
 	/// Returns a slice of all operations in this changeset.

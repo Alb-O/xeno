@@ -68,13 +68,7 @@ pub struct SegmentGlyphIter<'a> {
 }
 
 impl<'a> SegmentGlyphIter<'a> {
-	pub fn new(
-		rope: &'a Rope,
-		line: &'a LineSlice,
-		segment: &'a WrappedSegment,
-		tab_width: usize,
-		text_width: usize,
-	) -> Self {
+	pub fn new(rope: &'a Rope, line: &'a LineSlice, segment: &'a WrappedSegment, tab_width: usize, text_width: usize) -> Self {
 		let content_slice = line.content_slice(rope);
 		let mut chars = content_slice.chars();
 		let mut byte_off: u32 = 0;
@@ -145,9 +139,7 @@ impl<'a> Iterator for SegmentGlyphIter<'a> {
 		let char_len_utf8 = ch.len_utf8();
 
 		if ch == '\t' {
-			let mut spaces = self
-				.tab_width
-				.saturating_sub(self.current_col % self.tab_width);
+			let mut spaces = self.tab_width.saturating_sub(self.current_col % self.tab_width);
 			if spaces == 0 {
 				spaces = 1;
 			}

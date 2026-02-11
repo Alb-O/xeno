@@ -29,11 +29,7 @@ pub fn parse_config_str(input: &str) -> Result<Config> {
 	};
 
 	let mut languages = Vec::new();
-	for node in doc
-		.nodes()
-		.iter()
-		.filter(|n| n.name().value() == "language")
-	{
+	for node in doc.nodes().iter().filter(|n| n.name().value() == "language") {
 		if let Some(name) = node.get(0).and_then(|v| v.as_string()) {
 			let parsed = parse_options_with_context(node, ParseContext::Language)?;
 			warnings.extend(parsed.warnings);
@@ -79,12 +75,7 @@ pub fn parse_theme_standalone_str(input: &str) -> Result<crate::themes::LinkedTh
 
 	let keys = doc
 		.get("keys")
-		.map(|node| {
-			node.entries()
-				.iter()
-				.filter_map(|e| e.value().as_string().map(String::from))
-				.collect()
-		})
+		.map(|node| node.entries().iter().filter_map(|e| e.value().as_string().map(String::from)).collect())
 		.unwrap_or_default();
 
 	let ui = parse_ui_colors(doc.get("ui"), &ctx)?;
@@ -125,9 +116,7 @@ pub fn parse_theme_standalone_str(input: &str) -> Result<crate::themes::LinkedTh
 fn parse_theme_node(node: &KdlNode) -> Result<crate::themes::LinkedThemeDef> {
 	use crate::config::utils::{ParseContext as ColorContext, parse_palette};
 
-	let children = node
-		.children()
-		.ok_or_else(|| super::ConfigError::MissingField("theme children".into()))?;
+	let children = node.children().ok_or_else(|| super::ConfigError::MissingField("theme children".into()))?;
 
 	let mut ctx = ColorContext::default();
 
@@ -150,12 +139,7 @@ fn parse_theme_node(node: &KdlNode) -> Result<crate::themes::LinkedThemeDef> {
 
 	let keys = children
 		.get("keys")
-		.map(|node| {
-			node.entries()
-				.iter()
-				.filter_map(|e| e.value().as_string().map(String::from))
-				.collect()
-		})
+		.map(|node| node.entries().iter().filter_map(|e| e.value().as_string().map(String::from)).collect())
 		.unwrap_or_default();
 
 	let ui = parse_ui_colors(children.get("ui"), &ctx)?;
@@ -319,7 +303,4 @@ fn option_type_name(ty: crate::options::OptionType) -> &'static str {
 }
 
 // Re-export theme parsing helpers
-use crate::config::utils::{
-	parse_mode_colors, parse_popup_colors, parse_semantic_colors, parse_syntax_styles,
-	parse_ui_colors,
-};
+use crate::config::utils::{parse_mode_colors, parse_popup_colors, parse_semantic_colors, parse_syntax_styles, parse_ui_colors};

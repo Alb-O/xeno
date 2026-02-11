@@ -227,9 +227,9 @@ impl Registry {
 	///
 	/// Returns error if no configuration exists for the language or if transport start fails.
 	pub async fn get_or_start(&self, language: &str, file_path: &Path) -> Result<ClientHandle> {
-		let config = self.get_config(language).ok_or_else(|| {
-			crate::Error::Protocol(format!("No server configured for {language}"))
-		})?;
+		let config = self
+			.get_config(language)
+			.ok_or_else(|| crate::Error::Protocol(format!("No server configured for {language}")))?;
 
 		let root_path = find_root_path(file_path, &config.root_markers);
 		let key = (language.to_string(), root_path.clone());
@@ -266,20 +266,13 @@ impl Registry {
 				}
 
 				if rx.changed().await.is_err() {
-					return Err(crate::Error::Protocol(
-						"Leader dropped without result".into(),
-					));
+					return Err(crate::Error::Protocol("Leader dropped without result".into()));
 				}
 			}
 		}
 
 		// 3b. Leader work
-		let mut guard = StartGuard::new(
-			key.clone(),
-			self.inflight.clone(),
-			inflight.clone(),
-			self.transport.clone(),
-		);
+		let mut guard = StartGuard::new(key.clone(), self.inflight.clone(), inflight.clone(), self.transport.clone());
 
 		// Re-check state after lock acquisition to prevent double-start
 		if let Some(handle) = self.get_running(&key) {
@@ -292,10 +285,7 @@ impl Registry {
 			let generation = state.next_gen(&key);
 			(slot_id, generation)
 		};
-		let instance_id = LanguageServerId {
-			slot: slot_id,
-			generation,
-		};
+		let instance_id = LanguageServerId { slot: slot_id, generation };
 
 		info!(language = %language, command = %config.command, root = ?root_path, %instance_id, "Starting language server");
 
@@ -315,12 +305,7 @@ impl Registry {
 					if let Some(existing) = state.servers.get(&key) {
 						(existing.handle.clone(), Some(started.id))
 					} else {
-						let handle = ClientHandle::new(
-							started.id,
-							config.command.clone(),
-							root_path.clone(),
-							self.transport.clone(),
-						);
+						let handle = ClientHandle::new(started.id, config.command.clone(), root_path.clone(), self.transport.clone());
 
 						state.server_meta.insert(
 							started.id,
@@ -330,9 +315,7 @@ impl Registry {
 								settings: config.config.clone(),
 							},
 						);
-						state
-							.id_index
-							.insert(started.id, (language.to_string(), root_path.clone()));
+						state.id_index.insert(started.id, (language.to_string(), root_path.clone()));
 						state.servers.insert(
 							key.clone(),
 							ServerInstance {
@@ -346,12 +329,7 @@ impl Registry {
 						let init_config = config.config.clone();
 
 						tokio::spawn(async move {
-							match tokio::time::timeout(
-								Duration::from_secs(30),
-								init_handle.initialize(enable_snippets, init_config),
-							)
-							.await
-							{
+							match tokio::time::timeout(Duration::from_secs(30), init_handle.initialize(enable_snippets, init_config)).await {
 								Ok(Ok(_)) => {}
 								Ok(Err(e)) => {
 									warn!(error = %e, "LSP initialize failed");
@@ -429,11 +407,7 @@ impl Registry {
 
 	/// Check if any server is ready (initialized and accepting requests).
 	pub fn any_server_ready(&self) -> bool {
-		self.state
-			.read()
-			.servers
-			.values()
-			.any(|instance| instance.handle.is_ready())
+		self.state.read().servers.values().any(|instance| instance.handle.is_ready())
 	}
 
 	/// Returns true if the given instance ID is currently active in the registry.
@@ -460,12 +434,7 @@ struct StartGuard {
 }
 
 impl StartGuard {
-	fn new(
-		key: (String, PathBuf),
-		inflight_map: InFlightMap,
-		inflight: Arc<InFlightStart>,
-		transport: Arc<dyn LspTransport>,
-	) -> Self {
+	fn new(key: (String, PathBuf), inflight_map: InFlightMap, inflight: Arc<InFlightStart>, transport: Arc<dyn LspTransport>) -> Self {
 		Self {
 			key,
 			inflight_map,
@@ -524,9 +493,7 @@ impl Drop for StartGuard {
 			}
 
 			// Publish a deterministic error so waiters don't hang.
-			let _ = tx.send(Some(Arc::new(Err(crate::Error::Protocol(
-				"LSP start aborted (leader cancelled)".into(),
-			)))));
+			let _ = tx.send(Some(Arc::new(Err(crate::Error::Protocol("LSP start aborted (leader cancelled)".into())))));
 		});
 	}
 }

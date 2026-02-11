@@ -102,11 +102,7 @@ where
 
 	/// Implement `Self::insert_before` using standard backend capabilities.
 	#[cfg(not(feature = "scrolling-regions"))]
-	fn insert_before_no_scrolling_regions(
-		&mut self,
-		height: u16,
-		draw_fn: impl FnOnce(&mut Buffer),
-	) -> Result<(), B::Error> {
+	fn insert_before_no_scrolling_regions(&mut self, height: u16, draw_fn: impl FnOnce(&mut Buffer)) -> Result<(), B::Error> {
 		// The approach of this function is to first render all of the lines to insert into a
 		// temporary buffer, and then to loop drawing chunks from the buffer to the screen. drawing
 		// this buffer onto the screen.
@@ -160,11 +156,7 @@ where
 		// Clamped to non-negative in case viewport didn't start at screen bottom.
 		let scroll_up = 0.max(drawn_height + buffer_height + viewport_height - screen_height);
 		self.scroll_up(scroll_up as u16)?;
-		self.draw_lines(
-			(drawn_height - scroll_up) as u16,
-			buffer_height as u16,
-			buffer,
-		)?;
+		self.draw_lines((drawn_height - scroll_up) as u16, buffer_height as u16, buffer)?;
 		drawn_height += buffer_height - scroll_up;
 
 		self.set_viewport_area(Rect {
@@ -192,11 +184,7 @@ where
 	/// either scrolling the viewport down, or scrolling the area above it up. The lines to insert
 	/// are then drawn into the gap created.
 	#[cfg(feature = "scrolling-regions")]
-	fn insert_before_scrolling_regions(
-		&mut self,
-		mut height: u16,
-		draw_fn: impl FnOnce(&mut Buffer),
-	) -> Result<(), B::Error> {
+	fn insert_before_scrolling_regions(&mut self, mut height: u16, draw_fn: impl FnOnce(&mut Buffer)) -> Result<(), B::Error> {
 		// The approach of this function is to first render all of the lines to insert into a
 		// temporary buffer, and then to loop drawing chunks from the buffer to the screen. drawing
 		// this buffer onto the screen.
@@ -239,8 +227,7 @@ where
 			let screen_bottom = self.last_known_area.bottom();
 			if viewport_bottom < screen_bottom {
 				let to_draw = height.min(screen_bottom - viewport_bottom);
-				self.backend
-					.scroll_region_down(viewport_top..viewport_bottom + to_draw, to_draw)?;
+				self.backend.scroll_region_down(viewport_top..viewport_bottom + to_draw, to_draw)?;
 				buffer = self.draw_lines_over_cleared(viewport_top, to_draw, buffer)?;
 				self.set_viewport_area(Rect {
 					y: viewport_top + to_draw,
@@ -263,19 +250,11 @@ where
 
 	/// Draw lines at the given vertical offset. The slice of cells must contain enough cells
 	/// for the requested lines. A slice of the unused cells are returned.
-	fn draw_lines<'a>(
-		&mut self,
-		y_offset: u16,
-		lines_to_draw: u16,
-		cells: &'a [Cell],
-	) -> Result<&'a [Cell], B::Error> {
+	fn draw_lines<'a>(&mut self, y_offset: u16, lines_to_draw: u16, cells: &'a [Cell]) -> Result<&'a [Cell], B::Error> {
 		let width: usize = self.last_known_area.width.into();
 		let (to_draw, remainder) = cells.split_at(width * lines_to_draw as usize);
 		if lines_to_draw > 0 {
-			let iter = to_draw
-				.iter()
-				.enumerate()
-				.map(|(i, c)| ((i % width) as u16, y_offset + (i / width) as u16, c));
+			let iter = to_draw.iter().enumerate().map(|(i, c)| ((i % width) as u16, y_offset + (i / width) as u16, c));
 			self.backend.draw(iter)?;
 			self.backend.flush()?;
 		}
@@ -286,12 +265,7 @@ where
 	/// screen are cleared. The slice of cells must contain enough cells for the requested lines. A
 	/// slice of the unused cells are returned.
 	#[cfg(feature = "scrolling-regions")]
-	fn draw_lines_over_cleared<'a>(
-		&mut self,
-		y_offset: u16,
-		lines_to_draw: u16,
-		cells: &'a [Cell],
-	) -> Result<&'a [Cell], B::Error> {
+	fn draw_lines_over_cleared<'a>(&mut self, y_offset: u16, lines_to_draw: u16, cells: &'a [Cell]) -> Result<&'a [Cell], B::Error> {
 		let width: usize = self.last_known_area.width.into();
 		let (to_draw, remainder) = cells.split_at(width * lines_to_draw as usize);
 		if lines_to_draw > 0 {
@@ -303,8 +277,7 @@ where
 			};
 			let mut updates = Vec::new();
 			old.diff_into(&new, &mut updates);
-			self.backend
-				.draw(updates.iter().map(|u| (u.x, u.y, &new.content[u.idx])))?;
+			self.backend.draw(updates.iter().map(|u| (u.x, u.y, &new.content[u.idx])))?;
 			self.backend.flush()?;
 		}
 		Ok(remainder)
@@ -314,10 +287,7 @@ where
 	#[cfg(not(feature = "scrolling-regions"))]
 	fn scroll_up(&mut self, lines_to_scroll: u16) -> Result<(), B::Error> {
 		if lines_to_scroll > 0 {
-			self.set_cursor_position(Position::new(
-				0,
-				self.last_known_area.height.saturating_sub(1),
-			))?;
+			self.set_cursor_position(Position::new(0, self.last_known_area.height.saturating_sub(1)))?;
 			self.backend.append_lines(lines_to_scroll)?;
 		}
 		Ok(())

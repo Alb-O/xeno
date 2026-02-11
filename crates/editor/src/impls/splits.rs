@@ -5,9 +5,7 @@
 use std::path::PathBuf;
 
 use xeno_registry::HookEventData;
-use xeno_registry::hooks::{
-	HookContext, SplitDirection, ViewId, emit_sync_with as emit_hook_sync_with,
-};
+use xeno_registry::hooks::{HookContext, SplitDirection, ViewId, emit_sync_with as emit_hook_sync_with};
 
 use super::Editor;
 use crate::layout::SplitError;
@@ -38,10 +36,7 @@ impl Editor {
 		let doc_area = self.doc_area();
 		let base_layout = &self.state.windows.base_window().layout;
 
-		let (_layer, _view_area) =
-			self.state
-				.layout
-				.can_split_horizontal(base_layout, current_view, doc_area)?;
+		let (_layer, _view_area) = self.state.layout.can_split_horizontal(base_layout, current_view, doc_area)?;
 
 		let new_id = self.allocate_split_buffer();
 
@@ -76,10 +71,7 @@ impl Editor {
 		let doc_area = self.doc_area();
 		let base_layout = &self.state.windows.base_window().layout;
 
-		let (_layer, _view_area) =
-			self.state
-				.layout
-				.can_split_vertical(base_layout, current_view, doc_area)?;
+		let (_layer, _view_area) = self.state.layout.can_split_vertical(base_layout, current_view, doc_area)?;
 
 		let new_id = self.allocate_split_buffer();
 
@@ -190,8 +182,7 @@ impl Editor {
 			None => return false,
 		};
 
-		let current_focus_still_valid =
-			layout.contains_view(base_layout, focused_view) && focused_view != view;
+		let current_focus_still_valid = layout.contains_view(base_layout, focused_view) && focused_view != view;
 		if was_focused || !current_focus_still_valid {
 			self.focus_buffer(new_focus);
 		}
@@ -223,10 +214,7 @@ impl Editor {
 			}
 		}
 
-		emit_hook_sync_with(
-			&HookContext::new(HookEventData::SplitClosed { view_id: view }),
-			&mut self.state.hook_runtime,
-		);
+		emit_hook_sync_with(&HookContext::new(HookEventData::SplitClosed { view_id: view }), &mut self.state.hook_runtime);
 
 		self.finalize_buffer_removal(view);
 		self.repair_invariants();

@@ -181,12 +181,7 @@ impl Rect {
 	pub const fn new(x: u16, y: u16, width: u16, height: u16) -> Self {
 		let width = x.saturating_add(width) - x;
 		let height = y.saturating_add(height) - y;
-		Self {
-			x,
-			y,
-			width,
-			height,
-		}
+		Self { x, y, width, height }
 	}
 
 	/// The area of the `Rect`.
@@ -259,20 +254,9 @@ impl Rect {
 	pub const fn outer(self, margin: Margin) -> Self {
 		let x = self.x.saturating_sub(margin.horizontal);
 		let y = self.y.saturating_sub(margin.vertical);
-		let width = self
-			.right()
-			.saturating_add(margin.horizontal)
-			.saturating_sub(x);
-		let height = self
-			.bottom()
-			.saturating_add(margin.vertical)
-			.saturating_sub(y);
-		Self {
-			x,
-			y,
-			width,
-			height,
-		}
+		let width = self.right().saturating_add(margin.horizontal).saturating_sub(x);
+		let height = self.bottom().saturating_add(margin.vertical).saturating_sub(y);
+		Self { x, y, width, height }
 	}
 
 	/// Moves the `Rect` without modifying its size.
@@ -336,10 +320,7 @@ impl Rect {
 
 	/// Returns true if the two `Rect`s intersect.
 	pub const fn intersects(self, other: Self) -> bool {
-		self.x < other.right()
-			&& self.right() > other.x
-			&& self.y < other.bottom()
-			&& self.bottom() > other.y
+		self.x < other.right() && self.right() > other.x && self.y < other.bottom() && self.bottom() > other.y
 	}
 
 	/// Returns true if the given position is inside the `Rect`.
@@ -355,10 +336,7 @@ impl Rect {
 	/// assert!(rect.contains(Position { x: 1, y: 2 }));
 	/// ````
 	pub const fn contains(self, position: Position) -> bool {
-		position.x >= self.x
-			&& position.x < self.right()
-			&& position.y >= self.y
-			&& position.y < self.bottom()
+		position.x >= self.x && position.x < self.right() && position.y >= self.y && position.y < self.bottom()
 	}
 
 	/// Clamp this `Rect` to fit inside the other `Rect`.
@@ -485,10 +463,7 @@ impl Rect {
 	/// let position = rect.as_position();
 	/// ````
 	pub const fn as_position(self) -> Position {
-		Position {
-			x: self.x,
-			y: self.y,
-		}
+		Position { x: self.x, y: self.y }
 	}
 
 	/// Converts the `Rect` into a size struct.
@@ -557,22 +532,15 @@ impl Rect {
 	/// assert_eq!(centered, Rect::new(20, 7, 40, 10));
 	/// ```
 	#[must_use]
-	pub fn centered(
-		self,
-		horizontal_constraint: Constraint,
-		vertical_constraint: Constraint,
-	) -> Self {
-		self.centered_horizontally(horizontal_constraint)
-			.centered_vertically(vertical_constraint)
+	pub fn centered(self, horizontal_constraint: Constraint, vertical_constraint: Constraint) -> Self {
+		self.centered_horizontally(horizontal_constraint).centered_vertically(vertical_constraint)
 	}
 
 	/// Resolves a constraint to a concrete size given the available space.
 	fn resolve_constraint(constraint: Constraint, available: u16) -> u16 {
 		match constraint {
 			Constraint::Length(len) => len.min(available),
-			Constraint::Percentage(pct) => {
-				((available as u32 * pct as u32) / 100).min(available as u32) as u16
-			}
+			Constraint::Percentage(pct) => ((available as u32 * pct as u32) / 100).min(available as u32) as u16,
 			Constraint::Min(min) => available.max(min),
 		}
 	}
@@ -607,12 +575,10 @@ impl Rect {
 	#[must_use]
 	pub fn layout<const N: usize>(self, layout: &Layout) -> [Self; N] {
 		let areas = layout.split(self);
-		areas.as_ref().try_into().unwrap_or_else(|_| {
-			panic!(
-				"invalid number of rects: expected {N}, found {}",
-				areas.len()
-			)
-		})
+		areas
+			.as_ref()
+			.try_into()
+			.unwrap_or_else(|_| panic!("invalid number of rects: expected {N}, found {}", areas.len()))
 	}
 
 	/// Split the rect into a number of sub-rects according to the given [`Layout`].
@@ -662,10 +628,7 @@ impl Rect {
 	/// assert_eq!(areas, [Rect::new(0, 0, 10, 1), Rect::new(0, 1, 10, 9),]);
 	/// # Ok::<(), core::array::TryFromSliceError>(())
 	/// ``````
-	pub fn try_layout<const N: usize>(
-		self,
-		layout: &Layout,
-	) -> Result<[Self; N], TryFromSliceError> {
+	pub fn try_layout<const N: usize>(self, layout: &Layout) -> Result<[Self; N], TryFromSliceError> {
 		layout.split(self).as_ref().try_into()
 	}
 

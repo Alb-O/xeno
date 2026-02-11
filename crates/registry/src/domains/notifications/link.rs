@@ -29,10 +29,7 @@ pub fn link_notifications(spec: &NotificationsSpec) -> Vec<LinkedNotificationDef
 
 		defs.push(LinkedDef {
 			meta: crate::defs::link::linked_meta_from_spec(&meta.common),
-			payload: NotificationPayload {
-				level,
-				auto_dismiss,
-			},
+			payload: NotificationPayload { level, auto_dismiss },
 		});
 	}
 

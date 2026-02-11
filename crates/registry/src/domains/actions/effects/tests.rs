@@ -6,14 +6,8 @@ fn test_effects_composition() {
 	let effects = ActionEffects::selection(sel.clone()).with(AppEffect::SetMode(Mode::Insert));
 
 	assert_eq!(effects.len(), 2);
-	assert!(matches!(
-		effects.as_slice()[0],
-		Effect::View(ViewEffect::SetSelection(_))
-	));
-	assert!(matches!(
-		effects.as_slice()[1],
-		Effect::App(AppEffect::SetMode(Mode::Insert))
-	));
+	assert!(matches!(effects.as_slice()[0], Effect::View(ViewEffect::SetSelection(_))));
+	assert!(matches!(effects.as_slice()[1], Effect::App(AppEffect::SetMode(Mode::Insert))));
 }
 
 #[test]
@@ -37,10 +31,7 @@ fn test_nested_view_effect() {
 #[test]
 fn test_nested_edit_effect() {
 	let effect: Effect = EditEffect::Paste { before: true }.into();
-	assert!(matches!(
-		effect,
-		Effect::Edit(EditEffect::Paste { before: true })
-	));
+	assert!(matches!(effect, Effect::Edit(EditEffect::Paste { before: true })));
 }
 
 #[test]
@@ -52,10 +43,7 @@ fn test_nested_ui_effect() {
 #[test]
 fn test_nested_app_effect() {
 	let effect: Effect = AppEffect::Quit { force: true }.into();
-	assert!(matches!(
-		effect,
-		Effect::App(AppEffect::Quit { force: true })
-	));
+	assert!(matches!(effect, Effect::App(AppEffect::Quit { force: true })));
 }
 
 #[test]
@@ -64,10 +52,7 @@ fn test_from_implementations() {
 	assert!(matches!(effect, Effect::View(ViewEffect::SetSelection(_))));
 
 	let effect: Effect = Mode::Insert.into();
-	assert!(matches!(
-		effect,
-		Effect::App(AppEffect::SetMode(Mode::Insert))
-	));
+	assert!(matches!(effect, Effect::App(AppEffect::SetMode(Mode::Insert))));
 
 	let notification: Notification = crate::notifications::keys::UNDO.into();
 	let effect: Effect = notification.into();

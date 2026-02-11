@@ -23,13 +23,7 @@ impl Editor {
 			if buffer.mode() != xeno_primitives::Mode::Insert {
 				return;
 			}
-			let Some((client, uri, position)) = self
-				.state
-				.lsp
-				.prepare_position_request(buffer)
-				.ok()
-				.flatten()
-			else {
+			let Some((client, uri, position)) = self.state.lsp.prepare_position_request(buffer).ok().flatten() else {
 				return;
 			};
 

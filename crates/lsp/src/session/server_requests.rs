@@ -28,11 +28,7 @@ use crate::types::{AnyRequest, ErrorCode, ResponseError};
 /// # Errors
 ///
 /// Returns [`ErrorCode::METHOD_NOT_FOUND`] for unsupported methods.
-pub async fn handle_server_request(
-	sync: &DocumentSync,
-	server: LanguageServerId,
-	req: AnyRequest,
-) -> Result<JsonValue, ResponseError> {
+pub async fn handle_server_request(sync: &DocumentSync, server: LanguageServerId, req: AnyRequest) -> Result<JsonValue, ResponseError> {
 	tracing::trace!(
 		server_id = %server,
 		method = %req.method,
@@ -73,22 +69,10 @@ pub async fn handle_server_request(
 /// Returns configuration array aligned with requested items. Supports section-based
 /// slicing where items specify a `section` field (e.g., `"rust-analyzer"`).
 /// Empty object returned when section or settings not found for compatibility.
-async fn handle_workspace_configuration(
-	sync: &DocumentSync,
-	server: LanguageServerId,
-	params: JsonValue,
-) -> Result<JsonValue, ResponseError> {
-	let settings = sync
-		.registry()
-		.get_server_meta(server)
-		.and_then(|m| m.settings)
-		.unwrap_or_else(|| json!({}));
+async fn handle_workspace_configuration(sync: &DocumentSync, server: LanguageServerId, params: JsonValue) -> Result<JsonValue, ResponseError> {
+	let settings = sync.registry().get_server_meta(server).and_then(|m| m.settings).unwrap_or_else(|| json!({}));
 
-	let items = params
-		.get("items")
-		.and_then(|v| v.as_array())
-		.cloned()
-		.unwrap_or_default();
+	let items = params.get("items").and_then(|v| v.as_array()).cloned().unwrap_or_default();
 
 	let result: Vec<JsonValue> = items
 		.iter()
@@ -113,10 +97,7 @@ async fn handle_workspace_configuration(
 ///
 /// Returns workspace folder array with percent-encoded `file://` URI.
 /// Empty array returned if server metadata unavailable or URI conversion fails.
-async fn handle_workspace_folders(
-	sync: &DocumentSync,
-	server: LanguageServerId,
-) -> Result<JsonValue, ResponseError> {
+async fn handle_workspace_folders(sync: &DocumentSync, server: LanguageServerId) -> Result<JsonValue, ResponseError> {
 	let Some(meta) = sync.registry().get_server_meta(server) else {
 		return Ok(json!([]));
 	};
@@ -126,11 +107,7 @@ async fn handle_workspace_folders(
 		Err(_) => return Ok(json!([])),
 	};
 
-	let name = meta
-		.root_path
-		.file_name()
-		.and_then(|n: &std::ffi::OsStr| n.to_str())
-		.unwrap_or("workspace");
+	let name = meta.root_path.file_name().and_then(|n: &std::ffi::OsStr| n.to_str()).unwrap_or("workspace");
 
 	Ok(json!([{
 		"uri": uri_str,

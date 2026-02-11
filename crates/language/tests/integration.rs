@@ -16,9 +16,7 @@ use xeno_runtime_language::syntax::Syntax;
 
 fn create_test_loader() -> (LanguageLoader, tree_house::Language) {
 	let loader = LanguageLoader::from_embedded();
-	let rust_lang = loader
-		.language_for_name("rust")
-		.expect("rust should be in embedded registry");
+	let rust_lang = loader.language_for_name("rust").expect("rust should be in embedded registry");
 	(loader, rust_lang)
 }
 
@@ -26,22 +24,14 @@ fn create_test_loader() -> (LanguageLoader, tree_house::Language) {
 fn test_language_registration() {
 	let (loader, _) = create_test_loader();
 
-	assert!(
-		loader.language_for_name("rust").is_some(),
-		"Should find rust language by name"
-	);
+	assert!(loader.language_for_name("rust").is_some(), "Should find rust language by name");
 
 	assert!(
-		loader
-			.language_for_path(std::path::Path::new("test.rs"))
-			.is_some(),
+		loader.language_for_path(std::path::Path::new("test.rs")).is_some(),
 		"Should find rust language by .rs extension"
 	);
 
-	assert!(
-		loader.language_for_name("unknown").is_none(),
-		"Should not find unknown language"
-	);
+	assert!(loader.language_for_name("unknown").is_none(), "Should not find unknown language");
 }
 
 #[test]
@@ -124,12 +114,7 @@ fn test_syntax_creation_without_grammar() {
 	let lang = rust_lang;
 
 	// Try to create syntax - may fail without grammar
-	let syntax = Syntax::new(
-		source.slice(..),
-		lang,
-		&loader,
-		xeno_runtime_language::SyntaxOptions::default(),
-	);
+	let syntax = Syntax::new(source.slice(..), lang, &loader, xeno_runtime_language::SyntaxOptions::default());
 
 	if let Ok(syntax) = syntax {
 		println!("Syntax created successfully!");
@@ -138,10 +123,7 @@ fn test_syntax_creation_without_grammar() {
 		let tree = syntax.tree();
 		println!("Parse tree root: {:?}", tree.root_node().kind());
 	} else {
-		println!(
-			"Syntax creation failed (expected without grammar): {:?}",
-			syntax.err()
-		);
+		println!("Syntax creation failed (expected without grammar): {:?}", syntax.err());
 	}
 }
 
@@ -152,11 +134,7 @@ fn test_grammar_loading_debug() {
 	for path in grammar_search_paths() {
 		println!("  {:?} (exists: {})", path, path.exists());
 		let grammar_path = path.join("rust.so");
-		println!(
-			"    rust.so: {:?} (exists: {})",
-			grammar_path,
-			grammar_path.exists()
-		);
+		println!("    rust.so: {:?} (exists: {})", grammar_path, grammar_path.exists());
 	}
 
 	// Try to load the grammar directly
@@ -176,12 +154,7 @@ fn test_full_highlighting_pipeline() {
 
 	let source = Rope::from_str("fn main() {\n    let x = 42;\n}");
 
-	let syntax = match Syntax::new(
-		source.slice(..),
-		rust_lang,
-		&loader,
-		xeno_runtime_language::SyntaxOptions::default(),
-	) {
+	let syntax = match Syntax::new(source.slice(..), rust_lang, &loader, xeno_runtime_language::SyntaxOptions::default()) {
 		Ok(s) => s,
 		Err(e) => {
 			println!("Skipping highlight test - no grammar available: {:?}", e);
@@ -227,13 +200,7 @@ fn test_full_highlighting_pipeline() {
 	for span in &spans {
 		let text = source.slice(span.start as usize..span.end as usize);
 		let style = styles.style_for_highlight(span.highlight);
-		println!(
-			"  [{}-{}] {:?} -> {:?}",
-			span.start,
-			span.end,
-			text.to_string(),
-			style.fg
-		);
+		println!("  [{}-{}] {:?} -> {:?}", span.start, span.end, text.to_string(), style.fg);
 	}
 
 	// We should have at least some highlights if grammar loaded
@@ -266,18 +233,10 @@ fn test_incremental_syntax_update() {
 
 	let mut source = Rope::from_str("fn main() {}");
 
-	let mut syntax = match Syntax::new(
-		source.slice(..),
-		rust_lang,
-		&loader,
-		xeno_runtime_language::SyntaxOptions::default(),
-	) {
+	let mut syntax = match Syntax::new(source.slice(..), rust_lang, &loader, xeno_runtime_language::SyntaxOptions::default()) {
 		Ok(s) => s,
 		Err(e) => {
-			println!(
-				"Skipping incremental update test - no grammar available: {:?}",
-				e
-			);
+			println!("Skipping incremental update test - no grammar available: {:?}", e);
 			return;
 		}
 	};
@@ -304,10 +263,7 @@ fn test_incremental_syntax_update() {
 
 	let root = syntax.tree().root_node();
 	assert_eq!(root.kind(), "source_file");
-	assert!(
-		root.child_count() >= initial_child_count,
-		"Tree should reflect the insertion"
-	);
+	assert!(root.child_count() >= initial_child_count, "Tree should reflect the insertion");
 
 	let after_insert = source.to_string();
 	assert_eq!(after_insert, "fn main() { let x = 42;}");
@@ -366,18 +322,10 @@ fn main() {}
 "#,
 	);
 
-	let syntax = match Syntax::new(
-		source.slice(..),
-		rust_lang,
-		&loader,
-		xeno_runtime_language::SyntaxOptions::default(),
-	) {
+	let syntax = match Syntax::new(source.slice(..), rust_lang, &loader, xeno_runtime_language::SyntaxOptions::default()) {
 		Ok(s) => s,
 		Err(e) => {
-			println!(
-				"Skipping rustdoc injection test - no grammar available: {:?}",
-				e
-			);
+			println!("Skipping rustdoc injection test - no grammar available: {:?}", e);
 			return;
 		}
 	};
@@ -387,10 +335,7 @@ fn main() {}
 
 	// Check what layers exist
 	println!("\n--- Layers ---");
-	for (layer_count, layer) in syntax
-		.layers_for_byte_range(0, source.len_bytes() as u32)
-		.enumerate()
-	{
+	for (layer_count, layer) in syntax.layers_for_byte_range(0, source.len_bytes() as u32).enumerate() {
 		let layer_data = syntax.layer(layer);
 		let lang = loader.get(layer_data.language);
 		println!(
@@ -419,18 +364,9 @@ fn main() {}
 
 	// Check if we have markdown.inline language loaded
 	println!("\n--- Language Checks ---");
-	println!(
-		"markdown-rustdoc: {:?}",
-		loader.language_for_name("markdown-rustdoc").is_some()
-	);
-	println!(
-		"markdown.inline: {:?}",
-		loader.language_for_name("markdown.inline").is_some()
-	);
-	println!(
-		"markdown: {:?}",
-		loader.language_for_name("markdown").is_some()
-	);
+	println!("markdown-rustdoc: {:?}", loader.language_for_name("markdown-rustdoc").is_some());
+	println!("markdown.inline: {:?}", loader.language_for_name("markdown.inline").is_some());
+	println!("markdown: {:?}", loader.language_for_name("markdown").is_some());
 
 	// Look for the link text [`main`]
 	// It should be somewhere around byte position 100-110
@@ -448,18 +384,11 @@ fn main() {}
 	for layer in syntax.layers_for_byte_range(link_start as u32, link_end as u32) {
 		let layer_data = syntax.layer(layer);
 		let lang = loader.get(layer_data.language);
-		println!(
-			"  Layer: language={:?} (id={})",
-			lang.as_ref().map(|l| l.name()),
-			layer_data.language.idx()
-		);
+		println!("  Layer: language={:?} (id={})", lang.as_ref().map(|l| l.name()), layer_data.language.idx());
 	}
 
 	// Check highlights at the link position
-	let link_spans: Vec<_> = spans
-		.iter()
-		.filter(|s| s.start <= link_start as u32 && s.end > link_start as u32)
-		.collect();
+	let link_spans: Vec<_> = spans.iter().filter(|s| s.start <= link_start as u32 && s.end > link_start as u32).collect();
 	println!("\n--- Spans covering link start ---");
 	for span in link_spans {
 		let text = source.byte_slice(span.start as usize..span.end as usize);
@@ -477,11 +406,7 @@ fn main() {}
 	if let Some(md_inline_lang) = loader.language_for_name("markdown.inline") {
 		let md_inline_data = loader.get(md_inline_lang).unwrap();
 		let has_config = md_inline_data.syntax_config().is_some();
-		println!(
-			"markdown.inline (lang_id={}) has syntax_config: {}",
-			md_inline_lang.idx(),
-			has_config
-		);
+		println!("markdown.inline (lang_id={}) has syntax_config: {}", md_inline_lang.idx(), has_config);
 		if has_config {
 			println!("  grammar_name: {:?}", md_inline_data.grammar_name());
 		}
@@ -490,11 +415,7 @@ fn main() {}
 	if let Some(md_rustdoc_lang) = loader.language_for_name("markdown-rustdoc") {
 		let md_rustdoc_data = loader.get(md_rustdoc_lang).unwrap();
 		let has_config = md_rustdoc_data.syntax_config().is_some();
-		println!(
-			"markdown-rustdoc (lang_id={}) has syntax_config: {}",
-			md_rustdoc_lang.idx(),
-			has_config
-		);
+		println!("markdown-rustdoc (lang_id={}) has syntax_config: {}", md_rustdoc_lang.idx(), has_config);
 		if has_config {
 			println!("  grammar_name: {:?}", md_rustdoc_data.grammar_name());
 		}
@@ -508,17 +429,8 @@ fn main() {}
 			return;
 		}
 		let indent = "  ".repeat(depth);
-		if node.kind().contains("comment")
-			|| node.kind() == "source_file"
-			|| node.kind() == "function_item"
-		{
-			println!(
-				"{}{} [{}-{}]",
-				indent,
-				node.kind(),
-				node.start_byte(),
-				node.end_byte()
-			);
+		if node.kind().contains("comment") || node.kind() == "source_file" || node.kind() == "function_item" {
+			println!("{}{} [{}-{}]", indent, node.kind(), node.start_byte(), node.end_byte());
 			for i in 0..node.child_count() {
 				if let Some(child) = node.child(i) {
 					print_rust_tree(child, depth + 1, max_depth);
@@ -573,12 +485,7 @@ fn main() {}
 		if has_tree {
 			let tree = layer_data.tree().unwrap();
 			let root = tree.root_node();
-			println!(
-				"    Tree root: {} [{}-{}]",
-				root.kind(),
-				root.start_byte(),
-				root.end_byte()
-			);
+			println!("    Tree root: {} [{}-{}]", root.kind(), root.start_byte(), root.end_byte());
 
 			// Print the tree structure for markdown.inline
 			if lang_name == "markdown.inline" {
@@ -616,18 +523,10 @@ fn test_highlight_span_positions_doc_comment() {
 
 	let source = Rope::from_str("//! Hello world\nfn main() {}");
 
-	let syntax = match Syntax::new(
-		source.slice(..),
-		rust_lang,
-		&loader,
-		xeno_runtime_language::SyntaxOptions::default(),
-	) {
+	let syntax = match Syntax::new(source.slice(..), rust_lang, &loader, xeno_runtime_language::SyntaxOptions::default()) {
 		Ok(s) => s,
 		Err(e) => {
-			println!(
-				"Skipping highlight span test - no grammar available: {:?}",
-				e
-			);
+			println!("Skipping highlight span test - no grammar available: {:?}", e);
 			return;
 		}
 	};
@@ -652,38 +551,21 @@ fn test_highlight_span_positions_doc_comment() {
 	// The `//!` should be at byte 0, and the comment should start there
 	let comment_spans: Vec<_> = spans
 		.iter()
-		.filter(|s| {
-			s.start == 0
-				|| source
-					.byte_slice(s.start as usize..s.end as usize)
-					.to_string()
-					.starts_with("//")
-		})
+		.filter(|s| s.start == 0 || source.byte_slice(s.start as usize..s.end as usize).to_string().starts_with("//"))
 		.collect();
 
 	println!("\nComment-related spans:");
 	for span in &comment_spans {
 		let text = source.byte_slice(span.start as usize..span.end as usize);
-		println!(
-			"  bytes [{:2}-{:2}] text={:?}",
-			span.start,
-			span.end,
-			text.to_string()
-		);
+		println!("  bytes [{:2}-{:2}] text={:?}", span.start, span.end, text.to_string());
 	}
 
 	// The first span should start at byte 0 and include "//!"
 	// This is the key assertion - if highlights are offset, this will fail
 	let first_span = spans.first().expect("Should have at least one span");
-	assert_eq!(
-		first_span.start, 0,
-		"First highlight span should start at byte 0, not {}",
-		first_span.start
-	);
+	assert_eq!(first_span.start, 0, "First highlight span should start at byte 0, not {}", first_span.start);
 
-	let first_text = source
-		.byte_slice(first_span.start as usize..first_span.end as usize)
-		.to_string();
+	let first_text = source.byte_slice(first_span.start as usize..first_span.end as usize).to_string();
 	assert!(
 		first_text.starts_with("//"),
 		"First span should contain the comment prefix '//', got: {:?}",

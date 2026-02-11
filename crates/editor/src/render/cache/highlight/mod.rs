@@ -138,10 +138,7 @@ impl HighlightTiles {
 
 	/// Creates a new highlight tiles cache with a specific capacity.
 	pub fn with_capacity(max_tiles: usize) -> Self {
-		assert!(
-			max_tiles > 0,
-			"HighlightTiles capacity must be greater than 0"
-		);
+		assert!(max_tiles > 0, "HighlightTiles capacity must be greater than 0");
 		Self {
 			tiles: Vec::with_capacity(max_tiles),
 			mru_order: VecDeque::with_capacity(max_tiles),
@@ -209,9 +206,7 @@ impl HighlightTiles {
 
 			let tile_index = self.get_or_build_tile_index(&q, tile_idx, key);
 			let spans: &[(HighlightSpan, Style)] = if let Some(projection) = q.projection {
-				let projected_idx = self.get_or_build_projected_tile_index(
-					q.doc_id, tile_idx, key, projection, q.rope, tile_index,
-				);
+				let projected_idx = self.get_or_build_projected_tile_index(q.doc_id, tile_idx, key, projection, q.rope, tile_index);
 				&self.projected_tiles[projected_idx].spans
 			} else {
 				&self.tiles[tile_index].spans
@@ -238,12 +233,7 @@ impl HighlightTiles {
 		all_spans
 	}
 
-	fn get_or_build_tile_index<F>(
-		&mut self,
-		q: &HighlightSpanQuery<'_, F>,
-		tile_idx: usize,
-		key: HighlightKey,
-	) -> usize
+	fn get_or_build_tile_index<F>(&mut self, q: &HighlightSpanQuery<'_, F>, tile_idx: usize, key: HighlightKey) -> usize
 	where
 		F: Fn(&str) -> Style,
 	{
@@ -254,14 +244,7 @@ impl HighlightTiles {
 		let tile_start_line = tile_idx * TILE_SIZE;
 		let tile_end_line = ((tile_idx + 1) * TILE_SIZE).min(q.rope.len_lines());
 
-		let spans = builder::build_tile_spans(
-			q.rope,
-			q.syntax,
-			q.language_loader,
-			&q.style_resolver,
-			tile_start_line,
-			tile_end_line,
-		);
+		let spans = builder::build_tile_spans(q.rope, q.syntax, q.language_loader, &q.style_resolver, tile_start_line, tile_end_line);
 
 		let tile = HighlightTile { key, spans };
 		self.insert_tile(q.doc_id, tile_idx, tile)
@@ -285,21 +268,12 @@ impl HighlightTiles {
 			return tile_index;
 		}
 
-		let spans = builder::project_spans_to_target(
-			&self.tiles[source_tile_index].spans,
-			projection,
-			target_rope,
-		);
+		let spans = builder::project_spans_to_target(&self.tiles[source_tile_index].spans, projection, target_rope);
 		let tile = ProjectedHighlightTile { key, spans };
 		self.insert_projected_tile(doc_id, tile_idx, projection.target_doc_version, tile)
 	}
 
-	fn get_cached_tile_index(
-		&mut self,
-		doc_id: DocumentId,
-		tile_idx: usize,
-		key: &HighlightKey,
-	) -> Option<usize> {
+	fn get_cached_tile_index(&mut self, doc_id: DocumentId, tile_idx: usize, key: &HighlightKey) -> Option<usize> {
 		let &tile_index = self.index.get(&doc_id)?.get(&tile_idx)?;
 
 		let is_valid = {
@@ -315,15 +289,8 @@ impl HighlightTiles {
 		Some(tile_index)
 	}
 
-	fn get_cached_projected_tile_index(
-		&mut self,
-		doc_id: DocumentId,
-		tile_idx: usize,
-		key: &ProjectedHighlightKey,
-	) -> Option<usize> {
-		let &tile_index = self
-			.projected_index
-			.get(&(doc_id, tile_idx, key.target_doc_version))?;
+	fn get_cached_projected_tile_index(&mut self, doc_id: DocumentId, tile_idx: usize, key: &ProjectedHighlightKey) -> Option<usize> {
+		let &tile_index = self.projected_index.get(&(doc_id, tile_idx, key.target_doc_version))?;
 
 		let is_valid = {
 			let tile = self.projected_tiles.get(tile_index)?;
@@ -339,12 +306,7 @@ impl HighlightTiles {
 	}
 
 	#[cfg(test)]
-	fn get_cached_tile(
-		&mut self,
-		doc_id: DocumentId,
-		tile_idx: usize,
-		key: &HighlightKey,
-	) -> Option<&HighlightTile> {
+	fn get_cached_tile(&mut self, doc_id: DocumentId, tile_idx: usize, key: &HighlightKey) -> Option<&HighlightTile> {
 		let idx = self.get_cached_tile_index(doc_id, tile_idx, key)?;
 		self.tiles.get(idx)
 	}
@@ -376,22 +338,13 @@ impl HighlightTiles {
 			lru_idx
 		};
 
-		self.index
-			.entry(doc_id)
-			.or_default()
-			.insert(tile_idx, tile_index);
+		self.index.entry(doc_id).or_default().insert(tile_idx, tile_index);
 
 		self.mru_order.push_front(tile_index);
 		tile_index
 	}
 
-	fn insert_projected_tile(
-		&mut self,
-		doc_id: DocumentId,
-		tile_idx: usize,
-		target_doc_version: u64,
-		tile: ProjectedHighlightTile,
-	) -> usize {
+	fn insert_projected_tile(&mut self, doc_id: DocumentId, tile_idx: usize, target_doc_version: u64, tile: ProjectedHighlightTile) -> usize {
 		let key = (doc_id, tile_idx, target_doc_version);
 		if let Some(&old_index) = self.projected_index.get(&key)
 			&& let Some(existing) = self.projected_tiles.get_mut(old_index)
@@ -406,10 +359,7 @@ impl HighlightTiles {
 			self.projected_tiles.push(tile);
 			idx
 		} else {
-			let lru_idx = self
-				.projected_mru_order
-				.pop_back()
-				.expect("projected MRU order not empty");
+			let lru_idx = self.projected_mru_order.pop_back().expect("projected MRU order not empty");
 
 			self.projected_index.retain(|_, idx| *idx != lru_idx);
 			self.projected_tiles[lru_idx] = tile;
@@ -429,11 +379,7 @@ impl HighlightTiles {
 	}
 
 	fn touch_projected(&mut self, tile_index: usize) {
-		if let Some(pos) = self
-			.projected_mru_order
-			.iter()
-			.position(|&idx| idx == tile_index)
-		{
+		if let Some(pos) = self.projected_mru_order.iter().position(|&idx| idx == tile_index) {
 			self.projected_mru_order.remove(pos);
 		}
 		self.projected_mru_order.push_front(tile_index);
