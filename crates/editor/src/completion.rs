@@ -181,14 +181,14 @@ impl CompletionState {
 	}
 }
 
-/// Shared frizbee matcher baseline for editor completion paths.
-pub(crate) fn frizbee_config() -> &'static frizbee::Config {
-	static CONFIG: OnceLock<frizbee::Config> = OnceLock::new();
-	CONFIG.get_or_init(|| frizbee::Config {
+/// Shared xeno-matcher baseline for editor completion paths.
+pub(crate) fn frizbee_config() -> &'static xeno_matcher::Config {
+	static CONFIG: OnceLock<xeno_matcher::Config> = OnceLock::new();
+	CONFIG.get_or_init(|| xeno_matcher::Config {
 		prefilter: true,
 		max_typos: Some(0),
 		sort: true,
-		scoring: frizbee::Scoring {
+		scoring: xeno_matcher::Scoring {
 			delimiters: "_:./<>".to_string(),
 			..Default::default()
 		},
@@ -204,14 +204,14 @@ fn max_typos_for_query(query: &str) -> u16 {
 	}
 }
 
-/// Builds a query-aware frizbee config for completion matching.
-pub(crate) fn frizbee_config_for_query(query: &str) -> frizbee::Config {
+/// Builds a query-aware xeno-matcher config for completion matching.
+pub(crate) fn frizbee_config_for_query(query: &str) -> xeno_matcher::Config {
 	let mut config = frizbee_config().clone();
 	config.max_typos = Some(max_typos_for_query(query));
 	config
 }
 
-/// Matches a query against a haystack using frizbee.
+/// Matches a query against a haystack using xeno-matcher.
 ///
 /// Returns score/exact/match-indices when matched. Empty query always matches.
 pub(crate) fn frizbee_match(query: &str, haystack: &str) -> Option<(u16, bool, Vec<usize>)> {
@@ -219,7 +219,7 @@ pub(crate) fn frizbee_match(query: &str, haystack: &str) -> Option<(u16, bool, V
 		return Some((0, false, Vec::new()));
 	}
 	let config = frizbee_config_for_query(query);
-	frizbee::match_indices(query, haystack, &config).map(|m| (m.score, m.exact, m.indices))
+	xeno_matcher::match_indices(query, haystack, &config).map(|m| (m.score, m.exact, m.indices))
 }
 
 /// In-memory command usage store for command palette ranking.
