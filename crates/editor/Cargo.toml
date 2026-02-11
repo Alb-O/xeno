@@ -7,12 +7,12 @@ license.workspace = true
 
 [features]
 default = []
-lsp = ["dep:xeno-lsp", "dep:frizbee", "dep:thiserror", "dep:tokio-util"]
+lsp = ["dep:xeno-lsp", "dep:thiserror", "dep:tokio-util"]
 [dependencies]
 anyhow.workspace = true
 clap.workspace = true
 dirs.workspace = true
-frizbee = { workspace = true, optional = true }
+frizbee.workspace = true
 inventory.workspace = true
 parking_lot.workspace = true
 paste.workspace = true

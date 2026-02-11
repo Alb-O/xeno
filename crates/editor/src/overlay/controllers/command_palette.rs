@@ -197,53 +197,6 @@ impl CommandPaletteOverlay {
 		}
 	}
 
-	fn fuzzy_match_score(hay: &str, query: &str) -> Option<(i32, Vec<usize>)> {
-		if query.is_empty() {
-			return Some((0, Vec::new()));
-		}
-
-		let q_len = query.chars().count();
-		let mut indices = Vec::new();
-		let mut q_iter = query.chars().map(|c| c.to_ascii_lowercase());
-		let mut current = q_iter.next()?;
-
-		for (idx, ch) in hay.chars().enumerate() {
-			if ch.to_ascii_lowercase() == current {
-				indices.push(idx);
-				if let Some(next) = q_iter.next() {
-					current = next;
-				} else {
-					break;
-				}
-			}
-		}
-
-		if indices.len() != q_len {
-			return None;
-		}
-
-		let mut score = 0i32;
-		for (i, idx) in indices.iter().enumerate() {
-			score += 10;
-			if i > 0 && *idx == indices[i - 1] + 1 {
-				score += 15;
-			}
-			if *idx == 0 {
-				score += 20;
-			}
-		}
-
-		if hay.to_ascii_lowercase().starts_with(&query.to_ascii_lowercase()) {
-			score += 250;
-		}
-		if hay.eq_ignore_ascii_case(query) {
-			score += 500;
-		}
-
-		score -= (hay.chars().count() as i32) / 2;
-		Some((score, indices))
-	}
-
 	fn build_command_items(query: &str, usage: &crate::completion::CommandUsageSnapshot) -> Vec<CompletionItem> {
 		let query = query.trim();
 		let mut scored: Vec<(i32, CompletionItem)> = COMMANDS
@@ -255,21 +208,21 @@ impl CommandPaletteOverlay {
 				let mut best_score = i32::MIN;
 				let mut match_indices: Option<Vec<usize>> = None;
 
-				if let Some((score, indices)) = Self::fuzzy_match_score(name, query) {
-					best_score = score + 220;
+				if let Some((score, _, indices)) = crate::completion::frizbee_match(query, name) {
+					best_score = score as i32 + 220;
 					if !indices.is_empty() {
 						match_indices = Some(indices);
 					}
 				}
 
 				for alias in cmd.keys_resolved() {
-					if let Some((score, _)) = Self::fuzzy_match_score(alias, query) {
-						best_score = best_score.max(score + 80);
+					if let Some((score, _, _)) = crate::completion::frizbee_match(query, alias) {
+						best_score = best_score.max(score as i32 + 80);
 					}
 				}
 
-				if let Some((score, _)) = Self::fuzzy_match_score(description, query) {
-					best_score = best_score.max(score - 120);
+				if let Some((score, _, _)) = crate::completion::frizbee_match(query, description) {
+					best_score = best_score.max(score as i32 - 120);
 				}
 
 				if query.is_empty() {
@@ -335,16 +288,16 @@ impl CommandPaletteOverlay {
 				let mut best_score = i32::MIN;
 				let mut match_indices: Option<Vec<usize>> = None;
 
-				if let Some((score, indices)) = Self::fuzzy_match_score(name, query) {
-					best_score = score + 200;
+				if let Some((score, _, indices)) = crate::completion::frizbee_match(query, name) {
+					best_score = score as i32 + 200;
 					if !indices.is_empty() {
 						match_indices = Some(indices);
 					}
 				}
 
 				for alias in theme.keys_resolved() {
-					if let Some((score, _)) = Self::fuzzy_match_score(alias, query) {
-						best_score = best_score.max(score + 70);
+					if let Some((score, _, _)) = crate::completion::frizbee_match(query, alias) {
+						best_score = best_score.max(score as i32 + 70);
 					}
 				}
 
@@ -444,14 +397,14 @@ impl CommandPaletteOverlay {
 				continue;
 			}
 
-			let Some((score, indices)) = Self::fuzzy_match_score(&label, query) else {
+			let Some((score, _, indices)) = crate::completion::frizbee_match(query, &label) else {
 				continue;
 			};
 
 			let insert_text = if is_dir { format!("{label}/") } else { label.clone() };
 
 			scored.push((
-				score + if is_dir { 40 } else { 0 },
+				score as i32 + if is_dir { 40 } else { 0 },
 				CompletionItem {
 					label: insert_text.clone(),
 					insert_text,

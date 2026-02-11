@@ -5,6 +5,7 @@
 //! This cleanly separates "where to replace" from "what to replace with".
 
 use std::collections::{HashMap, VecDeque};
+use std::sync::OnceLock;
 
 use xeno_registry::commands::COMMANDS;
 
@@ -174,6 +175,30 @@ impl CompletionState {
 	}
 }
 
+/// Shared frizbee matcher configuration for editor completion paths.
+pub(crate) fn frizbee_config() -> &'static frizbee::Config {
+	static CONFIG: OnceLock<frizbee::Config> = OnceLock::new();
+	CONFIG.get_or_init(|| frizbee::Config {
+		prefilter: true,
+		max_typos: Some(0),
+		sort: true,
+		scoring: frizbee::Scoring {
+			delimiters: "_:./<>".to_string(),
+			..Default::default()
+		},
+	})
+}
+
+/// Matches a query against a haystack using frizbee.
+///
+/// Returns score/exact/match-indices when matched. Empty query always matches.
+pub(crate) fn frizbee_match(query: &str, haystack: &str) -> Option<(u16, bool, Vec<usize>)> {
+	if query.is_empty() {
+		return Some((0, false, Vec::new()));
+	}
+	frizbee::match_indices(query, haystack, frizbee_config()).map(|m| (m.score, m.exact, m.indices))
+}
+
 /// In-memory command usage store for command palette ranking.
 #[derive(Clone, Default)]
 pub struct CommandPaletteUsage {
@@ -237,20 +262,49 @@ impl CompletionSource for CommandSource {
 			return CompletionResult::empty();
 		}
 
-		let items: Vec<_> = COMMANDS
+		let mut scored: Vec<(i32, CompletionItem)> = COMMANDS
 			.snapshot_guard()
 			.iter_refs()
-			.filter(|cmd| cmd.name_str().starts_with(input) || cmd.keys_resolved().iter().any(|a| a.starts_with(input)))
-			.map(|cmd| CompletionItem {
-				label: cmd.name_str().to_string(),
-				insert_text: cmd.name_str().to_string(),
-				detail: Some(cmd.description_str().to_string()),
-				filter_text: None,
-				kind: CompletionKind::Command,
-				match_indices: None,
-				right: None,
+			.filter_map(|cmd| {
+				let name = cmd.name_str();
+				let mut best = i32::MIN;
+				let mut match_indices = None;
+
+				if let Some((score, _, indices)) = frizbee_match(input, name) {
+					best = score as i32 + 200;
+					if !indices.is_empty() {
+						match_indices = Some(indices);
+					}
+				}
+				for alias in cmd.keys_resolved() {
+					if let Some((score, _, _)) = frizbee_match(input, alias) {
+						best = best.max(score as i32 + 80);
+					}
+				}
+				if input.is_empty() {
+					best = 0;
+				}
+				if !input.is_empty() && best == i32::MIN {
+					return None;
+				}
+
+				Some((
+					best,
+					CompletionItem {
+						label: name.to_string(),
+						insert_text: name.to_string(),
+						detail: Some(cmd.description_str().to_string()),
+						filter_text: None,
+						kind: CompletionKind::Command,
+						match_indices,
+						right: None,
+					},
+				))
 			})
 			.collect();
+
+		scored.sort_by(|(score_a, item_a), (score_b, item_b)| score_b.cmp(score_a).then_with(|| item_a.label.cmp(&item_b.label)));
+		let items = scored.into_iter().map(|(_, item)| item).collect();
 
 		// Command completions replace from position 0 (entire input)
 		CompletionResult::new(0, items)

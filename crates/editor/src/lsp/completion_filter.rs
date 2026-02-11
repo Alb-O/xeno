@@ -42,14 +42,14 @@ pub fn filter_items(raw_items: &[LspCompletionItem], query: &str) -> Vec<Filtere
 		.map(|item| item.filter_text.as_deref().unwrap_or(item.label.as_str()))
 		.collect();
 
-	let config = filter_config();
-	let matches = frizbee::match_list(query, &filter_texts, &config);
+	let config = crate::completion::frizbee_config();
+	let matches = frizbee::match_list(query, &filter_texts, config);
 
 	matches
 		.into_iter()
 		.map(|m| {
 			let idx = m.index as usize;
-			let match_indices = frizbee::match_indices(query, &raw_items[idx].label, &config).map(|mi| mi.indices);
+			let match_indices = frizbee::match_indices(query, &raw_items[idx].label, config).map(|mi| mi.indices);
 			FilteredItem {
 				index: idx,
 				score: m.score,
@@ -70,22 +70,6 @@ pub fn extract_query(rope: &Rope, replace_start: usize, cursor: usize) -> String
 	let start = replace_start.min(rope.len_chars());
 	let end = cursor.min(rope.len_chars());
 	rope.slice(start..end).to_string()
-}
-
-/// Returns the frizbee configuration for completion filtering.
-///
-/// Uses strict matching (no typos) with delimiter bonuses for common
-/// code separators like `_`, `.`, `:`, `/`, `<`, `>`.
-fn filter_config() -> frizbee::Config {
-	frizbee::Config {
-		prefilter: true,
-		max_typos: Some(0),
-		sort: true,
-		scoring: frizbee::Scoring {
-			delimiters: "_:./<>".to_string(),
-			..Default::default()
-		},
-	}
 }
 
 #[cfg(test)]
