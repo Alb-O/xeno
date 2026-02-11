@@ -1,5 +1,5 @@
-mod session;
 mod render;
+mod session;
 mod syntax;
 
 pub use render::{RenderedSnippet, render};

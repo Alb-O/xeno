@@ -3,8 +3,8 @@ use std::ops::Range as StdRange;
 
 use termina::event::{KeyCode, KeyEvent};
 use xeno_primitives::range::CharIdx;
-use xeno_primitives::transaction::Change;
 use xeno_primitives::transaction::Bias;
+use xeno_primitives::transaction::Change;
 use xeno_primitives::{EditOrigin, Mode, Range, Selection, Transaction, UndoPolicy};
 
 use super::{RenderedSnippet, parse_snippet_template, render as render_snippet};
@@ -86,9 +86,7 @@ impl SnippetSession {
 	}
 
 	fn active_ranges(&self) -> Vec<StdRange<CharIdx>> {
-		self.active_tabstop()
-			.and_then(|idx| self.tabstops.get(&idx).cloned())
-			.unwrap_or_default()
+		self.active_tabstop().and_then(|idx| self.tabstops.get(&idx).cloned()).unwrap_or_default()
 	}
 
 	fn advance(&mut self, direction: isize) -> AdvanceResult {
@@ -245,13 +243,7 @@ impl Editor {
 			)
 		});
 
-		if !self.apply_edit(
-			buffer_id,
-			&tx,
-			None,
-			UndoPolicy::Record,
-			EditOrigin::Internal("snippet"),
-		) {
+		if !self.apply_edit(buffer_id, &tx, None, UndoPolicy::Record, EditOrigin::Internal("snippet")) {
 			return false;
 		}
 
@@ -304,16 +296,8 @@ impl Editor {
 			let mut changes: Vec<Change> = active_ranges
 				.iter()
 				.map(|range| Change {
-					start: if active_mode == ActiveMode::Insert {
-						range.end
-					} else {
-						range.start
-					},
-					end: if active_mode == ActiveMode::Insert {
-						range.end
-					} else {
-						range.end
-					},
+					start: if active_mode == ActiveMode::Insert { range.end } else { range.start },
+					end: if active_mode == ActiveMode::Insert { range.end } else { range.end },
 					replacement: Some(text.to_string().into()),
 				})
 				.collect();
@@ -321,10 +305,7 @@ impl Editor {
 			Transaction::change(doc.content().slice(..), changes)
 		});
 
-		let mapped_points: Vec<CharIdx> = points
-			.into_iter()
-			.map(|point| tx.changes().map_pos(point, Bias::Right))
-			.collect();
+		let mapped_points: Vec<CharIdx> = points.into_iter().map(|point| tx.changes().map_pos(point, Bias::Right)).collect();
 		let Some(new_selection) = selection_from_points(mapped_points) else {
 			return false;
 		};
@@ -418,10 +399,7 @@ impl Editor {
 			Transaction::change(doc.content().slice(..), sorted)
 		});
 
-		let mapped_points: Vec<CharIdx> = points
-			.into_iter()
-			.map(|point| tx.changes().map_pos(point, Bias::Left))
-			.collect();
+		let mapped_points: Vec<CharIdx> = points.into_iter().map(|point| tx.changes().map_pos(point, Bias::Left)).collect();
 		let Some(new_selection) = selection_from_points(mapped_points) else {
 			return true;
 		};
@@ -486,13 +464,7 @@ impl Editor {
 			return false;
 		};
 
-		let selection = Selection::new(
-			to_selection_range(primary),
-			ranges
-				.into_iter()
-				.skip(1)
-				.map(to_selection_range),
-		);
+		let selection = Selection::new(to_selection_range(primary), ranges.into_iter().skip(1).map(to_selection_range));
 
 		let Some(buffer) = self.state.core.buffers.get_buffer_mut(buffer_id) else {
 			self.cancel_snippet_session();
@@ -514,10 +486,7 @@ fn tabstop_order(tabstops: &BTreeMap<u32, Vec<StdRange<CharIdx>>>) -> Vec<u32> {
 }
 
 fn active_mode_for_tabstop(tabstops: &BTreeMap<u32, Vec<StdRange<CharIdx>>>, index: u32) -> ActiveMode {
-	if tabstops
-		.get(&index)
-		.is_some_and(|ranges| ranges.iter().any(|range| range.start < range.end))
-	{
+	if tabstops.get(&index).is_some_and(|ranges| ranges.iter().any(|range| range.start < range.end)) {
 		ActiveMode::Replace
 	} else {
 		ActiveMode::Insert
@@ -576,10 +545,7 @@ fn selection_from_points(points: Vec<CharIdx>) -> Option<Selection> {
 	points.sort_unstable();
 	points.dedup();
 	let primary = points.first().copied()?;
-	Some(Selection::new(
-		Range::point(primary),
-		points.into_iter().skip(1).map(Range::point),
-	))
+	Some(Selection::new(Range::point(primary), points.into_iter().skip(1).map(Range::point)))
 }
 
 #[cfg(test)]
@@ -643,11 +609,13 @@ mod tests {
 		assert!(editor.insert_snippet_body("a ${1:x} b ${2:y} c $0"));
 		assert_eq!(buffer_text(&editor), "a x b y c ");
 		assert_eq!(primary_text(&editor), "x");
-		assert!(editor
-			.overlays()
-			.get::<SnippetSessionState>()
-			.and_then(|state| state.session.as_ref())
-			.is_some());
+		assert!(
+			editor
+				.overlays()
+				.get::<SnippetSessionState>()
+				.and_then(|state| state.session.as_ref())
+				.is_some()
+		);
 	}
 
 	#[tokio::test]
@@ -674,11 +642,13 @@ mod tests {
 		assert_eq!(primary_text(&editor), "");
 
 		assert!(editor.handle_snippet_session_key(&key_tab()));
-		assert!(editor
-			.overlays()
-			.get::<SnippetSessionState>()
-			.and_then(|state| state.session.as_ref())
-			.is_none());
+		assert!(
+			editor
+				.overlays()
+				.get::<SnippetSessionState>()
+				.and_then(|state| state.session.as_ref())
+				.is_none()
+		);
 	}
 
 	#[cfg(feature = "lsp")]
@@ -719,11 +689,13 @@ mod tests {
 			assert_eq!(primary_text(&editor), "");
 
 			assert!(editor.handle_snippet_session_key(&key_tab()));
-			assert!(editor
-				.overlays()
-				.get::<SnippetSessionState>()
-				.and_then(|state| state.session.as_ref())
-				.is_none());
+			assert!(
+				editor
+					.overlays()
+					.get::<SnippetSessionState>()
+					.and_then(|state| state.session.as_ref())
+					.is_none()
+			);
 			assert!(!editor.handle_snippet_session_key(&key_tab()));
 		}
 

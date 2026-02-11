@@ -171,9 +171,9 @@ mod tests {
 	use termina::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, Modifiers};
 	use xeno_lsp::lsp_types::CompletionItem as LspCompletionItem;
 
-	use super::lsp_completion_raw_index;
 	use super::LspMenuKind;
 	use super::LspMenuState;
+	use super::lsp_completion_raw_index;
 	use crate::completion::CompletionState;
 	use crate::impls::Editor;
 
@@ -238,10 +238,7 @@ mod tests {
 		completion_state.replace_start = 0;
 
 		let menu_state = editor.overlays_mut().get_or_default::<LspMenuState>();
-		menu_state.set(LspMenuKind::Completion {
-			buffer_id,
-			items: raw_items,
-		});
+		menu_state.set(LspMenuKind::Completion { buffer_id, items: raw_items });
 
 		let consumed = editor.handle_lsp_menu_key(&key_tab()).await;
 		assert!(consumed);
