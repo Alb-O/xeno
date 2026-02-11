@@ -27,13 +27,20 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame) {
 	let status_area = chunks[1];
 
 	let mut ui = std::mem::take(&mut ed.state.ui);
-	let overlay_height = ed
-		.state
-		.overlay_system
-		.interaction
-		.active
-		.as_ref()
-		.map(|active| if active.session.panes.len() <= 1 { 1 } else { 10 });
+	let overlay_height = ed.state.overlay_system.interaction.active.as_ref().map(|active| {
+		if active.controller.name() == "CommandPalette" {
+			let menu_rows = ed
+				.overlays()
+				.get::<crate::completion::CompletionState>()
+				.filter(|state| state.active)
+				.map_or(0u16, |state| state.visible_range().len() as u16);
+			(1 + menu_rows).clamp(1, 10)
+		} else if active.session.panes.len() <= 1 {
+			1
+		} else {
+			10
+		}
+	});
 	ui.sync_utility_for_modal_overlay(overlay_height);
 	let whichkey_height = crate::ui::panels::utility::UtilityPanel::whichkey_desired_height(ed);
 	ui.sync_utility_for_whichkey(whichkey_height);

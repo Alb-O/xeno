@@ -60,7 +60,8 @@ impl Editor {
 		let completions = self.overlays().get::<CompletionState>().cloned().unwrap_or_default();
 
 		let max_label_width = completions.items.iter().map(|it| crate::render::cell_width(&it.label)).max().unwrap_or(0);
-		let show_kind = _area.width >= 24;
+		let show_kind = completions.show_kind && _area.width >= 24;
+		let show_right = !completions.show_kind && _area.width >= 30;
 
 		let visible_range = completions.visible_range();
 		let selected_idx = completions.selected_idx;
@@ -134,6 +135,14 @@ impl Editor {
 					let kind_text = format!(" {:>4}  ", kind_name);
 					row_width += crate::render::cell_width(&kind_text);
 					spans.push(Span::styled(kind_text, dim_style));
+				} else if show_right && let Some(right) = item.right.as_ref() {
+					let right_width = crate::render::cell_width(right);
+					if row_width + 1 + right_width <= target_row_width {
+						let gap = target_row_width - row_width - right_width;
+						spans.push(Span::styled(" ".repeat(gap), base_style));
+						spans.push(Span::styled(right.clone(), dim_style));
+						row_width = target_row_width;
+					}
 				}
 				if row_width < target_row_width {
 					spans.push(Span::styled(" ".repeat(target_row_width - row_width), base_style));

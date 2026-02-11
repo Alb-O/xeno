@@ -193,6 +193,16 @@ pub trait OverlayContext {
 	fn msg_tx(&self) -> crate::msg::MsgSender;
 	/// Finalizes removal for a buffer.
 	fn finalize_buffer_removal(&mut self, view: ViewId);
+	/// Returns completion state when available.
+	fn completion_state(&self) -> Option<&crate::completion::CompletionState>;
+	/// Returns mutable completion state, creating one when absent.
+	fn completion_state_mut(&mut self) -> &mut crate::completion::CompletionState;
+	/// Clears completion state to inactive defaults.
+	fn clear_completion_state(&mut self);
+	/// Records command usage for palette ranking.
+	fn record_command_usage(&mut self, canonical: &str);
+	/// Returns a snapshot of command usage state.
+	fn command_usage_snapshot(&self) -> crate::completion::CommandUsageSnapshot;
 
 	#[cfg(feature = "lsp")]
 	fn lsp_prepare_position_request(
@@ -273,6 +283,27 @@ impl OverlayContext for crate::impls::Editor {
 
 	fn finalize_buffer_removal(&mut self, view: ViewId) {
 		self.finalize_buffer_removal(view);
+	}
+
+	fn completion_state(&self) -> Option<&crate::completion::CompletionState> {
+		self.overlays().get::<crate::completion::CompletionState>()
+	}
+
+	fn completion_state_mut(&mut self) -> &mut crate::completion::CompletionState {
+		self.overlays_mut().get_or_default::<crate::completion::CompletionState>()
+	}
+
+	fn clear_completion_state(&mut self) {
+		let state = self.overlays_mut().get_or_default::<crate::completion::CompletionState>();
+		*state = crate::completion::CompletionState::default();
+	}
+
+	fn record_command_usage(&mut self, canonical: &str) {
+		self.state.command_usage.record(canonical);
+	}
+
+	fn command_usage_snapshot(&self) -> crate::completion::CommandUsageSnapshot {
+		self.state.command_usage.snapshot()
 	}
 
 	#[cfg(feature = "lsp")]
@@ -402,7 +433,13 @@ impl OverlayManager {
 		}
 
 		let spec = controller.ui_spec(ed);
-		let desired_height = if spec.windows.is_empty() { 1 } else { 10 };
+		let desired_height = if controller.name() == "CommandPalette" {
+			1
+		} else if spec.windows.is_empty() {
+			1
+		} else {
+			10
+		};
 		ed.state.ui.sync_utility_for_modal_overlay(Some(desired_height));
 
 		if let Some(mut session) = OverlayHost::setup_session(ed, &*controller) {

@@ -171,5 +171,6 @@ pub(crate) fn map_completion_item_with_indices(item: &LspCompletionItem, match_i
 		filter_text: item.filter_text.clone(),
 		kind,
 		match_indices,
+		right: None,
 	}
 }

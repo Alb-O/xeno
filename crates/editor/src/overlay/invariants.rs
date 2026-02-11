@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 
+use termina::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, Modifiers};
 use xeno_primitives::Selection;
 use xeno_tui::layout::Rect;
 
@@ -298,4 +299,252 @@ pub(crate) fn test_modal_ui_keeps_single_base_window() {
 
 	editor.interaction_cancel();
 	assert_eq!(editor.state.windows.windows().count(), 1);
+}
+
+fn key_down() -> KeyEvent {
+	KeyEvent {
+		code: KeyCode::Down,
+		modifiers: Modifiers::NONE,
+		kind: KeyEventKind::Press,
+		state: KeyEventState::NONE,
+	}
+}
+
+fn key_tab() -> KeyEvent {
+	KeyEvent {
+		code: KeyCode::Tab,
+		modifiers: Modifiers::NONE,
+		kind: KeyEventKind::Press,
+		state: KeyEventState::NONE,
+	}
+}
+
+fn with_interaction(editor: &mut crate::impls::Editor, f: impl FnOnce(&mut crate::overlay::OverlayManager, &mut crate::impls::Editor)) {
+	let mut interaction = std::mem::take(&mut editor.state.overlay_system.interaction);
+	f(&mut interaction, editor);
+	editor.state.overlay_system.interaction = interaction;
+}
+
+fn palette_input_view(editor: &crate::impls::Editor) -> crate::ViewId {
+	editor
+		.state
+		.overlay_system
+		.interaction
+		.active
+		.as_ref()
+		.map(|active| active.session.input)
+		.expect("command palette input should exist")
+}
+
+fn palette_set_input(editor: &mut crate::impls::Editor, text: &str, cursor: usize) {
+	let input = palette_input_view(editor);
+	let buffer = editor.state.core.buffers.get_buffer_mut(input).expect("palette input buffer should exist");
+	buffer.reset_content(text);
+	buffer.set_cursor_and_selection(cursor, Selection::point(cursor));
+	with_interaction(editor, |interaction, ed| {
+		interaction.on_buffer_edited(ed, input);
+	});
+}
+
+fn palette_key(editor: &mut crate::impls::Editor, key: KeyEvent) {
+	with_interaction(editor, |interaction, ed| {
+		let _ = interaction.handle_key(ed, key);
+	});
+}
+
+fn palette_input_text(editor: &crate::impls::Editor) -> String {
+	let input = palette_input_view(editor);
+	editor
+		.state
+		.core
+		.buffers
+		.get_buffer(input)
+		.expect("palette input buffer should exist")
+		.with_doc(|doc| doc.content().to_string())
+		.trim_end_matches('\n')
+		.to_string()
+}
+
+#[cfg_attr(test, test)]
+pub(crate) fn test_palette_manual_selection_persists_within_token() {
+	let mut editor = crate::impls::Editor::new_scratch();
+	editor.handle_window_resize(120, 40);
+	assert!(editor.open_command_palette());
+
+	palette_key(&mut editor, key_down());
+	let state = editor
+		.overlays()
+		.get::<crate::completion::CompletionState>()
+		.expect("completion state should exist");
+	let selected = state
+		.selected_idx
+		.and_then(|idx| state.items.get(idx))
+		.map(|item| item.label.clone())
+		.expect("selection should exist after Down");
+
+	let query = selected
+		.chars()
+		.next()
+		.map(|ch| ch.to_ascii_lowercase().to_string())
+		.expect("selected label should be non-empty");
+	palette_set_input(&mut editor, &query, query.chars().count());
+
+	let state = editor
+		.overlays()
+		.get::<crate::completion::CompletionState>()
+		.expect("completion state should exist");
+	assert_eq!(state.selection_intent, crate::completion::SelectionIntent::Manual);
+	let selected_after = state
+		.selected_idx
+		.and_then(|idx| state.items.get(idx))
+		.map(|item| item.label.clone())
+		.expect("selection should persist");
+	assert_eq!(selected_after, selected);
+}
+
+#[cfg_attr(test, test)]
+pub(crate) fn test_palette_token_transition_resets_selection_intent() {
+	let mut editor = crate::impls::Editor::new_scratch();
+	editor.handle_window_resize(120, 40);
+	assert!(editor.open_command_palette());
+
+	palette_set_input(&mut editor, "theme", 5);
+	palette_key(&mut editor, key_down());
+
+	palette_set_input(&mut editor, "theme ", 6);
+	let state = editor
+		.overlays()
+		.get::<crate::completion::CompletionState>()
+		.expect("completion state should exist");
+	assert_eq!(state.selection_intent, crate::completion::SelectionIntent::Auto);
+	assert!(!state.items.is_empty(), "theme arg completion should have items");
+	assert!(
+		state.items.iter().all(|item| item.kind == crate::completion::CompletionKind::Theme),
+		"theme arg completion should only emit theme items"
+	);
+}
+
+#[cfg_attr(test, test)]
+pub(crate) fn test_palette_tab_preserves_path_prefix() {
+	let tmp = tempfile::tempdir().expect("temp dir");
+	let src_dir = tmp.path().join("src");
+	std::fs::create_dir_all(&src_dir).expect("create src dir");
+	std::fs::write(src_dir.join("main.rs"), "fn main() {}\n").expect("write file");
+
+	let mut editor = crate::impls::Editor::new_scratch();
+	editor.handle_window_resize(120, 40);
+	assert!(editor.open_command_palette());
+
+	let input = format!("open {}/ma", src_dir.display());
+	palette_set_input(&mut editor, &input, input.chars().count());
+	palette_key(&mut editor, key_tab());
+
+	let text = palette_input_text(&editor);
+	assert!(text.starts_with(&format!("open {}/", src_dir.display())));
+	assert!(text.contains("main.rs"));
+}
+
+#[cfg_attr(test, test)]
+pub(crate) fn test_palette_tab_after_closing_quote_preserves_quote() {
+	let tmp = tempfile::tempdir().expect("temp dir");
+	let spaced_dir = tmp.path().join("My Folder");
+	std::fs::create_dir_all(&spaced_dir).expect("create spaced dir");
+	std::fs::write(spaced_dir.join("main.rs"), "fn main() {}\n").expect("write file");
+
+	let mut editor = crate::impls::Editor::new_scratch();
+	editor.handle_window_resize(120, 40);
+	assert!(editor.open_command_palette());
+
+	let input = format!("open \"{}/ma\"", spaced_dir.display());
+	palette_set_input(&mut editor, &input, input.chars().count());
+	palette_key(&mut editor, key_tab());
+
+	let text = palette_input_text(&editor);
+	assert!(text.contains('"'));
+	assert!(text.ends_with("\" "), "tab should keep quote and leave one space after it");
+}
+
+#[cfg_attr(test, test)]
+pub(crate) fn test_palette_usage_recency_orders_empty_query() {
+	let cmd_name = xeno_registry::commands::COMMANDS
+		.snapshot_guard()
+		.iter_refs()
+		.next()
+		.map(|cmd| cmd.name_str().to_string())
+		.expect("registry should have at least one command");
+
+	let mut editor = crate::impls::Editor::new_scratch();
+	editor.handle_window_resize(120, 40);
+	assert!(editor.open_command_palette());
+
+	palette_set_input(&mut editor, &cmd_name, cmd_name.chars().count());
+	with_interaction(&mut editor, |interaction, ed| {
+		futures::executor::block_on(interaction.commit(ed));
+	});
+
+	assert!(editor.open_command_palette());
+	palette_set_input(&mut editor, "", 0);
+
+	let state = editor
+		.overlays()
+		.get::<crate::completion::CompletionState>()
+		.expect("completion state should exist");
+	let first = state
+		.items
+		.first()
+		.map(|item| item.label.as_str())
+		.expect("completion list should be non-empty");
+	assert_eq!(first, cmd_name);
+}
+
+#[cfg_attr(test, test)]
+pub(crate) fn test_palette_commit_uses_selected_command_in_command_token() {
+	let query = xeno_registry::commands::COMMANDS
+		.snapshot_guard()
+		.iter_refs()
+		.next()
+		.and_then(|cmd| cmd.name_str().chars().next())
+		.map(|ch| ch.to_ascii_lowercase().to_string())
+		.expect("registry should contain at least one command");
+
+	let mut editor = crate::impls::Editor::new_scratch();
+	editor.handle_window_resize(120, 40);
+	assert!(editor.open_command_palette());
+
+	palette_set_input(&mut editor, &query, query.chars().count());
+	let selected = editor
+		.overlays()
+		.get::<crate::completion::CompletionState>()
+		.and_then(|state| state.selected_idx.and_then(|idx| state.items.get(idx)))
+		.map(|item| item.label.clone())
+		.expect("palette should have an auto-selected command");
+
+	with_interaction(&mut editor, |interaction, ed| {
+		futures::executor::block_on(interaction.commit(ed));
+	});
+
+	let usage = editor.state.command_usage.snapshot();
+	assert!(usage.count(&selected) > 0, "selected command should be recorded as used");
+}
+
+#[cfg_attr(test, test)]
+pub(crate) fn test_palette_no_matches_hides_results_and_tab_noops() {
+	let mut editor = crate::impls::Editor::new_scratch();
+	editor.handle_window_resize(120, 40);
+	assert!(editor.open_command_palette());
+
+	let query = "zzzzzzzzzz";
+	palette_set_input(&mut editor, query, query.chars().count());
+
+	let state = editor
+		.overlays()
+		.get::<crate::completion::CompletionState>()
+		.expect("completion state should exist");
+	assert!(!state.active);
+	assert!(state.items.is_empty());
+
+	let before = palette_input_text(&editor);
+	palette_key(&mut editor, key_tab());
+	let after = palette_input_text(&editor);
+	assert_eq!(after, before, "tab should not mutate input when there are no results");
 }

@@ -171,6 +171,7 @@ fn map_code_action_item(action: &CodeActionOrCommand) -> UiCompletionItem {
 		filter_text: None,
 		kind: CompletionKind::Command,
 		match_indices: None,
+		right: None,
 	}
 }
 

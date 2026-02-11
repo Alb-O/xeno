@@ -4,6 +4,8 @@
 //! position in the input where replacement begins and the list of candidates.
 //! This cleanly separates "where to replace" from "what to replace with".
 
+use std::collections::{HashMap, VecDeque};
+
 use xeno_registry::commands::COMMANDS;
 
 /// Prompt character for ex-style commands (`:write`, `:theme`, etc.).
@@ -39,6 +41,8 @@ pub struct CompletionItem {
 	pub kind: CompletionKind,
 	/// Indices of matched characters in the label for highlighting.
 	pub match_indices: Option<Vec<usize>>,
+	/// Optional right-aligned metadata shown in compact completion lists.
+	pub right: Option<String>,
 }
 
 /// Result of a completion query.
@@ -107,7 +111,7 @@ pub enum SelectionIntent {
 }
 
 /// State for managing the completion menu.
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct CompletionState {
 	/// Available completion items.
 	pub items: Vec<CompletionItem>,
@@ -125,6 +129,24 @@ pub struct CompletionState {
 	pub suppressed: bool,
 	/// Current filter query (text from replace_start to cursor).
 	pub query: String,
+	/// Whether to render the kind column in completion rows.
+	pub show_kind: bool,
+}
+
+impl Default for CompletionState {
+	fn default() -> Self {
+		Self {
+			items: Vec::new(),
+			selected_idx: None,
+			active: false,
+			replace_start: 0,
+			scroll_offset: 0,
+			selection_intent: SelectionIntent::Auto,
+			suppressed: false,
+			query: String::new(),
+			show_kind: true,
+		}
+	}
 }
 
 impl CompletionState {
@@ -149,6 +171,52 @@ impl CompletionState {
 	pub fn visible_range(&self) -> std::ops::Range<usize> {
 		let end = (self.scroll_offset + Self::MAX_VISIBLE).min(self.items.len());
 		self.scroll_offset..end
+	}
+}
+
+/// In-memory command usage store for command palette ranking.
+#[derive(Clone, Default)]
+pub struct CommandPaletteUsage {
+	counts: HashMap<String, u32>,
+	recent: VecDeque<String>,
+}
+
+impl CommandPaletteUsage {
+	const MAX_RECENT: usize = 50;
+
+	pub fn record(&mut self, name: &str) {
+		*self.counts.entry(name.to_string()).or_insert(0) += 1;
+		if let Some(idx) = self.recent.iter().position(|item| item == name) {
+			self.recent.remove(idx);
+		}
+		self.recent.push_front(name.to_string());
+		while self.recent.len() > Self::MAX_RECENT {
+			self.recent.pop_back();
+		}
+	}
+
+	pub fn snapshot(&self) -> CommandUsageSnapshot {
+		CommandUsageSnapshot {
+			counts: self.counts.clone(),
+			recent: self.recent.iter().cloned().collect(),
+		}
+	}
+}
+
+/// Read-only command usage view for ranking.
+#[derive(Clone, Default)]
+pub struct CommandUsageSnapshot {
+	pub counts: HashMap<String, u32>,
+	pub recent: Vec<String>,
+}
+
+impl CommandUsageSnapshot {
+	pub fn count(&self, name: &str) -> u32 {
+		self.counts.get(name).copied().unwrap_or(0)
+	}
+
+	pub fn recent_rank(&self, name: &str) -> Option<usize> {
+		self.recent.iter().position(|item| item == name)
 	}
 }
 
@@ -180,6 +248,7 @@ impl CompletionSource for CommandSource {
 				filter_text: None,
 				kind: CompletionKind::Command,
 				match_indices: None,
+				right: None,
 			})
 			.collect();
 

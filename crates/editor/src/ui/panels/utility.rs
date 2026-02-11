@@ -112,6 +112,36 @@ impl Panel for UtilityPanel {
 			if _editor.state.overlay_system.interaction.is_open() {
 				let ctx = _editor.render_ctx();
 				crate::ui::layers::modal_overlays::render(_editor, frame, area, &ctx);
+
+				if let Some(active) = _editor.state.overlay_system.interaction.active.as_ref()
+					&& active.controller.name() == "CommandPalette"
+				{
+					let input_rect = active
+						.session
+						.panes
+						.iter()
+						.find(|pane| pane.role == crate::overlay::WindowRole::Input)
+						.map(|pane| pane.rect);
+
+					if let Some(input_rect) = input_rect {
+						let panel_top = area.y;
+						let menu_bottom = input_rect.y;
+						if panel_top < menu_bottom {
+							let completion_state = _editor.overlays().get::<crate::completion::CompletionState>();
+							let visible_rows = completion_state
+								.filter(|state| state.active)
+								.map_or(0u16, |state| state.visible_range().len() as u16);
+							let available_rows = menu_bottom.saturating_sub(panel_top);
+							let menu_height = visible_rows.min(available_rows);
+
+							if menu_height > 0 {
+								let menu_y = menu_bottom.saturating_sub(menu_height);
+								let menu_rect = Rect::new(input_rect.x, menu_y, input_rect.width, menu_height);
+								frame.render_widget(_editor.render_completion_menu(menu_rect), menu_rect);
+							}
+						}
+					}
+				}
 			} else if let Some((root, root_desc, children)) = Self::whichkey_data(_editor) {
 				let mut tree = KeyTree::new(root, children)
 					.key_style(Style::default().fg(theme.colors.semantic.accent).add_modifier(Modifier::BOLD))

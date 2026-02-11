@@ -211,6 +211,9 @@ pub(crate) struct EditorState {
 
 	/// Render cache for efficient viewport rendering.
 	pub(crate) render_cache: crate::render::cache::RenderCache,
+
+	/// Command usage tracking for command palette ranking.
+	pub(crate) command_usage: crate::completion::CommandPaletteUsage,
 }
 
 pub struct Editor {
@@ -339,6 +342,7 @@ impl Editor {
 				deferred_goto: None,
 				lsp_catalog_ready: false,
 				render_cache: crate::render::cache::RenderCache::new(),
+				command_usage: crate::completion::CommandPaletteUsage::default(),
 			},
 		}
 	}

@@ -43,6 +43,7 @@ impl CompletionSource for ThemeSource {
 				filter_text: None,
 				kind: CompletionKind::Theme,
 				match_indices: None,
+				right: None,
 			})
 			.collect();
 
