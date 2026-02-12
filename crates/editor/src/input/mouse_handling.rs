@@ -25,33 +25,12 @@ impl Editor {
 		let mut ui = std::mem::take(&mut self.state.ui);
 		let dock_layout = ui.compute_layout(main_area.into());
 
-		let screen_area = crate::geometry::Rect { x: 0, y: 0, width, height };
-		let status_area = crate::geometry::Rect {
-			x: 0,
-			y: main_height,
-			width,
-			height: height.saturating_sub(main_height),
-		};
-		let mut hit_builder = crate::ui::layer::SceneBuilder::new(screen_area.into(), main_area.into(), dock_layout.doc_area, status_area.into());
-
-		let mut panel_rects: Vec<_> = dock_layout.panel_areas.values().copied().collect();
-		panel_rects.sort_by_key(|r| (r.x, r.y, r.width, r.height));
-		for rect in panel_rects {
-			hit_builder.push(crate::ui::scene::SurfaceKind::Panels, 30, rect, crate::ui::scene::SurfaceOp::Panels, true);
-		}
-
-		hit_builder.push(
-			crate::ui::scene::SurfaceKind::Document,
-			10,
-			dock_layout.doc_area,
-			crate::ui::scene::SurfaceOp::Document,
-			true,
-		);
-
-		let hit_is_panel = hit_builder
-			.finish()
-			.hit_test(mouse.col(), mouse.row())
-			.is_some_and(|surface| matches!(surface.kind, crate::ui::scene::SurfaceKind::Panels));
+		let hit_is_panel = dock_layout.panel_areas.values().any(|area| {
+			mouse.col() >= area.x
+				&& mouse.col() < area.x.saturating_add(area.width)
+				&& mouse.row() >= area.y
+				&& mouse.row() < area.y.saturating_add(area.height)
+		});
 
 		let hit_active_overlay = self.state.overlay_system.interaction().active().is_some_and(|active| {
 			active.session.panes.iter().any(|pane| {
