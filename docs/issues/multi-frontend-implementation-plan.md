@@ -115,7 +115,8 @@ Completed:
 
 Current focus:
 
-- Phase 3 seam tightening: finalize backend-neutral text/style boundaries so future GUI adapters only map plan/style data to toolkit primitives
+- Phase 3 seam tightening: complete backend-neutral text/style boundaries
+- `RenderLine`/`RenderSpan` are now backend-neutral with explicit frontend adaptation at TUI render sites
 
 Next:
 
