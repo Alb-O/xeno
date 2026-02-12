@@ -1,4 +1,4 @@
-use termina::event::{KeyCode, KeyEvent};
+use termina::event::{KeyCode, KeyEvent, Modifiers};
 use xeno_primitives::range::CharIdx;
 use xeno_primitives::transaction::{Bias, Change};
 use xeno_primitives::{EditOrigin, Transaction, UndoPolicy};
@@ -47,6 +47,7 @@ impl Editor {
 	}
 
 	pub(super) fn handle_snippet_choice_overlay_key(&mut self, key: &KeyEvent) -> bool {
+		let ctrl = key.modifiers.contains(Modifiers::CONTROL);
 		let mut close_overlay = false;
 		let mut commit_choice: Option<(u32, usize, String)> = None;
 		{
@@ -55,7 +56,7 @@ impl Editor {
 				return false;
 			}
 			match key.code {
-				KeyCode::Up => {
+				KeyCode::Up | KeyCode::BackTab | KeyCode::Char('k') => {
 					if !overlay.options.is_empty() {
 						overlay.selected = if overlay.selected == 0 {
 							overlay.options.len().saturating_sub(1)
@@ -64,7 +65,21 @@ impl Editor {
 						};
 					}
 				}
-				KeyCode::Down => {
+				KeyCode::Down | KeyCode::Tab | KeyCode::Char('j') => {
+					if !overlay.options.is_empty() {
+						overlay.selected = (overlay.selected + 1) % overlay.options.len();
+					}
+				}
+				KeyCode::Char('p') if ctrl => {
+					if !overlay.options.is_empty() {
+						overlay.selected = if overlay.selected == 0 {
+							overlay.options.len().saturating_sub(1)
+						} else {
+							overlay.selected.saturating_sub(1)
+						};
+					}
+				}
+				KeyCode::Char('n') if ctrl => {
 					if !overlay.options.is_empty() {
 						overlay.selected = (overlay.selected + 1) % overlay.options.len();
 					}

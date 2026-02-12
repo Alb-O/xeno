@@ -44,6 +44,15 @@ fn key_tab() -> KeyEvent {
 	}
 }
 
+fn key_backtab() -> KeyEvent {
+	KeyEvent {
+		code: KeyCode::BackTab,
+		modifiers: Modifiers::SHIFT,
+		kind: KeyEventKind::Press,
+		state: KeyEventState::NONE,
+	}
+}
+
 fn key_char(c: char) -> KeyEvent {
 	KeyEvent {
 		code: KeyCode::Char(c),
@@ -296,6 +305,33 @@ async fn choice_overlay_open_and_commit_replaces_all_occurrences() {
 			.get::<SnippetChoiceOverlay>()
 			.is_some_and(|overlay| !overlay.active)
 	);
+}
+
+#[tokio::test]
+async fn choice_overlay_supports_navigation_aliases() {
+	let mut editor = Editor::new_scratch();
+	editor.set_mode(Mode::Insert);
+
+	assert!(editor.insert_snippet_body("${1|a,b,c|} $0"));
+	assert_eq!(buffer_text(&editor), "a ");
+	assert!(editor.handle_snippet_session_key(&key_ctrl_space()));
+
+	assert!(editor.handle_snippet_session_key(&key_ctrl('n')));
+	assert!(editor.handle_snippet_session_key(&key_ctrl('p')));
+	assert!(editor.handle_snippet_session_key(&key_char('j')));
+	assert!(editor.handle_snippet_session_key(&key_char('k')));
+	assert!(editor.handle_snippet_session_key(&key_tab()));
+	assert!(editor.handle_snippet_session_key(&key_backtab()));
+
+	{
+		let overlay = editor.overlays().get::<SnippetChoiceOverlay>().expect("overlay should be present");
+		assert!(overlay.active);
+		assert_eq!(overlay.selected, 0);
+	}
+
+	assert!(editor.handle_snippet_session_key(&key_tab()));
+	assert!(editor.handle_snippet_session_key(&key_enter()));
+	assert_eq!(buffer_text(&editor), "b ");
 }
 
 #[tokio::test]
