@@ -42,7 +42,7 @@ impl Editor {
 	/// Orchestrates a two-pass rendering process:
 	/// 1. Visibility pass: Ensures cursors are within visible viewports.
 	/// 2. Render pass: Draws buffer content and gutters using the render cache.
-	pub(crate) fn render_split_buffers(&mut self, frame: &mut xeno_tui::Frame, doc_area: Rect, use_block_cursor: bool, ctx: &RenderCtx) {
+	pub fn render_split_buffers(&mut self, frame: &mut xeno_tui::Frame, doc_area: Rect, use_block_cursor: bool, ctx: &RenderCtx) {
 		let focused_view = self.focused_view();
 		let base_layout = &self.base_window().layout;
 

@@ -629,6 +629,21 @@ impl Editor {
 	}
 
 	#[inline]
+	pub fn overlay_interaction(&self) -> &crate::overlay::OverlayManager {
+		self.state.overlay_system.interaction()
+	}
+
+	#[inline]
+	pub fn render_overlay_layers(&self, frame: &mut xeno_tui::Frame) {
+		self.state.overlay_system.layers().render(self, frame);
+	}
+
+	#[inline]
+	pub fn whichkey_desired_height(&self) -> Option<u16> {
+		crate::ui::utility_whichkey_desired_height(self)
+	}
+
+	#[inline]
 	pub fn metrics(&self) -> &std::sync::Arc<crate::metrics::EditorMetrics> {
 		&self.state.metrics
 	}

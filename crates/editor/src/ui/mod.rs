@@ -15,3 +15,7 @@ pub use focus::UiFocus;
 pub use keymap::UiKeyChord;
 pub use manager::UiManager;
 pub use panel::UiRequest;
+
+pub(crate) fn utility_whichkey_desired_height(editor: &crate::impls::Editor) -> Option<u16> {
+	panels::utility::UtilityPanel::whichkey_desired_height(editor)
+}
