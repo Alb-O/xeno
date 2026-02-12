@@ -14,6 +14,7 @@ command wq description="Write and quit" {
 }
 command edit description="Edit a file" {
 	keys e
+	keys open
 }
 command buffer description="Switch to buffer" {
 	keys b

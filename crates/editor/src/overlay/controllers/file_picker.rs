@@ -299,7 +299,7 @@ impl OverlayController for FilePickerOverlay {
 		if let Some(selected) = selected {
 			let root = self.root.clone().unwrap_or_else(|| PathBuf::from("."));
 			let abs_path = crate::paths::fast_abs(&root).join(&selected.insert_text);
-			ctx.queue_command("open", vec![abs_path.to_string_lossy().to_string()]);
+			ctx.queue_command("edit", vec![abs_path.to_string_lossy().to_string()]);
 		}
 
 		Box::pin(async {})
