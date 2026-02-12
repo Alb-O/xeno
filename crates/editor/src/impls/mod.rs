@@ -613,12 +613,12 @@ impl Editor {
 	}
 
 	#[inline]
-	pub fn overlays(&self) -> &OverlayStore {
+	pub(crate) fn overlays(&self) -> &OverlayStore {
 		self.state.overlay_system.store()
 	}
 
 	#[inline]
-	pub fn overlays_mut(&mut self) -> &mut OverlayStore {
+	pub(crate) fn overlays_mut(&mut self) -> &mut OverlayStore {
 		self.state.overlay_system.store_mut()
 	}
 
