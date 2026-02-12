@@ -6,6 +6,8 @@ pub mod direction;
 pub mod edit;
 /// Async future aliases.
 pub mod future;
+/// Backend-agnostic geometry primitives.
+pub mod geometry;
 /// Grapheme cluster boundary detection.
 pub mod graphemes;
 /// Identifier types for editor entities.
@@ -36,6 +38,7 @@ pub mod transaction;
 pub use direction::{Axis, SeqDirection, SpatialDirection};
 pub use edit::{CommitResult, EditCommit, EditError, EditOrigin, ReadOnlyReason, ReadOnlyScope, SyntaxPolicy, UndoPolicy};
 pub use future::{BoxFutureLocal, BoxFutureSend, BoxFutureStatic};
+pub use geometry::{Position, Rect};
 pub use ids::{MotionId, ViewId, motion_ids};
 pub use key::{Key, KeyCode, Modifiers, MouseButton, MouseEvent, ScrollDirection};
 pub use lsp::{LspChangeSet, LspDocumentChange, LspPosition, LspRange};

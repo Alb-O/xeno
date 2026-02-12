@@ -138,3 +138,14 @@ If you start a fresh session, the most important “north star” statement you 
 > “We want an engine crate with no terminal/UI deps, and a frontend crate that owns rendering, overlays, and input. The engine emits pure data effects; the frontend applies them deterministically. No module outside the engine crate may access engine internals; no module outside the frontend crate may access overlay/ui internals.”
 
 Everything above is essentially evidence that the current code violates that statement in many places, and partial moves fail because of Rust’s inherent impl and privacy rules.
+
+## Refactor execution tracker
+
+Execution order: seam-first option `2 -> 1 -> 3`.
+
+- [x] Runtime/input seam introduced (`EditorFrontend` + `EditorEngineOps` traits, terminal loop moved behind frontend boundary).
+- [x] Overlay internals hidden behind accessors and notification seam introduced.
+- [x] Terminal runtime/backend ownership moved to `xeno-editor-tui`.
+- [x] Geometry backing moved to `xeno-primitives` (`Rect`/`Position`) with explicit frontend conversion boundaries.
+- [ ] Move `ui/*`, `render/*`, and `info_popup` ownership to `xeno-editor-tui`.
+- [ ] Make `xeno-editor` build headless with `xeno-tui` optional and verify with `--no-default-features`.

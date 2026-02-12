@@ -23,7 +23,7 @@ impl Editor {
 		};
 
 		let mut ui = std::mem::take(&mut self.state.ui);
-		let dock_layout = ui.compute_layout(main_area);
+		let dock_layout = ui.compute_layout(main_area.into());
 
 		let screen_area = crate::geometry::Rect { x: 0, y: 0, width, height };
 		let status_area = crate::geometry::Rect {
@@ -32,7 +32,7 @@ impl Editor {
 			width,
 			height: height.saturating_sub(main_height),
 		};
-		let mut hit_builder = crate::ui::layer::SceneBuilder::new(screen_area, main_area, dock_layout.doc_area, status_area);
+		let mut hit_builder = crate::ui::layer::SceneBuilder::new(screen_area.into(), main_area.into(), dock_layout.doc_area, status_area.into());
 
 		let mut panel_rects: Vec<_> = dock_layout.panel_areas.values().copied().collect();
 		panel_rects.sort_by_key(|r| (r.x, r.y, r.width, r.height));
@@ -84,7 +84,7 @@ impl Editor {
 		// Get the document area (excluding panels/docks)
 		let doc_area = dock_layout.doc_area;
 
-		let quit = self.handle_mouse_in_doc_area(mouse, doc_area).await;
+		let quit = self.handle_mouse_in_doc_area(mouse, doc_area.into()).await;
 		self.interaction_on_buffer_edited();
 		quit
 	}
@@ -370,7 +370,7 @@ impl Editor {
 			width,
 			height: main_height,
 		};
-		self.state.ui.compute_layout(main_area).doc_area
+		self.state.ui.compute_layout(main_area.into()).doc_area.into()
 	}
 }
 

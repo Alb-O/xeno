@@ -1,6 +1,6 @@
-use crate::geometry::Rect;
 use xeno_tui::widgets::{Block, Borders};
 
+use crate::geometry::Rect;
 use crate::window::SurfaceStyle;
 
 pub fn pane_inner_rect(rect: Rect, style: &SurfaceStyle) -> Rect {
@@ -11,16 +11,16 @@ pub fn pane_inner_rect(rect: Rect, style: &SurfaceStyle) -> Rect {
 			block = block.title(title.as_str());
 		}
 	}
-	block.inner(rect)
+	block.inner(rect.into()).into()
 }
 
 #[cfg(test)]
 mod tests {
-	use crate::geometry::Rect;
 	use xeno_tui::widgets::BorderType;
 	use xeno_tui::widgets::block::Padding;
 
 	use super::pane_inner_rect;
+	use crate::geometry::Rect;
 	use crate::window::SurfaceStyle;
 
 	#[test]
@@ -34,12 +34,13 @@ mod tests {
 			title: Some("Title".to_string()),
 		};
 
-		let expected = xeno_tui::widgets::Block::default()
+		let expected: Rect = xeno_tui::widgets::Block::default()
 			.padding(style.padding)
 			.borders(xeno_tui::widgets::Borders::ALL)
 			.border_type(style.border_type)
 			.title("Title")
-			.inner(rect);
+			.inner(rect.into())
+			.into();
 
 		assert_eq!(pane_inner_rect(rect, &style), expected);
 	}

@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
 use xeno_primitives::Mode;
-use crate::geometry::Rect;
 
 use super::CloseReason;
 use super::session::{OverlayPane, OverlaySession};
 use crate::buffer::ViewId;
+use crate::geometry::Rect;
 use crate::impls::{Editor, FocusReason, FocusTarget};
 use crate::ui::ids::UTILITY_PANEL_ID;
 
@@ -18,13 +18,14 @@ pub struct OverlayHost;
 impl OverlayHost {
 	fn overlay_container_rect(ed: &Editor, width: u16, height: u16) -> Rect {
 		let main_area = Rect::new(0, 0, width, height.saturating_sub(1));
-		let layout = ed.state.ui.compute_layout(main_area);
-		layout
+		let layout = ed.state.ui.compute_layout(main_area.into());
+		let rect = layout
 			.panel_areas
 			.get(UTILITY_PANEL_ID)
 			.copied()
 			.filter(|rect| rect.width > 0 && rect.height > 0)
-			.unwrap_or(main_area)
+			.unwrap_or(main_area.into());
+		rect.into()
 	}
 
 	pub fn reflow_session(ed: &mut Editor, controller: &dyn super::OverlayController, session: &mut OverlaySession) -> bool {

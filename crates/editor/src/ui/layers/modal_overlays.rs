@@ -67,7 +67,7 @@ pub fn render(ed: &mut Editor, frame: &mut xeno_tui::Frame, area: Rect, ctx: &Re
 				.iter()
 				.map(|pane| PaneRenderData {
 					buffer: pane.buffer,
-					rect: pane.rect,
+					rect: pane.rect.into(),
 					style: pane.style.clone(),
 					gutter: pane.gutter,
 				})

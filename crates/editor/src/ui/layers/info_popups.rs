@@ -53,7 +53,7 @@ pub fn render(ed: &mut Editor, frame: &mut xeno_tui::Frame, doc_area: Rect, ctx:
 		}
 		let width = content_width.min(max_w);
 		let height = content_height.min(max_h);
-		let rect = compute_popup_rect(anchor, width, height, doc_area);
+		let rect: Rect = compute_popup_rect(anchor, width, height, doc_area.into()).into();
 		if rect.width == 0 || rect.height == 0 {
 			continue;
 		}

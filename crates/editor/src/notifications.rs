@@ -26,9 +26,7 @@ impl Default for NotificationCenter {
 impl NotificationCenter {
 	pub fn new() -> Self {
 		Self {
-			inner: ToastManager::new()
-				.max_visible(Some(5))
-				.overflow(Overflow::DropOldest),
+			inner: ToastManager::new().max_visible(Some(5)).overflow(Overflow::DropOldest),
 		}
 	}
 
@@ -74,6 +72,6 @@ impl NotificationCenter {
 	}
 
 	pub fn render(&mut self, area: Rect, buffer: &mut xeno_tui::buffer::Buffer) {
-		self.inner.render(area, buffer);
+		self.inner.render(area.into(), buffer);
 	}
 }

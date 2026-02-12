@@ -46,7 +46,7 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame) {
 	ui.sync_utility_for_whichkey(whichkey_height);
 	let dock_layout = ui.compute_layout(main_area);
 	let doc_area = dock_layout.doc_area;
-	ed.state.viewport.doc_area = Some(doc_area);
+	ed.state.viewport.doc_area = Some(doc_area.into());
 
 	if ed.state.layout.hovered_separator.is_none() && ed.state.layout.separator_under_mouse.is_some() && !ed.state.layout.is_mouse_fast() {
 		let old_hover = ed.state.layout.hovered_separator.take();
@@ -110,7 +110,7 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame) {
 				let mut notifications_area = doc_area;
 				notifications_area.height = notifications_area.height.saturating_sub(1);
 				notifications_area.width = notifications_area.width.saturating_sub(1);
-				ed.state.notifications.render(notifications_area, frame.buffer_mut());
+				ed.state.notifications.render(notifications_area.into(), frame.buffer_mut());
 			}
 		}
 	}

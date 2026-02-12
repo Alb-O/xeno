@@ -32,9 +32,9 @@ impl LayoutSnapshot {
 			.and_then(|doc_area| layout.drag_state().and_then(|drag| layout.separator_rect(base_layout, doc_area, &drag.id)));
 
 		Self {
-			hovered_separator: layout.hovered_separator,
-			dragging_rect,
-			animation_rect: layout.animation_rect(),
+			hovered_separator: layout.hovered_separator.map(|(direction, rect)| (direction, rect.into())),
+			dragging_rect: dragging_rect.map(Into::into),
+			animation_rect: layout.animation_rect().map(Into::into),
 			animation_intensity: layout.animation_intensity(),
 		}
 	}

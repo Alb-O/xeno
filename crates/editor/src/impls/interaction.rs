@@ -130,7 +130,7 @@ impl Editor {
 			let gutter_layout = crate::render::GutterLayout::from_selector(effective_gutter, total_lines, area.width);
 			let text_width = area.width.saturating_sub(gutter_layout.total_width) as usize;
 
-			crate::render::ensure_buffer_cursor_visible(buffer, area, text_width, tab_width, scroll_margin);
+			crate::render::ensure_buffer_cursor_visible(buffer, area.into(), text_width, tab_width, scroll_margin);
 			self.state.effects.request_redraw();
 		}
 		self.flush_effects();

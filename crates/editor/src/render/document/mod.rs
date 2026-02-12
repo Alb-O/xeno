@@ -52,10 +52,22 @@ impl Editor {
 		// Base layer (index 0)
 		{
 			let layer_id = LayerId::BASE;
-			let layer_area = self.state.layout.layer_area(layer_id, doc_area);
-			let view_areas = self.state.layout.compute_view_areas_for_layer(base_layout, layer_id, layer_area);
-			let separators = self.state.layout.separator_positions_for_layer(base_layout, layer_id, layer_area);
-			layer_data.push((layer_id, layer_area, view_areas, separators));
+			let layer_area = self.state.layout.layer_area(layer_id, doc_area.into());
+			let view_areas = self
+				.state
+				.layout
+				.compute_view_areas_for_layer(base_layout, layer_id, layer_area)
+				.into_iter()
+				.map(|(view_id, rect)| (view_id, rect.into()))
+				.collect();
+			let separators = self
+				.state
+				.layout
+				.separator_positions_for_layer(base_layout, layer_id, layer_area)
+				.into_iter()
+				.map(|(direction, priority, rect)| (direction, priority, rect.into()))
+				.collect();
+			layer_data.push((layer_id, layer_area.into(), view_areas, separators));
 		}
 
 		// Overlay layers (index 1+)
@@ -63,10 +75,22 @@ impl Editor {
 			if self.state.layout.layer_slot_has_layout(layer_idx) {
 				let generation = self.state.layout.layer_slot_generation(layer_idx);
 				let layer_id = LayerId::new(layer_idx as u16, generation);
-				let layer_area = self.state.layout.layer_area(layer_id, doc_area);
-				let view_areas = self.state.layout.compute_view_areas_for_layer(base_layout, layer_id, layer_area);
-				let separators = self.state.layout.separator_positions_for_layer(base_layout, layer_id, layer_area);
-				layer_data.push((layer_id, layer_area, view_areas, separators));
+				let layer_area = self.state.layout.layer_area(layer_id, doc_area.into());
+				let view_areas = self
+					.state
+					.layout
+					.compute_view_areas_for_layer(base_layout, layer_id, layer_area)
+					.into_iter()
+					.map(|(view_id, rect)| (view_id, rect.into()))
+					.collect();
+				let separators = self
+					.state
+					.layout
+					.separator_positions_for_layer(base_layout, layer_id, layer_area)
+					.into_iter()
+					.map(|(direction, priority, rect)| (direction, priority, rect.into()))
+					.collect();
+				layer_data.push((layer_id, layer_area.into(), view_areas, separators));
 			}
 		}
 
