@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 
-use termina::event::{KeyCode, KeyEvent};
+use xeno_primitives::{Key, KeyCode};
 use xeno_registry::notifications::Notification;
 
 use crate::buffer::{Buffer, ViewId};
@@ -236,7 +236,7 @@ pub trait OverlayController: Send + Sync {
 	fn on_input_changed(&mut self, ctx: &mut dyn OverlayContext, session: &mut OverlaySession, text: &str);
 
 	/// Processes raw key events. Returns `true` if the event was handled.
-	fn on_key(&mut self, ctx: &mut dyn OverlayContext, session: &mut OverlaySession, key: KeyEvent) -> bool {
+	fn on_key(&mut self, ctx: &mut dyn OverlayContext, session: &mut OverlaySession, key: Key) -> bool {
 		let _ = (ctx, session, key);
 		false
 	}
@@ -352,7 +352,7 @@ pub trait OverlayLayer: Send + Sync {
 	fn render(&self, ed: &crate::impls::Editor, frame: &mut xeno_tui::Frame, area: xeno_tui::layout::Rect);
 
 	/// Optional key interception for visible layers (e.g. Tab/Enter in completion menus).
-	fn on_key(&mut self, _ed: &mut crate::impls::Editor, _key: KeyEvent) -> bool {
+	fn on_key(&mut self, _ed: &mut crate::impls::Editor, _key: Key) -> bool {
 		false
 	}
 
@@ -397,7 +397,7 @@ impl OverlayLayers {
 	}
 
 	/// Routes key events to visible layers in reverse Z-order.
-	pub fn handle_key(&mut self, ed: &mut crate::impls::Editor, key: KeyEvent) -> bool {
+	pub fn handle_key(&mut self, ed: &mut crate::impls::Editor, key: Key) -> bool {
 		for layer in self.layers.iter_mut().rev() {
 			if layer.is_visible(ed) && layer.on_key(ed, key) {
 				return true;
@@ -484,7 +484,7 @@ impl OverlayManager {
 	///
 	/// Falls back to default host dismissal (Esc -> Cancel) if the controller
 	/// does not handle the key.
-	pub fn handle_key(&mut self, ed: &mut crate::impls::Editor, key: KeyEvent) -> bool {
+	pub fn handle_key(&mut self, ed: &mut crate::impls::Editor, key: Key) -> bool {
 		let Some(active) = self.active.as_mut() else {
 			return false;
 		};
@@ -494,7 +494,7 @@ impl OverlayManager {
 		}
 
 		match key.code {
-			KeyCode::Escape => {
+			KeyCode::Esc => {
 				self.close(ed, CloseReason::Cancel);
 				true
 			}

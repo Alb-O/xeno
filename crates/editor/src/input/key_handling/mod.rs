@@ -3,16 +3,15 @@
 mod ops;
 mod types;
 
-use termina::event::KeyCode;
 use types::ActionDispatch;
 use xeno_input::input::KeyResult;
-use xeno_primitives::{Key, Mode};
+use xeno_primitives::{Key, KeyCode, Mode};
 
 use crate::impls::Editor;
 
 impl Editor {
 	/// Processes a key event, routing to UI or input state machine.
-	pub async fn handle_key(&mut self, key: termina::event::KeyEvent) -> bool {
+	pub async fn handle_key(&mut self, key: Key) -> bool {
 		// UI global bindings (panels, focus, etc.)
 		if self.state.ui.handle_global_key(&key) {
 			if self.state.ui.take_wants_redraw() {
@@ -41,7 +40,7 @@ impl Editor {
 	}
 
 	/// Handles a key event when in active editing mode.
-	pub(crate) async fn handle_key_active(&mut self, key: termina::event::KeyEvent) -> bool {
+	pub(crate) async fn handle_key_active(&mut self, key: Key) -> bool {
 		use xeno_registry::HookEventData;
 		use xeno_registry::hooks::{HookContext, emit as emit_hook};
 
@@ -80,10 +79,9 @@ impl Editor {
 			self.trigger_lsp_completion(xeno_lsp::CompletionTrigger::Manual, None);
 			return false;
 		}
-		let key_converted: Key = key.into();
 		let keymap = self.effective_keymap();
 
-		let result = self.buffer_mut().input.handle_key_with_registry(key_converted, &keymap);
+		let result = self.buffer_mut().input.handle_key_with_registry(key, &keymap);
 
 		let mut quit = false;
 		let mut handled = false;
@@ -206,8 +204,8 @@ mod tests {
 	use std::collections::HashMap;
 	use std::sync::Arc;
 
-	use termina::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, Modifiers};
 	use xeno_keymap_core::parser::parse_seq;
+	use xeno_primitives::{Key, KeyCode};
 	use xeno_registry::actions::{ActionEntry, BindingMode};
 	use xeno_registry::config::UnresolvedKeys;
 	use xeno_registry::core::index::Snapshot;
@@ -215,13 +213,8 @@ mod tests {
 
 	use crate::impls::Editor;
 
-	fn key_enter() -> KeyEvent {
-		KeyEvent {
-			code: KeyCode::Enter,
-			modifiers: Modifiers::NONE,
-			kind: KeyEventKind::Press,
-			state: KeyEventState::NONE,
-		}
+	fn key_enter() -> Key {
+		Key::new(KeyCode::Enter)
 	}
 
 	fn mode_name(mode: BindingMode) -> &'static str {

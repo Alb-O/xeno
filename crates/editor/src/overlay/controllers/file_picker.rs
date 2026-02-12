@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::pin::Pin;
 use std::time::{Duration, Instant};
 
-use termina::event::{KeyCode, KeyEvent, Modifiers};
+use xeno_primitives::{Key, KeyCode};
 use xeno_registry::options::OptionValue;
 
 use crate::completion::{CompletionItem, CompletionKind, CompletionState, SelectionIntent};
@@ -278,14 +278,14 @@ impl OverlayController for FilePickerOverlay {
 		self.refresh_items(ctx, session, text);
 	}
 
-	fn on_key(&mut self, ctx: &mut dyn OverlayContext, _session: &mut OverlaySession, key: KeyEvent) -> bool {
+	fn on_key(&mut self, ctx: &mut dyn OverlayContext, _session: &mut OverlaySession, key: Key) -> bool {
 		match key.code {
 			KeyCode::Up => self.move_selection(ctx, -1),
 			KeyCode::Down => self.move_selection(ctx, 1),
 			KeyCode::PageUp => self.page_selection(ctx, -1),
 			KeyCode::PageDown => self.page_selection(ctx, 1),
-			KeyCode::Char('n') if key.modifiers.contains(Modifiers::CONTROL) => self.move_selection(ctx, 1),
-			KeyCode::Char('p') if key.modifiers.contains(Modifiers::CONTROL) => self.move_selection(ctx, -1),
+			KeyCode::Char('n') if key.modifiers.ctrl => self.move_selection(ctx, 1),
+			KeyCode::Char('p') if key.modifiers.ctrl => self.move_selection(ctx, -1),
 			_ => false,
 		}
 	}

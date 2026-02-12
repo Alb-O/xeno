@@ -2,15 +2,14 @@
 //!
 //! Processing mouse input for text selection and separator dragging.
 
-use termina::event::MouseEventKind;
 use xeno_input::input::KeyResult;
-use xeno_primitives::{ScrollDirection, Selection};
+use xeno_primitives::{MouseEvent, ScrollDirection, Selection};
 
 use crate::impls::{Editor, FocusReason, FocusTarget};
 
 impl Editor {
 	/// Processes a mouse event, returning true if the event triggered a quit.
-	pub async fn handle_mouse(&mut self, mouse: termina::event::MouseEvent) -> bool {
+	pub async fn handle_mouse(&mut self, mouse: MouseEvent) -> bool {
 		let width = self.state.viewport.width.unwrap_or(80);
 		let height = self.state.viewport.height.unwrap_or(24);
 
@@ -51,15 +50,15 @@ impl Editor {
 
 		let hit_is_panel = hit_builder
 			.finish()
-			.hit_test(mouse.column, mouse.row)
+			.hit_test(mouse.col(), mouse.row())
 			.is_some_and(|surface| matches!(surface.kind, crate::ui::scene::SurfaceKind::Panels));
 
 		let hit_active_overlay = self.state.overlay_system.interaction.active.as_ref().is_some_and(|active| {
 			active.session.panes.iter().any(|pane| {
-				mouse.column >= pane.rect.x
-					&& mouse.column < pane.rect.x.saturating_add(pane.rect.width)
-					&& mouse.row >= pane.rect.y
-					&& mouse.row < pane.rect.y.saturating_add(pane.rect.height)
+				mouse.col() >= pane.rect.x
+					&& mouse.col() < pane.rect.x.saturating_add(pane.rect.width)
+					&& mouse.row() >= pane.rect.y
+					&& mouse.row() < pane.rect.y.saturating_add(pane.rect.height)
 			})
 		});
 
@@ -102,19 +101,19 @@ impl Editor {
 	///
 	/// Text selection drags are confined to the view where they started.
 	/// This prevents selection from crossing split boundaries.
-	pub(crate) async fn handle_mouse_in_doc_area(&mut self, mouse: termina::event::MouseEvent, doc_area: xeno_tui::layout::Rect) -> bool {
-		let mouse_x = mouse.column;
-		let mouse_y = mouse.row;
+	pub(crate) async fn handle_mouse_in_doc_area(&mut self, mouse: MouseEvent, doc_area: xeno_tui::layout::Rect) -> bool {
+		let mouse_x = mouse.col();
+		let mouse_y = mouse.row();
 
 		if let Some(drag_state) = self.state.layout.drag_state().cloned() {
-			match mouse.kind {
-				MouseEventKind::Drag(_) => {
+			match mouse {
+				MouseEvent::Drag { .. } => {
 					let base_layout = &mut self.state.windows.base_window_mut().layout;
 					self.state.layout.resize_separator(base_layout, doc_area, &drag_state.id, mouse_x, mouse_y);
 					self.state.frame.needs_redraw = true;
 					return false;
 				}
-				MouseEventKind::Up(_) => {
+				MouseEvent::Release { .. } => {
 					self.state.layout.end_drag();
 					self.state.frame.needs_redraw = true;
 					return false;
@@ -125,8 +124,12 @@ impl Editor {
 
 		// Handle active text selection drag - confine to origin view
 		if let Some((origin_view, origin_area)) = self.state.layout.text_selection_origin {
-			match mouse.kind {
-				MouseEventKind::Drag(_) | MouseEventKind::ScrollUp | MouseEventKind::ScrollDown => {
+			match mouse {
+				MouseEvent::Drag { .. }
+				| MouseEvent::Scroll {
+					direction: ScrollDirection::Up | ScrollDirection::Down,
+					..
+				} => {
 					let clamped_x = mouse_x.clamp(origin_area.x, origin_area.right().saturating_sub(1));
 					let clamped_y = mouse_y.clamp(origin_area.y, origin_area.bottom().saturating_sub(1));
 					let local_row = clamped_y.saturating_sub(origin_area.y);
@@ -135,16 +138,13 @@ impl Editor {
 					let tab_width = self.tab_width_for(origin_view);
 					let scroll_lines = self.scroll_lines_for(origin_view);
 					if let Some(buffer) = self.state.core.buffers.get_buffer_mut(origin_view) {
-						if let MouseEventKind::ScrollUp | MouseEventKind::ScrollDown = mouse.kind {
-							let direction = if matches!(mouse.kind, MouseEventKind::ScrollUp) {
-								ScrollDirection::Up
-							} else {
-								ScrollDirection::Down
-							};
+						if let MouseEvent::Scroll { direction, .. } = mouse
+							&& matches!(direction, ScrollDirection::Up | ScrollDirection::Down)
+						{
 							buffer.handle_mouse_scroll(direction, scroll_lines, tab_width);
 						}
 
-						let _ = buffer.input.handle_mouse(mouse.into());
+						let _ = buffer.input.handle_mouse(mouse);
 						let doc_pos = buffer.screen_to_doc_position(local_row, local_col, tab_width).or_else(|| {
 							let gutter_width = buffer.gutter_width();
 							(local_col < gutter_width)
@@ -161,7 +161,7 @@ impl Editor {
 					self.state.frame.needs_redraw = true;
 					return false;
 				}
-				MouseEventKind::Up(_) => {
+				MouseEvent::Release { .. } => {
 					self.state.layout.text_selection_origin = None;
 					self.state.frame.needs_redraw = true;
 				}
@@ -190,7 +190,7 @@ impl Editor {
 				return false;
 			}
 
-			let reason = if matches!(mouse.kind, MouseEventKind::Down(_)) {
+			let reason = if matches!(mouse, MouseEvent::Press { .. }) {
 				FocusReason::Click
 			} else {
 				FocusReason::Programmatic
@@ -202,7 +202,7 @@ impl Editor {
 			let local_row = clamped_y.saturating_sub(inner.y);
 			let local_col = clamped_x.saturating_sub(inner.x);
 
-			let result = self.buffer_mut().input.handle_mouse(mouse.into());
+			let result = self.buffer_mut().input.handle_mouse(mouse);
 			match result {
 				KeyResult::MouseClick { extend, .. } => {
 					self.state.layout.text_selection_origin = Some((overlay_buffer, inner));
@@ -232,8 +232,8 @@ impl Editor {
 		let current_separator = separator_hit.as_ref().map(|hit| (hit.direction, hit.rect));
 		self.state.layout.separator_under_mouse = current_separator;
 
-		match mouse.kind {
-			MouseEventKind::Moved => {
+		match mouse {
+			MouseEvent::Move { .. } => {
 				let old_hover = self.state.layout.hovered_separator;
 
 				// Hover activation: sticky once active, velocity-gated for new hovers
@@ -256,7 +256,7 @@ impl Editor {
 					return false;
 				}
 			}
-			MouseEventKind::Down(_) => {
+			MouseEvent::Press { .. } => {
 				if let Some(hit) = &separator_hit {
 					self.state.layout.start_drag(hit);
 					self.state.frame.needs_redraw = true;
@@ -268,7 +268,7 @@ impl Editor {
 					self.state.frame.needs_redraw = true;
 				}
 			}
-			MouseEventKind::Drag(_) => {
+			MouseEvent::Drag { .. } => {
 				if self.state.layout.hovered_separator.is_some() {
 					let old_hover = self.state.layout.hovered_separator.take();
 					self.state.layout.update_hover_animation(old_hover, None);
@@ -301,8 +301,8 @@ impl Editor {
 			FocusTarget::Panel(_) => true,
 		};
 		if needs_focus {
-			let focus_changed = match mouse.kind {
-				MouseEventKind::Down(_) => self.focus_buffer_in_window(target_window, target_view, true),
+			let focus_changed = match mouse {
+				MouseEvent::Press { .. } => self.focus_buffer_in_window(target_window, target_view, true),
 				_ => {
 					if target_window == self.state.windows.base_id() {
 						self.focus_view_implicit(target_view)
@@ -321,7 +321,7 @@ impl Editor {
 		let local_col = mouse_x.saturating_sub(view_area.x);
 
 		// Process the mouse event through the input handler
-		let result = self.buffer_mut().input.handle_mouse(mouse.into());
+		let result = self.buffer_mut().input.handle_mouse(mouse);
 		match result {
 			KeyResult::MouseClick { extend, .. } => {
 				self.state.layout.text_selection_origin = Some((target_view, view_area));
@@ -376,15 +376,15 @@ impl Editor {
 
 #[cfg(test)]
 mod tests {
-	use termina::event::{Modifiers, MouseButton, MouseEvent, MouseEventKind};
+	use xeno_primitives::{Modifiers, MouseButton, MouseEvent};
 
 	use crate::impls::{Editor, FocusTarget};
 
 	fn mouse_down(column: u16, row: u16) -> MouseEvent {
-		MouseEvent {
-			kind: MouseEventKind::Down(MouseButton::Left),
-			column,
+		MouseEvent::Press {
+			button: MouseButton::Left,
 			row,
+			col: column,
 			modifiers: Modifiers::NONE,
 		}
 	}

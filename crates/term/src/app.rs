@@ -2,7 +2,7 @@ use std::io::{self, Write};
 
 use termina::escape::csi::{Csi, Cursor};
 use termina::{PlatformTerminal, Terminal as _};
-use xeno_editor::runtime::CursorStyle;
+use xeno_editor::runtime::{CursorStyle, RuntimeEvent};
 use xeno_editor::{Editor, TerminalConfig};
 use xeno_registry::HookEventData;
 use xeno_registry::hooks::{HookContext, emit as emit_hook, emit_sync_with as emit_hook_sync_with};
@@ -74,7 +74,11 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 				event = termina::event::Event::WindowResized(coalesce_resize_events(&events, size)?);
 			}
 
-			dir = editor.on_event(event).await;
+			if let Some(event) = map_terminal_event(event) {
+				dir = editor.on_event(event).await;
+			} else {
+				dir = editor.pump().await;
+			}
 		}
 		Ok(())
 	}
@@ -94,5 +98,22 @@ fn to_termina_cursor_style(cs: CursorStyle) -> termina::style::CursorStyle {
 		CursorStyle::Beam => termina::style::CursorStyle::SteadyBar,
 		CursorStyle::Underline => termina::style::CursorStyle::SteadyUnderline,
 		CursorStyle::Hidden => termina::style::CursorStyle::Default,
+	}
+}
+
+fn map_terminal_event(event: termina::event::Event) -> Option<RuntimeEvent> {
+	use termina::event::{Event, KeyEventKind};
+
+	match event {
+		Event::Key(key) if matches!(key.kind, KeyEventKind::Press | KeyEventKind::Repeat) => Some(RuntimeEvent::Key(key.into())),
+		Event::Mouse(mouse) => Some(RuntimeEvent::Mouse(mouse.into())),
+		Event::Paste(content) => Some(RuntimeEvent::Paste(content)),
+		Event::WindowResized(size) => Some(RuntimeEvent::WindowResized {
+			width: size.cols,
+			height: size.rows,
+		}),
+		Event::FocusIn => Some(RuntimeEvent::FocusIn),
+		Event::FocusOut => Some(RuntimeEvent::FocusOut),
+		_ => None,
 	}
 }

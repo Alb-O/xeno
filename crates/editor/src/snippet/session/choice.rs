@@ -1,7 +1,6 @@
-use termina::event::{KeyCode, KeyEvent, Modifiers};
 use xeno_primitives::range::CharIdx;
 use xeno_primitives::transaction::{Bias, Change};
-use xeno_primitives::{EditOrigin, Transaction, UndoPolicy};
+use xeno_primitives::{EditOrigin, Key, KeyCode, Transaction, UndoPolicy};
 
 use super::{ActiveMode, SnippetChoiceOverlay, SnippetSessionState, selection_from_points};
 use crate::impls::Editor;
@@ -45,8 +44,8 @@ impl Editor {
 		true
 	}
 
-	pub(super) fn handle_snippet_choice_overlay_key(&mut self, key: &KeyEvent) -> bool {
-		let ctrl = key.modifiers.contains(Modifiers::CONTROL);
+	pub(super) fn handle_snippet_choice_overlay_key(&mut self, key: &Key) -> bool {
+		let ctrl = key.modifiers.ctrl;
 		let mut close_overlay = false;
 		let mut commit_choice: Option<(u32, usize, String)> = None;
 		{
@@ -89,7 +88,7 @@ impl Editor {
 					}
 					close_overlay = true;
 				}
-				KeyCode::Escape => {
+				KeyCode::Esc => {
 					close_overlay = true;
 				}
 				_ => {}

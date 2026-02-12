@@ -3,8 +3,7 @@ use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 
-use termina::event::{KeyCode, KeyEvent, Modifiers};
-use xeno_primitives::Selection;
+use xeno_primitives::{Key, KeyCode, Selection};
 use xeno_registry::commands::COMMANDS;
 use xeno_registry::notifications::keys;
 use xeno_registry::options::{OptionValue, keys as opt_keys};
@@ -787,14 +786,14 @@ impl OverlayController for CommandPaletteOverlay {
 		ctx.request_redraw();
 	}
 
-	fn on_key(&mut self, ctx: &mut dyn OverlayContext, session: &mut OverlaySession, key: KeyEvent) -> bool {
+	fn on_key(&mut self, ctx: &mut dyn OverlayContext, session: &mut OverlaySession, key: Key) -> bool {
 		match key.code {
 			KeyCode::Up => self.move_selection(ctx, -1),
 			KeyCode::Down => self.move_selection(ctx, 1),
 			KeyCode::PageUp => self.page_selection(ctx, -1),
 			KeyCode::PageDown => self.page_selection(ctx, 1),
-			KeyCode::Char('n') if key.modifiers.contains(Modifiers::CONTROL) => self.move_selection(ctx, 1),
-			KeyCode::Char('p') if key.modifiers.contains(Modifiers::CONTROL) => self.move_selection(ctx, -1),
+			KeyCode::Char('n') if key.modifiers.ctrl => self.move_selection(ctx, 1),
+			KeyCode::Char('p') if key.modifiers.ctrl => self.move_selection(ctx, -1),
 			KeyCode::Tab => self.accept_tab_completion(ctx, session),
 			_ => false,
 		}

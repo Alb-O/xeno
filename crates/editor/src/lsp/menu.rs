@@ -10,7 +10,7 @@
 //!
 //! [`LspMenuState`]: super::types::LspMenuState
 
-use termina::event::{KeyCode, KeyEvent, Modifiers};
+use xeno_primitives::{Key, KeyCode};
 
 use super::types::{LspMenuKind, LspMenuState};
 use crate::completion::{CompletionState, SelectionIntent};
@@ -20,7 +20,7 @@ impl Editor {
 	/// Handles key events when an LSP menu is active.
 	///
 	/// Returns `true` if the key was consumed by the menu, `false` otherwise.
-	pub(crate) async fn handle_lsp_menu_key(&mut self, key: &KeyEvent) -> bool {
+	pub(crate) async fn handle_lsp_menu_key(&mut self, key: &Key) -> bool {
 		let menu_kind = self.overlays().get::<LspMenuState>().and_then(|state: &LspMenuState| state.active()).cloned();
 		let Some(menu_kind) = menu_kind else {
 			return false;
@@ -36,7 +36,7 @@ impl Editor {
 		}
 
 		match key.code {
-			KeyCode::Escape => {
+			KeyCode::Esc => {
 				self.state.lsp.cancel_completion();
 				if self.overlays().get::<CompletionState>().is_some_and(|s| s.active) {
 					self.overlays_mut().get_or_default::<CompletionState>().suppressed = true;
@@ -90,7 +90,7 @@ impl Editor {
 				}
 				return true;
 			}
-			KeyCode::Char('y') if key.modifiers.contains(Modifiers::CONTROL) => {
+			KeyCode::Char('y') if key.modifiers.ctrl => {
 				let state = self.overlays().get::<CompletionState>();
 				let idx = state.and_then(|s| s.selected_idx).or_else(|| state.filter(|s| !s.items.is_empty()).map(|_| 0));
 				let raw_idx = idx.map(|display_idx| lsp_completion_raw_index(state, display_idx));
@@ -168,20 +168,15 @@ fn lsp_completion_raw_index(state: Option<&CompletionState>, display_idx: usize)
 
 #[cfg(test)]
 mod tests {
-	use termina::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, Modifiers};
+	use xeno_primitives::{Key, KeyCode};
 	use xeno_lsp::lsp_types::CompletionItem as LspCompletionItem;
 
 	use super::{LspMenuKind, LspMenuState, lsp_completion_raw_index};
 	use crate::completion::CompletionState;
 	use crate::impls::Editor;
 
-	fn key_tab() -> KeyEvent {
-		KeyEvent {
-			code: KeyCode::Tab,
-			modifiers: Modifiers::NONE,
-			kind: KeyEventKind::Press,
-			state: KeyEventState::NONE,
-		}
+	fn key_tab() -> Key {
+		Key::new(KeyCode::Tab)
 	}
 
 	#[test]

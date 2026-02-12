@@ -5,7 +5,7 @@
 use std::future::Future;
 use std::pin::Pin;
 
-use termina::event::KeyEvent;
+use xeno_primitives::Key;
 use xeno_registry::notifications::keys;
 use xeno_registry::options::OptionValue;
 
@@ -79,7 +79,7 @@ impl OverlayController for WorkspaceSearchOverlay {
 
 	fn on_input_changed(&mut self, _ctx: &mut dyn OverlayContext, _session: &mut OverlaySession, _text: &str) {}
 
-	fn on_key(&mut self, _ctx: &mut dyn OverlayContext, _session: &mut OverlaySession, _key: KeyEvent) -> bool {
+	fn on_key(&mut self, _ctx: &mut dyn OverlayContext, _session: &mut OverlaySession, _key: Key) -> bool {
 		false
 	}
 

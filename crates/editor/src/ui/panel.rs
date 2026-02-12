@@ -1,4 +1,4 @@
-use termina::event::{KeyEvent, MouseEvent};
+use xeno_primitives::{Key, MouseEvent};
 use xeno_registry::themes::Theme;
 use xeno_tui::Frame;
 use xeno_tui::layout::{Position, Rect};
@@ -15,7 +15,7 @@ pub enum UiEvent {
 	/// Terminal window was resized.
 	Resize,
 	/// Keyboard input event.
-	Key(KeyEvent),
+	Key(Key),
 	/// Mouse input event.
 	Mouse(MouseEvent),
 	/// Text pasted from clipboard.
@@ -74,7 +74,7 @@ pub struct CursorRequest {
 	/// Cursor position in screen coordinates.
 	pub pos: Position,
 	/// Optional cursor style override.
-	pub style: Option<termina::style::CursorStyle>,
+	pub style: Option<crate::runtime::CursorStyle>,
 }
 
 /// Context provided to panels during initialization.
@@ -101,7 +101,7 @@ pub trait Panel {
 	fn on_focus_changed(&mut self, _focused: bool) {}
 
 	/// Returns the cursor style to use when this panel is focused.
-	fn cursor_style_when_focused(&self) -> Option<termina::style::CursorStyle> {
+	fn cursor_style_when_focused(&self) -> Option<crate::runtime::CursorStyle> {
 		None
 	}
 

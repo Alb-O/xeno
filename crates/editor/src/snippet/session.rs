@@ -2,10 +2,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Range as StdRange;
 
 use chrono::Local;
-use termina::event::{KeyCode, KeyEvent, Modifiers};
 use xeno_primitives::range::CharIdx;
 use xeno_primitives::transaction::{Bias, Change};
-use xeno_primitives::{EditOrigin, Mode, Selection, Transaction, UndoPolicy};
+use xeno_primitives::{EditOrigin, Key, KeyCode, Mode, Selection, Transaction, UndoPolicy};
 
 mod choice;
 mod helpers;
@@ -320,7 +319,7 @@ impl Editor {
 		self.close_snippet_choice_overlay();
 	}
 
-	pub(crate) fn handle_snippet_session_key(&mut self, key: &KeyEvent) -> bool {
+	pub(crate) fn handle_snippet_session_key(&mut self, key: &Key) -> bool {
 		if self.buffer().mode() != Mode::Insert {
 			return false;
 		}
@@ -332,17 +331,17 @@ impl Editor {
 			return true;
 		}
 
-		if matches!(key.code, KeyCode::Escape) {
+		if matches!(key.code, KeyCode::Esc) {
 			self.cancel_snippet_session();
 			return false;
 		}
-		if matches!(key.code, KeyCode::Char(' ')) && key.modifiers.contains(Modifiers::CONTROL) {
+		if matches!(key.code, KeyCode::Char(' ') | KeyCode::Space) && key.modifiers.ctrl {
 			return self.open_snippet_choice_overlay();
 		}
-		if matches!(key.code, KeyCode::Char('n')) && key.modifiers.contains(Modifiers::CONTROL) {
+		if matches!(key.code, KeyCode::Char('n')) && key.modifiers.ctrl {
 			return self.snippet_cycle_choice(1);
 		}
-		if matches!(key.code, KeyCode::Char('p')) && key.modifiers.contains(Modifiers::CONTROL) {
+		if matches!(key.code, KeyCode::Char('p')) && key.modifiers.ctrl {
 			return self.snippet_cycle_choice(-1);
 		}
 		if matches!(key.code, KeyCode::Backspace) {

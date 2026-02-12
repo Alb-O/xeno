@@ -2,8 +2,7 @@
 
 use std::collections::HashMap;
 
-use termina::event::KeyEvent;
-use xeno_primitives::range::CharIdx;
+use xeno_primitives::{Key, range::CharIdx};
 
 use crate::buffer::ViewId;
 use crate::impls::CommandQueue;
@@ -96,8 +95,8 @@ impl JumpList {
 #[derive(Default)]
 pub struct MacroState {
 	recording_register: Option<char>,
-	recording_keys: Vec<KeyEvent>,
-	macros: HashMap<char, Vec<KeyEvent>>,
+	recording_keys: Vec<Key>,
+	macros: HashMap<char, Vec<Key>>,
 	last_register: Option<char>,
 }
 
@@ -123,14 +122,14 @@ impl MacroState {
 	}
 
 	/// Records a key event if currently recording.
-	pub fn record_key(&mut self, key: KeyEvent) {
+	pub fn record_key(&mut self, key: Key) {
 		if self.recording_register.is_some() {
 			self.recording_keys.push(key);
 		}
 	}
 
 	/// Returns the macro for a register, if any.
-	pub fn get(&self, register: char) -> Option<&[KeyEvent]> {
+	pub fn get(&self, register: char) -> Option<&[Key]> {
 		self.macros.get(&register).map(|v| v.as_slice())
 	}
 

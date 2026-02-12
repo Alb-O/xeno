@@ -2,8 +2,7 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 
-use termina::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, Modifiers};
-use xeno_primitives::Selection;
+use xeno_primitives::{Key, KeyCode, Modifiers, Selection};
 use xeno_tui::layout::Rect;
 
 use crate::overlay::spec::RectPolicy;
@@ -301,21 +300,17 @@ pub(crate) fn test_modal_ui_keeps_single_base_window() {
 	assert_eq!(editor.state.windows.windows().count(), 1);
 }
 
-fn key_down() -> KeyEvent {
-	KeyEvent {
+fn key_down() -> Key {
+	Key {
 		code: KeyCode::Down,
 		modifiers: Modifiers::NONE,
-		kind: KeyEventKind::Press,
-		state: KeyEventState::NONE,
 	}
 }
 
-fn key_tab() -> KeyEvent {
-	KeyEvent {
+fn key_tab() -> Key {
+	Key {
 		code: KeyCode::Tab,
 		modifiers: Modifiers::NONE,
-		kind: KeyEventKind::Press,
-		state: KeyEventState::NONE,
 	}
 }
 
@@ -346,7 +341,7 @@ fn palette_set_input(editor: &mut crate::impls::Editor, text: &str, cursor: usiz
 	});
 }
 
-fn palette_key(editor: &mut crate::impls::Editor, key: KeyEvent) {
+fn palette_key(editor: &mut crate::impls::Editor, key: Key) {
 	with_interaction(editor, |interaction, ed| {
 		let _ = interaction.handle_key(ed, key);
 	});

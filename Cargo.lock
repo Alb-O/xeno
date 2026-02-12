@@ -4496,7 +4496,6 @@ dependencies = [
  "serde_json",
  "smallvec",
  "tempfile",
- "termina",
  "thiserror 2.0.18",
  "tokio",
  "tokio-util",

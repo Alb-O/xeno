@@ -1,4 +1,4 @@
-use termina::event::KeyCode;
+use xeno_primitives::KeyCode;
 use xeno_registry::actions::BindingMode;
 use xeno_registry::db::keymap_registry::ContinuationKind;
 use xeno_registry::themes::Theme;
@@ -92,7 +92,7 @@ impl Panel for UtilityPanel {
 
 	fn handle_event(&mut self, event: UiEvent, _editor: &mut Editor, focused: bool) -> EventResult {
 		match event {
-			UiEvent::Key(key) if focused && key.code == KeyCode::Escape => {
+			UiEvent::Key(key) if focused && key.code == KeyCode::Esc => {
 				EventResult::consumed().with_request(UiRequest::ClosePanel(UTILITY_PANEL_ID.to_string()))
 			}
 			_ => EventResult::not_consumed(),

@@ -1,5 +1,4 @@
-use termina::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, Modifiers};
-use xeno_primitives::Range;
+use xeno_primitives::{Key, KeyCode, Modifiers, Range};
 
 use super::*;
 use crate::impls::Editor;
@@ -35,67 +34,41 @@ fn normalize_ranges_dedups_points() {
 	assert_eq!(normalize_ranges(ranges), vec![5..5]);
 }
 
-fn key_tab() -> KeyEvent {
-	KeyEvent {
-		code: KeyCode::Tab,
-		modifiers: Modifiers::NONE,
-		kind: KeyEventKind::Press,
-		state: KeyEventState::NONE,
-	}
+fn key_tab() -> Key {
+	Key::new(KeyCode::Tab)
 }
 
-fn key_backtab() -> KeyEvent {
-	KeyEvent {
+fn key_backtab() -> Key {
+	Key {
 		code: KeyCode::BackTab,
 		modifiers: Modifiers::SHIFT,
-		kind: KeyEventKind::Press,
-		state: KeyEventState::NONE,
 	}
 }
 
-fn key_char(c: char) -> KeyEvent {
-	KeyEvent {
+fn key_char(c: char) -> Key {
+	Key::char(c)
+}
+
+fn key_ctrl(c: char) -> Key {
+	Key {
 		code: KeyCode::Char(c),
-		modifiers: Modifiers::NONE,
-		kind: KeyEventKind::Press,
-		state: KeyEventState::NONE,
+		modifiers: Modifiers::CTRL,
 	}
 }
 
-fn key_ctrl(c: char) -> KeyEvent {
-	KeyEvent {
-		code: KeyCode::Char(c),
-		modifiers: Modifiers::CONTROL,
-		kind: KeyEventKind::Press,
-		state: KeyEventState::NONE,
+fn key_ctrl_space() -> Key {
+	Key {
+		code: KeyCode::Space,
+		modifiers: Modifiers::CTRL,
 	}
 }
 
-fn key_ctrl_space() -> KeyEvent {
-	KeyEvent {
-		code: KeyCode::Char(' '),
-		modifiers: Modifiers::CONTROL,
-		kind: KeyEventKind::Press,
-		state: KeyEventState::NONE,
-	}
+fn key_enter() -> Key {
+	Key::new(KeyCode::Enter)
 }
 
-fn key_enter() -> KeyEvent {
-	KeyEvent {
-		code: KeyCode::Enter,
-		modifiers: Modifiers::NONE,
-		kind: KeyEventKind::Press,
-		state: KeyEventState::NONE,
-	}
-}
-
-fn key_escape() -> KeyEvent {
-	KeyEvent {
-		code: KeyCode::Escape,
-		modifiers: Modifiers::NONE,
-		kind: KeyEventKind::Press,
-		state: KeyEventState::NONE,
-	}
+fn key_escape() -> Key {
+	Key::new(KeyCode::Esc)
 }
 
 fn buffer_text(editor: &Editor) -> String {

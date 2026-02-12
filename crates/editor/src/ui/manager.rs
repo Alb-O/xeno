@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use termina::event::{KeyEvent, MouseEvent};
+use xeno_primitives::{Key, MouseEvent};
 use xeno_registry::themes::Theme;
 use xeno_tui::layout::Rect;
 
@@ -179,13 +179,13 @@ impl UiManager {
 	}
 
 	/// Returns the cursor style for the currently focused panel, if any.
-	pub fn cursor_style(&self) -> Option<termina::style::CursorStyle> {
+	pub fn cursor_style(&self) -> Option<crate::runtime::CursorStyle> {
 		let panel_id = self.focused_panel_id()?;
 		self.panels.get(panel_id).and_then(|p| p.cursor_style_when_focused())
 	}
 
 	/// Handles a key event at the global scope, returning true if consumed.
-	pub fn handle_global_key(&mut self, key: &KeyEvent) -> bool {
+	pub fn handle_global_key(&mut self, key: &Key) -> bool {
 		let scope = BindingScope::Global;
 		let binding = self.keymap.match_key(&scope, key);
 		if let Some(binding) = binding {
@@ -196,7 +196,7 @@ impl UiManager {
 	}
 
 	/// Routes a key event to the focused panel, returning true if consumed.
-	pub fn handle_focused_key(&mut self, editor: &mut crate::impls::Editor, key: KeyEvent) -> bool {
+	pub fn handle_focused_key(&mut self, editor: &mut crate::impls::Editor, key: Key) -> bool {
 		let Some(panel_id) = self.focused_panel_id().map(|s| s.to_string()) else {
 			return false;
 		};
@@ -225,8 +225,8 @@ impl UiManager {
 
 	/// Routes a mouse event to the appropriate panel based on hit testing.
 	pub fn handle_mouse(&mut self, editor: &mut crate::impls::Editor, mouse: MouseEvent, layout: &DockLayout) -> bool {
-		let row = mouse.row;
-		let col = mouse.column;
+		let row = mouse.row();
+		let col = mouse.col();
 
 		let mut hit_panel: Option<String> = None;
 		for (id, area) in &layout.panel_areas {

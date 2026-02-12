@@ -29,12 +29,9 @@ use crate::snippet::vars::EditorSnippetResolver;
 use crate::snippet::{parse_snippet_template, render_with_resolver};
 
 impl Editor {
-	pub(crate) fn is_completion_trigger_key(&self, key: &termina::event::KeyEvent) -> bool {
-		use termina::event::{KeyCode, Modifiers};
-		key.code == KeyCode::Char(' ')
-			&& key.modifiers.contains(Modifiers::CONTROL)
-			&& !key.modifiers.contains(Modifiers::ALT)
-			&& !key.modifiers.contains(Modifiers::SHIFT)
+	pub(crate) fn is_completion_trigger_key(&self, key: &xeno_primitives::Key) -> bool {
+		use xeno_primitives::KeyCode;
+		matches!(key.code, KeyCode::Char(' ') | KeyCode::Space) && key.modifiers.ctrl && !key.modifiers.alt && !key.modifiers.shift
 	}
 
 	pub(crate) fn trigger_lsp_completion(&mut self, trigger: CompletionTrigger, trigger_char: Option<char>) {

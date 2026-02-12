@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use xeno_primitives::Mode;
+use xeno_primitives::{Key, Mode, MouseEvent};
 
 use crate::impls::Editor;
 
@@ -20,6 +20,20 @@ pub enum CursorStyle {
 	Beam,
 	Underline,
 	Hidden,
+}
+
+/// Frontend-agnostic event stream consumed by the editor runtime.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RuntimeEvent {
+	Key(Key),
+	Mouse(MouseEvent),
+	Paste(String),
+	WindowResized {
+		width: u16,
+		height: u16,
+	},
+	FocusIn,
+	FocusOut,
 }
 
 /// Runtime policy constants.
@@ -96,52 +110,44 @@ impl Editor {
 		}
 	}
 
-	/// Handle a single terminal event and then run `pump`.
-	pub async fn on_event(&mut self, ev: termina::event::Event) -> LoopDirective {
+	/// Handle a single frontend event and then run `pump`.
+	pub async fn on_event(&mut self, ev: RuntimeEvent) -> LoopDirective {
 		match ev {
-			termina::event::Event::Key(key) if matches!(key.kind, termina::event::KeyEventKind::Press | termina::event::KeyEventKind::Repeat) => {
+			RuntimeEvent::Key(key) => {
 				let _ = self.handle_key(key).await;
 			}
-			termina::event::Event::Mouse(mouse) => {
+			RuntimeEvent::Mouse(mouse) => {
 				let _ = self.handle_mouse(mouse).await;
 			}
-			termina::event::Event::Paste(content) => {
+			RuntimeEvent::Paste(content) => {
 				self.handle_paste(content);
 			}
-			termina::event::Event::WindowResized(size) => {
-				self.handle_window_resize(size.cols, size.rows);
+			RuntimeEvent::WindowResized { width, height } => {
+				self.handle_window_resize(width, height);
 			}
-			termina::event::Event::FocusIn => {
+			RuntimeEvent::FocusIn => {
 				self.handle_focus_in();
 			}
-			termina::event::Event::FocusOut => {
+			RuntimeEvent::FocusOut => {
 				self.handle_focus_out();
 			}
-			_ => {}
 		}
 
 		self.pump().await
 	}
 
 	fn derive_cursor_style(&self) -> CursorStyle {
-		use termina::style::CursorStyle as TerminaStyle;
-
 		let style = self.ui().cursor_style().unwrap_or_else(|| match self.mode() {
-			Mode::Insert => TerminaStyle::SteadyBar,
-			_ => TerminaStyle::SteadyBlock,
-		});
-
-		match style {
-			TerminaStyle::SteadyBar | TerminaStyle::BlinkingBar => CursorStyle::Beam,
-			TerminaStyle::SteadyUnderline | TerminaStyle::BlinkingUnderline => CursorStyle::Underline,
+			Mode::Insert => CursorStyle::Beam,
 			_ => CursorStyle::Block,
-		}
+		});
+		style
 	}
 }
 
 #[cfg(test)]
 mod tests {
-	use termina::event::{Event, KeyCode, KeyEvent, KeyEventKind, Modifiers};
+	use xeno_primitives::Key;
 
 	use super::*;
 
@@ -153,12 +159,7 @@ mod tests {
 		let _ = editor.pump().await;
 
 		// Any event should trigger maintenance
-		let ev = Event::Key(KeyEvent {
-			code: KeyCode::Char('i'),
-			modifiers: Modifiers::NONE,
-			kind: KeyEventKind::Press,
-			state: termina::event::KeyEventState::NONE,
-		});
+		let ev = RuntimeEvent::Key(Key::char('i'));
 
 		let dir = editor.on_event(ev).await;
 

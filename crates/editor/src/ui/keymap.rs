@@ -2,7 +2,6 @@
 
 use std::collections::HashMap;
 
-use termina::event::KeyEvent;
 use xeno_primitives::{Key, KeyCode, Modifiers};
 
 use super::UiRequest;
@@ -21,10 +20,9 @@ impl UiKeyChord {
 	}
 }
 
-impl From<&KeyEvent> for UiKeyChord {
-	fn from(value: &KeyEvent) -> Self {
-		let key: Key = (*value).into();
-		Self(key)
+impl From<Key> for UiKeyChord {
+	fn from(value: Key) -> Self {
+		Self(value)
 	}
 }
 
@@ -82,8 +80,8 @@ impl KeybindingRegistry {
 	}
 
 	/// Finds the highest priority binding for the given scope and key event.
-	pub fn match_key(&self, scope: &BindingScope, key: &KeyEvent) -> Option<&Keybinding> {
-		let chord = UiKeyChord::from(key);
+	pub fn match_key(&self, scope: &BindingScope, key: &Key) -> Option<&Keybinding> {
+		let chord = UiKeyChord::from(*key);
 		let indices = self.index.get(&(scope.clone(), chord))?;
 		indices.iter().filter_map(|i| self.bindings.get(*i)).min_by_key(|b| b.priority)
 	}
