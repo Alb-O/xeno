@@ -1,7 +1,7 @@
 use xeno_editor::Editor;
 use xeno_editor::buffer::ViewId;
 use xeno_editor::completion::CompletionState;
-use xeno_editor::impls::FocusTarget;
+use xeno_editor::FocusTarget;
 use xeno_editor::overlay::WindowRole;
 use xeno_editor::render_api::{BufferRenderContext, GutterLayout, RenderBufferParams, RenderCtx, ensure_buffer_cursor_visible};
 use xeno_editor::window::{GutterSelector, SurfaceStyle};

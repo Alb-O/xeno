@@ -48,7 +48,7 @@ pub mod geometry;
 pub(crate) mod filesystem;
 /// Async hook execution runtime.
 pub mod hook_runtime;
-pub mod impls;
+mod impls;
 /// Info popups for documentation and contextual help.
 pub mod info_popup;
 /// Editor key/mouse dispatch (input state machine lives in `xeno-input`).
@@ -103,6 +103,7 @@ pub use buffer::{Buffer, HistoryResult, ViewId};
 pub use completion::{CompletionContext, CompletionItem, CompletionKind, CompletionSource, CompletionState};
 pub use editor_ctx::{EditorCapabilities, EditorContext, EditorOps, HandleOutcome, apply_effects};
 pub use impls::{Editor, Editor as EditorApp};
+pub use impls::{FocusReason, FocusTarget, PanelId};
 #[cfg(feature = "lsp")]
 pub use lsp::LspDiagnosticsEvent;
 #[cfg(feature = "lsp")]

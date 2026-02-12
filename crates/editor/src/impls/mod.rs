@@ -57,7 +57,6 @@ pub use core::EditorCore;
 use std::path::PathBuf;
 use std::sync::{Arc, Once};
 
-pub use edit_executor::EditExecutor;
 pub use focus::{FocusReason, FocusTarget, PanelId};
 pub use navigation::Location;
 use parking_lot::Mutex;
@@ -73,18 +72,17 @@ use xeno_registry::{ActionId, HookEventData};
 use crate::buffer::{Buffer, Layout, ViewId};
 pub use crate::command_queue::CommandQueue;
 pub use crate::hook_runtime::HookRuntime;
-pub use crate::layout::{LayoutManager, SeparatorHit, SeparatorId};
+use crate::layout::LayoutManager;
 #[cfg(feature = "lsp")]
 use crate::lsp::LspHandle;
 use crate::lsp::LspSystem;
 use crate::msg::{MsgReceiver, MsgSender};
 pub use crate::overlay::{OverlayStore, OverlaySystem};
 use crate::paste::normalize_to_lf;
-pub use crate::separator::{DragState, MouseVelocityTracker, SeparatorHoverAnimation};
-pub use crate::types::{
-	ApplyEditPolicy, Config, EditorUndoGroup, FrameState, Invocation, InvocationPolicy, InvocationResult, JumpList, JumpLocation, MacroState, PreparedEdit,
-	Registers, UndoHost, UndoManager, ViewSnapshot, Viewport, Workspace,
-};
+use crate::types::{Config, FrameState, UndoManager, Viewport, Workspace};
+#[cfg(feature = "lsp")]
+pub use crate::types::EditorUndoGroup;
+pub use crate::types::{JumpLocation, ViewSnapshot};
 use crate::ui::UiManager;
 pub use crate::view_manager::ViewManager;
 use crate::window::{BaseWindow, WindowManager};
