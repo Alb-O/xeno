@@ -8,7 +8,7 @@ use xeno_registry::HookEventData;
 use xeno_registry::hooks::{HookContext, emit as emit_hook, emit_sync_with as emit_hook_sync_with};
 
 use super::{Editor, is_writable};
-use crate::buffer::ViewId;
+use crate::buffer::{Buffer, DocumentId, ViewId};
 use crate::paste::normalize_to_lf;
 
 impl Editor {
@@ -89,6 +89,27 @@ impl Editor {
 		}
 
 		Ok(buffer_id)
+	}
+
+	/// Builds a file-backed buffer for an existing view ID.
+	pub(crate) async fn load_file_buffer_for_view(&mut self, view: ViewId, path: PathBuf) -> anyhow::Result<Buffer> {
+		let content = match tokio::fs::read_to_string(&path).await {
+			Ok(s) => normalize_to_lf(s),
+			Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
+			Err(e) => return Err(e.into()),
+		};
+
+		let readonly = path.exists() && !is_writable(&path);
+		let mut buffer = Buffer::new(view, content, Some(path));
+		buffer.init_syntax(&self.state.config.language_loader);
+		if let Some(width) = self.state.viewport.width {
+			buffer.text_width = width.saturating_sub(buffer.gutter_width()) as usize;
+		}
+		if readonly {
+			buffer.set_readonly(true);
+		}
+
+		Ok(buffer)
 	}
 
 	/// Creates a new buffer that shares the same document as the current buffer.
@@ -211,15 +232,21 @@ impl Editor {
 	pub(crate) fn finalize_buffer_removal(&mut self, id: ViewId) {
 		let removed = self.state.core.buffers.remove_buffer_raw(id);
 		if let Some(buffer) = removed {
-			let doc_id = buffer.document_id();
-			if self.state.core.buffers.any_buffer_for_doc(doc_id).is_none() {
-				#[cfg(feature = "lsp")]
-				self.state.lsp.sync_manager_mut().on_doc_close(doc_id);
-
-				self.state.syntax_manager.on_document_close(doc_id);
-				self.state.render_cache.invalidate_document(doc_id);
-				self.state.core.warm_docs.remove(doc_id);
-			}
+			self.finalize_document_if_orphaned(buffer.document_id());
 		}
+	}
+
+	/// Runs document-level cleanup when no views remain for a document.
+	pub(crate) fn finalize_document_if_orphaned(&mut self, doc_id: DocumentId) {
+		if self.state.core.buffers.any_buffer_for_doc(doc_id).is_some() {
+			return;
+		}
+
+		#[cfg(feature = "lsp")]
+		self.state.lsp.sync_manager_mut().on_doc_close(doc_id);
+
+		self.state.syntax_manager.on_document_close(doc_id);
+		self.state.render_cache.invalidate_document(doc_id);
+		self.state.core.warm_docs.remove(doc_id);
 	}
 }

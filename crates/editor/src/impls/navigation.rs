@@ -8,6 +8,8 @@ use std::path::PathBuf;
 use xeno_primitives::ScrollDirection;
 use xeno_primitives::range::Direction as MoveDir;
 use xeno_primitives::selection::Selection;
+use xeno_registry::HookEventData;
+use xeno_registry::hooks::{HookContext, emit as emit_hook, emit_sync_with as emit_hook_sync_with};
 use xeno_registry::options::keys;
 
 use super::Editor;
@@ -71,9 +73,10 @@ impl Editor {
 
 	/// Navigates to a specific location (file, line, column).
 	///
-	/// If the file is already open in a buffer, switches to it. Otherwise,
-	/// opens the file in a new buffer. Then positions the cursor at the
-	/// specified line and column.
+	/// Opens a file into the currently focused split and then positions the cursor.
+	///
+	/// The focused view ID remains stable. If the target file is already open in
+	/// another split, this view is rebound to the existing document.
 	///
 	/// # Arguments
 	///
@@ -81,25 +84,84 @@ impl Editor {
 	///
 	/// # Returns
 	///
-	/// The buffer ID of the target buffer, or an error if the file couldn't
-	/// be opened.
+	/// The focused view ID, or an error if the file couldn't be opened.
 	pub async fn goto_location(&mut self, location: &Location) -> anyhow::Result<ViewId> {
-		// Check if we already have this file open
-		let buffer_id = if let Some(id) = self.state.core.buffers.find_by_path(&location.path) {
-			// Switch to existing buffer
-			self.focus_buffer(id);
-			id
-		} else {
-			// Open the file
-			let id = self.open_file(location.path.clone()).await?;
-			self.focus_buffer(id);
-			id
-		};
+		let focused_view = self.base_window().focused_buffer;
+		let target_path = crate::paths::fast_abs(&location.path);
 
-		// Position cursor at the target location
+		let already_focused_path = self
+			.state
+			.core
+			.buffers
+			.get_buffer(focused_view)
+			.and_then(|buffer| buffer.path())
+			.map(|path| crate::paths::fast_abs(&path) == target_path)
+			.unwrap_or(false);
+
+		if !already_focused_path {
+			if let Some(old) = self.state.core.buffers.get_buffer(focused_view) {
+				let scratch_path = PathBuf::from("[scratch]");
+				let path = old.path().unwrap_or_else(|| scratch_path.clone());
+				let file_type = old.file_type();
+				emit_hook_sync_with(
+					&HookContext::new(HookEventData::BufferClose {
+						path: &path,
+						file_type: file_type.as_deref(),
+					}),
+					&mut self.state.hook_runtime,
+				);
+			}
+
+			let existing_view = self.state.core.buffers.buffer_ids().collect::<Vec<_>>().into_iter().find(|id| {
+				self.state
+					.core
+					.buffers
+					.get_buffer(*id)
+					.and_then(|buffer| buffer.path())
+					.is_some_and(|path| crate::paths::fast_abs(&path) == target_path)
+			});
+
+			let replacement = if let Some(source_view) = existing_view {
+				let source = self.state.core.buffers.get_buffer(source_view).expect("existing source buffer must be present");
+				source.clone_for_split(focused_view)
+			} else {
+				self.load_file_buffer_for_view(focused_view, target_path.clone()).await?
+			};
+
+			let replaced = self
+				.state
+				.core
+				.buffers
+				.replace_buffer(focused_view, replacement)
+				.expect("focused buffer must exist");
+
+			self.finalize_document_if_orphaned(replaced.document_id());
+
+			if existing_view.is_none()
+				&& let Some(buffer) = self.state.core.buffers.get_buffer(focused_view)
+				&& let Some(path) = buffer.path()
+			{
+				let text = buffer.with_doc(|doc| doc.content().clone());
+				let file_type = buffer.file_type();
+				emit_hook(&HookContext::new(HookEventData::BufferOpen {
+					path: &path,
+					text: text.slice(..),
+					file_type: file_type.as_deref(),
+				}))
+				.await;
+			}
+
+			#[cfg(feature = "lsp")]
+			self.maybe_track_lsp_for_buffer(focused_view, false);
+
+			self.state.focus_epoch.increment();
+			self.state.frame.needs_redraw = true;
+		}
+
 		self.goto_line_col(location.line, location.column);
+		self.state.frame.needs_redraw = true;
 
-		Ok(buffer_id)
+		Ok(focused_view)
 	}
 
 	/// Moves cursor to a specific line and column.
@@ -136,5 +198,48 @@ impl Editor {
 		// Set cursor and selection
 		buffer.set_cursor(target_pos);
 		buffer.set_selection(Selection::point(target_pos));
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::Location;
+	use crate::impls::Editor;
+
+	#[tokio::test]
+	async fn goto_location_keeps_focused_view_stable() {
+		let tmp = tempfile::tempdir().expect("temp dir");
+		let a_path = tmp.path().join("a.rs");
+		let b_path = tmp.path().join("b.rs");
+		std::fs::write(&a_path, "alpha\n").expect("write a");
+		std::fs::write(&b_path, "beta\n").expect("write b");
+
+		let mut editor = Editor::new(a_path).await.expect("open initial file");
+		let focused = editor.focused_view();
+
+		editor.goto_location(&Location::new(&b_path, 0, 0)).await.expect("goto location");
+
+		assert_eq!(editor.focused_view(), focused);
+		assert_eq!(editor.buffer().path(), Some(crate::paths::fast_abs(&b_path)));
+	}
+
+	#[tokio::test]
+	async fn goto_location_reuses_existing_document_without_new_view() {
+		let tmp = tempfile::tempdir().expect("temp dir");
+		let b_path = tmp.path().join("b.rs");
+		std::fs::write(&b_path, "beta\n").expect("write b");
+
+		let mut editor = Editor::new_scratch();
+		let existing_view = editor.open_file(b_path.clone()).await.expect("open hidden file view");
+		let existing_doc = editor.state.core.buffers.get_buffer(existing_view).expect("existing view buffer").document_id();
+
+		let focused = editor.focused_view();
+		assert_ne!(focused, existing_view);
+
+		editor.goto_location(&Location::new(&b_path, 0, 0)).await.expect("goto existing file");
+
+		assert_eq!(editor.focused_view(), focused);
+		assert_eq!(editor.buffer().document_id(), existing_doc);
+		assert_eq!(editor.buffer_ids().len(), 2);
 	}
 }

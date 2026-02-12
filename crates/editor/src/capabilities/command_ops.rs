@@ -109,8 +109,17 @@ impl CommandEditorOps for EditorCaps<'_> {
 	fn goto_file(&mut self, path: PathBuf, line: usize, column: usize) -> BoxFutureLocal<'_, Result<(), CommandError>> {
 		Box::pin(async move {
 			use crate::impls::Location;
+			let target = crate::paths::fast_abs(&path);
+
+			let current = self.ed.buffer().path().map(|current| crate::paths::fast_abs(&current));
+			let switching_files = current.as_ref().map(|current| current != &target).unwrap_or(true);
+
+			if switching_files && FileOpsAccess::is_modified(self) {
+				return Err(CommandError::Other("No write since last change".to_string()));
+			}
+
 			self.ed
-				.goto_location(&Location::new(path, line, column))
+				.goto_location(&Location::new(target, line, column))
 				.await
 				.map_err(|e| CommandError::Io(e.to_string()))?;
 			Ok(())

@@ -1,8 +1,9 @@
+use std::path::PathBuf;
+
 use xeno_primitives::BoxFutureLocal;
 
 use crate::command_handler;
 use crate::commands::{CommandContext, CommandError, CommandOutcome};
-use crate::notifications::keys;
 
 command_handler!(edit, handler: cmd_edit);
 
@@ -11,7 +12,8 @@ fn cmd_edit<'a>(ctx: &'a mut CommandContext<'a>) -> BoxFutureLocal<'a, Result<Co
 		if ctx.args.is_empty() {
 			return Err(CommandError::MissingArgument("filename"));
 		}
-		ctx.emit(keys::not_implemented(&format!("edit {}", ctx.args[0])));
+		let path = PathBuf::from(ctx.args[0]);
+		ctx.editor.goto_file(path, 0, 0).await?;
 		Ok(CommandOutcome::Ok)
 	})
 }
