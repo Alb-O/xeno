@@ -4,7 +4,7 @@
 //! by composing multiple style layers (diff, cursorline, selection) with
 //! well-defined blend constants.
 
-use xeno_tui::style::Color;
+use xeno_primitives::Color;
 
 /// Named blend constants for style composition.
 ///

@@ -5,7 +5,7 @@
 
 use ropey::{Rope, RopeSlice};
 use xeno_registry::themes::Theme;
-use xeno_tui::style::Color;
+use xeno_primitives::Color;
 
 /// Type of line in a diff file, used for full-line background styling.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

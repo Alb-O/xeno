@@ -2,7 +2,7 @@ use std::path::Path;
 
 use xeno_primitives::Rope;
 use xeno_registry::gutter::GutterAnnotations;
-use xeno_tui::style::Style;
+use xeno_primitives::Style;
 use xeno_tui::text::Line;
 
 use super::super::cell_style::{CellStyleInput, CursorStyleSet, resolve_cell_style};

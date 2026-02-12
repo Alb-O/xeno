@@ -1,6 +1,6 @@
 use xeno_language::LanguageLoader;
 use xeno_registry::themes::Theme;
-use xeno_tui::style::Style;
+use xeno_primitives::Style;
 use xeno_tui::text::Line;
 
 use super::super::cell_style::CursorStyleSet;

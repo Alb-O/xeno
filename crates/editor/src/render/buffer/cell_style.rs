@@ -2,7 +2,7 @@
 //!
 //! Handles the style cascade: cursor > selection > cursorline > syntax > base.
 
-use xeno_tui::style::Style;
+use xeno_primitives::Style;
 
 use super::style_layers::{LineStyleContext, blend};
 
@@ -111,7 +111,7 @@ fn resolve_cursorline_style(input: CellStyleInput<'_>, base: Style) -> Style {
 
 #[cfg(test)]
 mod tests {
-	use xeno_tui::style::Color;
+	use xeno_primitives::Color;
 
 	use super::*;
 

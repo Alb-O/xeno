@@ -15,7 +15,7 @@ use xeno_language::highlight::HighlightSpan;
 use xeno_language::syntax::Syntax;
 use xeno_language::{LanguageId, LanguageLoader};
 use xeno_primitives::Rope;
-use xeno_tui::style::Style;
+use xeno_primitives::Style;
 
 use crate::core::document::DocumentId;
 use crate::syntax_manager::HighlightProjectionCtx;

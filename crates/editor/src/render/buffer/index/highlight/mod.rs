@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::ops::Range;
 
 use xeno_language::highlight::HighlightSpan;
-use xeno_tui::style::Style;
+use xeno_primitives::Style;
 
 #[derive(Debug, Clone)]
 pub struct HighlightIndex {

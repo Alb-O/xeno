@@ -3,7 +3,7 @@ use xeno_language::LanguageId;
 use xeno_language::highlight::HighlightSpan;
 use xeno_primitives::{Mode, visible_line_count};
 use xeno_registry::gutter::GutterAnnotations;
-use xeno_tui::style::{Modifier, Style};
+use xeno_primitives::{Modifier, Style};
 
 use super::super::diff::{DiffLineNumbers, compute_diff_line_numbers, diff_line_bg};
 use super::super::gutter::GutterLayout;
@@ -55,7 +55,7 @@ impl<'a> BufferRenderContext<'a> {
 	}
 
 	/// Returns the background color for the given mode's status badge.
-	fn mode_color(&self, mode: Mode) -> xeno_tui::style::Color {
+	fn mode_color(&self, mode: Mode) -> xeno_primitives::Color {
 		self.theme.colors.mode.for_mode(&mode).bg
 	}
 

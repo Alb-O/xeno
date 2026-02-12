@@ -4,10 +4,11 @@ mod tests {
 	use xeno_primitives::ViewId;
 	use xeno_tui::Terminal;
 	use xeno_tui::backend::TestBackend;
-	use xeno_tui::layout::Rect;
+	use xeno_tui::layout::Rect as TuiRect;
 	use xeno_tui::widgets::Paragraph;
 
 	use crate::buffer::Buffer;
+	use crate::geometry::Rect;
 	use crate::render::BufferRenderContext;
 	use crate::window::GutterSelector;
 
@@ -37,6 +38,7 @@ mod tests {
 		};
 
 		let area = Rect::new(0, 0, 20, 3);
+		let area_tui: TuiRect = area.into();
 		let mut cache = crate::render::cache::RenderCache::new();
 		let result = ctx.render_buffer_with_gutter(crate::render::buffer::context::types::RenderBufferParams {
 			buffer: &buffer,
@@ -54,17 +56,17 @@ mod tests {
 
 		terminal
 			.draw(|f| {
-				let gutter_area = Rect {
+				let gutter_area = TuiRect {
 					width: result.gutter_width,
-					height: area.height,
-					x: area.x,
-					y: area.y,
+					height: area_tui.height,
+					x: area_tui.x,
+					y: area_tui.y,
 				};
-				let text_area = Rect {
-					x: area.x + result.gutter_width,
-					width: area.width.saturating_sub(result.gutter_width),
-					height: area.height,
-					y: area.y,
+				let text_area = TuiRect {
+					x: area_tui.x + result.gutter_width,
+					width: area_tui.width.saturating_sub(result.gutter_width),
+					height: area_tui.height,
+					y: area_tui.y,
 				};
 
 				f.render_widget(Paragraph::new(result.gutter), gutter_area);
@@ -102,6 +104,7 @@ mod tests {
 
 		// 30 width, gutter will take ~6, leaving ~24 for text
 		let area = Rect::new(0, 0, 30, 5);
+		let area_tui: TuiRect = area.into();
 		let mut cache = crate::render::cache::RenderCache::new();
 		let result = ctx.render_buffer_with_gutter(crate::render::buffer::context::types::RenderBufferParams {
 			buffer: &buffer,
@@ -119,17 +122,17 @@ mod tests {
 
 		terminal
 			.draw(|f| {
-				let gutter_area = Rect {
+				let gutter_area = TuiRect {
 					width: result.gutter_width,
-					height: area.height,
-					x: area.x,
-					y: area.y,
+					height: area_tui.height,
+					x: area_tui.x,
+					y: area_tui.y,
 				};
-				let text_area = Rect {
-					x: area.x + result.gutter_width,
-					width: area.width.saturating_sub(result.gutter_width),
-					height: area.height,
-					y: area.y,
+				let text_area = TuiRect {
+					x: area_tui.x + result.gutter_width,
+					width: area_tui.width.saturating_sub(result.gutter_width),
+					height: area_tui.height,
+					y: area_tui.y,
 				};
 
 				f.render_widget(Paragraph::new(result.gutter), gutter_area);

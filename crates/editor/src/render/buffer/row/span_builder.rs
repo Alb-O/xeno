@@ -1,4 +1,4 @@
-use xeno_tui::style::Style;
+use xeno_primitives::Style;
 use xeno_tui::text::Span;
 
 #[derive(Debug, Default)]

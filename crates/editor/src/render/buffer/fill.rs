@@ -3,7 +3,7 @@
 //! Provides utilities for creating fill spans that extend line backgrounds
 //! to the full terminal width.
 
-use xeno_tui::style::{Color, Style};
+use xeno_primitives::{Color, Style};
 use xeno_tui::text::Span;
 
 /// Configuration for filling empty space in a line.

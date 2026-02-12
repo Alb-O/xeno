@@ -3,7 +3,7 @@ mod unit_tests {
 	use xeno_primitives::Rope;
 	use xeno_primitives::range::CharIdx;
 	use xeno_primitives::selection::Selection;
-	use xeno_tui::style::{Color, Style};
+	use xeno_primitives::{Color, Style};
 
 	use crate::render::buffer::GutterLayout;
 	use crate::render::buffer::context::types::{BufferRenderContext, CursorStyles, RenderLayout};
@@ -289,7 +289,7 @@ mod unit_tests {
 		let spans = line.spans;
 
 		// Consume prefix of 4 spaces from the span list
-		fn take_prefix<'a>(spans: &'a [xeno_tui::text::Span<'static>], mut n: usize) -> Vec<(&'a xeno_tui::style::Style, String)> {
+		fn take_prefix<'a>(spans: &'a [xeno_tui::text::Span<'static>], mut n: usize) -> Vec<(&'a xeno_primitives::Style, String)> {
 			let mut out = Vec::new();
 			for sp in spans {
 				if n == 0 {
