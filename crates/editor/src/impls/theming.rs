@@ -56,7 +56,7 @@ impl Editor {
 	}
 
 	/// Collects syntax highlight spans for the visible area of the buffer.
-	pub fn collect_highlight_spans(&self, area: xeno_tui::layout::Rect) -> Vec<(xeno_language::highlight::HighlightSpan, xeno_tui::style::Style)> {
+	pub fn collect_highlight_spans(&self, area: crate::geometry::Rect) -> Vec<(xeno_language::highlight::HighlightSpan, xeno_primitives::Style)> {
 		let buffer = self.buffer();
 		let scroll_line = buffer.scroll_line;
 		let doc_id = buffer.document_id();
@@ -90,8 +90,7 @@ impl Editor {
 			highlighter
 				.map(|span| {
 					let abstract_style = highlight_styles.style_for_highlight(span.highlight);
-					let xeno_tui_style: xeno_tui::style::Style = abstract_style;
-					(span, xeno_tui_style)
+					(span, abstract_style)
 				})
 				.collect()
 		})
@@ -101,8 +100,8 @@ impl Editor {
 	pub fn style_for_byte_pos(
 		&self,
 		byte_pos: usize,
-		spans: &[(xeno_language::highlight::HighlightSpan, xeno_tui::style::Style)],
-	) -> Option<xeno_tui::style::Style> {
+		spans: &[(xeno_language::highlight::HighlightSpan, xeno_primitives::Style)],
+	) -> Option<xeno_primitives::Style> {
 		for (span, style) in spans.iter().rev() {
 			if byte_pos >= span.start as usize && byte_pos < span.end as usize {
 				return Some(*style);
