@@ -453,3 +453,19 @@ Validated:
 - `cargo check -p xeno-editor-tui`
 - `cargo check -p xeno-term`
 - `cargo test -p xeno-editor row -- --nocapture`
+
+## Follow-up checkpoints (`2026-02-12`, batch 9)
+
+Delta since commit `37f85d59`:
+- `xeno-editor` no longer exports the broad internal `impls` module surface.
+- Frontend focus usage imports a focused root symbol (`xeno_editor::FocusTarget`) instead of `xeno_editor::impls::FocusTarget`.
+- Internal `impls` passthrough re-exports were narrowed to active consumers only.
+
+Commit:
+- `fc3f1af6` editor: internalize impls module and narrow focus imports
+
+Validated:
+- `cargo check -p xeno-editor --all-targets`
+- `cargo check -p xeno-editor --no-default-features --all-targets`
+- `cargo check -p xeno-editor-tui`
+- `cargo check -p xeno-term`
