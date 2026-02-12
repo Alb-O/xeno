@@ -164,21 +164,4 @@ mod tests {
 		assert_eq!(dir.poll_timeout, Some(Duration::from_millis(16)));
 		assert_eq!(editor.mode(), Mode::Insert);
 	}
-
-	#[tokio::test]
-	async fn test_needs_redraw_cleared_by_render() {
-		let mut editor = Editor::new_scratch();
-		editor.frame_mut().needs_redraw = true;
-
-		let backend = xeno_tui::backend::TestBackend::new(80, 24);
-		let mut terminal = xeno_tui::Terminal::new(backend).unwrap();
-
-		terminal
-			.draw(|frame| {
-				editor.render(frame);
-			})
-			.unwrap();
-
-		assert!(!editor.frame().needs_redraw);
-	}
 }

@@ -4,7 +4,6 @@ pub mod cache;
 /// Completion popup rendering.
 mod completion;
 mod context;
-mod document;
 mod snippet_choice;
 /// Status line rendering.
 mod status;

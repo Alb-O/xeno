@@ -152,5 +152,6 @@ Execution order: seam-first option `2 -> 1 -> 3`.
 - [x] Scene composition primitives (`SceneBuilder`, `UiScene`) moved to `xeno-editor-tui`.
 - [x] Split document rendering orchestration moved to `xeno-editor-tui` (`document::render_split_buffers` + separator styling).
 - [x] Legacy `EditorFrontend`/`EditorEngineOps` runtime traits removed from `xeno-editor`; frontend now drives `Editor` directly.
+- [x] Legacy editor-side compositor/document path removed (`editor::ui::compositor`, editor popup layer modules, and `render::document`).
 - [ ] Move `ui/*`, `render/*`, and `info_popup` ownership to `xeno-editor-tui`.
 - [ ] Make `xeno-editor` build headless with `xeno-tui` optional and verify with `--no-default-features`.

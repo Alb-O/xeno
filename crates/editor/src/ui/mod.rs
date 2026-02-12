@@ -1,4 +1,3 @@
-pub mod compositor;
 pub mod dock;
 mod focus;
 pub mod ids;
