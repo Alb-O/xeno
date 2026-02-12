@@ -84,7 +84,13 @@ fn worker_loop(generation: u64, mut data: SearchData, command_rx: Receiver<Searc
 					Err(TrySendError::Disconnected(_)) => break,
 				}
 			}
-			SearchCmd::Shutdown { .. } => break,
+			SearchCmd::Shutdown {
+				generation: command_generation,
+			} => {
+				if command_generation == generation {
+					break;
+				}
+			}
 		}
 	}
 }

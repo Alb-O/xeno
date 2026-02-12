@@ -83,8 +83,10 @@ impl FsService {
 	}
 
 	pub fn stop_index(&mut self) {
+		if let Some(search_tx) = self.search_tx.take() {
+			let _ = search_tx.send(SearchCmd::Shutdown { generation: self.generation });
+		}
 		self.index_rx = None;
-		self.search_tx = None;
 		self.search_rx = None;
 		self.search_latest_query_id = None;
 		self.index_spec = None;

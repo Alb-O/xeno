@@ -239,7 +239,6 @@ mod tests {
 
 		let rx = spawn_filesystem_index(1, root.to_path_buf(), FilesystemOptions::default());
 		let mut seen_paths: Vec<String> = Vec::new();
-		let mut saw_complete = false;
 
 		loop {
 			let msg = rx.recv_timeout(Duration::from_secs(2)).expect("expected index message");
@@ -249,19 +248,16 @@ mod tests {
 						seen_paths.push(file.path.to_string());
 					}
 					if update.progress.complete {
-						saw_complete = true;
 						break;
 					}
 				}
 				IndexMsg::Complete { .. } => {
-					saw_complete = true;
 					break;
 				}
 				IndexMsg::Error { .. } => {}
 			}
 		}
 
-		assert!(saw_complete, "indexer should complete");
 		assert!(seen_paths.iter().any(|p| p == "src/main.rs"));
 		assert!(seen_paths.iter().any(|p| p == "src/lib.rs"));
 		assert!(seen_paths.iter().all(|p| !p.contains('\\')));

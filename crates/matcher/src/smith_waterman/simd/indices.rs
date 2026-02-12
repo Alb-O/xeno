@@ -177,7 +177,7 @@ mod tests {
 
 	#[test]
 	fn test_typo_indices() {
-		assert_eq!(get_indices("b", "a"), vec![]);
+		assert_eq!(get_indices("b", "a"), Vec::<usize>::new());
 		assert_eq!(get_indices("reba", "repack"), vec![0, 1, 3]);
 		assert_eq!(get_indices("bbb", "abc"), vec![1]);
 	}

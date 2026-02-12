@@ -84,7 +84,7 @@ mod tests {
 
 	#[test]
 	fn test_basic_indices() {
-		assert_eq!(get_indices("", "abc"), vec![]);
+		assert_eq!(get_indices("", "abc"), Vec::<usize>::new());
 		assert_eq!(get_indices("b", "abc"), vec![1]);
 		assert_eq!(get_indices("c", "abc"), vec![2]);
 	}
@@ -127,7 +127,7 @@ mod tests {
 
 	#[test]
 	fn test_typo_indices() {
-		assert_eq!(get_indices("b", "a"), vec![]);
+		assert_eq!(get_indices("b", "a"), Vec::<usize>::new());
 		assert_eq!(get_indices("reba", "repack"), vec![0, 1, 3]);
 		assert_eq!(get_indices("bbb", "abc"), vec![1]);
 	}
