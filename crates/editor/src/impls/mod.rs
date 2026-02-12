@@ -632,6 +632,39 @@ impl Editor {
 		crate::ui::utility_whichkey_desired_height(self)
 	}
 
+	/// Returns utility panel height hint while a modal overlay is active.
+	///
+	/// Frontends use this to keep utility panel sizing policy consistent
+	/// without depending on controller/session internals.
+	#[inline]
+	pub fn utility_overlay_height_hint(&self) -> Option<u16> {
+		let active = self.overlay_interaction().active()?;
+		if matches!(active.controller.name(), "CommandPalette" | "FilePicker") {
+			let menu_rows = self
+				.overlays()
+				.get::<crate::CompletionState>()
+				.filter(|state| state.active)
+				.map_or(0u16, |state| state.visible_range().len() as u16);
+			Some((1 + menu_rows).clamp(1, 10))
+		} else if active.session.panes.len() <= 1 {
+			Some(1)
+		} else {
+			Some(10)
+		}
+	}
+
+	/// Returns the current overlay label for statusline display.
+	#[inline]
+	pub fn status_overlay_label(&self) -> Option<String> {
+		let active = self.overlay_interaction().active()?;
+		let label = match active.controller.name() {
+			"CommandPalette" => "Cmd",
+			"Search" => "Search",
+			other => other,
+		};
+		Some(label.to_string())
+	}
+
 	#[inline]
 	pub fn syntax_manager(&self) -> &crate::syntax_manager::SyntaxManager {
 		&self.state.syntax_manager

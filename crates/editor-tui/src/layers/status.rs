@@ -93,12 +93,7 @@ pub fn render(ed: &Editor, frame: &mut xeno_tui::Frame, area: Rect) {
 		spans.push(segment_to_span(ed, &seg));
 	}
 
-	if let Some(active) = ed.overlay_interaction().active() {
-		let label = match active.controller.name() {
-			"CommandPalette" => "Cmd",
-			"Search" => "Search",
-			other => other,
-		};
+	if let Some(label) = ed.status_overlay_label() {
 		let tag = format!(" [{label}]");
 		let viewport_width = ed.viewport().width.unwrap_or(0) as usize;
 		let tag_width = cell_width(&tag);

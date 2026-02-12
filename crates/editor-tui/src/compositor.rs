@@ -1,5 +1,4 @@
 use xeno_editor::Editor;
-use xeno_editor::completion::CompletionState;
 use xeno_tui::layout::{Constraint, Direction, Layout};
 use xeno_tui::style::Style;
 use xeno_tui::widgets::{Block, Clear};
@@ -27,21 +26,7 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame, notifications:
 	let status_area = chunks[1];
 
 	let mut ui = std::mem::take(ed.ui_mut());
-	let overlay_height = ed.overlay_interaction().active().map(|active| {
-		if matches!(active.controller.name(), "CommandPalette" | "FilePicker") {
-			let menu_rows = ed
-				.overlays()
-				.get::<CompletionState>()
-				.filter(|state| state.active)
-				.map_or(0u16, |state| state.visible_range().len() as u16);
-			(1 + menu_rows).clamp(1, 10)
-		} else if active.session.panes.len() <= 1 {
-			1
-		} else {
-			10
-		}
-	});
-	ui.sync_utility_for_modal_overlay(overlay_height);
+	ui.sync_utility_for_modal_overlay(ed.utility_overlay_height_hint());
 	let whichkey_height = ed.whichkey_desired_height();
 	ui.sync_utility_for_whichkey(whichkey_height);
 	let dock_layout = ui.compute_layout(main_area.into());
