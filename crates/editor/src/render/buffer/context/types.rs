@@ -1,6 +1,5 @@
 use xeno_language::LanguageLoader;
 use xeno_registry::themes::Theme;
-use xeno_tui::layout::Rect;
 use xeno_tui::style::Style;
 use xeno_tui::text::Line;
 
@@ -8,6 +7,7 @@ use super::super::cell_style::CursorStyleSet;
 use super::super::diagnostics::{DiagnosticLineMap, DiagnosticRangeMap};
 use super::super::gutter::GutterLayout;
 use crate::buffer::Buffer;
+use crate::geometry::Rect;
 use crate::render::cache::RenderCache;
 use crate::window::GutterSelector;
 

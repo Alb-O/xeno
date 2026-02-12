@@ -141,7 +141,7 @@ pub fn render_utility_panel_overlay(ed: &mut Editor, frame: &mut xeno_tui::Frame
 			let gutter_layout = GutterLayout::from_selector(effective_gutter, total_lines, content_area.width);
 			let text_width = content_area.width.saturating_sub(gutter_layout.total_width) as usize;
 
-			ensure_buffer_cursor_visible(buffer, content_area, text_width, tab_width, scroll_margin);
+			ensure_buffer_cursor_visible(buffer, content_area.into(), text_width, tab_width, scroll_margin);
 		}
 	}
 
@@ -191,7 +191,7 @@ pub fn render_utility_panel_overlay(ed: &mut Editor, frame: &mut xeno_tui::Frame
 			};
 			let result = buffer_ctx.render_buffer_with_gutter(RenderBufferParams {
 				buffer,
-				area: content_area,
+				area: content_area.into(),
 				use_block_cursor: true,
 				is_focused: focused_overlay == Some(pane.buffer),
 				gutter: pane.gutter,

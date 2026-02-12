@@ -3,7 +3,6 @@ use xeno_language::LanguageId;
 use xeno_language::highlight::HighlightSpan;
 use xeno_primitives::{Mode, visible_line_count};
 use xeno_registry::gutter::GutterAnnotations;
-use xeno_tui::layout::Rect;
 use xeno_tui::style::{Modifier, Style};
 
 use super::super::diff::{DiffLineNumbers, compute_diff_line_numbers, diff_line_bg};
@@ -15,6 +14,7 @@ use super::super::style_layers::LineStyleContext;
 use super::types::{BufferRenderContext, CursorStyles, RenderBufferParams, RenderLayout, RenderResult};
 use crate::buffer::Buffer;
 use crate::core::document::{Document, DocumentId};
+use crate::geometry::Rect;
 use crate::render::cache::{HighlightSpanQuery, RenderCache};
 use crate::render::wrap::WrappedSegment;
 use crate::window::GutterSelector;

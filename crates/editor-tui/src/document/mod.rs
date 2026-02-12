@@ -92,7 +92,7 @@ pub fn render_split_buffers(ed: &mut Editor, frame: &mut xeno_tui::Frame, doc_ar
 				let gutter_layout = GutterLayout::from_selector(effective_gutter, total_lines, area.width);
 				let text_width = area.width.saturating_sub(gutter_layout.total_width) as usize;
 
-				ensure_buffer_cursor_visible(buffer, *area, text_width, tab_width, scroll_margin);
+					ensure_buffer_cursor_visible(buffer, (*area).into(), text_width, tab_width, scroll_margin);
 			}
 		}
 	}
@@ -116,7 +116,7 @@ pub fn render_split_buffers(ed: &mut Editor, frame: &mut xeno_tui::Frame, doc_ar
 					diagnostics: ctx.lsp.diagnostics_for(*buffer_id),
 					diagnostic_ranges: ctx.lsp.diagnostic_ranges_for(*buffer_id),
 				};
-				let result = buffer_ctx.render_buffer(buffer, *area, use_block_cursor, is_focused, tab_width, cursorline, &mut cache);
+				let result = buffer_ctx.render_buffer(buffer, (*area).into(), use_block_cursor, is_focused, tab_width, cursorline, &mut cache);
 
 				let gutter_area = Rect {
 					width: result.gutter_width,

@@ -1,9 +1,9 @@
 use xeno_primitives::range::CharIdx;
 use xeno_primitives::visible_line_count;
-use xeno_tui::layout::Rect;
 
 use super::types::ViewportEnsureEvent;
 use crate::buffer::{Buffer, Document};
+use crate::geometry::Rect;
 use crate::render::wrap::{WrappedSegment, wrap_line_ranges_rope};
 
 /// Ensures the primary cursor is visible within the viewport.

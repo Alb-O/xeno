@@ -89,7 +89,7 @@ pub fn render(ed: &mut Editor, frame: &mut xeno_tui::Frame, doc_area: Rect, ctx:
 
 		let result = buffer_ctx.render_buffer_with_gutter(RenderBufferParams {
 			buffer,
-			area: inner,
+			area: inner.into(),
 			use_block_cursor: false,
 			is_focused: false,
 			gutter: GutterSelector::Hidden,
