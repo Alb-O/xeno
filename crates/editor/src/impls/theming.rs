@@ -8,6 +8,19 @@ use xeno_registry::themes::SyntaxStyles;
 use super::Editor;
 
 impl Editor {
+	/// Stores the configured theme name in global options.
+	///
+	/// This sets the persisted preference used by
+	/// [`Self::resolve_configured_theme`] once theme catalogs are available.
+	pub fn set_configured_theme_name(&mut self, theme_name: impl Into<String>) {
+		use xeno_registry::options::{OptionValue, keys};
+
+		let option_ref = xeno_registry::db::OPTIONS
+			.get_key(&keys::THEME.untyped())
+			.expect("theme option missing from registry");
+		self.state.config.global_options.set(option_ref, OptionValue::String(theme_name.into()));
+	}
+
 	/// Resolves and applies the configured theme after themes are registered.
 	///
 	/// Called by [`crate::msg::ThemeMsg::ThemesReady`] after background theme loading completes.

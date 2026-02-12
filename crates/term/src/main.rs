@@ -12,7 +12,6 @@ use cli::{Cli, Command, FileLocation, GrammarAction};
 use tracing::{info, warn};
 use xeno_editor::Editor;
 use xeno_editor_tui::run_editor;
-use xeno_registry::options::keys;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -67,11 +66,7 @@ async fn main() -> anyhow::Result<()> {
 	apply_user_config(&mut editor, user_config);
 
 	if let Some(theme_name) = cli.theme {
-		use xeno_registry::options::OptionValue;
-		let opt = xeno_registry::db::OPTIONS
-			.get_key(&keys::THEME.untyped())
-			.expect("theme option missing from registry");
-		editor.config_mut().global_options.set(opt, OptionValue::String(theme_name));
+		editor.set_configured_theme_name(theme_name);
 	}
 
 	run_editor(editor).await?;
