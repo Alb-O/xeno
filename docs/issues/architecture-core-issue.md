@@ -382,3 +382,17 @@ Validated at checkpoints:
   - `cargo test -p xeno-editor test_render_wrapping`
   - `cargo test -p xeno-editor pane_inner_rect_matches_block_inner`
   - `cargo test -p xeno-editor fixed_bottom_height_reduces_doc_area_deterministically`
+
+## Follow-up checkpoints (`2026-02-12`, batch 5)
+
+Delta since commit `04ae9f06`:
+- Frontend text width helpers no longer depend on `xeno_editor::render::{cell_width,char_width}`.
+- `xeno-editor-tui` owns its own text width helper module (`crates/editor-tui/src/text_width.rs`) for popup/status rendering.
+
+Commit:
+- `26eb8505` editor-tui: localize text width helpers in frontend crate
+
+Validated:
+- `cargo check -p xeno-editor-tui`
+- `cargo check -p xeno-term`
+- `cargo check -p xeno-editor --all-targets`
