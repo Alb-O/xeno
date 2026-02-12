@@ -5,8 +5,6 @@ pub mod cache;
 mod completion;
 mod context;
 mod snippet_choice;
-/// Status line rendering.
-mod status;
 mod text_width;
 /// Line wrapping with sticky punctuation.
 pub mod wrap;

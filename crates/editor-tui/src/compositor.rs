@@ -107,11 +107,7 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame) {
 			SurfaceOp::CompletionPopup => crate::layers::completion::render(ed, frame),
 			SurfaceOp::SnippetChoicePopup => crate::layers::snippet_choice::render(ed, frame),
 			SurfaceOp::OverlayLayers => ed.render_overlay_layers(frame),
-			SurfaceOp::StatusLine => {
-				let status_bg = Block::default().style(Style::default().bg(ctx.theme.colors.ui.bg));
-				frame.render_widget(status_bg, status_area);
-				frame.render_widget(ed.render_status_line(), status_area);
-			}
+			SurfaceOp::StatusLine => crate::layers::status::render(ed, frame, status_area),
 			SurfaceOp::Notifications => {
 				let mut notifications_area = doc_area;
 				notifications_area.height = notifications_area.height.saturating_sub(1);
