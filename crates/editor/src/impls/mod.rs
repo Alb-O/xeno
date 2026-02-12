@@ -644,6 +644,26 @@ impl Editor {
 	}
 
 	#[inline]
+	pub fn syntax_manager(&self) -> &crate::syntax_manager::SyntaxManager {
+		&self.state.syntax_manager
+	}
+
+	#[inline]
+	pub fn syntax_manager_mut(&mut self) -> &mut crate::syntax_manager::SyntaxManager {
+		&mut self.state.syntax_manager
+	}
+
+	#[inline]
+	pub fn render_cache(&self) -> &crate::render::cache::RenderCache {
+		&self.state.render_cache
+	}
+
+	#[inline]
+	pub fn render_cache_mut(&mut self) -> &mut crate::render::cache::RenderCache {
+		&mut self.state.render_cache
+	}
+
+	#[inline]
 	pub fn metrics(&self) -> &std::sync::Arc<crate::metrics::EditorMetrics> {
 		&self.state.metrics
 	}

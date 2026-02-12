@@ -1,7 +1,6 @@
 use xeno_editor::Editor;
 use xeno_editor::completion::CompletionState;
 use xeno_editor::ui::layer::SceneBuilder;
-use xeno_editor::ui::layers;
 use xeno_editor::ui::scene::{SceneRenderResult, SurfaceKind, SurfaceOp};
 use xeno_tui::layout::{Constraint, Direction, Layout};
 use xeno_tui::style::Style;
@@ -71,15 +70,15 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame) {
 	let mut builder = SceneBuilder::new(area, main_area, doc_area, status_area);
 	builder.push(SurfaceKind::Background, 0, area, SurfaceOp::Background, false);
 	builder.push(SurfaceKind::Document, 10, doc_area, SurfaceOp::Document, true);
-	if layers::info_popups::visible(ed) {
-		layers::info_popups::push(&mut builder, doc_area);
+	if crate::layers::info_popups::visible(ed) {
+		crate::layers::info_popups::push(&mut builder, doc_area);
 	}
 	builder.push(SurfaceKind::Panels, 30, main_area, SurfaceOp::Panels, false);
-	if layers::completion::visible(ed) {
-		layers::completion::push(&mut builder, doc_area);
+	if crate::layers::completion::visible(ed) {
+		crate::layers::completion::push(&mut builder, doc_area);
 	}
-	if layers::snippet_choice::visible(ed) {
-		layers::snippet_choice::push(&mut builder, doc_area);
+	if crate::layers::snippet_choice::visible(ed) {
+		crate::layers::snippet_choice::push(&mut builder, doc_area);
 	}
 	builder.push(SurfaceKind::OverlayLayers, 50, area, SurfaceOp::OverlayLayers, false);
 	builder.push(SurfaceKind::StatusLine, 60, status_area, SurfaceOp::StatusLine, false);
@@ -97,14 +96,14 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame) {
 			SurfaceOp::Document => {
 				ed.render_split_buffers(frame, doc_area, use_block_cursor && doc_focused, &ctx);
 			}
-			SurfaceOp::InfoPopups => layers::info_popups::render(ed, frame, doc_area, &ctx),
+			SurfaceOp::InfoPopups => crate::layers::info_popups::render(ed, frame, doc_area, &ctx),
 			SurfaceOp::Panels => {
 				if let Some(cursor_pos) = ui.render_panels(ed, frame, &dock_layout, &ctx.theme) {
 					result.cursor = Some(cursor_pos);
 				}
 			}
-			SurfaceOp::CompletionPopup => layers::completion::render(ed, frame),
-			SurfaceOp::SnippetChoicePopup => layers::snippet_choice::render(ed, frame),
+			SurfaceOp::CompletionPopup => crate::layers::completion::render(ed, frame),
+			SurfaceOp::SnippetChoicePopup => crate::layers::snippet_choice::render(ed, frame),
 			SurfaceOp::OverlayLayers => ed.render_overlay_layers(frame),
 			SurfaceOp::StatusLine => {
 				let status_bg = Block::default().style(Style::default().bg(ctx.theme.colors.ui.bg));

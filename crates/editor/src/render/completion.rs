@@ -68,6 +68,33 @@ fn command_query_is_exact_alias(query: &str, label: &str) -> bool {
 }
 
 impl Editor {
+	/// Returns whether the LSP completion popup should be rendered.
+	pub fn completion_popup_visible(&self) -> bool {
+		#[cfg(not(feature = "lsp"))]
+		{
+			false
+		}
+
+		#[cfg(feature = "lsp")]
+		{
+			let completions = self.overlays().get::<CompletionState>().cloned().unwrap_or_default();
+			if !completions.active || completions.items.is_empty() {
+				return false;
+			}
+
+			let Some(menu_state) = self.overlays().get::<crate::lsp::LspMenuState>().and_then(|state| state.active()) else {
+				return false;
+			};
+
+			let buffer_id = match menu_state {
+				crate::lsp::LspMenuKind::Completion { buffer_id, .. } => *buffer_id,
+				crate::lsp::LspMenuKind::CodeAction { buffer_id, .. } => *buffer_id,
+			};
+
+			buffer_id == self.focused_view()
+		}
+	}
+
 	/// Creates a widget for rendering the completion popup menu.
 	pub fn render_completion_menu(&self, _area: Rect) -> impl Widget + '_ {
 		self.render_completion_menu_with_limit(_area, CompletionState::MAX_VISIBLE)

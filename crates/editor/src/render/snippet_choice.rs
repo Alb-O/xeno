@@ -24,6 +24,16 @@ fn choice_window(total: usize, selected: usize, visible_rows: usize) -> (usize, 
 }
 
 impl Editor {
+	pub fn snippet_choice_popup_visible(&self) -> bool {
+		if self.overlay_interaction().is_open() {
+			return false;
+		}
+
+		self.overlays()
+			.get::<SnippetChoiceOverlay>()
+			.is_some_and(|overlay| overlay.active && overlay.buffer_id == self.focused_view() && !overlay.options.is_empty())
+	}
+
 	pub fn render_snippet_choice_menu(&self, area: Rect, overlay: &SnippetChoiceOverlay) -> impl Widget + '_ {
 		let target_width = area.width.saturating_sub(1) as usize;
 		let (window_start, window_end) = choice_window(overlay.options.len(), overlay.selected, area.height as usize);
