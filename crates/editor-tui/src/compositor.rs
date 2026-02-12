@@ -99,7 +99,7 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame) {
 			}
 			SurfaceOp::InfoPopups => crate::layers::info_popups::render(ed, frame, doc_area, &ctx),
 			SurfaceOp::Panels => {
-				if let Some(cursor_pos) = ui.render_panels(ed, frame, &dock_layout, &ctx.theme) {
+				if let Some(cursor_pos) = crate::panels::render_panels(&mut ui, ed, frame, &dock_layout, &ctx.theme) {
 					result.cursor = Some(cursor_pos);
 				}
 			}

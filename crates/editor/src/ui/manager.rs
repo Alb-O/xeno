@@ -3,7 +3,6 @@
 use std::collections::HashMap;
 
 use xeno_primitives::{Key, MouseEvent};
-use xeno_registry::themes::Theme;
 use xeno_tui::layout::Rect;
 
 use super::dock::{DockLayout, DockManager, DockSlot, SizeSpec};
@@ -154,6 +153,14 @@ impl UiManager {
 	/// Returns whether a panel with the given ID is registered.
 	pub fn has_panel(&self, id: &str) -> bool {
 		self.panels.contains_key(id)
+	}
+
+	/// Invokes `f` with a mutable panel reference when the panel is registered.
+	pub fn with_panel_mut<R, F>(&mut self, id: &str, f: F) -> Option<R>
+	where
+		F: FnOnce(&mut dyn Panel) -> R,
+	{
+		self.panels.get_mut(id).map(|panel| f(panel.as_mut()))
 	}
 
 	/// Returns and clears the redraw flag, indicating if a redraw was requested.
@@ -338,26 +345,5 @@ impl UiManager {
 				UiRequest::TogglePanel(id) => self.toggle_panel(&id),
 			}
 		}
-	}
-
-	/// Renders all open panels and returns the cursor position if any panel requests one.
-	pub fn render_panels(
-		&mut self,
-		editor: &mut crate::impls::Editor,
-		frame: &mut xeno_tui::Frame,
-		layout: &DockLayout,
-		theme: &Theme,
-	) -> Option<xeno_tui::layout::Position> {
-		let mut cursor: Option<xeno_tui::layout::Position> = None;
-		for (id, area) in &layout.panel_areas {
-			let focused = self.is_panel_focused(id);
-			if let Some(panel) = self.panels.get_mut(id) {
-				let cursor_req = panel.render(frame, *area, editor, focused, theme);
-				if focused && let Some(req) = cursor_req {
-					cursor = Some(req.pos);
-				}
-			}
-		}
-		cursor
 	}
 }

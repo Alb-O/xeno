@@ -5,6 +5,7 @@ mod compositor;
 mod document;
 mod layer;
 mod layers;
+mod panels;
 mod scene;
 mod terminal;
 
