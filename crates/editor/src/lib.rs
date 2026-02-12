@@ -58,6 +58,8 @@ mod lsp;
 pub mod metrics;
 /// Async message bus for background task hydration.
 pub mod msg;
+/// Nu runtime for user macro scripts.
+pub mod nu;
 /// Type-erased UI overlay storage.
 pub mod overlay;
 pub(crate) mod paste;

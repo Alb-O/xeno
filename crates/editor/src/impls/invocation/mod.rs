@@ -47,7 +47,15 @@ impl Editor {
 		trace!(policy = ?policy, "Running invocation");
 
 		match invocation {
-			Invocation::Action { name, count, extend, register } => self.run_action_invocation(&name, count, extend, register, None, policy),
+			Invocation::Action { name, count, extend, register } => {
+				let result = self.run_action_invocation(&name, count, extend, register, None, policy);
+				if !result.is_quit() {
+					if let Some(hook_result) = self.run_nu_hook("on_action_post", vec![name, action_result_label(&result).to_string()]).await {
+						return hook_result;
+					}
+				}
+				result
+			}
 
 			Invocation::ActionWithChar {
 				name,
@@ -55,12 +63,90 @@ impl Editor {
 				extend,
 				register,
 				char_arg,
-			} => self.run_action_invocation(&name, count, extend, register, Some(char_arg), policy),
+			} => {
+				let result = self.run_action_invocation(&name, count, extend, register, Some(char_arg), policy);
+				if !result.is_quit() {
+					if let Some(hook_result) = self.run_nu_hook("on_action_post", vec![name, action_result_label(&result).to_string()]).await {
+						return hook_result;
+					}
+				}
+				result
+			}
 
 			Invocation::Command { name, args } => self.run_command_invocation(&name, args, policy).await,
 
 			Invocation::EditorCommand { name, args } => self.run_editor_command_invocation(&name, args, policy).await,
 		}
+	}
+
+	/// Run a Nu hook function if runtime is loaded.
+	///
+	/// Hook errors are logged and ignored. Quit requests from hook-produced
+	/// invocations are propagated to the caller.
+	pub async fn run_nu_hook(&mut self, fn_name: &str, args: Vec<String>) -> Option<InvocationResult> {
+		if self.state.nu_hook_guard {
+			return None;
+		}
+
+		let runtime = self.nu_runtime()?.clone();
+		let fn_name_owned = fn_name.to_string();
+		let invocations = match tokio::task::spawn_blocking(move || runtime.try_run_invocations(&fn_name_owned, &args)).await {
+			Ok(Ok(Some(invocations))) => invocations,
+			Ok(Ok(None)) => return None,
+			Ok(Err(error)) => {
+				warn!(hook = fn_name, error = %error, "Nu hook failed");
+				return None;
+			}
+			Err(error) => {
+				warn!(hook = fn_name, error = %error, "Nu hook task join failed");
+				return None;
+			}
+		};
+
+		self.state.nu_hook_guard = true;
+		for invocation in invocations {
+			let result = match invocation {
+				Invocation::Action { name, count, extend, register } => {
+					self.run_action_invocation(&name, count, extend, register, None, InvocationPolicy::enforcing())
+				}
+				Invocation::ActionWithChar {
+					name,
+					count,
+					extend,
+					register,
+					char_arg,
+				} => self.run_action_invocation(&name, count, extend, register, Some(char_arg), InvocationPolicy::enforcing()),
+				Invocation::Command { name, args } => self.run_command_invocation(&name, args, InvocationPolicy::enforcing()).await,
+				Invocation::EditorCommand { name, args } => self.run_editor_command_invocation(&name, args, InvocationPolicy::enforcing()).await,
+			};
+
+			match result {
+				InvocationResult::Ok => {}
+				InvocationResult::Quit => {
+					self.state.nu_hook_guard = false;
+					return Some(InvocationResult::Quit);
+				}
+				InvocationResult::ForceQuit => {
+					self.state.nu_hook_guard = false;
+					return Some(InvocationResult::ForceQuit);
+				}
+				InvocationResult::NotFound(target) => {
+					warn!(hook = fn_name, target = %target, "Nu hook invocation not found");
+				}
+				InvocationResult::CapabilityDenied(cap) => {
+					warn!(hook = fn_name, capability = ?cap, "Nu hook invocation denied by capability");
+				}
+				InvocationResult::ReadonlyDenied => {
+					warn!(hook = fn_name, "Nu hook invocation denied by readonly mode");
+				}
+				InvocationResult::CommandError(error) => {
+					warn!(hook = fn_name, error = %error, "Nu hook invocation failed");
+				}
+			}
+		}
+
+		self.state.nu_hook_guard = false;
+		None
 	}
 
 	pub(crate) fn run_action_invocation(
@@ -286,6 +372,18 @@ impl Editor {
 			&mut self.state.hook_runtime,
 		);
 		should_quit
+	}
+}
+
+fn action_result_label(result: &InvocationResult) -> &'static str {
+	match result {
+		InvocationResult::Ok => "ok",
+		InvocationResult::Quit => "quit",
+		InvocationResult::ForceQuit => "force_quit",
+		InvocationResult::NotFound(_) => "not_found",
+		InvocationResult::CapabilityDenied(_) => "cap_denied",
+		InvocationResult::ReadonlyDenied => "readonly",
+		InvocationResult::CommandError(_) => "error",
 	}
 }
 

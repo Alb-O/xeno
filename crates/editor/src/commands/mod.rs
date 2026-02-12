@@ -18,6 +18,7 @@ mod config;
 mod debug;
 #[cfg(feature = "lsp")]
 mod lsp;
+mod nu;
 
 use std::any::Any;
 use std::collections::HashMap;

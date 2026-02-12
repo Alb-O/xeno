@@ -184,6 +184,10 @@ pub(crate) struct EditorState {
 	pub(crate) key_overrides: Option<xeno_registry::config::UnresolvedKeys>,
 	/// Cached effective keymap index for the current actions snapshot and overrides.
 	pub(crate) keymap_cache: Mutex<Option<EffectiveKeymapCache>>,
+	/// Loaded Nu macro runtime from `xeno.nu`.
+	pub(crate) nu_runtime: Option<crate::nu::NuRuntime>,
+	/// Prevents Nu hook invocations from recursively triggering more hooks.
+	pub(crate) nu_hook_guard: bool,
 
 	/// Notification system.
 	pub(crate) notifications: xeno_tui::widgets::notifications::ToastManager,
@@ -342,6 +346,8 @@ impl Editor {
 				config: Config::new(language_loader),
 				key_overrides: None,
 				keymap_cache: Mutex::new(None),
+				nu_runtime: None,
+				nu_hook_guard: false,
 				notifications: xeno_tui::widgets::notifications::ToastManager::new()
 					.max_visible(Some(5))
 					.overflow(xeno_tui::widgets::notifications::Overflow::DropOldest),
@@ -539,6 +545,16 @@ impl Editor {
 	pub fn set_key_overrides(&mut self, keys: Option<xeno_registry::config::UnresolvedKeys>) {
 		self.state.key_overrides = keys;
 		self.state.keymap_cache.lock().take();
+	}
+
+	/// Replaces the loaded Nu runtime used by `:nu-run`.
+	pub fn set_nu_runtime(&mut self, runtime: Option<crate::nu::NuRuntime>) {
+		self.state.nu_runtime = runtime;
+	}
+
+	/// Returns the currently loaded Nu runtime, if any.
+	pub fn nu_runtime(&self) -> Option<&crate::nu::NuRuntime> {
+		self.state.nu_runtime.as_ref()
 	}
 
 	/// Returns the effective keymap for the current actions snapshot and overrides.

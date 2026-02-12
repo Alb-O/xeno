@@ -91,7 +91,7 @@ fn load_user_config() -> Option<xeno_registry::config::Config> {
 	}
 
 	for (path, error) in &report.errors {
-		warn!(path = %path.display(), error = %error, "failed to parse config");
+		warn!(path = %path.display(), error = %error, "failed to load config");
 	}
 
 	report.config

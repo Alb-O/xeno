@@ -9,13 +9,13 @@ impl Editor {
 	pub(crate) fn dispatch_action(&mut self, result: &KeyResult) -> ActionDispatch {
 		match result {
 			KeyResult::ActionById { id, count, extend, register } => {
-				let quit = if let Some(action) = xeno_registry::ACTIONS.get_by_id(*id) {
-					self.invoke_action(action.name_str(), *count, *extend, *register, None).is_quit()
+				let action_result = if let Some(action) = xeno_registry::ACTIONS.get_by_id(*id) {
+					self.invoke_action(action.name_str(), *count, *extend, *register, None)
 				} else {
 					self.show_notification(xeno_registry::notifications::keys::unknown_action(&id.to_string()));
-					false
+					crate::types::InvocationResult::NotFound(format!("action:{id}"))
 				};
-				ActionDispatch::Executed(quit)
+				ActionDispatch::Executed(action_result)
 			}
 			KeyResult::ActionByIdWithChar {
 				id,
@@ -24,13 +24,13 @@ impl Editor {
 				register,
 				char_arg,
 			} => {
-				let quit = if let Some(action) = xeno_registry::ACTIONS.get_by_id(*id) {
-					self.invoke_action(action.name_str(), *count, *extend, *register, Some(*char_arg)).is_quit()
+				let action_result = if let Some(action) = xeno_registry::ACTIONS.get_by_id(*id) {
+					self.invoke_action(action.name_str(), *count, *extend, *register, Some(*char_arg))
 				} else {
 					self.show_notification(xeno_registry::notifications::keys::unknown_action(&id.to_string()));
-					false
+					crate::types::InvocationResult::NotFound(format!("action:{id}"))
 				};
-				ActionDispatch::Executed(quit)
+				ActionDispatch::Executed(action_result)
 			}
 			_ => ActionDispatch::NotAction,
 		}

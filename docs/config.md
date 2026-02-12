@@ -28,6 +28,50 @@ Use `:reload-config` (or `:reload_config`) to reload config files without restar
 - replaces current key overrides and option layers with the newly loaded config state
 - logs per-file warnings and errors, then refreshes theme loading
 
+## Nu macros
+
+Xeno can run user-defined Nu macro functions from `~/.config/xeno/xeno.nu`.
+
+- `:nu-reload` reloads and revalidates `xeno.nu`
+- `:nu-run <fn> [args...]` runs an exported function and dispatches its output as invocations
+
+`nu-run` expects the function to return one of:
+
+- string: single invocation
+- list of strings: multiple invocations
+- record: `{ invocations: ["..."] }`
+
+Supported invocation prefixes:
+
+- `action:<id|name|key>`
+- `command:<name> [args...]`
+- `editor:<name> [args...]`
+
+Structured invocation records are also supported:
+
+```nu
+{ kind: "action", name: "move_right", count: 2 }
+{ kind: "action", name: "find_char", char: "x" }
+{ kind: "command", name: "help", args: ["themes"] }
+{ kind: "editor", name: "reload_config", args: [] }
+```
+
+You can return a single record or a list of records:
+
+```nu
+[
+  { kind: "editor", name: "stats" },
+  { kind: "action", name: "move_right", count: 2 }
+]
+```
+
+Optional exported hook functions in `xeno.nu`:
+
+- `on_action_post [action_name result]`
+- `on_mode_change [old_mode new_mode]`
+
+Hook functions use the same return schema as `nu-run` and are sandboxed with the same policy as `config.nu` and `xeno.nu` macros.
+
 ## Shared schema
 
 Top-level fields:

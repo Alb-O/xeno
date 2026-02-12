@@ -34,11 +34,19 @@ fn cmd_reload_config<'a>(ctx: &'a mut EditorCommandContext<'a>) -> BoxFutureLoca
 			tracing::warn!(path = %path.display(), "{warning}");
 		}
 		for (path, error) in &report.errors {
-			tracing::warn!(path = %path.display(), error = %error, "failed to parse config");
+			tracing::warn!(path = %path.display(), error = %error, "failed to load config");
 		}
 
-		apply_loaded_config(ctx.editor, report.config);
-		ctx.editor.kick_theme_load();
+		let can_apply = report.config.is_some() || report.errors.is_empty();
+		if can_apply {
+			apply_loaded_config(ctx.editor, report.config);
+			ctx.editor.kick_theme_load();
+		}
+
+		if !can_apply {
+			ctx.editor.notify(keys::warn("Config reload failed; keeping existing config"));
+			return Ok(CommandOutcome::Ok);
+		}
 
 		if !report.errors.is_empty() {
 			ctx.editor.notify(keys::warn(format!(
