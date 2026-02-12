@@ -1,5 +1,5 @@
 use xeno_editor::info_popup::InfoPopupRenderAnchor;
-use xeno_editor::render::{BufferRenderContext, RenderBufferParams, RenderCtx};
+use xeno_editor::render_api::{BufferRenderContext, RenderBufferParams, RenderCtx};
 use xeno_editor::window::GutterSelector;
 use xeno_editor::Editor;
 use xeno_registry::options::keys;

@@ -8,7 +8,7 @@ mod separator;
 use xeno_editor::Editor;
 use xeno_editor::buffer::{SplitDirection, ViewId};
 use xeno_editor::layout::LayerId;
-use xeno_editor::render::{BufferRenderContext, GutterLayout, RenderCtx, ensure_buffer_cursor_visible};
+use xeno_editor::render_api::{BufferRenderContext, GutterLayout, RenderCtx, ensure_buffer_cursor_visible};
 use xeno_editor::window::GutterSelector;
 use xeno_registry::options::keys;
 use xeno_tui::layout::Rect;

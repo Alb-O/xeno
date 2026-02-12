@@ -71,6 +71,8 @@ pub(crate) mod paste;
 pub mod paths;
 /// Rendering utilities for buffers, status line, and completion.
 pub mod render;
+/// Frontend-facing render boundary exports.
+pub mod render_api;
 /// Runtime policy and directives.
 pub mod runtime;
 /// Unified async work scheduler.
