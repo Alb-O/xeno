@@ -81,7 +81,7 @@ async fn main() -> anyhow::Result<()> {
 	Ok(())
 }
 
-/// Loads and merges user config from `~/.config/xeno/config.kdl` and `config.nuon`.
+/// Loads and merges user config from `~/.config/xeno/config.kdl`, `config.nuon`, and `config.nu`.
 fn load_user_config() -> Option<xeno_registry::config::Config> {
 	let config_dir = xeno_editor::paths::get_config_dir()?;
 	load_user_config_from_dir(&config_dir)
@@ -89,6 +89,7 @@ fn load_user_config() -> Option<xeno_registry::config::Config> {
 
 fn load_user_config_from_dir(config_dir: &std::path::Path) -> Option<xeno_registry::config::Config> {
 	use xeno_registry::config::kdl::parse_config_str as parse_kdl_config_str;
+	use xeno_registry::config::nu::eval_config_str as eval_nu_config_str;
 	use xeno_registry::config::nuon::parse_config_str as parse_nuon_config_str;
 
 	let mut merged = xeno_registry::config::Config::default();
@@ -127,6 +128,30 @@ fn load_user_config_from_dir(config_dir: &std::path::Path) -> Option<xeno_regist
 			}
 			Err(e) => {
 				warn!(path = %path.display(), error = %e, "failed to parse config");
+			}
+		}
+	}
+
+	let nu_path = config_dir.join("config.nu");
+	if nu_path.exists() {
+		let content = match std::fs::read_to_string(&nu_path) {
+			Ok(c) => c,
+			Err(e) => {
+				warn!(path = %nu_path.display(), error = %e, "failed to read config file");
+				return if found_any { Some(merged) } else { None };
+			}
+		};
+
+		match eval_nu_config_str(&content, &nu_path.to_string_lossy()) {
+			Ok(config) => {
+				for warning in &config.warnings {
+					warn!(path = %nu_path.display(), "{warning}");
+				}
+				merged.merge(config);
+				found_any = true;
+			}
+			Err(e) => {
+				warn!(path = %nu_path.display(), error = %e, "failed to parse config");
 			}
 		}
 	}

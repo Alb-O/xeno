@@ -9,7 +9,13 @@ use crate::options::{OptionScope, OptionStore};
 
 /// Parse a NUON string into a [`Config`].
 pub fn parse_config_str(input: &str) -> Result<Config> {
-	let root = parse_root_record(input)?;
+	let value = parse_root_value(input)?;
+	parse_config_value(&value)
+}
+
+/// Parse a NUON value into a [`Config`].
+pub fn parse_config_value(value: &Value) -> Result<Config> {
+	let root = expect_record(value, "config")?;
 	validate_allowed_fields(&root, &["theme", "keys", "options", "languages"], "config")?;
 
 	let mut warnings = Vec::new();
@@ -65,10 +71,16 @@ pub fn parse_config_str(input: &str) -> Result<Config> {
 
 /// Parse a standalone NUON theme file.
 pub fn parse_theme_standalone_str(input: &str) -> Result<crate::themes::LinkedThemeDef> {
+	let value = parse_root_value(input)?;
+	parse_theme_value(&value)
+}
+
+/// Parse a NUON value into a standalone theme definition.
+pub fn parse_theme_value(value: &Value) -> Result<crate::themes::LinkedThemeDef> {
 	use crate::config::utils::{ParseContext as ColorContext, parse_modifier};
 	use crate::themes::theme::LinkedThemeDef;
 
-	let root = parse_root_record(input)?;
+	let root = expect_record(value, "theme")?;
 	validate_allowed_fields(
 		&root,
 		&["name", "variant", "keys", "palette", "ui", "mode", "semantic", "popup", "syntax"],
@@ -143,10 +155,8 @@ pub fn parse_theme_standalone_str(input: &str) -> Result<crate::themes::LinkedTh
 	})
 }
 
-fn parse_root_record(input: &str) -> Result<Record> {
-	let value = nuon::from_nuon(input, None).map_err(|e| ConfigError::Nuon(e.to_string()))?;
-	let record = value.as_record().map_err(|_| invalid_type("root", "record", &value))?;
-	Ok(record.clone())
+fn parse_root_value(input: &str) -> Result<Value> {
+	nuon::from_nuon(input, None).map_err(|e| ConfigError::Nuon(e.to_string()))
 }
 
 #[cfg(feature = "themes")]
