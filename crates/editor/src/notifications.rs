@@ -9,7 +9,7 @@ use std::collections::VecDeque;
 
 use xeno_registry::notifications::Notification;
 
-pub struct NotificationCenter {
+pub(crate) struct NotificationCenter {
 	pending: VecDeque<Notification>,
 	clear_epoch: u64,
 }
@@ -21,31 +21,27 @@ impl Default for NotificationCenter {
 }
 
 impl NotificationCenter {
-	pub fn new() -> Self {
+	pub(crate) fn new() -> Self {
 		Self {
 			pending: VecDeque::new(),
 			clear_epoch: 0,
 		}
 	}
 
-	pub fn is_empty(&self) -> bool {
-		self.pending.is_empty()
-	}
-
-	pub fn clear(&mut self) {
+	pub(crate) fn clear(&mut self) {
 		self.pending.clear();
 		self.clear_epoch = self.clear_epoch.wrapping_add(1);
 	}
 
-	pub fn push(&mut self, notification: Notification) {
+	pub(crate) fn push(&mut self, notification: Notification) {
 		self.pending.push_back(notification);
 	}
 
-	pub fn take_pending(&mut self) -> Vec<Notification> {
+	pub(crate) fn take_pending(&mut self) -> Vec<Notification> {
 		self.pending.drain(..).collect()
 	}
 
-	pub fn clear_epoch(&self) -> u64 {
+	pub(crate) fn clear_epoch(&self) -> u64 {
 		self.clear_epoch
 	}
 }

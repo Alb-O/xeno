@@ -61,14 +61,13 @@ fn map_notification_to_toast(colors: ThemeColors, notification: Notification) ->
 
 pub fn render(ed: &mut Editor, state: &mut FrontendNotifications, doc_area: xeno_tui::layout::Rect, buffer: &mut xeno_tui::buffer::Buffer) {
 	let theme_colors = ed.config().theme.colors;
-	let notifications = ed.notifications_mut();
-	let clear_epoch = notifications.clear_epoch();
+	let clear_epoch = ed.notifications_clear_epoch();
 	if clear_epoch != state.clear_epoch {
 		state.toasts.clear();
 		state.clear_epoch = clear_epoch;
 	}
 
-	for notification in notifications.take_pending() {
+	for notification in ed.take_notifications() {
 		let toast = map_notification_to_toast(theme_colors, notification);
 		state.toasts.push(toast);
 	}

@@ -581,13 +581,13 @@ impl Editor {
 	}
 
 	#[inline]
-	pub fn notifications(&self) -> &crate::notifications::NotificationCenter {
-		&self.state.notifications
+	pub fn take_notifications(&mut self) -> Vec<xeno_registry::notifications::Notification> {
+		self.state.notifications.take_pending()
 	}
 
 	#[inline]
-	pub fn notifications_mut(&mut self) -> &mut crate::notifications::NotificationCenter {
-		&mut self.state.notifications
+	pub fn notifications_clear_epoch(&self) -> u64 {
+		self.state.notifications.clear_epoch()
 	}
 
 	#[inline]
