@@ -53,7 +53,7 @@ mod undo_host;
 /// Buffer access and viewport management.
 mod views;
 
-pub use core::EditorCore;
+use core::EditorCore;
 use std::path::PathBuf;
 use std::sync::{Arc, Once};
 
@@ -70,17 +70,17 @@ use xeno_registry::themes::THEMES;
 use xeno_registry::{ActionId, HookEventData};
 
 use crate::buffer::{Buffer, Layout, ViewId};
-pub use crate::hook_runtime::HookRuntime;
+use crate::hook_runtime::HookRuntime;
 use crate::layout::LayoutManager;
 #[cfg(feature = "lsp")]
 use crate::lsp::LspHandle;
 use crate::lsp::LspSystem;
 use crate::msg::{MsgReceiver, MsgSender};
-pub use crate::overlay::{OverlayStore, OverlaySystem};
+use crate::overlay::{OverlayStore, OverlaySystem};
 use crate::paste::normalize_to_lf;
 use crate::types::{Config, FrameState, UndoManager, Viewport, Workspace};
 use crate::ui::UiManager;
-pub use crate::view_manager::ViewManager;
+use crate::view_manager::ViewManager;
 use crate::window::{BaseWindow, WindowManager};
 
 static REGISTRY_SUMMARY_ONCE: Once = Once::new();
