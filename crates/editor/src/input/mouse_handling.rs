@@ -280,16 +280,18 @@ impl Editor {
 			FocusTarget::Panel(_) => true,
 		};
 		if needs_focus {
-			let focus_changed = match mouse {
-				MouseEvent::Press { .. } => self.focus_buffer_in_window(target_window, target_view, true),
-				_ => {
-					if target_window == self.state.windows.base_id() {
-						self.focus_view_implicit(target_view)
-					} else {
-						self.focus_buffer_in_window(target_window, target_view, false)
-					}
-				}
+			let focus_reason = match mouse {
+				MouseEvent::Press { .. } => FocusReason::Click,
+				_ if target_window == self.state.windows.base_id() => FocusReason::Hover,
+				_ => FocusReason::Programmatic,
 			};
+			let focus_changed = self.set_focus(
+				FocusTarget::Buffer {
+					window: target_window,
+					buffer: target_view,
+				},
+				focus_reason,
+			);
 			if !focus_changed && needs_focus {
 				return false;
 			}

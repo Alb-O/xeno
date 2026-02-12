@@ -228,7 +228,7 @@ impl<'a> BufferRenderContext<'a> {
 		// Use snapped doc_content for line calculations to avoid re-locking
 		let cursor_line = doc_content.char_to_line(p.buffer.cursor.min(doc_content.len_chars()));
 
-		let overlays = OverlayIndex::new(&p.buffer.selection, p.buffer.cursor, p.is_focused, &doc_content);
+		let overlays = OverlayIndex::new(&p.buffer.selection, p.buffer.cursor, &doc_content);
 
 		let start_line = p.buffer.scroll_line;
 		let end_line = (start_line + viewport_height + 2).min(total_lines);

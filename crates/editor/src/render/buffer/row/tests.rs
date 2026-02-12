@@ -48,7 +48,7 @@ mod unit_tests {
 		};
 
 		let sel = Selection::point(0 as CharIdx);
-		let overlays = OverlayIndex::new(&sel, 0 as CharIdx, true, &doc);
+		let overlays = OverlayIndex::new(&sel, 0 as CharIdx, &doc);
 		let highlight = HighlightIndex::new(vec![]);
 
 		let ctx = BufferRenderContext {
@@ -139,7 +139,7 @@ mod unit_tests {
 		};
 
 		let sel = Selection::single(0 as CharIdx, 1 as CharIdx);
-		let overlays = OverlayIndex::new(&sel, 1 as CharIdx, true, &doc);
+		let overlays = OverlayIndex::new(&sel, 1 as CharIdx, &doc);
 		let highlight = HighlightIndex::new(vec![]);
 
 		let ctx = BufferRenderContext {
@@ -232,7 +232,7 @@ mod unit_tests {
 		// Even if the shaper uses line.start_char for Layout glyphs,
 		// the renderer should not paint the cursor there.
 		let sel = Selection::point(0 as CharIdx);
-		let overlays = OverlayIndex::new(&sel, 0 as CharIdx, true, &doc);
+		let overlays = OverlayIndex::new(&sel, 0 as CharIdx, &doc);
 		let highlight = HighlightIndex::new(vec![]);
 
 		let ctx = BufferRenderContext {

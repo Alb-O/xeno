@@ -284,18 +284,6 @@ impl Editor {
 		self.set_focus(target, FocusReason::Hover)
 	}
 
-	/// Internal focus implementation for backwards compatibility.
-	///
-	/// Prefer calling `set_focus()` directly with appropriate FocusReason.
-	pub(crate) fn focus_buffer_in_window(&mut self, window_id: WindowId, view: ViewId, explicit: bool) -> bool {
-		let target = FocusTarget::Buffer {
-			window: window_id,
-			buffer: view,
-		};
-		let reason = if explicit { FocusReason::Click } else { FocusReason::Programmatic };
-		self.set_focus(target, reason)
-	}
-
 	/// Focuses a specific buffer by ID.
 	///
 	/// Returns true if the buffer exists and was focused.
