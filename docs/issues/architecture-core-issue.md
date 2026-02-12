@@ -433,3 +433,23 @@ Validated:
   - `cargo test -p xeno-editor focus`
   - `cargo test -p xeno-editor mouse`
   - `cargo test -p xeno-editor row`
+
+## Follow-up checkpoints (`2026-02-12`, batch 8)
+
+Delta since commit `58c130a9`:
+- `xeno-editor` no longer exposes `render` as a public module; frontend consumers are forced through `render_api`.
+- Removed stale render seam shim exports and dead helper surface:
+  - deleted unused core `render/text_width.rs` shim module
+  - dropped unused `LineSlice::end_char_incl_nl` storage
+  - removed unused `ViewportPlan::new` closure adapter
+  - narrowed `render`, `render::buffer`, and `render::cache` re-exports to active seam types only
+
+Commit:
+- `37f85d59` editor: internalize render module and prune stale seam shims
+
+Validated:
+- `cargo check -p xeno-editor --all-targets`
+- `cargo check -p xeno-editor --no-default-features --all-targets`
+- `cargo check -p xeno-editor-tui`
+- `cargo check -p xeno-term`
+- `cargo test -p xeno-editor row -- --nocapture`
