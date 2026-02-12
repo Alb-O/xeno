@@ -147,9 +147,9 @@ Execution order chosen: seam-first option `2 -> 1 -> 3`.
 
 - Date of this snapshot: `2026-02-12`.
 - Branch at snapshot: `main`.
-- Last refactor commit in this chain: `1e2a1b89`.
+- Last refactor commit in this chain: `f573ca49`.
 - Working tree at snapshot end: clean.
-- High-level state: runtime/composition ownership is in `xeno-editor-tui`; panel rendering now flows through frontend-owned orchestration plus `UiManager` data-only panel render targets.
+- High-level state: runtime/composition ownership is in `xeno-editor-tui`; utility panel and modal utility-overlay rendering are frontend-owned, and editor-side panel traits are now event/focus-only.
 
 ### Commit map (chronological)
 
@@ -170,6 +170,8 @@ Execution order chosen: seam-first option `2 -> 1 -> 3`.
 | `91ab8e20` | dead path removal | deleted legacy editor compositor + document module + popup layer modules |
 | `9344dad9` | panel rendering seam | moved panel render orchestration from `UiManager` to `xeno-editor-tui::panels` |
 | `1e2a1b89` | panel render plan seam | frontend panel renderer now consumes `UiManager::panel_render_plan` data targets |
+| `6d3bb28d` | modal overlay ownership | moved utility-panel modal overlay rendering into `xeno-editor-tui` and deleted editor `ui/layers/modal_overlays` path |
+| `f573ca49` | panel trait seam | removed `Panel::render`/`UiManager::with_panel_mut`; utility panel rendering is frontend-only |
 
 Note: `f49956e5` was an intentional stepping stone and is now superseded by `5fd8f73b`.
 
@@ -185,6 +187,8 @@ Note: `f49956e5` was an intentional stepping stone and is now superseded by `5fd
 - [x] Legacy editor-side compositor/document/popup-layer modules removed.
 - [x] Panel render orchestration moved out of `UiManager` into `xeno-editor-tui`.
 - [x] Panel render path switched to data-only `PanelRenderTarget` plans from `UiManager`.
+- [x] Utility-panel modal overlay rendering moved to `xeno-editor-tui` and editor `ui/layers/modal_overlays` removed.
+- [x] Utility panel rendering moved to frontend; editor panel trait reduced to event/focus behavior.
 
 ### Current ownership map
 
@@ -192,34 +196,35 @@ Note: `f49956e5` was an intentional stepping stone and is now superseded by `5fd
   - terminal runtime loop (`crates/editor-tui/src/lib.rs`)
   - compositor (`crates/editor-tui/src/compositor.rs`)
   - panel render orchestration (`crates/editor-tui/src/panels.rs`)
+  - modal utility overlay rendering (`crates/editor-tui/src/layers/modal_overlays.rs`)
   - scene/layer primitives (`crates/editor-tui/src/scene.rs`, `crates/editor-tui/src/layer.rs`)
   - popup layers (`crates/editor-tui/src/layers/*`)
   - split document rendering (`crates/editor-tui/src/document/*`)
 - Core/editor-owned (`xeno-editor`):
   - editor state, layout, input, overlay managers
   - panel registry/state + `PanelRenderTarget` plan construction
-  - `ui/*` manager/panel state and utility panel rendering internals
+  - `ui/*` manager/panel state and panel event/focus routing
   - most `render/*` internals (buffer context/cache/text shaping/wrap/status/completion menu widgets)
   - info popup state + rect/style helpers in `crates/editor/src/info_popup/mod.rs`
 
 ### Remaining work for option 2 (ownership-first)
 
-- [ ] Move remaining `ui/*` ownership to `xeno-editor-tui` (starting with utility panel internals and modal overlay rendering).
+- [ ] Move remaining `ui/*` ownership to `xeno-editor-tui` (primarily panel state/registration ownership if panel system remains frontend-driven).
 - [ ] Move remaining `render/*` ownership to `xeno-editor-tui`.
 - [ ] Move `info_popup` ownership to `xeno-editor-tui`.
 - [ ] Make `xeno-editor` build headless by making `xeno-tui` optional and passing `--no-default-features`.
 
 ### Concrete hotspots still coupling editor to TUI
 
-As of this snapshot, `crates/editor/src` still has ~97 `xeno_tui` references.
+As of this snapshot, `crates/editor/src` still has ~84 `xeno_tui` references.
 
 Highest-density files:
 - `crates/editor/src/render/completion.rs`
 - `crates/editor/src/render/snippet_choice.rs`
-- `crates/editor/src/ui/layers/modal_overlays.rs`
-- `crates/editor/src/ui/panels/utility.rs`
 - `crates/editor/src/overlay/geom.rs`
 - `crates/editor/src/render/status.rs`
+- `crates/editor/src/lsp/render.rs`
+- `crates/editor/src/window/types.rs`
 
 Directories still in editor and expected to shrink/move:
 - `crates/editor/src/ui/*`
@@ -228,19 +233,17 @@ Directories still in editor and expected to shrink/move:
 
 ### Known constraints and traps
 
-- `UiManager` no longer owns panel render orchestration and now emits `PanelRenderTarget` plans, but it still exposes `with_panel_mut` for widget rendering because panel implementations are editor-owned.
+- Panel rendering is frontend-owned for the built-in utility panel, but panel registration/event routing is still anchored in `UiManager`.
 - `editor-tui` currently imports render/info types from `xeno-editor` (for example `xeno_editor::render::{BufferRenderContext, RenderCtx}` and `xeno_editor::info_popup::*`), meaning ownership transfer is incomplete.
 - `LayerId::new` and layout slot accessors were opened for frontend rendering orchestration; keep API use intentional and revisit if a stricter facade is introduced.
 - Avoid reintroducing the removed legacy path (`editor::ui::compositor`, `editor::render::document`, `editor::ui::layers::{completion,info_popups,snippet_choice}`).
 
 ### Recommended pickup plan (next session)
 
-1. Remove `with_panel_mut` from the frontend path by converting panel rendering to frontend-owned renderers or render traits.
-2. Move `modal_overlays` rendering module to `xeno-editor-tui` and call from frontend panel renderer.
-3. Move utility panel rendering internals to frontend ownership (or convert utility panel to data producer + frontend renderer).
-4. Move remaining render orchestration entrypoints (`render/status`, completion menu widget composition, snippet choice menu widget composition) into `xeno-editor-tui`.
-5. Move info popup style/rect compute helpers and store operations to frontend boundary where appropriate.
-6. Gate `xeno-editor` TUI-dependent modules behind a feature and pass `cargo check -p xeno-editor --no-default-features`.
+1. Move remaining render orchestration entrypoints (`render/status`, completion menu widget composition, snippet choice menu widget composition) into `xeno-editor-tui`.
+2. Move info popup style/rect compute helpers and store operations to frontend boundary where appropriate.
+3. Decide whether panel registration/state should remain in `UiManager` or move fully to frontend ownership.
+4. Gate `xeno-editor` TUI-dependent modules behind a feature and pass `cargo check -p xeno-editor --no-default-features`.
 
 ### Acceptance checks at each future breakpoint
 
