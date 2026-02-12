@@ -360,3 +360,25 @@ Validated at checkpoints:
 - targeted tests:
   - `cargo test -p xeno-editor pane_inner_rect_matches_block_inner`
   - `cargo test -p xeno-editor fixed_bottom_height_reduces_doc_area_deterministically`
+
+## Follow-up checkpoints (`2026-02-12`, batch 4)
+
+Delta since commit `e23c0cb8`:
+- `xeno_tui` references in `crates/editor/src`: `7 -> 0` (delta `-7`).
+- Core render context tests are backend-neutral and no longer rely on TUI backend widgets.
+- `xeno-editor` no longer depends directly on `xeno-tui`; backend text aliases route through `xeno-primitives`.
+
+Commits:
+- `5763889f` editor: make buffer render context tests backend-neutral
+- `04ae9f06` editor: remove direct xeno-tui dependency from core crate
+
+Validated at checkpoints:
+- `cargo check -p xeno-editor --all-targets`
+- `cargo check -p xeno-editor --no-default-features --all-targets`
+- `cargo check -p xeno-editor-tui`
+- `cargo check -p xeno-term`
+- targeted tests:
+  - `cargo test -p xeno-editor test_render_baseline`
+  - `cargo test -p xeno-editor test_render_wrapping`
+  - `cargo test -p xeno-editor pane_inner_rect_matches_block_inner`
+  - `cargo test -p xeno-editor fixed_bottom_height_reduces_doc_area_deterministically`
