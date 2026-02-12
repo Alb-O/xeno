@@ -147,9 +147,9 @@ Execution order chosen: seam-first option `2 -> 1 -> 3`.
 
 - Date of this snapshot: `2026-02-12`.
 - Branch at snapshot: `main`.
-- Last refactor commit in this chain: `85a5bc06`.
+- Last refactor commit in this chain: `0068b705`.
 - Working tree at snapshot end: clean.
-- High-level state: runtime/composition ownership is in `xeno-editor-tui`; completion/snippet/status widget rendering is frontend-owned and core popup/status render entrypoints were removed from `xeno-editor`.
+- High-level state: runtime/composition ownership is in `xeno-editor-tui`; completion/snippet/status widget rendering is frontend-owned, core popup/status render entrypoints are removed, and obsolete LSP popup render shims are deleted.
 
 ### Commit map (chronological)
 
@@ -175,6 +175,7 @@ Execution order chosen: seam-first option `2 -> 1 -> 3`.
 | `1f1b06c7` | popup widget ownership | moved completion/snippet popup widget composition and placement into frontend layers |
 | `ce6c9bf0` | core popup cleanup | removed legacy core popup render entrypoints; kept visibility predicates only |
 | `85a5bc06` | status widget ownership | moved status-line widget rendering into frontend and removed core `render/status` module |
+| `0068b705` | lsp shim cleanup | removed obsolete `LspSystem::render_completion_popup` core shims |
 
 Note: `f49956e5` was an intentional stepping stone and is now superseded by `5fd8f73b`.
 
@@ -195,6 +196,7 @@ Note: `f49956e5` was an intentional stepping stone and is now superseded by `5fd
 - [x] Completion/snippet popup widget composition and placement moved to frontend layers.
 - [x] Core popup render entrypoints removed (`render_completion_popup/menu*`, `render_snippet_choice_popup/menu*`).
 - [x] Status-line widget rendering moved to frontend and core `render/status` module removed.
+- [x] Obsolete core LSP completion popup render shims removed.
 
 ### Current ownership map
 
@@ -225,7 +227,7 @@ Note: `f49956e5` was an intentional stepping stone and is now superseded by `5fd
 
 ### Concrete hotspots still coupling editor to TUI
 
-As of this snapshot, `crates/editor/src` still has ~67 `xeno_tui` references.
+As of this snapshot, `crates/editor/src` still has ~62 `xeno_tui` references.
 
 Highest-density files:
 - `crates/editor/src/overlay/geom.rs`
