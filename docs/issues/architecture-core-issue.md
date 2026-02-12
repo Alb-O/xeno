@@ -147,9 +147,9 @@ Execution order chosen: seam-first option `2 -> 1 -> 3`.
 
 - Date of this snapshot: `2026-02-12`.
 - Branch at snapshot: `main`.
-- Last refactor commit in this chain: `8ae20255`.
+- Last refactor commit in this chain: `21178590`.
 - Working tree at snapshot end: clean.
-- High-level state: runtime/composition ownership is in `xeno-editor-tui`; completion/snippet/status widget rendering and info-popup rect/style policy are frontend-owned, core popup/status render entrypoints are removed, and obsolete LSP popup render shims are deleted.
+- High-level state: runtime/composition ownership is in `xeno-editor-tui`; completion/snippet/status widget rendering and info-popup rect/style policy are frontend-owned, frontend info-popup rendering now consumes a data-only core render plan, core popup/status render entrypoints are removed, and obsolete LSP popup render shims are deleted.
 
 ### Commit map (chronological)
 
@@ -177,6 +177,7 @@ Execution order chosen: seam-first option `2 -> 1 -> 3`.
 | `85a5bc06` | status widget ownership | moved status-line widget rendering into frontend and removed core `render/status` module |
 | `0068b705` | lsp shim cleanup | removed obsolete `LspSystem::render_completion_popup` core shims |
 | `8ae20255` | info popup policy seam | moved info-popup rect/style helpers to frontend `layers/info_popups`; core keeps store/state only |
+| `21178590` | info popup render-plan seam | frontend info-popup layer now renders from `Editor::info_popup_render_plan` instead of direct `InfoPopupStore` access |
 
 Note: `f49956e5` was an intentional stepping stone and is now superseded by `5fd8f73b`.
 
@@ -199,6 +200,7 @@ Note: `f49956e5` was an intentional stepping stone and is now superseded by `5fd
 - [x] Status-line widget rendering moved to frontend and core `render/status` module removed.
 - [x] Obsolete core LSP completion popup render shims removed.
 - [x] Info-popup rect/style helpers moved to frontend `layers/info_popups`; core `info_popup` now owns store/state only.
+- [x] Frontend info-popup layer now consumes data-only `Editor::info_popup_render_plan` targets.
 
 ### Current ownership map
 
@@ -219,7 +221,7 @@ Note: `f49956e5` was an intentional stepping stone and is now superseded by `5fd
   - panel registry/state + `PanelRenderTarget` plan construction
   - `ui/*` manager/panel state and panel event/focus routing
   - most `render/*` internals (buffer context/cache/text shaping/wrap)
-  - info popup state/store and anchor types in `crates/editor/src/info_popup/mod.rs`
+  - info popup state/store, anchor types, and render-plan API in `crates/editor/src/info_popup/mod.rs`
 
 ### Remaining work for option 2 (ownership-first)
 
@@ -249,13 +251,13 @@ Directories still in editor and expected to shrink/move:
 ### Known constraints and traps
 
 - Panel rendering is frontend-owned for built-in utility/completion/snippet popup layers, but panel registration/event routing is still anchored in `UiManager`.
-- `editor-tui` currently imports render/info types from `xeno-editor` (for example `xeno_editor::render::{BufferRenderContext, RenderCtx}` and `xeno_editor::info_popup::{InfoPopupStore, PopupAnchor}`), meaning ownership transfer is incomplete.
+- `editor-tui` currently imports render/info types from `xeno-editor` (for example `xeno_editor::render::{BufferRenderContext, RenderCtx}` and `xeno_editor::info_popup::PopupAnchor`), meaning ownership transfer is incomplete.
 - `LayerId::new` and layout slot accessors were opened for frontend rendering orchestration; keep API use intentional and revisit if a stricter facade is introduced.
 - Avoid reintroducing the removed legacy path (`editor::ui::compositor`, `editor::render::document`, `editor::ui::layers::{completion,info_popups,snippet_choice}`).
 
 ### Recommended pickup plan (next session)
 
-1. Move info popup store/lifecycle ownership to frontend boundary so core retains only data-level contracts.
+1. Move info popup store/lifecycle ownership to frontend boundary so core keeps only neutral data contracts (or shared primitives).
 2. Decide whether panel registration/state should remain in `UiManager` or move fully to frontend ownership.
 3. Collapse remaining `xeno_editor::render::*` imports in frontend to tighter data APIs.
 4. Gate `xeno-editor` TUI-dependent modules behind a feature and pass `cargo check -p xeno-editor --no-default-features`.
