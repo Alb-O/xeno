@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use xeno_primitives::{Key, range::CharIdx};
 
 use crate::buffer::ViewId;
-use crate::impls::CommandQueue;
+use crate::command_queue::CommandQueue;
 
 /// Represents yanked content, preserving individual selection fragments.
 #[derive(Debug, Clone, Default)]

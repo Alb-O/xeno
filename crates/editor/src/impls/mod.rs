@@ -70,7 +70,6 @@ use xeno_registry::themes::THEMES;
 use xeno_registry::{ActionId, HookEventData};
 
 use crate::buffer::{Buffer, Layout, ViewId};
-pub use crate::command_queue::CommandQueue;
 pub use crate::hook_runtime::HookRuntime;
 use crate::layout::LayoutManager;
 #[cfg(feature = "lsp")]
@@ -80,9 +79,6 @@ use crate::msg::{MsgReceiver, MsgSender};
 pub use crate::overlay::{OverlayStore, OverlaySystem};
 use crate::paste::normalize_to_lf;
 use crate::types::{Config, FrameState, UndoManager, Viewport, Workspace};
-#[cfg(feature = "lsp")]
-pub use crate::types::EditorUndoGroup;
-pub use crate::types::{JumpLocation, ViewSnapshot};
 use crate::ui::UiManager;
 pub use crate::view_manager::ViewManager;
 use crate::window::{BaseWindow, WindowManager};

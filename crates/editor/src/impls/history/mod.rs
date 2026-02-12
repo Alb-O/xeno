@@ -16,7 +16,8 @@
 
 use super::undo_host::EditorUndoHost;
 use crate::buffer::Buffer;
-use crate::impls::{Editor, ViewSnapshot};
+use crate::impls::Editor;
+use crate::types::ViewSnapshot;
 
 impl Buffer {
 	/// Creates a snapshot of this buffer's view state.
