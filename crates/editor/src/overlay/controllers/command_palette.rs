@@ -200,13 +200,14 @@ impl CommandPaletteOverlay {
 
 	fn build_command_items(query: &str, usage: &crate::completion::CommandUsageSnapshot) -> Vec<CompletionItem> {
 		let query = query.trim();
-		let mut scored: Vec<(i32, CompletionItem)> = COMMANDS
+		let mut scored: Vec<(bool, i32, CompletionItem)> = COMMANDS
 			.snapshot_guard()
 			.iter_refs()
 			.filter_map(|cmd| {
 				let name = cmd.name_str();
 				let description = cmd.description_str();
 				let mut best_score = i32::MIN;
+				let mut exact_alias_match = false;
 				let mut match_indices: Option<Vec<usize>> = None;
 
 				if let Some((score, _, indices)) = crate::completion::frizbee_match(query, name) {
@@ -219,6 +220,9 @@ impl CommandPaletteOverlay {
 				for alias in cmd.keys_resolved() {
 					if let Some((score, _, _)) = crate::completion::frizbee_match(query, alias) {
 						best_score = best_score.max(score as i32 + 80);
+						if !alias.eq_ignore_ascii_case(name) && alias.eq_ignore_ascii_case(query) {
+							exact_alias_match = true;
+						}
 					}
 				}
 
@@ -249,6 +253,7 @@ impl CommandPaletteOverlay {
 				};
 
 				Some((
+					exact_alias_match,
 					best_score + frequency_bonus + recency_bonus,
 					CompletionItem {
 						label: name.to_string(),
@@ -264,7 +269,7 @@ impl CommandPaletteOverlay {
 			.collect();
 
 		if query.is_empty() {
-			scored.sort_by(|(score_a, item_a), (score_b, item_b)| {
+			scored.sort_by(|(_, score_a, item_a), (_, score_b, item_b)| {
 				let recent_a = usage.recent_rank(&item_a.label).unwrap_or(usize::MAX);
 				let recent_b = usage.recent_rank(&item_b.label).unwrap_or(usize::MAX);
 				recent_a
@@ -273,10 +278,15 @@ impl CommandPaletteOverlay {
 					.then_with(|| item_a.label.cmp(&item_b.label))
 			});
 		} else {
-			scored.sort_by(|(score_a, item_a), (score_b, item_b)| score_b.cmp(score_a).then_with(|| item_a.label.cmp(&item_b.label)));
+			scored.sort_by(|(exact_a, score_a, item_a), (exact_b, score_b, item_b)| {
+				exact_b
+					.cmp(exact_a)
+					.then_with(|| score_b.cmp(score_a))
+					.then_with(|| item_a.label.cmp(&item_b.label))
+			});
 		}
 
-		scored.into_iter().map(|(_, item)| item).collect()
+		scored.into_iter().map(|(_, _, item)| item).collect()
 	}
 
 	fn build_theme_items(query: &str) -> Vec<CompletionItem> {
@@ -836,5 +846,12 @@ mod tests {
 		let token = CommandPaletteOverlay::token_context(input, cursor);
 		let replace_end = CommandPaletteOverlay::effective_replace_end(&token, cursor);
 		assert_eq!(token.close_quote_idx, Some(replace_end));
+	}
+
+	#[test]
+	fn command_items_prioritize_exact_alias_match() {
+		let usage = crate::completion::CommandUsageSnapshot::default();
+		let items = CommandPaletteOverlay::build_command_items("w", &usage);
+		assert_eq!(items.first().map(|item| item.label.as_str()), Some("write"));
 	}
 }

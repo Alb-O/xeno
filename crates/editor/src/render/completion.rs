@@ -1,5 +1,5 @@
 use xeno_tui::layout::Rect;
-use xeno_tui::style::{Modifier, Style};
+use xeno_tui::style::{Color, Modifier, Style};
 use xeno_tui::text::{Line, Span};
 use xeno_tui::widgets::list::ListItem;
 use xeno_tui::widgets::{Block, Borders, List, Widget};
@@ -52,6 +52,19 @@ fn build_highlighted_label(label: &str, match_indices: Option<&[usize]>, min_wid
 	}
 
 	spans
+}
+
+fn command_query_is_exact_alias(query: &str, label: &str) -> bool {
+	let query = query.trim();
+	if query.is_empty() {
+		return false;
+	}
+
+	let Some(command) = xeno_registry::commands::find_command(query) else {
+		return false;
+	};
+
+	!command.name_str().eq_ignore_ascii_case(query) && command.name_str().eq_ignore_ascii_case(label)
 }
 
 impl Editor {
@@ -124,7 +137,12 @@ impl Editor {
 						.bg(self.state.config.theme.colors.popup.bg)
 				};
 
-				let match_style = label_style.fg(self.state.config.theme.colors.semantic.match_hl);
+				let match_color = if item.kind == CompletionKind::Command && command_query_is_exact_alias(&completions.query, &item.label) {
+					Color::Magenta
+				} else {
+					self.state.config.theme.colors.semantic.match_hl
+				};
+				let match_style = label_style.fg(match_color);
 				let label_spans = build_highlighted_label(&item.label, item.match_indices.as_deref(), max_label_width, label_style, match_style);
 
 				let icon_text = format!(" {} ", kind_icon);
@@ -177,5 +195,17 @@ impl Editor {
 	/// the LSP-enabled and LSP-disabled cases.
 	pub fn render_completion_popup(&self, frame: &mut xeno_tui::Frame) {
 		self.state.lsp.render_completion_popup(self, frame);
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::command_query_is_exact_alias;
+
+	#[test]
+	fn command_alias_query_detection() {
+		assert!(command_query_is_exact_alias("w", "write"));
+		assert!(!command_query_is_exact_alias("w", "wq"));
+		assert!(!command_query_is_exact_alias("write", "write"));
 	}
 }
