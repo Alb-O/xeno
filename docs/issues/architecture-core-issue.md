@@ -337,3 +337,26 @@ Current direct `xeno_tui` hotspots in `crates/editor/src`:
 - `crates/editor/src/notifications.rs`
 - `crates/editor/src/separator.rs`
 - `crates/editor/src/render/buffer/context/tests.rs`
+
+## Follow-up checkpoints (`2026-02-12`, batch 3)
+
+Delta since commit `b4811c9c`:
+- `xeno_tui` references in `crates/editor/src`: `17 -> 7` (delta `-10`).
+- Notification queue/state ownership is now split cleanly: core stores typed intents, frontend owns toast manager lifecycle and rendering.
+- Core layout/animation seams in `ui/dock`, `separator`, and `overlay/geom` are backend-neutral.
+- `xeno-editor` now has an optional `tui` feature and passes headless checks with `--no-default-features`.
+
+Commits:
+- `fa4b8fdf` editor-tui: own notification toast manager lifecycle
+- `39ea62e1` editor: remove backend layout and tween deps from core seams
+- `e23c0cb8` editor: add optional tui feature and headless render stubs
+
+Validated at checkpoints:
+- `cargo check -p xeno-editor --all-targets`
+- `cargo check -p xeno-editor --no-default-features`
+- `cargo check -p xeno-editor --no-default-features --all-targets`
+- `cargo check -p xeno-editor-tui`
+- `cargo check -p xeno-term`
+- targeted tests:
+  - `cargo test -p xeno-editor pane_inner_rect_matches_block_inner`
+  - `cargo test -p xeno-editor fixed_bottom_height_reduces_doc_area_deterministically`
