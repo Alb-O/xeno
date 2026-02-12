@@ -410,3 +410,26 @@ Validated:
 - `cargo check -p xeno-editor`
 - `cargo check -p xeno-editor-tui`
 - `cargo check -p xeno-term`
+
+## Follow-up checkpoints (`2026-02-12`, batch 7)
+
+Delta since commit `2e58b2e1`:
+- Notification boundary is tighter: frontend now uses typed editor APIs (`take_notifications`, `notifications_clear_epoch`) instead of borrowing internal `NotificationCenter`.
+- Notification internals are no longer a public module export from `xeno-editor`.
+- Removed leftover compatibility shims:
+  - dropped `focus_buffer_in_window` compatibility helper path in favor of `set_focus` at callsites
+  - removed unused compatibility parameter from `OverlayIndex::new`
+
+Commits:
+- `32bb37d8` editor: hide notification internals behind typed drain APIs
+- `58c130a9` editor: remove leftover focus and overlay compatibility shims
+
+Validated:
+- `cargo check -p xeno-editor --all-targets`
+- `cargo check -p xeno-editor --no-default-features --all-targets`
+- `cargo check -p xeno-editor-tui`
+- `cargo check -p xeno-term`
+- targeted tests:
+  - `cargo test -p xeno-editor focus`
+  - `cargo test -p xeno-editor mouse`
+  - `cargo test -p xeno-editor row`
