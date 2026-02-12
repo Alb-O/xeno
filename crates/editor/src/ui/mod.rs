@@ -11,7 +11,12 @@ pub use focus::UiFocus;
 pub use keymap::UiKeyChord;
 pub use manager::{PanelRenderTarget, UiManager};
 pub use panel::UiRequest;
+pub use panels::utility::{UtilityWhichKeyEntry, UtilityWhichKeyPlan};
 
 pub(crate) fn utility_whichkey_desired_height(editor: &crate::impls::Editor) -> Option<u16> {
 	panels::utility::UtilityPanel::whichkey_desired_height(editor)
+}
+
+pub(crate) fn utility_whichkey_render_plan(editor: &crate::impls::Editor) -> Option<UtilityWhichKeyPlan> {
+	panels::utility::UtilityPanel::whichkey_render_plan(editor)
 }

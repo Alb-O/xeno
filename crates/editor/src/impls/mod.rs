@@ -663,6 +663,11 @@ impl Editor {
 		crate::ui::utility_whichkey_desired_height(self)
 	}
 
+	#[inline]
+	pub fn whichkey_render_plan(&self) -> Option<crate::ui::UtilityWhichKeyPlan> {
+		crate::ui::utility_whichkey_render_plan(self)
+	}
+
 	/// Returns utility panel height hint while a modal overlay is active.
 	///
 	/// Frontends use this to keep utility panel sizing policy consistent

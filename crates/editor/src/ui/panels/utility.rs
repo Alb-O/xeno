@@ -1,5 +1,6 @@
 use xeno_primitives::KeyCode;
 use xeno_registry::actions::BindingMode;
+use xeno_registry::db::keymap_registry::ContinuationKind;
 
 use crate::impls::Editor;
 use crate::ui::UiRequest;
@@ -11,8 +12,30 @@ use crate::ui::panel::{EventResult, Panel, PanelInitContext, UiEvent};
 #[derive(Default)]
 pub struct UtilityPanel;
 
+/// Data-only entry for which-key continuation rendering.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UtilityWhichKeyEntry {
+	pub key: String,
+	pub description: String,
+	pub is_branch: bool,
+}
+
+/// Data-only which-key render plan for the utility panel.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UtilityWhichKeyPlan {
+	pub root: String,
+	pub root_description: Option<String>,
+	pub entries: Vec<UtilityWhichKeyEntry>,
+}
+
 impl UtilityPanel {
 	pub fn whichkey_desired_height(ed: &Editor) -> Option<u16> {
+		let plan = Self::whichkey_render_plan(ed)?;
+		Some((plan.entries.len() as u16 + 3).clamp(4, 10))
+	}
+
+	/// Returns data-only which-key continuation content for rendering.
+	pub fn whichkey_render_plan(ed: &Editor) -> Option<UtilityWhichKeyPlan> {
 		let pending_keys = ed.buffer().input.pending_keys();
 		if pending_keys.is_empty() {
 			return None;
@@ -24,12 +47,56 @@ impl UtilityPanel {
 		};
 
 		let registry = ed.effective_keymap();
-		let row_count = registry.continuations_with_kind(binding_mode, pending_keys).len();
-		if row_count == 0 {
+		let continuations = registry.continuations_with_kind(binding_mode, pending_keys);
+		if continuations.is_empty() {
 			return None;
 		}
 
-		Some((row_count as u16 + 3).clamp(4, 10))
+		let key_strs: Vec<String> = pending_keys.iter().map(|k| k.to_string()).collect();
+		let root = key_strs.first().cloned().unwrap_or_default();
+		let prefix_key = key_strs.join(" ");
+		let root_description = xeno_registry::actions::find_prefix(binding_mode, &root).map(|prefix| prefix.description.to_string());
+
+		let entries = continuations
+			.iter()
+			.map(|cont| {
+				let key = cont.key.to_string();
+				match cont.kind {
+					ContinuationKind::Branch => {
+						let sub_prefix = if prefix_key.is_empty() { key.clone() } else { format!("{prefix_key} {key}") };
+						let description = xeno_registry::actions::find_prefix(binding_mode, &sub_prefix)
+							.map_or_else(String::new, |prefix| prefix.description.to_string());
+						UtilityWhichKeyEntry {
+							key,
+							description,
+							is_branch: true,
+						}
+					}
+					ContinuationKind::Leaf => {
+						let description = cont.value.map_or_else(String::new, |entry| {
+							if !entry.short_desc.is_empty() {
+								entry.short_desc.to_string()
+							} else if !entry.description.is_empty() {
+								entry.description.to_string()
+							} else {
+								entry.action_name.to_string()
+							}
+						});
+						UtilityWhichKeyEntry {
+							key,
+							description,
+							is_branch: false,
+						}
+					}
+				}
+			})
+			.collect();
+
+		Some(UtilityWhichKeyPlan {
+			root,
+			root_description,
+			entries,
+		})
 	}
 }
 
