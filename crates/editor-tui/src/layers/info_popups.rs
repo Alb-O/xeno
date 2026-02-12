@@ -1,13 +1,14 @@
 use xeno_editor::info_popup::{InfoPopupStore, PopupAnchor, compute_popup_rect, info_popup_style};
 use xeno_editor::render::{BufferRenderContext, RenderBufferParams, RenderCtx};
-use xeno_editor::ui::layer::SceneBuilder;
-use xeno_editor::ui::scene::{SurfaceKind, SurfaceOp};
 use xeno_editor::window::GutterSelector;
 use xeno_editor::{Editor, ViewId};
 use xeno_registry::options::keys;
 use xeno_tui::layout::Rect;
 use xeno_tui::style::Style;
 use xeno_tui::widgets::{Block, Clear, Paragraph};
+
+use crate::layer::SceneBuilder;
+use crate::scene::{SurfaceKind, SurfaceOp};
 
 pub fn visible(ed: &Editor) -> bool {
 	ed.overlays().get::<InfoPopupStore>().is_some_and(|store| !store.is_empty())

@@ -2,7 +2,9 @@
 
 mod backend;
 mod compositor;
+mod layer;
 mod layers;
+mod scene;
 mod terminal;
 
 use std::io::{self, Write};

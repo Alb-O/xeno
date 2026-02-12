@@ -1,7 +1,8 @@
 use xeno_editor::Editor;
-use xeno_editor::ui::layer::SceneBuilder;
-use xeno_editor::ui::scene::{SurfaceKind, SurfaceOp};
 use xeno_tui::layout::Rect;
+
+use crate::layer::SceneBuilder;
+use crate::scene::{SurfaceKind, SurfaceOp};
 
 pub fn visible(ed: &Editor) -> bool {
 	ed.snippet_choice_popup_visible()

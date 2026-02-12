@@ -149,5 +149,6 @@ Execution order: seam-first option `2 -> 1 -> 3`.
 - [x] Geometry backing moved to `xeno-primitives` (`Rect`/`Position`) with explicit frontend conversion boundaries.
 - [x] Frame composition loop moved to `xeno-editor-tui` (`run_editor` now renders through `xeno_editor_tui::compositor`).
 - [x] Completion/snippet/info-popup layer orchestration moved to `xeno-editor-tui` (editor exports visibility/render helpers).
+- [x] Scene composition primitives (`SceneBuilder`, `UiScene`) moved to `xeno-editor-tui`.
 - [ ] Move `ui/*`, `render/*`, and `info_popup` ownership to `xeno-editor-tui`.
 - [ ] Make `xeno-editor` build headless with `xeno-tui` optional and verify with `--no-default-features`.

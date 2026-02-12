@@ -1,10 +1,11 @@
 use xeno_editor::Editor;
 use xeno_editor::completion::CompletionState;
-use xeno_editor::ui::layer::SceneBuilder;
-use xeno_editor::ui::scene::{SceneRenderResult, SurfaceKind, SurfaceOp};
 use xeno_tui::layout::{Constraint, Direction, Layout};
 use xeno_tui::style::Style;
 use xeno_tui::widgets::{Block, Clear};
+
+use crate::layer::SceneBuilder;
+use crate::scene::{SceneRenderResult, SurfaceKind, SurfaceOp};
 
 pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame) {
 	ed.frame_mut().needs_redraw = false;
