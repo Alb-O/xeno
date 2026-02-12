@@ -1,40 +1,13 @@
 //! Notification display for the editor.
 
-use xeno_registry::notifications::{AutoDismiss, Level, Notification};
-use xeno_tui::style::Style;
-use xeno_tui::widgets::icon::presets as icon_presets;
-use xeno_tui::widgets::notifications::{self as notif, Anchor, Toast, ToastIcon, ToastManager};
+use xeno_registry::notifications::Notification;
 
 use crate::impls::Editor;
 use crate::types::Config;
+use crate::notifications::NotificationCenter;
 
-pub(super) fn push_notification(config: &Config, notifications: &mut ToastManager, notification: Notification) {
-	let level = notification.level();
-	let auto_dismiss = notification.auto_dismiss();
-
-	let (semantic, icon_glyph) = match level {
-		Level::Info => ("info", icon_presets::INFO),
-		Level::Warn => ("warning", icon_presets::WARNING),
-		Level::Error => ("error", icon_presets::ERROR),
-		Level::Success => ("success", icon_presets::SUCCESS),
-		Level::Debug => ("dim", icon_presets::DEBUG),
-	};
-
-	let notif_style: Style = config.theme.colors.notification_style(semantic);
-	let accent = notif_style.fg.unwrap_or_default();
-
-	let toast = Toast::new(notification.message)
-		.anchor(Anchor::TopRight)
-		.style(notif_style)
-		.border_style(Style::default().fg(accent))
-		.icon(ToastIcon::new(icon_glyph).style(Style::default().fg(accent)))
-		.animation(notif::Animation::Fade)
-		.auto_dismiss(match auto_dismiss {
-			AutoDismiss::Never => notif::AutoDismiss::Never,
-			AutoDismiss::After(d) => notif::AutoDismiss::After(d),
-		});
-
-	notifications.push(toast);
+pub(super) fn push_notification(config: &Config, notifications: &mut NotificationCenter, notification: Notification) {
+	notifications.push(config, notification);
 }
 
 impl Editor {

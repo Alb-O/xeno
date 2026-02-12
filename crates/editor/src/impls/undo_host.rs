@@ -23,7 +23,7 @@ pub(super) struct EditorUndoHost<'a> {
 	pub focused_view: ViewId,
 	pub config: &'a Config,
 	pub frame: &'a mut FrameState,
-	pub notifications: &'a mut xeno_tui::widgets::notifications::ToastManager,
+	pub notifications: &'a mut crate::notifications::NotificationCenter,
 	pub syntax_manager: &'a mut crate::syntax_manager::SyntaxManager,
 	#[cfg(feature = "lsp")]
 	pub lsp: &'a mut LspSystem,

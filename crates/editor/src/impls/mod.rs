@@ -190,7 +190,7 @@ pub(crate) struct EditorState {
 	pub(crate) nu_hook_guard: bool,
 
 	/// Notification system.
-	pub(crate) notifications: xeno_tui::widgets::notifications::ToastManager,
+	pub(crate) notifications: crate::notifications::NotificationCenter,
 
 	/// LSP system (real or no-op depending on feature flags).
 	pub(crate) lsp: LspSystem,
@@ -348,9 +348,7 @@ impl Editor {
 				keymap_cache: Mutex::new(None),
 				nu_runtime: None,
 				nu_hook_guard: false,
-				notifications: xeno_tui::widgets::notifications::ToastManager::new()
-					.max_visible(Some(5))
-					.overflow(xeno_tui::widgets::notifications::Overflow::DropOldest),
+				notifications: crate::notifications::NotificationCenter::new(),
 				lsp: LspSystem::new(),
 				syntax_manager: crate::syntax_manager::SyntaxManager::new(crate::syntax_manager::SyntaxManagerCfg {
 					max_concurrency: 2,
@@ -583,12 +581,12 @@ impl Editor {
 	}
 
 	#[inline]
-	pub fn notifications(&self) -> &xeno_tui::widgets::notifications::ToastManager {
+	pub fn notifications(&self) -> &crate::notifications::NotificationCenter {
 		&self.state.notifications
 	}
 
 	#[inline]
-	pub fn notifications_mut(&mut self) -> &mut xeno_tui::widgets::notifications::ToastManager {
+	pub fn notifications_mut(&mut self) -> &mut crate::notifications::NotificationCenter {
 		&mut self.state.notifications
 	}
 

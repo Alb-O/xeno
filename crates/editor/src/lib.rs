@@ -60,6 +60,8 @@ mod lsp;
 pub mod metrics;
 /// Async message bus for background task hydration.
 pub mod msg;
+/// User notification center wrapper.
+pub mod notifications;
 /// Nu runtime for user macro scripts.
 pub mod nu;
 /// Type-erased UI overlay storage.
