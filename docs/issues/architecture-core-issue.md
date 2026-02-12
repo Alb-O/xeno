@@ -147,9 +147,9 @@ Execution order chosen: seam-first option `2 -> 1 -> 3`.
 
 - Date of this snapshot: `2026-02-12`.
 - Branch at snapshot: `main`.
-- Last refactor commit in this chain: `0068b705`.
+- Last refactor commit in this chain: `8ae20255`.
 - Working tree at snapshot end: clean.
-- High-level state: runtime/composition ownership is in `xeno-editor-tui`; completion/snippet/status widget rendering is frontend-owned, core popup/status render entrypoints are removed, and obsolete LSP popup render shims are deleted.
+- High-level state: runtime/composition ownership is in `xeno-editor-tui`; completion/snippet/status widget rendering and info-popup rect/style policy are frontend-owned, core popup/status render entrypoints are removed, and obsolete LSP popup render shims are deleted.
 
 ### Commit map (chronological)
 
@@ -176,6 +176,7 @@ Execution order chosen: seam-first option `2 -> 1 -> 3`.
 | `ce6c9bf0` | core popup cleanup | removed legacy core popup render entrypoints; kept visibility predicates only |
 | `85a5bc06` | status widget ownership | moved status-line widget rendering into frontend and removed core `render/status` module |
 | `0068b705` | lsp shim cleanup | removed obsolete `LspSystem::render_completion_popup` core shims |
+| `8ae20255` | info popup policy seam | moved info-popup rect/style helpers to frontend `layers/info_popups`; core keeps store/state only |
 
 Note: `f49956e5` was an intentional stepping stone and is now superseded by `5fd8f73b`.
 
@@ -197,6 +198,7 @@ Note: `f49956e5` was an intentional stepping stone and is now superseded by `5fd
 - [x] Core popup render entrypoints removed (`render_completion_popup/menu*`, `render_snippet_choice_popup/menu*`).
 - [x] Status-line widget rendering moved to frontend and core `render/status` module removed.
 - [x] Obsolete core LSP completion popup render shims removed.
+- [x] Info-popup rect/style helpers moved to frontend `layers/info_popups`; core `info_popup` now owns store/state only.
 
 ### Current ownership map
 
@@ -207,6 +209,7 @@ Note: `f49956e5` was an intentional stepping stone and is now superseded by `5fd
   - modal utility overlay rendering (`crates/editor-tui/src/layers/modal_overlays.rs`)
   - completion popup rendering (`crates/editor-tui/src/layers/completion.rs`)
   - snippet choice popup rendering (`crates/editor-tui/src/layers/snippet_choice.rs`)
+  - info-popup rect/style policy + placement (`crates/editor-tui/src/layers/info_popups.rs`)
   - status-line rendering (`crates/editor-tui/src/layers/status.rs`)
   - scene/layer primitives (`crates/editor-tui/src/scene.rs`, `crates/editor-tui/src/layer.rs`)
   - popup layers (`crates/editor-tui/src/layers/*`)
@@ -216,26 +219,27 @@ Note: `f49956e5` was an intentional stepping stone and is now superseded by `5fd
   - panel registry/state + `PanelRenderTarget` plan construction
   - `ui/*` manager/panel state and panel event/focus routing
   - most `render/*` internals (buffer context/cache/text shaping/wrap)
-  - info popup state + rect/style helpers in `crates/editor/src/info_popup/mod.rs`
+  - info popup state/store and anchor types in `crates/editor/src/info_popup/mod.rs`
 
 ### Remaining work for option 2 (ownership-first)
 
 - [ ] Move remaining `ui/*` ownership to `xeno-editor-tui` (primarily panel state/registration ownership if panel system remains frontend-driven).
 - [ ] Move remaining `render/*` ownership to `xeno-editor-tui` (any residual render helpers still called from core).
-- [ ] Move `info_popup` ownership to `xeno-editor-tui`.
+- [ ] Move remaining `info_popup` ownership (store/lifecycle APIs) to `xeno-editor-tui`.
 - [ ] Make `xeno-editor` build headless by making `xeno-tui` optional and passing `--no-default-features`.
 
 ### Concrete hotspots still coupling editor to TUI
 
-As of this snapshot, `crates/editor/src` still has ~62 `xeno_tui` references.
+As of this snapshot, `crates/editor/src` still has ~60 `xeno_tui` references.
 
 Highest-density files:
 - `crates/editor/src/overlay/geom.rs`
+- `crates/editor/src/render/buffer/context/ops.rs`
+- `crates/editor/src/overlay/mod.rs`
 - `crates/editor/src/notifications.rs`
 - `crates/editor/src/impls/theming.rs`
+- `crates/editor/src/render/buffer/context/types.rs`
 - `crates/editor/src/window/types.rs`
-- `crates/editor/src/ui/dock.rs`
-- `crates/editor/src/ui/scene.rs`
 
 Directories still in editor and expected to shrink/move:
 - `crates/editor/src/ui/*`
@@ -245,13 +249,13 @@ Directories still in editor and expected to shrink/move:
 ### Known constraints and traps
 
 - Panel rendering is frontend-owned for built-in utility/completion/snippet popup layers, but panel registration/event routing is still anchored in `UiManager`.
-- `editor-tui` currently imports render/info types from `xeno-editor` (for example `xeno_editor::render::{BufferRenderContext, RenderCtx}` and `xeno_editor::info_popup::*`), meaning ownership transfer is incomplete.
+- `editor-tui` currently imports render/info types from `xeno-editor` (for example `xeno_editor::render::{BufferRenderContext, RenderCtx}` and `xeno_editor::info_popup::{InfoPopupStore, PopupAnchor}`), meaning ownership transfer is incomplete.
 - `LayerId::new` and layout slot accessors were opened for frontend rendering orchestration; keep API use intentional and revisit if a stricter facade is introduced.
 - Avoid reintroducing the removed legacy path (`editor::ui::compositor`, `editor::render::document`, `editor::ui::layers::{completion,info_popups,snippet_choice}`).
 
 ### Recommended pickup plan (next session)
 
-1. Move info popup style/rect compute helpers and store operations to frontend boundary where appropriate.
+1. Move info popup store/lifecycle ownership to frontend boundary so core retains only data-level contracts.
 2. Decide whether panel registration/state should remain in `UiManager` or move fully to frontend ownership.
 3. Collapse remaining `xeno_editor::render::*` imports in frontend to tighter data APIs.
 4. Gate `xeno-editor` TUI-dependent modules behind a feature and pass `cargo check -p xeno-editor --no-default-features`.
