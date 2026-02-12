@@ -1,7 +1,8 @@
 //! Configuration types for Xeno.
 //!
 //! This module provides unified configuration structures that are format-neutral.
-//! KDL and NUON parsing are available behind `config-kdl` and `config-nuon`.
+//! KDL, NUON, and Nu script parsing are available behind `config-kdl`,
+//! `config-nuon`, and `config-nu`.
 
 use std::collections::HashMap;
 
@@ -10,6 +11,9 @@ pub mod utils;
 
 #[cfg(feature = "config-nuon")]
 pub mod nuon;
+
+#[cfg(feature = "config-nu")]
+pub mod nu;
 
 /// Configuration for a language-specific override.
 #[derive(Debug, Clone)]
@@ -76,6 +80,21 @@ pub enum ConfigError {
 	#[cfg(feature = "config-nuon")]
 	#[error("NUON parse error: {0}")]
 	Nuon(String),
+
+	/// Error parsing Nu script syntax.
+	#[cfg(feature = "config-nu")]
+	#[error("Nu parse error: {0}")]
+	NuParse(String),
+
+	/// Error during Nu script evaluation.
+	#[cfg(feature = "config-nu")]
+	#[error("Nu runtime error: {0}")]
+	NuRuntime(String),
+
+	/// Nu script violated sandbox restrictions.
+	#[cfg(feature = "config-nu")]
+	#[error("Nu sandbox error: {0}")]
+	NuSandbox(String),
 
 	/// A required field is missing from the configuration.
 	#[error("missing required field: {0}")]
