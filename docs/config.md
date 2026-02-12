@@ -20,6 +20,14 @@ Options and keys merge with later layers overriding earlier values. Language ent
 
 `config.nu` must evaluate to a record that follows the same schema as `config.nuon`.
 
+## Runtime reload
+
+Use `:reload-config` (or `:reload_config`) to reload config files without restarting the editor.
+
+- re-reads `config.kdl`, `config.nuon`, and `config.nu` in precedence order
+- replaces current key overrides and option layers with the newly loaded config state
+- logs per-file warnings and errors, then refreshes theme loading
+
 ## Shared schema
 
 Top-level fields:

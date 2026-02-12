@@ -14,6 +14,7 @@
 //!
 //! [`CommandEditorOps`]: xeno_registry::commands::CommandEditorOps
 
+mod config;
 mod debug;
 #[cfg(feature = "lsp")]
 mod lsp;

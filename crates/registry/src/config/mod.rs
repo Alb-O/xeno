@@ -15,6 +15,9 @@ pub mod nuon;
 #[cfg(feature = "config-nu")]
 pub mod nu;
 
+#[cfg(feature = "config-kdl")]
+pub mod load;
+
 /// Configuration for a language-specific override.
 #[derive(Debug, Clone)]
 pub struct LanguageConfig {
