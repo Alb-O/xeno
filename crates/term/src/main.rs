@@ -1,20 +1,17 @@
 #![cfg_attr(test, allow(unused_crate_dependencies))]
 //! Xeno terminal application entry point.
 
-mod app;
-mod backend;
 mod cli;
 #[cfg(unix)]
 mod log_launcher;
-mod terminal;
 
 use std::ffi::OsStr;
 
-use app::run_editor;
 use clap::Parser;
 use cli::{Cli, Command, FileLocation, GrammarAction};
 use tracing::{info, warn};
 use xeno_editor::Editor;
+use xeno_editor_tui::run_editor;
 use xeno_registry::options::keys;
 
 #[tokio::main]

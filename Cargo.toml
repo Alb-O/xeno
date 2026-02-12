@@ -2,6 +2,7 @@
 resolver = "3"
 members = [
     "crates/editor",
+    "crates/editor-tui",
     "crates/input",
     "crates/keymap/*",
     "crates/language",
@@ -101,6 +102,7 @@ vt100 = "0.16"
 waitpid-any = "0.3"
 which = "8.0"
 xeno-editor = { path = "crates/editor" }
+xeno-editor-tui = { path = "crates/editor-tui" }
 xeno-input = { path = "crates/input" }
 xeno-keymap-core = { path = "crates/keymap/core" }
 xeno-keymap-parser = { path = "crates/keymap/parser" }

@@ -1,3 +1,8 @@
+#![cfg_attr(test, allow(unused_crate_dependencies))]
+
+mod backend;
+mod terminal;
+
 use std::io::{self, Write};
 
 use termina::escape::csi::{Csi, Cursor};

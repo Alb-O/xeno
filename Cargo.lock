@@ -4513,6 +4513,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "xeno-editor-tui"
+version = "0.8.20"
+dependencies = [
+ "termina",
+ "tracing",
+ "unicode-width 0.2.2",
+ "xeno-editor",
+ "xeno-registry",
+ "xeno-tui",
+]
+
+[[package]]
 name = "xeno-input"
 version = "0.8.20"
 dependencies = [
@@ -4682,18 +4694,16 @@ dependencies = [
  "serde",
  "serde_json",
  "serial_test",
- "termina",
  "termwiz",
  "tokio",
  "tracing",
  "tracing-subscriber",
- "unicode-width 0.2.2",
  "uuid",
  "which",
  "xeno-editor",
+ "xeno-editor-tui",
  "xeno-language",
  "xeno-registry",
- "xeno-tui",
 ]
 
 [[package]]

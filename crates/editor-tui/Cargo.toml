@@ -1,0 +1,20 @@
+[package]
+name = "xeno-editor-tui"
+description = "Terminal frontend runtime and backend glue for xeno-editor"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[features]
+perf = ["dep:tracing"]
+
+[dependencies]
+termina.workspace = true
+tracing = { workspace = true, optional = true }
+unicode-width.workspace = true
+xeno-editor.workspace = true
+xeno-registry.workspace = true
+xeno-tui.workspace = true
+
+[lints]
+workspace = true
