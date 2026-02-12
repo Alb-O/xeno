@@ -113,7 +113,7 @@ impl Panel for UtilityPanel {
 				crate::ui::layers::modal_overlays::render(_editor, frame, area, &ctx);
 
 				if let Some(active) = _editor.state.overlay_system.interaction.active.as_ref()
-					&& active.controller.name() == "CommandPalette"
+					&& matches!(active.controller.name(), "CommandPalette" | "FilePicker")
 				{
 					let input_rect = active
 						.session
@@ -136,7 +136,7 @@ impl Panel for UtilityPanel {
 							if menu_height > 0 {
 								let menu_y = menu_bottom.saturating_sub(menu_height);
 								let menu_rect = Rect::new(input_rect.x, menu_y, input_rect.width, menu_height);
-								frame.render_widget(_editor.render_completion_menu(menu_rect), menu_rect);
+								frame.render_widget(_editor.render_completion_menu_with_limit(menu_rect, menu_height as usize), menu_rect);
 							}
 						}
 					}

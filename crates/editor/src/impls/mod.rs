@@ -228,6 +228,9 @@ pub(crate) struct EditorState {
 
 	/// Command usage tracking for command palette ranking.
 	pub(crate) command_usage: crate::completion::CommandPaletteUsage,
+
+	/// Background filesystem indexing and picker state.
+	pub(crate) filesystem: crate::filesystem::FsService,
 }
 
 pub struct Editor {
@@ -359,6 +362,7 @@ impl Editor {
 				lsp_catalog_ready: false,
 				render_cache: crate::render::cache::RenderCache::new(),
 				command_usage: crate::completion::CommandPaletteUsage::default(),
+				filesystem: crate::filesystem::FsService::new(),
 			},
 		}
 	}

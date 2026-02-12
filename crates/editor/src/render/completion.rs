@@ -70,13 +70,19 @@ fn command_query_is_exact_alias(query: &str, label: &str) -> bool {
 impl Editor {
 	/// Creates a widget for rendering the completion popup menu.
 	pub fn render_completion_menu(&self, _area: Rect) -> impl Widget + '_ {
-		let completions = self.overlays().get::<CompletionState>().cloned().unwrap_or_default();
+		self.render_completion_menu_with_limit(_area, CompletionState::MAX_VISIBLE)
+	}
+
+	/// Creates a widget for rendering the completion popup menu with a row limit.
+	pub fn render_completion_menu_with_limit(&self, _area: Rect, max_visible_rows: usize) -> impl Widget + '_ {
+		let mut completions = self.overlays().get::<CompletionState>().cloned().unwrap_or_default();
+		completions.ensure_selected_visible_with_limit(max_visible_rows);
 
 		let max_label_width = completions.items.iter().map(|it| crate::render::cell_width(&it.label)).max().unwrap_or(0);
 		let show_kind = completions.show_kind && _area.width >= 24;
 		let show_right = !completions.show_kind && _area.width >= 30;
 
-		let visible_range = completions.visible_range();
+		let visible_range = completions.visible_range_with_limit(max_visible_rows);
 		let selected_idx = completions.selected_idx;
 		let target_row_width = _area.width.saturating_sub(1) as usize;
 		let items: Vec<ListItem> = completions

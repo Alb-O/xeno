@@ -268,6 +268,58 @@ impl CommandPaletteOverlay {
 			})
 			.collect();
 
+		if !scored.iter().any(|(_, _, item)| item.label == "files") {
+			let mut best_score = i32::MIN;
+			let mut exact_alias_match = false;
+			let mut match_indices = None;
+
+			if let Some((score, _, indices)) = crate::completion::frizbee_match(query, "files") {
+				best_score = score as i32 + 220;
+				if !indices.is_empty() {
+					match_indices = Some(indices);
+				}
+			}
+
+			if let Some((score, _, _)) = crate::completion::frizbee_match(query, "fp") {
+				best_score = best_score.max(score as i32 + 80);
+				if query.eq_ignore_ascii_case("fp") {
+					exact_alias_match = true;
+				}
+			}
+
+			if let Some((score, _, _)) = crate::completion::frizbee_match(query, "Open file picker") {
+				best_score = best_score.max(score as i32 - 120);
+			}
+
+			if query.is_empty() {
+				best_score = 0;
+			}
+
+			if query.is_empty() || best_score != i32::MIN {
+				let count = usage.count("files");
+				let frequency_bonus = if count == 0 { 0 } else { (31 - (count + 1).leading_zeros()) as i32 * 40 };
+				let recency_bonus = if query.chars().count() <= 2 {
+					usage.recent_rank("files").map_or(0, |rank| (120i32 - (rank as i32 * 12)).max(0))
+				} else {
+					0
+				};
+
+				scored.push((
+					exact_alias_match,
+					best_score + frequency_bonus + recency_bonus,
+					CompletionItem {
+						label: "files".to_string(),
+						insert_text: "files".to_string(),
+						detail: Some("Open file picker".to_string()),
+						filter_text: None,
+						kind: CompletionKind::Command,
+						match_indices,
+						right: Some("fp".to_string()),
+					},
+				));
+			}
+		}
+
 		if query.is_empty() {
 			scored.sort_by(|(_, score_a, item_a), (_, score_b, item_b)| {
 				let recent_a = usage.recent_rank(&item_a.label).unwrap_or(usize::MAX);
@@ -853,5 +905,12 @@ mod tests {
 		let usage = crate::completion::CommandUsageSnapshot::default();
 		let items = CommandPaletteOverlay::build_command_items("w", &usage);
 		assert_eq!(items.first().map(|item| item.label.as_str()), Some("write"));
+	}
+
+	#[test]
+	fn command_items_include_files_picker_command() {
+		let usage = crate::completion::CommandUsageSnapshot::default();
+		let items = CommandPaletteOverlay::build_command_items("fi", &usage);
+		assert!(items.iter().any(|item| item.label == "files"));
 	}
 }

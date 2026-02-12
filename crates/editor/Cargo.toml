@@ -13,6 +13,7 @@ anyhow.workspace = true
 chrono.workspace = true
 clap.workspace = true
 dirs.workspace = true
+ignore.workspace = true
 inventory.workspace = true
 parking_lot.workspace = true
 paste.workspace = true

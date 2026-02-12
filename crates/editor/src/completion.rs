@@ -160,24 +160,41 @@ impl CompletionState {
 	/// Maximum number of visible items in the completion menu.
 	pub const MAX_VISIBLE: usize = 10;
 
-	/// Ensures the selected item is visible within the viewport.
-	pub fn ensure_selected_visible(&mut self) {
+	/// Returns `max_visible` clamped to at least 1 row.
+	fn normalize_visible_limit(max_visible: usize) -> usize {
+		max_visible.max(1)
+	}
+
+	/// Ensures the selected item is visible within a bounded viewport.
+	pub fn ensure_selected_visible_with_limit(&mut self, max_visible: usize) {
 		let Some(selected) = self.selected_idx else {
 			return;
 		};
+		let max_visible = Self::normalize_visible_limit(max_visible);
 		if selected < self.scroll_offset {
 			self.scroll_offset = selected;
 		}
-		let visible_end = self.scroll_offset + Self::MAX_VISIBLE;
+		let visible_end = self.scroll_offset + max_visible;
 		if selected >= visible_end {
-			self.scroll_offset = selected.saturating_sub(Self::MAX_VISIBLE - 1);
+			self.scroll_offset = selected.saturating_sub(max_visible - 1);
 		}
+	}
+
+	/// Returns the range of visible items for a bounded viewport.
+	pub fn visible_range_with_limit(&self, max_visible: usize) -> std::ops::Range<usize> {
+		let max_visible = Self::normalize_visible_limit(max_visible);
+		let end = (self.scroll_offset + max_visible).min(self.items.len());
+		self.scroll_offset..end
+	}
+
+	/// Ensures the selected item is visible within the viewport.
+	pub fn ensure_selected_visible(&mut self) {
+		self.ensure_selected_visible_with_limit(Self::MAX_VISIBLE);
 	}
 
 	/// Returns the range of visible items (start..end indices).
 	pub fn visible_range(&self) -> std::ops::Range<usize> {
-		let end = (self.scroll_offset + Self::MAX_VISIBLE).min(self.items.len());
-		self.scroll_offset..end
+		self.visible_range_with_limit(Self::MAX_VISIBLE)
 	}
 }
 
