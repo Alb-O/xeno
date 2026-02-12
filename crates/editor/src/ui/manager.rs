@@ -166,14 +166,6 @@ impl UiManager {
 		self.panels.contains_key(id)
 	}
 
-	/// Invokes `f` with a mutable panel reference when the panel is registered.
-	pub fn with_panel_mut<R, F>(&mut self, id: &str, f: F) -> Option<R>
-	where
-		F: FnOnce(&mut dyn Panel) -> R,
-	{
-		self.panels.get_mut(id).map(|panel| f(panel.as_mut()))
-	}
-
 	/// Returns and clears the redraw flag, indicating if a redraw was requested.
 	pub fn take_wants_redraw(&mut self) -> bool {
 		let v = self.wants_redraw;

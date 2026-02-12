@@ -1,7 +1,4 @@
 use xeno_primitives::{Key, MouseEvent};
-use xeno_registry::themes::Theme;
-use xeno_tui::Frame;
-use xeno_tui::layout::{Position, Rect};
 
 use super::dock::DockSlot;
 use super::keymap::KeybindingRegistry;
@@ -68,15 +65,6 @@ impl EventResult {
 	}
 }
 
-/// Request for cursor position and style from a panel.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CursorRequest {
-	/// Cursor position in screen coordinates.
-	pub pos: Position,
-	/// Optional cursor style override.
-	pub style: Option<crate::runtime::CursorStyle>,
-}
-
 /// Context provided to panels during initialization.
 pub struct PanelInitContext<'a> {
 	/// Keybinding registry for registering panel-specific bindings.
@@ -107,7 +95,4 @@ pub trait Panel {
 
 	/// Handles a UI event, returning whether it was consumed.
 	fn handle_event(&mut self, event: UiEvent, editor: &mut Editor, focused: bool) -> EventResult;
-
-	/// Renders the panel content, returning an optional cursor request.
-	fn render(&mut self, frame: &mut Frame<'_>, area: Rect, editor: &mut Editor, focused: bool, theme: &Theme) -> Option<CursorRequest>;
 }
