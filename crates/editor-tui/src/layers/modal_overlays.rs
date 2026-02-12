@@ -92,7 +92,7 @@ fn render_palette_completion_menu(ed: &mut Editor, frame: &mut xeno_tui::Frame, 
 
 	let menu_y = menu_bottom.saturating_sub(menu_height);
 	let menu_rect = Rect::new(input_rect.x, menu_y, input_rect.width, menu_height);
-	frame.render_widget(ed.render_completion_menu_with_limit(menu_rect, menu_height as usize), menu_rect);
+	crate::layers::completion::render_completion_menu_with_limit(ed, frame, menu_rect, menu_height as usize);
 }
 
 pub fn render_utility_panel_overlay(ed: &mut Editor, frame: &mut xeno_tui::Frame, area: Rect, ctx: &RenderCtx) {
