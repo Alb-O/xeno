@@ -12,7 +12,7 @@ pub mod scene;
 
 pub use focus::UiFocus;
 pub use keymap::UiKeyChord;
-pub use manager::UiManager;
+pub use manager::{PanelRenderTarget, UiManager};
 pub use panel::UiRequest;
 
 pub(crate) fn utility_whichkey_desired_height(editor: &crate::impls::Editor) -> Option<u16> {

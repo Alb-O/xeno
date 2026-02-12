@@ -45,6 +45,7 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame) {
 	let whichkey_height = ed.whichkey_desired_height();
 	ui.sync_utility_for_whichkey(whichkey_height);
 	let dock_layout = ui.compute_layout(main_area);
+	let panel_render_plan = ui.panel_render_plan(&dock_layout);
 	let doc_area = dock_layout.doc_area;
 	ed.viewport_mut().doc_area = Some(doc_area.into());
 
@@ -99,7 +100,7 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame) {
 			}
 			SurfaceOp::InfoPopups => crate::layers::info_popups::render(ed, frame, doc_area, &ctx),
 			SurfaceOp::Panels => {
-				if let Some(cursor_pos) = crate::panels::render_panels(&mut ui, ed, frame, &dock_layout, &ctx.theme) {
+				if let Some(cursor_pos) = crate::panels::render_panels(&mut ui, ed, frame, &panel_render_plan, &ctx.theme) {
 					result.cursor = Some(cursor_pos);
 				}
 			}

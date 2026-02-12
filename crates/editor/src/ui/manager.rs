@@ -37,6 +37,17 @@ pub struct UiManager {
 	utility_default_size: SizeSpec,
 }
 
+/// Data-only render target for one panel in the current frame.
+#[derive(Debug, Clone)]
+pub struct PanelRenderTarget {
+	/// Stable panel identifier.
+	pub id: String,
+	/// Screen-space panel rectangle.
+	pub area: Rect,
+	/// Whether this panel is focused in this frame.
+	pub focused: bool,
+}
+
 impl Default for UiManager {
 	fn default() -> Self {
 		Self::new()
@@ -183,6 +194,20 @@ impl UiManager {
 	/// Computes the dock layout for the given main area.
 	pub fn compute_layout(&self, main_area: Rect) -> DockLayout {
 		self.dock.compute_layout(main_area)
+	}
+
+	/// Builds the data-only panel render plan for a computed dock layout.
+	pub fn panel_render_plan(&self, layout: &DockLayout) -> Vec<PanelRenderTarget> {
+		layout
+			.panel_areas
+			.iter()
+			.filter(|(id, _)| self.panels.contains_key(*id))
+			.map(|(id, area)| PanelRenderTarget {
+				id: id.clone(),
+				area: *area,
+				focused: self.is_panel_focused(id),
+			})
+			.collect()
 	}
 
 	/// Returns the cursor style for the currently focused panel, if any.
