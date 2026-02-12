@@ -129,12 +129,15 @@ impl InputHandler {
 
 	/// Dispatches a key through the current mode's handler.
 	pub fn handle_key(&mut self, key: Key) -> KeyResult {
+		let registry = get_keymap_registry();
+		self.handle_key_with_registry(key, &registry)
+	}
+
+	/// Dispatches a key using an explicit keymap registry.
+	pub fn handle_key_with_registry(&mut self, key: Key, registry: &KeymapIndex) -> KeyResult {
 		match &self.mode {
-			Mode::Normal => {
-				let registry = get_keymap_registry();
-				self.handle_mode_key(key, BindingMode::Normal, &registry)
-			}
-			Mode::Insert => self.handle_insert_key(key),
+			Mode::Normal => self.handle_mode_key(key, BindingMode::Normal, registry),
+			Mode::Insert => self.handle_insert_key(key, registry),
 			Mode::PendingAction(kind) => {
 				let kind = *kind;
 				self.handle_pending_action_key(key, kind)

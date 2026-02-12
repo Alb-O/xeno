@@ -81,42 +81,67 @@ async fn main() -> anyhow::Result<()> {
 	Ok(())
 }
 
-/// Loads user config from `~/.config/xeno/config.kdl`.
+/// Loads and merges user config from `~/.config/xeno/config.kdl` and `config.nuon`.
 fn load_user_config() -> Option<xeno_registry::config::Config> {
-	use xeno_registry::config::kdl::parse_config_str;
+	let config_dir = xeno_editor::paths::get_config_dir()?;
+	load_user_config_from_dir(&config_dir)
+}
 
-	let config_path = xeno_editor::paths::get_config_dir()?.join("config.kdl");
-	if !config_path.exists() {
-		return None;
-	}
+fn load_user_config_from_dir(config_dir: &std::path::Path) -> Option<xeno_registry::config::Config> {
+	use xeno_registry::config::kdl::parse_config_str as parse_kdl_config_str;
+	use xeno_registry::config::nuon::parse_config_str as parse_nuon_config_str;
 
-	let content = match std::fs::read_to_string(&config_path) {
-		Ok(c) => c,
-		Err(e) => {
-			warn!(path = %config_path.display(), error = %e, "failed to read config file");
-			return None;
+	let mut merged = xeno_registry::config::Config::default();
+	let mut found_any = false;
+
+	for (filename, parser) in [
+		(
+			"config.kdl",
+			parse_kdl_config_str as fn(&str) -> xeno_registry::config::Result<xeno_registry::config::Config>,
+		),
+		(
+			"config.nuon",
+			parse_nuon_config_str as fn(&str) -> xeno_registry::config::Result<xeno_registry::config::Config>,
+		),
+	] {
+		let path = config_dir.join(filename);
+		if !path.exists() {
+			continue;
 		}
-	};
 
-	match parse_config_str(&content) {
-		Ok(config) => {
-			for warning in &config.warnings {
-				warn!("{warning}");
+		let content = match std::fs::read_to_string(&path) {
+			Ok(c) => c,
+			Err(e) => {
+				warn!(path = %path.display(), error = %e, "failed to read config file");
+				continue;
 			}
-			Some(config)
-		}
-		Err(e) => {
-			warn!(error = %e, "failed to parse config");
-			None
+		};
+
+		match parser(&content) {
+			Ok(config) => {
+				for warning in &config.warnings {
+					warn!(path = %path.display(), "{warning}");
+				}
+				merged.merge(config);
+				found_any = true;
+			}
+			Err(e) => {
+				warn!(path = %path.display(), error = %e, "failed to parse config");
+			}
 		}
 	}
+
+	if found_any { Some(merged) } else { None }
 }
 
 /// Applies user config options to the editor.
 ///
 /// Theme preferences are stored but not resolved until themes finish loading.
 fn apply_user_config(editor: &mut Editor, config: Option<xeno_registry::config::Config>) {
-	let Some(config) = config else { return };
+	let Some(mut config) = config else { return };
+
+	let keys = config.keys.take();
+	editor.set_key_overrides(keys);
 
 	editor.config_mut().global_options.merge(&config.options);
 

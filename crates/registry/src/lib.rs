@@ -4,6 +4,9 @@
 // Allow generated code to refer to this crate as `xeno_registry`
 extern crate self as xeno_registry;
 
+#[cfg(feature = "config-nuon")]
+use nu_engine as _;
+
 pub mod config;
 pub mod core;
 pub mod defs;

@@ -10,6 +10,7 @@ pub use xeno_keymap_core::{ContinuationEntry, ContinuationKind};
 use xeno_keymap_core::{MatchResult, Matcher};
 
 use crate::actions::{ActionEntry, BindingMode};
+use crate::config::UnresolvedKeys;
 use crate::core::index::Snapshot;
 use crate::core::{ActionId, DenseId, RegistryEntry};
 
@@ -94,6 +95,11 @@ impl KeymapIndex {
 
 	/// Build registry index from action snapshot.
 	pub fn build(actions: &Snapshot<ActionEntry, ActionId>) -> Self {
+		Self::build_with_overrides(actions, None)
+	}
+
+	/// Build registry index from action snapshot with optional key overrides.
+	pub fn build_with_overrides(actions: &Snapshot<ActionEntry, ActionId>, overrides: Option<&UnresolvedKeys>) -> Self {
 		let mut registry = Self::new();
 		let mut bindings = Vec::new();
 
@@ -134,9 +140,7 @@ impl KeymapIndex {
 			}
 
 			let Ok(keys) = parse_seq(&def.keys) else {
-				if parse_failures.len() < 5 {
-					parse_failures.push((Arc::clone(&def.keys), Arc::clone(&def.action)));
-				}
+				push_parse_failure(&mut parse_failures, &def.keys, &def.action);
 				continue;
 			};
 
@@ -151,6 +155,71 @@ impl KeymapIndex {
 			};
 
 			registry.add(def.mode, keys, entry);
+		}
+
+		if let Some(overrides) = overrides {
+			let mut override_entries: Vec<(BindingMode, Arc<str>, Arc<str>)> = Vec::new();
+			for (mode_name, key_map) in &overrides.modes {
+				let Some(mode) = parse_binding_mode(mode_name) else {
+					continue;
+				};
+				for (key_seq, action_name) in key_map {
+					override_entries.push((mode, Arc::from(key_seq.as_str()), Arc::from(action_name.as_str())));
+				}
+			}
+
+			override_entries.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1)).then_with(|| a.2.cmp(&b.2)));
+
+			for (mode, key_seq, action_name) in override_entries {
+				let resolved_name = action_name.strip_prefix("action:").unwrap_or(&action_name);
+				let Some(sym) = actions.interner.get(resolved_name) else {
+					push_parse_failure(&mut parse_failures, &key_seq, &action_name);
+					continue;
+				};
+
+				let Some(action_id) = actions
+					.by_id
+					.get(&sym)
+					.or_else(|| actions.by_name.get(&sym))
+					.or_else(|| actions.by_key.get(&sym))
+					.copied()
+				else {
+					push_parse_failure(&mut parse_failures, &key_seq, &action_name);
+					continue;
+				};
+
+				let Ok(keys) = parse_seq(&key_seq) else {
+					push_parse_failure(&mut parse_failures, &key_seq, &action_name);
+					continue;
+				};
+
+				let action_entry = &actions.table[action_id.as_u32() as usize];
+				let action_name_str = actions.interner.resolve(action_entry.name()).to_string();
+				let action_id_str = actions.interner.resolve(action_entry.id()).to_string();
+
+				if let Some((kept_action, kept_priority)) = seen.get(&(mode, Arc::clone(&key_seq))).cloned() {
+					registry.conflicts.push(KeymapConflict {
+						mode,
+						keys: Arc::clone(&key_seq),
+						kept_action: action_id_str.clone(),
+						dropped_action: kept_action,
+						kept_priority: i16::MIN,
+						dropped_priority: kept_priority,
+					});
+				}
+
+				seen.insert((mode, Arc::clone(&key_seq)), (action_id_str, i16::MIN));
+
+				let entry = BindingEntry {
+					action_id,
+					action_name: action_name_str,
+					description: actions.interner.resolve(action_entry.description()).to_string(),
+					short_desc: actions.interner.resolve(action_entry.short_desc).to_string(),
+					keys: keys.clone(),
+				};
+
+				registry.add(mode, keys, entry);
+			}
 		}
 
 		if !registry.conflicts.is_empty() {
@@ -183,6 +252,22 @@ impl KeymapIndex {
 
 	pub fn conflicts(&self) -> &[KeymapConflict] {
 		&self.conflicts
+	}
+}
+
+fn parse_binding_mode(mode: &str) -> Option<BindingMode> {
+	match mode.trim().to_ascii_lowercase().as_str() {
+		"normal" | "n" => Some(BindingMode::Normal),
+		"insert" | "i" => Some(BindingMode::Insert),
+		"match" | "m" => Some(BindingMode::Match),
+		"space" | "spc" => Some(BindingMode::Space),
+		_ => None,
+	}
+}
+
+fn push_parse_failure(samples: &mut Vec<(Arc<str>, Arc<str>)>, keys: &Arc<str>, action: &Arc<str>) {
+	if samples.len() < 5 {
+		samples.push((Arc::clone(keys), Arc::clone(action)));
 	}
 }
 
@@ -226,4 +311,80 @@ impl KeymapRegistry {
 pub fn get_keymap_registry() -> Arc<KeymapIndex> {
 	let db = crate::db::get_db();
 	db.keymap.for_snapshot(crate::db::ACTIONS.snapshot())
+}
+
+#[cfg(test)]
+mod tests {
+	use std::collections::HashMap;
+
+	use super::*;
+
+	fn mode_name(mode: BindingMode) -> &'static str {
+		match mode {
+			BindingMode::Normal => "normal",
+			BindingMode::Insert => "insert",
+			BindingMode::Match => "match",
+			BindingMode::Space => "space",
+		}
+	}
+
+	fn sample_binding(actions: &Snapshot<ActionEntry, ActionId>) -> Option<(BindingMode, String, ActionId, ActionId, String)> {
+		for (idx, action_entry) in actions.table.iter().enumerate() {
+			let source_id = ActionId::from_u32(idx as u32);
+			for binding in action_entry.bindings.iter() {
+				if parse_seq(&binding.keys).is_err() {
+					continue;
+				}
+
+				let Some((target_idx, target_entry)) = actions.table.iter().enumerate().find(|(target_idx, _)| *target_idx != idx) else {
+					continue;
+				};
+
+				let target_id = ActionId::from_u32(target_idx as u32);
+				let target_name = actions.interner.resolve(target_entry.name()).to_string();
+				return Some((binding.mode, binding.keys.to_string(), source_id, target_id, target_name));
+			}
+		}
+		None
+	}
+
+	fn lookup_action_id(index: &KeymapIndex, mode: BindingMode, key_seq: &str) -> ActionId {
+		let keys = parse_seq(key_seq).expect("binding key sequence should parse");
+		match index.lookup(mode, &keys) {
+			LookupResult::Match(entry) => entry.action_id,
+			_ => panic!("expected a complete keybinding match"),
+		}
+	}
+
+	#[test]
+	fn override_wins_over_base_binding() {
+		let actions = crate::db::ACTIONS.snapshot();
+		let (mode, key_seq, _base_id, target_id, target_name) = sample_binding(&actions).expect("registry should contain at least one binding");
+
+		let mut mode_overrides = HashMap::new();
+		mode_overrides.insert(key_seq.clone(), target_name);
+		let mut modes = HashMap::new();
+		modes.insert(mode_name(mode).to_string(), mode_overrides);
+		let overrides = UnresolvedKeys { modes };
+
+		let index = KeymapIndex::build_with_overrides(&actions, Some(&overrides));
+		let resolved = lookup_action_id(&index, mode, &key_seq);
+		assert_eq!(resolved, target_id);
+	}
+
+	#[test]
+	fn invalid_override_action_keeps_base_binding() {
+		let actions = crate::db::ACTIONS.snapshot();
+		let (mode, key_seq, base_id, _target_id, _target_name) = sample_binding(&actions).expect("registry should contain at least one binding");
+
+		let mut mode_overrides = HashMap::new();
+		mode_overrides.insert(key_seq.clone(), "action:does-not-exist".to_string());
+		let mut modes = HashMap::new();
+		modes.insert(mode_name(mode).to_string(), mode_overrides);
+		let overrides = UnresolvedKeys { modes };
+
+		let index = KeymapIndex::build_with_overrides(&actions, Some(&overrides));
+		let resolved = lookup_action_id(&index, mode, &key_seq);
+		assert_eq!(resolved, base_id);
+	}
 }
