@@ -3,7 +3,7 @@ use xeno_language::LanguageId;
 use xeno_language::highlight::HighlightSpan;
 use xeno_primitives::{Mode, visible_line_count};
 use xeno_registry::gutter::GutterAnnotations;
-use xeno_primitives::{Modifier, Style};
+use xeno_primitives::{Modifier, Style, UnderlineStyle};
 
 use super::super::diff::{DiffLineNumbers, compute_diff_line_numbers, diff_line_bg};
 use super::super::gutter::GutterLayout;
@@ -135,8 +135,6 @@ impl<'a> BufferRenderContext<'a> {
 		let Some(severity) = self.diagnostic_severity_at(line_idx, char_idx) else {
 			return style;
 		};
-
-		use xeno_tui::style::UnderlineStyle;
 
 		let underline_color = match severity {
 			4 => self.theme.colors.semantic.error,

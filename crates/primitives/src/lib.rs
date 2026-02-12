@@ -50,4 +50,4 @@ pub use ropey::{Rope, RopeSlice};
 pub use selection::Selection;
 pub use transaction::{ChangeSet, Transaction};
 #[cfg(feature = "xeno-tui")]
-pub use xeno_tui::style::{Color, Modifier, Style};
+pub use xeno_tui::style::{Color, Modifier, Style, UnderlineStyle};
