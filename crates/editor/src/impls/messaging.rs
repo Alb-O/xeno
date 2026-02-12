@@ -3,11 +3,10 @@
 use xeno_registry::notifications::Notification;
 
 use crate::impls::Editor;
-use crate::types::Config;
 use crate::notifications::NotificationCenter;
 
-pub(super) fn push_notification(config: &Config, notifications: &mut NotificationCenter, notification: Notification) {
-	notifications.push(config, notification);
+pub(super) fn push_notification(notifications: &mut NotificationCenter, notification: Notification) {
+	notifications.push(notification);
 }
 
 impl Editor {
@@ -31,7 +30,7 @@ impl Editor {
 
 	/// Shows a typed notification (internal).
 	pub fn show_notification(&mut self, notification: Notification) {
-		push_notification(&self.state.config, &mut self.state.notifications, notification);
+		push_notification(&mut self.state.notifications, notification);
 	}
 
 	/// Clears all visible notifications.
