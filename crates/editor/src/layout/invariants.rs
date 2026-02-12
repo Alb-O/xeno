@@ -1,4 +1,4 @@
-use xeno_tui::layout::Rect;
+use crate::geometry::Rect;
 
 use crate::buffer::{Layout, SplitPath, ViewId};
 use crate::layout::manager::LayoutManager;

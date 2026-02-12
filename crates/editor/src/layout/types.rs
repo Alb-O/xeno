@@ -2,7 +2,7 @@
 //!
 //! Core types used across the layout system.
 
-use xeno_tui::layout::Rect;
+use crate::geometry::Rect;
 
 use crate::buffer::{SplitDirection, SplitPath};
 

@@ -1,5 +1,5 @@
 use xeno_tui::Frame;
-use xeno_tui::layout::Rect;
+use crate::geometry::Rect;
 
 use crate::impls::Editor;
 use crate::info_popup::InfoPopupStore;

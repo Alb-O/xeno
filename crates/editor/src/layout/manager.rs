@@ -154,7 +154,7 @@
 //! 2. Store in `DragState` and validate via `separator_rect()` or `validate_layer()`.
 //! 3. Apply resize through `Layout::resize_at_path` (must clamp using soft-min policy).
 //!
-use xeno_tui::layout::Rect;
+use crate::geometry::Rect;
 
 use crate::buffer::{SplitDirection, ViewId};
 use crate::layout::types::LayerSlot;

@@ -378,10 +378,10 @@ pub trait OverlayLayer: Send + Sync {
 	fn is_visible(&self, ed: &crate::impls::Editor) -> bool;
 
 	/// Computes the screen area for the layer based on the current viewport.
-	fn layout(&self, ed: &crate::impls::Editor, screen: xeno_tui::layout::Rect) -> Option<xeno_tui::layout::Rect>;
+	fn layout(&self, ed: &crate::impls::Editor, screen: crate::geometry::Rect) -> Option<crate::geometry::Rect>;
 
 	/// Renders the layer content into the terminal frame.
-	fn render(&self, ed: &crate::impls::Editor, frame: &mut xeno_tui::Frame, area: xeno_tui::layout::Rect);
+	fn render(&self, ed: &crate::impls::Editor, frame: &mut xeno_tui::Frame, area: crate::geometry::Rect);
 
 	/// Optional key interception for visible layers (e.g. Tab/Enter in completion menus).
 	fn on_key(&mut self, _ed: &mut crate::impls::Editor, _key: Key) -> bool {
@@ -448,7 +448,7 @@ impl OverlayLayers {
 	/// Renders all visible layers in stack order.
 	pub fn render(&self, ed: &crate::impls::Editor, frame: &mut xeno_tui::Frame) {
 		let screen = match (ed.state.viewport.width, ed.state.viewport.height) {
-			(Some(w), Some(h)) => xeno_tui::layout::Rect::new(0, 0, w, h),
+			(Some(w), Some(h)) => crate::geometry::Rect::new(0, 0, w, h),
 			_ => return,
 		};
 

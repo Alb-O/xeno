@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use xeno_primitives::Mode;
-use xeno_tui::layout::Rect;
+use crate::geometry::Rect;
 
 use super::CloseReason;
 use super::session::{OverlayPane, OverlaySession};

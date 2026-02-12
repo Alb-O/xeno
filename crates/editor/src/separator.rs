@@ -1,7 +1,7 @@
 //! Separator hover and drag state for split resizing.
 
 use xeno_tui::animation::{Easing, ToggleTween};
-use xeno_tui::layout::Rect;
+use crate::geometry::Rect;
 
 use crate::layout::SeparatorId;
 

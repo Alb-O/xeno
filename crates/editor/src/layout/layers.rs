@@ -8,7 +8,7 @@
 //! Overlay layers use generational tracking to prevent stale references.
 //! See [`LayerId`] and [`LayerError`] for details.
 
-use xeno_tui::layout::Rect;
+use crate::geometry::Rect;
 
 use super::manager::LayoutManager;
 use super::types::{LayerError, LayerId};

@@ -1,6 +1,6 @@
 //! Area computation and separator handling for layout splits.
 
-use xeno_tui::layout::Rect;
+use crate::geometry::Rect;
 
 use super::Layout;
 use super::types::{SplitDirection, SplitPath, ViewId};

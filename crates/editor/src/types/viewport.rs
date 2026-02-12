@@ -1,6 +1,6 @@
 //! Terminal viewport dimensions.
 
-use xeno_tui::layout::Rect;
+use crate::geometry::Rect;
 
 /// Terminal window dimensions and computed document area.
 ///

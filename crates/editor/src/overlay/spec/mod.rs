@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use xeno_registry::options::OptionValue;
-use xeno_tui::layout::Rect;
+use crate::geometry::Rect;
 
 use crate::window::{GutterSelector, SurfaceStyle};
 

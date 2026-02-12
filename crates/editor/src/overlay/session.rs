@@ -70,7 +70,7 @@ use std::collections::HashMap;
 
 use xeno_primitives::range::{CharIdx, Range};
 use xeno_primitives::{Mode, Selection};
-use xeno_tui::layout::Rect;
+use crate::geometry::Rect;
 
 use super::WindowRole;
 use crate::buffer::ViewId;

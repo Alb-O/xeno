@@ -133,7 +133,7 @@ impl Editor {
 	}
 
 	/// Returns the screen area of a specific view.
-	pub fn view_area(&self, view_id: ViewId) -> xeno_tui::layout::Rect {
+	pub fn view_area(&self, view_id: ViewId) -> crate::geometry::Rect {
 		if let Some(active) = self.state.overlay_system.interaction().active()
 			&& let Some(pane) = active.session.panes.iter().find(|pane| pane.buffer == view_id)
 		{

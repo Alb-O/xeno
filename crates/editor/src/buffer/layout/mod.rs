@@ -15,7 +15,7 @@ mod types;
 
 pub use types::{SplitDirection, SplitPath, ViewId};
 pub use xeno_primitives::SpatialDirection;
-use xeno_tui::layout::Rect;
+use crate::geometry::Rect;
 
 /// Layout tree for buffer arrangement.
 ///

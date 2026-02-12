@@ -38,7 +38,7 @@ pub use types::{LayerError, LayerId, SeparatorHit, SeparatorId};
 
 #[cfg(test)]
 mod tests {
-	use xeno_tui::layout::Rect;
+	use crate::geometry::Rect;
 
 	use super::*;
 	use crate::buffer::{Layout, ViewId};

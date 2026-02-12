@@ -15,7 +15,7 @@ impl Editor {
 
 		// Main area excludes status line (1 row)
 		let main_height = height.saturating_sub(1);
-		let main_area = xeno_tui::layout::Rect {
+		let main_area = crate::geometry::Rect {
 			x: 0,
 			y: 0,
 			width,
@@ -25,8 +25,8 @@ impl Editor {
 		let mut ui = std::mem::take(&mut self.state.ui);
 		let dock_layout = ui.compute_layout(main_area);
 
-		let screen_area = xeno_tui::layout::Rect { x: 0, y: 0, width, height };
-		let status_area = xeno_tui::layout::Rect {
+		let screen_area = crate::geometry::Rect { x: 0, y: 0, width, height };
+		let status_area = crate::geometry::Rect {
 			x: 0,
 			y: main_height,
 			width,
@@ -101,7 +101,7 @@ impl Editor {
 	///
 	/// Text selection drags are confined to the view where they started.
 	/// This prevents selection from crossing split boundaries.
-	pub(crate) async fn handle_mouse_in_doc_area(&mut self, mouse: MouseEvent, doc_area: xeno_tui::layout::Rect) -> bool {
+	pub(crate) async fn handle_mouse_in_doc_area(&mut self, mouse: MouseEvent, doc_area: crate::geometry::Rect) -> bool {
 		let mouse_x = mouse.col();
 		let mouse_y = mouse.row();
 
@@ -344,7 +344,7 @@ impl Editor {
 	///
 	/// This computes the document area (excluding status line and panels)
 	/// and then finds the focused view's rectangle within that area.
-	pub(crate) fn focused_view_area(&self) -> xeno_tui::layout::Rect {
+	pub(crate) fn focused_view_area(&self) -> crate::geometry::Rect {
 		let doc_area = self.doc_area();
 		if let FocusTarget::Overlay { buffer } = &self.state.focus {
 			return self.view_area(*buffer);
@@ -359,12 +359,12 @@ impl Editor {
 	}
 
 	/// Computes the document area based on current window dimensions.
-	pub fn doc_area(&self) -> xeno_tui::layout::Rect {
+	pub fn doc_area(&self) -> crate::geometry::Rect {
 		let width = self.state.viewport.width.unwrap_or(80);
 		let height = self.state.viewport.height.unwrap_or(24);
 		// Exclude status line (1 row)
 		let main_height = height.saturating_sub(1);
-		let main_area = xeno_tui::layout::Rect {
+		let main_area = crate::geometry::Rect {
 			x: 0,
 			y: 0,
 			width,

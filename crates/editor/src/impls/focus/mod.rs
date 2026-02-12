@@ -355,7 +355,7 @@ impl Editor {
 	}
 
 	/// Returns cursor screen position along the perpendicular axis for directional hints.
-	fn cursor_screen_pos(&self, direction: SpatialDirection, area: xeno_tui::layout::Rect) -> u16 {
+	fn cursor_screen_pos(&self, direction: SpatialDirection, area: crate::geometry::Rect) -> u16 {
 		let buffer = self.buffer();
 		let view_rect = self
 			.state

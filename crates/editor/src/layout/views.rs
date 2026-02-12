@@ -2,7 +2,7 @@
 //!
 //! Finding, counting, and navigating between views in the layout.
 
-use xeno_tui::layout::Rect;
+use crate::geometry::Rect;
 
 use super::manager::LayoutManager;
 use super::types::LayerId;

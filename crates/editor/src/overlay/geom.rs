@@ -1,4 +1,4 @@
-use xeno_tui::layout::Rect;
+use crate::geometry::Rect;
 use xeno_tui::widgets::{Block, Borders};
 
 use crate::window::SurfaceStyle;
@@ -16,7 +16,7 @@ pub fn pane_inner_rect(rect: Rect, style: &SurfaceStyle) -> Rect {
 
 #[cfg(test)]
 mod tests {
-	use xeno_tui::layout::Rect;
+	use crate::geometry::Rect;
 	use xeno_tui::widgets::BorderType;
 	use xeno_tui::widgets::block::Padding;
 

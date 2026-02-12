@@ -2,7 +2,7 @@
 //!
 //! Managing separator drag operations and hover animations.
 
-use xeno_tui::layout::Rect;
+use crate::geometry::Rect;
 
 use super::manager::LayoutManager;
 use super::types::SeparatorHit;
