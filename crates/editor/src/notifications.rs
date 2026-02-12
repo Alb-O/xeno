@@ -1,19 +1,17 @@
 //! Editor notification center wrapper.
 //!
-//! Owns notification queueing and toast lifecycle state.
+//! Owns typed notification queueing for frontend presentation layers.
 //!
-//! Frontend crates are responsible for mapping typed notifications to concrete
-//! toast presentation (styles/icons/layout) and rendering.
+//! Frontend crates are responsible for toast lifecycle state, visual mapping,
+//! and rendering.
 
 use std::collections::VecDeque;
-use std::time::Duration;
 
 use xeno_registry::notifications::Notification;
-use xeno_tui::widgets::notifications::{Overflow, ToastManager};
 
 pub struct NotificationCenter {
 	pending: VecDeque<Notification>,
-	inner: ToastManager,
+	clear_epoch: u64,
 }
 
 impl Default for NotificationCenter {
@@ -26,21 +24,17 @@ impl NotificationCenter {
 	pub fn new() -> Self {
 		Self {
 			pending: VecDeque::new(),
-			inner: ToastManager::new().max_visible(Some(5)).overflow(Overflow::DropOldest),
+			clear_epoch: 0,
 		}
 	}
 
 	pub fn is_empty(&self) -> bool {
-		self.pending.is_empty() && self.inner.is_empty()
-	}
-
-	pub fn tick(&mut self, delta: Duration) {
-		self.inner.tick(delta);
+		self.pending.is_empty()
 	}
 
 	pub fn clear(&mut self) {
 		self.pending.clear();
-		self.inner.clear();
+		self.clear_epoch = self.clear_epoch.wrapping_add(1);
 	}
 
 	pub fn push(&mut self, notification: Notification) {
@@ -51,7 +45,7 @@ impl NotificationCenter {
 		self.pending.drain(..).collect()
 	}
 
-	pub fn toast_manager_mut(&mut self) -> &mut ToastManager {
-		&mut self.inner
+	pub fn clear_epoch(&self) -> u64 {
+		self.clear_epoch
 	}
 }

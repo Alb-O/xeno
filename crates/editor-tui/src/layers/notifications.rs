@@ -1,9 +1,39 @@
+use std::time::Duration;
+
 use xeno_editor::Editor;
 use xeno_registry::notifications::{AutoDismiss, Level, Notification};
 use xeno_registry::themes::ThemeColors;
 use xeno_tui::style::Style;
 use xeno_tui::widgets::icon::presets as icon_presets;
-use xeno_tui::widgets::notifications::{self as notif, Anchor, Toast, ToastIcon};
+use xeno_tui::widgets::notifications::{self as notif, Anchor, Overflow, Toast, ToastIcon, ToastManager};
+
+pub struct FrontendNotifications {
+	clear_epoch: u64,
+	toasts: ToastManager,
+}
+
+impl Default for FrontendNotifications {
+	fn default() -> Self {
+		Self::new()
+	}
+}
+
+impl FrontendNotifications {
+	pub fn new() -> Self {
+		Self {
+			clear_epoch: 0,
+			toasts: ToastManager::new().max_visible(Some(5)).overflow(Overflow::DropOldest),
+		}
+	}
+
+	pub fn tick(&mut self, delta: Duration) {
+		self.toasts.tick(delta);
+	}
+
+	pub fn has_active_toasts(&self) -> bool {
+		!self.toasts.is_empty()
+	}
+}
 
 fn map_notification_to_toast(colors: ThemeColors, notification: Notification) -> Toast {
 	let level = notification.level();
@@ -29,16 +59,22 @@ fn map_notification_to_toast(colors: ThemeColors, notification: Notification) ->
 		})
 }
 
-pub fn render(ed: &mut Editor, doc_area: xeno_tui::layout::Rect, buffer: &mut xeno_tui::buffer::Buffer) {
+pub fn render(ed: &mut Editor, state: &mut FrontendNotifications, doc_area: xeno_tui::layout::Rect, buffer: &mut xeno_tui::buffer::Buffer) {
 	let theme_colors = ed.config().theme.colors;
 	let notifications = ed.notifications_mut();
+	let clear_epoch = notifications.clear_epoch();
+	if clear_epoch != state.clear_epoch {
+		state.toasts.clear();
+		state.clear_epoch = clear_epoch;
+	}
+
 	for notification in notifications.take_pending() {
 		let toast = map_notification_to_toast(theme_colors, notification);
-		notifications.toast_manager_mut().push(toast);
+		state.toasts.push(toast);
 	}
 
 	let mut notifications_area = doc_area;
 	notifications_area.height = notifications_area.height.saturating_sub(1);
 	notifications_area.width = notifications_area.width.saturating_sub(1);
-	notifications.toast_manager_mut().render(notifications_area, buffer);
+	state.toasts.render(notifications_area, buffer);
 }

@@ -23,19 +23,13 @@ impl Editor {
 
 	/// Ticks the UI layer and advances the frame clock.
 	///
-	/// All time-based state progression (notifications, animations) is driven
+	/// All time-based UI state progression (animations) is driven
 	/// from here rather than from the render path, so skipping a render frame
 	/// does not freeze or jump animations.
 	pub fn ui_tick(&mut self) {
 		let now = SystemTime::now();
-		let delta = now.duration_since(self.state.frame.last_tick).unwrap_or(Duration::from_millis(16));
+		let _delta = now.duration_since(self.state.frame.last_tick).unwrap_or(Duration::from_millis(16));
 		self.state.frame.last_tick = now;
-
-		let had_notifications = !self.state.notifications.is_empty();
-		self.state.notifications.tick(delta);
-		if had_notifications {
-			self.state.frame.needs_redraw = true;
-		}
 
 		let mut ui = std::mem::take(&mut self.state.ui);
 		ui.tick(self);

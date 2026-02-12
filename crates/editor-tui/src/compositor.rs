@@ -7,7 +7,7 @@ use xeno_tui::widgets::{Block, Clear};
 use crate::layer::SceneBuilder;
 use crate::scene::{SceneRenderResult, SurfaceKind, SurfaceOp};
 
-pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame) {
+pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame, notifications: &mut crate::layers::notifications::FrontendNotifications) {
 	ed.frame_mut().needs_redraw = false;
 
 	ed.ensure_syntax_for_buffers();
@@ -107,7 +107,7 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame) {
 			SurfaceOp::CompletionPopup => crate::layers::completion::render(ed, frame),
 			SurfaceOp::SnippetChoicePopup => crate::layers::snippet_choice::render(ed, frame),
 			SurfaceOp::StatusLine => crate::layers::status::render(ed, frame, status_area),
-			SurfaceOp::Notifications => crate::layers::notifications::render(ed, doc_area_tui, frame.buffer_mut()),
+			SurfaceOp::Notifications => crate::layers::notifications::render(ed, notifications, doc_area_tui, frame.buffer_mut()),
 		}
 	}
 

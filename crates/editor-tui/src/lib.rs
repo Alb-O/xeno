@@ -10,6 +10,7 @@ mod scene;
 mod terminal;
 
 use std::io::{self, Write};
+use std::time::{Duration, Instant};
 
 use termina::escape::csi::{Csi, Cursor};
 use termina::{PlatformTerminal, Terminal as _};
@@ -37,6 +38,8 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 	emit_hook_sync_with(&HookContext::new(HookEventData::EditorStart), editor.hook_runtime_mut());
 
 	let mut last_cursor_style: Option<Cursor> = None;
+	let mut notifications = crate::layers::notifications::FrontendNotifications::new();
+	let mut last_notification_tick = Instant::now();
 	let mut dir = editor.pump().await;
 	dir.needs_redraw = true;
 
@@ -46,12 +49,20 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 				break;
 			}
 
+			let now = Instant::now();
+			let notification_delta = now.saturating_duration_since(last_notification_tick);
+			last_notification_tick = now;
+			notifications.tick(notification_delta);
+			if notifications.has_active_toasts() {
+				dir.needs_redraw = true;
+			}
+
 			if dir.needs_redraw {
 				terminal.draw(|frame| {
 					#[cfg(feature = "perf")]
 					let t0 = std::time::Instant::now();
 
-					compositor::render_frame(&mut editor, frame);
+					compositor::render_frame(&mut editor, frame, &mut notifications);
 
 					#[cfg(feature = "perf")]
 					tracing::debug!(
@@ -69,7 +80,13 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 			}
 
 			let mut filter = |e: &termina::event::Event| !e.is_escape();
-			let has_event = match dir.poll_timeout {
+			let poll_timeout = if notifications.has_active_toasts() {
+				Some(Duration::from_millis(16))
+			} else {
+				dir.poll_timeout
+			};
+
+			let has_event = match poll_timeout {
 				Some(t) => events.poll(Some(t), &mut filter)?,
 				None => true,
 			};
