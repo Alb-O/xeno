@@ -145,7 +145,9 @@ impl InfoPopupStore {
 
 	/// Builds a data-only render plan for all active popups.
 	pub fn render_plan(&self) -> Vec<InfoPopupRenderTarget> {
-		self.popups.values().map(InfoPopupRenderTarget::from).collect()
+		let mut plan: Vec<_> = self.popups.values().map(InfoPopupRenderTarget::from).collect();
+		plan.sort_by_key(|popup| popup.id.0);
+		plan
 	}
 
 	/// Returns true if there are no active popups.

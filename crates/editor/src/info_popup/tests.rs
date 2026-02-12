@@ -61,3 +61,27 @@ fn store_render_plan_maps_window_anchor_to_center() {
 	assert_eq!(plan.len(), 1);
 	assert!(matches!(plan[0].anchor, InfoPopupRenderAnchor::Center));
 }
+
+#[test]
+fn store_render_plan_is_sorted_by_popup_id() {
+	let mut store = InfoPopupStore::default();
+	store.insert(InfoPopup {
+		id: InfoPopupId(10),
+		buffer_id: ViewId(1),
+		anchor: PopupAnchor::Center,
+		content_width: 10,
+		content_height: 3,
+	});
+	store.insert(InfoPopup {
+		id: InfoPopupId(2),
+		buffer_id: ViewId(2),
+		anchor: PopupAnchor::Center,
+		content_width: 10,
+		content_height: 3,
+	});
+
+	let plan = store.render_plan();
+	assert_eq!(plan.len(), 2);
+	assert_eq!(plan[0].id, InfoPopupId(2));
+	assert_eq!(plan[1].id, InfoPopupId(10));
+}

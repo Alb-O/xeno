@@ -38,8 +38,7 @@ pub fn push(builder: &mut SceneBuilder, doc_area: Rect) {
 }
 
 pub fn render(ed: &mut Editor, frame: &mut xeno_tui::Frame, doc_area: Rect, ctx: &RenderCtx) {
-	let mut popups = ed.info_popup_render_plan();
-	popups.sort_by_key(|popup| popup.id.0);
+	let popups = ed.info_popup_render_plan();
 
 	if popups.is_empty() {
 		return;
