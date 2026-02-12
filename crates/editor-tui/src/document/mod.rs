@@ -92,7 +92,7 @@ pub fn render_split_buffers(ed: &mut Editor, frame: &mut xeno_tui::Frame, doc_ar
 				let gutter_layout = GutterLayout::from_selector(effective_gutter, total_lines, area.width);
 				let text_width = area.width.saturating_sub(gutter_layout.total_width) as usize;
 
-					ensure_buffer_cursor_visible(buffer, (*area).into(), text_width, tab_width, scroll_margin);
+				ensure_buffer_cursor_visible(buffer, (*area).into(), text_width, tab_width, scroll_margin);
 			}
 		}
 	}
@@ -128,8 +128,11 @@ pub fn render_split_buffers(ed: &mut Editor, frame: &mut xeno_tui::Frame, doc_ar
 					..*area
 				};
 
-				frame.render_widget(Paragraph::new(result.gutter), gutter_area);
-				frame.render_widget(Paragraph::new(result.text), text_area);
+				let gutter = result.gutter.into_iter().map(|line| line.into_text_line()).collect::<Vec<_>>();
+				let text = result.text.into_iter().map(|line| line.into_text_line()).collect::<Vec<_>>();
+
+				frame.render_widget(Paragraph::new(gutter), gutter_area);
+				frame.render_widget(Paragraph::new(text), text_area);
 			}
 		}
 	}

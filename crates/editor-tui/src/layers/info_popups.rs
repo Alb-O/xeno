@@ -1,7 +1,7 @@
+use xeno_editor::Editor;
 use xeno_editor::info_popup::InfoPopupRenderAnchor;
 use xeno_editor::render_api::{BufferRenderContext, RenderBufferParams, RenderCtx};
 use xeno_editor::window::GutterSelector;
-use xeno_editor::Editor;
 use xeno_registry::options::keys;
 use xeno_tui::layout::Rect;
 use xeno_tui::style::Style;
@@ -108,8 +108,11 @@ pub fn render(ed: &mut Editor, frame: &mut xeno_tui::Frame, doc_area: Rect, ctx:
 			..inner
 		};
 
-		frame.render_widget(Paragraph::new(result.gutter), gutter_area);
-		frame.render_widget(Paragraph::new(result.text), text_area);
+		let gutter = result.gutter.into_iter().map(|line| line.into_text_line()).collect::<Vec<_>>();
+		let text = result.text.into_iter().map(|line| line.into_text_line()).collect::<Vec<_>>();
+
+		frame.render_widget(Paragraph::new(gutter), gutter_area);
+		frame.render_widget(Paragraph::new(text), text_area);
 	}
 
 	*ed.render_cache_mut() = cache;

@@ -180,8 +180,11 @@ pub fn render_utility_panel_overlay(ed: &mut Editor, frame: &mut xeno_tui::Frame
 				..content_area
 			};
 
-			frame.render_widget(Paragraph::new(result.gutter), gutter_area);
-			frame.render_widget(Paragraph::new(result.text), text_area);
+			let gutter = result.gutter.into_iter().map(|line| line.into_text_line()).collect::<Vec<_>>();
+			let text = result.text.into_iter().map(|line| line.into_text_line()).collect::<Vec<_>>();
+
+			frame.render_widget(Paragraph::new(gutter), gutter_area);
+			frame.render_widget(Paragraph::new(text), text_area);
 		}
 	}
 
