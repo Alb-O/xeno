@@ -184,6 +184,136 @@ where
     // x86-64-v2 without lahfsahf
     "x86_64+cmpxchg16b+fxsr+popcnt+sse+sse2+sse3+sse4.1+sse4.2+ssse3",
 ))]
+pub fn smith_waterman_scores_typos<const W: usize, const L: usize>(
+	needle_str: &str,
+	haystack_strs: &[&str; L],
+	max_typos: u16,
+	scoring: &Scoring,
+) -> ([u16; L], [u16; L], [bool; L])
+where
+	LaneCount<L>: SupportedLaneCount,
+{
+	let needle = needle_str.as_bytes();
+	let haystacks = interleave::<W, L>(*haystack_strs).map(HaystackChar::new);
+	let delimiters = scoring.delimiters.as_bytes();
+	let haystack_delimiter_mask = delimiter_masks(&haystacks, delimiters);
+
+	let mut prev_score_col = [Simd::splat(0); W];
+	let mut curr_score_col = [Simd::splat(0); W];
+	let mut prev_typo_col = [Simd::splat(0); W];
+	let mut curr_typo_col = [Simd::splat(0); W];
+	let mut prev_end_zero_col = [Simd::splat(0); W];
+	let mut curr_end_zero_col = [Simd::splat(0); W];
+	let mut all_time_max_score = Simd::splat(0);
+
+	let zero = Simd::splat(0);
+	let one = Simd::splat(1u16);
+	let max_plus_one = max_typos.saturating_add(1);
+
+	for needle_idx in 0..needle.len() {
+		curr_score_col.fill(zero);
+		curr_typo_col.fill(zero);
+		curr_end_zero_col.fill(zero);
+
+		let haystack_start = needle_idx.saturating_sub(max_typos as usize);
+		let haystack_end = (W + needle_idx + (max_typos as usize)).saturating_sub(needle.len()).min(W);
+
+		let needle_char = NeedleChar::new(needle[needle_idx] as u16);
+		let prev_col = if needle_idx == 0 { None } else { Some(prev_score_col.as_slice()) };
+
+		smith_waterman_inner(
+			haystack_start,
+			haystack_end,
+			needle_char,
+			&haystacks,
+			haystack_delimiter_mask.as_slice(),
+			prev_col,
+			curr_score_col.as_mut_slice(),
+			scoring,
+			&mut all_time_max_score,
+		);
+
+		let row0_score = curr_score_col[0];
+		curr_typo_col[0] = Simd::splat(needle_idx.min(u16::MAX as usize) as u16);
+		curr_end_zero_col[0] = row0_score.simd_eq(zero).select(one, zero);
+
+		for haystack_idx in haystack_start.max(1)..haystack_end {
+			let score = curr_score_col[haystack_idx];
+			let score_is_zero_mask = score.simd_eq(zero);
+
+			if needle_idx == 0 {
+				curr_typo_col[haystack_idx] = zero;
+				curr_end_zero_col[haystack_idx] = score_is_zero_mask.select(one, zero);
+			} else {
+				let diag = prev_score_col[haystack_idx - 1];
+				let left = prev_score_col[haystack_idx];
+				let up = curr_score_col[haystack_idx - 1];
+
+				let choose_diag = diag.simd_ge(left) & diag.simd_ge(up);
+				let choose_left = choose_diag.not() & left.simd_ge(up);
+
+				let mismatch = diag.simd_ge(score).select(one, zero);
+				let diag_typo = prev_typo_col[haystack_idx - 1].saturating_add(mismatch);
+				let left_typo = prev_typo_col[haystack_idx].saturating_add(one);
+				let up_typo = curr_typo_col[haystack_idx - 1];
+				let full_typos = choose_diag.select(diag_typo, choose_left.select(left_typo, up_typo));
+
+				let end_zero = choose_diag.select(
+					prev_end_zero_col[haystack_idx - 1],
+					choose_left.select(prev_end_zero_col[haystack_idx], curr_end_zero_col[haystack_idx - 1]),
+				);
+
+				curr_typo_col[haystack_idx] = full_typos;
+				curr_end_zero_col[haystack_idx] = end_zero;
+			}
+		}
+
+		std::mem::swap(&mut prev_score_col, &mut curr_score_col);
+		std::mem::swap(&mut prev_typo_col, &mut curr_typo_col);
+		std::mem::swap(&mut prev_end_zero_col, &mut curr_end_zero_col);
+	}
+
+	let mut last_col_scores = Simd::splat(0);
+	let mut positions = Simd::splat(0u16);
+	for (row_idx, &row_scores) in prev_score_col.iter().enumerate() {
+		let row_max_mask: Mask<i16, L> = row_scores.simd_gt(last_col_scores);
+		last_col_scores = row_max_mask.select(row_scores, last_col_scores);
+		positions = row_max_mask.select(Simd::splat(row_idx as u16), positions);
+	}
+
+	let position_array = positions.to_array();
+	let typos = std::array::from_fn(|lane| {
+		let row = position_array[lane] as usize;
+		let full_typos = prev_typo_col[row][lane];
+		if full_typos > max_plus_one {
+			max_plus_one
+		} else if prev_end_zero_col[row][lane] != 0 {
+			full_typos.saturating_add(1)
+		} else {
+			full_typos
+		}
+	});
+
+	let exact_matches: [bool; L] = std::array::from_fn(|i| haystack_strs[i] == needle_str);
+	let max_scores = std::array::from_fn(|i| {
+		let mut score = all_time_max_score[i];
+		if exact_matches[i] {
+			score += scoring.exact_match_bonus;
+		}
+		score
+	});
+
+	(max_scores, typos, exact_matches)
+}
+
+#[multiversion(targets(
+    // x86-64-v4 without lahfsahf
+    "x86_64+avx512f+avx512bw+avx512cd+avx512dq+avx512vl+avx+avx2+bmi1+bmi2+cmpxchg16b+f16c+fma+fxsr+lzcnt+movbe+popcnt+sse+sse2+sse3+sse4.1+sse4.2+ssse3+xsave",
+    // x86-64-v3 without lahfsahf
+    "x86_64+avx+avx2+bmi1+bmi2+cmpxchg16b+f16c+fma+fxsr+lzcnt+movbe+popcnt+sse+sse2+sse3+sse4.1+sse4.2+ssse3+xsave",
+    // x86-64-v2 without lahfsahf
+    "x86_64+cmpxchg16b+fxsr+popcnt+sse+sse2+sse3+sse4.1+sse4.2+ssse3",
+))]
 pub fn smith_waterman<const W: usize, const L: usize>(
 	needle_str: &str,
 	haystack_strs: &[&str; L],

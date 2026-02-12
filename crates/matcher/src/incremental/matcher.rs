@@ -2,37 +2,37 @@ use super::bucket::IncrementalBucketTrait;
 use super::bucket_collection::IncrementalBucketCollection;
 use crate::{Config, Match};
 
-pub struct IncrementalMatcher {
+pub struct IncrementalMatcher<'a> {
 	needle: Option<String>,
 	num_haystacks: usize,
-	buckets: Vec<Box<dyn IncrementalBucketTrait>>,
-	overflow_haystacks: Vec<(u32, String)>,
+	buckets: Vec<Box<dyn IncrementalBucketTrait + 'a>>,
+	overflow_haystacks: Vec<(u32, &'a str)>,
 }
 
-impl IncrementalMatcher {
-	pub fn new<S: AsRef<str>>(haystacks: &[S]) -> Self {
+impl<'a> IncrementalMatcher<'a> {
+	pub fn new<S: AsRef<str>>(haystacks: &'a [S]) -> Self {
 		// group haystacks into buckets by length
 
-		let mut buckets: Vec<Box<dyn IncrementalBucketTrait>> = vec![];
+		let mut buckets: Vec<Box<dyn IncrementalBucketTrait + 'a>> = vec![];
 		let mut overflow_haystacks = Vec::new();
 
-		let mut collection_size_4 = IncrementalBucketCollection::<'_, 4, 8>::new();
-		let mut collection_size_8 = IncrementalBucketCollection::<'_, 8, 8>::new();
-		let mut collection_size_12 = IncrementalBucketCollection::<'_, 12, 8>::new();
-		let mut collection_size_16 = IncrementalBucketCollection::<'_, 16, 8>::new();
-		let mut collection_size_20 = IncrementalBucketCollection::<'_, 20, 8>::new();
-		let mut collection_size_24 = IncrementalBucketCollection::<'_, 24, 8>::new();
-		let mut collection_size_32 = IncrementalBucketCollection::<'_, 32, 8>::new();
-		let mut collection_size_48 = IncrementalBucketCollection::<'_, 48, 8>::new();
-		let mut collection_size_64 = IncrementalBucketCollection::<'_, 64, 8>::new();
-		let mut collection_size_96 = IncrementalBucketCollection::<'_, 96, 8>::new();
-		let mut collection_size_128 = IncrementalBucketCollection::<'_, 128, 8>::new();
-		let mut collection_size_160 = IncrementalBucketCollection::<'_, 160, 8>::new();
-		let mut collection_size_192 = IncrementalBucketCollection::<'_, 192, 8>::new();
-		let mut collection_size_224 = IncrementalBucketCollection::<'_, 224, 8>::new();
-		let mut collection_size_256 = IncrementalBucketCollection::<'_, 256, 8>::new();
-		let mut collection_size_384 = IncrementalBucketCollection::<'_, 384, 8>::new();
-		let mut collection_size_512 = IncrementalBucketCollection::<'_, 512, 8>::new();
+		let mut collection_size_4 = IncrementalBucketCollection::<'a, 4, 8>::new();
+		let mut collection_size_8 = IncrementalBucketCollection::<'a, 8, 8>::new();
+		let mut collection_size_12 = IncrementalBucketCollection::<'a, 12, 8>::new();
+		let mut collection_size_16 = IncrementalBucketCollection::<'a, 16, 8>::new();
+		let mut collection_size_20 = IncrementalBucketCollection::<'a, 20, 8>::new();
+		let mut collection_size_24 = IncrementalBucketCollection::<'a, 24, 8>::new();
+		let mut collection_size_32 = IncrementalBucketCollection::<'a, 32, 8>::new();
+		let mut collection_size_48 = IncrementalBucketCollection::<'a, 48, 8>::new();
+		let mut collection_size_64 = IncrementalBucketCollection::<'a, 64, 8>::new();
+		let mut collection_size_96 = IncrementalBucketCollection::<'a, 96, 8>::new();
+		let mut collection_size_128 = IncrementalBucketCollection::<'a, 128, 8>::new();
+		let mut collection_size_160 = IncrementalBucketCollection::<'a, 160, 8>::new();
+		let mut collection_size_192 = IncrementalBucketCollection::<'a, 192, 8>::new();
+		let mut collection_size_224 = IncrementalBucketCollection::<'a, 224, 8>::new();
+		let mut collection_size_256 = IncrementalBucketCollection::<'a, 256, 8>::new();
+		let mut collection_size_384 = IncrementalBucketCollection::<'a, 384, 8>::new();
+		let mut collection_size_512 = IncrementalBucketCollection::<'a, 512, 8>::new();
 
 		for (i, haystack) in haystacks.iter().enumerate() {
 			let i = i as u32;
@@ -55,7 +55,7 @@ impl IncrementalMatcher {
 				225..=256 => collection_size_256.add_haystack(haystack, i, &mut buckets),
 				257..=384 => collection_size_384.add_haystack(haystack, i, &mut buckets),
 				385..=512 => collection_size_512.add_haystack(haystack, i, &mut buckets),
-				_ => overflow_haystacks.push((i, haystack.to_owned())),
+				_ => overflow_haystacks.push((i, haystack)),
 			};
 		}
 
@@ -118,7 +118,7 @@ impl IncrementalMatcher {
 	}
 
 	fn process(&mut self, prefix_to_keep: usize, needle: &str, matches: &mut Vec<Match>, config: &Config) {
-		let needle = &needle.as_bytes()[prefix_to_keep..];
+		let prefix_to_keep = if config.max_typos.is_some() { 0 } else { prefix_to_keep };
 
 		for bucket in self.buckets.iter_mut() {
 			bucket.process(prefix_to_keep, needle, matches, config.max_typos, &config.scoring);
@@ -130,7 +130,7 @@ impl IncrementalMatcher {
 			return;
 		}
 
-		let overflow_haystack_refs: Vec<&str> = self.overflow_haystacks.iter().map(|(_, haystack)| haystack.as_str()).collect();
+		let overflow_haystack_refs: Vec<&str> = self.overflow_haystacks.iter().map(|(_, haystack)| *haystack).collect();
 		let mut overflow_matches = crate::match_list(needle, &overflow_haystack_refs, config);
 
 		for mtch in &mut overflow_matches {
@@ -148,9 +148,84 @@ mod tests {
 
 	const CHAR_SCORE: u16 = MATCH_SCORE + MATCHING_CASE_BONUS;
 
+	#[derive(Clone, Copy)]
+	struct XorShift64 {
+		state: u64,
+	}
+
+	impl XorShift64 {
+		fn new(seed: u64) -> Self {
+			Self { state: seed.max(1) }
+		}
+
+		fn next_u64(&mut self) -> u64 {
+			let mut x = self.state;
+			x ^= x >> 12;
+			x ^= x << 25;
+			x ^= x >> 27;
+			self.state = x;
+			x.wrapping_mul(0x2545_F491_4F6C_DD1D)
+		}
+
+		fn next_usize(&mut self, upper_bound: usize) -> usize {
+			if upper_bound <= 1 {
+				return 0;
+			}
+			(self.next_u64() as usize) % upper_bound
+		}
+	}
+
+	fn gen_ascii_bytes(rng: &mut XorShift64, len: usize, alphabet: &[u8]) -> Vec<u8> {
+		let mut out = Vec::with_capacity(len);
+		for _ in 0..len {
+			out.push(alphabet[rng.next_usize(alphabet.len())]);
+		}
+		out
+	}
+
+	fn generate_haystacks(count: usize, lengths: &[usize], needle: &str) -> Vec<String> {
+		let mut rng = XorShift64::new(0x61CF_2A94_D5A8_9E31);
+		let cold_alphabet = b"qwxzvkjyupnghtrm";
+		let warm_alphabet = b"abcdefghijklmnopqrstuvwxyz0123456789_-/";
+		let mut haystacks = Vec::with_capacity(count);
+
+		for _ in 0..count {
+			let len = lengths[rng.next_usize(lengths.len())];
+			let roll = rng.next_usize(100);
+			let haystack = if roll < 90 {
+				String::from_utf8(gen_ascii_bytes(&mut rng, len, cold_alphabet)).expect("cold haystack is valid ASCII")
+			} else if roll < 95 {
+				let mut out = gen_ascii_bytes(&mut rng, len, warm_alphabet);
+				for &ch in needle.as_bytes() {
+					out[rng.next_usize(len)] = ch;
+				}
+				String::from_utf8(out).expect("unordered haystack is valid ASCII")
+			} else {
+				let mut out = gen_ascii_bytes(&mut rng, len, warm_alphabet);
+				if len >= needle.len() {
+					let start = rng.next_usize(len - needle.len() + 1);
+					out[start..(start + needle.len())].copy_from_slice(needle.as_bytes());
+				} else {
+					out.copy_from_slice(&needle.as_bytes()[..len]);
+				}
+				String::from_utf8(out).expect("ordered haystack is valid ASCII")
+			};
+
+			haystacks.push(haystack);
+		}
+
+		haystacks
+	}
+
 	fn get_score(needle: &str, haystack: &str) -> u16 {
-		let mut matcher = IncrementalMatcher::new(&[haystack]);
-		matcher.match_needle(needle, &Config::default())[0].score
+		let haystacks = [haystack];
+		let mut matcher = IncrementalMatcher::new(&haystacks);
+		let config = Config {
+			max_typos: None,
+			prefilter: false,
+			..Config::default()
+		};
+		matcher.match_needle(needle, &config)[0].score
 	}
 
 	#[test]
@@ -176,12 +251,42 @@ mod tests {
 	}
 
 	#[test]
-	#[ignore = "Incremental matcher doesn't support exact matches until we implement them in SIMD"]
 	fn test_score_exact_match() {
 		assert_eq!(get_score("a", "a"), CHAR_SCORE + EXACT_MATCH_BONUS + PREFIX_BONUS);
 		assert_eq!(get_score("abc", "abc"), 3 * CHAR_SCORE + EXACT_MATCH_BONUS + PREFIX_BONUS);
 		assert_eq!(get_score("ab", "abc"), 2 * CHAR_SCORE + PREFIX_BONUS);
 		// assert_eq!(run_single("abc", "ab"), 2 * CHAR_SCORE + PREFIX_BONUS);
+	}
+
+	#[test]
+	fn test_exact_bonus_delta_matches_constant() {
+		let needle = "deadbeef";
+		let haystacks = [needle];
+		let mut matcher_with_bonus = IncrementalMatcher::new(&haystacks);
+		let mut matcher_without_bonus = IncrementalMatcher::new(&haystacks);
+
+		let with_bonus = Config {
+			max_typos: None,
+			prefilter: false,
+			..Config::default()
+		};
+		let mut without_bonus_scoring = with_bonus.scoring.clone();
+		without_bonus_scoring.exact_match_bonus = 0;
+		let without_bonus = Config {
+			max_typos: None,
+			prefilter: false,
+			scoring: without_bonus_scoring,
+			..Config::default()
+		};
+
+		let with_bonus_match = matcher_with_bonus.match_needle(needle, &with_bonus);
+		let without_bonus_match = matcher_without_bonus.match_needle(needle, &without_bonus);
+
+		assert_eq!(with_bonus_match.len(), 1);
+		assert_eq!(without_bonus_match.len(), 1);
+		assert!(with_bonus_match[0].exact);
+		assert!(without_bonus_match[0].exact);
+		assert_eq!(with_bonus_match[0].score, without_bonus_match[0].score + EXACT_MATCH_BONUS);
 	}
 
 	#[test]
@@ -235,11 +340,90 @@ mod tests {
 	#[test]
 	fn test_haystacks_larger_than_simd_limit_are_included() {
 		let long = "a".repeat(700);
-		let mut matcher = IncrementalMatcher::new(&[long]);
+		let haystacks = [long];
+		let mut matcher = IncrementalMatcher::new(&haystacks);
 		let matches = matcher.match_needle("a", &Config::default());
 
 		assert_eq!(matches.len(), 1);
 		assert_eq!(matches[0].index, 0);
 		assert!(matches[0].score > 0);
+	}
+
+	#[test]
+	fn test_typing_sequence_and_backspace_does_not_panic() {
+		let haystacks = ["deadbeef", "debug", "delta", "deal", "defer", "dog"];
+		let mut matcher = IncrementalMatcher::new(&haystacks);
+		let config = Config {
+			prefilter: false,
+			..Config::default()
+		};
+		let sequence = [
+			"d", "de", "dea", "dead", "deadb", "deadbe", "deadbee", "deadbeef", "deadbee", "deadbe", "deadb", "dead", "dea", "de", "d", "",
+		];
+
+		for needle in &sequence {
+			let matches = matcher.match_needle(needle, &config);
+			let expected = crate::match_list(needle, &haystacks, &config);
+			assert_eq!(matches, expected, "incremental mismatch for needle '{needle}'");
+			if needle.is_empty() {
+				assert_eq!(matches.len(), haystacks.len());
+			}
+		}
+	}
+
+	#[test]
+	fn parity_with_one_shot_for_typing_sequence() {
+		let needle = "deadbeef";
+		let lengths = [8usize, 12, 16, 24, 32, 48, 64];
+		let haystacks = generate_haystacks(512, &lengths, needle);
+		let haystack_refs: Vec<&str> = haystacks.iter().map(String::as_str).collect();
+		let sequence = ["de", "dea", "dead", "deadb", "deadbe", "deadbee", "deadbeef", "deadbee", "deadbe"];
+
+		for max_typos in [None, Some(0), Some(1)] {
+			let config = Config {
+				max_typos,
+				prefilter: false,
+				sort: true,
+				..Config::default()
+			};
+			let mut incremental = IncrementalMatcher::new(&haystack_refs);
+
+			for current_needle in &sequence {
+				let incremental_matches = incremental.match_needle(current_needle, &config);
+				let one_shot_matches = crate::match_list(current_needle, &haystack_refs, &config);
+				assert_eq!(
+					incremental_matches, one_shot_matches,
+					"parity mismatch for needle '{current_needle}', max_typos={max_typos:?}"
+				);
+			}
+		}
+	}
+
+	#[test]
+	fn parity_with_one_shot_forced_greedy_fallback() {
+		let needle = "deadbeef";
+		let lengths = [500usize, 512];
+		let haystacks = generate_haystacks(256, &lengths, needle);
+		let haystack_refs: Vec<&str> = haystacks.iter().map(String::as_str).collect();
+		let sequence = ["deadbeef", "deadbee", "deadbeef"];
+
+		for max_typos in [Some(0), Some(1)] {
+			let config = Config {
+				max_typos,
+				prefilter: false,
+				sort: true,
+				..Config::default()
+			};
+			let mut incremental = IncrementalMatcher::new(&haystack_refs);
+
+			for current_needle in &sequence {
+				let incremental_matches = incremental.match_needle(current_needle, &config);
+				let one_shot_matches = crate::match_list(current_needle, &haystack_refs, &config);
+				assert_eq!(
+					incremental_matches, one_shot_matches,
+					"fallback parity mismatch for needle '{current_needle}', max_typos={max_typos:?}"
+				);
+			}
+		}
 	}
 }

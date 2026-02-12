@@ -162,7 +162,87 @@ pub(crate) fn match_list_impl<S1: AsRef<str>, S2: AsRef<str>, M: Appendable<Matc
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::r#const::EXACT_MATCH_BONUS;
 	use crate::match_list_parallel;
+
+	#[derive(Clone, Copy)]
+	struct XorShift64 {
+		state: u64,
+	}
+
+	impl XorShift64 {
+		fn new(seed: u64) -> Self {
+			Self { state: seed.max(1) }
+		}
+
+		fn next_u64(&mut self) -> u64 {
+			let mut x = self.state;
+			x ^= x >> 12;
+			x ^= x << 25;
+			x ^= x >> 27;
+			self.state = x;
+			x.wrapping_mul(0x2545_F491_4F6C_DD1D)
+		}
+
+		fn next_usize(&mut self, upper_bound: usize) -> usize {
+			if upper_bound <= 1 {
+				return 0;
+			}
+			(self.next_u64() as usize) % upper_bound
+		}
+	}
+
+	fn gen_ascii_bytes(rng: &mut XorShift64, len: usize, alphabet: &[u8]) -> Vec<u8> {
+		let mut out = Vec::with_capacity(len);
+		for _ in 0..len {
+			out.push(alphabet[rng.next_usize(alphabet.len())]);
+		}
+		out
+	}
+
+	fn generate_haystacks(count: usize, needle: &str) -> Vec<String> {
+		let mut rng = XorShift64::new(0x7C13_9A20_F1E2_BD59);
+		let lengths = [8usize, 12, 16, 24, 32, 48, 64];
+		let cold_alphabet = b"qwxzvkjyupnghtrm";
+		let warm_alphabet = b"abcdefghijklmnopqrstuvwxyz0123456789_-/";
+
+		let mut haystacks = Vec::with_capacity(count);
+		for _ in 0..count {
+			let len = lengths[rng.next_usize(lengths.len())];
+			let roll = rng.next_usize(100);
+
+			let haystack = if roll < 90 {
+				String::from_utf8(gen_ascii_bytes(&mut rng, len, cold_alphabet)).expect("cold haystack is valid ASCII")
+			} else if roll < 95 {
+				let mut out = gen_ascii_bytes(&mut rng, len, warm_alphabet);
+				for &ch in needle.as_bytes() {
+					out[rng.next_usize(len)] = ch;
+				}
+				String::from_utf8(out).expect("unordered haystack is valid ASCII")
+			} else {
+				let mut out = gen_ascii_bytes(&mut rng, len, warm_alphabet);
+				if !needle.is_empty() {
+					if len > needle.len() {
+						let start = rng.next_usize(len - needle.len());
+						out[start..(start + needle.len())].copy_from_slice(needle.as_bytes());
+						if start > 0 {
+							out[start - 1] = b'_';
+						}
+						if start + needle.len() < len {
+							out[start + needle.len()] = b'-';
+						}
+					} else {
+						out.copy_from_slice(needle.as_bytes());
+					}
+				}
+				String::from_utf8(out).expect("ordered haystack is valid ASCII")
+			};
+
+			haystacks.push(haystack);
+		}
+
+		haystacks
+	}
 
 	#[test]
 	fn test_basic() {
@@ -246,35 +326,23 @@ mod tests {
 	}
 
 	#[test]
-	fn parallel_matches_serial_without_typos() {
-		let needle = "deadbe";
-		let haystack = vec!["deadbeef", "deadbf", "deadbeefg", "deadbe", "rebuild", "debug", "debut", "dea"];
+	fn parallel_matches_serial_across_typo_configs() {
+		let needle = "deadbeef";
+		let haystack = generate_haystacks(10_000, needle);
+		let haystack_refs: Vec<&str> = haystack.iter().map(String::as_str).collect();
 
-		let config = Config {
-			max_typos: None,
-			sort: true,
-			..Config::default()
-		};
-		let serial = match_list(needle, &haystack, &config);
-		let parallel = match_list_parallel(needle, &haystack, &config, 4);
+		for max_typos in [None, Some(0), Some(1)] {
+			let config = Config {
+				max_typos,
+				sort: true,
+				..Config::default()
+			};
 
-		assert_eq!(parallel, serial);
-	}
+			let serial = match_list(needle, &haystack_refs, &config);
+			let parallel = match_list_parallel(needle, &haystack_refs, &config, 8);
 
-	#[test]
-	fn parallel_matches_serial_with_zero_typos() {
-		let needle = "tr";
-		let haystack = vec!["tracing", "tree", "error", "result", "to", "transport", "trace", "tar"];
-
-		let config = Config {
-			max_typos: Some(0),
-			sort: true,
-			..Config::default()
-		};
-		let serial = match_list(needle, &haystack, &config);
-		let parallel = match_list_parallel(needle, &haystack, &config, 4);
-
-		assert_eq!(parallel, serial);
+			assert_eq!(parallel, serial, "parallel mismatch for max_typos={max_typos:?}");
+		}
 	}
 
 	#[test]
@@ -294,25 +362,60 @@ mod tests {
 	#[test]
 	fn disabling_prefilter_preserves_match_results() {
 		let needle = "solf";
-		let haystack = vec!["self::", "super::", "write", "solve", "slot", "shelf"];
+		let haystack = generate_haystacks(2_000, needle);
+		let haystack_refs: Vec<&str> = haystack.iter().map(String::as_str).collect();
 
-		let with_prefilter = Config {
-			max_typos: Some(1),
-			prefilter: true,
-			sort: true,
-			..Config::default()
-		};
-		let without_prefilter = Config {
-			max_typos: Some(1),
+		for max_typos in [Some(0), Some(1)] {
+			let with_prefilter = Config {
+				max_typos,
+				prefilter: true,
+				sort: true,
+				..Config::default()
+			};
+			let without_prefilter = Config {
+				max_typos,
+				prefilter: false,
+				sort: true,
+				..Config::default()
+			};
+
+			let with_prefilter_matches = match_list(needle, &haystack_refs, &with_prefilter);
+			let without_prefilter_matches = match_list(needle, &haystack_refs, &without_prefilter);
+
+			assert_eq!(
+				with_prefilter_matches, without_prefilter_matches,
+				"prefilter mismatch for max_typos={max_typos:?}"
+			);
+		}
+	}
+
+	#[test]
+	fn exact_bonus_delta_matches_constant() {
+		let needle = "deadbeef";
+		let haystack = [needle];
+
+		let with_bonus = Config {
+			max_typos: None,
 			prefilter: false,
-			sort: true,
+			..Config::default()
+		};
+		let mut no_bonus_scoring = with_bonus.scoring.clone();
+		no_bonus_scoring.exact_match_bonus = 0;
+		let without_bonus = Config {
+			max_typos: None,
+			prefilter: false,
+			scoring: no_bonus_scoring,
 			..Config::default()
 		};
 
-		let with_prefilter_matches = match_list(needle, &haystack, &with_prefilter);
-		let without_prefilter_matches = match_list(needle, &haystack, &without_prefilter);
+		let with_bonus_matches = match_list(needle, &haystack, &with_bonus);
+		let without_bonus_matches = match_list(needle, &haystack, &without_bonus);
 
-		assert_eq!(with_prefilter_matches, without_prefilter_matches);
+		assert_eq!(with_bonus_matches.len(), 1);
+		assert_eq!(without_bonus_matches.len(), 1);
+		assert!(with_bonus_matches[0].exact);
+		assert!(without_bonus_matches[0].exact);
+		assert_eq!(with_bonus_matches[0].score, without_bonus_matches[0].score + EXACT_MATCH_BONUS);
 	}
 
 	#[test]

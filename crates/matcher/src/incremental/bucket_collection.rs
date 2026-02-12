@@ -19,11 +19,11 @@ where
 		}
 	}
 
-	fn build_bucket(&self) -> Box<IncrementalBucket<W, L>> {
-		Box::new(IncrementalBucket::<W, L>::new(&self.haystacks, self.idxs, self.length))
+	fn build_bucket(&self) -> Box<IncrementalBucket<'a, W, L>> {
+		Box::new(IncrementalBucket::<'a, W, L>::new(&self.haystacks, self.idxs, self.length))
 	}
 
-	pub fn add_haystack(&mut self, haystack: &'a str, idx: u32, buckets: &mut Vec<Box<dyn IncrementalBucketTrait>>) {
+	pub fn add_haystack(&mut self, haystack: &'a str, idx: u32, buckets: &mut Vec<Box<dyn IncrementalBucketTrait + 'a>>) {
 		self.haystacks[self.length] = haystack;
 		self.idxs[self.length] = idx;
 		self.length += 1;
@@ -35,7 +35,7 @@ where
 		}
 	}
 
-	pub fn finalize(&mut self, buckets: &mut Vec<Box<dyn IncrementalBucketTrait>>) {
+	pub fn finalize(&mut self, buckets: &mut Vec<Box<dyn IncrementalBucketTrait + 'a>>) {
 		if self.length > 0 {
 			buckets.push(self.build_bucket());
 		}
