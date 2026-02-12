@@ -469,3 +469,22 @@ Validated:
 - `cargo check -p xeno-editor --no-default-features --all-targets`
 - `cargo check -p xeno-editor-tui`
 - `cargo check -p xeno-term`
+
+## Follow-up checkpoints (`2026-02-12`, batch 10)
+
+Delta since commit `fc3f1af6`:
+- Removed remaining umbrella type passthroughs under `crate::impls` for workspace/jump/view snapshot flows.
+- Callers now import these types from their owning modules:
+  - `crate::types::JumpLocation`
+  - `crate::types::ViewSnapshot`
+  - `crate::types::EditorUndoGroup`
+  - `crate::command_queue::CommandQueue`
+
+Commit:
+- `0a2a2db0` editor: remove impls umbrella type passthroughs
+
+Validated:
+- `cargo check -p xeno-editor --all-targets`
+- `cargo check -p xeno-editor --no-default-features --all-targets`
+- `cargo check -p xeno-editor-tui`
+- `cargo check -p xeno-term`
