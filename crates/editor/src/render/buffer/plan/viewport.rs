@@ -53,13 +53,6 @@ pub struct ViewportPlan {
 }
 
 impl ViewportPlan {
-	/// Creates a viewport plan using a closure for wrap counts.
-	///
-	/// Use this when wrap data is computed on-the-fly.
-	pub fn new(start_line: usize, start_seg: usize, viewport_height: usize, total_lines: usize, wrap_fn: impl Fn(usize) -> usize) -> Self {
-		Self::new_with_wrap(start_line, start_seg, viewport_height, total_lines, wrap_fn)
-	}
-
 	/// Creates a viewport plan using a [`WrapAccess`] implementation.
 	///
 	/// Passes cached wrap data directly to the planner.

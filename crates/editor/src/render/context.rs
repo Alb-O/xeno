@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use xeno_registry::themes::Theme;
 
-use super::buffer::{DiagnosticLineMap, DiagnosticRangeMap};
+use super::{DiagnosticLineMap, DiagnosticRangeMap};
 use crate::buffer::{Layout, SplitDirection, ViewId};
 use crate::geometry::Rect;
 use crate::impls::Editor;

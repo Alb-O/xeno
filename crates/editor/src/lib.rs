@@ -69,8 +69,8 @@ pub mod overlay;
 pub(crate) mod paste;
 /// Platform-specific configuration paths.
 pub mod paths;
-/// Rendering utilities for buffers, status line, and completion.
-pub mod render;
+/// Internal rendering utilities for buffers, status line, and completion.
+mod render;
 /// Frontend-facing render boundary exports.
 pub mod render_api;
 /// Runtime policy and directives.

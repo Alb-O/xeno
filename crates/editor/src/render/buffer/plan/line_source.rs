@@ -9,7 +9,6 @@ use xeno_primitives::range::CharIdx;
 pub struct LineSlice {
 	pub line_idx: usize,
 	pub start_char: CharIdx,
-	pub end_char_incl_nl: CharIdx,
 	pub content_end_char: CharIdx,
 	pub start_byte: u32,
 	pub has_newline: bool,
@@ -43,7 +42,7 @@ impl LineSource {
 		let start_char = rope.line_to_char(line_idx);
 		let start_byte = rope.char_to_byte(start_char) as u32;
 		let line_len = rope.line(line_idx).len_chars();
-		let end_char_incl_nl = start_char + line_len;
+		let line_end_char = start_char + line_len;
 
 		let line_slice = rope.line(line_idx);
 		let has_newline = if line_len > 0 {
@@ -53,12 +52,11 @@ impl LineSource {
 			false
 		};
 
-		let content_end_char = if has_newline { end_char_incl_nl.saturating_sub(1) } else { end_char_incl_nl };
+		let content_end_char = if has_newline { line_end_char.saturating_sub(1) } else { line_end_char };
 
 		Some(LineSlice {
 			line_idx,
 			start_char,
-			end_char_incl_nl,
 			content_end_char,
 			start_byte,
 			has_newline,

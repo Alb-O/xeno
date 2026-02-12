@@ -11,10 +11,11 @@ mod diff;
 mod highlight;
 mod wrap;
 
-pub use diagnostics::{DiagnosticsCache, DiagnosticsCacheKey, DiagnosticsEntry};
-pub use diff::{DiffLineNumbersCache, DiffLineNumbersEntry};
-pub use highlight::{HighlightKey, HighlightSpanQuery, HighlightTile, HighlightTiles, TILE_SIZE};
-pub use wrap::{WrapBucket, WrapBucketKey, WrapBuckets, WrapEntry};
+use diagnostics::DiagnosticsCache;
+use diff::DiffLineNumbersCache;
+pub(crate) use highlight::HighlightSpanQuery;
+use highlight::HighlightTiles;
+use wrap::WrapBuckets;
 
 use crate::core::document::DocumentId;
 

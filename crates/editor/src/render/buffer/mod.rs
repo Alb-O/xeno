@@ -16,8 +16,9 @@ mod row;
 mod style_layers;
 mod viewport;
 
-pub use context::{BufferRenderContext, RenderBufferParams, RenderResult};
-pub use diagnostics::{DiagnosticLineMap, DiagnosticRangeMap, DiagnosticSpan};
+pub use context::{BufferRenderContext, RenderBufferParams};
+pub use diagnostics::{DiagnosticLineMap, DiagnosticRangeMap};
+#[cfg(any(feature = "lsp", test))]
+pub use diagnostics::DiagnosticSpan;
 pub use gutter::GutterLayout;
-pub use plan::{LineSlice, LineSource, RowKind, ViewportPlan, WrapAccess};
 pub use viewport::ensure_buffer_cursor_visible;

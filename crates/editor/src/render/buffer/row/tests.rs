@@ -5,7 +5,7 @@ mod unit_tests {
 	use xeno_primitives::selection::Selection;
 	use xeno_primitives::{Color, Style};
 
-	use crate::render::buffer::GutterLayout;
+	use crate::render::GutterLayout;
 	use crate::render::buffer::context::types::{BufferRenderContext, CursorStyles, RenderLayout};
 	use crate::render::buffer::index::{HighlightIndex, OverlayIndex};
 	use crate::render::buffer::plan::LineSlice;
@@ -37,7 +37,6 @@ mod unit_tests {
 			start_char: 0,
 			start_byte: 0,
 			content_end_char: doc.len_chars(),
-			end_char_incl_nl: doc.len_chars(),
 			has_newline: false,
 		};
 
@@ -128,7 +127,6 @@ mod unit_tests {
 			start_char: 0,
 			start_byte: 0,
 			content_end_char: doc.len_chars(),
-			end_char_incl_nl: doc.len_chars(),
 			has_newline: false,
 		};
 
@@ -217,7 +215,6 @@ mod unit_tests {
 			start_char: 0,
 			start_byte: 0,
 			content_end_char: doc.len_chars(),
-			end_char_incl_nl: doc.len_chars(),
 			has_newline: false,
 		};
 
