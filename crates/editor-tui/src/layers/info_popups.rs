@@ -1,14 +1,37 @@
-use xeno_editor::info_popup::{InfoPopupStore, PopupAnchor, compute_popup_rect, info_popup_style};
+use xeno_editor::info_popup::{InfoPopupStore, PopupAnchor};
 use xeno_editor::render::{BufferRenderContext, RenderBufferParams, RenderCtx};
 use xeno_editor::window::GutterSelector;
 use xeno_editor::{Editor, ViewId};
 use xeno_registry::options::keys;
 use xeno_tui::layout::Rect;
 use xeno_tui::style::Style;
+use xeno_tui::widgets::block::Padding;
 use xeno_tui::widgets::{Block, Clear, Paragraph};
 
 use crate::layer::SceneBuilder;
 use crate::scene::{SurfaceKind, SurfaceOp};
+
+fn compute_popup_rect(anchor: PopupAnchor, content_width: u16, content_height: u16, bounds: Rect) -> Rect {
+	let width = content_width.saturating_add(2).min(bounds.width.saturating_sub(4));
+	let height = content_height.saturating_add(2).min(bounds.height.saturating_sub(2));
+
+	let (x, y) = match anchor {
+		PopupAnchor::Center => (
+			bounds.x + bounds.width.saturating_sub(width) / 2,
+			bounds.y + bounds.height.saturating_sub(height) / 2,
+		),
+		PopupAnchor::Point { x, y } => (
+			x.max(bounds.x).min(bounds.x + bounds.width.saturating_sub(width)),
+			y.max(bounds.y).min(bounds.y + bounds.height.saturating_sub(height)),
+		),
+		PopupAnchor::Window(_) => (
+			bounds.x + bounds.width.saturating_sub(width) / 2,
+			bounds.y + bounds.height.saturating_sub(height) / 2,
+		), // TODO: position adjacent to window
+	};
+
+	Rect::new(x, y, width, height)
+}
 
 pub fn visible(ed: &Editor) -> bool {
 	ed.overlays().get::<InfoPopupStore>().is_some_and(|store| !store.is_empty())
@@ -42,7 +65,7 @@ pub fn render(ed: &mut Editor, frame: &mut xeno_tui::Frame, doc_area: Rect, ctx:
 
 	let mut cache = std::mem::take(ed.render_cache_mut());
 	let language_loader = &ed.config().language_loader;
-	let style = info_popup_style();
+	let padding = Padding::horizontal(1);
 
 	for (_, buffer_id, anchor, content_width, content_height) in popups {
 		let max_w = doc_area.width.saturating_sub(2).min(60);
@@ -52,14 +75,14 @@ pub fn render(ed: &mut Editor, frame: &mut xeno_tui::Frame, doc_area: Rect, ctx:
 		}
 		let width = content_width.min(max_w);
 		let height = content_height.min(max_h);
-		let rect: Rect = compute_popup_rect(anchor, width, height, doc_area.into()).into();
+		let rect: Rect = compute_popup_rect(anchor, width, height, doc_area);
 		if rect.width == 0 || rect.height == 0 {
 			continue;
 		}
 
 		frame.render_widget(Clear, rect);
 
-		let block = Block::default().style(Style::default().bg(ctx.theme.colors.popup.bg)).padding(style.padding);
+		let block = Block::default().style(Style::default().bg(ctx.theme.colors.popup.bg)).padding(padding);
 
 		let inner = block.inner(rect);
 		frame.render_widget(block, rect);
@@ -109,4 +132,38 @@ pub fn render(ed: &mut Editor, frame: &mut xeno_tui::Frame, doc_area: Rect, ctx:
 	}
 
 	*ed.render_cache_mut() = cache;
+}
+
+#[cfg(test)]
+mod tests {
+	use xeno_editor::info_popup::PopupAnchor;
+	use xeno_tui::layout::Rect;
+
+	use super::compute_popup_rect;
+
+	#[test]
+	fn popup_rect_centers_in_bounds() {
+		let bounds = Rect::new(0, 1, 80, 22);
+		let rect = compute_popup_rect(PopupAnchor::Center, 20, 5, bounds);
+		assert!(rect.x > bounds.x);
+		assert!(rect.y > bounds.y);
+		assert!(rect.x + rect.width < bounds.x + bounds.width);
+		assert!(rect.y + rect.height < bounds.y + bounds.height);
+	}
+
+	#[test]
+	fn popup_rect_clamps_point_to_bounds() {
+		let bounds = Rect::new(0, 1, 80, 22);
+		let rect = compute_popup_rect(PopupAnchor::Point { x: 100, y: 100 }, 20, 5, bounds);
+		assert!(rect.x + rect.width <= bounds.x + bounds.width);
+		assert!(rect.y + rect.height <= bounds.y + bounds.height);
+	}
+
+	#[test]
+	fn popup_rect_respects_point_position() {
+		let bounds = Rect::new(0, 1, 80, 22);
+		let rect = compute_popup_rect(PopupAnchor::Point { x: 10, y: 5 }, 20, 5, bounds);
+		assert_eq!(rect.x, 10);
+		assert_eq!(rect.y, 5);
+	}
 }

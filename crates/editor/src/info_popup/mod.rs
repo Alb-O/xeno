@@ -9,13 +9,9 @@
 
 use std::collections::HashMap;
 
-use crate::geometry::Rect;
-use xeno_tui::widgets::BorderType;
-use xeno_tui::widgets::block::Padding;
-
 use crate::Editor;
 use crate::buffer::ViewId;
-use crate::window::{SurfaceStyle, WindowId};
+use crate::window::WindowId;
 
 /// Unique identifier for an info popup.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -46,45 +42,6 @@ pub enum PopupAnchor {
 	Point { x: u16, y: u16 },
 	/// Position adjacent to another window (e.g., next to completion menu).
 	Window(WindowId),
-}
-
-/// Default surface style for info popups.
-///
-/// Uses the same stripe border as command palette and notifications
-/// for visual consistency.
-pub fn info_popup_style() -> SurfaceStyle {
-	SurfaceStyle {
-		border: true,
-		border_type: BorderType::Stripe,
-		padding: Padding::horizontal(1),
-		shadow: false,
-		title: None,
-	}
-}
-
-/// Computes the popup rectangle based on anchor and content size.
-///
-/// Clamps to stay within bounds.
-pub fn compute_popup_rect(anchor: PopupAnchor, content_width: u16, content_height: u16, bounds: Rect) -> Rect {
-	let width = content_width.saturating_add(2).min(bounds.width.saturating_sub(4));
-	let height = content_height.saturating_add(2).min(bounds.height.saturating_sub(2));
-
-	let (x, y) = match anchor {
-		PopupAnchor::Center => (
-			bounds.x + bounds.width.saturating_sub(width) / 2,
-			bounds.y + bounds.height.saturating_sub(height) / 2,
-		),
-		PopupAnchor::Point { x, y } => (
-			x.max(bounds.x).min(bounds.x + bounds.width.saturating_sub(width)),
-			y.max(bounds.y).min(bounds.y + bounds.height.saturating_sub(height)),
-		),
-		PopupAnchor::Window(_) => (
-			bounds.x + bounds.width.saturating_sub(width) / 2,
-			bounds.y + bounds.height.saturating_sub(height) / 2,
-		), // TODO: position adjacent to window
-	};
-
-	Rect::new(x, y, width, height)
 }
 
 fn measure_content(content: &str) -> (u16, u16) {
