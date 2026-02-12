@@ -12,7 +12,7 @@ perf = ["dep:tracing"]
 termina.workspace = true
 tracing = { workspace = true, optional = true }
 unicode-width.workspace = true
-xeno-editor.workspace = true
+xeno-editor = { workspace = true, features = ["tui"] }
 xeno-registry.workspace = true
 xeno-tui.workspace = true
 

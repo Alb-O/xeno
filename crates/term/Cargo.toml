@@ -26,7 +26,7 @@ tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["env-filter", "json"] }
 uuid.workspace = true
 which.workspace = true
-xeno-editor.workspace = true
+xeno-editor = { workspace = true, features = ["tui"] }
 xeno-editor-tui.workspace = true
 xeno-language.workspace = true
 xeno-registry.workspace = true
