@@ -4509,7 +4509,6 @@ dependencies = [
  "xeno-matcher",
  "xeno-primitives",
  "xeno-registry",
- "xeno-tui",
 ]
 
 [[package]]

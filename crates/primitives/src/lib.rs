@@ -51,3 +51,7 @@ pub use selection::Selection;
 pub use transaction::{ChangeSet, Transaction};
 #[cfg(feature = "xeno-tui")]
 pub use xeno_tui::style::{Color, Modifier, Style, UnderlineStyle};
+#[cfg(feature = "xeno-tui")]
+pub type TextLine<'a> = xeno_tui::text::Line<'a>;
+#[cfg(feature = "xeno-tui")]
+pub type TextSpan<'a> = xeno_tui::text::Span<'a>;

@@ -7,7 +7,7 @@ license.workspace = true
 
 [features]
 default = ["tui"]
-tui = ["dep:xeno-tui"]
+tui = []
 lsp = ["dep:xeno-lsp", "dep:thiserror", "dep:tokio-util"]
 [dependencies]
 anyhow.workspace = true
@@ -40,7 +40,6 @@ xeno-lsp = { workspace = true, features = ["position"], optional = true }
 xeno-matcher.workspace = true
 xeno-primitives.workspace = true
 xeno-registry.workspace = true
-xeno-tui = { workspace = true, optional = true }
 [dev-dependencies]
 futures = "0.3"
 proptest.workspace = true

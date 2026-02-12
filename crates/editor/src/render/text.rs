@@ -4,9 +4,9 @@
 //! toward backend-neutral line/span data over time without wide call-site churn.
 
 #[cfg(feature = "tui")]
-pub type RenderLine<'a> = xeno_tui::text::Line<'a>;
+pub type RenderLine<'a> = xeno_primitives::TextLine<'a>;
 #[cfg(feature = "tui")]
-pub type RenderSpan<'a> = xeno_tui::text::Span<'a>;
+pub type RenderSpan<'a> = xeno_primitives::TextSpan<'a>;
 
 #[cfg(not(feature = "tui"))]
 #[derive(Debug, Clone, PartialEq, Default)]
