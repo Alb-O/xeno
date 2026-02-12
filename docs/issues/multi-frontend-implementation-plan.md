@@ -112,6 +112,8 @@ Completed:
 - utility/which-key planning moved into `xeno-editor`
 - modal overlay pane/kind/rect plans exposed from `xeno-editor`
 - frontend overlay reach-through removed (`overlay_interaction()` removed, overlay store access no longer needed in frontend crates)
+- plan-builder tests added for completion/snippet/statusline policy surfaces
+- TUI render-line adaptation centralized via a single adapter helper (`RenderLine` -> toolkit `Line`)
 
 Current focus:
 

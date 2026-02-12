@@ -39,6 +39,7 @@ This document tracks the architecture split between `xeno-editor` (core engine) 
 - Umbrella passthrough patterns were reduced:
   - callsites now import types from owning modules (`types`, `command_queue`, etc.).
 - Overlay store accessors are now crate-private to prevent new frontend reach-through.
+- Plan-builder regression tests now cover completion, snippet-choice, and statusline policy outputs.
 
 ### Feature posture
 
