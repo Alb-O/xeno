@@ -309,3 +309,31 @@ Validated after each checkpoint:
 - targeted tests:
   - `cargo test -p xeno-editor pane_inner_rect_matches_block_inner --no-default-features`
   - `cargo test -p xeno-editor fixed_bottom_height_reduces_doc_area_deterministically --no-default-features`
+
+## Follow-up checkpoints (`2026-02-12`, batch 2)
+
+Delta since commit `546b137b`:
+- `xeno_tui` references in `crates/editor/src`: `40 -> 17` (delta `-23`).
+- Notification rendering and toast presentation mapping are frontend-owned in `xeno-editor-tui`.
+- Core render style imports now route through `xeno-primitives`.
+- Core render `Line`/`Span` usage is centralized in `crates/editor/src/render/text.rs`.
+
+Commits:
+- `ccdadd6c` editor-tui: move notifications surface rendering into frontend layer
+- `62bdfe0b` editor: route render style types through xeno-primitives
+- `27b31a7d` editor-tui: move notification toast mapping to frontend layer
+- `31660992` editor: centralize Line/Span render types behind core aliases
+- `b4811c9c` primitives: export UnderlineStyle for render style seam
+
+Validated after each checkpoint:
+- `cargo check -p xeno-editor --all-targets`
+- `cargo check -p xeno-editor-tui`
+- `cargo check -p xeno-primitives`
+
+Current direct `xeno_tui` hotspots in `crates/editor/src`:
+- `crates/editor/src/render/text.rs`
+- `crates/editor/src/overlay/geom.rs`
+- `crates/editor/src/ui/dock.rs`
+- `crates/editor/src/notifications.rs`
+- `crates/editor/src/separator.rs`
+- `crates/editor/src/render/buffer/context/tests.rs`
