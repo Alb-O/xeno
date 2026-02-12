@@ -668,6 +668,11 @@ impl Editor {
 		crate::ui::utility_whichkey_render_plan(self)
 	}
 
+	#[inline]
+	pub fn statusline_render_plan(&self) -> Vec<crate::ui::StatuslineRenderSegment> {
+		crate::ui::statusline_render_plan(self)
+	}
+
 	/// Returns utility panel height hint while a modal overlay is active.
 	///
 	/// Frontends use this to keep utility panel sizing policy consistent
@@ -691,18 +696,6 @@ impl Editor {
 		} else {
 			Some(10)
 		}
-	}
-
-	/// Returns the current overlay label for statusline display.
-	#[inline]
-	pub fn status_overlay_label(&self) -> Option<String> {
-		let label = match self.overlay_kind()? {
-			crate::overlay::OverlayControllerKind::CommandPalette => "Cmd",
-			crate::overlay::OverlayControllerKind::Search => "Search",
-			crate::overlay::OverlayControllerKind::FilePicker => "FilePicker",
-			crate::overlay::OverlayControllerKind::Other(other) => other,
-		};
-		Some(label.to_string())
 	}
 
 	#[inline]
