@@ -6,6 +6,7 @@ mod document;
 mod layer;
 mod layers;
 mod panels;
+mod render_adapter;
 mod scene;
 mod terminal;
 mod text_width;

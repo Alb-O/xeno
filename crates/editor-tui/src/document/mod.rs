@@ -15,6 +15,7 @@ use xeno_tui::text::{Line, Span};
 use xeno_tui::widgets::Paragraph;
 
 use self::separator::{SeparatorStyle, junction_glyph};
+use crate::render_adapter::to_tui_lines;
 
 /// Per-layer rendering data: (layer_id, layer_area, view_areas, separators).
 type LayerRenderData = (LayerId, Rect, Vec<(ViewId, Rect)>, Vec<(SplitDirection, u8, Rect)>);
@@ -127,8 +128,8 @@ pub fn render_split_buffers(ed: &mut Editor, frame: &mut xeno_tui::Frame, doc_ar
 					..*area
 				};
 
-				let gutter = result.gutter.into_iter().map(|line| line.into_text_line()).collect::<Vec<_>>();
-				let text = result.text.into_iter().map(|line| line.into_text_line()).collect::<Vec<_>>();
+				let gutter = to_tui_lines(result.gutter);
+				let text = to_tui_lines(result.text);
 
 				frame.render_widget(Paragraph::new(gutter), gutter_area);
 				frame.render_widget(Paragraph::new(text), text_area);

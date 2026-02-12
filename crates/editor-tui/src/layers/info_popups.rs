@@ -8,6 +8,7 @@ use xeno_tui::widgets::block::Padding;
 use xeno_tui::widgets::{Block, Clear, Paragraph};
 
 use crate::layer::SceneBuilder;
+use crate::render_adapter::to_tui_lines;
 use crate::scene::{SurfaceKind, SurfaceOp};
 
 fn compute_popup_rect(anchor: InfoPopupRenderAnchor, content_width: u16, content_height: u16, bounds: Rect) -> Rect {
@@ -107,8 +108,8 @@ pub fn render(ed: &mut Editor, frame: &mut xeno_tui::Frame, doc_area: Rect, ctx:
 			..inner
 		};
 
-		let gutter = result.gutter.into_iter().map(|line| line.into_text_line()).collect::<Vec<_>>();
-		let text = result.text.into_iter().map(|line| line.into_text_line()).collect::<Vec<_>>();
+		let gutter = to_tui_lines(result.gutter);
+		let text = to_tui_lines(result.text);
 
 		frame.render_widget(Paragraph::new(gutter), gutter_area);
 		frame.render_widget(Paragraph::new(text), text_area);

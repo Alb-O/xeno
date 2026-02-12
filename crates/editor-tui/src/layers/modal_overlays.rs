@@ -6,6 +6,8 @@ use xeno_tui::layout::Rect;
 use xeno_tui::style::Style;
 use xeno_tui::widgets::{Block, Borders, Paragraph};
 
+use crate::render_adapter::to_tui_lines;
+
 fn clamp_rect(rect: Rect, bounds: Rect) -> Option<Rect> {
 	let x1 = rect.x.max(bounds.x);
 	let y1 = rect.y.max(bounds.y);
@@ -179,8 +181,8 @@ pub fn render_utility_panel_overlay(ed: &mut Editor, frame: &mut xeno_tui::Frame
 				..content_area
 			};
 
-			let gutter = result.gutter.into_iter().map(|line| line.into_text_line()).collect::<Vec<_>>();
-			let text = result.text.into_iter().map(|line| line.into_text_line()).collect::<Vec<_>>();
+			let gutter = to_tui_lines(result.gutter);
+			let text = to_tui_lines(result.text);
 
 			frame.render_widget(Paragraph::new(gutter), gutter_area);
 			frame.render_widget(Paragraph::new(text), text_area);
