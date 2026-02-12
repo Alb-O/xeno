@@ -2,17 +2,20 @@ use std::io::{self, Write};
 
 use termina::escape::csi::{Csi, Cursor};
 use termina::{PlatformTerminal, Terminal as _};
-use xeno_editor::runtime::{CursorStyle, RuntimeEvent};
-use xeno_editor::{Editor, TerminalConfig};
+use xeno_editor::runtime::{CursorStyle, EditorEngineOps, EditorFrontend, RuntimeEvent};
+use xeno_editor::TerminalConfig;
 use xeno_registry::HookEventData;
-use xeno_registry::hooks::{HookContext, emit as emit_hook, emit_sync_with as emit_hook_sync_with};
+use xeno_registry::hooks::{HookContext, emit as emit_hook};
 use xeno_tui::Terminal;
 
 use crate::backend::TerminaBackend;
 use crate::terminal::{coalesce_resize_events, disable_terminal_features_with_config, enable_terminal_features_with_config, install_panic_hook_with_config};
 
 /// Runs the editor main loop.
-pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
+pub async fn run_editor<E>(mut editor: E) -> io::Result<()>
+where
+	E: EditorFrontend + EditorEngineOps,
+{
 	let mut platform_terminal = PlatformTerminal::new()?;
 	let terminal_config = TerminalConfig::detect();
 	install_panic_hook_with_config(&mut platform_terminal, terminal_config);
@@ -22,12 +25,11 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 	let backend = TerminaBackend::new(platform_terminal);
 	let mut terminal = Terminal::new(backend)?;
 
-	editor.ui_startup();
-	let hook_runtime = editor.hook_runtime_mut();
-	emit_hook_sync_with(&HookContext::new(HookEventData::EditorStart), hook_runtime);
+	editor.startup_ui();
+	editor.emit_start_hook();
 
 	let mut last_cursor_style: Option<Cursor> = None;
-	let mut dir = editor.pump().await;
+	let mut dir = editor.pump_engine().await;
 	dir.needs_redraw = true;
 
 	let result: io::Result<()> = async {
@@ -41,7 +43,7 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 					#[cfg(feature = "perf")]
 					let t0 = std::time::Instant::now();
 
-					editor.render(frame);
+					editor.render_frontend(frame);
 
 					#[cfg(feature = "perf")]
 					tracing::debug!(
@@ -65,7 +67,7 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 			};
 
 			if !has_event {
-				dir = editor.pump().await;
+				dir = editor.pump_engine().await;
 				continue;
 			}
 
@@ -75,9 +77,9 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 			}
 
 			if let Some(event) = map_terminal_event(event) {
-				dir = editor.on_event(event).await;
+				dir = editor.dispatch_engine_event(event).await;
 			} else {
-				dir = editor.pump().await;
+				dir = editor.pump_engine().await;
 			}
 		}
 		Ok(())

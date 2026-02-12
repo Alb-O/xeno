@@ -1,6 +1,10 @@
+use std::future::Future;
 use std::time::Duration;
 
 use xeno_primitives::{Key, Mode, MouseEvent};
+use xeno_registry::HookEventData;
+use xeno_registry::hooks::{HookContext, emit_sync_with as emit_hook_sync_with};
+use xeno_tui::Frame;
 
 use crate::impls::Editor;
 
@@ -34,6 +38,19 @@ pub enum RuntimeEvent {
 	},
 	FocusIn,
 	FocusOut,
+}
+
+/// Frontend-oriented operations needed by terminal/web drivers.
+pub trait EditorFrontend {
+	fn startup_ui(&mut self);
+	fn emit_start_hook(&mut self);
+	fn render_frontend(&mut self, frame: &mut Frame<'_>);
+}
+
+/// Engine/runtime operations that advance editor state.
+pub trait EditorEngineOps {
+	fn pump_engine(&mut self) -> impl Future<Output = LoopDirective>;
+	fn dispatch_engine_event(&mut self, event: RuntimeEvent) -> impl Future<Output = LoopDirective>;
 }
 
 /// Runtime policy constants.
@@ -142,6 +159,31 @@ impl Editor {
 			_ => CursorStyle::Block,
 		});
 		style
+	}
+}
+
+impl EditorFrontend for Editor {
+	fn startup_ui(&mut self) {
+		self.ui_startup();
+	}
+
+	fn emit_start_hook(&mut self) {
+		let hook_runtime = self.hook_runtime_mut();
+		emit_hook_sync_with(&HookContext::new(HookEventData::EditorStart), hook_runtime);
+	}
+
+	fn render_frontend(&mut self, frame: &mut Frame<'_>) {
+		self.render(frame);
+	}
+}
+
+impl EditorEngineOps for Editor {
+	fn pump_engine(&mut self) -> impl Future<Output = LoopDirective> {
+		async move { self.pump().await }
+	}
+
+	fn dispatch_engine_event(&mut self, event: RuntimeEvent) -> impl Future<Output = LoopDirective> {
+		async move { self.on_event(event).await }
 	}
 }
 
