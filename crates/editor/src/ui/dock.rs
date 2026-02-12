@@ -5,8 +5,6 @@
 
 use std::collections::HashMap;
 
-use xeno_tui::layout::{Constraint, Direction, Layout};
-
 use crate::geometry::Rect;
 
 /// Position where a panel can be docked in the editor layout.
@@ -34,11 +32,11 @@ pub enum SizeSpec {
 }
 
 impl SizeSpec {
-	/// Converts this size specification to a layout constraint.
-	fn to_constraint(self) -> Constraint {
+	/// Resolves this size specification against a total available size.
+	fn resolve(self, total: u16) -> u16 {
 		match self {
-			SizeSpec::Percent(p) => Constraint::Percentage(p),
-			SizeSpec::Lines(lines) => Constraint::Length(lines),
+			SizeSpec::Percent(p) => (((total as u32) * (p as u32)) / 100).min(total as u32) as u16,
+			SizeSpec::Lines(lines) => lines.min(total),
 		}
 	}
 }
@@ -150,7 +148,6 @@ impl DockManager {
 	/// Returns a `DockLayout` containing the remaining document area and
 	/// the computed rectangles for each active panel.
 	pub fn compute_layout(&self, area: Rect) -> DockLayout {
-		let area_tui: xeno_tui::layout::Rect = area.into();
 		let mut layout = DockLayout {
 			doc_area: area,
 			..Default::default()
@@ -159,75 +156,95 @@ impl DockManager {
 		let has_top = self.slots.get(&DockSlot::Top).map(|s| !s.open.is_empty()).unwrap_or(false);
 		let has_bottom = self.slots.get(&DockSlot::Bottom).map(|s| !s.open.is_empty()).unwrap_or(false);
 
-		let mut vertical_parts = vec![area_tui];
 		let mut top_area = None;
 		let mut bottom_area = None;
 
 		if has_top || has_bottom {
-			let top_c = if has_top {
+			let top_height = if has_top {
 				self.slots
 					.get(&DockSlot::Top)
-					.map(|s| s.size.to_constraint())
-					.unwrap_or(Constraint::Percentage(25))
+					.map(|s| s.size.resolve(area.height))
+					.unwrap_or_else(|| SizeSpec::Percent(25).resolve(area.height))
 			} else {
-				Constraint::Length(0)
+				0
 			};
-			let bottom_c = if has_bottom {
+			let remaining_after_top = area.height.saturating_sub(top_height);
+			let bottom_height = if has_bottom {
 				self.slots
 					.get(&DockSlot::Bottom)
-					.map(|s| s.size.to_constraint())
-					.unwrap_or(Constraint::Percentage(30))
+					.map(|s| s.size.resolve(remaining_after_top))
+					.unwrap_or_else(|| SizeSpec::Percent(30).resolve(remaining_after_top))
 			} else {
-				Constraint::Length(0)
+				0
 			};
-
-			vertical_parts = Layout::default()
-				.direction(Direction::Vertical)
-				.constraints([top_c, Constraint::Min(1), bottom_c])
-				.split(area_tui)
-				.to_vec();
+			let center_height = area.height.saturating_sub(top_height).saturating_sub(bottom_height);
 
 			if has_top {
-				top_area = Some(vertical_parts[0]);
+				top_area = Some(Rect::new(area.x, area.y, area.width, top_height));
 			}
 			if has_bottom {
-				bottom_area = Some(vertical_parts[2]);
+				bottom_area = Some(Rect::new(
+					area.x,
+					area.y.saturating_add(top_height).saturating_add(center_height),
+					area.width,
+					bottom_height,
+				));
 			}
-			layout.doc_area = vertical_parts[1].into();
+			layout.doc_area = Rect::new(
+				area.x,
+				area.y.saturating_add(top_height),
+				area.width,
+				center_height,
+			);
 		}
 
 		let has_left = self.slots.get(&DockSlot::Left).map(|s| !s.open.is_empty()).unwrap_or(false);
 		let has_right = self.slots.get(&DockSlot::Right).map(|s| !s.open.is_empty()).unwrap_or(false);
 
 		if has_left || has_right {
-			let left_c = if has_left {
+			let left_width = if has_left {
 				self.slots
 					.get(&DockSlot::Left)
-					.map(|s| s.size.to_constraint())
-					.unwrap_or(Constraint::Percentage(25))
+					.map(|s| s.size.resolve(layout.doc_area.width))
+					.unwrap_or_else(|| SizeSpec::Percent(25).resolve(layout.doc_area.width))
 			} else {
-				Constraint::Length(0)
+				0
 			};
-			let right_c = if has_right {
+			let remaining_after_left = layout.doc_area.width.saturating_sub(left_width);
+			let right_width = if has_right {
 				self.slots
 					.get(&DockSlot::Right)
-					.map(|s| s.size.to_constraint())
-					.unwrap_or(Constraint::Percentage(25))
+					.map(|s| s.size.resolve(remaining_after_left))
+					.unwrap_or_else(|| SizeSpec::Percent(25).resolve(remaining_after_left))
 			} else {
-				Constraint::Length(0)
+				0
 			};
+			let center_width = layout.doc_area.width.saturating_sub(left_width).saturating_sub(right_width);
+			let left_area = Rect::new(layout.doc_area.x, layout.doc_area.y, left_width, layout.doc_area.height);
+			let center_area = Rect::new(
+				layout.doc_area.x.saturating_add(left_width),
+				layout.doc_area.y,
+				center_width,
+				layout.doc_area.height,
+			);
+			let right_area = Rect::new(
+				layout
+					.doc_area
+					.x
+					.saturating_add(left_width)
+					.saturating_add(center_width),
+				layout.doc_area.y,
+				right_width,
+				layout.doc_area.height,
+			);
 
-			let parts = Layout::default()
-				.direction(Direction::Horizontal)
-				.constraints([left_c, Constraint::Min(1), right_c])
-				.split(layout.doc_area.into());
 			if has_left && let Some(id) = self.active_in_slot(DockSlot::Left) {
-				layout.panel_areas.insert(id.to_string(), parts[0].into());
+				layout.panel_areas.insert(id.to_string(), left_area);
 			}
 			if has_right && let Some(id) = self.active_in_slot(DockSlot::Right) {
-				layout.panel_areas.insert(id.to_string(), parts[2].into());
+				layout.panel_areas.insert(id.to_string(), right_area);
 			}
-			layout.doc_area = parts[1].into();
+			layout.doc_area = center_area;
 		}
 
 		if let Some(area) = top_area

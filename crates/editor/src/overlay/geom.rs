@@ -42,26 +42,7 @@ mod tests {
 			shadow: false,
 			title: Some("Title".to_string()),
 		};
-
-		let border_type = match style.border_type {
-			SurfaceBorder::Rounded => xeno_tui::widgets::BorderType::Rounded,
-			SurfaceBorder::Stripe => xeno_tui::widgets::BorderType::Stripe,
-		};
-		let padding = xeno_tui::widgets::block::Padding::new(
-			style.padding.left,
-			style.padding.right,
-			style.padding.top,
-			style.padding.bottom,
-		);
-
-		let expected: Rect = xeno_tui::widgets::Block::default()
-			.padding(padding)
-			.borders(xeno_tui::widgets::Borders::ALL)
-			.border_type(border_type)
-			.title("Title")
-			.inner(rect.into())
-			.into();
-
+		let expected = Rect::new(12, 6, 26, 7);
 		assert_eq!(pane_inner_rect(rect, &style), expected);
 	}
 }

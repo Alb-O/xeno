@@ -1,6 +1,7 @@
 //! Separator hover and drag state for split resizing.
 
-use xeno_tui::animation::{Easing, ToggleTween};
+use std::time::{Duration, Instant};
+
 use crate::geometry::Rect;
 
 use crate::layout::SeparatorId;
@@ -83,24 +84,54 @@ impl MouseVelocityTracker {
 
 /// Animation state for separator hover effects.
 ///
-/// Uses a `ToggleTween<f32>` internally for smooth fade in/out transitions.
+/// Uses a lightweight time-based tween for smooth fade in/out transitions.
 #[derive(Debug, Clone)]
 pub struct SeparatorHoverAnimation {
 	/// The separator rectangle being animated.
 	pub rect: Rect,
-	/// The hover intensity tween (0.0 = unhovered, 1.0 = fully hovered).
-	tween: ToggleTween<f32>,
+	/// Whether the target state is hovered.
+	active: bool,
+	/// Intensity at animation start.
+	start_value: f32,
+	/// Target intensity (0.0 or 1.0).
+	target_value: f32,
+	/// Animation start time.
+	started_at: Instant,
 }
 
 impl SeparatorHoverAnimation {
 	/// Duration of the hover fade animation.
-	const FADE_DURATION: std::time::Duration = std::time::Duration::from_millis(120);
+	const FADE_DURATION: Duration = Duration::from_millis(120);
+
+	fn target_for(hovering: bool) -> f32 {
+		if hovering { 1.0 } else { 0.0 }
+	}
+
+	fn ease_out(progress: f32) -> f32 {
+		let p = progress.clamp(0.0, 1.0);
+		1.0 - (1.0 - p) * (1.0 - p)
+	}
+
+	fn current_value(&self) -> f32 {
+		let elapsed = self.started_at.elapsed();
+		if elapsed >= Self::FADE_DURATION {
+			return self.target_value;
+		}
+
+		let progress = elapsed.as_secs_f32() / Self::FADE_DURATION.as_secs_f32();
+		let eased = Self::ease_out(progress);
+		self.start_value + (self.target_value - self.start_value) * eased
+	}
 
 	/// Creates a new hover animation for the given separator.
 	pub fn new(rect: Rect, hovering: bool) -> Self {
-		let mut tween = ToggleTween::new(0.0f32, 1.0f32, Self::FADE_DURATION).with_easing(Easing::EaseOut);
-		tween.set_active(hovering);
-		Self { rect, tween }
+		Self {
+			rect,
+			active: hovering,
+			start_value: if hovering { 0.0 } else { Self::target_for(hovering) },
+			target_value: Self::target_for(hovering),
+			started_at: Instant::now(),
+		}
 	}
 
 	/// Creates a new hover animation starting at a specific intensity.
@@ -108,32 +139,44 @@ impl SeparatorHoverAnimation {
 	/// This is useful for creating fade-out animations that should start
 	/// from a fully hovered state (intensity 1.0).
 	pub fn new_at_intensity(rect: Rect, intensity: f32, hovering: bool) -> Self {
-		let tween = ToggleTween::new_at(0.0f32, 1.0f32, Self::FADE_DURATION, intensity, hovering).with_easing(Easing::EaseOut);
-		Self { rect, tween }
+		Self {
+			rect,
+			active: hovering,
+			start_value: intensity.clamp(0.0, 1.0),
+			target_value: Self::target_for(hovering),
+			started_at: Instant::now(),
+		}
 	}
 
 	/// Returns whether we're animating toward hovered state.
 	pub fn hovering(&self) -> bool {
-		self.tween.is_active()
+		self.active
 	}
 
 	/// Sets the hover state, returning true if state changed.
 	pub fn set_hovering(&mut self, hovering: bool) -> bool {
-		self.tween.set_active(hovering)
+		if self.active == hovering {
+			return false;
+		}
+		self.start_value = self.current_value();
+		self.target_value = Self::target_for(hovering);
+		self.active = hovering;
+		self.started_at = Instant::now();
+		true
 	}
 
 	/// Returns the effective hover intensity (0.0 = unhovered, 1.0 = fully hovered).
 	pub fn intensity(&self) -> f32 {
-		self.tween.value()
+		self.current_value()
 	}
 
 	/// Returns true if the animation is complete.
 	pub fn is_complete(&self) -> bool {
-		self.tween.is_complete()
+		self.started_at.elapsed() >= Self::FADE_DURATION
 	}
 
 	/// Returns true if the animation is still in progress.
 	pub fn needs_redraw(&self) -> bool {
-		self.tween.is_running()
+		!self.is_complete()
 	}
 }
