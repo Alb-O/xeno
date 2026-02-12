@@ -125,4 +125,8 @@ impl CommandEditorOps for EditorCaps<'_> {
 			Ok(())
 		})
 	}
+
+	fn queue_command(&mut self, name: &'static str, args: Vec<String>) {
+		self.ed.state.core.workspace.command_queue.push(name, args);
+	}
 }
