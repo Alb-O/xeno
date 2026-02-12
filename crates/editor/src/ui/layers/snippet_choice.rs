@@ -6,7 +6,7 @@ use crate::ui::layer::SceneBuilder;
 use crate::ui::scene::{SurfaceKind, SurfaceOp};
 
 pub fn visible(ed: &Editor) -> bool {
-	if ed.state.overlay_system.interaction.is_open() {
+	if ed.state.overlay_system.interaction().is_open() {
 		return false;
 	}
 

@@ -53,7 +53,7 @@ impl Editor {
 			.hit_test(mouse.col(), mouse.row())
 			.is_some_and(|surface| matches!(surface.kind, crate::ui::scene::SurfaceKind::Panels));
 
-		let hit_active_overlay = self.state.overlay_system.interaction.active.as_ref().is_some_and(|active| {
+		let hit_active_overlay = self.state.overlay_system.interaction().active().is_some_and(|active| {
 			active.session.panes.iter().any(|pane| {
 				mouse.col() >= pane.rect.x
 					&& mouse.col() < pane.rect.x.saturating_add(pane.rect.width)
@@ -169,7 +169,7 @@ impl Editor {
 			}
 		}
 
-		let overlay_hit = self.state.overlay_system.interaction.active.as_ref().and_then(|active| {
+		let overlay_hit = self.state.overlay_system.interaction().active().and_then(|active| {
 			active
 				.session
 				.panes
@@ -398,16 +398,15 @@ mod tests {
 		let pane = editor
 			.state
 			.overlay_system
-			.interaction
-			.active
-			.as_ref()
+			.interaction()
+			.active()
 			.and_then(|active| active.session.panes.first())
 			.expect("overlay pane should exist");
 
 		let mouse = mouse_down(pane.rect.x, pane.rect.y);
 		let _ = editor.handle_mouse(mouse).await;
 
-		assert!(editor.state.overlay_system.interaction.is_open());
+		assert!(editor.state.overlay_system.interaction().is_open());
 		assert!(matches!(editor.focus(), FocusTarget::Overlay { .. }));
 	}
 
@@ -420,6 +419,6 @@ mod tests {
 		let mouse = mouse_down(0, 0);
 		let _ = editor.handle_mouse(mouse).await;
 
-		assert!(!editor.state.overlay_system.interaction.is_open());
+		assert!(!editor.state.overlay_system.interaction().is_open());
 	}
 }

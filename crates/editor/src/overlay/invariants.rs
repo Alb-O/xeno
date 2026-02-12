@@ -51,6 +51,27 @@ impl OverlayController for ReflowTestOverlay {
 	fn on_close(&mut self, _ctx: &mut dyn OverlayContext, _session: &mut OverlaySession, _reason: CloseReason) {}
 }
 
+/// Must route non-overlay module access through `OverlaySystem` accessors.
+///
+/// - Enforced in: `OverlaySystem::{interaction,interaction_mut,take_interaction,restore_interaction,layers,layers_mut,store,store_mut}`
+/// - Failure symptom: Callers couple to `OverlaySystem` field layout and crate-split refactors become non-local.
+#[cfg_attr(test, test)]
+pub(crate) fn test_overlay_system_accessors_round_trip() {
+	let mut system = crate::overlay::OverlaySystem::new();
+
+	assert!(!system.interaction().is_open());
+	assert!(!system.interaction_mut().is_open());
+	assert!(system.store().get::<String>().is_none());
+	let _ = system.layers();
+	let _ = system.layers_mut();
+
+	let interaction = system.take_interaction();
+	assert!(!interaction.is_open());
+	system.restore_interaction(interaction);
+
+	assert!(!system.interaction().is_open());
+}
+
 /// Must gate state restoration on captured buffer version matching.
 ///
 /// - Enforced in: `OverlaySession::restore_all`
@@ -100,7 +121,7 @@ pub(crate) fn test_exclusive_modal() {
 	editor.handle_window_resize(100, 40);
 
 	assert!(editor.open_command_palette());
-	assert!(editor.state.overlay_system.interaction.is_open());
+	assert!(editor.state.overlay_system.interaction().is_open());
 	assert!(!editor.open_command_palette());
 }
 
@@ -180,9 +201,8 @@ pub(crate) fn test_modal_reflow_on_resize() {
 	let before = editor
 		.state
 		.overlay_system
-		.interaction
-		.active
-		.as_ref()
+		.interaction()
+		.active()
 		.and_then(|active| active.session.panes.first())
 		.map(|pane| pane.rect)
 		.expect("overlay pane should exist");
@@ -192,9 +212,8 @@ pub(crate) fn test_modal_reflow_on_resize() {
 	let after = editor
 		.state
 		.overlay_system
-		.interaction
-		.active
-		.as_ref()
+		.interaction()
+		.active()
 		.and_then(|active| active.session.panes.first())
 		.map(|pane| pane.rect)
 		.expect("overlay pane should still exist");
@@ -213,11 +232,11 @@ pub(crate) fn test_modal_reflow_clears_unresolved_aux_panes() {
 	let mut editor = crate::impls::Editor::new_scratch();
 	editor.handle_window_resize(100, 40);
 
-	let mut interaction = std::mem::take(&mut editor.state.overlay_system.interaction);
+	let mut interaction = editor.state.overlay_system.take_interaction();
 	assert!(interaction.open(&mut editor, Box::new(ReflowTestOverlay)));
-	editor.state.overlay_system.interaction = interaction;
+	editor.state.overlay_system.restore_interaction(interaction);
 
-	let active = editor.state.overlay_system.interaction.active.as_ref().expect("overlay should be open");
+	let active = editor.state.overlay_system.interaction().active().expect("overlay should be open");
 	let input_rect = active
 		.session
 		.panes
@@ -237,7 +256,7 @@ pub(crate) fn test_modal_reflow_clears_unresolved_aux_panes() {
 
 	editor.handle_window_resize(100, 2);
 
-	let active = editor.state.overlay_system.interaction.active.as_ref().expect("overlay should remain open");
+	let active = editor.state.overlay_system.interaction().active().expect("overlay should remain open");
 	let input_rect = active
 		.session
 		.panes
@@ -270,15 +289,14 @@ pub(crate) fn test_forced_close_restores_origin_focus() {
 	let origin_focus = editor
 		.state
 		.overlay_system
-		.interaction
-		.active
-		.as_ref()
+		.interaction()
+		.active()
 		.map(|active| active.session.origin_focus.clone())
 		.expect("overlay should be open");
 
-	let mut interaction = std::mem::take(&mut editor.state.overlay_system.interaction);
+	let mut interaction = editor.state.overlay_system.take_interaction();
 	interaction.close(&mut editor, CloseReason::Forced);
-	editor.state.overlay_system.interaction = interaction;
+	editor.state.overlay_system.restore_interaction(interaction);
 
 	assert_eq!(*editor.focus(), origin_focus);
 }
@@ -315,18 +333,17 @@ fn key_tab() -> Key {
 }
 
 fn with_interaction(editor: &mut crate::impls::Editor, f: impl FnOnce(&mut crate::overlay::OverlayManager, &mut crate::impls::Editor)) {
-	let mut interaction = std::mem::take(&mut editor.state.overlay_system.interaction);
+	let mut interaction = editor.state.overlay_system.take_interaction();
 	f(&mut interaction, editor);
-	editor.state.overlay_system.interaction = interaction;
+	editor.state.overlay_system.restore_interaction(interaction);
 }
 
 fn palette_input_view(editor: &crate::impls::Editor) -> crate::ViewId {
 	editor
 		.state
 		.overlay_system
-		.interaction
-		.active
-		.as_ref()
+		.interaction()
+		.active()
 		.map(|active| active.session.input)
 		.expect("command palette input should exist")
 }

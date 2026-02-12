@@ -27,7 +27,7 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame) {
 	let status_area = chunks[1];
 
 	let mut ui = std::mem::take(&mut ed.state.ui);
-	let overlay_height = ed.state.overlay_system.interaction.active.as_ref().map(|active| {
+	let overlay_height = ed.state.overlay_system.interaction().active().map(|active| {
 		if matches!(active.controller.name(), "CommandPalette" | "FilePicker") {
 			let menu_rows = ed
 				.overlays()
@@ -100,7 +100,7 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame) {
 			}
 			SurfaceOp::CompletionPopup => layers::completion::render(ed, frame),
 			SurfaceOp::SnippetChoicePopup => layers::snippet_choice::render(ed, frame),
-			SurfaceOp::OverlayLayers => ed.state.overlay_system.layers.render(ed, frame),
+			SurfaceOp::OverlayLayers => ed.state.overlay_system.layers().render(ed, frame),
 			SurfaceOp::StatusLine => {
 				let status_bg = Block::default().style(Style::default().bg(ctx.theme.colors.ui.bg));
 				frame.render_widget(status_bg, status_area);

@@ -108,11 +108,11 @@ impl Panel for UtilityPanel {
 		frame.render_widget(block, area);
 
 		if inner.width > 0 && inner.height > 0 {
-			if _editor.state.overlay_system.interaction.is_open() {
+			if _editor.state.overlay_system.interaction().is_open() {
 				let ctx = _editor.render_ctx();
 				crate::ui::layers::modal_overlays::render(_editor, frame, area, &ctx);
 
-				if let Some(active) = _editor.state.overlay_system.interaction.active.as_ref()
+				if let Some(active) = _editor.state.overlay_system.interaction().active()
 					&& matches!(active.controller.name(), "CommandPalette" | "FilePicker")
 				{
 					let input_rect = active

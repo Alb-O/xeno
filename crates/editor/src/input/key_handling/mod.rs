@@ -52,14 +52,14 @@ impl Editor {
 		#[cfg(feature = "lsp")]
 		let old_version = self.buffer().version();
 
-		let mut interaction: crate::overlay::OverlayManager = std::mem::take(&mut self.state.overlay_system.interaction);
+		let mut interaction = self.state.overlay_system.take_interaction();
 		let handled = interaction.handle_key(self, key);
-		self.state.overlay_system.interaction = interaction;
+		self.state.overlay_system.restore_interaction(interaction);
 		if handled {
 			return false;
 		}
 
-		if self.state.overlay_system.interaction.is_open() && key.code == KeyCode::Enter {
+		if self.state.overlay_system.interaction().is_open() && key.code == KeyCode::Enter {
 			self.state.frame.pending_overlay_commit = true;
 			self.state.frame.needs_redraw = true;
 			return false;
@@ -264,7 +264,7 @@ mod tests {
 		assert!(editor.frame().pending_overlay_commit);
 
 		let _ = editor.pump().await;
-		assert!(!editor.state.overlay_system.interaction.is_open());
+		assert!(!editor.state.overlay_system.interaction().is_open());
 	}
 
 	#[test]

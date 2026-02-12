@@ -51,11 +51,11 @@ impl crate::impls::Editor {
 
 		if !eff.layer_events.is_empty() {
 			needs_redraw = true;
-			let mut layers = std::mem::take(&mut self.state.overlay_system.layers);
+			let mut layers = std::mem::take(self.state.overlay_system.layers_mut());
 			for e in eff.layer_events {
 				layers.notify_event(self, e);
 			}
-			self.state.overlay_system.layers = layers;
+			*self.state.overlay_system.layers_mut() = layers;
 		}
 
 		if !eff.notifications.is_empty() {
@@ -132,9 +132,9 @@ impl crate::impls::Editor {
 							OverlayCloseReason::Forced => CloseReason::Forced,
 							OverlayCloseReason::Commit => unreachable!(),
 						};
-						let mut interaction = std::mem::take(&mut self.state.overlay_system.interaction);
+						let mut interaction = self.state.overlay_system.take_interaction();
 						interaction.close(self, reason);
-						self.state.overlay_system.interaction = interaction;
+						self.state.overlay_system.restore_interaction(interaction);
 					}
 				}
 				Ok(())

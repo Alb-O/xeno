@@ -27,6 +27,7 @@
 //! - Must allow only one active modal session at a time.
 //! - Must clamp resolved overlay areas to screen bounds.
 //! - Must clear LSP UI when a modal overlay opens.
+//! - Must route non-overlay module access through `OverlaySystem` accessors.
 //!
 //! # Data flow
 //!

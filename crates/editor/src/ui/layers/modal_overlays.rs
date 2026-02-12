@@ -58,9 +58,8 @@ pub fn render(ed: &mut Editor, frame: &mut xeno_tui::Frame, area: Rect, ctx: &Re
 	let panes: Vec<PaneRenderData> = ed
 		.state
 		.overlay_system
-		.interaction
-		.active
-		.as_ref()
+		.interaction()
+		.active()
 		.map(|active| {
 			active
 				.session

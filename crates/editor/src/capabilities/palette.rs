@@ -24,6 +24,6 @@ impl PaletteAccess for EditorCaps<'_> {
 	}
 
 	fn palette_is_open(&self) -> bool {
-		self.ed.state.overlay_system.interaction.is_open()
+		self.ed.state.overlay_system.interaction().is_open()
 	}
 }

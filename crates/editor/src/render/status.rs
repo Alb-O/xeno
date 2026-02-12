@@ -78,7 +78,7 @@ impl Editor {
 			spans.push(self.segment_to_span(&seg));
 		}
 
-		if let Some(active) = self.state.overlay_system.interaction.active.as_ref() {
+		if let Some(active) = self.state.overlay_system.interaction().active() {
 			let label = match active.controller.name() {
 				"CommandPalette" => "Cmd",
 				"Search" => "Search",

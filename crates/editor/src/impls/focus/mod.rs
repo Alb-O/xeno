@@ -172,12 +172,12 @@ impl Editor {
 		let old_focus_for_blur = old_focus.clone();
 		self.handle_window_focus_change(old_focus, &effective);
 
-		let overlay_was_open = self.state.overlay_system.interaction.is_open();
+		let overlay_was_open = self.state.overlay_system.interaction().is_open();
 		let leaving_overlay = matches!(old_focus_for_blur, FocusTarget::Overlay { .. }) && !matches!(effective, FocusTarget::Overlay { .. });
 		if overlay_was_open && leaving_overlay && !matches!(reason, FocusReason::Hover) {
-			let mut interaction = std::mem::take(&mut self.state.overlay_system.interaction);
+			let mut interaction = self.state.overlay_system.take_interaction();
 			interaction.close(self, crate::overlay::CloseReason::Blur);
-			self.state.overlay_system.interaction = interaction;
+			self.state.overlay_system.restore_interaction(interaction);
 		}
 
 		true

@@ -27,7 +27,7 @@ impl Editor {
 		let loader = std::sync::Arc::clone(&self.state.config.language_loader);
 		let mut visible_ids: HashSet<_> = self.state.windows.base_window().layout.views().into_iter().collect();
 
-		if let Some(active) = self.state.overlay_system.interaction.active.as_ref() {
+		if let Some(active) = self.state.overlay_system.interaction().active() {
 			for pane in &active.session.panes {
 				visible_ids.insert(pane.buffer);
 			}

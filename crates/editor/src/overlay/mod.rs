@@ -103,7 +103,7 @@ impl OverlayStore {
 #[derive(Default)]
 pub struct OverlayManager {
 	/// The currently active modal interaction, if any.
-	pub active: Option<ActiveOverlay>,
+	active: Option<ActiveOverlay>,
 }
 
 /// Coupling of a modal session's resources and its behavioral controller.
@@ -128,11 +128,11 @@ pub struct ActiveOverlay {
 /// between the editor and various layers.
 pub struct OverlaySystem {
 	/// Manager for focus-stealing modal interaction sessions.
-	pub interaction: OverlayManager,
+	interaction: OverlayManager,
 	/// Stack of passive, contextual UI layers.
-	pub layers: OverlayLayers,
+	layers: OverlayLayers,
 	/// Type-erased storage for shared overlay data.
-	pub store: OverlayStore,
+	store: OverlayStore,
 }
 
 impl OverlaySystem {
@@ -148,6 +148,38 @@ impl OverlaySystem {
 			layers,
 			store: OverlayStore::default(),
 		}
+	}
+
+	pub fn interaction(&self) -> &OverlayManager {
+		&self.interaction
+	}
+
+	pub fn interaction_mut(&mut self) -> &mut OverlayManager {
+		&mut self.interaction
+	}
+
+	pub fn take_interaction(&mut self) -> OverlayManager {
+		std::mem::take(&mut self.interaction)
+	}
+
+	pub fn restore_interaction(&mut self, interaction: OverlayManager) {
+		self.interaction = interaction;
+	}
+
+	pub fn layers(&self) -> &OverlayLayers {
+		&self.layers
+	}
+
+	pub fn layers_mut(&mut self) -> &mut OverlayLayers {
+		&mut self.layers
+	}
+
+	pub fn store(&self) -> &OverlayStore {
+		&self.store
+	}
+
+	pub fn store_mut(&mut self) -> &mut OverlayStore {
+		&mut self.store
 	}
 }
 
@@ -431,6 +463,14 @@ impl OverlayLayers {
 }
 
 impl OverlayManager {
+	pub fn active(&self) -> Option<&ActiveOverlay> {
+		self.active.as_ref()
+	}
+
+	pub fn active_mut(&mut self) -> Option<&mut ActiveOverlay> {
+		self.active.as_mut()
+	}
+
 	/// Returns `true` if a modal interaction is currently active.
 	pub fn is_open(&self) -> bool {
 		self.active.is_some()
