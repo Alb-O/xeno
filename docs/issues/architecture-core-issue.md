@@ -17,8 +17,8 @@ This document tracks the architecture split between `xeno-editor` (core engine) 
 ### Ownership
 
 - Frontend runtime/composition is in `xeno-editor-tui`.
-- Completion, snippet-choice, notifications, status line, and info-popup surface rendering are frontend-owned.
-- Core keeps state/plan APIs for these systems and does not own terminal widget composition.
+- Core now owns behavior/data planning for completion, snippet choice, modal overlay panes, utility which-key, and statusline composition.
+- Frontend rendering remains toolkit-specific (`xeno-editor-tui` owns widget composition, style mapping, and frame layering).
 
 ### Boundary hardening completed
 
@@ -27,12 +27,17 @@ This document tracks the architecture split between `xeno-editor` (core engine) 
   - `render` is internal; frontend imports via `render_api`.
   - `impls` is internal; focused symbols are re-exported at crate root where needed.
   - `notifications` internals are hidden behind typed editor APIs.
+- Frontend no longer reaches through overlay internals for policy:
+  - no `overlay_interaction()` usage in frontend crates.
+  - no frontend overlay store reads for completion/snippet/status/utility behavior.
+  - frontends consume typed plans/APIs (`overlay_pane_render_plan`, `whichkey_render_plan`, `statusline_render_plan`, `completion_render_plan`, `snippet_choice_render_plan`).
 - Legacy compatibility paths/shims removed:
   - focus compatibility helper path removed in favor of unified `set_focus` flow.
   - unused overlay compatibility constructor argument removed.
   - stale render seam exports and dead helper surface removed.
 - Umbrella passthrough patterns were reduced:
   - callsites now import types from owning modules (`types`, `command_queue`, etc.).
+- Overlay store accessors are now crate-private to prevent new frontend reach-through.
 
 ### Feature posture
 
@@ -42,7 +47,8 @@ This document tracks the architecture split between `xeno-editor` (core engine) 
 ## Remaining work
 
 - Decide whether panel registration/state should remain in core `UiManager` or move fully to frontend ownership.
-- Continue tightening render data seams where frontend still depends on broader context than desired.
+- Finish backend-neutral text/style seam tightening (`Style`/`Line`/`Span` render boundary) for future GUI adapters.
+- Add replay/snapshot coverage for plan builders to guard cross-frontend behavior consistency.
 - Keep pruning legacy/compat patterns as they appear during refactors.
 
 ## Acceptance checks

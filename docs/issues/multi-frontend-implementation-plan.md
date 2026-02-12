@@ -102,6 +102,26 @@ Create `xeno-editor-gui` with:
 - plan renderer for GUI toolkit
 - no duplicated behavior policy from TUI
 
+## Progress snapshot (2026-02-12)
+
+Completed:
+
+- completion popup geometry and content planning moved into `xeno-editor`
+- snippet choice popup geometry and content planning moved into `xeno-editor`
+- statusline composition policy moved into `xeno-editor`
+- utility/which-key planning moved into `xeno-editor`
+- modal overlay pane/kind/rect plans exposed from `xeno-editor`
+- frontend overlay reach-through removed (`overlay_interaction()` removed, overlay store access no longer needed in frontend crates)
+
+Current focus:
+
+- Phase 3 seam tightening: finalize backend-neutral text/style boundaries so future GUI adapters only map plan/style data to toolkit primitives
+
+Next:
+
+- add plan-builder snapshot/replay tests for cross-frontend behavior consistency
+- bootstrap `xeno-editor-gui` crate against existing plan APIs once Phase 3 boundary is stable
+
 ## Guardrails (to avoid drift)
 
 - rule: behavior logic belongs in core plan builders, not in frontend render code
