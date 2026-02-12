@@ -1,7 +1,7 @@
 //! Buffer rendering context and cursor styling.
 
 mod ops;
-#[cfg(all(test, feature = "tui"))]
+#[cfg(test)]
 mod tests;
 pub mod types;
 

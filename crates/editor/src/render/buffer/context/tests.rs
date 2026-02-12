@@ -2,10 +2,6 @@
 mod tests {
 	#![allow(clippy::module_inception)]
 	use xeno_primitives::ViewId;
-	use xeno_tui::Terminal;
-	use xeno_tui::backend::TestBackend;
-	use xeno_tui::layout::Rect as TuiRect;
-	use xeno_tui::widgets::Paragraph;
 
 	use crate::buffer::Buffer;
 	use crate::geometry::Rect;
@@ -20,6 +16,10 @@ mod tests {
 			variant: theme_ref.variant,
 			colors: theme_ref.colors,
 		}
+	}
+
+	fn line_text(line: &crate::render::RenderLine<'_>) -> String {
+		line.spans.iter().map(|span| span.content.as_ref()).collect()
 	}
 
 	#[test]
@@ -38,7 +38,6 @@ mod tests {
 		};
 
 		let area = Rect::new(0, 0, 20, 3);
-		let area_tui: TuiRect = area.into();
 		let mut cache = crate::render::cache::RenderCache::new();
 		let result = ctx.render_buffer_with_gutter(crate::render::buffer::context::types::RenderBufferParams {
 			buffer: &buffer,
@@ -51,39 +50,10 @@ mod tests {
 			cache: &mut cache,
 		});
 
-		let backend = TestBackend::new(20, 3);
-		let mut terminal = Terminal::new(backend).unwrap();
-
-		terminal
-			.draw(|f| {
-				let gutter_area = TuiRect {
-					width: result.gutter_width,
-					height: area_tui.height,
-					x: area_tui.x,
-					y: area_tui.y,
-				};
-				let text_area = TuiRect {
-					x: area_tui.x + result.gutter_width,
-					width: area_tui.width.saturating_sub(result.gutter_width),
-					height: area_tui.height,
-					y: area_tui.y,
-				};
-
-				f.render_widget(Paragraph::new(result.gutter), gutter_area);
-				f.render_widget(Paragraph::new(result.text), text_area);
-			})
-			.unwrap();
-
-		let tui_buffer = terminal.backend().buffer();
-
 		assert!(result.gutter_width > 0);
-
-		let line0: String = (0..20).map(|x| tui_buffer[(x, 0)].symbol().to_string()).collect();
-		assert!(line0.contains("Hello world"));
-		assert!(line0.contains("1"));
-
-		let line1: String = (0..20).map(|x| tui_buffer[(x, 1)].symbol().to_string()).collect();
-		assert!(line1.contains("~"));
+		assert!(line_text(&result.gutter[0]).contains('1'));
+		assert!(line_text(&result.text[0]).contains("Hello world"));
+		assert!(line_text(&result.gutter[1]).contains('~'));
 	}
 
 	#[test]
@@ -104,7 +74,6 @@ mod tests {
 
 		// 30 width, gutter will take ~6, leaving ~24 for text
 		let area = Rect::new(0, 0, 30, 5);
-		let area_tui: TuiRect = area.into();
 		let mut cache = crate::render::cache::RenderCache::new();
 		let result = ctx.render_buffer_with_gutter(crate::render::buffer::context::types::RenderBufferParams {
 			buffer: &buffer,
@@ -117,34 +86,7 @@ mod tests {
 			cache: &mut cache,
 		});
 
-		let backend = TestBackend::new(30, 5);
-		let mut terminal = Terminal::new(backend).unwrap();
-
-		terminal
-			.draw(|f| {
-				let gutter_area = TuiRect {
-					width: result.gutter_width,
-					height: area_tui.height,
-					x: area_tui.x,
-					y: area_tui.y,
-				};
-				let text_area = TuiRect {
-					x: area_tui.x + result.gutter_width,
-					width: area_tui.width.saturating_sub(result.gutter_width),
-					height: area_tui.height,
-					y: area_tui.y,
-				};
-
-				f.render_widget(Paragraph::new(result.gutter), gutter_area);
-				f.render_widget(Paragraph::new(result.text), text_area);
-			})
-			.unwrap();
-
-		let tui_buffer = terminal.backend().buffer();
-
-		// Row 0: Gutter "1 ", text "One two three four five"
-		let row0: String = (0..30).map(|x| tui_buffer[(x, 0)].symbol().to_string()).collect();
-		assert!(row0.contains("1"));
-		assert!(row0.contains("One two three four five"));
+		assert!(line_text(&result.gutter[0]).contains('1'));
+		assert!(line_text(&result.text[0]).contains("One two three four five"));
 	}
 }
