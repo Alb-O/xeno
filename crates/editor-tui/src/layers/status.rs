@@ -5,6 +5,8 @@ use xeno_tui::style::{Modifier, Style};
 use xeno_tui::text::{Line, Span};
 use xeno_tui::widgets::{Block, Paragraph};
 
+use crate::text_width::cell_width;
+
 fn segment_to_span(ed: &Editor, segment: &RenderedSegment) -> Span<'static> {
 	let colors = &ed.config().theme.colors;
 	let style = match segment.style {
@@ -84,10 +86,10 @@ pub fn render(ed: &Editor, frame: &mut xeno_tui::Frame, area: Rect) {
 		}
 	}
 
-	let mode_width: usize = mode_segments.iter().map(|seg| xeno_editor::render::cell_width(&seg.text)).sum();
+	let mode_width: usize = mode_segments.iter().map(|seg| cell_width(&seg.text)).sum();
 
 	for seg in body_segments {
-		current_width += xeno_editor::render::cell_width(&seg.text);
+		current_width += cell_width(&seg.text);
 		spans.push(segment_to_span(ed, &seg));
 	}
 
@@ -99,7 +101,7 @@ pub fn render(ed: &Editor, frame: &mut xeno_tui::Frame, area: Rect) {
 		};
 		let tag = format!(" [{label}]");
 		let viewport_width = ed.viewport().width.unwrap_or(0) as usize;
-		let tag_width = xeno_editor::render::cell_width(&tag);
+		let tag_width = cell_width(&tag);
 		if viewport_width > 0 && current_width + tag_width + mode_width <= viewport_width {
 			spans.push(Span::styled(tag, Style::default().fg(ed.config().theme.colors.semantic.dim)));
 			current_width += tag_width;

@@ -8,6 +8,7 @@ mod layers;
 mod panels;
 mod scene;
 mod terminal;
+mod text_width;
 
 use std::io::{self, Write};
 use std::time::{Duration, Instant};

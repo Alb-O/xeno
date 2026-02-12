@@ -1,5 +1,4 @@
 use xeno_editor::Editor;
-use xeno_editor::render::cell_width;
 use xeno_editor::snippet::SnippetChoiceOverlay;
 use xeno_tui::layout::Rect;
 use xeno_tui::style::{Modifier, Style};
@@ -9,6 +8,7 @@ use xeno_tui::widgets::{Block, Borders, List};
 
 use crate::layer::SceneBuilder;
 use crate::scene::{SurfaceKind, SurfaceOp};
+use crate::text_width::cell_width;
 
 fn choice_window(total: usize, selected: usize, visible_rows: usize) -> (usize, usize) {
 	if total == 0 {

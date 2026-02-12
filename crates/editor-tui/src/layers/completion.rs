@@ -1,6 +1,5 @@
 use xeno_editor::Editor;
 use xeno_editor::completion::{CompletionKind, CompletionState};
-use xeno_editor::render::{cell_width, char_width};
 use xeno_tui::layout::Rect;
 use xeno_tui::style::{Color, Modifier, Style};
 use xeno_tui::text::{Line, Span};
@@ -9,6 +8,7 @@ use xeno_tui::widgets::{Block, Borders, List};
 
 use crate::layer::SceneBuilder;
 use crate::scene::{SurfaceKind, SurfaceOp};
+use crate::text_width::{cell_width, char_width};
 
 fn build_highlighted_label(label: &str, match_indices: Option<&[usize]>, min_width: usize, normal_style: Style, highlight_style: Style) -> Vec<Span<'static>> {
 	let Some(indices) = match_indices else {
