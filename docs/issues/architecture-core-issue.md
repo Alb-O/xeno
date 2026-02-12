@@ -284,3 +284,27 @@ git log --oneline -n 20
 rg -n "xeno_tui::|use xeno_tui" crates/editor/src -S | wc -l
 rg -n "xeno_editor::render|xeno_editor::ui::|xeno_editor::info_popup" crates/editor-tui/src -S
 ```
+
+## Follow-up checkpoints (`2026-02-12`)
+
+Delta since snapshot commit `ae5f2ee8`:
+- `xeno_tui` references in `crates/editor/src`: `60 -> 43` (delta `-17`).
+- Core overlay layers are now event-only; scene overlay rendering no longer routes through core.
+- Legacy core UI scene/layer hit-test modules were removed.
+
+Commits:
+- `c2343696` editor: make core overlay layers event-only
+- `1a735ab3` editor: remove leftover core ui scene hit-testing modules
+- `03480d2e` editor: make overlay pane geometry math backend-agnostic
+- `a20aa481` editor: make render context layout snapshot backend-neutral
+- `5f963540` editor: replace overlay surface style with core-owned types
+- `525a7721` editor: switch dock layout API to core geometry rects
+- `3bd93768` editor: use core style types in theming highlight helpers
+
+Validated after each checkpoint:
+- `cargo check -p xeno-editor --no-default-features`
+- `cargo check -p xeno-editor-tui`
+- `cargo check -p xeno-term`
+- targeted tests:
+  - `cargo test -p xeno-editor pane_inner_rect_matches_block_inner --no-default-features`
+  - `cargo test -p xeno-editor fixed_bottom_height_reduces_doc_area_deterministically --no-default-features`
