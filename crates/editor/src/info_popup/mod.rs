@@ -39,8 +39,8 @@ pub struct InfoPopupRenderTarget {
 	pub id: InfoPopupId,
 	/// Read-only popup buffer to render.
 	pub buffer_id: ViewId,
-	/// Anchor placement strategy for this popup.
-	pub anchor: PopupAnchor,
+	/// Render-only anchor placement strategy for this popup.
+	pub anchor: InfoPopupRenderAnchor,
 	/// Preferred content width before chrome.
 	pub content_width: u16,
 	/// Preferred content height before chrome.
@@ -52,9 +52,27 @@ impl From<&InfoPopup> for InfoPopupRenderTarget {
 		Self {
 			id: popup.id,
 			buffer_id: popup.buffer_id,
-			anchor: popup.anchor,
+			anchor: popup.anchor.into(),
 			content_width: popup.content_width,
 			content_height: popup.content_height,
+		}
+	}
+}
+
+/// Render-only popup anchor consumed by frontend layers.
+#[derive(Debug, Clone, Copy)]
+pub enum InfoPopupRenderAnchor {
+	/// Centered in the document area.
+	Center,
+	/// Position relative to a specific screen coordinate (top-left of popup).
+	Point { x: u16, y: u16 },
+}
+
+impl From<PopupAnchor> for InfoPopupRenderAnchor {
+	fn from(anchor: PopupAnchor) -> Self {
+		match anchor {
+			PopupAnchor::Center | PopupAnchor::Window(_) => Self::Center,
+			PopupAnchor::Point { x, y } => Self::Point { x, y },
 		}
 	}
 }

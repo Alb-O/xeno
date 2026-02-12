@@ -1,4 +1,4 @@
-use xeno_editor::info_popup::PopupAnchor;
+use xeno_editor::info_popup::InfoPopupRenderAnchor;
 use xeno_editor::render::{BufferRenderContext, RenderBufferParams, RenderCtx};
 use xeno_editor::window::GutterSelector;
 use xeno_editor::Editor;
@@ -11,23 +11,19 @@ use xeno_tui::widgets::{Block, Clear, Paragraph};
 use crate::layer::SceneBuilder;
 use crate::scene::{SurfaceKind, SurfaceOp};
 
-fn compute_popup_rect(anchor: PopupAnchor, content_width: u16, content_height: u16, bounds: Rect) -> Rect {
+fn compute_popup_rect(anchor: InfoPopupRenderAnchor, content_width: u16, content_height: u16, bounds: Rect) -> Rect {
 	let width = content_width.saturating_add(2).min(bounds.width.saturating_sub(4));
 	let height = content_height.saturating_add(2).min(bounds.height.saturating_sub(2));
 
 	let (x, y) = match anchor {
-		PopupAnchor::Center => (
+		InfoPopupRenderAnchor::Center => (
 			bounds.x + bounds.width.saturating_sub(width) / 2,
 			bounds.y + bounds.height.saturating_sub(height) / 2,
 		),
-		PopupAnchor::Point { x, y } => (
+		InfoPopupRenderAnchor::Point { x, y } => (
 			x.max(bounds.x).min(bounds.x + bounds.width.saturating_sub(width)),
 			y.max(bounds.y).min(bounds.y + bounds.height.saturating_sub(height)),
 		),
-		PopupAnchor::Window(_) => (
-			bounds.x + bounds.width.saturating_sub(width) / 2,
-			bounds.y + bounds.height.saturating_sub(height) / 2,
-		), // TODO: position adjacent to window
 	};
 
 	Rect::new(x, y, width, height)
@@ -122,7 +118,7 @@ pub fn render(ed: &mut Editor, frame: &mut xeno_tui::Frame, doc_area: Rect, ctx:
 
 #[cfg(test)]
 mod tests {
-	use xeno_editor::info_popup::PopupAnchor;
+	use xeno_editor::info_popup::InfoPopupRenderAnchor;
 	use xeno_tui::layout::Rect;
 
 	use super::compute_popup_rect;
@@ -130,7 +126,7 @@ mod tests {
 	#[test]
 	fn popup_rect_centers_in_bounds() {
 		let bounds = Rect::new(0, 1, 80, 22);
-		let rect = compute_popup_rect(PopupAnchor::Center, 20, 5, bounds);
+		let rect = compute_popup_rect(InfoPopupRenderAnchor::Center, 20, 5, bounds);
 		assert!(rect.x > bounds.x);
 		assert!(rect.y > bounds.y);
 		assert!(rect.x + rect.width < bounds.x + bounds.width);
@@ -140,7 +136,7 @@ mod tests {
 	#[test]
 	fn popup_rect_clamps_point_to_bounds() {
 		let bounds = Rect::new(0, 1, 80, 22);
-		let rect = compute_popup_rect(PopupAnchor::Point { x: 100, y: 100 }, 20, 5, bounds);
+		let rect = compute_popup_rect(InfoPopupRenderAnchor::Point { x: 100, y: 100 }, 20, 5, bounds);
 		assert!(rect.x + rect.width <= bounds.x + bounds.width);
 		assert!(rect.y + rect.height <= bounds.y + bounds.height);
 	}
@@ -148,7 +144,7 @@ mod tests {
 	#[test]
 	fn popup_rect_respects_point_position() {
 		let bounds = Rect::new(0, 1, 80, 22);
-		let rect = compute_popup_rect(PopupAnchor::Point { x: 10, y: 5 }, 20, 5, bounds);
+		let rect = compute_popup_rect(InfoPopupRenderAnchor::Point { x: 10, y: 5 }, 20, 5, bounds);
 		assert_eq!(rect.x, 10);
 		assert_eq!(rect.y, 5);
 	}

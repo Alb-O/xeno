@@ -37,10 +37,27 @@ fn store_render_plan_carries_popup_fields() {
 	assert_eq!(target.content_width, 48);
 	assert_eq!(target.content_height, 12);
 	match target.anchor {
-		PopupAnchor::Point { x, y } => {
+		InfoPopupRenderAnchor::Point { x, y } => {
 			assert_eq!(x, 7);
 			assert_eq!(y, 9);
 		}
-		PopupAnchor::Center | PopupAnchor::Window(_) => panic!("expected point anchor"),
+		InfoPopupRenderAnchor::Center => panic!("expected point anchor"),
 	}
+}
+
+#[test]
+fn store_render_plan_maps_window_anchor_to_center() {
+	let mut store = InfoPopupStore::default();
+	let id = store.next_id();
+	store.insert(InfoPopup {
+		id,
+		buffer_id: ViewId(7),
+		anchor: PopupAnchor::Window(WindowId(3)),
+		content_width: 20,
+		content_height: 5,
+	});
+
+	let plan = store.render_plan();
+	assert_eq!(plan.len(), 1);
+	assert!(matches!(plan[0].anchor, InfoPopupRenderAnchor::Center));
 }
