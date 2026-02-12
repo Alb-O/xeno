@@ -289,7 +289,7 @@ mod unit_tests {
 		let spans = line.spans;
 
 		// Consume prefix of 4 spaces from the span list
-		fn take_prefix<'a>(spans: &'a [xeno_tui::text::Span<'static>], mut n: usize) -> Vec<(&'a xeno_primitives::Style, String)> {
+		fn take_prefix<'a>(spans: &'a [crate::render::RenderSpan<'static>], mut n: usize) -> Vec<(&'a xeno_primitives::Style, String)> {
 			let mut out = Vec::new();
 			for sp in spans {
 				if n == 0 {

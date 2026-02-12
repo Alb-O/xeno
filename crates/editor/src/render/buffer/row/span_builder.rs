@@ -1,9 +1,9 @@
 use xeno_primitives::Style;
-use xeno_tui::text::Span;
+use crate::render::RenderSpan;
 
 #[derive(Debug, Default)]
 pub struct SpanRunBuilder {
-	spans: Vec<Span<'static>>,
+	spans: Vec<RenderSpan<'static>>,
 	pending_style: Option<Style>,
 	pending_text: String,
 }
@@ -42,12 +42,12 @@ impl SpanRunBuilder {
 		if let Some(style) = self.pending_style.take() {
 			let text = std::mem::take(&mut self.pending_text);
 			if !text.is_empty() {
-				self.spans.push(Span::styled(text, style));
+				self.spans.push(RenderSpan::styled(text, style));
 			}
 		}
 	}
 
-	pub fn finish(mut self) -> Vec<Span<'static>> {
+	pub fn finish(mut self) -> Vec<RenderSpan<'static>> {
 		self.flush();
 		self.spans
 	}

@@ -9,9 +9,9 @@ use xeno_registry::gutter::{
 };
 use xeno_registry::themes::Theme;
 use xeno_primitives::{Color, Style};
-use xeno_tui::text::Span;
 
 use super::style_layers::LineStyleContext;
+use crate::render::RenderSpan;
 use crate::window::GutterSelector;
 
 enum GutterLayoutKind {
@@ -141,7 +141,7 @@ impl GutterLayout {
 		path: Option<&Path>,
 		annotations: &GutterAnnotations,
 		theme: &Theme,
-	) -> Vec<Span<'static>> {
+	) -> Vec<RenderSpan<'static>> {
 		let is_cursor_line = line_style.should_highlight_cursorline();
 		let is_nontext = line_style.is_nontext;
 		let cursorline_bg = line_style.gutter_cursorline_bg();
@@ -204,7 +204,7 @@ impl GutterLayout {
 	}
 
 	/// Renders gutter spans for empty lines past EOF (the ~ indicator).
-	pub fn render_empty_line(&self, theme: &Theme) -> Vec<Span<'static>> {
+	pub fn render_empty_line(&self, theme: &Theme) -> Vec<RenderSpan<'static>> {
 		let nontext_bg = theme.colors.ui.nontext_bg;
 
 		match &self.kind {
@@ -213,7 +213,7 @@ impl GutterLayout {
 				if self.total_width == 0 {
 					return Vec::new();
 				}
-				vec![Span::styled(" ".repeat(self.total_width as usize), Style::default().bg(nontext_bg))]
+				vec![RenderSpan::styled(" ".repeat(self.total_width as usize), Style::default().bg(nontext_bg))]
 			}
 			GutterLayoutKind::Columns(columns) => {
 				if columns.is_empty() {
@@ -222,7 +222,7 @@ impl GutterLayout {
 
 				let dim_color = theme.colors.ui.gutter_fg.blend(nontext_bg, 0.5);
 				let width = self.total_width.saturating_sub(1) as usize;
-				vec![Span::styled(
+				vec![RenderSpan::styled(
 					format!("{:>width$} ", "~", width = width),
 					Style::default().fg(dim_color).bg(nontext_bg),
 				)]
@@ -230,7 +230,7 @@ impl GutterLayout {
 		}
 	}
 
-	fn separator_span(&self, is_cursor_line: bool, is_nontext: bool, theme: &Theme, cursorline_bg: Color) -> Span<'static> {
+	fn separator_span(&self, is_cursor_line: bool, is_nontext: bool, theme: &Theme, cursorline_bg: Color) -> RenderSpan<'static> {
 		let style = if is_nontext {
 			Style::default().bg(theme.colors.ui.nontext_bg)
 		} else if is_cursor_line {
@@ -238,7 +238,7 @@ impl GutterLayout {
 		} else {
 			Style::default()
 		};
-		Span::styled(" ", style)
+		RenderSpan::styled(" ", style)
 	}
 
 	/// Formats a gutter cell into styled spans.
@@ -250,7 +250,7 @@ impl GutterLayout {
 		is_nontext: bool,
 		theme: &Theme,
 		cursorline_bg: Color,
-	) -> Vec<Span<'static>> {
+	) -> Vec<RenderSpan<'static>> {
 		let width = width as usize;
 		let nontext_bg = theme.colors.ui.nontext_bg;
 		let base_style = if is_nontext {
@@ -262,7 +262,7 @@ impl GutterLayout {
 		};
 
 		let Some(cell) = cell else {
-			return vec![Span::styled(" ".repeat(width), base_style)];
+			return vec![RenderSpan::styled(" ".repeat(width), base_style)];
 		};
 
 		let content_len: usize = cell.segments.iter().map(|s| s.text.width()).sum();
@@ -270,13 +270,13 @@ impl GutterLayout {
 
 		let mut spans = Vec::with_capacity(cell.segments.len() + 1);
 		if padding > 0 {
-			spans.push(Span::styled(" ".repeat(padding), base_style));
+			spans.push(RenderSpan::styled(" ".repeat(padding), base_style));
 		}
 
 		for seg in cell.segments {
 			let base_fg = seg.fg.unwrap_or(theme.colors.ui.gutter_fg);
 			let fg = if is_nontext || seg.dim { base_fg.blend(nontext_bg, 0.5) } else { base_fg };
-			spans.push(Span::styled(seg.text, base_style.fg(fg)));
+			spans.push(RenderSpan::styled(seg.text, base_style.fg(fg)));
 		}
 
 		spans

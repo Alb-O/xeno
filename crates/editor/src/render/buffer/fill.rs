@@ -4,7 +4,7 @@
 //! to the full terminal width.
 
 use xeno_primitives::{Color, Style};
-use xeno_tui::text::Span;
+use crate::render::RenderSpan;
 
 /// Configuration for filling empty space in a line.
 #[derive(Debug, Clone, Copy)]
@@ -20,8 +20,8 @@ impl FillConfig {
 	}
 
 	/// Creates a fill span of the given width, or `None` if no background.
-	pub fn fill_span(self, width: usize) -> Option<Span<'static>> {
-		self.bg.map(|bg| Span::styled(" ".repeat(width), Style::default().bg(bg)))
+	pub fn fill_span(self, width: usize) -> Option<RenderSpan<'static>> {
+		self.bg.map(|bg| RenderSpan::styled(" ".repeat(width), Style::default().bg(bg)))
 	}
 }
 

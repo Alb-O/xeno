@@ -3,7 +3,6 @@ use std::path::Path;
 use xeno_primitives::Rope;
 use xeno_registry::gutter::GutterAnnotations;
 use xeno_primitives::Style;
-use xeno_tui::text::Line;
 
 use super::super::cell_style::{CellStyleInput, CursorStyleSet, resolve_cell_style};
 use super::super::context::types::{BufferRenderContext, CursorStyles, RenderLayout};
@@ -12,6 +11,7 @@ use super::super::plan::LineSlice;
 use super::super::style_layers::{LineStyleContext, blend};
 use super::shaper::{GlyphVirtual, SegmentGlyphIter};
 use super::span_builder::SpanRunBuilder;
+use crate::render::RenderLine;
 use crate::render::wrap::WrappedSegment;
 
 /// Input data for rendering a single visual row.
@@ -61,13 +61,13 @@ fn render_safe_char(ch: char) -> char {
 }
 
 impl TextRowRenderer {
-	/// Renders the text portion of a visual row into a [`Line`].
+	/// Renders the text portion of a visual row into a [`crate::render::RenderLine`].
 	///
 	/// Coordinates glyph shaping, syntax highlighting, and overlay application.
 	/// Ensures that multi-column characters (tabs, wide Unicode) and layout
 	/// features (soft-wrap indentation) are rendered with correct styling
 	/// and selection highlights.
-	pub fn render_row(input: &RowRenderInput<'_>) -> Line<'static> {
+	pub fn render_row(input: &RowRenderInput<'_>) -> RenderLine<'static> {
 		let mut builder = SpanRunBuilder::new();
 		let text_width = input.layout.text_width;
 
@@ -165,7 +165,7 @@ impl TextRowRenderer {
 			}
 		}
 
-		let mut line = Line::from(builder.finish());
+		let mut line = RenderLine::from(builder.finish());
 		if let Some(bg) = input.line_style.fill_bg() {
 			line = line.style(Style::default().bg(bg));
 		}
@@ -177,7 +177,7 @@ pub struct GutterRenderer;
 
 impl GutterRenderer {
 	/// Renders the gutter portion of a visual row.
-	pub fn render_row(input: &RowRenderInput<'_>) -> Line<'static> {
+	pub fn render_row(input: &RowRenderInput<'_>) -> RenderLine<'static> {
 		let spans = if let Some(line) = input.line {
 			input.layout.gutter_layout.render_line(
 				line.line_idx,
@@ -193,7 +193,7 @@ impl GutterRenderer {
 			input.layout.gutter_layout.render_empty_line(input.ctx.theme)
 		};
 
-		Line::from(spans)
+		RenderLine::from(spans)
 	}
 }
 

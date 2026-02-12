@@ -1,7 +1,6 @@
 use xeno_language::LanguageLoader;
 use xeno_registry::themes::Theme;
 use xeno_primitives::Style;
-use xeno_tui::text::Line;
 
 use super::super::cell_style::CursorStyleSet;
 use super::super::diagnostics::{DiagnosticLineMap, DiagnosticRangeMap};
@@ -9,6 +8,7 @@ use super::super::gutter::GutterLayout;
 use crate::buffer::Buffer;
 use crate::geometry::Rect;
 use crate::render::cache::RenderCache;
+use crate::render::RenderLine;
 use crate::window::GutterSelector;
 
 /// Result of rendering a buffer's content.
@@ -19,9 +19,9 @@ pub struct RenderResult {
 	/// Total width of the rendered gutter column.
 	pub gutter_width: u16,
 	/// Rendered gutter lines. Length matches viewport height.
-	pub gutter: Vec<Line<'static>>,
+	pub gutter: Vec<RenderLine<'static>>,
 	/// Rendered text content lines. Length matches viewport height.
-	pub text: Vec<Line<'static>>,
+	pub text: Vec<RenderLine<'static>>,
 }
 
 /// Parameters for rendering a buffer.
