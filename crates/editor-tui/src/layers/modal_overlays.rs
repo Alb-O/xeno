@@ -1,12 +1,14 @@
+use xeno_editor::Editor;
+use xeno_editor::buffer::ViewId;
+use xeno_editor::completion::CompletionState;
+use xeno_editor::impls::FocusTarget;
+use xeno_editor::overlay::WindowRole;
+use xeno_editor::render::{BufferRenderContext, GutterLayout, RenderBufferParams, RenderCtx, ensure_buffer_cursor_visible};
+use xeno_editor::window::{GutterSelector, SurfaceStyle};
 use xeno_registry::options::keys;
 use xeno_tui::layout::Rect;
 use xeno_tui::style::Style;
 use xeno_tui::widgets::{Block, Borders, Paragraph};
-
-use crate::buffer::ViewId;
-use crate::impls::{Editor, FocusTarget};
-use crate::render::{BufferRenderContext, GutterLayout, RenderBufferParams, RenderCtx, ensure_buffer_cursor_visible};
-use crate::window::{GutterSelector, SurfaceStyle};
 
 #[derive(Clone)]
 struct PaneRenderData {
@@ -54,11 +56,48 @@ fn pane_content_area(rect: Rect, style: &SurfaceStyle) -> Rect {
 	area
 }
 
-pub fn render(ed: &mut Editor, frame: &mut xeno_tui::Frame, area: Rect, ctx: &RenderCtx) {
+fn render_palette_completion_menu(ed: &mut Editor, frame: &mut xeno_tui::Frame, area: Rect) {
+	let Some(active) = ed.overlay_interaction().active() else {
+		return;
+	};
+	if !matches!(active.controller.name(), "CommandPalette" | "FilePicker") {
+		return;
+	}
+
+	let input_rect = active
+		.session
+		.panes
+		.iter()
+		.find(|pane| pane.role == WindowRole::Input)
+		.map(|pane| -> Rect { pane.rect.into() });
+	let Some(input_rect) = input_rect else {
+		return;
+	};
+
+	let panel_top = area.y;
+	let menu_bottom = input_rect.y;
+	if panel_top >= menu_bottom {
+		return;
+	}
+
+	let completion_state = ed.overlays().get::<CompletionState>();
+	let visible_rows = completion_state
+		.filter(|state| state.active)
+		.map_or(0u16, |state| state.visible_range().len() as u16);
+	let available_rows = menu_bottom.saturating_sub(panel_top);
+	let menu_height = visible_rows.min(available_rows);
+	if menu_height == 0 {
+		return;
+	}
+
+	let menu_y = menu_bottom.saturating_sub(menu_height);
+	let menu_rect = Rect::new(input_rect.x, menu_y, input_rect.width, menu_height);
+	frame.render_widget(ed.render_completion_menu_with_limit(menu_rect, menu_height as usize), menu_rect);
+}
+
+pub fn render_utility_panel_overlay(ed: &mut Editor, frame: &mut xeno_tui::Frame, area: Rect, ctx: &RenderCtx) {
 	let panes: Vec<PaneRenderData> = ed
-		.state
-		.overlay_system
-		.interaction()
+		.overlay_interaction()
 		.active()
 		.map(|active| {
 			active
@@ -106,13 +145,13 @@ pub fn render(ed: &mut Editor, frame: &mut xeno_tui::Frame, area: Rect, ctx: &Re
 		}
 	}
 
-	let focused_overlay = match &ed.state.focus {
+	let focused_overlay = match ed.focus() {
 		FocusTarget::Overlay { buffer } => Some(*buffer),
 		_ => None,
 	};
 
-	let mut cache = std::mem::take(&mut ed.state.render_cache);
-	let language_loader = &ed.state.config.language_loader;
+	let mut cache = std::mem::take(ed.render_cache_mut());
+	let language_loader = &ed.config().language_loader;
 
 	for pane in panes {
 		let Some(rect) = clamp_rect(pane.rect, area) else {
@@ -146,7 +185,7 @@ pub fn render(ed: &mut Editor, frame: &mut xeno_tui::Frame, area: Rect, ctx: &Re
 			let buffer_ctx = BufferRenderContext {
 				theme: &ctx.theme,
 				language_loader,
-				syntax_manager: &ed.state.syntax_manager,
+				syntax_manager: ed.syntax_manager(),
 				diagnostics: ctx.lsp.diagnostics_for(pane.buffer),
 				diagnostic_ranges: ctx.lsp.diagnostic_ranges_for(pane.buffer),
 			};
@@ -176,5 +215,6 @@ pub fn render(ed: &mut Editor, frame: &mut xeno_tui::Frame, area: Rect, ctx: &Re
 		}
 	}
 
-	ed.state.render_cache = cache;
+	*ed.render_cache_mut() = cache;
+	render_palette_completion_menu(ed, frame, area);
 }

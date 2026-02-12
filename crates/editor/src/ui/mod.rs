@@ -3,7 +3,6 @@ mod focus;
 pub mod ids;
 pub mod keymap;
 pub mod layer;
-pub mod layers;
 mod manager;
 /// Panel traits and request types.
 pub mod panel;
