@@ -396,3 +396,17 @@ Validated:
 - `cargo check -p xeno-editor-tui`
 - `cargo check -p xeno-term`
 - `cargo check -p xeno-editor --all-targets`
+
+## Follow-up checkpoints (`2026-02-12`, batch 6)
+
+Delta since commit `26eb8505`:
+- Frontend render imports now consume a narrow `xeno_editor::render_api` boundary instead of importing from the broad `xeno_editor::render` module.
+- Frontend/core render coupling points are centralized in `crates/editor/src/render_api.rs`.
+
+Commit:
+- `2e58b2e1` editor: add focused render_api boundary for frontend imports
+
+Validated:
+- `cargo check -p xeno-editor`
+- `cargo check -p xeno-editor-tui`
+- `cargo check -p xeno-term`
