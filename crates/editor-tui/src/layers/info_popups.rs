@@ -2,7 +2,6 @@ use xeno_editor::Editor;
 use xeno_editor::info_popup::InfoPopupRenderAnchor;
 use xeno_editor::render_api::{BufferRenderContext, RenderBufferParams, RenderCtx};
 use xeno_editor::window::GutterSelector;
-use xeno_registry::options::keys;
 use xeno_tui::layout::Rect;
 use xeno_tui::style::Style;
 use xeno_tui::widgets::block::Padding;
@@ -76,8 +75,8 @@ pub fn render(ed: &mut Editor, frame: &mut xeno_tui::Frame, doc_area: Rect, ctx:
 			continue;
 		};
 
-		let tab_width = (buffer.option(keys::TAB_WIDTH, ed) as usize).max(1);
-		let cursorline = buffer.option(keys::CURSORLINE, ed);
+		let tab_width = ed.tab_width_for(popup.buffer_id);
+		let cursorline = ed.cursorline_for(popup.buffer_id);
 
 		let buffer_ctx = BufferRenderContext {
 			theme: &ctx.theme,

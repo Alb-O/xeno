@@ -10,7 +10,6 @@ use xeno_editor::buffer::{SplitDirection, ViewId};
 use xeno_editor::layout::LayerId;
 use xeno_editor::render_api::{BufferRenderContext, GutterLayout, RenderCtx, ensure_buffer_cursor_visible};
 use xeno_editor::window::GutterSelector;
-use xeno_registry::options::keys;
 use xeno_tui::layout::Rect;
 use xeno_tui::text::{Line, Span};
 use xeno_tui::widgets::Paragraph;
@@ -106,8 +105,8 @@ pub fn render_split_buffers(ed: &mut Editor, frame: &mut xeno_tui::Frame, doc_ar
 		for (buffer_id, area) in view_areas {
 			let is_focused = *buffer_id == focused_view;
 			if let Some(buffer) = ed.core().buffers.get_buffer(*buffer_id) {
-				let tab_width = (buffer.option(keys::TAB_WIDTH, ed) as usize).max(1);
-				let cursorline = buffer.option(keys::CURSORLINE, ed);
+				let tab_width = ed.tab_width_for(*buffer_id);
+				let cursorline = ed.cursorline_for(*buffer_id);
 
 				let buffer_ctx = BufferRenderContext {
 					theme: &ctx.theme,

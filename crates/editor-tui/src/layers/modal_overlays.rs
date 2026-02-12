@@ -2,7 +2,6 @@ use xeno_editor::overlay::{OverlayControllerKind, OverlayPaneRenderTarget, Windo
 use xeno_editor::render_api::{BufferRenderContext, GutterLayout, RenderBufferParams, RenderCtx, ensure_buffer_cursor_visible};
 use xeno_editor::window::SurfaceStyle;
 use xeno_editor::{Editor, FocusTarget};
-use xeno_registry::options::keys;
 use xeno_tui::layout::Rect;
 use xeno_tui::style::Style;
 use xeno_tui::widgets::{Block, Borders, Paragraph};
@@ -149,8 +148,8 @@ pub fn render_utility_panel_overlay(ed: &mut Editor, frame: &mut xeno_tui::Frame
 		}
 
 		if let Some(buffer) = ed.get_buffer(pane.buffer) {
-			let tab_width = (buffer.option(keys::TAB_WIDTH, ed) as usize).max(1);
-			let cursorline = buffer.option(keys::CURSORLINE, ed);
+			let tab_width = ed.tab_width_for(pane.buffer);
+			let cursorline = ed.cursorline_for(pane.buffer);
 
 			let buffer_ctx = BufferRenderContext {
 				theme: &ctx.theme,
