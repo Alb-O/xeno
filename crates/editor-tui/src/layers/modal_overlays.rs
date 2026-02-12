@@ -1,9 +1,7 @@
-use xeno_editor::Editor;
-use xeno_editor::completion::CompletionState;
-use xeno_editor::FocusTarget;
 use xeno_editor::overlay::{OverlayControllerKind, OverlayPaneRenderTarget, WindowRole};
 use xeno_editor::render_api::{BufferRenderContext, GutterLayout, RenderBufferParams, RenderCtx, ensure_buffer_cursor_visible};
 use xeno_editor::window::SurfaceStyle;
+use xeno_editor::{Editor, FocusTarget};
 use xeno_registry::options::keys;
 use xeno_tui::layout::Rect;
 use xeno_tui::style::Style;
@@ -66,10 +64,7 @@ fn render_palette_completion_menu(ed: &mut Editor, frame: &mut xeno_tui::Frame, 
 		return;
 	}
 
-	let completion_state = ed.overlays().get::<CompletionState>();
-	let visible_rows = completion_state
-		.filter(|state| state.active)
-		.map_or(0u16, |state| state.visible_range().len() as u16);
+	let visible_rows = ed.completion_visible_rows(10) as u16;
 	let available_rows = menu_bottom.saturating_sub(panel_top);
 	let menu_height = visible_rows.min(available_rows);
 	if menu_height == 0 {
@@ -78,7 +73,10 @@ fn render_palette_completion_menu(ed: &mut Editor, frame: &mut xeno_tui::Frame, 
 
 	let menu_y = menu_bottom.saturating_sub(menu_height);
 	let menu_rect = Rect::new(input_rect.x, menu_y, input_rect.width, menu_height);
-	crate::layers::completion::render_completion_menu_with_limit(ed, frame, menu_rect, menu_height as usize);
+	let Some(plan) = ed.completion_render_plan(menu_rect.width, menu_height as usize) else {
+		return;
+	};
+	crate::layers::completion::render_completion_menu(ed, frame, menu_rect, plan);
 }
 
 pub fn render_utility_panel_overlay(ed: &mut Editor, frame: &mut xeno_tui::Frame, area: Rect, ctx: &RenderCtx) {

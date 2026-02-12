@@ -198,6 +198,27 @@ impl CompletionState {
 	}
 }
 
+/// Data-only completion menu row used by frontend renderers.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CompletionRenderItem {
+	pub label: String,
+	pub kind: CompletionKind,
+	pub right: Option<String>,
+	pub match_indices: Option<Vec<usize>>,
+	pub selected: bool,
+	pub command_alias_match: bool,
+}
+
+/// Data-only completion menu render plan.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CompletionRenderPlan {
+	pub items: Vec<CompletionRenderItem>,
+	pub max_label_width: usize,
+	pub target_row_width: usize,
+	pub show_kind: bool,
+	pub show_right: bool,
+}
+
 /// Shared xeno-matcher baseline for editor completion paths.
 pub(crate) fn frizbee_config() -> &'static xeno_matcher::Config {
 	static CONFIG: OnceLock<xeno_matcher::Config> = OnceLock::new();

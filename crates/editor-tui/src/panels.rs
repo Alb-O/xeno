@@ -20,7 +20,7 @@ fn render_utility_panel(ed: &mut Editor, frame: &mut xeno_tui::Frame, area: Rect
 		return;
 	}
 
-	if ed.overlay_interaction().is_open() {
+	if ed.overlay_kind().is_some() {
 		crate::layers::modal_overlays::render_utility_panel_overlay(ed, frame, area, ctx);
 		return;
 	}

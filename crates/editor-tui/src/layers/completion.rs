@@ -1,5 +1,5 @@
 use xeno_editor::Editor;
-use xeno_editor::completion::{CompletionKind, CompletionState};
+use xeno_editor::completion::{CompletionKind, CompletionRenderPlan};
 use xeno_tui::layout::Rect;
 use xeno_tui::style::{Color, Modifier, Style};
 use xeno_tui::text::{Line, Span};
@@ -53,38 +53,17 @@ fn build_highlighted_label(label: &str, match_indices: Option<&[usize]>, min_wid
 	spans
 }
 
-fn command_query_is_exact_alias(query: &str, label: &str) -> bool {
-	let query = query.trim();
-	if query.is_empty() {
-		return false;
-	}
-
-	let Some(command) = xeno_registry::commands::find_command(query) else {
-		return false;
-	};
-
-	!command.name_str().eq_ignore_ascii_case(query) && command.name_str().eq_ignore_ascii_case(label)
-}
-
-pub fn render_completion_menu_with_limit(ed: &Editor, frame: &mut xeno_tui::Frame, area: Rect, max_visible_rows: usize) {
+pub fn render_completion_menu(ed: &Editor, frame: &mut xeno_tui::Frame, area: Rect, plan: CompletionRenderPlan) {
 	let theme = &ed.config().theme;
-	let mut completions = ed.overlays().get::<CompletionState>().cloned().unwrap_or_default();
-	completions.ensure_selected_visible_with_limit(max_visible_rows);
-
-	let max_label_width = completions.items.iter().map(|it| cell_width(&it.label)).max().unwrap_or(0);
-	let show_kind = completions.show_kind && area.width >= 24;
-	let show_right = !completions.show_kind && area.width >= 30;
-
-	let visible_range = completions.visible_range_with_limit(max_visible_rows);
-	let selected_idx = completions.selected_idx;
-	let target_row_width = area.width.saturating_sub(1) as usize;
-	let items: Vec<ListItem> = completions
+	let max_label_width = plan.max_label_width;
+	let show_kind = plan.show_kind;
+	let show_right = plan.show_right;
+	let target_row_width = plan.target_row_width;
+	let items: Vec<ListItem> = plan
 		.items
-		.iter()
-		.enumerate()
-		.filter(|(i, _)| visible_range.contains(i))
-		.map(|(i, item)| {
-			let is_selected = Some(i) == selected_idx;
+		.into_iter()
+		.map(|item| {
+			let is_selected = item.selected;
 
 			let kind_icon = match item.kind {
 				CompletionKind::Command => "󰘳",
@@ -130,7 +109,7 @@ pub fn render_completion_menu_with_limit(ed: &Editor, frame: &mut xeno_tui::Fram
 				Style::default().fg(theme.colors.semantic.dim).bg(theme.colors.popup.bg)
 			};
 
-			let match_color = if item.kind == CompletionKind::Command && command_query_is_exact_alias(&completions.query, &item.label) {
+			let match_color = if item.command_alias_match {
 				Color::Magenta
 			} else {
 				theme.colors.semantic.match_hl
@@ -146,12 +125,12 @@ pub fn render_completion_menu_with_limit(ed: &Editor, frame: &mut xeno_tui::Fram
 				let kind_text = format!(" {:>4}  ", kind_name);
 				row_width += cell_width(&kind_text);
 				spans.push(Span::styled(kind_text, dim_style));
-			} else if show_right && let Some(right) = item.right.as_ref() {
-				let right_width = cell_width(right);
+			} else if show_right && let Some(right) = item.right {
+				let right_width = cell_width(&right);
 				if row_width + 1 + right_width <= target_row_width {
 					let gap = target_row_width - row_width - right_width;
 					spans.push(Span::styled(" ".repeat(gap), base_style));
-					spans.push(Span::styled(right.clone(), dim_style));
+					spans.push(Span::styled(right, dim_style));
 					row_width = target_row_width;
 				}
 			}
@@ -191,5 +170,8 @@ pub fn render(ed: &Editor, frame: &mut xeno_tui::Frame) {
 	let Some(area) = ed.completion_popup_area() else {
 		return;
 	};
-	render_completion_menu_with_limit(ed, frame, area.into(), CompletionState::MAX_VISIBLE);
+	let Some(plan) = ed.completion_popup_render_plan() else {
+		return;
+	};
+	render_completion_menu(ed, frame, area.into(), plan);
 }

@@ -1,9 +1,35 @@
-use crate::completion::CompletionState;
-use crate::geometry::Rect;
-use crate::Editor;
 use unicode_width::UnicodeWidthStr;
 
+use crate::Editor;
+use crate::completion::{CompletionKind, CompletionRenderItem, CompletionRenderPlan, CompletionState};
+use crate::geometry::Rect;
+
+fn command_query_is_exact_alias(query: &str, label: &str) -> bool {
+	let query = query.trim();
+	if query.is_empty() {
+		return false;
+	}
+
+	let Some(command) = xeno_registry::commands::find_command(query) else {
+		return false;
+	};
+
+	!command.name_str().eq_ignore_ascii_case(query) && command.name_str().eq_ignore_ascii_case(label)
+}
+
 impl Editor {
+	/// Returns visible completion row count for a bounded menu viewport.
+	pub fn completion_visible_rows(&self, max_visible_rows: usize) -> usize {
+		let mut completions = self.overlays().get::<CompletionState>().cloned().unwrap_or_default();
+		if !completions.active || completions.items.is_empty() {
+			return 0;
+		}
+
+		let normalized_rows = max_visible_rows.max(1);
+		completions.ensure_selected_visible_with_limit(normalized_rows);
+		completions.visible_range_with_limit(normalized_rows).len()
+	}
+
 	/// Returns whether the LSP completion popup should be rendered.
 	pub fn completion_popup_visible(&self) -> bool {
 		#[cfg(not(feature = "lsp"))]
@@ -81,5 +107,54 @@ impl Editor {
 		}
 
 		Some(Rect::new(x, y, width_u16, height_u16))
+	}
+
+	/// Builds a data-only completion render plan for a target menu width.
+	///
+	/// The plan applies selection visibility and row-windowing policy so
+	/// frontends can render list rows without reading completion internals.
+	pub fn completion_render_plan(&self, menu_width: u16, max_visible_rows: usize) -> Option<CompletionRenderPlan> {
+		let mut completions = self.overlays().get::<CompletionState>().cloned().unwrap_or_default();
+		if !completions.active || completions.items.is_empty() {
+			return None;
+		}
+
+		let normalized_rows = max_visible_rows.max(1);
+		completions.ensure_selected_visible_with_limit(normalized_rows);
+
+		let max_label_width = completions.items.iter().map(|item| item.label.width()).max().unwrap_or(0);
+		let show_kind = completions.show_kind && menu_width >= 24;
+		let show_right = !completions.show_kind && menu_width >= 30;
+		let visible_range = completions.visible_range_with_limit(normalized_rows);
+		let selected_idx = completions.selected_idx;
+
+		let items = completions
+			.items
+			.iter()
+			.enumerate()
+			.filter(|(idx, _)| visible_range.contains(idx))
+			.map(|(idx, item)| CompletionRenderItem {
+				label: item.label.clone(),
+				kind: item.kind,
+				right: item.right.clone(),
+				match_indices: item.match_indices.clone(),
+				selected: Some(idx) == selected_idx,
+				command_alias_match: item.kind == CompletionKind::Command && command_query_is_exact_alias(&completions.query, &item.label),
+			})
+			.collect();
+
+		Some(CompletionRenderPlan {
+			items,
+			max_label_width,
+			target_row_width: menu_width.saturating_sub(1) as usize,
+			show_kind,
+			show_right,
+		})
+	}
+
+	/// Builds a data-only completion render plan for cursor-anchored popups.
+	pub fn completion_popup_render_plan(&self) -> Option<CompletionRenderPlan> {
+		let area = self.completion_popup_area()?;
+		self.completion_render_plan(area.width, CompletionState::MAX_VISIBLE)
 	}
 }

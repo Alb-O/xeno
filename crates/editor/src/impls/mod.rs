@@ -622,11 +622,6 @@ impl Editor {
 		self.state.overlay_system.store_mut()
 	}
 
-	#[inline]
-	pub fn overlay_interaction(&self) -> &crate::overlay::OverlayManager {
-		self.state.overlay_system.interaction()
-	}
-
 	/// Returns the active modal controller kind for frontend policy.
 	#[inline]
 	pub fn overlay_kind(&self) -> Option<crate::overlay::OverlayControllerKind> {
@@ -685,11 +680,7 @@ impl Editor {
 			kind,
 			crate::overlay::OverlayControllerKind::CommandPalette | crate::overlay::OverlayControllerKind::FilePicker
 		) {
-			let menu_rows = self
-				.overlays()
-				.get::<crate::CompletionState>()
-				.filter(|state| state.active)
-				.map_or(0u16, |state| state.visible_range().len() as u16);
+			let menu_rows = self.completion_visible_rows(crate::CompletionState::MAX_VISIBLE) as u16;
 			Some((1 + menu_rows).clamp(1, 10))
 		} else if self.overlay_pane_count().unwrap_or(0) <= 1 {
 			Some(1)
