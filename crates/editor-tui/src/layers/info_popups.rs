@@ -1,7 +1,7 @@
-use xeno_editor::info_popup::{InfoPopupStore, PopupAnchor};
+use xeno_editor::info_popup::PopupAnchor;
 use xeno_editor::render::{BufferRenderContext, RenderBufferParams, RenderCtx};
 use xeno_editor::window::GutterSelector;
-use xeno_editor::{Editor, ViewId};
+use xeno_editor::Editor;
 use xeno_registry::options::keys;
 use xeno_tui::layout::Rect;
 use xeno_tui::style::Style;
@@ -34,7 +34,7 @@ fn compute_popup_rect(anchor: PopupAnchor, content_width: u16, content_height: u
 }
 
 pub fn visible(ed: &Editor) -> bool {
-	ed.overlays().get::<InfoPopupStore>().is_some_and(|store| !store.is_empty())
+	ed.info_popup_count() > 0
 }
 
 pub fn push(builder: &mut SceneBuilder, doc_area: Rect) {
@@ -42,22 +42,8 @@ pub fn push(builder: &mut SceneBuilder, doc_area: Rect) {
 }
 
 pub fn render(ed: &mut Editor, frame: &mut xeno_tui::Frame, doc_area: Rect, ctx: &RenderCtx) {
-	let mut popups: Vec<(u64, ViewId, PopupAnchor, u16, u16)> = ed
-		.overlays()
-		.get::<InfoPopupStore>()
-		.map(|store| {
-			store
-				.ids()
-				.filter_map(|id| {
-					store
-						.get(id)
-						.map(|popup| (id.0, popup.buffer_id, popup.anchor, popup.content_width, popup.content_height))
-				})
-				.collect()
-		})
-		.unwrap_or_default();
-
-	popups.sort_by_key(|(id, ..)| *id);
+	let mut popups = ed.info_popup_render_plan();
+	popups.sort_by_key(|popup| popup.id.0);
 
 	if popups.is_empty() {
 		return;
@@ -67,15 +53,15 @@ pub fn render(ed: &mut Editor, frame: &mut xeno_tui::Frame, doc_area: Rect, ctx:
 	let language_loader = &ed.config().language_loader;
 	let padding = Padding::horizontal(1);
 
-	for (_, buffer_id, anchor, content_width, content_height) in popups {
+	for popup in popups {
 		let max_w = doc_area.width.saturating_sub(2).min(60);
 		let max_h = doc_area.height.saturating_sub(2).min(12);
 		if max_w == 0 || max_h == 0 {
 			continue;
 		}
-		let width = content_width.min(max_w);
-		let height = content_height.min(max_h);
-		let rect: Rect = compute_popup_rect(anchor, width, height, doc_area);
+		let width = popup.content_width.min(max_w);
+		let height = popup.content_height.min(max_h);
+		let rect: Rect = compute_popup_rect(popup.anchor, width, height, doc_area);
 		if rect.width == 0 || rect.height == 0 {
 			continue;
 		}
@@ -91,7 +77,7 @@ pub fn render(ed: &mut Editor, frame: &mut xeno_tui::Frame, doc_area: Rect, ctx:
 			continue;
 		}
 
-		let Some(buffer) = ed.core().buffers.get_buffer(buffer_id) else {
+		let Some(buffer) = ed.core().buffers.get_buffer(popup.buffer_id) else {
 			continue;
 		};
 
@@ -102,8 +88,8 @@ pub fn render(ed: &mut Editor, frame: &mut xeno_tui::Frame, doc_area: Rect, ctx:
 			theme: &ctx.theme,
 			language_loader,
 			syntax_manager: ed.syntax_manager(),
-			diagnostics: ctx.lsp.diagnostics_for(buffer_id),
-			diagnostic_ranges: ctx.lsp.diagnostic_ranges_for(buffer_id),
+			diagnostics: ctx.lsp.diagnostics_for(popup.buffer_id),
+			diagnostic_ranges: ctx.lsp.diagnostic_ranges_for(popup.buffer_id),
 		};
 
 		let result = buffer_ctx.render_buffer_with_gutter(RenderBufferParams {

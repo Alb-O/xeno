@@ -9,9 +9,9 @@
 
 use std::collections::HashMap;
 
-use crate::Editor;
 use crate::buffer::ViewId;
 use crate::window::WindowId;
+use crate::Editor;
 
 /// Unique identifier for an info popup.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -30,6 +30,33 @@ pub struct InfoPopup {
 	pub content_width: u16,
 	/// Preferred content height (before border/padding).
 	pub content_height: u16,
+}
+
+/// Data-only popup render target consumed by frontend scene layers.
+#[derive(Debug, Clone, Copy)]
+pub struct InfoPopupRenderTarget {
+	/// Stable popup identifier.
+	pub id: InfoPopupId,
+	/// Read-only popup buffer to render.
+	pub buffer_id: ViewId,
+	/// Anchor placement strategy for this popup.
+	pub anchor: PopupAnchor,
+	/// Preferred content width before chrome.
+	pub content_width: u16,
+	/// Preferred content height before chrome.
+	pub content_height: u16,
+}
+
+impl From<&InfoPopup> for InfoPopupRenderTarget {
+	fn from(popup: &InfoPopup) -> Self {
+		Self {
+			id: popup.id,
+			buffer_id: popup.buffer_id,
+			anchor: popup.anchor,
+			content_width: popup.content_width,
+			content_height: popup.content_height,
+		}
+	}
 }
 
 /// Anchor point for positioning info popups.
@@ -96,6 +123,11 @@ impl InfoPopupStore {
 	/// Returns the number of active popups.
 	pub fn len(&self) -> usize {
 		self.popups.len()
+	}
+
+	/// Builds a data-only render plan for all active popups.
+	pub fn render_plan(&self) -> Vec<InfoPopupRenderTarget> {
+		self.popups.values().map(InfoPopupRenderTarget::from).collect()
 	}
 
 	/// Returns true if there are no active popups.
@@ -189,6 +221,11 @@ impl Editor {
 	/// Returns the number of open info popups.
 	pub fn info_popup_count(&self) -> usize {
 		self.overlays().get::<InfoPopupStore>().map_or(0, |s: &InfoPopupStore| s.len())
+	}
+
+	/// Returns a data-only render plan for active info popups.
+	pub fn info_popup_render_plan(&self) -> Vec<InfoPopupRenderTarget> {
+		self.overlays().get::<InfoPopupStore>().map_or_else(Vec::new, InfoPopupStore::render_plan)
 	}
 }
 
