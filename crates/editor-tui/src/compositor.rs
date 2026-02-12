@@ -107,12 +107,7 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame) {
 			SurfaceOp::CompletionPopup => crate::layers::completion::render(ed, frame),
 			SurfaceOp::SnippetChoicePopup => crate::layers::snippet_choice::render(ed, frame),
 			SurfaceOp::StatusLine => crate::layers::status::render(ed, frame, status_area),
-			SurfaceOp::Notifications => {
-				let mut notifications_area = doc_area_tui;
-				notifications_area.height = notifications_area.height.saturating_sub(1);
-				notifications_area.width = notifications_area.width.saturating_sub(1);
-				ed.notifications_mut().render(notifications_area.into(), frame.buffer_mut());
-			}
+			SurfaceOp::Notifications => crate::layers::notifications::render(ed, doc_area_tui, frame.buffer_mut()),
 		}
 	}
 

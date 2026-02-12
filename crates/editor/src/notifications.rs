@@ -10,7 +10,6 @@ use xeno_tui::style::Style;
 use xeno_tui::widgets::icon::presets as icon_presets;
 use xeno_tui::widgets::notifications::{self as notif, Anchor, Overflow, Toast, ToastIcon, ToastManager};
 
-use crate::geometry::Rect;
 use crate::types::Config;
 
 pub struct NotificationCenter {
@@ -71,7 +70,7 @@ impl NotificationCenter {
 		self.inner.push(toast);
 	}
 
-	pub fn render(&mut self, area: Rect, buffer: &mut xeno_tui::buffer::Buffer) {
-		self.inner.render(area.into(), buffer);
+	pub fn toast_manager_mut(&mut self) -> &mut ToastManager {
+		&mut self.inner
 	}
 }
