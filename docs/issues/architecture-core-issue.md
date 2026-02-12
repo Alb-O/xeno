@@ -488,3 +488,18 @@ Validated:
 - `cargo check -p xeno-editor --no-default-features --all-targets`
 - `cargo check -p xeno-editor-tui`
 - `cargo check -p xeno-term`
+
+## Follow-up checkpoints (`2026-02-12`, batch 11)
+
+Delta since commit `0a2a2db0`:
+- Removed remaining unused `impls` passthrough exports for internal manager/runtime/store types.
+- `impls` now keeps focused exports for active consumers (`FocusReason`, `FocusTarget`, `PanelId`, `Location`) and uses direct imports for everything else.
+
+Commit:
+- `a04f5fd4` editor: drop unused impls passthrough re-exports
+
+Validated:
+- `cargo check -p xeno-editor --all-targets`
+- `cargo check -p xeno-editor --no-default-features --all-targets`
+- `cargo check -p xeno-editor-tui`
+- `cargo check -p xeno-term`
