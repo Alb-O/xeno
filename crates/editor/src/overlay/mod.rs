@@ -367,21 +367,15 @@ impl OverlayContext for crate::impls::Editor {
 	}
 }
 
-/// Trait for passive, contextual UI elements.
+/// Trait for passive, contextual overlay behaviors.
 ///
 /// Unlike controllers, layers do not steal focus or own dedicated input buffers.
-/// They are used for tooltips, diagnostics, and inline completion menus.
+/// They react to editor events and may intercept keys when visible.
 pub trait OverlayLayer: Send + Sync {
 	fn name(&self) -> &'static str;
 
-	/// Determines if the layer should be rendered in the current editor state.
+	/// Determines if the layer is currently active.
 	fn is_visible(&self, ed: &crate::impls::Editor) -> bool;
-
-	/// Computes the screen area for the layer based on the current viewport.
-	fn layout(&self, ed: &crate::impls::Editor, screen: crate::geometry::Rect) -> Option<crate::geometry::Rect>;
-
-	/// Renders the layer content into the terminal frame.
-	fn render(&self, ed: &crate::impls::Editor, frame: &mut xeno_tui::Frame, area: crate::geometry::Rect);
 
 	/// Optional key interception for visible layers (e.g. Tab/Enter in completion menus).
 	fn on_key(&mut self, _ed: &mut crate::impls::Editor, _key: Key) -> bool {
@@ -416,7 +410,7 @@ impl LayerEvent {
 	}
 }
 
-/// Collection of passive UI layers with ordered rendering and event propagation.
+/// Collection of passive overlay layers with key routing and event propagation.
 #[derive(Default)]
 pub struct OverlayLayers {
 	layers: Vec<Box<dyn OverlayLayer>>,
@@ -442,22 +436,6 @@ impl OverlayLayers {
 	pub fn notify_event(&mut self, ed: &mut crate::impls::Editor, event: LayerEvent) {
 		for layer in &mut self.layers {
 			layer.on_event(ed, &event);
-		}
-	}
-
-	/// Renders all visible layers in stack order.
-	pub fn render(&self, ed: &crate::impls::Editor, frame: &mut xeno_tui::Frame) {
-		let screen = match (ed.state.viewport.width, ed.state.viewport.height) {
-			(Some(w), Some(h)) => crate::geometry::Rect::new(0, 0, w, h),
-			_ => return,
-		};
-
-		for layer in &self.layers {
-			if layer.is_visible(ed)
-				&& let Some(area) = layer.layout(ed, screen)
-			{
-				layer.render(ed, frame, area);
-			}
 		}
 	}
 }

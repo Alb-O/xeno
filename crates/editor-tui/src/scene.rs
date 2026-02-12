@@ -13,7 +13,6 @@ pub enum SurfaceKind {
 	Panels,
 	CompletionPopup,
 	SnippetChoicePopup,
-	OverlayLayers,
 	StatusLine,
 	Notifications,
 }
@@ -26,7 +25,6 @@ pub enum SurfaceOp {
 	Panels,
 	CompletionPopup,
 	SnippetChoicePopup,
-	OverlayLayers,
 	StatusLine,
 	Notifications,
 }

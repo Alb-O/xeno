@@ -634,11 +634,6 @@ impl Editor {
 	}
 
 	#[inline]
-	pub fn render_overlay_layers(&self, frame: &mut xeno_tui::Frame) {
-		self.state.overlay_system.layers().render(self, frame);
-	}
-
-	#[inline]
 	pub fn whichkey_desired_height(&self) -> Option<u16> {
 		crate::ui::utility_whichkey_desired_height(self)
 	}

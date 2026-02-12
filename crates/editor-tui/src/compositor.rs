@@ -82,7 +82,6 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame) {
 	if crate::layers::snippet_choice::visible(ed) {
 		crate::layers::snippet_choice::push(&mut builder, doc_area);
 	}
-	builder.push(SurfaceKind::OverlayLayers, 50, area, SurfaceOp::OverlayLayers, false);
 	builder.push(SurfaceKind::StatusLine, 60, status_area, SurfaceOp::StatusLine, false);
 	builder.push(SurfaceKind::Notifications, 70, doc_area, SurfaceOp::Notifications, false);
 	let scene = builder.finish();
@@ -106,7 +105,6 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame) {
 			}
 			SurfaceOp::CompletionPopup => crate::layers::completion::render(ed, frame),
 			SurfaceOp::SnippetChoicePopup => crate::layers::snippet_choice::render(ed, frame),
-			SurfaceOp::OverlayLayers => ed.render_overlay_layers(frame),
 			SurfaceOp::StatusLine => crate::layers::status::render(ed, frame, status_area),
 			SurfaceOp::Notifications => {
 				let mut notifications_area = doc_area;
