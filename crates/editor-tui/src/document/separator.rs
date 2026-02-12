@@ -45,9 +45,9 @@ impl SeparatorStyle {
 	/// Creates a new separator style from the current render context.
 	pub fn new(ctx: &RenderCtx) -> Self {
 		Self {
-			hovered_rect: ctx.layout.hovered_separator.map(|(_, rect)| rect),
-			dragging_rect: ctx.layout.dragging_rect,
-			anim_rect: ctx.layout.animation_rect,
+			hovered_rect: ctx.layout.hovered_separator.map(|(_, rect)| rect.into()),
+			dragging_rect: ctx.layout.dragging_rect.map(Into::into),
+			anim_rect: ctx.layout.animation_rect.map(Into::into),
 			anim_intensity: ctx.layout.animation_intensity,
 			base_bg: [ctx.theme.colors.ui.bg, ctx.theme.colors.popup.bg],
 			base_fg: [ctx.theme.colors.ui.gutter_fg, ctx.theme.colors.popup.fg],

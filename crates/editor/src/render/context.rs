@@ -2,10 +2,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use xeno_registry::themes::Theme;
-use xeno_tui::layout::Rect;
 
 use super::buffer::{DiagnosticLineMap, DiagnosticRangeMap};
 use crate::buffer::{Layout, SplitDirection, ViewId};
+use crate::geometry::Rect;
 use crate::impls::Editor;
 use crate::layout::LayoutManager;
 use crate::types::Viewport;
@@ -32,9 +32,9 @@ impl LayoutSnapshot {
 			.and_then(|doc_area| layout.drag_state().and_then(|drag| layout.separator_rect(base_layout, doc_area, &drag.id)));
 
 		Self {
-			hovered_separator: layout.hovered_separator.map(|(direction, rect)| (direction, rect.into())),
-			dragging_rect: dragging_rect.map(Into::into),
-			animation_rect: layout.animation_rect().map(Into::into),
+			hovered_separator: layout.hovered_separator,
+			dragging_rect,
+			animation_rect: layout.animation_rect(),
 			animation_intensity: layout.animation_intensity(),
 		}
 	}
