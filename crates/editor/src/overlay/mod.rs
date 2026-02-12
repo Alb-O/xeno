@@ -7,6 +7,7 @@ use xeno_primitives::{Key, KeyCode};
 use xeno_registry::notifications::Notification;
 
 use crate::buffer::{Buffer, ViewId};
+use crate::window::{SurfaceBorder, SurfacePadding, SurfaceStyle};
 
 pub mod controllers;
 pub(crate) mod geom;
@@ -20,17 +21,13 @@ mod invariants;
 pub use host::OverlayHost;
 pub use session::*;
 pub use spec::*;
-use xeno_tui::widgets::BorderType;
-use xeno_tui::widgets::block::Padding;
-
-use crate::window::SurfaceStyle;
 
 /// Helper to create a docked, inline prompt style for utility panel overlays.
 pub fn docked_prompt_style() -> SurfaceStyle {
 	SurfaceStyle {
 		border: false,
-		border_type: BorderType::Stripe,
-		padding: Padding::horizontal(1),
+		border_type: SurfaceBorder::Stripe,
+		padding: SurfacePadding::horizontal(1),
 		shadow: false,
 		title: None,
 	}

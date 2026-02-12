@@ -28,28 +28,36 @@ pub fn pane_inner_rect(rect: Rect, style: &SurfaceStyle) -> Rect {
 
 #[cfg(test)]
 mod tests {
-	use xeno_tui::widgets::BorderType;
-	use xeno_tui::widgets::block::Padding;
-
 	use super::pane_inner_rect;
 	use crate::geometry::Rect;
-	use crate::window::SurfaceStyle;
+	use crate::window::{SurfaceBorder, SurfacePadding, SurfaceStyle};
 
 	#[test]
 	fn pane_inner_rect_matches_block_inner() {
 		let rect = Rect::new(10, 5, 30, 9);
 		let style = SurfaceStyle {
 			border: true,
-			border_type: BorderType::Stripe,
-			padding: Padding::horizontal(1),
+			border_type: SurfaceBorder::Stripe,
+			padding: SurfacePadding::horizontal(1),
 			shadow: false,
 			title: Some("Title".to_string()),
 		};
 
+		let border_type = match style.border_type {
+			SurfaceBorder::Rounded => xeno_tui::widgets::BorderType::Rounded,
+			SurfaceBorder::Stripe => xeno_tui::widgets::BorderType::Stripe,
+		};
+		let padding = xeno_tui::widgets::block::Padding::new(
+			style.padding.left,
+			style.padding.right,
+			style.padding.top,
+			style.padding.bottom,
+		);
+
 		let expected: Rect = xeno_tui::widgets::Block::default()
-			.padding(style.padding)
+			.padding(padding)
 			.borders(xeno_tui::widgets::Borders::ALL)
-			.border_type(style.border_type)
+			.border_type(border_type)
 			.title("Title")
 			.inner(rect.into())
 			.into();
