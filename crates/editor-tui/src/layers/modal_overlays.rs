@@ -1,22 +1,13 @@
 use xeno_editor::Editor;
-use xeno_editor::buffer::ViewId;
 use xeno_editor::completion::CompletionState;
 use xeno_editor::FocusTarget;
-use xeno_editor::overlay::WindowRole;
+use xeno_editor::overlay::{OverlayControllerKind, OverlayPaneRenderTarget, WindowRole};
 use xeno_editor::render_api::{BufferRenderContext, GutterLayout, RenderBufferParams, RenderCtx, ensure_buffer_cursor_visible};
-use xeno_editor::window::{GutterSelector, SurfaceStyle};
+use xeno_editor::window::SurfaceStyle;
 use xeno_registry::options::keys;
 use xeno_tui::layout::Rect;
 use xeno_tui::style::Style;
 use xeno_tui::widgets::{Block, Borders, Paragraph};
-
-#[derive(Clone)]
-struct PaneRenderData {
-	buffer: ViewId,
-	rect: Rect,
-	style: SurfaceStyle,
-	gutter: GutterSelector,
-}
 
 fn clamp_rect(rect: Rect, bounds: Rect) -> Option<Rect> {
 	let x1 = rect.x.max(bounds.x);
@@ -57,19 +48,14 @@ fn pane_content_area(rect: Rect, style: &SurfaceStyle) -> Rect {
 }
 
 fn render_palette_completion_menu(ed: &mut Editor, frame: &mut xeno_tui::Frame, area: Rect) {
-	let Some(active) = ed.overlay_interaction().active() else {
-		return;
-	};
-	if !matches!(active.controller.name(), "CommandPalette" | "FilePicker") {
+	if !matches!(
+		ed.overlay_kind(),
+		Some(OverlayControllerKind::CommandPalette | OverlayControllerKind::FilePicker)
+	) {
 		return;
 	}
 
-	let input_rect = active
-		.session
-		.panes
-		.iter()
-		.find(|pane| pane.role == WindowRole::Input)
-		.map(|pane| -> Rect { pane.rect.into() });
+	let input_rect = ed.overlay_pane_rect(WindowRole::Input).map(|rect| -> Rect { rect.into() });
 	let Some(input_rect) = input_rect else {
 		return;
 	};
@@ -96,30 +82,15 @@ fn render_palette_completion_menu(ed: &mut Editor, frame: &mut xeno_tui::Frame, 
 }
 
 pub fn render_utility_panel_overlay(ed: &mut Editor, frame: &mut xeno_tui::Frame, area: Rect, ctx: &RenderCtx) {
-	let panes: Vec<PaneRenderData> = ed
-		.overlay_interaction()
-		.active()
-		.map(|active| {
-			active
-				.session
-				.panes
-				.iter()
-				.map(|pane| PaneRenderData {
-					buffer: pane.buffer,
-					rect: pane.rect.into(),
-					style: pane.style.clone(),
-					gutter: pane.gutter,
-				})
-				.collect()
-		})
-		.unwrap_or_default();
+	let panes: Vec<OverlayPaneRenderTarget> = ed.overlay_pane_render_plan();
 
 	if panes.is_empty() {
 		return;
 	}
 
 	for pane in &panes {
-		let Some(rect) = clamp_rect(pane.rect, area) else {
+		let pane_rect: Rect = pane.rect.into();
+		let Some(rect) = clamp_rect(pane_rect, area) else {
 			continue;
 		};
 		let content_area = pane_content_area(rect, &pane.style);
@@ -154,7 +125,8 @@ pub fn render_utility_panel_overlay(ed: &mut Editor, frame: &mut xeno_tui::Frame
 	let language_loader = &ed.config().language_loader;
 
 	for pane in panes {
-		let Some(rect) = clamp_rect(pane.rect, area) else {
+		let pane_rect: Rect = pane.rect.into();
+		let Some(rect) = clamp_rect(pane_rect, area) else {
 			continue;
 		};
 

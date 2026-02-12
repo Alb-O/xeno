@@ -90,6 +90,34 @@ pub struct OverlayPane {
 	pub sticky: bool,
 }
 
+/// Data-only pane target consumed by frontend overlay renderers.
+#[derive(Debug, Clone)]
+pub struct OverlayPaneRenderTarget {
+	pub role: WindowRole,
+	pub buffer: ViewId,
+	pub rect: Rect,
+	pub content_rect: Rect,
+	pub style: SurfaceStyle,
+	pub gutter: GutterSelector,
+	pub dismiss_on_blur: bool,
+	pub sticky: bool,
+}
+
+impl From<&OverlayPane> for OverlayPaneRenderTarget {
+	fn from(pane: &OverlayPane) -> Self {
+		Self {
+			role: pane.role,
+			buffer: pane.buffer,
+			rect: pane.rect,
+			content_rect: pane.content_rect,
+			style: pane.style.clone(),
+			gutter: pane.gutter,
+			dismiss_on_blur: pane.dismiss_on_blur,
+			sticky: pane.sticky,
+		}
+	}
+}
+
 /// State and resources for an active modal interaction session.
 ///
 /// An `OverlaySession` is created by [`crate::overlay::OverlayHost`] and managed by [`crate::overlay::OverlayManager`].
@@ -147,6 +175,16 @@ pub enum StatusKind {
 }
 
 impl OverlaySession {
+	/// Returns a data-only pane plan for frontend rendering.
+	pub fn pane_render_plan(&self) -> Vec<OverlayPaneRenderTarget> {
+		self.panes.iter().map(OverlayPaneRenderTarget::from).collect()
+	}
+
+	/// Returns the resolved pane rect for a role when present.
+	pub fn pane_rect(&self, role: WindowRole) -> Option<Rect> {
+		self.panes.iter().find(|pane| pane.role == role).map(|pane| pane.rect)
+	}
+
 	/// Returns the current text content of the primary input buffer.
 	pub fn input_text(&self, ctx: &dyn OverlayContext) -> String {
 		ctx.buffer(self.input).map(|b| b.with_doc(|doc| doc.content().to_string())).unwrap_or_default()

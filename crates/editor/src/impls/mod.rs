@@ -627,6 +627,37 @@ impl Editor {
 		self.state.overlay_system.interaction()
 	}
 
+	/// Returns the active modal controller kind for frontend policy.
+	#[inline]
+	pub fn overlay_kind(&self) -> Option<crate::overlay::OverlayControllerKind> {
+		let active = self.state.overlay_system.interaction().active()?;
+		Some(crate::overlay::OverlayControllerKind::from_name(active.controller.name()))
+	}
+
+	/// Returns a data-only pane plan for the active modal overlay session.
+	#[inline]
+	pub fn overlay_pane_render_plan(&self) -> Vec<crate::overlay::OverlayPaneRenderTarget> {
+		self.state
+			.overlay_system
+			.interaction()
+			.active()
+			.map_or_else(Vec::new, |active| active.session.pane_render_plan())
+	}
+
+	/// Returns pane count for the active modal overlay session.
+	#[inline]
+	pub fn overlay_pane_count(&self) -> Option<usize> {
+		let active = self.state.overlay_system.interaction().active()?;
+		Some(active.session.panes.len())
+	}
+
+	/// Returns the active modal pane rect for a role when available.
+	#[inline]
+	pub fn overlay_pane_rect(&self, role: crate::overlay::WindowRole) -> Option<crate::geometry::Rect> {
+		let active = self.state.overlay_system.interaction().active()?;
+		active.session.pane_rect(role)
+	}
+
 	#[inline]
 	pub fn whichkey_desired_height(&self) -> Option<u16> {
 		crate::ui::utility_whichkey_desired_height(self)
@@ -638,15 +669,19 @@ impl Editor {
 	/// without depending on controller/session internals.
 	#[inline]
 	pub fn utility_overlay_height_hint(&self) -> Option<u16> {
-		let active = self.overlay_interaction().active()?;
-		if matches!(active.controller.name(), "CommandPalette" | "FilePicker") {
+		let kind = self.overlay_kind()?;
+
+		if matches!(
+			kind,
+			crate::overlay::OverlayControllerKind::CommandPalette | crate::overlay::OverlayControllerKind::FilePicker
+		) {
 			let menu_rows = self
 				.overlays()
 				.get::<crate::CompletionState>()
 				.filter(|state| state.active)
 				.map_or(0u16, |state| state.visible_range().len() as u16);
 			Some((1 + menu_rows).clamp(1, 10))
-		} else if active.session.panes.len() <= 1 {
+		} else if self.overlay_pane_count().unwrap_or(0) <= 1 {
 			Some(1)
 		} else {
 			Some(10)
@@ -656,11 +691,11 @@ impl Editor {
 	/// Returns the current overlay label for statusline display.
 	#[inline]
 	pub fn status_overlay_label(&self) -> Option<String> {
-		let active = self.overlay_interaction().active()?;
-		let label = match active.controller.name() {
-			"CommandPalette" => "Cmd",
-			"Search" => "Search",
-			other => other,
+		let label = match self.overlay_kind()? {
+			crate::overlay::OverlayControllerKind::CommandPalette => "Cmd",
+			crate::overlay::OverlayControllerKind::Search => "Search",
+			crate::overlay::OverlayControllerKind::FilePicker => "FilePicker",
+			crate::overlay::OverlayControllerKind::Other(other) => other,
 		};
 		Some(label.to_string())
 	}

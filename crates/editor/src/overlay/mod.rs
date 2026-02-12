@@ -199,6 +199,26 @@ pub enum CloseReason {
 	Forced,
 }
 
+/// Stable frontend-facing categorization for active modal controllers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OverlayControllerKind {
+	CommandPalette,
+	FilePicker,
+	Search,
+	Other(&'static str),
+}
+
+impl OverlayControllerKind {
+	pub fn from_name(name: &'static str) -> Self {
+		match name {
+			"CommandPalette" => Self::CommandPalette,
+			"FilePicker" => Self::FilePicker,
+			"Search" => Self::Search,
+			other => Self::Other(other),
+		}
+	}
+}
+
 /// Capability interface for overlay controllers.
 ///
 /// This intentionally exposes a limited surface area relative to the full
