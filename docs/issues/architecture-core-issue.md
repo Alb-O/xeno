@@ -147,9 +147,9 @@ Execution order chosen: seam-first option `2 -> 1 -> 3`.
 
 - Date of this snapshot: `2026-02-12`.
 - Branch at snapshot: `main`.
-- Last refactor commit in this chain: `7a723b14`.
+- Last refactor commit in this chain: `ae5f2ee8`.
 - Working tree at snapshot end: clean.
-- High-level state: runtime/composition ownership is in `xeno-editor-tui`; completion/snippet/status widget rendering and info-popup rect/style policy are frontend-owned, frontend info-popup rendering now consumes a data-only core render plan with render-only anchor types, core popup/status render entrypoints are removed, and obsolete LSP popup render shims are deleted.
+- High-level state: runtime/composition ownership is in `xeno-editor-tui`; completion/snippet/status widget rendering and info-popup rect/style policy are frontend-owned, frontend info-popup rendering now consumes a data-only core render plan with render-only anchor types and deterministic ordering, core popup/status render entrypoints are removed, and obsolete LSP popup render shims are deleted.
 
 ### Commit map (chronological)
 
@@ -179,6 +179,7 @@ Execution order chosen: seam-first option `2 -> 1 -> 3`.
 | `8ae20255` | info popup policy seam | moved info-popup rect/style helpers to frontend `layers/info_popups`; core keeps store/state only |
 | `21178590` | info popup render-plan seam | frontend info-popup layer now renders from `Editor::info_popup_render_plan` instead of direct `InfoPopupStore` access |
 | `7a723b14` | info popup render-anchor seam | render plan now exposes `InfoPopupRenderAnchor` so frontend no longer depends on core `PopupAnchor` semantics |
+| `ae5f2ee8` | info popup ordering seam | info-popup render plan ordering is now deterministic in core (`InfoPopupId` ascending) |
 
 Note: `f49956e5` was an intentional stepping stone and is now superseded by `5fd8f73b`.
 
@@ -203,6 +204,7 @@ Note: `f49956e5` was an intentional stepping stone and is now superseded by `5fd
 - [x] Info-popup rect/style helpers moved to frontend `layers/info_popups`; core `info_popup` now owns store/state only.
 - [x] Frontend info-popup layer now consumes data-only `Editor::info_popup_render_plan` targets.
 - [x] Info-popup render plan now uses render-only `InfoPopupRenderAnchor` mapping at the core/frontend boundary.
+- [x] Info-popup render plan ordering is deterministic in core (`InfoPopupId` ascending), so frontend no longer sorts.
 
 ### Current ownership map
 
