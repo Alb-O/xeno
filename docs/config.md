@@ -86,10 +86,18 @@ Example:
 
 - external calls
 - pipeline redirection
-- module/source/overlay loading commands
+- `source` and overlay loading commands
+- `use`/`export use` paths outside the config directory root
 - looping constructs (`for`, `while`, `loop`)
 - glob expressions
 - blocked process, filesystem, network, or plugin command names
+
+`use` and `export use` are allowed only for static `.nu` paths rooted under the directory containing `config.nu` (the Xeno config directory).
+
+- path must be a static literal (no interpolation)
+- path must be relative and cannot contain `..`
+- path must not contain glob wildcard characters
+- resolved canonical target must stay under the config root and point to a file
 
 Depending on syntax and parse stage, failures can surface as either:
 

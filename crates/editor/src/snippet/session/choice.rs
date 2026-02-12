@@ -3,9 +3,8 @@ use xeno_primitives::range::CharIdx;
 use xeno_primitives::transaction::{Bias, Change};
 use xeno_primitives::{EditOrigin, Transaction, UndoPolicy};
 
-use crate::impls::Editor;
-
 use super::{ActiveMode, SnippetChoiceOverlay, SnippetSessionState, selection_from_points};
+use crate::impls::Editor;
 
 impl Editor {
 	pub(super) fn open_snippet_choice_overlay(&mut self) -> bool {
@@ -182,9 +181,7 @@ impl Editor {
 			session.active_mode = ActiveMode::Insert;
 		}
 
-		if applied
-			&& let Some(source_idx) = active_idx
-		{
+		if applied && let Some(source_idx) = active_idx {
 			let _ = self.apply_transforms_for_source(source_idx);
 		}
 

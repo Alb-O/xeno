@@ -299,12 +299,7 @@ async fn choice_overlay_open_and_commit_replaces_all_occurrences() {
 
 	assert!(editor.handle_snippet_session_key(&key_enter()));
 	assert_eq!(buffer_text(&editor), "c c ");
-	assert!(
-		editor
-			.overlays()
-			.get::<SnippetChoiceOverlay>()
-			.is_some_and(|overlay| !overlay.active)
-	);
+	assert!(editor.overlays().get::<SnippetChoiceOverlay>().is_some_and(|overlay| !overlay.active));
 }
 
 #[tokio::test]

@@ -36,9 +36,7 @@ impl Editor {
 			.unwrap_or(1)
 			.min(target_width);
 
-		let items: Vec<ListItem> = overlay
-			.options
-			[window_start..window_end]
+		let items: Vec<ListItem> = overlay.options[window_start..window_end]
 			.iter()
 			.enumerate()
 			.map(|(idx, option)| {
@@ -105,12 +103,7 @@ impl Editor {
 			return;
 		}
 
-		let max_option_width = overlay
-			.options
-			.iter()
-			.map(|option| crate::render::cell_width(option))
-			.max()
-			.unwrap_or(1);
+		let max_option_width = overlay.options.iter().map(|option| crate::render::cell_width(option)).max().unwrap_or(1);
 		let width = (max_option_width + 3).max(12);
 		let height = overlay.options.len().clamp(1, 10);
 

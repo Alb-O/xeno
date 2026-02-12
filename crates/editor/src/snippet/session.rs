@@ -11,15 +11,8 @@ mod choice;
 mod helpers;
 
 use helpers::{
-	active_mode_for_tabstop,
-	compute_span,
-	has_overlapping_changes,
-	has_overlapping_ranges,
-	normalize_ranges,
-	primary_relative_range,
-	selection_from_points,
-	tabstop_order,
-	to_selection_range,
+	active_mode_for_tabstop, compute_span, has_overlapping_changes, has_overlapping_ranges, normalize_ranges, primary_relative_range, selection_from_points,
+	tabstop_order, to_selection_range,
 };
 
 #[cfg(feature = "lsp")]
@@ -606,9 +599,7 @@ impl Editor {
 			session.active_mode = ActiveMode::Insert;
 		}
 
-		if applied
-			&& let Some(source_idx) = active_idx
-		{
+		if applied && let Some(source_idx) = active_idx {
 			let _ = self.apply_transforms_for_source(source_idx);
 		}
 
@@ -677,9 +668,7 @@ impl Editor {
 			session.active_mode = ActiveMode::Insert;
 		}
 
-		if applied
-			&& let Some(source_idx) = active_idx
-		{
+		if applied && let Some(source_idx) = active_idx {
 			let _ = self.apply_transforms_for_source(source_idx);
 		}
 
