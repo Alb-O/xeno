@@ -2,9 +2,8 @@
 //!
 //! Core types used across the layout system.
 
-use crate::geometry::Rect;
-
 use crate::buffer::{SplitDirection, SplitPath};
+use crate::geometry::Rect;
 
 /// A generational layer identifier for safe layer references.
 ///
@@ -26,7 +25,7 @@ impl LayerId {
 	pub const BASE: LayerId = LayerId { idx: 0, generation: 0 };
 
 	/// Creates a new `LayerId`.
-	pub(crate) fn new(idx: u16, generation: u16) -> Self {
+	pub fn new(idx: u16, generation: u16) -> Self {
 		Self { idx, generation }
 	}
 

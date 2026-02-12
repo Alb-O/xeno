@@ -95,7 +95,7 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame) {
 				frame.render_widget(bg_block, area);
 			}
 			SurfaceOp::Document => {
-				ed.render_split_buffers(frame, doc_area, use_block_cursor && doc_focused, &ctx);
+				crate::document::render_split_buffers(ed, frame, doc_area, use_block_cursor && doc_focused, &ctx);
 			}
 			SurfaceOp::InfoPopups => crate::layers::info_popups::render(ed, frame, doc_area, &ctx),
 			SurfaceOp::Panels => {

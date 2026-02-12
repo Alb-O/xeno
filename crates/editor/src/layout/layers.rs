@@ -8,11 +8,10 @@
 //! Overlay layers use generational tracking to prevent stale references.
 //! See [`LayerId`] and [`LayerError`] for details.
 
-use crate::geometry::Rect;
-
 use super::manager::LayoutManager;
 use super::types::{LayerError, LayerId};
 use crate::buffer::{Layout, ViewId};
+use crate::geometry::Rect;
 
 impl LayoutManager {
 	/// Validates a layer ID and returns the slot index if valid.
@@ -161,14 +160,14 @@ impl LayoutManager {
 	///
 	/// This is a low-level accessor for iterating over layer slots.
 	/// Prefer using [`LayerId`] and [`Self::layer`] for most operations.
-	pub(crate) fn layer_slot_has_layout(&self, index: usize) -> bool {
+	pub fn layer_slot_has_layout(&self, index: usize) -> bool {
 		index < self.layers.len() && self.layers[index].layout.is_some()
 	}
 
 	/// Returns the generation for a layer slot at the given index.
 	///
 	/// Returns 0 if the index is out of bounds.
-	pub(crate) fn layer_slot_generation(&self, index: usize) -> u16 {
+	pub fn layer_slot_generation(&self, index: usize) -> u16 {
 		self.layers.get(index).map_or(0, |s| s.generation)
 	}
 

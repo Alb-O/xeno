@@ -2,6 +2,7 @@
 
 mod backend;
 mod compositor;
+mod document;
 mod layer;
 mod layers;
 mod scene;
