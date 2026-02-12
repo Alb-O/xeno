@@ -43,6 +43,15 @@ impl Editor {
 		result
 	}
 
+	pub fn open_file_picker(&mut self) -> bool {
+		let ctl = controllers::FilePickerOverlay::new(None);
+		let mut interaction: crate::overlay::OverlayManager = std::mem::take(&mut self.state.overlay_system.interaction);
+		let result = interaction.open(self, Box::new(ctl));
+		self.state.overlay_system.interaction = interaction;
+		self.flush_effects();
+		result
+	}
+
 	pub fn open_workspace_search(&mut self) -> bool {
 		let ctl = controllers::WorkspaceSearchOverlay::new();
 		let mut interaction: crate::overlay::OverlayManager = std::mem::take(&mut self.state.overlay_system.interaction);
@@ -90,6 +99,12 @@ impl Editor {
 	pub fn notify_overlay_event(&mut self, event: crate::overlay::LayerEvent) {
 		self.state.effects.push_layer_event(event);
 		self.flush_effects();
+	}
+
+	pub fn interaction_refresh_file_picker(&mut self) {
+		let mut interaction: crate::overlay::OverlayManager = std::mem::take(&mut self.state.overlay_system.interaction);
+		interaction.refresh_if(self, "FilePicker");
+		self.state.overlay_system.interaction = interaction;
 	}
 
 	/// Ensures the cursor is visible in the specified view, scrolling if necessary.

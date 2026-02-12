@@ -38,6 +38,16 @@ impl Editor {
 		self.ui_tick();
 		self.tick();
 
+		let fs_changed = self.state.filesystem.pump(crate::filesystem::PumpBudget {
+			max_index_msgs: 32,
+			max_search_msgs: 8,
+			max_time: Duration::from_millis(4),
+		});
+		if fs_changed {
+			self.interaction_refresh_file_picker();
+			self.frame_mut().needs_redraw = true;
+		}
+
 		let hook_budget = if matches!(self.mode(), Mode::Insert) {
 			HOOK_BUDGET_FAST
 		} else {

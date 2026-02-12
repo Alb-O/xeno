@@ -28,7 +28,7 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame) {
 
 	let mut ui = std::mem::take(&mut ed.state.ui);
 	let overlay_height = ed.state.overlay_system.interaction.active.as_ref().map(|active| {
-		if active.controller.name() == "CommandPalette" {
+		if matches!(active.controller.name(), "CommandPalette" | "FilePicker") {
 			let menu_rows = ed
 				.overlays()
 				.get::<crate::completion::CompletionState>()

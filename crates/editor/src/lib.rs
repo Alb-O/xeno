@@ -42,6 +42,8 @@ pub mod editor_ctx;
 pub mod effects;
 /// Execution gate for task ordering.
 pub mod execution_gate;
+/// Filesystem indexing and picker backend services.
+pub(crate) mod filesystem;
 /// Async hook execution runtime.
 pub mod hook_runtime;
 pub mod impls;

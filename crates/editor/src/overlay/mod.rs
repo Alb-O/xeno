@@ -203,6 +203,10 @@ pub trait OverlayContext {
 	fn record_command_usage(&mut self, canonical: &str);
 	/// Returns a snapshot of command usage state.
 	fn command_usage_snapshot(&self) -> crate::completion::CommandUsageSnapshot;
+	/// Returns filesystem indexing/search service state.
+	fn filesystem(&self) -> &crate::filesystem::FsService;
+	/// Returns mutable filesystem indexing/search service state.
+	fn filesystem_mut(&mut self) -> &mut crate::filesystem::FsService;
 
 	#[cfg(feature = "lsp")]
 	fn lsp_prepare_position_request(
@@ -304,6 +308,14 @@ impl OverlayContext for crate::impls::Editor {
 
 	fn command_usage_snapshot(&self) -> crate::completion::CommandUsageSnapshot {
 		self.state.command_usage.snapshot()
+	}
+
+	fn filesystem(&self) -> &crate::filesystem::FsService {
+		&self.state.filesystem
+	}
+
+	fn filesystem_mut(&mut self) -> &mut crate::filesystem::FsService {
+		&mut self.state.filesystem
 	}
 
 	#[cfg(feature = "lsp")]
@@ -496,6 +508,19 @@ impl OverlayManager {
 			return;
 		};
 		if active.session.input != view_id {
+			return;
+		}
+
+		let text = active.session.input_text(ed);
+		active.controller.on_input_changed(ed, &mut active.session, &text);
+	}
+
+	/// Triggers a controller refresh by replaying current input text.
+	pub fn refresh_if(&mut self, ed: &mut crate::impls::Editor, name: &'static str) {
+		let Some(active) = self.active.as_mut() else {
+			return;
+		};
+		if active.controller.name() != name {
 			return;
 		}
 

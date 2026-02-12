@@ -82,7 +82,7 @@ impl crate::impls::Editor {
 
 		match req {
 			OpenModal { kind, .. } => match *kind {
-				"command_palette" | "search" => Ok(()),
+				"command_palette" | "search" | "file_picker" => Ok(()),
 				_ => Err(CommandError::NotFound(format!("modal:{kind}"))),
 			},
 			CloseModal { .. } => Ok(()),
@@ -104,6 +104,9 @@ impl crate::impls::Editor {
 				match kind {
 					"command_palette" => {
 						self.open_command_palette();
+					}
+					"file_picker" => {
+						self.open_file_picker();
 					}
 					"search" => {
 						let reverse = args.first().is_some_and(|s| s == "true");

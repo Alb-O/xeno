@@ -28,6 +28,22 @@ editor_command!(
 	handler: cmd_registry
 );
 
+editor_command!(
+	files,
+	{
+		keys: &["fp"],
+		description: "Open file picker"
+	},
+	handler: cmd_files
+);
+
+fn cmd_files<'a>(ctx: &'a mut EditorCommandContext<'a>) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
+	Box::pin(async move {
+		ctx.editor.open_file_picker();
+		Ok(CommandOutcome::Ok)
+	})
+}
+
 fn cmd_stats<'a>(ctx: &'a mut EditorCommandContext<'a>) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
 		let stats = ctx.editor.stats_snapshot();
