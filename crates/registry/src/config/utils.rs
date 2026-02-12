@@ -279,7 +279,7 @@ fn parse_style_from_node(node: &kdl::KdlNode, ctx: &ParseContext) -> Result<crat
 }
 
 /// Sets a syntax style for the given scope name.
-fn set_syntax_style(styles: &mut crate::themes::SyntaxStyles, scope: &str, style: crate::themes::SyntaxStyle) {
+pub(crate) fn set_syntax_style(styles: &mut crate::themes::SyntaxStyles, scope: &str, style: crate::themes::SyntaxStyle) {
 	if style.fg.is_none() && style.bg.is_none() && style.modifiers.is_empty() {
 		return;
 	}

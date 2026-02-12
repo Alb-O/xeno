@@ -1,12 +1,15 @@
 //! Configuration types for Xeno.
 //!
 //! This module provides unified configuration structures that are format-neutral.
-//! KDL parsing is available behind the `config-kdl` feature flag.
+//! KDL and NUON parsing are available behind `config-kdl` and `config-nuon`.
 
 use std::collections::HashMap;
 
 #[cfg(feature = "config-kdl")]
 pub mod utils;
+
+#[cfg(feature = "config-nuon")]
+pub mod nuon;
 
 /// Configuration for a language-specific override.
 #[derive(Debug, Clone)]
@@ -69,6 +72,11 @@ pub enum ConfigError {
 	#[error("KDL parse error: {0}")]
 	Kdl(#[from] ::kdl::KdlError),
 
+	/// Error parsing NUON syntax.
+	#[cfg(feature = "config-nuon")]
+	#[error("NUON parse error: {0}")]
+	Nuon(String),
+
 	/// A required field is missing from the configuration.
 	#[error("missing required field: {0}")]
 	MissingField(String),
@@ -108,6 +116,21 @@ pub enum ConfigError {
 		/// The actual type name.
 		got: &'static str,
 	},
+
+	/// A field has an invalid type.
+	#[error("invalid type for field '{field}': expected {expected}, got {got}")]
+	InvalidType {
+		/// Field name.
+		field: String,
+		/// Expected value type.
+		expected: &'static str,
+		/// Actual value type.
+		got: String,
+	},
+
+	/// A field name was not recognized.
+	#[error("unknown field: {0}")]
+	UnknownField(String),
 }
 
 /// Result type for configuration operations.

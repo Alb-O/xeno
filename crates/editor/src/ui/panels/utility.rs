@@ -1,7 +1,6 @@
 use termina::event::KeyCode;
 use xeno_registry::actions::BindingMode;
 use xeno_registry::db::keymap_registry::ContinuationKind;
-use xeno_registry::get_keymap_registry;
 use xeno_registry::themes::Theme;
 use xeno_tui::Frame;
 use xeno_tui::layout::Rect;
@@ -31,7 +30,7 @@ impl UtilityPanel {
 			_ => return None,
 		};
 
-		let registry = get_keymap_registry();
+		let registry = ed.effective_keymap();
 		let continuations = registry.continuations_with_kind(binding_mode, pending_keys);
 		if continuations.is_empty() {
 			return None;

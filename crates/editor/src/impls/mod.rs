@@ -55,16 +55,20 @@ mod views;
 
 pub use core::EditorCore;
 use std::path::PathBuf;
-use std::sync::Once;
+use std::sync::{Arc, Once};
 
 pub use edit_executor::EditExecutor;
 pub use focus::{FocusReason, FocusTarget, PanelId};
 pub use navigation::Location;
+use parking_lot::Mutex;
 use xeno_language::LanguageLoader;
-use xeno_registry::HookEventData;
+use xeno_registry::actions::ActionEntry;
+use xeno_registry::core::index::Snapshot;
+use xeno_registry::db::keymap_registry::KeymapIndex;
 use xeno_registry::hooks::{HookContext, WindowKind, emit_sync_with as emit_hook_sync_with};
 use xeno_registry::options::OPTIONS;
 use xeno_registry::themes::THEMES;
+use xeno_registry::{ActionId, HookEventData};
 
 use crate::buffer::{Buffer, Layout, ViewId};
 pub use crate::command_queue::CommandQueue;
@@ -138,6 +142,12 @@ fn log_registry_summary_once() {
 /// - `focused_view` - Current focus (buffer ID)
 /// - `focus_buffer` - Focus by ID
 /// - `focus_next_view` / `focus_prev_view` - Cycle through views
+pub(crate) struct EffectiveKeymapCache {
+	pub(crate) snap: Arc<Snapshot<ActionEntry, ActionId>>,
+	pub(crate) overrides_hash: u64,
+	pub(crate) index: Arc<KeymapIndex>,
+}
+
 pub(crate) struct EditorState {
 	/// Core editing state: buffers, workspace, undo history.
 	///
@@ -170,6 +180,10 @@ pub(crate) struct EditorState {
 
 	/// Editor configuration (theme, languages, options).
 	pub(crate) config: Config,
+	/// User keybinding overrides loaded from config files.
+	pub(crate) key_overrides: Option<xeno_registry::config::UnresolvedKeys>,
+	/// Cached effective keymap index for the current actions snapshot and overrides.
+	pub(crate) keymap_cache: Mutex<Option<EffectiveKeymapCache>>,
 
 	/// Notification system.
 	pub(crate) notifications: xeno_tui::widgets::notifications::ToastManager,
@@ -323,6 +337,8 @@ impl Editor {
 				ui: UiManager::new(),
 				frame: FrameState::default(),
 				config: Config::new(language_loader),
+				key_overrides: None,
+				keymap_cache: Mutex::new(None),
 				notifications: xeno_tui::widgets::notifications::ToastManager::new()
 					.max_visible(Some(5))
 					.overflow(xeno_tui::widgets::notifications::Overflow::DropOldest),
@@ -515,6 +531,37 @@ impl Editor {
 		&mut self.state.config
 	}
 
+	/// Sets keybinding overrides and invalidates the effective keymap cache.
+	pub fn set_key_overrides(&mut self, keys: Option<xeno_registry::config::UnresolvedKeys>) {
+		self.state.key_overrides = keys;
+		self.state.keymap_cache.lock().take();
+	}
+
+	/// Returns the effective keymap for the current actions snapshot and overrides.
+	pub fn effective_keymap(&self) -> Arc<KeymapIndex> {
+		let snap = xeno_registry::db::ACTIONS.snapshot();
+		let overrides_hash = hash_unresolved_keys(self.state.key_overrides.as_ref());
+
+		{
+			let cache = self.state.keymap_cache.lock();
+			if let Some(cache) = cache.as_ref()
+				&& Arc::ptr_eq(&cache.snap, &snap)
+				&& cache.overrides_hash == overrides_hash
+			{
+				return Arc::clone(&cache.index);
+			}
+		}
+
+		let index = Arc::new(KeymapIndex::build_with_overrides(&snap, self.state.key_overrides.as_ref()));
+		let mut cache = self.state.keymap_cache.lock();
+		*cache = Some(EffectiveKeymapCache {
+			snap,
+			overrides_hash,
+			index: Arc::clone(&index),
+		});
+		index
+	}
+
 	#[inline]
 	pub fn notifications(&self) -> &xeno_tui::widgets::notifications::ToastManager {
 		&self.state.notifications
@@ -589,6 +636,30 @@ impl Editor {
 		}
 		dirty
 	}
+}
+
+fn hash_unresolved_keys(keys: Option<&xeno_registry::config::UnresolvedKeys>) -> u64 {
+	use std::hash::{Hash, Hasher};
+
+	let Some(keys) = keys else {
+		return 0;
+	};
+
+	let mut hasher = std::collections::hash_map::DefaultHasher::new();
+	let mut modes: Vec<_> = keys.modes.iter().collect();
+	modes.sort_by(|(a, _), (b, _)| a.cmp(b));
+
+	for (mode, bindings) in modes {
+		mode.hash(&mut hasher);
+		let mut entries: Vec<_> = bindings.iter().collect();
+		entries.sort_by(|(key_a, action_a), (key_b, action_b)| key_a.cmp(key_b).then_with(|| action_a.cmp(action_b)));
+		for (key, action) in entries {
+			key.hash(&mut hasher);
+			action.hash(&mut hasher);
+		}
+	}
+
+	hasher.finish()
 }
 
 /// Checks if a file is writable by attempting to open it for writing.

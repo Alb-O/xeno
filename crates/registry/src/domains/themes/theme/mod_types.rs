@@ -7,7 +7,10 @@ use crate::core::{RegistryMetaStatic, RegistrySource};
 /// Register runtime themes.
 pub fn register_runtime_themes(themes: Vec<LinkedThemeDef>) {
 	for theme in themes {
-		let _ = THEMES.register_owned(std::sync::Arc::new(theme));
+		let id = theme.meta.id.clone();
+		if let Err(error) = THEMES.register_owned(std::sync::Arc::new(theme)) {
+			tracing::warn!(theme = %id, error = %error, "failed to register runtime theme");
+		}
 	}
 }
 

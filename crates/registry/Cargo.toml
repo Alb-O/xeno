@@ -12,6 +12,7 @@ full = [
     "db",
     "keymap",
     "config-kdl",
+    "config-nuon",
     "actions-builtins",
     "commands-builtins",
     "motions-builtins",
@@ -65,6 +66,7 @@ languages-builtins = ["languages"]
 
 # Config KDL parsing
 config-kdl = ["dep:kdl", "themes", "options"]
+config-nuon = ["config-kdl", "dep:nu-engine", "dep:nu-protocol", "dep:nuon", "themes", "options"]
 
 # Contract enforcement
 registry-contracts = []
@@ -80,6 +82,9 @@ kdl = { workspace = true, optional = true }
 parking_lot.workspace = true
 paste.workspace = true
 postcard.workspace = true
+nu-protocol = { workspace = true, optional = true }
+nu-engine = { workspace = true, optional = true, features = ["os"] }
+nuon = { workspace = true, optional = true }
 regex = { workspace = true, optional = true }
 ropey = { workspace = true, optional = true }
 rustc-hash = { workspace = true }

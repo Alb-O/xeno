@@ -3,7 +3,7 @@
 use xeno_keymap_core::ToKeyMap;
 use xeno_primitives::key::{Key, KeyCode, Modifiers};
 use xeno_registry::actions::{BindingMode, keys as actions};
-use xeno_registry::{LookupResult, get_keymap_registry, resolve_action_key};
+use xeno_registry::{KeymapIndex, LookupResult, resolve_action_key};
 
 use super::InputHandler;
 use super::types::{KeyResult, Mode};
@@ -14,7 +14,7 @@ impl InputHandler {
 	/// Resolution order: escape → direct actions (backspace/delete) → shift
 	/// canonicalization → insert-mode bindings → normal-mode fallback for
 	/// navigation keys → literal character insertion.
-	pub(crate) fn handle_insert_key(&mut self, key: Key) -> KeyResult {
+	pub(crate) fn handle_insert_key(&mut self, key: Key, registry: &KeymapIndex) -> KeyResult {
 		if key.is_escape() {
 			self.mode = Mode::Normal;
 			self.reset_params();
@@ -50,8 +50,6 @@ impl InputHandler {
 		} else {
 			key
 		};
-
-		let registry = get_keymap_registry();
 
 		if let Ok(node) = key.to_keymap() {
 			if let LookupResult::Match(entry) = registry.lookup(BindingMode::Insert, std::slice::from_ref(&node)) {
