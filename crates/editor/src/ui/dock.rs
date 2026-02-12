@@ -5,7 +5,9 @@
 
 use std::collections::HashMap;
 
-use xeno_tui::layout::{Constraint, Direction, Layout, Rect};
+use xeno_tui::layout::{Constraint, Direction, Layout};
+
+use crate::geometry::Rect;
 
 /// Position where a panel can be docked in the editor layout.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -148,6 +150,7 @@ impl DockManager {
 	/// Returns a `DockLayout` containing the remaining document area and
 	/// the computed rectangles for each active panel.
 	pub fn compute_layout(&self, area: Rect) -> DockLayout {
+		let area_tui: xeno_tui::layout::Rect = area.into();
 		let mut layout = DockLayout {
 			doc_area: area,
 			..Default::default()
@@ -156,7 +159,7 @@ impl DockManager {
 		let has_top = self.slots.get(&DockSlot::Top).map(|s| !s.open.is_empty()).unwrap_or(false);
 		let has_bottom = self.slots.get(&DockSlot::Bottom).map(|s| !s.open.is_empty()).unwrap_or(false);
 
-		let mut vertical_parts = vec![area];
+		let mut vertical_parts = vec![area_tui];
 		let mut top_area = None;
 		let mut bottom_area = None;
 
@@ -181,7 +184,7 @@ impl DockManager {
 			vertical_parts = Layout::default()
 				.direction(Direction::Vertical)
 				.constraints([top_c, Constraint::Min(1), bottom_c])
-				.split(area)
+				.split(area_tui)
 				.to_vec();
 
 			if has_top {
@@ -190,7 +193,7 @@ impl DockManager {
 			if has_bottom {
 				bottom_area = Some(vertical_parts[2]);
 			}
-			layout.doc_area = vertical_parts[1];
+			layout.doc_area = vertical_parts[1].into();
 		}
 
 		let has_left = self.slots.get(&DockSlot::Left).map(|s| !s.open.is_empty()).unwrap_or(false);
@@ -217,25 +220,25 @@ impl DockManager {
 			let parts = Layout::default()
 				.direction(Direction::Horizontal)
 				.constraints([left_c, Constraint::Min(1), right_c])
-				.split(layout.doc_area);
+				.split(layout.doc_area.into());
 			if has_left && let Some(id) = self.active_in_slot(DockSlot::Left) {
-				layout.panel_areas.insert(id.to_string(), parts[0]);
+				layout.panel_areas.insert(id.to_string(), parts[0].into());
 			}
 			if has_right && let Some(id) = self.active_in_slot(DockSlot::Right) {
-				layout.panel_areas.insert(id.to_string(), parts[2]);
+				layout.panel_areas.insert(id.to_string(), parts[2].into());
 			}
-			layout.doc_area = parts[1];
+			layout.doc_area = parts[1].into();
 		}
 
 		if let Some(area) = top_area
 			&& let Some(id) = self.active_in_slot(DockSlot::Top)
 		{
-			layout.panel_areas.insert(id.to_string(), area);
+			layout.panel_areas.insert(id.to_string(), area.into());
 		}
 		if let Some(area) = bottom_area
 			&& let Some(id) = self.active_in_slot(DockSlot::Bottom)
 		{
-			layout.panel_areas.insert(id.to_string(), area);
+			layout.panel_areas.insert(id.to_string(), area.into());
 		}
 
 		layout
@@ -244,9 +247,8 @@ impl DockManager {
 
 #[cfg(test)]
 mod tests {
-	use xeno_tui::layout::Rect;
-
 	use super::{DockManager, DockSlot, SizeSpec};
+	use crate::geometry::Rect;
 
 	#[test]
 	fn bottom_slot_defaults_to_fixed_lines() {

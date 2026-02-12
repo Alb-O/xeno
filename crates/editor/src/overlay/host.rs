@@ -18,14 +18,14 @@ pub struct OverlayHost;
 impl OverlayHost {
 	fn overlay_container_rect(ed: &Editor, width: u16, height: u16) -> Rect {
 		let main_area = Rect::new(0, 0, width, height.saturating_sub(1));
-		let layout = ed.state.ui.compute_layout(main_area.into());
+		let layout = ed.state.ui.compute_layout(main_area);
 		let rect = layout
 			.panel_areas
 			.get(UTILITY_PANEL_ID)
 			.copied()
 			.filter(|rect| rect.width > 0 && rect.height > 0)
-			.unwrap_or(main_area.into());
-		rect.into()
+			.unwrap_or(main_area);
+		rect
 	}
 
 	pub fn reflow_session(ed: &mut Editor, controller: &dyn super::OverlayController, session: &mut OverlaySession) -> bool {

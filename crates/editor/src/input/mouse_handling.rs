@@ -23,7 +23,7 @@ impl Editor {
 		};
 
 		let mut ui = std::mem::take(&mut self.state.ui);
-		let dock_layout = ui.compute_layout(main_area.into());
+		let dock_layout = ui.compute_layout(main_area);
 
 		let hit_is_panel = dock_layout.panel_areas.values().any(|area| {
 			mouse.col() >= area.x
@@ -349,7 +349,7 @@ impl Editor {
 			width,
 			height: main_height,
 		};
-		self.state.ui.compute_layout(main_area.into()).doc_area.into()
+		self.state.ui.compute_layout(main_area).doc_area
 	}
 }
 

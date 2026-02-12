@@ -3,7 +3,8 @@
 use std::collections::HashMap;
 
 use xeno_primitives::{Key, MouseEvent};
-use xeno_tui::layout::Rect;
+
+use crate::geometry::Rect;
 
 use super::dock::{DockLayout, DockManager, DockSlot, SizeSpec};
 use super::focus::{FocusManager, UiFocus};

@@ -99,7 +99,7 @@ fn render_utility_panel(ed: &mut Editor, frame: &mut xeno_tui::Frame, area: Rect
 pub fn render_panels(editor: &mut Editor, frame: &mut xeno_tui::Frame, plan: &[PanelRenderTarget], ctx: &RenderCtx) -> Option<Position> {
 	for target in plan {
 		if target.id == UTILITY_PANEL_ID {
-			render_utility_panel(editor, frame, target.area, target.focused, ctx);
+			render_utility_panel(editor, frame, target.area.into(), target.focused, ctx);
 		}
 	}
 	None

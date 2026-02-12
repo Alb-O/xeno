@@ -44,10 +44,11 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame) {
 	ui.sync_utility_for_modal_overlay(overlay_height);
 	let whichkey_height = ed.whichkey_desired_height();
 	ui.sync_utility_for_whichkey(whichkey_height);
-	let dock_layout = ui.compute_layout(main_area);
+	let dock_layout = ui.compute_layout(main_area.into());
 	let panel_render_plan = ui.panel_render_plan(&dock_layout);
 	let doc_area = dock_layout.doc_area;
-	ed.viewport_mut().doc_area = Some(doc_area.into());
+	ed.viewport_mut().doc_area = Some(doc_area);
+	let doc_area_tui: xeno_tui::layout::Rect = doc_area.into();
 
 	let activate_separator_hover = {
 		let layout = ed.layout();
@@ -69,21 +70,21 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame) {
 	let ctx = ed.render_ctx();
 	let doc_focused = ui.focus.focused().is_editor();
 
-	let mut builder = SceneBuilder::new(area, main_area, doc_area, status_area);
+	let mut builder = SceneBuilder::new(area, main_area, doc_area_tui, status_area);
 	builder.push(SurfaceKind::Background, 0, area, SurfaceOp::Background, false);
-	builder.push(SurfaceKind::Document, 10, doc_area, SurfaceOp::Document, true);
+	builder.push(SurfaceKind::Document, 10, doc_area_tui, SurfaceOp::Document, true);
 	if crate::layers::info_popups::visible(ed) {
-		crate::layers::info_popups::push(&mut builder, doc_area);
+		crate::layers::info_popups::push(&mut builder, doc_area_tui);
 	}
 	builder.push(SurfaceKind::Panels, 30, main_area, SurfaceOp::Panels, false);
 	if crate::layers::completion::visible(ed) {
-		crate::layers::completion::push(&mut builder, doc_area);
+		crate::layers::completion::push(&mut builder, doc_area_tui);
 	}
 	if crate::layers::snippet_choice::visible(ed) {
-		crate::layers::snippet_choice::push(&mut builder, doc_area);
+		crate::layers::snippet_choice::push(&mut builder, doc_area_tui);
 	}
 	builder.push(SurfaceKind::StatusLine, 60, status_area, SurfaceOp::StatusLine, false);
-	builder.push(SurfaceKind::Notifications, 70, doc_area, SurfaceOp::Notifications, false);
+	builder.push(SurfaceKind::Notifications, 70, doc_area_tui, SurfaceOp::Notifications, false);
 	let scene = builder.finish();
 	let mut result = SceneRenderResult::default();
 
@@ -95,9 +96,9 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame) {
 				frame.render_widget(bg_block, area);
 			}
 			SurfaceOp::Document => {
-				crate::document::render_split_buffers(ed, frame, doc_area, use_block_cursor && doc_focused, &ctx);
+				crate::document::render_split_buffers(ed, frame, doc_area_tui, use_block_cursor && doc_focused, &ctx);
 			}
-			SurfaceOp::InfoPopups => crate::layers::info_popups::render(ed, frame, doc_area, &ctx),
+			SurfaceOp::InfoPopups => crate::layers::info_popups::render(ed, frame, doc_area_tui, &ctx),
 			SurfaceOp::Panels => {
 				if let Some(cursor_pos) = crate::panels::render_panels(ed, frame, &panel_render_plan, &ctx) {
 					result.cursor = Some(cursor_pos);
@@ -107,7 +108,7 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame) {
 			SurfaceOp::SnippetChoicePopup => crate::layers::snippet_choice::render(ed, frame),
 			SurfaceOp::StatusLine => crate::layers::status::render(ed, frame, status_area),
 			SurfaceOp::Notifications => {
-				let mut notifications_area = doc_area;
+				let mut notifications_area = doc_area_tui;
 				notifications_area.height = notifications_area.height.saturating_sub(1);
 				notifications_area.width = notifications_area.width.saturating_sub(1);
 				ed.notifications_mut().render(notifications_area.into(), frame.buffer_mut());
