@@ -7,7 +7,7 @@ use xeno_editor::render_api::RenderLine;
 use xeno_editor::runtime::{CursorStyle, LoopDirective, RuntimeEvent};
 use xeno_primitives::{Color as UiColor, Style as UiStyle};
 
-use super::{DEFAULT_POLL_INTERVAL, EventBridgeState, Snapshot, StartupOptions, build_snapshot, configure_linux_backend, map_event};
+use super::{DEFAULT_POLL_INTERVAL, EventBridgeState, InspectorRowRole, Snapshot, StartupOptions, build_snapshot, configure_linux_backend, map_event};
 
 const INSPECTOR_WIDTH_PX: f32 = 320.0;
 
@@ -126,8 +126,14 @@ impl IcedEditorApp {
 			}
 
 			inspector_rows = inspector_rows.push(text(format!("{}:", section.title)).font(Font::MONOSPACE));
-			for row_text in &section.rows {
-				inspector_rows = inspector_rows.push(text(row_text).font(Font::MONOSPACE).wrapping(Wrapping::None));
+			for row in &section.rows {
+				let mut row_text = text(&row.text).font(Font::MONOSPACE).wrapping(Wrapping::None);
+				row_text = match row.role {
+					InspectorRowRole::Normal => row_text,
+					InspectorRowRole::Meta => row_text.color(Color::from_rgb8(0x6A, 0x73, 0x7D)),
+					InspectorRowRole::Selected => row_text.color(Color::from_rgb8(0x0B, 0x72, 0x2B)),
+				};
+				inspector_rows = inspector_rows.push(row_text);
 			}
 		}
 

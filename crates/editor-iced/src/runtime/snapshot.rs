@@ -21,13 +21,50 @@ pub(crate) struct Snapshot {
 #[derive(Debug, Clone, Default)]
 pub(crate) struct InspectorSection {
 	pub(crate) title: String,
-	pub(crate) rows: Vec<String>,
+	pub(crate) rows: Vec<InspectorRow>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) enum InspectorRowRole {
+	#[default]
+	Normal,
+	Meta,
+	Selected,
+}
+
+#[derive(Debug, Clone, Default)]
+pub(crate) struct InspectorRow {
+	pub(crate) text: String,
+	pub(crate) role: InspectorRowRole,
+}
+
+impl InspectorRow {
+	fn meta(text: impl Into<String>) -> Self {
+		Self {
+			text: text.into(),
+			role: InspectorRowRole::Meta,
+		}
+	}
+
+	fn normal(text: impl Into<String>) -> Self {
+		Self {
+			text: text.into(),
+			role: InspectorRowRole::Normal,
+		}
+	}
+
+	fn selected(text: impl Into<String>) -> Self {
+		Self {
+			text: text.into(),
+			role: InspectorRowRole::Selected,
+		}
+	}
 }
 
 impl InspectorSection {
-	fn new(title: &str, mut rows: Vec<String>) -> Self {
+	fn new(title: &str, mut rows: Vec<InspectorRow>) -> Self {
 		if rows.is_empty() {
-			rows.push(String::from("-"));
+			rows.push(InspectorRow::meta("-"));
 		}
 
 		Self {
@@ -197,20 +234,20 @@ fn build_surface_summary_rows(
 	completion_plan: Option<&CompletionRenderPlan>,
 	snippet_plan: Option<&SnippetChoiceRenderPlan>,
 	info_popup_plan: &[InfoPopupRenderTarget],
-) -> Vec<String> {
+) -> Vec<InspectorRow> {
 	let mut rows = Vec::new();
 
 	match overlay_kind {
 		Some(kind) => {
-			rows.push(format!("overlay={kind:?} panes={}", overlay_panes.len()));
+			rows.push(InspectorRow::meta(format!("overlay={kind:?} panes={}", overlay_panes.len())));
 			for pane in overlay_panes.iter().take(3) {
-				rows.push(format!("  {:?} {}", pane.role, rect_brief(pane.rect)));
+				rows.push(InspectorRow::meta(format!("  {:?} {}", pane.role, rect_brief(pane.rect))));
 			}
 			if overlay_panes.len() > 3 {
-				rows.push(format!("  ... {} more panes", overlay_panes.len() - 3));
+				rows.push(InspectorRow::meta(format!("  ... {} more panes", overlay_panes.len() - 3)));
 			}
 		}
-		None => rows.push(String::from("overlay=none")),
+		None => rows.push(InspectorRow::meta("overlay=none")),
 	}
 
 	match completion_plan {
@@ -220,15 +257,15 @@ fn build_surface_summary_rows(
 				.iter()
 				.find(|item| item.selected)
 				.map_or_else(|| String::from("-"), |item| item.label.clone());
-			rows.push(format!(
+			rows.push(InspectorRow::meta(format!(
 				"completion=visible rows={} selected={} kind_col={} right_col={}",
 				plan.items.len(),
 				selected,
 				plan.show_kind,
 				plan.show_right
-			));
+			)));
 		}
-		None => rows.push(String::from("completion=hidden")),
+		None => rows.push(InspectorRow::meta("completion=hidden")),
 	}
 
 	match snippet_plan {
@@ -238,43 +275,49 @@ fn build_surface_summary_rows(
 				.iter()
 				.find(|item| item.selected)
 				.map_or_else(|| String::from("-"), |item| item.option.clone());
-			rows.push(format!("snippet_choice=visible rows={} selected={selected}", plan.items.len()));
+			rows.push(InspectorRow::meta(format!(
+				"snippet_choice=visible rows={} selected={selected}",
+				plan.items.len()
+			)));
 		}
-		None => rows.push(String::from("snippet_choice=hidden")),
+		None => rows.push(InspectorRow::meta("snippet_choice=hidden")),
 	}
 
 	if info_popup_plan.is_empty() {
-		rows.push(String::from("info_popups=none"));
+		rows.push(InspectorRow::meta("info_popups=none"));
 	} else {
-		rows.push(format!("info_popups={}", info_popup_plan.len()));
+		rows.push(InspectorRow::meta(format!("info_popups={}", info_popup_plan.len())));
 		for popup in info_popup_plan.iter().take(2) {
 			let anchor = match popup.anchor {
 				InfoPopupRenderAnchor::Center => String::from("center"),
 				InfoPopupRenderAnchor::Point { x, y } => format!("point@{x},{y}"),
 			};
-			rows.push(format!("  popup#{} {} {}x{}", popup.id.0, anchor, popup.content_width, popup.content_height));
+			rows.push(InspectorRow::meta(format!(
+				"  popup#{} {} {}x{}",
+				popup.id.0, anchor, popup.content_width, popup.content_height
+			)));
 		}
 		if info_popup_plan.len() > 2 {
-			rows.push(format!("  ... {} more popups", info_popup_plan.len() - 2));
+			rows.push(InspectorRow::meta(format!("  ... {} more popups", info_popup_plan.len() - 2)));
 		}
 	}
 
 	rows
 }
 
-fn build_completion_preview_rows(plan: Option<&CompletionRenderPlan>) -> Vec<String> {
+fn build_completion_preview_rows(plan: Option<&CompletionRenderPlan>) -> Vec<InspectorRow> {
 	let Some(plan) = plan else {
-		return vec![String::from("completion_rows=hidden")];
+		return vec![InspectorRow::meta("completion_rows=hidden")];
 	};
 
 	let mut rows = Vec::new();
-	rows.push(format!(
+	rows.push(InspectorRow::meta(format!(
 		"completion_rows={} target_width={} kind_col={} right_col={}",
 		plan.items.len(),
 		plan.target_row_width,
 		plan.show_kind,
 		plan.show_right
-	));
+	)));
 
 	for item in plan.items.iter().take(8) {
 		let marker = if item.selected { ">" } else { " " };
@@ -287,31 +330,44 @@ fn build_completion_preview_rows(plan: Option<&CompletionRenderPlan>) -> Vec<Str
 		{
 			row.push_str(&format!("  ({right})"));
 		}
-		rows.push(row);
+		if item.selected {
+			rows.push(InspectorRow::selected(row));
+		} else {
+			rows.push(InspectorRow::normal(row));
+		}
 	}
 
 	if plan.items.len() > 8 {
-		rows.push(format!("... {} more completion rows", plan.items.len() - 8));
+		rows.push(InspectorRow::meta(format!("... {} more completion rows", plan.items.len() - 8)));
 	}
 
 	rows
 }
 
-fn build_snippet_preview_rows(plan: Option<&SnippetChoiceRenderPlan>) -> Vec<String> {
+fn build_snippet_preview_rows(plan: Option<&SnippetChoiceRenderPlan>) -> Vec<InspectorRow> {
 	let Some(plan) = plan else {
-		return vec![String::from("snippet_rows=hidden")];
+		return vec![InspectorRow::meta("snippet_rows=hidden")];
 	};
 
 	let mut rows = Vec::new();
-	rows.push(format!("snippet_rows={} target_width={}", plan.items.len(), plan.target_row_width));
+	rows.push(InspectorRow::meta(format!(
+		"snippet_rows={} target_width={}",
+		plan.items.len(),
+		plan.target_row_width
+	)));
 
 	for item in plan.items.iter().take(8) {
 		let marker = if item.selected { ">" } else { " " };
-		rows.push(format!("{marker} {}", item.option));
+		let row = format!("{marker} {}", item.option);
+		if item.selected {
+			rows.push(InspectorRow::selected(row));
+		} else {
+			rows.push(InspectorRow::normal(row));
+		}
 	}
 
 	if plan.items.len() > 8 {
-		rows.push(format!("... {} more snippet rows", plan.items.len() - 8));
+		rows.push(InspectorRow::meta(format!("... {} more snippet rows", plan.items.len() - 8)));
 	}
 
 	rows
@@ -382,5 +438,36 @@ mod tests {
 		assert_eq!(rows[0].spans.len(), 2);
 		assert_eq!(rows[0].spans[0].content.as_ref(), " 1 ");
 		assert_eq!(rows[0].spans[1].content.as_ref(), "alpha");
+	}
+
+	#[test]
+	fn completion_preview_marks_selected_rows() {
+		let plan = CompletionRenderPlan {
+			max_label_width: 8,
+			target_row_width: 40,
+			show_kind: false,
+			show_right: false,
+			items: vec![
+				xeno_editor::completion::CompletionRenderItem {
+					label: String::from("alpha"),
+					kind: xeno_editor::completion::CompletionKind::Command,
+					right: None,
+					match_indices: None,
+					selected: false,
+					command_alias_match: false,
+				},
+				xeno_editor::completion::CompletionRenderItem {
+					label: String::from("beta"),
+					kind: xeno_editor::completion::CompletionKind::Command,
+					right: None,
+					match_indices: None,
+					selected: true,
+					command_alias_match: false,
+				},
+			],
+		};
+
+		let rows = build_completion_preview_rows(Some(&plan));
+		assert!(rows.iter().any(|row| row.role == InspectorRowRole::Selected && row.text.contains("beta")));
 	}
 }
