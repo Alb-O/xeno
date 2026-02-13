@@ -19,7 +19,7 @@ Investigate a minimal GUI frontend integration using `iced_wgpu` while preservin
   - window opened/resized
   - window focus/unfocus
 - Added minimal rendering bridge:
-  - renders focused buffer as a plain text snapshot
+  - renders focused buffer snapshot via core `BufferRenderContext` (shared render-policy path)
   - renders statusline using `statusline_render_plan`
   - consumes core completion/snippet/overlay/info-popup plans and shows a structured scene summary
   - intentionally does not reuse TUI widget/render backend

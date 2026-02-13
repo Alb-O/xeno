@@ -8,9 +8,10 @@ use xeno_editor::completion::CompletionRenderPlan;
 use xeno_editor::geometry::Rect;
 use xeno_editor::info_popup::{InfoPopupRenderAnchor, InfoPopupRenderTarget};
 use xeno_editor::overlay::{OverlayControllerKind, OverlayPaneRenderTarget};
+use xeno_editor::render_api::{BufferRenderContext, RenderLine};
 use xeno_editor::runtime::{CursorStyle, LoopDirective, RuntimeEvent};
 use xeno_editor::snippet::SnippetChoiceRenderPlan;
-use xeno_editor::{Buffer, Editor};
+use xeno_editor::{Buffer, Editor, ViewId};
 use xeno_primitives::{Key, KeyCode, Modifiers};
 
 const DEFAULT_POLL_INTERVAL: Duration = Duration::from_millis(16);
@@ -212,10 +213,12 @@ impl IcedEditorApp {
 		let info_popup_plan = self.editor.info_popup_render_plan();
 		let surface_summary = build_surface_summary(overlay_kind, &overlay_panes, completion_plan.as_ref(), snippet_plan.as_ref(), &info_popup_plan);
 
-		let (title, body) = self.editor.get_buffer(focused).map_or_else(
-			|| (String::from("xeno-iced"), String::from("no focused buffer")),
-			|buffer| snapshot_for_buffer(buffer),
-		);
+		let (title, body) = snapshot_for_focused_view(&mut self.editor, focused).unwrap_or_else(|| {
+			self.editor.get_buffer(focused).map_or_else(
+				|| (String::from("xeno-iced"), String::from("no focused buffer")),
+				|buffer| snapshot_for_buffer(buffer),
+			)
+		});
 
 		self.snapshot = Snapshot {
 			title,
@@ -283,6 +286,61 @@ fn snapshot_for_buffer(buffer: &Buffer) -> (String, String) {
 	});
 
 	(title, body)
+}
+
+fn snapshot_for_focused_view(editor: &mut Editor, focused: ViewId) -> Option<(String, String)> {
+	let title = editor
+		.get_buffer(focused)?
+		.path()
+		.as_ref()
+		.map(|path| format!("xeno-iced - {}", path.display()))
+		.unwrap_or_else(|| String::from("xeno-iced - [scratch]"));
+
+	let area = editor.view_area(focused);
+	if area.width < 2 || area.height == 0 {
+		return None;
+	}
+
+	let render_ctx = editor.render_ctx();
+	let mut cache = std::mem::take(editor.render_cache_mut());
+	let tab_width = editor.tab_width_for(focused);
+	let cursorline = editor.cursorline_for(focused);
+
+	let body = editor.get_buffer(focused).map_or_else(
+		|| String::from("no focused buffer"),
+		|buffer| {
+			let buffer_ctx = BufferRenderContext {
+				theme: &render_ctx.theme,
+				language_loader: &editor.config().language_loader,
+				syntax_manager: editor.syntax_manager(),
+				diagnostics: render_ctx.lsp.diagnostics_for(focused),
+				diagnostic_ranges: render_ctx.lsp.diagnostic_ranges_for(focused),
+			};
+
+			let result = buffer_ctx.render_buffer(buffer, area, true, true, tab_width, cursorline, &mut cache);
+			join_render_lines(result.gutter, result.text)
+		},
+	);
+
+	*editor.render_cache_mut() = cache;
+	Some((title, body))
+}
+
+fn join_render_lines(gutter: Vec<RenderLine<'static>>, text: Vec<RenderLine<'static>>) -> String {
+	let row_count = gutter.len().max(text.len());
+	let mut body = String::new();
+
+	for idx in 0..row_count {
+		let gutter_line = gutter.get(idx).map_or_else(String::new, render_line_to_text);
+		let text_line = text.get(idx).map_or_else(String::new, render_line_to_text);
+		let _ = writeln!(&mut body, "{gutter_line}{text_line}");
+	}
+
+	body
+}
+
+fn render_line_to_text(line: &RenderLine<'_>) -> String {
+	line.spans.iter().map(|span| span.content.as_ref()).collect()
 }
 
 fn build_surface_summary(

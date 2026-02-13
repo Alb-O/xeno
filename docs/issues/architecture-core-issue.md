@@ -36,6 +36,7 @@ This document tracks the architecture split between `xeno-editor` (core engine) 
 - `xeno-term` startup config loading/application also routes through `xeno-editor`, and `xeno-term` no longer imports `xeno_registry` directly.
 - Runtime resize contract is now explicitly text-grid based (`cols`/`rows`) with frontend-side pixel-to-grid adaptation for GUI frontends.
 - `xeno-editor-iced` now consumes core completion/snippet/overlay/info-popup plans (rendered as a structured scene summary while native GUI widgets are still in progress).
+- `xeno-editor-iced` document snapshot path now runs through core `BufferRenderContext` instead of directly reading buffer text.
 - Legacy compatibility paths/shims removed:
   - focus compatibility helper path removed in favor of unified `set_focus` flow.
   - unused overlay compatibility constructor argument removed.
