@@ -1,6 +1,6 @@
 # Architecture core issue: current state summary
 
-Date: 2026-02-12
+Date: 2026-02-13
 
 ## Purpose
 
@@ -47,11 +47,13 @@ This document tracks the architecture split between `xeno-editor` (core engine) 
 
 - `xeno-editor` supports headless builds (`--no-default-features`).
 - `tui` remains an optional feature on `xeno-editor` (default-enabled), with frontend runtime in `xeno-editor-tui`.
+- `xeno-editor-iced` exists as an experimental frontend crate behind `iced-wgpu` feature for GUI runtime probing without changing core ownership boundaries.
 
 ## Remaining work
 
 - Decide whether panel registration/state should remain in core `UiManager` or move fully to frontend ownership.
 - Finish backend-neutral text/style seam tightening (`Style`/`Line`/`Span` render boundary) for future GUI adapters.
+- Port the experimental iced frontend from text snapshot rendering to full plan/render adapters shared with TUI policy outputs.
 - Add replay/snapshot coverage for plan builders to guard cross-frontend behavior consistency.
 - Keep pruning legacy/compat patterns as they appear during refactors.
 

@@ -102,7 +102,7 @@ Create `xeno-editor-gui` with:
 - plan renderer for GUI toolkit
 - no duplicated behavior policy from TUI
 
-## Progress snapshot (2026-02-12)
+## Progress snapshot (2026-02-13)
 
 Completed:
 
@@ -116,6 +116,10 @@ Completed:
 - TUI render-line adaptation centralized via a single adapter helper (`RenderLine` -> toolkit `Line`)
 - `xeno-editor-tui` no longer imports `xeno_registry` directly (hook lifecycle and notification payload mapping now route through `xeno-editor`)
 - `xeno-term` no longer imports `xeno_registry` directly (startup config load/apply now routes through `xeno-editor`)
+- experimental `xeno-editor-iced` frontend crate added behind `iced-wgpu` feature:
+  - maps iced keyboard/window events into core `RuntimeEvent`
+  - runs core runtime loop (`pump`/`on_event`) through a local tokio runtime bridge
+  - renders a minimal read-only snapshot from focused buffer + statusline plan
 
 Current focus:
 
@@ -125,7 +129,8 @@ Current focus:
 Next:
 
 - add plan-builder snapshot/replay tests for cross-frontend behavior consistency
-- bootstrap `xeno-editor-gui` crate against existing plan APIs once Phase 3 boundary is stable
+- replace `xeno-editor-iced` snapshot rendering with full core render-plan adapters
+- extend iced event bridge (mouse, clipboard paste, IME) and align geometry semantics for non-terminal surfaces
 
 ## Guardrails (to avoid drift)
 
