@@ -1,4 +1,4 @@
-use super::{exceeds_typo_budget, match_too_large};
+use crate::limits::{exceeds_typo_budget, match_too_large};
 use crate::smith_waterman::greedy::match_greedy;
 use crate::smith_waterman::reference::{char_indices_from_score_matrix, smith_waterman, typos_from_score_matrix};
 use crate::{Config, MatchIndices};

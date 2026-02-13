@@ -44,7 +44,19 @@ pub(crate) fn smith_waterman_inner<const L: usize>(
 	let mut up_score_simd = Simd::splat(0);
 	let mut up_gap_penalty_mask = Mask::splat(true);
 	let mut left_gap_penalty_mask = Mask::splat(true);
-	let mut delimiter_bonus_enabled_mask = Mask::splat(false);
+	let mut delimiter_bonus_enabled_mask = if start == 0 {
+		Mask::splat(false)
+	} else {
+		// Delimiter bonus is enabled after any non-delimiter has appeared in the row.
+		// In banded runs (start > 0), seed from the skipped prefix so row-local
+		// bonus behavior matches the full-width traversal.
+		let mut seen_non_delimiter_mask = Mask::splat(false);
+		let seed_end = start.min(haystack_delimiter_mask.len());
+		for &is_delimiter_mask in &haystack_delimiter_mask[..seed_end] {
+			seen_non_delimiter_mask |= is_delimiter_mask.not();
+		}
+		seen_non_delimiter_mask
+	};
 
 	for haystack_idx in start..end {
 		let haystack_char = haystack[haystack_idx];
@@ -215,15 +227,12 @@ where
 		curr_typo_col.fill(zero);
 		curr_end_zero_col.fill(zero);
 
-		let haystack_start = needle_idx.saturating_sub(max_typos as usize);
-		let haystack_end = (W + needle_idx + (max_typos as usize)).saturating_sub(needle.len()).min(W);
-
 		let needle_char = NeedleChar::new(needle[needle_idx] as u16);
 		let prev_col = if needle_idx == 0 { None } else { Some(prev_score_col.as_slice()) };
 
 		smith_waterman_inner(
-			haystack_start,
-			haystack_end,
+			0,
+			W,
 			needle_char,
 			&haystacks,
 			haystack_delimiter_mask.as_slice(),
@@ -237,7 +246,7 @@ where
 		curr_typo_col[0] = Simd::splat(needle_idx.min(u16::MAX as usize) as u16);
 		curr_end_zero_col[0] = row0_score.simd_eq(zero).select(one, zero);
 
-		for haystack_idx in haystack_start.max(1)..haystack_end {
+		for haystack_idx in 1..W {
 			let score = curr_score_col[haystack_idx];
 			let score_is_zero_mask = score.simd_eq(zero);
 

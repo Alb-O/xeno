@@ -4,11 +4,22 @@
 
 use crate::Scoring;
 
-const DELIMITERS: [u8; 7] = [b' ', b'/', b'.', b',', b'_', b'-', b':'];
+#[inline]
+fn delimiter_table(scoring: &Scoring) -> [bool; 256] {
+	let mut table = [false; 256];
+	for delimiter in scoring.delimiters.bytes() {
+		table[delimiter.to_ascii_lowercase() as usize] = true;
+	}
+	table
+}
 
 pub fn match_greedy<S1: AsRef<str>, S2: AsRef<str>>(needle: S1, haystack: S2, scoring: &Scoring) -> (u16, Vec<usize>, bool) {
 	let needle = needle.as_ref().as_bytes();
 	let haystack = haystack.as_ref().as_bytes();
+	if needle.is_empty() || haystack.is_empty() {
+		return (0, vec![], haystack == needle);
+	}
+	let delimiter_table = delimiter_table(scoring);
 
 	let mut score = 0;
 	let mut indices = vec![];
@@ -26,9 +37,10 @@ pub fn match_greedy<S1: AsRef<str>, S2: AsRef<str>>(needle: S1, haystack: S2, sc
 		let needle_upper_char = if needle_is_lower { needle_char - 32 } else { needle_char };
 
 		let haystack_start_idx = haystack_idx;
-		while haystack_idx <= (haystack.len() - needle.len() + needle_idx) {
+		let remaining_needle = needle.len() - needle_idx;
+		while haystack_idx < haystack.len() && (haystack.len() - haystack_idx) >= remaining_needle {
 			let haystack_char = haystack[haystack_idx];
-			let haystack_is_delimiter = DELIMITERS.contains(&haystack_char);
+			let haystack_is_delimiter = delimiter_table[haystack_char.to_ascii_lowercase() as usize];
 			let haystack_is_upper = (65..=90).contains(&haystack_char);
 			let haystack_is_lower = (97..=122).contains(&haystack_char);
 
@@ -62,6 +74,8 @@ pub fn match_greedy<S1: AsRef<str>, S2: AsRef<str>>(needle: S1, haystack: S2, sc
 			}
 			if haystack_idx == 0 {
 				score += scoring.prefix_bonus;
+			} else if needle_idx == 0 && haystack_idx == 1 && !haystack[0].is_ascii_alphabetic() {
+				score += scoring.offset_prefix_bonus;
 			}
 			if previous_haystack_is_delimiter && !haystack_is_delimiter {
 				score += scoring.delimiter_bonus;
@@ -95,7 +109,11 @@ mod tests {
 	const CHAR_SCORE: u16 = MATCH_SCORE + MATCHING_CASE_BONUS;
 
 	fn get_score(needle: &str, haystack: &str) -> u16 {
-		match_greedy(needle, haystack, &Scoring::default()).0
+		get_score_with_scoring(needle, haystack, &Scoring::default())
+	}
+
+	fn get_score_with_scoring(needle: &str, haystack: &str, scoring: &Scoring) -> u16 {
+		match_greedy(needle, haystack, scoring).0
 	}
 
 	#[test]
@@ -119,6 +137,7 @@ mod tests {
 		assert_eq!(get_score("a", "abc"), CHAR_SCORE + PREFIX_BONUS);
 		assert_eq!(get_score("a", "aabc"), CHAR_SCORE + PREFIX_BONUS);
 		assert_eq!(get_score("a", "babc"), CHAR_SCORE);
+		assert_eq!(get_score("a", "-a"), CHAR_SCORE + OFFSET_PREFIX_BONUS);
 	}
 
 	#[test]
@@ -134,7 +153,7 @@ mod tests {
 		assert_eq!(get_score("a", "a-b-c"), CHAR_SCORE + PREFIX_BONUS);
 		assert_eq!(get_score("b", "a--b"), CHAR_SCORE + DELIMITER_BONUS);
 		assert_eq!(get_score("c", "a--bc"), CHAR_SCORE);
-		assert_eq!(get_score("a", "-a--bc"), CHAR_SCORE);
+		assert_eq!(get_score("a", "-a--bc"), CHAR_SCORE + OFFSET_PREFIX_BONUS);
 	}
 
 	#[test]
@@ -142,6 +161,20 @@ mod tests {
 		assert_eq!(get_score("-", "a-bc"), CHAR_SCORE);
 		assert_eq!(get_score("-", "a--bc"), CHAR_SCORE);
 		assert!(get_score("a_b", "a_bb") > get_score("a_b", "a__b"));
+	}
+
+	#[test]
+	fn test_custom_delimiter_set_changes_bonus_behavior() {
+		let mut scoring = Scoring::default();
+		scoring.delimiters = "@".to_string();
+
+		assert_eq!(get_score_with_scoring("b", "a@b", &scoring), CHAR_SCORE + DELIMITER_BONUS);
+		assert_eq!(get_score_with_scoring("b", "a_b", &scoring), CHAR_SCORE);
+	}
+
+	#[test]
+	fn test_shorter_haystack_than_needle_is_safe() {
+		assert_eq!(get_score("abcdef", "abc"), 0);
 	}
 
 	#[test]

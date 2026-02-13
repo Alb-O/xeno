@@ -1,10 +1,8 @@
 use std::marker::PhantomData;
 
 use super::Appendable;
-use crate::one_shot::{exceeds_typo_budget, typo_sw_too_large};
+use crate::kernels::fixed_width::emit_fixed_width_matches;
 use crate::simd_lanes::{LaneCount, SupportedLaneCount};
-use crate::smith_waterman::greedy::match_greedy;
-use crate::smith_waterman::simd::{smith_waterman_scores, smith_waterman_scores_typos};
 use crate::{Config, Match, Scoring};
 
 #[derive(Debug)]
@@ -78,55 +76,9 @@ impl<'a, const W: usize, M: Appendable<Match>> FixedWidthBucket<'a, W, M> {
 		}
 
 		let haystacks: &[&str; L] = self.haystacks.get(0..L).unwrap().try_into().unwrap();
+		let idxs: &[u32; L] = self.idxs.get(0..L).unwrap().try_into().unwrap();
 
-		if self.max_typos.is_none() {
-			let (scores, exact_matches) = smith_waterman_scores::<W, L>(self.needle, haystacks, &self.scoring);
-			for idx in 0..self.length {
-				let score_idx = self.idxs[idx];
-				matches.append(Match {
-					index: score_idx,
-					score: scores[idx],
-					exact: exact_matches[idx],
-				});
-			}
-			self.length = 0;
-			return;
-		}
-
-		let max_typos = self.max_typos.expect("max typos exists in typo path");
-		if typo_sw_too_large(self.needle, W) {
-			for idx in 0..self.length {
-				let haystack = self.haystacks[idx];
-				let (score, indices, exact) = match_greedy(self.needle, haystack, &self.scoring);
-				if exceeds_typo_budget(Some(max_typos), self.needle, indices.len()) {
-					continue;
-				}
-
-				let score_idx = self.idxs[idx];
-				matches.append(Match {
-					index: score_idx,
-					score,
-					exact,
-				});
-			}
-			self.length = 0;
-			return;
-		}
-
-		let (scores, typos, exact_matches) = smith_waterman_scores_typos::<W, L>(self.needle, haystacks, max_typos, &self.scoring);
-
-		for idx in 0..self.length {
-			if typos[idx] > max_typos {
-				continue;
-			}
-
-			let score_idx = self.idxs[idx];
-			matches.append(Match {
-				index: score_idx,
-				score: scores[idx],
-				exact: exact_matches[idx],
-			});
-		}
+		emit_fixed_width_matches::<W, L>(self.needle, haystacks, idxs, self.length, self.max_typos, &self.scoring, |m| matches.append(m));
 
 		self.length = 0;
 	}

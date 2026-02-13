@@ -1,15 +1,10 @@
 use core::simd::Simd;
 use core::simd::cmp::SimdOrd;
 
-use crate::one_shot::{exceeds_typo_budget, typo_sw_too_large};
+use crate::kernels::fixed_width::emit_fixed_width_matches;
 use crate::simd_lanes::{LaneCount, SupportedLaneCount};
-use crate::smith_waterman::greedy::match_greedy;
-use crate::smith_waterman::simd::{HaystackChar, NeedleChar, delimiter_masks, smith_waterman_inner, smith_waterman_scores_typos};
+use crate::smith_waterman::simd::{HaystackChar, NeedleChar, delimiter_masks, smith_waterman_inner};
 use crate::{Match, Scoring};
-
-pub(crate) trait IncrementalBucketTrait {
-	fn process(&mut self, prefix_to_keep: usize, needle: &str, matches: &mut Vec<Match>, max_typos: Option<u16>, scoring: &Scoring);
-}
 
 pub(crate) struct IncrementalBucket<'a, const W: usize, const L: usize>
 where
@@ -37,43 +32,17 @@ where
 	}
 }
 
-impl<'a, const W: usize, const L: usize> IncrementalBucketTrait for IncrementalBucket<'a, W, L>
+impl<'a, const W: usize, const L: usize> IncrementalBucket<'a, W, L>
 where
 	LaneCount<L>: SupportedLaneCount,
 {
 	#[inline]
-	fn process(&mut self, prefix_to_keep: usize, needle: &str, matches: &mut Vec<Match>, max_typos: Option<u16>, scoring: &Scoring) {
+	pub fn process(&mut self, prefix_to_keep: usize, needle: &str, matches: &mut Vec<Match>, max_typos: Option<u16>, scoring: &Scoring) {
 		if let Some(max_typos) = max_typos {
 			self.score_matrix.clear();
-			if typo_sw_too_large(needle, W) {
-				for idx in 0..self.length {
-					let (score, indices, exact) = match_greedy(needle, self.haystack_strs[idx], scoring);
-					if exceeds_typo_budget(Some(max_typos), needle, indices.len()) {
-						continue;
-					}
-
-					matches.push(Match {
-						index: self.idxs[idx],
-						score,
-						exact,
-					});
-				}
-				return;
-			}
-
-			let (scores, typos, exact_matches) = smith_waterman_scores_typos::<W, L>(needle, &self.haystack_strs, max_typos, scoring);
-
-			for idx in 0..self.length {
-				if typos[idx] > max_typos {
-					continue;
-				}
-
-				matches.push(Match {
-					index: self.idxs[idx],
-					score: scores[idx],
-					exact: exact_matches[idx],
-				});
-			}
+			emit_fixed_width_matches::<W, L>(needle, &self.haystack_strs, &self.idxs, self.length, Some(max_typos), scoring, |m| {
+				matches.push(m)
+			});
 			return;
 		}
 

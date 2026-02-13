@@ -14,8 +14,36 @@ pub(crate) mod simd_lanes {
 	pub use core::simd::{LaneCount, SupportedLaneCount};
 }
 
+macro_rules! for_each_bucket_spec {
+	($m:ident) => {
+		$m! {
+			(b4, 4, 0..=4),
+			(b8, 8, 5..=8),
+			(b12, 12, 9..=12),
+			(b16, 16, 13..=16),
+			(b20, 20, 17..=20),
+			(b24, 24, 21..=24),
+			(b32, 32, 25..=32),
+			(b48, 48, 33..=48),
+			(b64, 64, 49..=64),
+			(b96, 96, 65..=96),
+			(b128, 128, 97..=128),
+			(b160, 160, 129..=160),
+			(b192, 192, 161..=192),
+			(b224, 224, 193..=224),
+			(b256, 256, 225..=256),
+			(b384, 384, 257..=384),
+			(b512, 512, 385..=512),
+		}
+	};
+}
+pub(crate) use for_each_bucket_spec;
+
 mod r#const;
+mod engine;
 mod incremental;
+mod kernels;
+mod limits;
 mod one_shot;
 pub mod prefilter;
 pub mod smith_waterman;
