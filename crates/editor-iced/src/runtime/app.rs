@@ -33,13 +33,18 @@ pub(crate) struct IcedEditorApp {
 #[derive(Debug, Clone, Copy)]
 struct LayoutConfig {
 	inspector_width_px: f32,
+	show_inspector: bool,
 }
 
 impl LayoutConfig {
 	fn from_env() -> Self {
 		let inspector_width_px = parse_inspector_width(std::env::var("XENO_ICED_INSPECTOR_WIDTH_PX").ok().as_deref());
+		let show_inspector = parse_show_inspector(std::env::var("XENO_ICED_SHOW_INSPECTOR").ok().as_deref());
 
-		Self { inspector_width_px }
+		Self {
+			inspector_width_px,
+			show_inspector,
+		}
 	}
 }
 
@@ -48,6 +53,14 @@ fn parse_inspector_width(value: Option<&str>) -> f32 {
 		.and_then(|value| value.parse::<f32>().ok())
 		.filter(|width| width.is_finite() && *width >= MIN_INSPECTOR_WIDTH_PX)
 		.unwrap_or(DEFAULT_INSPECTOR_WIDTH_PX)
+}
+
+fn parse_show_inspector(value: Option<&str>) -> bool {
+	let Some(value) = value else {
+		return true;
+	};
+
+	!matches!(value.trim().to_ascii_lowercase().as_str(), "0" | "false" | "no" | "off")
 }
 
 impl IcedEditorApp {
@@ -166,7 +179,11 @@ impl IcedEditorApp {
 			.width(Fill);
 		let inspector = container(inspector_scroll).width(self.layout.inspector_width_px).height(Fill).clip(true);
 
-		let panes = row![document, rule::vertical(1), inspector].spacing(8).height(Fill);
+		let panes = if self.layout.show_inspector {
+			row![document, rule::vertical(1), inspector].spacing(8).height(Fill)
+		} else {
+			row![document].height(Fill)
+		};
 		let statusline = text(&self.snapshot.statusline).font(Font::MONOSPACE);
 
 		let content = column![header_block, panes, statusline].spacing(8).padding(12).width(Fill).height(Fill);
@@ -384,5 +401,16 @@ mod tests {
 		assert_eq!(parse_inspector_width(Some("500")), 500.0);
 		assert_eq!(parse_inspector_width(Some("159.0")), DEFAULT_INSPECTOR_WIDTH_PX);
 		assert_eq!(parse_inspector_width(Some("abc")), DEFAULT_INSPECTOR_WIDTH_PX);
+	}
+
+	#[test]
+	fn parse_show_inspector_understands_common_false_values() {
+		assert!(parse_show_inspector(None));
+		assert!(parse_show_inspector(Some("1")));
+		assert!(parse_show_inspector(Some("true")));
+		assert!(!parse_show_inspector(Some("0")));
+		assert!(!parse_show_inspector(Some("false")));
+		assert!(!parse_show_inspector(Some("No")));
+		assert!(!parse_show_inspector(Some("off")));
 	}
 }
