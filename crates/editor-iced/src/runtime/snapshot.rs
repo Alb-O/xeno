@@ -4,6 +4,7 @@ use xeno_editor::info_popup::{InfoPopupRenderAnchor, InfoPopupRenderTarget};
 use xeno_editor::overlay::{OverlayControllerKind, OverlayPaneRenderTarget};
 use xeno_editor::render_api::{BufferRenderContext, RenderLine, RenderSpan};
 use xeno_editor::snippet::SnippetChoiceRenderPlan;
+use xeno_editor::ui::StatuslineRenderSegment;
 use xeno_editor::{Buffer, Editor, ViewId};
 use xeno_primitives::Style;
 
@@ -13,7 +14,7 @@ const MAX_VISIBLE_BUFFER_LINES: usize = 500;
 pub(crate) struct Snapshot {
 	pub(crate) title: String,
 	pub(crate) header: String,
-	pub(crate) statusline: String,
+	pub(crate) statusline_segments: Vec<StatuslineRenderSegment>,
 	pub(crate) document_lines: Vec<RenderLine<'static>>,
 	pub(crate) inspector_sections: Vec<InspectorSection>,
 }
@@ -82,12 +83,7 @@ pub(crate) fn build_snapshot(editor: &mut Editor, ime_preedit: Option<&str>) -> 
 	let cursor_col = editor.cursor_col() + 1;
 	let buffers = editor.buffer_count();
 	let focused = editor.focused_view();
-	let statusline = editor
-		.statusline_render_plan()
-		.into_iter()
-		.map(|segment| segment.text)
-		.collect::<Vec<_>>()
-		.join("");
+	let statusline_segments = editor.statusline_render_plan();
 	let overlay_kind = editor.overlay_kind();
 	let overlay_panes = editor.overlay_pane_render_plan();
 	let completion_plan = editor.completion_popup_render_plan();
@@ -116,7 +112,7 @@ pub(crate) fn build_snapshot(editor: &mut Editor, ime_preedit: Option<&str>) -> 
 			"mode={mode} cursor={cursor_line}:{cursor_col} buffers={buffers} ime_preedit={}",
 			ime_preedit_label(ime_preedit)
 		),
-		statusline: compact_statusline(statusline),
+		statusline_segments,
 		document_lines,
 		inspector_sections,
 	}
@@ -373,25 +369,6 @@ fn build_snippet_preview_rows(plan: Option<&SnippetChoiceRenderPlan>) -> Vec<Ins
 	rows
 }
 
-fn compact_statusline(statusline: String) -> String {
-	let mut compact = String::new();
-	let mut last_was_space = false;
-
-	for ch in statusline.chars() {
-		if ch.is_whitespace() {
-			if !last_was_space {
-				compact.push(' ');
-			}
-			last_was_space = true;
-		} else {
-			compact.push(ch);
-			last_was_space = false;
-		}
-	}
-
-	compact.trim().to_string()
-}
-
 fn rect_brief(rect: Rect) -> String {
 	format!("{}x{}@{},{}", rect.width, rect.height, rect.x, rect.y)
 }
@@ -420,24 +397,6 @@ mod tests {
 		assert_eq!(ime_preedit_label(None), "-");
 		assert_eq!(ime_preedit_label(Some("short")), "short");
 		assert_eq!(ime_preedit_label(Some("abcdefghijklmnopqrstuvwxyz")), "abcdefghijklmnopqrstuvwx...");
-	}
-
-	#[test]
-	fn compact_statusline_collapses_whitespace_and_newlines() {
-		assert_eq!(compact_statusline(String::from("  A   B\n\nC\tD  ")), "A B C D");
-	}
-
-	#[test]
-	fn merge_render_lines_preserves_gutter_then_text_order() {
-		let style = Style::default();
-		let gutter = vec![RenderLine::from(vec![RenderSpan::styled(" 1 ", style)])];
-		let text = vec![RenderLine::from(vec![RenderSpan::styled("alpha", style)])];
-
-		let rows = merge_render_lines(gutter, text);
-		assert_eq!(rows.len(), 1);
-		assert_eq!(rows[0].spans.len(), 2);
-		assert_eq!(rows[0].spans[0].content.as_ref(), " 1 ");
-		assert_eq!(rows[0].spans[1].content.as_ref(), "alpha");
 	}
 
 	#[test]
@@ -470,4 +429,18 @@ mod tests {
 		let rows = build_completion_preview_rows(Some(&plan));
 		assert!(rows.iter().any(|row| row.role == InspectorRowRole::Selected && row.text.contains("beta")));
 	}
+
+	#[test]
+	fn merge_render_lines_preserves_gutter_then_text_order() {
+		let style = Style::default();
+		let gutter = vec![RenderLine::from(vec![RenderSpan::styled(" 1 ", style)])];
+		let text = vec![RenderLine::from(vec![RenderSpan::styled("alpha", style)])];
+
+		let rows = merge_render_lines(gutter, text);
+		assert_eq!(rows.len(), 1);
+		assert_eq!(rows[0].spans.len(), 2);
+		assert_eq!(rows[0].spans[0].content.as_ref(), " 1 ");
+		assert_eq!(rows[0].spans[1].content.as_ref(), "alpha");
+	}
+
 }

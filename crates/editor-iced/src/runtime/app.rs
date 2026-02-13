@@ -1,10 +1,12 @@
 use iced::widget::scrollable::{Direction as ScrollDirection, Scrollbar};
 use iced::widget::text::Wrapping;
 use iced::widget::{column, container, rich_text, row, rule, scrollable, span, text};
-use iced::{Color, Element, Event, Fill, Font, Subscription, Task, event, keyboard, time, window};
+use iced::{Background, Color, Element, Event, Fill, Font, Subscription, Task, event, keyboard, time, window};
+use iced::{font, border};
 use xeno_editor::Editor;
 use xeno_editor::render_api::RenderLine;
 use xeno_editor::runtime::{CursorStyle, LoopDirective, RuntimeEvent};
+use xeno_editor::ui::StatuslineRenderStyle;
 use xeno_primitives::{Color as UiColor, Style as UiStyle};
 
 use super::{DEFAULT_POLL_INTERVAL, EventBridgeState, InspectorRowRole, Snapshot, StartupOptions, build_snapshot, configure_linux_backend, map_event};
@@ -184,7 +186,7 @@ impl IcedEditorApp {
 		} else {
 			row![document].height(Fill)
 		};
-		let statusline = text(&self.snapshot.statusline).font(Font::MONOSPACE);
+		let statusline = render_statusline(&self.editor, &self.snapshot.statusline_segments);
 
 		let content = column![header_block, panes, statusline].spacing(8).padding(12).width(Fill).height(Fill);
 
@@ -280,8 +282,54 @@ fn render_document_line(line: &RenderLine<'_>) -> Element<'static, Message> {
 	rich_text(spans).font(Font::MONOSPACE).wrapping(Wrapping::None).into()
 }
 
+fn render_statusline(editor: &Editor, segments: &[xeno_editor::ui::StatuslineRenderSegment]) -> Element<'static, Message> {
+	let mut spans = Vec::new();
+	let colors = &editor.config().theme.colors;
+	let mode_style = colors.mode_style(&editor.mode());
+
+	for segment in segments {
+		let mut item = span::<(), _>(segment.text.clone()).font(Font::MONOSPACE);
+		let style = statusline_style_to_ui_style(segment.style, mode_style, colors);
+		if let Some(color) = style_fg_to_iced(style) {
+			item = item.color(color);
+		}
+		if let Some(bg) = style_bg_to_iced(style) {
+			item = item.background(Background::Color(bg)).border(border::rounded(0));
+		}
+		if matches!(segment.style, StatuslineRenderStyle::Mode) {
+			item = item.font(Font {
+				weight: font::Weight::Bold,
+				..Font::MONOSPACE
+			});
+		}
+		spans.push(item);
+	}
+
+	if spans.is_empty() {
+		spans.push(span::<(), _>(String::new()).font(Font::MONOSPACE));
+	}
+
+	rich_text(spans).wrapping(Wrapping::None).into()
+}
+
+fn statusline_style_to_ui_style(style: StatuslineRenderStyle, mode_style: UiStyle, colors: &xeno_editor::ThemeColors) -> UiStyle {
+	match style {
+		StatuslineRenderStyle::Normal => UiStyle::default().fg(colors.ui.fg),
+		StatuslineRenderStyle::Mode => mode_style,
+		StatuslineRenderStyle::Inverted => UiStyle::default().fg(colors.ui.bg).bg(colors.ui.fg),
+		StatuslineRenderStyle::Dim => UiStyle::default().fg(colors.semantic.dim),
+		StatuslineRenderStyle::Warning => UiStyle::default().fg(colors.semantic.warning),
+		StatuslineRenderStyle::Error => UiStyle::default().fg(colors.semantic.error),
+		StatuslineRenderStyle::Success => UiStyle::default().fg(colors.semantic.success),
+	}
+}
+
 fn style_fg_to_iced(style: UiStyle) -> Option<Color> {
 	style.fg.and_then(map_ui_color)
+}
+
+fn style_bg_to_iced(style: UiStyle) -> Option<Color> {
+	style.bg.and_then(map_ui_color)
 }
 
 fn map_ui_color(color: UiColor) -> Option<Color> {
@@ -384,6 +432,12 @@ mod tests {
 	fn style_fg_to_iced_reads_foreground_color() {
 		let style = UiStyle::default().fg(UiColor::LightBlue);
 		assert_eq!(style_fg_to_iced(style), Some(Color::from_rgb8(0x00, 0x00, 0xFF)));
+	}
+
+	#[test]
+	fn style_bg_to_iced_reads_background_color() {
+		let style = UiStyle::default().bg(UiColor::LightYellow);
+		assert_eq!(style_bg_to_iced(style), Some(Color::from_rgb8(0xFF, 0xFF, 0x00)));
 	}
 
 	#[test]
