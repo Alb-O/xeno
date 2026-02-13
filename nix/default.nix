@@ -28,6 +28,25 @@ flake-parts.lib.mkFlake { inherit inputs; } {
         rustc = rustToolchain;
       };
 
+      guiRuntimeDeps = with pkgs; [
+        pkg-config
+        gtk3
+        libGL
+        libxkbcommon
+        openssl
+        wayland
+        vulkan-loader
+        libx11
+        libxcursor
+        libxext
+        libxi
+        libxinerama
+        libxrandr
+        libxcb
+      ];
+
+      guiLibraryPath = pkgs.lib.makeLibraryPath guiRuntimeDeps;
+
       cargoSortWrapper = pkgs.writeShellScriptBin "cargo-sort-wrapper" ''
         set -euo pipefail
 
@@ -104,11 +123,13 @@ flake-parts.lib.mkFlake { inherit inputs; } {
 
       devShells = {
         rust = pkgs.mkShell {
-          packages = rustDevPackages;
+          packages = rustDevPackages ++ guiRuntimeDeps;
+          LD_LIBRARY_PATH = guiLibraryPath;
         };
 
         default = pkgs.mkShell {
-          packages = rustDevPackages ++ [ config.treefmt.build.wrapper ];
+          packages = rustDevPackages ++ guiRuntimeDeps ++ [ config.treefmt.build.wrapper ];
+          LD_LIBRARY_PATH = guiLibraryPath;
         };
       };
     };
