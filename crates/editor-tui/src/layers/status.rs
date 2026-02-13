@@ -6,16 +6,10 @@ use xeno_tui::text::{Line, Span};
 use xeno_tui::widgets::{Block, Paragraph};
 
 fn segment_to_span(ed: &Editor, segment: &StatuslineRenderSegment) -> Span<'static> {
-	let colors = &ed.config().theme.colors;
-	let style = match segment.style {
-		StatuslineRenderStyle::Normal => Style::default().fg(colors.ui.fg),
-		StatuslineRenderStyle::Mode => colors.mode_style(&ed.mode()).add_modifier(Modifier::BOLD),
-		StatuslineRenderStyle::Inverted => Style::default().add_modifier(Modifier::REVERSED),
-		StatuslineRenderStyle::Dim => Style::default().fg(colors.semantic.dim),
-		StatuslineRenderStyle::Warning => Style::default().fg(colors.semantic.warning),
-		StatuslineRenderStyle::Error => Style::default().fg(colors.semantic.error),
-		StatuslineRenderStyle::Success => Style::default().fg(colors.semantic.success),
-	};
+	let mut style = ed.statusline_segment_style(segment.style);
+	if matches!(segment.style, StatuslineRenderStyle::Mode) {
+		style = style.add_modifier(Modifier::BOLD);
+	}
 	Span::styled(segment.text.clone(), style)
 }
 

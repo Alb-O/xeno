@@ -26,3 +26,7 @@ pub(crate) fn utility_whichkey_render_plan(editor: &crate::Editor) -> Option<Uti
 pub(crate) fn statusline_render_plan(editor: &crate::Editor) -> Vec<StatuslineRenderSegment> {
 	statusline::render_plan(editor)
 }
+
+pub(crate) fn statusline_segment_style(editor: &crate::Editor, style: StatuslineRenderStyle) -> xeno_primitives::Style {
+	statusline::segment_style(editor, style)
+}

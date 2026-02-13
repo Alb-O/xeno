@@ -673,6 +673,11 @@ impl Editor {
 		crate::ui::statusline_render_plan(self)
 	}
 
+	#[inline]
+	pub fn statusline_segment_style(&self, style: crate::ui::StatuslineRenderStyle) -> xeno_primitives::Style {
+		crate::ui::statusline_segment_style(self, style)
+	}
+
 	/// Returns utility panel height hint while a modal overlay is active.
 	///
 	/// Frontends use this to keep utility panel sizing policy consistent
