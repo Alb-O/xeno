@@ -128,6 +128,7 @@ impl SyntaxManager {
 			entry.slot.pending_incremental = None;
 			entry.slot.dirty = false;
 			entry.slot.full_doc_version = Some(doc_version);
+			entry.slot.full_tree_id = entry.slot.alloc_tree_id();
 			Self::mark_updated(&mut entry.slot);
 		} else {
 			tracing::debug!(?doc_id, "Sync incremental update failed; keeping pending for catch-up");

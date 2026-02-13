@@ -1,4 +1,6 @@
 use super::*;
+use xeno_primitives::Transaction;
+use xeno_primitives::transaction::Change;
 
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_single_flight_per_doc() {
@@ -312,4 +314,69 @@ pub(crate) async fn test_syntax_version_bumps_on_install() {
 
 	let v1 = mgr.syntax_version(doc_id);
 	assert!(v1 > v0);
+}
+
+/// Must rotate full-tree identity when sync incremental updates mutate the tree.
+///
+/// - Enforced in: `SyntaxManager::note_edit_incremental`
+/// - Failure symptom: Highlight tiles keyed by tree identity persist stale spans through edits.
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_full_tree_id_rotates_on_sync_incremental_update() {
+	let engine = Arc::new(MockEngine::new());
+	let _guard = EngineGuard(engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 1,
+			..Default::default()
+		},
+		engine.clone(),
+	);
+	let mut policy = TieredSyntaxPolicy::test_default();
+	policy.s.debounce = Duration::ZERO;
+	mgr.set_policy(policy);
+
+	let doc_id = DocumentId(1);
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang = loader.language_for_name("rust").unwrap();
+	let old_content = Rope::from("fn main() {}\n");
+
+	mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang), &old_content, SyntaxHotness::Visible, &loader));
+	engine.proceed();
+	wait_for_finish(&mgr).await;
+	mgr.drain_finished_inflight();
+	mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang), &old_content, SyntaxHotness::Visible, &loader));
+
+	let tree_id_before = mgr
+		.syntax_for_viewport(doc_id, 1, 0..old_content.len_bytes() as u32)
+		.expect("full tree must be present at V1")
+		.tree_id;
+
+	let tx = Transaction::change(
+		old_content.slice(..),
+		[Change {
+			start: 0,
+			end: 0,
+			replacement: Some("let _x = 1;\n".into()),
+		}],
+	);
+	let mut new_content = old_content.clone();
+	tx.apply(&mut new_content);
+
+	mgr.note_edit_incremental(
+		doc_id,
+		2,
+		&old_content,
+		&new_content,
+		tx.changes(),
+		&loader,
+		EditSource::Typing,
+	);
+	assert_eq!(mgr.syntax_doc_version(doc_id), Some(2));
+
+	let tree_id_after = mgr
+		.syntax_for_viewport(doc_id, 2, 0..new_content.len_bytes() as u32)
+		.expect("full tree must remain present after sync incremental update")
+		.tree_id;
+
+	assert_ne!(tree_id_after, tree_id_before);
 }

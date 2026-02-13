@@ -84,10 +84,11 @@ pub(crate) struct PendingIncrementalEdits {
 ///
 /// Returned by [`crate::syntax_manager::SyntaxManager::syntax_for_viewport`]
 /// and consumed by the highlight cache. The `tree_id` serves as the cache
-/// key for highlight tiles, ensuring correct invalidation across tree swaps.
+/// key for highlight tiles, ensuring correct invalidation across tree swaps
+/// and in-place full-tree incremental updates.
 pub struct SyntaxSelection<'a> {
 	pub syntax: &'a Syntax,
-	/// Unique per-tree identity (monotonic within a document slot).
+	/// Unique per-tree-state identity (monotonic within a document slot).
 	pub tree_id: u64,
 	/// Document version the tree was parsed from.
 	pub tree_doc_version: u64,
@@ -259,7 +260,7 @@ pub struct SyntaxSlot {
 	pub(super) full: Option<Syntax>,
 	/// Document version the full tree was parsed from.
 	pub(super) full_doc_version: Option<u64>,
-	/// Unique identity for the current full tree instance.
+	/// Unique identity for the current full tree state.
 	pub(super) full_tree_id: u64,
 
 	/// LRU cache of viewport-bounded partial syntax trees keyed by aligned window.

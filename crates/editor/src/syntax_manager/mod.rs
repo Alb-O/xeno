@@ -29,6 +29,7 @@
 //! - Must not install parse results from older epochs.
 //! - Must not regress installed tree doc version.
 //! - Must keep `syntax_version` monotonic on tree install/drop.
+//! - Must rotate full-tree identity when sync incremental catch-up mutates the tree.
 //! - Must only expose highlight projection context when pending edits align to resident tree.
 //! - Must bound viewport scheduling to a capped visible byte span.
 //! - Must use viewport-specific cooldowns for viewport task failures.
