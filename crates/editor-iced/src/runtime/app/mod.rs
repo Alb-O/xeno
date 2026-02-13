@@ -37,6 +37,7 @@ pub(crate) struct IcedEditorApp {
 	cell_metrics: super::CellMetrics,
 	event_state: EventBridgeState,
 	document_viewport_cells: Option<(u16, u16)>,
+	coordinate_scale: CoordinateScale,
 	layout: LayoutConfig,
 }
 
@@ -58,6 +59,29 @@ impl LayoutConfig {
 	}
 }
 
+#[derive(Debug, Clone, Copy)]
+struct CoordinateScale {
+	x: f32,
+	y: f32,
+}
+
+impl CoordinateScale {
+	fn from_env() -> Self {
+		let uniform = parse_coordinate_scale(std::env::var("XENO_ICED_COORD_SCALE").ok().as_deref()).unwrap_or(1.0);
+		let x = parse_coordinate_scale(std::env::var("XENO_ICED_COORD_SCALE_X").ok().as_deref()).unwrap_or(uniform);
+		let y = parse_coordinate_scale(std::env::var("XENO_ICED_COORD_SCALE_Y").ok().as_deref()).unwrap_or(uniform);
+		Self { x, y }
+	}
+
+	fn normalize_point(self, point: Point) -> Point {
+		Point::new(point.x / self.x, point.y / self.y)
+	}
+
+	fn normalize_size(self, size: Size) -> Size {
+		Size::new(size.width / self.x, size.height / self.y)
+	}
+}
+
 fn parse_inspector_width(value: Option<&str>) -> f32 {
 	value
 		.and_then(|value| value.parse::<f32>().ok())
@@ -71,6 +95,12 @@ fn parse_show_inspector(value: Option<&str>) -> bool {
 	};
 
 	!matches!(value.trim().to_ascii_lowercase().as_str(), "0" | "false" | "no" | "off")
+}
+
+fn parse_coordinate_scale(value: Option<&str>) -> Option<f32> {
+	let value = value?;
+	let scale = value.parse::<f32>().ok()?;
+	(scale.is_finite() && scale > 0.0).then_some(scale)
 }
 
 fn format_header_line(header: &HeaderSnapshot) -> String {
@@ -116,6 +146,7 @@ impl IcedEditorApp {
 			cell_metrics: super::CellMetrics::from_env(),
 			event_state: EventBridgeState::default(),
 			document_viewport_cells: None,
+			coordinate_scale: CoordinateScale::from_env(),
 			layout: LayoutConfig::from_env(),
 		};
 
@@ -138,9 +169,11 @@ impl IcedEditorApp {
 				}
 			}
 			Message::DocumentViewportChanged(document_size) => {
+				let document_size = self.coordinate_scale.normalize_size(document_size);
 				self.apply_document_viewport_size(document_size);
 			}
 			Message::DocumentCursorMoved(position) => {
+				let position = self.coordinate_scale.normalize_point(position);
 				self.forward_document_mouse_event(mouse::Event::CursorMoved { position });
 			}
 			Message::DocumentButtonPressed(button) => {

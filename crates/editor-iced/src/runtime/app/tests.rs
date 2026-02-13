@@ -69,3 +69,19 @@ fn font_size_for_cell_metrics_clamps_to_cell_height() {
 	assert!(font_size >= 1.0);
 	assert!(font_size <= metrics.height_px());
 }
+
+#[test]
+fn parse_coordinate_scale_validates_input() {
+	assert_eq!(parse_coordinate_scale(Some("1.25")), Some(1.25));
+	assert_eq!(parse_coordinate_scale(Some("0")), None);
+	assert_eq!(parse_coordinate_scale(Some("-1")), None);
+	assert_eq!(parse_coordinate_scale(Some("abc")), None);
+	assert_eq!(parse_coordinate_scale(None), None);
+}
+
+#[test]
+fn coordinate_scale_normalizes_point_and_size() {
+	let scale = CoordinateScale { x: 2.0, y: 4.0 };
+	assert_eq!(scale.normalize_point(iced::Point::new(20.0, 40.0)), iced::Point::new(10.0, 10.0));
+	assert_eq!(scale.normalize_size(iced::Size::new(200.0, 80.0)), iced::Size::new(100.0, 20.0));
+}

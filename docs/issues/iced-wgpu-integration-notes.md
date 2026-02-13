@@ -17,6 +17,7 @@ Investigate a minimal GUI frontend integration using `iced_wgpu` while preservin
 - Added event bridge from iced -> core runtime:
   - keyboard key presses (character + named keys + modifiers)
   - mouse cursor/button/scroll events mapped from measured document viewport space into core `MouseEvent` grid coordinates
+  - optional coordinate normalization for platform scaling quirks (`XENO_ICED_COORD_SCALE`, `XENO_ICED_COORD_SCALE_X`, `XENO_ICED_COORD_SCALE_Y`)
   - clipboard paste bridge for Command/Ctrl+V via `iced::clipboard::read_text()`
   - IME commit bridge (`input_method::Event::Commit`) routed into core paste path
   - IME lifecycle tracking for opened/preedit/closed state (surfaced in iced snapshot header)
