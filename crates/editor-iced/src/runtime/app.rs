@@ -9,7 +9,8 @@ use xeno_primitives::{Color as UiColor, Style as UiStyle};
 
 use super::{DEFAULT_POLL_INTERVAL, EventBridgeState, InspectorRowRole, Snapshot, StartupOptions, build_snapshot, configure_linux_backend, map_event};
 
-const INSPECTOR_WIDTH_PX: f32 = 320.0;
+const DEFAULT_INSPECTOR_WIDTH_PX: f32 = 320.0;
+const MIN_INSPECTOR_WIDTH_PX: f32 = 160.0;
 
 #[derive(Debug, Clone)]
 pub(crate) enum Message {
@@ -26,6 +27,27 @@ pub(crate) struct IcedEditorApp {
 	snapshot: Snapshot,
 	cell_metrics: super::CellMetrics,
 	event_state: EventBridgeState,
+	layout: LayoutConfig,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct LayoutConfig {
+	inspector_width_px: f32,
+}
+
+impl LayoutConfig {
+	fn from_env() -> Self {
+		let inspector_width_px = parse_inspector_width(std::env::var("XENO_ICED_INSPECTOR_WIDTH_PX").ok().as_deref());
+
+		Self { inspector_width_px }
+	}
+}
+
+fn parse_inspector_width(value: Option<&str>) -> f32 {
+	value
+		.and_then(|value| value.parse::<f32>().ok())
+		.filter(|width| width.is_finite() && *width >= MIN_INSPECTOR_WIDTH_PX)
+		.unwrap_or(DEFAULT_INSPECTOR_WIDTH_PX)
 }
 
 impl IcedEditorApp {
@@ -63,6 +85,7 @@ impl IcedEditorApp {
 			snapshot: Snapshot::default(),
 			cell_metrics: super::CellMetrics::from_env(),
 			event_state: EventBridgeState::default(),
+			layout: LayoutConfig::from_env(),
 		};
 
 		app.directive = app.runtime.block_on(app.editor.pump());
@@ -141,7 +164,7 @@ impl IcedEditorApp {
 			.direction(ScrollDirection::Vertical(Scrollbar::hidden()))
 			.height(Fill)
 			.width(Fill);
-		let inspector = container(inspector_scroll).width(INSPECTOR_WIDTH_PX).height(Fill).clip(true);
+		let inspector = container(inspector_scroll).width(self.layout.inspector_width_px).height(Fill).clip(true);
 
 		let panes = row![document, rule::vertical(1), inspector].spacing(8).height(Fill);
 		let statusline = text(&self.snapshot.statusline).font(Font::MONOSPACE);
@@ -353,5 +376,13 @@ mod tests {
 		assert_eq!(map_ui_color(UiColor::Indexed(231)), Some(Color::from_rgb8(255, 255, 255)));
 		assert_eq!(map_ui_color(UiColor::Indexed(232)), Some(Color::from_rgb8(8, 8, 8)));
 		assert_eq!(map_ui_color(UiColor::Indexed(255)), Some(Color::from_rgb8(238, 238, 238)));
+	}
+
+	#[test]
+	fn parse_inspector_width_validates_bounds_and_fallback() {
+		assert_eq!(parse_inspector_width(None), DEFAULT_INSPECTOR_WIDTH_PX);
+		assert_eq!(parse_inspector_width(Some("500")), 500.0);
+		assert_eq!(parse_inspector_width(Some("159.0")), DEFAULT_INSPECTOR_WIDTH_PX);
+		assert_eq!(parse_inspector_width(Some("abc")), DEFAULT_INSPECTOR_WIDTH_PX);
 	}
 }
