@@ -7,7 +7,7 @@ license.workspace = true
 
 [features]
 default = ["tui"]
-tui = []
+tui = ["xeno-primitives/xeno-tui"]
 lsp = ["dep:xeno-lsp", "dep:thiserror", "dep:tokio-util"]
 [dependencies]
 anyhow.workspace = true
@@ -38,7 +38,7 @@ xeno-input.workspace = true
 xeno-language.workspace = true
 xeno-lsp = { workspace = true, features = ["position"], optional = true }
 xeno-matcher.workspace = true
-xeno-primitives.workspace = true
+xeno-primitives = { path = "../primitives", default-features = false }
 xeno-registry.workspace = true
 [dev-dependencies]
 futures = "0.3"

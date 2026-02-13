@@ -66,6 +66,7 @@ This document tracks the architecture split between `xeno-editor` (core engine) 
 
 - `xeno-editor` supports headless builds (`--no-default-features`).
 - `tui` remains an optional feature on `xeno-editor` (default-enabled), with frontend runtime in `xeno-editor-tui`.
+- `xeno-editor` now gates `xeno-primitives/xeno-tui` behind its own `tui` feature, so headless/editor-core builds no longer pull that feature transitively.
 - `xeno-editor-iced` exists as an experimental frontend crate behind `iced-wgpu` feature for GUI runtime probing without changing core ownership boundaries.
 
 ## Remaining work

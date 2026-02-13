@@ -135,6 +135,7 @@ Completed:
 - iced inspector now renders completion/snippet/surface diagnostics directly from typed plans (no intermediate inspector row structs)
 - iced snapshot header now uses typed fields (`HeaderSnapshot`) with frontend-side formatting
 - statusline style mapping now routes through a shared core API (`statusline_segment_style`) consumed by both TUI and iced frontends
+- `xeno-editor` now maps its `tui` feature to `xeno-primitives/xeno-tui`, keeping core/headless builds free of that transitive feature
 
 Current focus:
 
