@@ -362,4 +362,57 @@ mod tests {
 		assert_eq!(map_event(event, metrics, &mut state), None);
 		assert_eq!(state.ime_preedit(), Some("compose"));
 	}
+
+	#[test]
+	fn map_event_maps_window_resize_to_grid_cells() {
+		let mut state = EventBridgeState::default();
+		let metrics = CellMetrics {
+			width_px: 8.0,
+			height_px: 16.0,
+		};
+
+		let event = Event::Window(window::Event::Resized(iced::Size::new(80.0, 48.0)));
+		assert_eq!(map_event(event, metrics, &mut state), Some(RuntimeEvent::WindowResized { cols: 10, rows: 3 }));
+	}
+
+	#[test]
+	fn map_event_maps_mouse_move_press_drag_sequence() {
+		let mut state = EventBridgeState::default();
+		let metrics = CellMetrics {
+			width_px: 8.0,
+			height_px: 16.0,
+		};
+
+		let move_event = Event::Mouse(mouse::Event::CursorMoved {
+			position: iced::Point::new(16.0, 32.0),
+		});
+		assert_eq!(
+			map_event(move_event, metrics, &mut state),
+			Some(RuntimeEvent::Mouse(CoreMouseEvent::Move { row: 1, col: 1 }))
+		);
+
+		let press_event = Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left));
+		assert_eq!(
+			map_event(press_event, metrics, &mut state),
+			Some(RuntimeEvent::Mouse(CoreMouseEvent::Press {
+				button: CoreMouseButton::Left,
+				row: 1,
+				col: 1,
+				modifiers: Modifiers::NONE,
+			}))
+		);
+
+		let drag_event = Event::Mouse(mouse::Event::CursorMoved {
+			position: iced::Point::new(24.0, 48.0),
+		});
+		assert_eq!(
+			map_event(drag_event, metrics, &mut state),
+			Some(RuntimeEvent::Mouse(CoreMouseEvent::Drag {
+				button: CoreMouseButton::Left,
+				row: 2,
+				col: 2,
+				modifiers: Modifiers::NONE,
+			}))
+		);
+	}
 }

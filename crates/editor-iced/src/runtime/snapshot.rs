@@ -370,4 +370,17 @@ mod tests {
 	fn compact_statusline_collapses_whitespace_and_newlines() {
 		assert_eq!(compact_statusline(String::from("  A   B\n\nC\tD  ")), "A B C D");
 	}
+
+	#[test]
+	fn merge_render_lines_preserves_gutter_then_text_order() {
+		let style = Style::default();
+		let gutter = vec![RenderLine::from(vec![RenderSpan::styled(" 1 ", style)])];
+		let text = vec![RenderLine::from(vec![RenderSpan::styled("alpha", style)])];
+
+		let rows = merge_render_lines(gutter, text);
+		assert_eq!(rows.len(), 1);
+		assert_eq!(rows[0].spans.len(), 2);
+		assert_eq!(rows[0].spans[0].content.as_ref(), " 1 ");
+		assert_eq!(rows[0].spans[1].content.as_ref(), "alpha");
+	}
 }

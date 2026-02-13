@@ -289,4 +289,16 @@ mod tests {
 		let physical = keyboard::key::Physical::Code(keyboard::key::Code::Paste);
 		assert!(is_paste_shortcut(&key, &key, physical, keyboard::Modifiers::default()));
 	}
+
+	#[test]
+	fn map_ui_color_maps_reset_and_rgb() {
+		assert_eq!(map_ui_color(UiColor::Reset), None);
+		assert_eq!(map_ui_color(UiColor::Rgb(1, 2, 3)), Some(Color::from_rgb8(1, 2, 3)));
+	}
+
+	#[test]
+	fn style_fg_to_iced_reads_foreground_color() {
+		let style = UiStyle::default().fg(UiColor::LightBlue);
+		assert_eq!(style_fg_to_iced(style), Some(Color::from_rgb8(0x00, 0x00, 0xFF)));
+	}
 }
