@@ -26,3 +26,12 @@ fn map_ui_color_maps_indexed_palette() {
 	assert_eq!(map_ui_color(UiColor::Indexed(232)), Some(Color::from_rgb8(8, 8, 8)));
 	assert_eq!(map_ui_color(UiColor::Indexed(255)), Some(Color::from_rgb8(238, 238, 238)));
 }
+
+#[test]
+fn background_style_uses_color_mapping_with_black_fallback() {
+	let mapped = background_style(UiColor::Blue);
+	assert_eq!(mapped.background, Some(iced::Background::Color(Color::from_rgb8(0x00, 0x00, 0x80))));
+
+	let fallback = background_style(UiColor::Reset);
+	assert_eq!(fallback.background, Some(iced::Background::Color(Color::BLACK)));
+}

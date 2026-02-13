@@ -8,7 +8,7 @@ use xeno_editor::Editor;
 use xeno_editor::runtime::{CursorStyle, LoopDirective, RuntimeEvent};
 
 use self::inspector::render_inspector_rows;
-use self::render::{render_document_line, render_statusline};
+use self::render::{background_style, render_document_line, render_statusline};
 use super::{DEFAULT_POLL_INTERVAL, EventBridgeState, HeaderSnapshot, Snapshot, StartupOptions, build_snapshot, configure_linux_backend, map_event};
 
 const DEFAULT_INSPECTOR_WIDTH_PX: f32 = 320.0;
@@ -152,6 +152,8 @@ impl IcedEditorApp {
 	}
 
 	pub(crate) fn view(&self) -> Element<'_, Message> {
+		let ui_bg = self.editor.config().theme.colors.ui.bg;
+		let popup_bg = self.editor.config().theme.colors.popup.bg;
 		let header_block = text(format_header_line(&self.snapshot.header)).font(Font::MONOSPACE);
 
 		let mut document_rows = column![].spacing(0);
@@ -162,14 +164,22 @@ impl IcedEditorApp {
 			.direction(ScrollDirection::Vertical(Scrollbar::hidden()))
 			.height(Fill)
 			.width(Fill);
-		let document = container(document_scroll).width(Fill).height(Fill).clip(true);
+		let document = container(document_scroll)
+			.width(Fill)
+			.height(Fill)
+			.clip(true)
+			.style(move |_theme| background_style(ui_bg));
 		let inspector_rows = render_inspector_rows(&self.snapshot.surface);
 
 		let inspector_scroll = scrollable(inspector_rows)
 			.direction(ScrollDirection::Vertical(Scrollbar::hidden()))
 			.height(Fill)
 			.width(Fill);
-		let inspector = container(inspector_scroll).width(self.layout.inspector_width_px).height(Fill).clip(true);
+		let inspector = container(inspector_scroll)
+			.width(self.layout.inspector_width_px)
+			.height(Fill)
+			.clip(true)
+			.style(move |_theme| background_style(popup_bg));
 
 		let panes = if self.layout.show_inspector {
 			row![document, rule::vertical(1), inspector].spacing(8).height(Fill)
@@ -180,7 +190,12 @@ impl IcedEditorApp {
 
 		let content = column![header_block, panes, statusline].spacing(8).padding(12).width(Fill).height(Fill);
 
-		container(content).width(Fill).height(Fill).clip(true).into()
+		container(content)
+			.width(Fill)
+			.height(Fill)
+			.clip(true)
+			.style(move |_theme| background_style(ui_bg))
+			.into()
 	}
 
 	pub(crate) fn subscription(&self) -> Subscription<Message> {

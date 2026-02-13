@@ -1,5 +1,5 @@
 use iced::widget::text::Wrapping;
-use iced::widget::{rich_text, span};
+use iced::widget::{container, rich_text, span};
 use iced::{Background, Color, Element, Font, border, font};
 use xeno_editor::Editor;
 use xeno_editor::render_api::RenderLine;
@@ -11,11 +11,15 @@ use super::Message;
 pub(super) fn render_document_line(line: &RenderLine<'_>) -> Element<'static, Message> {
 	let mut spans = Vec::new();
 	let line_color = line.style.and_then(style_fg_to_iced);
+	let line_bg = line.style.and_then(style_bg_to_iced);
 
 	for render_span in &line.spans {
 		let mut segment = span::<(), _>(render_span.content.as_ref().to_string());
 		if let Some(color) = style_fg_to_iced(render_span.style).or(line_color) {
 			segment = segment.color(color);
+		}
+		if let Some(bg) = style_bg_to_iced(render_span.style).or(line_bg) {
+			segment = segment.background(Background::Color(bg)).border(border::rounded(0));
 		}
 		spans.push(segment);
 	}
@@ -85,6 +89,11 @@ pub(super) fn map_ui_color(color: UiColor) -> Option<Color> {
 		UiColor::Rgb(r, g, b) => Some(Color::from_rgb8(r, g, b)),
 		UiColor::Indexed(index) => Some(map_indexed_color(index)),
 	}
+}
+
+pub(super) fn background_style(bg: UiColor) -> container::Style {
+	let bg = map_ui_color(bg).unwrap_or(Color::BLACK);
+	container::Style::default().background(bg)
 }
 
 fn map_indexed_color(index: u8) -> Color {

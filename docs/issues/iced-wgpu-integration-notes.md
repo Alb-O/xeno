@@ -25,10 +25,11 @@ Investigate a minimal GUI frontend integration using `iced_wgpu` while preservin
   - adapter-level unit tests now cover IME commit/preedit event mapping
 - Added minimal rendering bridge:
   - renders focused buffer snapshot via core `BufferRenderContext` (shared render-policy path)
-  - preserves core `RenderLine` rows and adapts them to iced `rich_text` rows (span-level color mapping for named/RGB/indexed colors)
+  - preserves core `RenderLine` rows and adapts them to iced `rich_text` rows (span-level foreground/background mapping for named/RGB/indexed colors)
   - renders statusline using `statusline_render_plan`
   - consumes core completion/snippet/overlay/info-popup plans and shows a structured scene summary
   - renders completion/snippet plan rows as dedicated preview sections with semantic row roles (meta/normal/selected)
+  - applies theme-driven container backgrounds for app/document/inspector surfaces (instead of toolkit default white)
   - uses split layout (document + inspector column) to avoid debug sections pushing document content downward
   - supports runtime layout tuning (`XENO_ICED_INSPECTOR_WIDTH_PX`, `XENO_ICED_SHOW_INSPECTOR`)
   - intentionally does not reuse TUI widget/render backend
@@ -40,7 +41,7 @@ Investigate a minimal GUI frontend integration using `iced_wgpu` while preservin
   - iced maps logical pixels to cols/rows via configurable cell metrics (`XENO_ICED_CELL_WIDTH_PX`, `XENO_ICED_CELL_HEIGHT_PX`).
   - no font-metrics-driven calibration yet.
 - Rendering seam is still provisional:
-  - no style/span-level GUI renderer yet
+  - style/span mapping is currently color/background focused; advanced text-style parity remains incomplete
   - overlay/completion/snippet/info-popup plans are wired, but currently rendered as textual diagnostics instead of native GUI surfaces
 - Input coverage is partial:
   - paste adapter currently handles Command/Ctrl+V; no broader clipboard event coverage yet
