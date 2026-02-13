@@ -211,4 +211,42 @@ mod tests {
 		assert_eq!(via_paste.mode(), via_keys.mode());
 		assert_eq!(via_paste.statusline_render_plan(), via_keys.statusline_render_plan());
 	}
+
+	#[tokio::test]
+	async fn test_runtime_event_scripts_converge_for_multiline_input() {
+		let esc = Key::new(KeyCode::Esc);
+		let enter = Key::new(KeyCode::Enter);
+
+		let script_with_paste = vec![
+			RuntimeEvent::WindowResized { cols: 80, rows: 24 },
+			RuntimeEvent::Key(Key::char('i')),
+			RuntimeEvent::Paste(String::from("a\r\nb")),
+			RuntimeEvent::Key(esc),
+		];
+
+		let script_with_typed_keys = vec![
+			RuntimeEvent::WindowResized { cols: 80, rows: 24 },
+			RuntimeEvent::Key(Key::char('i')),
+			RuntimeEvent::Key(Key::char('a')),
+			RuntimeEvent::Key(enter),
+			RuntimeEvent::Key(Key::char('b')),
+			RuntimeEvent::Key(esc),
+		];
+
+		let mut via_paste = Editor::new_scratch();
+		let _ = via_paste.pump().await;
+		run_script(&mut via_paste, script_with_paste).await;
+
+		let mut via_keys = Editor::new_scratch();
+		let _ = via_keys.pump().await;
+		run_script(&mut via_keys, script_with_typed_keys).await;
+
+		let text_via_paste = via_paste.buffer().with_doc(|doc| doc.content().to_string());
+		let text_via_keys = via_keys.buffer().with_doc(|doc| doc.content().to_string());
+
+		assert_eq!(text_via_paste, "a\nb");
+		assert_eq!(text_via_paste, text_via_keys);
+		assert_eq!(via_paste.mode(), via_keys.mode());
+		assert_eq!(via_paste.statusline_render_plan(), via_keys.statusline_render_plan());
+	}
 }
