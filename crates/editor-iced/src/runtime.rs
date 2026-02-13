@@ -2,7 +2,7 @@ use std::fmt::Write as _;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use iced::widget::{column, container, scrollable, text};
+use iced::widget::{column, container, row, scrollable, text};
 use iced::{Element, Event, Fill, Font, Subscription, Task, event, keyboard, mouse, time, window};
 use iced_core::input_method;
 use xeno_editor::completion::CompletionRenderPlan;
@@ -58,9 +58,7 @@ struct Snapshot {
 	title: String,
 	header: String,
 	statusline: String,
-	surface_summary: String,
-	completion_preview: String,
-	snippet_preview: String,
+	inspector: String,
 	body: String,
 }
 
@@ -184,16 +182,20 @@ impl IcedEditorApp {
 	}
 
 	fn view(&self) -> Element<'_, Message> {
-		let content = column![
+		let header_block = column![
 			text(&self.snapshot.header).font(Font::MONOSPACE),
 			text(&self.snapshot.statusline).font(Font::MONOSPACE),
-			text(&self.snapshot.surface_summary).font(Font::MONOSPACE),
-			text(&self.snapshot.completion_preview).font(Font::MONOSPACE),
-			text(&self.snapshot.snippet_preview).font(Font::MONOSPACE),
-			scrollable(text(&self.snapshot.body).font(Font::MONOSPACE)).height(Fill),
 		]
-		.spacing(8)
-		.padding(12);
+		.spacing(4);
+
+		let document = container(scrollable(text(&self.snapshot.body).font(Font::MONOSPACE)).height(Fill))
+			.width(Fill)
+			.height(Fill);
+		let inspector = container(scrollable(text(&self.snapshot.inspector).font(Font::MONOSPACE)).height(Fill))
+			.width(320)
+			.height(Fill);
+
+		let content = column![header_block, row![document, inspector].spacing(12).height(Fill)].spacing(8).padding(12);
 
 		container(content).into()
 	}
@@ -242,6 +244,7 @@ impl IcedEditorApp {
 		let surface_summary = build_surface_summary(overlay_kind, &overlay_panes, completion_plan.as_ref(), snippet_plan.as_ref(), &info_popup_plan);
 		let completion_preview = format_completion_preview(completion_plan.as_ref());
 		let snippet_preview = format_snippet_preview(snippet_plan.as_ref());
+		let inspector = [surface_summary, completion_preview, snippet_preview].join("\n\n");
 
 		let (title, body) = snapshot_for_focused_view(&mut self.editor, focused).unwrap_or_else(|| {
 			self.editor.get_buffer(focused).map_or_else(
@@ -256,10 +259,8 @@ impl IcedEditorApp {
 				"mode={mode} cursor={cursor_line}:{cursor_col} buffers={buffers} ime_preedit={}",
 				ime_preedit_label(self.event_state.ime_preedit.as_deref())
 			),
-			statusline,
-			surface_summary,
-			completion_preview,
-			snippet_preview,
+			statusline: compact_statusline(statusline),
+			inspector,
 			body,
 		};
 
@@ -502,6 +503,25 @@ fn format_snippet_preview(plan: Option<&SnippetChoiceRenderPlan>) -> String {
 	}
 
 	lines.join("\n")
+}
+
+fn compact_statusline(statusline: String) -> String {
+	let mut compact = String::new();
+	let mut last_was_space = false;
+
+	for ch in statusline.chars() {
+		if ch.is_whitespace() {
+			if !last_was_space {
+				compact.push(' ');
+			}
+			last_was_space = true;
+		} else {
+			compact.push(ch);
+			last_was_space = false;
+		}
+	}
+
+	compact.trim().to_string()
 }
 
 fn rect_brief(rect: Rect) -> String {
@@ -870,6 +890,11 @@ mod tests {
 		assert_eq!(ime_preedit_label(None), "-");
 		assert_eq!(ime_preedit_label(Some("short")), "short");
 		assert_eq!(ime_preedit_label(Some("abcdefghijklmnopqrstuvwxyz")), "abcdefghijklmnopqrstuvwx...");
+	}
+
+	#[test]
+	fn compact_statusline_collapses_whitespace_and_newlines() {
+		assert_eq!(compact_statusline(String::from("  A   B\n\nC\tD  ")), "A B C D");
 	}
 
 	#[test]

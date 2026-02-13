@@ -28,6 +28,7 @@ Investigate a minimal GUI frontend integration using `iced_wgpu` while preservin
   - renders statusline using `statusline_render_plan`
   - consumes core completion/snippet/overlay/info-popup plans and shows a structured scene summary
   - renders completion/snippet plan rows as dedicated preview sections
+  - uses split layout (document + inspector column) to avoid debug sections pushing document content downward
   - intentionally does not reuse TUI widget/render backend
 
 ## Current limitations
