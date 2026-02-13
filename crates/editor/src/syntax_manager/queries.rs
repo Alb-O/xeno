@@ -1,26 +1,140 @@
+use xeno_language::syntax::{InjectionPolicy, Syntax};
+
 use super::*;
 
 impl SyntaxManager {
+	/// Returns true if any syntax tree is installed for the document.
 	pub fn has_syntax(&self, doc_id: DocumentId) -> bool {
-		self.entries.get(&doc_id).and_then(|e| e.slot.current.as_ref()).is_some()
+		self.entries.get(&doc_id).is_some_and(|e| e.slot.has_any_tree())
 	}
 
 	pub fn is_dirty(&self, doc_id: DocumentId) -> bool {
 		self.entries.get(&doc_id).map(|e| e.slot.dirty).unwrap_or(false)
 	}
 
+	/// Returns a reference to the full tree if installed, falling back to any cached viewport tree.
+	///
+	/// Prefer [`syntax_for_viewport`] for rendering, which selects the best
+	/// available tree for a given viewport range.
 	pub fn syntax_for_doc(&self, doc_id: DocumentId) -> Option<&Syntax> {
-		self.entries.get(&doc_id).and_then(|e| e.slot.current.as_ref())
+		let slot = &self.entries.get(&doc_id)?.slot;
+		if let Some(ref full) = slot.full {
+			return Some(full);
+		}
+		// Fall back to best viewport tree from cache (MRU order, stage_b preferred)
+		for key in slot.viewport_cache.iter_keys_mru() {
+			let Some(entry) = slot.viewport_cache.map.get(&key) else { continue };
+			if let Some(ref t) = entry.stage_b {
+				return Some(&t.syntax);
+			}
+		}
+		for key in slot.viewport_cache.iter_keys_mru() {
+			let Some(entry) = slot.viewport_cache.map.get(&key) else { continue };
+			if let Some(ref t) = entry.stage_a {
+				return Some(&t.syntax);
+			}
+		}
+		None
 	}
 
+	/// Selects the best available syntax tree for rendering a viewport range.
+	///
+	/// Uses a scoring comparator over all available candidates. Among candidates
+	/// that overlap the viewport, prefer (in descending priority):
+	/// 1. Exact doc_version match
+	/// 2. Injection-eager trees (richer highlighting)
+	/// 3. Full trees (wider coverage)
+	/// 4. Higher tree_doc_version (more recent)
+	///
+	/// If no candidate overlaps, falls back to the best non-overlapping candidate.
+	pub fn syntax_for_viewport(
+		&self,
+		doc_id: DocumentId,
+		doc_version: u64,
+		viewport: std::ops::Range<u32>,
+	) -> Option<SyntaxSelection<'_>> {
+		let slot = &self.entries.get(&doc_id)?.slot;
+
+		/// Scoring key for selection comparison (higher is better).
+		fn score(sel: &SyntaxSelection<'_>, doc_version: u64) -> (bool, bool, bool, u64) {
+			let exact = sel.tree_doc_version == doc_version;
+			let eager = sel.syntax.opts().injections == InjectionPolicy::Eager;
+			let is_full = sel.coverage.is_none();
+			(exact, eager, is_full, sel.tree_doc_version)
+		}
+
+		fn overlaps(coverage: &Option<std::ops::Range<u32>>, viewport: &std::ops::Range<u32>) -> bool {
+			match coverage {
+				None => true, // full tree always overlaps
+				Some(c) => viewport.start < c.end && viewport.end > c.start,
+			}
+		}
+
+		type Score = (bool, bool, bool, u64);
+		let mut best_overlapping: Option<(SyntaxSelection<'_>, Score)> = None;
+		let mut best_any: Option<(SyntaxSelection<'_>, Score)> = None;
+
+		macro_rules! consider {
+			($sel:expr) => {{
+				let sel = $sel;
+				let s = score(&sel, doc_version);
+				let ovl = overlaps(&sel.coverage, &viewport);
+				if ovl {
+					if best_overlapping.as_ref().map_or(true, |(_, prev)| s > *prev) {
+						best_overlapping = Some((sel, s));
+					}
+				} else if best_any.as_ref().map_or(true, |(_, prev)| s > *prev) {
+					best_any = Some((sel, s));
+				}
+			}};
+		}
+
+		// Full tree candidate
+		if let Some(ref s) = slot.full {
+			consider!(SyntaxSelection {
+				syntax: s,
+				tree_id: slot.full_tree_id,
+				tree_doc_version: slot.full_doc_version.unwrap_or(0),
+				coverage: None,
+			});
+		}
+
+		// Viewport cache candidates (MRU order for stable tie-breaking)
+		for key in slot.viewport_cache.iter_keys_mru() {
+			let Some(entry) = slot.viewport_cache.map.get(&key) else { continue };
+			if let Some(ref t) = entry.stage_b {
+				consider!(SyntaxSelection {
+					syntax: &t.syntax,
+					tree_id: t.tree_id,
+					tree_doc_version: t.doc_version,
+					coverage: Some(t.coverage.clone()),
+				});
+			}
+			if let Some(ref t) = entry.stage_a {
+				consider!(SyntaxSelection {
+					syntax: &t.syntax,
+					tree_id: t.tree_id,
+					tree_doc_version: t.doc_version,
+					coverage: Some(t.coverage.clone()),
+				});
+			}
+		}
+
+		best_overlapping
+			.or(best_any)
+			.map(|(sel, _)| sel)
+	}
+
+	/// Returns the document-global change counter for highlight cache invalidation.
 	pub fn syntax_version(&self, doc_id: DocumentId) -> u64 {
-		self.entries.get(&doc_id).map(|e| e.slot.version).unwrap_or(0)
+		self.entries.get(&doc_id).map(|e| e.slot.change_id).unwrap_or(0)
 	}
 
-	/// Returns the document version that the installed syntax tree corresponds to.
+	/// Returns the document version that the installed full tree corresponds to.
 	#[cfg(test)]
 	pub(crate) fn syntax_doc_version(&self, doc_id: DocumentId) -> Option<u64> {
-		self.entries.get(&doc_id)?.slot.tree_doc_version
+		let slot = &self.entries.get(&doc_id)?.slot;
+		slot.full_doc_version.or(slot.viewport_cache.best_doc_version())
 	}
 
 	/// Returns projection context for mapping stale tree highlights onto current text.
@@ -28,12 +142,22 @@ impl SyntaxManager {
 	/// Returns `None` when tree and target versions already match, or when no
 	/// aligned pending window exists.
 	pub(crate) fn highlight_projection_ctx(&self, doc_id: DocumentId, doc_version: u64) -> Option<HighlightProjectionCtx<'_>> {
-		let entry = self.entries.get(&doc_id)?;
-		let tree_doc_version = entry.slot.tree_doc_version?;
-		if tree_doc_version == doc_version {
+		let tree_doc_version = self.syntax_doc_version_internal(doc_id)?;
+		self.highlight_projection_ctx_for(doc_id, tree_doc_version, doc_version)
+	}
+
+	/// Returns projection context for a specific tree version mapped to the target doc version.
+	pub(crate) fn highlight_projection_ctx_for(
+		&self,
+		doc_id: DocumentId,
+		tree_doc_version: u64,
+		target_doc_version: u64,
+	) -> Option<HighlightProjectionCtx<'_>> {
+		if tree_doc_version == target_doc_version {
 			return None;
 		}
 
+		let entry = self.entries.get(&doc_id)?;
 		let pending = entry.slot.pending_incremental.as_ref()?;
 		if pending.base_tree_doc_version != tree_doc_version {
 			return None;
@@ -41,32 +165,47 @@ impl SyntaxManager {
 
 		Some(HighlightProjectionCtx {
 			tree_doc_version,
-			target_doc_version: doc_version,
+			target_doc_version,
 			base_rope: &pending.old_rope,
 			composed_changes: &pending.composed,
 		})
 	}
 
-	/// Returns the document-global byte coverage of the installed syntax tree.
-	pub fn syntax_coverage(&self, doc_id: DocumentId) -> Option<std::ops::Range<u32>> {
-		self.entries.get(&doc_id)?.slot.coverage.clone()
+	/// Internal helper: best available tree doc version.
+	fn syntax_doc_version_internal(&self, doc_id: DocumentId) -> Option<u64> {
+		self.entries.get(&doc_id)?.slot.best_doc_version()
 	}
 
 	/// Returns true if a background task is currently active for a document (even if detached).
 	#[cfg(test)]
 	pub(crate) fn has_inflight_task(&self, doc_id: DocumentId) -> bool {
-		self.entries.get(&doc_id).is_some_and(|e| e.sched.active_task.is_some())
+		self.entries.get(&doc_id).is_some_and(|e| e.sched.any_active())
 	}
 
 	#[cfg(test)]
-	pub(crate) fn active_task_class(&self, doc_id: DocumentId) -> Option<TaskClass> {
-		self.entries.get(&doc_id)?.sched.active_task_class
+	pub(crate) fn has_inflight_viewport(&self, doc_id: DocumentId) -> bool {
+		self.entries.get(&doc_id).is_some_and(|e| e.sched.viewport_any_active())
+	}
+
+	#[cfg(test)]
+	pub(crate) fn has_inflight_viewport_urgent(&self, doc_id: DocumentId) -> bool {
+		self.entries.get(&doc_id).is_some_and(|e| e.sched.viewport_urgent_active())
+	}
+
+	#[cfg(test)]
+	pub(crate) fn has_inflight_viewport_enrich(&self, doc_id: DocumentId) -> bool {
+		self.entries.get(&doc_id).is_some_and(|e| e.sched.viewport_enrich_active())
+	}
+
+	#[cfg(test)]
+	pub(crate) fn has_inflight_bg(&self, doc_id: DocumentId) -> bool {
+		self.entries.get(&doc_id).is_some_and(|e| e.sched.bg_active())
 	}
 
 	pub fn has_pending(&self, doc_id: DocumentId) -> bool {
 		self.entries
 			.get(&doc_id)
-			.is_some_and(|d| d.sched.active_task.is_some() && !d.sched.active_task_detached)
+			.is_some_and(|d| d.sched.any_active())
 	}
 
 	pub(crate) fn viewport_visible_span_cap_for_bytes(&self, bytes: usize) -> u32 {
@@ -77,14 +216,14 @@ impl SyntaxManager {
 	pub fn pending_count(&self) -> usize {
 		self.entries
 			.values()
-			.filter(|d| d.sched.active_task.is_some() && !d.sched.active_task_detached)
+			.filter(|d| d.sched.any_active())
 			.count()
 	}
 
 	pub fn pending_docs(&self) -> impl Iterator<Item = DocumentId> + '_ {
 		self.entries
 			.iter()
-			.filter(|(_, d)| d.sched.active_task.is_some() && !d.sched.active_task_detached)
+			.filter(|(_, d)| d.sched.any_active())
 			.map(|(id, _)| *id)
 	}
 

@@ -48,8 +48,10 @@ pub struct TierCfg {
 	pub cooldown_on_error: Duration,
 	/// Injection handling policy.
 	pub injections: InjectionPolicy,
-	/// Retention policy for hidden documents.
-	pub retention_hidden: RetentionPolicy,
+	/// Retention policy for full trees when document is hidden.
+	pub retention_hidden_full: RetentionPolicy,
+	/// Retention policy for viewport cache when document is hidden.
+	pub retention_hidden_viewport: RetentionPolicy,
 	/// Whether to allow background parsing when the document is not visible.
 	pub parse_when_hidden: bool,
 	/// Timeout for the synchronous bootstrap parse attempt on the render
@@ -71,6 +73,8 @@ pub struct TierCfg {
 	/// Budget for Stage B viewport-bounded parsing (with injections).
 	/// `None` disables Stage B.
 	pub viewport_stage_b_budget: Option<Duration>,
+	/// Minimum consecutive stable polls on the same viewport key before Stage-B fires.
+	pub viewport_stage_b_min_stable_polls: u8,
 	/// Maximum visible viewport byte span consumed by scheduler decisions.
 	///
 	/// Guards against pathological long-line viewports that would otherwise
@@ -120,7 +124,8 @@ impl Default for TieredSyntaxPolicy {
 				cooldown_on_timeout: Duration::from_millis(400),
 				cooldown_on_error: Duration::from_millis(150),
 				injections: InjectionPolicy::Eager,
-				retention_hidden: RetentionPolicy::Keep,
+				retention_hidden_full: RetentionPolicy::Keep,
+				retention_hidden_viewport: RetentionPolicy::Keep,
 				parse_when_hidden: false,
 				sync_bootstrap_timeout: Some(Duration::from_millis(5)),
 				viewport_lookbehind: 8192,
@@ -130,6 +135,7 @@ impl Default for TieredSyntaxPolicy {
 				viewport_parse_timeout_max: Duration::from_millis(15),
 				viewport_injections: InjectionPolicy::Disabled,
 				viewport_stage_b_budget: Some(Duration::from_millis(25)),
+				viewport_stage_b_min_stable_polls: 1,
 				viewport_visible_span_cap: 64 * 1024,
 				viewport_cooldown_on_timeout: Duration::from_millis(250),
 				viewport_cooldown_on_error: Duration::from_millis(100),
@@ -141,7 +147,8 @@ impl Default for TieredSyntaxPolicy {
 				cooldown_on_timeout: Duration::from_secs(2),
 				cooldown_on_error: Duration::from_millis(250),
 				injections: InjectionPolicy::Eager,
-				retention_hidden: RetentionPolicy::DropAfter(Duration::from_secs(60)),
+				retention_hidden_full: RetentionPolicy::DropAfter(Duration::from_secs(60)),
+				retention_hidden_viewport: RetentionPolicy::DropAfter(Duration::from_secs(60)),
 				parse_when_hidden: false,
 				sync_bootstrap_timeout: Some(Duration::from_millis(3)),
 				viewport_lookbehind: 8192,
@@ -151,6 +158,7 @@ impl Default for TieredSyntaxPolicy {
 				viewport_parse_timeout_max: Duration::from_millis(15),
 				viewport_injections: InjectionPolicy::Disabled,
 				viewport_stage_b_budget: Some(Duration::from_millis(25)),
+				viewport_stage_b_min_stable_polls: 1,
 				viewport_visible_span_cap: 64 * 1024,
 				viewport_cooldown_on_timeout: Duration::from_millis(300),
 				viewport_cooldown_on_error: Duration::from_millis(120),
@@ -162,7 +170,8 @@ impl Default for TieredSyntaxPolicy {
 				cooldown_on_timeout: Duration::from_secs(10),
 				cooldown_on_error: Duration::from_secs(2),
 				injections: InjectionPolicy::Disabled,
-				retention_hidden: RetentionPolicy::DropWhenHidden,
+				retention_hidden_full: RetentionPolicy::DropWhenHidden,
+				retention_hidden_viewport: RetentionPolicy::DropAfter(Duration::from_secs(60)),
 				parse_when_hidden: false,
 				sync_bootstrap_timeout: None,
 				viewport_lookbehind: 8192,
@@ -172,6 +181,7 @@ impl Default for TieredSyntaxPolicy {
 				viewport_parse_timeout_max: Duration::from_millis(15),
 				viewport_injections: InjectionPolicy::Disabled,
 				viewport_stage_b_budget: Some(Duration::from_millis(45)),
+				viewport_stage_b_min_stable_polls: 2,
 				viewport_visible_span_cap: 96 * 1024,
 				viewport_cooldown_on_timeout: Duration::from_millis(500),
 				viewport_cooldown_on_error: Duration::from_millis(200),

@@ -1,10 +1,10 @@
 use super::*;
 
 impl SyntaxManager {
-	/// Resets the syntax state for a document, clearing the current tree and history.
+	/// Resets the syntax state for a document, clearing all trees and history.
 	pub fn reset_syntax(&mut self, doc_id: DocumentId) {
 		let entry = self.entry_mut(doc_id);
-		if entry.slot.current.is_some() {
+		if entry.slot.has_any_tree() {
 			entry.slot.drop_tree();
 			Self::mark_updated(&mut entry.slot);
 		}
@@ -29,18 +29,17 @@ impl SyntaxManager {
 		}
 	}
 
-	/// Records an edit and attempts an immediate incremental update.
+	/// Records an edit and attempts an immediate incremental update on the full tree.
 	///
-	/// This is the primary path for interactive typing. It attempts to update
-	/// the resident syntax tree synchronously (with a 10ms timeout). If the
-	/// update fails or is debounced, it accumulates the changes for a
-	/// background parse.
+	/// Viewport trees accumulate edits for highlight projection but never
+	/// receive sync incremental updates (their partial source windows make
+	/// tree-sitter incremental editing invalid).
 	///
 	/// # Invariants
 	///
-	/// - Sync incremental updates are ONLY allowed if the resident tree's version
-	///   matches the version immediately preceding this edit.
-	/// - If alignment is lost, we fallback to a full reparse in the background.
+	/// - Sync incremental updates are ONLY allowed on full (non-partial) trees
+	///   whose version matches the version immediately preceding this edit.
+	/// - If alignment is lost, changes accumulate for a background parse.
 	pub fn note_edit_incremental(
 		&mut self,
 		doc_id: DocumentId,
@@ -62,20 +61,15 @@ impl SyntaxManager {
 			entry.sched.force_no_debounce = true;
 		}
 
-		if let Some(current) = &entry.slot.current
-			&& current.is_partial()
-		{
-			// Never attempt incremental updates on a partial tree. Keep the
-			// partial tree installed for continuity and force immediate catch-up.
+		// Determine which tree doc version to anchor the pending window to.
+		// Prefer full tree; fall back to viewport tree for projection-only tracking.
+		let anchor_version = entry.slot.full_doc_version.or(entry.slot.viewport_cache.best_doc_version());
+		let has_full_tree = entry.slot.full.is_some();
+
+		if anchor_version.is_none() {
 			entry.slot.pending_incremental = None;
-			entry.sched.force_no_debounce = true;
 			return;
 		}
-
-		let Some(syntax) = entry.slot.current.as_mut() else {
-			entry.slot.pending_incremental = None;
-			return;
-		};
 
 		if doc_version == 0 {
 			entry.slot.pending_incremental = None;
@@ -83,11 +77,10 @@ impl SyntaxManager {
 		}
 		let version_before = doc_version - 1;
 
-		// Manage pending incremental window
+		// Manage pending incremental window.
 		match entry.slot.pending_incremental.take() {
 			Some(mut pending) => {
-				if entry.slot.tree_doc_version != Some(pending.base_tree_doc_version) {
-					// Tree has diverged from pending base; invalid window
+				if anchor_version != Some(pending.base_tree_doc_version) {
 					entry.slot.pending_incremental = None;
 				} else {
 					pending.composed = pending.composed.compose(changeset.clone());
@@ -95,12 +88,11 @@ impl SyntaxManager {
 				}
 			}
 			None => {
-				// Only start a pending window if the tree matches the version before this edit.
-				if let Some(tree_v) = entry.slot.tree_doc_version
-					&& tree_v == version_before
+				if let Some(anchor_v) = anchor_version
+					&& anchor_v == version_before
 				{
 					entry.slot.pending_incremental = Some(PendingIncrementalEdits {
-						base_tree_doc_version: tree_v,
+						base_tree_doc_version: anchor_v,
 						old_rope: old_rope.clone(),
 						composed: changeset.clone(),
 					});
@@ -108,11 +100,22 @@ impl SyntaxManager {
 			}
 		}
 
+		// Only attempt sync incremental on full (non-partial) trees.
+		if !has_full_tree {
+			entry.sched.force_no_debounce = true;
+			return;
+		}
+
 		let Some(pending) = entry.slot.pending_incremental.as_ref() else {
 			return;
 		};
 
-		// Attempt sync catch-up from pending base to latest rope
+		// Only sync if the pending window is anchored to the full tree's version.
+		if entry.slot.full_doc_version != Some(pending.base_tree_doc_version) {
+			return;
+		}
+
+		let syntax = entry.slot.full.as_mut().unwrap();
 		let opts = SyntaxOptions {
 			parse_timeout: SYNC_TIMEOUT,
 			..syntax.opts()
@@ -124,7 +127,7 @@ impl SyntaxManager {
 		{
 			entry.slot.pending_incremental = None;
 			entry.slot.dirty = false;
-			entry.slot.tree_doc_version = Some(doc_version);
+			entry.slot.full_doc_version = Some(doc_version);
 			Self::mark_updated(&mut entry.slot);
 		} else {
 			tracing::debug!(?doc_id, "Sync incremental update failed; keeping pending for catch-up");

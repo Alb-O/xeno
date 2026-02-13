@@ -1,9 +1,27 @@
 use super::*;
 
+/// Computes an aligned viewport key for cache reuse.
+fn compute_viewport_key(viewport_start: u32, window_max: u32) -> ViewportKey {
+	let stride = (window_max / 2).max(4096);
+	let anchor = (viewport_start / stride) * stride;
+	ViewportKey(anchor)
+}
+
 impl SyntaxManager {
 	/// Invariant enforcement: Polls or kicks background syntax parsing for a document.
 	pub fn ensure_syntax(&mut self, ctx: EnsureSyntaxContext<'_>) -> SyntaxPollOutcome {
-		let now = Instant::now();
+		self.ensure_syntax_at(Instant::now(), ctx)
+	}
+
+	/// Clock-injectable inner implementation of [`Self::ensure_syntax`].
+	///
+	/// Tests call this directly to deterministically advance time without sleeps.
+	#[cfg_attr(not(test), inline(always))]
+	pub(crate) fn ensure_syntax_at(
+		&mut self,
+		now: Instant,
+		ctx: EnsureSyntaxContext<'_>,
+	) -> SyntaxPollOutcome {
 		let doc_id = ctx.doc_id;
 
 		// Calculate policy and options key
@@ -32,7 +50,7 @@ impl SyntaxManager {
 
 			if entry.slot.language_id != ctx.language_id {
 				entry.sched.invalidate();
-				if entry.slot.current.is_some() {
+				if entry.slot.has_any_tree() {
 					entry.slot.drop_tree();
 					Self::mark_updated(&mut entry.slot);
 					updated = true;
@@ -53,17 +71,21 @@ impl SyntaxManager {
 			}
 			entry.slot.last_opts_key = Some(current_opts_key);
 
-			if entry.sched.active_task.is_some() {
-				entry.sched.active_task_detached = work_disabled;
+			if work_disabled {
+				entry.sched.active_viewport_urgent_detached = entry.sched.active_viewport_urgent.is_some();
+				entry.sched.active_viewport_enrich_detached = entry.sched.active_viewport_enrich.is_some();
+				entry.sched.active_bg_detached = entry.sched.active_bg.is_some();
 			}
 
 			updated
 		};
 
-		// 2. Process completed tasks (from local cache)
-		let task_record = {
+		// 2. Process completed tasks (drain queue)
+		// Collect metric records separately to avoid borrow conflicts.
+		let mut metric_records: Vec<(xeno_language::LanguageId, SyntaxTier, TaskClass, InjectionPolicy, std::time::Duration, bool, bool, bool, bool)> = Vec::new();
+		{
 			let entry = self.entry_mut(doc_id);
-			if let Some(done) = entry.sched.completed.take() {
+			while let Some(done) = entry.sched.completed.pop_front() {
 				let lang_id = done.lang_id;
 				let class = done.class;
 				let injections = done.injections;
@@ -84,47 +106,69 @@ impl SyntaxManager {
 							};
 							let version_match = done.doc_version == ctx.doc_version;
 
-							let retain_ok = Self::retention_allows_install(now, &entry.sched, cfg.retention_hidden, ctx.hotness);
+							let is_viewport_task = class == TaskClass::Viewport;
 
-							let allow_install = if class == TaskClass::Viewport {
-								let monotonic_ok = entry.slot.tree_doc_version.is_none_or(|v| done.doc_version >= v);
+							let retain_policy = if is_viewport_task { cfg.retention_hidden_viewport } else { cfg.retention_hidden_full };
+							let retain_ok = Self::retention_allows_install(now, &entry.sched, retain_policy, ctx.hotness);
+
+							let allow_install = if is_viewport_task {
 								let not_future = done.doc_version <= ctx.doc_version;
-								let requested_ok = done.doc_version >= entry.sched.requested_doc_version;
-								monotonic_ok && not_future && requested_ok
+								let requested_min = match done.viewport_lane {
+									Some(scheduling::ViewportLane::Enrich) => entry.sched.requested_viewport_enrich_doc_version,
+									_ => entry.sched.requested_viewport_urgent_doc_version,
+								};
+								let requested_ok = done.doc_version >= requested_min;
+								not_future && requested_ok
 							} else {
 								Self::should_install_completed_parse(
 									done.doc_version,
-									entry.slot.tree_doc_version,
-									entry.sched.requested_doc_version,
+									entry.slot.full_doc_version,
+									entry.sched.requested_bg_doc_version,
 									ctx.doc_version,
 									entry.slot.dirty,
 								)
 							};
 
 							let is_installed = if work_disabled {
-								tracing::trace!(?doc_id, "Discarding syntax result because work is disabled (Cold)");
 								false
 							} else if lang_ok && opts_ok && retain_ok && allow_install {
-								let is_viewport = class == TaskClass::Viewport;
-								if is_viewport {
-									entry.slot.dirty = true;
-									entry.sched.force_no_debounce = true;
-								}
+								if is_viewport_task {
+									if let Some(vp_key) = done.viewport_key {
+										let tree_id = entry.slot.alloc_tree_id();
+										let coverage = if let Some(meta) = &syntax_tree.viewport {
+											meta.base_offset..meta.base_offset.saturating_add(meta.real_len)
+										} else {
+											0..0
+										};
 
-								if let Some(meta) = &syntax_tree.viewport {
-									entry.slot.coverage = Some(meta.base_offset..meta.base_offset.saturating_add(meta.real_len));
+										let vp_tree = ViewportTree {
+											syntax: syntax_tree,
+											doc_version: done.doc_version,
+											tree_id,
+											coverage,
+										};
+
+										let cache_entry = entry.slot.viewport_cache.get_mut_or_insert(vp_key);
+										let is_stage_a = injections == cfg.viewport_injections;
+										if is_stage_a {
+											cache_entry.stage_a = Some(vp_tree);
+											cache_entry.attempted_b_for = None;
+											entry.slot.dirty = true;
+											entry.sched.force_no_debounce = true;
+										} else {
+											cache_entry.stage_b = Some(vp_tree);
+											cache_entry.stage_b_cooldown_until = None;
+										}
+										entry.slot.language_id = Some(current_lang);
+									}
 								} else {
-									entry.slot.coverage = None;
-								}
+									let tree_id = entry.slot.alloc_tree_id();
+									entry.slot.full = Some(syntax_tree);
+									entry.slot.full_doc_version = Some(done.doc_version);
+									entry.slot.full_tree_id = tree_id;
+									entry.slot.language_id = Some(current_lang);
+									entry.slot.pending_incremental = None;
 
-								entry.slot.current = Some(syntax_tree);
-								entry.slot.language_id = Some(current_lang);
-								entry.slot.tree_doc_version = Some(done.doc_version);
-								entry.slot.pending_incremental = None;
-								Self::mark_updated(&mut entry.slot);
-								was_updated = true;
-
-								if !is_viewport {
 									entry.sched.force_no_debounce = false;
 									if version_match {
 										entry.slot.dirty = false;
@@ -133,16 +177,11 @@ impl SyntaxManager {
 										entry.slot.dirty = true;
 									}
 								}
+
+								Self::mark_updated(&mut entry.slot);
+								was_updated = true;
 								true
 							} else {
-								tracing::trace!(
-									?doc_id,
-									?lang_ok,
-									?opts_ok,
-									?retain_ok,
-									?allow_install,
-									"Discarding syntax result due to mismatch/retention"
-								);
 								if lang_ok && opts_ok && version_match && !retain_ok {
 									entry.slot.drop_tree();
 									entry.slot.dirty = false;
@@ -153,80 +192,87 @@ impl SyntaxManager {
 								false
 							};
 
-							Some((lang_id, tier, class, injections, elapsed, is_timeout, is_error, is_installed))
+							metric_records.push((lang_id, tier, class, injections, elapsed, is_timeout, is_error, is_installed, false));
 						} else {
-							Some((lang_id, tier, class, injections, elapsed, is_timeout, is_error, false))
+							metric_records.push((lang_id, tier, class, injections, elapsed, is_timeout, is_error, false, false));
 						}
 					}
 					Err(xeno_language::syntax::SyntaxError::Timeout) => {
-						let cooldown = if class == TaskClass::Viewport {
-							cfg.viewport_cooldown_on_timeout
+						let is_enrich = done.viewport_lane == Some(scheduling::ViewportLane::Enrich);
+						if is_enrich {
+							// Per-key cooldown only; don't block other lanes
+							if let Some(vp_key) = done.viewport_key {
+								let ce = entry.slot.viewport_cache.get_mut_or_insert(vp_key);
+								ce.stage_b_cooldown_until = Some(now + cfg.viewport_cooldown_on_timeout);
+								ce.attempted_b_for = None;
+							}
 						} else {
-							cfg.cooldown_on_timeout
-						};
-						entry.sched.cooldown_until = Some(now + cooldown);
-						Some((lang_id, tier, class, injections, elapsed, true, false, false))
+							let cooldown = if class == TaskClass::Viewport {
+								cfg.viewport_cooldown_on_timeout
+							} else {
+								cfg.cooldown_on_timeout
+							};
+							entry.sched.cooldown_until = Some(now + cooldown);
+						}
+						metric_records.push((lang_id, tier, class, injections, elapsed, true, false, false, is_enrich));
 					}
 					Err(e) => {
 						tracing::warn!(?doc_id, ?tier, error=%e, "Background syntax parse failed");
-						let cooldown = if class == TaskClass::Viewport {
-							cfg.viewport_cooldown_on_error
+						let is_enrich = done.viewport_lane == Some(scheduling::ViewportLane::Enrich);
+						if is_enrich {
+							if let Some(vp_key) = done.viewport_key {
+								let ce = entry.slot.viewport_cache.get_mut_or_insert(vp_key);
+								ce.stage_b_cooldown_until = Some(now + cfg.viewport_cooldown_on_error);
+								ce.attempted_b_for = None;
+							}
 						} else {
-							cfg.cooldown_on_error
-						};
-						entry.sched.cooldown_until = Some(now + cooldown);
-						Some((lang_id, tier, class, injections, elapsed, false, true, false))
+							let cooldown = if class == TaskClass::Viewport {
+								cfg.viewport_cooldown_on_error
+							} else {
+								cfg.cooldown_on_error
+							};
+							entry.sched.cooldown_until = Some(now + cooldown);
+						}
+						metric_records.push((lang_id, tier, class, injections, elapsed, false, true, false, is_enrich));
 					}
 				}
-			} else {
-				None
-			}
-		};
-
-		if let Some((lang_id, tier, class, injections, elapsed, is_timeout, is_error, is_installed)) = task_record {
-			self.metrics
-				.record_task_result(lang_id, tier, class, injections, elapsed, is_timeout, is_error, is_installed);
-			if is_timeout || is_error {
-				return SyntaxPollOutcome {
-					result: SyntaxPollResult::CoolingDown,
-					updated: was_updated,
-				};
 			}
 		}
+
+		let mut any_blocking_timeout_or_error = false;
+		for (lang_id, tier, class, injections, elapsed, is_timeout, is_error, is_installed, is_enrich) in metric_records {
+			self.metrics
+				.record_task_result(lang_id, tier, class, injections, elapsed, is_timeout, is_error, is_installed);
+			if (is_timeout || is_error) && !is_enrich {
+				any_blocking_timeout_or_error = true;
+			}
+		}
+
+		if any_blocking_timeout_or_error {
+			return SyntaxPollOutcome {
+				result: SyntaxPollResult::CoolingDown,
+				updated: was_updated,
+			};
+		}
+
+		let mut viewport_stable_polls: u8 = 0;
+		let mut want_enrich = false;
+		let mut viewport_uncovered = false;
 
 		{
 			let entry = self.entry_mut(doc_id);
 
-			if entry.sched.active_task.is_some() && !entry.sched.active_task_detached {
-				if Self::apply_retention(now, &entry.sched, cfg.retention_hidden, ctx.hotness, &mut entry.slot, doc_id) {
+			// Retention
+			if entry.sched.any_active() {
+				if Self::apply_retention(now, &entry.sched, cfg.retention_hidden_full, cfg.retention_hidden_viewport, ctx.hotness, &mut entry.slot, doc_id) {
 					entry.sched.invalidate();
 					was_updated = true;
-				} else {
-					let should_preempt_for_viewport = tier == SyntaxTier::L
-						&& ctx.hotness == SyntaxHotness::Visible
-						&& matches!(entry.sched.active_task_class, Some(TaskClass::Full | TaskClass::Incremental))
-						&& viewport.is_some()
-						&& entry.slot.current.as_ref().is_some_and(|s| s.is_partial())
-						&& match (&viewport, &entry.slot.coverage) {
-							(Some(vp), Some(coverage)) => vp.start < coverage.start || vp.end > coverage.end,
-							(Some(_), None) => true,
-							_ => false,
-						};
-					if should_preempt_for_viewport {
-						entry.sched.invalidate();
-						entry.slot.dirty = true;
-					} else {
-						return SyntaxPollOutcome {
-							result: SyntaxPollResult::Pending,
-							updated: was_updated,
-						};
-					}
 				}
 			}
 
 			// 4. Language check
 			let Some(_lang_id) = ctx.language_id else {
-				if entry.slot.current.is_some() {
+				if entry.slot.has_any_tree() {
 					entry.slot.drop_tree();
 					Self::mark_updated(&mut entry.slot);
 					was_updated = true;
@@ -240,7 +286,7 @@ impl SyntaxManager {
 				};
 			};
 
-			if Self::apply_retention(now, &entry.sched, cfg.retention_hidden, ctx.hotness, &mut entry.slot, doc_id) {
+			if Self::apply_retention(now, &entry.sched, cfg.retention_hidden_full, cfg.retention_hidden_viewport, ctx.hotness, &mut entry.slot, doc_id) {
 				if !work_disabled {
 					entry.sched.invalidate();
 				}
@@ -255,7 +301,64 @@ impl SyntaxManager {
 				};
 			}
 
-			if entry.slot.current.is_some() && !entry.slot.dirty {
+			// Reattach detached tasks when becoming visible again
+			if entry.sched.active_viewport_urgent_detached {
+				entry.sched.active_viewport_urgent_detached = false;
+			}
+			if entry.sched.active_viewport_enrich_detached {
+				entry.sched.active_viewport_enrich_detached = false;
+			}
+			if entry.sched.active_bg_detached {
+				entry.sched.active_bg_detached = false;
+			}
+
+			// Track viewport focus stability for Stage-B gating.
+			// Use covering_key so that stride-boundary viewport shifts don't reset
+			// stability when the enrichment target key hasn't actually changed.
+			viewport_stable_polls = if let Some(vp) = &viewport {
+				let focus_key = entry.slot.viewport_cache.covering_key(vp)
+					.unwrap_or_else(|| compute_viewport_key(vp.start, cfg.viewport_window_max));
+				entry.sched.note_viewport_focus(focus_key, ctx.doc_version)
+			} else {
+				0
+			};
+
+			// MRU touch: keep the current viewport key hot in the cache
+			if let Some(vp) = &viewport {
+				if let Some(covering) = entry.slot.viewport_cache.covering_key(vp) {
+					entry.slot.viewport_cache.touch(covering);
+				} else {
+					let key = compute_viewport_key(vp.start, cfg.viewport_window_max);
+					if entry.slot.viewport_cache.map.contains_key(&key) {
+						entry.slot.viewport_cache.touch(key);
+					}
+				}
+			}
+
+			// Compute enrichment desire using covering key (not just computed key)
+			want_enrich = tier == SyntaxTier::L
+				&& ctx.hotness == SyntaxHotness::Visible
+				&& cfg.viewport_stage_b_budget.is_some()
+				&& viewport.is_some()
+				&& {
+					let vp = viewport.as_ref().unwrap();
+					let k = entry.slot.viewport_cache.covering_key(vp)
+						.unwrap_or_else(|| compute_viewport_key(vp.start, cfg.viewport_window_max));
+					let already_good = entry.slot.viewport_cache.map.get(&k).is_some_and(|ce| {
+						ce.stage_b.as_ref().is_some_and(|t| {
+							t.doc_version == ctx.doc_version
+								&& t.coverage.start <= vp.start
+								&& t.coverage.end >= vp.end
+						})
+					});
+					!already_good
+				};
+
+			viewport_uncovered = tier == SyntaxTier::L
+				&& entry.slot.full.is_none()
+				&& viewport.as_ref().is_some_and(|vp| !entry.slot.viewport_cache.covers_range(vp));
+
+			if entry.slot.has_any_tree() && !entry.slot.dirty && !want_enrich && !viewport_uncovered {
 				entry.sched.force_no_debounce = false;
 				return SyntaxPollOutcome {
 					result: SyntaxPollResult::Ready,
@@ -263,7 +366,7 @@ impl SyntaxManager {
 				};
 			}
 
-			if entry.slot.current.is_some() && !entry.sched.force_no_debounce && now.duration_since(entry.sched.last_edit_at) < cfg.debounce {
+			if entry.slot.has_any_tree() && !entry.sched.force_no_debounce && now.duration_since(entry.sched.last_edit_at) < cfg.debounce {
 				return SyntaxPollOutcome {
 					result: SyntaxPollResult::Pending,
 					updated: was_updated,
@@ -278,23 +381,13 @@ impl SyntaxManager {
 					updated: was_updated,
 				};
 			}
-
-			// Defensive: never schedule if a task is already active for this document identity
-			if let Some(_task_id) = entry.sched.active_task
-				&& !entry.sched.active_task_detached
-			{
-				return SyntaxPollOutcome {
-					result: SyntaxPollResult::Pending,
-					updated: was_updated,
-				};
-			}
 		}
 
 		// 5.5 Sync bootstrap fast path
 		let lang_id = ctx.language_id.unwrap();
 		let (do_sync, sync_timeout, pre_epoch) = {
 			let entry = self.entry_mut(doc_id);
-			let is_bootstrap = entry.slot.current.is_none();
+			let is_bootstrap = !entry.slot.has_any_tree();
 			let is_visible = matches!(ctx.hotness, SyntaxHotness::Visible);
 
 			if is_bootstrap && is_visible && !entry.slot.sync_bootstrap_attempted {
@@ -323,16 +416,15 @@ impl SyntaxManager {
 			&& let Ok(syntax) = res
 		{
 			let entry = self.entry_mut(doc_id);
-			// Re-check invariants after dropping and re-acquiring borrow
-			let is_bootstrap = entry.slot.current.is_none();
+			let is_bootstrap = !entry.slot.has_any_tree();
 			let is_visible = matches!(ctx.hotness, SyntaxHotness::Visible);
-			if entry.sched.epoch == pre_epoch && is_bootstrap && is_visible && entry.sched.active_task.is_none() {
-				entry.slot.current = Some(syntax);
+			if entry.sched.epoch == pre_epoch && is_bootstrap && is_visible && !entry.sched.any_active() {
+				let tree_id = entry.slot.alloc_tree_id();
+				entry.slot.full = Some(syntax);
+				entry.slot.full_doc_version = Some(ctx.doc_version);
+				entry.slot.full_tree_id = tree_id;
 				entry.slot.language_id = Some(lang_id);
-				entry.slot.tree_doc_version = Some(ctx.doc_version);
 				entry.slot.dirty = false;
-				entry.slot.coverage = None;
-				entry.slot.viewport_stage_b_attempted = false;
 				entry.slot.pending_incremental = None;
 				entry.sched.force_no_debounce = false;
 				entry.sched.cooldown_until = None;
@@ -344,77 +436,40 @@ impl SyntaxManager {
 			}
 		}
 
-		// 6. Schedule new task
-		// 6a. Viewport-bounded parsing (Stage A and Stage B)
-		let (needs_stage_a, needs_stage_b, win_override) = {
-			let entry = self.entry_mut(doc_id);
-			let mut needs_a = false;
-			let mut needs_b = false;
-			let mut win = None;
+		// 6. Schedule new tasks
+		let mut kicked_any = false;
 
+		// 6a. Viewport urgent lane: Stage-A
+		let (needs_stage_a, stage_a_key) = {
+			let entry = self.entry_mut(doc_id);
 			if tier == SyntaxTier::L
 				&& ctx.hotness == SyntaxHotness::Visible
 				&& let Some(viewport) = &viewport
+				&& !entry.sched.viewport_urgent_active()
+				&& entry.slot.full.is_none()
+				&& !entry.slot.viewport_cache.covers_range(viewport)
 			{
-				if let Some(current) = &entry.slot.current {
-					if current.is_partial() {
-						if let Some(coverage) = &entry.slot.coverage {
-							if viewport.start < coverage.start || viewport.end > coverage.end {
-								needs_a = true;
-							} else if current.opts().injections != InjectionPolicy::Eager
-								&& !entry.slot.viewport_stage_b_attempted
-								&& cfg.viewport_stage_b_budget.is_some()
-							{
-								needs_b = true;
-								win = Some(coverage.clone());
-							}
-						} else {
-							needs_a = true;
-						}
-					}
-				} else {
-					needs_a = true;
-				}
+				(true, Some(compute_viewport_key(viewport.start, cfg.viewport_window_max)))
+			} else {
+				(false, None)
 			}
-			(needs_a, needs_b, win)
 		};
 
-		let mut really_needs_b = false;
-		if needs_stage_b {
-			let budget = cfg.viewport_stage_b_budget.unwrap();
-			let predicted = self.metrics.predict_duration(lang_id, tier, TaskClass::Viewport, InjectionPolicy::Eager);
-
-			// If no metrics yet, we assume it's within budget (optimistic)
-			if predicted.map(|p| p <= budget).unwrap_or(true) {
-				really_needs_b = true;
+		if needs_stage_a {
+			let viewport_key = stage_a_key.unwrap();
+			let viewport = viewport.as_ref().unwrap();
+			let win_start = viewport_key.0.saturating_sub(cfg.viewport_lookbehind);
+			let mut win_end = viewport_key.0.saturating_add(cfg.viewport_window_max).min(bytes_u32);
+			win_end = win_end.max(viewport.end.saturating_add(cfg.viewport_lookahead).min(bytes_u32));
+			let mut win_len = win_end.saturating_sub(win_start);
+			if win_len > cfg.viewport_window_max {
+				win_len = cfg.viewport_window_max;
+				win_end = win_start.saturating_add(win_len).min(bytes_u32);
 			}
-		}
-
-		if (needs_stage_a || really_needs_b) && self.entry_mut(doc_id).sched.active_task.is_none() {
-			let mut b_latch_to_set = false;
-			let (injections, win_start, win_end) = {
-				let viewport = viewport.as_ref().unwrap();
-
-				if needs_stage_a {
-					let win_start = viewport.start.saturating_sub(cfg.viewport_lookbehind);
-					let mut win_end = viewport.end.saturating_add(cfg.viewport_lookahead).min(bytes_u32);
-					let mut win_len = win_end.saturating_sub(win_start);
-
-					if win_len > cfg.viewport_window_max {
-						win_len = cfg.viewport_window_max;
-						win_end = win_start.saturating_add(win_len).min(bytes_u32);
-					}
-					(cfg.viewport_injections, win_start, win_end)
-				} else {
-					// needs_stage_b
-					b_latch_to_set = true;
-					let range = win_override.as_ref().unwrap();
-					(InjectionPolicy::Eager, range.start, range.end)
-				}
-			};
 
 			if win_end > win_start {
 				let class = TaskClass::Viewport;
+				let injections = cfg.viewport_injections;
 				let parse_timeout =
 					self.metrics
 						.derive_timeout(lang_id, tier, class, injections, cfg.viewport_parse_timeout_min, cfg.viewport_parse_timeout_max);
@@ -430,84 +485,203 @@ impl SyntaxManager {
 					kind: TaskKind::ViewportParse {
 						content: ctx.content.clone(),
 						window: win_start..win_end,
+						key: viewport_key,
 					},
 					loader: Arc::clone(ctx.loader),
+					viewport_key: Some(viewport_key),
+					viewport_lane: Some(scheduling::ViewportLane::Urgent),
 				};
 
 				let permits = Arc::clone(&self.permits);
 				let engine = Arc::clone(&self.engine);
 
-				if let Some(task_id) = self.collector.spawn(permits, engine, spec, self.cfg.viewport_reserve) {
+				if let Some(task_id) = self.collector.spawn(permits, engine, spec, self.cfg.viewport_reserve, true) {
 					let entry = self.entries.get_mut(&doc_id).unwrap();
-					entry.sched.active_task = Some(task_id);
-					entry.sched.active_task_class = Some(class);
-					entry.sched.requested_doc_version = ctx.doc_version;
-					entry.sched.force_no_debounce = false;
-					if b_latch_to_set {
-						entry.slot.viewport_stage_b_attempted = true;
-					}
-					return SyntaxPollOutcome {
-						result: SyntaxPollResult::Kicked,
-						updated: was_updated,
-					};
+					entry.sched.active_viewport_urgent = Some(task_id);
+					entry.sched.requested_viewport_urgent_doc_version = ctx.doc_version;
+					kicked_any = true;
 				}
 			}
 		}
 
-		// 6b. Full or Incremental parse
-		let (kind, class) = {
+		// 6b. Viewport enrich lane: Stage-B
+		let (needs_stage_b, stage_b_key, stage_b_win) = {
 			let entry = self.entry_mut(doc_id);
-			let incremental = match entry.slot.pending_incremental.as_ref() {
-				Some(pending) if entry.slot.current.is_some() && entry.slot.tree_doc_version == Some(pending.base_tree_doc_version) => {
-					Some(TaskKind::Incremental {
-						base: entry.slot.current.as_ref().unwrap().clone(),
-						old_rope: pending.old_rope.clone(),
-						new_rope: ctx.content.clone(),
-						composed: pending.composed.clone(),
+			if tier == SyntaxTier::L
+				&& ctx.hotness == SyntaxHotness::Visible
+				&& let Some(viewport) = &viewport
+				&& !entry.sched.viewport_enrich_active()
+				&& !entry.sched.viewport_urgent_active()
+				&& cfg.viewport_stage_b_budget.is_some()
+				&& viewport_stable_polls >= cfg.viewport_stage_b_min_stable_polls
+			{
+				let k = entry.slot.viewport_cache.covering_key(viewport)
+					.unwrap_or_else(|| compute_viewport_key(viewport.start, cfg.viewport_window_max));
+				let cache_entry = entry.slot.viewport_cache.map.get(&k);
+				let eager_covers = cache_entry.is_some_and(|ce| {
+					ce.stage_b.as_ref().is_some_and(|t| {
+						t.doc_version == ctx.doc_version
+							&& t.coverage.start <= viewport.start
+							&& t.coverage.end >= viewport.end
 					})
+				});
+				let already_attempted = cache_entry.is_some_and(|ce| {
+					ce.attempted_b_for == Some(ctx.doc_version)
+				});
+				let in_cooldown = cache_entry.is_some_and(|ce| {
+					ce.stage_b_cooldown_until.is_some_and(|until| now < until)
+				});
+				if !eager_covers && !already_attempted && !in_cooldown {
+					let win = cache_entry.and_then(|ce| ce.stage_a.as_ref().map(|sa| sa.coverage.clone()));
+					(true, Some(k), win)
+				} else {
+					(false, None, None)
 				}
-				_ => None,
+			} else {
+				(false, None, None)
+			}
+		};
+
+		if needs_stage_b {
+			let budget = cfg.viewport_stage_b_budget.unwrap();
+			let predicted = self.metrics.predict_duration(lang_id, tier, TaskClass::Viewport, InjectionPolicy::Eager);
+			let within_budget = predicted.map(|p| p <= budget).unwrap_or(true);
+
+			if within_budget {
+				let viewport_key = stage_b_key.unwrap();
+				let viewport = viewport.as_ref().unwrap();
+				let (win_start, win_end) = if let Some(range) = stage_b_win.as_ref() {
+					(range.start, range.end)
+				} else {
+					let win_start = viewport_key.0.saturating_sub(cfg.viewport_lookbehind);
+					let mut win_end = viewport.end.saturating_add(cfg.viewport_lookahead).min(bytes_u32);
+					let mut win_len = win_end.saturating_sub(win_start);
+					if win_len > cfg.viewport_window_max {
+						win_len = cfg.viewport_window_max;
+						win_end = win_start.saturating_add(win_len).min(bytes_u32);
+					}
+					(win_start, win_end)
+				};
+
+				if win_end > win_start {
+					let class = TaskClass::Viewport;
+					let injections = InjectionPolicy::Eager;
+					let parse_timeout =
+						self.metrics
+							.derive_timeout(lang_id, tier, class, injections, cfg.viewport_parse_timeout_min, cfg.viewport_parse_timeout_max);
+
+					let entry = self.entry_mut(doc_id);
+					let spec = TaskSpec {
+						doc_id,
+						epoch: entry.sched.epoch,
+						doc_version: ctx.doc_version,
+						lang_id,
+						opts_key: current_opts_key,
+						opts: SyntaxOptions { parse_timeout, injections },
+						kind: TaskKind::ViewportParse {
+							content: ctx.content.clone(),
+							window: win_start..win_end,
+							key: viewport_key,
+						},
+						loader: Arc::clone(ctx.loader),
+						viewport_key: Some(viewport_key),
+						viewport_lane: Some(scheduling::ViewportLane::Enrich),
+					};
+
+					let permits = Arc::clone(&self.permits);
+					let engine = Arc::clone(&self.engine);
+
+					if let Some(task_id) = self.collector.spawn(permits, engine, spec, self.cfg.viewport_reserve, false) {
+						let entry = self.entries.get_mut(&doc_id).unwrap();
+						entry.sched.active_viewport_enrich = Some(task_id);
+						entry.sched.requested_viewport_enrich_doc_version = ctx.doc_version;
+						let ce = entry.slot.viewport_cache.get_mut_or_insert(viewport_key);
+						ce.attempted_b_for = Some(ctx.doc_version);
+						ce.stage_b_cooldown_until = None;
+						kicked_any = true;
+					}
+				}
+			}
+		}
+
+		// 6c. Background lane: Full or Incremental parse
+		let bg_needed = {
+			let entry = self.entry_mut(doc_id);
+			(entry.slot.dirty || entry.slot.full.is_none()) && !entry.sched.bg_active()
+		};
+
+		if bg_needed {
+			let (kind, class) = {
+				let entry = self.entry_mut(doc_id);
+				let incremental = match entry.slot.pending_incremental.as_ref() {
+					Some(pending) if entry.slot.full.is_some() && entry.slot.full_doc_version == Some(pending.base_tree_doc_version) => {
+						Some(TaskKind::Incremental {
+							base: entry.slot.full.as_ref().unwrap().clone(),
+							old_rope: pending.old_rope.clone(),
+							new_rope: ctx.content.clone(),
+							composed: pending.composed.clone(),
+						})
+					}
+					_ => None,
+				};
+
+				let kind = incremental.unwrap_or_else(|| TaskKind::FullParse { content: ctx.content.clone() });
+				let class = kind.class();
+				(kind, class)
 			};
 
-			let kind = incremental.unwrap_or_else(|| TaskKind::FullParse { content: ctx.content.clone() });
-			let class = kind.class();
-			(kind, class)
-		};
+			let injections = cfg.injections;
+			let parse_timeout = self
+				.metrics
+				.derive_timeout(lang_id, tier, class, injections, cfg.parse_timeout_min, cfg.parse_timeout_max);
 
-		let injections = cfg.injections;
-		let parse_timeout = self
-			.metrics
-			.derive_timeout(lang_id, tier, class, injections, cfg.parse_timeout_min, cfg.parse_timeout_max);
-
-		let entry = self.entry_mut(doc_id);
-		let spec = TaskSpec {
-			doc_id,
-			epoch: entry.sched.epoch,
-			doc_version: ctx.doc_version,
-			lang_id,
-			opts_key: current_opts_key,
-			opts: SyntaxOptions { parse_timeout, injections },
-			kind,
-			loader: Arc::clone(ctx.loader),
-		};
-
-		let permits = Arc::clone(&self.permits);
-		let engine = Arc::clone(&self.engine);
-
-		if let Some(task_id) = self.collector.spawn(permits, engine, spec, self.cfg.viewport_reserve) {
 			let entry = self.entry_mut(doc_id);
-			entry.sched.active_task = Some(task_id);
-			entry.sched.active_task_class = Some(class);
-			entry.sched.requested_doc_version = ctx.doc_version;
-			entry.sched.force_no_debounce = false;
+			let spec = TaskSpec {
+				doc_id,
+				epoch: entry.sched.epoch,
+				doc_version: ctx.doc_version,
+				lang_id,
+				opts_key: current_opts_key,
+				opts: SyntaxOptions { parse_timeout, injections },
+				kind,
+				loader: Arc::clone(ctx.loader),
+				viewport_key: None,
+				viewport_lane: None,
+			};
+
+			let permits = Arc::clone(&self.permits);
+			let engine = Arc::clone(&self.engine);
+
+			if let Some(task_id) = self.collector.spawn(permits, engine, spec, self.cfg.viewport_reserve, false) {
+				let entry = self.entry_mut(doc_id);
+				entry.sched.active_bg = Some(task_id);
+				entry.sched.requested_bg_doc_version = ctx.doc_version;
+				entry.sched.force_no_debounce = false;
+				kicked_any = true;
+			}
+		}
+
+		if kicked_any {
 			SyntaxPollOutcome {
 				result: SyntaxPollResult::Kicked,
 				updated: was_updated,
 			}
 		} else {
-			SyntaxPollOutcome {
-				result: SyntaxPollResult::Throttled,
-				updated: was_updated,
+			let entry = self.entry_mut(doc_id);
+			let desired_work = entry.slot.dirty
+				|| entry.slot.full.is_none()
+				|| viewport_uncovered
+				|| want_enrich;
+			if entry.sched.any_active() || desired_work {
+				SyntaxPollOutcome {
+					result: SyntaxPollResult::Pending,
+					updated: was_updated,
+				}
+			} else {
+				SyntaxPollOutcome {
+					result: SyntaxPollResult::Ready,
+					updated: was_updated,
+				}
 			}
 		}
 	}

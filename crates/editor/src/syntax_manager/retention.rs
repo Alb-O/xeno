@@ -39,17 +39,20 @@ impl SyntaxManager {
 		}
 	}
 
-	/// Invariant enforcement: Bumps the syntax version after a state change.
+	/// Invariant enforcement: Bumps the change counter after a state change.
 	pub(crate) fn mark_updated(state: &mut SyntaxSlot) {
 		state.updated = true;
-		state.version = state.version.wrapping_add(1);
+		state.change_id = state.change_id.wrapping_add(1);
 	}
 
-	/// Invariant enforcement: Applies memory retention rules to a syntax slot.
+	/// Applies memory retention rules separately for full tree and viewport cache.
+	///
+	/// Returns true if any artifact was dropped.
 	pub(crate) fn apply_retention(
 		now: Instant,
 		st: &DocSched,
-		policy: RetentionPolicy,
+		full_policy: RetentionPolicy,
+		viewport_policy: RetentionPolicy,
 		hotness: SyntaxHotness,
 		state: &mut SyntaxSlot,
 		_doc_id: DocumentId,
@@ -58,29 +61,38 @@ impl SyntaxManager {
 			return false;
 		}
 
-		match policy {
+		let mut dropped = false;
+
+		// Full tree retention
+		let drop_full = match full_policy {
 			RetentionPolicy::Keep => false,
-			RetentionPolicy::DropWhenHidden => {
-				if state.current.is_some() || state.dirty {
-					state.drop_tree();
-					state.dirty = false;
-					state.pending_incremental = None;
-					Self::mark_updated(state);
-					true
-				} else {
-					false
-				}
-			}
+			RetentionPolicy::DropWhenHidden => state.full.is_some() || state.dirty,
 			RetentionPolicy::DropAfter(ttl) => {
-				if (state.current.is_some() || state.dirty) && now.duration_since(st.last_visible_at) > ttl {
-					state.drop_tree();
-					state.dirty = false;
-					Self::mark_updated(state);
-					true
-				} else {
-					false
-				}
+				(state.full.is_some() || state.dirty) && now.duration_since(st.last_visible_at) > ttl
 			}
+		};
+		if drop_full {
+			state.drop_full();
+			state.dirty = false;
+			state.pending_incremental = None;
+			Self::mark_updated(state);
+			dropped = true;
 		}
+
+		// Viewport cache retention
+		let drop_viewport = match viewport_policy {
+			RetentionPolicy::Keep => false,
+			RetentionPolicy::DropWhenHidden => state.viewport_cache.has_any(),
+			RetentionPolicy::DropAfter(ttl) => {
+				state.viewport_cache.has_any() && now.duration_since(st.last_visible_at) > ttl
+			}
+		};
+		if drop_viewport {
+			state.drop_viewport();
+			Self::mark_updated(state);
+			dropped = true;
+		}
+
+		dropped
 	}
 }

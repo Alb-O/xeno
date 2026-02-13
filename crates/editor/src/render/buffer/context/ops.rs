@@ -73,42 +73,25 @@ impl<'a> BufferRenderContext<'a> {
 		viewport_height: usize,
 		cache: &mut RenderCache,
 	) -> Vec<(HighlightSpan, Style)> {
-		let Some(syntax) = self.syntax_manager.syntax_for_doc(doc_id) else {
-			return Vec::new();
-		};
-		let syntax_version = self.syntax_manager.syntax_version(doc_id);
-		let projection = self.syntax_manager.highlight_projection_ctx(doc_id, doc_version);
-
-		// Coverage check for partial trees
-		if syntax.is_partial() {
-			let total_lines = doc_content.len_lines();
-			let start_line = scroll_line.min(total_lines);
-			let end_line = start_line.saturating_add(viewport_height).min(total_lines);
-			let viewport_start_byte = line_to_byte_or_eof(doc_content, start_line);
-			let viewport_end_byte = line_to_byte_or_eof(doc_content, end_line);
-
-			if let Some(coverage) = self.syntax_manager.syntax_coverage(doc_id)
-				&& (viewport_end_byte <= coverage.start || viewport_start_byte >= coverage.end)
-			{
-				// No overlap with partial coverage. Skip highlights until viewport parsing catches up.
-				return Vec::new();
-			}
-		}
-
-		// Note: We allow rendering with a stale tree (tree_doc_version != doc_version)
-		// to maintain highlighting during rapid edits. The highlight cache and
-		// tile builder ensure safety via bounds clamping and version-keyed caching.
-
 		let total_lines = visible_line_count(doc_content.slice(..));
 		let start_line = scroll_line.min(total_lines);
 		let end_line = start_line.saturating_add(viewport_height).min(total_lines);
+
+		let viewport_start_byte = line_to_byte_or_eof(doc_content, start_line);
+		let viewport_end_byte = line_to_byte_or_eof(doc_content, end_line);
+
+		let Some(selection) = self.syntax_manager.syntax_for_viewport(doc_id, doc_version, viewport_start_byte..viewport_end_byte) else {
+			return Vec::new();
+		};
+		let syntax_version = selection.tree_id;
+		let projection = self.syntax_manager.highlight_projection_ctx_for(doc_id, selection.tree_doc_version, doc_version);
 
 		cache.highlight.get_spans(HighlightSpanQuery {
 			doc_id,
 			syntax_version,
 			language_id,
 			rope: doc_content,
-			syntax,
+			syntax: selection.syntax,
 			projection,
 			language_loader: self.language_loader,
 			style_resolver: |scope: &str| self.theme.colors.syntax.resolve(scope),

@@ -74,12 +74,9 @@ impl Editor {
 		let scroll_line = buffer.scroll_line;
 		let doc_id = buffer.document_id();
 
-		let Some(syntax) = self.state.syntax_manager.syntax_for_doc(doc_id) else {
-			return Vec::new();
-		};
-
 		buffer.with_doc(|doc| {
 			let content = doc.content();
+			let doc_version = doc.version();
 			let total_lines = content.len_lines();
 			let start_line = scroll_line.min(total_lines);
 			let end_line = start_line.saturating_add(area.height as usize).min(total_lines);
@@ -95,10 +92,14 @@ impl Editor {
 				content.len_bytes() as u32
 			};
 
+			let Some(selection) = self.state.syntax_manager.syntax_for_viewport(doc_id, doc_version, start_byte..end_byte) else {
+				return Vec::new();
+			};
+
 			let highlight_styles =
 				xeno_language::highlight::HighlightStyles::new(SyntaxStyles::scope_names(), |scope| self.state.config.theme.colors.syntax.resolve(scope));
 
-			let highlighter = syntax.highlighter(content.slice(..), &self.state.config.language_loader, start_byte..end_byte);
+			let highlighter = selection.syntax.highlighter(content.slice(..), &self.state.config.language_loader, start_byte..end_byte);
 
 			highlighter
 				.map(|span| {

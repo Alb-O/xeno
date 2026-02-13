@@ -9,7 +9,7 @@ use xeno_language::{LanguageId, LanguageLoader};
 use xeno_primitives::{ChangeSet, Rope};
 
 use super::engine::SyntaxEngine;
-use super::types::{DocEpoch, OptKey, TaskId};
+use super::types::{DocEpoch, OptKey, TaskId, ViewportKey};
 use crate::core::document::DocumentId;
 
 /// Categorization of syntax tasks for metrics and scheduling.
@@ -28,6 +28,7 @@ pub(super) enum TaskKind {
 	ViewportParse {
 		content: Rope,
 		window: std::ops::Range<u32>,
+		key: ViewportKey,
 	},
 	Incremental {
 		base: Syntax,
@@ -57,6 +58,8 @@ pub(super) struct TaskSpec {
 	pub(super) opts: SyntaxOptions,
 	pub(super) kind: TaskKind,
 	pub(super) loader: Arc<LanguageLoader>,
+	pub(super) viewport_key: Option<ViewportKey>,
+	pub(super) viewport_lane: Option<super::scheduling::ViewportLane>,
 }
 
 /// Output of a completed background syntax task, returned via the join handle.
@@ -71,6 +74,8 @@ pub(super) struct TaskDone {
 	pub(super) class: TaskClass,
 	pub(super) injections: InjectionPolicy,
 	pub(super) elapsed: Duration,
+	pub(super) viewport_key: Option<ViewportKey>,
+	pub(super) viewport_lane: Option<super::scheduling::ViewportLane>,
 }
 
 /// Invariant enforcement: Collector for background syntax tasks.
@@ -87,10 +92,13 @@ impl TaskCollector {
 		}
 	}
 
-	pub(super) fn spawn(&mut self, permits: Arc<Semaphore>, engine: Arc<dyn SyntaxEngine>, spec: TaskSpec, reserve: usize) -> Option<TaskId> {
-		let is_viewport = matches!(spec.kind, TaskKind::ViewportParse { .. });
-
-		let permit = if is_viewport {
+	/// Spawns a background syntax task.
+	///
+	/// `privileged` tasks (urgent viewport Stage-A) can consume any available
+	/// permit. Non-privileged tasks (full, incremental, Stage-B enrichment)
+	/// must leave `reserve` permits available for urgent work.
+	pub(super) fn spawn(&mut self, permits: Arc<Semaphore>, engine: Arc<dyn SyntaxEngine>, spec: TaskSpec, reserve: usize, privileged: bool) -> Option<TaskId> {
+		let permit = if privileged {
 			permits.try_acquire_owned().ok()?
 		} else {
 			let available = permits.available_permits();
@@ -106,6 +114,8 @@ impl TaskCollector {
 
 		let class = spec.kind.class();
 		let injections = spec.opts.injections;
+		let viewport_key = spec.viewport_key;
+		let viewport_lane = spec.viewport_lane;
 
 		let handle = tokio::task::spawn_blocking(move || {
 			let _permit = permit; // Tie permit lifetime to closure
@@ -113,7 +123,7 @@ impl TaskCollector {
 			let t0 = Instant::now();
 			let result = match spec.kind {
 				TaskKind::FullParse { content } => engine.parse(content.slice(..), spec.lang_id, &spec.loader, spec.opts),
-				TaskKind::ViewportParse { content, window } => {
+				TaskKind::ViewportParse { content, window, .. } => {
 					if let Some(data) = spec.loader.get(spec.lang_id) {
 						let repair: xeno_language::syntax::ViewportRepair = data.viewport_repair();
 						let forward_haystack = if window.end < content.len_bytes() as u32 {
@@ -149,6 +159,8 @@ impl TaskCollector {
 				class,
 				injections,
 				elapsed,
+				viewport_key,
+				viewport_lane,
 			}
 		});
 

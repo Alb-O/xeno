@@ -127,7 +127,7 @@ fn make_ctx<'a>(
 }
 
 /// Spins until `mgr.any_task_finished()` returns true, up to 100 ms.
-async fn wait_for_finish(mgr: &SyntaxManager) {
+pub(super) async fn wait_for_finish(mgr: &SyntaxManager) {
 	timeout(Duration::from_secs(1), async {
 		while !mgr.any_task_finished() {
 			sleep(Duration::from_millis(1)).await;
@@ -485,9 +485,9 @@ pub(crate) async fn test_language_switch_discards_old_parse() {
 	// Kick Rust parse
 	mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang_rust), &content, SyntaxHotness::Visible, &loader));
 
-	// Switch to Python - invalidates Rust epoch, new task throttled
+	// Switch to Python - invalidates Rust epoch, new task pending (wants work but permit held)
 	let r = mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang_py), &content, SyntaxHotness::Visible, &loader));
-	assert_eq!(r.result, SyntaxPollResult::Throttled);
+	assert_eq!(r.result, SyntaxPollResult::Pending);
 
 	// Rust result ready but discarded
 	engine.proceed();
@@ -538,7 +538,7 @@ pub(crate) async fn test_invalidate_does_not_release_permit_until_task_finishes(
 
 	// Switch language -> invalidates epoch, but permit still held
 	let r = mgr.ensure_syntax(make_ctx(DocumentId(1), 1, Some(lang_py), &content, SyntaxHotness::Visible, &loader));
-	assert_eq!(r.result, SyntaxPollResult::Throttled);
+	assert_eq!(r.result, SyntaxPollResult::Pending);
 
 	// Allow first task to finish
 	engine.proceed();
@@ -656,7 +656,8 @@ pub(crate) async fn test_cold_eviction_reload() {
 	);
 	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::ZERO;
-	policy.s.retention_hidden = RetentionPolicy::DropWhenHidden;
+	policy.s.retention_hidden_full = RetentionPolicy::DropWhenHidden;
+	policy.s.retention_hidden_viewport = RetentionPolicy::DropWhenHidden;
 	mgr.set_policy(policy);
 
 	let doc_id = DocumentId(1);
@@ -697,7 +698,8 @@ pub(crate) async fn test_cold_throttles_work() {
 	);
 	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::ZERO;
-	policy.s.retention_hidden = RetentionPolicy::DropWhenHidden;
+	policy.s.retention_hidden_full = RetentionPolicy::DropWhenHidden;
+	policy.s.retention_hidden_viewport = RetentionPolicy::DropWhenHidden;
 	mgr.set_policy(policy);
 
 	let doc_id = DocumentId(1);
@@ -714,9 +716,9 @@ pub(crate) async fn test_cold_throttles_work() {
 	assert_eq!(poll.result, SyntaxPollResult::Disabled);
 	assert!(!mgr.has_pending(doc_id));
 
-	// Permit still held - another doc is throttled
+	// Permit still held - another doc is pending (wants work but can't run)
 	let poll2 = mgr.ensure_syntax(make_ctx(DocumentId(2), 1, Some(lang_id), &content, SyntaxHotness::Visible, &loader));
-	assert_eq!(poll2.result, SyntaxPollResult::Throttled);
+	assert_eq!(poll2.result, SyntaxPollResult::Pending);
 
 	engine.proceed();
 	wait_for_finish(&mgr).await;
@@ -743,7 +745,8 @@ pub(crate) async fn test_detached_task_reattach() {
 	);
 	let mut policy = TieredSyntaxPolicy::test_default();
 	policy.s.debounce = Duration::ZERO;
-	policy.s.retention_hidden = RetentionPolicy::DropWhenHidden;
+	policy.s.retention_hidden_full = RetentionPolicy::DropWhenHidden;
+	policy.s.retention_hidden_viewport = RetentionPolicy::DropWhenHidden;
 	mgr.set_policy(policy);
 
 	let doc_id = DocumentId(1);
@@ -901,15 +904,15 @@ pub(crate) async fn test_sync_bootstrap_attempted_only_once_when_throttled() {
 	mgr.ensure_syntax(make_ctx(DocumentId(1), 1, Some(lang), &content, SyntaxHotness::Visible, &loader));
 	assert!(mgr.has_pending(DocumentId(1)));
 
-	// 2. Poll Document 2 - should try sync (fail) then return Throttled
+	// 2. Poll Document 2 - should try sync (fail) then return Pending
 	let r = mgr.ensure_syntax(make_ctx(DocumentId(2), 1, Some(lang), &content, SyntaxHotness::Visible, &loader));
-	assert_eq!(r.result, SyntaxPollResult::Throttled);
+	assert_eq!(r.result, SyntaxPollResult::Pending);
 	// 1 (Doc 1 background) + 1 (Doc 2 sync)
 	assert_eq!(engine.parse_count.load(Ordering::SeqCst), 2);
 
 	// 3. Poll Document 2 again - should NOT try sync again
 	let r2 = mgr.ensure_syntax(make_ctx(DocumentId(2), 1, Some(lang), &content, SyntaxHotness::Visible, &loader));
-	assert_eq!(r2.result, SyntaxPollResult::Throttled);
+	assert_eq!(r2.result, SyntaxPollResult::Pending);
 	// Should still be 2
 	assert_eq!(engine.parse_count.load(Ordering::SeqCst), 2);
 }
@@ -975,7 +978,7 @@ pub(crate) fn test_highlight_projection_ctx_alignment_gate() {
 
 	{
 		let entry = mgr.entry_mut(doc_id);
-		entry.slot.tree_doc_version = Some(1);
+		entry.slot.full_doc_version = Some(1);
 		entry.slot.pending_incremental = Some(PendingIncrementalEdits {
 			base_tree_doc_version: 1,
 			old_rope: old_rope.clone(),
@@ -1067,7 +1070,7 @@ pub(crate) async fn test_viewport_timeout_uses_viewport_cooldown() {
 	{
 		let entry = mgr.entry_mut(doc_id);
 		entry.slot.language_id = Some(lang);
-		entry.sched.completed = Some(CompletedSyntaxTask {
+		entry.sched.completed.push_back(CompletedSyntaxTask {
 			doc_version: 1,
 			lang_id: lang,
 			opts: OptKey {
@@ -1077,6 +1080,8 @@ pub(crate) async fn test_viewport_timeout_uses_viewport_cooldown() {
 			class: TaskClass::Viewport,
 			injections: InjectionPolicy::Disabled,
 			elapsed: Duration::from_millis(1),
+			viewport_key: Some(ViewportKey(0)),
+			viewport_lane: Some(scheduling::ViewportLane::Urgent),
 		});
 	}
 
@@ -1218,7 +1223,7 @@ pub(crate) async fn test_viewport_preempts_inflight_full_parse() {
 		viewport: Some(0..10),
 	});
 	assert_eq!(r2.result, SyntaxPollResult::Kicked);
-	assert_eq!(mgr.active_task_class(doc_id), Some(TaskClass::Full));
+	assert!(mgr.has_inflight_bg(doc_id));
 
 	let r3 = mgr.ensure_syntax(EnsureSyntaxContext {
 		doc_id,
@@ -1230,7 +1235,7 @@ pub(crate) async fn test_viewport_preempts_inflight_full_parse() {
 		viewport: Some(300_000..300_050),
 	});
 	assert_eq!(r3.result, SyntaxPollResult::Kicked);
-	assert_eq!(mgr.active_task_class(doc_id), Some(TaskClass::Viewport));
+	assert!(mgr.has_inflight_viewport(doc_id));
 }
 
 /// Must clamp viewport scheduling span before coverage checks to prevent infinite Stage A loops.
@@ -1276,7 +1281,7 @@ pub(crate) async fn test_viewport_span_cap_prevents_stage_a_loop() {
 		viewport: full_view.clone(),
 	});
 	assert_eq!(r1.result, SyntaxPollResult::Kicked);
-	assert_eq!(mgr.active_task_class(doc_id), Some(TaskClass::Viewport));
+	assert!(mgr.has_inflight_viewport(doc_id));
 
 	engine.proceed();
 	wait_for_finish(&mgr).await;
@@ -1292,5 +1297,5 @@ pub(crate) async fn test_viewport_span_cap_prevents_stage_a_loop() {
 		viewport: full_view,
 	});
 	assert_eq!(r2.result, SyntaxPollResult::Kicked);
-	assert_eq!(mgr.active_task_class(doc_id), Some(TaskClass::Full));
+	assert!(mgr.has_inflight_bg(doc_id));
 }
