@@ -1,9 +1,13 @@
-use iced::widget::{column, container, row, scrollable, text};
+use iced::widget::scrollable::{Direction as ScrollDirection, Scrollbar};
+use iced::widget::text::Wrapping;
+use iced::widget::{column, container, row, rule, scrollable, text};
 use iced::{Element, Event, Fill, Font, Subscription, Task, event, keyboard, time, window};
 use xeno_editor::Editor;
 use xeno_editor::runtime::{CursorStyle, LoopDirective, RuntimeEvent};
 
 use super::{DEFAULT_POLL_INTERVAL, EventBridgeState, Snapshot, StartupOptions, build_snapshot, configure_linux_backend, map_event};
+
+const INSPECTOR_WIDTH_PX: f32 = 320.0;
 
 #[derive(Debug, Clone)]
 pub(crate) enum Message {
@@ -103,18 +107,40 @@ impl IcedEditorApp {
 	pub(crate) fn view(&self) -> Element<'_, Message> {
 		let header_block = text(&self.snapshot.header).font(Font::MONOSPACE);
 
-		let document = container(scrollable(text(&self.snapshot.body).font(Font::MONOSPACE)).height(Fill))
-			.width(Fill)
-			.height(Fill);
-		let inspector = container(scrollable(text(&self.snapshot.inspector).font(Font::MONOSPACE)).height(Fill))
-			.width(320)
-			.height(Fill);
-		let panes = row![document, inspector].spacing(12).height(Fill);
+		let mut document_rows = column![].spacing(0);
+		for line in &self.snapshot.document_lines {
+			document_rows = document_rows.push(text(line).font(Font::MONOSPACE).wrapping(Wrapping::None));
+		}
+		let document_scroll = scrollable(document_rows)
+			.direction(ScrollDirection::Vertical(Scrollbar::hidden()))
+			.height(Fill)
+			.width(Fill);
+		let document = container(document_scroll).width(Fill).height(Fill).clip(true);
+
+		let mut inspector_rows = column![].spacing(2);
+		for (idx, section) in self.snapshot.inspector_sections.iter().enumerate() {
+			if idx > 0 {
+				inspector_rows = inspector_rows.push(text("").font(Font::MONOSPACE));
+			}
+
+			inspector_rows = inspector_rows.push(text(format!("{}:", section.title)).font(Font::MONOSPACE));
+			for row_text in &section.rows {
+				inspector_rows = inspector_rows.push(text(row_text).font(Font::MONOSPACE).wrapping(Wrapping::None));
+			}
+		}
+
+		let inspector_scroll = scrollable(inspector_rows)
+			.direction(ScrollDirection::Vertical(Scrollbar::hidden()))
+			.height(Fill)
+			.width(Fill);
+		let inspector = container(inspector_scroll).width(INSPECTOR_WIDTH_PX).height(Fill).clip(true);
+
+		let panes = row![document, rule::vertical(1), inspector].spacing(8).height(Fill);
 		let statusline = text(&self.snapshot.statusline).font(Font::MONOSPACE);
 
-		let content = column![header_block, panes, statusline].spacing(8).padding(12).height(Fill);
+		let content = column![header_block, panes, statusline].spacing(8).padding(12).width(Fill).height(Fill);
 
-		container(content).width(Fill).height(Fill).into()
+		container(content).width(Fill).height(Fill).clip(true).into()
 	}
 
 	pub(crate) fn subscription(&self) -> Subscription<Message> {
