@@ -38,4 +38,4 @@ impl StartupOptions {
 
 pub(crate) use self::event_bridge::{CellMetrics, EventBridgeState, map_event};
 pub(crate) use self::platform::configure_linux_backend;
-pub(crate) use self::snapshot::{InspectorRowRole, Snapshot, build_snapshot};
+pub(crate) use self::snapshot::{Snapshot, SurfaceSnapshot, build_snapshot};
