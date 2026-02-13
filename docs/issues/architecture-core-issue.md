@@ -55,6 +55,7 @@ This document tracks the architecture split between `xeno-editor` (core engine) 
   - stale render seam exports and dead helper surface removed.
 - Umbrella passthrough patterns were reduced:
   - callsites now import types from owning modules (`types`, `command_queue`, etc.).
+- Public overlay helper surface was pruned (`overlay_pane_count` removed) in favor of plan-based consumers.
 - Overlay store accessors are now crate-private to prevent new frontend reach-through.
 - Plan-builder regression tests now cover completion, snippet-choice, and statusline policy outputs.
 

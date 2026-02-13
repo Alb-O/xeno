@@ -644,13 +644,6 @@ impl Editor {
 			.map_or_else(Vec::new, |active| active.session.pane_render_plan())
 	}
 
-	/// Returns pane count for the active modal overlay session.
-	#[inline]
-	pub fn overlay_pane_count(&self) -> Option<usize> {
-		let active = self.state.overlay_system.interaction().active()?;
-		Some(active.session.panes.len())
-	}
-
 	/// Returns the active modal pane rect for a role when available.
 	#[inline]
 	pub fn overlay_pane_rect(&self, role: crate::overlay::WindowRole) -> Option<crate::geometry::Rect> {
@@ -692,7 +685,7 @@ impl Editor {
 		) {
 			let menu_rows = self.completion_visible_rows(crate::CompletionState::MAX_VISIBLE) as u16;
 			Some((1 + menu_rows).clamp(1, 10))
-		} else if self.overlay_pane_count().unwrap_or(0) <= 1 {
+		} else if self.overlay_pane_render_plan().len() <= 1 {
 			Some(1)
 		} else {
 			Some(10)
