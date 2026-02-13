@@ -575,8 +575,8 @@ impl Editor {
 	}
 
 	#[inline]
-	pub fn take_notifications(&mut self) -> Vec<xeno_registry::notifications::Notification> {
-		self.state.notifications.take_pending()
+	pub fn take_notification_render_items(&mut self) -> Vec<crate::notifications::NotificationRenderItem> {
+		self.state.notifications.take_pending_render_items()
 	}
 
 	#[inline]

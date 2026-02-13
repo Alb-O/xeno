@@ -1,8 +1,6 @@
 use std::time::Duration;
 
-use xeno_editor::Editor;
-use xeno_registry::notifications::{AutoDismiss, Level, Notification};
-use xeno_registry::themes::ThemeColors;
+use xeno_editor::{Editor, NotificationRenderAutoDismiss, NotificationRenderItem, NotificationRenderLevel, ThemeColors};
 use xeno_tui::style::Style;
 use xeno_tui::widgets::icon::presets as icon_presets;
 use xeno_tui::widgets::notifications::{self as notif, Anchor, Overflow, Toast, ToastIcon, ToastManager};
@@ -35,15 +33,15 @@ impl FrontendNotifications {
 	}
 }
 
-fn map_notification_to_toast(colors: ThemeColors, notification: Notification) -> Toast {
-	let level = notification.level();
-	let auto_dismiss = notification.auto_dismiss();
+fn map_notification_to_toast(colors: ThemeColors, notification: NotificationRenderItem) -> Toast {
+	let level = notification.level;
+	let auto_dismiss = notification.auto_dismiss;
 	let (semantic, icon_glyph) = match level {
-		Level::Info => ("info", icon_presets::INFO),
-		Level::Warn => ("warning", icon_presets::WARNING),
-		Level::Error => ("error", icon_presets::ERROR),
-		Level::Success => ("success", icon_presets::SUCCESS),
-		Level::Debug => ("dim", icon_presets::DEBUG),
+		NotificationRenderLevel::Info => ("info", icon_presets::INFO),
+		NotificationRenderLevel::Warn => ("warning", icon_presets::WARNING),
+		NotificationRenderLevel::Error => ("error", icon_presets::ERROR),
+		NotificationRenderLevel::Success => ("success", icon_presets::SUCCESS),
+		NotificationRenderLevel::Debug => ("dim", icon_presets::DEBUG),
 	};
 	let notif_style: Style = colors.notification_style(semantic);
 	let accent = notif_style.fg.unwrap_or_default();
@@ -54,8 +52,8 @@ fn map_notification_to_toast(colors: ThemeColors, notification: Notification) ->
 		.icon(ToastIcon::new(icon_glyph).style(Style::default().fg(accent)))
 		.animation(notif::Animation::Fade)
 		.auto_dismiss(match auto_dismiss {
-			AutoDismiss::Never => notif::AutoDismiss::Never,
-			AutoDismiss::After(d) => notif::AutoDismiss::After(d),
+			NotificationRenderAutoDismiss::Never => notif::AutoDismiss::Never,
+			NotificationRenderAutoDismiss::After(d) => notif::AutoDismiss::After(d),
 		})
 }
 
@@ -67,7 +65,7 @@ pub fn render(ed: &mut Editor, state: &mut FrontendNotifications, doc_area: xeno
 		state.clear_epoch = clear_epoch;
 	}
 
-	for notification in ed.take_notifications() {
+	for notification in ed.take_notification_render_items() {
 		let toast = map_notification_to_toast(theme_colors, notification);
 		state.toasts.push(toast);
 	}

@@ -111,6 +111,7 @@ pub use lsp::api::LanguageServerConfig;
 #[cfg(feature = "lsp")]
 pub use lsp::smoke::run_lsp_smoke;
 pub use msg::{Dirty, EditorMsg, IoMsg, LspMsg, MsgSender, ThemeMsg};
+pub use notifications::{NotificationRenderAutoDismiss, NotificationRenderItem, NotificationRenderLevel};
 pub use terminal_config::{TerminalConfig, TerminalSequence};
 pub use theme_source::ThemeSource;
 pub use ui::UiManager;
