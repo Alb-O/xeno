@@ -8,17 +8,17 @@ fn completion_row_parts_marks_selected_item() {
 		show_kind: true,
 		show_right: true,
 		items: vec![
-			xeno_editor::completion::CompletionRenderItem {
+			CompletionRenderItem {
 				label: String::from("alpha"),
-				kind: xeno_editor::completion::CompletionKind::Command,
+				kind: CompletionKind::Command,
 				right: Some(String::from("left")),
 				match_indices: None,
 				selected: false,
 				command_alias_match: false,
 			},
-			xeno_editor::completion::CompletionRenderItem {
+			CompletionRenderItem {
 				label: String::from("beta"),
-				kind: xeno_editor::completion::CompletionKind::Command,
+				kind: CompletionKind::Command,
 				right: Some(String::from("right")),
 				match_indices: None,
 				selected: true,

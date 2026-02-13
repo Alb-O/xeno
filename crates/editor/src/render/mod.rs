@@ -17,5 +17,8 @@ pub use buffer::{BufferRenderContext, DiagnosticLineMap, DiagnosticRangeMap, Gut
 pub use completion::OverlayCompletionMenuTarget;
 pub use document_plan::DocumentRenderPlan;
 pub use text::{RenderLine, RenderSpan};
-pub use view_plan::BufferViewRenderPlan;
+pub use view_plan::{
+	BufferViewRenderPlan, DocumentViewPlan, InfoPopupViewPlan, OverlayPaneViewPlan, SeparatorJunctionTarget,
+	SeparatorRenderTarget, SeparatorScenePlan, SeparatorState,
+};
 pub use wrap::wrap_line;

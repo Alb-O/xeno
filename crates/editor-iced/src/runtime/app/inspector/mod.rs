@@ -1,10 +1,10 @@
 use iced::widget::text::Wrapping;
 use iced::widget::{Column, column, row, text};
 use iced::{Color, Font};
-use xeno_editor::completion::{CompletionRenderItem, CompletionRenderPlan};
-use xeno_editor::geometry::Rect;
-use xeno_editor::info_popup::InfoPopupRenderAnchor;
-use xeno_editor::snippet::{SnippetChoiceRenderItem, SnippetChoiceRenderPlan};
+use xeno_editor::render_api::{
+	CompletionKind, CompletionRenderItem, CompletionRenderPlan, InfoPopupRenderAnchor, Rect, SnippetChoiceRenderItem,
+	SnippetChoiceRenderPlan,
+};
 
 use super::Message;
 use crate::runtime::SurfaceSnapshot;
@@ -133,6 +133,7 @@ fn append_surface_rows(mut rows: Column<'static, Message>, surface: &SurfaceSnap
 			let anchor = match popup.anchor {
 				InfoPopupRenderAnchor::Center => String::from("center"),
 				InfoPopupRenderAnchor::Point { x, y } => format!("point@{x},{y}"),
+				InfoPopupRenderAnchor::Window(wid) => format!("window@{wid:?}"),
 			};
 			rows = rows.push(styled_inspector_text(
 				format!("  popup#{} {} {}x{}", popup.id.0, anchor, popup.content_width, popup.content_height),

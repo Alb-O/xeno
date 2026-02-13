@@ -2,9 +2,10 @@ use iced::widget::text::Wrapping;
 use iced::widget::{column, container, rich_text, span, text};
 use iced::{Background, Color, Element, Fill, Font, Pixels, border, font};
 use xeno_editor::Editor;
-use xeno_editor::completion::{CompletionKind, CompletionRenderItem, CompletionRenderPlan};
-use xeno_editor::render_api::RenderLine;
-use xeno_editor::ui::{StatuslineRenderSegment, StatuslineRenderStyle};
+use xeno_editor::render_api::{
+	CompletionKind, CompletionRenderItem, CompletionRenderPlan, RenderLine, StatuslineRenderSegment,
+	StatuslineRenderStyle,
+};
 use xeno_primitives::{Color as UiColor, Style as UiStyle};
 
 use super::Message;
@@ -34,6 +35,14 @@ pub(super) fn render_document_line(line: &RenderLine<'_>, line_height_px: f32) -
 		.line_height(Pixels(line_height_px))
 		.wrapping(Wrapping::None)
 		.into()
+}
+
+pub(super) fn render_render_lines(lines: &[RenderLine<'_>], line_height_px: f32) -> Element<'static, Message> {
+	let mut rows = column![].spacing(0);
+	for line in lines {
+		rows = rows.push(render_document_line(line, line_height_px));
+	}
+	rows.into()
 }
 
 pub(super) fn render_statusline(editor: &Editor, segments: &[StatuslineRenderSegment], line_height_px: f32) -> Element<'static, Message> {

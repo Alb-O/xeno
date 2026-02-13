@@ -11,8 +11,6 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame, notifications:
 
 	ed.ensure_syntax_for_buffers();
 
-	let use_block_cursor = true;
-
 	let area = frame.area();
 	ed.viewport_mut().width = Some(area.width);
 	ed.viewport_mut().height = Some(area.height);
@@ -52,8 +50,6 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame, notifications:
 		ed.frame_mut().needs_redraw = true;
 	}
 
-	let doc_focused = ui.focus.focused().is_editor();
-
 	let mut builder = SceneBuilder::new(area, main_area, doc_area_tui, status_area);
 	builder.push(SurfaceKind::Background, 0, area, SurfaceOp::Background, false);
 	builder.push(SurfaceKind::Document, 10, doc_area_tui, SurfaceOp::Document, true);
@@ -80,7 +76,7 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame, notifications:
 				frame.render_widget(bg_block, area);
 			}
 			SurfaceOp::Document => {
-				crate::document::render_split_buffers(ed, frame, doc_area_tui, use_block_cursor && doc_focused);
+				crate::document::render_split_buffers(ed, frame, doc_area_tui);
 			}
 			SurfaceOp::InfoPopups => crate::layers::info_popups::render(ed, frame, doc_area_tui),
 			SurfaceOp::Panels => {

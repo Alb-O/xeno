@@ -34,6 +34,10 @@ pub mod command_queue;
 pub mod commands;
 /// Completion types and sources for command palette.
 pub mod completion;
+#[cfg(test)]
+mod convergence;
+#[cfg(test)]
+mod seam_contract;
 /// Headless core model (documents, undo).
 pub mod core;
 /// Editor context and effect handling.

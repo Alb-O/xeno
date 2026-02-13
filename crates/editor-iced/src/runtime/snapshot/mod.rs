@@ -1,17 +1,18 @@
 use xeno_editor::Editor;
-use xeno_editor::completion::CompletionRenderPlan;
-use xeno_editor::info_popup::InfoPopupRenderTarget;
-use xeno_editor::overlay::{OverlayControllerKind, OverlayPaneRenderTarget};
-use xeno_editor::render_api::RenderLine;
-use xeno_editor::snippet::SnippetChoiceRenderPlan;
-use xeno_editor::ui::StatuslineRenderSegment;
+use xeno_editor::render_api::{
+	CompletionRenderPlan, DocumentViewPlan, InfoPopupRenderTarget, OverlayControllerKind, OverlayPaneRenderTarget,
+	Rect, RenderLine, SeparatorJunctionTarget, SeparatorRenderTarget, SnippetChoiceRenderPlan,
+	StatuslineRenderSegment, SurfaceStyle, WindowRole,
+};
 
 #[derive(Debug, Default)]
 pub(crate) struct Snapshot {
 	pub(crate) title: String,
 	pub(crate) header: HeaderSnapshot,
 	pub(crate) statusline_segments: Vec<StatuslineRenderSegment>,
-	pub(crate) document_lines: Vec<RenderLine<'static>>,
+	pub(crate) document_views: Vec<DocumentViewPlan>,
+	pub(crate) separators: Vec<SeparatorRenderTarget>,
+	pub(crate) junctions: Vec<SeparatorJunctionTarget>,
 	pub(crate) surface: SurfaceSnapshot,
 }
 
@@ -28,12 +29,38 @@ pub(crate) struct HeaderSnapshot {
 pub(crate) struct SurfaceSnapshot {
 	pub(crate) overlay_kind: Option<OverlayControllerKind>,
 	pub(crate) overlay_panes: Vec<OverlayPaneRenderTarget>,
+	pub(crate) overlay_pane_views: Vec<OverlayPaneViewSnapshot>,
 	pub(crate) completion_plan: Option<CompletionRenderPlan>,
 	pub(crate) snippet_plan: Option<SnippetChoiceRenderPlan>,
 	pub(crate) info_popup_plan: Vec<InfoPopupRenderTarget>,
+	pub(crate) info_popup_views: Vec<InfoPopupViewSnapshot>,
 }
 
-pub(crate) fn build_snapshot(editor: &mut Editor, ime_preedit: Option<&str>) -> Snapshot {
+/// Pre-rendered overlay pane with resolved geometry and content lines.
+#[derive(Debug, Clone)]
+pub(crate) struct OverlayPaneViewSnapshot {
+	pub(crate) role: WindowRole,
+	pub(crate) rect: Rect,
+	pub(crate) content_rect: Rect,
+	pub(crate) style: SurfaceStyle,
+	pub(crate) gutter_width: u16,
+	pub(crate) gutter: Vec<RenderLine<'static>>,
+	pub(crate) text: Vec<RenderLine<'static>>,
+}
+
+/// Pre-rendered info popup with resolved geometry and content lines.
+#[derive(Debug, Clone)]
+pub(crate) struct InfoPopupViewSnapshot {
+	/// Outer rect (background/clear area).
+	pub(crate) rect: Rect,
+	/// Inner rect after padding (where content is drawn).
+	pub(crate) inner_rect: Rect,
+	pub(crate) gutter_width: u16,
+	pub(crate) gutter: Vec<RenderLine<'static>>,
+	pub(crate) text: Vec<RenderLine<'static>>,
+}
+
+pub(crate) fn build_snapshot(editor: &mut Editor, ime_preedit: Option<&str>, doc_bounds: Option<Rect>) -> Snapshot {
 	let mode = editor.mode_name();
 	let cursor_line = editor.cursor_line() + 1;
 	let cursor_col = editor.cursor_col() + 1;
@@ -44,10 +71,20 @@ pub(crate) fn build_snapshot(editor: &mut Editor, ime_preedit: Option<&str>) -> 
 	let completion_plan = editor.completion_popup_render_plan();
 	let snippet_plan = editor.snippet_choice_render_plan();
 	let info_popup_plan = editor.info_popup_render_plan();
-	let document_plan = editor.focused_document_render_plan();
+	let title = editor.focused_document_title();
+
+	let document_views = doc_bounds
+		.map(|bounds| editor.document_view_plans(bounds))
+		.unwrap_or_default();
+	let sep_scene = doc_bounds.map(|bounds| editor.separator_scene_plan(bounds));
+	let separators = sep_scene.as_ref().map(|s| s.separators.clone()).unwrap_or_default();
+	let junctions = sep_scene.map(|s| s.junctions).unwrap_or_default();
+
+	let overlay_pane_views = build_overlay_pane_views(editor);
+	let info_popup_views = doc_bounds.map(|bounds| build_info_popup_views(editor, bounds)).unwrap_or_default();
 
 	Snapshot {
-		title: document_plan.title,
+		title,
 		header: HeaderSnapshot {
 			mode: mode.to_string(),
 			cursor_line,
@@ -56,15 +93,49 @@ pub(crate) fn build_snapshot(editor: &mut Editor, ime_preedit: Option<&str>) -> 
 			ime_preedit: ime_preedit_label(ime_preedit),
 		},
 		statusline_segments,
-		document_lines: document_plan.lines,
+		document_views,
+		separators,
+		junctions,
 		surface: SurfaceSnapshot {
 			overlay_kind,
 			overlay_panes,
+			overlay_pane_views,
 			completion_plan,
 			snippet_plan,
 			info_popup_plan,
+			info_popup_views,
 		},
 	}
+}
+
+fn build_overlay_pane_views(editor: &mut Editor) -> Vec<OverlayPaneViewSnapshot> {
+	editor
+		.overlay_pane_view_plans()
+		.into_iter()
+		.map(|plan| OverlayPaneViewSnapshot {
+			role: plan.role,
+			rect: plan.rect,
+			content_rect: plan.content_rect,
+			style: plan.style,
+			gutter_width: plan.render.gutter_width,
+			gutter: plan.render.gutter,
+			text: plan.render.text,
+		})
+		.collect()
+}
+
+fn build_info_popup_views(editor: &mut Editor, bounds: Rect) -> Vec<InfoPopupViewSnapshot> {
+	editor
+		.info_popup_view_plans(bounds)
+		.into_iter()
+		.map(|plan| InfoPopupViewSnapshot {
+			rect: plan.rect,
+			inner_rect: plan.inner_rect,
+			gutter_width: plan.render.gutter_width,
+			gutter: plan.render.gutter,
+			text: plan.render.text,
+		})
+		.collect()
 }
 
 fn ime_preedit_label(preedit: Option<&str>) -> String {

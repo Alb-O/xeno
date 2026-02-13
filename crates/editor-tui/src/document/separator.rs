@@ -4,59 +4,57 @@
 //! including hover effects, drag highlighting, and junction glyphs.
 
 use xeno_editor::Editor;
-use xeno_editor::geometry::Rect as CoreRect;
+use xeno_editor::render_api::SeparatorRenderTarget;
 use xeno_editor::test_events::SeparatorAnimationEvent;
 use xeno_tui::animation::Animatable;
 use xeno_tui::layout::Rect;
 use xeno_tui::style::{Color, Style};
 
-/// Extracts RGB components from a color, if it's an RGB color.
-fn color_to_rgb(color: Color) -> Option<(u8, u8, u8)> {
-	match color {
-		Color::Rgb(r, g, b) => Some((r, g, b)),
-		_ => None,
-	}
-}
-
-/// Precomputed separator colors and state for efficient style lookups.
+/// Precomputed separator colors and state rects for efficient style lookups.
 pub struct SeparatorStyle {
-	/// Rectangle of the currently hovered separator.
+	/// Rect → state for separators with active interaction.
 	hovered_rect: Option<Rect>,
-	/// Rectangle of the separator being dragged.
 	dragging_rect: Option<Rect>,
-	/// Rectangle of the separator being animated.
 	anim_rect: Option<Rect>,
-	/// Animation intensity (0.0 to 1.0) for hover transitions.
 	anim_intensity: f32,
 	/// Base colors per visual priority level (index = priority).
 	base_bg: [Color; 2],
-	/// Foreground colors per visual priority level.
 	base_fg: [Color; 2],
-	/// Foreground color for hovered separators.
 	hover_fg: Color,
-	/// Background color for hovered separators.
 	hover_bg: Color,
-	/// Foreground color for actively dragged separators.
 	drag_fg: Color,
-	/// Background color for actively dragged separators.
 	drag_bg: Color,
 }
 
 impl SeparatorStyle {
-	/// Creates a new separator style from editor state.
-	pub fn new(editor: &Editor, doc_area: CoreRect) -> Self {
-		let layout = editor.layout();
+	/// Creates a new separator style from editor theme and separator targets.
+	pub fn new(editor: &Editor, targets: &[SeparatorRenderTarget]) -> Self {
 		let colors = &editor.config().theme.colors;
-		let dragging_rect = layout
-			.drag_state()
-			.and_then(|drag| layout.separator_rect(&editor.base_window().layout, doc_area, &drag.id))
-			.map(Into::into);
+
+		let mut hovered_rect = None;
+		let mut dragging_rect = None;
+		let mut anim_rect = None;
+		let mut anim_intensity = 0.0f32;
+
+		for t in targets {
+			let rect: Rect = t.rect.into();
+			if t.state.is_hovered {
+				hovered_rect = Some(rect);
+			}
+			if t.state.is_dragging {
+				dragging_rect = Some(rect);
+			}
+			if t.state.is_animating {
+				anim_rect = Some(rect);
+				anim_intensity = t.state.anim_intensity;
+			}
+		}
 
 		Self {
-			hovered_rect: layout.hovered_separator.map(|(_, rect)| rect.into()),
+			hovered_rect,
 			dragging_rect,
-			anim_rect: layout.animation_rect().map(Into::into),
-			anim_intensity: layout.animation_intensity(),
+			anim_rect,
+			anim_intensity,
 			base_bg: [colors.ui.bg, colors.popup.bg],
 			base_fg: [colors.ui.gutter_fg, colors.popup.fg],
 			hover_fg: colors.ui.cursor_fg,
@@ -66,26 +64,23 @@ impl SeparatorStyle {
 		}
 	}
 
-	/// Returns the style for a separator at the given rectangle and priority.
-	pub fn for_rect(&self, rect: Rect, priority: u8) -> Style {
-		let is_dragging = self.dragging_rect == Some(rect);
-		let is_animating = self.anim_rect == Some(rect);
-		let is_hovered = self.hovered_rect == Some(rect);
-
-		let idx = (priority as usize).min(self.base_bg.len() - 1);
+	/// Returns the style for a separator render target.
+	pub fn for_target(&self, target: &SeparatorRenderTarget) -> Style {
+		let idx = (target.priority as usize).min(self.base_bg.len() - 1);
 		let normal_fg = self.base_fg[idx];
 		let normal_bg = self.base_bg[idx];
 
-		if is_dragging {
+		if target.state.is_dragging {
 			Style::default().fg(self.drag_fg).bg(self.drag_bg)
-		} else if is_animating {
-			let fg = normal_fg.lerp(&self.hover_fg, self.anim_intensity);
-			let bg = normal_bg.lerp(&self.hover_bg, self.anim_intensity);
+		} else if target.state.is_animating {
+			let intensity = target.state.anim_intensity;
+			let fg = normal_fg.lerp(&self.hover_fg, intensity);
+			let bg = normal_bg.lerp(&self.hover_bg, intensity);
 			if let (Some(fg_rgb), Some(bg_rgb)) = (color_to_rgb(fg), color_to_rgb(bg)) {
-				SeparatorAnimationEvent::frame(self.anim_intensity, fg_rgb, bg_rgb);
+				SeparatorAnimationEvent::frame(intensity, fg_rgb, bg_rgb);
 			}
 			Style::default().fg(fg).bg(bg)
-		} else if is_hovered {
+		} else if target.state.is_hovered {
 			Style::default().fg(self.hover_fg).bg(self.hover_bg)
 		} else {
 			Style::default().fg(normal_fg).bg(normal_bg)
@@ -117,18 +112,10 @@ impl SeparatorStyle {
 	}
 }
 
-/// Returns the box-drawing junction glyph for the given connectivity.
-///
-/// Connectivity is encoded as a 4-bit mask: up (0x1), down (0x2), left (0x4), right (0x8).
-pub fn junction_glyph(connectivity: u8) -> char {
-	match connectivity {
-		0b1111 => '┼',
-		0b1011 => '├',
-		0b0111 => '┤',
-		0b1110 => '┬',
-		0b1101 => '┴',
-		0b0011 => '│',
-		0b1100 => '─',
-		_ => '┼',
+/// Extracts RGB components from a color, if it's an RGB color.
+fn color_to_rgb(color: Color) -> Option<(u8, u8, u8)> {
+	match color {
+		Color::Rgb(r, g, b) => Some((r, g, b)),
+		_ => None,
 	}
 }

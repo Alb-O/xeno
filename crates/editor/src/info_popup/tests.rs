@@ -41,12 +41,12 @@ fn store_render_plan_carries_popup_fields() {
 			assert_eq!(x, 7);
 			assert_eq!(y, 9);
 		}
-		InfoPopupRenderAnchor::Center => panic!("expected point anchor"),
+		_ => panic!("expected point anchor"),
 	}
 }
 
 #[test]
-fn store_render_plan_maps_window_anchor_to_center() {
+fn store_render_plan_maps_window_anchor_to_window() {
 	let mut store = InfoPopupStore::default();
 	let id = store.next_id();
 	store.insert(InfoPopup {
@@ -59,7 +59,7 @@ fn store_render_plan_maps_window_anchor_to_center() {
 
 	let plan = store.render_plan();
 	assert_eq!(plan.len(), 1);
-	assert!(matches!(plan[0].anchor, InfoPopupRenderAnchor::Center));
+	assert!(matches!(plan[0].anchor, InfoPopupRenderAnchor::Window(wid) if wid == WindowId(3)));
 }
 
 #[test]
@@ -89,7 +89,7 @@ fn store_render_plan_is_sorted_by_popup_id() {
 #[test]
 fn popup_rect_centers_in_bounds() {
 	let bounds = crate::geometry::Rect::new(0, 1, 80, 22);
-	let rect = compute_popup_rect(InfoPopupRenderAnchor::Center, 20, 5, bounds).expect("rect should exist");
+	let rect = compute_popup_rect(InfoPopupRenderAnchor::Center, 20, 5, bounds, bounds).expect("rect should exist");
 	assert!(rect.x > bounds.x);
 	assert!(rect.y > bounds.y);
 	assert!(rect.x + rect.width < bounds.x + bounds.width);
@@ -99,7 +99,7 @@ fn popup_rect_centers_in_bounds() {
 #[test]
 fn popup_rect_clamps_point_to_bounds() {
 	let bounds = crate::geometry::Rect::new(0, 1, 80, 22);
-	let rect = compute_popup_rect(InfoPopupRenderAnchor::Point { x: 100, y: 100 }, 20, 5, bounds).expect("rect should exist");
+	let rect = compute_popup_rect(InfoPopupRenderAnchor::Point { x: 100, y: 100 }, 20, 5, bounds, bounds).expect("rect should exist");
 	assert!(rect.x + rect.width <= bounds.x + bounds.width);
 	assert!(rect.y + rect.height <= bounds.y + bounds.height);
 }
@@ -107,7 +107,7 @@ fn popup_rect_clamps_point_to_bounds() {
 #[test]
 fn popup_rect_respects_point_position() {
 	let bounds = crate::geometry::Rect::new(0, 1, 80, 22);
-	let rect = compute_popup_rect(InfoPopupRenderAnchor::Point { x: 10, y: 5 }, 20, 5, bounds).expect("rect should exist");
+	let rect = compute_popup_rect(InfoPopupRenderAnchor::Point { x: 10, y: 5 }, 20, 5, bounds, bounds).expect("rect should exist");
 	assert_eq!(rect.x, 10);
 	assert_eq!(rect.y, 5);
 }
@@ -115,7 +115,54 @@ fn popup_rect_respects_point_position() {
 #[test]
 fn popup_rect_applies_content_caps() {
 	let bounds = crate::geometry::Rect::new(0, 0, 200, 100);
-	let rect = compute_popup_rect(InfoPopupRenderAnchor::Center, 120, 40, bounds).expect("rect should exist");
+	let rect = compute_popup_rect(InfoPopupRenderAnchor::Center, 120, 40, bounds, bounds).expect("rect should exist");
 	assert_eq!(rect.width, 62);
 	assert_eq!(rect.height, 14);
+}
+
+#[test]
+fn popup_rect_window_anchor_centers_in_frame() {
+	let bounds = crate::geometry::Rect::new(0, 0, 80, 24);
+	// Window occupies the right half of the screen.
+	let frame = crate::geometry::Rect::new(40, 0, 40, 24);
+	let rect = compute_popup_rect(InfoPopupRenderAnchor::Window(WindowId(1)), 20, 5, frame, bounds).expect("rect should exist");
+	// Popup should be centered within the frame (right half), not the full bounds.
+	assert!(rect.x >= frame.x, "popup x={} should be >= frame x={}", rect.x, frame.x);
+	let frame_center_x = frame.x + frame.width / 2;
+	let popup_center_x = rect.x + rect.width / 2;
+	// Popup center should be close to frame center (within a few cells of rounding).
+	assert!((popup_center_x as i32 - frame_center_x as i32).unsigned_abs() <= 2);
+}
+
+#[test]
+fn popup_rect_window_anchor_clamps_to_bounds() {
+	let bounds = crate::geometry::Rect::new(0, 0, 80, 24);
+	// Frame near the right edge — popup should still be clamped within bounds.
+	let frame = crate::geometry::Rect::new(60, 0, 40, 24);
+	let rect = compute_popup_rect(InfoPopupRenderAnchor::Window(WindowId(1)), 20, 5, frame, bounds).expect("rect should exist");
+	assert!(rect.x + rect.width <= bounds.x + bounds.width, "popup should not escape bounds");
+}
+
+#[test]
+fn inner_rect_matches_padding_policy() {
+	let outer = crate::geometry::Rect::new(10, 5, 30, 8);
+	let inner = popup_inner_rect(outer);
+	assert_eq!(inner.x, 11);
+	assert_eq!(inner.y, 5);
+	assert_eq!(inner.width, 28);
+	assert_eq!(inner.height, 8);
+}
+
+#[test]
+fn inner_rect_saturates_narrow_popup() {
+	let outer = crate::geometry::Rect::new(10, 5, 1, 4);
+	let inner = popup_inner_rect(outer);
+	assert_eq!(inner.width, 0);
+}
+
+#[test]
+fn inner_rect_zero_width_popup() {
+	let outer = crate::geometry::Rect::new(10, 5, 0, 4);
+	let inner = popup_inner_rect(outer);
+	assert_eq!(inner.width, 0);
 }

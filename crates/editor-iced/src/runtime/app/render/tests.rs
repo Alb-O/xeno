@@ -38,16 +38,16 @@ fn background_style_uses_color_mapping_with_black_fallback() {
 
 #[test]
 fn format_palette_completion_row_includes_kind_and_right_columns() {
-	let plan = xeno_editor::completion::CompletionRenderPlan {
+	let plan = CompletionRenderPlan {
 		items: Vec::new(),
 		max_label_width: 8,
 		target_row_width: 20,
 		show_kind: true,
 		show_right: true,
 	};
-	let item = xeno_editor::completion::CompletionRenderItem {
+	let item = CompletionRenderItem {
 		label: String::from("write"),
-		kind: xeno_editor::completion::CompletionKind::Command,
+		kind: CompletionKind::Command,
 		right: Some(String::from("w")),
 		match_indices: None,
 		selected: false,

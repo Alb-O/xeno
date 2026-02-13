@@ -10,6 +10,11 @@ pub struct DocumentRenderPlan {
 }
 
 impl Editor {
+	/// Returns the title string for the focused document (path or "[scratch]").
+	pub fn focused_document_title(&self) -> String {
+		focused_document_title(self, self.focused_view())
+	}
+
 	pub fn focused_document_render_plan(&mut self) -> DocumentRenderPlan {
 		let focused = self.focused_view();
 		let title = focused_document_title(self, focused);

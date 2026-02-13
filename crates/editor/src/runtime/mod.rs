@@ -137,7 +137,7 @@ impl Editor {
 		self.pump().await
 	}
 
-	fn derive_cursor_style(&self) -> CursorStyle {
+	pub(crate) fn derive_cursor_style(&self) -> CursorStyle {
 		let style = self.ui().cursor_style().unwrap_or_else(|| match self.mode() {
 			Mode::Insert => CursorStyle::Beam,
 			_ => CursorStyle::Block,
