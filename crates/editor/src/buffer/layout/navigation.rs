@@ -1,7 +1,7 @@
 //! Layout navigation methods for traversing views and buffers.
 
-use xeno_primitives::SpatialDirection;
 use crate::geometry::Rect;
+use xeno_primitives::SpatialDirection;
 
 use super::Layout;
 use super::types::ViewId;

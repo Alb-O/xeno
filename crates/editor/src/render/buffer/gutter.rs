@@ -4,11 +4,11 @@ use std::path::Path;
 
 use ropey::RopeSlice;
 use unicode_width::UnicodeWidthStr;
+use xeno_primitives::{Color, Style};
 use xeno_registry::gutter::{
 	GutterAnnotations, GutterCell, GutterLineContext, GutterWidthContext, column_width, column_widths, find as find_gutter, total_width,
 };
 use xeno_registry::themes::Theme;
-use xeno_primitives::{Color, Style};
 
 use super::style_layers::LineStyleContext;
 use crate::render::RenderSpan;

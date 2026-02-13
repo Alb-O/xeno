@@ -42,10 +42,10 @@ pub mod editor_ctx;
 pub mod effects;
 /// Execution gate for task ordering.
 pub mod execution_gate;
-/// Shared geometry aliases for core/front-end seams.
-pub mod geometry;
 /// Filesystem indexing and picker backend services.
 pub(crate) mod filesystem;
+/// Shared geometry aliases for core/front-end seams.
+pub mod geometry;
 /// Async hook execution runtime.
 pub mod hook_runtime;
 mod impls;

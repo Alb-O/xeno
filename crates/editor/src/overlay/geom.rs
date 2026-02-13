@@ -18,12 +18,7 @@ pub fn pane_inner_rect(rect: Rect, style: &SurfaceStyle) -> Rect {
 		.saturating_add(style.padding.top)
 		.saturating_add(style.padding.bottom);
 
-	Rect::new(
-		x,
-		y,
-		rect.width.saturating_sub(horizontal),
-		rect.height.saturating_sub(vertical),
-	)
+	Rect::new(x, y, rect.width.saturating_sub(horizontal), rect.height.saturating_sub(vertical))
 }
 
 #[cfg(test)]

@@ -609,10 +609,7 @@ impl Editor {
 
 	/// Emits the editor-start lifecycle hook on the sync hook runtime.
 	pub fn emit_editor_start_hook(&mut self) {
-		emit_hook_sync_with(
-			&HookContext::new(HookEventData::EditorStart),
-			&mut self.state.hook_runtime,
-		);
+		emit_hook_sync_with(&HookContext::new(HookEventData::EditorStart), &mut self.state.hook_runtime);
 	}
 
 	/// Emits the editor-quit lifecycle hook asynchronously.

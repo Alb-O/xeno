@@ -168,8 +168,8 @@ fn lsp_completion_raw_index(state: Option<&CompletionState>, display_idx: usize)
 
 #[cfg(test)]
 mod tests {
-	use xeno_primitives::{Key, KeyCode};
 	use xeno_lsp::lsp_types::CompletionItem as LspCompletionItem;
+	use xeno_primitives::{Key, KeyCode};
 
 	use super::{LspMenuKind, LspMenuState, lsp_completion_raw_index};
 	use crate::completion::CompletionState;

@@ -4,8 +4,8 @@
 //! Also provides hunk header parsing and line number mapping for diff gutter.
 
 use ropey::{Rope, RopeSlice};
-use xeno_registry::themes::Theme;
 use xeno_primitives::Color;
+use xeno_registry::themes::Theme;
 
 /// Type of line in a diff file, used for full-line background styling.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

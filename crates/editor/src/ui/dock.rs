@@ -190,12 +190,7 @@ impl DockManager {
 					bottom_height,
 				));
 			}
-			layout.doc_area = Rect::new(
-				area.x,
-				area.y.saturating_add(top_height),
-				area.width,
-				center_height,
-			);
+			layout.doc_area = Rect::new(area.x, area.y.saturating_add(top_height), area.width, center_height);
 		}
 
 		let has_left = self.slots.get(&DockSlot::Left).map(|s| !s.open.is_empty()).unwrap_or(false);
@@ -228,11 +223,7 @@ impl DockManager {
 				layout.doc_area.height,
 			);
 			let right_area = Rect::new(
-				layout
-					.doc_area
-					.x
-					.saturating_add(left_width)
-					.saturating_add(center_width),
+				layout.doc_area.x.saturating_add(left_width).saturating_add(center_width),
 				layout.doc_area.y,
 				right_width,
 				layout.doc_area.height,

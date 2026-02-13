@@ -68,9 +68,9 @@
 //!
 use std::collections::HashMap;
 
+use crate::geometry::Rect;
 use xeno_primitives::range::{CharIdx, Range};
 use xeno_primitives::{Mode, Selection};
-use crate::geometry::Rect;
 
 use super::WindowRole;
 use crate::buffer::ViewId;

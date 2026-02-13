@@ -9,9 +9,9 @@
 
 use std::collections::HashMap;
 
+use crate::Editor;
 use crate::buffer::ViewId;
 use crate::window::WindowId;
-use crate::Editor;
 
 /// Unique identifier for an info popup.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

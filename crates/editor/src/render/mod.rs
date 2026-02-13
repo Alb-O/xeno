@@ -9,9 +9,9 @@ mod text;
 /// Line wrapping with sticky punctuation.
 pub mod wrap;
 
-pub use buffer::{BufferRenderContext, DiagnosticLineMap, DiagnosticRangeMap, GutterLayout, RenderBufferParams, ensure_buffer_cursor_visible};
 #[cfg(any(feature = "lsp", test))]
 pub use buffer::DiagnosticSpan;
+pub use buffer::{BufferRenderContext, DiagnosticLineMap, DiagnosticRangeMap, GutterLayout, RenderBufferParams, ensure_buffer_cursor_visible};
 pub use context::RenderCtx;
 pub use text::{RenderLine, RenderSpan};
 pub use wrap::wrap_line;

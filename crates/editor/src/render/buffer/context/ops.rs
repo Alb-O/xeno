@@ -2,8 +2,8 @@ use ropey::Rope;
 use xeno_language::LanguageId;
 use xeno_language::highlight::HighlightSpan;
 use xeno_primitives::{Mode, visible_line_count};
-use xeno_registry::gutter::GutterAnnotations;
 use xeno_primitives::{Modifier, Style, UnderlineStyle};
+use xeno_registry::gutter::GutterAnnotations;
 
 use super::super::diff::{DiffLineNumbers, compute_diff_line_numbers, diff_line_bg};
 use super::super::gutter::GutterLayout;

@@ -13,9 +13,9 @@ mod navigation;
 mod tests;
 mod types;
 
+use crate::geometry::Rect;
 pub use types::{SplitDirection, SplitPath, ViewId};
 pub use xeno_primitives::SpatialDirection;
-use crate::geometry::Rect;
 
 /// Layout tree for buffer arrangement.
 ///

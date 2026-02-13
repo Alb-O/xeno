@@ -64,8 +64,8 @@ impl UtilityPanel {
 				match cont.kind {
 					ContinuationKind::Branch => {
 						let sub_prefix = if prefix_key.is_empty() { key.clone() } else { format!("{prefix_key} {key}") };
-						let description = xeno_registry::actions::find_prefix(binding_mode, &sub_prefix)
-							.map_or_else(String::new, |prefix| prefix.description.to_string());
+						let description =
+							xeno_registry::actions::find_prefix(binding_mode, &sub_prefix).map_or_else(String::new, |prefix| prefix.description.to_string());
 						UtilityWhichKeyEntry {
 							key,
 							description,

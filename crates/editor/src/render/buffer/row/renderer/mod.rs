@@ -1,8 +1,8 @@
 use std::path::Path;
 
 use xeno_primitives::Rope;
-use xeno_registry::gutter::GutterAnnotations;
 use xeno_primitives::Style;
+use xeno_registry::gutter::GutterAnnotations;
 
 use super::super::cell_style::{CellStyleInput, CursorStyleSet, resolve_cell_style};
 use super::super::context::types::{BufferRenderContext, CursorStyles, RenderLayout};

@@ -3,8 +3,8 @@
 //! Provides utilities for creating fill spans that extend line backgrounds
 //! to the full terminal width.
 
-use xeno_primitives::{Color, Style};
 use crate::render::RenderSpan;
+use xeno_primitives::{Color, Style};
 
 /// Configuration for filling empty space in a line.
 #[derive(Debug, Clone, Copy)]
