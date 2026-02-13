@@ -127,7 +127,7 @@ mod tests {
 	}
 
 	fn get_typos(needle: &str, haystack: &str) -> u16 {
-		typos_from_score_matrix(&smith_waterman::<4, 1>(needle, &[haystack; 1], Some(1), &Scoring::default()).1, 100)[0]
+		typos_from_score_matrix(&smith_waterman::<4, 1>(needle, &[haystack; 1], None, &Scoring::default()).1, 100)[0]
 	}
 
 	#[test]
@@ -167,7 +167,7 @@ mod tests {
 				});
 				let haystacks: [&str; L] = std::array::from_fn(|i| haystack_storage[i].as_str());
 
-				let (old_scores, score_matrix, old_exact) = smith_waterman::<W, L>(&needle, &haystacks, Some(max_typos), &scoring);
+				let (old_scores, score_matrix, old_exact) = smith_waterman::<W, L>(&needle, &haystacks, None, &scoring);
 				let old_typos = typos_from_score_matrix::<W, L>(&score_matrix, max_typos);
 
 				let (new_scores, new_typos, new_exact) = smith_waterman_scores_typos::<W, L>(&needle, &haystacks, max_typos, &scoring);

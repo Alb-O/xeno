@@ -1,11 +1,46 @@
-use super::bucket::IncrementalBucketTrait;
+use super::bucket::IncrementalBucket;
 use super::bucket_collection::IncrementalBucketCollection;
-use crate::{Config, Match};
+use crate::engine::CandidateFilter;
+use crate::limits::exceeds_typo_budget;
+use crate::smith_waterman::greedy::match_greedy;
+use crate::{Config, Match, Scoring};
+
+macro_rules! define_incremental_buckets {
+	($(($name:ident, $width:literal, $range:pat)),* $(,)?) => {
+		struct IncrementalBuckets<'a> {
+			$($name: Vec<IncrementalBucket<'a, $width, 8>>,)*
+		}
+
+		impl<'a> IncrementalBuckets<'a> {
+			fn new() -> Self {
+				Self {
+					$($name: Vec::new(),)*
+				}
+			}
+
+			fn process_all(
+				&mut self,
+				prefix_to_keep: usize,
+				needle: &str,
+				matches: &mut Vec<Match>,
+				max_typos: Option<u16>,
+				scoring: &Scoring,
+			) {
+				$(
+					for bucket in &mut self.$name {
+						bucket.process(prefix_to_keep, needle, matches, max_typos, scoring);
+					}
+				)*
+			}
+		}
+	};
+}
+crate::for_each_bucket_spec!(define_incremental_buckets);
 
 pub struct IncrementalMatcher<'a> {
 	needle: Option<String>,
 	num_haystacks: usize,
-	buckets: Vec<Box<dyn IncrementalBucketTrait + 'a>>,
+	buckets: IncrementalBuckets<'a>,
 	overflow_haystacks: Vec<(u32, &'a str)>,
 }
 
@@ -13,69 +48,26 @@ impl<'a> IncrementalMatcher<'a> {
 	pub fn new<S: AsRef<str>>(haystacks: &'a [S]) -> Self {
 		// group haystacks into buckets by length
 
-		let mut buckets: Vec<Box<dyn IncrementalBucketTrait + 'a>> = vec![];
+		let mut buckets = IncrementalBuckets::new();
 		let mut overflow_haystacks = Vec::new();
 
-		let mut collection_size_4 = IncrementalBucketCollection::<'a, 4, 8>::new();
-		let mut collection_size_8 = IncrementalBucketCollection::<'a, 8, 8>::new();
-		let mut collection_size_12 = IncrementalBucketCollection::<'a, 12, 8>::new();
-		let mut collection_size_16 = IncrementalBucketCollection::<'a, 16, 8>::new();
-		let mut collection_size_20 = IncrementalBucketCollection::<'a, 20, 8>::new();
-		let mut collection_size_24 = IncrementalBucketCollection::<'a, 24, 8>::new();
-		let mut collection_size_32 = IncrementalBucketCollection::<'a, 32, 8>::new();
-		let mut collection_size_48 = IncrementalBucketCollection::<'a, 48, 8>::new();
-		let mut collection_size_64 = IncrementalBucketCollection::<'a, 64, 8>::new();
-		let mut collection_size_96 = IncrementalBucketCollection::<'a, 96, 8>::new();
-		let mut collection_size_128 = IncrementalBucketCollection::<'a, 128, 8>::new();
-		let mut collection_size_160 = IncrementalBucketCollection::<'a, 160, 8>::new();
-		let mut collection_size_192 = IncrementalBucketCollection::<'a, 192, 8>::new();
-		let mut collection_size_224 = IncrementalBucketCollection::<'a, 224, 8>::new();
-		let mut collection_size_256 = IncrementalBucketCollection::<'a, 256, 8>::new();
-		let mut collection_size_384 = IncrementalBucketCollection::<'a, 384, 8>::new();
-		let mut collection_size_512 = IncrementalBucketCollection::<'a, 512, 8>::new();
+		macro_rules! build_collections {
+			($(($name:ident, $width:literal, $range:pat)),* $(,)?) => {
+				$(let mut $name = IncrementalBucketCollection::<'a, $width, 8>::new();)*
 
-		for (i, haystack) in haystacks.iter().enumerate() {
-			let i = i as u32;
-			let haystack = haystack.as_ref();
-			match haystack.len() {
-				0..=4 => collection_size_4.add_haystack(haystack, i, &mut buckets),
-				5..=8 => collection_size_8.add_haystack(haystack, i, &mut buckets),
-				9..=12 => collection_size_12.add_haystack(haystack, i, &mut buckets),
-				13..=16 => collection_size_16.add_haystack(haystack, i, &mut buckets),
-				17..=20 => collection_size_20.add_haystack(haystack, i, &mut buckets),
-				21..=24 => collection_size_24.add_haystack(haystack, i, &mut buckets),
-				25..=32 => collection_size_32.add_haystack(haystack, i, &mut buckets),
-				33..=48 => collection_size_48.add_haystack(haystack, i, &mut buckets),
-				49..=64 => collection_size_64.add_haystack(haystack, i, &mut buckets),
-				65..=96 => collection_size_96.add_haystack(haystack, i, &mut buckets),
-				97..=128 => collection_size_128.add_haystack(haystack, i, &mut buckets),
-				129..=160 => collection_size_160.add_haystack(haystack, i, &mut buckets),
-				161..=192 => collection_size_192.add_haystack(haystack, i, &mut buckets),
-				193..=224 => collection_size_224.add_haystack(haystack, i, &mut buckets),
-				225..=256 => collection_size_256.add_haystack(haystack, i, &mut buckets),
-				257..=384 => collection_size_384.add_haystack(haystack, i, &mut buckets),
-				385..=512 => collection_size_512.add_haystack(haystack, i, &mut buckets),
-				_ => overflow_haystacks.push((i, haystack)),
+				for (i, haystack) in haystacks.iter().enumerate() {
+					let i = i as u32;
+					let haystack = haystack.as_ref();
+					match haystack.len() {
+						$($range => $name.add_haystack(haystack, i, &mut buckets.$name),)*
+						_ => overflow_haystacks.push((i, haystack)),
+					};
+				}
+
+				$($name.finalize(&mut buckets.$name);)*
 			};
 		}
-
-		collection_size_4.finalize(&mut buckets);
-		collection_size_8.finalize(&mut buckets);
-		collection_size_12.finalize(&mut buckets);
-		collection_size_16.finalize(&mut buckets);
-		collection_size_20.finalize(&mut buckets);
-		collection_size_24.finalize(&mut buckets);
-		collection_size_32.finalize(&mut buckets);
-		collection_size_48.finalize(&mut buckets);
-		collection_size_64.finalize(&mut buckets);
-		collection_size_96.finalize(&mut buckets);
-		collection_size_128.finalize(&mut buckets);
-		collection_size_160.finalize(&mut buckets);
-		collection_size_192.finalize(&mut buckets);
-		collection_size_224.finalize(&mut buckets);
-		collection_size_256.finalize(&mut buckets);
-		collection_size_384.finalize(&mut buckets);
-		collection_size_512.finalize(&mut buckets);
+		crate::for_each_bucket_spec!(build_collections);
 
 		Self {
 			needle: None,
@@ -120,9 +112,7 @@ impl<'a> IncrementalMatcher<'a> {
 	fn process(&mut self, prefix_to_keep: usize, needle: &str, matches: &mut Vec<Match>, config: &Config) {
 		let prefix_to_keep = if config.max_typos.is_some() { 0 } else { prefix_to_keep };
 
-		for bucket in self.buckets.iter_mut() {
-			bucket.process(prefix_to_keep, needle, matches, config.max_typos, &config.scoring);
-		}
+		self.buckets.process_all(prefix_to_keep, needle, matches, config.max_typos, &config.scoring);
 	}
 
 	fn process_overflow(&self, needle: &str, matches: &mut Vec<Match>, config: &Config) {
@@ -130,14 +120,20 @@ impl<'a> IncrementalMatcher<'a> {
 			return;
 		}
 
-		let overflow_haystack_refs: Vec<&str> = self.overflow_haystacks.iter().map(|(_, haystack)| *haystack).collect();
-		let mut overflow_matches = crate::match_list(needle, &overflow_haystack_refs, config);
+		let filter = CandidateFilter::new(needle, config);
 
-		for mtch in &mut overflow_matches {
-			mtch.index = self.overflow_haystacks[mtch.index as usize].0;
+		for &(index, haystack) in &self.overflow_haystacks {
+			if !filter.allows(haystack) {
+				continue;
+			}
+
+			let (score, indices, exact) = match_greedy(needle, haystack, &config.scoring);
+			if exceeds_typo_budget(config.max_typos, needle, indices.len()) {
+				continue;
+			}
+
+			matches.push(Match { index, score, exact });
 		}
-
-		matches.extend(overflow_matches);
 	}
 }
 
@@ -422,6 +418,35 @@ mod tests {
 				assert_eq!(
 					incremental_matches, one_shot_matches,
 					"fallback parity mismatch for needle '{current_needle}', max_typos={max_typos:?}"
+				);
+			}
+		}
+	}
+
+	#[test]
+	fn parity_with_one_shot_for_overflow_haystacks() {
+		let needle = "deadbeef";
+		let long_match = format!("{needle}{}", "a".repeat(700));
+		let long_non_match = "a".repeat(700);
+		let haystacks = vec!["deadbeef".to_string(), long_match, long_non_match];
+		let haystack_refs: Vec<&str> = haystacks.iter().map(String::as_str).collect();
+
+		for max_typos in [None, Some(0), Some(1)] {
+			for prefilter in [false, true] {
+				let config = Config {
+					max_typos,
+					prefilter,
+					sort: true,
+					..Config::default()
+				};
+
+				let mut incremental = IncrementalMatcher::new(&haystack_refs);
+				let incremental_matches = incremental.match_needle(needle, &config);
+				let one_shot_matches = crate::match_list(needle, &haystack_refs, &config);
+
+				assert_eq!(
+					incremental_matches, one_shot_matches,
+					"overflow parity mismatch for max_typos={max_typos:?}, prefilter={prefilter}"
 				);
 			}
 		}

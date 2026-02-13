@@ -1,7 +1,7 @@
 use super::Appendable;
 use super::bucket::FixedWidthBucket;
-use crate::one_shot::{exceeds_typo_budget, match_too_large};
-use crate::prefilter::Prefilter;
+use crate::engine::CandidateFilter;
+use crate::limits::{exceeds_typo_budget, match_too_large};
 use crate::smith_waterman::greedy::match_greedy;
 use crate::{Config, Match};
 
@@ -53,110 +53,50 @@ pub(crate) fn match_list_impl<S1: AsRef<str>, S2: AsRef<str>, M: Appendable<Matc
 		return;
 	}
 
-	let use_prefilter = config.prefilter && config.max_typos.is_some();
-	let prefilter = use_prefilter.then(|| Prefilter::new(needle, config.max_typos.unwrap_or(0)));
+	let filter = CandidateFilter::new(needle, config);
 
-	let mut bucket_size_4 = FixedWidthBucket::<4, M>::new(needle, config);
-	let mut bucket_size_8 = FixedWidthBucket::<8, M>::new(needle, config);
-	let mut bucket_size_12 = FixedWidthBucket::<12, M>::new(needle, config);
-	let mut bucket_size_16 = FixedWidthBucket::<16, M>::new(needle, config);
-	let mut bucket_size_20 = FixedWidthBucket::<20, M>::new(needle, config);
-	let mut bucket_size_24 = FixedWidthBucket::<24, M>::new(needle, config);
-	let mut bucket_size_32 = FixedWidthBucket::<32, M>::new(needle, config);
-	let mut bucket_size_48 = FixedWidthBucket::<48, M>::new(needle, config);
-	let mut bucket_size_64 = FixedWidthBucket::<64, M>::new(needle, config);
-	let mut bucket_size_96 = FixedWidthBucket::<96, M>::new(needle, config);
-	let mut bucket_size_128 = FixedWidthBucket::<128, M>::new(needle, config);
-	let mut bucket_size_160 = FixedWidthBucket::<160, M>::new(needle, config);
-	let mut bucket_size_192 = FixedWidthBucket::<192, M>::new(needle, config);
-	let mut bucket_size_224 = FixedWidthBucket::<224, M>::new(needle, config);
-	let mut bucket_size_256 = FixedWidthBucket::<256, M>::new(needle, config);
-	let mut bucket_size_384 = FixedWidthBucket::<384, M>::new(needle, config);
-	let mut bucket_size_512 = FixedWidthBucket::<512, M>::new(needle, config);
+	macro_rules! run_with_buckets {
+		($(($name:ident, $width:literal, $range:pat)),* $(,)?) => {
+			$(let mut $name = FixedWidthBucket::<$width, M>::new(needle, config);)*
 
-	// If max_typos is set, we can ignore any haystacks that are shorter than the needle
-	// minus the max typos, since it's impossible for them to match
-	let min_haystack_len = config.max_typos.map(|max| needle.len().saturating_sub(max as usize)).unwrap_or(0);
-
-	for (i, haystack) in haystacks
-		.iter()
-		.map(|h| h.as_ref())
-		.enumerate()
-		.filter(|(_, h)| h.len() >= min_haystack_len)
-		.filter(|(_, h)| {
-			if !use_prefilter {
-				return true;
-			}
-
-			let prefilter = prefilter.as_ref().expect("prefilter exists when enabled");
-			match config.max_typos {
-				Some(0) => prefilter.match_haystack_unordered_insensitive(h.as_bytes()),
-				Some(_) => prefilter.match_haystack_unordered_typos_insensitive(h.as_bytes()),
-				None => true,
-			}
-		}) {
-		let i = i as u32 + index_offset;
-
-		// fallback to greedy matching
-		if match_too_large(needle, haystack) {
-			let (score, indices, exact) = match_greedy(needle, haystack, &config.scoring);
-			if exceeds_typo_budget(config.max_typos, needle, indices.len()) {
-				continue;
-			}
-			matches.append(Match { index: i, score, exact });
-			continue;
-		}
-
-		// Pick the bucket to insert into based on the length of the haystack
-		match haystack.len() {
-			0..=4 => bucket_size_4.add_haystack(matches, haystack, i),
-			5..=8 => bucket_size_8.add_haystack(matches, haystack, i),
-			9..=12 => bucket_size_12.add_haystack(matches, haystack, i),
-			13..=16 => bucket_size_16.add_haystack(matches, haystack, i),
-			17..=20 => bucket_size_20.add_haystack(matches, haystack, i),
-			21..=24 => bucket_size_24.add_haystack(matches, haystack, i),
-			25..=32 => bucket_size_32.add_haystack(matches, haystack, i),
-			33..=48 => bucket_size_48.add_haystack(matches, haystack, i),
-			49..=64 => bucket_size_64.add_haystack(matches, haystack, i),
-			65..=96 => bucket_size_96.add_haystack(matches, haystack, i),
-			97..=128 => bucket_size_128.add_haystack(matches, haystack, i),
-			129..=160 => bucket_size_160.add_haystack(matches, haystack, i),
-			161..=192 => bucket_size_192.add_haystack(matches, haystack, i),
-			193..=224 => bucket_size_224.add_haystack(matches, haystack, i),
-			225..=256 => bucket_size_256.add_haystack(matches, haystack, i),
-			257..=384 => bucket_size_384.add_haystack(matches, haystack, i),
-			385..=512 => bucket_size_512.add_haystack(matches, haystack, i),
-
-			// fallback to greedy matching
-			_ => {
-				let (score, indices, exact) = match_greedy(needle, haystack, &config.scoring);
-				if exceeds_typo_budget(config.max_typos, needle, indices.len()) {
+			for (i, haystack) in haystacks.iter().map(|h| h.as_ref()).enumerate() {
+				if !filter.allows(haystack) {
 					continue;
 				}
-				matches.append(Match { index: i, score, exact });
-				continue;
+
+				let i = i as u32 + index_offset;
+
+				// fallback to greedy matching
+				if match_too_large(needle, haystack) {
+					let (score, indices, exact) = match_greedy(needle, haystack, &config.scoring);
+					if exceeds_typo_budget(config.max_typos, needle, indices.len()) {
+						continue;
+					}
+					matches.append(Match { index: i, score, exact });
+					continue;
+				}
+
+				// Pick the bucket to insert into based on the length of the haystack
+				match haystack.len() {
+					$($range => $name.add_haystack(matches, haystack, i),)*
+
+					// fallback to greedy matching
+					_ => {
+						let (score, indices, exact) = match_greedy(needle, haystack, &config.scoring);
+						if exceeds_typo_budget(config.max_typos, needle, indices.len()) {
+							continue;
+						}
+						matches.append(Match { index: i, score, exact });
+						continue;
+					}
+				};
 			}
+
+			// Run processing on remaining haystacks in the buckets
+			$($name.finalize(matches);)*
 		};
 	}
-
-	// Run processing on remaining haystacks in the buckets
-	bucket_size_4.finalize(matches);
-	bucket_size_8.finalize(matches);
-	bucket_size_12.finalize(matches);
-	bucket_size_16.finalize(matches);
-	bucket_size_20.finalize(matches);
-	bucket_size_24.finalize(matches);
-	bucket_size_32.finalize(matches);
-	bucket_size_48.finalize(matches);
-	bucket_size_64.finalize(matches);
-	bucket_size_96.finalize(matches);
-	bucket_size_128.finalize(matches);
-	bucket_size_160.finalize(matches);
-	bucket_size_192.finalize(matches);
-	bucket_size_224.finalize(matches);
-	bucket_size_256.finalize(matches);
-	bucket_size_384.finalize(matches);
-	bucket_size_512.finalize(matches);
+	crate::for_each_bucket_spec!(run_with_buckets);
 }
 
 #[cfg(test)]
@@ -448,5 +388,22 @@ mod tests {
 		let matches = match_list(&needle, &haystack_refs, &config);
 
 		assert!(matches.is_empty());
+	}
+
+	#[test]
+	fn greedy_fallback_handles_shorter_haystack_without_panic() {
+		let needle = "z".repeat(4096);
+		let haystack = ["a".repeat(3000)];
+		let haystack_refs: Vec<&str> = haystack.iter().map(String::as_str).collect();
+
+		let config = Config {
+			max_typos: Some(5000),
+			prefilter: false,
+			..Config::default()
+		};
+		let matches = match_list(&needle, &haystack_refs, &config);
+
+		assert_eq!(matches.len(), 1);
+		assert_eq!(matches[0].index, 0);
 	}
 }

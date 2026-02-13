@@ -27,6 +27,18 @@ where
 	std::array::from_fn(|idx| delimiter_mask(haystack[idx].lowercase, delimiters))
 }
 
+/// Per-position validity mask: `true` for lanes where `haystack_idx < haystack_len`.
+/// Prevents score leakage into zero-padded positions beyond actual haystack length.
+#[inline(always)]
+pub(crate) fn valid_masks<const W: usize, const L: usize>(haystack_strs: &[&str; L]) -> [Mask<i16, L>; W]
+where
+	LaneCount<L>: SupportedLaneCount,
+{
+	let lens: [u16; L] = std::array::from_fn(|i| haystack_strs[i].len().min(W) as u16);
+	let lens_simd = Simd::from_array(lens);
+	std::array::from_fn(|j| Simd::splat(j as u16).simd_lt(lens_simd))
+}
+
 #[inline(always)]
 pub(crate) fn smith_waterman_inner<const L: usize>(
 	start: usize,
@@ -34,6 +46,7 @@ pub(crate) fn smith_waterman_inner<const L: usize>(
 	needle_char: NeedleChar<L>,
 	haystack: &[HaystackChar<L>],
 	haystack_delimiter_mask: &[Mask<i16, L>],
+	haystack_valid_mask: Option<&[Mask<i16, L>]>,
 	prev_score_col: Option<&[Simd<u16, L>]>,
 	curr_score_col: &mut [Simd<u16, L>],
 	scoring: &Scoring,
@@ -44,14 +57,26 @@ pub(crate) fn smith_waterman_inner<const L: usize>(
 	let mut up_score_simd = Simd::splat(0);
 	let mut up_gap_penalty_mask = Mask::splat(true);
 	let mut left_gap_penalty_mask = Mask::splat(true);
-	let mut delimiter_bonus_enabled_mask = Mask::splat(false);
+	let mut delimiter_bonus_enabled_mask = if start == 0 {
+		Mask::splat(false)
+	} else {
+		// Delimiter bonus is enabled after any non-delimiter has appeared in the row.
+		// In banded runs (start > 0), seed from the skipped prefix so row-local
+		// bonus behavior matches the full-width traversal.
+		let mut seen_non_delimiter_mask = Mask::splat(false);
+		let seed_end = start.min(haystack_delimiter_mask.len());
+		for &is_delimiter_mask in &haystack_delimiter_mask[..seed_end] {
+			seen_non_delimiter_mask |= is_delimiter_mask.not();
+		}
+		seen_non_delimiter_mask
+	};
 
 	for haystack_idx in start..end {
 		let haystack_char = haystack[haystack_idx];
 		let haystack_is_delimiter_mask = haystack_delimiter_mask[haystack_idx];
 
 		let (diag, left) = if haystack_idx == 0 {
-			(Simd::splat(0), Simd::splat(0))
+			(Simd::splat(0), prev_score_col.map(|c| c[0]).unwrap_or(Simd::splat(0)))
 		} else {
 			prev_score_col
 				.map(|c| (c[haystack_idx - 1], c[haystack_idx]))
@@ -117,6 +142,13 @@ pub(crate) fn smith_waterman_inner<const L: usize>(
 		// Only enable delimiter bonus if we've seen a non-delimiter char
 		delimiter_bonus_enabled_mask |= haystack_is_delimiter_mask.not();
 
+		// Zero out padded lanes (haystacks shorter than W)
+		let max_score = if let Some(mask) = haystack_valid_mask {
+			mask[haystack_idx].select(max_score, Simd::splat(0))
+		} else {
+			max_score
+		};
+
 		// Store the scores for the next iterations
 		up_score_simd = max_score;
 		curr_score_col[haystack_idx] = max_score;
@@ -140,6 +172,8 @@ where
 	let haystacks = interleave::<W, L>(*haystack_strs).map(HaystackChar::new);
 	let delimiters = scoring.delimiters.as_bytes();
 	let haystack_delimiter_mask = delimiter_masks(&haystacks, delimiters);
+	let needs_mask = haystack_strs.iter().any(|s| s.len() < W);
+	let haystack_valid_mask = if needs_mask { Some(valid_masks::<W, L>(haystack_strs)) } else { None };
 
 	let mut prev_score_col = [Simd::splat(0); W];
 	let mut curr_score_col = [Simd::splat(0); W];
@@ -155,6 +189,7 @@ where
 			needle_char,
 			&haystacks,
 			haystack_delimiter_mask.as_slice(),
+			haystack_valid_mask.as_ref().map(|m| m.as_slice()),
 			prev_col,
 			curr_score_col.as_mut_slice(),
 			scoring,
@@ -184,6 +219,12 @@ where
     // x86-64-v2 without lahfsahf
     "x86_64+cmpxchg16b+fxsr+popcnt+sse+sse2+sse3+sse4.1+sse4.2+ssse3",
 ))]
+/// Computes Smith-Waterman scores and typo counts for a needle against interleaved haystacks.
+///
+/// Uses an unbanded full-width DP to compute the score matrix, then determines typo counts
+/// via matrix traceback. The contract is score-first-then-gate: we find the best-scoring
+/// alignment and count its typos; if typos exceed the budget, the candidate is rejected
+/// by the caller.
 pub fn smith_waterman_scores_typos<const W: usize, const L: usize>(
 	needle_str: &str,
 	haystack_strs: &[&str; L],
@@ -197,102 +238,35 @@ where
 	let haystacks = interleave::<W, L>(*haystack_strs).map(HaystackChar::new);
 	let delimiters = scoring.delimiters.as_bytes();
 	let haystack_delimiter_mask = delimiter_masks(&haystacks, delimiters);
+	let needs_mask = haystack_strs.iter().any(|s| s.len() < W);
+	let haystack_valid_mask = if needs_mask { Some(valid_masks::<W, L>(haystack_strs)) } else { None };
 
-	let mut prev_score_col = [Simd::splat(0); W];
-	let mut curr_score_col = [Simd::splat(0); W];
-	let mut prev_typo_col = [Simd::splat(0); W];
-	let mut curr_typo_col = [Simd::splat(0); W];
-	let mut prev_end_zero_col = [Simd::splat(0); W];
-	let mut curr_end_zero_col = [Simd::splat(0); W];
+	let mut score_matrix = vec![[Simd::splat(0); W]; needle.len()];
 	let mut all_time_max_score = Simd::splat(0);
 
-	let zero = Simd::splat(0);
-	let one = Simd::splat(1u16);
-	let max_plus_one = max_typos.saturating_add(1);
-
 	for needle_idx in 0..needle.len() {
-		curr_score_col.fill(zero);
-		curr_typo_col.fill(zero);
-		curr_end_zero_col.fill(zero);
-
-		let haystack_start = needle_idx.saturating_sub(max_typos as usize);
-		let haystack_end = (W + needle_idx + (max_typos as usize)).saturating_sub(needle.len()).min(W);
-
 		let needle_char = NeedleChar::new(needle[needle_idx] as u16);
-		let prev_col = if needle_idx == 0 { None } else { Some(prev_score_col.as_slice()) };
+
+		let (prev_score_col, curr_score_col) = if needle_idx == 0 {
+			(None, &mut score_matrix[needle_idx])
+		} else {
+			let (a, b) = score_matrix.split_at_mut(needle_idx);
+			(Some(a[needle_idx - 1].as_slice()), &mut b[0])
+		};
 
 		smith_waterman_inner(
-			haystack_start,
-			haystack_end,
+			0,
+			W,
 			needle_char,
 			&haystacks,
 			haystack_delimiter_mask.as_slice(),
-			prev_col,
-			curr_score_col.as_mut_slice(),
+			haystack_valid_mask.as_ref().map(|m| m.as_slice()),
+			prev_score_col,
+			curr_score_col,
 			scoring,
 			&mut all_time_max_score,
 		);
-
-		let row0_score = curr_score_col[0];
-		curr_typo_col[0] = Simd::splat(needle_idx.min(u16::MAX as usize) as u16);
-		curr_end_zero_col[0] = row0_score.simd_eq(zero).select(one, zero);
-
-		for haystack_idx in haystack_start.max(1)..haystack_end {
-			let score = curr_score_col[haystack_idx];
-			let score_is_zero_mask = score.simd_eq(zero);
-
-			if needle_idx == 0 {
-				curr_typo_col[haystack_idx] = zero;
-				curr_end_zero_col[haystack_idx] = score_is_zero_mask.select(one, zero);
-			} else {
-				let diag = prev_score_col[haystack_idx - 1];
-				let left = prev_score_col[haystack_idx];
-				let up = curr_score_col[haystack_idx - 1];
-
-				let choose_diag = diag.simd_ge(left) & diag.simd_ge(up);
-				let choose_left = choose_diag.not() & left.simd_ge(up);
-
-				let mismatch = diag.simd_ge(score).select(one, zero);
-				let diag_typo = prev_typo_col[haystack_idx - 1].saturating_add(mismatch);
-				let left_typo = prev_typo_col[haystack_idx].saturating_add(one);
-				let up_typo = curr_typo_col[haystack_idx - 1];
-				let full_typos = choose_diag.select(diag_typo, choose_left.select(left_typo, up_typo));
-
-				let end_zero = choose_diag.select(
-					prev_end_zero_col[haystack_idx - 1],
-					choose_left.select(prev_end_zero_col[haystack_idx], curr_end_zero_col[haystack_idx - 1]),
-				);
-
-				curr_typo_col[haystack_idx] = full_typos;
-				curr_end_zero_col[haystack_idx] = end_zero;
-			}
-		}
-
-		std::mem::swap(&mut prev_score_col, &mut curr_score_col);
-		std::mem::swap(&mut prev_typo_col, &mut curr_typo_col);
-		std::mem::swap(&mut prev_end_zero_col, &mut curr_end_zero_col);
 	}
-
-	let mut last_col_scores = Simd::splat(0);
-	let mut positions = Simd::splat(0u16);
-	for (row_idx, &row_scores) in prev_score_col.iter().enumerate() {
-		let row_max_mask: Mask<i16, L> = row_scores.simd_gt(last_col_scores);
-		last_col_scores = row_max_mask.select(row_scores, last_col_scores);
-		positions = row_max_mask.select(Simd::splat(row_idx as u16), positions);
-	}
-
-	let position_array = positions.to_array();
-	let typos = std::array::from_fn(|lane| {
-		let row = position_array[lane] as usize;
-		let full_typos = prev_typo_col[row][lane];
-		if full_typos > max_plus_one {
-			max_plus_one
-		} else if prev_end_zero_col[row][lane] != 0 {
-			full_typos.saturating_add(1)
-		} else {
-			full_typos
-		}
-	});
 
 	let exact_matches: [bool; L] = std::array::from_fn(|i| haystack_strs[i] == needle_str);
 	let max_scores = std::array::from_fn(|i| {
@@ -303,9 +277,15 @@ where
 		score
 	});
 
+	let typos = super::typos_from_score_matrix::<W, L>(&score_matrix, max_typos);
+
 	(max_scores, typos, exact_matches)
 }
 
+/// Materializes the full score matrix for testing and traceback. Supports optional banding
+/// via `max_typos` for performance testing, but production code should use
+/// [`smith_waterman_scores`] or [`smith_waterman_scores_typos`] instead.
+#[cfg(test)]
 #[multiversion(targets(
     // x86-64-v4 without lahfsahf
     "x86_64+avx512f+avx512bw+avx512cd+avx512dq+avx512vl+avx+avx2+bmi1+bmi2+cmpxchg16b+f16c+fma+fxsr+lzcnt+movbe+popcnt+sse+sse2+sse3+sse4.1+sse4.2+ssse3+xsave",
@@ -327,18 +307,15 @@ where
 	let haystacks = interleave::<W, L>(*haystack_strs).map(HaystackChar::new);
 	let delimiters = scoring.delimiters.as_bytes();
 	let haystack_delimiter_mask = delimiter_masks(&haystacks, delimiters);
+	let needs_mask = haystack_strs.iter().any(|s| s.len() < W);
+	let haystack_valid_mask = if needs_mask { Some(valid_masks::<W, L>(haystack_strs)) } else { None };
 
 	// State
 	let mut score_matrix = vec![[Simd::splat(0); W]; needle.len()];
 	let mut all_time_max_score = Simd::splat(0);
 
 	for (needle_idx, haystack_start, haystack_end) in (0..needle.len()).map(|needle_idx| {
-		// When matching "asd" against "qwerty" with max_typos = 0, we can avoid matching "s"
-		// against the "q" since it's impossible for this to be a valid match
-		// And likewise, we avoid matching "d" against "q" and "w"
 		let haystack_start = max_typos.map(|max_typos| needle_idx.saturating_sub(max_typos as usize)).unwrap_or(0);
-		// When matching "foo" against "foobar" with max_typos = 0, we can avoid matching "f"
-		// againt "a" and "r" since it's impossible for this to be a valid match
 		let haystack_end = max_typos
 			.map(|max_typos| (W + needle_idx + (max_typos as usize)).saturating_sub(needle.len()).min(W))
 			.unwrap_or(W);
@@ -359,6 +336,7 @@ where
 			needle_char,
 			&haystacks,
 			haystack_delimiter_mask.as_slice(),
+			haystack_valid_mask.as_ref().map(|m| m.as_slice()),
 			prev_score_col,
 			curr_score_col,
 			scoring,
