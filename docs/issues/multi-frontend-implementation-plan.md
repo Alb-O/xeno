@@ -115,6 +115,7 @@ Completed:
 - plan-builder tests added for completion/snippet/statusline policy surfaces
 - TUI render-line adaptation centralized via a single adapter helper (`RenderLine` -> toolkit `Line`)
 - `xeno-editor-tui` no longer imports `xeno_registry` directly (hook lifecycle and notification payload mapping now route through `xeno-editor`)
+- `xeno-term` no longer imports `xeno_registry` directly (startup config load/apply now routes through `xeno-editor`)
 
 Current focus:
 
