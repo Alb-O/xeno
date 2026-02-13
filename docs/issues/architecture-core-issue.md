@@ -40,6 +40,7 @@ This document tracks the architecture split between `xeno-editor` (core engine) 
 - `xeno-editor-iced` document snapshot path now runs through core `BufferRenderContext` instead of directly reading buffer text.
 - `xeno-editor-iced` now maps mouse cursor/button/scroll events into core `MouseEvent` coordinates using the shared grid conversion path.
 - `xeno-editor-iced` now routes Command/Ctrl+V through `RuntimeEvent::Paste` using iced clipboard read tasks.
+- Runtime replay test coverage now includes equivalent event-script convergence checks (paste vs typed text) for core state/statusline outputs.
 - Legacy compatibility paths/shims removed:
   - focus compatibility helper path removed in favor of unified `set_focus` flow.
   - unused overlay compatibility constructor argument removed.

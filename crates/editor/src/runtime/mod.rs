@@ -148,9 +148,15 @@ impl Editor {
 
 #[cfg(test)]
 mod tests {
-	use xeno_primitives::Key;
+	use xeno_primitives::{Key, KeyCode};
 
 	use super::*;
+
+	async fn run_script(editor: &mut Editor, events: impl IntoIterator<Item = RuntimeEvent>) {
+		for event in events {
+			let _ = editor.on_event(event).await;
+		}
+	}
 
 	#[tokio::test]
 	async fn test_on_event_implies_pump() {
@@ -167,5 +173,42 @@ mod tests {
 		// Insert mode should set fast timeout
 		assert_eq!(dir.poll_timeout, Some(Duration::from_millis(16)));
 		assert_eq!(editor.mode(), Mode::Insert);
+	}
+
+	#[tokio::test]
+	async fn test_runtime_event_scripts_converge_for_inserted_text() {
+		let esc = Key::new(KeyCode::Esc);
+
+		let script_with_paste = vec![
+			RuntimeEvent::WindowResized { cols: 80, rows: 24 },
+			RuntimeEvent::Key(Key::char('i')),
+			RuntimeEvent::Paste(String::from("abc")),
+			RuntimeEvent::Key(esc),
+		];
+
+		let script_with_typed_keys = vec![
+			RuntimeEvent::WindowResized { cols: 80, rows: 24 },
+			RuntimeEvent::Key(Key::char('i')),
+			RuntimeEvent::Key(Key::char('a')),
+			RuntimeEvent::Key(Key::char('b')),
+			RuntimeEvent::Key(Key::char('c')),
+			RuntimeEvent::Key(esc),
+		];
+
+		let mut via_paste = Editor::new_scratch();
+		let _ = via_paste.pump().await;
+		run_script(&mut via_paste, script_with_paste).await;
+
+		let mut via_keys = Editor::new_scratch();
+		let _ = via_keys.pump().await;
+		run_script(&mut via_keys, script_with_typed_keys).await;
+
+		let text_via_paste = via_paste.buffer().with_doc(|doc| doc.content().to_string());
+		let text_via_keys = via_keys.buffer().with_doc(|doc| doc.content().to_string());
+
+		assert_eq!(text_via_paste, "abc");
+		assert_eq!(text_via_paste, text_via_keys);
+		assert_eq!(via_paste.mode(), via_keys.mode());
+		assert_eq!(via_paste.statusline_render_plan(), via_keys.statusline_render_plan());
 	}
 }
