@@ -3,6 +3,8 @@
 //! Provides a single source of truth for resolving option values through the
 //! layered configuration system.
 
+use std::collections::HashMap;
+
 use xeno_registry::options::{FromOptionValue, OptionKey, OptionResolver, OptionStore, OptionValue, TypedOptionKey};
 
 use super::Editor;
@@ -79,6 +81,30 @@ impl Editor {
 	/// ```
 	pub fn option<T: FromOptionValue>(&self, key: TypedOptionKey<T>) -> T {
 		self.resolve_typed_option(self.focused_view(), key)
+	}
+
+	/// Replaces editor key/option configuration with a loaded user config.
+	///
+	/// This is used by startup and reload flows to keep config merge/apply
+	/// behavior consistent across runtimes.
+	pub fn apply_loaded_config(&mut self, mut config: Option<xeno_registry::config::Config>) {
+		let mut key_overrides = None;
+		let mut global_options = OptionStore::new();
+		let mut language_options = HashMap::<String, OptionStore>::new();
+
+		if let Some(mut loaded) = config.take() {
+			key_overrides = loaded.keys.take();
+			global_options = loaded.options;
+
+			for lang_config in loaded.languages {
+				language_options.entry(lang_config.name).or_default().merge(&lang_config.options);
+			}
+		}
+
+		self.set_key_overrides(key_overrides);
+		let editor_config = self.config_mut();
+		editor_config.global_options = global_options;
+		editor_config.language_options = language_options;
 	}
 
 	/// Internal helper that performs resolution given the stores directly.

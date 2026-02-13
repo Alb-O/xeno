@@ -63,7 +63,7 @@ async fn main() -> anyhow::Result<()> {
 
 	editor.kick_theme_load();
 	editor.kick_lsp_catalog_load();
-	apply_user_config(&mut editor, user_config);
+	editor.apply_loaded_config(user_config);
 
 	if let Some(theme_name) = cli.theme {
 		editor.set_configured_theme_name(theme_name);
@@ -87,27 +87,6 @@ fn load_user_config() -> Option<xeno_registry::config::Config> {
 	}
 
 	report.config
-}
-
-/// Applies user config options to the editor.
-///
-/// Theme preferences are stored but not resolved until themes finish loading.
-fn apply_user_config(editor: &mut Editor, config: Option<xeno_registry::config::Config>) {
-	let Some(mut config) = config else { return };
-
-	let keys = config.keys.take();
-	editor.set_key_overrides(keys);
-
-	editor.config_mut().global_options.merge(&config.options);
-
-	for lang_config in config.languages {
-		editor
-			.config_mut()
-			.language_options
-			.entry(lang_config.name)
-			.or_default()
-			.merge(&lang_config.options);
-	}
 }
 
 /// Handles grammar fetch/build/sync subcommands.
@@ -292,7 +271,7 @@ async fn run_editor_normal() -> anyhow::Result<()> {
 
 	editor.kick_theme_load();
 	editor.kick_lsp_catalog_load();
-	apply_user_config(&mut editor, user_config);
+	editor.apply_loaded_config(user_config);
 
 	run_editor(editor).await?;
 	Ok(())

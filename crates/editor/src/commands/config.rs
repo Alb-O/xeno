@@ -1,14 +1,10 @@
 //! Config reload commands.
 
-use std::collections::HashMap;
-
 use xeno_primitives::BoxFutureLocal;
 use xeno_registry::notifications::keys;
-use xeno_registry::options::OptionStore;
 
 use super::{CommandError, CommandOutcome, EditorCommandContext};
 use crate::editor_command;
-use crate::impls::Editor;
 
 editor_command!(
 	reload_config,
@@ -39,7 +35,7 @@ fn cmd_reload_config<'a>(ctx: &'a mut EditorCommandContext<'a>) -> BoxFutureLoca
 
 		let can_apply = report.config.is_some() || report.errors.is_empty();
 		if can_apply {
-			apply_loaded_config(ctx.editor, report.config);
+			ctx.editor.apply_loaded_config(report.config);
 			ctx.editor.kick_theme_load();
 		}
 
@@ -63,24 +59,4 @@ fn cmd_reload_config<'a>(ctx: &'a mut EditorCommandContext<'a>) -> BoxFutureLoca
 
 		Ok(CommandOutcome::Ok)
 	})
-}
-
-fn apply_loaded_config(editor: &mut Editor, config: Option<xeno_registry::config::Config>) {
-	let mut key_overrides = None;
-	let mut global_options = OptionStore::new();
-	let mut language_options = HashMap::<String, OptionStore>::new();
-
-	if let Some(mut config) = config {
-		key_overrides = config.keys.take();
-		global_options = config.options;
-
-		for lang_config in config.languages {
-			language_options.entry(lang_config.name).or_default().merge(&lang_config.options);
-		}
-	}
-
-	editor.set_key_overrides(key_overrides);
-	let editor_config = editor.config_mut();
-	editor_config.global_options = global_options;
-	editor_config.language_options = language_options;
 }
