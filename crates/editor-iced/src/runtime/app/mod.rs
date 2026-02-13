@@ -14,6 +14,7 @@ use super::{DEFAULT_POLL_INTERVAL, EventBridgeState, HeaderSnapshot, Snapshot, S
 const DEFAULT_INSPECTOR_WIDTH_PX: f32 = 320.0;
 const MIN_INSPECTOR_WIDTH_PX: f32 = 160.0;
 const STATUSLINE_ROWS: u16 = 1;
+const MONOSPACE_GLYPH_WIDTH_RATIO: f32 = 0.6;
 
 #[derive(Debug, Clone)]
 pub(crate) enum Message {
@@ -179,11 +180,13 @@ impl IcedEditorApp {
 	pub(crate) fn view(&self) -> Element<'_, Message> {
 		let ui_bg = self.editor.config().theme.colors.ui.bg;
 		let popup_bg = self.editor.config().theme.colors.popup.bg;
+		let line_height_px = self.cell_metrics.height_px();
+		let font_size_px = font_size_for_cell_metrics(self.cell_metrics);
 		let header_block = text(format_header_line(&self.snapshot.header)).font(Font::MONOSPACE);
 
 		let mut document_rows = column![].spacing(0);
 		for line in &self.snapshot.document_lines {
-			document_rows = document_rows.push(render_document_line(line));
+			document_rows = document_rows.push(render_document_line(line, font_size_px, line_height_px));
 		}
 		let document = container(document_rows)
 			.height(Fill)
@@ -220,7 +223,7 @@ impl IcedEditorApp {
 		} else {
 			row![document].height(Fill)
 		};
-		let statusline = render_statusline(&self.editor, &self.snapshot.statusline_segments);
+		let statusline = render_statusline(&self.editor, &self.snapshot.statusline_segments, font_size_px, line_height_px);
 
 		let content = column![header_block, panes, statusline].spacing(8).padding(12).width(Fill).height(Fill);
 
@@ -284,6 +287,12 @@ fn viewport_grid_from_document_size(cell_metrics: super::CellMetrics, document_s
 
 fn viewport_rows_for_document_rows(document_rows: u16) -> u16 {
 	document_rows.saturating_add(STATUSLINE_ROWS)
+}
+
+fn font_size_for_cell_metrics(cell_metrics: super::CellMetrics) -> f32 {
+	let from_width = cell_metrics.width_px() / MONOSPACE_GLYPH_WIDTH_RATIO;
+	let from_height = cell_metrics.height_px();
+	from_width.min(from_height).max(1.0)
 }
 
 fn default_loop_directive() -> LoopDirective {

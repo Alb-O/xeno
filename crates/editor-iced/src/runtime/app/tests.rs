@@ -60,3 +60,12 @@ fn viewport_grid_from_document_size_keeps_columns_and_adds_statusline_row() {
 	assert_eq!(cols, expected_cols);
 	assert_eq!(rows, viewport_rows_for_document_rows(expected_document_rows));
 }
+
+#[test]
+fn font_size_for_cell_metrics_clamps_to_cell_height() {
+	let metrics = super::super::CellMetrics::from_env();
+	let font_size = font_size_for_cell_metrics(metrics);
+
+	assert!(font_size >= 1.0);
+	assert!(font_size <= metrics.height_px());
+}

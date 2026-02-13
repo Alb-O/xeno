@@ -1,6 +1,6 @@
 use iced::widget::text::Wrapping;
 use iced::widget::{container, rich_text, span};
-use iced::{Background, Color, Element, Font, border, font};
+use iced::{Background, Color, Element, Font, Pixels, border, font};
 use xeno_editor::Editor;
 use xeno_editor::render_api::RenderLine;
 use xeno_editor::ui::{StatuslineRenderSegment, StatuslineRenderStyle};
@@ -8,7 +8,7 @@ use xeno_primitives::{Color as UiColor, Style as UiStyle};
 
 use super::Message;
 
-pub(super) fn render_document_line(line: &RenderLine<'_>) -> Element<'static, Message> {
+pub(super) fn render_document_line(line: &RenderLine<'_>, font_size_px: f32, line_height_px: f32) -> Element<'static, Message> {
 	let mut spans = Vec::new();
 	let line_color = line.style.and_then(style_fg_to_iced);
 	let line_bg = line.style.and_then(style_bg_to_iced);
@@ -28,10 +28,15 @@ pub(super) fn render_document_line(line: &RenderLine<'_>) -> Element<'static, Me
 		spans.push(span::<(), _>(String::new()));
 	}
 
-	rich_text(spans).font(Font::MONOSPACE).wrapping(Wrapping::None).into()
+	rich_text(spans)
+		.font(Font::MONOSPACE)
+		.size(font_size_px)
+		.line_height(Pixels(line_height_px))
+		.wrapping(Wrapping::None)
+		.into()
 }
 
-pub(super) fn render_statusline(editor: &Editor, segments: &[StatuslineRenderSegment]) -> Element<'static, Message> {
+pub(super) fn render_statusline(editor: &Editor, segments: &[StatuslineRenderSegment], font_size_px: f32, line_height_px: f32) -> Element<'static, Message> {
 	let mut spans = Vec::new();
 
 	for segment in segments {
@@ -56,7 +61,12 @@ pub(super) fn render_statusline(editor: &Editor, segments: &[StatuslineRenderSeg
 		spans.push(span::<(), _>(String::new()).font(Font::MONOSPACE));
 	}
 
-	rich_text(spans).wrapping(Wrapping::None).into()
+	rich_text(spans)
+		.font(Font::MONOSPACE)
+		.size(font_size_px)
+		.line_height(Pixels(line_height_px))
+		.wrapping(Wrapping::None)
+		.into()
 }
 
 pub(super) fn style_fg_to_iced(style: UiStyle) -> Option<Color> {
