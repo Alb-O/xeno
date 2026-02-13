@@ -128,7 +128,18 @@ impl SyntaxManager {
 									_ => entry.sched.requested_viewport_urgent_doc_version,
 								};
 								let requested_ok = done.doc_version >= requested_min;
-								not_future && requested_ok
+								let continuity_needed = if done.doc_version < ctx.doc_version {
+									match &viewport {
+										Some(vp) => {
+											let has_covering_tree = entry.slot.full.is_some() || entry.slot.viewport_cache.covers_range(vp);
+											!has_covering_tree
+										}
+										None => true,
+									}
+								} else {
+									true
+								};
+								not_future && requested_ok && continuity_needed
 							} else {
 								Self::should_install_completed_parse(
 									done.doc_version,

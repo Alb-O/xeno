@@ -295,6 +295,107 @@ pub(crate) async fn test_viewport_stale_install_continuity() {
 	assert!(mgr.is_dirty(doc_id));
 }
 
+/// Must skip stale viewport installs when a covering tree already exists.
+///
+/// - Enforced in: `SyntaxManager::ensure_syntax`
+/// - Failure symptom: Large-file edits produce an extra delayed repaint that applies stale
+///   spans before the eventual corrected repaint.
+#[cfg_attr(test, test)]
+pub(crate) fn test_viewport_stale_install_skipped_when_covered() {
+	use xeno_language::syntax::SealedSource;
+
+	let mut mgr = SyntaxManager::default();
+	let mut policy = TieredSyntaxPolicy::test_default();
+	policy.s_max_bytes_inclusive = 0;
+	policy.m_max_bytes_inclusive = 0;
+	policy.l.debounce = Duration::ZERO;
+	policy.l.viewport_stage_b_budget = None;
+	mgr.set_policy(policy);
+
+	let doc_id = DocumentId(1);
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang = loader.language_for_name("rust").unwrap();
+	let content = Rope::from("x".repeat(300_000));
+	let viewport = 0..100;
+
+	let seed_len = 4096usize.min(content.len_bytes()) as u32;
+	let seed_syntax = {
+		let sealed = Arc::new(SealedSource::from_window(content.byte_slice(0..seed_len as usize), ""));
+		Syntax::new_viewport(
+			sealed,
+			lang,
+			&loader,
+			SyntaxOptions {
+				injections: InjectionPolicy::Disabled,
+				..Default::default()
+			},
+			0,
+		)
+		.expect("seed viewport syntax")
+	};
+
+	let stale_syntax = {
+		let sealed = Arc::new(SealedSource::from_window(content.byte_slice(0..seed_len as usize), ""));
+		Syntax::new_viewport(
+			sealed,
+			lang,
+			&loader,
+			SyntaxOptions {
+				injections: InjectionPolicy::Disabled,
+				..Default::default()
+			},
+			0,
+		)
+		.expect("stale viewport syntax")
+	};
+
+	let existing_tree_id = {
+		let entry = mgr.entry_mut(doc_id);
+		entry.slot.language_id = Some(lang);
+		let tree_id = entry.slot.alloc_tree_id();
+		let ce = entry.slot.viewport_cache.get_mut_or_insert(ViewportKey(0));
+		ce.stage_a = Some(ViewportTree {
+			syntax: seed_syntax,
+			doc_version: 1,
+			tree_id,
+			coverage: 0..seed_len,
+		});
+
+		entry.sched.completed.push_back(CompletedSyntaxTask {
+			doc_version: 1,
+			lang_id: lang,
+			opts: OptKey {
+				injections: InjectionPolicy::Disabled,
+			},
+			result: Ok(stale_syntax),
+			class: TaskClass::Viewport,
+			injections: InjectionPolicy::Disabled,
+			elapsed: Duration::from_millis(1),
+			viewport_key: Some(ViewportKey(0)),
+			viewport_lane: Some(super::super::scheduling::ViewportLane::Urgent),
+		});
+		tree_id
+	};
+
+	let outcome = mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 2,
+		language_id: Some(lang),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+		viewport: Some(viewport.clone()),
+	});
+
+	assert!(!outcome.updated, "stale completion should not trigger an intermediate repaint when coverage already exists");
+
+	let selected = mgr
+		.syntax_for_viewport(doc_id, 2, viewport)
+		.expect("existing covered viewport tree should remain selected");
+	assert_eq!(selected.tree_id, existing_tree_id);
+	assert_eq!(selected.tree_doc_version, 1);
+}
+
 /// Must preempt tracked full/incremental work when a visible large-doc viewport is uncovered.
 ///
 /// - Enforced in: `SyntaxManager::ensure_syntax`
