@@ -603,12 +603,7 @@ impl Editor {
 	}
 
 	#[inline]
-	pub fn hook_runtime(&self) -> &HookRuntime {
-		&self.state.hook_runtime
-	}
-
-	#[inline]
-	pub fn hook_runtime_mut(&mut self) -> &mut HookRuntime {
+	pub(crate) fn hook_runtime_mut(&mut self) -> &mut HookRuntime {
 		&mut self.state.hook_runtime
 	}
 
