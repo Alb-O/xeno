@@ -64,11 +64,6 @@ pub struct ViewLease {
 	pub epoch: FocusEpoch,
 }
 
-/// Converts a buffer view to a hook-compatible view ID.
-fn hook_view_id(view: ViewId) -> ViewId {
-	ViewId::text(view.0)
-}
-
 impl Editor {
 	/// Checks if a window contains a specific view.
 	///
@@ -162,8 +157,8 @@ impl Editor {
 		if new_view != old_view {
 			emit_hook_sync_with(
 				&HookContext::new(HookEventData::ViewFocusChanged {
-					view_id: hook_view_id(new_view),
-					prev_view_id: Some(hook_view_id(old_view)),
+					view_id: new_view,
+					prev_view_id: Some(old_view),
 				}),
 				&mut self.state.hook_runtime,
 			);

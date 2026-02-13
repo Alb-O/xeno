@@ -53,6 +53,7 @@ This document tracks the architecture split between `xeno-editor` (core engine) 
 - Runtime replay coverage now includes search-overlay input convergence (paste vs typed keys), including overlay pane role/geometry equivalence checks.
 - Legacy compatibility paths/shims removed:
   - focus compatibility helper path removed in favor of unified `set_focus` flow.
+  - redundant focus hook `ViewId` adapter shim removed (hooks now receive canonical view IDs directly).
   - unused overlay compatibility constructor argument removed.
   - stale render seam exports and dead helper surface removed.
 - Umbrella passthrough patterns were reduced:
