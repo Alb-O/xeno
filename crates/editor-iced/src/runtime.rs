@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use iced::widget::{column, container, scrollable, text};
 use iced::{Element, Event, Fill, Font, Subscription, Task, event, keyboard, mouse, time, window};
+use iced_core::input_method;
 use xeno_editor::completion::CompletionRenderPlan;
 use xeno_editor::geometry::Rect;
 use xeno_editor::info_popup::{InfoPopupRenderAnchor, InfoPopupRenderTarget};
@@ -537,8 +538,16 @@ fn map_event(event: Event, cell_metrics: CellMetrics, event_state: &mut EventBri
 			let (cols, rows) = cell_metrics.to_grid(size.width, size.height);
 			Some(RuntimeEvent::WindowResized { cols, rows })
 		}
+		Event::InputMethod(event) => map_input_method_event(event),
 		Event::Window(window::Event::Focused) => Some(RuntimeEvent::FocusIn),
 		Event::Window(window::Event::Unfocused) => Some(RuntimeEvent::FocusOut),
+		_ => None,
+	}
+}
+
+fn map_input_method_event(event: input_method::Event) -> Option<RuntimeEvent> {
+	match event {
+		input_method::Event::Commit(text) if !text.is_empty() => Some(RuntimeEvent::Paste(text)),
 		_ => None,
 	}
 }
@@ -728,6 +737,16 @@ mod tests {
 		let key = keyboard::Key::Named(keyboard::key::Named::Paste);
 		let physical = keyboard::key::Physical::Code(keyboard::key::Code::Paste);
 		assert!(is_paste_shortcut(&key, &key, physical, keyboard::Modifiers::default()));
+	}
+
+	#[test]
+	fn map_input_method_event_maps_commit_to_paste() {
+		assert_eq!(
+			map_input_method_event(input_method::Event::Commit(String::from("hello"))),
+			Some(RuntimeEvent::Paste(String::from("hello")))
+		);
+		assert_eq!(map_input_method_event(input_method::Event::Commit(String::new())), None);
+		assert_eq!(map_input_method_event(input_method::Event::Opened), None);
 	}
 }
 

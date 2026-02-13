@@ -6625,6 +6625,7 @@ name = "xeno-editor-iced"
 version = "0.8.20"
 dependencies = [
  "iced",
+ "iced_core",
  "tokio",
  "xeno-editor",
  "xeno-primitives",
