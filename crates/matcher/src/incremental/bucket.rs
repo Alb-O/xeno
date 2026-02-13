@@ -3,7 +3,8 @@ use core::simd::cmp::SimdOrd;
 
 use crate::kernels::fixed_width::emit_fixed_width_matches;
 use crate::simd_lanes::{LaneCount, SupportedLaneCount};
-use crate::smith_waterman::simd::{HaystackChar, NeedleChar, delimiter_masks, smith_waterman_inner};
+use core::simd::Mask;
+use crate::smith_waterman::simd::{HaystackChar, NeedleChar, delimiter_masks, smith_waterman_inner, valid_masks};
 use crate::{Match, Scoring};
 
 pub(crate) struct IncrementalBucket<'a, const W: usize, const L: usize>
@@ -14,6 +15,7 @@ where
 	pub idxs: [u32; L],
 	pub haystack_strs: [&'a str; L],
 	pub haystacks: [HaystackChar<L>; W],
+	pub haystack_valid_masks: [Mask<i16, L>; W],
 	pub score_matrix: Vec<[Simd<u16, L>; W]>,
 }
 
@@ -27,6 +29,7 @@ where
 			idxs,
 			haystack_strs: *haystacks,
 			haystacks: std::array::from_fn(|i| HaystackChar::from_haystack(haystacks, i)),
+			haystack_valid_masks: valid_masks::<W, L>(haystacks),
 			score_matrix: vec![],
 		}
 	}
@@ -78,6 +81,7 @@ where
 				needle_char,
 				&self.haystacks,
 				haystack_delimiter_masks.as_slice(),
+				Some(self.haystack_valid_masks.as_slice()),
 				prev_score_col,
 				curr_score_col,
 				scoring,

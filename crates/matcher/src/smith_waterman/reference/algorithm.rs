@@ -289,14 +289,16 @@ mod tests {
 					"needle={needle:?}, haystack={haystack:?}, max_typos={max_typos}, ref_typos={ref_typos}, simd_typos={simd_typo_count}, ref_score={ref_score}, simd_score={simd_score}"
 				);
 
-				if ref_typos <= max_typos {
-					assert_eq!(simd_typo_count, ref_typos, "{context}");
-					assert_eq!(simd_score, ref_score, "{context}");
-				} else {
-					assert!(simd_typo_count > max_typos, "{context}");
-				}
+				// Scores must always match between reference and SIMD
+				assert_eq!(simd_score, ref_score, "score mismatch: {context}");
+				assert_eq!(simd_exacts[0], ref_exact, "exact mismatch: {context}");
 
-				assert_eq!(simd_exacts[0], ref_exact, "{context}");
+				// Typo counts must agree across implementations
+				if ref_typos <= max_typos {
+					assert_eq!(simd_typo_count, ref_typos, "typo count mismatch (in-budget): {context}");
+				} else {
+					assert!(simd_typo_count > max_typos, "gating mismatch (should reject): {context}");
+				}
 			}
 		}
 
@@ -307,6 +309,9 @@ mod tests {
 			("abcdef".to_string(), "abc".to_string()),
 			("_-_".to_string(), "---___".to_string()),
 			("AbC".to_string(), "a_bc".to_string()),
+			// Regression: previously diverged due to haystack_idx==0 scoring bug
+			("Dd/aAd".to_string(), "da--aD-ca/c-".to_string()),
+			("eb--E".to_string(), "eaADcAb".to_string()),
 		];
 
 		for (needle, haystack) in fixed_cases {
