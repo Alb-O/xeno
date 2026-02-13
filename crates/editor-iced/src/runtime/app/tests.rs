@@ -44,3 +44,19 @@ fn format_header_line_formats_snapshot_fields() {
 	};
 	assert_eq!(format_header_line(&header), "mode=INSERT cursor=3:7 buffers=2 ime_preedit=pre");
 }
+
+#[test]
+fn viewport_rows_for_document_rows_reserves_statusline_row() {
+	assert_eq!(viewport_rows_for_document_rows(0), 1);
+	assert_eq!(viewport_rows_for_document_rows(5), 6);
+}
+
+#[test]
+fn viewport_grid_from_document_size_keeps_columns_and_adds_statusline_row() {
+	let metrics = super::super::CellMetrics::from_env();
+	let (expected_cols, expected_document_rows) = metrics.to_grid(160.0, 80.0);
+	let (cols, rows) = viewport_grid_from_document_size(metrics, iced::Size::new(160.0, 80.0));
+
+	assert_eq!(cols, expected_cols);
+	assert_eq!(rows, viewport_rows_for_document_rows(expected_document_rows));
+}

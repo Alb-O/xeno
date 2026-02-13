@@ -20,7 +20,7 @@ impl CellMetrics {
 		}
 	}
 
-	fn to_grid(self, logical_width_px: f32, logical_height_px: f32) -> (u16, u16) {
+	pub(crate) fn to_grid(self, logical_width_px: f32, logical_height_px: f32) -> (u16, u16) {
 		(
 			logical_pixels_to_cells(logical_width_px, self.width_px),
 			logical_pixels_to_cells(logical_height_px, self.height_px),

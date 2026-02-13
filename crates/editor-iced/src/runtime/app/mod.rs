@@ -2,8 +2,8 @@ mod inspector;
 mod render;
 
 use iced::widget::scrollable::{Direction as ScrollDirection, Scrollbar};
-use iced::widget::{column, container, row, rule, scrollable, text};
-use iced::{Element, Event, Fill, Font, Subscription, Task, event, keyboard, time, window};
+use iced::widget::{column, container, mouse_area, row, rule, scrollable, sensor, text};
+use iced::{Element, Event, Fill, Font, Point, Size, Subscription, Task, event, keyboard, mouse, time, window};
 use xeno_editor::Editor;
 use xeno_editor::runtime::{CursorStyle, LoopDirective, RuntimeEvent};
 
@@ -13,12 +13,18 @@ use super::{DEFAULT_POLL_INTERVAL, EventBridgeState, HeaderSnapshot, Snapshot, S
 
 const DEFAULT_INSPECTOR_WIDTH_PX: f32 = 320.0;
 const MIN_INSPECTOR_WIDTH_PX: f32 = 160.0;
+const STATUSLINE_ROWS: u16 = 1;
 
 #[derive(Debug, Clone)]
 pub(crate) enum Message {
 	Tick(time::Instant),
 	Event(Event),
 	ClipboardRead(Result<std::sync::Arc<String>, iced::clipboard::Error>),
+	DocumentViewportChanged(Size),
+	DocumentCursorMoved(Point),
+	DocumentButtonPressed(mouse::Button),
+	DocumentButtonReleased(mouse::Button),
+	DocumentScrolled(mouse::ScrollDelta),
 }
 
 pub(crate) struct IcedEditorApp {
@@ -29,6 +35,7 @@ pub(crate) struct IcedEditorApp {
 	snapshot: Snapshot,
 	cell_metrics: super::CellMetrics,
 	event_state: EventBridgeState,
+	document_viewport_cells: Option<(u16, u16)>,
 	layout: LayoutConfig,
 }
 
@@ -107,6 +114,7 @@ impl IcedEditorApp {
 			snapshot: Snapshot::default(),
 			cell_metrics: super::CellMetrics::from_env(),
 			event_state: EventBridgeState::default(),
+			document_viewport_cells: None,
 			layout: LayoutConfig::from_env(),
 		};
 
@@ -128,11 +136,28 @@ impl IcedEditorApp {
 					self.rebuild_snapshot();
 				}
 			}
+			Message::DocumentViewportChanged(document_size) => {
+				self.apply_document_viewport_size(document_size);
+			}
+			Message::DocumentCursorMoved(position) => {
+				self.forward_document_mouse_event(mouse::Event::CursorMoved { position });
+			}
+			Message::DocumentButtonPressed(button) => {
+				self.forward_document_mouse_event(mouse::Event::ButtonPressed(button));
+			}
+			Message::DocumentButtonReleased(button) => {
+				self.forward_document_mouse_event(mouse::Event::ButtonReleased(button));
+			}
+			Message::DocumentScrolled(delta) => {
+				self.forward_document_mouse_event(mouse::Event::WheelScrolled { delta });
+			}
 			Message::Event(event) => {
 				if matches!(event, Event::Window(window::Event::CloseRequested)) {
 					self.directive.should_quit = true;
 				} else if let Some(task) = clipboard_paste_task(&event) {
 					return task;
+				} else if matches!(event, Event::Mouse(_)) {
+				} else if matches!(event, Event::Window(window::Event::Opened { .. }) | Event::Window(window::Event::Resized(_))) {
 				} else if let Some(runtime_event) = map_event(event.clone(), self.cell_metrics, &mut self.event_state) {
 					self.directive = self.runtime.block_on(self.editor.on_event(runtime_event));
 					self.rebuild_snapshot();
@@ -160,15 +185,24 @@ impl IcedEditorApp {
 		for line in &self.snapshot.document_lines {
 			document_rows = document_rows.push(render_document_line(line));
 		}
-		let document_scroll = scrollable(document_rows)
-			.direction(ScrollDirection::Vertical(Scrollbar::hidden()))
+		let document = container(document_rows)
 			.height(Fill)
-			.width(Fill);
-		let document = container(document_scroll)
 			.width(Fill)
-			.height(Fill)
 			.clip(true)
 			.style(move |_theme| background_style(ui_bg));
+		let document = mouse_area(
+			sensor(document)
+				.on_show(Message::DocumentViewportChanged)
+				.on_resize(Message::DocumentViewportChanged),
+		)
+		.on_move(Message::DocumentCursorMoved)
+		.on_press(Message::DocumentButtonPressed(mouse::Button::Left))
+		.on_release(Message::DocumentButtonReleased(mouse::Button::Left))
+		.on_right_press(Message::DocumentButtonPressed(mouse::Button::Right))
+		.on_right_release(Message::DocumentButtonReleased(mouse::Button::Right))
+		.on_middle_press(Message::DocumentButtonPressed(mouse::Button::Middle))
+		.on_middle_release(Message::DocumentButtonReleased(mouse::Button::Middle))
+		.on_scroll(Message::DocumentScrolled);
 		let inspector_rows = render_inspector_rows(&self.snapshot.surface);
 
 		let inspector_scroll = scrollable(inspector_rows)
@@ -223,6 +257,33 @@ impl IcedEditorApp {
 		self.snapshot = build_snapshot(&mut self.editor, self.event_state.ime_preedit());
 		self.editor.frame_mut().needs_redraw = false;
 	}
+
+	fn apply_document_viewport_size(&mut self, document_size: Size) {
+		let (cols, rows) = viewport_grid_from_document_size(self.cell_metrics, document_size);
+		if self.document_viewport_cells == Some((cols, rows)) {
+			return;
+		}
+
+		self.document_viewport_cells = Some((cols, rows));
+		self.directive = self.runtime.block_on(self.editor.on_event(RuntimeEvent::WindowResized { cols, rows }));
+		self.rebuild_snapshot();
+	}
+
+	fn forward_document_mouse_event(&mut self, mouse_event: mouse::Event) {
+		if let Some(runtime_event) = map_event(Event::Mouse(mouse_event), self.cell_metrics, &mut self.event_state) {
+			self.directive = self.runtime.block_on(self.editor.on_event(runtime_event));
+			self.rebuild_snapshot();
+		}
+	}
+}
+
+fn viewport_grid_from_document_size(cell_metrics: super::CellMetrics, document_size: Size) -> (u16, u16) {
+	let (cols, document_rows) = cell_metrics.to_grid(document_size.width, document_size.height);
+	(cols, viewport_rows_for_document_rows(document_rows))
+}
+
+fn viewport_rows_for_document_rows(document_rows: u16) -> u16 {
+	document_rows.saturating_add(STATUSLINE_ROWS)
 }
 
 fn default_loop_directive() -> LoopDirective {

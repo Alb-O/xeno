@@ -16,11 +16,11 @@ Investigate a minimal GUI frontend integration using `iced_wgpu` while preservin
   - lifecycle hooks are emitted on startup and quit.
 - Added event bridge from iced -> core runtime:
   - keyboard key presses (character + named keys + modifiers)
-  - mouse cursor/button/scroll events mapped into core `MouseEvent` grid coordinates
+  - mouse cursor/button/scroll events mapped from measured document viewport space into core `MouseEvent` grid coordinates
   - clipboard paste bridge for Command/Ctrl+V via `iced::clipboard::read_text()`
   - IME commit bridge (`input_method::Event::Commit`) routed into core paste path
   - IME lifecycle tracking for opened/preedit/closed state (surfaced in iced snapshot header)
-  - window opened/resized
+  - document viewport size sensor drives core `WindowResized` grid updates
   - window focus/unfocus
   - adapter-level unit tests now cover IME commit/preedit event mapping
 - Added minimal rendering bridge:
@@ -37,8 +37,8 @@ Investigate a minimal GUI frontend integration using `iced_wgpu` while preservin
 ## Current limitations
 
 - Grid-size conversion is heuristic:
-  - core resize contract is now explicitly grid-based (`RuntimeEvent::WindowResized { cols, rows }`).
-  - iced maps logical pixels to cols/rows via configurable cell metrics (`XENO_ICED_CELL_WIDTH_PX`, `XENO_ICED_CELL_HEIGHT_PX`).
+  - core resize contract is grid-based (`RuntimeEvent::WindowResized { cols, rows }`) and now sourced from measured document viewport size.
+  - iced maps logical pixels to cols/rows via configurable cell metrics (`XENO_ICED_CELL_WIDTH_PX`, `XENO_ICED_CELL_HEIGHT_PX`) with a fixed +1 statusline row reserve.
   - no font-metrics-driven calibration yet.
 - Rendering seam is still provisional:
   - style/span mapping is currently color/background focused; advanced text-style parity remains incomplete
