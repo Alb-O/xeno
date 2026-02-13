@@ -258,8 +258,46 @@ fn map_ui_color(color: UiColor) -> Option<Color> {
 		UiColor::LightCyan => Some(Color::from_rgb8(0x00, 0xFF, 0xFF)),
 		UiColor::White => Some(Color::from_rgb8(0xFF, 0xFF, 0xFF)),
 		UiColor::Rgb(r, g, b) => Some(Color::from_rgb8(r, g, b)),
-		UiColor::Indexed(_) => None,
+		UiColor::Indexed(index) => Some(map_indexed_color(index)),
 	}
+}
+
+fn map_indexed_color(index: u8) -> Color {
+	const BASE: [(u8, u8, u8); 16] = [
+		(0x00, 0x00, 0x00),
+		(0x80, 0x00, 0x00),
+		(0x00, 0x80, 0x00),
+		(0x80, 0x80, 0x00),
+		(0x00, 0x00, 0x80),
+		(0x80, 0x00, 0x80),
+		(0x00, 0x80, 0x80),
+		(0xC0, 0xC0, 0xC0),
+		(0x80, 0x80, 0x80),
+		(0xFF, 0x00, 0x00),
+		(0x00, 0xFF, 0x00),
+		(0xFF, 0xFF, 0x00),
+		(0x00, 0x00, 0xFF),
+		(0xFF, 0x00, 0xFF),
+		(0x00, 0xFF, 0xFF),
+		(0xFF, 0xFF, 0xFF),
+	];
+	const CUBE: [u8; 6] = [0, 95, 135, 175, 215, 255];
+
+	if index < 16 {
+		let (r, g, b) = BASE[index as usize];
+		return Color::from_rgb8(r, g, b);
+	}
+
+	if (16..=231).contains(&index) {
+		let value = index - 16;
+		let r = CUBE[(value / 36) as usize];
+		let g = CUBE[((value % 36) / 6) as usize];
+		let b = CUBE[(value % 6) as usize];
+		return Color::from_rgb8(r, g, b);
+	}
+
+	let gray = 8u8.saturating_add((index - 232) * 10);
+	Color::from_rgb8(gray, gray, gray)
 }
 
 pub fn run(startup: StartupOptions) -> iced::Result {
@@ -300,5 +338,14 @@ mod tests {
 	fn style_fg_to_iced_reads_foreground_color() {
 		let style = UiStyle::default().fg(UiColor::LightBlue);
 		assert_eq!(style_fg_to_iced(style), Some(Color::from_rgb8(0x00, 0x00, 0xFF)));
+	}
+
+	#[test]
+	fn map_ui_color_maps_indexed_palette() {
+		assert_eq!(map_ui_color(UiColor::Indexed(16)), Some(Color::from_rgb8(0, 0, 0)));
+		assert_eq!(map_ui_color(UiColor::Indexed(21)), Some(Color::from_rgb8(0, 0, 255)));
+		assert_eq!(map_ui_color(UiColor::Indexed(231)), Some(Color::from_rgb8(255, 255, 255)));
+		assert_eq!(map_ui_color(UiColor::Indexed(232)), Some(Color::from_rgb8(8, 8, 8)));
+		assert_eq!(map_ui_color(UiColor::Indexed(255)), Some(Color::from_rgb8(238, 238, 238)));
 	}
 }
