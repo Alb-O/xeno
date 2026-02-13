@@ -10,7 +10,10 @@ use super::types::{DocEpoch, OptKey, TaskId, ViewportKey};
 /// Distinguishes the two viewport sub-lanes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum ViewportLane {
-	/// Stage-A: fast, partial parse with limited injections.
+	/// Stage-A: fast, partial parse.
+	///
+	/// Uses tier-configured viewport injections by default; L-tier history edits
+	/// may elevate this lane to eager injections to reduce undo repaint churn.
 	Urgent,
 	/// Stage-B: enrichment parse with eager injections.
 	Enrich,
@@ -25,6 +28,7 @@ pub(super) enum ViewportLane {
 pub(crate) struct DocSched {
 	pub(super) epoch: DocEpoch,
 	pub(super) last_edit_at: Instant,
+	pub(super) last_edit_source: super::EditSource,
 	pub(super) last_visible_at: Instant,
 	pub(super) cooldown_until: Option<Instant>,
 
@@ -60,6 +64,7 @@ impl DocSched {
 		Self {
 			epoch: DocEpoch(0),
 			last_edit_at: now,
+			last_edit_source: super::EditSource::Typing,
 			last_visible_at: now,
 			cooldown_until: None,
 			active_viewport_urgent: None,
@@ -97,6 +102,7 @@ impl DocSched {
 		self.completed.clear();
 		self.cooldown_until = None;
 		self.force_no_debounce = false;
+		self.last_edit_source = super::EditSource::Typing;
 		self.viewport_focus_key = None;
 		self.viewport_focus_doc_version = 0;
 		self.viewport_focus_stable_polls = 0;

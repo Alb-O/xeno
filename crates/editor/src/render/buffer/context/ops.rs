@@ -1,4 +1,5 @@
 use ropey::Rope;
+use tracing::trace;
 use xeno_language::LanguageId;
 use xeno_language::highlight::HighlightSpan;
 use xeno_primitives::{Mode, Modifier, Style, UnderlineStyle, visible_line_count};
@@ -84,14 +85,42 @@ impl<'a> BufferRenderContext<'a> {
 			.syntax_manager
 			.syntax_for_viewport(doc_id, doc_version, viewport_start_byte..viewport_end_byte)
 		else {
+			trace!(
+				target: "xeno_undo_trace",
+				?doc_id,
+				doc_version,
+				viewport_start_byte,
+				viewport_end_byte,
+				start_line,
+				end_line,
+				"render.collect_highlight_spans.no_selection"
+			);
 			return Vec::new();
 		};
 		let syntax_version = selection.tree_id;
 		let projection = self
 			.syntax_manager
 			.highlight_projection_ctx_for(doc_id, selection.tree_doc_version, doc_version);
+		let (coverage_start, coverage_end) = selection.coverage.as_ref().map_or((None, None), |r| (Some(r.start), Some(r.end)));
+		trace!(
+			target: "xeno_undo_trace",
+			?doc_id,
+			doc_version,
+			viewport_start_byte,
+			viewport_end_byte,
+			start_line,
+			end_line,
+			syntax_version,
+			tree_doc_version = selection.tree_doc_version,
+			is_full = selection.coverage.is_none(),
+			coverage_start,
+			coverage_end,
+			projection_tree_doc_version = projection.as_ref().map(|p| p.tree_doc_version),
+			projection_target_doc_version = projection.as_ref().map(|p| p.target_doc_version),
+			"render.collect_highlight_spans.selection"
+		);
 
-		cache.highlight.get_spans(HighlightSpanQuery {
+		let spans = cache.highlight.get_spans(HighlightSpanQuery {
 			doc_id,
 			syntax_version,
 			language_id,
@@ -102,7 +131,18 @@ impl<'a> BufferRenderContext<'a> {
 			style_resolver: |scope: &str| self.theme.colors.syntax.resolve(scope),
 			start_line,
 			end_line,
-		})
+		});
+		trace!(
+			target: "xeno_undo_trace",
+			?doc_id,
+			doc_version,
+			syntax_version,
+			start_line,
+			end_line,
+			span_count = spans.len(),
+			"render.collect_highlight_spans.done"
+		);
+		spans
 	}
 
 	/// Gets the diagnostic severity for a character position on a line.

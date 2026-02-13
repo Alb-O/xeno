@@ -1,9 +1,8 @@
-use core::simd::Simd;
 use core::simd::cmp::SimdOrd;
+use core::simd::{Mask, Simd};
 
 use crate::kernels::fixed_width::emit_fixed_width_matches;
 use crate::simd_lanes::{LaneCount, SupportedLaneCount};
-use core::simd::Mask;
 use crate::smith_waterman::simd::{HaystackChar, NeedleChar, delimiter_masks, smith_waterman_inner, valid_masks};
 use crate::{Match, Scoring};
 

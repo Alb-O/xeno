@@ -13,6 +13,8 @@
 //! - scheduling state decides `Pending/Kicked/Ready` outcomes.
 //! - completed tasks are installed only if epoch/version/retention rules allow.
 //! - highlight rendering may project stale tree spans through pending edits.
+//! - history-urgent Stage-A retries are one-shot per viewport key and doc version
+//!   after timeout/error, so background catch-up can make forward progress.
 //!
 //! # Key types
 //!
@@ -32,9 +34,12 @@
 //! - Must rotate full-tree identity when sync incremental catch-up mutates the tree.
 //! - Must only expose highlight projection context when pending edits align to resident tree.
 //! - Must only install stale viewport results when continuity requires filling uncovered viewports.
-//! - Must skip stale full-result installs that do not advance resident tree version.
+//! - Must skip stale non-viewport installs that would break projection continuity to the current document version.
+//! - Must prefer eager urgent viewport parses after L-tier history edits, even when a full tree is present, to reduce two-step undo repaint churn.
+//! - Must preserve the resident full-tree version on history edits so projection can reuse the prior syntax baseline during async catch-up.
 //! - Must bound viewport scheduling to a capped visible byte span.
 //! - Must use viewport-specific cooldowns for viewport task failures.
+//! - Must suppress same-version history Stage-A retries after urgent timeout/error so background catch-up is not starved.
 //!
 //! # Data flow
 //!
@@ -62,6 +67,8 @@
 //!
 //! - Timeouts/errors enter cooldown.
 //! - Viewport task failures use short viewport cooldowns so visible recovery stays responsive.
+//! - History-urgent Stage-A failures are latched per viewport key/doc-version to
+//!   prevent retry loops from starving background full/incremental recovery.
 //! - Retention drops trees for cold docs when configured.
 //! - Incremental misalignment falls back to full reparse.
 //!
@@ -77,7 +84,7 @@ use std::time::{Duration, Instant};
 
 use tokio::sync::Semaphore;
 use xeno_language::LanguageLoader;
-use xeno_language::syntax::{InjectionPolicy, Syntax, SyntaxOptions};
+use xeno_language::syntax::{InjectionPolicy, SyntaxOptions};
 use xeno_primitives::{ChangeSet, Rope};
 
 use crate::core::document::DocumentId;

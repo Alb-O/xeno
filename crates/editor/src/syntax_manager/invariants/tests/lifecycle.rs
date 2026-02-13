@@ -1,6 +1,7 @@
-use super::*;
 use xeno_primitives::Transaction;
 use xeno_primitives::transaction::Change;
+
+use super::*;
 
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_single_flight_per_doc() {
@@ -125,8 +126,8 @@ pub(crate) async fn test_stale_parse_does_not_overwrite_clean_incremental() {
 	assert_eq!(mgr.syntax_doc_version(doc_id), Some(2), "Stale V1 must not overwrite clean V2");
 }
 
-/// Must install completed parses for continuity when the slot is dirty,
-/// even if stale, to keep highlighting visible during catch-up reparses.
+/// Must install stale completed parses for continuity when the slot is dirty
+/// and no resident tree exists, to keep highlighting visible during catch-up reparses.
 ///
 /// - Enforced in: `should_install_completed_parse`
 /// - Failure symptom: Highlighting stays missing until an exact-version parse completes.
@@ -165,6 +166,89 @@ pub(crate) async fn test_stale_install_continuity() {
 	mgr.ensure_syntax(make_ctx(doc_id, 2, Some(lang), &content, SyntaxHotness::Visible, &loader));
 	assert_eq!(mgr.syntax_doc_version(doc_id), Some(1));
 	assert!(mgr.is_dirty(doc_id), "Should remain dirty for catch-up reparse");
+}
+
+/// Must skip stale non-viewport installs when they would break projection continuity.
+///
+/// - Enforced in: `SyntaxManager::ensure_syntax`
+/// - Failure symptom: Undo applies a stale intermediate full/incremental tree that
+///   clears projection context, causing a broken repaint before the exact parse lands.
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_stale_incremental_parse_skips_install_when_projection_would_break() {
+	let engine = Arc::new(MockEngine::new());
+	let _guard = EngineGuard(engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 1,
+			..Default::default()
+		},
+		engine.clone(),
+	);
+	let mut policy = TieredSyntaxPolicy::test_default();
+	policy.s.debounce = Duration::ZERO;
+	mgr.set_policy(policy);
+
+	let doc_id = DocumentId(1);
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang = loader.language_for_name("rust").unwrap();
+
+	let content_v1 = Rope::from("hello");
+
+	// Establish initial full tree at V1.
+	mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang), &content_v1, SyntaxHotness::Visible, &loader));
+	engine.proceed();
+	wait_for_finish(&mgr).await;
+	mgr.drain_finished_inflight();
+	mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang), &content_v1, SyntaxHotness::Visible, &loader));
+	assert_eq!(mgr.syntax_doc_version(doc_id), Some(1));
+
+	// History edit V1 -> V2; pending stays anchored to V1.
+	let tx1 = Transaction::change(
+		content_v1.slice(..),
+		[Change {
+			start: 5,
+			end: 5,
+			replacement: Some(" world".to_string()),
+		}],
+	);
+	let mut content_v2 = content_v1.clone();
+	tx1.apply(&mut content_v2);
+	mgr.note_edit_incremental(doc_id, 2, &content_v1, &content_v2, tx1.changes(), &loader, EditSource::History);
+
+	// Kick background incremental parse targeting V2.
+	let kick = mgr.ensure_syntax(make_ctx(doc_id, 2, Some(lang), &content_v2, SyntaxHotness::Visible, &loader));
+	assert_eq!(kick.result, SyntaxPollResult::Kicked);
+	assert!(mgr.has_inflight_bg(doc_id));
+
+	// Another history edit V2 -> V3 while V2 parse is still in-flight.
+	// Pending remains anchored to V1, so installing stale V2 would lose projection.
+	let tx2 = Transaction::change(
+		content_v2.slice(..),
+		[Change {
+			start: content_v2.len_chars(),
+			end: content_v2.len_chars(),
+			replacement: Some("!".to_string()),
+		}],
+	);
+	let mut content_v3 = content_v2.clone();
+	tx2.apply(&mut content_v3);
+	mgr.note_edit_incremental(doc_id, 3, &content_v2, &content_v3, tx2.changes(), &loader, EditSource::History);
+
+	// Complete stale V2 incremental parse.
+	engine.proceed();
+	wait_for_finish(&mgr).await;
+	mgr.drain_finished_inflight();
+
+	let _ = mgr.ensure_syntax(make_ctx(doc_id, 3, Some(lang), &content_v3, SyntaxHotness::Visible, &loader));
+
+	let selected = mgr
+		.syntax_for_viewport(doc_id, 3, 0..content_v3.len_bytes() as u32)
+		.expect("resident tree must remain available");
+	assert_eq!(selected.tree_doc_version, 1, "stale V2 parse must not replace the V1 projection baseline");
+	assert!(
+		mgr.highlight_projection_ctx_for(doc_id, selected.tree_doc_version, 3).is_some(),
+		"projection continuity must remain available after skipping stale install"
+	);
 }
 
 /// Must skip stale full-result installs when they don't advance resident version.
@@ -217,7 +301,10 @@ pub(crate) async fn test_stale_same_version_parse_does_not_reinstall() {
 	mgr.drain_finished_inflight();
 
 	let outcome = mgr.ensure_syntax(make_ctx(doc_id, 2, Some(lang), &content, SyntaxHotness::Visible, &loader));
-	assert!(!outcome.updated, "same-version stale completion should not trigger an intermediate install/repaint");
+	assert!(
+		!outcome.updated,
+		"same-version stale completion should not trigger an intermediate install/repaint"
+	);
 
 	let tree_id_after = mgr
 		.syntax_for_viewport(doc_id, 2, 0..content.len_bytes() as u32)
@@ -422,15 +509,7 @@ pub(crate) async fn test_full_tree_id_rotates_on_sync_incremental_update() {
 	let mut new_content = old_content.clone();
 	tx.apply(&mut new_content);
 
-	mgr.note_edit_incremental(
-		doc_id,
-		2,
-		&old_content,
-		&new_content,
-		tx.changes(),
-		&loader,
-		EditSource::Typing,
-	);
+	mgr.note_edit_incremental(doc_id, 2, &old_content, &new_content, tx.changes(), &loader, EditSource::Typing);
 	assert_eq!(mgr.syntax_doc_version(doc_id), Some(2));
 
 	let tree_id_after = mgr

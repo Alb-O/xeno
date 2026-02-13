@@ -68,13 +68,17 @@ impl SyntaxManager {
 		type Score = (bool, bool, bool, u64);
 		let mut best_overlapping: Option<(SyntaxSelection<'_>, Score)> = None;
 		let mut best_any: Option<(SyntaxSelection<'_>, Score)> = None;
+		let mut candidate_count = 0usize;
+		let mut overlapping_candidate_count = 0usize;
 
 		macro_rules! consider {
 			($sel:expr) => {{
 				let sel = $sel;
+				candidate_count += 1;
 				let s = score(&sel, doc_version);
 				let ovl = overlaps(&sel.coverage, &viewport);
 				if ovl {
+					overlapping_candidate_count += 1;
 					if best_overlapping.as_ref().map_or(true, |(_, prev)| s > *prev) {
 						best_overlapping = Some((sel, s));
 					}
@@ -115,7 +119,41 @@ impl SyntaxManager {
 			}
 		}
 
-		best_overlapping.or(best_any).map(|(sel, _)| sel)
+		let selection = best_overlapping.or(best_any).map(|(sel, _)| sel);
+		match selection.as_ref() {
+			Some(sel) => {
+				let (cov_start, cov_end) = sel.coverage.as_ref().map_or((None, None), |c| (Some(c.start), Some(c.end)));
+				tracing::trace!(
+					target: "xeno_undo_trace",
+					?doc_id,
+					doc_version,
+					viewport_start = viewport.start,
+					viewport_end = viewport.end,
+					candidate_count,
+					overlapping_candidate_count,
+					selected_tree_id = sel.tree_id,
+					selected_tree_doc_version = sel.tree_doc_version,
+					selected_is_full = sel.coverage.is_none(),
+					selected_coverage_start = cov_start,
+					selected_coverage_end = cov_end,
+					selected_injections = ?sel.syntax.opts().injections,
+					"syntax.query.syntax_for_viewport.selected"
+				);
+			}
+			None => {
+				tracing::trace!(
+					target: "xeno_undo_trace",
+					?doc_id,
+					doc_version,
+					viewport_start = viewport.start,
+					viewport_end = viewport.end,
+					candidate_count,
+					overlapping_candidate_count,
+					"syntax.query.syntax_for_viewport.none"
+				);
+			}
+		}
+		selection
 	}
 
 	/// Returns the document-global change counter for highlight cache invalidation.
@@ -147,15 +185,42 @@ impl SyntaxManager {
 		target_doc_version: u64,
 	) -> Option<HighlightProjectionCtx<'_>> {
 		if tree_doc_version == target_doc_version {
+			tracing::trace!(
+				target: "xeno_undo_trace",
+				?doc_id,
+				tree_doc_version,
+				target_doc_version,
+				result = "none_already_aligned",
+				"syntax.query.highlight_projection_ctx_for"
+			);
 			return None;
 		}
 
 		let entry = self.entries.get(&doc_id)?;
 		let pending = entry.slot.pending_incremental.as_ref()?;
 		if pending.base_tree_doc_version != tree_doc_version {
+			tracing::trace!(
+				target: "xeno_undo_trace",
+				?doc_id,
+				tree_doc_version,
+				target_doc_version,
+				pending_base_tree_doc_version = pending.base_tree_doc_version,
+				result = "none_base_mismatch",
+				"syntax.query.highlight_projection_ctx_for"
+			);
 			return None;
 		}
 
+		tracing::trace!(
+			target: "xeno_undo_trace",
+			?doc_id,
+			tree_doc_version,
+			target_doc_version,
+			pending_base_tree_doc_version = pending.base_tree_doc_version,
+			composed_op_count = pending.composed.changes().len(),
+			result = "some",
+			"syntax.query.highlight_projection_ctx_for"
+		);
 		Some(HighlightProjectionCtx {
 			tree_doc_version,
 			target_doc_version,

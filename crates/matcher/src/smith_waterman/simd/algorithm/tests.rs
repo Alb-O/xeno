@@ -176,15 +176,11 @@ fn score_typo_contract_parity() {
 		let (ref_score, _, ref_exact) = ref_sw(&needle, &haystack, &scoring);
 		let (scores_only, exact_only) = smith_waterman_scores::<16, 1>(&needle, &[haystack.as_str()], &scoring);
 
-		assert_eq!(
-			ref_score, scores_only[0],
-			"ref vs scores_only: needle={needle:?} haystack={haystack:?}"
-		);
+		assert_eq!(ref_score, scores_only[0], "ref vs scores_only: needle={needle:?} haystack={haystack:?}");
 		assert_eq!(ref_exact, exact_only[0]);
 
 		for max_typos in [0u16, 1, 3] {
-			let (typo_scores, typo_counts, typo_exacts) =
-				smith_waterman_scores_typos::<16, 1>(&needle, &[haystack.as_str()], max_typos, &scoring);
+			let (typo_scores, typo_counts, typo_exacts) = smith_waterman_scores_typos::<16, 1>(&needle, &[haystack.as_str()], max_typos, &scoring);
 
 			// scores_typos must produce the same score as score-only (independent of max_typos)
 			assert_eq!(
@@ -194,8 +190,7 @@ fn score_typo_contract_parity() {
 			assert_eq!(exact_only[0], typo_exacts[0]);
 
 			// internal consistency: scores_typos uses same matrix+traceback
-			let (matrix_scores, matrix, matrix_exacts) =
-				smith_waterman::<16, 1>(&needle, &[haystack.as_str()], None, &scoring);
+			let (matrix_scores, matrix, matrix_exacts) = smith_waterman::<16, 1>(&needle, &[haystack.as_str()], None, &scoring);
 			let matrix_typos = super::super::typos_from_score_matrix::<16, 1>(&matrix, max_typos);
 
 			assert_eq!(typo_scores[0], matrix_scores[0]);

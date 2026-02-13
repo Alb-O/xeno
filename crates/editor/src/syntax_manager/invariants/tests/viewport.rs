@@ -387,13 +387,105 @@ pub(crate) fn test_viewport_stale_install_skipped_when_covered() {
 		viewport: Some(viewport.clone()),
 	});
 
-	assert!(!outcome.updated, "stale completion should not trigger an intermediate repaint when coverage already exists");
+	assert!(
+		!outcome.updated,
+		"stale completion should not trigger an intermediate repaint when coverage already exists"
+	);
 
 	let selected = mgr
 		.syntax_for_viewport(doc_id, 2, viewport)
 		.expect("existing covered viewport tree should remain selected");
 	assert_eq!(selected.tree_id, existing_tree_id);
 	assert_eq!(selected.tree_doc_version, 1);
+}
+
+/// Must prefer eager urgent viewport parsing for L-tier history edits, including
+/// when a non-eager full tree already exists.
+///
+/// - Enforced in: `SyntaxManager::ensure_syntax`
+/// - Failure symptom: Undo in large files repaints with stale/non-eager viewport
+///   spans before correctness pass runs.
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_l_history_edit_uses_eager_urgent_with_full_present() {
+	let engine = Arc::new(MockEngine::new());
+	let _guard = EngineGuard(engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 1,
+			..Default::default()
+		},
+		engine.clone(),
+	);
+	let mut policy = TieredSyntaxPolicy::test_default();
+	policy.s_max_bytes_inclusive = 0;
+	policy.m_max_bytes_inclusive = 0;
+	policy.l.debounce = Duration::ZERO;
+	policy.l.viewport_stage_b_budget = Some(Duration::from_secs(1));
+	policy.l.viewport_stage_b_min_stable_polls = 1;
+	mgr.set_policy(policy);
+
+	let doc_id = DocumentId(1);
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang = loader.language_for_name("rust").unwrap();
+	let content = Rope::from("x".repeat(300_000));
+	let viewport = 0..200;
+
+	{
+		let entry = mgr.entry_mut(doc_id);
+		entry.slot.language_id = Some(lang);
+		let full = Syntax::new(
+			Rope::from("fn main() { let x = 1; }").slice(..),
+			lang,
+			&loader,
+			SyntaxOptions {
+				injections: InjectionPolicy::Disabled,
+				..Default::default()
+			},
+		)
+		.unwrap();
+		let full_tree_id = entry.slot.alloc_tree_id();
+		entry.slot.full = Some(full);
+		entry.slot.full_doc_version = Some(1);
+		entry.slot.full_tree_id = full_tree_id;
+	}
+	mgr.note_edit(doc_id, EditSource::History);
+
+	let r1 = mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 1,
+		language_id: Some(lang),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+		viewport: Some(viewport.clone()),
+	});
+	assert_eq!(r1.result, SyntaxPollResult::Kicked);
+	assert!(mgr.has_inflight_viewport_urgent(doc_id));
+
+	wait_for_finish(&mgr).await;
+	mgr.drain_finished_inflight();
+
+	let r2 = mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 1,
+		language_id: Some(lang),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+		viewport: Some(viewport.clone()),
+	});
+	assert!(r2.updated, "urgent completion install should trigger redraw");
+
+	let selected = mgr.syntax_for_viewport(doc_id, 1, viewport.clone()).expect("urgent tree should be selected");
+	assert_eq!(
+		selected.syntax.opts().injections,
+		InjectionPolicy::Eager,
+		"L-tier history edits should use eager urgent viewport parsing"
+	);
+	assert!(
+		mgr.has_inflight_viewport_enrich(doc_id),
+		"Stage-B should stay eligible as a follow-up correctness pass"
+	);
 }
 
 /// Must preempt tracked full/incremental work when a visible large-doc viewport is uncovered.
@@ -524,4 +616,100 @@ pub(crate) async fn test_viewport_span_cap_prevents_stage_a_loop() {
 	});
 	assert_eq!(r2.result, SyntaxPollResult::Kicked);
 	assert!(mgr.has_inflight_bg(doc_id));
+}
+
+/// Must suppress same-version history Stage-A retries after an urgent timeout so
+/// background catch-up can proceed.
+///
+/// - Enforced in: `SyntaxManager::ensure_syntax`
+/// - Failure symptom: Undo loops Stage-A timeouts on the same version and starves
+///   background full/incremental parse recovery.
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_history_stage_a_timeout_suppresses_same_version_retry() {
+	let engine = Arc::new(MockEngine::new());
+	let _guard = EngineGuard(engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 2,
+			..Default::default()
+		},
+		engine.clone(),
+	);
+	let mut policy = TieredSyntaxPolicy::test_default();
+	policy.s_max_bytes_inclusive = 0;
+	policy.m_max_bytes_inclusive = 0;
+	policy.l.debounce = Duration::ZERO;
+	policy.l.viewport_stage_b_budget = None;
+	policy.l.viewport_cooldown_on_timeout = Duration::ZERO;
+	mgr.set_policy(policy);
+
+	let doc_id = DocumentId(1);
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang = loader.language_for_name("rust").unwrap();
+	let content = Rope::from("x".repeat(300_000));
+	let viewport = 200_000..200_200;
+	let viewport_key = ViewportKey(196_608);
+
+	{
+		let entry = mgr.entry_mut(doc_id);
+		entry.slot.language_id = Some(lang);
+		let full = Syntax::new(
+			Rope::from("fn main() { let x = 1; }").slice(..),
+			lang,
+			&loader,
+			SyntaxOptions {
+				injections: InjectionPolicy::Disabled,
+				..Default::default()
+			},
+		)
+		.unwrap();
+		let full_tree_id = entry.slot.alloc_tree_id();
+		entry.slot.full = Some(full);
+		entry.slot.full_doc_version = Some(1);
+		entry.slot.full_tree_id = full_tree_id;
+		entry.sched.completed.push_back(CompletedSyntaxTask {
+			doc_version: 2,
+			lang_id: lang,
+			opts: OptKey {
+				injections: InjectionPolicy::Eager,
+			},
+			result: Err(SyntaxError::Timeout),
+			class: TaskClass::Viewport,
+			injections: InjectionPolicy::Eager,
+			elapsed: Duration::from_millis(1),
+			viewport_key: Some(viewport_key),
+			viewport_lane: Some(super::super::scheduling::ViewportLane::Urgent),
+		});
+	}
+
+	mgr.note_edit(doc_id, EditSource::History);
+	let r1 = mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 2,
+		language_id: Some(lang),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+		viewport: Some(viewport.clone()),
+	});
+	assert_eq!(r1.result, SyntaxPollResult::CoolingDown);
+
+	let r2 = mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 2,
+		language_id: Some(lang),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+		viewport: Some(viewport),
+	});
+	assert_eq!(r2.result, SyntaxPollResult::Kicked);
+	assert!(
+		!mgr.has_inflight_viewport_urgent(doc_id),
+		"same-version history urgent retries should be suppressed after timeout"
+	);
+	assert!(
+		mgr.has_inflight_bg(doc_id),
+		"background catch-up should proceed once urgent retry is suppressed"
+	);
 }

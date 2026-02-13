@@ -288,10 +288,34 @@ fn setup_tracing() {
 
 	// Include PID in filename for correlating multi-process logs
 	let pid = std::process::id();
-	let log_path = log_dir.join(format!("xeno.{}.log", pid));
+	let undo_trace = std::env::var_os("XENO_UNDO_TRACE").is_some();
+	let log_path = if undo_trace {
+		log_dir.join(format!("xeno.undo-trace.{}.jsonl", pid))
+	} else {
+		log_dir.join(format!("xeno.{}.log", pid))
+	};
 	let Ok(file) = OpenOptions::new().create(true).append(true).open(&log_path) else {
 		return;
 	};
+
+	if undo_trace {
+		let filter = EnvFilter::try_from_default_env()
+			.or_else(|_| EnvFilter::try_from_env("XENO_LOG"))
+			.unwrap_or_else(|_| EnvFilter::new("xeno_undo_trace=trace,warn"));
+
+		let file_layer = tracing_subscriber::fmt::layer()
+			.with_writer(file)
+			.with_ansi(false)
+			.with_span_events(FmtSpan::FULL)
+			.with_target(true)
+			.json()
+			.with_current_span(true)
+			.with_span_list(true);
+
+		tracing_subscriber::registry().with(filter).with(file_layer).init();
+		info!(path = ?log_path, "Undo tracing initialized");
+		return;
+	}
 
 	// Support RUST_LOG in addition to XENO_LOG
 	let filter = EnvFilter::try_from_default_env()

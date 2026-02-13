@@ -222,17 +222,33 @@ impl UndoManager {
 
 	/// Undoes the last change, restoring view state for all affected buffers.
 	pub fn undo(&mut self, host: &mut impl UndoHost) -> bool {
+		let span = tracing::trace_span!(
+			target: "xeno_undo_trace",
+			"undo_manager.undo",
+			undo_depth = self.undo_stack.len(),
+			redo_depth = self.redo_stack.len()
+		);
+		let _span_guard = span.enter();
 		if !host.guard_readonly() {
+			trace!(target: "xeno_undo_trace", result = "readonly_blocked");
 			return false;
 		}
 
 		let Some(group) = self.undo_stack.pop() else {
+			trace!(target: "xeno_undo_trace", result = "nothing_to_undo");
 			host.notify_nothing_to_undo();
 			return false;
 		};
+		trace!(
+			target: "xeno_undo_trace",
+			affected_docs = ?group.affected_docs,
+			origin = ?group.origin,
+			"undo_manager.group.popped"
+		);
 
 		let current_snapshots = host.capture_current_view_snapshots(&group.affected_docs);
 		let ok = host.undo_documents(&group.affected_docs);
+		trace!(target: "xeno_undo_trace", ok, "undo_manager.undo_documents.done");
 
 		if ok {
 			host.restore_view_snapshots(&group.view_snapshots);
@@ -242,27 +258,55 @@ impl UndoManager {
 				origin: group.origin,
 			});
 			host.notify_undo();
+			trace!(
+				target: "xeno_undo_trace",
+				undo_depth = self.undo_stack.len(),
+				redo_depth = self.redo_stack.len(),
+				result = "ok"
+			);
 			true
 		} else {
 			self.undo_stack.push(group);
 			host.notify_nothing_to_undo();
+			trace!(
+				target: "xeno_undo_trace",
+				undo_depth = self.undo_stack.len(),
+				redo_depth = self.redo_stack.len(),
+				result = "undo_documents_failed"
+			);
 			false
 		}
 	}
 
 	/// Redoes the last undone change, restoring view state for all affected buffers.
 	pub fn redo(&mut self, host: &mut impl UndoHost) -> bool {
+		let span = tracing::trace_span!(
+			target: "xeno_undo_trace",
+			"undo_manager.redo",
+			undo_depth = self.undo_stack.len(),
+			redo_depth = self.redo_stack.len()
+		);
+		let _span_guard = span.enter();
 		if !host.guard_readonly() {
+			trace!(target: "xeno_undo_trace", result = "readonly_blocked");
 			return false;
 		}
 
 		let Some(group) = self.redo_stack.pop() else {
+			trace!(target: "xeno_undo_trace", result = "nothing_to_redo");
 			host.notify_nothing_to_redo();
 			return false;
 		};
+		trace!(
+			target: "xeno_undo_trace",
+			affected_docs = ?group.affected_docs,
+			origin = ?group.origin,
+			"undo_manager.group.popped"
+		);
 
 		let current_snapshots = host.capture_current_view_snapshots(&group.affected_docs);
 		let ok = host.redo_documents(&group.affected_docs);
+		trace!(target: "xeno_undo_trace", ok, "undo_manager.redo_documents.done");
 
 		if ok {
 			host.restore_view_snapshots(&group.view_snapshots);
@@ -272,10 +316,22 @@ impl UndoManager {
 				origin: group.origin,
 			});
 			host.notify_redo();
+			trace!(
+				target: "xeno_undo_trace",
+				undo_depth = self.undo_stack.len(),
+				redo_depth = self.redo_stack.len(),
+				result = "ok"
+			);
 			true
 		} else {
 			self.redo_stack.push(group);
 			host.notify_nothing_to_redo();
+			trace!(
+				target: "xeno_undo_trace",
+				undo_depth = self.undo_stack.len(),
+				redo_depth = self.redo_stack.len(),
+				result = "redo_documents_failed"
+			);
 			false
 		}
 	}

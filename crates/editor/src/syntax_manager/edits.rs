@@ -23,10 +23,19 @@ impl SyntaxManager {
 		let now = Instant::now();
 		let entry = self.entry_mut(doc_id);
 		entry.sched.last_edit_at = now;
+		entry.sched.last_edit_source = source;
 		entry.slot.dirty = true;
 		if source == EditSource::History {
 			entry.sched.force_no_debounce = true;
 		}
+		tracing::trace!(
+			target: "xeno_undo_trace",
+			?doc_id,
+			source = ?source,
+			dirty = entry.slot.dirty,
+			force_no_debounce = entry.sched.force_no_debounce,
+			"syntax.note_edit"
+		);
 	}
 
 	/// Records an edit and attempts an immediate incremental update on the full tree.
@@ -55,6 +64,7 @@ impl SyntaxManager {
 		let now = Instant::now();
 		let entry = self.entry_mut(doc_id);
 		entry.sched.last_edit_at = now;
+		entry.sched.last_edit_source = source;
 		entry.slot.dirty = true;
 
 		if source == EditSource::History {
@@ -65,6 +75,17 @@ impl SyntaxManager {
 		// Prefer full tree; fall back to viewport tree for projection-only tracking.
 		let anchor_version = entry.slot.full_doc_version.or(entry.slot.viewport_cache.best_doc_version());
 		let has_full_tree = entry.slot.full.is_some();
+		tracing::trace!(
+			target: "xeno_undo_trace",
+			?doc_id,
+			source = ?source,
+			doc_version,
+			anchor_version = ?anchor_version,
+			full_doc_version = ?entry.slot.full_doc_version,
+			has_full_tree,
+			pending_present = entry.slot.pending_incremental.is_some(),
+			"syntax.note_edit_incremental.begin"
+		);
 
 		if anchor_version.is_none() {
 			entry.slot.pending_incremental = None;
@@ -100,9 +121,30 @@ impl SyntaxManager {
 			}
 		}
 
+		// Preserve pre-history trees as projection baselines; large inverse edits
+		// are scheduled through viewport/background lanes instead of mutating the
+		// resident full tree in place.
+		if source == EditSource::History {
+			tracing::trace!(
+				target: "xeno_undo_trace",
+				?doc_id,
+				doc_version,
+				full_doc_version = ?entry.slot.full_doc_version,
+				pending_base_version = ?entry.slot.pending_incremental.as_ref().map(|p| p.base_tree_doc_version),
+				"syntax.note_edit_incremental.history_preserve_baseline"
+			);
+			return;
+		}
+
 		// Only attempt sync incremental on full (non-partial) trees.
 		if !has_full_tree {
 			entry.sched.force_no_debounce = true;
+			tracing::trace!(
+				target: "xeno_undo_trace",
+				?doc_id,
+				doc_version,
+				"syntax.note_edit_incremental.no_full_tree"
+			);
 			return;
 		}
 
@@ -112,6 +154,14 @@ impl SyntaxManager {
 
 		// Only sync if the pending window is anchored to the full tree's version.
 		if entry.slot.full_doc_version != Some(pending.base_tree_doc_version) {
+			tracing::trace!(
+				target: "xeno_undo_trace",
+				?doc_id,
+				doc_version,
+				full_doc_version = ?entry.slot.full_doc_version,
+				pending_base_version = pending.base_tree_doc_version,
+				"syntax.note_edit_incremental.base_mismatch_skip_sync"
+			);
 			return;
 		}
 
@@ -130,8 +180,21 @@ impl SyntaxManager {
 			entry.slot.full_doc_version = Some(doc_version);
 			entry.slot.full_tree_id = entry.slot.alloc_tree_id();
 			Self::mark_updated(&mut entry.slot);
+			tracing::trace!(
+				target: "xeno_undo_trace",
+				?doc_id,
+				doc_version,
+				full_doc_version = ?entry.slot.full_doc_version,
+				"syntax.note_edit_incremental.sync_ok"
+			);
 		} else {
 			tracing::debug!(?doc_id, "Sync incremental update failed; keeping pending for catch-up");
+			tracing::trace!(
+				target: "xeno_undo_trace",
+				?doc_id,
+				doc_version,
+				"syntax.note_edit_incremental.sync_failed_keep_pending"
+			);
 		}
 	}
 

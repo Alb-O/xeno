@@ -186,6 +186,40 @@ pub(crate) async fn test_history_op_bypasses_debounce() {
 	assert_eq!(r.result, SyntaxPollResult::Kicked);
 }
 
+/// Must preserve the resident full-tree version on history edits so undo can
+/// project from the previous known-good tree while async lanes catch up.
+///
+/// - Enforced in: `SyntaxManager::note_edit_incremental`
+/// - Failure symptom: Undo immediately replaces the syntax baseline with a
+///   low-fidelity sync incremental result before viewport correction can run.
+#[cfg_attr(test, test)]
+pub(crate) fn test_history_incremental_preserves_resident_tree_version() {
+	let mut mgr = SyntaxManager::default();
+	let doc_id = DocumentId(1);
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang = loader.language_for_name("rust").unwrap();
+	let content = Rope::from("fn main() { let x = 1; }\n");
+
+	{
+		let entry = mgr.entry_mut(doc_id);
+		entry.slot.language_id = Some(lang);
+		let syntax = Syntax::new(content.slice(..), lang, &loader, SyntaxOptions::default()).unwrap();
+		let tree_id = entry.slot.alloc_tree_id();
+		entry.slot.full = Some(syntax);
+		entry.slot.full_doc_version = Some(1);
+		entry.slot.full_tree_id = tree_id;
+	}
+
+	let identity = ChangeSet::new(content.slice(..));
+	mgr.note_edit_incremental(doc_id, 2, &content, &content, &identity, &loader, EditSource::History);
+
+	let entry = mgr.entry_mut(doc_id);
+	assert_eq!(entry.slot.full_doc_version, Some(1));
+	assert!(entry.slot.pending_incremental.is_some());
+	assert!(entry.slot.dirty);
+	assert!(entry.sched.force_no_debounce);
+}
+
 /// Cold eviction and re-bootstrap; a document evicted due to Cold
 /// hotness is re-bootstrapped immediately when it becomes visible again.
 #[cfg_attr(test, tokio::test)]

@@ -370,7 +370,16 @@ async fn test_stage_b_timeout_sets_per_key_cooldown_and_allows_retry() {
 	{
 		let entry = mgr.entry_mut(doc_id);
 		entry.slot.language_id = Some(lang);
-		let syntax = Syntax::new(Rope::from("fn main() {}").slice(..), lang, &loader, SyntaxOptions::default()).unwrap();
+		let syntax = Syntax::new(
+			Rope::from("fn main() {}").slice(..),
+			lang,
+			&loader,
+			SyntaxOptions {
+				injections: InjectionPolicy::Disabled,
+				..Default::default()
+			},
+		)
+		.unwrap();
 		let tree_id = entry.slot.alloc_tree_id();
 		entry.slot.full = Some(syntax.clone());
 		entry.slot.full_doc_version = Some(1);

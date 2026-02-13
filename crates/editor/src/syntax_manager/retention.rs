@@ -32,7 +32,8 @@ impl SyntaxManager {
 
 		// Continuity installs while dirty should only apply if they advance the
 		// resident version. Reinstalling the same stale version causes extra
-		// repaint churn without improving highlight fidelity.
+		// repaint churn without improving highlight fidelity. Callers may apply
+		// additional continuity guards (for example, projection alignment checks).
 		slot_dirty && current_tree_version.is_some_and(|v| done_version > v)
 	}
 

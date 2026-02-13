@@ -7,6 +7,34 @@ fn compute_viewport_key(viewport_start: u32, window_max: u32) -> ViewportKey {
 	ViewportKey(anchor)
 }
 
+fn slot_has_eager_exact_viewport_tree_coverage(slot: &SyntaxSlot, viewport: &std::ops::Range<u32>, doc_version: u64) -> bool {
+	let Some(key) = slot.viewport_cache.covering_key(viewport) else {
+		return false;
+	};
+	let Some(cache_entry) = slot.viewport_cache.map.get(&key) else {
+		return false;
+	};
+	let exact_covers = |t: &ViewportTree| t.doc_version == doc_version && t.coverage.start <= viewport.start && t.coverage.end >= viewport.end;
+	cache_entry.stage_b.as_ref().is_some_and(&exact_covers)
+		|| cache_entry
+			.stage_a
+			.as_ref()
+			.is_some_and(|t| t.syntax.opts().injections == InjectionPolicy::Eager && exact_covers(t))
+}
+
+fn slot_has_stage_b_exact_viewport_coverage(slot: &SyntaxSlot, viewport: &std::ops::Range<u32>, doc_version: u64) -> bool {
+	let Some(key) = slot.viewport_cache.covering_key(viewport) else {
+		return false;
+	};
+	let Some(cache_entry) = slot.viewport_cache.map.get(&key) else {
+		return false;
+	};
+	cache_entry
+		.stage_b
+		.as_ref()
+		.is_some_and(|t| t.doc_version == doc_version && t.coverage.start <= viewport.start && t.coverage.end >= viewport.end)
+}
+
 impl SyntaxManager {
 	/// Invariant enforcement: Polls or kicks background syntax parsing for a document.
 	pub fn ensure_syntax(&mut self, ctx: EnsureSyntaxContext<'_>) -> SyntaxPollOutcome {
@@ -38,6 +66,18 @@ impl SyntaxManager {
 		});
 
 		let work_disabled = matches!(ctx.hotness, SyntaxHotness::Cold) && !cfg.parse_when_hidden;
+		tracing::trace!(
+			target: "xeno_undo_trace",
+			?doc_id,
+			doc_version = ctx.doc_version,
+			bytes,
+			?tier,
+			hotness = ?ctx.hotness,
+			language_id = ?ctx.language_id,
+			viewport = ?viewport,
+			work_disabled,
+			"syntax.ensure.begin"
+		);
 
 		// 1. Initial entry check & change detection
 		let mut was_updated = {
@@ -104,9 +144,11 @@ impl SyntaxManager {
 						if let Some(current_lang) = ctx.language_id {
 							let lang_ok = lang_id == current_lang;
 							let opts_ok = if class == TaskClass::Viewport {
-								let stage_a_ok = injections == cfg.viewport_injections;
-								let stage_b_ok = injections == InjectionPolicy::Eager && cfg.viewport_stage_b_budget.is_some();
-								stage_a_ok || stage_b_ok
+								match done.viewport_lane {
+									Some(scheduling::ViewportLane::Urgent) => injections == cfg.viewport_injections || injections == InjectionPolicy::Eager,
+									Some(scheduling::ViewportLane::Enrich) => injections == InjectionPolicy::Eager && cfg.viewport_stage_b_budget.is_some(),
+									None => false,
+								}
 							} else {
 								done.opts == current_opts_key
 							};
@@ -141,13 +183,26 @@ impl SyntaxManager {
 								};
 								not_future && requested_ok && continuity_needed
 							} else {
+								let preserves_projection_continuity = if done.doc_version < ctx.doc_version {
+									if entry.slot.full.is_none() {
+										true
+									} else {
+										entry
+											.slot
+											.pending_incremental
+											.as_ref()
+											.is_some_and(|p| p.base_tree_doc_version == done.doc_version)
+									}
+								} else {
+									true
+								};
 								Self::should_install_completed_parse(
 									done.doc_version,
 									entry.slot.full_doc_version,
 									entry.sched.requested_bg_doc_version,
 									ctx.doc_version,
 									entry.slot.dirty,
-								)
+								) && preserves_projection_continuity
 							};
 
 							let is_installed = if work_disabled {
@@ -170,9 +225,10 @@ impl SyntaxManager {
 										};
 
 										let cache_entry = entry.slot.viewport_cache.get_mut_or_insert(vp_key);
-										let is_stage_a = injections == cfg.viewport_injections;
+										let is_stage_a = matches!(done.viewport_lane, Some(scheduling::ViewportLane::Urgent));
 										if is_stage_a {
 											cache_entry.stage_a = Some(vp_tree);
+											cache_entry.stage_a_failed_for = None;
 											cache_entry.attempted_b_for = None;
 											entry.slot.dirty = true;
 											entry.sched.force_no_debounce = true;
@@ -188,7 +244,15 @@ impl SyntaxManager {
 									entry.slot.full_doc_version = Some(done.doc_version);
 									entry.slot.full_tree_id = tree_id;
 									entry.slot.language_id = Some(current_lang);
-									entry.slot.pending_incremental = None;
+									let keep_pending_projection = done.doc_version < ctx.doc_version
+										&& entry
+											.slot
+											.pending_incremental
+											.as_ref()
+											.is_some_and(|p| p.base_tree_doc_version == done.doc_version);
+									if !keep_pending_projection {
+										entry.slot.pending_incremental = None;
+									}
 
 									entry.sched.force_no_debounce = false;
 									if version_match {
@@ -214,8 +278,33 @@ impl SyntaxManager {
 							};
 
 							metric_records.push((lang_id, tier, class, injections, elapsed, is_timeout, is_error, is_installed, false));
+							tracing::trace!(
+								target: "xeno_undo_trace",
+								?doc_id,
+								done_doc_version = done.doc_version,
+								ctx_doc_version = ctx.doc_version,
+								?class,
+								viewport_lane = ?done.viewport_lane,
+								?injections,
+								elapsed_ms = elapsed.as_millis() as u64,
+								is_installed,
+								"syntax.ensure.completed.ok"
+							);
 						} else {
 							metric_records.push((lang_id, tier, class, injections, elapsed, is_timeout, is_error, false, false));
+							tracing::trace!(
+								target: "xeno_undo_trace",
+								?doc_id,
+								done_doc_version = done.doc_version,
+								ctx_doc_version = ctx.doc_version,
+								?class,
+								viewport_lane = ?done.viewport_lane,
+								?injections,
+								elapsed_ms = elapsed.as_millis() as u64,
+								is_installed = false,
+								result = "no_language",
+								"syntax.ensure.completed.ok"
+							);
 						}
 					}
 					Err(xeno_language::syntax::SyntaxError::Timeout) => {
@@ -228,6 +317,12 @@ impl SyntaxManager {
 								ce.attempted_b_for = None;
 							}
 						} else {
+							if done.viewport_lane == Some(scheduling::ViewportLane::Urgent)
+								&& let Some(vp_key) = done.viewport_key
+							{
+								let ce = entry.slot.viewport_cache.get_mut_or_insert(vp_key);
+								ce.stage_a_failed_for = Some(done.doc_version);
+							}
 							let cooldown = if class == TaskClass::Viewport {
 								cfg.viewport_cooldown_on_timeout
 							} else {
@@ -236,6 +331,18 @@ impl SyntaxManager {
 							entry.sched.cooldown_until = Some(now + cooldown);
 						}
 						metric_records.push((lang_id, tier, class, injections, elapsed, true, false, false, is_enrich));
+						tracing::trace!(
+							target: "xeno_undo_trace",
+							?doc_id,
+							done_doc_version = done.doc_version,
+							ctx_doc_version = ctx.doc_version,
+							?class,
+							viewport_lane = ?done.viewport_lane,
+							?injections,
+							elapsed_ms = elapsed.as_millis() as u64,
+							is_enrich,
+							"syntax.ensure.completed.timeout"
+						);
 					}
 					Err(e) => {
 						tracing::warn!(?doc_id, ?tier, error=%e, "Background syntax parse failed");
@@ -247,6 +354,12 @@ impl SyntaxManager {
 								ce.attempted_b_for = None;
 							}
 						} else {
+							if done.viewport_lane == Some(scheduling::ViewportLane::Urgent)
+								&& let Some(vp_key) = done.viewport_key
+							{
+								let ce = entry.slot.viewport_cache.get_mut_or_insert(vp_key);
+								ce.stage_a_failed_for = Some(done.doc_version);
+							}
 							let cooldown = if class == TaskClass::Viewport {
 								cfg.viewport_cooldown_on_error
 							} else {
@@ -255,6 +368,19 @@ impl SyntaxManager {
 							entry.sched.cooldown_until = Some(now + cooldown);
 						}
 						metric_records.push((lang_id, tier, class, injections, elapsed, false, true, false, is_enrich));
+						tracing::trace!(
+							target: "xeno_undo_trace",
+							?doc_id,
+							done_doc_version = done.doc_version,
+							ctx_doc_version = ctx.doc_version,
+							?class,
+							viewport_lane = ?done.viewport_lane,
+							?injections,
+							elapsed_ms = elapsed.as_millis() as u64,
+							error = %e,
+							is_enrich,
+							"syntax.ensure.completed.error"
+						);
 					}
 				}
 			}
@@ -270,6 +396,13 @@ impl SyntaxManager {
 		}
 
 		if any_blocking_timeout_or_error {
+			tracing::trace!(
+				target: "xeno_undo_trace",
+				?doc_id,
+				doc_version = ctx.doc_version,
+				updated = was_updated,
+				"syntax.ensure.return.cooldown_blocking_failure"
+			);
 			return SyntaxPollOutcome {
 				result: SyntaxPollResult::CoolingDown,
 				updated: was_updated,
@@ -309,6 +442,13 @@ impl SyntaxManager {
 				entry.slot.language_id = None;
 				entry.slot.dirty = false;
 				entry.sched.cooldown_until = None;
+				tracing::trace!(
+					target: "xeno_undo_trace",
+					?doc_id,
+					doc_version = ctx.doc_version,
+					updated = was_updated,
+					"syntax.ensure.return.no_language"
+				);
 				return SyntaxPollOutcome {
 					result: SyntaxPollResult::NoLanguage,
 					updated: was_updated,
@@ -332,6 +472,13 @@ impl SyntaxManager {
 
 			// 5. Gating
 			if work_disabled {
+				tracing::trace!(
+					target: "xeno_undo_trace",
+					?doc_id,
+					doc_version = ctx.doc_version,
+					updated = was_updated,
+					"syntax.ensure.return.disabled"
+				);
 				return SyntaxPollOutcome {
 					result: SyntaxPollResult::Disabled,
 					updated: was_updated,
@@ -378,17 +525,7 @@ impl SyntaxManager {
 			// Compute enrichment desire using covering key (not just computed key)
 			want_enrich = tier == SyntaxTier::L && ctx.hotness == SyntaxHotness::Visible && cfg.viewport_stage_b_budget.is_some() && viewport.is_some() && {
 				let vp = viewport.as_ref().unwrap();
-				let k = entry
-					.slot
-					.viewport_cache
-					.covering_key(vp)
-					.unwrap_or_else(|| compute_viewport_key(vp.start, cfg.viewport_window_max));
-				let already_good = entry.slot.viewport_cache.map.get(&k).is_some_and(|ce| {
-					ce.stage_b
-						.as_ref()
-						.is_some_and(|t| t.doc_version == ctx.doc_version && t.coverage.start <= vp.start && t.coverage.end >= vp.end)
-				});
-				!already_good
+				!slot_has_stage_b_exact_viewport_coverage(&entry.slot, vp, ctx.doc_version)
 			};
 
 			viewport_uncovered =
@@ -396,6 +533,13 @@ impl SyntaxManager {
 
 			if entry.slot.has_any_tree() && !entry.slot.dirty && !want_enrich && !viewport_uncovered {
 				entry.sched.force_no_debounce = false;
+				tracing::trace!(
+					target: "xeno_undo_trace",
+					?doc_id,
+					doc_version = ctx.doc_version,
+					updated = was_updated,
+					"syntax.ensure.return.ready_fast_path"
+				);
 				return SyntaxPollOutcome {
 					result: SyntaxPollResult::Ready,
 					updated: was_updated,
@@ -403,6 +547,14 @@ impl SyntaxManager {
 			}
 
 			if entry.slot.has_any_tree() && !entry.sched.force_no_debounce && now.duration_since(entry.sched.last_edit_at) < cfg.debounce {
+				tracing::trace!(
+					target: "xeno_undo_trace",
+					?doc_id,
+					doc_version = ctx.doc_version,
+					updated = was_updated,
+					force_no_debounce = entry.sched.force_no_debounce,
+					"syntax.ensure.return.pending_debounce"
+				);
 				return SyntaxPollOutcome {
 					result: SyntaxPollResult::Pending,
 					updated: was_updated,
@@ -412,6 +564,14 @@ impl SyntaxManager {
 			if let Some(until) = entry.sched.cooldown_until
 				&& now < until
 			{
+				tracing::trace!(
+					target: "xeno_undo_trace",
+					?doc_id,
+					doc_version = ctx.doc_version,
+					updated = was_updated,
+					remaining_ms = until.saturating_duration_since(now).as_millis() as u64,
+					"syntax.ensure.return.cooling_down"
+				);
 				return SyntaxPollOutcome {
 					result: SyntaxPollResult::CoolingDown,
 					updated: was_updated,
@@ -443,33 +603,58 @@ impl SyntaxManager {
 				parse_timeout: sync_timeout.unwrap(),
 				injections: cfg.injections,
 			};
+			tracing::trace!(
+				target: "xeno_undo_trace",
+				?doc_id,
+				doc_version = ctx.doc_version,
+				sync_timeout_ms = sync_opts.parse_timeout.as_millis() as u64,
+				injections = ?sync_opts.injections,
+				"syntax.ensure.sync_bootstrap.attempt"
+			);
 			Some(self.engine.parse(ctx.content.slice(..), lang_id, ctx.loader, sync_opts))
 		} else {
 			None
 		};
 
-		if let Some(res) = sync_result
-			&& let Ok(syntax) = res
-		{
-			let entry = self.entry_mut(doc_id);
-			let is_bootstrap = !entry.slot.has_any_tree();
-			let is_visible = matches!(ctx.hotness, SyntaxHotness::Visible);
-			if entry.sched.epoch == pre_epoch && is_bootstrap && is_visible && !entry.sched.any_active() {
-				let tree_id = entry.slot.alloc_tree_id();
-				entry.slot.full = Some(syntax);
-				entry.slot.full_doc_version = Some(ctx.doc_version);
-				entry.slot.full_tree_id = tree_id;
-				entry.slot.language_id = Some(lang_id);
-				entry.slot.dirty = false;
-				entry.slot.pending_incremental = None;
-				entry.sched.force_no_debounce = false;
-				entry.sched.cooldown_until = None;
-				Self::mark_updated(&mut entry.slot);
-				return SyntaxPollOutcome {
-					result: SyntaxPollResult::Ready,
-					updated: true,
-				};
+		match sync_result {
+			Some(Ok(syntax)) => {
+				let entry = self.entry_mut(doc_id);
+				let is_bootstrap = !entry.slot.has_any_tree();
+				let is_visible = matches!(ctx.hotness, SyntaxHotness::Visible);
+				if entry.sched.epoch == pre_epoch && is_bootstrap && is_visible && !entry.sched.any_active() {
+					let tree_id = entry.slot.alloc_tree_id();
+					entry.slot.full = Some(syntax);
+					entry.slot.full_doc_version = Some(ctx.doc_version);
+					entry.slot.full_tree_id = tree_id;
+					entry.slot.language_id = Some(lang_id);
+					entry.slot.dirty = false;
+					entry.slot.pending_incremental = None;
+					entry.sched.force_no_debounce = false;
+					entry.sched.cooldown_until = None;
+					Self::mark_updated(&mut entry.slot);
+					tracing::trace!(
+						target: "xeno_undo_trace",
+						?doc_id,
+						doc_version = ctx.doc_version,
+						tree_id,
+						"syntax.ensure.sync_bootstrap.installed"
+					);
+					return SyntaxPollOutcome {
+						result: SyntaxPollResult::Ready,
+						updated: true,
+					};
+				}
 			}
+			Some(Err(e)) => {
+				tracing::trace!(
+					target: "xeno_undo_trace",
+					?doc_id,
+					doc_version = ctx.doc_version,
+					error = %e,
+					"syntax.ensure.sync_bootstrap.failed"
+				);
+			}
+			None => {}
 		}
 
 		// 6. Schedule new tasks
@@ -482,10 +667,30 @@ impl SyntaxManager {
 				&& ctx.hotness == SyntaxHotness::Visible
 				&& let Some(viewport) = &viewport
 				&& !entry.sched.viewport_urgent_active()
-				&& entry.slot.full.is_none()
-				&& !entry.slot.viewport_cache.covers_range(viewport)
 			{
-				(true, Some(compute_viewport_key(viewport.start, cfg.viewport_window_max)))
+				let viewport_uncovered = entry.slot.full.is_none() && !entry.slot.viewport_cache.covers_range(viewport);
+				let viewport_key = compute_viewport_key(viewport.start, cfg.viewport_window_max);
+				let history_stage_a_failed_for_doc_version = entry.slot.viewport_cache.map.get(&viewport_key).and_then(|ce| ce.stage_a_failed_for);
+				let history_needs_eager_repair = entry.sched.last_edit_source == EditSource::History
+					&& !slot_has_eager_exact_viewport_tree_coverage(&entry.slot, viewport, ctx.doc_version)
+					&& history_stage_a_failed_for_doc_version != Some(ctx.doc_version);
+				tracing::trace!(
+					target: "xeno_undo_trace",
+					?doc_id,
+					doc_version = ctx.doc_version,
+					viewport = ?viewport,
+					viewport_key = viewport_key.0,
+					viewport_uncovered,
+					history_needs_eager_repair,
+					history_stage_a_failed_for_doc_version,
+					last_edit_source = ?entry.sched.last_edit_source,
+					"syntax.ensure.stage_a.decide"
+				);
+				if viewport_uncovered || history_needs_eager_repair {
+					(true, Some(viewport_key))
+				} else {
+					(false, None)
+				}
 			} else {
 				(false, None)
 			}
@@ -505,10 +710,19 @@ impl SyntaxManager {
 
 			if win_end > win_start {
 				let class = TaskClass::Viewport;
-				let injections = cfg.viewport_injections;
-				let parse_timeout =
+				let (injections, history_urgent) = {
+					let entry = self.entry_mut(doc_id);
+					let history_urgent = tier == SyntaxTier::L && entry.sched.last_edit_source == EditSource::History;
+					let injections = if history_urgent { InjectionPolicy::Eager } else { cfg.viewport_injections };
+					(injections, history_urgent)
+				};
+				let mut parse_timeout =
 					self.metrics
 						.derive_timeout(lang_id, tier, class, injections, cfg.viewport_parse_timeout_min, cfg.viewport_parse_timeout_max);
+				if history_urgent {
+					let history_floor = cfg.viewport_parse_timeout_max * 3;
+					parse_timeout = parse_timeout.max(history_floor);
+				}
 
 				let entry = self.entry_mut(doc_id);
 				let spec = TaskSpec {
@@ -536,6 +750,30 @@ impl SyntaxManager {
 					entry.sched.active_viewport_urgent = Some(task_id);
 					entry.sched.requested_viewport_urgent_doc_version = ctx.doc_version;
 					kicked_any = true;
+					tracing::trace!(
+						target: "xeno_undo_trace",
+						?doc_id,
+						doc_version = ctx.doc_version,
+						task_id = task_id.0,
+						viewport_key = viewport_key.0,
+						win_start,
+						win_end,
+						injections = ?injections,
+						parse_timeout_ms = parse_timeout.as_millis() as u64,
+						"syntax.ensure.stage_a.spawned"
+					);
+				} else {
+					tracing::trace!(
+						target: "xeno_undo_trace",
+						?doc_id,
+						doc_version = ctx.doc_version,
+						viewport_key = viewport_key.0,
+						win_start,
+						win_end,
+						injections = ?injections,
+						parse_timeout_ms = parse_timeout.as_millis() as u64,
+						"syntax.ensure.stage_a.spawn_rejected"
+					);
 				}
 			}
 		}
@@ -557,13 +795,21 @@ impl SyntaxManager {
 					.covering_key(viewport)
 					.unwrap_or_else(|| compute_viewport_key(viewport.start, cfg.viewport_window_max));
 				let cache_entry = entry.slot.viewport_cache.map.get(&k);
-				let eager_covers = cache_entry.is_some_and(|ce| {
-					ce.stage_b
-						.as_ref()
-						.is_some_and(|t| t.doc_version == ctx.doc_version && t.coverage.start <= viewport.start && t.coverage.end >= viewport.end)
-				});
+				let eager_covers = slot_has_stage_b_exact_viewport_coverage(&entry.slot, viewport, ctx.doc_version);
 				let already_attempted = cache_entry.is_some_and(|ce| ce.attempted_b_for == Some(ctx.doc_version));
 				let in_cooldown = cache_entry.is_some_and(|ce| ce.stage_b_cooldown_until.is_some_and(|until| now < until));
+				tracing::trace!(
+					target: "xeno_undo_trace",
+					?doc_id,
+					doc_version = ctx.doc_version,
+					viewport = ?viewport,
+					viewport_key = k.0,
+					eager_covers,
+					already_attempted,
+					in_cooldown,
+					viewport_stable_polls,
+					"syntax.ensure.stage_b.decide"
+				);
 				if !eager_covers && !already_attempted && !in_cooldown {
 					let win = cache_entry.and_then(|ce| ce.stage_a.as_ref().map(|sa| sa.coverage.clone()));
 					(true, Some(k), win)
@@ -579,6 +825,15 @@ impl SyntaxManager {
 			let budget = cfg.viewport_stage_b_budget.unwrap();
 			let predicted = self.metrics.predict_duration(lang_id, tier, TaskClass::Viewport, InjectionPolicy::Eager);
 			let within_budget = predicted.map(|p| p <= budget).unwrap_or(true);
+			tracing::trace!(
+				target: "xeno_undo_trace",
+				?doc_id,
+				doc_version = ctx.doc_version,
+				budget_ms = budget.as_millis() as u64,
+				predicted_ms = predicted.map(|p| p.as_millis() as u64),
+				within_budget,
+				"syntax.ensure.stage_b.budget"
+			);
 
 			if within_budget {
 				let viewport_key = stage_b_key.unwrap();
@@ -632,8 +887,41 @@ impl SyntaxManager {
 						ce.attempted_b_for = Some(ctx.doc_version);
 						ce.stage_b_cooldown_until = None;
 						kicked_any = true;
+						tracing::trace!(
+							target: "xeno_undo_trace",
+							?doc_id,
+							doc_version = ctx.doc_version,
+							task_id = task_id.0,
+							viewport_key = viewport_key.0,
+							win_start,
+							win_end,
+							injections = ?injections,
+							parse_timeout_ms = parse_timeout.as_millis() as u64,
+							"syntax.ensure.stage_b.spawned"
+						);
+					} else {
+						tracing::trace!(
+							target: "xeno_undo_trace",
+							?doc_id,
+							doc_version = ctx.doc_version,
+							viewport_key = viewport_key.0,
+							win_start,
+							win_end,
+							injections = ?injections,
+							parse_timeout_ms = parse_timeout.as_millis() as u64,
+							"syntax.ensure.stage_b.spawn_rejected"
+						);
 					}
 				}
+			} else {
+				tracing::trace!(
+					target: "xeno_undo_trace",
+					?doc_id,
+					doc_version = ctx.doc_version,
+					budget_ms = budget.as_millis() as u64,
+					predicted_ms = predicted.map(|p| p.as_millis() as u64),
+					"syntax.ensure.stage_b.skipped_budget"
+				);
 			}
 		}
 
@@ -691,10 +979,37 @@ impl SyntaxManager {
 				entry.sched.requested_bg_doc_version = ctx.doc_version;
 				entry.sched.force_no_debounce = false;
 				kicked_any = true;
+				tracing::trace!(
+					target: "xeno_undo_trace",
+					?doc_id,
+					doc_version = ctx.doc_version,
+					task_id = task_id.0,
+					?class,
+					injections = ?injections,
+					parse_timeout_ms = parse_timeout.as_millis() as u64,
+					"syntax.ensure.background.spawned"
+				);
+			} else {
+				tracing::trace!(
+					target: "xeno_undo_trace",
+					?doc_id,
+					doc_version = ctx.doc_version,
+					?class,
+					injections = ?injections,
+					parse_timeout_ms = parse_timeout.as_millis() as u64,
+					"syntax.ensure.background.spawn_rejected"
+				);
 			}
 		}
 
 		if kicked_any {
+			tracing::trace!(
+				target: "xeno_undo_trace",
+				?doc_id,
+				doc_version = ctx.doc_version,
+				updated = was_updated,
+				"syntax.ensure.return.kicked"
+			);
 			SyntaxPollOutcome {
 				result: SyntaxPollResult::Kicked,
 				updated: was_updated,
@@ -703,11 +1018,29 @@ impl SyntaxManager {
 			let entry = self.entry_mut(doc_id);
 			let desired_work = entry.slot.dirty || entry.slot.full.is_none() || viewport_uncovered || want_enrich;
 			if entry.sched.any_active() || desired_work {
+				tracing::trace!(
+					target: "xeno_undo_trace",
+					?doc_id,
+					doc_version = ctx.doc_version,
+					updated = was_updated,
+					desired_work,
+					active = entry.sched.any_active(),
+					"syntax.ensure.return.pending"
+				);
 				SyntaxPollOutcome {
 					result: SyntaxPollResult::Pending,
 					updated: was_updated,
 				}
 			} else {
+				tracing::trace!(
+					target: "xeno_undo_trace",
+					?doc_id,
+					doc_version = ctx.doc_version,
+					updated = was_updated,
+					desired_work,
+					active = entry.sched.any_active(),
+					"syntax.ensure.return.ready"
+				);
 				SyntaxPollOutcome {
 					result: SyntaxPollResult::Ready,
 					updated: was_updated,

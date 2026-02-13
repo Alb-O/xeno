@@ -15,6 +15,7 @@ mod tests;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use tracing::trace;
 use xeno_language::LanguageLoader;
 use xeno_primitives::{CommitResult, EditCommit, EditError, ReadOnlyReason, ReadOnlyScope, Rope, Transaction, UndoPolicy, ViewId};
 
@@ -156,7 +157,20 @@ impl Document {
 	///
 	/// The applied inverse transactions if undo was performed.
 	pub fn undo(&mut self) -> Option<Vec<Transaction>> {
-		self.undo_backend.undo(&mut self.content, &mut self.version)
+		let before_version = self.version;
+		let before_bytes = self.content.len_bytes();
+		let applied = self.undo_backend.undo(&mut self.content, &mut self.version)?;
+		trace!(
+			target: "xeno_undo_trace",
+			doc_id = ?self.id,
+			before_version,
+			after_version = self.version,
+			tx_count = applied.len(),
+			before_bytes,
+			after_bytes = self.content.len_bytes(),
+			"document.undo.applied"
+		);
+		Some(applied)
 	}
 
 	/// Redoes the last undone document change.
@@ -165,7 +179,20 @@ impl Document {
 	///
 	/// The applied forward transactions if redo was performed.
 	pub fn redo(&mut self) -> Option<Vec<Transaction>> {
-		self.undo_backend.redo(&mut self.content, &mut self.version)
+		let before_version = self.version;
+		let before_bytes = self.content.len_bytes();
+		let applied = self.undo_backend.redo(&mut self.content, &mut self.version)?;
+		trace!(
+			target: "xeno_undo_trace",
+			doc_id = ?self.id,
+			before_version,
+			after_version = self.version,
+			tx_count = applied.len(),
+			before_bytes,
+			after_bytes = self.content.len_bytes(),
+			"document.redo.applied"
+		);
+		Some(applied)
 	}
 
 	/// Applies an edit through the authoritative edit gate.

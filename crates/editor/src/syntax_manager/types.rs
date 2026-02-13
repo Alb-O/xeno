@@ -113,6 +113,11 @@ pub struct ViewportEntry {
 	pub(super) key: ViewportKey,
 	/// Stage-A tree (fast, injections matching tier config).
 	pub(super) stage_a: Option<ViewportTree>,
+	/// Doc version for which Stage-A failed (timeout/error) in this key.
+	///
+	/// Used to suppress same-version history urgent retries so background catch-up
+	/// can proceed instead of looping Stage-A timeouts.
+	pub(super) stage_a_failed_for: Option<u64>,
 	/// Stage-B tree (injection-eager enrichment).
 	pub(super) stage_b: Option<ViewportTree>,
 	/// Doc version for which Stage-B was already attempted (per-window latch).
@@ -175,6 +180,7 @@ impl ViewportCache {
 				ViewportEntry {
 					key,
 					stage_a: None,
+					stage_a_failed_for: None,
 					stage_b: None,
 					attempted_b_for: None,
 					stage_b_cooldown_until: None,

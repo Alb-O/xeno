@@ -14,6 +14,7 @@ mod tests;
 
 use std::collections::VecDeque;
 
+use tracing::trace;
 use xeno_primitives::{Rope, Transaction, UndoPolicy, ViewId};
 
 /// Maximum undo history size in steps.
@@ -413,6 +414,15 @@ impl UndoBackend {
 		};
 
 		let recorded = self.store.record_transaction(tx.clone(), undo_tx, merge);
+		trace!(
+			target: "xeno_undo_trace",
+			undo_policy = ?undo_policy,
+			merge,
+			recorded,
+			undo_depth = self.store.undo_len(),
+			redo_depth = self.store.redo_len(),
+			"undo_backend.record_commit"
+		);
 
 		// Single-writer rule: only UndoBackend mutates active_group_owner.
 		// Store-level methods (undo/redo/clear_all) reset it, but never set it.
@@ -435,8 +445,19 @@ impl UndoBackend {
 	/// Restores document state from the undo stack and increments the version.
 	/// Returns the applied inverse transactions if undo was performed.
 	pub fn undo(&mut self, content: &mut Rope, version: &mut u64) -> Option<Vec<Transaction>> {
+		let before_version = *version;
 		let applied = self.store.undo(content)?;
 		*version = version.checked_add(1).expect("document version overflow");
+		trace!(
+			target: "xeno_undo_trace",
+			before_version,
+			after_version = *version,
+			tx_count = applied.len(),
+			undo_depth = self.store.undo_len(),
+			redo_depth = self.store.redo_len(),
+			content_bytes = content.len_bytes(),
+			"undo_backend.undo"
+		);
 		Some(applied)
 	}
 
@@ -445,8 +466,19 @@ impl UndoBackend {
 	/// Restores document state from the redo stack and increments the version.
 	/// Returns the applied forward transactions if redo was performed.
 	pub fn redo(&mut self, content: &mut Rope, version: &mut u64) -> Option<Vec<Transaction>> {
+		let before_version = *version;
 		let applied = self.store.redo(content)?;
 		*version = version.checked_add(1).expect("document version overflow");
+		trace!(
+			target: "xeno_undo_trace",
+			before_version,
+			after_version = *version,
+			tx_count = applied.len(),
+			undo_depth = self.store.undo_len(),
+			redo_depth = self.store.redo_len(),
+			content_bytes = content.len_bytes(),
+			"undo_backend.redo"
+		);
 		Some(applied)
 	}
 

@@ -6,8 +6,9 @@
 
 use std::collections::HashMap;
 
-use tracing::warn;
-use xeno_primitives::{Selection, SyntaxPolicy, Transaction, UndoPolicy};
+use tracing::{trace, trace_span, warn};
+use xeno_primitives::transaction::Operation;
+use xeno_primitives::{ChangeSet, Selection, SyntaxPolicy, Transaction, UndoPolicy};
 use xeno_registry::notifications::{Notification, keys};
 
 use crate::buffer::{ApplyPolicy, DocumentId, ViewId};
@@ -27,6 +28,53 @@ pub(super) struct EditorUndoHost<'a> {
 	pub syntax_manager: &'a mut crate::syntax_manager::SyntaxManager,
 	#[cfg(feature = "lsp")]
 	pub lsp: &'a mut LspSystem,
+}
+
+fn summarize_operations(ops: &[Operation]) -> (usize, usize, usize, usize, usize, i64) {
+	let mut op_count = 0usize;
+	let mut retain_chars = 0usize;
+	let mut deleted_chars = 0usize;
+	let mut inserted_bytes = 0usize;
+	let mut inserted_chars = 0usize;
+	for op in ops {
+		op_count += 1;
+		match op {
+			Operation::Retain(n) => {
+				retain_chars += *n;
+			}
+			Operation::Delete(n) => {
+				deleted_chars += *n;
+			}
+			Operation::Insert(ins) => {
+				inserted_bytes += ins.byte_len();
+				inserted_chars += ins.char_len();
+			}
+		}
+	}
+	let net_char_delta = inserted_chars as i64 - deleted_chars as i64;
+	(op_count, retain_chars, deleted_chars, inserted_bytes, inserted_chars, net_char_delta)
+}
+
+fn summarize_txs(txs: &[Transaction]) -> (usize, usize, usize, usize, usize, usize, i64) {
+	let mut op_count = 0usize;
+	let mut retain_chars = 0usize;
+	let mut deleted_chars = 0usize;
+	let mut inserted_bytes = 0usize;
+	let mut inserted_chars = 0usize;
+	for tx in txs {
+		let (ops, retain, deleted, inserted_b, inserted_c, _delta) = summarize_operations(tx.operations());
+		op_count += ops;
+		retain_chars += retain;
+		deleted_chars += deleted;
+		inserted_bytes += inserted_b;
+		inserted_chars += inserted_c;
+	}
+	let net_char_delta = inserted_chars as i64 - deleted_chars as i64;
+	(txs.len(), op_count, retain_chars, deleted_chars, inserted_bytes, inserted_chars, net_char_delta)
+}
+
+fn summarize_changeset(changeset: &ChangeSet) -> (usize, usize, usize, usize, usize, i64) {
+	summarize_operations(changeset.changes())
 }
 
 impl EditorUndoHost<'_> {
@@ -155,26 +203,61 @@ impl EditorUndoHost<'_> {
 	/// Applies the operation to the document and synchronizes all associated views,
 	/// including incremental syntax updates and selection mapping.
 	fn apply_history_op(&mut self, doc_id: DocumentId, op: impl FnOnce(&mut crate::buffer::Document) -> Option<Vec<Transaction>>) -> bool {
+		let span = trace_span!(target: "xeno_undo_trace", "undo_host.apply_history_op", ?doc_id);
+		let _span_guard = span.enter();
 		let buffer_id = self.buffers.buffers().find(|b| b.document_id() == doc_id).map(|b| b.id);
 
 		let Some(buffer_id) = buffer_id else {
 			warn!(doc_id = ?doc_id, "History op: no buffer for document");
+			trace!(target: "xeno_undo_trace", result = "no_buffer");
 			return false;
 		};
 
-		let before_rope = self.buffers.get_buffer(buffer_id).expect("buffer exists").with_doc(|doc| doc.content().clone());
+		let (before_rope, before_version) = self
+			.buffers
+			.get_buffer(buffer_id)
+			.expect("buffer exists")
+			.with_doc(|doc| (doc.content().clone(), doc.version()));
+		trace!(
+			target: "xeno_undo_trace",
+			?buffer_id,
+			before_version,
+			before_bytes = before_rope.len_bytes(),
+			"undo_host.history.before"
+		);
 
 		let txs = self.buffers.get_buffer_mut(buffer_id).expect("buffer exists").with_doc_mut(op);
 
 		let Some(txs) = txs else {
+			trace!(target: "xeno_undo_trace", result = "no_transactions");
 			return false;
 		};
+		let (tx_count, op_count, retain_chars, deleted_chars, inserted_bytes, inserted_chars, net_char_delta) = summarize_txs(&txs);
+		trace!(
+			target: "xeno_undo_trace",
+			tx_count,
+			op_count,
+			retain_chars,
+			deleted_chars,
+			inserted_chars,
+			inserted_bytes,
+			net_char_delta,
+			"undo_host.history.transactions"
+		);
 
 		let (after_rope, version) = self
 			.buffers
 			.get_buffer(buffer_id)
 			.expect("buffer exists")
 			.with_doc(|doc| (doc.content().clone(), doc.version()));
+		trace!(
+			target: "xeno_undo_trace",
+			after_version = version,
+			after_bytes = after_rope.len_bytes(),
+			version_delta = version as i64 - before_version as i64,
+			byte_delta = after_rope.len_bytes() as i64 - before_rope.len_bytes() as i64,
+			"undo_host.history.after"
+		);
 
 		// Compose changes for incremental syntax update
 		if !txs.is_empty() {
@@ -182,6 +265,17 @@ impl EditorUndoHost<'_> {
 			for tx in &txs[1..] {
 				net_changes = net_changes.compose(tx.changes().clone());
 			}
+			let (net_ops, net_retain, net_deleted, net_inserted_bytes, net_inserted_chars, net_delta_chars) = summarize_changeset(&net_changes);
+			trace!(
+				target: "xeno_undo_trace",
+				net_ops,
+				net_retain,
+				net_deleted,
+				net_inserted_chars,
+				net_inserted_bytes,
+				net_delta_chars,
+				"undo_host.history.net_changes"
+			);
 
 			self.syntax_manager.note_edit_incremental(
 				doc_id,
@@ -202,6 +296,7 @@ impl EditorUndoHost<'_> {
 		}
 		self.mark_buffer_dirty_for_full_sync(buffer_id);
 		self.normalize_all_views_for_doc(doc_id);
+		trace!(target: "xeno_undo_trace", result = "ok");
 		true
 	}
 }
