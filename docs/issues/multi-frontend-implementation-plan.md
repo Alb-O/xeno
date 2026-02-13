@@ -127,6 +127,7 @@ Completed:
   - uses core `BufferRenderContext` for focused-document snapshot generation
   - renders a minimal read-only snapshot from focused buffer + statusline plan
   - consumes completion/snippet/overlay/info-popup plans from `xeno-editor` (structured scene summary + dedicated completion/snippet row previews)
+  - includes adapter-level tests for key geometry/IME event mapping behavior
 - runtime replay coverage added for equivalent event scripts (single-line and multiline paste vs typed input) to guard convergence of core state/statusline outputs
 
 Current focus:

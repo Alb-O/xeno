@@ -22,6 +22,7 @@ Investigate a minimal GUI frontend integration using `iced_wgpu` while preservin
   - IME lifecycle tracking for opened/preedit/closed state (surfaced in iced snapshot header)
   - window opened/resized
   - window focus/unfocus
+  - adapter-level unit tests now cover IME commit/preedit event mapping
 - Added minimal rendering bridge:
   - renders focused buffer snapshot via core `BufferRenderContext` (shared render-policy path)
   - renders statusline using `statusline_render_plan`

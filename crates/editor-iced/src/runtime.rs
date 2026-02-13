@@ -871,6 +871,32 @@ mod tests {
 		assert_eq!(ime_preedit_label(Some("short")), "short");
 		assert_eq!(ime_preedit_label(Some("abcdefghijklmnopqrstuvwxyz")), "abcdefghijklmnopqrstuvwx...");
 	}
+
+	#[test]
+	fn map_event_routes_ime_commit_to_runtime_paste() {
+		let mut state = EventBridgeState::default();
+		let metrics = CellMetrics {
+			width_px: 8.0,
+			height_px: 16.0,
+		};
+
+		let event = Event::InputMethod(input_method::Event::Commit(String::from("ime-text")));
+		assert_eq!(map_event(event, metrics, &mut state), Some(RuntimeEvent::Paste(String::from("ime-text"))));
+		assert_eq!(state.ime_preedit, None);
+	}
+
+	#[test]
+	fn map_event_tracks_ime_preedit_without_runtime_event() {
+		let mut state = EventBridgeState::default();
+		let metrics = CellMetrics {
+			width_px: 8.0,
+			height_px: 16.0,
+		};
+
+		let event = Event::InputMethod(input_method::Event::Preedit(String::from("compose"), None));
+		assert_eq!(map_event(event, metrics, &mut state), None);
+		assert_eq!(state.ime_preedit.as_deref(), Some("compose"));
+	}
 }
 
 pub fn run(startup: StartupOptions) -> iced::Result {
