@@ -22,9 +22,18 @@ impl SyntaxManager {
 		}
 
 		let version_match = done_version == target_version;
-		let has_current = current_tree_version.is_some();
+		if version_match {
+			return true;
+		}
 
-		version_match || slot_dirty || !has_current
+		if current_tree_version.is_none() {
+			return true;
+		}
+
+		// Continuity installs while dirty should only apply if they advance the
+		// resident version. Reinstalling the same stale version causes extra
+		// repaint churn without improving highlight fidelity.
+		slot_dirty && current_tree_version.is_some_and(|v| done_version > v)
 	}
 
 	/// Evaluates if the retention policy allows installing a new syntax tree.

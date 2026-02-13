@@ -167,6 +167,66 @@ pub(crate) async fn test_stale_install_continuity() {
 	assert!(mgr.is_dirty(doc_id), "Should remain dirty for catch-up reparse");
 }
 
+/// Must skip stale full-result installs when they don't advance resident version.
+///
+/// - Enforced in: `should_install_completed_parse`
+/// - Failure symptom: Large-file edits trigger a delayed no-op repaint before the real catch-up repaint.
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_stale_same_version_parse_does_not_reinstall() {
+	let engine = Arc::new(MockEngine::new());
+	let _guard = EngineGuard(engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 1,
+			..Default::default()
+		},
+		engine.clone(),
+	);
+	let mut policy = TieredSyntaxPolicy::test_default();
+	policy.s.debounce = Duration::ZERO;
+	mgr.set_policy(policy);
+
+	let doc_id = DocumentId(1);
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang = loader.language_for_name("rust").unwrap();
+	let content = Rope::from("test");
+
+	// Establish initial full tree at V1.
+	mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang), &content, SyntaxHotness::Visible, &loader));
+	engine.proceed();
+	wait_for_finish(&mgr).await;
+	mgr.drain_finished_inflight();
+	mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang), &content, SyntaxHotness::Visible, &loader));
+
+	let tree_id_before = mgr
+		.syntax_for_viewport(doc_id, 1, 0..content.len_bytes() as u32)
+		.expect("full tree must be present")
+		.tree_id;
+
+	// Kick a background parse still targeting V1.
+	mgr.mark_dirty(doc_id);
+	let r1 = mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang), &content, SyntaxHotness::Visible, &loader));
+	assert_eq!(r1.result, SyntaxPollResult::Kicked);
+
+	// Document advances to V2 while V1 parse is in-flight.
+	mgr.note_edit(doc_id, EditSource::Typing);
+
+	// Complete stale V1 parse.
+	engine.proceed();
+	wait_for_finish(&mgr).await;
+	mgr.drain_finished_inflight();
+
+	let outcome = mgr.ensure_syntax(make_ctx(doc_id, 2, Some(lang), &content, SyntaxHotness::Visible, &loader));
+	assert!(!outcome.updated, "same-version stale completion should not trigger an intermediate install/repaint");
+
+	let tree_id_after = mgr
+		.syntax_for_viewport(doc_id, 2, 0..content.len_bytes() as u32)
+		.expect("full tree must remain present")
+		.tree_id;
+	assert_eq!(tree_id_after, tree_id_before);
+	assert_eq!(mgr.syntax_doc_version(doc_id), Some(1));
+}
+
 /// Must call `note_edit_incremental` or `note_edit` on every document mutation.
 ///
 /// - Enforced in: `EditorUndoHost::apply_transaction_inner`,

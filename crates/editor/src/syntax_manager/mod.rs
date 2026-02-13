@@ -32,6 +32,7 @@
 //! - Must rotate full-tree identity when sync incremental catch-up mutates the tree.
 //! - Must only expose highlight projection context when pending edits align to resident tree.
 //! - Must only install stale viewport results when continuity requires filling uncovered viewports.
+//! - Must skip stale full-result installs that do not advance resident tree version.
 //! - Must bound viewport scheduling to a capped visible byte span.
 //! - Must use viewport-specific cooldowns for viewport task failures.
 //!
