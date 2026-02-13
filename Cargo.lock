@@ -4701,7 +4701,6 @@ dependencies = [
  "xeno-editor",
  "xeno-editor-tui",
  "xeno-language",
- "xeno-registry",
 ]
 
 [[package]]

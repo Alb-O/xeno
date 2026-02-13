@@ -11,6 +11,22 @@ use super::Editor;
 use crate::buffer::ViewId;
 
 impl Editor {
+	/// Loads user config from the default config directory, logging diagnostics.
+	pub fn load_user_config() -> Option<xeno_registry::config::Config> {
+		let config_dir = crate::paths::get_config_dir()?;
+		let report = xeno_registry::config::load::load_user_config_from_dir(&config_dir);
+
+		for (path, warning) in &report.warnings {
+			tracing::warn!(path = %path.display(), "{warning}");
+		}
+
+		for (path, error) in &report.errors {
+			tracing::warn!(path = %path.display(), error = %error, "failed to load config");
+		}
+
+		report.config
+	}
+
 	/// Resolves an option for a specific buffer through the full hierarchy.
 	///
 	/// Resolution order (highest priority first):

@@ -9,7 +9,7 @@ use std::ffi::OsStr;
 
 use clap::Parser;
 use cli::{Cli, Command, FileLocation, GrammarAction};
-use tracing::{info, warn};
+use tracing::info;
 use xeno_editor::Editor;
 use xeno_editor_tui::run_editor;
 
@@ -48,7 +48,7 @@ async fn main() -> anyhow::Result<()> {
 
 	xeno_editor::bootstrap::init();
 
-	let user_config = load_user_config();
+	let user_config = Editor::load_user_config();
 
 	let mut editor = match cli.file_location() {
 		Some(loc) => {
@@ -71,22 +71,6 @@ async fn main() -> anyhow::Result<()> {
 
 	run_editor(editor).await?;
 	Ok(())
-}
-
-/// Loads and merges user config from `~/.config/xeno/config.kdl`, `config.nuon`, and `config.nu`.
-fn load_user_config() -> Option<xeno_registry::config::Config> {
-	let config_dir = xeno_editor::paths::get_config_dir()?;
-	let report = xeno_registry::config::load::load_user_config_from_dir(&config_dir);
-
-	for (path, warning) in &report.warnings {
-		warn!(path = %path.display(), "{warning}");
-	}
-
-	for (path, error) in &report.errors {
-		warn!(path = %path.display(), error = %error, "failed to load config");
-	}
-
-	report.config
 }
 
 /// Handles grammar fetch/build/sync subcommands.
@@ -255,7 +239,7 @@ fn setup_socket_tracing(socket_path: &str) {
 async fn run_editor_normal() -> anyhow::Result<()> {
 	xeno_editor::bootstrap::init();
 
-	let user_config = load_user_config();
+	let user_config = Editor::load_user_config();
 
 	let mut editor = match std::env::args().nth(1) {
 		Some(arg) if !arg.starts_with('-') => {

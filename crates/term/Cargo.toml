@@ -29,7 +29,6 @@ which.workspace = true
 xeno-editor = { workspace = true, features = ["tui"] }
 xeno-editor-tui.workspace = true
 xeno-language.workspace = true
-xeno-registry.workspace = true
 
 [dev-dependencies]
 kitty-test-harness.workspace = true
