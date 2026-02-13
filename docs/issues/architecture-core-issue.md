@@ -41,6 +41,7 @@ This document tracks the architecture split between `xeno-editor` (core engine) 
 - `xeno-editor-iced` now maps mouse cursor/button/scroll events into core `MouseEvent` coordinates using the shared grid conversion path.
 - `xeno-editor-iced` now routes Command/Ctrl+V through `RuntimeEvent::Paste` using iced clipboard read tasks.
 - `xeno-editor-iced` now routes IME commit text into the same core paste path (`RuntimeEvent::Paste`).
+- `xeno-editor-iced` now renders completion/snippet plan rows as dedicated previews (beyond simple visibility summaries), increasing plan-level frontend parity.
 - Runtime replay test coverage now includes equivalent event-script convergence checks for single-line and multiline input paths (paste vs typed text/Enter) for core state/statusline outputs.
 - Legacy compatibility paths/shims removed:
   - focus compatibility helper path removed in favor of unified `set_focus` flow.

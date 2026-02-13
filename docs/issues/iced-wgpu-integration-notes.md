@@ -25,6 +25,7 @@ Investigate a minimal GUI frontend integration using `iced_wgpu` while preservin
   - renders focused buffer snapshot via core `BufferRenderContext` (shared render-policy path)
   - renders statusline using `statusline_render_plan`
   - consumes core completion/snippet/overlay/info-popup plans and shows a structured scene summary
+  - renders completion/snippet plan rows as dedicated preview sections
   - intentionally does not reuse TUI widget/render backend
 
 ## Current limitations

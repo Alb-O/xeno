@@ -125,7 +125,7 @@ Completed:
   - runs core runtime loop (`pump`/`on_event`) through a local tokio runtime bridge
   - uses core `BufferRenderContext` for focused-document snapshot generation
   - renders a minimal read-only snapshot from focused buffer + statusline plan
-  - consumes completion/snippet/overlay/info-popup plans from `xeno-editor` (currently displayed as structured scene summary)
+  - consumes completion/snippet/overlay/info-popup plans from `xeno-editor` (structured scene summary + dedicated completion/snippet row previews)
 - runtime replay coverage added for equivalent event scripts (single-line and multiline paste vs typed input) to guard convergence of core state/statusline outputs
 
 Current focus:

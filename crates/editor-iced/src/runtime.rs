@@ -59,6 +59,8 @@ struct Snapshot {
 	header: String,
 	statusline: String,
 	surface_summary: String,
+	completion_preview: String,
+	snippet_preview: String,
 	body: String,
 }
 
@@ -182,6 +184,8 @@ impl IcedEditorApp {
 			text(&self.snapshot.header).font(Font::MONOSPACE),
 			text(&self.snapshot.statusline).font(Font::MONOSPACE),
 			text(&self.snapshot.surface_summary).font(Font::MONOSPACE),
+			text(&self.snapshot.completion_preview).font(Font::MONOSPACE),
+			text(&self.snapshot.snippet_preview).font(Font::MONOSPACE),
 			scrollable(text(&self.snapshot.body).font(Font::MONOSPACE)).height(Fill),
 		]
 		.spacing(8)
@@ -232,6 +236,8 @@ impl IcedEditorApp {
 		let snippet_plan = self.editor.snippet_choice_render_plan();
 		let info_popup_plan = self.editor.info_popup_render_plan();
 		let surface_summary = build_surface_summary(overlay_kind, &overlay_panes, completion_plan.as_ref(), snippet_plan.as_ref(), &info_popup_plan);
+		let completion_preview = format_completion_preview(completion_plan.as_ref());
+		let snippet_preview = format_snippet_preview(snippet_plan.as_ref());
 
 		let (title, body) = snapshot_for_focused_view(&mut self.editor, focused).unwrap_or_else(|| {
 			self.editor.get_buffer(focused).map_or_else(
@@ -245,6 +251,8 @@ impl IcedEditorApp {
 			header: format!("mode={mode} cursor={cursor_line}:{cursor_col} buffers={buffers}"),
 			statusline,
 			surface_summary,
+			completion_preview,
+			snippet_preview,
 			body,
 		};
 
@@ -429,6 +437,61 @@ fn build_surface_summary(
 		if info_popup_plan.len() > 2 {
 			lines.push(format!("  ... {} more popups", info_popup_plan.len() - 2));
 		}
+	}
+
+	lines.join("\n")
+}
+
+fn format_completion_preview(plan: Option<&CompletionRenderPlan>) -> String {
+	let Some(plan) = plan else {
+		return String::from("completion_rows=hidden");
+	};
+
+	let mut lines = Vec::new();
+	lines.push(format!(
+		"completion_rows={} target_width={} kind_col={} right_col={}",
+		plan.items.len(),
+		plan.target_row_width,
+		plan.show_kind,
+		plan.show_right
+	));
+
+	for item in plan.items.iter().take(8) {
+		let marker = if item.selected { ">" } else { " " };
+		let mut row = format!("{marker} {}", item.label);
+		if plan.show_kind {
+			row.push_str(&format!("  [{:?}]", item.kind));
+		}
+		if plan.show_right
+			&& let Some(right) = &item.right
+		{
+			row.push_str(&format!("  ({right})"));
+		}
+		lines.push(row);
+	}
+
+	if plan.items.len() > 8 {
+		lines.push(format!("... {} more completion rows", plan.items.len() - 8));
+	}
+
+	lines.join("\n")
+}
+
+fn format_snippet_preview(plan: Option<&SnippetChoiceRenderPlan>) -> String {
+	let Some(plan) = plan else {
+		return String::from("snippet_rows=hidden");
+	};
+
+	let mut lines = Vec::new();
+	lines.push(format!("snippet_rows={} target_width={}", plan.items.len(), plan.target_row_width));
+
+	for item in plan.items.iter().take(8) {
+		let marker = if item.selected { ">" } else { " " };
+		lines.push(format!("{marker} {}", item.option));
+	}
+
+	if plan.items.len() > 8 {
+		lines.push(format!("... {} more snippet rows", plan.items.len() - 8));
 	}
 
 	lines.join("\n")
