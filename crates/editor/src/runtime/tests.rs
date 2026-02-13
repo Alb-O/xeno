@@ -128,3 +128,44 @@ async fn test_runtime_event_scripts_converge_for_command_palette_completion() {
 	assert_eq!(via_paste.completion_popup_render_plan(), via_keys.completion_popup_render_plan());
 	assert_eq!(via_paste.statusline_render_plan(), via_keys.statusline_render_plan());
 }
+
+#[tokio::test]
+async fn test_runtime_event_scripts_converge_for_search_overlay_input() {
+	let mut via_paste = Editor::new_scratch();
+	via_paste.handle_window_resize(120, 30);
+	assert!(via_paste.open_search(false));
+	let _ = via_paste.pump().await;
+	run_script(&mut via_paste, vec![RuntimeEvent::Paste(String::from("needle"))]).await;
+
+	let mut via_keys = Editor::new_scratch();
+	via_keys.handle_window_resize(120, 30);
+	assert!(via_keys.open_search(false));
+	let _ = via_keys.pump().await;
+	run_script(
+		&mut via_keys,
+		vec![
+			RuntimeEvent::Key(Key::char('n')),
+			RuntimeEvent::Key(Key::char('e')),
+			RuntimeEvent::Key(Key::char('e')),
+			RuntimeEvent::Key(Key::char('d')),
+			RuntimeEvent::Key(Key::char('l')),
+			RuntimeEvent::Key(Key::char('e')),
+		],
+	)
+	.await;
+
+	let panes_via_paste: Vec<_> = via_paste
+		.overlay_pane_render_plan()
+		.into_iter()
+		.map(|pane| (format!("{:?}", pane.role), pane.rect, pane.content_rect))
+		.collect();
+	let panes_via_keys: Vec<_> = via_keys
+		.overlay_pane_render_plan()
+		.into_iter()
+		.map(|pane| (format!("{:?}", pane.role), pane.rect, pane.content_rect))
+		.collect();
+
+	assert_eq!(via_paste.overlay_kind(), via_keys.overlay_kind());
+	assert_eq!(panes_via_paste, panes_via_keys);
+	assert_eq!(via_paste.statusline_render_plan(), via_keys.statusline_render_plan());
+}
