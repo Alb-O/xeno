@@ -22,3 +22,22 @@ fn statusline_plan_includes_dim_command_palette_tag_when_space_allows() {
 		.expect("statusline should include command tag");
 	assert_eq!(tag.style, StatuslineRenderStyle::Dim);
 }
+
+#[test]
+fn segment_style_maps_inverted_to_swapped_ui_colors() {
+	let editor = Editor::new_scratch();
+	let colors = &editor.config().theme.colors;
+
+	let style = segment_style(&editor, StatuslineRenderStyle::Inverted);
+	assert_eq!(style.fg, Some(colors.ui.bg));
+	assert_eq!(style.bg, Some(colors.ui.fg));
+}
+
+#[test]
+fn segment_style_uses_theme_mode_style_for_mode_segments() {
+	let editor = Editor::new_scratch();
+	let expected = editor.config().theme.colors.mode_style(&editor.mode());
+
+	let style = segment_style(&editor, StatuslineRenderStyle::Mode);
+	assert_eq!(style, expected);
+}
