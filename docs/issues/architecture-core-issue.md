@@ -49,7 +49,7 @@ This document tracks the architecture split between `xeno-editor` (core engine) 
 - `xeno-editor-iced` snapshot header is now typed data (`HeaderSnapshot`) with frontend-local formatting, reducing stringly seams.
 - Statusline style-color policy is now centralized in `xeno-editor` (`statusline_segment_style`) and consumed by both TUI and iced adapters to reduce frontend drift.
 - Runtime replay test coverage now includes equivalent event-script convergence checks for single-line and multiline input paths (paste vs typed text/Enter) for core state/statusline outputs.
-- Runtime replay coverage now also includes command-palette input convergence (paste vs typed keys) for completion-plan and overlay/statusline equivalence.
+- Runtime replay coverage now also includes command-palette input convergence (paste vs typed keys) for completion-plan, overlay pane role/geometry, and statusline equivalence.
 - Runtime replay coverage now includes search-overlay input convergence (paste vs typed keys), including overlay pane role/geometry equivalence checks.
 - Legacy compatibility paths/shims removed:
   - focus compatibility helper path removed in favor of unified `set_focus` flow.
