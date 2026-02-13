@@ -1,0 +1,129 @@
+use iced::widget::text::Wrapping;
+use iced::widget::{rich_text, span};
+use iced::{Background, Color, Element, Font, border, font};
+use xeno_editor::Editor;
+use xeno_editor::render_api::RenderLine;
+use xeno_editor::ui::{StatuslineRenderSegment, StatuslineRenderStyle};
+use xeno_primitives::{Color as UiColor, Style as UiStyle};
+
+use super::Message;
+
+pub(super) fn render_document_line(line: &RenderLine<'_>) -> Element<'static, Message> {
+	let mut spans = Vec::new();
+	let line_color = line.style.and_then(style_fg_to_iced);
+
+	for render_span in &line.spans {
+		let mut segment = span::<(), _>(render_span.content.as_ref().to_string());
+		if let Some(color) = style_fg_to_iced(render_span.style).or(line_color) {
+			segment = segment.color(color);
+		}
+		spans.push(segment);
+	}
+
+	if spans.is_empty() {
+		spans.push(span::<(), _>(String::new()));
+	}
+
+	rich_text(spans).font(Font::MONOSPACE).wrapping(Wrapping::None).into()
+}
+
+pub(super) fn render_statusline(editor: &Editor, segments: &[StatuslineRenderSegment]) -> Element<'static, Message> {
+	let mut spans = Vec::new();
+
+	for segment in segments {
+		let mut item = span::<(), _>(segment.text.clone()).font(Font::MONOSPACE);
+		let style = editor.statusline_segment_style(segment.style);
+		if let Some(color) = style_fg_to_iced(style) {
+			item = item.color(color);
+		}
+		if let Some(bg) = style_bg_to_iced(style) {
+			item = item.background(Background::Color(bg)).border(border::rounded(0));
+		}
+		if matches!(segment.style, StatuslineRenderStyle::Mode) {
+			item = item.font(Font {
+				weight: font::Weight::Bold,
+				..Font::MONOSPACE
+			});
+		}
+		spans.push(item);
+	}
+
+	if spans.is_empty() {
+		spans.push(span::<(), _>(String::new()).font(Font::MONOSPACE));
+	}
+
+	rich_text(spans).wrapping(Wrapping::None).into()
+}
+
+pub(super) fn style_fg_to_iced(style: UiStyle) -> Option<Color> {
+	style.fg.and_then(map_ui_color)
+}
+
+pub(super) fn style_bg_to_iced(style: UiStyle) -> Option<Color> {
+	style.bg.and_then(map_ui_color)
+}
+
+pub(super) fn map_ui_color(color: UiColor) -> Option<Color> {
+	match color {
+		UiColor::Reset => None,
+		UiColor::Black => Some(Color::from_rgb8(0x00, 0x00, 0x00)),
+		UiColor::Red => Some(Color::from_rgb8(0x80, 0x00, 0x00)),
+		UiColor::Green => Some(Color::from_rgb8(0x00, 0x80, 0x00)),
+		UiColor::Yellow => Some(Color::from_rgb8(0x80, 0x80, 0x00)),
+		UiColor::Blue => Some(Color::from_rgb8(0x00, 0x00, 0x80)),
+		UiColor::Magenta => Some(Color::from_rgb8(0x80, 0x00, 0x80)),
+		UiColor::Cyan => Some(Color::from_rgb8(0x00, 0x80, 0x80)),
+		UiColor::Gray => Some(Color::from_rgb8(0xC0, 0xC0, 0xC0)),
+		UiColor::DarkGray => Some(Color::from_rgb8(0x80, 0x80, 0x80)),
+		UiColor::LightRed => Some(Color::from_rgb8(0xFF, 0x00, 0x00)),
+		UiColor::LightGreen => Some(Color::from_rgb8(0x00, 0xFF, 0x00)),
+		UiColor::LightYellow => Some(Color::from_rgb8(0xFF, 0xFF, 0x00)),
+		UiColor::LightBlue => Some(Color::from_rgb8(0x00, 0x00, 0xFF)),
+		UiColor::LightMagenta => Some(Color::from_rgb8(0xFF, 0x00, 0xFF)),
+		UiColor::LightCyan => Some(Color::from_rgb8(0x00, 0xFF, 0xFF)),
+		UiColor::White => Some(Color::from_rgb8(0xFF, 0xFF, 0xFF)),
+		UiColor::Rgb(r, g, b) => Some(Color::from_rgb8(r, g, b)),
+		UiColor::Indexed(index) => Some(map_indexed_color(index)),
+	}
+}
+
+fn map_indexed_color(index: u8) -> Color {
+	const BASE: [(u8, u8, u8); 16] = [
+		(0x00, 0x00, 0x00),
+		(0x80, 0x00, 0x00),
+		(0x00, 0x80, 0x00),
+		(0x80, 0x80, 0x00),
+		(0x00, 0x00, 0x80),
+		(0x80, 0x00, 0x80),
+		(0x00, 0x80, 0x80),
+		(0xC0, 0xC0, 0xC0),
+		(0x80, 0x80, 0x80),
+		(0xFF, 0x00, 0x00),
+		(0x00, 0xFF, 0x00),
+		(0xFF, 0xFF, 0x00),
+		(0x00, 0x00, 0xFF),
+		(0xFF, 0x00, 0xFF),
+		(0x00, 0xFF, 0xFF),
+		(0xFF, 0xFF, 0xFF),
+	];
+	const CUBE: [u8; 6] = [0, 95, 135, 175, 215, 255];
+
+	if index < 16 {
+		let (r, g, b) = BASE[index as usize];
+		return Color::from_rgb8(r, g, b);
+	}
+
+	if (16..=231).contains(&index) {
+		let value = index - 16;
+		let r = CUBE[(value / 36) as usize];
+		let g = CUBE[((value % 36) / 6) as usize];
+		let b = CUBE[(value % 6) as usize];
+		return Color::from_rgb8(r, g, b);
+	}
+
+	let gray = 8u8.saturating_add((index - 232) * 10);
+	Color::from_rgb8(gray, gray, gray)
+}
+
+#[cfg(test)]
+mod tests;
