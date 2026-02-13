@@ -1,0 +1,25 @@
+[package]
+name = "xeno-editor-iced"
+description = "Experimental iced_wgpu frontend runtime for xeno-editor"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+default-run = "xeno-iced"
+
+[[bin]]
+name = "xeno-iced"
+path = "src/main.rs"
+required-features = ["iced-wgpu"]
+
+[features]
+default = []
+iced-wgpu = ["dep:iced", "dep:tokio", "dep:xeno-editor", "dep:xeno-primitives"]
+
+[dependencies]
+iced = { path = "../../../iced", default-features = false, features = ["wgpu", "tokio", "x11"], optional = true }
+tokio = { workspace = true, optional = true }
+xeno-editor = { workspace = true, optional = true }
+xeno-primitives = { workspace = true, optional = true }
+
+[lints]
+workspace = true

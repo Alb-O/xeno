@@ -2,6 +2,7 @@
 resolver = "3"
 members = [
     "crates/editor",
+    "crates/editor-iced",
     "crates/editor-tui",
     "crates/input",
     "crates/keymap/*",
