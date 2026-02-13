@@ -19,6 +19,7 @@ Investigate a minimal GUI frontend integration using `iced_wgpu` while preservin
   - mouse cursor/button/scroll events mapped into core `MouseEvent` grid coordinates
   - clipboard paste bridge for Command/Ctrl+V via `iced::clipboard::read_text()`
   - IME commit bridge (`input_method::Event::Commit`) routed into core paste path
+  - IME lifecycle tracking for opened/preedit/closed state (surfaced in iced snapshot header)
   - window opened/resized
   - window focus/unfocus
 - Added minimal rendering bridge:
@@ -39,7 +40,7 @@ Investigate a minimal GUI frontend integration using `iced_wgpu` while preservin
   - overlay/completion/snippet/info-popup plans are wired, but currently rendered as textual diagnostics instead of native GUI surfaces
 - Input coverage is partial:
   - paste adapter currently handles Command/Ctrl+V; no broader clipboard event coverage yet
-  - IME preedit lifecycle (`Opened`/`Preedit`/`Closed`) is not surfaced yet; only commit text is mapped
+  - IME preedit/lifecycle is currently frontend-local diagnostics state, not a first-class core runtime event
 - Dependency wiring is local checkout based:
   - crate uses local `../iced` path checkout for `iced` dependency.
 - Linux display backend quirks:

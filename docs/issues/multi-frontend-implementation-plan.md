@@ -121,6 +121,7 @@ Completed:
   - maps iced mouse cursor/button/scroll events into core `MouseEvent`
   - maps Command/Ctrl+V into core `RuntimeEvent::Paste` via iced clipboard read task
   - maps IME commit events into core `RuntimeEvent::Paste`
+  - tracks IME preedit lifecycle in frontend state for observability during composition
   - maps window logical pixels to core grid resize units (`cols`/`rows`) with configurable cell metrics
   - runs core runtime loop (`pump`/`on_event`) through a local tokio runtime bridge
   - uses core `BufferRenderContext` for focused-document snapshot generation

@@ -96,12 +96,13 @@ impl CellMetrics {
 	}
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Default)]
 struct EventBridgeState {
 	mouse_row: u16,
 	mouse_col: u16,
 	mouse_button: Option<CoreMouseButton>,
 	modifiers: Modifiers,
+	ime_preedit: Option<String>,
 }
 
 impl IcedEditorApp {
@@ -164,8 +165,11 @@ impl IcedEditorApp {
 					self.directive.should_quit = true;
 				} else if let Some(task) = clipboard_paste_task(&event) {
 					return task;
-				} else if let Some(runtime_event) = map_event(event, self.cell_metrics, &mut self.event_state) {
+				} else if let Some(runtime_event) = map_event(event.clone(), self.cell_metrics, &mut self.event_state) {
 					self.directive = self.runtime.block_on(self.editor.on_event(runtime_event));
+					self.rebuild_snapshot();
+				} else if matches!(event, Event::InputMethod(_)) {
+					self.directive.needs_redraw = true;
 					self.rebuild_snapshot();
 				}
 			}
@@ -248,7 +252,10 @@ impl IcedEditorApp {
 
 		self.snapshot = Snapshot {
 			title,
-			header: format!("mode={mode} cursor={cursor_line}:{cursor_col} buffers={buffers}"),
+			header: format!(
+				"mode={mode} cursor={cursor_line}:{cursor_col} buffers={buffers} ime_preedit={}",
+				ime_preedit_label(self.event_state.ime_preedit.as_deref())
+			),
 			statusline,
 			surface_summary,
 			completion_preview,
@@ -601,18 +608,47 @@ fn map_event(event: Event, cell_metrics: CellMetrics, event_state: &mut EventBri
 			let (cols, rows) = cell_metrics.to_grid(size.width, size.height);
 			Some(RuntimeEvent::WindowResized { cols, rows })
 		}
-		Event::InputMethod(event) => map_input_method_event(event),
+		Event::InputMethod(event) => map_input_method_event(event, event_state),
 		Event::Window(window::Event::Focused) => Some(RuntimeEvent::FocusIn),
 		Event::Window(window::Event::Unfocused) => Some(RuntimeEvent::FocusOut),
 		_ => None,
 	}
 }
 
-fn map_input_method_event(event: input_method::Event) -> Option<RuntimeEvent> {
+fn map_input_method_event(event: input_method::Event, event_state: &mut EventBridgeState) -> Option<RuntimeEvent> {
 	match event {
-		input_method::Event::Commit(text) if !text.is_empty() => Some(RuntimeEvent::Paste(text)),
-		_ => None,
+		input_method::Event::Opened | input_method::Event::Closed => {
+			event_state.ime_preedit = None;
+			None
+		}
+		input_method::Event::Preedit(text, _selection) => {
+			event_state.ime_preedit = if text.is_empty() { None } else { Some(text) };
+			None
+		}
+		input_method::Event::Commit(text) if !text.is_empty() => {
+			event_state.ime_preedit = None;
+			Some(RuntimeEvent::Paste(text))
+		}
+		input_method::Event::Commit(_) => {
+			event_state.ime_preedit = None;
+			None
+		}
 	}
+}
+
+fn ime_preedit_label(preedit: Option<&str>) -> String {
+	let Some(preedit) = preedit else {
+		return String::from("-");
+	};
+
+	const MAX_CHARS: usize = 24;
+	let total = preedit.chars().count();
+	if total <= MAX_CHARS {
+		return preedit.to_string();
+	}
+
+	let prefix: String = preedit.chars().take(MAX_CHARS).collect();
+	format!("{prefix}...")
 }
 
 fn logical_pixels_to_cells(logical_px: f32, cell_px: f32) -> u16 {
@@ -804,12 +840,36 @@ mod tests {
 
 	#[test]
 	fn map_input_method_event_maps_commit_to_paste() {
+		let mut state = EventBridgeState::default();
 		assert_eq!(
-			map_input_method_event(input_method::Event::Commit(String::from("hello"))),
+			map_input_method_event(input_method::Event::Commit(String::from("hello")), &mut state),
 			Some(RuntimeEvent::Paste(String::from("hello")))
 		);
-		assert_eq!(map_input_method_event(input_method::Event::Commit(String::new())), None);
-		assert_eq!(map_input_method_event(input_method::Event::Opened), None);
+		assert_eq!(map_input_method_event(input_method::Event::Commit(String::new()), &mut state), None);
+		assert_eq!(map_input_method_event(input_method::Event::Opened, &mut state), None);
+	}
+
+	#[test]
+	fn map_input_method_event_tracks_preedit_state() {
+		let mut state = EventBridgeState::default();
+		assert_eq!(
+			map_input_method_event(input_method::Event::Preedit(String::from("compose"), None), &mut state),
+			None
+		);
+		assert_eq!(state.ime_preedit.as_deref(), Some("compose"));
+
+		assert_eq!(
+			map_input_method_event(input_method::Event::Commit(String::from("x")), &mut state),
+			Some(RuntimeEvent::Paste(String::from("x")))
+		);
+		assert_eq!(state.ime_preedit, None);
+	}
+
+	#[test]
+	fn ime_preedit_label_truncates_long_content() {
+		assert_eq!(ime_preedit_label(None), "-");
+		assert_eq!(ime_preedit_label(Some("short")), "short");
+		assert_eq!(ime_preedit_label(Some("abcdefghijklmnopqrstuvwxyz")), "abcdefghijklmnopqrstuvwx...");
 	}
 }
 
