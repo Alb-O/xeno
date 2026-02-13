@@ -5,9 +5,9 @@ use xeno_primitives::range::CharIdx;
 
 use super::completion_filter::{extract_query, filter_items};
 use super::types::{LspMenuKind, LspMenuState};
+use crate::Editor;
 use crate::buffer::ViewId;
 use crate::completion::{CompletionState, SelectionIntent};
-use crate::impls::Editor;
 use crate::info_popup::PopupAnchor;
 use crate::{CompletionItem, CompletionKind};
 

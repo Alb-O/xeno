@@ -13,8 +13,8 @@
 use xeno_primitives::{Key, KeyCode};
 
 use super::types::{LspMenuKind, LspMenuState};
+use crate::Editor;
 use crate::completion::{CompletionState, SelectionIntent};
-use crate::impls::Editor;
 
 impl Editor {
 	/// Handles key events when an LSP menu is active.
@@ -172,8 +172,8 @@ mod tests {
 	use xeno_primitives::{Key, KeyCode};
 
 	use super::{LspMenuKind, LspMenuState, lsp_completion_raw_index};
+	use crate::Editor;
 	use crate::completion::CompletionState;
-	use crate::impls::Editor;
 
 	fn key_tab() -> Key {
 		Key::new(KeyCode::Tab)

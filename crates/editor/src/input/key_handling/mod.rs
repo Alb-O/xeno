@@ -7,7 +7,7 @@ use types::ActionDispatch;
 use xeno_input::input::KeyResult;
 use xeno_primitives::{Key, KeyCode, Mode};
 
-use crate::impls::Editor;
+use crate::Editor;
 
 impl Editor {
 	/// Processes a key event, routing to UI or input state machine.
@@ -211,7 +211,7 @@ mod tests {
 	use xeno_registry::core::index::Snapshot;
 	use xeno_registry::{ActionId, DenseId, LookupResult, RegistryEntry};
 
-	use crate::impls::Editor;
+	use crate::Editor;
 
 	fn key_enter() -> Key {
 		Key::new(KeyCode::Enter)

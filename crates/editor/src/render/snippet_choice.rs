@@ -1,7 +1,7 @@
 use unicode_width::UnicodeWidthStr;
 
+use crate::Editor;
 use crate::geometry::Rect;
-use crate::impls::Editor;
 use crate::snippet::{SnippetChoiceOverlay, SnippetChoiceRenderItem, SnippetChoiceRenderPlan};
 
 fn choice_window(total: usize, selected: usize, visible_rows: usize) -> (usize, usize) {

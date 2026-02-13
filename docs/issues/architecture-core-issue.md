@@ -27,6 +27,7 @@ This document tracks the architecture split between `xeno-editor` (core engine) 
   - `render` is internal; frontend imports via `render_api`.
   - `impls` is internal; focused symbols are re-exported at crate root where needed.
   - `notifications` internals are hidden behind typed editor APIs.
+- Non-`impls` modules now reference the public `crate::Editor` path instead of `crate::impls::Editor`, reducing internal-path coupling in public-facing APIs/docs.
 - Core render text primitives (`RenderLine`/`RenderSpan`) are backend-neutral and exposed through `render_api` for explicit frontend adaptation.
 - Frontend no longer reaches through overlay internals for policy:
   - no `overlay_interaction()` usage in frontend crates.

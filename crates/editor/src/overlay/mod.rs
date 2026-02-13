@@ -297,7 +297,7 @@ pub trait OverlayController: Send + Sync {
 	fn on_close(&mut self, ctx: &mut dyn OverlayContext, session: &mut OverlaySession, reason: CloseReason);
 }
 
-impl OverlayContext for crate::impls::Editor {
+impl OverlayContext for crate::Editor {
 	fn buffer(&self, id: ViewId) -> Option<&Buffer> {
 		self.state.core.buffers.get_buffer(id)
 	}
@@ -392,15 +392,15 @@ pub trait OverlayLayer: Send + Sync {
 	fn name(&self) -> &'static str;
 
 	/// Determines if the layer is currently active.
-	fn is_visible(&self, ed: &crate::impls::Editor) -> bool;
+	fn is_visible(&self, ed: &crate::Editor) -> bool;
 
 	/// Optional key interception for visible layers (e.g. Tab/Enter in completion menus).
-	fn on_key(&mut self, _ed: &mut crate::impls::Editor, _key: Key) -> bool {
+	fn on_key(&mut self, _ed: &mut crate::Editor, _key: Key) -> bool {
 		false
 	}
 
 	/// Notifies the layer about editor state changes.
-	fn on_event(&mut self, _ed: &mut crate::impls::Editor, _event: &LayerEvent) {}
+	fn on_event(&mut self, _ed: &mut crate::Editor, _event: &LayerEvent) {}
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -440,7 +440,7 @@ impl OverlayLayers {
 	}
 
 	/// Routes key events to visible layers in reverse Z-order.
-	pub fn handle_key(&mut self, ed: &mut crate::impls::Editor, key: Key) -> bool {
+	pub fn handle_key(&mut self, ed: &mut crate::Editor, key: Key) -> bool {
 		for layer in self.layers.iter_mut().rev() {
 			if layer.is_visible(ed) && layer.on_key(ed, key) {
 				return true;
@@ -450,7 +450,7 @@ impl OverlayLayers {
 	}
 
 	/// Propagates events to all layers.
-	pub fn notify_event(&mut self, ed: &mut crate::impls::Editor, event: LayerEvent) {
+	pub fn notify_event(&mut self, ed: &mut crate::Editor, event: LayerEvent) {
 		for layer in &mut self.layers {
 			layer.on_event(ed, &event);
 		}
@@ -474,7 +474,7 @@ impl OverlayManager {
 	/// Starts a new modal interaction session.
 	///
 	/// Fails and returns `false` if an interaction is already active.
-	pub fn open(&mut self, ed: &mut crate::impls::Editor, mut controller: Box<dyn OverlayController>) -> bool {
+	pub fn open(&mut self, ed: &mut crate::Editor, mut controller: Box<dyn OverlayController>) -> bool {
 		if self.is_open() {
 			return false;
 		}
@@ -501,14 +501,14 @@ impl OverlayManager {
 	}
 
 	/// Closes the active interaction session with the specified reason.
-	pub fn close(&mut self, ed: &mut crate::impls::Editor, reason: CloseReason) {
+	pub fn close(&mut self, ed: &mut crate::Editor, reason: CloseReason) {
 		if let Some(mut active) = self.active.take() {
 			OverlayHost::cleanup_session(ed, &mut *active.controller, active.session, reason);
 		}
 	}
 
 	/// Commits and terminates the active interaction session.
-	pub async fn commit(&mut self, ed: &mut crate::impls::Editor) {
+	pub async fn commit(&mut self, ed: &mut crate::Editor) {
 		if let Some(mut active) = self.active.take() {
 			active.controller.on_commit(ed, &mut active.session).await;
 			OverlayHost::cleanup_session(ed, &mut *active.controller, active.session, CloseReason::Commit);
@@ -519,7 +519,7 @@ impl OverlayManager {
 	///
 	/// Falls back to default host dismissal (Esc -> Cancel) if the controller
 	/// does not handle the key.
-	pub fn handle_key(&mut self, ed: &mut crate::impls::Editor, key: Key) -> bool {
+	pub fn handle_key(&mut self, ed: &mut crate::Editor, key: Key) -> bool {
 		let Some(active) = self.active.as_mut() else {
 			return false;
 		};
@@ -538,7 +538,7 @@ impl OverlayManager {
 	}
 
 	/// Routes buffer change notifications to the active interaction.
-	pub fn on_buffer_edited(&mut self, ed: &mut crate::impls::Editor, view_id: ViewId) {
+	pub fn on_buffer_edited(&mut self, ed: &mut crate::Editor, view_id: ViewId) {
 		let Some(active) = self.active.as_mut() else {
 			return;
 		};
@@ -551,7 +551,7 @@ impl OverlayManager {
 	}
 
 	/// Triggers a controller refresh by replaying current input text.
-	pub fn refresh_if(&mut self, ed: &mut crate::impls::Editor, name: &'static str) {
+	pub fn refresh_if(&mut self, ed: &mut crate::Editor, name: &'static str) {
 		let Some(active) = self.active.as_mut() else {
 			return;
 		};
@@ -564,7 +564,7 @@ impl OverlayManager {
 	}
 
 	/// Called when terminal viewport dimensions change.
-	pub fn on_viewport_changed(&mut self, ed: &mut crate::impls::Editor) {
+	pub fn on_viewport_changed(&mut self, ed: &mut crate::Editor) {
 		let Some(mut active) = self.active.take() else {
 			return;
 		};

@@ -29,7 +29,7 @@ use xeno_registry::Capability;
 pub use xeno_registry::RegistrySource;
 pub use xeno_registry::commands::{CommandError, CommandOutcome, CommandResult};
 
-use crate::impls::Editor;
+use crate::Editor;
 
 /// Registry wrapper for editor-direct command definitions.
 ///

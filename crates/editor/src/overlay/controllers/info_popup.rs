@@ -1,4 +1,4 @@
-use crate::impls::Editor;
+use crate::Editor;
 use crate::info_popup::InfoPopupStore;
 use crate::overlay::{LayerEvent, OverlayLayer};
 

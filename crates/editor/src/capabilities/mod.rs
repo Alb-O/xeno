@@ -5,7 +5,7 @@
 //! maintaining a clean crate boundary.
 //!
 //! [`EditorCapabilities`]: xeno_registry::EditorCapabilities
-//! [`Editor`]: crate::impls::Editor
+//! [`Editor`]: crate::Editor
 
 pub mod command_ops;
 pub mod command_queue;

@@ -78,7 +78,7 @@ pub(crate) fn test_overlay_system_accessors_round_trip() {
 /// - Failure symptom: Stale cursor/selection state is restored over user's edits.
 #[cfg_attr(test, test)]
 pub(crate) fn test_versioned_restore() {
-	let mut editor = crate::impls::Editor::new_scratch();
+	let mut editor = crate::Editor::new_scratch();
 	let view = editor.focused_view();
 
 	{
@@ -117,7 +117,7 @@ pub(crate) fn test_versioned_restore() {
 /// - Failure symptom: Two modal overlays fight for focus and input.
 #[cfg_attr(test, test)]
 pub(crate) fn test_exclusive_modal() {
-	let mut editor = crate::impls::Editor::new_scratch();
+	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(100, 40);
 
 	assert!(editor.open_command_palette());
@@ -165,7 +165,7 @@ pub(crate) fn test_rect_policy_clamps_to_screen() {
 /// - Failure symptom: Scratch buffers leak after overlays close.
 #[cfg_attr(test, test)]
 pub(crate) fn test_session_teardown_finalizes_buffers() {
-	let mut editor = crate::impls::Editor::new_scratch();
+	let mut editor = crate::Editor::new_scratch();
 	let b1 = editor.state.core.buffers.create_scratch();
 	let b2 = editor.state.core.buffers.create_scratch();
 	let view = editor.focused_view();
@@ -194,7 +194,7 @@ pub(crate) fn test_session_teardown_finalizes_buffers() {
 /// - Failure symptom: Open modals render with stale geometry after terminal resize.
 #[cfg_attr(test, test)]
 pub(crate) fn test_modal_reflow_on_resize() {
-	let mut editor = crate::impls::Editor::new_scratch();
+	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(100, 40);
 	assert!(editor.open_command_palette());
 
@@ -229,7 +229,7 @@ pub(crate) fn test_modal_reflow_on_resize() {
 /// - Failure symptom: Auxiliary overlays keep stale geometry after resize.
 #[cfg_attr(test, test)]
 pub(crate) fn test_modal_reflow_clears_unresolved_aux_panes() {
-	let mut editor = crate::impls::Editor::new_scratch();
+	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(100, 40);
 
 	let mut interaction = editor.state.overlay_system.take_interaction();
@@ -282,7 +282,7 @@ pub(crate) fn test_modal_reflow_clears_unresolved_aux_panes() {
 /// - Failure symptom: Focus remains on stale overlay target after forced close.
 #[cfg_attr(test, test)]
 pub(crate) fn test_forced_close_restores_origin_focus() {
-	let mut editor = crate::impls::Editor::new_scratch();
+	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(100, 40);
 	assert!(editor.open_command_palette());
 
@@ -307,7 +307,7 @@ pub(crate) fn test_forced_close_restores_origin_focus() {
 /// - Failure symptom: Overlay UI mutates window manager state unexpectedly.
 #[cfg_attr(test, test)]
 pub(crate) fn test_modal_ui_keeps_single_base_window() {
-	let mut editor = crate::impls::Editor::new_scratch();
+	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(100, 40);
 
 	assert_eq!(editor.state.windows.windows().count(), 1);
@@ -332,13 +332,13 @@ fn key_tab() -> Key {
 	}
 }
 
-fn with_interaction(editor: &mut crate::impls::Editor, f: impl FnOnce(&mut crate::overlay::OverlayManager, &mut crate::impls::Editor)) {
+fn with_interaction(editor: &mut crate::Editor, f: impl FnOnce(&mut crate::overlay::OverlayManager, &mut crate::Editor)) {
 	let mut interaction = editor.state.overlay_system.take_interaction();
 	f(&mut interaction, editor);
 	editor.state.overlay_system.restore_interaction(interaction);
 }
 
-fn palette_input_view(editor: &crate::impls::Editor) -> crate::ViewId {
+fn palette_input_view(editor: &crate::Editor) -> crate::ViewId {
 	editor
 		.state
 		.overlay_system
@@ -348,7 +348,7 @@ fn palette_input_view(editor: &crate::impls::Editor) -> crate::ViewId {
 		.expect("command palette input should exist")
 }
 
-fn palette_set_input(editor: &mut crate::impls::Editor, text: &str, cursor: usize) {
+fn palette_set_input(editor: &mut crate::Editor, text: &str, cursor: usize) {
 	let input = palette_input_view(editor);
 	let buffer = editor.state.core.buffers.get_buffer_mut(input).expect("palette input buffer should exist");
 	buffer.reset_content(text);
@@ -358,13 +358,13 @@ fn palette_set_input(editor: &mut crate::impls::Editor, text: &str, cursor: usiz
 	});
 }
 
-fn palette_key(editor: &mut crate::impls::Editor, key: Key) {
+fn palette_key(editor: &mut crate::Editor, key: Key) {
 	with_interaction(editor, |interaction, ed| {
 		let _ = interaction.handle_key(ed, key);
 	});
 }
 
-fn palette_input_text(editor: &crate::impls::Editor) -> String {
+fn palette_input_text(editor: &crate::Editor) -> String {
 	let input = palette_input_view(editor);
 	editor
 		.state
@@ -377,13 +377,13 @@ fn palette_input_text(editor: &crate::impls::Editor) -> String {
 		.to_string()
 }
 
-fn drain_queued_commands(editor: &mut crate::impls::Editor) -> Vec<crate::command_queue::QueuedCommand> {
+fn drain_queued_commands(editor: &mut crate::Editor) -> Vec<crate::command_queue::QueuedCommand> {
 	editor.state.core.workspace.command_queue.drain().collect()
 }
 
 #[cfg_attr(test, test)]
 pub(crate) fn test_palette_manual_selection_persists_within_token() {
-	let mut editor = crate::impls::Editor::new_scratch();
+	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(120, 40);
 	assert!(editor.open_command_palette());
 
@@ -420,7 +420,7 @@ pub(crate) fn test_palette_manual_selection_persists_within_token() {
 
 #[cfg_attr(test, test)]
 pub(crate) fn test_palette_token_transition_resets_selection_intent() {
-	let mut editor = crate::impls::Editor::new_scratch();
+	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(120, 40);
 	assert!(editor.open_command_palette());
 
@@ -447,7 +447,7 @@ pub(crate) fn test_palette_tab_preserves_path_prefix() {
 	std::fs::create_dir_all(&src_dir).expect("create src dir");
 	std::fs::write(src_dir.join("main.rs"), "fn main() {}\n").expect("write file");
 
-	let mut editor = crate::impls::Editor::new_scratch();
+	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(120, 40);
 	assert!(editor.open_command_palette());
 
@@ -467,7 +467,7 @@ pub(crate) fn test_palette_tab_after_closing_quote_preserves_quote() {
 	std::fs::create_dir_all(&spaced_dir).expect("create spaced dir");
 	std::fs::write(spaced_dir.join("main.rs"), "fn main() {}\n").expect("write file");
 
-	let mut editor = crate::impls::Editor::new_scratch();
+	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(120, 40);
 	assert!(editor.open_command_palette());
 
@@ -489,7 +489,7 @@ pub(crate) fn test_palette_usage_recency_orders_empty_query() {
 		.map(|cmd| cmd.name_str().to_string())
 		.expect("registry should have at least one command");
 
-	let mut editor = crate::impls::Editor::new_scratch();
+	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(120, 40);
 	assert!(editor.open_command_palette());
 
@@ -523,7 +523,7 @@ pub(crate) fn test_palette_commit_uses_selected_command_in_command_token() {
 		.map(|ch| ch.to_ascii_lowercase().to_string())
 		.expect("registry should contain at least one command");
 
-	let mut editor = crate::impls::Editor::new_scratch();
+	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(120, 40);
 	assert!(editor.open_command_palette());
 
@@ -545,7 +545,7 @@ pub(crate) fn test_palette_commit_uses_selected_command_in_command_token() {
 
 #[cfg_attr(test, test)]
 pub(crate) fn test_palette_commit_preserves_quoted_argument() {
-	let mut editor = crate::impls::Editor::new_scratch();
+	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(120, 40);
 	assert!(editor.open_command_palette());
 
@@ -563,7 +563,7 @@ pub(crate) fn test_palette_commit_preserves_quoted_argument() {
 
 #[cfg_attr(test, test)]
 pub(crate) fn test_palette_commit_preserves_quoted_snippet_body_argument() {
-	let mut editor = crate::impls::Editor::new_scratch();
+	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(120, 40);
 	assert!(editor.open_command_palette());
 
@@ -581,7 +581,7 @@ pub(crate) fn test_palette_commit_preserves_quoted_snippet_body_argument() {
 
 #[cfg_attr(test, test)]
 pub(crate) fn test_palette_snippet_name_completion_with_at_query() {
-	let mut editor = crate::impls::Editor::new_scratch();
+	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(120, 40);
 	assert!(editor.open_command_palette());
 
@@ -604,7 +604,7 @@ pub(crate) fn test_palette_snippet_name_completion_with_at_query() {
 
 #[cfg_attr(test, test)]
 pub(crate) fn test_palette_snippet_inline_body_has_no_name_completions() {
-	let mut editor = crate::impls::Editor::new_scratch();
+	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(120, 40);
 	assert!(editor.open_command_palette());
 
@@ -621,7 +621,7 @@ pub(crate) fn test_palette_snippet_inline_body_has_no_name_completions() {
 
 #[cfg_attr(test, test)]
 pub(crate) fn test_palette_no_matches_hides_results_and_tab_noops() {
-	let mut editor = crate::impls::Editor::new_scratch();
+	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(120, 40);
 	assert!(editor.open_command_palette());
 

@@ -84,7 +84,7 @@ fn cmd_stats<'a>(ctx: &'a mut EditorCommandContext<'a>) -> BoxFutureLocal<'a, Re
 			stats.lsp_snapshot_bytes_tick,
 		);
 
-		crate::impls::Editor::open_info_popup(ctx.editor, content, Some("markdown"), PopupAnchor::Center);
+		crate::Editor::open_info_popup(ctx.editor, content, Some("markdown"), PopupAnchor::Center);
 
 		Ok(CommandOutcome::Ok)
 	})
@@ -155,7 +155,7 @@ fn cmd_registry<'a>(ctx: &'a mut EditorCommandContext<'a>) -> BoxFutureLocal<'a,
 	Box::pin(async move {
 		let (kind, prefix) = parse_registry_args(ctx.args);
 		let content = build_registry_report(kind, prefix);
-		crate::impls::Editor::open_info_popup(ctx.editor, content, Some("markdown"), PopupAnchor::Center);
+		crate::Editor::open_info_popup(ctx.editor, content, Some("markdown"), PopupAnchor::Center);
 		Ok(CommandOutcome::Ok)
 	})
 }

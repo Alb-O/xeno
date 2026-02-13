@@ -143,7 +143,7 @@ impl ViewManager {
 	/// Internal use only. Callers should typically use [`Editor::finalize_buffer_removal`]
 	/// to ensure document-level cleanup (cache invalidation, LSP sync).
 	///
-	/// [`Editor::finalize_buffer_removal`]: crate::impls::Editor::finalize_buffer_removal
+	/// [`Editor::finalize_buffer_removal`]: crate::Editor::finalize_buffer_removal
 	pub(crate) fn remove_buffer_raw(&mut self, id: ViewId) -> Option<Buffer> {
 		let removed = self.buffers.remove(&id);
 		if let Some(ref buffer) = removed {

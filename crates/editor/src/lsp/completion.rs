@@ -22,9 +22,9 @@ use super::events::map_completion_item_with_indices;
 use super::types::{LspMenuKind, LspMenuState};
 use super::workspace_edit::{ApplyError, BufferEditPlan, PlannedTextEdit, convert_text_edit};
 use crate::CompletionItem as UiCompletionItem;
+use crate::Editor;
 use crate::buffer::ViewId;
 use crate::completion::{CompletionState, SelectionIntent};
-use crate::impls::Editor;
 use crate::snippet::vars::EditorSnippetResolver;
 use crate::snippet::{parse_snippet_template, render_with_resolver};
 

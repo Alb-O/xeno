@@ -13,8 +13,8 @@ use xeno_primitives::range::CharIdx;
 use xeno_primitives::transaction::{Change, Tendril};
 use xeno_primitives::{EditOrigin, SyntaxPolicy, Transaction, UndoPolicy};
 
+use crate::Editor;
 use crate::buffer::{ApplyPolicy, ViewId};
-use crate::impls::Editor;
 use crate::types::EditorUndoGroup;
 
 /// A validated, ready-to-apply workspace edit plan.

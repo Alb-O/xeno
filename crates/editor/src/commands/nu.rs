@@ -6,8 +6,8 @@ use xeno_primitives::BoxFutureLocal;
 use xeno_registry::notifications::keys;
 
 use super::{CommandError, CommandOutcome, EditorCommandContext};
+use crate::Editor;
 use crate::editor_command;
-use crate::impls::Editor;
 use crate::types::{InvocationPolicy, InvocationResult};
 
 editor_command!(

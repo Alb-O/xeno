@@ -1,7 +1,7 @@
 use xeno_primitives::{Key, KeyCode, Modifiers, Range};
 
 use super::*;
-use crate::impls::Editor;
+use crate::Editor;
 
 #[test]
 fn order_places_zero_last() {

@@ -452,12 +452,12 @@ impl Buffer {
 	}
 
 	/// Resolves an option for this buffer using the layered configuration system.
-	pub fn option_raw(&self, key: OptionKey, editor: &crate::impls::Editor) -> OptionValue {
+	pub fn option_raw(&self, key: OptionKey, editor: &crate::Editor) -> OptionValue {
 		editor.resolve_option(self.id, key)
 	}
 
 	/// Resolves a typed option for this buffer.
-	pub fn option<T: FromOptionValue>(&self, key: TypedOptionKey<T>, editor: &crate::impls::Editor) -> T {
+	pub fn option<T: FromOptionValue>(&self, key: TypedOptionKey<T>, editor: &crate::Editor) -> T {
 		let untyped = key.untyped();
 		let opt = xeno_registry::db::OPTIONS.get_key(&untyped).expect("typed option key missing from registry");
 

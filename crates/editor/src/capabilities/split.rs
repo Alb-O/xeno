@@ -2,8 +2,8 @@ use xeno_primitives::direction::Axis;
 use xeno_registry::actions::SplitOps;
 use xeno_registry::actions::editor_ctx::SplitError;
 
+use crate::Editor;
 use crate::capabilities::provider::EditorCaps;
-use crate::impls::Editor;
 use crate::overlay::LayerEvent;
 
 impl SplitOps for EditorCaps<'_> {

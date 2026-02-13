@@ -17,16 +17,16 @@
 //!
 //! ```compile_fail
 //! use xeno_registry::CursorAccess;
-//! use crate::impls::Editor;
+//! use crate::Editor;
 //! fn _assert_is_not_cursor_access(e: &mut Editor) {
 //!     let _x: &mut dyn CursorAccess = e;
 //! }
 //! ```
 //!
-//! [`Editor`]: crate::impls::Editor
+//! [`Editor`]: crate::Editor
 //! [`CursorAccess`]: xeno_registry::CursorAccess
 
-use crate::impls::Editor;
+use crate::Editor;
 
 /// Sole capability provider for registry actions.
 ///

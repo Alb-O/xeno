@@ -1,7 +1,7 @@
 use unicode_width::UnicodeWidthStr;
 use xeno_registry::statusline::{SegmentPosition, SegmentStyle, StatuslineContext, render_position};
 
-use crate::impls::Editor;
+use crate::Editor;
 
 /// Data-only render segment for statusline presentation.
 #[derive(Debug, Clone, PartialEq, Eq)]

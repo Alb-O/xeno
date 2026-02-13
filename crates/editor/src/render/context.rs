@@ -4,9 +4,9 @@ use std::sync::Arc;
 use xeno_registry::themes::Theme;
 
 use super::{DiagnosticLineMap, DiagnosticRangeMap};
+use crate::Editor;
 use crate::buffer::{Layout, SplitDirection, ViewId};
 use crate::geometry::Rect;
-use crate::impls::Editor;
 use crate::layout::LayoutManager;
 use crate::types::Viewport;
 

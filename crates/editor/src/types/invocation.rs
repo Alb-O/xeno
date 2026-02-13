@@ -7,7 +7,7 @@ use xeno_registry::Capability;
 /// All entry points (keymap, palette, command queue) convert requests into
 /// `Invocation` variants before dispatch via [`Editor::run_invocation`].
 ///
-/// [`Editor::run_invocation`]: crate::impls::Editor::run_invocation
+/// [`Editor::run_invocation`]: crate::Editor::run_invocation
 #[derive(Debug, Clone)]
 pub enum Invocation {
 	/// Execute a named action from the registry.

@@ -15,9 +15,9 @@ use xeno_primitives::range::CharIdx;
 use xeno_registry::notifications::keys;
 
 use super::types::{LspMenuKind, LspMenuState};
+use crate::Editor;
 use crate::buffer::ViewId;
 use crate::completion::CompletionState;
-use crate::impls::Editor;
 use crate::lsp::api::{Diagnostic, DiagnosticSeverity};
 use crate::{CompletionItem as UiCompletionItem, CompletionKind};
 

@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use xeno_primitives::{Key, Mode, MouseEvent};
 
-use crate::impls::Editor;
+use crate::Editor;
 
 #[derive(Debug, Clone, Copy)]
 pub struct LoopDirective {

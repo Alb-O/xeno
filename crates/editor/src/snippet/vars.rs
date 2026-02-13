@@ -1,7 +1,7 @@
 use chrono::{Datelike, Local, Timelike};
 
+use crate::Editor;
 use crate::buffer::{Buffer, ViewId};
-use crate::impls::Editor;
 use crate::snippet::SnippetVarResolver;
 
 pub(crate) struct EditorSnippetResolver<'a> {
@@ -65,7 +65,7 @@ impl SnippetVarResolver for EditorSnippetResolver<'_> {
 #[cfg(test)]
 mod tests {
 	use super::EditorSnippetResolver;
-	use crate::impls::Editor;
+	use crate::Editor;
 	use crate::snippet::SnippetVarResolver;
 
 	#[test]

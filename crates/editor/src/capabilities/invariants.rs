@@ -18,7 +18,7 @@ pub fn test_mutation_side_effect_invariant() {
 	use xeno_primitives::range::CharIdx;
 	use xeno_registry::actions::CursorAccess;
 
-	use crate::impls::Editor;
+	use crate::Editor;
 
 	let mut ed = Editor::new_scratch();
 	{

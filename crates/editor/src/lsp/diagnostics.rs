@@ -1,7 +1,7 @@
 use xeno_primitives::Selection;
 use xeno_registry::notifications::keys;
 
-use crate::impls::Editor;
+use crate::Editor;
 use crate::lsp::api::{Diagnostic, DiagnosticSeverity};
 use crate::render::{DiagnosticLineMap, DiagnosticRangeMap, DiagnosticSpan};
 

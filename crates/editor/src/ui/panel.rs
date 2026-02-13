@@ -2,7 +2,7 @@ use xeno_primitives::{Key, MouseEvent};
 
 use super::dock::DockSlot;
 use super::keymap::KeybindingRegistry;
-use crate::impls::Editor;
+use crate::Editor;
 
 /// Events that can be delivered to panels.
 #[derive(Debug, Clone)]

@@ -11,8 +11,8 @@
 use tokio_util::sync::CancellationToken;
 use xeno_lsp::lsp_types::{Documentation, MarkupContent, SignatureHelp};
 
+use crate::Editor;
 use crate::buffer::ViewId;
-use crate::impls::Editor;
 use crate::info_popup::PopupAnchor;
 
 impl Editor {

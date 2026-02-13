@@ -2,7 +2,7 @@ use xeno_primitives::KeyCode;
 use xeno_registry::actions::BindingMode;
 use xeno_registry::db::keymap_registry::ContinuationKind;
 
-use crate::impls::Editor;
+use crate::Editor;
 use crate::ui::UiRequest;
 use crate::ui::dock::DockSlot;
 use crate::ui::ids::UTILITY_PANEL_ID;

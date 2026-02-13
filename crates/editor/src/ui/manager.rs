@@ -221,7 +221,7 @@ impl UiManager {
 	}
 
 	/// Routes a key event to the focused panel, returning true if consumed.
-	pub fn handle_focused_key(&mut self, editor: &mut crate::impls::Editor, key: Key) -> bool {
+	pub fn handle_focused_key(&mut self, editor: &mut crate::Editor, key: Key) -> bool {
 		let Some(panel_id) = self.focused_panel_id().map(|s| s.to_string()) else {
 			return false;
 		};
@@ -236,7 +236,7 @@ impl UiManager {
 	}
 
 	/// Routes a paste event to the focused panel, returning true if consumed.
-	pub fn handle_paste(&mut self, editor: &mut crate::impls::Editor, content: String) -> bool {
+	pub fn handle_paste(&mut self, editor: &mut crate::Editor, content: String) -> bool {
 		let Some(panel_id) = self.focused_panel_id().map(|s| s.to_string()) else {
 			return false;
 		};
@@ -249,7 +249,7 @@ impl UiManager {
 	}
 
 	/// Routes a mouse event to the appropriate panel based on hit testing.
-	pub fn handle_mouse(&mut self, editor: &mut crate::impls::Editor, mouse: MouseEvent, layout: &DockLayout) -> bool {
+	pub fn handle_mouse(&mut self, editor: &mut crate::Editor, mouse: MouseEvent, layout: &DockLayout) -> bool {
 		let row = mouse.row();
 		let col = mouse.col();
 
@@ -281,7 +281,7 @@ impl UiManager {
 	}
 
 	/// Sends a tick event to all panels for periodic updates.
-	pub fn tick(&mut self, editor: &mut crate::impls::Editor) {
+	pub fn tick(&mut self, editor: &mut crate::Editor) {
 		let ids: Vec<String> = self.panels.keys().cloned().collect();
 		let mut requests = Vec::new();
 		for id in ids {
@@ -295,7 +295,7 @@ impl UiManager {
 	}
 
 	/// Notifies all panels of a terminal resize event in text-grid units.
-	pub fn notify_resize(&mut self, editor: &mut crate::impls::Editor, _cols: u16, _rows: u16) {
+	pub fn notify_resize(&mut self, editor: &mut crate::Editor, _cols: u16, _rows: u16) {
 		let ids: Vec<String> = self.panels.keys().cloned().collect();
 		let mut requests = Vec::new();
 		for id in ids {

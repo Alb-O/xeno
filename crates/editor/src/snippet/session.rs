@@ -18,8 +18,8 @@ use helpers::{
 use super::RenderedSnippet;
 use super::vars::EditorSnippetResolver;
 use super::{TransformSource, parse_snippet_template};
+use crate::Editor;
 use crate::buffer::ViewId;
-use crate::impls::Editor;
 
 #[derive(Clone, Default)]
 pub struct SnippetSessionState {

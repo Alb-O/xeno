@@ -9,7 +9,7 @@ use xeno_registry::commands::CommandError;
 
 use crate::effects::sink::DrainedEffects;
 
-impl crate::impls::Editor {
+impl crate::Editor {
 	/// Flushes all pending effects from the sink and applies them.
 	///
 	/// Re-entrant calls are deferred: nested flushes signal a redraw and

@@ -3,7 +3,7 @@ use xeno_primitives::transaction::{Bias, Change};
 use xeno_primitives::{EditOrigin, Key, KeyCode, Transaction, UndoPolicy};
 
 use super::{ActiveMode, SnippetChoiceOverlay, SnippetSessionState, selection_from_points};
-use crate::impls::Editor;
+use crate::Editor;
 
 impl Editor {
 	pub(super) fn open_snippet_choice_overlay(&mut self) -> bool {
