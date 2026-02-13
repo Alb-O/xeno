@@ -4,7 +4,12 @@ use std::time::Duration;
 
 use iced::widget::{column, container, scrollable, text};
 use iced::{Element, Event, Fill, Font, Subscription, Task, event, keyboard, time, window};
+use xeno_editor::completion::CompletionRenderPlan;
+use xeno_editor::geometry::Rect;
+use xeno_editor::info_popup::{InfoPopupRenderAnchor, InfoPopupRenderTarget};
+use xeno_editor::overlay::{OverlayControllerKind, OverlayPaneRenderTarget};
 use xeno_editor::runtime::{CursorStyle, LoopDirective, RuntimeEvent};
+use xeno_editor::snippet::SnippetChoiceRenderPlan;
 use xeno_editor::{Buffer, Editor};
 use xeno_primitives::{Key, KeyCode, Modifiers};
 
@@ -50,6 +55,7 @@ struct Snapshot {
 	title: String,
 	header: String,
 	statusline: String,
+	surface_summary: String,
 	body: String,
 }
 
@@ -154,6 +160,7 @@ impl IcedEditorApp {
 		let content = column![
 			text(&self.snapshot.header).font(Font::MONOSPACE),
 			text(&self.snapshot.statusline).font(Font::MONOSPACE),
+			text(&self.snapshot.surface_summary).font(Font::MONOSPACE),
 			scrollable(text(&self.snapshot.body).font(Font::MONOSPACE)).height(Fill),
 		]
 		.spacing(8)
@@ -198,6 +205,12 @@ impl IcedEditorApp {
 			.map(|segment| segment.text)
 			.collect::<Vec<_>>()
 			.join("");
+		let overlay_kind = self.editor.overlay_kind();
+		let overlay_panes = self.editor.overlay_pane_render_plan();
+		let completion_plan = self.editor.completion_popup_render_plan();
+		let snippet_plan = self.editor.snippet_choice_render_plan();
+		let info_popup_plan = self.editor.info_popup_render_plan();
+		let surface_summary = build_surface_summary(overlay_kind, &overlay_panes, completion_plan.as_ref(), snippet_plan.as_ref(), &info_popup_plan);
 
 		let (title, body) = self.editor.get_buffer(focused).map_or_else(
 			|| (String::from("xeno-iced"), String::from("no focused buffer")),
@@ -208,6 +221,7 @@ impl IcedEditorApp {
 			title,
 			header: format!("mode={mode} cursor={cursor_line}:{cursor_col} buffers={buffers}"),
 			statusline,
+			surface_summary,
 			body,
 		};
 
@@ -269,6 +283,81 @@ fn snapshot_for_buffer(buffer: &Buffer) -> (String, String) {
 	});
 
 	(title, body)
+}
+
+fn build_surface_summary(
+	overlay_kind: Option<OverlayControllerKind>,
+	overlay_panes: &[OverlayPaneRenderTarget],
+	completion_plan: Option<&CompletionRenderPlan>,
+	snippet_plan: Option<&SnippetChoiceRenderPlan>,
+	info_popup_plan: &[InfoPopupRenderTarget],
+) -> String {
+	let mut lines = Vec::new();
+
+	match overlay_kind {
+		Some(kind) => {
+			lines.push(format!("overlay={kind:?} panes={}", overlay_panes.len()));
+			for pane in overlay_panes.iter().take(3) {
+				lines.push(format!("  {:?} {}", pane.role, rect_brief(pane.rect)));
+			}
+			if overlay_panes.len() > 3 {
+				lines.push(format!("  ... {} more panes", overlay_panes.len() - 3));
+			}
+		}
+		None => lines.push(String::from("overlay=none")),
+	}
+
+	match completion_plan {
+		Some(plan) => {
+			let selected = plan
+				.items
+				.iter()
+				.find(|item| item.selected)
+				.map_or_else(|| String::from("-"), |item| item.label.clone());
+			lines.push(format!(
+				"completion=visible rows={} selected={} kind_col={} right_col={}",
+				plan.items.len(),
+				selected,
+				plan.show_kind,
+				plan.show_right
+			));
+		}
+		None => lines.push(String::from("completion=hidden")),
+	}
+
+	match snippet_plan {
+		Some(plan) => {
+			let selected = plan
+				.items
+				.iter()
+				.find(|item| item.selected)
+				.map_or_else(|| String::from("-"), |item| item.option.clone());
+			lines.push(format!("snippet_choice=visible rows={} selected={selected}", plan.items.len()));
+		}
+		None => lines.push(String::from("snippet_choice=hidden")),
+	}
+
+	if info_popup_plan.is_empty() {
+		lines.push(String::from("info_popups=none"));
+	} else {
+		lines.push(format!("info_popups={}", info_popup_plan.len()));
+		for popup in info_popup_plan.iter().take(2) {
+			let anchor = match popup.anchor {
+				InfoPopupRenderAnchor::Center => String::from("center"),
+				InfoPopupRenderAnchor::Point { x, y } => format!("point@{x},{y}"),
+			};
+			lines.push(format!("  popup#{} {} {}x{}", popup.id.0, anchor, popup.content_width, popup.content_height));
+		}
+		if info_popup_plan.len() > 2 {
+			lines.push(format!("  ... {} more popups", info_popup_plan.len() - 2));
+		}
+	}
+
+	lines.join("\n")
+}
+
+fn rect_brief(rect: Rect) -> String {
+	format!("{}x{}@{},{}", rect.width, rect.height, rect.x, rect.y)
 }
 
 fn map_event(event: Event, cell_metrics: CellMetrics) -> Option<RuntimeEvent> {

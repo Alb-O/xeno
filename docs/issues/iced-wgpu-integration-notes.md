@@ -21,6 +21,7 @@ Investigate a minimal GUI frontend integration using `iced_wgpu` while preservin
 - Added minimal rendering bridge:
   - renders focused buffer as a plain text snapshot
   - renders statusline using `statusline_render_plan`
+  - consumes core completion/snippet/overlay/info-popup plans and shows a structured scene summary
   - intentionally does not reuse TUI widget/render backend
 
 ## Current limitations
@@ -31,7 +32,7 @@ Investigate a minimal GUI frontend integration using `iced_wgpu` while preservin
   - no font-metrics-driven calibration yet.
 - Rendering seam is still provisional:
   - no style/span-level GUI renderer yet
-  - no overlay/completion/snippet/info-popup scene rendering yet
+  - overlay/completion/snippet/info-popup plans are wired, but currently rendered as textual diagnostics instead of native GUI surfaces
 - Input coverage is partial:
   - no mouse adapter
   - no clipboard paste adapter

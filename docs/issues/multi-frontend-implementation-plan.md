@@ -121,6 +121,7 @@ Completed:
   - maps window logical pixels to core grid resize units (`cols`/`rows`) with configurable cell metrics
   - runs core runtime loop (`pump`/`on_event`) through a local tokio runtime bridge
   - renders a minimal read-only snapshot from focused buffer + statusline plan
+  - consumes completion/snippet/overlay/info-popup plans from `xeno-editor` (currently displayed as structured scene summary)
 
 Current focus:
 
