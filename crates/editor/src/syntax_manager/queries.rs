@@ -47,12 +47,7 @@ impl SyntaxManager {
 	/// 4. Higher tree_doc_version (more recent)
 	///
 	/// If no candidate overlaps, falls back to the best non-overlapping candidate.
-	pub fn syntax_for_viewport(
-		&self,
-		doc_id: DocumentId,
-		doc_version: u64,
-		viewport: std::ops::Range<u32>,
-	) -> Option<SyntaxSelection<'_>> {
+	pub fn syntax_for_viewport(&self, doc_id: DocumentId, doc_version: u64, viewport: std::ops::Range<u32>) -> Option<SyntaxSelection<'_>> {
 		let slot = &self.entries.get(&doc_id)?.slot;
 
 		/// Scoring key for selection comparison (higher is better).
@@ -120,9 +115,7 @@ impl SyntaxManager {
 			}
 		}
 
-		best_overlapping
-			.or(best_any)
-			.map(|(sel, _)| sel)
+		best_overlapping.or(best_any).map(|(sel, _)| sel)
 	}
 
 	/// Returns the document-global change counter for highlight cache invalidation.
@@ -203,9 +196,7 @@ impl SyntaxManager {
 	}
 
 	pub fn has_pending(&self, doc_id: DocumentId) -> bool {
-		self.entries
-			.get(&doc_id)
-			.is_some_and(|d| d.sched.any_active())
+		self.entries.get(&doc_id).is_some_and(|d| d.sched.any_active())
 	}
 
 	pub(crate) fn viewport_visible_span_cap_for_bytes(&self, bytes: usize) -> u32 {
@@ -214,17 +205,11 @@ impl SyntaxManager {
 	}
 
 	pub fn pending_count(&self) -> usize {
-		self.entries
-			.values()
-			.filter(|d| d.sched.any_active())
-			.count()
+		self.entries.values().filter(|d| d.sched.any_active()).count()
 	}
 
 	pub fn pending_docs(&self) -> impl Iterator<Item = DocumentId> + '_ {
-		self.entries
-			.iter()
-			.filter(|(_, d)| d.sched.any_active())
-			.map(|(id, _)| *id)
+		self.entries.iter().filter(|(_, d)| d.sched.any_active()).map(|(id, _)| *id)
 	}
 
 	pub fn dirty_docs(&self) -> impl Iterator<Item = DocumentId> + '_ {

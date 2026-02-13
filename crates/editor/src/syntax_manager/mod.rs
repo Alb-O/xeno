@@ -105,8 +105,8 @@ pub(crate) use tasks::TaskCollector;
 use tasks::{TaskKind, TaskSpec};
 pub(crate) use types::PendingIncrementalEdits;
 pub use types::{
-	DocEpoch, EditSource, EnsureSyntaxContext, HighlightProjectionCtx, OptKey, SyntaxPollOutcome, SyntaxPollResult, SyntaxSelection, SyntaxSlot,
-	TaskId, ViewportCache, ViewportEntry, ViewportKey, ViewportTree,
+	DocEpoch, EditSource, EnsureSyntaxContext, HighlightProjectionCtx, OptKey, SyntaxPollOutcome, SyntaxPollResult, SyntaxSelection, SyntaxSlot, TaskId,
+	ViewportCache, ViewportEntry, ViewportKey, ViewportTree,
 };
 #[cfg(test)]
 pub(crate) use xeno_language::LanguageId;

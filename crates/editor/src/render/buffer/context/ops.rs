@@ -80,11 +80,16 @@ impl<'a> BufferRenderContext<'a> {
 		let viewport_start_byte = line_to_byte_or_eof(doc_content, start_line);
 		let viewport_end_byte = line_to_byte_or_eof(doc_content, end_line);
 
-		let Some(selection) = self.syntax_manager.syntax_for_viewport(doc_id, doc_version, viewport_start_byte..viewport_end_byte) else {
+		let Some(selection) = self
+			.syntax_manager
+			.syntax_for_viewport(doc_id, doc_version, viewport_start_byte..viewport_end_byte)
+		else {
 			return Vec::new();
 		};
 		let syntax_version = selection.tree_id;
-		let projection = self.syntax_manager.highlight_projection_ctx_for(doc_id, selection.tree_doc_version, doc_version);
+		let projection = self
+			.syntax_manager
+			.highlight_projection_ctx_for(doc_id, selection.tree_doc_version, doc_version);
 
 		cache.highlight.get_spans(HighlightSpanQuery {
 			doc_id,

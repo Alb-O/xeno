@@ -67,9 +67,7 @@ impl SyntaxManager {
 		let drop_full = match full_policy {
 			RetentionPolicy::Keep => false,
 			RetentionPolicy::DropWhenHidden => state.full.is_some() || state.dirty,
-			RetentionPolicy::DropAfter(ttl) => {
-				(state.full.is_some() || state.dirty) && now.duration_since(st.last_visible_at) > ttl
-			}
+			RetentionPolicy::DropAfter(ttl) => (state.full.is_some() || state.dirty) && now.duration_since(st.last_visible_at) > ttl,
 		};
 		if drop_full {
 			state.drop_full();
@@ -83,9 +81,7 @@ impl SyntaxManager {
 		let drop_viewport = match viewport_policy {
 			RetentionPolicy::Keep => false,
 			RetentionPolicy::DropWhenHidden => state.viewport_cache.has_any(),
-			RetentionPolicy::DropAfter(ttl) => {
-				state.viewport_cache.has_any() && now.duration_since(st.last_visible_at) > ttl
-			}
+			RetentionPolicy::DropAfter(ttl) => state.viewport_cache.has_any() && now.duration_since(st.last_visible_at) > ttl,
 		};
 		if drop_viewport {
 			state.drop_viewport();

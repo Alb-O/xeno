@@ -169,13 +169,16 @@ impl ViewportCache {
 				}
 			}
 			self.order.push_front(key);
-			self.map.insert(key, ViewportEntry {
+			self.map.insert(
 				key,
-				stage_a: None,
-				stage_b: None,
-				attempted_b_for: None,
-				stage_b_cooldown_until: None,
-			});
+				ViewportEntry {
+					key,
+					stage_a: None,
+					stage_b: None,
+					attempted_b_for: None,
+					stage_b_cooldown_until: None,
+				},
+			);
 		}
 		self.map.get_mut(&key).unwrap()
 	}
@@ -233,11 +236,14 @@ impl ViewportCache {
 
 	/// Returns the best doc version across all cached viewport trees.
 	pub fn best_doc_version(&self) -> Option<u64> {
-		self.map.values().filter_map(|e| {
-			let a = e.stage_a.as_ref().map(|t| t.doc_version);
-			let b = e.stage_b.as_ref().map(|t| t.doc_version);
-			a.max(b)
-		}).max()
+		self.map
+			.values()
+			.filter_map(|e| {
+				let a = e.stage_a.as_ref().map(|t| t.doc_version);
+				let b = e.stage_b.as_ref().map(|t| t.doc_version);
+				a.max(b)
+			})
+			.max()
 	}
 }
 

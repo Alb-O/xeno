@@ -17,11 +17,7 @@ impl SyntaxManager {
 	///
 	/// Tests call this directly to deterministically advance time without sleeps.
 	#[cfg_attr(not(test), inline(always))]
-	pub(crate) fn ensure_syntax_at(
-		&mut self,
-		now: Instant,
-		ctx: EnsureSyntaxContext<'_>,
-	) -> SyntaxPollOutcome {
+	pub(crate) fn ensure_syntax_at(&mut self, now: Instant, ctx: EnsureSyntaxContext<'_>) -> SyntaxPollOutcome {
 		let doc_id = ctx.doc_id;
 
 		// Calculate policy and options key
@@ -82,7 +78,17 @@ impl SyntaxManager {
 
 		// 2. Process completed tasks (drain queue)
 		// Collect metric records separately to avoid borrow conflicts.
-		let mut metric_records: Vec<(xeno_language::LanguageId, SyntaxTier, TaskClass, InjectionPolicy, std::time::Duration, bool, bool, bool, bool)> = Vec::new();
+		let mut metric_records: Vec<(
+			xeno_language::LanguageId,
+			SyntaxTier,
+			TaskClass,
+			InjectionPolicy,
+			std::time::Duration,
+			bool,
+			bool,
+			bool,
+			bool,
+		)> = Vec::new();
 		{
 			let entry = self.entry_mut(doc_id);
 			while let Some(done) = entry.sched.completed.pop_front() {
@@ -108,7 +114,11 @@ impl SyntaxManager {
 
 							let is_viewport_task = class == TaskClass::Viewport;
 
-							let retain_policy = if is_viewport_task { cfg.retention_hidden_viewport } else { cfg.retention_hidden_full };
+							let retain_policy = if is_viewport_task {
+								cfg.retention_hidden_viewport
+							} else {
+								cfg.retention_hidden_full
+							};
 							let retain_ok = Self::retention_allows_install(now, &entry.sched, retain_policy, ctx.hotness);
 
 							let allow_install = if is_viewport_task {
@@ -264,7 +274,15 @@ impl SyntaxManager {
 
 			// Retention
 			if entry.sched.any_active() {
-				if Self::apply_retention(now, &entry.sched, cfg.retention_hidden_full, cfg.retention_hidden_viewport, ctx.hotness, &mut entry.slot, doc_id) {
+				if Self::apply_retention(
+					now,
+					&entry.sched,
+					cfg.retention_hidden_full,
+					cfg.retention_hidden_viewport,
+					ctx.hotness,
+					&mut entry.slot,
+					doc_id,
+				) {
 					entry.sched.invalidate();
 					was_updated = true;
 				}
@@ -286,7 +304,15 @@ impl SyntaxManager {
 				};
 			};
 
-			if Self::apply_retention(now, &entry.sched, cfg.retention_hidden_full, cfg.retention_hidden_viewport, ctx.hotness, &mut entry.slot, doc_id) {
+			if Self::apply_retention(
+				now,
+				&entry.sched,
+				cfg.retention_hidden_full,
+				cfg.retention_hidden_viewport,
+				ctx.hotness,
+				&mut entry.slot,
+				doc_id,
+			) {
 				if !work_disabled {
 					entry.sched.invalidate();
 				}
@@ -316,7 +342,10 @@ impl SyntaxManager {
 			// Use covering_key so that stride-boundary viewport shifts don't reset
 			// stability when the enrichment target key hasn't actually changed.
 			viewport_stable_polls = if let Some(vp) = &viewport {
-				let focus_key = entry.slot.viewport_cache.covering_key(vp)
+				let focus_key = entry
+					.slot
+					.viewport_cache
+					.covering_key(vp)
 					.unwrap_or_else(|| compute_viewport_key(vp.start, cfg.viewport_window_max));
 				entry.sched.note_viewport_focus(focus_key, ctx.doc_version)
 			} else {
@@ -336,27 +365,23 @@ impl SyntaxManager {
 			}
 
 			// Compute enrichment desire using covering key (not just computed key)
-			want_enrich = tier == SyntaxTier::L
-				&& ctx.hotness == SyntaxHotness::Visible
-				&& cfg.viewport_stage_b_budget.is_some()
-				&& viewport.is_some()
-				&& {
-					let vp = viewport.as_ref().unwrap();
-					let k = entry.slot.viewport_cache.covering_key(vp)
-						.unwrap_or_else(|| compute_viewport_key(vp.start, cfg.viewport_window_max));
-					let already_good = entry.slot.viewport_cache.map.get(&k).is_some_and(|ce| {
-						ce.stage_b.as_ref().is_some_and(|t| {
-							t.doc_version == ctx.doc_version
-								&& t.coverage.start <= vp.start
-								&& t.coverage.end >= vp.end
-						})
-					});
-					!already_good
-				};
+			want_enrich = tier == SyntaxTier::L && ctx.hotness == SyntaxHotness::Visible && cfg.viewport_stage_b_budget.is_some() && viewport.is_some() && {
+				let vp = viewport.as_ref().unwrap();
+				let k = entry
+					.slot
+					.viewport_cache
+					.covering_key(vp)
+					.unwrap_or_else(|| compute_viewport_key(vp.start, cfg.viewport_window_max));
+				let already_good = entry.slot.viewport_cache.map.get(&k).is_some_and(|ce| {
+					ce.stage_b
+						.as_ref()
+						.is_some_and(|t| t.doc_version == ctx.doc_version && t.coverage.start <= vp.start && t.coverage.end >= vp.end)
+				});
+				!already_good
+			};
 
-			viewport_uncovered = tier == SyntaxTier::L
-				&& entry.slot.full.is_none()
-				&& viewport.as_ref().is_some_and(|vp| !entry.slot.viewport_cache.covers_range(vp));
+			viewport_uncovered =
+				tier == SyntaxTier::L && entry.slot.full.is_none() && viewport.as_ref().is_some_and(|vp| !entry.slot.viewport_cache.covers_range(vp));
 
 			if entry.slot.has_any_tree() && !entry.slot.dirty && !want_enrich && !viewport_uncovered {
 				entry.sched.force_no_debounce = false;
@@ -515,22 +540,19 @@ impl SyntaxManager {
 				&& cfg.viewport_stage_b_budget.is_some()
 				&& viewport_stable_polls >= cfg.viewport_stage_b_min_stable_polls
 			{
-				let k = entry.slot.viewport_cache.covering_key(viewport)
+				let k = entry
+					.slot
+					.viewport_cache
+					.covering_key(viewport)
 					.unwrap_or_else(|| compute_viewport_key(viewport.start, cfg.viewport_window_max));
 				let cache_entry = entry.slot.viewport_cache.map.get(&k);
 				let eager_covers = cache_entry.is_some_and(|ce| {
-					ce.stage_b.as_ref().is_some_and(|t| {
-						t.doc_version == ctx.doc_version
-							&& t.coverage.start <= viewport.start
-							&& t.coverage.end >= viewport.end
-					})
+					ce.stage_b
+						.as_ref()
+						.is_some_and(|t| t.doc_version == ctx.doc_version && t.coverage.start <= viewport.start && t.coverage.end >= viewport.end)
 				});
-				let already_attempted = cache_entry.is_some_and(|ce| {
-					ce.attempted_b_for == Some(ctx.doc_version)
-				});
-				let in_cooldown = cache_entry.is_some_and(|ce| {
-					ce.stage_b_cooldown_until.is_some_and(|until| now < until)
-				});
+				let already_attempted = cache_entry.is_some_and(|ce| ce.attempted_b_for == Some(ctx.doc_version));
+				let in_cooldown = cache_entry.is_some_and(|ce| ce.stage_b_cooldown_until.is_some_and(|until| now < until));
 				if !eager_covers && !already_attempted && !in_cooldown {
 					let win = cache_entry.and_then(|ce| ce.stage_a.as_ref().map(|sa| sa.coverage.clone()));
 					(true, Some(k), win)
@@ -668,10 +690,7 @@ impl SyntaxManager {
 			}
 		} else {
 			let entry = self.entry_mut(doc_id);
-			let desired_work = entry.slot.dirty
-				|| entry.slot.full.is_none()
-				|| viewport_uncovered
-				|| want_enrich;
+			let desired_work = entry.slot.dirty || entry.slot.full.is_none() || viewport_uncovered || want_enrich;
 			if entry.sched.any_active() || desired_work {
 				SyntaxPollOutcome {
 					result: SyntaxPollResult::Pending,
@@ -686,3 +705,6 @@ impl SyntaxManager {
 		}
 	}
 }
+
+#[cfg(test)]
+mod tests;

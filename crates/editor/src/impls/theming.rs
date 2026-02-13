@@ -99,7 +99,9 @@ impl Editor {
 			let highlight_styles =
 				xeno_language::highlight::HighlightStyles::new(SyntaxStyles::scope_names(), |scope| self.state.config.theme.colors.syntax.resolve(scope));
 
-			let highlighter = selection.syntax.highlighter(content.slice(..), &self.state.config.language_loader, start_byte..end_byte);
+			let highlighter = selection
+				.syntax
+				.highlighter(content.slice(..), &self.state.config.language_loader, start_byte..end_byte);
 
 			highlighter
 				.map(|span| {
