@@ -1,8 +1,7 @@
 use xeno_editor::Editor;
 use xeno_editor::render_api::{
-	CompletionRenderPlan, DocumentViewPlan, InfoPopupRenderTarget, OverlayControllerKind, OverlayPaneRenderTarget,
-	Rect, RenderLine, SeparatorJunctionTarget, SeparatorRenderTarget, SnippetChoiceRenderPlan,
-	StatuslineRenderSegment, SurfaceStyle, WindowRole,
+	CompletionRenderPlan, DocumentViewPlan, InfoPopupRenderTarget, OverlayControllerKind, OverlayPaneRenderTarget, Rect, RenderLine, SeparatorJunctionTarget,
+	SeparatorRenderTarget, SnippetChoiceRenderPlan, StatuslineRenderSegment, SurfaceStyle, WindowRole,
 };
 
 #[derive(Debug, Default)]
@@ -43,7 +42,8 @@ pub(crate) struct OverlayPaneViewSnapshot {
 	pub(crate) rect: Rect,
 	pub(crate) content_rect: Rect,
 	pub(crate) style: SurfaceStyle,
-	pub(crate) gutter_width: u16,
+	pub(crate) gutter_rect: Rect,
+	pub(crate) text_rect: Rect,
 	pub(crate) gutter: Vec<RenderLine<'static>>,
 	pub(crate) text: Vec<RenderLine<'static>>,
 }
@@ -55,7 +55,8 @@ pub(crate) struct InfoPopupViewSnapshot {
 	pub(crate) rect: Rect,
 	/// Inner rect after padding (where content is drawn).
 	pub(crate) inner_rect: Rect,
-	pub(crate) gutter_width: u16,
+	pub(crate) gutter_rect: Rect,
+	pub(crate) text_rect: Rect,
 	pub(crate) gutter: Vec<RenderLine<'static>>,
 	pub(crate) text: Vec<RenderLine<'static>>,
 }
@@ -73,12 +74,10 @@ pub(crate) fn build_snapshot(editor: &mut Editor, ime_preedit: Option<&str>, doc
 	let info_popup_plan = editor.info_popup_render_plan();
 	let title = editor.focused_document_title();
 
-	let document_views = doc_bounds
-		.map(|bounds| editor.document_view_plans(bounds))
-		.unwrap_or_default();
+	let document_views = doc_bounds.map(|bounds| editor.document_view_plans(bounds)).unwrap_or_default();
 	let sep_scene = doc_bounds.map(|bounds| editor.separator_scene_plan(bounds));
-	let separators = sep_scene.as_ref().map(|s| s.separators.clone()).unwrap_or_default();
-	let junctions = sep_scene.map(|s| s.junctions).unwrap_or_default();
+	let separators = sep_scene.as_ref().map(|s| s.separators().to_vec()).unwrap_or_default();
+	let junctions = sep_scene.as_ref().map(|s| s.junctions().to_vec()).unwrap_or_default();
 
 	let overlay_pane_views = build_overlay_pane_views(editor);
 	let info_popup_views = doc_bounds.map(|bounds| build_info_popup_views(editor, bounds)).unwrap_or_default();
@@ -113,13 +112,14 @@ fn build_overlay_pane_views(editor: &mut Editor) -> Vec<OverlayPaneViewSnapshot>
 		.overlay_pane_view_plans()
 		.into_iter()
 		.map(|plan| OverlayPaneViewSnapshot {
-			role: plan.role,
-			rect: plan.rect,
-			content_rect: plan.content_rect,
-			style: plan.style,
-			gutter_width: plan.render.gutter_width,
-			gutter: plan.render.gutter,
-			text: plan.render.text,
+			role: plan.role(),
+			rect: plan.rect(),
+			content_rect: plan.content_rect(),
+			style: plan.style().clone(),
+			gutter_rect: plan.gutter_rect(),
+			text_rect: plan.text_rect(),
+			gutter: plan.gutter().to_vec(),
+			text: plan.text().to_vec(),
 		})
 		.collect()
 }
@@ -129,11 +129,12 @@ fn build_info_popup_views(editor: &mut Editor, bounds: Rect) -> Vec<InfoPopupVie
 		.info_popup_view_plans(bounds)
 		.into_iter()
 		.map(|plan| InfoPopupViewSnapshot {
-			rect: plan.rect,
-			inner_rect: plan.inner_rect,
-			gutter_width: plan.render.gutter_width,
-			gutter: plan.render.gutter,
-			text: plan.render.text,
+			rect: plan.rect(),
+			inner_rect: plan.inner_rect(),
+			gutter_rect: plan.gutter_rect(),
+			text_rect: plan.text_rect(),
+			gutter: plan.gutter().to_vec(),
+			text: plan.text().to_vec(),
 		})
 		.collect()
 }

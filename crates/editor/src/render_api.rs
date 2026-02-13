@@ -5,9 +5,8 @@
 
 // Render plan types.
 pub use crate::render::{
-	BufferViewRenderPlan, DocumentRenderPlan, DocumentViewPlan, InfoPopupViewPlan, OverlayCompletionMenuTarget,
-	OverlayPaneViewPlan, RenderLine, RenderSpan, SeparatorJunctionTarget, SeparatorRenderTarget, SeparatorScenePlan,
-	SeparatorState,
+	DocumentViewPlan, InfoPopupViewPlan, OverlayCompletionMenuTarget, OverlayPaneViewPlan, RenderLine, RenderSpan, SeparatorJunctionTarget,
+	SeparatorRenderTarget, SeparatorScenePlan, SeparatorState,
 };
 
 // Completion types.

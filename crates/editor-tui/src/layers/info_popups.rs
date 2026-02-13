@@ -24,8 +24,8 @@ pub fn render(ed: &mut Editor, frame: &mut xeno_tui::Frame, doc_area: Rect) {
 
 	let popup_bg = ed.config().theme.colors.popup.bg;
 
-	for plan in plans {
-		let rect: Rect = plan.rect.into();
+	for plan in &plans {
+		let rect: Rect = plan.rect().into();
 		if rect.width == 0 || rect.height == 0 {
 			continue;
 		}
@@ -35,23 +35,14 @@ pub fn render(ed: &mut Editor, frame: &mut xeno_tui::Frame, doc_area: Rect) {
 		let block = Block::default().style(Style::default().bg(popup_bg));
 		frame.render_widget(block, rect);
 
-		let inner: Rect = plan.inner_rect.into();
-		if inner.width == 0 || inner.height == 0 {
+		let gutter_area: Rect = plan.gutter_rect().into();
+		let text_area: Rect = plan.text_rect().into();
+		if text_area.width == 0 || text_area.height == 0 {
 			continue;
 		}
 
-		let gutter_area = Rect {
-			width: plan.render.gutter_width,
-			..inner
-		};
-		let text_area = Rect {
-			x: inner.x + plan.render.gutter_width,
-			width: inner.width.saturating_sub(plan.render.gutter_width),
-			..inner
-		};
-
-		let gutter = to_tui_lines(plan.render.gutter);
-		let text = to_tui_lines(plan.render.text);
+		let gutter = to_tui_lines(plan.gutter().to_vec());
+		let text = to_tui_lines(plan.text().to_vec());
 
 		frame.render_widget(Paragraph::new(gutter), gutter_area);
 		frame.render_widget(Paragraph::new(text), text_area);

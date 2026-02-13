@@ -2,8 +2,7 @@ use iced::widget::text::Wrapping;
 use iced::widget::{Column, column, row, text};
 use iced::{Color, Font};
 use xeno_editor::render_api::{
-	CompletionKind, CompletionRenderItem, CompletionRenderPlan, InfoPopupRenderAnchor, Rect, SnippetChoiceRenderItem,
-	SnippetChoiceRenderPlan,
+	CompletionKind, CompletionRenderItem, CompletionRenderPlan, InfoPopupRenderAnchor, Rect, SnippetChoiceRenderItem, SnippetChoiceRenderPlan,
 };
 
 use super::Message;
@@ -66,7 +65,7 @@ fn append_surface_rows(mut rows: Column<'static, Message>, surface: &SurfaceSnap
 			));
 			for pane in surface.overlay_panes.iter().take(3) {
 				rows = rows.push(styled_inspector_text(
-					format!("  {:?} {}", pane.role, rect_brief(pane.rect)),
+					format!("  {:?} {}", pane.role(), rect_brief(pane.rect())),
 					InspectorTone::Meta,
 				));
 			}
@@ -85,17 +84,17 @@ fn append_surface_rows(mut rows: Column<'static, Message>, surface: &SurfaceSnap
 	match surface.completion_plan.as_ref() {
 		Some(plan) => {
 			let selected = plan
-				.items
+				.items()
 				.iter()
-				.find(|item| item.selected)
-				.map_or_else(|| String::from("-"), |item| item.label.clone());
+				.find(|item| item.selected())
+				.map_or_else(|| String::from("-"), |item| item.label().to_string());
 			rows = rows.push(styled_inspector_text(
 				format!(
 					"completion=visible rows={} selected={} kind_col={} right_col={}",
-					plan.items.len(),
+					plan.items().len(),
 					selected,
-					plan.show_kind,
-					plan.show_right
+					plan.show_kind(),
+					plan.show_right()
 				),
 				InspectorTone::Meta,
 			));
@@ -108,12 +107,12 @@ fn append_surface_rows(mut rows: Column<'static, Message>, surface: &SurfaceSnap
 	match surface.snippet_plan.as_ref() {
 		Some(plan) => {
 			let selected = plan
-				.items
+				.items()
 				.iter()
-				.find(|item| item.selected)
-				.map_or_else(|| String::from("-"), |item| item.option.clone());
+				.find(|item| item.selected())
+				.map_or_else(|| String::from("-"), |item| item.option().to_string());
 			rows = rows.push(styled_inspector_text(
-				format!("snippet_choice=visible rows={} selected={selected}", plan.items.len()),
+				format!("snippet_choice=visible rows={} selected={selected}", plan.items().len()),
 				InspectorTone::Meta,
 			));
 		}
@@ -130,13 +129,19 @@ fn append_surface_rows(mut rows: Column<'static, Message>, surface: &SurfaceSnap
 			InspectorTone::Meta,
 		));
 		for popup in surface.info_popup_plan.iter().take(2) {
-			let anchor = match popup.anchor {
+			let anchor = match popup.anchor() {
 				InfoPopupRenderAnchor::Center => String::from("center"),
 				InfoPopupRenderAnchor::Point { x, y } => format!("point@{x},{y}"),
 				InfoPopupRenderAnchor::Window(wid) => format!("window@{wid:?}"),
 			};
 			rows = rows.push(styled_inspector_text(
-				format!("  popup#{} {} {}x{}", popup.id.0, anchor, popup.content_width, popup.content_height),
+				format!(
+					"  popup#{} {} {}x{}",
+					popup.id().as_u64(),
+					anchor,
+					popup.content_width(),
+					popup.content_height()
+				),
 				InspectorTone::Meta,
 			));
 		}
@@ -160,22 +165,22 @@ fn append_completion_rows(mut rows: Column<'static, Message>, plan: Option<&Comp
 	rows = rows.push(styled_inspector_text(
 		format!(
 			"completion_rows={} target_width={} kind_col={} right_col={}",
-			plan.items.len(),
-			plan.target_row_width,
-			plan.show_kind,
-			plan.show_right
+			plan.items().len(),
+			plan.target_row_width(),
+			plan.show_kind(),
+			plan.show_right()
 		),
 		InspectorTone::Meta,
 	));
 
-	for item in plan.items.iter().take(8) {
-		let tone = if item.selected { InspectorTone::Selected } else { InspectorTone::Normal };
+	for item in plan.items().iter().take(8) {
+		let tone = if item.selected() { InspectorTone::Selected } else { InspectorTone::Normal };
 		rows = rows.push(render_completion_row(plan, item, tone));
 	}
 
-	if plan.items.len() > 8 {
+	if plan.items().len() > 8 {
 		rows = rows.push(styled_inspector_text(
-			format!("... {} more completion rows", plan.items.len() - 8),
+			format!("... {} more completion rows", plan.items().len() - 8),
 			InspectorTone::Meta,
 		));
 	}
@@ -185,10 +190,10 @@ fn append_completion_rows(mut rows: Column<'static, Message>, plan: Option<&Comp
 
 fn completion_row_parts(plan: &CompletionRenderPlan, item: &CompletionRenderItem) -> CompletionRowParts {
 	CompletionRowParts {
-		marker: if item.selected { ">" } else { " " },
-		label: item.label.clone(),
-		kind: if plan.show_kind { Some(format!("{:?}", item.kind)) } else { None },
-		right: if plan.show_right { item.right.clone() } else { None },
+		marker: if item.selected() { ">" } else { " " },
+		label: item.label().to_string(),
+		kind: if plan.show_kind() { Some(format!("{:?}", item.kind())) } else { None },
+		right: if plan.show_right() { item.right().map(str::to_string) } else { None },
 	}
 }
 
@@ -213,18 +218,18 @@ fn append_snippet_rows(mut rows: Column<'static, Message>, plan: Option<&Snippet
 	};
 
 	rows = rows.push(styled_inspector_text(
-		format!("snippet_rows={} target_width={}", plan.items.len(), plan.target_row_width),
+		format!("snippet_rows={} target_width={}", plan.items().len(), plan.target_row_width()),
 		InspectorTone::Meta,
 	));
 
-	for item in plan.items.iter().take(8) {
-		let tone = if item.selected { InspectorTone::Selected } else { InspectorTone::Normal };
+	for item in plan.items().iter().take(8) {
+		let tone = if item.selected() { InspectorTone::Selected } else { InspectorTone::Normal };
 		rows = rows.push(render_snippet_row(item, tone));
 	}
 
-	if plan.items.len() > 8 {
+	if plan.items().len() > 8 {
 		rows = rows.push(styled_inspector_text(
-			format!("... {} more snippet rows", plan.items.len() - 8),
+			format!("... {} more snippet rows", plan.items().len() - 8),
 			InspectorTone::Meta,
 		));
 	}
@@ -234,8 +239,8 @@ fn append_snippet_rows(mut rows: Column<'static, Message>, plan: Option<&Snippet
 
 fn snippet_row_parts(item: &SnippetChoiceRenderItem) -> SnippetRowParts {
 	SnippetRowParts {
-		marker: if item.selected { ">" } else { " " },
-		option: item.option.clone(),
+		marker: if item.selected() { ">" } else { " " },
+		option: item.option().to_string(),
 	}
 }
 

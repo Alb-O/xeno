@@ -18,7 +18,7 @@ fn build_snapshot_renders_document_views_after_resize() {
 
 	let snapshot = build_snapshot(&mut editor, None, Some(doc_area));
 	assert!(!snapshot.document_views.is_empty(), "should have at least one document view");
-	assert!(!snapshot.document_views[0].render.text.is_empty(), "document view should have rendered text");
+	assert!(!snapshot.document_views[0].text().is_empty(), "document view should have rendered text");
 }
 
 #[test]

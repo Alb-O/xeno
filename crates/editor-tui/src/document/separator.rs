@@ -37,16 +37,17 @@ impl SeparatorStyle {
 		let mut anim_intensity = 0.0f32;
 
 		for t in targets {
-			let rect: Rect = t.rect.into();
-			if t.state.is_hovered {
+			let rect: Rect = t.rect().into();
+			let state = t.state();
+			if state.is_hovered() {
 				hovered_rect = Some(rect);
 			}
-			if t.state.is_dragging {
+			if state.is_dragging() {
 				dragging_rect = Some(rect);
 			}
-			if t.state.is_animating {
+			if state.is_animating() {
 				anim_rect = Some(rect);
-				anim_intensity = t.state.anim_intensity;
+				anim_intensity = state.anim_intensity();
 			}
 		}
 
@@ -66,21 +67,22 @@ impl SeparatorStyle {
 
 	/// Returns the style for a separator render target.
 	pub fn for_target(&self, target: &SeparatorRenderTarget) -> Style {
-		let idx = (target.priority as usize).min(self.base_bg.len() - 1);
+		let idx = (target.priority() as usize).min(self.base_bg.len() - 1);
 		let normal_fg = self.base_fg[idx];
 		let normal_bg = self.base_bg[idx];
+		let state = target.state();
 
-		if target.state.is_dragging {
+		if state.is_dragging() {
 			Style::default().fg(self.drag_fg).bg(self.drag_bg)
-		} else if target.state.is_animating {
-			let intensity = target.state.anim_intensity;
+		} else if state.is_animating() {
+			let intensity = state.anim_intensity();
 			let fg = normal_fg.lerp(&self.hover_fg, intensity);
 			let bg = normal_bg.lerp(&self.hover_bg, intensity);
 			if let (Some(fg_rgb), Some(bg_rgb)) = (color_to_rgb(fg), color_to_rgb(bg)) {
 				SeparatorAnimationEvent::frame(intensity, fg_rgb, bg_rgb);
 			}
 			Style::default().fg(fg).bg(bg)
-		} else if target.state.is_hovered {
+		} else if state.is_hovered() {
 			Style::default().fg(self.hover_fg).bg(self.hover_bg)
 		} else {
 			Style::default().fg(normal_fg).bg(normal_bg)

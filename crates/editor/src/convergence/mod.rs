@@ -7,10 +7,10 @@
 #[cfg(test)]
 mod tests;
 
+use crate::Editor;
 use crate::geometry::Rect;
 use crate::info_popup::InfoPopupId;
 use crate::overlay::WindowRole;
-use crate::Editor;
 
 /// Summary of a rendered overlay pane.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -79,12 +79,12 @@ fn collect_digest(editor: &mut Editor, doc_bounds: Rect) -> RenderConvergenceDig
 		.overlay_pane_view_plans()
 		.into_iter()
 		.map(|plan| PaneDigest {
-			role: plan.role,
-			rect: plan.rect,
-			content_rect: plan.content_rect,
-			gutter_width: plan.render.gutter_width,
-			text_line_count: plan.render.text.len(),
-			gutter_line_count: plan.render.gutter.len(),
+			role: plan.role(),
+			rect: plan.rect(),
+			content_rect: plan.content_rect(),
+			gutter_width: plan.gutter_rect().width,
+			text_line_count: plan.text().len(),
+			gutter_line_count: plan.gutter().len(),
 		})
 		.collect();
 	panes.sort_by_key(|p| (p.rect.y, p.rect.x, p.rect.width, p.rect.height));
@@ -93,10 +93,10 @@ fn collect_digest(editor: &mut Editor, doc_bounds: Rect) -> RenderConvergenceDig
 		.info_popup_view_plans(doc_bounds)
 		.into_iter()
 		.map(|plan| PopupDigest {
-			id: plan.id,
-			rect: plan.rect,
-			inner_rect: plan.inner_rect,
-			text_line_count: plan.render.text.len(),
+			id: plan.id(),
+			rect: plan.rect(),
+			inner_rect: plan.inner_rect(),
+			text_line_count: plan.text().len(),
 		})
 		.collect();
 	popups.sort_by_key(|p| p.id.0);

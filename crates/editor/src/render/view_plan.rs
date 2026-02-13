@@ -8,10 +8,12 @@ use crate::overlay::WindowRole;
 use crate::window::{GutterSelector, SurfaceStyle};
 
 #[derive(Debug, Clone)]
-pub struct BufferViewRenderPlan {
-	pub gutter_width: u16,
-	pub gutter: Vec<RenderLine<'static>>,
-	pub text: Vec<RenderLine<'static>>,
+pub(crate) struct BufferViewRenderPlan {
+	pub(crate) gutter_width: u16,
+	pub(crate) gutter_rect: Rect,
+	pub(crate) text_rect: Rect,
+	pub(crate) gutter: Vec<RenderLine<'static>>,
+	pub(crate) text: Vec<RenderLine<'static>>,
 }
 
 impl Editor {
@@ -69,8 +71,14 @@ impl Editor {
 		let result = buffer_ctx.render_buffer(buffer, area, use_block_cursor, is_focused, tab_width, cursorline, &mut cache);
 		*self.render_cache_mut() = cache;
 
+		let gutter_width = result.gutter_width.min(area.width);
+		let gutter_rect = Rect::new(area.x, area.y, gutter_width, area.height);
+		let text_rect = Rect::new(area.x + gutter_width, area.y, area.width - gutter_width, area.height);
+
 		Some(BufferViewRenderPlan {
-			gutter_width: result.gutter_width,
+			gutter_width,
+			gutter_rect,
+			text_rect,
 			gutter: result.gutter,
 			text: result.text,
 		})
@@ -80,20 +88,77 @@ impl Editor {
 /// Fully resolved overlay pane with pre-rendered content lines.
 #[derive(Debug, Clone)]
 pub struct OverlayPaneViewPlan {
-	pub role: WindowRole,
-	pub rect: Rect,
-	pub content_rect: Rect,
-	pub style: SurfaceStyle,
-	pub render: BufferViewRenderPlan,
+	role: WindowRole,
+	rect: Rect,
+	content_rect: Rect,
+	style: SurfaceStyle,
+	gutter_rect: Rect,
+	text_rect: Rect,
+	gutter: Vec<RenderLine<'static>>,
+	text: Vec<RenderLine<'static>>,
+}
+
+impl OverlayPaneViewPlan {
+	pub fn role(&self) -> WindowRole {
+		self.role
+	}
+	pub fn rect(&self) -> Rect {
+		self.rect
+	}
+	pub fn content_rect(&self) -> Rect {
+		self.content_rect
+	}
+	pub fn style(&self) -> &SurfaceStyle {
+		&self.style
+	}
+	pub fn gutter_rect(&self) -> Rect {
+		self.gutter_rect
+	}
+	pub fn text_rect(&self) -> Rect {
+		self.text_rect
+	}
+	pub fn gutter(&self) -> &[RenderLine<'static>] {
+		&self.gutter
+	}
+	pub fn text(&self) -> &[RenderLine<'static>] {
+		&self.text
+	}
 }
 
 /// Fully resolved info popup with pre-rendered content lines.
 #[derive(Debug, Clone)]
 pub struct InfoPopupViewPlan {
-	pub id: InfoPopupId,
-	pub rect: Rect,
-	pub inner_rect: Rect,
-	pub render: BufferViewRenderPlan,
+	id: InfoPopupId,
+	rect: Rect,
+	inner_rect: Rect,
+	gutter_rect: Rect,
+	text_rect: Rect,
+	gutter: Vec<RenderLine<'static>>,
+	text: Vec<RenderLine<'static>>,
+}
+
+impl InfoPopupViewPlan {
+	pub fn id(&self) -> InfoPopupId {
+		self.id
+	}
+	pub fn rect(&self) -> Rect {
+		self.rect
+	}
+	pub fn inner_rect(&self) -> Rect {
+		self.inner_rect
+	}
+	pub fn gutter_rect(&self) -> Rect {
+		self.gutter_rect
+	}
+	pub fn text_rect(&self) -> Rect {
+		self.text_rect
+	}
+	pub fn gutter(&self) -> &[RenderLine<'static>] {
+		&self.gutter
+	}
+	pub fn text(&self) -> &[RenderLine<'static>] {
+		&self.text
+	}
 }
 
 impl Editor {
@@ -115,20 +180,17 @@ impl Editor {
 					return None;
 				}
 
-				let render = self.buffer_view_render_plan_with_gutter(
-					pane.buffer,
-					content_rect,
-					true,
-					focused_overlay == Some(pane.buffer),
-					pane.gutter,
-				)?;
+				let render = self.buffer_view_render_plan_with_gutter(pane.buffer, content_rect, true, focused_overlay == Some(pane.buffer), pane.gutter)?;
 
 				Some(OverlayPaneViewPlan {
 					role: pane.role,
 					rect: pane.rect,
 					content_rect,
 					style: pane.style,
-					render,
+					gutter_rect: render.gutter_rect,
+					text_rect: render.text_rect,
+					gutter: render.gutter,
+					text: render.text,
 				})
 			})
 			.collect()
@@ -152,19 +214,16 @@ impl Editor {
 					return None;
 				}
 
-				let render = self.buffer_view_render_plan_with_gutter(
-					target.buffer_id,
-					inner,
-					false,
-					false,
-					GutterSelector::Hidden,
-				)?;
+				let render = self.buffer_view_render_plan_with_gutter(target.buffer_id, inner, false, false, GutterSelector::Hidden)?;
 
 				Some(InfoPopupViewPlan {
 					id: target.id,
 					rect: target.rect,
 					inner_rect: inner,
-					render,
+					gutter_rect: render.gutter_rect,
+					text_rect: render.text_rect,
+					gutter: render.gutter,
+					text: render.text,
 				})
 			})
 			.collect()
@@ -176,44 +235,125 @@ impl Editor {
 /// One plan per visible view across all layout layers (base + overlay).
 #[derive(Debug, Clone)]
 pub struct DocumentViewPlan {
-	pub view: ViewId,
-	pub rect: Rect,
-	pub render: BufferViewRenderPlan,
+	view: ViewId,
+	rect: Rect,
+	gutter_rect: Rect,
+	text_rect: Rect,
+	gutter: Vec<RenderLine<'static>>,
+	text: Vec<RenderLine<'static>>,
+}
+
+impl DocumentViewPlan {
+	pub fn view(&self) -> ViewId {
+		self.view
+	}
+	pub fn rect(&self) -> Rect {
+		self.rect
+	}
+	pub fn gutter_rect(&self) -> Rect {
+		self.gutter_rect
+	}
+	pub fn text_rect(&self) -> Rect {
+		self.text_rect
+	}
+	pub fn gutter(&self) -> &[RenderLine<'static>] {
+		&self.gutter
+	}
+	pub fn text(&self) -> &[RenderLine<'static>] {
+		&self.text
+	}
 }
 
 /// Separator state for frontend styling decisions.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SeparatorState {
-	pub is_hovered: bool,
-	pub is_dragging: bool,
-	pub is_animating: bool,
-	pub anim_intensity: f32,
+	pub(crate) is_hovered: bool,
+	pub(crate) is_dragging: bool,
+	pub(crate) is_animating: bool,
+	pub(crate) anim_intensity: f32,
+}
+
+impl SeparatorState {
+	pub fn is_hovered(&self) -> bool {
+		self.is_hovered
+	}
+	pub fn is_dragging(&self) -> bool {
+		self.is_dragging
+	}
+	pub fn is_animating(&self) -> bool {
+		self.is_animating
+	}
+	pub fn anim_intensity(&self) -> f32 {
+		self.anim_intensity
+	}
 }
 
 /// Fully resolved separator with geometry and interaction state.
 #[derive(Debug, Clone)]
 pub struct SeparatorRenderTarget {
-	pub direction: SplitDirection,
-	pub priority: u8,
-	pub rect: Rect,
-	pub state: SeparatorState,
+	pub(crate) direction: SplitDirection,
+	pub(crate) priority: u8,
+	pub(crate) rect: Rect,
+	pub(crate) state: SeparatorState,
+}
+
+impl SeparatorRenderTarget {
+	pub fn direction(&self) -> SplitDirection {
+		self.direction
+	}
+	pub fn priority(&self) -> u8 {
+		self.priority
+	}
+	pub fn rect(&self) -> Rect {
+		self.rect
+	}
+	pub fn state(&self) -> &SeparatorState {
+		&self.state
+	}
 }
 
 /// Junction glyph at a separator intersection point.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SeparatorJunctionTarget {
-	pub x: u16,
-	pub y: u16,
-	pub glyph: char,
-	pub priority: u8,
-	pub state: SeparatorState,
+	pub(crate) x: u16,
+	pub(crate) y: u16,
+	pub(crate) glyph: char,
+	pub(crate) priority: u8,
+	pub(crate) state: SeparatorState,
+}
+
+impl SeparatorJunctionTarget {
+	pub fn x(&self) -> u16 {
+		self.x
+	}
+	pub fn y(&self) -> u16 {
+		self.y
+	}
+	pub fn glyph(&self) -> char {
+		self.glyph
+	}
+	pub fn priority(&self) -> u8 {
+		self.priority
+	}
+	pub fn state(&self) -> &SeparatorState {
+		&self.state
+	}
 }
 
 /// Combined separator scene: segments and their junctions, computed in a single pass.
 #[derive(Debug, Clone)]
 pub struct SeparatorScenePlan {
-	pub separators: Vec<SeparatorRenderTarget>,
-	pub junctions: Vec<SeparatorJunctionTarget>,
+	pub(crate) separators: Vec<SeparatorRenderTarget>,
+	pub(crate) junctions: Vec<SeparatorJunctionTarget>,
+}
+
+impl SeparatorScenePlan {
+	pub fn separators(&self) -> &[SeparatorRenderTarget] {
+		&self.separators
+	}
+	pub fn junctions(&self) -> &[SeparatorJunctionTarget] {
+		&self.junctions
+	}
 }
 
 /// Returns the box-drawing junction glyph for the given connectivity mask.
@@ -387,7 +527,14 @@ impl Editor {
 				}
 				let is_focused = view == focused_view;
 				let render = self.buffer_view_render_plan(view, rect, use_block_cursor, is_focused)?;
-				Some(DocumentViewPlan { view, rect, render })
+				Some(DocumentViewPlan {
+					view,
+					rect,
+					gutter_rect: render.gutter_rect,
+					text_rect: render.text_rect,
+					gutter: render.gutter,
+					text: render.text,
+				})
 			})
 			.collect()
 	}
@@ -507,7 +654,7 @@ mod tests {
 
 		let plans = editor.document_view_plans(doc_area);
 		assert!(!plans.is_empty(), "should have at least one view plan");
-		assert!(!plans[0].render.text.is_empty(), "view plan should have rendered text");
+		assert!(!plans[0].text.is_empty(), "view plan should have rendered text");
 	}
 
 	#[test]
@@ -518,5 +665,41 @@ mod tests {
 
 		let targets = editor.separator_render_targets(doc_area);
 		assert!(targets.is_empty(), "single view should have no separators");
+	}
+
+	#[test]
+	fn buffer_view_render_plan_sets_rects_consistently() {
+		let mut editor = Editor::new_scratch();
+		editor.handle_window_resize(80, 24);
+		let view = editor.focused_view();
+		let area = editor.view_area(view);
+
+		let plan = editor.buffer_view_render_plan(view, area, true, true).expect("render plan");
+
+		// Gutter rect starts at area origin.
+		assert_eq!(plan.gutter_rect.x, area.x);
+		assert_eq!(plan.gutter_rect.y, area.y);
+		assert_eq!(plan.gutter_rect.width, plan.gutter_width);
+		assert_eq!(plan.gutter_rect.height, area.height);
+
+		// Text rect starts right after gutter.
+		assert_eq!(plan.text_rect.x, area.x + plan.gutter_width);
+		assert_eq!(plan.text_rect.y, area.y);
+		assert_eq!(plan.text_rect.width, area.width.saturating_sub(plan.gutter_width));
+		assert_eq!(plan.text_rect.height, area.height);
+	}
+
+	#[test]
+	fn buffer_view_render_plan_text_rect_never_overflows() {
+		let mut editor = Editor::new_scratch();
+		editor.handle_window_resize(3, 3);
+		let view = editor.focused_view();
+		let area = editor.view_area(view);
+
+		if let Some(plan) = editor.buffer_view_render_plan(view, area, true, true) {
+			assert!(plan.text_rect.x >= area.x);
+			assert!(plan.text_rect.right() <= area.right());
+			assert!(plan.gutter_rect.right() <= area.right());
+		}
 	}
 }

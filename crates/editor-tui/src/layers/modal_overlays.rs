@@ -27,11 +27,11 @@ fn render_palette_completion_menu(ed: &mut Editor, frame: &mut xeno_tui::Frame, 
 	let Some(target) = ed.overlay_completion_menu_target() else {
 		return;
 	};
-	let menu_rect: Rect = target.rect.into();
+	let menu_rect: Rect = target.rect().into();
 	let Some(menu_rect) = clamp_rect(menu_rect, area) else {
 		return;
 	};
-	crate::layers::completion::render_completion_menu(ed, frame, menu_rect, target.plan);
+	crate::layers::completion::render_completion_menu(ed, frame, menu_rect, target.plan());
 }
 
 pub fn render_utility_panel_overlay(ed: &mut Editor, frame: &mut xeno_tui::Frame, area: Rect) {
@@ -45,7 +45,7 @@ pub fn render_utility_panel_overlay(ed: &mut Editor, frame: &mut xeno_tui::Frame
 	let popup_bg = ed.config().theme.colors.popup.bg;
 
 	for plan in plans {
-		let pane_rect: Rect = plan.rect.into();
+		let pane_rect: Rect = plan.rect().into();
 		let Some(rect) = clamp_rect(pane_rect, area) else {
 			continue;
 		};
@@ -65,23 +65,14 @@ pub fn render_utility_panel_overlay(ed: &mut Editor, frame: &mut xeno_tui::Frame
 
 		frame.render_widget(block, rect);
 
-		let content_area: Rect = plan.content_rect.into();
-		if content_area.width == 0 || content_area.height == 0 {
+		let gutter_area: Rect = plan.gutter_rect().into();
+		let text_area: Rect = plan.text_rect().into();
+		if text_area.width == 0 || text_area.height == 0 {
 			continue;
 		}
 
-		let gutter_area = Rect {
-			width: plan.render.gutter_width,
-			..content_area
-		};
-		let text_area = Rect {
-			x: content_area.x + plan.render.gutter_width,
-			width: content_area.width.saturating_sub(plan.render.gutter_width),
-			..content_area
-		};
-
-		let gutter = to_tui_lines(plan.render.gutter);
-		let text = to_tui_lines(plan.render.text);
+		let gutter = to_tui_lines(plan.gutter().to_vec());
+		let text = to_tui_lines(plan.text().to_vec());
 
 		frame.render_widget(Paragraph::new(gutter), gutter_area);
 		frame.render_widget(Paragraph::new(text), text_area);

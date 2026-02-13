@@ -16,7 +16,13 @@ use crate::window::WindowId;
 
 /// Unique identifier for an info popup.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct InfoPopupId(pub u64);
+pub struct InfoPopupId(pub(crate) u64);
+
+impl InfoPopupId {
+	pub fn as_u64(self) -> u64 {
+		self.0
+	}
+}
 
 /// An active info popup instance.
 #[derive(Debug)]
@@ -36,16 +42,33 @@ pub struct InfoPopup {
 /// Data-only popup render target consumed by frontend scene layers.
 #[derive(Debug, Clone, Copy)]
 pub struct InfoPopupRenderTarget {
-	/// Stable popup identifier.
-	pub id: InfoPopupId,
-	/// Read-only popup buffer to render.
-	pub buffer_id: ViewId,
-	/// Render-only anchor placement strategy for this popup.
-	pub anchor: InfoPopupRenderAnchor,
-	/// Preferred content width before chrome.
-	pub content_width: u16,
-	/// Preferred content height before chrome.
-	pub content_height: u16,
+	pub(crate) id: InfoPopupId,
+	pub(crate) buffer_id: ViewId,
+	pub(crate) anchor: InfoPopupRenderAnchor,
+	pub(crate) content_width: u16,
+	pub(crate) content_height: u16,
+}
+
+impl InfoPopupRenderTarget {
+	pub fn id(&self) -> InfoPopupId {
+		self.id
+	}
+
+	pub fn buffer_id(&self) -> ViewId {
+		self.buffer_id
+	}
+
+	pub fn anchor(&self) -> InfoPopupRenderAnchor {
+		self.anchor
+	}
+
+	pub fn content_width(&self) -> u16 {
+		self.content_width
+	}
+
+	pub fn content_height(&self) -> u16 {
+		self.content_height
+	}
 }
 
 /// Data-only popup layout target with resolved bounds.

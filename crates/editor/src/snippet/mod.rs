@@ -10,14 +10,35 @@ pub use syntax::{Field, FieldKind, Node, SnippetParseError, SnippetTemplate, Tra
 /// Data-only snippet choice popup row for frontend rendering.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SnippetChoiceRenderItem {
-	pub option: String,
-	pub selected: bool,
+	pub(crate) option: String,
+	pub(crate) selected: bool,
+}
+
+impl SnippetChoiceRenderItem {
+	pub fn option(&self) -> &str {
+		&self.option
+	}
+	pub fn selected(&self) -> bool {
+		self.selected
+	}
 }
 
 /// Data-only snippet choice popup render plan.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SnippetChoiceRenderPlan {
-	pub items: Vec<SnippetChoiceRenderItem>,
-	pub max_option_width: usize,
-	pub target_row_width: usize,
+	pub(crate) items: Vec<SnippetChoiceRenderItem>,
+	pub(crate) max_option_width: usize,
+	pub(crate) target_row_width: usize,
+}
+
+impl SnippetChoiceRenderPlan {
+	pub fn items(&self) -> &[SnippetChoiceRenderItem] {
+		&self.items
+	}
+	pub fn max_option_width(&self) -> usize {
+		self.max_option_width
+	}
+	pub fn target_row_width(&self) -> usize {
+		self.target_row_width
+	}
 }

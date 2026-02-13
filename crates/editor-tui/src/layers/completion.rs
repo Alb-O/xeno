@@ -53,19 +53,19 @@ fn build_highlighted_label(label: &str, match_indices: Option<&[usize]>, min_wid
 	spans
 }
 
-pub fn render_completion_menu(ed: &Editor, frame: &mut xeno_tui::Frame, area: Rect, plan: CompletionRenderPlan) {
+pub fn render_completion_menu(ed: &Editor, frame: &mut xeno_tui::Frame, area: Rect, plan: &CompletionRenderPlan) {
 	let theme = &ed.config().theme;
-	let max_label_width = plan.max_label_width;
-	let show_kind = plan.show_kind;
-	let show_right = plan.show_right;
-	let target_row_width = plan.target_row_width;
+	let max_label_width = plan.max_label_width();
+	let show_kind = plan.show_kind();
+	let show_right = plan.show_right();
+	let target_row_width = plan.target_row_width();
 	let items: Vec<ListItem> = plan
-		.items
-		.into_iter()
+		.items()
+		.iter()
 		.map(|item| {
-			let is_selected = item.selected;
+			let is_selected = item.selected();
 
-			let kind_icon = match item.kind {
+			let kind_icon = match item.kind() {
 				CompletionKind::Command => "󰘳",
 				CompletionKind::File => "󰈔",
 				CompletionKind::Buffer => "󰈙",
@@ -73,7 +73,7 @@ pub fn render_completion_menu(ed: &Editor, frame: &mut xeno_tui::Frame, area: Re
 				CompletionKind::Theme => "󰏘",
 			};
 
-			let kind_color = match item.kind {
+			let kind_color = match item.kind() {
 				CompletionKind::Command => theme.colors.mode.command.bg,
 				CompletionKind::File => theme.colors.mode.normal.bg,
 				CompletionKind::Buffer => theme.colors.semantic.accent,
@@ -95,7 +95,7 @@ pub fn render_completion_menu(ed: &Editor, frame: &mut xeno_tui::Frame, area: Re
 
 			let label_style = if is_selected { base_style.add_modifier(Modifier::BOLD) } else { base_style };
 
-			let kind_name = match item.kind {
+			let kind_name = match item.kind() {
 				CompletionKind::Command => "Cmd",
 				CompletionKind::File => "File",
 				CompletionKind::Buffer => "Buf",
@@ -109,13 +109,13 @@ pub fn render_completion_menu(ed: &Editor, frame: &mut xeno_tui::Frame, area: Re
 				Style::default().fg(theme.colors.semantic.dim).bg(theme.colors.popup.bg)
 			};
 
-			let match_color = if item.command_alias_match {
+			let match_color = if item.command_alias_match() {
 				Color::Magenta
 			} else {
 				theme.colors.semantic.match_hl
 			};
 			let match_style = label_style.fg(match_color);
-			let label_spans = build_highlighted_label(&item.label, item.match_indices.as_deref(), max_label_width, label_style, match_style);
+			let label_spans = build_highlighted_label(item.label(), item.match_indices(), max_label_width, label_style, match_style);
 
 			let icon_text = format!(" {} ", kind_icon);
 			let mut row_width = cell_width(&icon_text) + max_label_width;
@@ -125,12 +125,12 @@ pub fn render_completion_menu(ed: &Editor, frame: &mut xeno_tui::Frame, area: Re
 				let kind_text = format!(" {:>4}  ", kind_name);
 				row_width += cell_width(&kind_text);
 				spans.push(Span::styled(kind_text, dim_style));
-			} else if show_right && let Some(right) = item.right {
-				let right_width = cell_width(&right);
+			} else if show_right && let Some(right) = item.right() {
+				let right_width = cell_width(right);
 				if row_width + 1 + right_width <= target_row_width {
 					let gap = target_row_width - row_width - right_width;
 					spans.push(Span::styled(" ".repeat(gap), base_style));
-					spans.push(Span::styled(right, dim_style));
+					spans.push(Span::styled(right.to_string(), dim_style));
 					row_width = target_row_width;
 				}
 			}
@@ -173,5 +173,5 @@ pub fn render(ed: &Editor, frame: &mut xeno_tui::Frame) {
 	let Some(plan) = ed.completion_popup_render_plan() else {
 		return;
 	};
-	render_completion_menu(ed, frame, area.into(), plan);
+	render_completion_menu(ed, frame, area.into(), &plan);
 }

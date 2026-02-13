@@ -20,6 +20,9 @@ const FORBIDDEN_PATTERNS: &[(&str, &str)] = &[
 	("buffer_view_render_plan", "use core-owned view plan APIs instead"),
 	("editor.layout(", "use core-owned separator/document plan APIs instead"),
 	("base_window().layout", "use core-owned plan APIs instead"),
+	// Legacy single-document render plan (replaced by document_view_plans).
+	("DocumentRenderPlan", "use document_view_plans() instead"),
+	("focused_document_render_plan", "use document_view_plans() instead"),
 	// Legacy drift vectors.
 	("BufferRenderContext", "internal render type leaked to frontend"),
 	("RenderBufferParams", "internal render type leaked to frontend"),

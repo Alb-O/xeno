@@ -1,28 +1,24 @@
 #![cfg_attr(test, allow(unused_crate_dependencies))]
-//! Editor engine and terminal UI infrastructure.
+//! Core editor engine: buffers, layout, overlays, and render plan generation.
 //!
-//! This crate provides the core editor implementation, buffer management,
-//! and terminal rendering.
+//! # Public API surface
 //!
-//! # Main Types
+//! - [`Editor`] — workspace state, input handling, and plan generation.
+//! - [`Buffer`], [`ViewId`] — text buffers with undo, syntax, and selections.
+//! - [`render_api`] — the explicit frontend seam. All render/layout plan types
+//!   that frontends consume are re-exported here.
+//! - Message types ([`EditorMsg`], [`IoMsg`], [`LspMsg`], etc.) for async coordination.
+//! - [`EditorContext`] / [`EditorOps`] — capability surface for commands and effects.
+//! - Theme re-exports from `xeno_registry`.
 //!
-//! - [`Editor`] - The main editor/workspace containing buffers and state
-//! - [`Buffer`] - A text buffer with undo history, syntax highlighting, and selections
-//! - [`UiManager`] - UI management for the editor
+//! # Seam contract
 //!
-//! # Architecture
+//! Frontends must only import from `xeno_editor::render_api` for anything
+//! render/layout related. Internal modules (`completion`, `overlay`, `ui`,
+//! `window`, `geometry`, `render`, `info_popup`, `snippet`) are `pub(crate)`.
 //!
-//! The editor uses a split-based layout for text buffers:
-//!
-//! ```text
-//! Editor
-//! ├── buffers: HashMap<ViewId, Buffer>        // Text editing
-//! ├── layout: Layout                          // Split arrangement
-//! └── focused_buffer: ViewId                  // Current focus
-//! ```
-//!
-//! Views can be split horizontally or vertically, with each split containing
-//! a text buffer.
+//! Core owns all render plan assembly — frontends receive opaque plan structs
+//! with getter-only access and perform no policy decisions.
 
 /// Theme bootstrap cache for instant first-frame rendering.
 pub mod bootstrap;
@@ -33,11 +29,9 @@ pub mod command_queue;
 /// Editor-direct commands that need full [`Editor`] access.
 pub mod commands;
 /// Completion types and sources for command palette.
-pub mod completion;
+pub(crate) mod completion;
 #[cfg(test)]
 mod convergence;
-#[cfg(test)]
-mod seam_contract;
 /// Headless core model (documents, undo).
 pub mod core;
 /// Editor context and effect handling.
@@ -49,12 +43,12 @@ pub mod execution_gate;
 /// Filesystem indexing and picker backend services.
 pub(crate) mod filesystem;
 /// Shared geometry aliases for core/front-end seams.
-pub mod geometry;
+pub(crate) mod geometry;
 /// Async hook execution runtime.
 pub mod hook_runtime;
 mod impls;
 /// Info popups for documentation and contextual help.
-pub mod info_popup;
+pub(crate) mod info_popup;
 /// Editor key/mouse dispatch (input state machine lives in `xeno-input`).
 mod input;
 /// Split layout management.
@@ -69,7 +63,7 @@ mod notifications;
 /// Nu runtime for user macro scripts.
 pub mod nu;
 /// Type-erased UI overlay storage.
-pub mod overlay;
+pub(crate) mod overlay;
 pub(crate) mod paste;
 /// Platform-specific configuration paths.
 pub mod paths;
@@ -81,10 +75,12 @@ pub mod render_api;
 pub mod runtime;
 /// Unified async work scheduler.
 pub mod scheduler;
+#[cfg(test)]
+mod seam_contract;
 /// Separator drag and hover state.
 pub mod separator;
 /// Snippet parsing and rendering primitives.
-pub mod snippet;
+pub(crate) mod snippet;
 /// Style utilities and conversions.
 pub mod styles;
 /// Background syntax loading manager.
@@ -97,14 +93,14 @@ pub mod theme_source;
 /// Editor type definitions.
 pub mod types;
 /// UI management: focus tracking.
-pub mod ui;
+pub(crate) mod ui;
 /// View storage and management.
 pub mod view_manager;
 /// Window management primitives.
-pub mod window;
+pub(crate) mod window;
 
 pub use buffer::{Buffer, HistoryResult, ViewId};
-pub use completion::{CompletionContext, CompletionItem, CompletionKind, CompletionSource, CompletionState};
+pub(crate) use completion::{CompletionContext, CompletionItem, CompletionKind, CompletionSource, CompletionState};
 pub use editor_ctx::{EditorCapabilities, EditorContext, EditorOps, HandleOutcome, apply_effects};
 pub use impls::{Editor, FocusReason, FocusTarget, PanelId};
 #[cfg(feature = "lsp")]
@@ -117,5 +113,5 @@ pub use msg::{Dirty, EditorMsg, IoMsg, LspMsg, MsgSender, ThemeMsg};
 pub use notifications::{NotificationRenderAutoDismiss, NotificationRenderItem, NotificationRenderLevel};
 pub use terminal_config::{TerminalConfig, TerminalSequence};
 pub use theme_source::ThemeSource;
-pub use ui::UiManager;
+pub(crate) use ui::UiManager;
 pub use xeno_registry::themes::{ColorPair, ModeColors, PopupColors, SemanticColors, THEMES, Theme, ThemeColors, UiColors, blend_colors, suggest_theme};
