@@ -16,7 +16,7 @@ default = []
 iced-wgpu = ["dep:iced", "dep:tokio", "dep:xeno-editor", "dep:xeno-primitives"]
 
 [dependencies]
-iced = { path = "../../../iced", default-features = false, features = ["wgpu", "tokio", "x11"], optional = true }
+iced = { path = "../../../iced", default-features = false, features = ["wgpu", "tokio", "x11", "wayland"], optional = true }
 tokio = { workspace = true, optional = true }
 xeno-editor = { workspace = true, optional = true }
 xeno-primitives = { workspace = true, optional = true }

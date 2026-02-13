@@ -37,6 +37,10 @@ Investigate a minimal GUI frontend integration using `iced_wgpu` while preservin
   - no IME/text composition adapter
 - Dependency wiring is local checkout based:
   - crate uses local `../iced` path checkout for `iced` dependency.
+- Linux display backend quirks:
+  - `xeno-editor-iced` enables both `x11` and `wayland` build features.
+  - runtime now auto-selects Wayland first when available to avoid hard X11 runtime dependency on Wayland-only systems.
+  - `XENO_ICED_BACKEND={wayland|x11}` can be used to force backend choice.
 
 ## Best next iteration
 
