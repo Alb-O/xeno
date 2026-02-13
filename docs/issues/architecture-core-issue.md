@@ -44,6 +44,7 @@ This document tracks the architecture split between `xeno-editor` (core engine) 
 - `xeno-editor-iced` now renders completion/snippet plan rows as dedicated previews (beyond simple visibility summaries), increasing plan-level frontend parity.
 - `xeno-editor-iced` now tracks IME preedit lifecycle in frontend state (snapshot header) for composition observability while core event modeling remains commit-focused.
 - `xeno-editor-iced` snapshot data now preserves typed overlay/completion/snippet/info-popup plan outputs and leaves inspector row formatting to the frontend adapter layer.
+- `xeno-editor-iced` inspector now renders directly from typed surface plans without intermediate row-model shims.
 - Statusline style-color policy is now centralized in `xeno-editor` (`statusline_segment_style`) and consumed by both TUI and iced adapters to reduce frontend drift.
 - Runtime replay test coverage now includes equivalent event-script convergence checks for single-line and multiline input paths (paste vs typed text/Enter) for core state/statusline outputs.
 - Runtime replay coverage now also includes command-palette input convergence (paste vs typed keys) for completion-plan and overlay/statusline equivalence.

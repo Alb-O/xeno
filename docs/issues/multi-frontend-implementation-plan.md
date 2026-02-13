@@ -131,6 +131,7 @@ Completed:
 - runtime replay coverage added for equivalent event scripts (single-line and multiline paste vs typed input) to guard convergence of core state/statusline outputs
 - runtime replay coverage now includes command-palette convergence checks (paste vs typed keys) for completion plan, overlay kind, and statusline outputs
 - iced snapshot surface now preserves typed overlay/completion/snippet/info-popup plans, with inspector text formatting kept in frontend adapter code
+- iced inspector now renders completion/snippet/surface diagnostics directly from typed plans (no intermediate inspector row structs)
 - statusline style mapping now routes through a shared core API (`statusline_segment_style`) consumed by both TUI and iced frontends
 
 Current focus:

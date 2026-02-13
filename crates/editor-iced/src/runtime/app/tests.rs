@@ -87,6 +87,21 @@ fn completion_preview_marks_selected_rows() {
 		],
 	};
 
-	let rows = build_completion_preview_rows(Some(&plan));
-	assert!(rows.iter().any(|row| row.role == InspectorRowRole::Selected && row.text.contains("beta")));
+	let row = completion_row_label(&plan, &plan.items[1]);
+	assert_eq!(row, "> beta");
+}
+
+#[test]
+fn snippet_row_label_prefixes_selected_rows() {
+	let selected = SnippetChoiceRenderItem {
+		option: String::from("choice-a"),
+		selected: true,
+	};
+	let normal = SnippetChoiceRenderItem {
+		option: String::from("choice-b"),
+		selected: false,
+	};
+
+	assert_eq!(snippet_row_label(&selected), "> choice-a");
+	assert_eq!(snippet_row_label(&normal), "  choice-b");
 }
