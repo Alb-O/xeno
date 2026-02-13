@@ -43,7 +43,9 @@ This document tracks the architecture split between `xeno-editor` (core engine) 
 - `xeno-editor-iced` now routes IME commit text into the same core paste path (`RuntimeEvent::Paste`).
 - `xeno-editor-iced` now renders completion/snippet plan rows as dedicated previews (beyond simple visibility summaries), increasing plan-level frontend parity.
 - `xeno-editor-iced` now tracks IME preedit lifecycle in frontend state (snapshot header) for composition observability while core event modeling remains commit-focused.
+- `xeno-editor-iced` snapshot data now preserves typed overlay/completion/snippet/info-popup plan outputs and leaves inspector row formatting to the frontend adapter layer.
 - Runtime replay test coverage now includes equivalent event-script convergence checks for single-line and multiline input paths (paste vs typed text/Enter) for core state/statusline outputs.
+- Runtime replay coverage now also includes command-palette input convergence (paste vs typed keys) for completion-plan and overlay/statusline equivalence.
 - Legacy compatibility paths/shims removed:
   - focus compatibility helper path removed in favor of unified `set_focus` flow.
   - unused overlay compatibility constructor argument removed.

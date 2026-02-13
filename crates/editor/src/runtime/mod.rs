@@ -249,4 +249,31 @@ mod tests {
 		assert_eq!(via_paste.mode(), via_keys.mode());
 		assert_eq!(via_paste.statusline_render_plan(), via_keys.statusline_render_plan());
 	}
+
+	#[tokio::test]
+	async fn test_runtime_event_scripts_converge_for_command_palette_completion() {
+		let mut via_paste = Editor::new_scratch();
+		via_paste.handle_window_resize(120, 30);
+		assert!(via_paste.open_command_palette());
+		let _ = via_paste.pump().await;
+		run_script(&mut via_paste, vec![RuntimeEvent::Paste(String::from("set"))]).await;
+
+		let mut via_keys = Editor::new_scratch();
+		via_keys.handle_window_resize(120, 30);
+		assert!(via_keys.open_command_palette());
+		let _ = via_keys.pump().await;
+		run_script(
+			&mut via_keys,
+			vec![
+				RuntimeEvent::Key(Key::char('s')),
+				RuntimeEvent::Key(Key::char('e')),
+				RuntimeEvent::Key(Key::char('t')),
+			],
+		)
+		.await;
+
+		assert_eq!(via_paste.overlay_kind(), via_keys.overlay_kind());
+		assert_eq!(via_paste.completion_popup_render_plan(), via_keys.completion_popup_render_plan());
+		assert_eq!(via_paste.statusline_render_plan(), via_keys.statusline_render_plan());
+	}
 }
