@@ -1,9 +1,11 @@
 use iced::widget::scrollable::{Direction as ScrollDirection, Scrollbar};
 use iced::widget::text::Wrapping;
-use iced::widget::{column, container, row, rule, scrollable, text};
-use iced::{Element, Event, Fill, Font, Subscription, Task, event, keyboard, time, window};
+use iced::widget::{column, container, rich_text, row, rule, scrollable, span, text};
+use iced::{Color, Element, Event, Fill, Font, Subscription, Task, event, keyboard, time, window};
 use xeno_editor::Editor;
+use xeno_editor::render_api::RenderLine;
 use xeno_editor::runtime::{CursorStyle, LoopDirective, RuntimeEvent};
+use xeno_primitives::{Color as UiColor, Style as UiStyle};
 
 use super::{DEFAULT_POLL_INTERVAL, EventBridgeState, Snapshot, StartupOptions, build_snapshot, configure_linux_backend, map_event};
 
@@ -109,7 +111,7 @@ impl IcedEditorApp {
 
 		let mut document_rows = column![].spacing(0);
 		for line in &self.snapshot.document_lines {
-			document_rows = document_rows.push(text(line).font(Font::MONOSPACE).wrapping(Wrapping::None));
+			document_rows = document_rows.push(render_document_line(line));
 		}
 		let document_scroll = scrollable(document_rows)
 			.direction(ScrollDirection::Vertical(Scrollbar::hidden()))
@@ -211,6 +213,53 @@ fn is_paste_shortcut(key: &keyboard::Key, modified_key: &keyboard::Key, physical
 
 	modified_key.to_latin(physical_key).is_some_and(|ch| ch.eq_ignore_ascii_case(&'v'))
 		|| key.to_latin(physical_key).is_some_and(|ch| ch.eq_ignore_ascii_case(&'v'))
+}
+
+fn render_document_line(line: &RenderLine<'_>) -> Element<'static, Message> {
+	let mut spans = Vec::new();
+	let line_color = line.style.and_then(style_fg_to_iced);
+
+	for render_span in &line.spans {
+		let mut segment = span::<(), _>(render_span.content.as_ref().to_string());
+		if let Some(color) = style_fg_to_iced(render_span.style).or(line_color) {
+			segment = segment.color(color);
+		}
+		spans.push(segment);
+	}
+
+	if spans.is_empty() {
+		spans.push(span::<(), _>(String::new()));
+	}
+
+	rich_text(spans).font(Font::MONOSPACE).wrapping(Wrapping::None).into()
+}
+
+fn style_fg_to_iced(style: UiStyle) -> Option<Color> {
+	style.fg.and_then(map_ui_color)
+}
+
+fn map_ui_color(color: UiColor) -> Option<Color> {
+	match color {
+		UiColor::Reset => None,
+		UiColor::Black => Some(Color::from_rgb8(0x00, 0x00, 0x00)),
+		UiColor::Red => Some(Color::from_rgb8(0x80, 0x00, 0x00)),
+		UiColor::Green => Some(Color::from_rgb8(0x00, 0x80, 0x00)),
+		UiColor::Yellow => Some(Color::from_rgb8(0x80, 0x80, 0x00)),
+		UiColor::Blue => Some(Color::from_rgb8(0x00, 0x00, 0x80)),
+		UiColor::Magenta => Some(Color::from_rgb8(0x80, 0x00, 0x80)),
+		UiColor::Cyan => Some(Color::from_rgb8(0x00, 0x80, 0x80)),
+		UiColor::Gray => Some(Color::from_rgb8(0xC0, 0xC0, 0xC0)),
+		UiColor::DarkGray => Some(Color::from_rgb8(0x80, 0x80, 0x80)),
+		UiColor::LightRed => Some(Color::from_rgb8(0xFF, 0x00, 0x00)),
+		UiColor::LightGreen => Some(Color::from_rgb8(0x00, 0xFF, 0x00)),
+		UiColor::LightYellow => Some(Color::from_rgb8(0xFF, 0xFF, 0x00)),
+		UiColor::LightBlue => Some(Color::from_rgb8(0x00, 0x00, 0xFF)),
+		UiColor::LightMagenta => Some(Color::from_rgb8(0xFF, 0x00, 0xFF)),
+		UiColor::LightCyan => Some(Color::from_rgb8(0x00, 0xFF, 0xFF)),
+		UiColor::White => Some(Color::from_rgb8(0xFF, 0xFF, 0xFF)),
+		UiColor::Rgb(r, g, b) => Some(Color::from_rgb8(r, g, b)),
+		UiColor::Indexed(_) => None,
+	}
 }
 
 pub fn run(startup: StartupOptions) -> iced::Result {

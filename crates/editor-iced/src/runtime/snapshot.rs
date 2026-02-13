@@ -2,9 +2,10 @@ use xeno_editor::completion::CompletionRenderPlan;
 use xeno_editor::geometry::Rect;
 use xeno_editor::info_popup::{InfoPopupRenderAnchor, InfoPopupRenderTarget};
 use xeno_editor::overlay::{OverlayControllerKind, OverlayPaneRenderTarget};
-use xeno_editor::render_api::{BufferRenderContext, RenderLine};
+use xeno_editor::render_api::{BufferRenderContext, RenderLine, RenderSpan};
 use xeno_editor::snippet::SnippetChoiceRenderPlan;
 use xeno_editor::{Buffer, Editor, ViewId};
+use xeno_primitives::Style;
 
 const MAX_VISIBLE_BUFFER_LINES: usize = 500;
 
@@ -13,7 +14,7 @@ pub(crate) struct Snapshot {
 	pub(crate) title: String,
 	pub(crate) header: String,
 	pub(crate) statusline: String,
-	pub(crate) document_lines: Vec<String>,
+	pub(crate) document_lines: Vec<RenderLine<'static>>,
 	pub(crate) inspector_sections: Vec<InspectorSection>,
 }
 
@@ -67,7 +68,7 @@ pub(crate) fn build_snapshot(editor: &mut Editor, ime_preedit: Option<&str>) -> 
 
 	let (title, document_lines) = snapshot_for_focused_view(editor, focused).unwrap_or_else(|| {
 		editor.get_buffer(focused).map_or_else(
-			|| (String::from("xeno-iced"), vec![String::from("no focused buffer")]),
+			|| (String::from("xeno-iced"), vec![plain_line("no focused buffer")]),
 			|buffer| snapshot_for_buffer(buffer),
 		)
 	});
@@ -84,7 +85,7 @@ pub(crate) fn build_snapshot(editor: &mut Editor, ime_preedit: Option<&str>) -> 
 	}
 }
 
-fn snapshot_for_buffer(buffer: &Buffer) -> (String, Vec<String>) {
+fn snapshot_for_buffer(buffer: &Buffer) -> (String, Vec<RenderLine<'static>>) {
 	let path = buffer.path();
 	let modified = buffer.modified();
 	let readonly = buffer.is_readonly();
@@ -103,7 +104,7 @@ fn snapshot_for_buffer(buffer: &Buffer) -> (String, Vec<String>) {
 		let start = start_line.min(total_lines.saturating_sub(1));
 		let end = start.saturating_add(MAX_VISIBLE_BUFFER_LINES).min(total_lines);
 
-		rows.push(format!(
+		rows.push(plain_line(format!(
 			"path={} modified={} readonly={} lines={} showing={}..{}",
 			path.as_ref().map_or_else(|| String::from("[scratch]"), |path| path.display().to_string()),
 			modified,
@@ -111,26 +112,26 @@ fn snapshot_for_buffer(buffer: &Buffer) -> (String, Vec<String>) {
 			total_lines,
 			start + 1,
 			end,
-		));
-		rows.push(String::new());
+		)));
+		rows.push(plain_line(String::new()));
 
 		for line_idx in start..end {
 			let line = content.line(line_idx).to_string();
 			let line = line.trim_end_matches(['\n', '\r']);
-			rows.push(format!("{:>6} {line}", line_idx + 1));
+			rows.push(plain_line(format!("{:>6} {line}", line_idx + 1)));
 		}
 
 		if end < total_lines {
 			let remaining = total_lines.saturating_sub(end);
-			rows.push(String::new());
-			rows.push(format!("... {remaining} more lines not shown"));
+			rows.push(plain_line(String::new()));
+			rows.push(plain_line(format!("... {remaining} more lines not shown")));
 		}
 	});
 
 	(title, rows)
 }
 
-fn snapshot_for_focused_view(editor: &mut Editor, focused: ViewId) -> Option<(String, Vec<String>)> {
+fn snapshot_for_focused_view(editor: &mut Editor, focused: ViewId) -> Option<(String, Vec<RenderLine<'static>>)> {
 	let title = editor
 		.get_buffer(focused)?
 		.path()
@@ -149,7 +150,7 @@ fn snapshot_for_focused_view(editor: &mut Editor, focused: ViewId) -> Option<(St
 	let cursorline = editor.cursorline_for(focused);
 
 	let document_lines = editor.get_buffer(focused).map_or_else(
-		|| vec![String::from("no focused buffer")],
+		|| vec![plain_line("no focused buffer")],
 		|buffer| {
 			let buffer_ctx = BufferRenderContext {
 				theme: &render_ctx.theme,
@@ -160,7 +161,7 @@ fn snapshot_for_focused_view(editor: &mut Editor, focused: ViewId) -> Option<(St
 			};
 
 			let result = buffer_ctx.render_buffer(buffer, area, true, true, tab_width, cursorline, &mut cache);
-			join_render_lines(result.gutter, result.text)
+			merge_render_lines(result.gutter, result.text)
 		},
 	);
 
@@ -168,21 +169,26 @@ fn snapshot_for_focused_view(editor: &mut Editor, focused: ViewId) -> Option<(St
 	Some((title, document_lines))
 }
 
-fn join_render_lines(gutter: Vec<RenderLine<'static>>, text: Vec<RenderLine<'static>>) -> Vec<String> {
+fn merge_render_lines(gutter: Vec<RenderLine<'static>>, text: Vec<RenderLine<'static>>) -> Vec<RenderLine<'static>> {
 	let row_count = gutter.len().max(text.len());
 	let mut rows = Vec::with_capacity(row_count);
 
 	for idx in 0..row_count {
-		let gutter_line = gutter.get(idx).map_or_else(String::new, render_line_to_text);
-		let text_line = text.get(idx).map_or_else(String::new, render_line_to_text);
-		rows.push(format!("{gutter_line}{text_line}"));
+		let mut spans = Vec::new();
+		if let Some(gutter_line) = gutter.get(idx) {
+			spans.extend(gutter_line.spans.iter().cloned());
+		}
+		if let Some(text_line) = text.get(idx) {
+			spans.extend(text_line.spans.iter().cloned());
+		}
+		rows.push(RenderLine { spans, style: None });
 	}
 
 	rows
 }
 
-fn render_line_to_text(line: &RenderLine<'_>) -> String {
-	line.spans.iter().map(|span| span.content.as_ref()).collect()
+fn plain_line(content: impl Into<String>) -> RenderLine<'static> {
+	RenderLine::from(vec![RenderSpan::styled(content.into(), Style::default())])
 }
 
 fn build_surface_summary_rows(
