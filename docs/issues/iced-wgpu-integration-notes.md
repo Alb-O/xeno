@@ -17,6 +17,7 @@ Investigate a minimal GUI frontend integration using `iced_wgpu` while preservin
 - Added event bridge from iced -> core runtime:
   - keyboard key presses (character + named keys + modifiers)
   - mouse cursor/button/scroll events mapped into core `MouseEvent` grid coordinates
+  - clipboard paste bridge for Command/Ctrl+V via `iced::clipboard::read_text()`
   - window opened/resized
   - window focus/unfocus
 - Added minimal rendering bridge:
@@ -35,7 +36,7 @@ Investigate a minimal GUI frontend integration using `iced_wgpu` while preservin
   - no style/span-level GUI renderer yet
   - overlay/completion/snippet/info-popup plans are wired, but currently rendered as textual diagnostics instead of native GUI surfaces
 - Input coverage is partial:
-  - no clipboard paste adapter
+  - paste adapter currently handles Command/Ctrl+V; no broader clipboard event coverage yet
   - no IME/text composition adapter
 - Dependency wiring is local checkout based:
   - crate uses local `../iced` path checkout for `iced` dependency.

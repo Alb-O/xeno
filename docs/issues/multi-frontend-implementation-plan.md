@@ -119,6 +119,7 @@ Completed:
 - experimental `xeno-editor-iced` frontend crate added behind `iced-wgpu` feature:
   - maps iced keyboard/window events into core `RuntimeEvent`
   - maps iced mouse cursor/button/scroll events into core `MouseEvent`
+  - maps Command/Ctrl+V into core `RuntimeEvent::Paste` via iced clipboard read task
   - maps window logical pixels to core grid resize units (`cols`/`rows`) with configurable cell metrics
   - runs core runtime loop (`pump`/`on_event`) through a local tokio runtime bridge
   - uses core `BufferRenderContext` for focused-document snapshot generation
