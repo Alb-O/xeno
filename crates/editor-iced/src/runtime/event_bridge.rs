@@ -155,7 +155,12 @@ fn logical_pixels_to_cells(logical_px: f32, cell_px: f32) -> u16 {
 }
 
 fn logical_pixels_to_cell_index(logical_px: f32, cell_px: f32) -> u16 {
-	logical_pixels_to_cells(logical_px, cell_px).saturating_sub(1)
+	if !logical_px.is_finite() || !cell_px.is_finite() || cell_px <= 0.0 {
+		return 0;
+	}
+
+	let cell_index = (logical_px / cell_px).floor();
+	cell_index.clamp(0.0, u16::MAX as f32) as u16
 }
 
 fn map_modifiers(modifiers: keyboard::Modifiers) -> Modifiers {
@@ -299,8 +304,9 @@ mod tests {
 	fn logical_pixels_to_cell_index_is_zero_based() {
 		assert_eq!(logical_pixels_to_cell_index(0.0, 8.0), 0);
 		assert_eq!(logical_pixels_to_cell_index(7.9, 8.0), 0);
-		assert_eq!(logical_pixels_to_cell_index(8.0, 8.0), 0);
-		assert_eq!(logical_pixels_to_cell_index(16.0, 8.0), 1);
+		assert_eq!(logical_pixels_to_cell_index(8.0, 8.0), 1);
+		assert_eq!(logical_pixels_to_cell_index(15.9, 8.0), 1);
+		assert_eq!(logical_pixels_to_cell_index(16.0, 8.0), 2);
 	}
 
 	#[test]
@@ -402,7 +408,7 @@ mod tests {
 		});
 		assert_eq!(
 			map_event(move_event, metrics, &mut state),
-			Some(RuntimeEvent::Mouse(CoreMouseEvent::Move { row: 1, col: 1 }))
+			Some(RuntimeEvent::Mouse(CoreMouseEvent::Move { row: 2, col: 2 }))
 		);
 
 		let press_event = Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left));
@@ -410,8 +416,8 @@ mod tests {
 			map_event(press_event, metrics, &mut state),
 			Some(RuntimeEvent::Mouse(CoreMouseEvent::Press {
 				button: CoreMouseButton::Left,
-				row: 1,
-				col: 1,
+				row: 2,
+				col: 2,
 				modifiers: Modifiers::NONE,
 			}))
 		);
@@ -423,8 +429,8 @@ mod tests {
 			map_event(drag_event, metrics, &mut state),
 			Some(RuntimeEvent::Mouse(CoreMouseEvent::Drag {
 				button: CoreMouseButton::Left,
-				row: 2,
-				col: 2,
+				row: 3,
+				col: 3,
 				modifiers: Modifiers::NONE,
 			}))
 		);
