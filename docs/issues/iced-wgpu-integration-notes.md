@@ -52,6 +52,35 @@ Investigate a minimal GUI frontend integration using `iced_wgpu` while preservin
   - runtime now auto-selects Wayland first when available to avoid hard X11 runtime dependency on Wayland-only systems.
   - `XENO_ICED_BACKEND={wayland|x11}` can be used to force backend choice.
 
+## Resize crash investigation (WSLg)
+
+Environment and scope:
+- this crash is currently observed specifically under WSLg.
+- startup stability was best with `XENO_ICED_BACKEND=x11` and `WGPU_BACKEND=vulkan`.
+- failure appears during interactive window resize, not at deterministic startup in the stable variant above.
+
+Observed runtime output near failure:
+- repeated `libEGL` / `MESA-LOADER` warnings (driver/device lookup failures)
+- `MESA: error: ZINK: failed to choose pdev`
+- `libEGL warning: egl: failed to create dri2 screen`
+- `Io error: Broken pipe (os error 32)`
+
+Reproduction profile from manual testing:
+- empty or small documents were generally stable.
+- long single-line document was stable (isolated soft-wrap path).
+- many short lines were stable.
+- crashes were more reproducible with larger multi-line documents.
+- issue reproduces even without syntax highlighting and on plain-text files (for example `THIRD_PARTY_NOTICES`), so syntax policy is unlikely to be the primary trigger.
+
+Mitigations attempted and reverted/reset after no improvement:
+- resize-path guardrails in frontend adapter (duplicate resize suppression and backend retry logic).
+- snapshot fallback reduction during transient invalid viewport states.
+- per-frame document row render cap in iced document adapter.
+- additional broken-pipe detection/failover logging around run loop.
+
+Current conclusion:
+- evidence points to a WSLg graphics stack/runtime interaction (`EGL`/Mesa/Zink + backend pipe teardown) rather than a single deterministic core editor policy bug.
+
 ## Best next iteration
 
 1. Calibrate GUI grid mapping:
