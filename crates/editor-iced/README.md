@@ -28,3 +28,8 @@ The iced frontend maps logical pixels to cells using:
 
 - `XENO_ICED_CELL_WIDTH_PX` (default `8`)
 - `XENO_ICED_CELL_HEIGHT_PX` (default `16`)
+
+## Layout tuning
+
+- `XENO_ICED_INSPECTOR_WIDTH_PX` sets sidebar width in logical pixels (default `320`, minimum `160`).
+- `XENO_ICED_SHOW_INSPECTOR` toggles the sidebar (`1`/`true`/unset = visible, `0`/`false`/`no`/`off` = hidden).

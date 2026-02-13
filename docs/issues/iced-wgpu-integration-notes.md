@@ -25,10 +25,12 @@ Investigate a minimal GUI frontend integration using `iced_wgpu` while preservin
   - adapter-level unit tests now cover IME commit/preedit event mapping
 - Added minimal rendering bridge:
   - renders focused buffer snapshot via core `BufferRenderContext` (shared render-policy path)
+  - preserves core `RenderLine` rows and adapts them to iced `rich_text` rows (span-level color mapping for named/RGB/indexed colors)
   - renders statusline using `statusline_render_plan`
   - consumes core completion/snippet/overlay/info-popup plans and shows a structured scene summary
-  - renders completion/snippet plan rows as dedicated preview sections
+  - renders completion/snippet plan rows as dedicated preview sections with semantic row roles (meta/normal/selected)
   - uses split layout (document + inspector column) to avoid debug sections pushing document content downward
+  - supports runtime layout tuning (`XENO_ICED_INSPECTOR_WIDTH_PX`, `XENO_ICED_SHOW_INSPECTOR`)
   - intentionally does not reuse TUI widget/render backend
 
 ## Current limitations
