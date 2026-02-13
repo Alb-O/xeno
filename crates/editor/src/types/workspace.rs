@@ -2,7 +2,8 @@
 
 use std::collections::HashMap;
 
-use xeno_primitives::{Key, range::CharIdx};
+use xeno_primitives::Key;
+use xeno_primitives::range::CharIdx;
 
 use crate::buffer::ViewId;
 use crate::command_queue::CommandQueue;

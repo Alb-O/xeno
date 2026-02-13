@@ -4,7 +4,6 @@ use std::cmp::Ordering;
 
 #[cfg(test)]
 use criterion as _;
-
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 

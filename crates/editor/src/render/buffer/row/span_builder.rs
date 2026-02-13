@@ -1,5 +1,6 @@
-use crate::render::RenderSpan;
 use xeno_primitives::Style;
+
+use crate::render::RenderSpan;
 
 #[derive(Debug, Default)]
 pub struct SpanRunBuilder {

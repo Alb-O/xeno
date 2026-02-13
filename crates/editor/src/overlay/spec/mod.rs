@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use crate::geometry::Rect;
 use xeno_registry::options::OptionValue;
 
+use crate::geometry::Rect;
 use crate::window::{GutterSelector, SurfaceStyle};
 
 /// Declarative specification for an overlay's UI layout.

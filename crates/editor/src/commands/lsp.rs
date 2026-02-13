@@ -4,9 +4,8 @@ use xeno_primitives::BoxFutureLocal;
 use xeno_registry::Capability;
 
 use super::{CommandError, CommandOutcome, EditorCommandContext};
-use crate::Editor;
-use crate::editor_command;
 use crate::info_popup::PopupAnchor;
+use crate::{Editor, editor_command};
 
 editor_command!(
 	hover,

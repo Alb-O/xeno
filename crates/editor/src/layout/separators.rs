@@ -8,11 +8,10 @@
 //! don't access wrong layers after overlay reuse. See [`SeparatorId`] and
 //! [`LayerId`] for details.
 
-use crate::geometry::Rect;
-
 use super::manager::LayoutManager;
 use super::types::{LayerError, LayerId, SeparatorHit, SeparatorId};
 use crate::buffer::{Layout, SplitDirection};
+use crate::geometry::Rect;
 
 impl LayoutManager {
 	/// Returns separator positions for rendering the base layer.

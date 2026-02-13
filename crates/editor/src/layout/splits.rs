@@ -2,11 +2,10 @@
 //!
 //! Creating horizontal/vertical splits and removing views from the layout.
 
-use crate::geometry::Rect;
-
 use super::manager::LayoutManager;
 use super::types::LayerId;
 use crate::buffer::{Layout, ViewId};
+use crate::geometry::Rect;
 
 /// Errors that can occur during split operations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

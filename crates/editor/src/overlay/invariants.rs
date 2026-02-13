@@ -2,9 +2,9 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 
-use crate::geometry::Rect;
 use xeno_primitives::{Key, KeyCode, Modifiers, Selection};
 
+use crate::geometry::Rect;
 use crate::overlay::spec::RectPolicy;
 use crate::overlay::{CloseReason, OverlayContext, OverlayController, OverlaySession, OverlayStatus, OverlayUiSpec, WindowRole, WindowSpec};
 use crate::window::GutterSelector;

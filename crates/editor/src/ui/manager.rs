@@ -4,13 +4,12 @@ use std::collections::HashMap;
 
 use xeno_primitives::{Key, MouseEvent};
 
-use crate::geometry::Rect;
-
 use super::dock::{DockLayout, DockManager, DockSlot, SizeSpec};
 use super::focus::{FocusManager, UiFocus};
 use super::ids::UTILITY_PANEL_ID;
 use super::keymap::{BindingScope, KeybindingRegistry};
 use super::panel::{Panel, PanelInitContext, UiEvent, UiRequest};
+use crate::geometry::Rect;
 
 /// Central coordinator for the editor UI subsystem.
 ///

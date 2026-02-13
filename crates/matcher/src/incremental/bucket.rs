@@ -1,10 +1,11 @@
 use core::simd::Simd;
 use core::simd::cmp::SimdOrd;
 
+use crate::one_shot::{exceeds_typo_budget, typo_sw_too_large};
 use crate::simd_lanes::{LaneCount, SupportedLaneCount};
 use crate::smith_waterman::greedy::match_greedy;
 use crate::smith_waterman::simd::{HaystackChar, NeedleChar, delimiter_masks, smith_waterman_inner, smith_waterman_scores_typos};
-use crate::{Match, Scoring, one_shot::exceeds_typo_budget, one_shot::typo_sw_too_large};
+use crate::{Match, Scoring};
 
 pub(crate) trait IncrementalBucketTrait {
 	fn process(&mut self, prefix_to_keep: usize, needle: &str, matches: &mut Vec<Match>, max_typos: Option<u16>, scoring: &Scoring);

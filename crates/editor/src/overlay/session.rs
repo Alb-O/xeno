@@ -68,12 +68,12 @@
 //!
 use std::collections::HashMap;
 
-use crate::geometry::Rect;
 use xeno_primitives::range::{CharIdx, Range};
 use xeno_primitives::{Mode, Selection};
 
 use super::WindowRole;
 use crate::buffer::ViewId;
+use crate::geometry::Rect;
 use crate::impls::FocusTarget;
 use crate::overlay::OverlayContext;
 use crate::window::{GutterSelector, SurfaceStyle};

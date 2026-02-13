@@ -2,11 +2,10 @@
 //!
 //! Managing separator drag operations and hover animations.
 
-use crate::geometry::Rect;
-
 use super::manager::LayoutManager;
 use super::types::SeparatorHit;
 use crate::buffer::SplitDirection;
+use crate::geometry::Rect;
 use crate::separator::{DragState, SeparatorHoverAnimation};
 use crate::test_events::{AnimationDirection, SeparatorAnimationEvent};
 

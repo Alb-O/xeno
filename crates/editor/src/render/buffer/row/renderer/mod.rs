@@ -1,7 +1,6 @@
 use std::path::Path;
 
-use xeno_primitives::Rope;
-use xeno_primitives::Style;
+use xeno_primitives::{Rope, Style};
 use xeno_registry::gutter::GutterAnnotations;
 
 use super::super::cell_style::{CellStyleInput, CursorStyleSet, resolve_cell_style};

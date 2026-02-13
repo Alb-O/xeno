@@ -38,10 +38,9 @@ pub use types::{LayerError, LayerId, SeparatorHit, SeparatorId};
 
 #[cfg(test)]
 mod tests {
-	use crate::geometry::Rect;
-
 	use super::*;
 	use crate::buffer::{Layout, ViewId};
+	use crate::geometry::Rect;
 
 	fn make_doc_area() -> Rect {
 		Rect {

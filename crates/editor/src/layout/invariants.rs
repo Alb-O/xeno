@@ -1,6 +1,5 @@
-use crate::geometry::Rect;
-
 use crate::buffer::{Layout, SplitPath, ViewId};
+use crate::geometry::Rect;
 use crate::layout::manager::LayoutManager;
 use crate::layout::types::{LayerError, LayerId};
 use crate::separator::DragState;

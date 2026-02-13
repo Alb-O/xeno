@@ -3,7 +3,6 @@
 use std::time::{Duration, Instant};
 
 use crate::geometry::Rect;
-
 use crate::layout::SeparatorId;
 
 /// State for an active separator drag operation.

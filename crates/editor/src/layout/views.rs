@@ -2,11 +2,10 @@
 //!
 //! Finding, counting, and navigating between views in the layout.
 
-use crate::geometry::Rect;
-
 use super::manager::LayoutManager;
 use super::types::LayerId;
 use crate::buffer::{Layout, SpatialDirection, ViewId};
+use crate::geometry::Rect;
 
 impl LayoutManager {
 	/// Returns the first view in the layout, searching from the topmost non-empty layer down.

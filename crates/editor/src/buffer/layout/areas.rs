@@ -1,9 +1,8 @@
 //! Area computation and separator handling for layout splits.
 
-use crate::geometry::Rect;
-
 use super::Layout;
 use super::types::{SplitDirection, SplitPath, ViewId};
+use crate::geometry::Rect;
 
 impl Layout {
 	/// Finds the view at the given screen coordinates.

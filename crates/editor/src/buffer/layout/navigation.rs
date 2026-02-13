@@ -1,10 +1,10 @@
 //! Layout navigation methods for traversing views and buffers.
 
-use crate::geometry::Rect;
 use xeno_primitives::SpatialDirection;
 
 use super::Layout;
 use super::types::ViewId;
+use crate::geometry::Rect;
 
 impl Layout {
 	/// Returns the next view in the layout order (for `Ctrl+w w` navigation).
