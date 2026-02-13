@@ -1,5 +1,5 @@
 use iced::widget::text::Wrapping;
-use iced::widget::{Column, column, text};
+use iced::widget::{Column, column, row, text};
 use iced::{Color, Font};
 use xeno_editor::completion::{CompletionRenderItem, CompletionRenderPlan};
 use xeno_editor::geometry::Rect;
@@ -14,6 +14,20 @@ enum InspectorTone {
 	Normal,
 	Meta,
 	Selected,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CompletionRowParts {
+	marker: &'static str,
+	label: String,
+	kind: Option<String>,
+	right: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SnippetRowParts {
+	marker: &'static str,
+	option: String,
 }
 
 pub(super) fn render_inspector_rows(surface: &SurfaceSnapshot) -> Column<'static, Message> {
@@ -155,7 +169,7 @@ fn append_completion_rows(mut rows: Column<'static, Message>, plan: Option<&Comp
 
 	for item in plan.items.iter().take(8) {
 		let tone = if item.selected { InspectorTone::Selected } else { InspectorTone::Normal };
-		rows = rows.push(styled_inspector_text(completion_row_label(plan, item), tone));
+		rows = rows.push(render_completion_row(plan, item, tone));
 	}
 
 	if plan.items.len() > 8 {
@@ -168,18 +182,27 @@ fn append_completion_rows(mut rows: Column<'static, Message>, plan: Option<&Comp
 	rows
 }
 
-fn completion_row_label(plan: &CompletionRenderPlan, item: &CompletionRenderItem) -> String {
-	let marker = if item.selected { ">" } else { " " };
-	let mut row = format!("{marker} {}", item.label);
-	if plan.show_kind {
-		row.push_str(&format!("  [{:?}]", item.kind));
+fn completion_row_parts(plan: &CompletionRenderPlan, item: &CompletionRenderItem) -> CompletionRowParts {
+	CompletionRowParts {
+		marker: if item.selected { ">" } else { " " },
+		label: item.label.clone(),
+		kind: if plan.show_kind { Some(format!("{:?}", item.kind)) } else { None },
+		right: if plan.show_right { item.right.clone() } else { None },
 	}
-	if plan.show_right
-		&& let Some(right) = &item.right
-	{
-		row.push_str(&format!("  ({right})"));
+}
+
+fn render_completion_row(plan: &CompletionRenderPlan, item: &CompletionRenderItem, tone: InspectorTone) -> iced::widget::Row<'static, Message> {
+	let parts = completion_row_parts(plan, item);
+	let mut row_widget = row![styled_inspector_text(parts.marker, tone), styled_inspector_text(parts.label, tone),].spacing(1);
+
+	if let Some(kind) = parts.kind {
+		row_widget = row_widget.push(styled_inspector_text(format!("[{kind}]"), tone));
 	}
-	row
+	if let Some(right) = parts.right {
+		row_widget = row_widget.push(styled_inspector_text(format!("({right})"), tone));
+	}
+
+	row_widget
 }
 
 fn append_snippet_rows(mut rows: Column<'static, Message>, plan: Option<&SnippetChoiceRenderPlan>) -> Column<'static, Message> {
@@ -195,7 +218,7 @@ fn append_snippet_rows(mut rows: Column<'static, Message>, plan: Option<&Snippet
 
 	for item in plan.items.iter().take(8) {
 		let tone = if item.selected { InspectorTone::Selected } else { InspectorTone::Normal };
-		rows = rows.push(styled_inspector_text(snippet_row_label(item), tone));
+		rows = rows.push(render_snippet_row(item, tone));
 	}
 
 	if plan.items.len() > 8 {
@@ -208,9 +231,16 @@ fn append_snippet_rows(mut rows: Column<'static, Message>, plan: Option<&Snippet
 	rows
 }
 
-fn snippet_row_label(item: &SnippetChoiceRenderItem) -> String {
-	let marker = if item.selected { ">" } else { " " };
-	format!("{marker} {}", item.option)
+fn snippet_row_parts(item: &SnippetChoiceRenderItem) -> SnippetRowParts {
+	SnippetRowParts {
+		marker: if item.selected { ">" } else { " " },
+		option: item.option.clone(),
+	}
+}
+
+fn render_snippet_row(item: &SnippetChoiceRenderItem, tone: InspectorTone) -> iced::widget::Row<'static, Message> {
+	let parts = snippet_row_parts(item);
+	row![styled_inspector_text(parts.marker, tone), styled_inspector_text(parts.option, tone),].spacing(1)
 }
 
 fn rect_brief(rect: Rect) -> String {
