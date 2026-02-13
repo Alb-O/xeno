@@ -114,6 +114,7 @@ Completed:
 - frontend overlay reach-through removed (`overlay_interaction()` removed, overlay store access no longer needed in frontend crates)
 - plan-builder tests added for completion/snippet/statusline policy surfaces
 - TUI render-line adaptation centralized via a single adapter helper (`RenderLine` -> toolkit `Line`)
+- `xeno-editor-tui` no longer imports `xeno_registry` directly (hook lifecycle and notification payload mapping now route through `xeno-editor`)
 
 Current focus:
 
