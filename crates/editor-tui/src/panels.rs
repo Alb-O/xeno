@@ -1,6 +1,5 @@
 use xeno_editor::Editor;
-use xeno_editor::ui::PanelRenderTarget;
-use xeno_editor::ui::ids::UTILITY_PANEL_ID;
+use xeno_editor::render_api::{PanelRenderTarget, UTILITY_PANEL_ID};
 use xeno_tui::layout::{Position, Rect};
 use xeno_tui::style::{Modifier, Style};
 use xeno_tui::widgets::keytree::{KeyTree, KeyTreeNode};

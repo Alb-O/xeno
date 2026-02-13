@@ -1,80 +1,53 @@
-### What changed (high-level)
+# Render seam contract
 
-We eliminated the main “policy-in-frontend” drift vectors:
+Frontends consume core-owned, opaque plan types exclusively via `xeno_editor::render_api`.
+Internal modules are `pub(crate)` — frontends cannot name internal paths.
 
-* **Document rendering**: frontends no longer assemble `BufferRenderContext` or touch core caches/diagnostics/syntax.
-* **Overlay completion menu geometry** (command palette/file picker): now computed in core, bounded by core’s utility overlay sizing policy.
-* **Statusline row policy**: now a core API (`Editor::statusline_rows()`), not frontend constants.
-* **Info popup geometry + sizing caps**: now computed in core (`info_popup_layout_plan(bounds)`), not in TUI.
+## Plan APIs (core → frontends)
 
-### Current seam contract (core → frontends)
+| API | Returns |
+|---|---|
+| `document_view_plans(bounds)` | `Vec<DocumentViewPlan>` |
+| `separator_scene_plan(bounds)` | `SeparatorScenePlan` |
+| `overlay_pane_view_plans()` | `Vec<OverlayPaneViewPlan>` |
+| `overlay_completion_menu_target()` | `Option<OverlayCompletionMenuTarget>` |
+| `info_popup_view_plans(bounds)` | `Vec<InfoPopupViewPlan>` |
+| `completion_popup_render_plan()` | `Option<CompletionRenderPlan>` |
+| `snippet_choice_render_plan()` | `Option<SnippetChoiceRenderPlan>` |
+| `statusline_render_plan()` | `Vec<StatuslineRenderSegment>` |
+| `statusline_rows()` | `u16` |
 
-Frontends should treat these as the only render/layout inputs:
+All returned types have private fields with getter-only access.
 
-* `Editor::focused_document_render_plan() -> DocumentRenderPlan`
-* `Editor::buffer_view_render_plan(view, area, use_block_cursor, is_focused) -> Option<BufferViewRenderPlan>`
-* `Editor::buffer_view_render_plan_with_gutter(..., gutter) -> Option<BufferViewRenderPlan>`
-* `Editor::overlay_completion_menu_target() -> Option<OverlayCompletionMenuTarget>`
-* `Editor::statusline_render_plan() -> Vec<StatuslineRenderSegment>`
-* `Editor::statusline_rows() -> u16`
-* `Editor::info_popup_layout_plan(bounds) -> Vec<InfoPopupLayoutTarget>`
-* Existing plans: overlay panes, snippet choice, completion popup, which-key, statusline styles, etc.
+## Enforcement
 
-**Key invariant:** frontend crates should not be able to recreate core render assembly. `render_api` no longer exports the internal context types.
+- **Compile-time**: internal modules are `pub(crate)`, plan struct fields are `pub(crate)`.
+- **Runtime test**: `seam_contract::tests::frontend_sources_use_only_render_api_seam` scans frontend source files for forbidden internal path patterns.
+- **Grep proof**: `rg "xeno_editor::(completion|snippet|overlay|ui|info_popup|window|geometry|render)::" crates/editor-(tui|iced)` must be empty.
 
-### Repo hygiene checks (run before/after any UI work)
+## How to add a new render feature
+
+1. Define plan struct in a core module (e.g. `crates/editor/src/render/`).
+2. Make fields `pub(crate)`, add getter methods.
+3. Add `Editor::new_plan_api()` method.
+4. Re-export the plan type via `crates/editor/src/render_api.rs`.
+5. Update frontends to consume the new plan via getters.
+6. Add the internal path to `seam_contract.rs` forbidden patterns.
+
+## Non-goals
+
+- Frontends must not assemble render contexts, touch caches, or make policy decisions.
+- No `pub` fields on plan types — getters only.
+
+## Hygiene commands
 
 ```bash
-# hard boundary grep: should stay empty in frontend crates
-rg -n "BufferRenderContext|RenderCtx|RenderBufferParams" crates/editor-tui/src crates/editor-iced/src -S
+# seam boundary grep (must be empty in frontend crates)
+rg -n "xeno_editor::(completion|snippet|overlay|ui|info_popup|window|geometry|render)::" crates/editor-tui/src crates/editor-iced/src
 
-cargo fmt
+# full check matrix
+cargo check --workspace --all-targets
 cargo test -p xeno-editor
-cargo check -p xeno-editor --no-default-features --all-targets
-cargo test -p xeno-editor-tui
-cargo test -p xeno-editor-iced --features iced-wgpu
-cargo check -p xeno-term
+cargo test -p xeno-editor seam_contract
+nix fmt
 ```
-
-### Next incremental tickets (recommended order)
-
-#### Ticket 6: Trim remaining `render_api` exports (if unused)
-
-`render_api.rs` still exports `GutterLayout` + `ensure_buffer_cursor_visible`. These are policy-adjacent and ideally should not be public.
-
-* Do:
-
-  * `rg -n "GutterLayout|ensure_buffer_cursor_visible" crates/editor-tui/src crates/editor-iced/src -S`
-  * If empty, remove from `render_api.rs`.
-* Acceptance: same matrix as above.
-
-#### Ticket 7: Iced renders real overlay panes + info popups (stop “inspector-only”)
-
-Now that core provides:
-
-* overlay pane plan (rect + content_rect + gutter)
-* `buffer_view_render_plan_with_gutter`
-* `info_popup_layout_plan(bounds)`
-  …iced can render:
-* overlay panes (input/list/preview) using pane `content_rect`
-* info popups using layout targets’ rect + `Hidden` gutter
-  This is the natural next correctness step for GUI parity.
-
-#### Ticket 8: Info popup `PopupAnchor::Window` semantics
-
-Today `PopupAnchor::Window(_)` maps to `Center`. If desired, implement real window-adjacent anchoring in core layout plan (still keep frontends dumb).
-
-#### Ticket 9: Replay/integration convergence tests (cross-frontend)
-
-Add runtime replay scripts asserting that identical event sequences produce equivalent:
-
-* overlay kind/panes
-* completion menu targets
-* statusline segments
-* info popup layout targets
-
-### Notes / known non-issues
-
-* Upstream `iced_winit` unused-import warning persists; optional cleanup-only ticket if you want zero warnings.
-
-If you want a final “cleanup-only” ticket next: do Ticket 6 (render_api trimming) + warning cleanup in one pass, and keep the acceptance matrix unchanged.

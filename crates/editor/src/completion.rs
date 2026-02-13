@@ -201,22 +201,61 @@ impl CompletionState {
 /// Data-only completion menu row used by frontend renderers.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompletionRenderItem {
-	pub label: String,
-	pub kind: CompletionKind,
-	pub right: Option<String>,
-	pub match_indices: Option<Vec<usize>>,
-	pub selected: bool,
-	pub command_alias_match: bool,
+	pub(crate) label: String,
+	pub(crate) kind: CompletionKind,
+	pub(crate) right: Option<String>,
+	pub(crate) match_indices: Option<Vec<usize>>,
+	pub(crate) selected: bool,
+	pub(crate) command_alias_match: bool,
+}
+
+impl CompletionRenderItem {
+	pub fn label(&self) -> &str {
+		&self.label
+	}
+	pub fn kind(&self) -> CompletionKind {
+		self.kind
+	}
+	pub fn right(&self) -> Option<&str> {
+		self.right.as_deref()
+	}
+	pub fn match_indices(&self) -> Option<&[usize]> {
+		self.match_indices.as_deref()
+	}
+	pub fn selected(&self) -> bool {
+		self.selected
+	}
+	pub fn command_alias_match(&self) -> bool {
+		self.command_alias_match
+	}
 }
 
 /// Data-only completion menu render plan.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompletionRenderPlan {
-	pub items: Vec<CompletionRenderItem>,
-	pub max_label_width: usize,
-	pub target_row_width: usize,
-	pub show_kind: bool,
-	pub show_right: bool,
+	pub(crate) items: Vec<CompletionRenderItem>,
+	pub(crate) max_label_width: usize,
+	pub(crate) target_row_width: usize,
+	pub(crate) show_kind: bool,
+	pub(crate) show_right: bool,
+}
+
+impl CompletionRenderPlan {
+	pub fn items(&self) -> &[CompletionRenderItem] {
+		&self.items
+	}
+	pub fn max_label_width(&self) -> usize {
+		self.max_label_width
+	}
+	pub fn target_row_width(&self) -> usize {
+		self.target_row_width
+	}
+	pub fn show_kind(&self) -> bool {
+		self.show_kind
+	}
+	pub fn show_right(&self) -> bool {
+		self.show_right
+	}
 }
 
 /// Shared xeno-matcher baseline for editor completion paths.

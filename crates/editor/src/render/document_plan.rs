@@ -4,13 +4,18 @@ use super::{RenderLine, RenderSpan};
 use crate::{Editor, ViewId};
 
 #[derive(Debug, Clone)]
-pub struct DocumentRenderPlan {
-	pub title: String,
-	pub lines: Vec<RenderLine<'static>>,
+pub(crate) struct DocumentRenderPlan {
+	pub(crate) title: String,
+	pub(crate) lines: Vec<RenderLine<'static>>,
 }
 
 impl Editor {
-	pub fn focused_document_render_plan(&mut self) -> DocumentRenderPlan {
+	/// Returns the title string for the focused document (path or "[scratch]").
+	pub fn focused_document_title(&self) -> String {
+		focused_document_title(self, self.focused_view())
+	}
+
+	pub(crate) fn focused_document_render_plan(&mut self) -> DocumentRenderPlan {
 		let focused = self.focused_view();
 		let title = focused_document_title(self, focused);
 		let area = self.view_area(focused);
@@ -22,8 +27,9 @@ impl Editor {
 			};
 		}
 
+		let use_block_cursor = matches!(self.derive_cursor_style(), crate::runtime::CursorStyle::Block);
 		let lines = self
-			.buffer_view_render_plan(focused, area, true, true)
+			.buffer_view_render_plan(focused, area, use_block_cursor, true)
 			.map_or_else(|| vec![plain_line("no focused buffer")], |plan| merge_render_lines(plan.gutter, plan.text));
 
 		DocumentRenderPlan { title, lines }

@@ -9,8 +9,17 @@ pub const STATUSLINE_ROWS: u16 = 1;
 /// Data-only render segment for statusline presentation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StatuslineRenderSegment {
-	pub text: String,
-	pub style: StatuslineRenderStyle,
+	pub(crate) text: String,
+	pub(crate) style: StatuslineRenderStyle,
+}
+
+impl StatuslineRenderSegment {
+	pub fn text(&self) -> &str {
+		&self.text
+	}
+	pub fn style(&self) -> StatuslineRenderStyle {
+		self.style
+	}
 }
 
 /// Backend-neutral style intent for a statusline segment.

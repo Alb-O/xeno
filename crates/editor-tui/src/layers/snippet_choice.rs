@@ -24,16 +24,16 @@ pub fn render(ed: &Editor, frame: &mut xeno_tui::Frame) {
 	let Some(plan) = ed.snippet_choice_render_plan() else {
 		return;
 	};
-	let target_width = plan.target_row_width;
-	let max_option_width = plan.max_option_width;
+	let target_width = plan.target_row_width();
+	let max_option_width = plan.max_option_width();
 	let theme = &ed.config().theme;
 
 	let items: Vec<ListItem> = plan
-		.items
-		.into_iter()
+		.items()
+		.iter()
 		.map(|item| {
-			let is_selected = item.selected;
-			let option = item.option;
+			let is_selected = item.selected();
+			let option = item.option();
 			let row_style = if is_selected {
 				Style::default()
 					.bg(theme.colors.ui.selection_bg)
@@ -44,8 +44,8 @@ pub fn render(ed: &Editor, frame: &mut xeno_tui::Frame) {
 			};
 
 			let mut line = vec![Span::styled(" ", row_style)];
-			let width = cell_width(&option);
-			line.push(Span::styled(option, row_style));
+			let width = cell_width(option);
+			line.push(Span::styled(option.to_string(), row_style));
 			if width < max_option_width {
 				line.push(Span::styled(" ".repeat(max_option_width - width), row_style));
 			}

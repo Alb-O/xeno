@@ -16,7 +16,13 @@ use crate::window::WindowId;
 
 /// Unique identifier for an info popup.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct InfoPopupId(pub u64);
+pub struct InfoPopupId(pub(crate) u64);
+
+impl InfoPopupId {
+	pub fn as_u64(self) -> u64 {
+		self.0
+	}
+}
 
 /// An active info popup instance.
 #[derive(Debug)]
@@ -36,16 +42,33 @@ pub struct InfoPopup {
 /// Data-only popup render target consumed by frontend scene layers.
 #[derive(Debug, Clone, Copy)]
 pub struct InfoPopupRenderTarget {
-	/// Stable popup identifier.
-	pub id: InfoPopupId,
-	/// Read-only popup buffer to render.
-	pub buffer_id: ViewId,
-	/// Render-only anchor placement strategy for this popup.
-	pub anchor: InfoPopupRenderAnchor,
-	/// Preferred content width before chrome.
-	pub content_width: u16,
-	/// Preferred content height before chrome.
-	pub content_height: u16,
+	pub(crate) id: InfoPopupId,
+	pub(crate) buffer_id: ViewId,
+	pub(crate) anchor: InfoPopupRenderAnchor,
+	pub(crate) content_width: u16,
+	pub(crate) content_height: u16,
+}
+
+impl InfoPopupRenderTarget {
+	pub fn id(&self) -> InfoPopupId {
+		self.id
+	}
+
+	pub fn buffer_id(&self) -> ViewId {
+		self.buffer_id
+	}
+
+	pub fn anchor(&self) -> InfoPopupRenderAnchor {
+		self.anchor
+	}
+
+	pub fn content_width(&self) -> u16 {
+		self.content_width
+	}
+
+	pub fn content_height(&self) -> u16 {
+		self.content_height
+	}
 }
 
 /// Data-only popup layout target with resolved bounds.
@@ -55,8 +78,10 @@ pub struct InfoPopupLayoutTarget {
 	pub id: InfoPopupId,
 	/// Read-only popup buffer to render.
 	pub buffer_id: ViewId,
-	/// Resolved popup rectangle in grid coordinates.
+	/// Resolved popup rectangle in grid coordinates (outer bounds including padding).
 	pub rect: Rect,
+	/// Content area after applying padding (where buffer content is rendered).
+	pub inner_rect: Rect,
 	/// Anchor placement strategy used to derive `rect`.
 	pub anchor: InfoPopupRenderAnchor,
 }
@@ -80,13 +105,16 @@ pub enum InfoPopupRenderAnchor {
 	Center,
 	/// Position relative to a specific screen coordinate (top-left of popup).
 	Point { x: u16, y: u16 },
+	/// Centered within a specific window's area.
+	Window(WindowId),
 }
 
 impl From<PopupAnchor> for InfoPopupRenderAnchor {
 	fn from(anchor: PopupAnchor) -> Self {
 		match anchor {
-			PopupAnchor::Center | PopupAnchor::Window(_) => Self::Center,
+			PopupAnchor::Center => Self::Center,
 			PopupAnchor::Point { x, y } => Self::Point { x, y },
+			PopupAnchor::Window(wid) => Self::Window(wid),
 		}
 	}
 }
@@ -112,8 +140,35 @@ fn measure_content(content: &str) -> (u16, u16) {
 
 const MAX_CONTENT_W: u16 = 60;
 const MAX_CONTENT_H: u16 = 12;
+const POPUP_H_PADDING: u16 = 1;
 
-fn compute_popup_rect(anchor: InfoPopupRenderAnchor, content_width: u16, content_height: u16, bounds: Rect) -> Option<Rect> {
+/// Computes the content rect inside a popup's outer rect by applying horizontal padding.
+pub fn popup_inner_rect(rect: Rect) -> Rect {
+	Rect::new(
+		rect.x.saturating_add(POPUP_H_PADDING),
+		rect.y,
+		rect.width.saturating_sub(POPUP_H_PADDING * 2),
+		rect.height,
+	)
+}
+
+/// Returns the intersection of two rects, or a zero-size rect if they don't overlap.
+fn intersect_rect(a: Rect, b: Rect) -> Rect {
+	let x1 = a.x.max(b.x);
+	let y1 = a.y.max(b.y);
+	let x2 = (a.x as u32 + a.width as u32).min(b.x as u32 + b.width as u32);
+	let y2 = (a.y as u32 + a.height as u32).min(b.y as u32 + b.height as u32);
+	if x2 <= x1 as u32 || y2 <= y1 as u32 {
+		return Rect::new(a.x, a.y, 0, 0);
+	}
+	Rect::new(x1, y1, (x2 - x1 as u32) as u16, (y2 - y1 as u32) as u16)
+}
+
+/// Computes the popup rectangle within `frame`, clamped to `bounds`.
+///
+/// `frame` is the region used for centering (e.g. a specific window area).
+/// `bounds` is the hard outer boundary the popup must not escape.
+fn compute_popup_rect(anchor: InfoPopupRenderAnchor, content_width: u16, content_height: u16, frame: Rect, bounds: Rect) -> Option<Rect> {
 	let max_w = bounds.width.saturating_sub(2).min(MAX_CONTENT_W);
 	let max_h = bounds.height.saturating_sub(2).min(MAX_CONTENT_H);
 	if max_w == 0 || max_h == 0 {
@@ -133,15 +188,16 @@ fn compute_popup_rect(anchor: InfoPopupRenderAnchor, content_width: u16, content
 	}
 
 	let (x, y) = match anchor {
-		InfoPopupRenderAnchor::Center => (
-			bounds.x + bounds.width.saturating_sub(outer_w) / 2,
-			bounds.y + bounds.height.saturating_sub(outer_h) / 2,
+		InfoPopupRenderAnchor::Center | InfoPopupRenderAnchor::Window(_) => (
+			frame.x + frame.width.saturating_sub(outer_w) / 2,
+			frame.y + frame.height.saturating_sub(outer_h) / 2,
 		),
-		InfoPopupRenderAnchor::Point { x, y } => (
-			x.max(bounds.x).min(bounds.x + bounds.width.saturating_sub(outer_w)),
-			y.max(bounds.y).min(bounds.y + bounds.height.saturating_sub(outer_h)),
-		),
+		InfoPopupRenderAnchor::Point { x, y } => (x, y),
 	};
+
+	// Clamp to bounds.
+	let x = x.max(bounds.x).min(bounds.x + bounds.width.saturating_sub(outer_w));
+	let y = y.max(bounds.y).min(bounds.y + bounds.height.saturating_sub(outer_h));
 
 	Some(Rect::new(x, y, outer_w, outer_h))
 }
@@ -299,19 +355,45 @@ impl Editor {
 	}
 
 	/// Returns info popup layout targets with resolved and clamped rectangles.
+	///
+	/// `bounds` is the document area used as both the default centering frame
+	/// and the hard outer boundary. For `Window` anchors, the frame is the
+	/// target window's view area (intersected with bounds).
 	pub fn info_popup_layout_plan(&self, bounds: Rect) -> Vec<InfoPopupLayoutTarget> {
 		self.info_popup_render_plan()
 			.into_iter()
 			.filter_map(|popup| {
-				let rect = compute_popup_rect(popup.anchor, popup.content_width, popup.content_height, bounds)?;
+				let frame = self.resolve_popup_frame(popup.anchor, bounds);
+				let rect = compute_popup_rect(popup.anchor, popup.content_width, popup.content_height, frame, bounds)?;
+				let inner_rect = popup_inner_rect(rect);
 				Some(InfoPopupLayoutTarget {
 					id: popup.id,
 					buffer_id: popup.buffer_id,
 					rect,
+					inner_rect,
 					anchor: popup.anchor,
 				})
 			})
 			.collect()
+	}
+
+	/// Resolves the centering frame for a popup anchor.
+	fn resolve_popup_frame(&self, anchor: InfoPopupRenderAnchor, bounds: Rect) -> Rect {
+		match anchor {
+			InfoPopupRenderAnchor::Window(wid) => {
+				// Use the focused view area of the target window, intersected with bounds.
+				self.state
+					.windows
+					.get(wid)
+					.map(|window| {
+						let view_id = window.buffer();
+						let area = self.view_area(view_id);
+						intersect_rect(area, bounds)
+					})
+					.unwrap_or(bounds)
+			}
+			_ => bounds,
+		}
 	}
 }
 

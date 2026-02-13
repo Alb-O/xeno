@@ -3,13 +3,13 @@ mod render;
 
 use iced::widget::scrollable::{Direction as ScrollDirection, Scrollbar};
 use iced::widget::{column, container, mouse_area, pin, row, rule, scrollable, sensor, stack, text};
-use iced::{Element, Event, Fill, Font, Point, Size, Subscription, Task, event, keyboard, mouse, time, window};
+use iced::{Element, Event, Fill, Font, Pixels, Point, Size, Subscription, Task, event, keyboard, mouse, time, window};
 use xeno_editor::Editor;
-use xeno_editor::completion::CompletionRenderPlan;
+use xeno_editor::render_api::{CompletionRenderPlan, Rect as CoreRect};
 use xeno_editor::runtime::{CursorStyle, LoopDirective, RuntimeEvent};
 
 use self::inspector::render_inspector_rows;
-use self::render::{background_style, render_document_line, render_palette_completion_menu, render_statusline};
+use self::render::{background_style, render_palette_completion_menu, render_render_lines, render_statusline};
 use super::{DEFAULT_POLL_INTERVAL, EventBridgeState, HeaderSnapshot, Snapshot, StartupOptions, build_snapshot, configure_linux_backend, map_event};
 
 const DEFAULT_INSPECTOR_WIDTH_PX: f32 = 320.0;
@@ -223,23 +223,119 @@ impl IcedEditorApp {
 		let line_height_px = self.cell_metrics.height_px();
 		let header_block = text(format_header_line(&self.snapshot.header)).font(Font::MONOSPACE);
 
-		let mut document_rows = column![].spacing(0);
-		for line in &self.snapshot.document_lines {
-			document_rows = document_rows.push(render_document_line(line, line_height_px));
+		// Base background.
+		let document_bg = container(text("")).height(Fill).width(Fill).style(move |_theme| background_style(ui_bg));
+		let mut scene_layers: Vec<Element<'_, Message>> = vec![document_bg.into()];
+
+		// Document views (all split panes).
+		for view_plan in &self.snapshot.document_views {
+			if view_plan.gutter_rect().width > 0 {
+				let (gx, gy, gw, gh) = self.rect_px(view_plan.gutter_rect());
+				let gutter_widget = container(render_render_lines(view_plan.gutter(), line_height_px))
+					.width(gw)
+					.height(gh)
+					.clip(true);
+				scene_layers.push(pin(gutter_widget).x(gx).y(gy).width(Fill).height(Fill).into());
+			}
+
+			let (tx, ty, tw, th) = self.rect_px(view_plan.text_rect());
+			let text_widget = container(render_render_lines(view_plan.text(), line_height_px)).width(tw).height(th).clip(true);
+			scene_layers.push(pin(text_widget).x(tx).y(ty).width(Fill).height(Fill).into());
 		}
-		let document = container(document_rows)
-			.height(Fill)
-			.width(Fill)
+
+		// Separators (styled by state + priority).
+		let sep_colors = self.separator_theme_colors();
+		for sep in &self.snapshot.separators {
+			let sep_rect = sep.rect();
+			let (sx, sy, sw, sh) = self.rect_px(sep_rect);
+			let (fg, bg) = separator_fg_bg(sep.state(), sep.priority(), &sep_colors);
+			let sep_text = match sep.direction() {
+				xeno_editor::render_api::SplitDirection::Horizontal => "\u{2502}\n".repeat(sep_rect.height as usize),
+				xeno_editor::render_api::SplitDirection::Vertical => "\u{2500}".repeat(sep_rect.width as usize),
+			};
+			let sep_widget = container(
+				text(sep_text)
+					.font(Font::MONOSPACE)
+					.size(Pixels(line_height_px))
+					.wrapping(iced::widget::text::Wrapping::None)
+					.color(fg),
+			)
+			.width(sw)
+			.height(sh)
 			.clip(true)
-			.style(move |_theme| background_style(ui_bg));
-		let mut document_scene: Element<'_, Message> = document.into();
+			.style(move |_theme| iced::widget::container::Style {
+				background: Some(iced::Background::Color(bg)),
+				..Default::default()
+			});
+			scene_layers.push(pin(sep_widget).x(sx).y(sy).width(Fill).height(Fill).into());
+		}
+
+		// Junction glyphs (styled, from core).
+		let cw = self.cell_metrics.width_px();
+		let ch = self.cell_metrics.height_px();
+		for junc in &self.snapshot.junctions {
+			let (fg, bg) = separator_fg_bg(junc.state(), junc.priority(), &sep_colors);
+			let jx = f32::from(junc.x()) * cw;
+			let jy = f32::from(junc.y()) * ch;
+			let junc_widget = container(text(junc.glyph().to_string()).font(Font::MONOSPACE).size(Pixels(line_height_px)).color(fg))
+				.width(cw)
+				.height(ch)
+				.clip(true)
+				.style(move |_theme| iced::widget::container::Style {
+					background: Some(iced::Background::Color(bg)),
+					..Default::default()
+				});
+			scene_layers.push(pin(junc_widget).x(jx).y(jy).width(Fill).height(Fill).into());
+		}
+
+		// Overlay panes (input/list/preview): background at outer rect, content at content_rect.
+		for pane_view in &self.snapshot.surface.overlay_pane_views {
+			let (bg_x, bg_y, bg_w, bg_h) = self.rect_px(pane_view.rect);
+			let bg_widget = container(text("")).width(bg_w).height(bg_h).style(move |_theme| background_style(popup_bg));
+			scene_layers.push(pin(bg_widget).x(bg_x).y(bg_y).width(Fill).height(Fill).into());
+
+			if pane_view.gutter_rect.width > 0 {
+				let (gx, gy, gw, gh) = self.rect_px(pane_view.gutter_rect);
+				let gutter_widget = container(render_render_lines(&pane_view.gutter, line_height_px))
+					.width(gw)
+					.height(gh)
+					.clip(true);
+				scene_layers.push(pin(gutter_widget).x(gx).y(gy).width(Fill).height(Fill).into());
+			}
+
+			let (tx, ty, tw, th) = self.rect_px(pane_view.text_rect);
+			let text_widget = container(render_render_lines(&pane_view.text, line_height_px)).width(tw).height(th).clip(true);
+			scene_layers.push(pin(text_widget).x(tx).y(ty).width(Fill).height(Fill).into());
+		}
+
+		// Overlay completion menu.
 		if let Some(menu) = self.palette_completion_overlay() {
 			let menu_widget = container(render_palette_completion_menu(&self.editor, &menu.plan, line_height_px))
 				.width(menu.width_px)
 				.clip(true);
-			let menu_layer = pin(menu_widget).x(menu.x_px).y(menu.y_px).width(Fill).height(Fill);
-			document_scene = stack![document_scene, menu_layer].width(Fill).height(Fill).clip(true).into();
+			scene_layers.push(pin(menu_widget).x(menu.x_px).y(menu.y_px).width(Fill).height(Fill).into());
 		}
+
+		// Info popups: background at outer rect, content at inner_rect.
+		for popup_view in &self.snapshot.surface.info_popup_views {
+			let (bg_x, bg_y, bg_w, bg_h) = self.rect_px(popup_view.rect);
+			let bg_widget = container(text("")).width(bg_w).height(bg_h).style(move |_theme| background_style(popup_bg));
+			scene_layers.push(pin(bg_widget).x(bg_x).y(bg_y).width(Fill).height(Fill).into());
+
+			let (tx, ty, tw, th) = self.rect_px(popup_view.inner_rect);
+			let text_widget = container(render_render_lines(&popup_view.text, line_height_px)).width(tw).height(th).clip(true);
+			scene_layers.push(pin(text_widget).x(tx).y(ty).width(Fill).height(Fill).into());
+		}
+
+		let document_scene: Element<'_, Message> = if scene_layers.len() == 1 {
+			scene_layers.pop().unwrap()
+		} else {
+			let mut scene = stack![].width(Fill).height(Fill).clip(true);
+			for layer in scene_layers {
+				scene = scene.push(layer);
+			}
+			scene.into()
+		};
 		let document = mouse_area(
 			sensor(document_scene)
 				.on_show(Message::DocumentViewportChanged)
@@ -304,7 +400,11 @@ impl IcedEditorApp {
 	}
 
 	fn rebuild_snapshot(&mut self) {
-		self.snapshot = build_snapshot(&mut self.editor, self.event_state.ime_preedit());
+		let doc_bounds = self.document_viewport_cells.map(|(cols, rows)| {
+			let doc_rows = rows.saturating_sub(self.editor.statusline_rows());
+			CoreRect::new(0, 0, cols, doc_rows)
+		});
+		self.snapshot = build_snapshot(&mut self.editor, self.event_state.ime_preedit(), doc_bounds);
 		self.editor.frame_mut().needs_redraw = false;
 	}
 
@@ -326,19 +426,83 @@ impl IcedEditorApp {
 		}
 	}
 
+	fn rect_px(&self, rect: CoreRect) -> (f32, f32, f32, f32) {
+		let cw = self.cell_metrics.width_px();
+		let ch = self.cell_metrics.height_px();
+		(
+			f32::from(rect.x) * cw,
+			f32::from(rect.y) * ch,
+			f32::from(rect.width) * cw,
+			f32::from(rect.height) * ch,
+		)
+	}
+
+	fn separator_theme_colors(&self) -> SeparatorThemeColors {
+		let colors = &self.editor.config().theme.colors;
+		SeparatorThemeColors {
+			base_fg: [map_ui_color_or_default(colors.ui.gutter_fg), map_ui_color_or_default(colors.popup.fg)],
+			base_bg: [map_ui_color_or_default(colors.ui.bg), map_ui_color_or_default(colors.popup.bg)],
+			hover_fg: map_ui_color_or_default(colors.ui.cursor_fg),
+			hover_bg: map_ui_color_or_default(colors.ui.selection_bg),
+			drag_fg: map_ui_color_or_default(colors.ui.bg),
+			drag_bg: map_ui_color_or_default(colors.ui.fg),
+		}
+	}
+
 	fn palette_completion_overlay(&self) -> Option<PaletteCompletionOverlay> {
 		let target = self.editor.overlay_completion_menu_target()?;
-		let x_px = f32::from(target.rect.x) * self.cell_metrics.width_px();
-		let y_px = f32::from(target.rect.y) * self.cell_metrics.height_px();
-		let width_px = f32::from(target.rect.width) * self.cell_metrics.width_px();
+		let rect = target.rect();
+		let x_px = f32::from(rect.x) * self.cell_metrics.width_px();
+		let y_px = f32::from(rect.y) * self.cell_metrics.height_px();
+		let width_px = f32::from(rect.width) * self.cell_metrics.width_px();
 
 		Some(PaletteCompletionOverlay {
 			x_px,
 			y_px,
 			width_px,
-			plan: target.plan,
+			plan: target.plan().clone(),
 		})
 	}
+}
+
+struct SeparatorThemeColors {
+	base_fg: [iced::Color; 2],
+	base_bg: [iced::Color; 2],
+	hover_fg: iced::Color,
+	hover_bg: iced::Color,
+	drag_fg: iced::Color,
+	drag_bg: iced::Color,
+}
+
+fn separator_fg_bg(state: &xeno_editor::render_api::SeparatorState, priority: u8, colors: &SeparatorThemeColors) -> (iced::Color, iced::Color) {
+	let idx = (priority as usize).min(colors.base_fg.len() - 1);
+	let normal_fg = colors.base_fg[idx];
+	let normal_bg = colors.base_bg[idx];
+
+	if state.is_dragging() {
+		(colors.drag_fg, colors.drag_bg)
+	} else if state.is_animating() {
+		let t = state.anim_intensity();
+		(lerp_color(normal_fg, colors.hover_fg, t), lerp_color(normal_bg, colors.hover_bg, t))
+	} else if state.is_hovered() {
+		(colors.hover_fg, colors.hover_bg)
+	} else {
+		(normal_fg, normal_bg)
+	}
+}
+
+fn lerp_color(a: iced::Color, b: iced::Color, t: f32) -> iced::Color {
+	iced::Color {
+		r: a.r + (b.r - a.r) * t,
+		g: a.g + (b.g - a.g) * t,
+		b: a.b + (b.b - a.b) * t,
+		a: a.a + (b.a - a.a) * t,
+	}
+}
+
+fn map_ui_color_or_default(color: xeno_primitives::Color) -> iced::Color {
+	use self::render::map_ui_color;
+	map_ui_color(color).unwrap_or(iced::Color::BLACK)
 }
 
 fn viewport_grid_from_document_size(editor: &Editor, cell_metrics: super::CellMetrics, document_size: Size) -> (u16, u16) {

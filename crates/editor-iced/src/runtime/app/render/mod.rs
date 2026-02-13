@@ -2,9 +2,7 @@ use iced::widget::text::Wrapping;
 use iced::widget::{column, container, rich_text, span, text};
 use iced::{Background, Color, Element, Fill, Font, Pixels, border, font};
 use xeno_editor::Editor;
-use xeno_editor::completion::{CompletionKind, CompletionRenderItem, CompletionRenderPlan};
-use xeno_editor::render_api::RenderLine;
-use xeno_editor::ui::{StatuslineRenderSegment, StatuslineRenderStyle};
+use xeno_editor::render_api::{CompletionKind, CompletionRenderItem, CompletionRenderPlan, RenderLine, StatuslineRenderSegment, StatuslineRenderStyle};
 use xeno_primitives::{Color as UiColor, Style as UiStyle};
 
 use super::Message;
@@ -36,19 +34,27 @@ pub(super) fn render_document_line(line: &RenderLine<'_>, line_height_px: f32) -
 		.into()
 }
 
+pub(super) fn render_render_lines(lines: &[RenderLine<'_>], line_height_px: f32) -> Element<'static, Message> {
+	let mut rows = column![].spacing(0);
+	for line in lines {
+		rows = rows.push(render_document_line(line, line_height_px));
+	}
+	rows.into()
+}
+
 pub(super) fn render_statusline(editor: &Editor, segments: &[StatuslineRenderSegment], line_height_px: f32) -> Element<'static, Message> {
 	let mut spans = Vec::new();
 
 	for segment in segments {
-		let mut item = span::<(), _>(segment.text.clone()).font(Font::MONOSPACE);
-		let style = editor.statusline_segment_style(segment.style);
+		let mut item = span::<(), _>(segment.text().to_string()).font(Font::MONOSPACE);
+		let style = editor.statusline_segment_style(segment.style());
 		if let Some(color) = style_fg_to_iced(style) {
 			item = item.color(color);
 		}
 		if let Some(bg) = style_bg_to_iced(style) {
 			item = item.background(Background::Color(bg)).border(border::rounded(0));
 		}
-		if matches!(segment.style, StatuslineRenderStyle::Mode) {
+		if matches!(segment.style(), StatuslineRenderStyle::Mode) {
 			item = item.font(Font {
 				weight: font::Weight::Bold,
 				..Font::MONOSPACE
@@ -75,9 +81,9 @@ pub(super) fn render_palette_completion_menu(editor: &Editor, plan: &CompletionR
 	let selected_fg = editor.config().theme.colors.ui.selection_fg;
 
 	let mut rows = column![].spacing(0).width(Fill);
-	for item in &plan.items {
-		let row_bg = if item.selected { selected_bg } else { popup_bg };
-		let row_fg = if item.selected { selected_fg } else { popup_fg };
+	for item in plan.items() {
+		let row_bg = if item.selected() { selected_bg } else { popup_bg };
+		let row_fg = if item.selected() { selected_fg } else { popup_fg };
 		let mut row_text = text(format_palette_completion_row(plan, item))
 			.font(Font::MONOSPACE)
 			.wrapping(Wrapping::None)
@@ -95,19 +101,19 @@ pub(super) fn render_palette_completion_menu(editor: &Editor, plan: &CompletionR
 pub(super) fn format_palette_completion_row(plan: &CompletionRenderPlan, item: &CompletionRenderItem) -> String {
 	let mut line = String::new();
 	line.push(' ');
-	line.push_str(completion_icon(item.kind));
+	line.push_str(completion_icon(item.kind()));
 	line.push(' ');
-	line.push_str(&pad_right(&item.label, plan.max_label_width));
+	line.push_str(&pad_right(item.label(), plan.max_label_width()));
 
-	if plan.show_kind {
+	if plan.show_kind() {
 		line.push(' ');
 		line.push('[');
-		line.push_str(completion_kind_label(item.kind));
+		line.push_str(completion_kind_label(item.kind()));
 		line.push(']');
 	}
 
-	if plan.show_right
-		&& let Some(right) = item.right.as_deref()
+	if plan.show_right()
+		&& let Some(right) = item.right()
 	{
 		line.push(' ');
 		line.push_str(right);

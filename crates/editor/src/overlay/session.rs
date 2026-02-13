@@ -93,14 +93,48 @@ pub struct OverlayPane {
 /// Data-only pane target consumed by frontend overlay renderers.
 #[derive(Debug, Clone)]
 pub struct OverlayPaneRenderTarget {
-	pub role: WindowRole,
-	pub buffer: ViewId,
-	pub rect: Rect,
-	pub content_rect: Rect,
-	pub style: SurfaceStyle,
-	pub gutter: GutterSelector,
-	pub dismiss_on_blur: bool,
-	pub sticky: bool,
+	pub(crate) role: WindowRole,
+	pub(crate) buffer: ViewId,
+	pub(crate) rect: Rect,
+	pub(crate) content_rect: Rect,
+	pub(crate) style: SurfaceStyle,
+	pub(crate) gutter: GutterSelector,
+	pub(crate) dismiss_on_blur: bool,
+	pub(crate) sticky: bool,
+}
+
+impl OverlayPaneRenderTarget {
+	pub fn role(&self) -> WindowRole {
+		self.role
+	}
+
+	pub fn buffer(&self) -> ViewId {
+		self.buffer
+	}
+
+	pub fn rect(&self) -> Rect {
+		self.rect
+	}
+
+	pub fn content_rect(&self) -> Rect {
+		self.content_rect
+	}
+
+	pub fn style(&self) -> &SurfaceStyle {
+		&self.style
+	}
+
+	pub fn gutter(&self) -> GutterSelector {
+		self.gutter
+	}
+
+	pub fn dismiss_on_blur(&self) -> bool {
+		self.dismiss_on_blur
+	}
+
+	pub fn sticky(&self) -> bool {
+		self.sticky
+	}
 }
 
 impl From<&OverlayPane> for OverlayPaneRenderTarget {

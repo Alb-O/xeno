@@ -7,8 +7,17 @@ use crate::overlay::{OverlayControllerKind, WindowRole};
 
 #[derive(Debug, Clone)]
 pub struct OverlayCompletionMenuTarget {
-	pub rect: Rect,
-	pub plan: CompletionRenderPlan,
+	pub(crate) rect: Rect,
+	pub(crate) plan: CompletionRenderPlan,
+}
+
+impl OverlayCompletionMenuTarget {
+	pub fn rect(&self) -> Rect {
+		self.rect
+	}
+	pub fn plan(&self) -> &CompletionRenderPlan {
+		&self.plan
+	}
 }
 
 fn command_query_is_exact_alias(query: &str, label: &str) -> bool {

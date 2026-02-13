@@ -1,16 +1,16 @@
 use xeno_editor::Editor;
-use xeno_editor::ui::{StatuslineRenderSegment, StatuslineRenderStyle};
+use xeno_editor::render_api::{StatuslineRenderSegment, StatuslineRenderStyle};
 use xeno_tui::layout::Rect;
 use xeno_tui::style::{Modifier, Style};
 use xeno_tui::text::{Line, Span};
 use xeno_tui::widgets::{Block, Paragraph};
 
 fn segment_to_span(ed: &Editor, segment: &StatuslineRenderSegment) -> Span<'static> {
-	let mut style = ed.statusline_segment_style(segment.style);
-	if matches!(segment.style, StatuslineRenderStyle::Mode) {
+	let mut style = ed.statusline_segment_style(segment.style());
+	if matches!(segment.style(), StatuslineRenderStyle::Mode) {
 		style = style.add_modifier(Modifier::BOLD);
 	}
-	Span::styled(segment.text.clone(), style)
+	Span::styled(segment.text().to_string(), style)
 }
 
 pub fn render(ed: &Editor, frame: &mut xeno_tui::Frame, area: Rect) {
