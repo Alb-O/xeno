@@ -4519,7 +4519,6 @@ dependencies = [
  "tracing",
  "unicode-width 0.2.2",
  "xeno-editor",
- "xeno-registry",
  "xeno-tui",
 ]
 

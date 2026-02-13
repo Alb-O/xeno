@@ -64,7 +64,7 @@ use xeno_language::LanguageLoader;
 use xeno_registry::actions::ActionEntry;
 use xeno_registry::core::index::Snapshot;
 use xeno_registry::db::keymap_registry::KeymapIndex;
-use xeno_registry::hooks::{HookContext, WindowKind, emit_sync_with as emit_hook_sync_with};
+use xeno_registry::hooks::{HookContext, WindowKind, emit as emit_hook, emit_sync_with as emit_hook_sync_with};
 use xeno_registry::options::OPTIONS;
 use xeno_registry::themes::THEMES;
 use xeno_registry::{ActionId, HookEventData};
@@ -610,6 +610,19 @@ impl Editor {
 	#[inline]
 	pub fn hook_runtime_mut(&mut self) -> &mut HookRuntime {
 		&mut self.state.hook_runtime
+	}
+
+	/// Emits the editor-start lifecycle hook on the sync hook runtime.
+	pub fn emit_editor_start_hook(&mut self) {
+		emit_hook_sync_with(
+			&HookContext::new(HookEventData::EditorStart),
+			&mut self.state.hook_runtime,
+		);
+	}
+
+	/// Emits the editor-quit lifecycle hook asynchronously.
+	pub async fn emit_editor_quit_hook(&self) {
+		emit_hook(&HookContext::new(HookEventData::EditorQuit)).await;
 	}
 
 	#[inline]

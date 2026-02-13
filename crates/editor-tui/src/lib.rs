@@ -18,8 +18,6 @@ use termina::escape::csi::{Csi, Cursor};
 use termina::{PlatformTerminal, Terminal as _};
 use xeno_editor::runtime::{CursorStyle, RuntimeEvent};
 use xeno_editor::{Editor, TerminalConfig};
-use xeno_registry::HookEventData;
-use xeno_registry::hooks::{HookContext, emit as emit_hook, emit_sync_with as emit_hook_sync_with};
 use xeno_tui::Terminal;
 
 use crate::backend::TerminaBackend;
@@ -37,7 +35,7 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 	let mut terminal = Terminal::new(backend)?;
 
 	editor.ui_startup();
-	emit_hook_sync_with(&HookContext::new(HookEventData::EditorStart), editor.hook_runtime_mut());
+	editor.emit_editor_start_hook();
 
 	let mut last_cursor_style: Option<Cursor> = None;
 	let mut notifications = crate::layers::notifications::FrontendNotifications::new();
@@ -113,7 +111,7 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 	}
 	.await;
 
-	emit_hook(&HookContext::new(HookEventData::EditorQuit)).await;
+	editor.emit_editor_quit_hook().await;
 
 	let terminal_inner = terminal.backend_mut().terminal_mut();
 	let cleanup_result = disable_terminal_features_with_config(terminal_inner, terminal_config);
