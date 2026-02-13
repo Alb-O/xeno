@@ -31,6 +31,10 @@ impl CellMetrics {
 		)
 	}
 
+	pub(crate) fn width_px(self) -> f32 {
+		self.width_px
+	}
+
 	pub(crate) fn height_px(self) -> f32 {
 		self.height_px
 	}

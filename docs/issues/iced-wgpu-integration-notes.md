@@ -30,6 +30,7 @@ Investigate a minimal GUI frontend integration using `iced_wgpu` while preservin
   - preserves core `RenderLine` rows and adapts them to iced `rich_text` rows (span-level foreground/background mapping for named/RGB/indexed colors)
   - document/statusline rendering keeps iced default text sizing/line-height behavior; input mapping calibration is handled separately
   - renders statusline using `statusline_render_plan`
+  - renders command-palette/file-picker completion menus as pinned in-document overlays using core overlay geometry + `completion_render_plan`
   - consumes core completion/snippet/overlay/info-popup plans and shows a structured scene summary
   - renders completion/snippet plan rows as dedicated preview sections with semantic row roles (meta/normal/selected)
   - applies theme-driven container backgrounds for app/document/inspector surfaces (instead of toolkit default white)
@@ -46,7 +47,7 @@ Investigate a minimal GUI frontend integration using `iced_wgpu` while preservin
   - no font-metrics-driven calibration yet.
 - Rendering seam is still provisional:
   - style/span mapping is currently color/background focused; advanced text-style parity remains incomplete
-  - overlay/completion/snippet/info-popup plans are wired, but currently rendered as textual diagnostics instead of native GUI surfaces
+  - LSP completion/snippet/info-popup plans are still primarily diagnostics-oriented; only command/file palette completion menus are rendered as GUI overlays so far
 - Input coverage is partial:
   - paste adapter currently handles Command/Ctrl+V; no broader clipboard event coverage yet
   - IME preedit/lifecycle is currently frontend-local diagnostics state, not a first-class core runtime event

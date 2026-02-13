@@ -2,13 +2,15 @@ mod inspector;
 mod render;
 
 use iced::widget::scrollable::{Direction as ScrollDirection, Scrollbar};
-use iced::widget::{column, container, mouse_area, row, rule, scrollable, sensor, text};
+use iced::widget::{column, container, mouse_area, pin, row, rule, scrollable, sensor, stack, text};
 use iced::{Element, Event, Fill, Font, Point, Size, Subscription, Task, event, keyboard, mouse, time, window};
 use xeno_editor::Editor;
+use xeno_editor::completion::CompletionRenderPlan;
+use xeno_editor::overlay::{OverlayControllerKind, WindowRole};
 use xeno_editor::runtime::{CursorStyle, LoopDirective, RuntimeEvent};
 
 use self::inspector::render_inspector_rows;
-use self::render::{background_style, render_document_line, render_statusline};
+use self::render::{background_style, render_document_line, render_palette_completion_menu, render_statusline};
 use super::{DEFAULT_POLL_INTERVAL, EventBridgeState, HeaderSnapshot, Snapshot, StartupOptions, build_snapshot, configure_linux_backend, map_event};
 
 const DEFAULT_INSPECTOR_WIDTH_PX: f32 = 320.0;
@@ -62,6 +64,14 @@ impl LayoutConfig {
 struct CoordinateScale {
 	x: f32,
 	y: f32,
+}
+
+#[derive(Debug, Clone)]
+struct PaletteCompletionOverlay {
+	x_px: f32,
+	y_px: f32,
+	width_px: f32,
+	plan: CompletionRenderPlan,
 }
 
 impl CoordinateScale {
@@ -224,8 +234,16 @@ impl IcedEditorApp {
 			.width(Fill)
 			.clip(true)
 			.style(move |_theme| background_style(ui_bg));
+		let mut document_scene: Element<'_, Message> = document.into();
+		if let Some(menu) = self.palette_completion_overlay() {
+			let menu_widget = container(render_palette_completion_menu(&self.editor, &menu.plan, line_height_px))
+				.width(menu.width_px)
+				.clip(true);
+			let menu_layer = pin(menu_widget).x(menu.x_px).y(menu.y_px).width(Fill).height(Fill);
+			document_scene = stack![document_scene, menu_layer].width(Fill).height(Fill).clip(true).into();
+		}
 		let document = mouse_area(
-			sensor(document)
+			sensor(document_scene)
 				.on_show(Message::DocumentViewportChanged)
 				.on_resize(Message::DocumentViewportChanged),
 		)
@@ -309,6 +327,25 @@ impl IcedEditorApp {
 			self.rebuild_snapshot();
 		}
 	}
+
+	fn palette_completion_overlay(&self) -> Option<PaletteCompletionOverlay> {
+		if !matches!(
+			self.editor.overlay_kind(),
+			Some(OverlayControllerKind::CommandPalette | OverlayControllerKind::FilePicker)
+		) {
+			return None;
+		}
+
+		let input_rect = self.editor.overlay_pane_rect(WindowRole::Input)?;
+		let visible_rows = self.editor.completion_visible_rows(10) as u16;
+		let menu_rect = palette_menu_geometry_from_input(input_rect, visible_rows)?;
+		let plan = self.editor.completion_render_plan(menu_rect.width, menu_rect.height as usize)?;
+		let x_px = f32::from(menu_rect.x) * self.cell_metrics.width_px();
+		let y_px = f32::from(menu_rect.y) * self.cell_metrics.height_px();
+		let width_px = f32::from(menu_rect.width) * self.cell_metrics.width_px();
+
+		Some(PaletteCompletionOverlay { x_px, y_px, width_px, plan })
+	}
 }
 
 fn viewport_grid_from_document_size(cell_metrics: super::CellMetrics, document_size: Size) -> (u16, u16) {
@@ -318,6 +355,23 @@ fn viewport_grid_from_document_size(cell_metrics: super::CellMetrics, document_s
 
 fn viewport_rows_for_document_rows(document_rows: u16) -> u16 {
 	document_rows.saturating_add(STATUSLINE_ROWS)
+}
+
+fn palette_menu_geometry_from_input(input_rect: xeno_editor::geometry::Rect, visible_rows: u16) -> Option<xeno_editor::geometry::Rect> {
+	let panel_top = 0u16;
+	let menu_bottom = input_rect.y;
+	if panel_top >= menu_bottom {
+		return None;
+	}
+
+	let available_rows = menu_bottom.saturating_sub(panel_top);
+	let menu_height = visible_rows.min(available_rows);
+	if menu_height == 0 || input_rect.width == 0 {
+		return None;
+	}
+
+	let menu_y = menu_bottom.saturating_sub(menu_height);
+	Some(xeno_editor::geometry::Rect::new(input_rect.x, menu_y, input_rect.width, menu_height))
 }
 
 fn default_loop_directive() -> LoopDirective {

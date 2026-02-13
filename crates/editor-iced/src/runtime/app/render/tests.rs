@@ -35,3 +35,27 @@ fn background_style_uses_color_mapping_with_black_fallback() {
 	let fallback = background_style(UiColor::Reset);
 	assert_eq!(fallback.background, Some(iced::Background::Color(Color::BLACK)));
 }
+
+#[test]
+fn format_palette_completion_row_includes_kind_and_right_columns() {
+	let plan = xeno_editor::completion::CompletionRenderPlan {
+		items: Vec::new(),
+		max_label_width: 8,
+		target_row_width: 20,
+		show_kind: true,
+		show_right: true,
+	};
+	let item = xeno_editor::completion::CompletionRenderItem {
+		label: String::from("write"),
+		kind: xeno_editor::completion::CompletionKind::Command,
+		right: Some(String::from("w")),
+		match_indices: None,
+		selected: false,
+		command_alias_match: false,
+	};
+
+	let row = format_palette_completion_row(&plan, &item);
+	assert!(row.contains("write"));
+	assert!(row.contains("[Cmd]"));
+	assert!(row.contains(" w"));
+}

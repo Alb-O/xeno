@@ -1,7 +1,8 @@
 use iced::widget::text::Wrapping;
-use iced::widget::{container, rich_text, span};
-use iced::{Background, Color, Element, Font, Pixels, border, font};
+use iced::widget::{column, container, rich_text, span, text};
+use iced::{Background, Color, Element, Fill, Font, Pixels, border, font};
 use xeno_editor::Editor;
+use xeno_editor::completion::{CompletionKind, CompletionRenderItem, CompletionRenderPlan};
 use xeno_editor::render_api::RenderLine;
 use xeno_editor::ui::{StatuslineRenderSegment, StatuslineRenderStyle};
 use xeno_primitives::{Color as UiColor, Style as UiStyle};
@@ -65,6 +66,87 @@ pub(super) fn render_statusline(editor: &Editor, segments: &[StatuslineRenderSeg
 		.line_height(Pixels(line_height_px))
 		.wrapping(Wrapping::None)
 		.into()
+}
+
+pub(super) fn render_palette_completion_menu(editor: &Editor, plan: &CompletionRenderPlan, line_height_px: f32) -> Element<'static, Message> {
+	let popup_bg = editor.config().theme.colors.popup.bg;
+	let popup_fg = editor.config().theme.colors.popup.fg;
+	let selected_bg = editor.config().theme.colors.ui.selection_bg;
+	let selected_fg = editor.config().theme.colors.ui.selection_fg;
+
+	let mut rows = column![].spacing(0).width(Fill);
+	for item in &plan.items {
+		let row_bg = if item.selected { selected_bg } else { popup_bg };
+		let row_fg = if item.selected { selected_fg } else { popup_fg };
+		let mut row_text = text(format_palette_completion_row(plan, item))
+			.font(Font::MONOSPACE)
+			.wrapping(Wrapping::None)
+			.line_height(Pixels(line_height_px));
+		if let Some(color) = map_ui_color(row_fg) {
+			row_text = row_text.color(color);
+		}
+
+		rows = rows.push(container(row_text).width(Fill).padding([0, 1]).style(move |_theme| background_style(row_bg)));
+	}
+
+	container(rows).width(Fill).style(move |_theme| background_style(popup_bg)).into()
+}
+
+pub(super) fn format_palette_completion_row(plan: &CompletionRenderPlan, item: &CompletionRenderItem) -> String {
+	let mut line = String::new();
+	line.push(' ');
+	line.push_str(completion_icon(item.kind));
+	line.push(' ');
+	line.push_str(&pad_right(&item.label, plan.max_label_width));
+
+	if plan.show_kind {
+		line.push(' ');
+		line.push('[');
+		line.push_str(completion_kind_label(item.kind));
+		line.push(']');
+	}
+
+	if plan.show_right
+		&& let Some(right) = item.right.as_deref()
+	{
+		line.push(' ');
+		line.push_str(right);
+	}
+
+	line
+}
+
+fn completion_kind_label(kind: CompletionKind) -> &'static str {
+	match kind {
+		CompletionKind::Command => "Cmd",
+		CompletionKind::File => "File",
+		CompletionKind::Buffer => "Buf",
+		CompletionKind::Snippet => "Snip",
+		CompletionKind::Theme => "Theme",
+	}
+}
+
+fn completion_icon(kind: CompletionKind) -> &'static str {
+	match kind {
+		CompletionKind::Command => "C",
+		CompletionKind::File => "F",
+		CompletionKind::Buffer => "B",
+		CompletionKind::Snippet => "S",
+		CompletionKind::Theme => "T",
+	}
+}
+
+fn pad_right(value: &str, min_width: usize) -> String {
+	let width = value.chars().count();
+	let pad = min_width.saturating_sub(width);
+	if pad == 0 {
+		return value.to_string();
+	}
+
+	let mut out = String::with_capacity(value.len() + pad);
+	out.push_str(value);
+	out.push_str(&" ".repeat(pad));
+	out
 }
 
 pub(super) fn style_fg_to_iced(style: UiStyle) -> Option<Color> {

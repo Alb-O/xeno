@@ -76,3 +76,21 @@ fn coordinate_scale_normalizes_point_and_size() {
 	assert_eq!(scale.normalize_point(iced::Point::new(20.0, 40.0)), iced::Point::new(10.0, 10.0));
 	assert_eq!(scale.normalize_size(iced::Size::new(200.0, 80.0)), iced::Size::new(100.0, 20.0));
 }
+
+#[test]
+fn palette_menu_geometry_from_input_places_menu_above_input() {
+	let input = xeno_editor::geometry::Rect::new(10, 12, 30, 1);
+	let menu = palette_menu_geometry_from_input(input, 4).expect("menu should exist");
+	assert_eq!(menu.x, 10);
+	assert_eq!(menu.y, 8);
+	assert_eq!(menu.width, 30);
+	assert_eq!(menu.height, 4);
+}
+
+#[test]
+fn palette_menu_geometry_from_input_clamps_by_available_space() {
+	let input = xeno_editor::geometry::Rect::new(0, 3, 20, 1);
+	let menu = palette_menu_geometry_from_input(input, 10).expect("menu should exist");
+	assert_eq!(menu.y, 0);
+	assert_eq!(menu.height, 3);
+}
