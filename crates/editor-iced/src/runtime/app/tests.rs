@@ -32,3 +32,15 @@ fn parse_show_inspector_understands_common_false_values() {
 	assert!(!parse_show_inspector(Some("No")));
 	assert!(!parse_show_inspector(Some("off")));
 }
+
+#[test]
+fn format_header_line_formats_snapshot_fields() {
+	let header = HeaderSnapshot {
+		mode: String::from("INSERT"),
+		cursor_line: 3,
+		cursor_col: 7,
+		buffers: 2,
+		ime_preedit: String::from("pre"),
+	};
+	assert_eq!(format_header_line(&header), "mode=INSERT cursor=3:7 buffers=2 ime_preedit=pre");
+}

@@ -9,7 +9,7 @@ use xeno_editor::runtime::{CursorStyle, LoopDirective, RuntimeEvent};
 
 use self::inspector::render_inspector_rows;
 use self::render::{render_document_line, render_statusline};
-use super::{DEFAULT_POLL_INTERVAL, EventBridgeState, Snapshot, StartupOptions, build_snapshot, configure_linux_backend, map_event};
+use super::{DEFAULT_POLL_INTERVAL, EventBridgeState, HeaderSnapshot, Snapshot, StartupOptions, build_snapshot, configure_linux_backend, map_event};
 
 const DEFAULT_INSPECTOR_WIDTH_PX: f32 = 320.0;
 const MIN_INSPECTOR_WIDTH_PX: f32 = 160.0;
@@ -63,6 +63,13 @@ fn parse_show_inspector(value: Option<&str>) -> bool {
 	};
 
 	!matches!(value.trim().to_ascii_lowercase().as_str(), "0" | "false" | "no" | "off")
+}
+
+fn format_header_line(header: &HeaderSnapshot) -> String {
+	format!(
+		"mode={} cursor={}:{} buffers={} ime_preedit={}",
+		header.mode, header.cursor_line, header.cursor_col, header.buffers, header.ime_preedit
+	)
 }
 
 impl IcedEditorApp {
@@ -145,7 +152,7 @@ impl IcedEditorApp {
 	}
 
 	pub(crate) fn view(&self) -> Element<'_, Message> {
-		let header_block = text(&self.snapshot.header).font(Font::MONOSPACE);
+		let header_block = text(format_header_line(&self.snapshot.header)).font(Font::MONOSPACE);
 
 		let mut document_rows = column![].spacing(0);
 		for line in &self.snapshot.document_lines {

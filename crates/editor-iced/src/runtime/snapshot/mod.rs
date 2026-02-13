@@ -12,10 +12,19 @@ const MAX_VISIBLE_BUFFER_LINES: usize = 500;
 #[derive(Debug, Default)]
 pub(crate) struct Snapshot {
 	pub(crate) title: String,
-	pub(crate) header: String,
+	pub(crate) header: HeaderSnapshot,
 	pub(crate) statusline_segments: Vec<StatuslineRenderSegment>,
 	pub(crate) document_lines: Vec<RenderLine<'static>>,
 	pub(crate) surface: SurfaceSnapshot,
+}
+
+#[derive(Debug, Clone, Default)]
+pub(crate) struct HeaderSnapshot {
+	pub(crate) mode: String,
+	pub(crate) cursor_line: usize,
+	pub(crate) cursor_col: usize,
+	pub(crate) buffers: usize,
+	pub(crate) ime_preedit: String,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -51,10 +60,13 @@ pub(crate) fn build_snapshot(editor: &mut Editor, ime_preedit: Option<&str>) -> 
 
 	Snapshot {
 		title,
-		header: format!(
-			"mode={mode} cursor={cursor_line}:{cursor_col} buffers={buffers} ime_preedit={}",
-			ime_preedit_label(ime_preedit)
-		),
+		header: HeaderSnapshot {
+			mode: mode.to_string(),
+			cursor_line,
+			cursor_col,
+			buffers,
+			ime_preedit: ime_preedit_label(ime_preedit),
+		},
 		statusline_segments,
 		document_lines,
 		surface: SurfaceSnapshot {
