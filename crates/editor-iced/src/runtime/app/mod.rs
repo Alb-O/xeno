@@ -212,11 +212,12 @@ impl IcedEditorApp {
 	pub(crate) fn view(&self) -> Element<'_, Message> {
 		let ui_bg = self.editor.config().theme.colors.ui.bg;
 		let popup_bg = self.editor.config().theme.colors.popup.bg;
+		let line_height_px = self.cell_metrics.height_px();
 		let header_block = text(format_header_line(&self.snapshot.header)).font(Font::MONOSPACE);
 
 		let mut document_rows = column![].spacing(0);
 		for line in &self.snapshot.document_lines {
-			document_rows = document_rows.push(render_document_line(line));
+			document_rows = document_rows.push(render_document_line(line, line_height_px));
 		}
 		let document = container(document_rows)
 			.height(Fill)
@@ -253,7 +254,7 @@ impl IcedEditorApp {
 		} else {
 			row![document].height(Fill)
 		};
-		let statusline = render_statusline(&self.editor, &self.snapshot.statusline_segments);
+		let statusline = render_statusline(&self.editor, &self.snapshot.statusline_segments, line_height_px);
 
 		let content = column![header_block, panes, statusline].spacing(8).padding(12).width(Fill).height(Fill);
 

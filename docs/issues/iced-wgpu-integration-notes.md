@@ -41,6 +41,7 @@ Investigate a minimal GUI frontend integration using `iced_wgpu` while preservin
 - Grid-size conversion is heuristic:
   - core resize contract is grid-based (`RuntimeEvent::WindowResized { cols, rows }`) and now sourced from measured document viewport size.
   - iced maps logical pixels to cols/rows via configurable cell metrics (`XENO_ICED_CELL_WIDTH_PX`, `XENO_ICED_CELL_HEIGHT_PX`) with a fixed +1 statusline row reserve.
+  - default cell metrics now track iced text defaults (`16px` text, `1.3` line height, `0.6` monospace width ratio) so pointer mapping better matches rendered rows out of the box.
   - no font-metrics-driven calibration yet.
 - Rendering seam is still provisional:
   - style/span mapping is currently color/background focused; advanced text-style parity remains incomplete

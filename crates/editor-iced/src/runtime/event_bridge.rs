@@ -3,8 +3,12 @@ use iced_core::input_method;
 use xeno_editor::runtime::RuntimeEvent;
 use xeno_primitives::{Key, KeyCode, Modifiers, MouseButton as CoreMouseButton, MouseEvent as CoreMouseEvent, ScrollDirection};
 
-const DEFAULT_CELL_WIDTH_PX: f32 = 8.0;
-const DEFAULT_CELL_HEIGHT_PX: f32 = 16.0;
+const DEFAULT_TEXT_SIZE_PX: f32 = 16.0;
+const DEFAULT_LINE_HEIGHT_FACTOR: f32 = 1.3;
+const DEFAULT_MONOSPACE_WIDTH_FACTOR: f32 = 0.6;
+
+const DEFAULT_CELL_WIDTH_PX: f32 = DEFAULT_TEXT_SIZE_PX * DEFAULT_MONOSPACE_WIDTH_FACTOR;
+const DEFAULT_CELL_HEIGHT_PX: f32 = DEFAULT_TEXT_SIZE_PX * DEFAULT_LINE_HEIGHT_FACTOR;
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct CellMetrics {
@@ -25,6 +29,10 @@ impl CellMetrics {
 			logical_pixels_to_cells(logical_width_px, self.width_px),
 			logical_pixels_to_cells(logical_height_px, self.height_px),
 		)
+	}
+
+	pub(crate) fn height_px(self) -> f32 {
+		self.height_px
 	}
 }
 
@@ -301,6 +309,12 @@ mod tests {
 		assert_eq!(parse_cell_size(Some(String::from("0")), 8.0), 8.0);
 		assert_eq!(parse_cell_size(Some(String::from("-4")), 8.0), 8.0);
 		assert_eq!(parse_cell_size(None, 8.0), 8.0);
+	}
+
+	#[test]
+	fn default_cell_metrics_track_text_defaults() {
+		assert_eq!(DEFAULT_CELL_WIDTH_PX, DEFAULT_TEXT_SIZE_PX * DEFAULT_MONOSPACE_WIDTH_FACTOR);
+		assert_eq!(DEFAULT_CELL_HEIGHT_PX, DEFAULT_TEXT_SIZE_PX * DEFAULT_LINE_HEIGHT_FACTOR);
 	}
 
 	#[test]
