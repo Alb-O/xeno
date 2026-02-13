@@ -182,11 +182,7 @@ impl IcedEditorApp {
 	}
 
 	fn view(&self) -> Element<'_, Message> {
-		let header_block = column![
-			text(&self.snapshot.header).font(Font::MONOSPACE),
-			text(&self.snapshot.statusline).font(Font::MONOSPACE),
-		]
-		.spacing(4);
+		let header_block = text(&self.snapshot.header).font(Font::MONOSPACE);
 
 		let document = container(scrollable(text(&self.snapshot.body).font(Font::MONOSPACE)).height(Fill))
 			.width(Fill)
@@ -194,10 +190,12 @@ impl IcedEditorApp {
 		let inspector = container(scrollable(text(&self.snapshot.inspector).font(Font::MONOSPACE)).height(Fill))
 			.width(320)
 			.height(Fill);
+		let panes = row![document, inspector].spacing(12).height(Fill);
+		let statusline = text(&self.snapshot.statusline).font(Font::MONOSPACE);
 
-		let content = column![header_block, row![document, inspector].spacing(12).height(Fill)].spacing(8).padding(12);
+		let content = column![header_block, panes, statusline].spacing(8).padding(12).height(Fill);
 
-		container(content).into()
+		container(content).width(Fill).height(Fill).into()
 	}
 
 	fn subscription(&self) -> Subscription<Message> {
