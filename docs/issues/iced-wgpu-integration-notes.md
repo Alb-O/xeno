@@ -16,6 +16,7 @@ Investigate a minimal GUI frontend integration using `iced_wgpu` while preservin
   - lifecycle hooks are emitted on startup and quit.
 - Added event bridge from iced -> core runtime:
   - keyboard key presses (character + named keys + modifiers)
+  - mouse cursor/button/scroll events mapped into core `MouseEvent` grid coordinates
   - window opened/resized
   - window focus/unfocus
 - Added minimal rendering bridge:
@@ -34,7 +35,6 @@ Investigate a minimal GUI frontend integration using `iced_wgpu` while preservin
   - no style/span-level GUI renderer yet
   - overlay/completion/snippet/info-popup plans are wired, but currently rendered as textual diagnostics instead of native GUI surfaces
 - Input coverage is partial:
-  - no mouse adapter
   - no clipboard paste adapter
   - no IME/text composition adapter
 - Dependency wiring is local checkout based:

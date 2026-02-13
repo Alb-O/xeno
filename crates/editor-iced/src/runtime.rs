@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use iced::widget::{column, container, scrollable, text};
-use iced::{Element, Event, Fill, Font, Subscription, Task, event, keyboard, time, window};
+use iced::{Element, Event, Fill, Font, Subscription, Task, event, keyboard, mouse, time, window};
 use xeno_editor::completion::CompletionRenderPlan;
 use xeno_editor::geometry::Rect;
 use xeno_editor::info_popup::{InfoPopupRenderAnchor, InfoPopupRenderTarget};
@@ -12,7 +12,7 @@ use xeno_editor::render_api::{BufferRenderContext, RenderLine};
 use xeno_editor::runtime::{CursorStyle, LoopDirective, RuntimeEvent};
 use xeno_editor::snippet::SnippetChoiceRenderPlan;
 use xeno_editor::{Buffer, Editor, ViewId};
-use xeno_primitives::{Key, KeyCode, Modifiers};
+use xeno_primitives::{Key, KeyCode, Modifiers, MouseButton as CoreMouseButton, MouseEvent as CoreMouseEvent, ScrollDirection};
 
 const DEFAULT_POLL_INTERVAL: Duration = Duration::from_millis(16);
 const MAX_VISIBLE_BUFFER_LINES: usize = 500;
@@ -67,6 +67,7 @@ struct IcedEditorApp {
 	quit_hook_emitted: bool,
 	snapshot: Snapshot,
 	cell_metrics: CellMetrics,
+	event_state: EventBridgeState,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -89,6 +90,14 @@ impl CellMetrics {
 			logical_pixels_to_cells(logical_height_px, self.height_px),
 		)
 	}
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+struct EventBridgeState {
+	mouse_row: u16,
+	mouse_col: u16,
+	mouse_button: Option<CoreMouseButton>,
+	modifiers: Modifiers,
 }
 
 impl IcedEditorApp {
@@ -125,6 +134,7 @@ impl IcedEditorApp {
 			quit_hook_emitted: false,
 			snapshot: Snapshot::default(),
 			cell_metrics: CellMetrics::from_env(),
+			event_state: EventBridgeState::default(),
 		};
 
 		app.directive = app.runtime.block_on(app.editor.pump());
@@ -142,7 +152,7 @@ impl IcedEditorApp {
 			Message::Event(event) => {
 				if matches!(event, Event::Window(window::Event::CloseRequested)) {
 					self.directive.should_quit = true;
-				} else if let Some(runtime_event) = map_event(event, self.cell_metrics) {
+				} else if let Some(runtime_event) = map_event(event, self.cell_metrics, &mut self.event_state) {
 					self.directive = self.runtime.block_on(self.editor.on_event(runtime_event));
 					self.rebuild_snapshot();
 				}
@@ -418,14 +428,68 @@ fn rect_brief(rect: Rect) -> String {
 	format!("{}x{}@{},{}", rect.width, rect.height, rect.x, rect.y)
 }
 
-fn map_event(event: Event, cell_metrics: CellMetrics) -> Option<RuntimeEvent> {
+fn map_event(event: Event, cell_metrics: CellMetrics, event_state: &mut EventBridgeState) -> Option<RuntimeEvent> {
 	match event {
+		Event::Keyboard(keyboard::Event::ModifiersChanged(modifiers)) => {
+			event_state.modifiers = map_modifiers(modifiers);
+			None
+		}
 		Event::Keyboard(keyboard::Event::KeyPressed {
 			modified_key,
 			physical_key,
 			modifiers,
 			..
-		}) => map_key_event(modified_key, physical_key, modifiers).map(RuntimeEvent::Key),
+		}) => {
+			event_state.modifiers = map_modifiers(modifiers);
+			map_key_event(modified_key, physical_key, modifiers).map(RuntimeEvent::Key)
+		}
+		Event::Keyboard(keyboard::Event::KeyReleased { modifiers, .. }) => {
+			event_state.modifiers = map_modifiers(modifiers);
+			None
+		}
+		Event::Mouse(mouse::Event::CursorMoved { position }) => {
+			let col = logical_pixels_to_cell_index(position.x, cell_metrics.width_px);
+			let row = logical_pixels_to_cell_index(position.y, cell_metrics.height_px);
+			event_state.mouse_col = col;
+			event_state.mouse_row = row;
+
+			Some(RuntimeEvent::Mouse(match event_state.mouse_button {
+				Some(button) => CoreMouseEvent::Drag {
+					button,
+					row,
+					col,
+					modifiers: event_state.modifiers,
+				},
+				None => CoreMouseEvent::Move { row, col },
+			}))
+		}
+		Event::Mouse(mouse::Event::ButtonPressed(button)) => {
+			let button = map_mouse_button(button)?;
+			event_state.mouse_button = Some(button);
+
+			Some(RuntimeEvent::Mouse(CoreMouseEvent::Press {
+				button,
+				row: event_state.mouse_row,
+				col: event_state.mouse_col,
+				modifiers: event_state.modifiers,
+			}))
+		}
+		Event::Mouse(mouse::Event::ButtonReleased(_)) => {
+			event_state.mouse_button = None;
+			Some(RuntimeEvent::Mouse(CoreMouseEvent::Release {
+				row: event_state.mouse_row,
+				col: event_state.mouse_col,
+			}))
+		}
+		Event::Mouse(mouse::Event::WheelScrolled { delta }) => {
+			let direction = map_scroll_delta(delta)?;
+			Some(RuntimeEvent::Mouse(CoreMouseEvent::Scroll {
+				direction,
+				row: event_state.mouse_row,
+				col: event_state.mouse_col,
+				modifiers: event_state.modifiers,
+			}))
+		}
 		Event::Window(window::Event::Opened { size, .. }) | Event::Window(window::Event::Resized(size)) => {
 			let (cols, rows) = cell_metrics.to_grid(size.width, size.height);
 			Some(RuntimeEvent::WindowResized { cols, rows })
@@ -445,6 +509,18 @@ fn logical_pixels_to_cells(logical_px: f32, cell_px: f32) -> u16 {
 	cells.clamp(1.0, u16::MAX as f32) as u16
 }
 
+fn logical_pixels_to_cell_index(logical_px: f32, cell_px: f32) -> u16 {
+	logical_pixels_to_cells(logical_px, cell_px).saturating_sub(1)
+}
+
+fn map_modifiers(modifiers: keyboard::Modifiers) -> Modifiers {
+	Modifiers {
+		ctrl: modifiers.control(),
+		alt: modifiers.alt(),
+		shift: modifiers.shift(),
+	}
+}
+
 fn parse_cell_size(value: Option<String>, default: f32) -> f32 {
 	let Some(value) = value else {
 		return default;
@@ -457,11 +533,7 @@ fn parse_cell_size(value: Option<String>, default: f32) -> f32 {
 }
 
 fn map_key_event(key: keyboard::Key, physical_key: keyboard::key::Physical, modifiers: keyboard::Modifiers) -> Option<Key> {
-	let modifiers = Modifiers {
-		ctrl: modifiers.control(),
-		alt: modifiers.alt(),
-		shift: modifiers.shift(),
-	};
+	let modifiers = map_modifiers(modifiers);
 
 	let code = match key.as_ref() {
 		keyboard::Key::Character(chars) => {
@@ -477,6 +549,31 @@ fn map_key_event(key: keyboard::Key, physical_key: keyboard::key::Physical, modi
 	};
 
 	Some(Key { code, modifiers })
+}
+
+fn map_mouse_button(button: mouse::Button) -> Option<CoreMouseButton> {
+	match button {
+		mouse::Button::Left => Some(CoreMouseButton::Left),
+		mouse::Button::Right => Some(CoreMouseButton::Right),
+		mouse::Button::Middle => Some(CoreMouseButton::Middle),
+		mouse::Button::Back | mouse::Button::Forward | mouse::Button::Other(_) => None,
+	}
+}
+
+fn map_scroll_delta(delta: mouse::ScrollDelta) -> Option<ScrollDirection> {
+	let (x, y) = match delta {
+		mouse::ScrollDelta::Lines { x, y } | mouse::ScrollDelta::Pixels { x, y } => (x, y),
+	};
+
+	if y.abs() >= x.abs() && y != 0.0 {
+		return Some(if y > 0.0 { ScrollDirection::Up } else { ScrollDirection::Down });
+	}
+
+	if x != 0.0 {
+		return Some(if x > 0.0 { ScrollDirection::Right } else { ScrollDirection::Left });
+	}
+
+	None
 }
 
 fn map_named_key(key: keyboard::key::Named) -> Option<KeyCode> {
@@ -554,11 +651,26 @@ mod tests {
 	}
 
 	#[test]
+	fn logical_pixels_to_cell_index_is_zero_based() {
+		assert_eq!(logical_pixels_to_cell_index(0.0, 8.0), 0);
+		assert_eq!(logical_pixels_to_cell_index(7.9, 8.0), 0);
+		assert_eq!(logical_pixels_to_cell_index(8.0, 8.0), 0);
+		assert_eq!(logical_pixels_to_cell_index(16.0, 8.0), 1);
+	}
+
+	#[test]
 	fn parse_cell_size_falls_back_for_invalid_values() {
 		assert_eq!(parse_cell_size(Some(String::from("abc")), 8.0), 8.0);
 		assert_eq!(parse_cell_size(Some(String::from("0")), 8.0), 8.0);
 		assert_eq!(parse_cell_size(Some(String::from("-4")), 8.0), 8.0);
 		assert_eq!(parse_cell_size(None, 8.0), 8.0);
+	}
+
+	#[test]
+	fn map_scroll_delta_prefers_vertical_direction() {
+		assert_eq!(map_scroll_delta(mouse::ScrollDelta::Lines { x: 1.0, y: -2.0 }), Some(ScrollDirection::Down));
+		assert_eq!(map_scroll_delta(mouse::ScrollDelta::Pixels { x: -2.0, y: 1.0 }), Some(ScrollDirection::Left));
+		assert_eq!(map_scroll_delta(mouse::ScrollDelta::Lines { x: 0.0, y: 0.0 }), None);
 	}
 }
 
