@@ -294,8 +294,8 @@ impl UiManager {
 		self.apply_requests(requests);
 	}
 
-	/// Notifies all panels of a terminal resize event.
-	pub fn notify_resize(&mut self, editor: &mut crate::impls::Editor, _width: u16, _height: u16) {
+	/// Notifies all panels of a terminal resize event in text-grid units.
+	pub fn notify_resize(&mut self, editor: &mut crate::impls::Editor, _cols: u16, _rows: u16) {
 		let ids: Vec<String> = self.panels.keys().cloned().collect();
 		let mut requests = Vec::new();
 		for id in ids {

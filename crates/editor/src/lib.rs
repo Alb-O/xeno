@@ -6,7 +6,7 @@
 //!
 //! # Main Types
 //!
-//! - [`EditorApp`] - The main editor/workspace containing buffers and state
+//! - [`Editor`] - The main editor/workspace containing buffers and state
 //! - [`Buffer`] - A text buffer with undo history, syntax highlighting, and selections
 //! - [`UiManager`] - UI management for the editor
 //!
@@ -30,7 +30,7 @@ pub mod buffer;
 pub mod capabilities;
 /// Command queue for deferred execution.
 pub mod command_queue;
-/// Editor-direct commands that need full [`EditorApp`] access.
+/// Editor-direct commands that need full [`Editor`] access.
 pub mod commands;
 /// Completion types and sources for command palette.
 pub mod completion;
@@ -102,7 +102,7 @@ pub mod window;
 pub use buffer::{Buffer, HistoryResult, ViewId};
 pub use completion::{CompletionContext, CompletionItem, CompletionKind, CompletionSource, CompletionState};
 pub use editor_ctx::{EditorCapabilities, EditorContext, EditorOps, HandleOutcome, apply_effects};
-pub use impls::{Editor, Editor as EditorApp};
+pub use impls::Editor;
 pub use impls::{FocusReason, FocusTarget, PanelId};
 #[cfg(feature = "lsp")]
 pub use lsp::LspDiagnosticsEvent;
