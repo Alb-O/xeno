@@ -1,5 +1,4 @@
 use xeno_editor::Editor;
-use xeno_tui::layout::{Constraint, Direction, Layout};
 use xeno_tui::style::Style;
 use xeno_tui::widgets::{Block, Clear};
 
@@ -7,48 +6,12 @@ use crate::layer::SceneBuilder;
 use crate::scene::{SceneRenderResult, SurfaceKind, SurfaceOp};
 
 pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame, notifications: &mut crate::layers::notifications::FrontendNotifications) {
-	ed.frame_mut().needs_redraw = false;
-
-	ed.ensure_syntax_for_buffers();
-
 	let area = frame.area();
-	ed.viewport_mut().width = Some(area.width);
-	ed.viewport_mut().height = Some(area.height);
-
-	let chunks = Layout::default()
-		.direction(Direction::Vertical)
-		.constraints([Constraint::Min(1), Constraint::Length(1)])
-		.split(area);
-
-	let main_area = chunks[0];
-	let status_area = chunks[1];
-
-	let mut ui = std::mem::take(ed.ui_mut());
-	ui.sync_utility_for_modal_overlay(ed.utility_overlay_height_hint());
-	let whichkey_height = ed.whichkey_desired_height();
-	ui.sync_utility_for_whichkey(whichkey_height);
-	let dock_layout = ui.compute_layout(main_area.into());
-	let panel_render_plan = ui.panel_render_plan(&dock_layout);
-	let doc_area = dock_layout.doc_area;
-	ed.viewport_mut().doc_area = Some(doc_area);
-	let doc_area_tui: xeno_tui::layout::Rect = doc_area.into();
-
-	let activate_separator_hover = {
-		let layout = ed.layout();
-		layout.hovered_separator.is_none() && layout.separator_under_mouse.is_some() && !layout.is_mouse_fast()
-	};
-	if activate_separator_hover {
-		let layout = ed.layout_mut();
-		let old_hover = layout.hovered_separator.take();
-		layout.hovered_separator = layout.separator_under_mouse;
-		if old_hover != layout.hovered_separator {
-			layout.update_hover_animation(old_hover, layout.hovered_separator);
-			ed.frame_mut().needs_redraw = true;
-		}
-	}
-	if ed.layout().animation_needs_redraw() {
-		ed.frame_mut().needs_redraw = true;
-	}
+	let viewport = xeno_editor::render_api::Rect::new(area.x, area.y, area.width, area.height);
+	let frame_plan = ed.begin_frontend_frame(viewport);
+	let main_area: xeno_tui::layout::Rect = frame_plan.main_area().into();
+	let status_area: xeno_tui::layout::Rect = frame_plan.status_area().into();
+	let doc_area_tui: xeno_tui::layout::Rect = frame_plan.doc_area().into();
 
 	let mut builder = SceneBuilder::new(area, main_area, doc_area_tui, status_area);
 	builder.push(SurfaceKind::Background, 0, area, SurfaceOp::Background, false);
@@ -72,7 +35,7 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame, notifications:
 		match surface.op {
 			SurfaceOp::Background => {
 				frame.render_widget(Clear, area);
-				let bg_block = Block::default().style(Style::default().bg(ed.config().theme.colors.ui.bg));
+				let bg_block = Block::default().style(Style::default().bg(ed.config().theme.colors.ui.bg.into()));
 				frame.render_widget(bg_block, area);
 			}
 			SurfaceOp::Document => {
@@ -80,7 +43,7 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame, notifications:
 			}
 			SurfaceOp::InfoPopups => crate::layers::info_popups::render(ed, frame, doc_area_tui),
 			SurfaceOp::Panels => {
-				if let Some(cursor_pos) = crate::panels::render_panels(ed, frame, &panel_render_plan) {
+				if let Some(cursor_pos) = crate::panels::render_panels(ed, frame, frame_plan.panel_render_plan()) {
 					result.cursor = Some(cursor_pos);
 				}
 			}
@@ -94,8 +57,4 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame, notifications:
 	if let Some(cursor_pos) = result.cursor {
 		frame.set_cursor_position(cursor_pos);
 	}
-	if ui.take_wants_redraw() {
-		ed.frame_mut().needs_redraw = true;
-	}
-	*ed.ui_mut() = ui;
 }

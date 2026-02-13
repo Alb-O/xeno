@@ -10,7 +10,7 @@ fn render_utility_panel(ed: &mut Editor, frame: &mut xeno_tui::Frame, area: Rect
 	let bg = if focused { theme.colors.ui.selection_bg } else { theme.colors.popup.bg };
 	let fg = if focused { theme.colors.ui.selection_fg } else { theme.colors.popup.fg };
 
-	let block = Block::default().style(Style::default().bg(bg).fg(fg));
+	let block = Block::default().style(Style::default().bg(bg.into()).fg(fg.into()));
 	let inner = block.inner(area);
 	frame.render_widget(block, area);
 
@@ -39,10 +39,10 @@ fn render_utility_panel(ed: &mut Editor, frame: &mut xeno_tui::Frame, area: Rect
 			.collect();
 
 		let mut tree = KeyTree::new(root, children)
-			.key_style(Style::default().fg(theme.colors.semantic.accent).add_modifier(Modifier::BOLD))
-			.desc_style(Style::default().fg(fg).bg(bg))
-			.suffix_style(Style::default().fg(theme.colors.ui.gutter_fg).bg(bg))
-			.line_style(Style::default().fg(theme.colors.ui.gutter_fg).bg(bg));
+			.key_style(Style::default().fg(theme.colors.semantic.accent.into()).add_modifier(Modifier::BOLD))
+			.desc_style(Style::default().fg(fg.into()).bg(bg.into()))
+			.suffix_style(Style::default().fg(theme.colors.ui.gutter_fg.into()).bg(bg.into()))
+			.line_style(Style::default().fg(theme.colors.ui.gutter_fg.into()).bg(bg.into()));
 		if let Some(desc) = root_description {
 			tree = tree.root_desc(desc);
 		}
@@ -51,7 +51,7 @@ fn render_utility_panel(ed: &mut Editor, frame: &mut xeno_tui::Frame, area: Rect
 	}
 
 	let hint = "Utility panel: Ctrl-U toggle, Esc close";
-	frame.render_widget(Paragraph::new(hint).style(Style::default().fg(fg).bg(bg)), inner);
+	frame.render_widget(Paragraph::new(hint).style(Style::default().fg(fg.into()).bg(bg.into())), inner);
 }
 
 pub fn render_panels(editor: &mut Editor, frame: &mut xeno_tui::Frame, plan: &[PanelRenderTarget]) -> Option<Position> {

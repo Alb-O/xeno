@@ -32,7 +32,7 @@ pub fn render(ed: &mut Editor, frame: &mut xeno_tui::Frame, doc_area: Rect) {
 
 		frame.render_widget(Clear, rect);
 
-		let block = Block::default().style(Style::default().bg(popup_bg));
+		let block = Block::default().style(Style::default().bg(popup_bg.into()));
 		frame.render_widget(block, rect);
 
 		let gutter_area: Rect = plan.gutter_rect().into();

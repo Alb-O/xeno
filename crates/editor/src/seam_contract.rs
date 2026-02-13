@@ -19,7 +19,12 @@ const FORBIDDEN_PATTERNS: &[(&str, &str)] = &[
 	// Policy/internal calls that should not appear in frontends.
 	("buffer_view_render_plan", "use core-owned view plan APIs instead"),
 	("editor.layout(", "use core-owned separator/document plan APIs instead"),
+	(".layout(", "use core-owned separator/document plan APIs instead"),
+	(".layout_mut(", "use core-owned separator/document plan APIs instead"),
 	("base_window().layout", "use core-owned plan APIs instead"),
+	(".ui_mut(", "use core-owned frame planning APIs instead"),
+	(".viewport_mut(", "use core-owned frame planning APIs instead"),
+	(".frame_mut(", "use core-owned frame planning APIs instead"),
 	// Legacy single-document render plan (replaced by document_view_plans).
 	("DocumentRenderPlan", "use document_view_plans() instead"),
 	("focused_document_render_plan", "use document_view_plans() instead"),
@@ -33,8 +38,9 @@ const FRONTEND_DIRS: &[&str] = &["../editor-tui/src", "../editor-iced/src"];
 
 #[cfg(test)]
 mod tests {
-	use super::*;
 	use std::path::{Path, PathBuf};
+
+	use super::*;
 
 	fn collect_rs_files(dir: &Path) -> Vec<PathBuf> {
 		let mut files = Vec::new();

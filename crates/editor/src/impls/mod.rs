@@ -70,6 +70,7 @@ use xeno_registry::themes::THEMES;
 use xeno_registry::{ActionId, HookEventData};
 
 use crate::buffer::{Buffer, Layout, ViewId};
+use crate::geometry::Rect;
 use crate::hook_runtime::HookRuntime;
 use crate::layout::LayoutManager;
 #[cfg(feature = "lsp")]
@@ -79,7 +80,7 @@ use crate::msg::{MsgReceiver, MsgSender};
 use crate::overlay::{OverlayStore, OverlaySystem};
 use crate::paste::normalize_to_lf;
 use crate::types::{Config, FrameState, UndoManager, Viewport, Workspace};
-use crate::ui::UiManager;
+use crate::ui::{PanelRenderTarget, UiManager};
 use crate::view_manager::ViewManager;
 use crate::window::{BaseWindow, WindowManager};
 
@@ -233,6 +234,36 @@ pub(crate) struct EditorState {
 
 pub struct Editor {
 	pub(crate) state: EditorState,
+}
+
+/// Data-only frame planning output for frontend compositors.
+///
+/// Frontends use this to render the frame without mutating core UI/layout
+/// internals directly.
+#[derive(Debug, Clone)]
+pub struct FrontendFramePlan {
+	main_area: Rect,
+	status_area: Rect,
+	doc_area: Rect,
+	panel_render_plan: Vec<PanelRenderTarget>,
+}
+
+impl FrontendFramePlan {
+	pub fn main_area(&self) -> Rect {
+		self.main_area
+	}
+
+	pub fn status_area(&self) -> Rect {
+		self.status_area
+	}
+
+	pub fn doc_area(&self) -> Rect {
+		self.doc_area
+	}
+
+	pub fn panel_render_plan(&self) -> &[PanelRenderTarget] {
+		&self.panel_render_plan
+	}
 }
 
 impl Editor {
@@ -675,6 +706,65 @@ impl Editor {
 	#[inline]
 	pub fn statusline_rows(&self) -> u16 {
 		crate::ui::STATUSLINE_ROWS
+	}
+
+	/// Clears the per-frame redraw flag after a frontend completes drawing.
+	#[inline]
+	pub fn mark_frame_drawn(&mut self) {
+		self.state.frame.needs_redraw = false;
+	}
+
+	/// Prepares a frontend frame using a backend-neutral viewport.
+	///
+	/// This centralizes per-frame editor updates that were previously performed in
+	/// frontend compositor code (viewport sync, UI dock planning, and separator
+	/// hover animation activation).
+	pub fn begin_frontend_frame(&mut self, viewport: Rect) -> FrontendFramePlan {
+		self.state.frame.needs_redraw = false;
+		self.ensure_syntax_for_buffers();
+		self.state.viewport.width = Some(viewport.width);
+		self.state.viewport.height = Some(viewport.height);
+
+		let status_rows = self.statusline_rows().min(viewport.height);
+		let main_rows = viewport.height.saturating_sub(status_rows);
+		let main_area = Rect::new(viewport.x, viewport.y, viewport.width, main_rows);
+		let status_area = Rect::new(viewport.x, viewport.y.saturating_add(main_rows), viewport.width, status_rows);
+
+		let mut ui = std::mem::take(&mut self.state.ui);
+		ui.sync_utility_for_modal_overlay(self.utility_overlay_height_hint());
+		ui.sync_utility_for_whichkey(self.whichkey_desired_height());
+		let dock_layout = ui.compute_layout(main_area);
+		let panel_render_plan = ui.panel_render_plan(&dock_layout);
+		let doc_area = dock_layout.doc_area;
+		self.state.viewport.doc_area = Some(doc_area);
+
+		let activate_separator_hover = {
+			let layout = &self.state.layout;
+			layout.hovered_separator.is_none() && layout.separator_under_mouse.is_some() && !layout.is_mouse_fast()
+		};
+		if activate_separator_hover {
+			let layout = &mut self.state.layout;
+			let old_hover = layout.hovered_separator.take();
+			layout.hovered_separator = layout.separator_under_mouse;
+			if old_hover != layout.hovered_separator {
+				layout.update_hover_animation(old_hover, layout.hovered_separator);
+				self.state.frame.needs_redraw = true;
+			}
+		}
+		if self.state.layout.animation_needs_redraw() {
+			self.state.frame.needs_redraw = true;
+		}
+		if ui.take_wants_redraw() {
+			self.state.frame.needs_redraw = true;
+		}
+		self.state.ui = ui;
+
+		FrontendFramePlan {
+			main_area,
+			status_area,
+			doc_area,
+			panel_render_plan,
+		}
 	}
 
 	/// Returns utility panel height hint while a modal overlay is active.

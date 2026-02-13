@@ -56,12 +56,12 @@ impl SeparatorStyle {
 			dragging_rect,
 			anim_rect,
 			anim_intensity,
-			base_bg: [colors.ui.bg, colors.popup.bg],
-			base_fg: [colors.ui.gutter_fg, colors.popup.fg],
-			hover_fg: colors.ui.cursor_fg,
-			hover_bg: colors.ui.selection_bg,
-			drag_fg: colors.ui.bg,
-			drag_bg: colors.ui.fg,
+			base_bg: [colors.ui.bg.into(), colors.popup.bg.into()],
+			base_fg: [colors.ui.gutter_fg.into(), colors.popup.fg.into()],
+			hover_fg: colors.ui.cursor_fg.into(),
+			hover_bg: colors.ui.selection_bg.into(),
+			drag_fg: colors.ui.bg.into(),
+			drag_bg: colors.ui.fg.into(),
 		}
 	}
 

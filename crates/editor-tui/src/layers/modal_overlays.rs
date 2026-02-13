@@ -50,7 +50,7 @@ pub fn render_utility_panel_overlay(ed: &mut Editor, frame: &mut xeno_tui::Frame
 			continue;
 		};
 
-		let stripe_style = Style::default().fg(stripe_fg);
+		let stripe_style = Style::default().fg(stripe_fg.into());
 		let stripe_border_set = xeno_tui::symbols::border::Set {
 			top_left: "▏",
 			vertical_left: "▏",
@@ -58,7 +58,7 @@ pub fn render_utility_panel_overlay(ed: &mut Editor, frame: &mut xeno_tui::Frame
 			..xeno_tui::symbols::border::EMPTY
 		};
 		let block = Block::default()
-			.style(Style::default().bg(popup_bg))
+			.style(Style::default().bg(popup_bg.into()))
 			.borders(Borders::LEFT)
 			.border_set(stripe_border_set)
 			.border_style(stripe_style);

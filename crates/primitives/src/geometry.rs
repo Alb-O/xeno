@@ -173,7 +173,7 @@ impl fmt::Display for Position {
 	}
 }
 
-#[cfg(feature = "xeno-tui")]
+#[cfg(feature = "tui-style")]
 impl From<xeno_tui::layout::Rect> for Rect {
 	fn from(value: xeno_tui::layout::Rect) -> Self {
 		Self {
@@ -185,21 +185,21 @@ impl From<xeno_tui::layout::Rect> for Rect {
 	}
 }
 
-#[cfg(feature = "xeno-tui")]
+#[cfg(feature = "tui-style")]
 impl From<Rect> for xeno_tui::layout::Rect {
 	fn from(value: Rect) -> Self {
 		Self::new(value.x, value.y, value.width, value.height)
 	}
 }
 
-#[cfg(feature = "xeno-tui")]
+#[cfg(feature = "tui-style")]
 impl From<xeno_tui::layout::Position> for Position {
 	fn from(value: xeno_tui::layout::Position) -> Self {
 		Self { x: value.x, y: value.y }
 	}
 }
 
-#[cfg(feature = "xeno-tui")]
+#[cfg(feature = "tui-style")]
 impl From<Position> for xeno_tui::layout::Position {
 	fn from(value: Position) -> Self {
 		Self::new(value.x, value.y)

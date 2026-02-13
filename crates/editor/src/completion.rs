@@ -210,6 +210,24 @@ pub struct CompletionRenderItem {
 }
 
 impl CompletionRenderItem {
+	pub fn new(
+		label: String,
+		kind: CompletionKind,
+		right: Option<String>,
+		match_indices: Option<Vec<usize>>,
+		selected: bool,
+		command_alias_match: bool,
+	) -> Self {
+		Self {
+			label,
+			kind,
+			right,
+			match_indices,
+			selected,
+			command_alias_match,
+		}
+	}
+
 	pub fn label(&self) -> &str {
 		&self.label
 	}
@@ -241,6 +259,16 @@ pub struct CompletionRenderPlan {
 }
 
 impl CompletionRenderPlan {
+	pub fn new(items: Vec<CompletionRenderItem>, max_label_width: usize, target_row_width: usize, show_kind: bool, show_right: bool) -> Self {
+		Self {
+			items,
+			max_label_width,
+			target_row_width,
+			show_kind,
+			show_right,
+		}
+	}
+
 	pub fn items(&self) -> &[CompletionRenderItem] {
 		&self.items
 	}

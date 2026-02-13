@@ -110,6 +110,7 @@ impl MouseEvent {
 	}
 }
 
+#[cfg(feature = "terminal-input")]
 impl From<termina::event::MouseEvent> for MouseEvent {
 	fn from(event: termina::event::MouseEvent) -> Self {
 		use termina::event::{Modifiers as TmModifiers, MouseButton as TmButton, MouseEventKind};

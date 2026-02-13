@@ -36,11 +36,11 @@ pub fn render(ed: &Editor, frame: &mut xeno_tui::Frame) {
 			let option = item.option();
 			let row_style = if is_selected {
 				Style::default()
-					.bg(theme.colors.ui.selection_bg)
-					.fg(theme.colors.ui.selection_fg)
+					.bg(theme.colors.ui.selection_bg.into())
+					.fg(theme.colors.ui.selection_fg.into())
 					.add_modifier(Modifier::BOLD)
 			} else {
-				Style::default().bg(theme.colors.popup.bg).fg(theme.colors.popup.fg)
+				Style::default().bg(theme.colors.popup.bg.into()).fg(theme.colors.popup.fg.into())
 			};
 
 			let mut line = vec![Span::styled(" ", row_style)];
@@ -64,9 +64,9 @@ pub fn render(ed: &Editor, frame: &mut xeno_tui::Frame) {
 		bottom_left: "▏",
 		..xeno_tui::symbols::border::EMPTY
 	};
-	let stripe_style = Style::default().fg(theme.colors.mode.prefix.bg);
+	let stripe_style = Style::default().fg(theme.colors.mode.prefix.bg.into());
 	let block = Block::default()
-		.style(Style::default().bg(theme.colors.popup.bg))
+		.style(Style::default().bg(theme.colors.popup.bg.into()))
 		.borders(Borders::LEFT)
 		.border_set(border_set)
 		.border_style(stripe_style);

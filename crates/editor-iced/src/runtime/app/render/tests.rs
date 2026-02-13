@@ -38,21 +38,8 @@ fn background_style_uses_color_mapping_with_black_fallback() {
 
 #[test]
 fn format_palette_completion_row_includes_kind_and_right_columns() {
-	let plan = CompletionRenderPlan {
-		items: Vec::new(),
-		max_label_width: 8,
-		target_row_width: 20,
-		show_kind: true,
-		show_right: true,
-	};
-	let item = CompletionRenderItem {
-		label: String::from("write"),
-		kind: CompletionKind::Command,
-		right: Some(String::from("w")),
-		match_indices: None,
-		selected: false,
-		command_alias_match: false,
-	};
+	let plan = CompletionRenderPlan::new(Vec::new(), 8, 20, true, true);
+	let item = CompletionRenderItem::new(String::from("write"), CompletionKind::Command, Some(String::from("w")), None, false, false);
 
 	let row = format_palette_completion_row(&plan, &item);
 	assert!(row.contains("write"));

@@ -14,15 +14,6 @@ impl<'a> RenderLine<'a> {
 		self.style = Some(style);
 		self
 	}
-
-	#[cfg(feature = "tui")]
-	pub fn into_text_line(self) -> xeno_primitives::TextLine<'a> {
-		let mut line = xeno_primitives::TextLine::from(self.spans.into_iter().map(RenderSpan::into_text_span).collect::<Vec<_>>());
-		if let Some(style) = self.style {
-			line = line.style(style);
-		}
-		line
-	}
 }
 
 impl<'a> From<Vec<RenderSpan<'a>>> for RenderLine<'a> {
@@ -43,10 +34,5 @@ impl<'a> RenderSpan<'a> {
 			content: content.into(),
 			style,
 		}
-	}
-
-	#[cfg(feature = "tui")]
-	pub fn into_text_span(self) -> xeno_primitives::TextSpan<'a> {
-		xeno_primitives::TextSpan::styled(self.content, self.style)
 	}
 }

@@ -15,6 +15,10 @@ pub struct SnippetChoiceRenderItem {
 }
 
 impl SnippetChoiceRenderItem {
+	pub fn new(option: String, selected: bool) -> Self {
+		Self { option, selected }
+	}
+
 	pub fn option(&self) -> &str {
 		&self.option
 	}
@@ -32,6 +36,14 @@ pub struct SnippetChoiceRenderPlan {
 }
 
 impl SnippetChoiceRenderPlan {
+	pub fn new(items: Vec<SnippetChoiceRenderItem>, max_option_width: usize, target_row_width: usize) -> Self {
+		Self {
+			items,
+			max_option_width,
+			target_row_width,
+		}
+	}
+
 	pub fn items(&self) -> &[SnippetChoiceRenderItem] {
 		&self.items
 	}

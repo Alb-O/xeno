@@ -43,7 +43,7 @@ fn map_notification_to_toast(colors: ThemeColors, notification: NotificationRend
 		NotificationRenderLevel::Success => ("success", icon_presets::SUCCESS),
 		NotificationRenderLevel::Debug => ("dim", icon_presets::DEBUG),
 	};
-	let notif_style: Style = colors.notification_style(semantic);
+	let notif_style: Style = colors.notification_style(semantic).into();
 	let accent = notif_style.fg.unwrap_or_default();
 	Toast::new(notification.message)
 		.anchor(Anchor::TopRight)

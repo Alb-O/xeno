@@ -6,13 +6,15 @@ edition.workspace = true
 license.workspace = true
 
 [features]
-default = ["xeno-tui"]
-xeno-tui = ["dep:xeno-tui"]
+default = []
+tui-style = ["dep:xeno-tui"]
+terminal-input = ["dep:termina"]
 
 [dependencies]
+bitflags.workspace = true
 ropey.workspace = true
 smallvec.workspace = true
-termina.workspace = true
+termina = { workspace = true, optional = true }
 thiserror.workspace = true
 unicode-segmentation.workspace = true
 xeno-keymap-parser.workspace = true

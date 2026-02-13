@@ -2,32 +2,18 @@ use super::*;
 
 #[test]
 fn completion_row_parts_marks_selected_item() {
-	let plan = CompletionRenderPlan {
-		max_label_width: 8,
-		target_row_width: 40,
-		show_kind: true,
-		show_right: true,
-		items: vec![
-			CompletionRenderItem {
-				label: String::from("alpha"),
-				kind: CompletionKind::Command,
-				right: Some(String::from("left")),
-				match_indices: None,
-				selected: false,
-				command_alias_match: false,
-			},
-			CompletionRenderItem {
-				label: String::from("beta"),
-				kind: CompletionKind::Command,
-				right: Some(String::from("right")),
-				match_indices: None,
-				selected: true,
-				command_alias_match: false,
-			},
+	let plan = CompletionRenderPlan::new(
+		vec![
+			CompletionRenderItem::new(String::from("alpha"), CompletionKind::Command, Some(String::from("left")), None, false, false),
+			CompletionRenderItem::new(String::from("beta"), CompletionKind::Command, Some(String::from("right")), None, true, false),
 		],
-	};
+		8,
+		40,
+		true,
+		true,
+	);
 
-	let parts = completion_row_parts(&plan, &plan.items[1]);
+	let parts = completion_row_parts(&plan, &plan.items()[1]);
 	assert_eq!(
 		parts,
 		CompletionRowParts {
@@ -41,14 +27,8 @@ fn completion_row_parts_marks_selected_item() {
 
 #[test]
 fn snippet_row_parts_prefixes_selected_rows() {
-	let selected = SnippetChoiceRenderItem {
-		option: String::from("choice-a"),
-		selected: true,
-	};
-	let normal = SnippetChoiceRenderItem {
-		option: String::from("choice-b"),
-		selected: false,
-	};
+	let selected = SnippetChoiceRenderItem::new(String::from("choice-a"), true);
+	let normal = SnippetChoiceRenderItem::new(String::from("choice-b"), false);
 
 	assert_eq!(
 		snippet_row_parts(&selected),

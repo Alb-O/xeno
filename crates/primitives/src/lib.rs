@@ -30,6 +30,8 @@ pub mod range;
 pub mod rope;
 /// Selection types for single and multi-cursor editing.
 pub mod selection;
+/// Backend-neutral style primitives and optional frontend conversions.
+pub mod style;
 /// Undo/redo transaction primitives.
 pub mod transaction;
 
@@ -48,10 +50,5 @@ pub use range::Range;
 pub use rope::{max_cursor_pos, visible_line_count};
 pub use ropey::{Rope, RopeSlice};
 pub use selection::Selection;
+pub use style::{Color, Modifier, Style, UnderlineStyle};
 pub use transaction::{ChangeSet, Transaction};
-#[cfg(feature = "xeno-tui")]
-pub use xeno_tui::style::{Color, Modifier, Style, UnderlineStyle};
-#[cfg(feature = "xeno-tui")]
-pub type TextLine<'a> = xeno_tui::text::Line<'a>;
-#[cfg(feature = "xeno-tui")]
-pub type TextSpan<'a> = xeno_tui::text::Span<'a>;

@@ -7,7 +7,7 @@ license.workspace = true
 
 [features]
 default = ["tui"]
-tui = ["xeno-primitives/xeno-tui"]
+tui = ["xeno-primitives/tui-style", "xeno-primitives/terminal-input"]
 lsp = ["dep:xeno-lsp", "dep:thiserror", "dep:tokio-util"]
 [dependencies]
 anyhow.workspace = true

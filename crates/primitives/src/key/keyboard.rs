@@ -175,6 +175,7 @@ impl fmt::Display for Key {
 	}
 }
 
+#[cfg(feature = "terminal-input")]
 impl From<termina::event::KeyEvent> for Key {
 	fn from(event: termina::event::KeyEvent) -> Self {
 		use termina::event::{KeyCode as TmKeyCode, Modifiers as TmModifiers};

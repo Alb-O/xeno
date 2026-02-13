@@ -6,7 +6,7 @@ use xeno_tui::text::{Line, Span};
 use xeno_tui::widgets::{Block, Paragraph};
 
 fn segment_to_span(ed: &Editor, segment: &StatuslineRenderSegment) -> Span<'static> {
-	let mut style = ed.statusline_segment_style(segment.style());
+	let mut style: Style = ed.statusline_segment_style(segment.style()).into();
 	if matches!(segment.style(), StatuslineRenderStyle::Mode) {
 		style = style.add_modifier(Modifier::BOLD);
 	}
@@ -14,7 +14,7 @@ fn segment_to_span(ed: &Editor, segment: &StatuslineRenderSegment) -> Span<'stat
 }
 
 pub fn render(ed: &Editor, frame: &mut xeno_tui::Frame, area: Rect) {
-	let status_bg = Block::default().style(Style::default().bg(ed.config().theme.colors.ui.bg));
+	let status_bg = Block::default().style(Style::default().bg(ed.config().theme.colors.ui.bg.into()));
 	frame.render_widget(status_bg, area);
 
 	let spans: Vec<_> = ed.statusline_render_plan().iter().map(|segment| segment_to_span(ed, segment)).collect();

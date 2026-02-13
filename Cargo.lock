@@ -6739,6 +6739,7 @@ dependencies = [
 name = "xeno-primitives"
 version = "0.8.20"
 dependencies = [
+ "bitflags 2.10.0",
  "proptest",
  "ropey",
  "smallvec",

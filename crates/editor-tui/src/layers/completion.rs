@@ -73,24 +73,25 @@ pub fn render_completion_menu(ed: &Editor, frame: &mut xeno_tui::Frame, area: Re
 				CompletionKind::Theme => "󰏘",
 			};
 
-			let kind_color = match item.kind() {
+			let kind_color: Color = match item.kind() {
 				CompletionKind::Command => theme.colors.mode.command.bg,
 				CompletionKind::File => theme.colors.mode.normal.bg,
 				CompletionKind::Buffer => theme.colors.semantic.accent,
 				CompletionKind::Snippet => theme.colors.mode.prefix.bg,
 				CompletionKind::Theme => theme.colors.semantic.accent,
-			};
+			}
+			.into();
 
 			let base_style = if is_selected {
-				Style::default().bg(theme.colors.ui.selection_bg).fg(theme.colors.ui.selection_fg)
+				Style::default().bg(theme.colors.ui.selection_bg.into()).fg(theme.colors.ui.selection_fg.into())
 			} else {
-				Style::default().bg(theme.colors.popup.bg).fg(theme.colors.popup.fg)
+				Style::default().bg(theme.colors.popup.bg.into()).fg(theme.colors.popup.fg.into())
 			};
 
 			let icon_style = if is_selected {
 				base_style.fg(kind_color).add_modifier(Modifier::BOLD)
 			} else {
-				Style::default().fg(kind_color).bg(theme.colors.popup.bg)
+				Style::default().fg(kind_color).bg(theme.colors.popup.bg.into())
 			};
 
 			let label_style = if is_selected { base_style.add_modifier(Modifier::BOLD) } else { base_style };
@@ -106,13 +107,13 @@ pub fn render_completion_menu(ed: &Editor, frame: &mut xeno_tui::Frame, area: Re
 			let dim_style = if is_selected {
 				base_style
 			} else {
-				Style::default().fg(theme.colors.semantic.dim).bg(theme.colors.popup.bg)
+				Style::default().fg(theme.colors.semantic.dim.into()).bg(theme.colors.popup.bg.into())
 			};
 
 			let match_color = if item.command_alias_match() {
 				Color::Magenta
 			} else {
-				theme.colors.semantic.match_hl
+				theme.colors.semantic.match_hl.into()
 			};
 			let match_style = label_style.fg(match_color);
 			let label_spans = build_highlighted_label(item.label(), item.match_indices(), max_label_width, label_style, match_style);
@@ -142,7 +143,7 @@ pub fn render_completion_menu(ed: &Editor, frame: &mut xeno_tui::Frame, area: Re
 		})
 		.collect();
 
-	let stripe_style = Style::default().fg(theme.colors.mode.normal.bg);
+	let stripe_style = Style::default().fg(theme.colors.mode.normal.bg.into());
 	let border_set = xeno_tui::symbols::border::Set {
 		top_left: "▏",
 		vertical_left: "▏",
@@ -151,7 +152,7 @@ pub fn render_completion_menu(ed: &Editor, frame: &mut xeno_tui::Frame, area: Re
 	};
 
 	let block = Block::default()
-		.style(Style::default().bg(theme.colors.popup.bg))
+		.style(Style::default().bg(theme.colors.popup.bg.into()))
 		.borders(Borders::LEFT)
 		.border_set(border_set)
 		.border_style(stripe_style);

@@ -405,7 +405,7 @@ impl IcedEditorApp {
 			CoreRect::new(0, 0, cols, doc_rows)
 		});
 		self.snapshot = build_snapshot(&mut self.editor, self.event_state.ime_preedit(), doc_bounds);
-		self.editor.frame_mut().needs_redraw = false;
+		self.editor.mark_frame_drawn();
 	}
 
 	fn apply_document_viewport_size(&mut self, document_size: Size) {
