@@ -27,7 +27,7 @@ Investigate a minimal GUI frontend integration using `iced_wgpu` while preservin
 - Added minimal rendering bridge:
   - renders focused buffer snapshot via core `BufferRenderContext` (shared render-policy path)
   - preserves core `RenderLine` rows and adapts them to iced `rich_text` rows (span-level foreground/background mapping for named/RGB/indexed colors)
-  - document/statusline text now use cell-metrics-derived line height and font sizing so render rows match input grid mapping
+  - document/statusline rendering keeps iced default text sizing/line-height behavior; input mapping calibration is handled separately
   - renders statusline using `statusline_render_plan`
   - consumes core completion/snippet/overlay/info-popup plans and shows a structured scene summary
   - renders completion/snippet plan rows as dedicated preview sections with semantic row roles (meta/normal/selected)

@@ -62,15 +62,6 @@ fn viewport_grid_from_document_size_keeps_columns_and_adds_statusline_row() {
 }
 
 #[test]
-fn font_size_for_cell_metrics_clamps_to_cell_height() {
-	let metrics = super::super::CellMetrics::from_env();
-	let font_size = font_size_for_cell_metrics(metrics);
-
-	assert!(font_size >= 1.0);
-	assert!(font_size <= metrics.height_px());
-}
-
-#[test]
 fn parse_coordinate_scale_validates_input() {
 	assert_eq!(parse_coordinate_scale(Some("1.25")), Some(1.25));
 	assert_eq!(parse_coordinate_scale(Some("0")), None);
