@@ -15,6 +15,8 @@ pub use panel::UiRequest;
 pub use panels::utility::{UtilityWhichKeyEntry, UtilityWhichKeyPlan};
 pub use statusline::{StatuslineRenderSegment, StatuslineRenderStyle};
 
+pub(crate) const STATUSLINE_ROWS: u16 = statusline::STATUSLINE_ROWS;
+
 pub(crate) fn utility_whichkey_desired_height(editor: &crate::Editor) -> Option<u16> {
 	panels::utility::UtilityPanel::whichkey_desired_height(editor)
 }

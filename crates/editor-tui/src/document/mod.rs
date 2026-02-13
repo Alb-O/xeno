@@ -8,8 +8,6 @@ mod separator;
 use xeno_editor::Editor;
 use xeno_editor::buffer::{SplitDirection, ViewId};
 use xeno_editor::layout::LayerId;
-use xeno_editor::render_api::{BufferRenderContext, GutterLayout, RenderCtx, ensure_buffer_cursor_visible};
-use xeno_editor::window::GutterSelector;
 use xeno_tui::layout::Rect;
 use xeno_tui::text::{Line, Span};
 use xeno_tui::widgets::Paragraph;
@@ -22,10 +20,8 @@ type LayerRenderData = (LayerId, Rect, Vec<(ViewId, Rect)>, Vec<(SplitDirection,
 
 /// Renders all views and separators across all layout layers.
 ///
-/// Orchestrates a two-pass rendering process:
-/// 1. Visibility pass: Ensures cursors are within visible viewports.
-/// 2. Render pass: Draws buffer content and gutters using the render cache.
-pub fn render_split_buffers(ed: &mut Editor, frame: &mut xeno_tui::Frame, doc_area: Rect, use_block_cursor: bool, ctx: &RenderCtx) {
+/// Renders buffer content and separators for each visible split view.
+pub fn render_split_buffers(ed: &mut Editor, frame: &mut xeno_tui::Frame, doc_area: Rect, use_block_cursor: bool) {
 	let focused_view = ed.focused_view();
 	let base_layout = &ed.base_window().layout;
 
@@ -73,71 +69,30 @@ pub fn render_split_buffers(ed: &mut Editor, frame: &mut xeno_tui::Frame, doc_ar
 		}
 	}
 
-	let mouse_drag_active = ed.layout().text_selection_origin.is_some();
-	for (_, _, view_areas, _) in &layer_data {
-		for (buffer_id, area) in view_areas {
-			let tab_width = ed.tab_width_for(*buffer_id);
-			let scroll_margin = if mouse_drag_active { 0 } else { ed.scroll_margin_for(*buffer_id) };
-
-			if let Some(buffer) = ed.get_buffer_mut(*buffer_id) {
-				let total_lines = buffer.with_doc(|doc| doc.content().len_lines());
-				let is_diff_file = buffer.file_type().is_some_and(|ft| ft == "diff");
-				let gutter = GutterSelector::Registry;
-				let effective_gutter = if is_diff_file {
-					BufferRenderContext::diff_gutter_selector(gutter)
-				} else {
-					gutter
-				};
-
-				let gutter_layout = GutterLayout::from_selector(effective_gutter, total_lines, area.width);
-				let text_width = area.width.saturating_sub(gutter_layout.total_width) as usize;
-
-				ensure_buffer_cursor_visible(buffer, (*area).into(), text_width, tab_width, scroll_margin);
-			}
-		}
-	}
-
-	let sep_style = SeparatorStyle::new(ctx);
-
-	let mut cache = std::mem::take(ed.render_cache_mut());
-	let language_loader = &ed.config().language_loader;
+	let sep_style = SeparatorStyle::new(ed, doc_area.into());
 
 	for (_, _, view_areas, _) in &layer_data {
 		for (buffer_id, area) in view_areas {
 			let is_focused = *buffer_id == focused_view;
-			if let Some(buffer) = ed.core().buffers.get_buffer(*buffer_id) {
-				let tab_width = ed.tab_width_for(*buffer_id);
-				let cursorline = ed.cursorline_for(*buffer_id);
-
-				let buffer_ctx = BufferRenderContext {
-					theme: &ctx.theme,
-					language_loader,
-					syntax_manager: ed.syntax_manager(),
-					diagnostics: ctx.lsp.diagnostics_for(*buffer_id),
-					diagnostic_ranges: ctx.lsp.diagnostic_ranges_for(*buffer_id),
-				};
-				let result = buffer_ctx.render_buffer(buffer, (*area).into(), use_block_cursor, is_focused, tab_width, cursorline, &mut cache);
-
+			if let Some(plan) = ed.buffer_view_render_plan(*buffer_id, (*area).into(), use_block_cursor, is_focused) {
 				let gutter_area = Rect {
-					width: result.gutter_width,
+					width: plan.gutter_width,
 					..*area
 				};
 				let text_area = Rect {
-					x: area.x + result.gutter_width,
-					width: area.width.saturating_sub(result.gutter_width),
+					x: area.x + plan.gutter_width,
+					width: area.width.saturating_sub(plan.gutter_width),
 					..*area
 				};
 
-				let gutter = to_tui_lines(result.gutter);
-				let text = to_tui_lines(result.text);
+				let gutter = to_tui_lines(plan.gutter);
+				let text = to_tui_lines(plan.text);
 
 				frame.render_widget(Paragraph::new(gutter), gutter_area);
 				frame.render_widget(Paragraph::new(text), text_area);
 			}
 		}
 	}
-
-	*ed.render_cache_mut() = cache;
 
 	for (_, _, _, separators) in &layer_data {
 		for (direction, priority, sep_rect) in separators {

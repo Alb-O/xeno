@@ -3,7 +3,8 @@
 //! This module handles visual styling of separators between split views,
 //! including hover effects, drag highlighting, and junction glyphs.
 
-use xeno_editor::render_api::RenderCtx;
+use xeno_editor::Editor;
+use xeno_editor::geometry::Rect as CoreRect;
 use xeno_editor::test_events::SeparatorAnimationEvent;
 use xeno_tui::animation::Animatable;
 use xeno_tui::layout::Rect;
@@ -42,19 +43,26 @@ pub struct SeparatorStyle {
 }
 
 impl SeparatorStyle {
-	/// Creates a new separator style from the current render context.
-	pub fn new(ctx: &RenderCtx) -> Self {
+	/// Creates a new separator style from editor state.
+	pub fn new(editor: &Editor, doc_area: CoreRect) -> Self {
+		let layout = editor.layout();
+		let colors = &editor.config().theme.colors;
+		let dragging_rect = layout
+			.drag_state()
+			.and_then(|drag| layout.separator_rect(&editor.base_window().layout, doc_area, &drag.id))
+			.map(Into::into);
+
 		Self {
-			hovered_rect: ctx.layout.hovered_separator.map(|(_, rect)| rect.into()),
-			dragging_rect: ctx.layout.dragging_rect.map(Into::into),
-			anim_rect: ctx.layout.animation_rect.map(Into::into),
-			anim_intensity: ctx.layout.animation_intensity,
-			base_bg: [ctx.theme.colors.ui.bg, ctx.theme.colors.popup.bg],
-			base_fg: [ctx.theme.colors.ui.gutter_fg, ctx.theme.colors.popup.fg],
-			hover_fg: ctx.theme.colors.ui.cursor_fg,
-			hover_bg: ctx.theme.colors.ui.selection_bg,
-			drag_fg: ctx.theme.colors.ui.bg,
-			drag_bg: ctx.theme.colors.ui.fg,
+			hovered_rect: layout.hovered_separator.map(|(_, rect)| rect.into()),
+			dragging_rect,
+			anim_rect: layout.animation_rect().map(Into::into),
+			anim_intensity: layout.animation_intensity(),
+			base_bg: [colors.ui.bg, colors.popup.bg],
+			base_fg: [colors.ui.gutter_fg, colors.popup.fg],
+			hover_fg: colors.ui.cursor_fg,
+			hover_bg: colors.ui.selection_bg,
+			drag_fg: colors.ui.bg,
+			drag_bg: colors.ui.fg,
 		}
 	}
 

@@ -3,6 +3,13 @@ use unicode_width::UnicodeWidthStr;
 use crate::Editor;
 use crate::completion::{CompletionKind, CompletionRenderItem, CompletionRenderPlan, CompletionState};
 use crate::geometry::Rect;
+use crate::overlay::{OverlayControllerKind, WindowRole};
+
+#[derive(Debug, Clone)]
+pub struct OverlayCompletionMenuTarget {
+	pub rect: Rect,
+	pub plan: CompletionRenderPlan,
+}
 
 fn command_query_is_exact_alias(query: &str, label: &str) -> bool {
 	let query = query.trim();
@@ -157,6 +164,40 @@ impl Editor {
 		let area = self.completion_popup_area()?;
 		self.completion_render_plan(area.width, CompletionState::MAX_VISIBLE)
 	}
+
+	/// Completion menu target for command palette/file picker overlays.
+	pub fn overlay_completion_menu_target(&self) -> Option<OverlayCompletionMenuTarget> {
+		if !matches!(
+			self.overlay_kind(),
+			Some(OverlayControllerKind::CommandPalette | OverlayControllerKind::FilePicker)
+		) {
+			return None;
+		}
+
+		let input_rect = self.overlay_pane_rect(WindowRole::Input)?;
+		let panel_height = self.utility_overlay_height_hint()?;
+		let panel_top = input_rect.y.saturating_sub(panel_height.saturating_sub(1));
+		let visible_rows = self.completion_visible_rows(CompletionState::MAX_VISIBLE) as u16;
+		let rect = overlay_menu_rect_above_input(panel_top, input_rect, visible_rows)?;
+		let plan = self.completion_render_plan(rect.width, rect.height as usize)?;
+
+		Some(OverlayCompletionMenuTarget { rect, plan })
+	}
+}
+
+fn overlay_menu_rect_above_input(panel_top: u16, input: Rect, visible_rows: u16) -> Option<Rect> {
+	if input.width == 0 || visible_rows == 0 || panel_top >= input.y {
+		return None;
+	}
+
+	let available_rows = input.y.saturating_sub(panel_top);
+	let menu_height = visible_rows.min(available_rows);
+	if menu_height == 0 {
+		return None;
+	}
+
+	let menu_y = input.y.saturating_sub(menu_height);
+	Some(Rect::new(input.x, menu_y, input.width, menu_height))
 }
 
 #[cfg(test)]
@@ -221,5 +262,53 @@ mod tests {
 		let wide = editor.completion_render_plan(31, 10).expect("plan should exist");
 		assert!(!wide.show_kind);
 		assert!(wide.show_right);
+	}
+
+	#[test]
+	fn overlay_menu_rect_returns_none_when_no_space_above_input() {
+		let input = Rect::new(10, 12, 30, 1);
+		assert_eq!(overlay_menu_rect_above_input(12, input, 5), None);
+	}
+
+	#[test]
+	fn overlay_menu_rect_clamps_height_to_available_rows() {
+		let input = Rect::new(10, 15, 30, 1);
+		let menu = overlay_menu_rect_above_input(10, input, 20).expect("menu should exist");
+		assert_eq!(menu.y, 10);
+		assert_eq!(menu.height, 5);
+	}
+
+	#[test]
+	fn overlay_menu_rect_returns_none_for_zero_width_or_rows() {
+		assert_eq!(overlay_menu_rect_above_input(0, Rect::new(10, 5, 0, 1), 4), None);
+		assert_eq!(overlay_menu_rect_above_input(0, Rect::new(10, 5, 20, 1), 0), None);
+	}
+
+	#[test]
+	fn overlay_completion_menu_target_uses_utility_panel_bounds() {
+		let mut editor = Editor::new_scratch();
+		editor.handle_window_resize(80, 24);
+		assert!(editor.open_command_palette());
+
+		let completion_count = 16;
+		let state = editor.overlays_mut().get_or_default::<CompletionState>();
+		state.active = true;
+		state.items = (0..completion_count).map(|idx| item(&format!("item-{idx}"), CompletionKind::Command)).collect();
+		state.selected_idx = Some(0);
+		state.scroll_offset = 0;
+
+		let input = editor.overlay_pane_rect(WindowRole::Input).expect("input pane");
+		let hint = editor.utility_overlay_height_hint().expect("utility overlay height hint");
+		let visible_rows = editor.completion_visible_rows(CompletionState::MAX_VISIBLE) as u16;
+
+		let target = editor.overlay_completion_menu_target().expect("overlay completion target");
+		assert_eq!(target.rect.x, input.x);
+		assert_eq!(target.rect.width, input.width);
+		assert_eq!(target.rect.y + target.rect.height, input.y);
+
+		let panel_top = input.y.saturating_sub(hint.saturating_sub(1));
+		assert!(target.rect.y >= panel_top);
+		assert_eq!(target.rect.height, hint.saturating_sub(1).min(visible_rows));
+		assert_eq!(target.plan.items.len() as u16, target.rect.height);
 	}
 }

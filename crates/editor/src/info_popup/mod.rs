@@ -11,6 +11,7 @@ use std::collections::HashMap;
 
 use crate::Editor;
 use crate::buffer::ViewId;
+use crate::geometry::Rect;
 use crate::window::WindowId;
 
 /// Unique identifier for an info popup.
@@ -45,6 +46,19 @@ pub struct InfoPopupRenderTarget {
 	pub content_width: u16,
 	/// Preferred content height before chrome.
 	pub content_height: u16,
+}
+
+/// Data-only popup layout target with resolved bounds.
+#[derive(Debug, Clone, Copy)]
+pub struct InfoPopupLayoutTarget {
+	/// Stable popup identifier.
+	pub id: InfoPopupId,
+	/// Read-only popup buffer to render.
+	pub buffer_id: ViewId,
+	/// Resolved popup rectangle in grid coordinates.
+	pub rect: Rect,
+	/// Anchor placement strategy used to derive `rect`.
+	pub anchor: InfoPopupRenderAnchor,
 }
 
 impl From<&InfoPopup> for InfoPopupRenderTarget {
@@ -94,6 +108,42 @@ fn measure_content(content: &str) -> (u16, u16) {
 	let content_height = lines.len().min(20) as u16;
 	let content_width = lines.iter().map(|line| line.chars().count()).max().unwrap_or(20).min(60) as u16;
 	(content_width, content_height)
+}
+
+const MAX_CONTENT_W: u16 = 60;
+const MAX_CONTENT_H: u16 = 12;
+
+fn compute_popup_rect(anchor: InfoPopupRenderAnchor, content_width: u16, content_height: u16, bounds: Rect) -> Option<Rect> {
+	let max_w = bounds.width.saturating_sub(2).min(MAX_CONTENT_W);
+	let max_h = bounds.height.saturating_sub(2).min(MAX_CONTENT_H);
+	if max_w == 0 || max_h == 0 {
+		return None;
+	}
+
+	let width = content_width.min(max_w);
+	let height = content_height.min(max_h);
+	if width == 0 || height == 0 {
+		return None;
+	}
+
+	let outer_w = width.saturating_add(2).min(bounds.width.saturating_sub(4));
+	let outer_h = height.saturating_add(2).min(bounds.height.saturating_sub(2));
+	if outer_w == 0 || outer_h == 0 {
+		return None;
+	}
+
+	let (x, y) = match anchor {
+		InfoPopupRenderAnchor::Center => (
+			bounds.x + bounds.width.saturating_sub(outer_w) / 2,
+			bounds.y + bounds.height.saturating_sub(outer_h) / 2,
+		),
+		InfoPopupRenderAnchor::Point { x, y } => (
+			x.max(bounds.x).min(bounds.x + bounds.width.saturating_sub(outer_w)),
+			y.max(bounds.y).min(bounds.y + bounds.height.saturating_sub(outer_h)),
+		),
+	};
+
+	Some(Rect::new(x, y, outer_w, outer_h))
 }
 
 /// Storage for active info popups, keyed by [`InfoPopupId`].
@@ -246,6 +296,22 @@ impl Editor {
 	/// Returns a data-only render plan for active info popups.
 	pub fn info_popup_render_plan(&self) -> Vec<InfoPopupRenderTarget> {
 		self.overlays().get::<InfoPopupStore>().map_or_else(Vec::new, InfoPopupStore::render_plan)
+	}
+
+	/// Returns info popup layout targets with resolved and clamped rectangles.
+	pub fn info_popup_layout_plan(&self, bounds: Rect) -> Vec<InfoPopupLayoutTarget> {
+		self.info_popup_render_plan()
+			.into_iter()
+			.filter_map(|popup| {
+				let rect = compute_popup_rect(popup.anchor, popup.content_width, popup.content_height, bounds)?;
+				Some(InfoPopupLayoutTarget {
+					id: popup.id,
+					buffer_id: popup.buffer_id,
+					rect,
+					anchor: popup.anchor,
+				})
+			})
+			.collect()
 	}
 }
 

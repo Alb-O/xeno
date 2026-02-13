@@ -47,18 +47,20 @@ fn format_header_line_formats_snapshot_fields() {
 
 #[test]
 fn viewport_rows_for_document_rows_reserves_statusline_row() {
-	assert_eq!(viewport_rows_for_document_rows(0), 1);
-	assert_eq!(viewport_rows_for_document_rows(5), 6);
+	let editor = Editor::new_scratch();
+	assert_eq!(viewport_rows_for_document_rows(&editor, 0), editor.statusline_rows());
+	assert_eq!(viewport_rows_for_document_rows(&editor, 5), 5 + editor.statusline_rows());
 }
 
 #[test]
 fn viewport_grid_from_document_size_keeps_columns_and_adds_statusline_row() {
+	let editor = Editor::new_scratch();
 	let metrics = super::super::CellMetrics::from_env();
 	let (expected_cols, expected_document_rows) = metrics.to_grid(160.0, 80.0);
-	let (cols, rows) = viewport_grid_from_document_size(metrics, iced::Size::new(160.0, 80.0));
+	let (cols, rows) = viewport_grid_from_document_size(&editor, metrics, iced::Size::new(160.0, 80.0));
 
 	assert_eq!(cols, expected_cols);
-	assert_eq!(rows, viewport_rows_for_document_rows(expected_document_rows));
+	assert_eq!(rows, viewport_rows_for_document_rows(&editor, expected_document_rows));
 }
 
 #[test]
@@ -75,22 +77,4 @@ fn coordinate_scale_normalizes_point_and_size() {
 	let scale = CoordinateScale { x: 2.0, y: 4.0 };
 	assert_eq!(scale.normalize_point(iced::Point::new(20.0, 40.0)), iced::Point::new(10.0, 10.0));
 	assert_eq!(scale.normalize_size(iced::Size::new(200.0, 80.0)), iced::Size::new(100.0, 20.0));
-}
-
-#[test]
-fn palette_menu_geometry_from_input_places_menu_above_input() {
-	let input = xeno_editor::geometry::Rect::new(10, 12, 30, 1);
-	let menu = palette_menu_geometry_from_input(input, 4).expect("menu should exist");
-	assert_eq!(menu.x, 10);
-	assert_eq!(menu.y, 8);
-	assert_eq!(menu.width, 30);
-	assert_eq!(menu.height, 4);
-}
-
-#[test]
-fn palette_menu_geometry_from_input_clamps_by_available_space() {
-	let input = xeno_editor::geometry::Rect::new(0, 3, 20, 1);
-	let menu = palette_menu_geometry_from_input(input, 10).expect("menu should exist");
-	assert_eq!(menu.y, 0);
-	assert_eq!(menu.height, 3);
 }

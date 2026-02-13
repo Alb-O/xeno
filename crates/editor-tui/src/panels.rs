@@ -1,5 +1,4 @@
 use xeno_editor::Editor;
-use xeno_editor::render_api::RenderCtx;
 use xeno_editor::ui::PanelRenderTarget;
 use xeno_editor::ui::ids::UTILITY_PANEL_ID;
 use xeno_tui::layout::{Position, Rect};
@@ -7,8 +6,8 @@ use xeno_tui::style::{Modifier, Style};
 use xeno_tui::widgets::keytree::{KeyTree, KeyTreeNode};
 use xeno_tui::widgets::{Block, Paragraph};
 
-fn render_utility_panel(ed: &mut Editor, frame: &mut xeno_tui::Frame, area: Rect, focused: bool, ctx: &RenderCtx) {
-	let theme = &ctx.theme;
+fn render_utility_panel(ed: &mut Editor, frame: &mut xeno_tui::Frame, area: Rect, focused: bool) {
+	let theme = &ed.config().theme;
 	let bg = if focused { theme.colors.ui.selection_bg } else { theme.colors.popup.bg };
 	let fg = if focused { theme.colors.ui.selection_fg } else { theme.colors.popup.fg };
 
@@ -21,7 +20,7 @@ fn render_utility_panel(ed: &mut Editor, frame: &mut xeno_tui::Frame, area: Rect
 	}
 
 	if ed.overlay_kind().is_some() {
-		crate::layers::modal_overlays::render_utility_panel_overlay(ed, frame, area, ctx);
+		crate::layers::modal_overlays::render_utility_panel_overlay(ed, frame, area);
 		return;
 	}
 
@@ -56,10 +55,10 @@ fn render_utility_panel(ed: &mut Editor, frame: &mut xeno_tui::Frame, area: Rect
 	frame.render_widget(Paragraph::new(hint).style(Style::default().fg(fg).bg(bg)), inner);
 }
 
-pub fn render_panels(editor: &mut Editor, frame: &mut xeno_tui::Frame, plan: &[PanelRenderTarget], ctx: &RenderCtx) -> Option<Position> {
+pub fn render_panels(editor: &mut Editor, frame: &mut xeno_tui::Frame, plan: &[PanelRenderTarget]) -> Option<Position> {
 	for target in plan {
 		if target.id == UTILITY_PANEL_ID {
-			render_utility_panel(editor, frame, target.area.into(), target.focused, ctx);
+			render_utility_panel(editor, frame, target.area.into(), target.focused);
 		}
 	}
 	None

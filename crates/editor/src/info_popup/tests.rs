@@ -85,3 +85,37 @@ fn store_render_plan_is_sorted_by_popup_id() {
 	assert_eq!(plan[0].id, InfoPopupId(2));
 	assert_eq!(plan[1].id, InfoPopupId(10));
 }
+
+#[test]
+fn popup_rect_centers_in_bounds() {
+	let bounds = crate::geometry::Rect::new(0, 1, 80, 22);
+	let rect = compute_popup_rect(InfoPopupRenderAnchor::Center, 20, 5, bounds).expect("rect should exist");
+	assert!(rect.x > bounds.x);
+	assert!(rect.y > bounds.y);
+	assert!(rect.x + rect.width < bounds.x + bounds.width);
+	assert!(rect.y + rect.height < bounds.y + bounds.height);
+}
+
+#[test]
+fn popup_rect_clamps_point_to_bounds() {
+	let bounds = crate::geometry::Rect::new(0, 1, 80, 22);
+	let rect = compute_popup_rect(InfoPopupRenderAnchor::Point { x: 100, y: 100 }, 20, 5, bounds).expect("rect should exist");
+	assert!(rect.x + rect.width <= bounds.x + bounds.width);
+	assert!(rect.y + rect.height <= bounds.y + bounds.height);
+}
+
+#[test]
+fn popup_rect_respects_point_position() {
+	let bounds = crate::geometry::Rect::new(0, 1, 80, 22);
+	let rect = compute_popup_rect(InfoPopupRenderAnchor::Point { x: 10, y: 5 }, 20, 5, bounds).expect("rect should exist");
+	assert_eq!(rect.x, 10);
+	assert_eq!(rect.y, 5);
+}
+
+#[test]
+fn popup_rect_applies_content_caps() {
+	let bounds = crate::geometry::Rect::new(0, 0, 200, 100);
+	let rect = compute_popup_rect(InfoPopupRenderAnchor::Center, 120, 40, bounds).expect("rect should exist");
+	assert_eq!(rect.width, 62);
+	assert_eq!(rect.height, 14);
+}

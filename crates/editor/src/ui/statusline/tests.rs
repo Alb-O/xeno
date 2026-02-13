@@ -1,6 +1,11 @@
 use super::*;
 
 #[test]
+fn statusline_rows_is_one() {
+	assert_eq!(STATUSLINE_ROWS, 1);
+}
+
+#[test]
 fn statusline_plan_does_not_include_overlay_tag_without_modal_overlay() {
 	let mut editor = Editor::new_scratch();
 	editor.handle_window_resize(120, 30);

@@ -52,7 +52,6 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame, notifications:
 		ed.frame_mut().needs_redraw = true;
 	}
 
-	let ctx = ed.render_ctx();
 	let doc_focused = ui.focus.focused().is_editor();
 
 	let mut builder = SceneBuilder::new(area, main_area, doc_area_tui, status_area);
@@ -81,11 +80,11 @@ pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame, notifications:
 				frame.render_widget(bg_block, area);
 			}
 			SurfaceOp::Document => {
-				crate::document::render_split_buffers(ed, frame, doc_area_tui, use_block_cursor && doc_focused, &ctx);
+				crate::document::render_split_buffers(ed, frame, doc_area_tui, use_block_cursor && doc_focused);
 			}
-			SurfaceOp::InfoPopups => crate::layers::info_popups::render(ed, frame, doc_area_tui, &ctx),
+			SurfaceOp::InfoPopups => crate::layers::info_popups::render(ed, frame, doc_area_tui),
 			SurfaceOp::Panels => {
-				if let Some(cursor_pos) = crate::panels::render_panels(ed, frame, &panel_render_plan, &ctx) {
+				if let Some(cursor_pos) = crate::panels::render_panels(ed, frame, &panel_render_plan) {
 					result.cursor = Some(cursor_pos);
 				}
 			}

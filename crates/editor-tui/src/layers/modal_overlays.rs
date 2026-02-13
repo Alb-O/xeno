@@ -1,5 +1,4 @@
-use xeno_editor::overlay::{OverlayControllerKind, OverlayPaneRenderTarget, WindowRole};
-use xeno_editor::render_api::{BufferRenderContext, GutterLayout, RenderBufferParams, RenderCtx, ensure_buffer_cursor_visible};
+use xeno_editor::overlay::OverlayPaneRenderTarget;
 use xeno_editor::window::SurfaceStyle;
 use xeno_editor::{Editor, FocusTarget};
 use xeno_tui::layout::Rect;
@@ -47,81 +46,29 @@ fn pane_content_area(rect: Rect, style: &SurfaceStyle) -> Rect {
 }
 
 fn render_palette_completion_menu(ed: &mut Editor, frame: &mut xeno_tui::Frame, area: Rect) {
-	if !matches!(
-		ed.overlay_kind(),
-		Some(OverlayControllerKind::CommandPalette | OverlayControllerKind::FilePicker)
-	) {
-		return;
-	}
-
-	let input_rect = ed.overlay_pane_rect(WindowRole::Input).map(|rect| -> Rect { rect.into() });
-	let Some(input_rect) = input_rect else {
+	let Some(target) = ed.overlay_completion_menu_target() else {
 		return;
 	};
-
-	let panel_top = area.y;
-	let menu_bottom = input_rect.y;
-	if panel_top >= menu_bottom {
-		return;
-	}
-
-	let visible_rows = ed.completion_visible_rows(10) as u16;
-	let available_rows = menu_bottom.saturating_sub(panel_top);
-	let menu_height = visible_rows.min(available_rows);
-	if menu_height == 0 {
-		return;
-	}
-
-	let menu_y = menu_bottom.saturating_sub(menu_height);
-	let menu_rect = Rect::new(input_rect.x, menu_y, input_rect.width, menu_height);
-	let Some(plan) = ed.completion_render_plan(menu_rect.width, menu_height as usize) else {
+	let menu_rect: Rect = target.rect.into();
+	let Some(menu_rect) = clamp_rect(menu_rect, area) else {
 		return;
 	};
-	crate::layers::completion::render_completion_menu(ed, frame, menu_rect, plan);
+	crate::layers::completion::render_completion_menu(ed, frame, menu_rect, target.plan);
 }
 
-pub fn render_utility_panel_overlay(ed: &mut Editor, frame: &mut xeno_tui::Frame, area: Rect, ctx: &RenderCtx) {
+pub fn render_utility_panel_overlay(ed: &mut Editor, frame: &mut xeno_tui::Frame, area: Rect) {
 	let panes: Vec<OverlayPaneRenderTarget> = ed.overlay_pane_render_plan();
 
 	if panes.is_empty() {
 		return;
 	}
 
-	for pane in &panes {
-		let pane_rect: Rect = pane.rect.into();
-		let Some(rect) = clamp_rect(pane_rect, area) else {
-			continue;
-		};
-		let content_area = pane_content_area(rect, &pane.style);
-		if content_area.width == 0 || content_area.height == 0 {
-			continue;
-		}
-
-		let tab_width = ed.tab_width_for(pane.buffer);
-		let scroll_margin = ed.scroll_margin_for(pane.buffer);
-		if let Some(buffer) = ed.get_buffer_mut(pane.buffer) {
-			let total_lines = buffer.with_doc(|doc| doc.content().len_lines());
-			let is_diff_file = buffer.file_type().is_some_and(|ft| ft == "diff");
-			let effective_gutter = if is_diff_file {
-				BufferRenderContext::diff_gutter_selector(pane.gutter)
-			} else {
-				pane.gutter
-			};
-
-			let gutter_layout = GutterLayout::from_selector(effective_gutter, total_lines, content_area.width);
-			let text_width = content_area.width.saturating_sub(gutter_layout.total_width) as usize;
-
-			ensure_buffer_cursor_visible(buffer, content_area.into(), text_width, tab_width, scroll_margin);
-		}
-	}
-
 	let focused_overlay = match ed.focus() {
 		FocusTarget::Overlay { buffer } => Some(*buffer),
 		_ => None,
 	};
-
-	let mut cache = std::mem::take(ed.render_cache_mut());
-	let language_loader = &ed.config().language_loader;
+	let stripe_fg = ed.config().theme.colors.mode.normal.bg;
+	let popup_bg = ed.config().theme.colors.popup.bg;
 
 	for pane in panes {
 		let pane_rect: Rect = pane.rect.into();
@@ -129,7 +76,7 @@ pub fn render_utility_panel_overlay(ed: &mut Editor, frame: &mut xeno_tui::Frame
 			continue;
 		};
 
-		let stripe_style = Style::default().fg(ctx.theme.colors.mode.normal.bg);
+		let stripe_style = Style::default().fg(stripe_fg);
 		let stripe_border_set = xeno_tui::symbols::border::Set {
 			top_left: "▏",
 			vertical_left: "▏",
@@ -137,7 +84,7 @@ pub fn render_utility_panel_overlay(ed: &mut Editor, frame: &mut xeno_tui::Frame
 			..xeno_tui::symbols::border::EMPTY
 		};
 		let block = Block::default()
-			.style(Style::default().bg(ctx.theme.colors.popup.bg))
+			.style(Style::default().bg(popup_bg))
 			.borders(Borders::LEFT)
 			.border_set(stripe_border_set)
 			.border_style(stripe_style);
@@ -149,28 +96,8 @@ pub fn render_utility_panel_overlay(ed: &mut Editor, frame: &mut xeno_tui::Frame
 			continue;
 		}
 
-		if let Some(buffer) = ed.get_buffer(pane.buffer) {
-			let tab_width = ed.tab_width_for(pane.buffer);
-			let cursorline = ed.cursorline_for(pane.buffer);
-
-			let buffer_ctx = BufferRenderContext {
-				theme: &ctx.theme,
-				language_loader,
-				syntax_manager: ed.syntax_manager(),
-				diagnostics: ctx.lsp.diagnostics_for(pane.buffer),
-				diagnostic_ranges: ctx.lsp.diagnostic_ranges_for(pane.buffer),
-			};
-			let result = buffer_ctx.render_buffer_with_gutter(RenderBufferParams {
-				buffer,
-				area: content_area.into(),
-				use_block_cursor: true,
-				is_focused: focused_overlay == Some(pane.buffer),
-				gutter: pane.gutter,
-				tab_width,
-				cursorline,
-				cache: &mut cache,
-			});
-
+		if let Some(result) = ed.buffer_view_render_plan_with_gutter(pane.buffer, content_area.into(), true, focused_overlay == Some(pane.buffer), pane.gutter)
+		{
 			let gutter_area = Rect {
 				width: result.gutter_width,
 				..content_area
@@ -188,7 +115,5 @@ pub fn render_utility_panel_overlay(ed: &mut Editor, frame: &mut xeno_tui::Frame
 			frame.render_widget(Paragraph::new(text), text_area);
 		}
 	}
-
-	*ed.render_cache_mut() = cache;
 	render_palette_completion_menu(ed, frame, area);
 }

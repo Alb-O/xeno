@@ -4,6 +4,8 @@ use xeno_registry::statusline::{SegmentPosition, SegmentStyle, StatuslineContext
 
 use crate::Editor;
 
+pub const STATUSLINE_ROWS: u16 = 1;
+
 /// Data-only render segment for statusline presentation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StatuslineRenderSegment {

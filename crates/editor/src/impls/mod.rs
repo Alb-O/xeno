@@ -671,6 +671,12 @@ impl Editor {
 		crate::ui::statusline_segment_style(self, style)
 	}
 
+	/// Number of grid rows reserved for the statusline.
+	#[inline]
+	pub fn statusline_rows(&self) -> u16 {
+		crate::ui::STATUSLINE_ROWS
+	}
+
 	/// Returns utility panel height hint while a modal overlay is active.
 	///
 	/// Frontends use this to keep utility panel sizing policy consistent
