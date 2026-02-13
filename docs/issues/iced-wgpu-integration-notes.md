@@ -25,9 +25,10 @@ Investigate a minimal GUI frontend integration using `iced_wgpu` while preservin
 
 ## Current limitations
 
-- Geometry mismatch:
-  - core currently treats `RuntimeEvent::WindowResized { width, height }` as terminal-like cell dimensions.
-  - iced provides logical pixel sizes; prototype currently passes rounded pixel values directly.
+- Grid-size conversion is heuristic:
+  - core resize contract is now explicitly grid-based (`RuntimeEvent::WindowResized { cols, rows }`).
+  - iced maps logical pixels to cols/rows via configurable cell metrics (`XENO_ICED_CELL_WIDTH_PX`, `XENO_ICED_CELL_HEIGHT_PX`).
+  - no font-metrics-driven calibration yet.
 - Rendering seam is still provisional:
   - no style/span-level GUI renderer yet
   - no overlay/completion/snippet/info-popup scene rendering yet
@@ -44,8 +45,8 @@ Investigate a minimal GUI frontend integration using `iced_wgpu` while preservin
 
 ## Best next iteration
 
-1. Introduce a GUI geometry contract in core runtime:
-   - separate logical pixels from terminal cells in resize handling.
+1. Calibrate GUI grid mapping:
+   - replace fixed pixel-per-cell defaults with measured font metrics.
 2. Add backend-neutral scene data for document text/style + overlay surfaces:
    - consume the same core plans in both TUI and iced frontends.
 3. Replace snapshot rendering with plan-driven GUI rendering:

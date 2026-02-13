@@ -10,6 +10,8 @@ use xeno_primitives::{Key, KeyCode, Modifiers};
 
 const DEFAULT_POLL_INTERVAL: Duration = Duration::from_millis(16);
 const MAX_VISIBLE_BUFFER_LINES: usize = 500;
+const DEFAULT_CELL_WIDTH_PX: f32 = 8.0;
+const DEFAULT_CELL_HEIGHT_PX: f32 = 16.0;
 
 #[derive(Debug, Clone, Default)]
 pub struct StartupOptions {
@@ -57,6 +59,29 @@ struct IcedEditorApp {
 	directive: LoopDirective,
 	quit_hook_emitted: bool,
 	snapshot: Snapshot,
+	cell_metrics: CellMetrics,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct CellMetrics {
+	width_px: f32,
+	height_px: f32,
+}
+
+impl CellMetrics {
+	fn from_env() -> Self {
+		Self {
+			width_px: parse_cell_size(std::env::var("XENO_ICED_CELL_WIDTH_PX").ok(), DEFAULT_CELL_WIDTH_PX),
+			height_px: parse_cell_size(std::env::var("XENO_ICED_CELL_HEIGHT_PX").ok(), DEFAULT_CELL_HEIGHT_PX),
+		}
+	}
+
+	fn to_grid(self, logical_width_px: f32, logical_height_px: f32) -> (u16, u16) {
+		(
+			logical_pixels_to_cells(logical_width_px, self.width_px),
+			logical_pixels_to_cells(logical_height_px, self.height_px),
+		)
+	}
 }
 
 impl IcedEditorApp {
@@ -92,6 +117,7 @@ impl IcedEditorApp {
 			directive: default_loop_directive(),
 			quit_hook_emitted: false,
 			snapshot: Snapshot::default(),
+			cell_metrics: CellMetrics::from_env(),
 		};
 
 		app.directive = app.runtime.block_on(app.editor.pump());
@@ -109,7 +135,7 @@ impl IcedEditorApp {
 			Message::Event(event) => {
 				if matches!(event, Event::Window(window::Event::CloseRequested)) {
 					self.directive.should_quit = true;
-				} else if let Some(runtime_event) = map_event(event) {
+				} else if let Some(runtime_event) = map_event(event, self.cell_metrics) {
 					self.directive = self.runtime.block_on(self.editor.on_event(runtime_event));
 					self.rebuild_snapshot();
 				}
@@ -245,7 +271,7 @@ fn snapshot_for_buffer(buffer: &Buffer) -> (String, String) {
 	(title, body)
 }
 
-fn map_event(event: Event) -> Option<RuntimeEvent> {
+fn map_event(event: Event, cell_metrics: CellMetrics) -> Option<RuntimeEvent> {
 	match event {
 		Event::Keyboard(keyboard::Event::KeyPressed {
 			modified_key,
@@ -253,18 +279,34 @@ fn map_event(event: Event) -> Option<RuntimeEvent> {
 			modifiers,
 			..
 		}) => map_key_event(modified_key, physical_key, modifiers).map(RuntimeEvent::Key),
-		Event::Window(window::Event::Opened { size, .. }) | Event::Window(window::Event::Resized(size)) => Some(RuntimeEvent::WindowResized {
-			width: clamp_dimension(size.width),
-			height: clamp_dimension(size.height),
-		}),
+		Event::Window(window::Event::Opened { size, .. }) | Event::Window(window::Event::Resized(size)) => {
+			let (cols, rows) = cell_metrics.to_grid(size.width, size.height);
+			Some(RuntimeEvent::WindowResized { cols, rows })
+		}
 		Event::Window(window::Event::Focused) => Some(RuntimeEvent::FocusIn),
 		Event::Window(window::Event::Unfocused) => Some(RuntimeEvent::FocusOut),
 		_ => None,
 	}
 }
 
-fn clamp_dimension(value: f32) -> u16 {
-	value.clamp(1.0, u16::MAX as f32).round() as u16
+fn logical_pixels_to_cells(logical_px: f32, cell_px: f32) -> u16 {
+	if !logical_px.is_finite() || !cell_px.is_finite() || cell_px <= 0.0 {
+		return 1;
+	}
+
+	let cells = (logical_px / cell_px).floor();
+	cells.clamp(1.0, u16::MAX as f32) as u16
+}
+
+fn parse_cell_size(value: Option<String>, default: f32) -> f32 {
+	let Some(value) = value else {
+		return default;
+	};
+
+	match value.parse::<f32>() {
+		Ok(px) if px.is_finite() && px > 0.0 => px,
+		_ => default,
+	}
 }
 
 fn map_key_event(key: keyboard::Key, physical_key: keyboard::key::Physical, modifiers: keyboard::Modifiers) -> Option<Key> {
@@ -345,6 +387,31 @@ fn map_named_key(key: keyboard::key::Named) -> Option<KeyCode> {
 		Named::F34 => Some(KeyCode::F(34)),
 		Named::F35 => Some(KeyCode::F(35)),
 		_ => None,
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn logical_pixels_to_cells_uses_floor_mapping() {
+		assert_eq!(logical_pixels_to_cells(79.9, 8.0), 9);
+		assert_eq!(logical_pixels_to_cells(80.0, 8.0), 10);
+	}
+
+	#[test]
+	fn logical_pixels_to_cells_clamps_minimum_to_one_cell() {
+		assert_eq!(logical_pixels_to_cells(0.0, 8.0), 1);
+		assert_eq!(logical_pixels_to_cells(-10.0, 8.0), 1);
+	}
+
+	#[test]
+	fn parse_cell_size_falls_back_for_invalid_values() {
+		assert_eq!(parse_cell_size(Some(String::from("abc")), 8.0), 8.0);
+		assert_eq!(parse_cell_size(Some(String::from("0")), 8.0), 8.0);
+		assert_eq!(parse_cell_size(Some(String::from("-4")), 8.0), 8.0);
+		assert_eq!(parse_cell_size(None, 8.0), 8.0);
 	}
 }
 

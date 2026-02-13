@@ -20,3 +20,11 @@ cargo run -p xeno-editor-iced --features iced-wgpu --bin xeno-iced -- [path] [--
 - Auto-selection prefers Wayland when `WAYLAND_DISPLAY` is present.
 - If you need to force one backend, set `XENO_ICED_BACKEND` to `wayland` or `x11`.
 - `WINIT_UNIX_BACKEND` still takes precedence if already set.
+
+## Resize mapping
+
+Core runtime resize events use text grid units (`cols`/`rows`).
+The iced frontend maps logical pixels to cells using:
+
+- `XENO_ICED_CELL_WIDTH_PX` (default `8`)
+- `XENO_ICED_CELL_HEIGHT_PX` (default `16`)

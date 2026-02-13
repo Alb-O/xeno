@@ -104,17 +104,17 @@ impl Editor {
 		self.state.ui.any_panel_open()
 	}
 
-	/// Handles terminal window resize events, updating buffer text widths and emitting hooks.
-	pub fn handle_window_resize(&mut self, width: u16, height: u16) {
-		self.state.viewport.width = Some(width);
-		self.state.viewport.height = Some(height);
+	/// Handles frontend viewport resize events expressed in text-grid cells.
+	pub fn handle_window_resize(&mut self, cols: u16, rows: u16) {
+		self.state.viewport.width = Some(cols);
+		self.state.viewport.height = Some(rows);
 
 		for buffer in self.state.core.buffers.buffers_mut() {
-			buffer.text_width = width.saturating_sub(buffer.gutter_width()) as usize;
+			buffer.text_width = cols.saturating_sub(buffer.gutter_width()) as usize;
 		}
 
 		let mut ui = std::mem::take(&mut self.state.ui);
-		ui.notify_resize(self, width, height);
+		ui.notify_resize(self, cols, rows);
 		if ui.take_wants_redraw() {
 			self.state.effects.request_redraw();
 		}
@@ -125,7 +125,10 @@ impl Editor {
 		self.state.overlay_system.restore_interaction(interaction);
 
 		self.state.effects.request_redraw();
-		emit_hook_sync_with(&HookContext::new(HookEventData::WindowResize { width, height }), &mut self.state.hook_runtime);
+		emit_hook_sync_with(
+			&HookContext::new(HookEventData::WindowResize { width: cols, height: rows }),
+			&mut self.state.hook_runtime,
+		);
 		self.flush_effects();
 	}
 

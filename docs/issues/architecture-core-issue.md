@@ -34,6 +34,7 @@ This document tracks the architecture split between `xeno-editor` (core engine) 
   - frontends consume typed plans/APIs (`overlay_pane_render_plan`, `whichkey_render_plan`, `statusline_render_plan`, `completion_render_plan`, `snippet_choice_render_plan`).
 - `xeno-editor-tui` now consumes lifecycle hook and notification render surfaces through `xeno-editor` APIs and has no direct `xeno_registry` imports.
 - `xeno-term` startup config loading/application also routes through `xeno-editor`, and `xeno-term` no longer imports `xeno_registry` directly.
+- Runtime resize contract is now explicitly text-grid based (`cols`/`rows`) with frontend-side pixel-to-grid adaptation for GUI frontends.
 - Legacy compatibility paths/shims removed:
   - focus compatibility helper path removed in favor of unified `set_focus` flow.
   - unused overlay compatibility constructor argument removed.

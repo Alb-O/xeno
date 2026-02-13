@@ -118,6 +118,7 @@ Completed:
 - `xeno-term` no longer imports `xeno_registry` directly (startup config load/apply now routes through `xeno-editor`)
 - experimental `xeno-editor-iced` frontend crate added behind `iced-wgpu` feature:
   - maps iced keyboard/window events into core `RuntimeEvent`
+  - maps window logical pixels to core grid resize units (`cols`/`rows`) with configurable cell metrics
   - runs core runtime loop (`pump`/`on_event`) through a local tokio runtime bridge
   - renders a minimal read-only snapshot from focused buffer + statusline plan
 

@@ -136,8 +136,8 @@ fn map_terminal_event(event: termina::event::Event) -> Option<RuntimeEvent> {
 		Event::Mouse(mouse) => Some(RuntimeEvent::Mouse(mouse.into())),
 		Event::Paste(content) => Some(RuntimeEvent::Paste(content)),
 		Event::WindowResized(size) => Some(RuntimeEvent::WindowResized {
-			width: size.cols,
-			height: size.rows,
+			cols: size.cols,
+			rows: size.rows,
 		}),
 		Event::FocusIn => Some(RuntimeEvent::FocusIn),
 		Event::FocusOut => Some(RuntimeEvent::FocusOut),

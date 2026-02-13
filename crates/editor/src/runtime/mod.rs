@@ -28,7 +28,11 @@ pub enum RuntimeEvent {
 	Key(Key),
 	Mouse(MouseEvent),
 	Paste(String),
-	WindowResized { width: u16, height: u16 },
+	/// Viewport size expressed in text-grid cells.
+	WindowResized {
+		cols: u16,
+		rows: u16,
+	},
 	FocusIn,
 	FocusOut,
 }
@@ -119,8 +123,8 @@ impl Editor {
 			RuntimeEvent::Paste(content) => {
 				self.handle_paste(content);
 			}
-			RuntimeEvent::WindowResized { width, height } => {
-				self.handle_window_resize(width, height);
+			RuntimeEvent::WindowResized { cols, rows } => {
+				self.handle_window_resize(cols, rows);
 			}
 			RuntimeEvent::FocusIn => {
 				self.handle_focus_in();
