@@ -77,6 +77,11 @@ pub(crate) fn map_event(event: Event, cell_metrics: CellMetrics, event_state: &m
 		Event::Mouse(mouse::Event::CursorMoved { position }) => {
 			let col = logical_pixels_to_cell_index(position.x, cell_metrics.width_px);
 			let row = logical_pixels_to_cell_index(position.y, cell_metrics.height_px);
+
+			if event_state.mouse_col == col && event_state.mouse_row == row {
+				return None;
+			}
+
 			event_state.mouse_col = col;
 			event_state.mouse_row = row;
 

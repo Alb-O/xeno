@@ -98,7 +98,7 @@ fn parse_inspector_width(value: Option<&str>) -> f32 {
 
 fn parse_show_inspector(value: Option<&str>) -> bool {
 	let Some(value) = value else {
-		return true;
+		return false;
 	};
 
 	!matches!(value.trim().to_ascii_lowercase().as_str(), "0" | "false" | "no" | "off")
@@ -167,12 +167,12 @@ impl IcedEditorApp {
 		match message {
 			Message::Tick(_now) => {
 				self.directive = self.runtime.block_on(self.editor.pump());
-				self.rebuild_snapshot();
+				self.rebuild_snapshot_if_needed();
 			}
 			Message::ClipboardRead(result) => {
 				if let Ok(content) = result {
 					self.directive = self.runtime.block_on(self.editor.on_event(RuntimeEvent::Paste(content.as_ref().clone())));
-					self.rebuild_snapshot();
+					self.rebuild_snapshot_if_needed();
 				}
 			}
 			Message::DocumentViewportChanged(document_size) => {
@@ -201,10 +201,10 @@ impl IcedEditorApp {
 				} else if matches!(event, Event::Window(window::Event::Opened { .. }) | Event::Window(window::Event::Resized(_))) {
 				} else if let Some(runtime_event) = map_event(event.clone(), self.cell_metrics, &mut self.event_state) {
 					self.directive = self.runtime.block_on(self.editor.on_event(runtime_event));
-					self.rebuild_snapshot();
+					self.rebuild_snapshot_if_needed();
 				} else if matches!(event, Event::InputMethod(_)) {
 					self.directive.needs_redraw = true;
-					self.rebuild_snapshot();
+					self.rebuild_snapshot_if_needed();
 				}
 			}
 		}
@@ -408,6 +408,12 @@ impl IcedEditorApp {
 		self.editor.mark_frame_drawn();
 	}
 
+	fn rebuild_snapshot_if_needed(&mut self) {
+		if self.directive.needs_redraw {
+			self.rebuild_snapshot();
+		}
+	}
+
 	fn apply_document_viewport_size(&mut self, document_size: Size) {
 		let (cols, rows) = viewport_grid_from_document_size(&self.editor, self.cell_metrics, document_size);
 		if self.document_viewport_cells == Some((cols, rows)) {
@@ -416,13 +422,13 @@ impl IcedEditorApp {
 
 		self.document_viewport_cells = Some((cols, rows));
 		self.directive = self.runtime.block_on(self.editor.on_event(RuntimeEvent::WindowResized { cols, rows }));
-		self.rebuild_snapshot();
+		self.rebuild_snapshot_if_needed();
 	}
 
 	fn forward_document_mouse_event(&mut self, mouse_event: mouse::Event) {
 		if let Some(runtime_event) = map_event(Event::Mouse(mouse_event), self.cell_metrics, &mut self.event_state) {
 			self.directive = self.runtime.block_on(self.editor.on_event(runtime_event));
-			self.rebuild_snapshot();
+			self.rebuild_snapshot_if_needed();
 		}
 	}
 
