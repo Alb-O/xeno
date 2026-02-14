@@ -88,8 +88,6 @@ pub mod syntax_manager;
 /// Terminal capability configuration.
 pub mod terminal_config;
 pub mod test_events;
-/// Theme completion source.
-pub mod theme_source;
 /// Editor type definitions.
 pub mod types;
 /// UI management: focus tracking.
@@ -112,5 +110,4 @@ pub use lsp::smoke::run_lsp_smoke;
 pub use msg::{Dirty, EditorMsg, IoMsg, LspMsg, MsgSender, ThemeMsg};
 pub use notifications::{NotificationRenderAutoDismiss, NotificationRenderItem, NotificationRenderLevel};
 pub use terminal_config::{TerminalConfig, TerminalSequence};
-pub use theme_source::ThemeSource;
 pub use xeno_registry::themes::{ColorPair, ModeColors, PopupColors, SemanticColors, THEMES, Theme, ThemeColors, UiColors, blend_colors, suggest_theme};

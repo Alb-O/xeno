@@ -102,9 +102,15 @@ impl Selection {
 	/// Returns the number of ranges in this selection.
 	///
 	/// This is always at least 1 (Selection cannot be empty).
-	#[allow(clippy::len_without_is_empty, reason = "Selection is never empty by design")]
 	pub fn len(&self) -> usize {
 		self.ranges.len()
+	}
+
+	/// Returns whether this selection contains no ranges.
+	///
+	/// Always returns `false` because [`Selection`] enforces at least one range.
+	pub const fn is_empty(&self) -> bool {
+		false
 	}
 
 	/// Iterates over all ranges.

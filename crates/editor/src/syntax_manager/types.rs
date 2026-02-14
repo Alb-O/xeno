@@ -113,7 +113,6 @@ pub struct ViewportTree {
 
 /// Cache entry for a single viewport window, holding Stage-A and Stage-B trees.
 pub struct ViewportEntry {
-	pub(super) key: ViewportKey,
 	/// Stage-A tree (fast, injections matching tier config).
 	pub(super) stage_a: Option<ViewportTree>,
 	/// Doc version for which Stage-A failed (timeout/error) in this key.
@@ -181,7 +180,6 @@ impl ViewportCache {
 			self.map.insert(
 				key,
 				ViewportEntry {
-					key,
 					stage_a: None,
 					stage_a_failed_for: None,
 					stage_b: None,
@@ -326,6 +324,7 @@ impl SyntaxSlot {
 	}
 
 	/// Returns the document version of the best available tree.
+	#[cfg(test)]
 	pub(super) fn best_doc_version(&self) -> Option<u64> {
 		let full_ver = self.full.as_ref().map(|t| t.doc_version);
 		let vp_best = self.viewport_cache.best_doc_version();

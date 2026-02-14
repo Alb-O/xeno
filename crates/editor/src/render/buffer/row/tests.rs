@@ -61,7 +61,6 @@ mod unit_tests {
 			primary: Style::default().bg(Color::Red),
 			secondary: Style::default().bg(Color::Blue),
 			unfocused: Style::default().bg(Color::Gray),
-			selection: Style::default().bg(Color::Cyan),
 			base: Style::default(),
 		};
 
@@ -151,7 +150,6 @@ mod unit_tests {
 			primary: Style::default().bg(Color::Red),
 			secondary: Style::default().bg(Color::Blue),
 			unfocused: Style::default().bg(Color::Gray),
-			selection: Style::default().bg(Color::Cyan),
 			base: Style::default(),
 		};
 
@@ -243,7 +241,6 @@ mod unit_tests {
 			primary: Style::default().bg(Color::Red),
 			secondary: Style::default().bg(Color::Blue),
 			unfocused: Style::default().bg(Color::Gray),
-			selection: Style::default().bg(Color::Cyan),
 			base: Style::default(),
 		};
 
@@ -352,7 +349,6 @@ mod unit_tests {
 			primary: Style::default().bg(Color::Red),
 			secondary: Style::default().bg(Color::Blue),
 			unfocused: Style::default().bg(Color::Gray),
-			selection: Style::default().bg(Color::Cyan),
 			base: Style::default(),
 		};
 

@@ -40,7 +40,10 @@ where
 }
 
 #[inline(always)]
-#[allow(clippy::too_many_arguments)]
+#[allow(
+	clippy::too_many_arguments,
+	reason = "hot-path SIMD kernel uses explicit scalar/slice args to avoid packing overhead"
+)]
 pub(crate) fn smith_waterman_inner<const L: usize>(
 	start: usize,
 	end: usize,

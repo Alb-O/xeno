@@ -166,7 +166,10 @@ where
 	///
 	/// Shortcut to [`MainLoop::run`] that accept an `impl AsyncRead` and implicit wrap it in a
 	/// [`BufReader`].
-	#[allow(clippy::missing_errors_doc, reason = "errors documented in Self::run")]
+	///
+	/// # Errors
+	///
+	/// Returns the same errors as [`MainLoop::run`].
 	pub async fn run_buffered(self, input: impl AsyncRead + Unpin + Send, output: impl AsyncWrite + Unpin + Send) -> Result<()> {
 		self.run(BufReader::new(input), output).await
 	}

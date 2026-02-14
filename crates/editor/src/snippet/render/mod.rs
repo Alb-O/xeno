@@ -9,14 +9,6 @@ pub trait SnippetVarResolver {
 	fn resolve_var(&self, name: &str) -> Option<String>;
 }
 
-struct NoVars;
-
-impl SnippetVarResolver for NoVars {
-	fn resolve_var(&self, _name: &str) -> Option<String> {
-		None
-	}
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RenderedSnippet {
 	pub text: String,
@@ -32,10 +24,6 @@ pub struct RenderedTransform {
 	pub replace: String,
 	pub flags: String,
 	pub range: Range<usize>,
-}
-
-pub fn render(template: &SnippetTemplate) -> RenderedSnippet {
-	render_with_resolver(template, &NoVars)
 }
 
 pub fn render_with_resolver<R>(template: &SnippetTemplate, resolver: &R) -> RenderedSnippet

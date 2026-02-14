@@ -92,6 +92,7 @@ impl FsService {
 		self.index_spec = None;
 	}
 
+	#[cfg(test)]
 	pub fn generation(&self) -> u64 {
 		self.generation
 	}
@@ -202,6 +203,7 @@ impl FsService {
 				if update.generation != self.generation {
 					return false;
 				}
+				let kind = update.kind;
 
 				if let Some(search_tx) = self.search_tx.as_ref() {
 					if let Some(cached_data) = update.cached_data.clone() {
@@ -224,6 +226,14 @@ impl FsService {
 						}
 					}
 				}
+				tracing::trace!(
+					generation = update.generation,
+					kind = ?kind,
+					reset = update.reset,
+					files = update.files.len(),
+					has_cached_data = update.cached_data.is_some(),
+					"filesystem index update"
+				);
 
 				let mut changed = false;
 
@@ -240,7 +250,6 @@ impl FsService {
 						changed = true;
 					}
 				}
-
 				if self.progress.indexed_files != update.progress.indexed_files
 					|| self.progress.total_files != update.progress.total_files
 					|| self.progress.complete != update.progress.complete

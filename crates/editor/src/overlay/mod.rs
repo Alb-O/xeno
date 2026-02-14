@@ -43,25 +43,12 @@ pub struct OverlayStore {
 }
 
 impl OverlayStore {
-	/// Creates an empty store.
-	pub fn new() -> Self {
-		Self::default()
-	}
-
 	/// Returns a reference to a stored value of type `T`.
 	pub fn get<T>(&self) -> Option<&T>
 	where
 		T: Any + Send + Sync,
 	{
 		self.inner.get(&TypeId::of::<T>())?.downcast_ref()
-	}
-
-	/// Returns a mutable reference to a stored value of type `T`.
-	pub fn get_mut<T>(&mut self) -> Option<&mut T>
-	where
-		T: Any + Send + Sync,
-	{
-		self.inner.get_mut(&TypeId::of::<T>())?.downcast_mut()
 	}
 
 	/// Returns a mutable reference to a stored value of type `T`,
@@ -81,14 +68,6 @@ impl OverlayStore {
 
 		slot.downcast_mut::<T>()
 			.expect("OverlayStore invariant violation: TypeId present with non-matching concrete type")
-	}
-
-	/// Inserts a value of type `T` into the store.
-	pub fn insert<T>(&mut self, val: T)
-	where
-		T: Any + Send + Sync,
-	{
-		self.inner.insert(TypeId::of::<T>(), Box::new(val));
 	}
 }
 
@@ -151,6 +130,7 @@ impl OverlaySystem {
 		&self.interaction
 	}
 
+	#[cfg(test)]
 	pub fn interaction_mut(&mut self) -> &mut OverlayManager {
 		&mut self.interaction
 	}
@@ -163,6 +143,7 @@ impl OverlaySystem {
 		self.interaction = interaction;
 	}
 
+	#[cfg(test)]
 	pub fn layers(&self) -> &OverlayLayers {
 		&self.layers
 	}
@@ -239,6 +220,7 @@ pub trait OverlayContext {
 	/// Queues a command by name.
 	fn queue_command(&mut self, name: &'static str, args: Vec<String>);
 	/// Returns the async message sender for background results.
+	#[cfg(feature = "lsp")]
 	fn msg_tx(&self) -> crate::msg::MsgSender;
 	/// Finalizes removal for a buffer.
 	fn finalize_buffer_removal(&mut self, view: ViewId);
@@ -330,12 +312,13 @@ impl OverlayContext for crate::Editor {
 		self.state.core.workspace.command_queue.push(name, args);
 	}
 
-	fn msg_tx(&self) -> crate::msg::MsgSender {
-		self.msg_tx()
-	}
-
 	fn finalize_buffer_removal(&mut self, view: ViewId) {
 		self.finalize_buffer_removal(view);
+	}
+
+	#[cfg(feature = "lsp")]
+	fn msg_tx(&self) -> crate::msg::MsgSender {
+		self.msg_tx()
 	}
 
 	fn completion_state(&self) -> Option<&crate::completion::CompletionState> {
@@ -436,6 +419,7 @@ pub struct OverlayLayers {
 impl OverlayLayers {
 	/// Adds a new layer to the top of the stack.
 	pub fn add(&mut self, layer: Box<dyn OverlayLayer>) {
+		tracing::trace!(layer = layer.name(), "overlay layer added");
 		self.layers.push(layer);
 	}
 
@@ -460,10 +444,6 @@ impl OverlayLayers {
 impl OverlayManager {
 	pub fn active(&self) -> Option<&ActiveOverlay> {
 		self.active.as_ref()
-	}
-
-	pub fn active_mut(&mut self) -> Option<&mut ActiveOverlay> {
-		self.active.as_mut()
 	}
 
 	/// Returns `true` if a modal interaction is currently active.

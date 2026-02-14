@@ -68,22 +68,6 @@ pub(super) struct Lanes {
 }
 
 impl Lanes {
-	/// Returns a mutable reference to the lane for the given viewport sub-lane.
-	pub(super) fn viewport_mut(&mut self, lane: ViewportLane) -> &mut LaneState {
-		match lane {
-			ViewportLane::Urgent => &mut self.viewport_urgent,
-			ViewportLane::Enrich => &mut self.viewport_enrich,
-		}
-	}
-
-	/// Returns a reference to the lane for the given viewport sub-lane.
-	pub(super) fn viewport(&self, lane: ViewportLane) -> &LaneState {
-		match lane {
-			ViewportLane::Urgent => &self.viewport_urgent,
-			ViewportLane::Enrich => &self.viewport_enrich,
-		}
-	}
-
 	/// Clears all lanes.
 	pub(super) fn clear_all(&mut self) {
 		self.viewport_urgent.clear();
@@ -173,6 +157,7 @@ impl DocSched {
 	}
 
 	/// Returns true if either viewport sub-lane is active.
+	#[cfg(test)]
 	pub(super) fn viewport_any_active(&self) -> bool {
 		self.lanes.viewport_urgent.is_active() || self.lanes.viewport_enrich.is_active()
 	}

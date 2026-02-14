@@ -102,7 +102,6 @@ pub(super) fn compute_plan(
 						kind: TaskKind::ViewportParse {
 							content: ctx.content.clone(),
 							window: win_start..win_end,
-							key: viewport_key,
 						},
 						loader: Arc::clone(ctx.loader),
 						viewport_key: Some(viewport_key),
@@ -201,7 +200,6 @@ pub(super) fn compute_plan(
 							kind: TaskKind::ViewportParse {
 								content: ctx.content.clone(),
 								window: win_start..win_end,
-								key: k,
 							},
 							loader: Arc::clone(ctx.loader),
 							viewport_key: Some(k),

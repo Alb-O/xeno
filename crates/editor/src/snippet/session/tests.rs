@@ -6,12 +6,9 @@ use crate::Editor;
 #[test]
 fn order_places_zero_last() {
 	let mut tabstops = BTreeMap::new();
-	#[allow(clippy::single_range_in_vec_init, reason = "these are single-element Vecs, not range expansions")]
-	{
-		tabstops.insert(0, vec![9..9]);
-		tabstops.insert(3, vec![7..8]);
-		tabstops.insert(1, vec![3..4]);
-	}
+	tabstops.insert(0, std::iter::once(9..9).collect());
+	tabstops.insert(3, std::iter::once(7..8).collect());
+	tabstops.insert(1, std::iter::once(3..4).collect());
 
 	assert_eq!(tabstop_order(&tabstops), vec![1, 3, 0]);
 }

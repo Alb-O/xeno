@@ -176,6 +176,7 @@ impl SyntaxManager {
 	///
 	/// Returns `None` when tree and target versions already match, or when no
 	/// aligned pending window exists.
+	#[cfg(test)]
 	pub(crate) fn highlight_projection_ctx(&self, doc_id: DocumentId, doc_version: u64) -> Option<HighlightProjectionCtx<'_>> {
 		let tree_doc_version = self.syntax_doc_version_internal(doc_id)?;
 		self.highlight_projection_ctx_for(doc_id, tree_doc_version, doc_version)
@@ -234,14 +235,9 @@ impl SyntaxManager {
 	}
 
 	/// Internal helper: best available tree doc version.
+	#[cfg(test)]
 	fn syntax_doc_version_internal(&self, doc_id: DocumentId) -> Option<u64> {
 		self.entries.get(&doc_id)?.slot.best_doc_version()
-	}
-
-	/// Returns true if a background task is currently active for a document.
-	#[cfg(test)]
-	pub(crate) fn has_inflight_task(&self, doc_id: DocumentId) -> bool {
-		self.entries.get(&doc_id).is_some_and(|e| e.sched.any_active())
 	}
 
 	#[cfg(test)]

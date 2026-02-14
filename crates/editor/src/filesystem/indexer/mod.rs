@@ -94,36 +94,52 @@ fn run_indexer(generation: u64, root: PathBuf, options: FilesystemOptions, updat
 	let (file_tx, file_rx) = mpsc::sync_channel::<FileRow>(options.file_channel_capacity.max(1));
 	let aggregator_tx = update_tx.clone();
 	let aggregator = thread::spawn(move || aggregate_files(generation, file_rx, aggregator_tx));
+	let walk_error_tx = update_tx.clone();
 
 	let extension_filter = options.extension_filter().map(Arc::new);
 	let walk_root = Arc::new(root.clone());
 	build_walk(&root, &options).build_parallel().run(|| {
 		let sender = file_tx.clone();
+		let error_tx = walk_error_tx.clone();
 		let root = Arc::clone(&walk_root);
 		let extension_filter = extension_filter.clone();
 		Box::new(move |entry: Result<DirEntry, IgnoreError>| {
-			if let Ok(entry) = entry {
-				let Some(file_type) = entry.file_type() else {
-					return WalkState::Continue;
-				};
-				if !file_type.is_file() {
-					return WalkState::Continue;
-				}
-
-				let path = entry.path();
-				let relative = path.strip_prefix(root.as_path()).unwrap_or(path);
-				if let Some(filter) = extension_filter.as_ref() {
-					let extension = relative.extension().and_then(|ext| ext.to_str()).map(|ext| ext.to_ascii_lowercase());
-					match extension {
-						Some(ext) if filter.contains(&ext) => {}
-						_ => return WalkState::Continue,
+			let entry = match entry {
+				Ok(entry) => entry,
+				Err(err) => {
+					if error_tx
+						.send(IndexMsg::Error {
+							generation,
+							message: Arc::<str>::from(err.to_string()),
+						})
+						.is_err()
+					{
+						return WalkState::Quit;
 					}
+					return WalkState::Continue;
 				}
+			};
 
-				let relative_display = relative.to_string_lossy().replace('\\', "/");
-				if sender.send(FileRow::new(Arc::<str>::from(relative_display))).is_err() {
-					return WalkState::Quit;
+			let Some(file_type) = entry.file_type() else {
+				return WalkState::Continue;
+			};
+			if !file_type.is_file() {
+				return WalkState::Continue;
+			}
+
+			let path = entry.path();
+			let relative = path.strip_prefix(root.as_path()).unwrap_or(path);
+			if let Some(filter) = extension_filter.as_ref() {
+				let extension = relative.extension().and_then(|ext| ext.to_str()).map(|ext| ext.to_ascii_lowercase());
+				match extension {
+					Some(ext) if filter.contains(&ext) => {}
+					_ => return WalkState::Continue,
 				}
+			}
+
+			let relative_display = relative.to_string_lossy().replace('\\', "/");
+			if sender.send(FileRow::new(Arc::<str>::from(relative_display))).is_err() {
+				return WalkState::Quit;
 			}
 
 			WalkState::Continue

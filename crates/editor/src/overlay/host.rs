@@ -29,7 +29,10 @@ impl OverlayHost {
 	}
 
 	pub fn reflow_session(ed: &mut Editor, controller: &dyn super::OverlayController, session: &mut OverlaySession) -> bool {
-		let spec = controller.ui_spec(ed);
+		let mut spec = controller.ui_spec(ed);
+		if spec.style.title.is_none() {
+			spec.style.title = spec.title.clone();
+		}
 		let (w, h) = match (ed.state.viewport.width, ed.state.viewport.height) {
 			(Some(w), Some(h)) => (w, h),
 			_ => return false,
@@ -108,7 +111,10 @@ impl OverlayHost {
 	/// * The terminal viewport dimensions are not available.
 	/// * The primary input window geometry fails to resolve.
 	pub fn setup_session(ed: &mut Editor, controller: &dyn super::OverlayController) -> Option<OverlaySession> {
-		let spec = controller.ui_spec(ed);
+		let mut spec = controller.ui_spec(ed);
+		if spec.style.title.is_none() {
+			spec.style.title = spec.title.clone();
+		}
 		let (w, h) = (ed.state.viewport.width?, ed.state.viewport.height?);
 		let screen = Self::overlay_container_rect(ed, w, h);
 

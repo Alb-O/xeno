@@ -117,7 +117,10 @@ impl IdGen {
 	}
 
 	/// Generates the next unique request ID.
-	#[allow(clippy::should_implement_trait, reason = "convention")]
+	#[allow(
+		clippy::should_implement_trait,
+		reason = "request IDs are produced as values; Iterator::next Option contract is not a fit"
+	)]
 	pub fn next(&mut self) -> RequestId {
 		let id = RequestId::Number(self.counter);
 		self.counter += 1;

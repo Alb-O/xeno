@@ -7,11 +7,6 @@
 use std::collections::{HashMap, VecDeque};
 use std::sync::OnceLock;
 
-use xeno_registry::commands::COMMANDS;
-
-/// Prompt character for ex-style commands (`:write`, `:theme`, etc.).
-pub const PROMPT_COMMAND: char = ':';
-
 /// Type of completion item.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CompletionKind {
@@ -44,61 +39,6 @@ pub struct CompletionItem {
 	pub match_indices: Option<Vec<usize>>,
 	/// Optional right-aligned metadata shown in compact completion lists.
 	pub right: Option<String>,
-}
-
-/// Result of a completion query.
-#[derive(Debug, Clone, Default)]
-pub struct CompletionResult {
-	/// Start position in the input where replacement begins.
-	/// All items in this result replace from this position to the cursor.
-	pub start: usize,
-	/// The completion candidates.
-	pub items: Vec<CompletionItem>,
-}
-
-impl CompletionResult {
-	/// Create a new completion result with the given start position and items.
-	pub fn new(start: usize, items: Vec<CompletionItem>) -> Self {
-		Self { start, items }
-	}
-
-	/// Create an empty result (no completions).
-	pub fn empty() -> Self {
-		Self::default()
-	}
-
-	/// Check if this result has any completions.
-	pub fn is_empty(&self) -> bool {
-		self.items.is_empty()
-	}
-}
-
-/// Context for generating completions.
-#[derive(Debug, Clone)]
-pub struct CompletionContext {
-	/// Current input string being completed.
-	pub input: String,
-	/// Cursor position within the input string.
-	pub cursor: usize,
-	/// The prompt character (e.g., ':', '/', etc.).
-	pub prompt: char,
-}
-
-/// Provides completion items for a specific context.
-///
-/// Implementors return a `CompletionResult` containing:
-/// * `start`: The position in the input where replacement begins
-/// * `items`: The list of completion candidates
-///
-/// When a completion is accepted, the text from `start` to the cursor
-/// is replaced with the selected item's `insert_text`.
-pub trait CompletionSource {
-	/// Generate completions for the given context.
-	///
-	/// Returns the start position and list of candidates.
-	/// Example: for input "theme gr" completing themes, returns `(6, [gruvbox, ...])`
-	/// indicating replacement starts at position 6 (after "theme ").
-	fn complete(&self, ctx: &CompletionContext) -> CompletionResult;
 }
 
 /// Tracks how the current completion selection was made.
@@ -136,6 +76,7 @@ pub struct CompletionState {
 	///
 	/// This is populated only for active LSP completion menus and is empty for
 	/// non-LSP completion sources.
+	#[cfg(feature = "lsp")]
 	pub lsp_display_to_raw: Vec<usize>,
 }
 
@@ -151,6 +92,7 @@ impl Default for CompletionState {
 			suppressed: false,
 			query: String::new(),
 			show_kind: true,
+			#[cfg(feature = "lsp")]
 			lsp_display_to_raw: Vec::new(),
 		}
 	}
@@ -190,11 +132,6 @@ impl CompletionState {
 	/// Ensures the selected item is visible within the viewport.
 	pub fn ensure_selected_visible(&mut self) {
 		self.ensure_selected_visible_with_limit(Self::MAX_VISIBLE);
-	}
-
-	/// Returns the range of visible items (start..end indices).
-	pub fn visible_range(&self) -> std::ops::Range<usize> {
-		self.visible_range_with_limit(Self::MAX_VISIBLE)
 	}
 }
 
@@ -370,72 +307,6 @@ impl CommandUsageSnapshot {
 
 	pub fn recent_rank(&self, name: &str) -> Option<usize> {
 		self.recent.iter().position(|item| item == name)
-	}
-}
-
-/// Completion source for editor commands.
-pub struct CommandSource;
-
-impl CompletionSource for CommandSource {
-	fn complete(&self, ctx: &CompletionContext) -> CompletionResult {
-		if ctx.prompt != PROMPT_COMMAND {
-			return CompletionResult::empty();
-		}
-
-		let input = &ctx.input;
-
-		// Only complete command names if we haven't typed a space yet
-		// (once there's a space, we're completing arguments, not the command)
-		if input.contains(' ') {
-			return CompletionResult::empty();
-		}
-
-		let mut scored: Vec<(i32, CompletionItem)> = COMMANDS
-			.snapshot_guard()
-			.iter_refs()
-			.filter_map(|cmd| {
-				let name = cmd.name_str();
-				let mut best = i32::MIN;
-				let mut match_indices = None;
-
-				if let Some((score, _, indices)) = frizbee_match(input, name) {
-					best = score as i32 + 200;
-					if !indices.is_empty() {
-						match_indices = Some(indices);
-					}
-				}
-				for alias in cmd.keys_resolved() {
-					if let Some((score, _, _)) = frizbee_match(input, alias) {
-						best = best.max(score as i32 + 80);
-					}
-				}
-				if input.is_empty() {
-					best = 0;
-				}
-				if !input.is_empty() && best == i32::MIN {
-					return None;
-				}
-
-				Some((
-					best,
-					CompletionItem {
-						label: name.to_string(),
-						insert_text: name.to_string(),
-						detail: Some(cmd.description_str().to_string()),
-						filter_text: None,
-						kind: CompletionKind::Command,
-						match_indices,
-						right: None,
-					},
-				))
-			})
-			.collect();
-
-		scored.sort_by(|(score_a, item_a), (score_b, item_b)| score_b.cmp(score_a).then_with(|| item_a.label.cmp(&item_b.label)));
-		let items = scored.into_iter().map(|(_, item)| item).collect();
-
-		// Command completions replace from position 0 (entire input)
-		CompletionResult::new(0, items)
 	}
 }
 

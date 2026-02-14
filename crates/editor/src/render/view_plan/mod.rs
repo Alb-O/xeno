@@ -9,6 +9,7 @@ use crate::window::{GutterSelector, SurfaceStyle};
 
 #[derive(Debug, Clone)]
 pub(crate) struct BufferViewRenderPlan {
+	#[cfg(test)]
 	pub(crate) gutter_width: u16,
 	pub(crate) gutter_rect: Rect,
 	pub(crate) text_rect: Rect,
@@ -17,6 +18,13 @@ pub(crate) struct BufferViewRenderPlan {
 }
 
 impl Editor {
+	/// Returns the title string for the focused document (path or "[scratch]").
+	pub fn focused_document_title(&self) -> String {
+		self.get_buffer(self.focused_view())
+			.and_then(|buffer| buffer.path().as_ref().map(|path| path.display().to_string()))
+			.unwrap_or_else(|| String::from("[scratch]"))
+	}
+
 	/// Renders a single view into data-only gutter and text lines.
 	pub(crate) fn buffer_view_render_plan(&mut self, view: ViewId, area: Rect, use_block_cursor: bool, is_focused: bool) -> Option<BufferViewRenderPlan> {
 		self.buffer_view_render_plan_with_gutter(view, area, use_block_cursor, is_focused, crate::window::GutterSelector::Registry)
@@ -76,6 +84,7 @@ impl Editor {
 		let text_rect = Rect::new(area.x + gutter_width, area.y, area.width - gutter_width, area.height);
 
 		Some(BufferViewRenderPlan {
+			#[cfg(test)]
 			gutter_width,
 			gutter_rect,
 			text_rect,
@@ -482,11 +491,6 @@ impl Editor {
 		let separators = self.separator_render_targets(doc_area);
 		let junctions = compute_junction_targets(&separators);
 		SeparatorScenePlan { separators, junctions }
-	}
-
-	/// Returns junction glyph targets for all separator intersections.
-	pub(crate) fn separator_junction_targets(&mut self, doc_area: Rect) -> Vec<SeparatorJunctionTarget> {
-		self.separator_scene_plan(doc_area).junctions
 	}
 
 	/// Returns document view plans for all visible views across layout layers.

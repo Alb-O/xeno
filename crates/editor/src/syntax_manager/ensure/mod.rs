@@ -104,7 +104,10 @@ impl SyntaxManager {
 }
 
 /// Runs the full ensure pipeline for a single document.
-#[allow(clippy::too_many_arguments)]
+#[allow(
+	clippy::too_many_arguments,
+	reason = "pipeline orchestration passes independent subsystems without hidden globals"
+)]
 fn ensure_doc(
 	now: Instant,
 	ctx: &EnsureSyntaxContext<'_>,

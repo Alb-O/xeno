@@ -21,8 +21,6 @@ pub struct SearchData {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IndexKind {
-	Preview,
-	Cached,
 	Live,
 }
 

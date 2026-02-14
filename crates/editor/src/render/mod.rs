@@ -4,6 +4,7 @@ pub mod cache;
 /// Completion popup rendering.
 mod completion;
 mod context;
+#[cfg(test)]
 mod document_plan;
 mod snippet_choice;
 mod text;

@@ -96,14 +96,12 @@ where
 		}
 		let scores: [u16; L] = all_time_max_score.to_array();
 
-		#[allow(clippy::needless_range_loop)]
-		for idx in 0..self.length {
-			let score_idx = self.idxs[idx];
-			let exact = self.haystack_strs[idx] == needle;
+		for ((&score_idx, haystack), &score_base) in self.idxs.iter().zip(self.haystack_strs.iter()).zip(scores.iter()).take(self.length) {
+			let exact = *haystack == needle;
 			let score = if exact {
-				scores[idx].saturating_add(scoring.exact_match_bonus)
+				score_base.saturating_add(scoring.exact_match_bonus)
 			} else {
-				scores[idx]
+				score_base
 			};
 
 			matches.push(Match {

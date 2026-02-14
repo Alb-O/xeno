@@ -204,8 +204,6 @@ pub struct OverlayStatus {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StatusKind {
 	Info,
-	Warn,
-	Error,
 }
 
 impl OverlaySession {

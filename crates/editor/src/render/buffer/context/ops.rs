@@ -43,13 +43,10 @@ impl<'a> BufferRenderContext<'a> {
 
 		let base_style = Style::default().fg(ui.fg);
 
-		let selection_style = Style::default().bg(ui.selection_bg).fg(ui.selection_fg);
-
 		CursorStyles {
 			primary: primary_cursor_style,
 			secondary: secondary_cursor_style,
 			base: base_style,
-			selection: selection_style,
 			unfocused: secondary_cursor_style,
 		}
 	}

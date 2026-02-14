@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::{SnippetVarResolver, render, render_with_resolver};
+use super::{SnippetVarResolver, render_with_resolver};
 use crate::snippet::parse_snippet_template;
 
 struct MapResolver {
@@ -13,10 +13,18 @@ impl SnippetVarResolver for MapResolver {
 	}
 }
 
+struct EmptyResolver;
+
+impl SnippetVarResolver for EmptyResolver {
+	fn resolve_var(&self, _name: &str) -> Option<String> {
+		None
+	}
+}
+
 #[test]
 fn renders_simple_tabstops() {
 	let template = parse_snippet_template("foo $1 bar $0").unwrap();
-	let rendered = render(&template);
+	let rendered = render_with_resolver(&template, &EmptyResolver);
 
 	assert_eq!(rendered.text, "foo  bar ");
 	assert_eq!(rendered.tabstops[&1], vec![4..4]);
@@ -26,7 +34,7 @@ fn renders_simple_tabstops() {
 #[test]
 fn renders_placeholder_ranges() {
 	let template = parse_snippet_template("let ${1:name} = ${2:val};").unwrap();
-	let rendered = render(&template);
+	let rendered = render_with_resolver(&template, &EmptyResolver);
 
 	assert_eq!(rendered.text, "let name = val;");
 	assert_eq!(rendered.tabstops[&1], vec![4..8]);
@@ -36,7 +44,7 @@ fn renders_placeholder_ranges() {
 #[test]
 fn renders_nested_placeholder_ranges() {
 	let template = parse_snippet_template("${1:foo ${2:bar}} baz").unwrap();
-	let rendered = render(&template);
+	let rendered = render_with_resolver(&template, &EmptyResolver);
 
 	assert_eq!(rendered.text, "foo bar baz");
 	assert_eq!(rendered.tabstops[&1], vec![0..7]);
@@ -46,7 +54,7 @@ fn renders_nested_placeholder_ranges() {
 #[test]
 fn renders_escaped_literals() {
 	let template = parse_snippet_template(r"\$1 \} $$").unwrap();
-	let rendered = render(&template);
+	let rendered = render_with_resolver(&template, &EmptyResolver);
 
 	assert_eq!(rendered.text, "$1 } $");
 	assert!(rendered.tabstops.is_empty());
@@ -55,7 +63,7 @@ fn renders_escaped_literals() {
 #[test]
 fn renders_choice_placeholder_with_default_and_choices() {
 	let template = parse_snippet_template("${1|a,b,c|}").unwrap();
-	let rendered = render(&template);
+	let rendered = render_with_resolver(&template, &EmptyResolver);
 
 	assert_eq!(rendered.text, "a");
 	assert_eq!(rendered.tabstops[&1], vec![0..1]);
@@ -104,7 +112,7 @@ fn renders_variable_transform_with_resolver_value() {
 #[test]
 fn renders_tabstop_transform_using_initial_placeholder_value() {
 	let template = parse_snippet_template("${1:foo} ${1/(.*)/$1_bar/}").unwrap();
-	let rendered = render(&template);
+	let rendered = render_with_resolver(&template, &EmptyResolver);
 	assert_eq!(rendered.text, "foo foo_bar");
 	assert_eq!(rendered.transforms.len(), 1);
 	assert_eq!(rendered.transforms[0].range, 4..11);

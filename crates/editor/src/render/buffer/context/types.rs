@@ -81,8 +81,6 @@ pub struct CursorStyles {
 	pub secondary: Style,
 	/// Base text style.
 	pub base: Style,
-	/// Selection highlight style.
-	pub selection: Style,
 	/// Style for cursors in unfocused buffers (dimmed like secondary cursors).
 	pub unfocused: Style,
 }

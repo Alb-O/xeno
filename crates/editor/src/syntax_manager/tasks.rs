@@ -28,7 +28,6 @@ pub(super) enum TaskKind {
 	ViewportParse {
 		content: Rope,
 		window: std::ops::Range<u32>,
-		key: ViewportKey,
 	},
 	Incremental {
 		base: Syntax,

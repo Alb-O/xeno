@@ -58,6 +58,12 @@ impl Editor {
 		if handled {
 			return false;
 		}
+		let mut layers = std::mem::take(self.state.overlay_system.layers_mut());
+		let handled = layers.handle_key(self, key);
+		*self.state.overlay_system.layers_mut() = layers;
+		if handled {
+			return false;
+		}
 
 		if self.state.overlay_system.interaction().is_open() && key.code == KeyCode::Enter {
 			self.state.frame.pending_overlay_commit = true;
