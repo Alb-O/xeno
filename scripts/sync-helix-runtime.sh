@@ -7,6 +7,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 HELIX_REPO="https://github.com/helix-editor/helix.git"
+QUERIES_DIR="$REPO_ROOT/crates/registry/src/domains/languages/assets"
 REF="${1:-master}"
 
 # Temporary directory for sparse checkout
@@ -26,7 +27,7 @@ cat > .git/info/sparse-checkout << 'EOF'
 /runtime/queries/
 EOF
 
-# Note: Helix uses runtime/queries/, we use runtime/language/queries/
+# Note: Helix uses runtime/queries/
 
 echo "Fetching from helix-editor/helix..."
 git fetch --depth=1 origin "$REF" -q
@@ -39,13 +40,13 @@ COMMIT_DATE=$(git log -1 --format=%ci)
 echo "Synced from commit: $COMMIT_HASH"
 echo "Commit date: $COMMIT_DATE"
 
-# Sync queries only (languages.toml is maintained separately)
-echo "Copying runtime/language/queries/..."
-rm -rf "$REPO_ROOT/runtime/language/queries"
-cp -r runtime/queries "$REPO_ROOT/runtime/language/"
+# Sync queries only
+echo "Copying runtime/queries/..."
+rm -rf "$QUERIES_DIR/queries"
+cp -r runtime/queries "$QUERIES_DIR/"
 
 # Write provenance file
-cat > "$REPO_ROOT/runtime/.helix-sync" << EOF
+cat > "$SCRIPT_DIR/sync-helix-runtime-stats.txt" << EOF
 upstream = "https://github.com/helix-editor/helix"
 ref = "$REF"
 commit = "$COMMIT_HASH"
@@ -53,11 +54,11 @@ synced_at = "$(date -Iseconds)"
 EOF
 
 # Count what we synced
-LANG_COUNT=$(find "$REPO_ROOT/runtime/language/queries" -mindepth 1 -maxdepth 1 -type d | wc -l)
-SCM_COUNT=$(find "$REPO_ROOT/runtime/language/queries" -name "*.scm" | wc -l)
+LANG_COUNT=$(find "$QUERIES_DIR/queries" -mindepth 1 -maxdepth 1 -type d | wc -l)
+SCM_COUNT=$(find "$QUERIES_DIR/queries" -name "*.scm" | wc -l)
 
 echo ""
 echo "Sync complete!"
 echo "  Languages: $LANG_COUNT"
 echo "  Query files: $SCM_COUNT"
-echo "  Provenance: runtime/.helix-sync"
+echo "  Provenance: scripts/sync-helix-runtime-stats.txt"

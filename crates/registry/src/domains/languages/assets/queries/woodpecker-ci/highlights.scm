@@ -1,4 +1,4 @@
-; yaml highlights from runtime/language/queries/yaml/highlights.scm
+; yaml highlights from runtime/queries/yaml/highlights.scm
 (boolean_scalar) @constant.builtin.boolean
 (null_scalar) @constant.builtin
 (double_quote_scalar) @string

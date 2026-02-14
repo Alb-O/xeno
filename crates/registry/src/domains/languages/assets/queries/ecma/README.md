@@ -1,23 +1,14 @@
-# Inheritance model for ECMA-family languages
+# Inheritance model for ecma-based languages
 
-ECMA-family grammars share large portions of query logic. We keep inheritance
-predictable by splitting shared query fragments into "private" query
-directories prefixed with `_` and reserving public directories for user-facing
-language names.
+Ecma-based languages share many traits. Because of this we want to share as many queries as possible while avoiding nested inheritance that can make query behaviour unpredictable due to unexpected precedence.
 
-* Private layers should not declare `; inherits`.
-* Public layers compose private layers (and `ecma`) explicitly.
-* Add shared rules to the most specific private layer so downstream languages
-  inherit them automatically.
+To achieve that, there are "public" and "private" versions for javascript, jsx, and typescript query files, that share the same name, but the "private" version name starts with an underscore (with the exception of ecma, that already exists as a sort of base "private" language). This allows the "private" versions to host the specific queries of the language excluding any `; inherits` statement, in order to make them safe to be inherited by the "public" version of the same language and other languages as well. The tsx language doesn't have a "private" version given that currently it doesn't need to be inherited by other languages.
 
-| Language | Inherits from |
-| --- | --- |
-| `javascript` | `_javascript`, `ecma` |
-| `jsx` | `_jsx`, `_javascript`, `ecma` |
-| `typescript` | `_typescript`, `ecma` |
-| `tsx` | `_jsx`, `_typescript`, `ecma` |
-| `gjs` | `_gjs`, `_javascript`, `ecma` |
-| `gts` | `_gjs`, `_typescript`, `ecma` |
+| Language   | Inherits from           |
+| ---------- | ----------------------- |
+| javascript | _javascript, ecma       |
+| jsx        | _jsx, _javascript, ecma |
+| typescript | _typescript, ecma       |
+| tsx        | _jsx, _typescript, ecma |
 
-When adding or adjusting ECMA-family queries, update the relevant private layer
-first, then keep each public layer focused on language-specific deltas.
+If you intend to add queries to any of the ecma-based languages above, make sure you add them to the correct private language they belong to, so that other languages down the line can benefit from them.
