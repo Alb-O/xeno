@@ -1,9 +1,23 @@
 //! Shared Nu script sandbox and evaluation helpers for Xeno.
 //!
 //! Provides a sandboxed Nu evaluation environment used by both the config
-//! system (`config.nu`) and the editor macro runtime (`xeno.nu`). The sandbox
-//! enforces an AST-level policy that blocks external commands, filesystem I/O,
-//! networking, looping, and module paths that escape the config root.
+//! system (`config.nu`) and the editor macro runtime (`xeno.nu`).
+//!
+//! Sandboxing is composed from:
+//! * A minimal `nu-cmd-lang` engine context (no filesystem/network/plugin
+//!   command sets loaded).
+//! * AST-level policy checks for external execution, redirection/glob usage,
+//!   overlay/source loading, and looping.
+//! * Post-parse module root enforcement: all parser-resolved module files must
+//!   canonically remain under the provided config root.
+//!
+//! Primary sources:
+//! * Nu default language context (`nu-cmd-lang`):
+//!   <https://github.com/nushell/nushell/blob/main/crates/nu-cmd-lang/src/default_context.rs>
+//! * Nu parser module loading and `source` keyword behavior:
+//!   <https://github.com/nushell/nushell/blob/main/crates/nu-parser/src/parse_keywords.rs>
+//! * Nu parser import patterns:
+//!   <https://github.com/nushell/nushell/blob/main/crates/nu-parser/src/parser.rs>
 
 mod sandbox;
 
@@ -14,7 +28,6 @@ use nu_protocol::ast::Block;
 use nu_protocol::config::Config;
 use nu_protocol::engine::{EngineState, Stack, StateWorkingSet};
 use nu_protocol::{PipelineData, Span, Value};
-
 pub use sandbox::ensure_sandboxed;
 
 const XENO_NU_RECURSION_LIMIT: i64 = 64;

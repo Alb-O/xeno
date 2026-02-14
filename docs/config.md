@@ -155,20 +155,19 @@ Example:
 
 `config.nu` runs in a restricted evaluator. The script is rejected when it attempts any of the following:
 
-* external calls
+* external calls (`^cmd` or `run-external`)
 * pipeline redirection
-* `source` and overlay loading commands
-* `use`/`export use` paths outside the config directory root
+* `source`, `source-env`, or overlay loading commands (`overlay use/new/hide`)
 * looping constructs (`for`, `while`, `loop`)
-* glob expressions
-* blocked process, filesystem, network, or plugin command names
+* glob expressions (except `*` import selectors on `use`/`export use`)
+* any parsed module file resolving outside the config directory root (including symlink escapes)
 
-`use` and `export use` are allowed only for static `.nu` paths rooted under the directory containing `config.nu` (the Xeno config directory).
+`use` and `export use` path parsing and resolution are delegated to Nushell parser semantics, then Xeno enforces that every resolved module file remains under the config directory root.
 
-* path must be a static literal (no interpolation)
-* path must be relative and cannot contain `..`
-* path must not contain glob wildcard characters
-* resolved canonical target must stay under the config root and point to a file
+* file modules and directory modules (`pkg/mod.nu`) are both supported
+* nested module-relative imports are supported (for example `sub/a.nu` can `use b.nu *`)
+* import selectors after the module path are allowed (for example: `use helper.nu *`)
+* if a `use` is present, a real config directory root is required for validation
 
 Depending on syntax and parse stage, failures can surface as either:
 
