@@ -138,7 +138,7 @@ fn blocks_use_symlink_escape() {
 
 	let outside = temp.path().join("outside.nu");
 	std::fs::write(&outside, "export def x [] { 1 }").unwrap();
-	create_file_symlink(&outside, &config_root.join("helper.nu")).unwrap();
+	create_file_symlink(&outside, config_root.join("helper.nu")).unwrap();
 
 	let err = sandbox_check("use helper.nu *", Some(&config_root)).unwrap_err();
 	assert!(err.contains("outside the config directory root") || err.contains("outside"), "{err}");

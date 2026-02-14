@@ -20,7 +20,7 @@ scrolling-regions = []
 
 [dependencies]
 anstyle = { version = "1", optional = true }
-bitflags = "2.10"
+bitflags = "2.11"
 compact_str = "0.9"
 
 palette = { version = "0.7", optional = true }
