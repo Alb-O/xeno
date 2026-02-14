@@ -26,17 +26,17 @@ use core::str::FromStr;
 /// Specifically, the following combinations of box drawing symbols are not defined in the [Box
 /// Drawing Unicode block]:
 ///
-/// - Combining any dashed segments with any non dashed segments (e.g. `╎` with `─` or `━`).
-/// - Combining any rounded segments with any other segments (e.g. `╯` with `─` or `━`).
-/// - Combining any double segments with any thick segments (e.g. `═` with `┃` or `━`).
-/// - Combining some double segments with some plain segments (e.g. `┐` with `╔`).
+/// * Combining any dashed segments with any non dashed segments (e.g. `╎` with `─` or `━`).
+/// * Combining any rounded segments with any other segments (e.g. `╯` with `─` or `━`).
+/// * Combining any double segments with any thick segments (e.g. `═` with `┃` or `━`).
+/// * Combining some double segments with some plain segments (e.g. `┐` with `╔`).
 ///
 /// The merging strategies include:
 ///
-/// - [`Self::Replace`]: Replaces the previous symbol with the next one.
-/// - [`Self::Exact`]: Merges symbols only if an exact composite unicode character exists, falling
+/// * [`Self::Replace`]: Replaces the previous symbol with the next one.
+/// * [`Self::Exact`]: Merges symbols only if an exact composite unicode character exists, falling
 ///   back to [`Self::Replace`] if not.
-/// - [`Self::Fuzzy`]: Merges symbols even if an exact composite unicode character doesn't exist,
+/// * [`Self::Fuzzy`]: Merges symbols even if an exact composite unicode character doesn't exist,
 ///   using the closest match, and falling back to [`Self::Exact`] if necessary.
 ///
 /// See [`Cell::merge_symbol`] for how to use this strategy in practice, and

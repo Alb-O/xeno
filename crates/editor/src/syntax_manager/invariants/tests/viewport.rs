@@ -3,8 +3,8 @@ use super::*;
 /// Must only attempt synchronous bootstrap once per bootstrap window to
 /// avoid repeated stutter when background parsing is throttled.
 ///
-/// - Enforced in: `SyntaxManager::ensure_syntax`
-/// - Failure symptom: Stuttering UI when many files are opened simultaneously.
+/// * Enforced in: `SyntaxManager::ensure_syntax`
+/// * Failure symptom: Stuttering UI when many files are opened simultaneously.
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_sync_bootstrap_attempted_only_once_when_throttled() {
 	let engine = Arc::new(TimeoutSensitiveEngine::new(Duration::from_millis(10)));
@@ -45,8 +45,8 @@ pub(crate) async fn test_sync_bootstrap_attempted_only_once_when_throttled() {
 /// Highlight rendering must skip spans when `tree_doc_version` differs from
 /// the rendered document version.
 ///
-/// - Enforced in: `HighlightTiles::build_tile_spans` (in `crate::render::cache::highlight`)
-/// - Failure symptom: Out-of-bounds tree-sitter access can panic during rapid edits.
+/// * Enforced in: `HighlightTiles::build_tile_spans` (in `crate::render::cache::highlight`)
+/// * Failure symptom: Out-of-bounds tree-sitter access can panic during rapid edits.
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_highlight_skips_stale_tree_version() {
 	let engine = Arc::new(MockEngine::new());
@@ -91,8 +91,8 @@ pub(crate) async fn test_highlight_skips_stale_tree_version() {
 /// Must only expose highlight projection context when pending incremental edits
 /// are aligned with the resident tree version.
 ///
-/// - Enforced in: `SyntaxManager::highlight_projection_ctx`
-/// - Failure symptom: highlight projection applies mismatched deltas and causes
+/// * Enforced in: `SyntaxManager::highlight_projection_ctx`
+/// * Failure symptom: highlight projection applies mismatched deltas and causes
 ///   visual jump/flicker during debounce.
 #[cfg_attr(test, test)]
 pub(crate) fn test_highlight_projection_ctx_alignment_gate() {
@@ -139,8 +139,8 @@ pub(crate) fn test_highlight_projection_ctx_alignment_gate() {
 /// Must promote recently visible documents to `Warm` hotness to avoid
 /// immediate retention drops.
 ///
-/// - Enforced in: `Editor::ensure_syntax_for_buffers`, `Editor::on_document_close`
-/// - Failure symptom: Switching away for one frame drops syntax and causes a flash of
+/// * Enforced in: `Editor::ensure_syntax_for_buffers`, `Editor::on_document_close`
+/// * Failure symptom: Switching away for one frame drops syntax and causes a flash of
 ///   unhighlighted text.
 #[cfg_attr(test, test)]
 pub(crate) fn test_warm_hotness_prevents_immediate_drop() {
@@ -180,8 +180,8 @@ pub(crate) fn test_warm_hotness_prevents_immediate_drop() {
 
 /// Must apply viewport timeout cooldown for viewport tasks instead of full-parse cooldown.
 ///
-/// - Enforced in: `SyntaxManager::ensure_syntax`
-/// - Failure symptom: Visible large-document highlighting remains disabled for multi-second
+/// * Enforced in: `SyntaxManager::ensure_syntax`
+/// * Failure symptom: Visible large-document highlighting remains disabled for multi-second
 ///   windows after a viewport parse timeout.
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_viewport_timeout_uses_viewport_cooldown() {
@@ -245,8 +245,8 @@ pub(crate) async fn test_viewport_timeout_uses_viewport_cooldown() {
 
 /// Must install stale viewport results when monotonic and not-future to preserve continuity.
 ///
-/// - Enforced in: `SyntaxManager::ensure_syntax`
-/// - Failure symptom: Highlighting disappears during rapid edits because viewport results are
+/// * Enforced in: `SyntaxManager::ensure_syntax`
+/// * Failure symptom: Highlighting disappears during rapid edits because viewport results are
 ///   discarded unless they exactly match the current document version.
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_viewport_stale_install_continuity() {
@@ -305,8 +305,8 @@ pub(crate) async fn test_viewport_stale_install_continuity() {
 
 /// Must skip stale viewport installs when a covering tree already exists.
 ///
-/// - Enforced in: `SyntaxManager::ensure_syntax`
-/// - Failure symptom: Large-file edits produce an extra delayed repaint that applies stale
+/// * Enforced in: `SyntaxManager::ensure_syntax`
+/// * Failure symptom: Large-file edits produce an extra delayed repaint that applies stale
 ///   spans before the eventual corrected repaint.
 #[cfg_attr(test, test)]
 pub(crate) fn test_viewport_stale_install_skipped_when_covered() {
@@ -409,8 +409,8 @@ pub(crate) fn test_viewport_stale_install_skipped_when_covered() {
 /// Must prefer eager urgent viewport parsing for L-tier history edits, including
 /// when a non-eager full tree already exists.
 ///
-/// - Enforced in: `SyntaxManager::ensure_syntax`
-/// - Failure symptom: Undo in large files repaints with stale/non-eager viewport
+/// * Enforced in: `SyntaxManager::ensure_syntax`
+/// * Failure symptom: Undo in large files repaints with stale/non-eager viewport
 ///   spans before correctness pass runs.
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_l_history_edit_uses_eager_urgent_with_full_present() {
@@ -499,8 +499,8 @@ pub(crate) async fn test_l_history_edit_uses_eager_urgent_with_full_present() {
 
 /// Must preempt tracked full/incremental work when a visible large-doc viewport is uncovered.
 ///
-/// - Enforced in: `SyntaxManager::ensure_syntax`
-/// - Failure symptom: Scrolling in large files shows blank text until an unrelated full parse
+/// * Enforced in: `SyntaxManager::ensure_syntax`
+/// * Failure symptom: Scrolling in large files shows blank text until an unrelated full parse
 ///   completes.
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_viewport_preempts_inflight_full_parse() {
@@ -567,8 +567,8 @@ pub(crate) async fn test_viewport_preempts_inflight_full_parse() {
 
 /// Must clamp viewport scheduling span before coverage checks to prevent infinite Stage A loops.
 ///
-/// - Enforced in: `SyntaxManager::ensure_syntax`
-/// - Failure symptom: Large single-line viewports keep re-kicking Stage A and never progress
+/// * Enforced in: `SyntaxManager::ensure_syntax`
+/// * Failure symptom: Large single-line viewports keep re-kicking Stage A and never progress
 ///   to catch-up full parsing.
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_viewport_span_cap_prevents_stage_a_loop() {
@@ -630,8 +630,8 @@ pub(crate) async fn test_viewport_span_cap_prevents_stage_a_loop() {
 /// Must suppress same-version history Stage-A retries after an urgent timeout so
 /// background catch-up can proceed.
 ///
-/// - Enforced in: `SyntaxManager::ensure_syntax`
-/// - Failure symptom: Undo loops Stage-A timeouts on the same version and starves
+/// * Enforced in: `SyntaxManager::ensure_syntax`
+/// * Failure symptom: Undo loops Stage-A timeouts on the same version and starves
 ///   background full/incremental parse recovery.
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_history_stage_a_timeout_suppresses_same_version_retry() {

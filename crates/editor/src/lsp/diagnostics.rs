@@ -32,8 +32,8 @@ pub fn build_diagnostic_line_map(diagnostics: &[Diagnostic]) -> DiagnosticLineMa
 /// Creates per-line spans with character ranges for rendering underlines.
 ///
 /// # Boundary Logic
-/// - Skips zero-length diagnostics (start == end).
-/// - Excludes the final line if a multi-line diagnostic ends at character 0
+/// * Skips zero-length diagnostics (start == end).
+/// * Excludes the final line if a multi-line diagnostic ends at character 0
 ///   of that line, preventing phantom underlines on empty lines.
 pub fn build_diagnostic_range_map(diagnostics: &[Diagnostic]) -> DiagnosticRangeMap {
 	let mut map = DiagnosticRangeMap::new();

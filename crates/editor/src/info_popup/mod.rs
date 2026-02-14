@@ -1,9 +1,9 @@
 //! Info popup panels for displaying documentation and contextual information.
 //!
 //! Info popups are read-only overlay buffers used for:
-//! - LSP hover documentation
-//! - Command completion info in the command palette
-//! - Any contextual help or documentation display
+//! * LSP hover documentation
+//! * Command completion info in the command palette
+//! * Any contextual help or documentation display
 //!
 //! They reuse the buffer renderer for syntax highlighting and text wrapping.
 

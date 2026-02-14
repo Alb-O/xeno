@@ -17,7 +17,7 @@ impl crate::Editor {
 	///
 	/// # Invariants
 	///
-	/// - Must route all UI consequences through `EffectSink` and `flush_effects`.
+	/// * Must route all UI consequences through `EffectSink` and `flush_effects`.
 	pub fn flush_effects(&mut self) {
 		if self.state.flush_depth > 0 {
 			self.state.frame.needs_redraw = true;

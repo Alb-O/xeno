@@ -53,8 +53,8 @@ impl OverlayController for ReflowTestOverlay {
 
 /// Must route non-overlay module access through `OverlaySystem` accessors.
 ///
-/// - Enforced in: `OverlaySystem::{interaction,interaction_mut,take_interaction,restore_interaction,layers,layers_mut,store,store_mut}`
-/// - Failure symptom: Callers couple to `OverlaySystem` field layout and crate-split refactors become non-local.
+/// * Enforced in: `OverlaySystem::{interaction,interaction_mut,take_interaction,restore_interaction,layers,layers_mut,store,store_mut}`
+/// * Failure symptom: Callers couple to `OverlaySystem` field layout and crate-split refactors become non-local.
 #[cfg_attr(test, test)]
 pub(crate) fn test_overlay_system_accessors_round_trip() {
 	let mut system = crate::overlay::OverlaySystem::new();
@@ -74,8 +74,8 @@ pub(crate) fn test_overlay_system_accessors_round_trip() {
 
 /// Must gate state restoration on captured buffer version matching.
 ///
-/// - Enforced in: `OverlaySession::restore_all`
-/// - Failure symptom: Stale cursor/selection state is restored over user's edits.
+/// * Enforced in: `OverlaySession::restore_all`
+/// * Failure symptom: Stale cursor/selection state is restored over user's edits.
 #[cfg_attr(test, test)]
 pub(crate) fn test_versioned_restore() {
 	let mut editor = crate::Editor::new_scratch();
@@ -113,8 +113,8 @@ pub(crate) fn test_versioned_restore() {
 
 /// Must allow only one active modal session at a time.
 ///
-/// - Enforced in: `OverlayManager::open`
-/// - Failure symptom: Two modal overlays fight for focus and input.
+/// * Enforced in: `OverlayManager::open`
+/// * Failure symptom: Two modal overlays fight for focus and input.
 #[cfg_attr(test, test)]
 pub(crate) fn test_exclusive_modal() {
 	let mut editor = crate::Editor::new_scratch();
@@ -127,8 +127,8 @@ pub(crate) fn test_exclusive_modal() {
 
 /// Must clamp resolved overlay areas to screen bounds.
 ///
-/// - Enforced in: `RectPolicy::resolve_opt`
-/// - Failure symptom: Overlay panes extend beyond screen bounds.
+/// * Enforced in: `RectPolicy::resolve_opt`
+/// * Failure symptom: Overlay panes extend beyond screen bounds.
 #[cfg_attr(test, test)]
 pub(crate) fn test_rect_policy_clamps_to_screen() {
 	let screen = Rect::new(0, 0, 100, 50);
@@ -161,8 +161,8 @@ pub(crate) fn test_rect_policy_clamps_to_screen() {
 
 /// Must finalize all session buffers during teardown.
 ///
-/// - Enforced in: `OverlaySession::teardown`
-/// - Failure symptom: Scratch buffers leak after overlays close.
+/// * Enforced in: `OverlaySession::teardown`
+/// * Failure symptom: Scratch buffers leak after overlays close.
 #[cfg_attr(test, test)]
 pub(crate) fn test_session_teardown_finalizes_buffers() {
 	let mut editor = crate::Editor::new_scratch();
@@ -190,8 +190,8 @@ pub(crate) fn test_session_teardown_finalizes_buffers() {
 
 /// Must reflow modal overlay panes on viewport resize.
 ///
-/// - Enforced in: `OverlayManager::on_viewport_changed`
-/// - Failure symptom: Open modals render with stale geometry after terminal resize.
+/// * Enforced in: `OverlayManager::on_viewport_changed`
+/// * Failure symptom: Open modals render with stale geometry after terminal resize.
 #[cfg_attr(test, test)]
 pub(crate) fn test_modal_reflow_on_resize() {
 	let mut editor = crate::Editor::new_scratch();
@@ -225,8 +225,8 @@ pub(crate) fn test_modal_reflow_on_resize() {
 
 /// Must clear auxiliary panes that cannot resolve after viewport shrink.
 ///
-/// - Enforced in: `OverlayHost::reflow_session`
-/// - Failure symptom: Auxiliary overlays keep stale geometry after resize.
+/// * Enforced in: `OverlayHost::reflow_session`
+/// * Failure symptom: Auxiliary overlays keep stale geometry after resize.
 #[cfg_attr(test, test)]
 pub(crate) fn test_modal_reflow_clears_unresolved_aux_panes() {
 	let mut editor = crate::Editor::new_scratch();
@@ -278,8 +278,8 @@ pub(crate) fn test_modal_reflow_clears_unresolved_aux_panes() {
 
 /// Must restore origin focus on forced overlay close.
 ///
-/// - Enforced in: `OverlayHost::cleanup_session`
-/// - Failure symptom: Focus remains on stale overlay target after forced close.
+/// * Enforced in: `OverlayHost::cleanup_session`
+/// * Failure symptom: Focus remains on stale overlay target after forced close.
 #[cfg_attr(test, test)]
 pub(crate) fn test_forced_close_restores_origin_focus() {
 	let mut editor = crate::Editor::new_scratch();
@@ -303,8 +303,8 @@ pub(crate) fn test_forced_close_restores_origin_focus() {
 
 /// Must keep window manager state fixed to the base window for modal UI paths.
 ///
-/// - Enforced in: `OverlayHost::setup_session`
-/// - Failure symptom: Overlay UI mutates window manager state unexpectedly.
+/// * Enforced in: `OverlayHost::setup_session`
+/// * Failure symptom: Overlay UI mutates window manager state unexpectedly.
 #[cfg_attr(test, test)]
 pub(crate) fn test_modal_ui_keeps_single_base_window() {
 	let mut editor = crate::Editor::new_scratch();

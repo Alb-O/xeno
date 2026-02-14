@@ -15,21 +15,21 @@ use crate::layout::{Offset, Rect};
 ///
 /// # Construction
 ///
-/// - [`new`](Self::new) - Create a new position from x and y coordinates
-/// - [`default`](Default::default) - Create at origin (0, 0)
+/// * [`new`](Self::new) - Create a new position from x and y coordinates
+/// * [`default`](Default::default) - Create at origin (0, 0)
 ///
 /// # Conversion
 ///
-/// - [`from((u16, u16))`](Self::from) - Create from `(u16, u16)` tuple
-/// - [`from(Rect)`](Self::from) - Create from [`Rect`] (uses top-left corner)
-/// - [`into((u16, u16))`] - Convert to `(u16, u16)` tuple
+/// * [`from((u16, u16))`](Self::from) - Create from `(u16, u16)` tuple
+/// * [`from(Rect)`](Self::from) - Create from [`Rect`] (uses top-left corner)
+/// * [`into((u16, u16))`] - Convert to `(u16, u16)` tuple
 ///
 /// # Movement
 ///
-/// - [`offset`](Self::offset) - Move by an [`Offset`]
-/// - [`Add<Offset>`](core::ops::Add) and [`Sub<Offset>`](core::ops::Sub) - Shift by offsets with
+/// * [`offset`](Self::offset) - Move by an [`Offset`]
+/// * [`Add<Offset>`](core::ops::Add) and [`Sub<Offset>`](core::ops::Sub) - Shift by offsets with
 ///   clamping
-/// - [`AddAssign<Offset>`](core::ops::AddAssign) and [`SubAssign<Offset>`](core::ops::SubAssign) -
+/// * [`AddAssign<Offset>`](core::ops::AddAssign) and [`SubAssign<Offset>`](core::ops::SubAssign) -
 ///   In-place shifting
 ///
 /// # Examples

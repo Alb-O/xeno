@@ -87,8 +87,8 @@ pub struct CompletionContext {
 /// Provides completion items for a specific context.
 ///
 /// Implementors return a `CompletionResult` containing:
-/// - `start`: The position in the input where replacement begins
-/// - `items`: The list of completion candidates
+/// * `start`: The position in the input where replacement begins
+/// * `items`: The list of completion candidates
 ///
 /// When a completion is accepted, the text from `start` to the cursor
 /// is replaced with the selected item's `insert_text`.

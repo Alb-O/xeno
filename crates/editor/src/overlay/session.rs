@@ -2,14 +2,14 @@
 //!
 //! # Purpose
 //!
-//! - Owns: focus-stealing modal interactions ([`crate::overlay::OverlayManager`]), passive contextual UI layers ([`crate::overlay::OverlayLayers`]), and shared type-erased state ([`crate::overlay::OverlayStore`]).
-//! - Does not own: scene-layer rendering execution (owned by the UI compositor), LSP request logic.
-//! - Source of truth: [`crate::overlay::OverlaySystem`].
+//! * Owns: focus-stealing modal interactions ([`crate::overlay::OverlayManager`]), passive contextual UI layers ([`crate::overlay::OverlayLayers`]), and shared type-erased state ([`crate::overlay::OverlayStore`]).
+//! * Does not own: scene-layer rendering execution (owned by the UI compositor), LSP request logic.
+//! * Source of truth: [`crate::overlay::OverlaySystem`].
 //!
 //! # Mental model
 //!
-//! - Terms: Session (active modal interaction), Controller (behavior logic), Context (capability surface), Layer (passive UI), Spec (declarative UI layout), Capture (pre-preview state snapshot).
-//! - Lifecycle in one sentence: A controller defines a UI spec, a host allocates resources for a session, and the system restores captured state on close via a capability-limited context.
+//! * Terms: Session (active modal interaction), Controller (behavior logic), Context (capability surface), Layer (passive UI), Spec (declarative UI layout), Capture (pre-preview state snapshot).
+//! * Lifecycle in one sentence: A controller defines a UI spec, a host allocates resources for a session, and the system restores captured state on close via a capability-limited context.
 //!
 //! # Key types
 //!
@@ -23,11 +23,11 @@
 //!
 //! # Invariants
 //!
-//! - Must gate state restoration on captured buffer version matching.
-//! - Must allow only one active modal session at a time.
-//! - Must clamp resolved overlay areas to screen bounds.
-//! - Must clear LSP UI when a modal overlay opens.
-//! - Must route non-overlay module access through `OverlaySystem` accessors.
+//! * Must gate state restoration on captured buffer version matching.
+//! * Must allow only one active modal session at a time.
+//! * Must clamp resolved overlay areas to screen bounds.
+//! * Must clear LSP UI when a modal overlay opens.
+//! * Must route non-overlay module access through `OverlaySystem` accessors.
 //!
 //! # Data flow
 //!
@@ -40,22 +40,22 @@
 //!
 //! # Lifecycle
 //!
-//! - Open: [`crate::overlay::OverlayManager::open`] calls `host.setup_session` then `controller.on_open`.
-//! - Update: [`crate::overlay::OverlayManager::on_buffer_edited`] filters for `session.input`.
-//! - Commit: [`crate::overlay::OverlayManager::commit`] runs [`crate::overlay::OverlayController::on_commit`] (async), then teardown.
-//! - Cancel: [`crate::overlay::OverlayManager::close`] runs `session.restore_all`, then teardown.
-//! - Teardown: [`crate::overlay::session::OverlaySession::teardown`] (idempotent resource cleanup).
+//! * Open: [`crate::overlay::OverlayManager::open`] calls `host.setup_session` then `controller.on_open`.
+//! * Update: [`crate::overlay::OverlayManager::on_buffer_edited`] filters for `session.input`.
+//! * Commit: [`crate::overlay::OverlayManager::commit`] runs [`crate::overlay::OverlayController::on_commit`] (async), then teardown.
+//! * Cancel: [`crate::overlay::OverlayManager::close`] runs `session.restore_all`, then teardown.
+//! * Teardown: [`crate::overlay::session::OverlaySession::teardown`] (idempotent resource cleanup).
 //!
 //! # Concurrency & ordering
 //!
-//! - Single-threaded UI: Most overlay operations run on the main UI thread.
-//! - Async commit: [`crate::overlay::OverlayController::on_commit`] returns a future, allowing async operations (LSP rename) before cleanup.
+//! * Single-threaded UI: Most overlay operations run on the main UI thread.
+//! * Async commit: [`crate::overlay::OverlayController::on_commit`] returns a future, allowing async operations (LSP rename) before cleanup.
 //!
 //! # Failure modes & recovery
 //!
-//! - Missing anchor: [`crate::overlay::spec::RectPolicy::Below`] returns `None` if the target role is missing; host skips that window.
-//! - Stale restore: `restore_all` skips buffers with version mismatches to protect user edits.
-//! - Focus loss: `CloseReason::Blur` triggers automatic cancellation if `dismiss_on_blur` is set in spec.
+//! * Missing anchor: [`crate::overlay::spec::RectPolicy::Below`] returns `None` if the target role is missing; host skips that window.
+//! * Stale restore: `restore_all` skips buffers with version mismatches to protect user edits.
+//! * Focus loss: `CloseReason::Blur` triggers automatic cancellation if `dismiss_on_blur` is set in spec.
 //!
 //! # Recipes
 //!

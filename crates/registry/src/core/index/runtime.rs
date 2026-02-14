@@ -7,9 +7,9 @@
 //!
 //! # Mental model
 //!
-//! - Readers pin an `Arc<Snapshot<...>>` and resolve lookups against that immutable view.
-//! - Writers build a replacement snapshot and publish it with CAS.
-//! - Failed CAS means "someone else won first"; writer retries from the latest snapshot.
+//! * Readers pin an `Arc<Snapshot<...>>` and resolve lookups against that immutable view.
+//! * Writers build a replacement snapshot and publish it with CAS.
+//! * Failed CAS means "someone else won first"; writer retries from the latest snapshot.
 //!
 //! # Key types
 //!
@@ -22,9 +22,9 @@
 //!
 //! # Invariants
 //!
-//! - Concurrent registrations must be linearizable (see `invariants::test_no_lost_updates`).
-//! - Lookup stage precedence must be preserved: ID (`by_id`) then name (`by_name`) then key (`by_key`).
-//! - Runtime ordinals must be monotonic across snapshot publications.
+//! * Concurrent registrations must be linearizable (see `invariants::test_no_lost_updates`).
+//! * Lookup stage precedence must be preserved: ID (`by_id`) then name (`by_name`) then key (`by_key`).
+//! * Runtime ordinals must be monotonic across snapshot publications.
 //!
 //! # Data flow
 //!
@@ -42,28 +42,28 @@
 //!
 //! # Concurrency & ordering
 //!
-//! - Readers are wait-free (`ArcSwap` load + immutable data reads).
-//! - Writers are lock-free via CAS retry loop.
-//! - Registration ordering is deterministic through precedence and ordinal tie-breakers.
+//! * Readers are wait-free (`ArcSwap` load + immutable data reads).
+//! * Writers are lock-free via CAS retry loop.
+//! * Registration ordering is deterministic through precedence and ordinal tie-breakers.
 //!
 //! # Failure modes & recovery
 //!
-//! - Duplicate-policy rejection returns [`crate::core::index::runtime::RegisterError::Rejected`].
-//! - CAS races are recovered by retrying from the latest snapshot.
-//! - Stale refs remain valid because they pin their originating snapshot.
+//! * Duplicate-policy rejection returns [`crate::core::index::runtime::RegisterError::Rejected`].
+//! * CAS races are recovered by retrying from the latest snapshot.
+//! * Stale refs remain valid because they pin their originating snapshot.
 //!
 //! # Recipes
 //!
 //! ## Register a runtime definition
 //!
-//! - Build or link a `BuildEntry` input.
-//! - Call [`crate::core::index::runtime::RuntimeRegistry::register`] or `register_owned`.
-//! - Handle `RegisterError::Rejected` when policy blocks replacement.
+//! * Build or link a `BuildEntry` input.
+//! * Call [`crate::core::index::runtime::RuntimeRegistry::register`] or `register_owned`.
+//! * Handle `RegisterError::Rejected` when policy blocks replacement.
 //!
 //! ## Lookup with stable lifetime
 //!
-//! - Call `get` / `get_sym` / `get_by_id`.
-//! - Keep the returned `RegistryRef` as long as data from that snapshot is needed.
+//! * Call `get` / `get_sym` / `get_by_id`.
+//! * Keep the returned `RegistryRef` as long as data from that snapshot is needed.
 
 use std::cmp::Ordering;
 use std::sync::Arc;

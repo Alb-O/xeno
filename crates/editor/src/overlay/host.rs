@@ -105,8 +105,8 @@ impl OverlayHost {
 	/// # Returns
 	///
 	/// Returns `None` if:
-	/// - The terminal viewport dimensions are not available.
-	/// - The primary input window geometry fails to resolve.
+	/// * The terminal viewport dimensions are not available.
+	/// * The primary input window geometry fails to resolve.
 	pub fn setup_session(ed: &mut Editor, controller: &dyn super::OverlayController) -> Option<OverlaySession> {
 		let spec = controller.ui_spec(ed);
 		let (w, h) = (ed.state.viewport.width?, ed.state.viewport.height?);

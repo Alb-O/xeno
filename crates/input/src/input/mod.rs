@@ -1,7 +1,7 @@
 //! Modal input state machine.
 //!
-//! - [`InputHandler`] — keymap resolution, mode tracking, count/register accumulation
-//! - [`KeyResult`] — action dispatch, mode changes, character insertion, mouse events
+//! * [`InputHandler`] — keymap resolution, mode tracking, count/register accumulation
+//! * [`KeyResult`] — action dispatch, mode changes, character insertion, mouse events
 
 pub mod handler;
 pub mod insert;

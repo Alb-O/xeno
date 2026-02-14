@@ -5,10 +5,10 @@
 //! This middleware attaches spans to logs in underlying implementations, with optional method
 //! strings of current processing requests/notifications.
 //! All of these methods are instrumented by the [`Default`] configuration:
-//! - [`Service::poll_ready`].
-//! - [`Future::poll`] of returned `Future` from [`Service::call`].
-//! - [`LspService::notify`].
-//! - [`LspService::emit`].
+//! * [`Service::poll_ready`].
+//! * [`Future::poll`] of returned `Future` from [`Service::call`].
+//! * [`LspService::notify`].
+//! * [`LspService::emit`].
 use std::future::Future;
 use std::ops::ControlFlow;
 use std::pin::Pin;

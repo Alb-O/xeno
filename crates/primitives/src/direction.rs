@@ -12,8 +12,8 @@ pub enum SpatialDirection {
 /// Axis for split operations.
 ///
 /// Names refer to the **divider line orientation**, matching Vim/Helix:
-/// - `Horizontal` = horizontal divider → windows stacked top/bottom
-/// - `Vertical` = vertical divider → windows side-by-side left/right
+/// * `Horizontal` = horizontal divider → windows stacked top/bottom
+/// * `Vertical` = vertical divider → windows side-by-side left/right
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Axis {
 	Horizontal,

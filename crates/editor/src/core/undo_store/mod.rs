@@ -78,10 +78,10 @@ fn approx_transaction_bytes(tx: &Transaction) -> usize {
 ///
 /// # Invariants
 ///
-/// - `undo_bytes` and `redo_bytes` MUST accurately reflect the sum of `bytes` in
+/// * `undo_bytes` and `redo_bytes` MUST accurately reflect the sum of `bytes` in
 ///   their respective stacks.
-/// - The total memory usage (`undo_bytes + redo_bytes`) MUST NOT exceed [`MAX_UNDO_BYTES`].
-/// - Counter arithmetic uses checked operations to prevent silent wrap in release.
+/// * The total memory usage (`undo_bytes + redo_bytes`) MUST NOT exceed [`MAX_UNDO_BYTES`].
+/// * Counter arithmetic uses checked operations to prevent silent wrap in release.
 #[derive(Default, Debug)]
 pub struct TxnUndoStore {
 	undo_stack: VecDeque<UndoStep>,
@@ -147,9 +147,9 @@ impl TxnUndoStore {
 	///
 	/// # Side Effects
 	///
-	/// - Clears the redo stack.
-	/// - Evicts oldest steps if [`MAX_UNDO`] or [`MAX_UNDO_BYTES`] limits are met.
-	/// - Invalidates `clean_pos` if history branches away from it.
+	/// * Clears the redo stack.
+	/// * Evicts oldest steps if [`MAX_UNDO`] or [`MAX_UNDO_BYTES`] limits are met.
+	/// * Invalidates `clean_pos` if history branches away from it.
 	pub fn record_transaction(&mut self, redo_tx: Transaction, undo_tx: Transaction, merge: bool) -> bool {
 		// Invalidate clean_pos if a new edit branches history.
 		// We check against old head_pos before incrementing.

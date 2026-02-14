@@ -8,12 +8,12 @@
 //! features, called middleware, are pluggable can be layered using the [`tower_layer`]
 //! abstraction. This crate defines several common middlewares for various mandatory or optional
 //! LSP functionalities, see their documentations for details.
-//! - [`concurrency::Concurrency`]: Incoming request multiplexing and cancellation.
-//! - [`panic::CatchUnwind`]: Turn panics into errors.
-//! - [`tracing::Tracing`]: Logger spans with methods instrumenting handlers.
-//! - [`server::Lifecycle`]: Server initialization, shutting down, and exit handling.
-//! - [`client_monitor::ClientProcessMonitor`]: Client process monitor.
-//! - [`router::Router`]: "Root" service to dispatch requests, notifications and events.
+//! * [`concurrency::Concurrency`]: Incoming request multiplexing and cancellation.
+//! * [`panic::CatchUnwind`]: Turn panics into errors.
+//! * [`tracing::Tracing`]: Logger spans with methods instrumenting handlers.
+//! * [`server::Lifecycle`]: Server initialization, shutting down, and exit handling.
+//! * [`client_monitor::ClientProcessMonitor`]: Client process monitor.
+//! * [`router::Router`]: "Root" service to dispatch requests, notifications and events.
 //!
 //! Users are free to select and layer middlewares to run a Language Server or Language Client.
 //! They can also implement their own middlewares for like timeout, metering, request
@@ -28,18 +28,18 @@
 //!
 //! ## Cargo features
 //!
-//! - `client-monitor`: Client process monitor middleware [`client_monitor`].
+//! * `client-monitor`: Client process monitor middleware [`client_monitor`].
 //!   *Enabled by default.*
-//! - `omni-trait`: Mega traits of all standard requests and notifications, namely
+//! * `omni-trait`: Mega traits of all standard requests and notifications, namely
 //!   [`LanguageServer`] and [`LanguageClient`].
 //!   *Enabled by default.*
-//! - `stdio`: Utilities to deal with pipe-like stdin/stdout communication channel for Language
+//! * `stdio`: Utilities to deal with pipe-like stdin/stdout communication channel for Language
 //!   Servers.
 //!   *Enabled by default.*
-//! - `forward`: Impl [`LspService`] for `{Client,Server}Socket`. This collides some method names
+//! * `forward`: Impl [`LspService`] for `{Client,Server}Socket`. This collides some method names
 //!   but allows easy service forwarding.
 //!   *Disabled by default.*
-//! - `tokio`: Enable compatible methods for [`tokio`](https://crates.io/crates/tokio) runtime.
+//! * `tokio`: Enable compatible methods for [`tokio`](https://crates.io/crates/tokio) runtime.
 //!   *Disabled by default.*
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(missing_docs)]

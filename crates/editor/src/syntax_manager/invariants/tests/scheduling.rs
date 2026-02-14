@@ -2,9 +2,9 @@ use super::*;
 
 /// Must clear `pending_incremental` on language change, syntax reset, and retention drop.
 ///
-/// - Enforced in: `SyntaxManager::ensure_syntax`, `SyntaxManager::reset_syntax`,
+/// * Enforced in: `SyntaxManager::ensure_syntax`, `SyntaxManager::reset_syntax`,
 ///   `apply_retention`
-/// - Failure symptom: Stale changesets are applied against mismatched ropes, causing
+/// * Failure symptom: Stale changesets are applied against mismatched ropes, causing
 ///   bad edits or panics.
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_language_switch_discards_old_parse() {
@@ -54,8 +54,8 @@ pub(crate) async fn test_language_switch_discards_old_parse() {
 
 /// Must tie background task permit lifetime to real thread execution.
 ///
-/// - Enforced in: `TaskCollector::spawn`
-/// - Failure symptom: Concurrency cap is violated under churn because permits are
+/// * Enforced in: `TaskCollector::spawn`
+/// * Failure symptom: Concurrency cap is violated under churn because permits are
 ///   released before CPU work ends.
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_invalidate_does_not_release_permit_until_task_finishes() {
@@ -189,8 +189,8 @@ pub(crate) async fn test_history_op_bypasses_debounce() {
 /// Must preserve the resident full-tree version on history edits so undo can
 /// project from the previous known-good tree while async lanes catch up.
 ///
-/// - Enforced in: `SyntaxManager::note_edit_incremental`
-/// - Failure symptom: Undo immediately replaces the syntax baseline with a
+/// * Enforced in: `SyntaxManager::note_edit_incremental`
+/// * Failure symptom: Undo immediately replaces the syntax baseline with a
 ///   low-fidelity sync incremental result before viewport correction can run.
 #[cfg_attr(test, test)]
 pub(crate) fn test_history_incremental_preserves_resident_tree_version() {
@@ -311,8 +311,8 @@ pub(crate) async fn test_cold_throttles_work() {
 
 /// Cold+DropWhenHidden invalidates the epoch, so returning to Visible re-kicks cleanly.
 ///
-/// - Enforced in: `SyntaxManager::ensure_syntax`, `SyntaxManager::sweep_retention`
-/// - Failure symptom: Document stays Disabled or stale task result installs after visibility change.
+/// * Enforced in: `SyntaxManager::ensure_syntax`, `SyntaxManager::sweep_retention`
+/// * Failure symptom: Document stays Disabled or stale task result installs after visibility change.
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_cold_drop_then_visible_rekick() {
 	let engine = Arc::new(MockEngine::new());
@@ -379,8 +379,8 @@ pub(crate) async fn test_cold_drop_then_visible_rekick() {
 /// Must attempt synchronous bootstrap parse when a document is first opened
 /// and the tier allows it.
 ///
-/// - Enforced in: `SyntaxManager::ensure_syntax`
-/// - Failure symptom: Small files flash un-highlighted text on first open.
+/// * Enforced in: `SyntaxManager::ensure_syntax`
+/// * Failure symptom: Small files flash un-highlighted text on first open.
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_sync_bootstrap_success() {
 	// threshold = 10ms, but bootstrap is 5ms -> Ok(syntax)
@@ -414,8 +414,8 @@ pub(crate) async fn test_sync_bootstrap_success() {
 /// Must fall back to background parse if the synchronous bootstrap attempt
 /// times out, without setting a cooldown.
 ///
-/// - Enforced in: `SyntaxManager::ensure_syntax`
-/// - Failure symptom: Medium files fail to highlight or stall the UI on first open.
+/// * Enforced in: `SyntaxManager::ensure_syntax`
+/// * Failure symptom: Medium files fail to highlight or stall the UI on first open.
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_sync_bootstrap_timeout_fallback() {
 	// threshold = 10ms, bootstrap is 5ms -> Err(Timeout)

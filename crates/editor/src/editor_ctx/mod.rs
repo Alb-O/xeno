@@ -13,8 +13,8 @@
 //!
 //! # Invariants
 //!
-//! - Must not use RTTI or engine-specific downcasting (Honesty Rule).
-//! - Must route all side effects through capability providers (Single Path Side-Effects).
+//! * Must not use RTTI or engine-specific downcasting (Honesty Rule).
+//! * Must route all side effects through capability providers (Single Path Side-Effects).
 //!
 
 #[cfg(test)]

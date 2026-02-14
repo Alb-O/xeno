@@ -21,9 +21,9 @@ All returned types have private fields with getter-only access.
 
 ## Enforcement
 
-- **Compile-time**: internal modules are `pub(crate)`, plan struct fields are `pub(crate)`.
-- **Runtime test**: `seam_contract::tests::frontend_sources_use_only_render_api_seam` scans frontend source files for forbidden internal path patterns.
-- **Grep proof**: `rg "xeno_editor::(completion|snippet|overlay|ui|info_popup|window|geometry|render)::" crates/editor-(tui|iced)` must be empty.
+* Compile-time: internal modules are `pub(crate)`, plan struct fields are `pub(crate)`.
+* Runtime test: `seam_contract::tests::frontend_sources_use_only_render_api_seam` scans frontend source files for forbidden internal path patterns.
+* Grep proof: `rg "xeno_editor::(completion|snippet|overlay|ui|info_popup|window|geometry|render)::" crates/editor-(tui|iced)` must be empty.
 
 ## How to add a new render feature
 
@@ -36,8 +36,8 @@ All returned types have private fields with getter-only access.
 
 ## Non-goals
 
-- Frontends must not assemble render contexts, touch caches, or make policy decisions.
-- No `pub` fields on plan types — getters only.
+* Frontends must not assemble render contexts, touch caches, or make policy decisions.
+* No `pub` fields on plan types — getters only.
 
 ## Hygiene commands
 

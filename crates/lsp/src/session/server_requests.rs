@@ -18,12 +18,12 @@ use crate::types::{AnyRequest, ErrorCode, ResponseError};
 ///
 /// # Supported Methods
 ///
-/// - `workspace/configuration`: Server settings from registry metadata
-/// - `workspace/workspaceFolders`: Workspace root folder
-/// - `client/registerCapability`, `client/unregisterCapability`: No-op success
-/// - `window/showMessageRequest`, `window/workDoneProgress/create`: No-op success
-/// - `workspace/diagnostic/refresh`: No-op success
-/// - `workspace/applyEdit`: Unsupported
+/// * `workspace/configuration`: Server settings from registry metadata
+/// * `workspace/workspaceFolders`: Workspace root folder
+/// * `client/registerCapability`, `client/unregisterCapability`: No-op success
+/// * `window/showMessageRequest`, `window/workDoneProgress/create`: No-op success
+/// * `workspace/diagnostic/refresh`: No-op success
+/// * `workspace/applyEdit`: Unsupported
 ///
 /// # Errors
 ///

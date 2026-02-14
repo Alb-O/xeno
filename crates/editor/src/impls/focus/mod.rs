@@ -181,9 +181,9 @@ impl Editor {
 	/// Normalizes a focus target, returning a valid target or fallback.
 	///
 	/// Ensures:
-	/// - Window exists
-	/// - Buffer exists and is a member of the window's layout
-	/// - Panel exists (if Panel target)
+	/// * Window exists
+	/// * Buffer exists and is a member of the window's layout
+	/// * Panel exists (if Panel target)
 	///
 	/// Falls back to base window's focused buffer, then any buffer in layout,
 	/// then any buffer in ViewManager.

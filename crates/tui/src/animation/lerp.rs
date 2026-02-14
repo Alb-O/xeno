@@ -21,9 +21,9 @@ pub trait Animatable: Clone {
 	/// Linearly interpolate between `self` and `target`.
 	///
 	/// The parameter `t` represents progress:
-	/// - `t = 0.0` returns `self`
-	/// - `t = 1.0` returns `target`
-	/// - Values in between return a proportional blend
+	/// * `t = 0.0` returns `self`
+	/// * `t = 1.0` returns `target`
+	/// * Values in between return a proportional blend
 	///
 	/// Implementations should clamp `t` to `[0.0, 1.0]`.
 	fn lerp(&self, target: &Self, t: f32) -> Self;

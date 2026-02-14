@@ -25,8 +25,8 @@ impl HighlightStyles {
 	/// Creates a new highlight styles mapper by resolving all scopes upfront.
 	///
 	/// # Parameters
-	/// - `scopes`: List of recognized scope names in order
-	/// - `resolver`: Function that resolves a scope name to a style
+	/// * `scopes`: List of recognized scope names in order
+	/// * `resolver`: Function that resolves a scope name to a style
 	pub fn new<F>(scopes: &[impl AsRef<str>], resolver: F) -> Self
 	where
 		F: Fn(&str) -> Style,
@@ -181,10 +181,10 @@ impl<'a> Highlighter<'a> {
 /// Each event marks a boundary where the highlight stack changes. The iterator
 /// closes the previous region (if any) and opens a new one:
 ///
-/// - [`HighlightEvent::Push`]: A new scope is entered. Only updates the active
+/// * [`HighlightEvent::Push`]: A new scope is entered. Only updates the active
 ///   highlight when the push carries a non-empty highlight — an empty push
 ///   (e.g. entering an injection layer) preserves the parent scope's style.
-/// - [`HighlightEvent::Refresh`]: The highlight stack was restructured.
+/// * [`HighlightEvent::Refresh`]: The highlight stack was restructured.
 ///   Unconditionally replaces the active highlight with the new stack top.
 ///
 /// After the inner iterator is exhausted, a final span is emitted covering any

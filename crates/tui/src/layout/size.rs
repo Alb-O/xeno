@@ -15,18 +15,18 @@ use crate::layout::Rect;
 ///
 /// # Construction
 ///
-/// - [`new`](Self::new) - Create a new size from width and height
-/// - [`default`](Default::default) - Create with zero dimensions
+/// * [`new`](Self::new) - Create a new size from width and height
+/// * [`default`](Default::default) - Create with zero dimensions
 ///
 /// # Conversion
 ///
-/// - [`from((u16, u16))`](Self::from) - Create from `(u16, u16)` tuple
-/// - [`from(Rect)`](Self::from) - Create from [`Rect`] (uses width and height)
-/// - [`into((u16, u16))`] - Convert to `(u16, u16)` tuple
+/// * [`from((u16, u16))`](Self::from) - Create from `(u16, u16)` tuple
+/// * [`from(Rect)`](Self::from) - Create from [`Rect`] (uses width and height)
+/// * [`into((u16, u16))`] - Convert to `(u16, u16)` tuple
 ///
 /// # Computation
 ///
-/// - [`area`](Self::area) - Compute the total number of cells covered by the size
+/// * [`area`](Self::area) - Compute the total number of cells covered by the size
 ///
 /// # Examples
 ///

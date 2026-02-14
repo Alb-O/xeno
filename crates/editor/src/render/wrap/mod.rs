@@ -1,9 +1,9 @@
 //! Line wrapping with sticky punctuation.
 //!
 //! Soft wraps text keeping punctuation attached to words:
-//! - Trailing punctuation (`. , ; : ! ? ) ] }`) stays with preceding word
-//! - Leading punctuation (`( [ { @ # $`) stays with following word
-//! - Path separators (`- /`) remain breakable
+//! * Trailing punctuation (`. , ; : ! ? ) ] }`) stays with preceding word
+//! * Leading punctuation (`( [ { @ # $`) stays with following word
+//! * Path separators (`- /`) remain breakable
 
 use unicode_width::UnicodeWidthChar;
 use xeno_primitives::RopeSlice;
@@ -15,8 +15,8 @@ mod tests;
 ///
 /// This is the single source of truth for character widths across the rendering
 /// pipeline. It handles:
-/// - Tabs: variable width to reach next tab stop
-/// - Unicode: uses UnicodeWidthChar for CJK, emoji, etc.
+/// * Tabs: variable width to reach next tab stop
+/// * Unicode: uses UnicodeWidthChar for CJK, emoji, etc.
 pub fn cell_width(ch: char, col: usize, tab_width: usize) -> usize {
 	match ch {
 		'\t' => tab_width.saturating_sub(col % tab_width).max(1),

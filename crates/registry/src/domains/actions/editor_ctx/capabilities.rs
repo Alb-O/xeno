@@ -8,28 +8,28 @@
 //!
 //! These must be implemented by all [`EditorCapabilities`] implementors:
 //!
-//! - [`CursorAccess`] - Get/set cursor position
-//! - [`SelectionAccess`] - Get/set selections
-//! - [`TextAccess`] - Read document content
-//! - [`ModeAccess`] - Get/set editor mode
-//! - [`NotificationAccess`] - Display notifications (type-safe)
+//! * [`CursorAccess`] - Get/set cursor position
+//! * [`SelectionAccess`] - Get/set selections
+//! * [`TextAccess`] - Read document content
+//! * [`ModeAccess`] - Get/set editor mode
+//! * [`NotificationAccess`] - Display notifications (type-safe)
 //!
 //! # Optional Traits
 //!
 //! These extend functionality when implemented:
 //!
-//! - [`EditAccess`] - Text modification (delete, yank, paste)
-//! - [`MotionAccess`] - Visual/wrapped-line cursor movement
-//! - [`SearchAccess`] - Pattern search and navigation
-//! - [`UndoAccess`] - Undo/redo history
-//! - [`SplitOps`] - Split management
-//! - [`FocusOps`] - Focus and buffer navigation
-//! - [`ViewportAccess`] - Viewport position queries
-//! - [`FileOpsAccess`] - Save/load operations
-//! - [`JumpAccess`] - Jump list navigation
-//! - [`MacroAccess`] - Macro recording/playback
-//! - [`OptionAccess`] - Configuration option resolution
-//! - [`OverlayAccess`] - UI overlays and modal interactions
+//! * [`EditAccess`] - Text modification (delete, yank, paste)
+//! * [`MotionAccess`] - Visual/wrapped-line cursor movement
+//! * [`SearchAccess`] - Pattern search and navigation
+//! * [`UndoAccess`] - Undo/redo history
+//! * [`SplitOps`] - Split management
+//! * [`FocusOps`] - Focus and buffer navigation
+//! * [`ViewportAccess`] - Viewport position queries
+//! * [`FileOpsAccess`] - Save/load operations
+//! * [`JumpAccess`] - Jump list navigation
+//! * [`MacroAccess`] - Macro recording/playback
+//! * [`OptionAccess`] - Configuration option resolution
+//! * [`OverlayAccess`] - UI overlays and modal interactions
 //!
 //! [`EditorCapabilities`]: super::EditorCapabilities
 
@@ -114,8 +114,8 @@ pub trait NotificationAccess {
 	/// Emits a notification to the user.
 	///
 	/// Accepts any type that can be converted into a [`Notification`]:
-	/// - [`NotificationKey`] - static message notifications (via `Into<Notification>`)
-	/// - [`Notification`] - pre-built notifications from parameterized builders
+	/// * [`NotificationKey`] - static message notifications (via `Into<Notification>`)
+	/// * [`Notification`] - pre-built notifications from parameterized builders
 	///
 	/// [`NotificationKey`]: crate::notifications::NotificationKey
 	/// [`Notification`]: crate::notifications::Notification
@@ -132,15 +132,15 @@ pub trait NotificationAccess {
 pub trait SearchAccess {
 	/// Searches in the given direction.
 	///
-	/// - `direction`: `Next` for forward, `Prev` for backward
-	/// - `add_selection`: if true, adds match to selections instead of replacing
-	/// - `extend`: if true, extends the current selection to include the match
+	/// * `direction`: `Next` for forward, `Prev` for backward
+	/// * `add_selection`: if true, adds match to selections instead of replacing
+	/// * `extend`: if true, extends the current selection to include the match
 	fn search(&mut self, direction: SeqDirection, add_selection: bool, extend: bool) -> bool;
 	/// Repeats the last search.
 	///
-	/// - `flip`: if true, searches in the opposite direction of the last search
-	/// - `add_selection`: if true, adds match to selections instead of replacing
-	/// - `extend`: if true, extends the current selection to include the match
+	/// * `flip`: if true, searches in the opposite direction of the last search
+	/// * `add_selection`: if true, adds match to selections instead of replacing
+	/// * `extend`: if true, extends the current selection to include the match
 	fn search_repeat(&mut self, flip: bool, add_selection: bool, extend: bool) -> bool;
 	/// Uses the current selection text as the search pattern.
 	fn use_selection_as_pattern(&mut self) -> bool;
@@ -207,7 +207,7 @@ pub trait EditAccess {
 
 	/// Pastes from the yank register.
 	///
-	/// - `before`: If true, pastes before cursor; otherwise after
+	/// * `before`: If true, pastes before cursor; otherwise after
 	fn paste(&mut self, before: bool);
 }
 
@@ -219,9 +219,9 @@ pub trait EditAccess {
 pub trait MotionAccess {
 	/// Moves the cursor visually (wrapped lines).
 	///
-	/// - `direction`: Forward for down, Backward for up
-	/// - `count`: Number of visual lines to move
-	/// - `extend`: If true, extends selection rather than moving
+	/// * `direction`: Forward for down, Backward for up
+	/// * `count`: Number of visual lines to move
+	/// * `extend`: If true, extends selection rather than moving
 	fn move_visual_vertical(&mut self, direction: Direction, count: usize, extend: bool);
 }
 
@@ -285,15 +285,15 @@ pub enum SplitError {
 /// # Split Naming Convention
 ///
 /// Split names refer to the orientation of the **split line**, matching Vim/Helix:
-/// - `Axis::Horizontal` = horizontal divider line → windows stacked top/bottom
-/// - `Axis::Vertical` = vertical divider line → windows side-by-side left/right
+/// * `Axis::Horizontal` = horizontal divider line → windows stacked top/bottom
+/// * `Axis::Vertical` = vertical divider line → windows side-by-side left/right
 ///
 /// # Split Semantics
 ///
 /// Splits create a new view sharing the same underlying document:
-/// - Edits sync across all views of the same document
-/// - Undo history is shared
-/// - Each view has independent cursor, selection, and scroll position
+/// * Edits sync across all views of the same document
+/// * Undo history is shared
+/// * Each view has independent cursor, selection, and scroll position
 ///
 /// # Atomicity
 ///

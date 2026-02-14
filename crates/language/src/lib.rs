@@ -8,20 +8,20 @@
 //!
 //! # Architecture
 //!
-//! - [`grammar`]: Dynamic grammar loading from shared libraries
-//! - [`language`]: Language metadata (extensions, filenames, shebangs)
-//! - [`loader`]: Language registry implementing `tree_house::LanguageLoader`
-//! - [`query`]: Query types for indentation, text objects, tags
-//! - [`highlight`]: Syntax highlighting via tree-sitter queries
-//! - [`config`]: Language configuration loading
+//! * [`grammar`]: Dynamic grammar loading from shared libraries
+//! * [`language`]: Language metadata (extensions, filenames, shebangs)
+//! * [`loader`]: Language registry implementing `tree_house::LanguageLoader`
+//! * [`query`]: Query types for indentation, text objects, tags
+//! * [`highlight`]: Syntax highlighting via tree-sitter queries
+//! * [`config`]: Language configuration loading
 //!
 //! # Integration with Xeno
 //!
 //! Languages are loaded from precompiled postcard blobs via [`config::load_language_configs`].
 //! Each language definition includes:
-//! - Grammar name (for loading the .so file)
-//! - File type associations (extensions, filenames, globs)
-//! - Query files (highlights, indents, textobjects, injections, locals)
+//! * Grammar name (for loading the .so file)
+//! * File type associations (extensions, filenames, globs)
+//! * Query files (highlights, indents, textobjects, injections, locals)
 
 pub mod build;
 pub mod db;

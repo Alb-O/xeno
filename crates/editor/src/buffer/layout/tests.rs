@@ -158,9 +158,9 @@ fn separator_positions_2x2_grid() {
 	// Check vertical separator positions for junction rendering
 	// Both vertical separators should be at x=40, but at different y ranges
 	// For a 4-way junction at (40, 12), we need:
-	// - V-sep 1 (y=0..12) ends at y=12 → adjacent_above
-	// - V-sep 2 (y=13..25) starts at y=13 → adjacent_below for y=12
-	// - Horizontal (x=0..81) passes through x=40
+	// * V-sep 1 (y=0..12) ends at y=12 → adjacent_above
+	// * V-sep 2 (y=13..25) starts at y=13 → adjacent_below for y=12
+	// * Horizontal (x=0..81) passes through x=40
 	let h_rect = h_seps[0].2;
 	let junction_y = h_rect.y; // y=12
 

@@ -6,9 +6,9 @@
 //!
 //! # History Layers
 //!
-//! - [`DocumentHistoryEntry`]: Document-only state (text content and version).
-//! - [`ViewSnapshot`]: Per-buffer view state (cursor, selection, scroll position).
-//! - [`EditorUndoGroup`]: Editor-level grouping that combines affected documents
+//! * [`DocumentHistoryEntry`]: Document-only state (text content and version).
+//! * [`ViewSnapshot`]: Per-buffer view state (cursor, selection, scroll position).
+//! * [`EditorUndoGroup`]: Editor-level grouping that combines affected documents
 //!   with their corresponding view snapshots.
 
 use std::collections::HashMap;
@@ -52,9 +52,9 @@ pub struct ViewSnapshot {
 ///
 /// When an edit operation affects one or more documents, the editor creates
 /// an undo group that tracks:
-/// - Which documents were modified
-/// - The view state of each buffer before the edit
-/// - The origin of the edit (for debugging and telemetry)
+/// * Which documents were modified
+/// * The view state of each buffer before the edit
+/// * The origin of the edit (for debugging and telemetry)
 ///
 /// On undo, the editor calls each document's undo method and then restores
 /// the view snapshots to their corresponding buffers.

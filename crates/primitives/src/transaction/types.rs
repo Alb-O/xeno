@@ -50,7 +50,7 @@ impl Insertion {
 	/// Creates a new insertion, computing the character length once.
 	///
 	/// # Parameters
-	/// - `text`: The text to insert
+	/// * `text`: The text to insert
 	///
 	/// # Returns
 	/// A new [`Insertion`] with pre-computed character length.
@@ -63,8 +63,8 @@ impl Insertion {
 	/// Creates an insertion from a substring with pre-computed length.
 	///
 	/// # Parameters
-	/// - `text`: The text to insert
-	/// - `char_len`: Pre-computed character count (must match actual count)
+	/// * `text`: The text to insert
+	/// * `char_len`: Pre-computed character count (must match actual count)
 	///
 	/// # Returns
 	/// A new [`Insertion`] using the provided length.

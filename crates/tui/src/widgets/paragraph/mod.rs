@@ -99,8 +99,8 @@ pub struct Paragraph<'a> {
 ///
 /// let bullet_points = Text::from(
 ///     r#"Some indented points:
-///     - First thing goes here and is long so that it wraps
-///     - Here is another point that is long enough to wrap"#,
+///     * First thing goes here and is long so that it wraps
+///     * Here is another point that is long enough to wrap"#,
 /// );
 ///
 /// // With leading spaces trimmed (window width of 30 chars):

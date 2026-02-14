@@ -53,9 +53,9 @@ pub struct DocumentMetaOutcome {
 ///
 /// # Architecture
 ///
-/// - Content is stored as a [`Rope`] for efficient editing of large files.
-/// - Edits are applied via [`Transaction`] objects through the [`Self::commit`] method.
-/// - History is managed by an [`UndoBackend`] at the document level, ensuring
+/// * Content is stored as a [`Rope`] for efficient editing of large files.
+/// * Edits are applied via [`Transaction`] objects through the [`Self::commit`] method.
+/// * History is managed by an [`UndoBackend`] at the document level, ensuring
 ///   undoing an edit affects all views of that document.
 pub struct Document {
 	/// Unique identifier for this document.

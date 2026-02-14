@@ -29,13 +29,13 @@ use crate::style::stylize::{ColorDebug, ColorDebugKind};
 /// | `lightcyan`    | [`Color::LightCyan`]    | 96         | 106        |
 /// | `white`*       | [`Color::White`]        | 97         | 107        |
 ///
-/// - `gray` is sometimes called `white` - this is not supported as we use `white` for bright white
-/// - `gray` is sometimes called `silver` - this is supported
-/// - `darkgray` is sometimes called `light black` or `bright black` (both are supported)
-/// - `white` is sometimes called `light white` or `bright white` (both are supported)
-/// - we support `bright` and `light` prefixes for all colors
-/// - we support `-` and `_` and ` ` as separators for all colors
-/// - we support both `gray` and `grey` spellings
+/// * `gray` is sometimes called `white` - this is not supported as we use `white` for bright white
+/// * `gray` is sometimes called `silver` - this is supported
+/// * `darkgray` is sometimes called `light black` or `bright black` (both are supported)
+/// * `white` is sometimes called `light white` or `bright white` (both are supported)
+/// * we support `bright` and `light` prefixes for all colors
+/// * we support `-` and `_` and ` ` as separators for all colors
+/// * we support both `gray` and `grey` spellings
 ///
 /// `From<Color> for Style` is implemented by creating a style with the foreground color set to the
 /// given color. This allows you to use colors anywhere that accepts `Into<Style>`.

@@ -6,8 +6,8 @@
 /// `Frame::render_stateful_widget` method.
 ///
 /// The state consists of two fields:
-/// - [`offset`]: the index of the first item to be displayed
-/// - [`selected`]: the index of the selected item, which can be `None` if no item is selected
+/// * [`offset`]: the index of the first item to be displayed
+/// * [`selected`]: the index of the selected item, which can be `None` if no item is selected
 ///
 /// [`offset`]: ListState::offset()
 /// [`selected`]: ListState::selected()

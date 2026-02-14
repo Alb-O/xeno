@@ -1,10 +1,10 @@
 //! Notification toast widget for displaying transient messages.
 //!
 //! This module provides a self-contained notification system with:
-//! - Configurable anchor positions (corners and edges)
-//! - Multiple animation styles (slide, fade, expand/collapse)
-//! - Automatic stacking of multiple notifications
-//! - Auto-dismiss with configurable timing
+//! * Configurable anchor positions (corners and edges)
+//! * Multiple animation styles (slide, fade, expand/collapse)
+//! * Automatic stacking of multiple notifications
+//! * Auto-dismiss with configurable timing
 //!
 //! # Example
 //!

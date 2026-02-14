@@ -2,17 +2,17 @@
 //!
 //! # Purpose
 //!
-//! - Owns: per-view state (cursor, selection, scroll position, local options) and modal input state.
-//! - Does not own: authoritative document content (owned by [`crate::core::document::Document`]).
-//! - Source of truth: [`crate::buffer::Buffer`].
+//! * Owns: per-view state (cursor, selection, scroll position, local options) and modal input state.
+//! * Does not own: authoritative document content (owned by [`crate::core::document::Document`]).
+//! * Source of truth: [`crate::buffer::Buffer`].
 //!
 //! # Mental model
 //!
-//! - A buffer is a view into a document.
-//! - Multiple buffers can point to the same document (enabling splits).
-//! - View-local state (like the cursor) is stored in the buffer.
-//! - Shared state (like text and history) is stored in the document.
-//! - Thread-safety for shared documents is managed via [`crate::buffer::DocumentHandle`] with re-entrancy protection.
+//! * A buffer is a view into a document.
+//! * Multiple buffers can point to the same document (enabling splits).
+//! * View-local state (like the cursor) is stored in the buffer.
+//! * Shared state (like text and history) is stored in the document.
+//! * Thread-safety for shared documents is managed via [`crate::buffer::DocumentHandle`] with re-entrancy protection.
 //!
 //! # Key types
 //!
@@ -25,9 +25,9 @@
 //!
 //! # Invariants
 //!
-//! - Must not allow re-entrant locking of the same document on a single thread.
-//! - Must keep view state (cursor/selection) within document bounds.
-//! - Must preserve monotonic document versions across edits.
+//! * Must not allow re-entrant locking of the same document on a single thread.
+//! * Must keep view state (cursor/selection) within document bounds.
+//! * Must preserve monotonic document versions across edits.
 //!
 //! # Data flow
 //!
@@ -45,26 +45,26 @@
 //!
 //! # Concurrency & ordering
 //!
-//! - Multi-view consistency: Edits to a shared document are immediately visible to all buffers.
-//! - Lock ordering: Always acquire document locks for the shortest possible duration.
-//! - Thread-safety: `Document` is wrapped in `Arc<RwLock<Document>>` inside `DocumentHandle`.
+//! * Multi-view consistency: Edits to a shared document are immediately visible to all buffers.
+//! * Lock ordering: Always acquire document locks for the shortest possible duration.
+//! * Thread-safety: `Document` is wrapped in `Arc<RwLock<Document>>` inside `DocumentHandle`.
 //!
 //! # Failure modes & recovery
 //!
-//! - Readonly violation: Edits to readonly documents/buffers return `EditError`.
-//! - Deadlock prevention: Re-entrant lock attempts trigger a controlled panic via `LockGuard`.
+//! * Readonly violation: Edits to readonly documents/buffers return `EditError`.
+//! * Deadlock prevention: Re-entrant lock attempts trigger a controlled panic via `LockGuard`.
 //!
 //! # Recipes
 //!
 //! ## Split a view
 //!
-//! - Call `buffer.clone_for_split(new_view_id)`.
-//! - This creates a new buffer sharing the same `DocumentHandle`.
+//! * Call `buffer.clone_for_split(new_view_id)`.
+//! * This creates a new buffer sharing the same `DocumentHandle`.
 //!
 //! ## Apply an edit
 //!
-//! - Use `buffer.apply_transaction(tx, policy)`.
-//! - This handles versioning, history, and readonly checks automatically.
+//! * Use `buffer.apply_transaction(tx, policy)`.
+//! * This handles versioning, history, and readonly checks automatically.
 //!
 mod editing;
 
@@ -332,8 +332,8 @@ impl Buffer {
 	/// Sets a buffer-level readonly override.
 	///
 	/// The override is additive-only:
-	/// - `Some(true)`: Force read-only regardless of document state.
-	/// - `None`: Defer to the document's readonly flag.
+	/// * `Some(true)`: Force read-only regardless of document state.
+	/// * `None`: Defer to the document's readonly flag.
 	///
 	/// `Some(false)` is treated identically to `None` (it cannot bypass
 	/// document-level readonly).

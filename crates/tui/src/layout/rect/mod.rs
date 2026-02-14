@@ -28,45 +28,45 @@ use super::{Constraint, Layout};
 ///
 /// # Construction and Conversion
 ///
-/// - [`new`](Self::new) - Create a new rectangle from coordinates and dimensions
-/// - [`as_position`](Self::as_position) - Convert to a position at the top-left corner
-/// - [`as_size`](Self::as_size) - Convert to a size representing the dimensions
-/// - [`from((Position, Size))`](Self::from) - Create from `(Position, Size)` tuple
-/// - [`from(((u16, u16), (u16, u16)))`](Self::from) - Create from `((u16, u16), (u16, u16))`
+/// * [`new`](Self::new) - Create a new rectangle from coordinates and dimensions
+/// * [`as_position`](Self::as_position) - Convert to a position at the top-left corner
+/// * [`as_size`](Self::as_size) - Convert to a size representing the dimensions
+/// * [`from((Position, Size))`](Self::from) - Create from `(Position, Size)` tuple
+/// * [`from(((u16, u16), (u16, u16)))`](Self::from) - Create from `((u16, u16), (u16, u16))`
 ///   coordinate and dimension tuples
-/// - [`into((Position, Size))`] - Convert to `(Position, Size)` tuple
-/// - [`default`](Self::default) - Create a zero-sized rectangle at origin
+/// * [`into((Position, Size))`] - Convert to `(Position, Size)` tuple
+/// * [`default`](Self::default) - Create a zero-sized rectangle at origin
 ///
 /// # Geometry and Properties
 ///
-/// - [`area`](Self::area) - Calculate the total area in character cells
-/// - [`is_empty`](Self::is_empty) - Check if the rectangle has zero area
-/// - [`left`](Self::left), [`right`](Self::right), [`top`](Self::top), [`bottom`](Self::bottom) -
+/// * [`area`](Self::area) - Calculate the total area in character cells
+/// * [`is_empty`](Self::is_empty) - Check if the rectangle has zero area
+/// * [`left`](Self::left), [`right`](Self::right), [`top`](Self::top), [`bottom`](Self::bottom) -
 ///   Get edge coordinates
 ///
 /// # Spatial Operations
 ///
-/// - [`inner`](Self::inner), [`outer`](Self::outer) - Apply margins to shrink or expand
-/// - [`offset`](Self::offset) - Move the rectangle by a relative amount
-/// - [`resize`](Self::resize) - Change the rectangle size while keeping the bottom/right in range
-/// - [`union`](Self::union) - Combine with another rectangle to create a bounding box
-/// - [`intersection`](Self::intersection) - Find the overlapping area with another rectangle
-/// - [`clamp`](Self::clamp) - Constrain the rectangle to fit within another
+/// * [`inner`](Self::inner), [`outer`](Self::outer) - Apply margins to shrink or expand
+/// * [`offset`](Self::offset) - Move the rectangle by a relative amount
+/// * [`resize`](Self::resize) - Change the rectangle size while keeping the bottom/right in range
+/// * [`union`](Self::union) - Combine with another rectangle to create a bounding box
+/// * [`intersection`](Self::intersection) - Find the overlapping area with another rectangle
+/// * [`clamp`](Self::clamp) - Constrain the rectangle to fit within another
 ///
 /// # Positioning and Centering
 ///
-/// - [`centered_horizontally`](Self::centered_horizontally) - Center horizontally within a
+/// * [`centered_horizontally`](Self::centered_horizontally) - Center horizontally within a
 ///   constraint
-/// - [`centered_vertically`](Self::centered_vertically) - Center vertically within a constraint
-/// - [`centered`](Self::centered) - Center both horizontally and vertically
+/// * [`centered_vertically`](Self::centered_vertically) - Center vertically within a constraint
+/// * [`centered`](Self::centered) - Center both horizontally and vertically
 ///
 /// # Testing and Iteration
 ///
-/// - [`contains`](Self::contains) - Check if a position is within the rectangle
-/// - [`intersects`](Self::intersects) - Check if it overlaps with another rectangle
-/// - [`rows`](Self::rows) - Iterate over horizontal rows within the rectangle
-/// - [`columns`](Self::columns) - Iterate over vertical columns within the rectangle
-/// - [`positions`](Self::positions) - Iterate over all positions within the rectangle
+/// * [`contains`](Self::contains) - Check if a position is within the rectangle
+/// * [`intersects`](Self::intersects) - Check if it overlaps with another rectangle
+/// * [`rows`](Self::rows) - Iterate over horizontal rows within the rectangle
+/// * [`columns`](Self::columns) - Iterate over vertical columns within the rectangle
+/// * [`positions`](Self::positions) - Iterate over all positions within the rectangle
 ///
 /// # Examples
 ///
@@ -263,8 +263,8 @@ impl Rect {
 	///
 	/// Moves the `Rect` according to the given offset without modifying its [`width`](Rect::width)
 	/// or [`height`](Rect::height).
-	/// - Positive `x` moves the whole `Rect` to the right, negative to the left.
-	/// - Positive `y` moves the whole `Rect` to the bottom, negative to the top.
+	/// * Positive `x` moves the whole `Rect` to the right, negative to the left.
+	/// * Positive `y` moves the whole `Rect` to the bottom, negative to the top.
 	///
 	/// See [`Offset`] for details.
 	#[must_use = "method returns the modified value"]
@@ -477,9 +477,9 @@ impl Rect {
 	/// Returns a new Rect, centered horizontally based on the provided constraint.
 	///
 	/// The constraint determines the width of the centered area:
-	/// - `Length(n)` - exact width of `n`
-	/// - `Percentage(p)` - `p%` of the original width
-	/// - `Min(n)` - at least `n`, but uses full width if larger
+	/// * `Length(n)` - exact width of `n`
+	/// * `Percentage(p)` - `p%` of the original width
+	/// * `Min(n)` - at least `n`, but uses full width if larger
 	///
 	/// # Examples
 	///
@@ -500,9 +500,9 @@ impl Rect {
 	/// Returns a new Rect, centered vertically based on the provided constraint.
 	///
 	/// The constraint determines the height of the centered area:
-	/// - `Length(n)` - exact height of `n`
-	/// - `Percentage(p)` - `p%` of the original height
-	/// - `Min(n)` - at least `n`, but uses full height if larger
+	/// * `Length(n)` - exact height of `n`
+	/// * `Percentage(p)` - `p%` of the original height
+	/// * `Min(n)` - at least `n`, but uses full height if larger
 	///
 	/// # Examples
 	///

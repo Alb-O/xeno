@@ -139,8 +139,8 @@ pub(super) async fn wait_for_finish(mgr: &SyntaxManager) {
 
 /// Must enforce single-flight per document.
 ///
-/// - Enforced in: `SyntaxManager::ensure_syntax`
-/// - Failure symptom: Multiple redundant parse tasks for the same document identity.
+/// * Enforced in: `SyntaxManager::ensure_syntax`
+/// * Failure symptom: Multiple redundant parse tasks for the same document identity.
 
 #[cfg(test)]
 mod tests;

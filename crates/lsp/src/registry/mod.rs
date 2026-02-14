@@ -157,9 +157,9 @@ struct InFlightStart {
 ///
 /// # Concurrency
 ///
-/// - `configs`: Protected by `RwLock` for read-heavy access to language server configurations
-/// - `state`: Consolidated `RwLock` ensures atomic updates across all three server indices
-/// - `inflight`: Async `Mutex` gate ensures only one transport start per key across all callers
+/// * `configs`: Protected by `RwLock` for read-heavy access to language server configurations
+/// * `state`: Consolidated `RwLock` ensures atomic updates across all three server indices
+/// * `inflight`: Async `Mutex` gate ensures only one transport start per key across all callers
 pub struct Registry {
 	configs: RwLock<HashMap<String, LanguageServerConfig>>,
 	state: RwLock<RegistryState>,
@@ -215,10 +215,10 @@ impl Registry {
 	/// 1. Fast path: check if server already running
 	/// 2. Leader election: first caller becomes leader, others become waiters
 	/// 3. Leader work:
-	///    - Re-check if server was started by a previous leader
-	///    - Call `transport.start()`, inserts into state
-	///    - Populate shared result via `watch` channel
-	///    - Remove inflight entry and notify waiters
+	///    * Re-check if server was started by a previous leader
+	///    * Call `transport.start()`, inserts into state
+	///    * Populate shared result via `watch` channel
+	///    * Remove inflight entry and notify waiters
 	/// 4. Waiters wait on `watch` channel and receive result directly
 	///
 	/// # Errors

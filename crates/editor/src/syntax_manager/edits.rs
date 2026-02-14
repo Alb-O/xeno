@@ -46,9 +46,9 @@ impl SyntaxManager {
 	///
 	/// # Invariants
 	///
-	/// - Sync incremental updates are ONLY allowed on full (non-partial) trees
+	/// * Sync incremental updates are ONLY allowed on full (non-partial) trees
 	///   whose version matches the version immediately preceding this edit.
-	/// - If alignment is lost, changes accumulate for a background parse.
+	/// * If alignment is lost, changes accumulate for a background parse.
 	pub fn note_edit_incremental(
 		&mut self,
 		doc_id: DocumentId,

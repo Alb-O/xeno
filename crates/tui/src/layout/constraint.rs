@@ -16,22 +16,22 @@ use core::fmt;
 /// # Size Calculation
 ///
 /// The deterministic solver allocates space in priority passes:
-/// - Pass 1: `Length` constraints receive their exact value (clamped to remaining space).
-/// - Pass 2: `Percentage` constraints receive their proportional share (clamped to remaining).
-/// - Pass 3: `Min` constraints receive at least their minimum, then split any leftover evenly.
+/// * Pass 1: `Length` constraints receive their exact value (clamped to remaining space).
+/// * Pass 2: `Percentage` constraints receive their proportional share (clamped to remaining).
+/// * Pass 3: `Min` constraints receive at least their minimum, then split any leftover evenly.
 ///
 /// # Collection Creation
 ///
-/// - [`from_lengths`](Self::from_lengths) - Create a collection of length constraints
-/// - [`from_percentages`](Self::from_percentages) - Create a collection of percentage constraints
-/// - [`from_mins`](Self::from_mins) - Create a collection of minimum constraints
+/// * [`from_lengths`](Self::from_lengths) - Create a collection of length constraints
+/// * [`from_percentages`](Self::from_percentages) - Create a collection of percentage constraints
+/// * [`from_mins`](Self::from_mins) - Create a collection of minimum constraints
 ///
 /// # Conversion and Construction
 ///
-/// - [`from(u16)`](Self::from) - Create a [`Length`](Self::Length) constraint from `u16`
-/// - [`from(&Constraint)`](Self::from) - Create from `&Constraint` (copy)
-/// - [`as_ref()`](Self::as_ref) - Get a reference to self
-/// - [`default()`](Self::default) - Create default constraint
+/// * [`from(u16)`](Self::from) - Create a [`Length`](Self::Length) constraint from `u16`
+/// * [`from(&Constraint)`](Self::from) - Create from `&Constraint` (copy)
+/// * [`as_ref()`](Self::as_ref) - Get a reference to self
+/// * [`default()`](Self::default) - Create default constraint
 ///   ([`Percentage(100)`](Self::Percentage))
 ///
 /// # Examples

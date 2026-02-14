@@ -3,13 +3,13 @@
 //! The [`Editor`] is the central workspace container, managing buffers, layout,
 //! and UI state. Implementation is split across focused modules:
 //!
-//! - `buffer_ops` - Buffer creation and management
-//! - `editing` - Text modification operations
-//! - `file_ops` - File save/load (implements [`xeno_registry::actions::FileOpsAccess`])
-//! - `focus` - View focus and navigation
-//! - `lifecycle` - Tick, startup, and render updates
-//! - `splits` - Split view management
-//! - `theming` - Theme and syntax highlighting
+//! * `buffer_ops` - Buffer creation and management
+//! * `editing` - Text modification operations
+//! * `file_ops` - File save/load (implements [`xeno_registry::actions::FileOpsAccess`])
+//! * `focus` - View focus and navigation
+//! * `lifecycle` - Tick, startup, and render updates
+//! * `splits` - Split view management
+//! * `theming` - Theme and syntax highlighting
 //!
 
 /// Buffer creation operations.
@@ -134,9 +134,9 @@ fn log_registry_summary_once() {
 ///
 /// # Focus and Navigation
 ///
-/// - `focused_view` - Current focus (buffer ID)
-/// - `focus_buffer` - Focus by ID
-/// - `focus_next_view` / `focus_prev_view` - Cycle through views
+/// * `focused_view` - Current focus (buffer ID)
+/// * `focus_buffer` - Focus by ID
+/// * `focus_next_view` / `focus_prev_view` - Cycle through views
 pub(crate) struct EffectiveKeymapCache {
 	pub(crate) snap: Arc<Snapshot<ActionEntry, ActionId>>,
 	pub(crate) overrides_hash: u64,

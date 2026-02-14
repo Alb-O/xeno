@@ -175,8 +175,8 @@ impl Transaction {
 	///
 	/// # Semantics
 	///
-	/// - `from` maps with `Bias::Right`: cursor follows insertions at the boundary.
-	/// - `to` maps with `Bias::Left`: end boundary doesn't expand on insertion.
+	/// * `from` maps with `Bias::Right`: cursor follows insertions at the boundary.
+	/// * `to` maps with `Bias::Left`: end boundary doesn't expand on insertion.
 	pub fn map_selection(&self, selection: &Selection) -> Selection {
 		selection.transform(|r| {
 			let dir = r.direction();
@@ -184,8 +184,8 @@ impl Transaction {
 			let to = r.to();
 
 			// Map boundaries:
-			// - start boundary from maps with Bias::Right (insertions shift it right)
-			// - end boundary to maps with Bias::Left (insertions do not expand it)
+			// * start boundary from maps with Bias::Right (insertions shift it right)
+			// * end boundary to maps with Bias::Left (insertions do not expand it)
 			let from2 = self.changes.map_pos(from, Bias::Right);
 			let to2 = self.changes.map_pos(to, Bias::Left);
 

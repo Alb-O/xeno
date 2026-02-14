@@ -187,9 +187,9 @@ impl Layout {
 	/// # Soft-Min Policy
 	///
 	/// This function implements a "soft minimum" sizing policy:
-	/// - When there's enough space, enforce [`Self::MIN_WIDTH`] (10) / [`Self::MIN_HEIGHT`] (3).
-	/// - When space is tight, degrade gracefully to hard minimums (at least 1 cell).
-	/// - Never produce 0-sized panes or overflow if total size allows.
+	/// * When there's enough space, enforce [`Self::MIN_WIDTH`] (10) / [`Self::MIN_HEIGHT`] (3).
+	/// * When space is tight, degrade gracefully to hard minimums (at least 1 cell).
+	/// * Never produce 0-sized panes or overflow if total size allows.
 	///
 	/// The invariant `first_size + second_size + 1 == total_size` is maintained
 	/// when `total_size >= 1` (separator takes 1 cell).

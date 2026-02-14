@@ -37,8 +37,8 @@
 //! The matcher supports hierarchical key sequences for which-key style UIs. When querying
 //! continuations at a prefix, each child is classified as either:
 //!
-//! - Leaf: A terminal binding (no further keys possible)
-//! - Branch: A sub-prefix with more bindings underneath (e.g., `ctrl-w f` → focus commands)
+//! * Leaf: A terminal binding (no further keys possible)
+//! * Branch: A sub-prefix with more bindings underneath (e.g., `ctrl-w f` → focus commands)
 //!
 //! This allows UIs to show "…" indicators for branches that can be drilled into.
 use std::collections::HashMap;
@@ -166,9 +166,9 @@ impl<T> Matcher<T> {
 	/// Looks up a key sequence, returning detailed match information.
 	///
 	/// Returns:
-	/// - `Complete(value)` if the sequence exactly matches a binding
-	/// - `Partial { has_value }` if the sequence is a prefix of bindings (with optional intermediate value)
-	/// - `None` if the sequence doesn't match anything
+	/// * `Complete(value)` if the sequence exactly matches a binding
+	/// * `Partial { has_value }` if the sequence is a prefix of bindings (with optional intermediate value)
+	/// * `None` if the sequence doesn't match anything
 	pub fn lookup(&self, nodes: &[Node]) -> MatchResult<'_, T> {
 		lookup_with_info(&self.root, nodes, 0)
 	}
@@ -193,8 +193,8 @@ impl<T> Matcher<T> {
 	/// Returns continuations with classification (leaf vs branch).
 	///
 	/// Each continuation is classified as:
-	/// - `Leaf`: Terminal binding with no further children
-	/// - `Branch`: Sub-prefix with more bindings underneath
+	/// * `Leaf`: Terminal binding with no further children
+	/// * `Branch`: Sub-prefix with more bindings underneath
 	///
 	/// This enables which-key UIs to show "…" for branches that can be drilled into.
 	pub fn continuations_with_kind(&self, prefix: &[Node]) -> Vec<ContinuationEntry<'_, T>> {

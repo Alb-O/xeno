@@ -1,8 +1,8 @@
 //! `style` contains the primitives used to control how your user interface will look.
 //!
 //! There are two ways to set styles:
-//! - Creating and using the [`Style`] struct. (e.g. `Style::new().fg(Color::Red)`).
-//! - Using style shorthands. (e.g. `"hello".red()`).
+//! * Creating and using the [`Style`] struct. (e.g. `Style::new().fg(Color::Red)`).
+//! * Using style shorthands. (e.g. `"hello".red()`).
 //!
 //! # Using the `Style` struct
 //!
@@ -32,9 +32,9 @@
 //! The shorthands are implemented in the [`Stylize`] trait which is automatically implemented for
 //! many types via the [`Styled`] trait. This means that you can use the shorthands on any type
 //! that implements [`Styled`]. E.g.:
-//! - Strings and string slices when styled return a [`Span`]
-//! - [`Span`]s can be styled again, which will merge the styles.
-//! - Many widget types can be styled directly rather than calling their `style()` method.
+//! * Strings and string slices when styled return a [`Span`]
+//! * [`Span`]s can be styled again, which will merge the styles.
+//! * Many widget types can be styled directly rather than calling their `style()` method.
 //!
 //! See the [`Stylize`] and [`Styled`] traits for more information.
 //!

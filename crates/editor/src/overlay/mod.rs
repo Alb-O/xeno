@@ -136,7 +136,7 @@ impl OverlaySystem {
 	/// Creates a new `OverlaySystem` with default layers initialized.
 	///
 	/// Initial layers include:
-	/// - [`controllers::InfoPopupLayer`] for event-driven info popup dismissal.
+	/// * [`controllers::InfoPopupLayer`] for event-driven info popup dismissal.
 	pub fn new() -> Self {
 		let mut layers = OverlayLayers::default();
 		layers.add(Box::new(controllers::InfoPopupLayer));

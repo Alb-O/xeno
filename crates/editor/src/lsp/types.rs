@@ -1,7 +1,7 @@
 //! LSP-related type definitions.
 //!
-//! - [`LspMenuKind`] - Active LSP menu type (completions or code actions)
-//! - [`LspMenuState`] - Active LSP menu state
+//! * [`LspMenuKind`] - Active LSP menu type (completions or code actions)
+//! * [`LspMenuState`] - Active LSP menu state
 
 use xeno_lsp::lsp_types::{CodeActionOrCommand, CompletionItem as LspCompletionItem};
 

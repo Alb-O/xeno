@@ -39,10 +39,10 @@ const MAX_PROJECTED_TILES: usize = 24;
 /// Key for identifying a highlight tile.
 ///
 /// The key includes all factors that affect highlight output:
-/// - `syntax_version`: Changes when the syntax tree is updated (authoritative)
-/// - `theme_epoch`: Changes when the theme is switched
-/// - `language_id`: The language for syntax highlighting
-/// - `tile_idx`: Which tile (line_idx / TILE_SIZE)
+/// * `syntax_version`: Changes when the syntax tree is updated (authoritative)
+/// * `theme_epoch`: Changes when the theme is switched
+/// * `language_id`: The language for syntax highlighting
+/// * `tile_idx`: Which tile (line_idx / TILE_SIZE)
 ///
 /// Note: `doc_version` is NOT included here to allow reusing "best effort"
 /// highlighting from a stale tree while interactive edits are in flight.

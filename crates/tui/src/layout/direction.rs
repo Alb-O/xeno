@@ -3,8 +3,8 @@
 /// This enumeration is used with [`Layout`](crate::layout::Layout) to specify whether layout
 /// segments should be arranged horizontally or vertically.
 ///
-/// - `Horizontal`: Layout segments are arranged side by side (left to right)
-/// - `Vertical`: Layout segments are arranged top to bottom (default)
+/// * `Horizontal`: Layout segments are arranged side by side (left to right)
+/// * `Vertical`: Layout segments are arranged top to bottom (default)
 ///
 /// For comprehensive layout documentation and examples, see the [`layout`](crate::layout) module.
 #[derive(Debug, Default, Clone, Copy, Eq, PartialEq, Hash)]
