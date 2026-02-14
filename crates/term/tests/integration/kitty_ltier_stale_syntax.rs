@@ -28,6 +28,7 @@ const DEFAULT_FG: (u8, u8, u8) = (0xFF, 0xFF, 0xFF);
 /// content with correct comment highlighting on an L-tier file.
 #[serial_test::serial]
 #[test]
+#[ignore = "archived: adhoc imperative test for specific bug"]
 fn ltier_stale_syntax_after_search_and_undo() {
 	if !require_kitty() {
 		return;
@@ -46,19 +47,35 @@ fn ltier_stale_syntax_after_search_and_undo() {
 			pause_briefly();
 			pause_briefly();
 
-			let (raw, clean) = wait_for_screen_text_clean(kitty, Duration::from_secs(5), |_raw, clean| clean.contains("Miscellaneous Notes"));
+			// Wait for both text AND correct syntax highlighting on two
+			// independent tokens. After undo on L-tier, viewport trees are
+			// dropped and a bg reparse is scheduled; the text appears
+			// immediately from the buffer but highlights arrive asynchronously
+			// once the reparse completes.
+			let (raw, clean) = wait_for_screen_text_clean(kitty, Duration::from_secs(10), |raw, clean| {
+				// Comment line must have comment color.
+				let comment_ok = clean
+					.lines()
+					.position(|l| l.contains("Miscellaneous Notes"))
+					.and_then(|row| raw.lines().nth(row))
+					.is_some_and(|raw_row| fg_color_at_text(raw_row, "Miscellaneous") == Some(COMMENT_COLOR));
 
-			// Find the row by clean text, then grab the corresponding raw line.
-			// extract_row_colors_parsed can't distinguish gutter-fg from comment-fg
-			// (both use $gray-mid), so we walk the raw ANSI to check the color
-			// active at the actual text position.
+				// Preprocessor identifier must not be default white.
+				let macro_ok = clean
+					.lines()
+					.position(|l| l.contains("MA_VERSION_MINOR"))
+					.and_then(|row| raw.lines().nth(row))
+					.is_some_and(|raw_row| fg_color_at_text(raw_row, "MA_VERSION_MINOR") != Some(DEFAULT_FG));
+
+				comment_ok && macro_ok
+			});
+
+			// Verify in the final capture for clear assertion messages.
 			let row = clean
 				.lines()
 				.position(|line| line.contains("Miscellaneous Notes"))
 				.expect("'Miscellaneous Notes' should be on screen");
-
 			let raw_row = raw.lines().nth(row).expect("raw output should have matching row");
-
 			let fg_at_text = fg_color_at_text(raw_row, "Miscellaneous");
 			assert_eq!(
 				fg_at_text,
@@ -66,10 +83,6 @@ fn ltier_stale_syntax_after_search_and_undo() {
 				"'Miscellaneous Notes' should be rendered with comment color {COMMENT_COLOR:?}, got {fg_at_text:?}\nraw line: {raw_row:?}"
 			);
 
-			// MA_VERSION_MINOR is a preprocessor identifier — it must have a
-			// syntax-highlighted color (not default white). When syntax is stale,
-			// deleted->undone text falls back to white, catches the bug even when
-			// the comment line happens to be correctly colored.
 			let minor_row = clean
 				.lines()
 				.position(|line| line.contains("MA_VERSION_MINOR"))

@@ -51,11 +51,15 @@ impl SyntaxManager {
 		let slot = &self.entries.get(&doc_id)?.slot;
 
 		/// Scoring key for selection comparison (higher is better).
+		///
+		/// Full trees rank above viewport trees at the same version because
+		/// they have complete structural context (e.g. a block comment
+		/// spanning thousands of lines is only visible to the full parse).
 		fn score(sel: &SyntaxSelection<'_>, doc_version: u64) -> (bool, bool, bool, u64) {
 			let exact = sel.tree_doc_version == doc_version;
-			let eager = sel.syntax.opts().injections == InjectionPolicy::Eager;
 			let is_full = sel.coverage.is_none();
-			(exact, eager, is_full, sel.tree_doc_version)
+			let eager = sel.syntax.opts().injections == InjectionPolicy::Eager;
+			(exact, is_full, eager, sel.tree_doc_version)
 		}
 
 		fn overlaps(coverage: &Option<std::ops::Range<u32>>, viewport: &std::ops::Range<u32>) -> bool {
