@@ -113,6 +113,9 @@ impl Editor {
 
 	/// Handle a single frontend event and then run `pump`.
 	pub async fn on_event(&mut self, ev: RuntimeEvent) -> LoopDirective {
+		if let Some(rec) = &mut self.state.recorder {
+			rec.record(&ev);
+		}
 		match ev {
 			RuntimeEvent::Key(key) => {
 				let _ = self.handle_key(key).await;
@@ -144,6 +147,8 @@ impl Editor {
 		})
 	}
 }
+
+pub(crate) mod recorder;
 
 #[cfg(test)]
 mod tests;

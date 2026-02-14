@@ -2147,11 +2147,12 @@ dependencies = [
 
 [[package]]
 name = "kitty-test-harness"
-version = "0.2.1"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8c30c93a65b493a6542745dbc4c0f748194fb454ac7765568a3581c02a839d7d"
+checksum = "056c731774ef7bb49da3f0d33f5f4450c80afae5f760cfea6e6088d4dc330564"
 dependencies = [
  "ansi-escape-sequences",
+ "base64",
  "kitty-remote-bindings",
  "termwiz",
 ]
@@ -6518,6 +6519,7 @@ name = "xeno-editor"
 version = "0.8.20"
 dependencies = [
  "anyhow",
+ "base64",
  "chrono",
  "clap",
  "dirs",

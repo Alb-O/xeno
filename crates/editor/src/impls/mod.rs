@@ -232,6 +232,9 @@ pub(crate) struct EditorState {
 
 	/// Background filesystem indexing and picker state.
 	pub(crate) filesystem: crate::filesystem::FsService,
+
+	/// Session recorder for replay-based integration testing.
+	pub(crate) recorder: Option<crate::runtime::recorder::EventRecorder>,
 }
 
 pub struct Editor {
@@ -395,6 +398,7 @@ impl Editor {
 				render_cache: crate::render::cache::RenderCache::new(),
 				command_usage: crate::completion::CommandPaletteUsage::default(),
 				filesystem: crate::filesystem::FsService::new(),
+				recorder: crate::runtime::recorder::EventRecorder::from_env(),
 			},
 		}
 	}
