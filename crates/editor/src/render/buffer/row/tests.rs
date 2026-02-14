@@ -313,4 +313,96 @@ mod unit_tests {
 			}
 		}
 	}
+
+	#[test]
+	fn test_insert_cursor_is_visible_at_end_of_line_before_newline() {
+		let doc = Rope::from("a\n");
+		let theme = theme_from_entry(xeno_registry::themes::get_theme("monokai").unwrap());
+		let loader = xeno_language::LanguageLoader::new();
+		let syntax_manager = crate::syntax_manager::SyntaxManager::default();
+
+		let line_slice = LineSlice {
+			line_idx: 0,
+			start_char: 0,
+			start_byte: 0,
+			content_end_char: 1,
+			has_newline: true,
+		};
+
+		let segment = WrappedSegment {
+			start_char_offset: 0,
+			char_len: 1,
+			indent_cols: 0,
+		};
+
+		// Cursor at line end (before the newline char).
+		let sel = Selection::point(1 as CharIdx);
+		let overlays = OverlayIndex::new(&sel, 1 as CharIdx, &doc);
+		let highlight = HighlightIndex::new(vec![]);
+
+		let ctx = BufferRenderContext {
+			theme: &theme,
+			language_loader: &loader,
+			syntax_manager: &syntax_manager,
+			diagnostics: None,
+			diagnostic_ranges: None,
+		};
+
+		let cursor_styles = CursorStyles {
+			primary: Style::default().bg(Color::Red),
+			secondary: Style::default().bg(Color::Blue),
+			unfocused: Style::default().bg(Color::Gray),
+			selection: Style::default().bg(Color::Cyan),
+			base: Style::default(),
+		};
+
+		let layout = RenderLayout {
+			text_width: 4,
+			total_lines: 1,
+			gutter_layout: GutterLayout::hidden(),
+		};
+
+		let input = RowRenderInput {
+			ctx: &ctx,
+			theme_cursor_styles: &cursor_styles,
+			cursor_style_set: cursor_styles.to_cursor_set(),
+			line_style: LineStyleContext {
+				base_bg: Color::Black,
+				diff_bg: None,
+				mode_color: Color::White,
+				is_cursor_line: true,
+				cursorline_enabled: false,
+				cursor_line: 0,
+				is_nontext: false,
+			},
+			layout: &layout,
+			buffer_path: None,
+			is_focused: true,
+			use_block_cursor: false,
+			tab_width: 4,
+			doc_content: &doc,
+			line: Some(&line_slice),
+			segment: Some(&segment),
+			is_continuation: false,
+			is_last_segment: true,
+			highlight: &highlight,
+			overlays: &overlays,
+			line_annotations: Default::default(),
+		};
+
+		let line = TextRowRenderer::render_row(&input);
+		let rendered_text: String = line.spans.iter().map(|span| span.content.as_ref()).collect();
+		assert!(
+			!rendered_text.contains('¬'),
+			"insert-mode EOL cursor should not replace the newline with a marker glyph"
+		);
+
+		let cursor_cells: usize = line
+			.spans
+			.iter()
+			.filter(|span| span.style.bg == Some(Color::Red))
+			.map(|span| span.content.chars().count())
+			.sum();
+		assert_eq!(cursor_cells, 1, "insert-mode EOL cursor should paint exactly one visible cell");
+	}
 }

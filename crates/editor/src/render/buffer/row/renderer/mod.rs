@@ -124,7 +124,7 @@ impl TextRowRenderer {
 					let eol_pos = line.content_end_char;
 					let eol_cursor_kind = input.overlays.cursor_kind(eol_pos, input.is_focused);
 
-					if eol_cursor_kind != CursorKind::None && (input.use_block_cursor || !input.is_focused) {
+					if eol_cursor_kind != CursorKind::None {
 						let cursor_style = match eol_cursor_kind {
 							CursorKind::Primary => input.theme_cursor_styles.primary,
 							CursorKind::Secondary => input.theme_cursor_styles.secondary,
@@ -133,7 +133,8 @@ impl TextRowRenderer {
 						};
 
 						let has_newline = line.has_newline;
-						let eol_char = if has_newline { "¬" } else { " " };
+						let show_newline_glyph = has_newline && (input.use_block_cursor || !input.is_focused);
+						let eol_char = if show_newline_glyph { "¬" } else { " " };
 						let eol_style = match (cursor_style.fg, cursor_style.bg) {
 							(Some(fg), Some(bg)) => cursor_style.fg(fg.blend(bg, 0.35)),
 							_ => cursor_style,
