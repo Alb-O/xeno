@@ -3,7 +3,7 @@ mod session;
 mod syntax;
 pub(crate) mod vars;
 
-pub use render::{RenderedSnippet, SnippetVarResolver, render_with_resolver};
+pub use render::{SnippetVarResolver, render_with_resolver};
 pub use session::SnippetChoiceOverlay;
 pub use syntax::{TransformSource, parse_snippet_template};
 

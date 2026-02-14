@@ -17,7 +17,7 @@ use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::Path;
 
-use xeno_primitives::{Key, MouseEvent};
+use xeno_primitives::MouseEvent;
 
 use super::RuntimeEvent;
 

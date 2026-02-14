@@ -100,7 +100,7 @@ pub mod view_manager;
 pub(crate) mod window;
 
 pub use buffer::{Buffer, HistoryResult, ViewId};
-pub(crate) use completion::{CompletionItem, CompletionKind, CompletionState};
+pub(crate) use completion::CompletionState;
 pub use editor_ctx::{EditorCapabilities, EditorContext, EditorOps, HandleOutcome, apply_effects};
 pub use impls::{Editor, FocusReason, FocusTarget, FrontendFramePlan, PanelId};
 #[cfg(feature = "lsp")]
