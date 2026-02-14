@@ -8,17 +8,18 @@
 //! Actions come in two forms: workspace edits (applied directly to buffers) and commands
 //! (sent back to the server for execution). Some actions include both.
 
-use std::ops::Range as StdRange;
+use std::ops::Range;
 
 use xeno_lsp::lsp_types::CodeActionOrCommand;
 use xeno_primitives::range::CharIdx;
 use xeno_registry::notifications::keys;
 
 use super::types::{LspMenuKind, LspMenuState};
+use crate::Editor;
 use crate::buffer::ViewId;
-use crate::completion::CompletionState;
+use crate::completion::{CompletionItem, CompletionState};
 use crate::lsp::api::{Diagnostic, DiagnosticSeverity};
-use crate::{CompletionItem as UiCompletionItem, CompletionKind, Editor};
+use crate::render_api::CompletionKind;
 
 impl Editor {
 	pub(crate) async fn open_code_action_menu(&mut self) -> bool {
@@ -98,7 +99,7 @@ impl Editor {
 			return false;
 		}
 
-		let display_items: Vec<UiCompletionItem> = actions.iter().map(map_code_action_item).collect();
+		let display_items: Vec<CompletionItem> = actions.iter().map(map_code_action_item).collect();
 
 		let completions = self.overlays_mut().get_or_default::<CompletionState>();
 		completions.items = display_items;
@@ -157,13 +158,13 @@ impl Editor {
 	}
 }
 
-fn map_code_action_item(action: &CodeActionOrCommand) -> UiCompletionItem {
+fn map_code_action_item(action: &CodeActionOrCommand) -> CompletionItem {
 	let (label, detail) = match action {
 		CodeActionOrCommand::Command(command) => (command.title.clone(), None),
 		CodeActionOrCommand::CodeAction(action) => (action.title.clone(), action.kind.as_ref().map(|kind| kind.as_str().to_string())),
 	};
 
-	UiCompletionItem {
+	CompletionItem {
 		label: label.clone(),
 		insert_text: label,
 		detail,
@@ -174,7 +175,7 @@ fn map_code_action_item(action: &CodeActionOrCommand) -> UiCompletionItem {
 	}
 }
 
-fn diagnostics_for_range(diagnostics: &[Diagnostic], rope: &xeno_primitives::Rope, selection: StdRange<CharIdx>) -> Vec<Diagnostic> {
+fn diagnostics_for_range(diagnostics: &[Diagnostic], rope: &xeno_primitives::Rope, selection: Range<CharIdx>) -> Vec<Diagnostic> {
 	let mut out = Vec::new();
 	for diag in diagnostics {
 		let (start_line, start_char, end_line, end_char) = diag.range;
@@ -195,6 +196,6 @@ fn diagnostics_for_range(diagnostics: &[Diagnostic], rope: &xeno_primitives::Rop
 	out
 }
 
-fn ranges_overlap(a: StdRange<CharIdx>, b: StdRange<CharIdx>) -> bool {
+fn ranges_overlap(a: Range<CharIdx>, b: Range<CharIdx>) -> bool {
 	a.start < b.end && b.start < a.end
 }

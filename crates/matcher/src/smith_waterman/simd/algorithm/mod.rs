@@ -40,6 +40,7 @@ where
 }
 
 #[inline(always)]
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn smith_waterman_inner<const L: usize>(
 	start: usize,
 	end: usize,
@@ -179,8 +180,8 @@ where
 	let mut curr_score_col = [Simd::splat(0); W];
 	let mut all_time_max_score = Simd::splat(0);
 
-	for needle_idx in 0..needle.len() {
-		let needle_char = NeedleChar::new(needle[needle_idx] as u16);
+	for (needle_idx, &needle_byte) in needle.iter().enumerate() {
+		let needle_char = NeedleChar::new(needle_byte as u16);
 		let prev_col = if needle_idx == 0 { None } else { Some(prev_score_col.as_slice()) };
 
 		smith_waterman_inner(

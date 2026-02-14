@@ -265,8 +265,10 @@ impl OverlayController for FilePickerOverlay {
 		}
 
 		let root = self.resolve_root(ctx, session);
-		let mut options = crate::filesystem::FilesystemOptions::default();
-		options.threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1);
+		let options = crate::filesystem::FilesystemOptions {
+			threads: std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1),
+			..crate::filesystem::FilesystemOptions::default()
+		};
 		ctx.filesystem_mut().ensure_index(root.clone(), options);
 		self.root = Some(root);
 

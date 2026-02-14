@@ -148,13 +148,13 @@ fn debug_traceback_divergence() {
 
 	// Print both matrices
 	eprintln!("ref matrix:");
-	for i in 0..needle.len() {
-		let row: Vec<u16> = (0..haystack.len()).map(|j| ref_matrix[i][j]).collect();
+	for (i, col) in ref_matrix.iter().enumerate().take(needle.len()) {
+		let row: Vec<u16> = col.iter().copied().take(haystack.len()).collect();
 		eprintln!("  [{i}] {:?}", row);
 	}
 	eprintln!("simd matrix (lane 0, full W=16):");
-	for i in 0..needle.len() {
-		let row: Vec<u16> = (0..16).map(|j| simd_matrix[i][j][0]).collect();
+	for (i, col) in simd_matrix.iter().enumerate().take(needle.len()) {
+		let row: Vec<u16> = col.iter().take(16).map(|s| s[0]).collect();
 		eprintln!("  [{i}] {:?}", row);
 	}
 }

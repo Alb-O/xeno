@@ -165,8 +165,10 @@ mod tests {
 
 	#[test]
 	fn test_custom_delimiter_set_changes_bonus_behavior() {
-		let mut scoring = Scoring::default();
-		scoring.delimiters = "@".to_string();
+		let scoring = Scoring {
+			delimiters: "@".to_string(),
+			..Scoring::default()
+		};
 
 		assert_eq!(get_score_with_scoring("b", "a@b", &scoring), CHAR_SCORE + DELIMITER_BONUS);
 		assert_eq!(get_score_with_scoring("b", "a_b", &scoring), CHAR_SCORE);

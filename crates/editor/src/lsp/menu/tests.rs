@@ -1,9 +1,9 @@
-use xeno_lsp::lsp_types::CompletionItem as LspCompletionItem;
 use xeno_primitives::{Key, KeyCode};
 
 use super::{LspMenuKind, LspMenuState, lsp_completion_raw_index};
 use crate::Editor;
-use crate::completion::CompletionState;
+use crate::completion::{CompletionItem, CompletionState};
+use crate::render_api::CompletionKind;
 
 fn key_tab() -> Key {
 	Key::new(KeyCode::Tab)
@@ -35,12 +35,12 @@ async fn tab_accept_uses_display_to_raw_mapping_for_lsp_completions() {
 	let buffer_id = editor.focused_view();
 
 	let raw_items = vec![
-		LspCompletionItem {
+		xeno_lsp::lsp_types::CompletionItem {
 			label: "alpha".to_string(),
 			insert_text: Some("alpha".to_string()),
 			..Default::default()
 		},
-		LspCompletionItem {
+		xeno_lsp::lsp_types::CompletionItem {
 			label: "beta".to_string(),
 			insert_text: Some("beta".to_string()),
 			..Default::default()
@@ -49,12 +49,12 @@ async fn tab_accept_uses_display_to_raw_mapping_for_lsp_completions() {
 
 	let completion_state = editor.overlays_mut().get_or_default::<CompletionState>();
 	completion_state.active = true;
-	completion_state.items = vec![crate::CompletionItem {
+	completion_state.items = vec![CompletionItem {
 		label: "beta".to_string(),
 		insert_text: "beta".to_string(),
 		detail: None,
 		filter_text: None,
-		kind: crate::CompletionKind::Command,
+		kind: CompletionKind::Command,
 		match_indices: None,
 		right: None,
 	}];

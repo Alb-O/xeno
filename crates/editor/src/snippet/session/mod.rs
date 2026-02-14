@@ -1,5 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::ops::Range as StdRange;
+use std::ops::Range;
 
 use chrono::Local;
 use xeno_primitives::range::CharIdx;
@@ -15,7 +15,7 @@ use helpers::{
 };
 
 #[cfg(feature = "lsp")]
-use super::RenderedSnippet;
+use super::render::RenderedSnippet;
 use super::vars::EditorSnippetResolver;
 use super::{TransformSource, parse_snippet_template};
 use crate::Editor;
@@ -50,7 +50,7 @@ impl Default for SnippetChoiceOverlay {
 #[derive(Clone, Debug)]
 pub struct SnippetSession {
 	pub buffer_id: ViewId,
-	pub tabstops: BTreeMap<u32, Vec<StdRange<CharIdx>>>,
+	pub tabstops: BTreeMap<u32, Vec<Range<CharIdx>>>,
 	pub choices: BTreeMap<u32, Vec<String>>,
 	pub choice_idx: BTreeMap<u32, usize>,
 	transforms: Vec<TransformBinding>,
@@ -58,15 +58,15 @@ pub struct SnippetSession {
 	in_transform_apply: bool,
 	pub order: Vec<u32>,
 	pub active_i: usize,
-	pub span: StdRange<CharIdx>,
+	pub span: Range<CharIdx>,
 	pub active_mode: ActiveMode,
 }
 
 #[derive(Clone, Debug)]
 struct TransformBinding {
 	source_idx: u32,
-	source_range: StdRange<CharIdx>,
-	target_range: StdRange<CharIdx>,
+	source_range: Range<CharIdx>,
+	target_range: Range<CharIdx>,
 	regex: String,
 	replace: String,
 	flags: String,
@@ -88,7 +88,7 @@ enum AdvanceResult {
 impl SnippetSession {
 	fn from_components(
 		buffer_id: ViewId,
-		mut tabstops: BTreeMap<u32, Vec<StdRange<CharIdx>>>,
+		mut tabstops: BTreeMap<u32, Vec<Range<CharIdx>>>,
 		mut choices: BTreeMap<u32, Vec<String>>,
 		mut transforms: Vec<TransformBinding>,
 	) -> Option<Self> {
@@ -126,10 +126,10 @@ impl SnippetSession {
 
 	#[cfg(feature = "lsp")]
 	fn from_rendered(buffer_id: ViewId, base_start: CharIdx, rendered: &RenderedSnippet) -> Option<Self> {
-		let tabstops: BTreeMap<u32, Vec<StdRange<CharIdx>>> = rendered
+		let tabstops: BTreeMap<u32, Vec<Range<CharIdx>>> = rendered
 			.tabstops
 			.iter()
-			.map(|(&index, ranges)| {
+			.map(|(index, ranges)| {
 				let absolute = ranges
 					.iter()
 					.map(|range| {
@@ -138,11 +138,11 @@ impl SnippetSession {
 						start..end
 					})
 					.collect();
-				(index, absolute)
+				(*index, absolute)
 			})
 			.collect();
 
-		let primary_sources: BTreeMap<u32, StdRange<CharIdx>> = rendered
+		let primary_sources: BTreeMap<u32, Range<CharIdx>> = rendered
 			.tabstops
 			.iter()
 			.filter_map(|(&idx, ranges)| {
@@ -177,7 +177,7 @@ impl SnippetSession {
 		self.order.get(self.active_i).copied()
 	}
 
-	fn active_ranges(&self) -> Vec<StdRange<CharIdx>> {
+	fn active_ranges(&self) -> Vec<Range<CharIdx>> {
 		self.active_tabstop().and_then(|idx| self.tabstops.get(&idx).cloned()).unwrap_or_default()
 	}
 
@@ -412,7 +412,7 @@ impl Editor {
 		};
 
 		let now = Local::now();
-		let mut edit_inputs: Vec<(StdRange<CharIdx>, String)> = {
+		let mut edit_inputs: Vec<(Range<CharIdx>, String)> = {
 			let buffer = self.buffer();
 			buffer.with_doc(|doc| {
 				let doc_len = doc.content().len_chars();
@@ -431,7 +431,7 @@ impl Editor {
 			})
 		};
 		edit_inputs.sort_by_key(|(range, _)| (range.start, range.end));
-		let edit_ranges: Vec<StdRange<CharIdx>> = edit_inputs.iter().map(|(range, _)| range.clone()).collect();
+		let edit_ranges: Vec<Range<CharIdx>> = edit_inputs.iter().map(|(range, _)| range.clone()).collect();
 		if has_overlapping_ranges(&edit_ranges) {
 			self.cancel_snippet_session();
 			return false;
@@ -467,11 +467,11 @@ impl Editor {
 		let mapped_starts: Vec<CharIdx> = edit_inputs.iter().map(|(range, _)| tx.changes().map_pos(range.start, Bias::Left)).collect();
 
 		if rendered_snippets.iter().any(|rendered| !rendered.tabstops.is_empty()) {
-			let mut tabstops: BTreeMap<u32, Vec<StdRange<CharIdx>>> = BTreeMap::new();
+			let mut tabstops: BTreeMap<u32, Vec<Range<CharIdx>>> = BTreeMap::new();
 			let mut choices: BTreeMap<u32, Vec<String>> = BTreeMap::new();
 			let mut transforms: Vec<TransformBinding> = Vec::new();
 			for (mapped_start, rendered) in mapped_starts.iter().copied().zip(rendered_snippets.iter()) {
-				let primary_sources: BTreeMap<u32, StdRange<CharIdx>> = rendered
+				let primary_sources: BTreeMap<u32, Range<CharIdx>> = rendered
 					.tabstops
 					.iter()
 					.filter_map(|(&idx, ranges)| {
