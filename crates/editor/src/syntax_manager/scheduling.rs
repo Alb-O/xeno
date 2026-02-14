@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
 use xeno_language::LanguageId;
-use xeno_language::syntax::{InjectionPolicy, Syntax, SyntaxError};
+use xeno_language::syntax::{Syntax, SyntaxError};
 
 use super::tasks::TaskClass;
 use super::types::{DocEpoch, OptKey, TaskId, ViewportKey};
@@ -19,6 +19,92 @@ pub(super) enum ViewportLane {
 	Enrich,
 }
 
+/// State of a single task lane (active task, requested version, cooldown).
+#[derive(Default)]
+pub(super) struct LaneState {
+	pub(super) active: Option<TaskId>,
+	pub(super) requested_doc_version: u64,
+	pub(super) cooldown_until: Option<Instant>,
+}
+
+impl LaneState {
+	/// Resets lane to default (no active task, version 0, no cooldown).
+	#[inline]
+	pub(super) fn clear(&mut self) {
+		*self = Self::default();
+	}
+
+	/// Returns true if a task is active.
+	#[inline]
+	pub(super) fn is_active(&self) -> bool {
+		self.active.is_some()
+	}
+
+	/// Returns true if this lane is in cooldown.
+	#[inline]
+	pub(super) fn in_cooldown(&self, now: Instant) -> bool {
+		self.cooldown_until.is_some_and(|t| now < t)
+	}
+
+	/// Sets cooldown until the given instant.
+	#[inline]
+	pub(super) fn set_cooldown(&mut self, until: Instant) {
+		self.cooldown_until = Some(until);
+	}
+}
+
+/// Grouped lane states for the three independent task lanes.
+///
+/// Cooldown semantics differ per lane:
+/// * `viewport_urgent`: lane-level cooldown (`LaneState.cooldown_until`).
+/// * `viewport_enrich`: per-key cooldown (`ViewportEntry.stage_b_cooldown_until`);
+///   the lane-level `LaneState.cooldown_until` is unused.
+/// * `bg`: lane-level cooldown (`LaneState.cooldown_until`).
+pub(super) struct Lanes {
+	pub(super) viewport_urgent: LaneState,
+	pub(super) viewport_enrich: LaneState,
+	pub(super) bg: LaneState,
+}
+
+impl Default for Lanes {
+	fn default() -> Self {
+		Self {
+			viewport_urgent: LaneState::default(),
+			viewport_enrich: LaneState::default(),
+			bg: LaneState::default(),
+		}
+	}
+}
+
+impl Lanes {
+	/// Returns a mutable reference to the lane for the given viewport sub-lane.
+	pub(super) fn viewport_mut(&mut self, lane: ViewportLane) -> &mut LaneState {
+		match lane {
+			ViewportLane::Urgent => &mut self.viewport_urgent,
+			ViewportLane::Enrich => &mut self.viewport_enrich,
+		}
+	}
+
+	/// Returns a reference to the lane for the given viewport sub-lane.
+	pub(super) fn viewport(&self, lane: ViewportLane) -> &LaneState {
+		match lane {
+			ViewportLane::Urgent => &self.viewport_urgent,
+			ViewportLane::Enrich => &self.viewport_enrich,
+		}
+	}
+
+	/// Clears all lanes.
+	pub(super) fn clear_all(&mut self) {
+		self.viewport_urgent.clear();
+		self.viewport_enrich.clear();
+		self.bg.clear();
+		debug_assert!(
+			self.viewport_enrich.cooldown_until.is_none(),
+			"viewport_enrich uses per-key cooldown (ViewportEntry.stage_b_cooldown_until), not lane-level"
+		);
+	}
+}
+
 /// Per-document scheduling state for background syntax parsing.
 ///
 /// Maintains three independent task lanes (viewport-urgent, viewport-enrich,
@@ -30,22 +116,7 @@ pub(crate) struct DocSched {
 	pub(super) last_edit_at: Instant,
 	pub(super) last_edit_source: super::EditSource,
 	pub(super) last_visible_at: Instant,
-	pub(super) cooldown_until: Option<Instant>,
-
-	/// Viewport urgent lane: Stage-A viewport tasks.
-	pub(super) active_viewport_urgent: Option<TaskId>,
-	pub(super) active_viewport_urgent_detached: bool,
-	pub(super) requested_viewport_urgent_doc_version: u64,
-
-	/// Viewport enrich lane: Stage-B viewport tasks.
-	pub(super) active_viewport_enrich: Option<TaskId>,
-	pub(super) active_viewport_enrich_detached: bool,
-	pub(super) requested_viewport_enrich_doc_version: u64,
-
-	/// Background lane: full and incremental parse tasks.
-	pub(super) active_bg: Option<TaskId>,
-	pub(super) active_bg_detached: bool,
-	pub(super) requested_bg_doc_version: u64,
+	pub(super) lanes: Lanes,
 
 	/// Queue of completed tasks awaiting installation.
 	pub(super) completed: VecDeque<CompletedSyntaxTask>,
@@ -66,16 +137,7 @@ impl DocSched {
 			last_edit_at: now,
 			last_edit_source: super::EditSource::Typing,
 			last_visible_at: now,
-			cooldown_until: None,
-			active_viewport_urgent: None,
-			active_viewport_urgent_detached: false,
-			requested_viewport_urgent_doc_version: 0,
-			active_viewport_enrich: None,
-			active_viewport_enrich_detached: false,
-			requested_viewport_enrich_doc_version: 0,
-			active_bg: None,
-			active_bg_detached: false,
-			requested_bg_doc_version: 0,
+			lanes: Lanes::default(),
 			completed: VecDeque::new(),
 			force_no_debounce: false,
 			viewport_focus_key: None,
@@ -90,17 +152,8 @@ impl DocSched {
 	/// on task completion to maintain strict concurrency bounds.
 	pub(super) fn invalidate(&mut self) {
 		self.epoch = self.epoch.next();
-		self.active_viewport_urgent = None;
-		self.active_viewport_urgent_detached = false;
-		self.requested_viewport_urgent_doc_version = 0;
-		self.active_viewport_enrich = None;
-		self.active_viewport_enrich_detached = false;
-		self.requested_viewport_enrich_doc_version = 0;
-		self.active_bg = None;
-		self.active_bg_detached = false;
-		self.requested_bg_doc_version = 0;
+		self.lanes.clear_all();
 		self.completed.clear();
-		self.cooldown_until = None;
 		self.force_no_debounce = false;
 		self.last_edit_source = super::EditSource::Typing;
 		self.viewport_focus_key = None;
@@ -123,29 +176,29 @@ impl DocSched {
 		self.viewport_focus_stable_polls
 	}
 
-	/// Returns true if any task lane is active and not detached.
+	/// Returns true if any task lane is active.
 	pub(super) fn any_active(&self) -> bool {
-		self.viewport_urgent_active() || self.viewport_enrich_active() || self.bg_active()
+		self.lanes.viewport_urgent.is_active() || self.lanes.viewport_enrich.is_active() || self.lanes.bg.is_active()
 	}
 
-	/// Returns true if either viewport sub-lane is active and not detached.
+	/// Returns true if either viewport sub-lane is active.
 	pub(super) fn viewport_any_active(&self) -> bool {
-		self.viewport_urgent_active() || self.viewport_enrich_active()
+		self.lanes.viewport_urgent.is_active() || self.lanes.viewport_enrich.is_active()
 	}
 
-	/// Returns true if the viewport urgent (Stage-A) lane is active and not detached.
+	/// Returns true if the viewport urgent (Stage-A) lane is active.
 	pub(super) fn viewport_urgent_active(&self) -> bool {
-		self.active_viewport_urgent.is_some() && !self.active_viewport_urgent_detached
+		self.lanes.viewport_urgent.is_active()
 	}
 
-	/// Returns true if the viewport enrich (Stage-B) lane is active and not detached.
+	/// Returns true if the viewport enrich (Stage-B) lane is active.
 	pub(super) fn viewport_enrich_active(&self) -> bool {
-		self.active_viewport_enrich.is_some() && !self.active_viewport_enrich_detached
+		self.lanes.viewport_enrich.is_active()
 	}
 
-	/// Returns true if the background lane is active and not detached.
+	/// Returns true if the background lane is active.
 	pub(super) fn bg_active(&self) -> bool {
-		self.active_bg.is_some() && !self.active_bg_detached
+		self.lanes.bg.is_active()
 	}
 }
 
@@ -156,7 +209,6 @@ pub(super) struct CompletedSyntaxTask {
 	pub(super) opts: OptKey,
 	pub(super) result: Result<Syntax, SyntaxError>,
 	pub(super) class: TaskClass,
-	pub(super) injections: InjectionPolicy,
 	pub(super) elapsed: Duration,
 	pub(super) viewport_key: Option<ViewportKey>,
 	pub(super) viewport_lane: Option<ViewportLane>,

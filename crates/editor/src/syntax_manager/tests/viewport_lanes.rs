@@ -40,9 +40,11 @@ async fn test_stage_b_is_tracked_per_key() {
 	{
 		let entry = mgr.entry_mut(doc_id);
 		let tid = entry.slot.alloc_tree_id();
-		entry.slot.full = Some(full_tree);
-		entry.slot.full_doc_version = Some(1);
-		entry.slot.full_tree_id = tid;
+		entry.slot.full = Some(InstalledTree {
+			syntax: full_tree,
+			doc_version: 1,
+			tree_id: tid,
+		});
 		entry.slot.dirty = false;
 		entry.slot.language_id = Some(lang);
 		entry.slot.last_opts_key = Some(OptKey {
@@ -200,8 +202,7 @@ async fn test_stage_a_can_kick_while_enrich_lane_active() {
 	{
 		let entry = mgr.entry_mut(doc_id);
 		entry.slot.language_id = Some(lang);
-		entry.sched.active_viewport_enrich = Some(super::types::TaskId(123));
-		entry.sched.active_viewport_enrich_detached = false;
+		entry.sched.lanes.viewport_enrich.active = Some(super::types::TaskId(123));
 	}
 
 	let r = mgr.ensure_syntax(EnsureSyntaxContext {
@@ -240,18 +241,20 @@ async fn test_l_retention_drops_full_keeps_viewport_cache() {
 	let doc_id = DocumentId(1);
 	let loader = Arc::new(LanguageLoader::from_embedded());
 	let lang = loader.language_for_name("rust").unwrap();
-	let content = Rope::from("x".repeat(300_000));
 
 	// Seed full tree + viewport cache entry
 	{
 		let entry = mgr.entry_mut(doc_id);
 		entry.slot.language_id = Some(lang);
+		entry.last_tier = Some(super::policy::SyntaxTier::L);
 		let syntax = Syntax::new(Rope::from("fn main() {}").slice(..), lang, &loader, SyntaxOptions::default()).unwrap();
 
 		let tree_id = entry.slot.alloc_tree_id();
-		entry.slot.full = Some(syntax.clone());
-		entry.slot.full_doc_version = Some(1);
-		entry.slot.full_tree_id = tree_id;
+		entry.slot.full = Some(InstalledTree {
+			syntax: syntax.clone(),
+			doc_version: 1,
+			tree_id,
+		});
 
 		let vp_tree_id = entry.slot.alloc_tree_id();
 		let key = super::types::ViewportKey(0);
@@ -264,17 +267,8 @@ async fn test_l_retention_drops_full_keeps_viewport_cache() {
 		});
 	}
 
-	// Ensure with Cold → retention should drop full but keep viewport
-	let r = mgr.ensure_syntax(EnsureSyntaxContext {
-		doc_id,
-		doc_version: 1,
-		language_id: Some(lang),
-		content: &content,
-		hotness: SyntaxHotness::Cold,
-		loader: &loader,
-		viewport: None,
-	});
-	assert_eq!(r.result, SyntaxPollResult::Disabled);
+	// Sweep retention as Cold → should drop full but keep viewport
+	mgr.sweep_retention(Instant::now(), |_| SyntaxHotness::Cold);
 
 	let entry = mgr.entry_mut(doc_id);
 	assert!(entry.slot.full.is_none(), "full tree should be dropped");
@@ -304,12 +298,12 @@ async fn test_l_retention_drops_viewport_when_configured() {
 	let doc_id = DocumentId(1);
 	let loader = Arc::new(LanguageLoader::from_embedded());
 	let lang = loader.language_for_name("rust").unwrap();
-	let content = Rope::from("x".repeat(300_000));
 
 	// Seed viewport cache entry
 	{
 		let entry = mgr.entry_mut(doc_id);
 		entry.slot.language_id = Some(lang);
+		entry.last_tier = Some(super::policy::SyntaxTier::L);
 		let syntax = Syntax::new(Rope::from("fn main() {}").slice(..), lang, &loader, SyntaxOptions::default()).unwrap();
 		let vp_tree_id = entry.slot.alloc_tree_id();
 		let key = super::types::ViewportKey(0);
@@ -322,16 +316,8 @@ async fn test_l_retention_drops_viewport_when_configured() {
 		});
 	}
 
-	let r = mgr.ensure_syntax(EnsureSyntaxContext {
-		doc_id,
-		doc_version: 1,
-		language_id: Some(lang),
-		content: &content,
-		hotness: SyntaxHotness::Cold,
-		loader: &loader,
-		viewport: None,
-	});
-	assert_eq!(r.result, SyntaxPollResult::Disabled);
+	// Sweep retention as Cold → should drop viewport
+	mgr.sweep_retention(Instant::now(), |_| SyntaxHotness::Cold);
 
 	let entry = mgr.entry_mut(doc_id);
 	assert!(!entry.slot.viewport_cache.has_any(), "viewport cache should be dropped");
@@ -381,9 +367,11 @@ async fn test_stage_b_timeout_sets_per_key_cooldown_and_allows_retry() {
 		)
 		.unwrap();
 		let tree_id = entry.slot.alloc_tree_id();
-		entry.slot.full = Some(syntax.clone());
-		entry.slot.full_doc_version = Some(1);
-		entry.slot.full_tree_id = tree_id;
+		entry.slot.full = Some(InstalledTree {
+			syntax: syntax.clone(),
+			doc_version: 1,
+			tree_id,
+		});
 
 		let key = super::types::ViewportKey(0);
 		let vp_tree_id = entry.slot.alloc_tree_id();
@@ -404,7 +392,6 @@ async fn test_stage_b_timeout_sets_per_key_cooldown_and_allows_retry() {
 			},
 			result: Err(SyntaxError::Timeout),
 			class: super::tasks::TaskClass::Viewport,
-			injections: InjectionPolicy::Eager,
 			elapsed: Duration::from_millis(100),
 			viewport_key: Some(key),
 			viewport_lane: Some(ViewportLane::Enrich),
@@ -466,7 +453,6 @@ async fn test_stage_b_failure_does_not_block_stage_a() {
 			},
 			result: Err(SyntaxError::Parse("test error".to_string())),
 			class: super::tasks::TaskClass::Viewport,
-			injections: InjectionPolicy::Eager,
 			elapsed: Duration::from_millis(50),
 			viewport_key: Some(super::types::ViewportKey(0)),
 			viewport_lane: Some(ViewportLane::Enrich),
@@ -485,4 +471,183 @@ async fn test_stage_b_failure_does_not_block_stage_a() {
 	assert_ne!(r.result, SyntaxPollResult::CoolingDown, "Stage-B error should not cause global cooldown");
 	assert_eq!(r.result, SyntaxPollResult::Kicked);
 	assert!(mgr.has_inflight_viewport_urgent(doc_id), "Stage-A should still kick despite Stage-B error");
+}
+
+/// Stage-B completion must install with eager injections in the viewport cache.
+///
+/// Regression test: opts_key on viewport TaskSpecs must match the actual injection
+/// policy used, not the tier default. Otherwise Stage-B results fail the `opts_ok`
+/// check and are silently discarded.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn test_stage_b_completion_installs_eager_tree() {
+	use super::scheduling::{CompletedSyntaxTask, ViewportLane};
+
+	let engine = Arc::new(super::invariants::MockEngine::new());
+	let _guard = super::invariants::EngineGuard(engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 4,
+			..Default::default()
+		},
+		engine.clone(),
+	);
+	let mut policy = TieredSyntaxPolicy::test_default();
+	policy.s_max_bytes_inclusive = 0;
+	policy.m_max_bytes_inclusive = 0;
+	policy.l.debounce = Duration::ZERO;
+	policy.l.viewport_stage_b_budget = Some(Duration::from_secs(10));
+	policy.l.viewport_stage_b_min_stable_polls = 1;
+	mgr.set_policy(policy);
+
+	let doc_id = DocumentId(1);
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang = loader.language_for_name("rust").unwrap();
+	let content = Rope::from("x".repeat(300_000));
+
+	// Seed a full tree so Stage-A is not needed and Stage-B can kick.
+	{
+		let entry = mgr.entry_mut(doc_id);
+		let tid = entry.slot.alloc_tree_id();
+		entry.slot.full = Some(InstalledTree {
+			syntax: Syntax::new(
+				content.slice(..),
+				lang,
+				&loader,
+				SyntaxOptions {
+					injections: InjectionPolicy::Disabled,
+					..Default::default()
+				},
+			)
+			.unwrap(),
+			doc_version: 1,
+			tree_id: tid,
+		});
+		entry.slot.dirty = false;
+		entry.slot.language_id = Some(lang);
+		entry.slot.last_opts_key = Some(OptKey {
+			injections: InjectionPolicy::Disabled,
+		});
+	}
+
+	// First ensure → should kick Stage-B enrichment.
+	let r = mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 1,
+		language_id: Some(lang),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+		viewport: Some(0..100),
+	});
+	assert_eq!(r.result, SyntaxPollResult::Kicked);
+	assert!(mgr.has_inflight_viewport_enrich(doc_id), "Stage-B should have kicked");
+
+	// Complete the task via mock engine.
+	engine.proceed();
+	super::invariants::wait_for_finish(&mgr).await;
+	mgr.drain_finished_inflight();
+
+	// Second ensure → should install the Stage-B result.
+	let _r = mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 1,
+		language_id: Some(lang),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+		viewport: Some(0..100),
+	});
+
+	// The Stage-B tree should now be installed in the viewport cache.
+	let entry = mgr.entry_mut(doc_id);
+	let vp = 0u32..100u32;
+	let covering_key = entry.slot.viewport_cache.covering_key(&vp);
+	assert!(covering_key.is_some(), "should have a covering viewport key");
+	let ce = entry.slot.viewport_cache.map.get(&covering_key.unwrap()).unwrap();
+	assert!(ce.stage_b.is_some(), "Stage-B tree should be installed after completion");
+	assert_eq!(
+		ce.stage_b.as_ref().unwrap().syntax.opts().injections,
+		InjectionPolicy::Eager,
+		"Stage-B tree should have eager injections"
+	);
+}
+
+/// History-urgent Stage-A must install with eager injections.
+///
+/// Regression test: when last_edit_source is History and tier is L, Stage-A
+/// uses eager injections. The opts_key must match so the install check passes.
+#[tokio::test]
+async fn test_history_urgent_stage_a_installs_eager_tree() {
+	use super::scheduling::{CompletedSyntaxTask, ViewportLane};
+
+	let engine = Arc::new(super::invariants::MockEngine::new());
+	let _guard = super::invariants::EngineGuard(engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 4,
+			..Default::default()
+		},
+		engine.clone(),
+	);
+	let mut policy = TieredSyntaxPolicy::test_default();
+	policy.s_max_bytes_inclusive = 0;
+	policy.m_max_bytes_inclusive = 0;
+	policy.l.debounce = Duration::ZERO;
+	policy.l.viewport_stage_b_budget = None;
+	mgr.set_policy(policy);
+
+	let doc_id = DocumentId(1);
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang = loader.language_for_name("rust").unwrap();
+	let content = Rope::from("x".repeat(300_000));
+
+	// Set up history edit source so Stage-A uses eager injections.
+	{
+		let entry = mgr.entry_mut(doc_id);
+		entry.slot.language_id = Some(lang);
+		entry.sched.last_edit_source = EditSource::History;
+	}
+
+	// Kick Stage-A (no tree → viewport uncovered → kicks).
+	let r = mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 1,
+		language_id: Some(lang),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+		viewport: Some(0..100),
+	});
+	assert_eq!(r.result, SyntaxPollResult::Kicked);
+	assert!(mgr.has_inflight_viewport_urgent(doc_id));
+
+	// Complete the viewport task.
+	// Viewport tasks run via Syntax::new_viewport directly (not through engine.parse),
+	// so they complete immediately without needing engine.proceed().
+	super::invariants::wait_for_finish(&mgr).await;
+	mgr.drain_finished_inflight();
+
+	// Install the completion.
+	let _r = mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 1,
+		language_id: Some(lang),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+		viewport: Some(0..100),
+	});
+
+	// The viewport cache should have an installed Stage-A tree with eager injections.
+	let entry = mgr.entry_mut(doc_id);
+	let vp = 0u32..100u32;
+	let covering_key = entry.slot.viewport_cache.covering_key(&vp);
+	assert!(covering_key.is_some(), "should have a covering viewport key");
+	let ce = entry.slot.viewport_cache.map.get(&covering_key.unwrap()).unwrap();
+	assert!(ce.stage_a.is_some(), "Stage-A tree should be installed after history-urgent completion");
+	assert_eq!(
+		ce.stage_a.as_ref().unwrap().syntax.opts().injections,
+		InjectionPolicy::Eager,
+		"History-urgent Stage-A tree should have eager injections"
+	);
 }

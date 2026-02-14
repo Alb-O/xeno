@@ -205,16 +205,18 @@ pub(crate) fn test_history_incremental_preserves_resident_tree_version() {
 		entry.slot.language_id = Some(lang);
 		let syntax = Syntax::new(content.slice(..), lang, &loader, SyntaxOptions::default()).unwrap();
 		let tree_id = entry.slot.alloc_tree_id();
-		entry.slot.full = Some(syntax);
-		entry.slot.full_doc_version = Some(1);
-		entry.slot.full_tree_id = tree_id;
+		entry.slot.full = Some(InstalledTree {
+			syntax: syntax,
+			doc_version: 1,
+			tree_id: tree_id,
+		});
 	}
 
 	let identity = ChangeSet::new(content.slice(..));
 	mgr.note_edit_incremental(doc_id, 2, &content, &content, &identity, &loader, EditSource::History);
 
 	let entry = mgr.entry_mut(doc_id);
-	assert_eq!(entry.slot.full_doc_version, Some(1));
+	assert_eq!(entry.slot.full.as_ref().map(|t| t.doc_version), Some(1));
 	assert!(entry.slot.pending_incremental.is_some());
 	assert!(entry.slot.dirty);
 	assert!(entry.sched.force_no_debounce);
@@ -253,8 +255,8 @@ pub(crate) async fn test_cold_eviction_reload() {
 	mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang_id), &content, SyntaxHotness::Visible, &loader));
 	assert!(mgr.has_syntax(doc_id));
 
-	// Trigger eviction
-	mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang_id), &content, SyntaxHotness::Cold, &loader));
+	// Trigger eviction via sweep_retention (frame-level owner of retention)
+	mgr.sweep_retention(Instant::now(), |_| SyntaxHotness::Cold);
 	assert!(!mgr.has_syntax(doc_id));
 
 	// Become visible again - should Kick bootstrap immediately
@@ -307,17 +309,17 @@ pub(crate) async fn test_cold_throttles_work() {
 	assert_eq!(poll3.result, SyntaxPollResult::Kicked);
 }
 
-/// A task detached while Cold should reattach if the document becomes Visible again.
+/// Cold+DropWhenHidden invalidates the epoch, so returning to Visible re-kicks cleanly.
 ///
-/// - Enforced in: `SyntaxManager::ensure_syntax`
-/// - Failure symptom: Document stays Disabled or re-kicks redundant tasks after becoming Visible.
+/// - Enforced in: `SyntaxManager::ensure_syntax`, `SyntaxManager::sweep_retention`
+/// - Failure symptom: Document stays Disabled or stale task result installs after visibility change.
 #[cfg_attr(test, tokio::test)]
-pub(crate) async fn test_detached_task_reattach() {
+pub(crate) async fn test_cold_drop_then_visible_rekick() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
 	let mut mgr = SyntaxManager::new_with_engine(
 		SyntaxManagerCfg {
-			max_concurrency: 1,
+			max_concurrency: 2,
 			..Default::default()
 		},
 		engine.clone(),
@@ -345,28 +347,32 @@ pub(crate) async fn test_detached_task_reattach() {
 	}
 	assert_eq!(engine.parse_count.load(Ordering::SeqCst), 1);
 
-	// 2. Visible -> Cold. Should be Disabled and not pending.
+	// 2. Visible -> Cold with DropWhenHidden retention. Retention drops trees and
+	// invalidates epoch, so the inflight task's result will be discarded.
 	let r1 = mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang_id), &content, SyntaxHotness::Cold, &loader));
 	assert_eq!(r1.result, SyntaxPollResult::Disabled);
-	assert!(!mgr.has_pending(doc_id));
 
-	// 3. Cold -> Visible. Should be Pending again (reattached).
+	// 3. Cold -> Visible. Epoch was invalidated, so stale task result will be discarded.
+	// Stale task still holds a permit, so BG can't spawn yet (Pending).
 	let r2 = mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang_id), &content, SyntaxHotness::Visible, &loader));
 	assert_eq!(r2.result, SyntaxPollResult::Pending);
-	assert!(mgr.has_pending(doc_id));
-	assert!(mgr.has_inflight_task(doc_id), "task should be reattached");
 
-	// 4. Ensure no second task was kicked
-	assert_eq!(engine.parse_count.load(Ordering::SeqCst), 1);
-
-	// 5. Complete task
+	// 4. Complete stale task, releasing the permit.
 	engine.proceed();
 	wait_for_finish(&mgr).await;
 	mgr.drain_finished_inflight();
 
-	// 6. Install
+	// 5. Now a fresh task can be kicked.
 	let r3 = mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang_id), &content, SyntaxHotness::Visible, &loader));
-	assert_eq!(r3.result, SyntaxPollResult::Ready);
+	assert_eq!(r3.result, SyntaxPollResult::Kicked);
+
+	// 6. Complete fresh task and install.
+	engine.proceed();
+	wait_for_finish(&mgr).await;
+	mgr.drain_finished_inflight();
+
+	let r4 = mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang_id), &content, SyntaxHotness::Visible, &loader));
+	assert_eq!(r4.result, SyntaxPollResult::Ready);
 	assert!(mgr.has_syntax(doc_id));
 }
 

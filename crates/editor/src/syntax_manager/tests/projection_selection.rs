@@ -16,8 +16,15 @@ fn test_highlight_projection_ctx_available_for_aligned_pending_window() {
 	);
 
 	{
+		let loader = Arc::new(LanguageLoader::from_embedded());
+		let lang = loader.language_for_name("rust").unwrap();
 		let entry = mgr.entry_mut(doc_id);
-		entry.slot.full_doc_version = Some(1);
+		let syntax = Syntax::new(old_rope.slice(..), lang, &loader, SyntaxOptions::default()).unwrap();
+		entry.slot.full = Some(InstalledTree {
+			syntax,
+			doc_version: 1,
+			tree_id: 0,
+		});
 		entry.slot.pending_incremental = Some(PendingIncrementalEdits {
 			base_tree_doc_version: 1,
 			old_rope: old_rope.clone(),
@@ -64,9 +71,11 @@ fn test_selection_prefers_eager_viewport_over_disabled_full() {
 	{
 		let entry = mgr.entry_mut(doc_id);
 		let tid = entry.slot.alloc_tree_id();
-		entry.slot.full = Some(full_tree);
-		entry.slot.full_doc_version = Some(1);
-		entry.slot.full_tree_id = tid;
+		entry.slot.full = Some(InstalledTree {
+			syntax: full_tree,
+			doc_version: 1,
+			tree_id: tid,
+		});
 
 		let tid2 = entry.slot.alloc_tree_id();
 		let coverage = 0..content.len_bytes() as u32;
@@ -127,9 +136,11 @@ async fn test_enrichment_schedules_stage_b_when_full_exists_and_clean() {
 	{
 		let entry = mgr.entry_mut(doc_id);
 		let tid = entry.slot.alloc_tree_id();
-		entry.slot.full = Some(full_tree);
-		entry.slot.full_doc_version = Some(1);
-		entry.slot.full_tree_id = tid;
+		entry.slot.full = Some(InstalledTree {
+			syntax: full_tree,
+			doc_version: 1,
+			tree_id: tid,
+		});
 		entry.slot.dirty = false;
 		entry.slot.language_id = Some(lang);
 		entry.slot.last_opts_key = Some(OptKey {

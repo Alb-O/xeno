@@ -108,7 +108,25 @@ impl Editor {
 				.or_insert(hotness);
 		}
 
-		let mut workset: HashSet<_> = self.state.syntax_manager.pending_docs().chain(self.state.syntax_manager.dirty_docs()).collect();
+		// Sweep retention for cold docs that may never get polled by ensure_syntax.
+		{
+			let now = std::time::Instant::now();
+			if self
+				.state
+				.syntax_manager
+				.sweep_retention(now, |doc_id| doc_hotness.get(&doc_id).copied().unwrap_or(SyntaxHotness::Cold))
+			{
+				self.state.effects.request_redraw();
+			}
+		}
+
+		let mut workset: HashSet<_> = self
+			.state
+			.syntax_manager
+			.pending_docs()
+			.chain(self.state.syntax_manager.dirty_docs())
+			.chain(self.state.syntax_manager.docs_with_completed())
+			.collect();
 
 		for (&doc_id, &hotness) in &doc_hotness {
 			if hotness == SyntaxHotness::Visible {
@@ -117,6 +135,12 @@ impl Editor {
 		}
 
 		for doc_id in workset {
+			// Skip cold docs that don't parse when hidden — retention sweep handles cleanup.
+			let hotness = doc_hotness.get(&doc_id).copied().unwrap_or(SyntaxHotness::Cold);
+			if hotness == SyntaxHotness::Cold && self.state.syntax_manager.is_hidden_parse_disabled(doc_id) {
+				continue;
+			}
+
 			let Some(buffer_id) = self.state.core.buffers.any_buffer_for_doc(doc_id) else {
 				continue;
 			};

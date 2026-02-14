@@ -143,34 +143,12 @@ async fn test_retention_dropafter_viewport_ttl() {
 	}
 	assert!(mgr.entry_mut(doc_id).slot.viewport_cache.has_any());
 
-	// Poll as Cold at t0 + 30s → within TTL, viewport should survive
-	mgr.ensure_syntax_at(
-		t0 + Duration::from_secs(30),
-		EnsureSyntaxContext {
-			doc_id,
-			doc_version: 1,
-			language_id: Some(lang),
-			content: &content,
-			hotness: SyntaxHotness::Cold,
-			loader: &loader,
-			viewport: None,
-		},
-	);
+	// Sweep at t0 + 30s → within TTL, viewport should survive
+	mgr.sweep_retention(t0 + Duration::from_secs(30), |_| SyntaxHotness::Cold);
 	assert!(mgr.entry_mut(doc_id).slot.viewport_cache.has_any(), "viewport should survive within TTL");
 
-	// Poll as Cold at t0 + 61s → past TTL, viewport should be dropped
-	mgr.ensure_syntax_at(
-		t0 + Duration::from_secs(61),
-		EnsureSyntaxContext {
-			doc_id,
-			doc_version: 1,
-			language_id: Some(lang),
-			content: &content,
-			hotness: SyntaxHotness::Cold,
-			loader: &loader,
-			viewport: None,
-		},
-	);
+	// Sweep at t0 + 61s → past TTL, viewport should be dropped
+	mgr.sweep_retention(t0 + Duration::from_secs(61), |_| SyntaxHotness::Cold);
 	assert!(!mgr.entry_mut(doc_id).slot.viewport_cache.has_any(), "viewport should be dropped after TTL");
 }
 
@@ -209,8 +187,8 @@ async fn test_stage_b_cooldown_blocks_then_allows_retry() {
 	// Seed a full tree
 	{
 		let entry = mgr.entry_mut(doc_id);
-		entry.slot.full = Some(
-			Syntax::new(
+		entry.slot.full = Some(InstalledTree {
+			syntax: Syntax::new(
 				content.slice(..),
 				lang,
 				&loader,
@@ -220,8 +198,9 @@ async fn test_stage_b_cooldown_blocks_then_allows_retry() {
 				},
 			)
 			.unwrap(),
-		);
-		entry.slot.full_doc_version = Some(1);
+			doc_version: 1,
+			tree_id: 0,
+		});
 		entry.slot.language_id = Some(lang);
 		entry.slot.dirty = false;
 	}
@@ -239,7 +218,6 @@ async fn test_stage_b_cooldown_blocks_then_allows_retry() {
 			},
 			result: Err(SyntaxError::Timeout),
 			class: super::tasks::TaskClass::Viewport,
-			injections: InjectionPolicy::Eager,
 			elapsed: Duration::from_millis(100),
 			viewport_key: Some(key),
 			viewport_lane: Some(ViewportLane::Enrich),
@@ -309,7 +287,6 @@ async fn test_doc_cooldown_blocks_bg_tasks() {
 			},
 			result: Err(SyntaxError::Parse(String::from("test error"))),
 			class: super::tasks::TaskClass::Full,
-			injections: InjectionPolicy::Eager,
 			elapsed: Duration::from_millis(50),
 			viewport_key: None,
 			viewport_lane: None,

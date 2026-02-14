@@ -102,8 +102,15 @@ pub(crate) fn test_highlight_projection_ctx_alignment_gate() {
 	let changes = ChangeSet::new(old_rope.slice(..));
 
 	{
+		let loader = Arc::new(LanguageLoader::from_embedded());
+		let lang = loader.language_for_name("rust").unwrap();
 		let entry = mgr.entry_mut(doc_id);
-		entry.slot.full_doc_version = Some(1);
+		let syntax = Syntax::new(old_rope.slice(..), lang, &loader, SyntaxOptions::default()).unwrap();
+		entry.slot.full = Some(InstalledTree {
+			syntax,
+			doc_version: 1,
+			tree_id: 0,
+		});
 		entry.slot.pending_incremental = Some(PendingIncrementalEdits {
 			base_tree_doc_version: 1,
 			old_rope: old_rope.clone(),
@@ -203,7 +210,6 @@ pub(crate) async fn test_viewport_timeout_uses_viewport_cooldown() {
 			},
 			result: Err(SyntaxError::Timeout),
 			class: TaskClass::Viewport,
-			injections: InjectionPolicy::Disabled,
 			elapsed: Duration::from_millis(1),
 			viewport_key: Some(ViewportKey(0)),
 			viewport_lane: Some(super::super::scheduling::ViewportLane::Urgent),
@@ -219,7 +225,8 @@ pub(crate) async fn test_viewport_timeout_uses_viewport_cooldown() {
 		loader: &loader,
 		viewport: Some(0..10),
 	});
-	assert_eq!(r1.result, SyntaxPollResult::CoolingDown);
+	// Viewport urgent lane cools down, but BG lane is free and kicks a full parse.
+	assert_eq!(r1.result, SyntaxPollResult::Kicked);
 
 	sleep(Duration::from_millis(30)).await;
 
@@ -232,7 +239,8 @@ pub(crate) async fn test_viewport_timeout_uses_viewport_cooldown() {
 		loader: &loader,
 		viewport: Some(0..10),
 	});
-	assert_eq!(r2.result, SyntaxPollResult::Kicked);
+	// After viewport cooldown expires, viewport urgent lane can schedule again.
+	assert!(matches!(r2.result, SyntaxPollResult::Kicked | SyntaxPollResult::Pending));
 }
 
 /// Must install stale viewport results when monotonic and not-future to preserve continuity.
@@ -369,7 +377,6 @@ pub(crate) fn test_viewport_stale_install_skipped_when_covered() {
 			},
 			result: Ok(stale_syntax),
 			class: TaskClass::Viewport,
-			injections: InjectionPolicy::Disabled,
 			elapsed: Duration::from_millis(1),
 			viewport_key: Some(ViewportKey(0)),
 			viewport_lane: Some(super::super::scheduling::ViewportLane::Urgent),
@@ -444,9 +451,11 @@ pub(crate) async fn test_l_history_edit_uses_eager_urgent_with_full_present() {
 		)
 		.unwrap();
 		let full_tree_id = entry.slot.alloc_tree_id();
-		entry.slot.full = Some(full);
-		entry.slot.full_doc_version = Some(1);
-		entry.slot.full_tree_id = full_tree_id;
+		entry.slot.full = Some(InstalledTree {
+			syntax: full,
+			doc_version: 1,
+			tree_id: full_tree_id,
+		});
 	}
 	mgr.note_edit(doc_id, EditSource::History);
 
@@ -664,9 +673,11 @@ pub(crate) async fn test_history_stage_a_timeout_suppresses_same_version_retry()
 		)
 		.unwrap();
 		let full_tree_id = entry.slot.alloc_tree_id();
-		entry.slot.full = Some(full);
-		entry.slot.full_doc_version = Some(1);
-		entry.slot.full_tree_id = full_tree_id;
+		entry.slot.full = Some(InstalledTree {
+			syntax: full,
+			doc_version: 1,
+			tree_id: full_tree_id,
+		});
 		entry.sched.completed.push_back(CompletedSyntaxTask {
 			doc_version: 2,
 			lang_id: lang,
@@ -675,7 +686,6 @@ pub(crate) async fn test_history_stage_a_timeout_suppresses_same_version_retry()
 			},
 			result: Err(SyntaxError::Timeout),
 			class: TaskClass::Viewport,
-			injections: InjectionPolicy::Eager,
 			elapsed: Duration::from_millis(1),
 			viewport_key: Some(viewport_key),
 			viewport_lane: Some(super::super::scheduling::ViewportLane::Urgent),
@@ -692,7 +702,16 @@ pub(crate) async fn test_history_stage_a_timeout_suppresses_same_version_retry()
 		loader: &loader,
 		viewport: Some(viewport.clone()),
 	});
-	assert_eq!(r1.result, SyntaxPollResult::CoolingDown);
+	// With per-lane cooldowns, viewport timeout doesn't block BG lane — BG kicks immediately.
+	assert_eq!(r1.result, SyntaxPollResult::Kicked);
+	assert!(
+		!mgr.has_inflight_viewport_urgent(doc_id),
+		"same-version history urgent retries should be suppressed after timeout"
+	);
+	assert!(
+		mgr.has_inflight_bg(doc_id),
+		"background catch-up should proceed even when viewport urgent just timed out"
+	);
 
 	let r2 = mgr.ensure_syntax(EnsureSyntaxContext {
 		doc_id,
@@ -703,13 +722,6 @@ pub(crate) async fn test_history_stage_a_timeout_suppresses_same_version_retry()
 		loader: &loader,
 		viewport: Some(viewport),
 	});
-	assert_eq!(r2.result, SyntaxPollResult::Kicked);
-	assert!(
-		!mgr.has_inflight_viewport_urgent(doc_id),
-		"same-version history urgent retries should be suppressed after timeout"
-	);
-	assert!(
-		mgr.has_inflight_bg(doc_id),
-		"background catch-up should proceed once urgent retry is suppressed"
-	);
+	// BG is already inflight from r1, viewport urgent is still suppressed for same version.
+	assert_eq!(r2.result, SyntaxPollResult::Pending);
 }

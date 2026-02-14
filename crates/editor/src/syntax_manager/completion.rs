@@ -11,19 +11,16 @@ impl SyntaxManager {
 			if let Some(entry) = self.entries.get_mut(&res.doc_id) {
 				// Clear the appropriate lane if it matches the finished task
 				match res.viewport_lane {
-					Some(ViewportLane::Urgent) if entry.sched.active_viewport_urgent == Some(res.id) => {
-						entry.sched.active_viewport_urgent = None;
-						entry.sched.active_viewport_urgent_detached = false;
+					Some(ViewportLane::Urgent) if entry.sched.lanes.viewport_urgent.active == Some(res.id) => {
+						entry.sched.lanes.viewport_urgent.active = None;
 					}
-					Some(ViewportLane::Enrich) if entry.sched.active_viewport_enrich == Some(res.id) => {
-						entry.sched.active_viewport_enrich = None;
-						entry.sched.active_viewport_enrich_detached = false;
+					Some(ViewportLane::Enrich) if entry.sched.lanes.viewport_enrich.active == Some(res.id) => {
+						entry.sched.lanes.viewport_enrich.active = None;
 					}
 					_ => {}
 				}
-				if entry.sched.active_bg == Some(res.id) {
-					entry.sched.active_bg = None;
-					entry.sched.active_bg_detached = false;
+				if entry.sched.lanes.bg.active == Some(res.id) {
+					entry.sched.lanes.bg.active = None;
 				}
 
 				// Epoch check: discard stale results
@@ -37,7 +34,6 @@ impl SyntaxManager {
 					opts: res.opts_key,
 					result: res.result,
 					class: res.class,
-					injections: res.injections,
 					elapsed: res.elapsed,
 					viewport_key: res.viewport_key,
 					viewport_lane: res.viewport_lane,

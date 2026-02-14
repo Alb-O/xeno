@@ -519,3 +519,121 @@ pub(crate) async fn test_full_tree_id_rotates_on_sync_incremental_update() {
 
 	assert_ne!(tree_id_after, tree_id_before);
 }
+
+/// Must monotonically advance `syntax_version` across viewport install, full install,
+/// and retention drop via `sweep_retention`.
+///
+/// - Enforced in: `mark_updated`, `apply_retention`
+/// - Failure symptom: Highlight cache serves stale spans after a state transition.
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_syntax_version_monotonic_across_install_and_retention() {
+	let engine = Arc::new(MockEngine::new());
+	let _guard = EngineGuard(engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 2,
+			..Default::default()
+		},
+		engine.clone(),
+	);
+	let mut policy = TieredSyntaxPolicy::test_default();
+	policy.s.debounce = Duration::ZERO;
+	policy.s.retention_hidden_full = RetentionPolicy::DropWhenHidden;
+	policy.s.retention_hidden_viewport = RetentionPolicy::DropWhenHidden;
+	mgr.set_policy(policy);
+
+	let doc_id = DocumentId(1);
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang = loader.language_for_name("rust").unwrap();
+	let content = Rope::from("fn main() {}");
+
+	let v0 = mgr.syntax_version(doc_id);
+	assert_eq!(v0, 0, "no entry yet → version 0");
+
+	// Viewport install: seed a viewport completion manually.
+	{
+		let syntax = Syntax::new(content.slice(..), lang, &loader, SyntaxOptions::default()).unwrap();
+		let entry = mgr.entry_mut(doc_id);
+		entry.slot.language_id = Some(lang);
+		entry.slot.dirty = true;
+		entry.sched.completed.push_back(CompletedSyntaxTask {
+			doc_version: 1,
+			lang_id: lang,
+			opts: OptKey {
+				injections: InjectionPolicy::Disabled,
+			},
+			result: Ok(syntax),
+			class: TaskClass::Viewport,
+			elapsed: Duration::ZERO,
+			viewport_key: Some(ViewportKey(0)),
+			viewport_lane: Some(crate::syntax_manager::scheduling::ViewportLane::Urgent),
+		});
+	}
+	mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang), &content, SyntaxHotness::Visible, &loader));
+	let v1 = mgr.syntax_version(doc_id);
+	assert!(v1 > v0, "viewport install must bump version: {v1} > {v0}");
+
+	// Full install: kick + complete a full parse.
+	mgr.mark_dirty(doc_id);
+	mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang), &content, SyntaxHotness::Visible, &loader));
+	engine.proceed();
+	wait_for_finish(&mgr).await;
+	mgr.drain_finished_inflight();
+	mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang), &content, SyntaxHotness::Visible, &loader));
+	let v2 = mgr.syntax_version(doc_id);
+	assert!(v2 > v1, "full install must bump version: {v2} > {v1}");
+
+	// Retention drop via sweep_retention.
+	mgr.sweep_retention(Instant::now(), |_| SyntaxHotness::Cold);
+	let v3 = mgr.syntax_version(doc_id);
+	assert!(v3 > v2, "retention drop must bump version: {v3} > {v2}");
+}
+
+/// Must flush completed queue for cold docs with `parse_when_hidden = false`
+/// during `sweep_retention`, preventing unbounded memory accumulation.
+///
+/// - Enforced in: `SyntaxManager::sweep_retention`
+/// - Failure symptom: Completed `Syntax` trees accumulate in the queue for hidden
+///   docs, growing memory without bound.
+#[cfg_attr(test, test)]
+pub(crate) fn test_sweep_retention_flushes_completed_for_cold_disabled_docs() {
+	let engine = Arc::new(MockEngine::new());
+	let _guard = EngineGuard(engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 1,
+			..Default::default()
+		},
+		engine.clone(),
+	);
+	let mut policy = TieredSyntaxPolicy::test_default();
+	policy.s.debounce = Duration::ZERO;
+	mgr.set_policy(policy);
+
+	let doc_id = DocumentId(1);
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang = loader.language_for_name("rust").unwrap();
+
+	// Set last_tier manually (normally done by ensure_syntax) and push a completion.
+	let entry = mgr.entry_mut(doc_id);
+	entry.last_tier = Some(SyntaxTier::S);
+	entry.sched.completed.push_back(CompletedSyntaxTask {
+		doc_version: 1,
+		lang_id: lang,
+		opts: OptKey {
+			injections: InjectionPolicy::Disabled,
+		},
+		result: Err(SyntaxError::Timeout),
+		class: TaskClass::Full,
+		elapsed: Duration::ZERO,
+		viewport_key: None,
+		viewport_lane: None,
+	});
+	assert!(!entry.sched.completed.is_empty());
+
+	// Sweep as Cold → should flush the completed queue.
+	mgr.sweep_retention(Instant::now(), |_| SyntaxHotness::Cold);
+
+	let entry = mgr.entry_mut(doc_id);
+	assert!(entry.sched.completed.is_empty(), "completed queue must be flushed for cold disabled docs");
+}

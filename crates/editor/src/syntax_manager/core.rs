@@ -62,6 +62,15 @@ impl SyntaxManager {
 		self.policy = policy;
 	}
 
+	/// Returns true if the document's last-known tier disables parsing when hidden.
+	///
+	/// Used by call sites to skip polling cold docs that don't need background work.
+	pub(crate) fn is_hidden_parse_disabled(&self, doc_id: DocumentId) -> bool {
+		self.entries
+			.get(&doc_id)
+			.is_some_and(|entry| entry.last_tier.is_some_and(|tier| !self.policy.cfg(tier).parse_when_hidden))
+	}
+
 	pub(super) fn entry_mut(&mut self, doc_id: DocumentId) -> &mut DocEntry {
 		self.entries.entry(doc_id).or_insert_with(|| DocEntry::new(Instant::now()))
 	}

@@ -8,13 +8,25 @@
 //!
 //! # Mental model
 //!
-//! The manager is a per-document state machine:
-//! - `Dirty` documents need catch-up.
-//! - scheduling state decides `Pending/Kicked/Ready` outcomes.
-//! - completed tasks are installed only if epoch/version/retention rules allow.
-//! - highlight rendering may project stale tree spans through pending edits.
-//! - history-urgent Stage-A retries are one-shot per viewport key and doc version
-//!   after timeout/error, so background catch-up can make forward progress.
+//! Each document is polled through an explicit pipeline per frame:
+//!
+//! `derive → normalize → install → gate → bootstrap → plan → spawn → finalize`
+//!
+//! * `derive` — compute tier, config, viewport bounds from policy + context (pure).
+//! * `normalize` — reset on language/opts changes.
+//! * `install` — drain completed tasks; decide install/discard/retention-drop per result.
+//! * `gate` — language/disabled/ready/debounce early exits.
+//! * `bootstrap` — synchronous first-visible parse for small/medium docs.
+//! * `plan` — pure scheduling decisions → `WorkPlan` (Stage-A, Stage-B, BG).
+//! * `spawn` — execute plan, apply side effects on successful task spawn.
+//! * `finalize` — derive poll result from plan + active state.
+//!
+//! The render-frame workset includes visible docs, dirty docs, docs with pending
+//! background tasks, and docs with unprocessed completions (`docs_with_completed`).
+//! This ensures completions are installed/discarded even for docs no longer visible.
+//!
+//! History-urgent Stage-A retries are one-shot per viewport key and doc version
+//! after timeout/error, so background catch-up can make forward progress.
 //!
 //! # Key types
 //!
@@ -28,18 +40,18 @@
 //!
 //! # Invariants
 //!
-//! - Must not install parse results from older epochs.
-//! - Must not regress installed tree doc version.
-//! - Must keep `syntax_version` monotonic on tree install/drop.
-//! - Must rotate full-tree identity when sync incremental catch-up mutates the tree.
-//! - Must only expose highlight projection context when pending edits align to resident tree.
-//! - Must only install stale viewport results when continuity requires filling uncovered viewports.
-//! - Must skip stale non-viewport installs that would break projection continuity to the current document version.
-//! - Must prefer eager urgent viewport parses after L-tier history edits, even when a full tree is present, to reduce two-step undo repaint churn.
-//! - Must preserve the resident full-tree version on history edits so projection can reuse the prior syntax baseline during async catch-up.
-//! - Must bound viewport scheduling to a capped visible byte span.
-//! - Must use viewport-specific cooldowns for viewport task failures.
-//! - Must suppress same-version history Stage-A retries after urgent timeout/error so background catch-up is not starved.
+//! * Must not install parse results from older epochs.
+//! * Must not regress installed tree doc version.
+//! * Must keep `syntax_version` monotonic on tree install/drop.
+//! * Must rotate full-tree identity when sync incremental catch-up mutates the tree.
+//! * Must only expose highlight projection context when pending edits align to resident tree.
+//! * Must only install stale viewport results when continuity requires filling uncovered viewports.
+//! * Must skip stale non-viewport installs that would break projection continuity to the current document version.
+//! * Must prefer eager urgent viewport parses after L-tier history edits, even when a full tree is present, to reduce two-step undo repaint churn.
+//! * Must preserve the resident full-tree version on history edits so projection can reuse the prior syntax baseline during async catch-up.
+//! * Must bound viewport scheduling to a capped visible byte span.
+//! * Must use viewport-specific cooldowns for viewport task failures.
+//! * Must suppress same-version history Stage-A retries after urgent timeout/error so background catch-up is not starved.
 //!
 //! # Data flow
 //!
@@ -51,31 +63,31 @@
 //!
 //! # Lifecycle
 //!
-//! - Create manager once at editor startup.
-//! - Poll from render loop.
-//! - Drain finished tasks from tick.
-//! - Remove document state on close.
+//! * Create manager once at editor startup.
+//! * Poll from render loop.
+//! * Drain finished tasks from tick.
+//! * Remove document state on close.
 //!
 //! # Concurrency & ordering
 //!
-//! - Global semaphore enforces parse concurrency.
-//! - Document epoch invalidates stale background completions.
-//! - Requested document version prevents old-task flicker installs.
-//! - Visible uncovered viewports may preempt tracked full/incremental work by epoch invalidation.
+//! * Global semaphore enforces parse concurrency.
+//! * Document epoch invalidates stale background completions.
+//! * Requested document version prevents old-task flicker installs.
+//! * Visible uncovered viewports may preempt tracked full/incremental work by epoch invalidation.
 //!
 //! # Failure modes & recovery
 //!
-//! - Timeouts/errors enter cooldown.
-//! - Viewport task failures use short viewport cooldowns so visible recovery stays responsive.
-//! - History-urgent Stage-A failures are latched per viewport key/doc-version to
+//! * Timeouts/errors enter cooldown.
+//! * Viewport task failures use short viewport cooldowns so visible recovery stays responsive.
+//! * History-urgent Stage-A failures are latched per viewport key/doc-version to
 //!   prevent retry loops from starving background full/incremental recovery.
-//! - Retention drops trees for cold docs when configured.
-//! - Incremental misalignment falls back to full reparse.
+//! * Retention drops trees for cold docs when configured.
+//! * Incremental misalignment falls back to full reparse.
 //!
 //! # Recipes
 //!
-//! - For edit bursts: use `note_edit_incremental`, then `ensure_syntax`.
-//! - For rendering stale-but-continuous highlights: use
+//! * For edit bursts: use `note_edit_incremental`, then `ensure_syntax`.
+//! * For rendering stale-but-continuous highlights: use
 //!   [`crate::syntax_manager::SyntaxManager::highlight_projection_ctx`].
 
 use std::collections::HashMap;
@@ -113,6 +125,7 @@ pub(crate) use scheduling::DocSched;
 pub use tasks::TaskClass;
 pub(crate) use tasks::TaskCollector;
 use tasks::{TaskKind, TaskSpec};
+pub(crate) use types::InstalledTree;
 pub(crate) use types::PendingIncrementalEdits;
 pub use types::{
 	DocEpoch, EditSource, EnsureSyntaxContext, HighlightProjectionCtx, OptKey, SyntaxPollOutcome, SyntaxPollResult, SyntaxSelection, SyntaxSlot, TaskId,
@@ -124,6 +137,8 @@ pub(crate) use xeno_language::LanguageId;
 struct DocEntry {
 	sched: DocSched,
 	slot: SyntaxSlot,
+	/// Last known tier for retention sweep (updated on each ensure_syntax call).
+	last_tier: Option<policy::SyntaxTier>,
 }
 
 impl DocEntry {
@@ -131,6 +146,7 @@ impl DocEntry {
 		Self {
 			sched: DocSched::new(now),
 			slot: SyntaxSlot::default(),
+			last_tier: None,
 		}
 	}
 }

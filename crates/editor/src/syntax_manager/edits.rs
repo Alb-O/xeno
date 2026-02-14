@@ -73,7 +73,7 @@ impl SyntaxManager {
 
 		// Determine which tree doc version to anchor the pending window to.
 		// Prefer full tree; fall back to viewport tree for projection-only tracking.
-		let anchor_version = entry.slot.full_doc_version.or(entry.slot.viewport_cache.best_doc_version());
+		let anchor_version = entry.slot.full.as_ref().map(|t| t.doc_version).or(entry.slot.viewport_cache.best_doc_version());
 		let has_full_tree = entry.slot.full.is_some();
 		tracing::trace!(
 			target: "xeno_undo_trace",
@@ -81,7 +81,7 @@ impl SyntaxManager {
 			source = ?source,
 			doc_version,
 			anchor_version = ?anchor_version,
-			full_doc_version = ?entry.slot.full_doc_version,
+			full_doc_version = ?entry.slot.full.as_ref().map(|t| t.doc_version),
 			has_full_tree,
 			pending_present = entry.slot.pending_incremental.is_some(),
 			"syntax.note_edit_incremental.begin"
@@ -129,7 +129,7 @@ impl SyntaxManager {
 				target: "xeno_undo_trace",
 				?doc_id,
 				doc_version,
-				full_doc_version = ?entry.slot.full_doc_version,
+				full_doc_version = ?entry.slot.full.as_ref().map(|t| t.doc_version),
 				pending_base_version = ?entry.slot.pending_incremental.as_ref().map(|p| p.base_tree_doc_version),
 				"syntax.note_edit_incremental.history_preserve_baseline"
 			);
@@ -153,19 +153,19 @@ impl SyntaxManager {
 		};
 
 		// Only sync if the pending window is anchored to the full tree's version.
-		if entry.slot.full_doc_version != Some(pending.base_tree_doc_version) {
+		if entry.slot.full.as_ref().map(|t| t.doc_version) != Some(pending.base_tree_doc_version) {
 			tracing::trace!(
 				target: "xeno_undo_trace",
 				?doc_id,
 				doc_version,
-				full_doc_version = ?entry.slot.full_doc_version,
+				full_doc_version = ?entry.slot.full.as_ref().map(|t| t.doc_version),
 				pending_base_version = pending.base_tree_doc_version,
 				"syntax.note_edit_incremental.base_mismatch_skip_sync"
 			);
 			return;
 		}
 
-		let syntax = entry.slot.full.as_mut().unwrap();
+		let syntax = &mut entry.slot.full.as_mut().unwrap().syntax;
 		let opts = SyntaxOptions {
 			parse_timeout: SYNC_TIMEOUT,
 			..syntax.opts()
@@ -177,14 +177,16 @@ impl SyntaxManager {
 		{
 			entry.slot.pending_incremental = None;
 			entry.slot.dirty = false;
-			entry.slot.full_doc_version = Some(doc_version);
-			entry.slot.full_tree_id = entry.slot.alloc_tree_id();
+			let new_tree_id = entry.slot.alloc_tree_id();
+			let ft = entry.slot.full.as_mut().unwrap();
+			ft.doc_version = doc_version;
+			ft.tree_id = new_tree_id;
 			Self::mark_updated(&mut entry.slot);
 			tracing::trace!(
 				target: "xeno_undo_trace",
 				?doc_id,
 				doc_version,
-				full_doc_version = ?entry.slot.full_doc_version,
+				full_doc_version = ?entry.slot.full.as_ref().map(|t| t.doc_version),
 				"syntax.note_edit_incremental.sync_ok"
 			);
 		} else {
