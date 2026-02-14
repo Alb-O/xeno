@@ -11,10 +11,13 @@ use std::path::Path;
 use std::sync::Arc;
 
 use nu_protocol::ast::Block;
+use nu_protocol::config::Config;
 use nu_protocol::engine::{EngineState, Stack, StateWorkingSet};
 use nu_protocol::{PipelineData, Span, Value};
 
 pub use sandbox::ensure_sandboxed;
+
+const XENO_NU_RECURSION_LIMIT: i64 = 64;
 
 /// Creates a minimal Nu engine state suitable for sandboxed evaluation.
 ///
@@ -23,6 +26,10 @@ pub use sandbox::ensure_sandboxed;
 /// canonicalized `config_root` if provided.
 pub fn create_engine_state(config_root: Option<&Path>) -> EngineState {
 	let mut engine_state = nu_cmd_lang::create_default_context();
+	let mut config: Config = engine_state.get_config().as_ref().clone();
+	config.recursion_limit = XENO_NU_RECURSION_LIMIT;
+	engine_state.set_config(config);
+
 	if let Some(cwd) = config_root.and_then(|p| std::fs::canonicalize(p).ok()) {
 		engine_state.add_env_var("PWD".to_string(), Value::string(cwd.to_string_lossy().to_string(), Span::unknown()));
 	}
@@ -92,4 +99,19 @@ pub fn build_call_source(fn_name: &str, args: &[String]) -> Result<String, Strin
 		src.push_str(&quote_nu_string(arg));
 	}
 	Ok(src)
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn recursive_function_hits_recursion_limit() {
+		let mut engine_state = create_engine_state(None);
+		let source = "export def recur [] { recur }\nrecur";
+		let block = parse_and_validate(&mut engine_state, "<test>", source, None).expect("recursive script should parse");
+		let err = evaluate_block(&engine_state, block.as_ref()).expect_err("recursive script must error");
+		let msg = err.to_ascii_lowercase();
+		assert!(msg.contains("recursion") || msg.contains("stack") || msg.contains("overflow"), "{err}");
+	}
 }

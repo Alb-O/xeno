@@ -130,6 +130,29 @@ fn invocation_spec_override_fresh_key() {
 }
 
 #[test]
+fn invocation_spec_override_nu_target() {
+	let actions = crate::db::ACTIONS.snapshot();
+
+	let mut mode_overrides = HashMap::new();
+	mode_overrides.insert("ctrl-f11".to_string(), "nu:go fast".to_string());
+	let mut modes = HashMap::new();
+	modes.insert("normal".to_string(), mode_overrides);
+	let overrides = UnresolvedKeys { modes };
+
+	let index = KeymapIndex::build_with_overrides(&actions, Some(&overrides));
+	let keys = parse_seq("ctrl-f11").expect("key sequence should parse");
+	match index.lookup(BindingMode::Normal, &keys) {
+		LookupResult::Match(entry) => {
+			assert!(
+				matches!(&entry.target, BindingTarget::InvocationSpec { spec, kind } if spec.as_ref() == "nu:go fast" && *kind == xeno_invocation_spec::SpecKind::Nu)
+			);
+			assert_eq!(&*entry.short_desc, "go");
+		}
+		_ => panic!("expected nu invocation spec match for fresh key"),
+	}
+}
+
+#[test]
 fn which_key_labels_invocation_spec() {
 	let actions = crate::db::ACTIONS.snapshot();
 

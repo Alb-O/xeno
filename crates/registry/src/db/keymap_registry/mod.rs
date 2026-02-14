@@ -230,7 +230,7 @@ impl KeymapIndex {
 				};
 
 				// Non-action targets go into the trie as InvocationSpec
-				if target_spec.starts_with("command:") || target_spec.starts_with("editor:") {
+				if target_spec.starts_with("command:") || target_spec.starts_with("editor:") || target_spec.starts_with("nu:") {
 					let parsed = match xeno_invocation_spec::parse_spec(&target_spec) {
 						Ok(p) => p,
 						Err(e) => {

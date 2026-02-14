@@ -79,6 +79,7 @@ impl UtilityPanel {
 									xeno_invocation_spec::SpecKind::Command => ":",
 									xeno_invocation_spec::SpecKind::Editor => "@",
 									xeno_invocation_spec::SpecKind::Action => "",
+									xeno_invocation_spec::SpecKind::Nu => "~",
 								};
 								format!("{prefix}{}", entry.short_desc)
 							}

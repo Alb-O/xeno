@@ -19,6 +19,10 @@ fn parse_invocation_variants() {
 		crate::nu::parse_invocation_spec("editor:stats").expect("editor command should parse"),
 		Invocation::EditorCommand { .. }
 	));
+	assert!(matches!(
+		crate::nu::parse_invocation_spec("nu:go").expect("nu command should parse"),
+		Invocation::Nu { .. }
+	));
 }
 
 #[test]
@@ -49,6 +53,40 @@ fn nu_run_dispatches_action() {
 	));
 
 	assert!(matches!(result, InvocationResult::Ok));
+}
+
+#[test]
+fn nu_run_command_injects_ctx() {
+	let temp = tempfile::tempdir().expect("temp dir should exist");
+	write_script(
+		temp.path(),
+		"export def go [] { if $env.XENO_CTX.kind == \"macro\" { \"action:move_right\" } else { \"action:does-not-exist\" } }",
+	);
+
+	let runtime = crate::nu::NuRuntime::load(temp.path()).expect("runtime should load");
+	let mut editor = Editor::from_content("abcd".to_string(), None);
+	editor.set_nu_runtime(Some(runtime));
+
+	let rt = tokio::runtime::Builder::new_current_thread()
+		.enable_all()
+		.build()
+		.expect("runtime should build");
+	let args = ["go"];
+	let outcome = rt
+		.block_on(async {
+			let mut ctx = EditorCommandContext {
+				editor: &mut editor,
+				args: &args,
+				count: 1,
+				register: None,
+				user_data: None,
+			};
+			cmd_nu_run(&mut ctx).await
+		})
+		.expect("nu-run should succeed");
+
+	assert!(matches!(outcome, CommandOutcome::Ok));
+	assert_eq!(editor.buffer().cursor, 1, "ctx-aware macro should dispatch move_right");
 }
 
 #[test]

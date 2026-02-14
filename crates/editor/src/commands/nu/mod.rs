@@ -6,7 +6,7 @@ use xeno_primitives::BoxFutureLocal;
 use xeno_registry::notifications::keys;
 
 use super::{CommandError, CommandOutcome, EditorCommandContext};
-use crate::types::{InvocationPolicy, InvocationResult};
+use crate::types::{Invocation, InvocationPolicy, InvocationResult};
 use crate::{Editor, editor_command};
 
 editor_command!(
@@ -53,52 +53,21 @@ fn cmd_nu_run<'a>(ctx: &'a mut EditorCommandContext<'a>) -> BoxFutureLocal<'a, R
 			return Err(CommandError::MissingArgument("fn"));
 		};
 
-		if ctx.editor.nu_runtime().is_none() {
-			let Some(config_dir) = crate::paths::get_config_dir() else {
-				return Err(CommandError::Failed("config directory is unavailable; cannot auto-load xeno.nu".to_string()));
-			};
-			reload_runtime_from_dir(ctx.editor, config_dir).await?;
+		let invocation = Invocation::Nu {
+			name: (*fn_name).to_string(),
+			args: ctx.args.iter().skip(1).map(|arg| (*arg).to_string()).collect(),
+		};
+		let describe = invocation.describe();
+
+		match ctx.editor.run_invocation(invocation, InvocationPolicy::enforcing()).await {
+			InvocationResult::Ok => Ok(CommandOutcome::Ok),
+			InvocationResult::Quit => Ok(CommandOutcome::Quit),
+			InvocationResult::ForceQuit => Ok(CommandOutcome::ForceQuit),
+			InvocationResult::NotFound(target) => Err(CommandError::Failed(format!("nu-run invocation not found: {target} ({describe})"))),
+			InvocationResult::CapabilityDenied(cap) => Err(CommandError::Failed(format!("nu-run invocation denied by capability {cap:?} ({describe})"))),
+			InvocationResult::ReadonlyDenied => Err(CommandError::Failed(format!("nu-run invocation blocked by readonly mode ({describe})"))),
+			InvocationResult::CommandError(error) => Err(CommandError::Failed(format!("nu-run invocation failed: {error} ({describe})"))),
 		}
-
-		let runtime = ctx
-			.editor
-			.nu_runtime()
-			.cloned()
-			.ok_or_else(|| CommandError::Failed("Nu runtime is not loaded".to_string()))?;
-
-		let fn_name = (*fn_name).to_string();
-		let args: Vec<String> = ctx.args.iter().skip(1).map(|arg| (*arg).to_string()).collect();
-		let invocations = tokio::task::spawn_blocking(move || runtime.run_invocations(&fn_name, &args))
-			.await
-			.map_err(|error| CommandError::Failed(format!("failed to join nu-run task: {error}")))?
-			.map_err(CommandError::Failed)?;
-
-		if invocations.is_empty() {
-			return Err(CommandError::Failed("nu-run produced no invocations".to_string()));
-		}
-
-		for invocation in invocations {
-			let describe = invocation.describe();
-			match ctx.editor.run_invocation(invocation, InvocationPolicy::enforcing()).await {
-				InvocationResult::Ok => {}
-				InvocationResult::Quit => return Ok(CommandOutcome::Quit),
-				InvocationResult::ForceQuit => return Ok(CommandOutcome::ForceQuit),
-				InvocationResult::NotFound(target) => {
-					return Err(CommandError::Failed(format!("nu-run invocation not found: {target} ({describe})")));
-				}
-				InvocationResult::CapabilityDenied(cap) => {
-					return Err(CommandError::Failed(format!("nu-run invocation denied by capability {cap:?} ({describe})")));
-				}
-				InvocationResult::ReadonlyDenied => {
-					return Err(CommandError::Failed(format!("nu-run invocation blocked by readonly mode ({describe})")));
-				}
-				InvocationResult::CommandError(error) => {
-					return Err(CommandError::Failed(format!("nu-run invocation failed: {error} ({describe})")));
-				}
-			}
-		}
-
-		Ok(CommandOutcome::Ok)
 	})
 }
 

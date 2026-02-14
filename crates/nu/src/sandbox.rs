@@ -376,4 +376,20 @@ mod tests {
 		std::fs::write(temp.path().join("helper.nu"), "export def x [] { 1 }").unwrap();
 		sandbox_check("use helper.nu", Some(temp.path())).expect("use within root should pass");
 	}
+
+	#[test]
+	fn decl_inventory_audit() {
+		let engine_state = crate::create_engine_state(None);
+		let mut decls: Vec<String> = engine_state
+			.get_decls_sorted(false)
+			.into_iter()
+			.map(|(name, _)| String::from_utf8_lossy(&name).to_string())
+			.collect();
+		decls.sort();
+
+		println!("Nu decl inventory ({} commands)", decls.len());
+		for decl in decls {
+			println!("{decl}");
+		}
+	}
 }

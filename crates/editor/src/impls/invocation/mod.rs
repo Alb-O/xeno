@@ -3,6 +3,9 @@
 //! Single entry point for user-invoked operations with consistent capability
 //! checking, hook emission, and error handling.
 
+use std::time::{Duration, Instant};
+
+use nu_protocol::{Record, Span, Value};
 use tracing::{debug, trace, trace_span, warn};
 use xeno_registry::actions::{ActionArgs, ActionContext, ActionResult, EditorContext, dispatch_result, find_action};
 use xeno_registry::commands::{CommandContext, find_command};
@@ -12,6 +15,10 @@ use xeno_registry::{CommandError, HookEventData, RegistryEntry};
 use crate::commands::{CommandOutcome, EditorCommandContext, find_editor_command};
 use crate::impls::Editor;
 use crate::types::{Invocation, InvocationPolicy, InvocationResult};
+
+const MAX_NU_MACRO_DEPTH: u8 = 8;
+const SLOW_NU_HOOK_THRESHOLD: Duration = Duration::from_millis(2);
+const SLOW_NU_MACRO_THRESHOLD: Duration = Duration::from_millis(5);
 
 #[cfg(test)]
 mod tests;
@@ -76,6 +83,17 @@ impl Editor {
 			Invocation::Command { name, args } => self.run_command_invocation(&name, args, policy).await,
 
 			Invocation::EditorCommand { name, args } => self.run_editor_command_invocation(&name, args, policy).await,
+
+			Invocation::Nu { name, args } => {
+				if self.state.nu_macro_depth >= MAX_NU_MACRO_DEPTH {
+					return InvocationResult::CommandError(format!("Nu macro recursion depth exceeded ({MAX_NU_MACRO_DEPTH})"));
+				}
+
+				self.state.nu_macro_depth += 1;
+				let result = self.run_nu_macro_invocation(name, args, policy).await;
+				self.state.nu_macro_depth = self.state.nu_macro_depth.saturating_sub(1);
+				result
+			}
 		}
 	}
 
@@ -90,7 +108,26 @@ impl Editor {
 
 		let runtime = self.nu_runtime()?.clone();
 		let fn_name_owned = fn_name.to_string();
-		let invocations = match tokio::task::spawn_blocking(move || runtime.try_run_invocations(&fn_name_owned, &args)).await {
+		let limits = crate::nu::DecodeLimits::hook_defaults();
+		let args_len = args.len();
+		let hook_start = Instant::now();
+		let nu_ctx = self.build_nu_ctx("hook", fn_name, &args);
+		let hook_span = trace_span!(
+			"nu.hook",
+			function = fn_name,
+			args_len = args_len,
+			max_invocations = limits.max_invocations,
+			max_depth = limits.max_depth
+		);
+		let _hook_guard = hook_span.enter();
+		let span = tracing::Span::current();
+		let invocations = match tokio::task::spawn_blocking(move || {
+			let _span_guard = span.enter();
+			let env = [("XENO_CTX", nu_ctx)];
+			runtime.try_run_invocations_with_limits_and_env(&fn_name_owned, &args, limits, &env)
+		})
+		.await
+		{
 			Ok(Ok(Some(invocations))) => invocations,
 			Ok(Ok(None)) => return None,
 			Ok(Err(error)) => {
@@ -102,23 +139,14 @@ impl Editor {
 				return None;
 			}
 		};
+		let hook_elapsed = hook_start.elapsed();
+		if hook_elapsed > SLOW_NU_HOOK_THRESHOLD {
+			debug!(hook = fn_name, elapsed_ms = hook_elapsed.as_millis() as u64, "slow Nu hook call");
+		}
 
 		self.state.nu_hook_guard = true;
 		for invocation in invocations {
-			let result = match invocation {
-				Invocation::Action { name, count, extend, register } => {
-					self.run_action_invocation(&name, count, extend, register, None, InvocationPolicy::enforcing())
-				}
-				Invocation::ActionWithChar {
-					name,
-					count,
-					extend,
-					register,
-					char_arg,
-				} => self.run_action_invocation(&name, count, extend, register, Some(char_arg), InvocationPolicy::enforcing()),
-				Invocation::Command { name, args } => self.run_command_invocation(&name, args, InvocationPolicy::enforcing()).await,
-				Invocation::EditorCommand { name, args } => self.run_editor_command_invocation(&name, args, InvocationPolicy::enforcing()).await,
-			};
+			let result = Box::pin(self.run_invocation(invocation, InvocationPolicy::enforcing())).await;
 
 			match result {
 				InvocationResult::Ok => {}
@@ -147,6 +175,110 @@ impl Editor {
 
 		self.state.nu_hook_guard = false;
 		None
+	}
+
+	async fn run_nu_macro_invocation(&mut self, fn_name: String, args: Vec<String>, policy: InvocationPolicy) -> InvocationResult {
+		if let Err(error) = self.ensure_nu_runtime_loaded().await {
+			self.show_notification(xeno_registry::notifications::keys::command_error(&error));
+			return InvocationResult::CommandError(error);
+		}
+
+		let Some(runtime) = self.nu_runtime().cloned() else {
+			return InvocationResult::CommandError("Nu runtime is not loaded".to_string());
+		};
+		let limits = crate::nu::DecodeLimits::macro_defaults();
+		let args_len = args.len();
+		let macro_start = Instant::now();
+		let nu_ctx = self.build_nu_ctx("macro", &fn_name, &args);
+		let macro_span = trace_span!("nu.macro", function = %fn_name, args_len = args_len);
+		let _macro_guard = macro_span.enter();
+		let span = tracing::Span::current();
+		let fn_name_for_call = fn_name.clone();
+		let args_for_call = args.clone();
+
+		let invocations = match tokio::task::spawn_blocking(move || {
+			let _span_guard = span.enter();
+			let env = [("XENO_CTX", nu_ctx)];
+			runtime.run_invocations_with_limits_and_env(&fn_name_for_call, &args_for_call, limits, &env)
+		})
+		.await
+		{
+			Ok(Ok(invocations)) => invocations,
+			Ok(Err(error)) => {
+				self.show_notification(xeno_registry::notifications::keys::command_error(&error));
+				return InvocationResult::CommandError(error);
+			}
+			Err(error) => {
+				let error = format!("failed to join nu invocation task: {error}");
+				self.show_notification(xeno_registry::notifications::keys::command_error(&error));
+				return InvocationResult::CommandError(error);
+			}
+		};
+		let macro_elapsed = macro_start.elapsed();
+		if macro_elapsed > SLOW_NU_MACRO_THRESHOLD {
+			debug!(function = %fn_name, elapsed_ms = macro_elapsed.as_millis() as u64, "slow Nu macro call");
+		}
+
+		if invocations.is_empty() {
+			return InvocationResult::CommandError("Nu invocation produced no invocations".to_string());
+		}
+
+		for invocation in invocations {
+			match Box::pin(self.run_invocation(invocation, policy)).await {
+				InvocationResult::Ok => {}
+				other => return other,
+			}
+		}
+
+		InvocationResult::Ok
+	}
+
+	async fn ensure_nu_runtime_loaded(&mut self) -> Result<(), String> {
+		if self.nu_runtime().is_some() {
+			return Ok(());
+		}
+
+		let config_dir = crate::paths::get_config_dir().ok_or_else(|| "config directory is unavailable; cannot auto-load xeno.nu".to_string())?;
+		let loaded = tokio::task::spawn_blocking(move || crate::nu::NuRuntime::load(&config_dir))
+			.await
+			.map_err(|error| format!("failed to join Nu runtime load task: {error}"))?;
+
+		match loaded {
+			Ok(runtime) => {
+				self.set_nu_runtime(Some(runtime));
+				Ok(())
+			}
+			Err(error) => Err(error),
+		}
+	}
+
+	fn build_nu_ctx(&self, kind: &str, function: &str, args: &[String]) -> Value {
+		let span = Span::unknown();
+		let buffer = self.buffer();
+
+		let mut buffer_record = Record::new();
+		buffer_record.push(
+			"path",
+			buffer
+				.path()
+				.map_or_else(|| Value::nothing(span), |path| Value::string(path.to_string_lossy().to_string(), span)),
+		);
+		buffer_record.push(
+			"file_type",
+			buffer
+				.file_type()
+				.map_or_else(|| Value::nothing(span), |file_type| Value::string(file_type, span)),
+		);
+		buffer_record.push("readonly", Value::bool(buffer.is_readonly(), span));
+
+		let mut ctx = Record::new();
+		ctx.push("kind", Value::string(kind, span));
+		ctx.push("function", Value::string(function, span));
+		ctx.push("args", Value::list(args.iter().map(|arg| Value::string(arg, span)).collect(), span));
+		ctx.push("mode", Value::string(format!("{:?}", self.mode()), span));
+		ctx.push("buffer", Value::record(buffer_record, span));
+
+		Value::record(ctx, span)
 	}
 
 	pub(crate) fn run_action_invocation(
@@ -251,7 +383,7 @@ impl Editor {
 			&& let Some(result) = handle_capability_violation(
 				policy,
 				e,
-				|err| notify_capability_denied(self, InvocationKind::Action, err),
+				|err| notify_capability_denied(self, InvocationKind::Command, err),
 				|err| {
 					warn!(
 						command = name,
@@ -389,12 +521,17 @@ fn action_result_label(result: &InvocationResult) -> &'static str {
 
 enum InvocationKind {
 	Action,
+	Command,
 	EditorCommand,
 }
 
 fn notify_capability_denied(editor: &mut Editor, kind: InvocationKind, error: &CommandError) {
 	match kind {
 		InvocationKind::Action => editor.show_notification(xeno_registry::notifications::keys::action_error(error)),
+		InvocationKind::Command => {
+			let error = error.to_string();
+			editor.show_notification(xeno_registry::notifications::keys::command_error(&error));
+		}
 		InvocationKind::EditorCommand => {
 			let error = error.to_string();
 			editor.show_notification(xeno_registry::notifications::keys::command_error(&error));

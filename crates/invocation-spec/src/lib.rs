@@ -9,6 +9,7 @@ pub enum SpecKind {
 	Action,
 	Command,
 	Editor,
+	Nu,
 }
 
 /// A parsed invocation spec.
@@ -25,6 +26,7 @@ pub struct ParsedSpec {
 /// - `action:<name>` — no whitespace allowed in name, no args
 /// - `command:<name> [args...]` — shell-like quoting for args
 /// - `editor:<name> [args...]` — shell-like quoting for args
+/// - `nu:<name> [args...]` — shell-like quoting for args
 pub fn parse_spec(spec: &str) -> Result<ParsedSpec, String> {
 	let spec = spec.trim();
 	if spec.is_empty() {
@@ -68,7 +70,25 @@ pub fn parse_spec(spec: &str) -> Result<ParsedSpec, String> {
 		});
 	}
 
-	Err(format!("unsupported invocation spec '{spec}', expected action:/command:/editor:"))
+	if let Some(rest) = spec.strip_prefix("nu:") {
+		let tokens = split_invocation_args(rest)?;
+		let name = tokens.first().ok_or("nu invocation missing function name")?.clone();
+		if !is_valid_nu_function_name(&name) {
+			return Err(format!("nu invocation function name contains unsupported characters: {name}"));
+		}
+		let args = tokens[1..].to_vec();
+		return Ok(ParsedSpec {
+			kind: SpecKind::Nu,
+			name,
+			args,
+		});
+	}
+
+	Err(format!("unsupported invocation spec '{spec}', expected action:/command:/editor:/nu:"))
+}
+
+fn is_valid_nu_function_name(name: &str) -> bool {
+	!name.is_empty() && name.chars().all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-'))
 }
 
 /// Tokenize an argument string with shell-like quoting.
@@ -244,5 +264,27 @@ mod tests {
 	#[test]
 	fn parse_unknown_prefix_rejects() {
 		assert!(parse_spec("foo:bar").is_err());
+	}
+
+	#[test]
+	fn parse_nu() {
+		let spec = parse_spec("nu:go").unwrap();
+		assert_eq!(spec.kind, SpecKind::Nu);
+		assert_eq!(spec.name, "go");
+		assert!(spec.args.is_empty());
+	}
+
+	#[test]
+	fn parse_nu_with_args() {
+		let spec = parse_spec(r#"nu:go "a b" c"#).unwrap();
+		assert_eq!(spec.kind, SpecKind::Nu);
+		assert_eq!(spec.name, "go");
+		assert_eq!(spec.args, vec!["a b", "c"]);
+	}
+
+	#[test]
+	fn parse_nu_rejects_invalid_name() {
+		assert!(parse_spec("nu:bad/name").is_err());
+		assert!(parse_spec("nu:").is_err());
 	}
 }

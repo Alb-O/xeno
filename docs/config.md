@@ -44,6 +44,7 @@ Supported invocation prefixes:
 * `action:<id|name|key>`
 * `command:<name> [args...]`
 * `editor:<name> [args...]`
+* `nu:<fn> [args...]`
 
 Structured invocation records are also supported:
 
@@ -52,6 +53,7 @@ Structured invocation records are also supported:
 { kind: "action", name: "find_char", char: "x" }
 { kind: "command", name: "help", args: ["themes"] }
 { kind: "editor", name: "reload_config", args: [] }
+{ kind: "nu", name: "go", args: ["fast"] }
 ```
 
 You can return a single record or a list of records:
@@ -69,6 +71,22 @@ Optional exported hook functions in `xeno.nu`:
 * `on_mode_change [old_mode new_mode]`
 
 Hook functions use the same return schema as `nu-run` and are sandboxed with the same policy as `config.nu` and `xeno.nu` macros.
+
+During `nu-run` and hook execution, Xeno sets `$env.XENO_CTX` with per-call context:
+
+```nu
+{
+  kind: "macro" | "hook",
+  function: "go",
+  args: ["..."],
+  mode: "Normal",
+  buffer: {
+    path: "/abs/path/or/null",
+    file_type: "rust" | null,
+    readonly: false
+  }
+}
+```
 
 ## Shared schema
 
@@ -114,6 +132,7 @@ Supported target prefixes:
 * `action:<action-id|action-name|action-key>` — execute a registry action
 * `command:<name> [args...]` — execute a registry command
 * `editor:<name> [args...]` — execute an editor command
+* `nu:<fn> [args...]` — execute a Nu macro function from `xeno.nu`
 
 Arguments may be quoted with `"..."` (supports `\"`, `\\`, `\n`, `\t`, `\r` escapes) or `'...'` (no escapes).
 

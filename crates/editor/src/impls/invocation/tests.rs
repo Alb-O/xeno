@@ -220,6 +220,7 @@ fn invocation_describe() {
 	assert_eq!(Invocation::action_with_count("move_down", 5).describe(), "action:move_downx5");
 	assert_eq!(Invocation::command("write", vec!["file.txt".into()]).describe(), "cmd:write file.txt");
 	assert_eq!(Invocation::editor_command("quit", vec![]).describe(), "editor_cmd:quit");
+	assert_eq!(Invocation::nu("go", vec!["fast".into()]).describe(), "nu:go fast");
 }
 
 #[test]
@@ -315,4 +316,84 @@ fn command_error_propagates() {
 		result,
 		InvocationResult::CommandError(msg) if msg.contains("boom")
 	));
+}
+
+#[tokio::test]
+async fn nu_macro_recursion_depth_guard_trips() {
+	let temp = tempfile::tempdir().expect("temp dir should exist");
+	std::fs::write(temp.path().join("xeno.nu"), "export def recur [] { { kind: \"nu\", name: \"recur\" } }").expect("xeno.nu should be writable");
+
+	let runtime = crate::nu::NuRuntime::load(temp.path()).expect("runtime should load");
+	let mut editor = Editor::new_scratch();
+	editor.set_nu_runtime(Some(runtime));
+
+	let result = editor
+		.run_invocation(
+			Invocation::Nu {
+				name: "recur".to_string(),
+				args: Vec::new(),
+			},
+			InvocationPolicy::enforcing(),
+		)
+		.await;
+
+	match result {
+		InvocationResult::CommandError(msg) => {
+			assert!(msg.to_ascii_lowercase().contains("recursion depth"), "{msg}");
+		}
+		other => panic!("expected command error, got {other:?}"),
+	}
+}
+
+#[tokio::test]
+async fn nu_macro_ctx_is_injected() {
+	let temp = tempfile::tempdir().expect("temp dir should exist");
+	std::fs::write(
+		temp.path().join("xeno.nu"),
+		"export def go [] { if $env.XENO_CTX.kind == \"macro\" { \"action:invocation_test_action\" } else { \"action:does-not-exist\" } }",
+	)
+	.expect("xeno.nu should be writable");
+
+	let runtime = crate::nu::NuRuntime::load(temp.path()).expect("runtime should load");
+	let mut editor = Editor::new_scratch();
+	editor.set_nu_runtime(Some(runtime));
+
+	let result = editor
+		.run_invocation(
+			Invocation::Nu {
+				name: "go".to_string(),
+				args: Vec::new(),
+			},
+			InvocationPolicy::enforcing(),
+		)
+		.await;
+
+	assert!(matches!(result, InvocationResult::Ok));
+}
+
+#[tokio::test]
+async fn nu_hook_ctx_is_injected() {
+	ACTION_PRE_COUNT.with(|count| count.set(0));
+	ACTION_POST_COUNT.with(|count| count.set(0));
+
+	let temp = tempfile::tempdir().expect("temp dir should exist");
+	std::fs::write(
+		temp.path().join("xeno.nu"),
+		"export def on_action_post [name result] { if $env.XENO_CTX.kind == \"hook\" { \"action:invocation_test_action\" } else { \"action:does-not-exist\" } }",
+	)
+	.expect("xeno.nu should be writable");
+
+	let runtime = crate::nu::NuRuntime::load(temp.path()).expect("runtime should load");
+	let mut editor = Editor::new_scratch();
+	editor.set_nu_runtime(Some(runtime));
+
+	let result = editor
+		.run_invocation(Invocation::action("invocation_test_action"), InvocationPolicy::enforcing())
+		.await;
+	assert!(matches!(result, InvocationResult::Ok));
+
+	let pre_count = ACTION_PRE_COUNT.with(|count| count.get());
+	let post_count = ACTION_POST_COUNT.with(|count| count.get());
+	assert_eq!(pre_count, 2);
+	assert_eq!(post_count, 2);
 }

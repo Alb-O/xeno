@@ -183,6 +183,8 @@ pub(crate) struct EditorState {
 	pub(crate) nu_runtime: Option<crate::nu::NuRuntime>,
 	/// Prevents Nu hook invocations from recursively triggering more hooks.
 	pub(crate) nu_hook_guard: bool,
+	/// Prevents unbounded recursive Nu macro expansion chains.
+	pub(crate) nu_macro_depth: u8,
 
 	/// Notification system.
 	pub(crate) notifications: crate::notifications::NotificationCenter,
@@ -373,6 +375,7 @@ impl Editor {
 				keymap_cache: Mutex::new(None),
 				nu_runtime: None,
 				nu_hook_guard: false,
+				nu_macro_depth: 0,
 				notifications: crate::notifications::NotificationCenter::new(),
 				lsp: LspSystem::new(),
 				syntax_manager: crate::syntax_manager::SyntaxManager::new(crate::syntax_manager::SyntaxManagerCfg {

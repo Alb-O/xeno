@@ -48,6 +48,13 @@ pub enum Invocation {
 		/// Command arguments.
 		args: Vec<String>,
 	},
+	/// Execute a Nu macro function from the loaded runtime.
+	Nu {
+		/// Exported Nu function name.
+		name: String,
+		/// String arguments passed to the function.
+		args: Vec<String>,
+	},
 }
 
 impl Invocation {
@@ -81,8 +88,13 @@ impl Invocation {
 		Self::EditorCommand { name: name.into(), args }
 	}
 
+	/// Creates a Nu macro invocation.
+	pub fn nu(name: impl Into<String>, args: Vec<String>) -> Self {
+		Self::Nu { name: name.into(), args }
+	}
+
 	/// Parse a string spec like `action:move_right`, `command:write "foo bar.txt"`,
-	/// or `editor:reload_config` into an `Invocation`.
+	/// `editor:reload_config`, or `nu:go` into an `Invocation`.
 	///
 	/// Delegates to [`xeno_invocation_spec::parse_spec`] for tokenization and
 	/// maps the result to the appropriate `Invocation` variant.
@@ -92,6 +104,7 @@ impl Invocation {
 			xeno_invocation_spec::SpecKind::Action => Ok(Self::action(parsed.name)),
 			xeno_invocation_spec::SpecKind::Command => Ok(Self::command(parsed.name, parsed.args)),
 			xeno_invocation_spec::SpecKind::Editor => Ok(Self::editor_command(parsed.name, parsed.args)),
+			xeno_invocation_spec::SpecKind::Nu => Ok(Self::nu(parsed.name, parsed.args)),
 		}
 	}
 
@@ -105,6 +118,8 @@ impl Invocation {
 			Self::Command { name, args } => format!("cmd:{name} {}", args.join(" ")),
 			Self::EditorCommand { name, args } if args.is_empty() => format!("editor_cmd:{name}"),
 			Self::EditorCommand { name, args } => format!("editor_cmd:{name} {}", args.join(" ")),
+			Self::Nu { name, args } if args.is_empty() => format!("nu:{name}"),
+			Self::Nu { name, args } => format!("nu:{name} {}", args.join(" ")),
 		}
 	}
 }
