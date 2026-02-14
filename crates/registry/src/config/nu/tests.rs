@@ -43,8 +43,7 @@ fn eval_config_rejects_while() {
 
 #[test]
 fn eval_config_merge_precedence() {
-	let mut merged = crate::config::kdl::parse_config_str("options { tab-width 2 }").expect("kdl config should parse");
-	merged.merge(crate::config::nuon::parse_config_str("{ options: { tab-width: 3 } }").expect("nuon config should parse"));
+	let mut merged = crate::config::nuon::parse_config_str("{ options: { tab-width: 2 } }").expect("nuon config should parse");
 	merged.merge(eval_config_str("{ options: { tab-width: 4 } }", "config.nu").expect("nu config should evaluate"));
 
 	let tab_width = crate::options::find("tab-width").expect("tab-width option should exist");

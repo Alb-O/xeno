@@ -1,0 +1,190 @@
+{
+  common: {
+    name: debug,
+    keys: [
+      test
+    ]
+  },
+  palette: {
+    gray-light: "#969696",
+    status-prefix: "#C800C8",
+    warning: "#FFC800",
+    gray-mid: "#646464",
+    yellow: "#FFFF00",
+    green: "#00FF00",
+    red: "#FF0000",
+    gray-cursor-fg: "#323232",
+    status-normal: "#0064C8",
+    gray-cursorline: "#1E1E1E",
+    status-command: "#C8C800",
+    white: "#FFFFFF",
+    status-accent: "#C86400",
+    status-insert: "#00C800",
+    blue: "#0000C8",
+    gray-dark: "#141414",
+    black: "#000000",
+    gray-popup: "#1E1E1E"
+  },
+  ui: {
+    selection-bg: "$blue",
+    fg: "$white",
+    message-fg: "$warning",
+    command-input-fg: "$white",
+    cursorline-bg: "$gray-cursorline",
+    bg: "$black",
+    cursor-fg: "$gray-cursor-fg",
+    selection-fg: "$white",
+    cursor-bg: "$yellow",
+    gutter-fg: "$gray-mid",
+    nontext-bg: "$black"
+  },
+  mode: {
+    insert-bg: "$status-insert",
+    prefix-fg: "$black",
+    normal-bg: "$status-normal",
+    prefix-bg: "$status-prefix",
+    command-bg: "$status-command",
+    command-fg: "$black",
+    normal-fg: "$black",
+    insert-fg: "$black"
+  },
+  semantic: {
+    match: "$green",
+    link: "$blue",
+    error: "$red",
+    hint: "$gray-mid",
+    warning: "$warning",
+    dim: "$gray-mid",
+    success: "$green",
+    info: "$blue",
+    accent: "$status-accent"
+  },
+  popup: {
+    fg: "$white",
+    bg: "$gray-popup",
+    border: "$gray-light",
+    title: "$green"
+  },
+  syntax: {
+    "diff.delta": {
+      fg: "$warning",
+      bg: null,
+      modifiers: null
+    },
+    constant: {
+      fg: "$white",
+      bg: null,
+      modifiers: null
+    },
+    string: {
+      fg: "$white",
+      bg: null,
+      modifiers: null
+    },
+    "markup.raw": {
+      fg: "$white",
+      bg: null,
+      modifiers: null
+    },
+    special: {
+      fg: "$white",
+      bg: null,
+      modifiers: null
+    },
+    constructor: {
+      fg: "$white",
+      bg: null,
+      modifiers: null
+    },
+    "diff.plus": {
+      fg: "$green",
+      bg: null,
+      modifiers: null
+    },
+    "markup.bold": {
+      fg: "$white",
+      bg: null,
+      modifiers: null
+    },
+    operator: {
+      fg: "$white",
+      bg: null,
+      modifiers: null
+    },
+    attribute: {
+      fg: "$white",
+      bg: null,
+      modifiers: null
+    },
+    function: {
+      fg: "$white",
+      bg: null,
+      modifiers: null
+    },
+    tag: {
+      fg: "$white",
+      bg: null,
+      modifiers: null
+    },
+    type: {
+      fg: "$white",
+      bg: null,
+      modifiers: null
+    },
+    "markup.heading": {
+      fg: "$white",
+      bg: null,
+      modifiers: null
+    },
+    punctuation: {
+      fg: "$white",
+      bg: null,
+      modifiers: null
+    },
+    label: {
+      fg: "$white",
+      bg: null,
+      modifiers: null
+    },
+    "markup.italic": {
+      fg: "$white",
+      bg: null,
+      modifiers: null
+    },
+    "diff.minus": {
+      fg: "$red",
+      bg: null,
+      modifiers: null
+    },
+    "markup.list": {
+      fg: "$white",
+      bg: null,
+      modifiers: null
+    },
+    "markup.link": {
+      fg: "$white",
+      bg: null,
+      modifiers: null
+    },
+    namespace: {
+      fg: "$white",
+      bg: null,
+      modifiers: null
+    },
+    variable: {
+      fg: "$white",
+      bg: null,
+      modifiers: null
+    },
+    keyword: {
+      fg: "$white",
+      bg: null,
+      modifiers: null
+    },
+    comment: {
+      fg: "$gray-mid",
+      bg: null,
+      modifiers: null
+    }
+  }
+}

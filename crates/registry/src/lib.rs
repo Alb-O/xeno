@@ -156,7 +156,7 @@ xeno_macros::define_events! {
 	},
 	/// An option value was changed via :set or :setlocal.
 	OptionChanged => "option:changed" {
-		/// The KDL key of the changed option (e.g., "tab-width").
+		/// The config key of the changed option (e.g., "tab-width").
 		key: Str,
 		/// The scope of the change: "global" or "buffer".
 		scope: Str,

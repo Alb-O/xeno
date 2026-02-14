@@ -13,5 +13,6 @@ pub struct SnippetSpec {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SnippetsSpec {
+	#[serde(default)]
 	pub snippets: Vec<SnippetSpec>,
 }

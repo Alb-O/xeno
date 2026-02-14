@@ -22,14 +22,11 @@ pub enum GrammarBuildError {
 	/// Git executable not found in PATH.
 	#[error("git is not available on PATH")]
 	GitNotAvailable,
-	/// Failed to read the languages.kdl configuration file.
-	#[error("failed to read languages.kdl: {0}")]
+	/// Failed to read the languages configuration file.
+	#[error("failed to read languages config: {0}")]
 	ConfigRead(#[from] std::io::Error),
-	/// KDL parsing error in languages.kdl.
-	#[error("failed to parse languages.kdl: {0}")]
-	ConfigParseKdl(#[from] kdl::KdlError),
-	/// Semantic error in languages.kdl configuration.
-	#[error("invalid languages.kdl configuration: {0}")]
+	/// Semantic error in languages configuration.
+	#[error("invalid languages configuration: {0}")]
 	ConfigParse(String),
 	/// Git clone, fetch, or checkout failed.
 	#[error("git command failed: {0}")]

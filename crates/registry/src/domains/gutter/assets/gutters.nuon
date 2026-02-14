@@ -1,0 +1,11 @@
+# Gutter column definitions for xeno's line number and sign area.
+# Each gutter defines metadata; render/width handlers are linked at startup.
+{
+  gutters: [
+    { common: { name: line_numbers, description: "Absolute line numbers" }, width: dynamic, enabled: true }
+    { common: { name: relative, description: "Relative line numbers" }, width: dynamic, enabled: false }
+    { common: { name: hybrid, description: "Hybrid line numbers" }, width: dynamic, enabled: false }
+    { common: { name: diff_line_numbers, description: "Diff line numbers" }, width: "4", enabled: false }
+    { common: { name: signs, description: "Sign column", priority: 100 }, width: "2", enabled: true }
+  ]
+}

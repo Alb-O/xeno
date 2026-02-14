@@ -1,0 +1,25 @@
+# Motion definitions for xeno's cursor movement system.
+# Each motion defines metadata; Rust handlers are linked at startup via `motion_handler!`.
+{
+  motions: [
+    { common: { name: left, description: "Move left" } }
+    { common: { name: right, description: "Move right" } }
+    { common: { name: up, description: "Move up" } }
+    { common: { name: down, description: "Move down" } }
+    { common: { name: next_word_start, description: "Move to next word start" } }
+    { common: { name: next_word_end, description: "Move to next word end" } }
+    { common: { name: prev_word_start, description: "Move to previous word start" } }
+    { common: { name: next_long_word_start, description: "Move to next WORD start" } }
+    { common: { name: next_long_word_end, description: "Move to next WORD end" } }
+    { common: { name: prev_long_word_start, description: "Move to previous WORD start" } }
+    { common: { name: line_start, description: "Move to line start" } }
+    { common: { name: line_end, description: "Move to line end" } }
+    { common: { name: first_nonwhitespace, description: "Move to first non-whitespace character" } }
+    { common: { name: document_start, description: "Move to document start" } }
+    { common: { name: document_end, description: "Move to document end" } }
+    { common: { name: next_paragraph, description: "Move to next paragraph" } }
+    { common: { name: prev_paragraph, description: "Move to previous paragraph" } }
+    { common: { name: next_hunk, description: "Move to next diff hunk" } }
+    { common: { name: prev_hunk, description: "Move to previous diff hunk" } }
+  ]
+}

@@ -8,7 +8,7 @@ pub type LinkedOptionDef = LinkedDef<OptionPayload>;
 
 #[derive(Clone)]
 pub struct OptionPayload {
-	pub kdl_key: String,
+	pub key: String,
 	pub value_type: OptionType,
 	pub default: OptionDefault,
 	pub scope: OptionScope,
@@ -17,13 +17,13 @@ pub struct OptionPayload {
 
 impl LinkedPayload<OptionEntry> for OptionPayload {
 	fn collect_extra_keys<'b>(&'b self, collector: &mut crate::core::index::StringCollector<'_, 'b>) {
-		collector.push(self.kdl_key.as_str());
+		collector.push(self.key.as_str());
 	}
 
 	fn build_entry(&self, ctx: &mut dyn crate::core::index::BuildCtx, meta: RegistryMeta, _short_desc: Symbol) -> OptionEntry {
 		OptionEntry {
 			meta,
-			kdl_key: ctx.intern(&self.kdl_key),
+			key: ctx.intern(&self.key),
 			value_type: self.value_type,
 			default: self.default.clone(),
 			scope: self.scope,
@@ -57,7 +57,7 @@ pub fn link_options(spec: &OptionsSpec, validators: impl Iterator<Item = &'stati
 		defs.push(LinkedDef {
 			meta: crate::defs::link::linked_meta_from_spec(&meta.common),
 			payload: OptionPayload {
-				kdl_key: meta.kdl_key.clone(),
+				key: meta.key.clone(),
 				value_type,
 				default,
 				scope,

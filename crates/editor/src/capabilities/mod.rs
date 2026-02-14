@@ -42,10 +42,10 @@ use xeno_registry::options::{OptionValue, parse};
 ///
 /// Uses centralized validation from the options registry, including type checking
 /// and any custom validators defined on the option.
-pub(crate) fn parse_option_value(kdl_key: &str, value: &str) -> Result<OptionValue, CommandError> {
+pub(crate) fn parse_option_value(key: &str, value: &str) -> Result<OptionValue, CommandError> {
 	use xeno_registry::options::OptionError;
 
-	parse::parse_value(kdl_key, value).map_err(|e| match e {
+	parse::parse_value(key, value).map_err(|e| match e {
 		OptionError::UnknownOption(key) => {
 			let suggestion = parse::suggest_option(&key);
 			match suggestion {

@@ -1,5 +1,0 @@
-// Hook definitions for xeno's event system.
-// Each `hook` node defines metadata; handlers are linked at startup.
-hook log_buffer_open event="buffer:open" priority=1000 description="Log buffer open"
-hook log_mode_change event="mode:change" priority=1000 description="Log mode change"
-hook log_option_change event="option:changed" priority=1000 description="Log option change"

@@ -22,20 +22,20 @@ fn test_get_missing() {
 }
 
 #[test]
-fn test_set_by_kdl() {
+fn test_set_by_key() {
 	let mut store = OptionStore::new();
 	let options = &crate::db::OPTIONS;
 	let tab_width = options.get_key(&keys::TAB_WIDTH.untyped()).unwrap();
-	store.set_by_kdl(options, "tab-width", OptionValue::Int(2)).unwrap();
+	store.set_by_key(options, "tab-width", OptionValue::Int(2)).unwrap();
 
 	assert_eq!(store.get_int(tab_width.dense_id()), Some(2));
 }
 
 #[test]
-fn test_set_by_kdl_unknown() {
+fn test_set_by_key_unknown() {
 	let mut store = OptionStore::new();
 	let options = &crate::db::OPTIONS;
-	let result = store.set_by_kdl(options, "unknown-option", OptionValue::Int(1));
+	let result = store.set_by_key(options, "unknown-option", OptionValue::Int(1));
 
 	assert!(matches!(result, Err(OptionError::UnknownOption(_))));
 }

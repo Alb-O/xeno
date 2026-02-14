@@ -42,9 +42,9 @@ impl OptionStore {
 		self.values[id.as_u32() as usize] = Some(value);
 	}
 
-	/// Sets an option value by KDL key (for config parsing).
-	pub fn set_by_kdl(&mut self, reg: &OptionsRegistry, kdl_key: &str, value: OptionValue) -> Result<(), OptionError> {
-		let opt = reg.get(kdl_key).ok_or_else(|| OptionError::UnknownOption(kdl_key.to_string()))?;
+	/// Sets an option value by config key.
+	pub fn set_by_key(&mut self, reg: &OptionsRegistry, key: &str, value: OptionValue) -> Result<(), OptionError> {
+		let opt = reg.get(key).ok_or_else(|| OptionError::UnknownOption(key.to_string()))?;
 
 		crate::options::validate_ref(&opt, &value)?;
 

@@ -221,15 +221,15 @@ fn parse_options_with_context(value: &Value, context: ParseContext, field: &str)
 	let mut warnings = Vec::new();
 	let record = expect_record(value, field)?;
 
-	for (kdl_key, raw_value) in record.iter() {
-		let def = find(kdl_key).ok_or_else(|| ConfigError::UnknownOption {
-			key: kdl_key.to_string(),
-			suggestion: suggest_option(kdl_key),
+	for (opt_key, raw_value) in record.iter() {
+		let def = find(opt_key).ok_or_else(|| ConfigError::UnknownOption {
+			key: opt_key.to_string(),
+			suggestion: suggest_option(opt_key),
 		})?;
 
 		if context == ParseContext::Language && def.scope == OptionScope::Global {
 			warnings.push(ConfigWarning::ScopeMismatch {
-				option: kdl_key.to_string(),
+				option: opt_key.to_string(),
 				found_in: "language block",
 				expected: "global options block",
 			});
@@ -237,25 +237,25 @@ fn parse_options_with_context(value: &Value, context: ParseContext, field: &str)
 		}
 
 		let opt_value = value_to_option_value(raw_value).ok_or_else(|| ConfigError::OptionTypeMismatch {
-			option: kdl_key.to_string(),
+			option: opt_key.to_string(),
 			expected: option_type_name(def.value_type),
 			got: option_value_type(raw_value),
 		})?;
 
 		if !opt_value.matches_type(def.value_type) {
 			return Err(ConfigError::OptionTypeMismatch {
-				option: kdl_key.to_string(),
+				option: opt_key.to_string(),
 				expected: option_type_name(def.value_type),
 				got: opt_value.type_name(),
 			});
 		}
 
-		if let Err(e) = crate::options::validate(kdl_key, &opt_value) {
+		if let Err(e) = crate::options::validate(opt_key, &opt_value) {
 			eprintln!("Warning: {e}");
 			continue;
 		}
 
-		let _ = store.set_by_kdl(&crate::options::OPTIONS, kdl_key, opt_value);
+		let _ = store.set_by_key(&crate::options::OPTIONS, opt_key, opt_value);
 	}
 
 	Ok(ParsedOptions { store, warnings })

@@ -166,7 +166,6 @@ async fn load_themes_blocking(config_themes_dir: Option<PathBuf>, data_themes_di
 
 /// Loads themes from `dir` into the accumulator vectors, logging on failure.
 fn collect_dir_themes(dir: &std::path::Path, themes: &mut Vec<xeno_registry::themes::LinkedThemeDef>, errors: &mut Vec<(String, String)>) {
-	use xeno_registry::config::kdl::parse_theme_standalone_str as parse_kdl_theme;
 	use xeno_registry::config::nuon::parse_theme_standalone_str as parse_nuon_theme;
 
 	if !dir.exists() {
@@ -184,17 +183,10 @@ fn collect_dir_themes(dir: &std::path::Path, themes: &mut Vec<xeno_registry::the
 	let mut files: Vec<std::path::PathBuf> = entries
 		.flatten()
 		.map(|entry| entry.path())
-		.filter(|path| path.extension().is_some_and(|ext| ext == "kdl" || ext == "nuon"))
+		.filter(|path| path.extension().is_some_and(|ext| ext == "nuon"))
 		.collect();
 
-	files.sort_by(|a, b| {
-		let stem_a = a.file_stem().and_then(|s| s.to_str()).unwrap_or_default();
-		let stem_b = b.file_stem().and_then(|s| s.to_str()).unwrap_or_default();
-		stem_a
-			.cmp(stem_b)
-			.then_with(|| theme_ext_rank(a.extension()).cmp(&theme_ext_rank(b.extension())))
-			.then_with(|| a.file_name().cmp(&b.file_name()))
-	});
+	files.sort_by(|a, b| a.file_name().cmp(&b.file_name()));
 
 	for path in files {
 		let filename = path.file_name().unwrap_or_default().to_string_lossy().into_owned();
@@ -207,24 +199,10 @@ fn collect_dir_themes(dir: &std::path::Path, themes: &mut Vec<xeno_registry::the
 			}
 		};
 
-		let parsed = match path.extension().and_then(|ext| ext.to_str()) {
-			Some("kdl") => parse_kdl_theme(&content),
-			Some("nuon") => parse_nuon_theme(&content),
-			_ => continue,
-		};
-
-		match parsed {
+		match parse_nuon_theme(&content) {
 			Ok(theme) => themes.push(theme),
 			Err(e) => errors.push((filename, e.to_string())),
 		}
-	}
-}
-
-fn theme_ext_rank(ext: Option<&std::ffi::OsStr>) -> u8 {
-	match ext.and_then(|s| s.to_str()) {
-		Some("kdl") => 0,
-		Some("nuon") => 1,
-		_ => u8::MAX,
 	}
 }
 

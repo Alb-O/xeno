@@ -44,11 +44,11 @@ impl CommandEditorOps for EditorCaps<'_> {
 		ThemeAccess::set_theme(self, name)
 	}
 
-	fn set_option(&mut self, kdl_key: &str, value: &str) -> Result<(), CommandError> {
-		let opt_value = super::parse_option_value(kdl_key, value)?;
-		let _ = self.ed.state.config.global_options.set_by_kdl(&xeno_registry::db::OPTIONS, kdl_key, opt_value);
+	fn set_option(&mut self, key: &str, value: &str) -> Result<(), CommandError> {
+		let opt_value = super::parse_option_value(key, value)?;
+		let _ = self.ed.state.config.global_options.set_by_key(&xeno_registry::db::OPTIONS, key, opt_value);
 
-		if let Some(def) = find(kdl_key) {
+		if let Some(def) = find(key) {
 			let resolved_key = def.name_str();
 			emit_hook_sync_with(
 				&HookContext::new(HookEventData::OptionChanged {
@@ -61,24 +61,24 @@ impl CommandEditorOps for EditorCaps<'_> {
 		Ok(())
 	}
 
-	fn set_local_option(&mut self, kdl_key: &str, value: &str) -> Result<(), CommandError> {
-		let def = find(kdl_key).ok_or_else(|| {
+	fn set_local_option(&mut self, key: &str, value: &str) -> Result<(), CommandError> {
+		let def = find(key).ok_or_else(|| {
 			use xeno_registry::options::parse;
-			let suggestion = parse::suggest_option(kdl_key);
+			let suggestion = parse::suggest_option(key);
 			CommandError::InvalidArgument(match suggestion {
-				Some(s) => format!("unknown option '{kdl_key}'). Did you mean '{s}'?"),
-				None => format!("unknown option '{kdl_key}'"),
+				Some(s) => format!("unknown option '{key}'). Did you mean '{s}'?"),
+				None => format!("unknown option '{key}'"),
 			})
 		})?;
 
 		if def.scope == OptionScope::Global {
 			return Err(CommandError::InvalidArgument(format!(
-				"'{kdl_key}' is a global option, use :set instead of :setlocal"
+				"'{key}' is a global option, use :set instead of :setlocal"
 			)));
 		}
 
-		let opt_value = super::parse_option_value(kdl_key, value)?;
-		let _ = self.ed.buffer_mut().local_options.set_by_kdl(&xeno_registry::db::OPTIONS, kdl_key, opt_value);
+		let opt_value = super::parse_option_value(key, value)?;
+		let _ = self.ed.buffer_mut().local_options.set_by_key(&xeno_registry::db::OPTIONS, key, opt_value);
 
 		let resolved_key = def.name_str();
 		emit_hook_sync_with(

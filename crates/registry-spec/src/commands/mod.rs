@@ -12,5 +12,6 @@ pub struct CommandSpec {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CommandsSpec {
+	#[serde(default)]
 	pub commands: Vec<CommandSpec>,
 }

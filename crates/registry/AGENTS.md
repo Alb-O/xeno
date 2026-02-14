@@ -2,7 +2,7 @@
 
 This file is for contributors working on the `xeno-registry` crate. It describes the registry’s architecture, the data flow from authored metadata to runtime entries, and the conventions for adding or modifying domains.
 
-The registry is **format-neutral at runtime**. Built-in definitions use compiled specs, but user configuration is parsed at runtime via the `config` module (requires `config-kdl` feature).
+The registry is **format-neutral at runtime**. Built-in definitions use compiled specs, but user configuration is parsed at runtime via the `config` module (requires `config-nuon` feature).
 
 ---
 
@@ -37,7 +37,7 @@ The registry is a typed database of editor definitions (actions, commands, optio
 ### Pipeline (end-to-end)
 
 **Build time**
-1. Authoring input: domain metadata authored as KDL (currently) under `crates/registry/src/domains/<domain>/assets/`.
+1. Authoring input: domain metadata authored as NUON under `crates/registry/src/domains/<domain>/assets/`.
 2. Compilation: `crates/registry/build.rs` dispatches to `xeno_registry_spec::<domain>::compile::build` in `crates/registry-spec/src/<domain>/compile.rs`.
 3. Serialization: specs are serialized with `postcard` and written as `<domain>.bin` using the shared blob wrapper.
 4. Embedding: `.bin` files are embedded into the final binary (`include_bytes!(concat!(env!("OUT_DIR"), ...))`).
@@ -49,14 +49,12 @@ The registry is a typed database of editor definitions (actions, commands, optio
 4. Publish: each domain is exposed via a `RuntimeRegistry` holding an atomic `Snapshot`.
 5. Extend: runtime registration builds a new snapshot and publishes it with CAS.
 
-### Runtime user configuration (optional, `config-kdl` feature)
+### Runtime user configuration (optional, `config-nuon` feature)
 
 User configuration (themes, options, keys) is parsed at runtime via `xeno_registry::config`:
 
 - **`config::Config`**: Unified config struct holding themes, options, keys, and language overrides
-- **`config::kdl`**: KDL parsing functions (requires `config-kdl` feature)
-  - `parse_config_str()`: Parse main config file
-  - `parse_theme_standalone_str()`: Parse standalone theme files
+- **`config::nuon`**: NUON parsing functions (requires `config-nuon` feature)
 - **`config::ConfigWarning`**: Non-fatal warnings (e.g., scope mismatches)
 
 Applications (e.g., `xeno-term`) read config files and call the parsing functions. The registry validates options against domain definitions and registers themes via `themes::register_runtime_themes()`.
@@ -281,7 +279,7 @@ Run with `--features registry-contracts` if you’re touching collection/build l
   - handler-driven domains should use `defs::link::link_by_name`
 
 **Build time (`crates/registry/build.rs` + `crates/registry-spec/src/<domain>/compile.rs`)**:
-- parse authoring format (KDL)
+- parse authoring format (NUON)
 - emit the same `Spec` structs
 - serialize via `postcard` using the shared blob wrapper
 - emit `cargo:rerun-if-changed` for authoring inputs

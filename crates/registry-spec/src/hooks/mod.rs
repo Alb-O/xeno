@@ -13,5 +13,6 @@ pub struct HookSpec {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HooksSpec {
+	#[serde(default)]
 	pub hooks: Vec<HookSpec>,
 }

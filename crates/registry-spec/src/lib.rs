@@ -1,5 +1,7 @@
 #[cfg(feature = "compile")]
 pub mod compile;
+#[cfg(feature = "compile")]
+pub(crate) mod nu_de;
 
 pub mod meta;
 pub use meta::MetaCommonSpec;

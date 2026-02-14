@@ -12,5 +12,6 @@ pub struct MotionSpec {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MotionsSpec {
+	#[serde(default)]
 	pub motions: Vec<MotionSpec>,
 }

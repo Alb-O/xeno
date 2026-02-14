@@ -15,19 +15,14 @@ pub struct ConfigLoadReport {
 	pub errors: Vec<(PathBuf, String)>,
 }
 
-/// Loads and merges user configuration from `config.kdl`, `config.nuon`, and `config.nu`.
+/// Loads and merges user configuration from `config.nuon` and `config.nu`.
 ///
 /// Merge precedence is fixed and deterministic:
-/// `config.kdl` < `config.nuon` < `config.nu`.
+/// `config.nuon` < `config.nu`.
 pub fn load_user_config_from_dir(config_dir: &Path) -> ConfigLoadReport {
 	let mut report = ConfigLoadReport::default();
 	let mut merged = Config::default();
 	let mut found_any = false;
-
-	#[cfg(feature = "config-kdl")]
-	load_layer(&mut report, &mut merged, &mut found_any, config_dir, "config.kdl", |content, _| {
-		crate::config::kdl::parse_config_str(content)
-	});
 
 	#[cfg(feature = "config-nuon")]
 	load_layer(&mut report, &mut merged, &mut found_any, config_dir, "config.nuon", |content, _| {

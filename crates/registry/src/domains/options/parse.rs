@@ -6,13 +6,11 @@
 use crate::options::{OptionError, OptionType, OptionValue};
 
 /// Parse a string value into an [`OptionValue`] based on the option's declared type.
-pub fn parse_value(kdl_key: &str, value: &str) -> Result<OptionValue, OptionError> {
-	let entry = crate::options::OPTIONS
-		.get(kdl_key)
-		.ok_or_else(|| OptionError::UnknownOption(kdl_key.to_string()))?;
+pub fn parse_value(key: &str, value: &str) -> Result<OptionValue, OptionError> {
+	let entry = crate::options::OPTIONS.get(key).ok_or_else(|| OptionError::UnknownOption(key.to_string()))?;
 
 	let opt_value = parse_value_for_type(value, entry.value_type).map_err(|reason| OptionError::InvalidValue {
-		option: kdl_key.to_string(),
+		option: key.to_string(),
 		reason,
 	})?;
 
@@ -44,7 +42,7 @@ pub fn parse_int(value: &str) -> Result<i64, String> {
 	value.parse::<i64>().map_err(|_| format!("invalid integer: '{value}'"))
 }
 
-/// Suggests a similar option KDL key using fuzzy matching.
+/// Suggests a similar option key using fuzzy matching.
 pub fn suggest_option(key: &str) -> Option<String> {
 	if let Some(msg) = deprecated_option_message(key) {
 		return Some(msg);
@@ -53,7 +51,7 @@ pub fn suggest_option(key: &str) -> Option<String> {
 	crate::options::OPTIONS
 		.snapshot_guard()
 		.iter_refs()
-		.map(|o: crate::options::OptionsRef| o.resolve(o.kdl_key).to_string())
+		.map(|o: crate::options::OptionsRef| o.resolve(o.key).to_string())
 		.min_by_key(|k| strsim::levenshtein(key, k))
 		.filter(|k| strsim::levenshtein(key, k) <= 3)
 }

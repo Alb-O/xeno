@@ -105,10 +105,10 @@ pub trait CommandEditorOps {
 	fn save_as(&mut self, path: PathBuf) -> BoxFutureLocal<'_, Result<(), CommandError>>;
 	/// Changes the active color theme.
 	fn set_theme(&mut self, name: &str) -> Result<(), CommandError>;
-	/// Sets a global option value by KDL key.
-	fn set_option(&mut self, kdl_key: &str, value: &str) -> Result<(), CommandError>;
-	/// Sets a buffer-local option value by KDL key.
-	fn set_local_option(&mut self, kdl_key: &str, value: &str) -> Result<(), CommandError>;
+	/// Sets a global option value by config key.
+	fn set_option(&mut self, key: &str, value: &str) -> Result<(), CommandError>;
+	/// Sets a buffer-local option value by config key.
+	fn set_local_option(&mut self, key: &str, value: &str) -> Result<(), CommandError>;
 	/// Opens an info popup with the given content and optional file type for syntax highlighting.
 	fn open_info_popup(&mut self, content: &str, file_type: Option<&str>);
 	/// Closes all open info popups.

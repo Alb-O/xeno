@@ -22,7 +22,9 @@ pub const VALID_CAPS: &[&str] = &[
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActionSpec {
 	pub common: MetaCommonSpec,
+	#[serde(default)]
 	pub bindings: Vec<KeyBindingSpec>,
+	#[serde(default)]
 	pub group: Option<String>,
 }
 
@@ -41,6 +43,8 @@ pub struct KeyPrefixSpec {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActionsSpec {
+	#[serde(default)]
 	pub actions: Vec<ActionSpec>,
+	#[serde(default)]
 	pub prefixes: Vec<KeyPrefixSpec>,
 }

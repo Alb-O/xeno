@@ -1,0 +1,9 @@
+# Hook definitions for xeno's event system.
+# Each hook defines metadata; handlers are linked at startup.
+{
+  hooks: [
+    { common: { name: log_buffer_open, description: "Log buffer open", priority: 1000 }, event: "buffer:open" }
+    { common: { name: log_mode_change, description: "Log mode change", priority: 1000 }, event: "mode:change" }
+    { common: { name: log_option_change, description: "Log option change", priority: 1000 }, event: "option:changed" }
+  ]
+}

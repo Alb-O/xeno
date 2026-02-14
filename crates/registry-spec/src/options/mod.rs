@@ -12,8 +12,8 @@ pub const VALID_SCOPES: &[&str] = &["buffer", "global"];
 pub struct OptionSpec {
 	/// Common metadata.
 	pub common: MetaCommonSpec,
-	/// KDL config key (e.g., `"tab-width"`).
-	pub kdl_key: String,
+	/// Config key (e.g., `"tab-width"`).
+	pub key: String,
 	/// Value type: `"bool"`, `"int"`, `"string"`.
 	pub value_type: String,
 	/// Default value as a string.
@@ -21,10 +21,12 @@ pub struct OptionSpec {
 	/// Scope: `"buffer"` or `"global"`.
 	pub scope: String,
 	/// Optional validator name.
+	#[serde(default)]
 	pub validator: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OptionsSpec {
+	#[serde(default)]
 	pub options: Vec<OptionSpec>,
 }

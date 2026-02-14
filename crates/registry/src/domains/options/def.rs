@@ -14,7 +14,7 @@ pub enum OptionScope {
 #[derive(Clone)]
 pub struct OptionDef {
 	pub meta: RegistryMetaStatic,
-	pub kdl_key: &'static str,
+	pub key: &'static str,
 	pub value_type: OptionType,
 	pub default: OptionDefault,
 	pub scope: OptionScope,
@@ -26,15 +26,12 @@ pub type OptionKey = crate::core::LookupKey<OptionEntry, crate::core::OptionId>;
 
 impl core::fmt::Debug for OptionDef {
 	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-		f.debug_struct("OptionDef")
-			.field("name", &self.meta.name)
-			.field("kdl_key", &self.kdl_key)
-			.finish()
+		f.debug_struct("OptionDef").field("name", &self.meta.name).field("key", &self.key).finish()
 	}
 }
 
 /// Unified input for option registration — either a static `OptionDef`
-/// (from `derive_option`) or a `LinkedOptionDef` assembled from KDL metadata.
+/// (from `derive_option`) or a `LinkedOptionDef` assembled from spec metadata.
 pub type OptionInput = crate::core::def_input::DefInput<OptionDef, crate::options::link::LinkedOptionDef>;
 
 impl BuildEntry<OptionEntry> for OptionDef {
@@ -56,15 +53,15 @@ impl BuildEntry<OptionEntry> for OptionDef {
 	}
 
 	fn collect_payload_strings<'b>(&'b self, collector: &mut crate::core::index::StringCollector<'_, 'b>) {
-		collector.push(self.kdl_key);
+		collector.push(self.key);
 	}
 
 	fn build(&self, ctx: &mut dyn crate::core::index::BuildCtx, key_pool: &mut Vec<Symbol>) -> OptionEntry {
-		let meta = crate::core::index::meta_build::build_meta(ctx, key_pool, self.meta_ref(), [self.kdl_key]);
+		let meta = crate::core::index::meta_build::build_meta(ctx, key_pool, self.meta_ref(), [self.key]);
 
 		OptionEntry {
 			meta,
-			kdl_key: ctx.intern(self.kdl_key),
+			key: ctx.intern(self.key),
 			value_type: self.value_type,
 			default: self.default.clone(),
 			scope: self.scope,

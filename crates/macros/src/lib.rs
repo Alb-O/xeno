@@ -9,7 +9,6 @@ use proc_macro::TokenStream;
 
 mod dispatch;
 mod events;
-mod keybindings;
 /// Notification macro implementation.
 mod notification;
 /// Option derive macro implementation.
@@ -48,28 +47,6 @@ pub fn register_notification(input: TokenStream) -> TokenStream {
 #[proc_macro_derive(DispatchResult, attributes(handler, handler_coverage))]
 pub fn derive_dispatch_result(input: TokenStream) -> TokenStream {
 	dispatch::derive_dispatch_result(input)
-}
-
-/// Parses KDL keybinding definitions at compile time.
-///
-/// ```kdl
-/// normal "h" "left" "ctrl-h"
-/// insert "left"
-/// window "s"
-/// ```
-///
-/// Called internally by `action!` macro:
-///
-/// ```ignore
-/// action!(
-///     move_left,
-///     { description: "Move cursor left", bindings: r#"normal "h" "left""# },
-///     |ctx| { ... }
-/// );
-/// ```
-#[proc_macro]
-pub fn parse_keybindings(input: TokenStream) -> TokenStream {
-	keybindings::parse_keybindings(input)
 }
 
 /// Generates hook event types and extractor macros from a single definition.
@@ -115,7 +92,7 @@ pub fn define_events(input: TokenStream) -> TokenStream {
 ///
 /// ```ignore
 /// #[derive(Option)]
-/// #[option(kdl = "tab-width", scope = buffer)]
+/// #[option(key = "tab-width", scope = buffer)]
 /// /// Number of spaces a tab character occupies.
 /// pub static TAB_WIDTH: i64 = 4;
 /// ```
@@ -126,7 +103,7 @@ pub fn define_events(input: TokenStream) -> TokenStream {
 ///
 /// # Attributes
 ///
-/// - `kdl = "key"` - Required: KDL configuration key
+/// - `key = "key-name"` - Required: configuration key
 /// - `scope = global | buffer` - Required: Option scope
 /// - `priority = N` - Optional: Sort priority (default 0)
 ///
