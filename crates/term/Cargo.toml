@@ -31,7 +31,7 @@ xeno-editor-tui.workspace = true
 xeno-language.workspace = true
 
 [dev-dependencies]
-kitty-test-harness.workspace = true
+kitty-test-harness = "0.2"
 serde_json.workspace = true
 serial_test.workspace = true
 termwiz.workspace = true
