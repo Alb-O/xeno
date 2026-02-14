@@ -49,6 +49,7 @@
 //! * Must skip stale non-viewport installs that would break projection continuity to the current document version.
 //! * Must prefer eager urgent viewport parses after L-tier history edits, even when a full tree is present, to reduce two-step undo repaint churn.
 //! * Must preserve the resident full-tree version on history edits so projection can reuse the prior syntax baseline during async catch-up.
+//! * Must restore remembered full-tree snapshots immediately when history edits return to previously seen content.
 //! * Must bound viewport scheduling to a capped visible byte span.
 //! * Must use viewport-specific cooldowns for viewport task failures.
 //! * Must suppress same-version history Stage-A retries after urgent timeout/error so background catch-up is not starved.

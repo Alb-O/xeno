@@ -170,7 +170,7 @@ fn write_modifiers(w: &mut impl Write, m: &xeno_primitives::Modifiers) -> std::i
 
 #[cfg(test)]
 mod tests {
-	use xeno_primitives::{Modifiers, MouseButton, ScrollDirection};
+	use xeno_primitives::{Key, Modifiers, MouseButton, ScrollDirection};
 
 	use super::*;
 

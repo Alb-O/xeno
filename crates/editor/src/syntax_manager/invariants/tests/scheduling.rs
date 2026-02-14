@@ -1,3 +1,6 @@
+use xeno_primitives::Transaction;
+use xeno_primitives::transaction::Change;
+
 use super::*;
 
 /// Must clear `pending_incremental` on language change, syntax reset, and retention drop.
@@ -219,6 +222,57 @@ pub(crate) fn test_history_incremental_preserves_resident_tree_version() {
 	assert_eq!(entry.slot.full.as_ref().map(|t| t.doc_version), Some(1));
 	assert!(entry.slot.pending_incremental.is_some());
 	assert!(entry.slot.dirty);
+	assert!(entry.sched.force_no_debounce);
+}
+
+/// Must restore remembered full-tree snapshots immediately when history edits
+/// return to previously seen content.
+///
+/// * Enforced in: `SyntaxManager::note_edit_incremental`
+/// * Failure symptom: Undo/redo shows stale syntax until viewport/background
+///   parsing catches up.
+#[cfg_attr(test, test)]
+pub(crate) fn test_history_edit_restores_full_tree_from_memory() {
+	let mut mgr = SyntaxManager::default();
+	let doc_id = DocumentId(1);
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang = loader.language_for_name("rust").unwrap();
+
+	let content_v1 = Rope::from("fn main() {\n\tlet alpha = 1;\n}\n");
+	{
+		let entry = mgr.entry_mut(doc_id);
+		entry.slot.language_id = Some(lang);
+		let syntax = Syntax::new(content_v1.slice(..), lang, &loader, SyntaxOptions::default()).unwrap();
+		let tree_id = entry.slot.alloc_tree_id();
+		entry.slot.full = Some(InstalledTree {
+			syntax,
+			doc_version: 1,
+			tree_id,
+		});
+	}
+
+	let tx = Transaction::change(
+		content_v1.slice(..),
+		[Change {
+			start: 0,
+			end: 0,
+			replacement: Some("// edited\n".to_string()),
+		}],
+	);
+	let mut content_v2 = content_v1.clone();
+	tx.apply(&mut content_v2);
+	mgr.note_edit_incremental(doc_id, 2, &content_v1, &content_v2, tx.changes(), &loader, EditSource::Typing);
+
+	let undo_tx = tx.invert(&content_v1);
+	let mut content_v3 = content_v2.clone();
+	undo_tx.apply(&mut content_v3);
+	assert_eq!(content_v3, content_v1, "sanity: undo must restore the original text");
+	mgr.note_edit_incremental(doc_id, 3, &content_v2, &content_v3, undo_tx.changes(), &loader, EditSource::History);
+
+	let entry = mgr.entry_mut(doc_id);
+	assert_eq!(entry.slot.full.as_ref().map(|t| t.doc_version), Some(3));
+	assert!(entry.slot.pending_incremental.is_none());
+	assert!(!entry.slot.dirty);
 	assert!(entry.sched.force_no_debounce);
 }
 

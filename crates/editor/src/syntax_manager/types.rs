@@ -8,6 +8,9 @@ use xeno_primitives::{ChangeSet, Rope};
 
 use crate::core::document::DocumentId;
 
+/// Maximum number of remembered full-tree snapshots per document for undo/redo reuse.
+const FULL_TREE_MEMORY_CAP: usize = 8;
+
 /// Key for checking if parse options have changed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OptKey {
@@ -261,6 +264,12 @@ pub(crate) struct InstalledTree {
 	pub(crate) tree_id: u64,
 }
 
+/// Remembered full-tree snapshot for history replay to previously seen content.
+pub(crate) struct FullTreeMemoryEntry {
+	pub(crate) content: Rope,
+	pub(crate) syntax: Syntax,
+}
+
 /// Per-document syntax state managed by [`crate::syntax_manager::SyntaxManager`].
 ///
 /// Maintains two independent tree slots: a full-document tree and a
@@ -271,6 +280,9 @@ pub(crate) struct InstalledTree {
 pub struct SyntaxSlot {
 	/// Full-document syntax tree with version and identity metadata.
 	pub(super) full: Option<InstalledTree>,
+
+	/// Recently-seen full trees keyed by exact rope content for undo/redo restores.
+	pub(super) full_tree_memory: VecDeque<FullTreeMemoryEntry>,
 
 	/// LRU cache of viewport-bounded partial syntax trees keyed by aligned window.
 	pub(super) viewport_cache: ViewportCache,
@@ -326,6 +338,7 @@ impl SyntaxSlot {
 	/// Drops the full tree.
 	pub(super) fn drop_full(&mut self) {
 		self.full = None;
+		self.full_tree_memory.clear();
 	}
 
 	/// Drops all viewport cached trees.
@@ -339,6 +352,47 @@ impl SyntaxSlot {
 		self.drop_viewport();
 		self.pending_incremental = None;
 		self.sync_bootstrap_attempted = false;
+	}
+
+	/// Records the current full tree for potential history restore to `content`.
+	pub(super) fn remember_full_tree_for_content(&mut self, content: &Rope) {
+		let Some(full) = self.full.as_ref() else {
+			return;
+		};
+
+		if self.full_tree_memory.front().is_some_and(|entry| entry.content == *content) {
+			return;
+		}
+		if let Some(pos) = self.full_tree_memory.iter().position(|entry| entry.content == *content) {
+			self.full_tree_memory.remove(pos);
+		}
+		if self.full_tree_memory.len() >= FULL_TREE_MEMORY_CAP {
+			self.full_tree_memory.pop_back();
+		}
+		self.full_tree_memory.push_front(FullTreeMemoryEntry {
+			content: content.clone(),
+			syntax: full.syntax.clone(),
+		});
+	}
+
+	/// Restores a remembered full tree if `content` matches a stored snapshot.
+	pub(super) fn restore_full_tree_for_content(&mut self, content: &Rope, doc_version: u64) -> bool {
+		let Some(pos) = self.full_tree_memory.iter().position(|entry| entry.content == *content) else {
+			return false;
+		};
+		let remembered = self.full_tree_memory.remove(pos).expect("position from iter().position must be in bounds");
+		let tree_id = self.alloc_tree_id();
+		self.full = Some(InstalledTree {
+			syntax: remembered.syntax.clone(),
+			doc_version,
+			tree_id,
+		});
+		// Keep the restored snapshot hot for potential redo/undo toggles.
+		self.full_tree_memory.push_front(FullTreeMemoryEntry {
+			content: remembered.content,
+			syntax: remembered.syntax,
+		});
+		true
 	}
 }
 

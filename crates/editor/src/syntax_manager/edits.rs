@@ -98,6 +98,12 @@ impl SyntaxManager {
 		}
 		let version_before = doc_version - 1;
 
+		// Capture exact pre-edit full trees so history ops can restore prior
+		// syntax immediately when content returns to a remembered state.
+		if entry.slot.full.as_ref().is_some_and(|t| t.doc_version == version_before) {
+			entry.slot.remember_full_tree_for_content(old_rope);
+		}
+
 		// Manage pending incremental window.
 		match entry.slot.pending_incremental.take() {
 			Some(mut pending) => {
@@ -121,10 +127,23 @@ impl SyntaxManager {
 			}
 		}
 
-		// Preserve pre-history trees as projection baselines; large inverse edits
-		// are scheduled through viewport/background lanes instead of mutating the
-		// resident full tree in place.
+		// Restore remembered tree snapshots first; otherwise preserve pre-history
+		// trees as projection baselines and schedule async catch-up.
 		if source == EditSource::History {
+			if !changeset.is_identity() && entry.slot.restore_full_tree_for_content(new_rope, doc_version) {
+				entry.slot.pending_incremental = None;
+				entry.slot.dirty = false;
+				Self::mark_updated(&mut entry.slot);
+				tracing::trace!(
+					target: "xeno_undo_trace",
+					?doc_id,
+					doc_version,
+					full_doc_version = ?entry.slot.full.as_ref().map(|t| t.doc_version),
+					"syntax.note_edit_incremental.history_restore_from_memory"
+				);
+				return;
+			}
+
 			tracing::trace!(
 				target: "xeno_undo_trace",
 				?doc_id,
