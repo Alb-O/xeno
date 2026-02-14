@@ -23,7 +23,11 @@
     blue: "#0000C8",
     gray-dark: "#141414",
     black: "#000000",
-    gray-popup: "#1E1E1E"
+    gray-popup: "#1E1E1E",
+    cyan: "#00C8C8",
+    orange: "#FF6400",
+    purple: "#C800FF",
+    aqua: "#00C896"
   },
   ui: {
     selection-bg: "$blue",
@@ -66,108 +70,33 @@
     title: "$green"
   },
   syntax: {
-    "diff.delta": {
-      fg: "$warning",
+    comment: {
+      fg: "$gray-mid",
       bg: null,
-      modifiers: null
+      modifiers: italic
     },
-    constant: {
-      fg: "$white",
-      bg: null,
-      modifiers: null
-    },
-    string: {
-      fg: "$white",
-      bg: null,
-      modifiers: null
-    },
-    "markup.raw": {
-      fg: "$white",
-      bg: null,
-      modifiers: null
-    },
-    special: {
-      fg: "$white",
-      bg: null,
-      modifiers: null
-    },
-    constructor: {
-      fg: "$white",
-      bg: null,
-      modifiers: null
-    },
-    "diff.plus": {
-      fg: "$green",
-      bg: null,
-      modifiers: null
-    },
-    "markup.bold": {
-      fg: "$white",
-      bg: null,
-      modifiers: null
-    },
-    operator: {
-      fg: "$white",
-      bg: null,
-      modifiers: null
-    },
-    attribute: {
-      fg: "$white",
-      bg: null,
-      modifiers: null
-    },
-    function: {
-      fg: "$white",
-      bg: null,
-      modifiers: null
-    },
-    tag: {
-      fg: "$white",
-      bg: null,
-      modifiers: null
-    },
-    type: {
-      fg: "$white",
-      bg: null,
-      modifiers: null
-    },
-    "markup.heading": {
-      fg: "$white",
-      bg: null,
-      modifiers: null
-    },
-    punctuation: {
-      fg: "$white",
-      bg: null,
-      modifiers: null
-    },
-    label: {
-      fg: "$white",
-      bg: null,
-      modifiers: null
-    },
-    "markup.italic": {
-      fg: "$white",
-      bg: null,
-      modifiers: null
-    },
-    "diff.minus": {
+    keyword: {
       fg: "$red",
       bg: null,
       modifiers: null
     },
-    "markup.list": {
-      fg: "$white",
+    string: {
+      fg: "$green",
       bg: null,
       modifiers: null
     },
-    "markup.link": {
-      fg: "$white",
+    function: {
+      fg: "$cyan",
       bg: null,
       modifiers: null
     },
-    namespace: {
-      fg: "$white",
+    type: {
+      fg: "$yellow",
+      bg: null,
+      modifiers: null
+    },
+    constant: {
+      fg: "$purple",
       bg: null,
       modifiers: null
     },
@@ -176,13 +105,88 @@
       bg: null,
       modifiers: null
     },
-    keyword: {
-      fg: "$white",
+    operator: {
+      fg: "$orange",
       bg: null,
       modifiers: null
     },
-    comment: {
-      fg: "$gray-mid",
+    punctuation: {
+      fg: "$gray-light",
+      bg: null,
+      modifiers: null
+    },
+    attribute: {
+      fg: "$aqua",
+      bg: null,
+      modifiers: null
+    },
+    namespace: {
+      fg: "$aqua",
+      bg: null,
+      modifiers: null
+    },
+    tag: {
+      fg: "$cyan",
+      bg: null,
+      modifiers: null
+    },
+    constructor: {
+      fg: "$purple",
+      bg: null,
+      modifiers: null
+    },
+    special: {
+      fg: "$orange",
+      bg: null,
+      modifiers: null
+    },
+    label: {
+      fg: "$red",
+      bg: null,
+      modifiers: null
+    },
+    "markup.heading": {
+      fg: "$yellow",
+      bg: null,
+      modifiers: bold
+    },
+    "markup.bold": {
+      fg: "$orange",
+      bg: null,
+      modifiers: bold
+    },
+    "markup.italic": {
+      fg: "$purple",
+      bg: null,
+      modifiers: italic
+    },
+    "markup.raw": {
+      fg: "$green",
+      bg: null,
+      modifiers: null
+    },
+    "markup.list": {
+      fg: "$red",
+      bg: null,
+      modifiers: null
+    },
+    "markup.link": {
+      fg: "$cyan",
+      bg: null,
+      modifiers: null
+    },
+    "diff.plus": {
+      fg: "$green",
+      bg: null,
+      modifiers: null
+    },
+    "diff.minus": {
+      fg: "$red",
+      bg: null,
+      modifiers: null
+    },
+    "diff.delta": {
+      fg: "$warning",
       bg: null,
       modifiers: null
     }
