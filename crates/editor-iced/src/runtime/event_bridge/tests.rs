@@ -96,7 +96,7 @@ fn map_event_tracks_ime_preedit_without_runtime_event() {
 }
 
 #[test]
-fn map_event_maps_window_resize_to_grid_cells() {
+fn map_event_ignores_window_resize_events() {
 	let mut state = EventBridgeState::default();
 	let metrics = CellMetrics {
 		width_px: 8.0,
@@ -104,7 +104,7 @@ fn map_event_maps_window_resize_to_grid_cells() {
 	};
 
 	let event = Event::Window(window::Event::Resized(iced::Size::new(80.0, 48.0)));
-	assert_eq!(map_event(event, metrics, &mut state), Some(RuntimeEvent::WindowResized { cols: 10, rows: 3 }));
+	assert_eq!(map_event(event, metrics, &mut state), None);
 }
 
 #[test]

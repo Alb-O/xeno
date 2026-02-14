@@ -55,6 +55,11 @@ impl EventBridgeState {
 	}
 }
 
+/// Maps iced runtime events into frontend-agnostic editor runtime events.
+///
+/// Window resize is intentionally not translated here; viewport size changes are
+/// sourced from the document `sensor` callbacks so layout and input coordinates
+/// share the same normalized size signal.
 pub(crate) fn map_event(event: Event, cell_metrics: CellMetrics, event_state: &mut EventBridgeState) -> Option<RuntimeEvent> {
 	match event {
 		Event::Keyboard(keyboard::Event::ModifiersChanged(modifiers)) => {
@@ -121,10 +126,6 @@ pub(crate) fn map_event(event: Event, cell_metrics: CellMetrics, event_state: &m
 				col: event_state.mouse_col,
 				modifiers: event_state.modifiers,
 			}))
-		}
-		Event::Window(window::Event::Opened { size, .. }) | Event::Window(window::Event::Resized(size)) => {
-			let (cols, rows) = cell_metrics.to_grid(size.width, size.height);
-			Some(RuntimeEvent::WindowResized { cols, rows })
 		}
 		Event::InputMethod(event) => map_input_method_event(event, event_state),
 		Event::Window(window::Event::Focused) => Some(RuntimeEvent::FocusIn),

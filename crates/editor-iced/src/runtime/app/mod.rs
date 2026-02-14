@@ -197,8 +197,6 @@ impl IcedEditorApp {
 					self.directive.should_quit = true;
 				} else if let Some(task) = clipboard_paste_task(&event) {
 					return task;
-				} else if matches!(event, Event::Mouse(_)) {
-				} else if matches!(event, Event::Window(window::Event::Opened { .. }) | Event::Window(window::Event::Resized(_))) {
 				} else if let Some(runtime_event) = map_event(event.clone(), self.cell_metrics, &mut self.event_state) {
 					self.directive = self.runtime.block_on(self.editor.on_event(runtime_event));
 					self.rebuild_snapshot_if_needed();
@@ -384,7 +382,10 @@ impl IcedEditorApp {
 			tick_interval = DEFAULT_POLL_INTERVAL;
 		}
 
-		Subscription::batch([event::listen().map(Message::Event), time::every(tick_interval).map(Message::Tick)])
+		Subscription::batch([
+			event::listen_with(filter_runtime_event).map(Message::Event),
+			time::every(tick_interval).map(Message::Tick),
+		])
 	}
 
 	pub(crate) fn title(&self) -> String {
@@ -569,8 +570,23 @@ pub fn run(startup: StartupOptions) -> iced::Result {
 	iced::application(move || IcedEditorApp::boot(startup.clone()), IcedEditorApp::update, IcedEditorApp::view)
 		.title(IcedEditorApp::title)
 		.subscription(IcedEditorApp::subscription)
+		.exit_on_close_request(false)
 		.window_size((1200.0, 800.0))
 		.run()
+}
+
+/// Keeps the editor runtime event stream focused on input and lifecycle signals.
+///
+/// We intentionally use `event::listen_with` instead of `event::listen` because
+/// the latter only forwards ignored events in iced. Filtering here ensures key,
+/// IME, and close/focus events are still observed even when a widget captures
+/// interaction status.
+fn filter_runtime_event(event: Event, _status: event::Status, _window: window::Id) -> Option<Event> {
+	match event {
+		Event::Keyboard(_) | Event::InputMethod(_) => Some(event),
+		Event::Window(window::Event::CloseRequested | window::Event::Focused | window::Event::Unfocused) => Some(event),
+		_ => None,
+	}
 }
 
 #[cfg(test)]

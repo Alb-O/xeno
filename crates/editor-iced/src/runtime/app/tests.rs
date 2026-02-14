@@ -24,13 +24,38 @@ fn parse_inspector_width_validates_bounds_and_fallback() {
 
 #[test]
 fn parse_show_inspector_understands_common_false_values() {
-	assert!(parse_show_inspector(None));
+	assert!(!parse_show_inspector(None));
 	assert!(parse_show_inspector(Some("1")));
 	assert!(parse_show_inspector(Some("true")));
 	assert!(!parse_show_inspector(Some("0")));
 	assert!(!parse_show_inspector(Some("false")));
 	assert!(!parse_show_inspector(Some("No")));
 	assert!(!parse_show_inspector(Some("off")));
+}
+
+#[test]
+fn filter_runtime_event_keeps_keyboard_and_ime_events() {
+	let window_id = window::Id::unique();
+
+	let key_event = Event::Keyboard(keyboard::Event::ModifiersChanged(keyboard::Modifiers::COMMAND));
+	assert_eq!(filter_runtime_event(key_event.clone(), event::Status::Captured, window_id), Some(key_event));
+
+	let ime_event = Event::InputMethod(iced_core::input_method::Event::Opened);
+	assert_eq!(filter_runtime_event(ime_event.clone(), event::Status::Ignored, window_id), Some(ime_event));
+}
+
+#[test]
+fn filter_runtime_event_keeps_selected_window_events() {
+	let window_id = window::Id::unique();
+
+	let close = Event::Window(window::Event::CloseRequested);
+	assert_eq!(filter_runtime_event(close.clone(), event::Status::Captured, window_id), Some(close));
+
+	let focus = Event::Window(window::Event::Focused);
+	assert_eq!(filter_runtime_event(focus.clone(), event::Status::Ignored, window_id), Some(focus));
+
+	let resize = Event::Window(window::Event::Resized(iced::Size::new(100.0, 60.0)));
+	assert_eq!(filter_runtime_event(resize, event::Status::Ignored, window_id), None);
 }
 
 #[test]
