@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 pub use xeno_primitives::Mode;
 use xeno_primitives::key::ScrollDirection;
 use xeno_registry::ActionId;
@@ -43,6 +45,11 @@ pub enum KeyResult {
 	Consumed,
 	/// Key was not handled.
 	Unhandled,
+	/// A non-action invocation spec from a key override (e.g., `command:write`).
+	InvocationSpec {
+		/// The raw invocation spec string.
+		spec: Arc<str>,
+	},
 	/// Insert a character (in insert mode).
 	InsertChar(char),
 	/// Request to quit.

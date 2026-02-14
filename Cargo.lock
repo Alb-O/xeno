@@ -6525,6 +6525,7 @@ dependencies = [
  "tracing-subscriber",
  "unicode-width 0.2.2",
  "xeno-input",
+ "xeno-invocation-spec",
  "xeno-keymap-core",
  "xeno-language",
  "xeno-lsp",
@@ -6567,6 +6568,10 @@ dependencies = [
  "xeno-primitives",
  "xeno-registry",
 ]
+
+[[package]]
+name = "xeno-invocation-spec"
+version = "0.8.20"
 
 [[package]]
 name = "xeno-keymap-core"
@@ -6692,6 +6697,7 @@ dependencies = [
  "strsim",
  "thiserror 2.0.18",
  "tracing",
+ "xeno-invocation-spec",
  "xeno-keymap-core",
  "xeno-macros",
  "xeno-nu",

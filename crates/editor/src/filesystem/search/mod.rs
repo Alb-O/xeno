@@ -122,7 +122,7 @@ fn run_query(generation: u64, id: u64, query: &str, limit: usize, data: &SearchD
 
 	for (idx, file) in data.files.iter().enumerate() {
 		scanned += 1;
-		if scanned % STALE_CHECK_INTERVAL == 0 && should_abort(id, latest_query_id) {
+		if scanned.is_multiple_of(STALE_CHECK_INTERVAL) && should_abort(id, latest_query_id) {
 			return None;
 		}
 

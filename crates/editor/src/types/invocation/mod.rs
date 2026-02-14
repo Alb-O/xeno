@@ -81,6 +81,20 @@ impl Invocation {
 		Self::EditorCommand { name: name.into(), args }
 	}
 
+	/// Parse a string spec like `action:move_right`, `command:write "foo bar.txt"`,
+	/// or `editor:reload_config` into an `Invocation`.
+	///
+	/// Delegates to [`xeno_invocation_spec::parse_spec`] for tokenization and
+	/// maps the result to the appropriate `Invocation` variant.
+	pub fn parse_spec(spec: &str) -> Result<Self, String> {
+		let parsed = xeno_invocation_spec::parse_spec(spec)?;
+		match parsed.kind {
+			xeno_invocation_spec::SpecKind::Action => Ok(Self::action(parsed.name)),
+			xeno_invocation_spec::SpecKind::Command => Ok(Self::command(parsed.name, parsed.args)),
+			xeno_invocation_spec::SpecKind::Editor => Ok(Self::editor_command(parsed.name, parsed.args)),
+		}
+	}
+
 	/// Short description for tracing/logging.
 	pub fn describe(&self) -> String {
 		match self {

@@ -5,6 +5,7 @@ members = [
     "crates/editor-iced",
     "crates/editor-tui",
     "crates/input",
+    "crates/invocation-spec",
     "crates/keymap/*",
     "crates/language",
     "crates/lsp",
@@ -105,6 +106,7 @@ which = "8.0"
 xeno-editor = { path = "crates/editor" }
 xeno-editor-tui = { path = "crates/editor-tui" }
 xeno-input = { path = "crates/input" }
+xeno-invocation-spec = { path = "crates/invocation-spec" }
 xeno-keymap-core = { path = "crates/keymap/core" }
 xeno-keymap-parser = { path = "crates/keymap/parser" }
 xeno-language = { path = "crates/language" }

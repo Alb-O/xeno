@@ -15,9 +15,7 @@ pub mod wrap;
 pub use buffer::DiagnosticSpan;
 pub use buffer::{BufferRenderContext, DiagnosticLineMap, DiagnosticRangeMap, GutterLayout, ensure_buffer_cursor_visible};
 pub use completion::OverlayCompletionMenuTarget;
-pub(crate) use document_plan::DocumentRenderPlan;
 pub use text::{RenderLine, RenderSpan};
-pub(crate) use view_plan::BufferViewRenderPlan;
 pub use view_plan::{
 	DocumentViewPlan, InfoPopupViewPlan, OverlayPaneViewPlan, SeparatorJunctionTarget, SeparatorRenderTarget, SeparatorScenePlan, SeparatorState,
 };

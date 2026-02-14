@@ -1,5 +1,4 @@
 use xeno_editor::Editor;
-use xeno_editor::render_api::Rect;
 
 use super::*;
 

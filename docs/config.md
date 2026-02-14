@@ -107,15 +107,15 @@ Example:
 
 ### `keys`
 
-Record keyed by mode name, then key sequence to action target.
+Record keyed by mode name, then key sequence to invocation target.
 
-Current target support:
+Supported target prefixes:
 
-* `action:<action-id|action-name|action-key>`
+* `action:<action-id|action-name|action-key>` — execute a registry action
+* `command:<name> [args...]` — execute a registry command
+* `editor:<name> [args...]` — execute an editor command
 
-Targets are resolved against the actions registry.
-
-`command:*` targets are currently ignored by the key override resolver.
+Arguments may be quoted with `"..."` (supports `\"`, `\\`, `\n`, `\t`, `\r` escapes) or `'...'` (no escapes).
 
 Example:
 
@@ -123,7 +123,10 @@ Example:
 {
   keys: {
     normal: {
-      "ctrl+s": "action:xeno-registry::some_action_id"
+      "ctrl+s": "command:write",
+      "ctrl+q": "editor:quit",
+      "g r": "editor:reload_config",
+      "ctrl+o": "command:open \"my file.txt\""
     }
   }
 }

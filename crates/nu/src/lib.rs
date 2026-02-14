@@ -24,10 +24,7 @@ pub use sandbox::ensure_sandboxed;
 pub fn create_engine_state(config_root: Option<&Path>) -> EngineState {
 	let mut engine_state = nu_cmd_lang::create_default_context();
 	if let Some(cwd) = config_root.and_then(|p| std::fs::canonicalize(p).ok()) {
-		engine_state.add_env_var(
-			"PWD".to_string(),
-			Value::string(cwd.to_string_lossy().to_string(), Span::unknown()),
-		);
+		engine_state.add_env_var("PWD".to_string(), Value::string(cwd.to_string_lossy().to_string(), Span::unknown()));
 	}
 	engine_state
 }
@@ -35,12 +32,7 @@ pub fn create_engine_state(config_root: Option<&Path>) -> EngineState {
 /// Parses Nu source, validates the sandbox, and merges into the engine state.
 ///
 /// Returns the parsed block on success, or a human-readable error string.
-pub fn parse_and_validate(
-	engine_state: &mut EngineState,
-	fname: &str,
-	source: &str,
-	config_root: Option<&Path>,
-) -> Result<Arc<Block>, String> {
+pub fn parse_and_validate(engine_state: &mut EngineState, fname: &str, source: &str, config_root: Option<&Path>) -> Result<Arc<Block>, String> {
 	let mut working_set = StateWorkingSet::new(engine_state);
 	let block = nu_parser::parse(&mut working_set, Some(fname), source.as_bytes(), false);
 
@@ -54,9 +46,7 @@ pub fn parse_and_validate(
 	ensure_sandboxed(&working_set, block.as_ref(), config_root)?;
 
 	let delta = working_set.render();
-	engine_state
-		.merge_delta(delta)
-		.map_err(|error| format!("Nu merge error: {error}"))?;
+	engine_state.merge_delta(delta).map_err(|error| format!("Nu merge error: {error}"))?;
 
 	Ok(block)
 }
@@ -65,12 +55,8 @@ pub fn parse_and_validate(
 pub fn evaluate_block(engine_state: &EngineState, block: &Block) -> Result<Value, String> {
 	let mut stack = Stack::new();
 	let eval_block = nu_engine::get_eval_block(engine_state);
-	let execution = eval_block(engine_state, &mut stack, block, PipelineData::empty())
-		.map_err(|error| format!("Nu runtime error: {error}"))?;
-	execution
-		.body
-		.into_value(Span::unknown())
-		.map_err(|error| format!("Nu runtime error: {error}"))
+	let execution = eval_block(engine_state, &mut stack, block, PipelineData::empty()).map_err(|error| format!("Nu runtime error: {error}"))?;
+	execution.body.into_value(Span::unknown()).map_err(|error| format!("Nu runtime error: {error}"))
 }
 
 /// Escapes a string for safe inclusion in a Nu source snippet.
@@ -96,10 +82,7 @@ pub fn build_call_source(fn_name: &str, args: &[String]) -> Result<String, Strin
 	if fn_name.is_empty() {
 		return Err("function name cannot be empty".to_string());
 	}
-	if !fn_name
-		.chars()
-		.all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-'))
-	{
+	if !fn_name.chars().all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-')) {
 		return Err("function name contains unsupported characters".to_string());
 	}
 

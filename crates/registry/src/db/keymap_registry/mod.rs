@@ -14,19 +14,38 @@ use crate::config::UnresolvedKeys;
 use crate::core::index::Snapshot;
 use crate::core::{ActionId, DenseId, RegistryEntry};
 
-/// Binding entry storing action info and the key sequence.
+/// What a keybinding resolves to.
+#[derive(Debug, Clone)]
+pub enum BindingTarget {
+	/// A resolved action from the registry.
+	Action { id: ActionId },
+	/// An invocation spec string (e.g., `command:write file.txt`, `editor:reload_config`).
+	InvocationSpec { spec: Arc<str>, kind: xeno_invocation_spec::SpecKind },
+}
+
+/// Binding entry storing target info and the key sequence.
 #[derive(Debug, Clone)]
 pub struct BindingEntry {
-	/// Resolved action ID for dispatch.
-	pub action_id: ActionId,
-	/// Action name (for display/debugging).
-	pub action_name: String,
+	/// What this binding dispatches to.
+	pub target: BindingTarget,
+	/// Display name (action name or invocation spec).
+	pub name: Arc<str>,
 	/// Human-readable description for UI display.
-	pub description: String,
+	pub description: Arc<str>,
 	/// Short description without key-sequence prefix (for which-key HUD).
-	pub short_desc: String,
+	pub short_desc: Arc<str>,
 	/// Key sequence that triggers this binding (for display).
 	pub keys: Vec<Node>,
+}
+
+impl BindingEntry {
+	/// Returns the action ID if this binding targets an action.
+	pub fn action_id(&self) -> Option<ActionId> {
+		match &self.target {
+			BindingTarget::Action { id } => Some(*id),
+			BindingTarget::InvocationSpec { .. } => None,
+		}
+	}
 }
 
 /// Result of looking up a key sequence.
@@ -43,19 +62,41 @@ pub enum LookupResult<'a> {
 	None,
 }
 
+/// Classification of a keymap build problem.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KeymapProblemKind {
+	/// Key sequence string couldn't be parsed.
+	InvalidKeySequence,
+	/// Action target name couldn't be resolved in the registry.
+	UnknownActionTarget,
+	/// Invocation spec failed validation.
+	InvalidInvocationSpec,
+}
+
+/// A problem encountered during keymap index construction.
+#[derive(Debug, Clone)]
+pub struct KeymapBuildProblem {
+	pub mode: Option<BindingMode>,
+	pub keys: Arc<str>,
+	pub target: Arc<str>,
+	pub kind: KeymapProblemKind,
+	pub message: Arc<str>,
+}
+
 /// Registry of keybindings organized by mode.
 pub struct KeymapIndex {
 	/// Per-mode trie matchers for key sequences.
 	matchers: HashMap<BindingMode, Matcher<BindingEntry>>,
 	conflicts: Vec<KeymapConflict>,
+	problems: Vec<KeymapBuildProblem>,
 }
 
 #[derive(Debug, Clone)]
 pub struct KeymapConflict {
 	pub mode: BindingMode,
 	pub keys: Arc<str>,
-	pub kept_action: String,
-	pub dropped_action: String,
+	pub kept_target: String,
+	pub dropped_target: String,
 	pub kept_priority: i16,
 	pub dropped_priority: i16,
 }
@@ -72,6 +113,7 @@ impl KeymapIndex {
 		Self {
 			matchers: HashMap::new(),
 			conflicts: Vec::new(),
+			problems: Vec::new(),
 		}
 	}
 
@@ -121,18 +163,17 @@ impl KeymapIndex {
 		});
 
 		let mut seen: HashMap<(BindingMode, Arc<str>), (String, i16)> = HashMap::new();
-		let mut parse_failures: Vec<(Arc<str>, Arc<str>)> = Vec::new();
 
 		for (id, def) in bindings {
 			let action_entry = &actions.table[id.as_u32() as usize];
 			let action_id_str = actions.interner.resolve(action_entry.id()).to_string();
 
-			if let Some((kept_action, kept_priority)) = seen.get(&(def.mode, Arc::clone(&def.keys))).cloned() {
+			if let Some((kept_target, kept_priority)) = seen.get(&(def.mode, Arc::clone(&def.keys))).cloned() {
 				registry.conflicts.push(KeymapConflict {
 					mode: def.mode,
 					keys: Arc::clone(&def.keys),
-					kept_action,
-					dropped_action: action_id_str,
+					kept_target,
+					dropped_target: action_id_str,
 					kept_priority,
 					dropped_priority: def.priority,
 				});
@@ -140,17 +181,23 @@ impl KeymapIndex {
 			}
 
 			let Ok(keys) = parse_seq(&def.keys) else {
-				push_parse_failure(&mut parse_failures, &def.keys, &def.action);
+				registry.push_problem(
+					Some(def.mode),
+					&def.keys,
+					&def.action,
+					KeymapProblemKind::InvalidKeySequence,
+					"invalid key sequence",
+				);
 				continue;
 			};
 
 			seen.insert((def.mode, Arc::clone(&def.keys)), (action_id_str.clone(), def.priority));
 
 			let entry = BindingEntry {
-				action_id: id,
-				action_name: actions.interner.resolve(action_entry.name()).to_string(),
-				description: actions.interner.resolve(action_entry.description()).to_string(),
-				short_desc: actions.interner.resolve(action_entry.short_desc).to_string(),
+				target: BindingTarget::Action { id },
+				name: Arc::from(actions.interner.resolve(action_entry.name())),
+				description: Arc::from(actions.interner.resolve(action_entry.description())),
+				short_desc: Arc::from(actions.interner.resolve(action_entry.short_desc)),
 				keys: keys.clone(),
 			};
 
@@ -170,10 +217,70 @@ impl KeymapIndex {
 
 			override_entries.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1)).then_with(|| a.2.cmp(&b.2)));
 
-			for (mode, key_seq, action_name) in override_entries {
-				let resolved_name = action_name.strip_prefix("action:").unwrap_or(&action_name);
+			for (mode, key_seq, target_spec) in override_entries {
+				let Ok(keys) = parse_seq(&key_seq) else {
+					registry.push_problem(
+						Some(mode),
+						&key_seq,
+						&target_spec,
+						KeymapProblemKind::InvalidKeySequence,
+						"invalid key sequence",
+					);
+					continue;
+				};
+
+				// Non-action targets go into the trie as InvocationSpec
+				if target_spec.starts_with("command:") || target_spec.starts_with("editor:") {
+					let parsed = match xeno_invocation_spec::parse_spec(&target_spec) {
+						Ok(p) => p,
+						Err(e) => {
+							registry.push_problem(
+								Some(mode),
+								&key_seq,
+								&target_spec,
+								KeymapProblemKind::InvalidInvocationSpec,
+								&format!("invalid invocation spec: {e}"),
+							);
+							continue;
+						}
+					};
+
+					if let Some((prev_target, prev_priority)) = seen.get(&(mode, Arc::clone(&key_seq))).cloned() {
+						registry.conflicts.push(KeymapConflict {
+							mode,
+							keys: Arc::clone(&key_seq),
+							kept_target: target_spec.to_string(),
+							dropped_target: prev_target,
+							kept_priority: i16::MIN,
+							dropped_priority: prev_priority,
+						});
+					}
+					seen.insert((mode, Arc::clone(&key_seq)), (target_spec.to_string(), i16::MIN));
+
+					let spec_arc: Arc<str> = Arc::from(target_spec.as_ref());
+					let entry = BindingEntry {
+						target: BindingTarget::InvocationSpec {
+							spec: Arc::clone(&spec_arc),
+							kind: parsed.kind,
+						},
+						name: Arc::clone(&spec_arc),
+						description: Arc::clone(&spec_arc),
+						short_desc: Arc::from(parsed.name.as_str()),
+						keys: keys.clone(),
+					};
+					registry.add(mode, keys, entry);
+					continue;
+				}
+
+				let resolved_name = target_spec.strip_prefix("action:").unwrap_or(&target_spec);
 				let Some(sym) = actions.interner.get(resolved_name) else {
-					push_parse_failure(&mut parse_failures, &key_seq, &action_name);
+					registry.push_problem(
+						Some(mode),
+						&key_seq,
+						&target_spec,
+						KeymapProblemKind::UnknownActionTarget,
+						"unknown action target",
+					);
 					continue;
 				};
 
@@ -184,12 +291,13 @@ impl KeymapIndex {
 					.or_else(|| actions.by_key.get(&sym))
 					.copied()
 				else {
-					push_parse_failure(&mut parse_failures, &key_seq, &action_name);
-					continue;
-				};
-
-				let Ok(keys) = parse_seq(&key_seq) else {
-					push_parse_failure(&mut parse_failures, &key_seq, &action_name);
+					registry.push_problem(
+						Some(mode),
+						&key_seq,
+						&target_spec,
+						KeymapProblemKind::UnknownActionTarget,
+						"unknown action target",
+					);
 					continue;
 				};
 
@@ -197,24 +305,24 @@ impl KeymapIndex {
 				let action_name_str = actions.interner.resolve(action_entry.name()).to_string();
 				let action_id_str = actions.interner.resolve(action_entry.id()).to_string();
 
-				if let Some((kept_action, kept_priority)) = seen.get(&(mode, Arc::clone(&key_seq))).cloned() {
+				if let Some((prev_target, prev_priority)) = seen.get(&(mode, Arc::clone(&key_seq))).cloned() {
 					registry.conflicts.push(KeymapConflict {
 						mode,
 						keys: Arc::clone(&key_seq),
-						kept_action: action_id_str.clone(),
-						dropped_action: kept_action,
+						kept_target: action_id_str.clone(),
+						dropped_target: prev_target,
 						kept_priority: i16::MIN,
-						dropped_priority: kept_priority,
+						dropped_priority: prev_priority,
 					});
 				}
 
 				seen.insert((mode, Arc::clone(&key_seq)), (action_id_str, i16::MIN));
 
 				let entry = BindingEntry {
-					action_id,
-					action_name: action_name_str,
-					description: actions.interner.resolve(action_entry.description()).to_string(),
-					short_desc: actions.interner.resolve(action_entry.short_desc).to_string(),
+					target: BindingTarget::Action { id: action_id },
+					name: Arc::from(action_name_str.as_str()),
+					description: Arc::from(actions.interner.resolve(action_entry.description())),
+					short_desc: Arc::from(actions.interner.resolve(action_entry.short_desc)),
 					keys: keys.clone(),
 				};
 
@@ -227,8 +335,9 @@ impl KeymapIndex {
 			tracing::debug!(count = registry.conflicts.len(), ?samples, "Keymap conflicts detected");
 		}
 
-		if !parse_failures.is_empty() {
-			warn!(count = parse_failures.len(), ?parse_failures, "Failed to parse keybinding sequences");
+		if !registry.problems.is_empty() {
+			let samples: Vec<_> = registry.problems.iter().take(5).collect();
+			warn!(count = registry.problems.len(), ?samples, "Keymap build problems");
 		}
 
 		registry
@@ -253,6 +362,22 @@ impl KeymapIndex {
 	pub fn conflicts(&self) -> &[KeymapConflict] {
 		&self.conflicts
 	}
+
+	pub fn problems(&self) -> &[KeymapBuildProblem] {
+		&self.problems
+	}
+
+	fn push_problem(&mut self, mode: Option<BindingMode>, keys: &Arc<str>, target: &Arc<str>, kind: KeymapProblemKind, message: &str) {
+		if self.problems.len() < 50 {
+			self.problems.push(KeymapBuildProblem {
+				mode,
+				keys: Arc::clone(keys),
+				target: Arc::clone(target),
+				kind,
+				message: Arc::from(message),
+			});
+		}
+	}
 }
 
 fn parse_binding_mode(mode: &str) -> Option<BindingMode> {
@@ -262,12 +387,6 @@ fn parse_binding_mode(mode: &str) -> Option<BindingMode> {
 		"match" | "m" => Some(BindingMode::Match),
 		"space" | "spc" => Some(BindingMode::Space),
 		_ => None,
-	}
-}
-
-fn push_parse_failure(samples: &mut Vec<(Arc<str>, Arc<str>)>, keys: &Arc<str>, action: &Arc<str>) {
-	if samples.len() < 5 {
-		samples.push((Arc::clone(keys), Arc::clone(action)));
 	}
 }
 

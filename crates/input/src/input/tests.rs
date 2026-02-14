@@ -64,3 +64,43 @@ fn test_set_last_search() {
 	assert_eq!(pattern, "other");
 	assert!(reverse);
 }
+
+#[test]
+fn invocation_spec_multi_key_pending_then_match() {
+	use std::collections::HashMap;
+
+	use xeno_registry::config::UnresolvedKeys;
+	use xeno_registry::db::keymap_registry::KeymapIndex;
+
+	let actions = xeno_registry::db::ACTIONS.snapshot();
+
+	// Override "g r" → "editor:reload_config"
+	let mut normal = HashMap::new();
+	normal.insert("g r".to_string(), "editor:reload_config".to_string());
+	let mut modes = HashMap::new();
+	modes.insert("normal".to_string(), normal);
+	let overrides = UnresolvedKeys { modes };
+	let keymap = KeymapIndex::build_with_overrides(&actions, Some(&overrides));
+
+	let mut h = InputHandler::new();
+
+	// First key 'g' should produce Pending
+	let result = h.handle_key_with_registry(Key::char('g'), &keymap);
+	assert!(
+		matches!(result, super::types::KeyResult::Pending { keys_so_far: 1 }),
+		"expected Pending after 'g', got {result:?}"
+	);
+
+	// Second key 'r' should produce InvocationSpec
+	let result = h.handle_key_with_registry(Key::char('r'), &keymap);
+	match result {
+		super::types::KeyResult::InvocationSpec { ref spec } => {
+			assert_eq!(spec.as_ref(), "editor:reload_config");
+		}
+		_ => panic!("expected InvocationSpec after 'g r', got {result:?}"),
+	}
+
+	// State should be reset — count should be back to default
+	assert_eq!(h.effective_count(), 1);
+	assert_eq!(h.pending_key_count(), 0);
+}

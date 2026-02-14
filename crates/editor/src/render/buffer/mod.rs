@@ -16,7 +16,7 @@ mod row;
 mod style_layers;
 mod viewport;
 
-pub use context::{BufferRenderContext, RenderBufferParams};
+pub use context::BufferRenderContext;
 #[cfg(any(feature = "lsp", test))]
 pub use diagnostics::DiagnosticSpan;
 pub use diagnostics::{DiagnosticLineMap, DiagnosticRangeMap};

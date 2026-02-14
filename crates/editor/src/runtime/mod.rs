@@ -138,11 +138,10 @@ impl Editor {
 	}
 
 	pub(crate) fn derive_cursor_style(&self) -> CursorStyle {
-		let style = self.ui().cursor_style().unwrap_or_else(|| match self.mode() {
+		self.ui().cursor_style().unwrap_or_else(|| match self.mode() {
 			Mode::Insert => CursorStyle::Beam,
 			_ => CursorStyle::Block,
-		});
-		style
+		})
 	}
 }
 

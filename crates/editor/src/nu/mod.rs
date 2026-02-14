@@ -20,8 +20,7 @@ impl NuRuntime {
 	/// Load and validate the `xeno.nu` script from the given config directory.
 	pub fn load(config_dir: &Path) -> Result<Self, String> {
 		let script_path = config_dir.join(SCRIPT_FILE_NAME);
-		let script_src = std::fs::read_to_string(&script_path)
-			.map_err(|error| format!("failed to read {}: {error}", script_path.display()))?;
+		let script_src = std::fs::read_to_string(&script_path).map_err(|error| format!("failed to read {}: {error}", script_path.display()))?;
 
 		evaluate_script_only(config_dir, &script_path, &script_src)?;
 
@@ -76,13 +75,7 @@ impl NuRuntime {
 		let mut engine_state = xeno_nu::create_engine_state(Some(&self.config_dir));
 		let fname = self.script_path.to_string_lossy().to_string();
 
-		let script_block = xeno_nu::parse_and_validate(
-			&mut engine_state,
-			&fname,
-			&self.script_src,
-			Some(&self.config_dir),
-		)
-		.map_err(NuRunError::Other)?;
+		let script_block = xeno_nu::parse_and_validate(&mut engine_state, &fname, &self.script_src, Some(&self.config_dir)).map_err(NuRunError::Other)?;
 		xeno_nu::evaluate_block(&engine_state, script_block.as_ref()).map_err(NuRunError::Other)?;
 
 		if engine_state.find_decl(fn_name.as_bytes(), &[]).is_none() {
@@ -90,13 +83,7 @@ impl NuRuntime {
 		}
 
 		let call_src = xeno_nu::build_call_source(fn_name, args).map_err(NuRunError::Other)?;
-		let call_block = xeno_nu::parse_and_validate(
-			&mut engine_state,
-			"<xeno.nu-run>",
-			&call_src,
-			Some(&self.config_dir),
-		)
-		.map_err(NuRunError::Other)?;
+		let call_block = xeno_nu::parse_and_validate(&mut engine_state, "<xeno.nu-run>", &call_src, Some(&self.config_dir)).map_err(NuRunError::Other)?;
 		xeno_nu::evaluate_block(&engine_state, call_block.as_ref()).map_err(NuRunError::Other)
 	}
 }
@@ -150,10 +137,7 @@ fn decode_invocation_spec_list(values: Vec<Value>) -> Result<Vec<String>, String
 		match value {
 			Value::String { val, .. } => out.push(val),
 			other => {
-				return Err(format!(
-					"Nu runtime error: invocation list item {idx} must be string, got {}",
-					other.get_type()
-				));
+				return Err(format!("Nu runtime error: invocation list item {idx} must be string, got {}", other.get_type()));
 			}
 		}
 	}
@@ -166,10 +150,7 @@ pub fn decode_invocations(value: Value) -> Result<Vec<Invocation>, String> {
 		Value::String { val, .. } => Ok(vec![parse_invocation_spec(&val)?]),
 		Value::List { vals, .. } => decode_invocation_values(vals),
 		Value::Record { val, .. } => decode_invocation_record_or_wrapper(&val),
-		other => Err(format!(
-			"Nu runtime error: expected invocation string/record/list, got {}",
-			other.get_type()
-		)),
+		other => Err(format!("Nu runtime error: expected invocation string/record/list, got {}", other.get_type())),
 	}
 }
 
@@ -189,10 +170,7 @@ fn decode_invocation_record_or_wrapper(record: &nu_protocol::Record) -> Result<V
 	if let Some(invocations) = record.get("invocations") {
 		return match invocations.clone() {
 			Value::List { vals, .. } => decode_invocation_values(vals),
-			other => Err(format!(
-				"Nu runtime error: 'invocations' must be a list, got {}",
-				other.get_type()
-			)),
+			other => Err(format!("Nu runtime error: 'invocations' must be a list, got {}", other.get_type())),
 		};
 	}
 
@@ -235,15 +213,10 @@ fn decode_structured_invocation(record: &nu_protocol::Record) -> Result<Invocati
 }
 
 fn required_string_field(record: &nu_protocol::Record, field: &str) -> Result<String, String> {
-	let value = record
-		.get(field)
-		.ok_or_else(|| format!("Nu runtime error: missing required field '{field}'"))?;
+	let value = record.get(field).ok_or_else(|| format!("Nu runtime error: missing required field '{field}'"))?;
 	match value {
 		Value::String { val, .. } => Ok(val.clone()),
-		other => Err(format!(
-			"Nu runtime error: field '{field}' must be string, got {}",
-			other.get_type()
-		)),
+		other => Err(format!("Nu runtime error: field '{field}' must be string, got {}", other.get_type())),
 	}
 }
 
@@ -253,10 +226,7 @@ fn optional_bool_field(record: &nu_protocol::Record, field: &str) -> Result<Opti
 	};
 	match value {
 		Value::Bool { val, .. } => Ok(Some(*val)),
-		other => Err(format!(
-			"Nu runtime error: field '{field}' must be bool, got {}",
-			other.get_type()
-		)),
+		other => Err(format!("Nu runtime error: field '{field}' must be bool, got {}", other.get_type())),
 	}
 }
 
@@ -274,10 +244,7 @@ fn optional_int_field(record: &nu_protocol::Record, field: &str) -> Result<Optio
 				Ok(Some(clamped))
 			}
 		}
-		other => Err(format!(
-			"Nu runtime error: field '{field}' must be int, got {}",
-			other.get_type()
-		)),
+		other => Err(format!("Nu runtime error: field '{field}' must be int, got {}", other.get_type())),
 	}
 }
 
@@ -311,10 +278,7 @@ fn optional_string_list_field(record: &nu_protocol::Record, field: &str) -> Resu
 	let list = match value {
 		Value::List { vals, .. } => vals,
 		other => {
-			return Err(format!(
-				"Nu runtime error: field '{field}' must be list<string>, got {}",
-				other.get_type()
-			));
+			return Err(format!("Nu runtime error: field '{field}' must be list<string>, got {}", other.get_type()));
 		}
 	};
 
@@ -323,10 +287,7 @@ fn optional_string_list_field(record: &nu_protocol::Record, field: &str) -> Resu
 		match item {
 			Value::String { val, .. } => out.push(val.clone()),
 			other => {
-				return Err(format!(
-					"Nu runtime error: field '{field}' item {idx} must be string, got {}",
-					other.get_type()
-				));
+				return Err(format!("Nu runtime error: field '{field}' item {idx} must be string, got {}", other.get_type()));
 			}
 		}
 	}
@@ -336,41 +297,7 @@ fn optional_string_list_field(record: &nu_protocol::Record, field: &str) -> Resu
 
 /// Parse a macro invocation spec string into an [`Invocation`].
 pub fn parse_invocation_spec(spec: &str) -> Result<Invocation, String> {
-	let spec = spec.trim();
-	if spec.is_empty() {
-		return Err("empty invocation spec".to_string());
-	}
-
-	if let Some(action) = spec.strip_prefix("action:") {
-		let action = action.trim();
-		if action.is_empty() {
-			return Err("action invocation missing target".to_string());
-		}
-		if action.contains(char::is_whitespace) {
-			return Err(format!("action invocation must not include spaces: {spec}"));
-		}
-		return Ok(Invocation::action(action));
-	}
-
-	if let Some(command) = spec.strip_prefix("command:") {
-		let mut parts = command.split_whitespace();
-		let name = parts
-			.next()
-			.ok_or_else(|| "command invocation missing command name".to_string())?;
-		let args = parts.map(str::to_string).collect();
-		return Ok(Invocation::command(name, args));
-	}
-
-	if let Some(command) = spec.strip_prefix("editor:") {
-		let mut parts = command.split_whitespace();
-		let name = parts
-			.next()
-			.ok_or_else(|| "editor invocation missing command name".to_string())?;
-		let args = parts.map(str::to_string).collect();
-		return Ok(Invocation::editor_command(name, args));
-	}
-
-	Err(format!("unsupported invocation spec '{spec}', expected action:/command:/editor:"))
+	Invocation::parse_spec(spec)
 }
 
 #[cfg(test)]

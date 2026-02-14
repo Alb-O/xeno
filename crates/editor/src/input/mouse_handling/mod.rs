@@ -63,7 +63,7 @@ impl Editor {
 		// Get the document area (excluding panels/docks)
 		let doc_area = dock_layout.doc_area;
 
-		let quit = self.handle_mouse_in_doc_area(mouse, doc_area.into()).await;
+		let quit = self.handle_mouse_in_doc_area(mouse, doc_area).await;
 		self.interaction_on_buffer_edited();
 		quit
 	}

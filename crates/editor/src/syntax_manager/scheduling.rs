@@ -60,20 +60,11 @@ impl LaneState {
 /// * `viewport_enrich`: per-key cooldown (`ViewportEntry.stage_b_cooldown_until`);
 ///   the lane-level `LaneState.cooldown_until` is unused.
 /// * `bg`: lane-level cooldown (`LaneState.cooldown_until`).
+#[derive(Default)]
 pub(super) struct Lanes {
 	pub(super) viewport_urgent: LaneState,
 	pub(super) viewport_enrich: LaneState,
 	pub(super) bg: LaneState,
-}
-
-impl Default for Lanes {
-	fn default() -> Self {
-		Self {
-			viewport_urgent: LaneState::default(),
-			viewport_enrich: LaneState::default(),
-			bg: LaneState::default(),
-		}
-	}
 }
 
 impl Lanes {

@@ -60,7 +60,7 @@ fn test_reactive_keymap_updates() {
 
 	match new_keymap.lookup(BindingMode::Normal, &test_keys) {
 		crate::db::keymap_registry::LookupResult::Match(entry) => {
-			assert_eq!(entry.action_name, "reactive_action");
+			assert_eq!(&*entry.name, "reactive_action");
 		}
 		_ => panic!("New keymap does not contain the reactive binding!"),
 	}

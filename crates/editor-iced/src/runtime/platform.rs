@@ -4,11 +4,11 @@ pub(crate) fn configure_linux_backend() {
 		return;
 	}
 
-	if let Some(requested) = std::env::var("XENO_ICED_BACKEND").ok().map(|value| value.to_lowercase()) {
-		if matches!(requested.as_str(), "x11" | "wayland") {
-			set_winit_unix_backend(&requested);
-			return;
-		}
+	if let Some(requested) = std::env::var("XENO_ICED_BACKEND").ok().map(|value| value.to_lowercase())
+		&& matches!(requested.as_str(), "x11" | "wayland")
+	{
+		set_winit_unix_backend(&requested);
+		return;
 	}
 
 	if std::env::var_os("WAYLAND_DISPLAY").is_some() {

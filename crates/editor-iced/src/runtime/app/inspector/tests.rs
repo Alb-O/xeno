@@ -1,4 +1,5 @@
 use super::*;
+use xeno_editor::render_api::CompletionKind;
 
 #[test]
 fn completion_row_parts_marks_selected_item() {

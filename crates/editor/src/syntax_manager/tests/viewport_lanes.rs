@@ -480,8 +480,6 @@ async fn test_stage_b_failure_does_not_block_stage_a() {
 /// check and are silently discarded.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_stage_b_completion_installs_eager_tree() {
-	use super::scheduling::{CompletedSyntaxTask, ViewportLane};
-
 	let engine = Arc::new(super::invariants::MockEngine::new());
 	let _guard = super::invariants::EngineGuard(engine.clone());
 	let mut mgr = SyntaxManager::new_with_engine(
@@ -578,8 +576,6 @@ async fn test_stage_b_completion_installs_eager_tree() {
 /// uses eager injections. The opts_key must match so the install check passes.
 #[tokio::test]
 async fn test_history_urgent_stage_a_installs_eager_tree() {
-	use super::scheduling::{CompletedSyntaxTask, ViewportLane};
-
 	let engine = Arc::new(super::invariants::MockEngine::new());
 	let _guard = super::invariants::EngineGuard(engine.clone());
 	let mut mgr = SyntaxManager::new_with_engine(

@@ -1,9 +1,7 @@
 use iced::widget::text::Wrapping;
 use iced::widget::{Column, column, row, text};
 use iced::{Color, Font};
-use xeno_editor::render_api::{
-	CompletionKind, CompletionRenderItem, CompletionRenderPlan, InfoPopupRenderAnchor, Rect, SnippetChoiceRenderItem, SnippetChoiceRenderPlan,
-};
+use xeno_editor::render_api::{CompletionRenderItem, CompletionRenderPlan, InfoPopupRenderAnchor, Rect, SnippetChoiceRenderItem, SnippetChoiceRenderPlan};
 
 use super::Message;
 use crate::runtime::SurfaceSnapshot;

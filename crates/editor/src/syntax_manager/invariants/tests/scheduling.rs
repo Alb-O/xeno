@@ -206,9 +206,9 @@ pub(crate) fn test_history_incremental_preserves_resident_tree_version() {
 		let syntax = Syntax::new(content.slice(..), lang, &loader, SyntaxOptions::default()).unwrap();
 		let tree_id = entry.slot.alloc_tree_id();
 		entry.slot.full = Some(InstalledTree {
-			syntax: syntax,
+			syntax,
 			doc_version: 1,
-			tree_id: tree_id,
+			tree_id,
 		});
 	}
 

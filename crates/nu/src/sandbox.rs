@@ -7,19 +7,15 @@
 use std::collections::HashSet;
 use std::path::{Component, Path};
 
+use nu_protocol::BlockId;
 use nu_protocol::ast::{Argument, Block, Expr, Expression, ListItem, RecordItem};
 use nu_protocol::engine::StateWorkingSet;
-use nu_protocol::BlockId;
 
 /// Validates that a parsed working set contains no sandbox violations.
 ///
 /// Walks the root block and all newly-parsed delta blocks. Returns an error
 /// string describing the first violation found.
-pub fn ensure_sandboxed(
-	working_set: &StateWorkingSet<'_>,
-	root: &Block,
-	config_root: Option<&Path>,
-) -> Result<(), String> {
+pub fn ensure_sandboxed(working_set: &StateWorkingSet<'_>, root: &Block, config_root: Option<&Path>) -> Result<(), String> {
 	let mut visited = HashSet::new();
 	check_block(working_set, root, &mut visited, config_root)?;
 
@@ -32,24 +28,14 @@ pub fn ensure_sandboxed(
 	Ok(())
 }
 
-fn check_block_by_id(
-	working_set: &StateWorkingSet<'_>,
-	block_id: BlockId,
-	visited: &mut HashSet<BlockId>,
-	config_root: Option<&Path>,
-) -> Result<(), String> {
+fn check_block_by_id(working_set: &StateWorkingSet<'_>, block_id: BlockId, visited: &mut HashSet<BlockId>, config_root: Option<&Path>) -> Result<(), String> {
 	if !visited.insert(block_id) {
 		return Ok(());
 	}
 	check_block(working_set, working_set.get_block(block_id), visited, config_root)
 }
 
-fn check_block(
-	working_set: &StateWorkingSet<'_>,
-	block: &Block,
-	visited: &mut HashSet<BlockId>,
-	config_root: Option<&Path>,
-) -> Result<(), String> {
+fn check_block(working_set: &StateWorkingSet<'_>, block: &Block, visited: &mut HashSet<BlockId>, config_root: Option<&Path>) -> Result<(), String> {
 	for pipeline in &block.pipelines {
 		for element in &pipeline.elements {
 			check_expression(working_set, &element.expr, visited, config_root)?;
@@ -114,9 +100,7 @@ fn check_expression(
 
 		Expr::Collect(_, expr) => check_expression(working_set, expr, visited, config_root),
 
-		Expr::Subexpression(id) | Expr::Block(id) | Expr::Closure(id) | Expr::RowCondition(id) => {
-			check_block_by_id(working_set, *id, visited, config_root)
-		}
+		Expr::Subexpression(id) | Expr::Block(id) | Expr::Closure(id) | Expr::RowCondition(id) => check_block_by_id(working_set, *id, visited, config_root),
 
 		Expr::MatchBlock(cases) => {
 			for (_, expr) in cases {
@@ -155,9 +139,7 @@ fn check_expression(
 		Expr::ValueWithUnit(vu) => check_expression(working_set, &vu.expr, visited, config_root),
 		Expr::FullCellPath(path) => check_expression(working_set, &path.head, visited, config_root),
 
-		Expr::GlobPattern(_, _) | Expr::GlobInterpolation(_, _) => {
-			Err("glob expansion is disabled".to_string())
-		}
+		Expr::GlobPattern(_, _) | Expr::GlobInterpolation(_, _) => Err("glob expansion is disabled".to_string()),
 
 		Expr::StringInterpolation(items) => {
 			for item in items {
@@ -207,20 +189,14 @@ fn check_use_call(
 	visited: &mut HashSet<BlockId>,
 	config_root: Option<&Path>,
 ) -> Result<(), String> {
-	let Some((module_index, module_expr)) = call
-		.arguments
-		.iter()
-		.enumerate()
-		.find_map(|(idx, arg)| match arg {
-			Argument::Positional(expr) | Argument::Unknown(expr) => Some((idx, expr)),
-			_ => None,
-		})
-	else {
+	let Some((module_index, module_expr)) = call.arguments.iter().enumerate().find_map(|(idx, arg)| match arg {
+		Argument::Positional(expr) | Argument::Unknown(expr) => Some((idx, expr)),
+		_ => None,
+	}) else {
 		return Err("use requires a static module path literal".to_string());
 	};
 
-	let raw_path = module_path_literal(module_expr)
-		.ok_or_else(|| "use module path must be a static path literal".to_string())?;
+	let raw_path = module_path_literal(module_expr).ok_or_else(|| "use module path must be a static path literal".to_string())?;
 	validate_module_path(config_root, raw_path)?;
 
 	for (idx, arg) in call.arguments.iter().enumerate() {
@@ -261,10 +237,7 @@ fn validate_module_path(config_root: Option<&Path>, raw_path: &str) -> Result<()
 	if raw_path.contains('~') || raw_path.contains('$') || raw_path.contains('`') {
 		return Err("use module path must not use shell expansion tokens".to_string());
 	}
-	if raw_path
-		.chars()
-		.any(|ch| matches!(ch, '*' | '?' | '[' | ']' | '{' | '}'))
-	{
+	if raw_path.chars().any(|ch| matches!(ch, '*' | '?' | '[' | ']' | '{' | '}')) {
 		return Err("use module path must not contain glob patterns".to_string());
 	}
 
@@ -287,17 +260,13 @@ fn validate_module_path(config_root: Option<&Path>, raw_path: &str) -> Result<()
 		return Err("module path must point to a .nu file".to_string());
 	}
 
-	let config_root = config_root
-		.ok_or_else(|| "use requires a real config directory path".to_string())?;
-	let root_canon = std::fs::canonicalize(config_root)
-		.map_err(|e| format!("failed to resolve config directory root: {e}"))?;
-	let candidate_canon = std::fs::canonicalize(config_root.join(path))
-		.map_err(|e| format!("failed to resolve module path '{raw_path}': {e}"))?;
+	let config_root = config_root.ok_or_else(|| "use requires a real config directory path".to_string())?;
+	let root_canon = std::fs::canonicalize(config_root).map_err(|e| format!("failed to resolve config directory root: {e}"))?;
+	let candidate_canon = std::fs::canonicalize(config_root.join(path)).map_err(|e| format!("failed to resolve module path '{raw_path}': {e}"))?;
 	if !candidate_canon.starts_with(&root_canon) {
 		return Err("module path resolves outside the config directory root".to_string());
 	}
-	let metadata = std::fs::metadata(&candidate_canon)
-		.map_err(|e| format!("failed to stat module path '{raw_path}': {e}"))?;
+	let metadata = std::fs::metadata(&candidate_canon).map_err(|e| format!("failed to stat module path '{raw_path}': {e}"))?;
 	if !metadata.is_file() {
 		return Err("module path must resolve to a file".to_string());
 	}
@@ -311,16 +280,10 @@ fn blocked_decl_reason(decl_name: &str) -> Option<&'static str> {
 	let name = decl_name.to_ascii_lowercase();
 	match name.as_str() {
 		"run-external" => Some("external execution is disabled"),
-		"source" | "source-env" | "overlay use" | "overlay new" | "overlay hide" => {
-			Some("module and filesystem loading are disabled")
-		}
+		"source" | "source-env" | "overlay use" | "overlay new" | "overlay hide" => Some("module and filesystem loading are disabled"),
 		"for" | "while" | "loop" => Some("looping commands are disabled"),
-		"exec" | "bash" | "sh" | "nu" | "cmd" | "powershell" | "pwsh" => {
-			Some("process execution commands are disabled")
-		}
-		"open" | "save" | "rm" | "mv" | "cp" | "mkdir" | "ls" | "cd" => {
-			Some("filesystem commands are disabled")
-		}
+		"exec" | "bash" | "sh" | "nu" | "cmd" | "powershell" | "pwsh" => Some("process execution commands are disabled"),
+		"open" | "save" | "rm" | "mv" | "cp" | "mkdir" | "ls" | "cd" => Some("filesystem commands are disabled"),
 		"http" | "curl" | "wget" => Some("network commands are disabled"),
 		"plugin" | "register" | "plugin use" => Some("plugin commands are disabled"),
 		_ => None,
@@ -367,7 +330,10 @@ mod tests {
 	#[test]
 	fn blocks_networking() {
 		let err = sandbox_check("http get https://example.com", None).unwrap_err();
-		assert!(err.contains("network") || err.contains("external") || err.contains("not allowed") || err.contains("parse error"), "{err}");
+		assert!(
+			err.contains("network") || err.contains("external") || err.contains("not allowed") || err.contains("parse error"),
+			"{err}"
+		);
 	}
 
 	#[test]
@@ -381,7 +347,10 @@ mod tests {
 	#[test]
 	fn blocks_redirection() {
 		let err = sandbox_check("1 | save out.txt", None).unwrap_err();
-		assert!(err.contains("not allowed") || err.contains("filesystem") || err.contains("external") || err.contains("parse error"), "{err}");
+		assert!(
+			err.contains("not allowed") || err.contains("filesystem") || err.contains("external") || err.contains("parse error"),
+			"{err}"
+		);
 	}
 
 	#[test]
@@ -391,8 +360,7 @@ mod tests {
 
 	#[test]
 	fn allows_function_defs() {
-		sandbox_check("def greet [name: string] { $'hello ($name)' }\ngreet 'world'", None)
-			.expect("function defs should pass");
+		sandbox_check("def greet [name: string] { $'hello ($name)' }\ngreet 'world'", None).expect("function defs should pass");
 	}
 
 	#[test]

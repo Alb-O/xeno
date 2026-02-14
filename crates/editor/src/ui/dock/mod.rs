@@ -241,12 +241,12 @@ impl DockManager {
 		if let Some(area) = top_area
 			&& let Some(id) = self.active_in_slot(DockSlot::Top)
 		{
-			layout.panel_areas.insert(id.to_string(), area.into());
+			layout.panel_areas.insert(id.to_string(), area);
 		}
 		if let Some(area) = bottom_area
 			&& let Some(id) = self.active_in_slot(DockSlot::Bottom)
 		{
-			layout.panel_areas.insert(id.to_string(), area.into());
+			layout.panel_areas.insert(id.to_string(), area);
 		}
 
 		layout

@@ -16,7 +16,7 @@ pub fn parse_config_str(input: &str) -> Result<Config> {
 /// Parse a NUON value into a [`Config`].
 pub fn parse_config_value(value: &Value) -> Result<Config> {
 	let root = expect_record(value, "config")?;
-	validate_allowed_fields(&root, &["keys", "options", "languages"], "config")?;
+	validate_allowed_fields(root, &["keys", "options", "languages"], "config")?;
 
 	let mut warnings = Vec::new();
 
@@ -77,7 +77,7 @@ pub fn parse_theme_value(value: &Value) -> Result<crate::themes::LinkedThemeDef>
 
 	let root = expect_record(value, "theme")?;
 	validate_allowed_fields(
-		&root,
+		root,
 		&["name", "variant", "keys", "palette", "ui", "mode", "semantic", "popup", "syntax"],
 		"theme",
 	)?;

@@ -17,7 +17,6 @@ dirs.workspace = true
 ignore.workspace = true
 inventory.workspace = true
 nu-protocol.workspace = true
-xeno-nu.workspace = true
 parking_lot.workspace = true
 paste.workspace = true
 postcard.workspace = true
@@ -33,9 +32,11 @@ tokio-util = { workspace = true, optional = true }
 tracing.workspace = true
 unicode-width.workspace = true
 xeno-input.workspace = true
+xeno-invocation-spec.workspace = true
 xeno-language.workspace = true
 xeno-lsp = { workspace = true, features = ["position"], optional = true }
 xeno-matcher.workspace = true
+xeno-nu.workspace = true
 xeno-primitives.workspace = true
 xeno-registry.workspace = true
 [dev-dependencies]

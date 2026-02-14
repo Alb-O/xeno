@@ -53,13 +53,13 @@ impl InputHandler {
 
 		if let Ok(node) = key.to_keymap() {
 			if let LookupResult::Match(entry) = registry.lookup(BindingMode::Insert, std::slice::from_ref(&node)) {
-				return self.consume_action(entry.action_id);
+				return self.consume_binding(entry);
 			}
 
 			let is_navigation_key = !matches!(key.code, KeyCode::Char(_)) || key.modifiers.ctrl || key.modifiers.alt;
 
 			if is_navigation_key && let LookupResult::Match(entry) = registry.lookup(BindingMode::Normal, &[node]) {
-				return self.consume_action(entry.action_id);
+				return self.consume_binding(entry);
 			}
 		}
 

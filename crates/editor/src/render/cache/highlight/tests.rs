@@ -412,7 +412,7 @@ fn test_projection_maps_target_tile_to_shifted_source_tile_range() {
 		[Change {
 			start: 0,
 			end: 0,
-			replacement: Some(prefix.clone().into()),
+			replacement: Some(prefix.clone()),
 		}],
 	);
 	let mut new_rope = old_rope.clone();

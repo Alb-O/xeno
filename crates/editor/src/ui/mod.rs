@@ -9,10 +9,9 @@ mod panels;
 mod statusline;
 
 pub use focus::UiFocus;
-pub use keymap::UiKeyChord;
 pub use manager::{PanelRenderTarget, UiManager};
 pub use panel::UiRequest;
-pub use panels::utility::{UtilityWhichKeyEntry, UtilityWhichKeyPlan};
+pub use panels::utility::UtilityWhichKeyPlan;
 pub use statusline::{StatuslineRenderSegment, StatuslineRenderStyle};
 
 pub(crate) const STATUSLINE_ROWS: u16 = statusline::STATUSLINE_ROWS;

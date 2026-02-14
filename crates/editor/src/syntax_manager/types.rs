@@ -169,10 +169,10 @@ impl ViewportCache {
 		if self.map.contains_key(&key) {
 			self.touch(key);
 		} else {
-			if self.order.len() >= self.cap {
-				if let Some(evicted) = self.order.pop_back() {
-					self.map.remove(&evicted);
-				}
+			if self.order.len() >= self.cap
+				&& let Some(evicted) = self.order.pop_back()
+			{
+				self.map.remove(&evicted);
 			}
 			self.order.push_front(key);
 			self.map.insert(

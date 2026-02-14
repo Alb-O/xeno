@@ -428,7 +428,7 @@ mod tests {
 		let needle = "deadbeef";
 		let long_match = format!("{needle}{}", "a".repeat(700));
 		let long_non_match = "a".repeat(700);
-		let haystacks = vec!["deadbeef".to_string(), long_match, long_non_match];
+		let haystacks = ["deadbeef".to_string(), long_match, long_non_match];
 		let haystack_refs: Vec<&str> = haystacks.iter().map(String::as_str).collect();
 
 		for max_typos in [None, Some(0), Some(1)] {

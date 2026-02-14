@@ -49,10 +49,10 @@ impl Editor {
 		match invocation {
 			Invocation::Action { name, count, extend, register } => {
 				let result = self.run_action_invocation(&name, count, extend, register, None, policy);
-				if !result.is_quit() {
-					if let Some(hook_result) = self.run_nu_hook("on_action_post", vec![name, action_result_label(&result).to_string()]).await {
-						return hook_result;
-					}
+				if !result.is_quit()
+					&& let Some(hook_result) = self.run_nu_hook("on_action_post", vec![name, action_result_label(&result).to_string()]).await
+				{
+					return hook_result;
 				}
 				result
 			}
@@ -65,10 +65,10 @@ impl Editor {
 				char_arg,
 			} => {
 				let result = self.run_action_invocation(&name, count, extend, register, Some(char_arg), policy);
-				if !result.is_quit() {
-					if let Some(hook_result) = self.run_nu_hook("on_action_post", vec![name, action_result_label(&result).to_string()]).await {
-						return hook_result;
-					}
+				if !result.is_quit()
+					&& let Some(hook_result) = self.run_nu_hook("on_action_post", vec![name, action_result_label(&result).to_string()]).await
+				{
+					return hook_result;
 				}
 				result
 			}

@@ -8,14 +8,11 @@ use super::{Config, ConfigError, Result};
 pub fn eval_config_str(input: &str, fname: &str) -> Result<Config> {
 	let config_root = Path::new(fname).parent();
 	let mut engine_state = xeno_nu::create_engine_state(config_root);
-	let block =
-		xeno_nu::parse_and_validate(&mut engine_state, fname, input, config_root).map_err(ConfigError::NuParse)?;
+	let block = xeno_nu::parse_and_validate(&mut engine_state, fname, input, config_root).map_err(ConfigError::NuParse)?;
 	let value = xeno_nu::evaluate_block(&engine_state, block.as_ref()).map_err(ConfigError::NuRuntime)?;
 
 	if value.as_record().is_err() {
-		return Err(ConfigError::NuRuntime(
-			"config.nu must evaluate to a record value".to_string(),
-		));
+		return Err(ConfigError::NuRuntime("config.nu must evaluate to a record value".to_string()));
 	}
 
 	crate::config::nuon::parse_config_value(&value)

@@ -5,4 +5,4 @@ mod ops;
 mod tests;
 pub mod types;
 
-pub use types::{BufferRenderContext, RenderBufferParams};
+pub use types::BufferRenderContext;

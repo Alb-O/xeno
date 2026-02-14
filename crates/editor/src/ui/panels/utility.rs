@@ -73,13 +73,23 @@ impl UtilityPanel {
 						}
 					}
 					ContinuationKind::Leaf => {
-						let description = cont.value.map_or_else(String::new, |entry| {
-							if !entry.short_desc.is_empty() {
-								entry.short_desc.to_string()
-							} else if !entry.description.is_empty() {
-								entry.description.to_string()
-							} else {
-								entry.action_name.to_string()
+						let description = cont.value.map_or_else(String::new, |entry| match &entry.target {
+							xeno_registry::BindingTarget::InvocationSpec { kind, .. } => {
+								let prefix = match kind {
+									xeno_invocation_spec::SpecKind::Command => ":",
+									xeno_invocation_spec::SpecKind::Editor => "@",
+									xeno_invocation_spec::SpecKind::Action => "",
+								};
+								format!("{prefix}{}", entry.short_desc)
+							}
+							xeno_registry::BindingTarget::Action { .. } => {
+								if !entry.short_desc.is_empty() {
+									entry.short_desc.to_string()
+								} else if !entry.description.is_empty() {
+									entry.description.to_string()
+								} else {
+									entry.name.to_string()
+								}
 							}
 						});
 						UtilityWhichKeyEntry {

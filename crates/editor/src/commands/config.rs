@@ -57,6 +57,20 @@ fn cmd_reload_config<'a>(ctx: &'a mut EditorCommandContext<'a>) -> BoxFutureLoca
 			ctx.editor.notify(keys::success("Config reloaded"));
 		}
 
+		// Report keymap build problems from key overrides.
+		let keymap = ctx.editor.effective_keymap();
+		let problems = keymap.problems();
+		if !problems.is_empty() {
+			for p in problems.iter().take(5) {
+				let mode_str = p.mode.map_or("?".to_string(), |m| format!("{m:?}"));
+				ctx.editor
+					.notify(keys::warn(format!("keys: [{mode_str}] {} → {}: {}", p.keys, p.target, p.message)));
+			}
+			if problems.len() > 5 {
+				ctx.editor.notify(keys::warn(format!("... and {} more keymap problem(s)", problems.len() - 5)));
+			}
+		}
+
 		Ok(CommandOutcome::Ok)
 	})
 }

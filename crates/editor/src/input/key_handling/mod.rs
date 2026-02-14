@@ -104,6 +104,19 @@ impl Editor {
 			}
 		}
 
+		if !handled && let KeyResult::InvocationSpec { ref spec } = result {
+			match crate::types::Invocation::parse_spec(spec) {
+				Ok(invocation) => {
+					let inv_result = self.run_invocation(invocation, crate::types::InvocationPolicy::enforcing()).await;
+					quit = inv_result.is_quit();
+				}
+				Err(e) => {
+					tracing::warn!(spec = spec.as_ref(), error = %e, "Failed to parse invocation spec from key override");
+				}
+			}
+			handled = true;
+		}
+
 		if !handled {
 			match result {
 				KeyResult::Pending { .. } => {
@@ -249,7 +262,7 @@ mod tests {
 	fn lookup_action_id(index: &xeno_registry::KeymapIndex, mode: BindingMode, key_seq: &str) -> ActionId {
 		let keys = parse_seq(key_seq).expect("key sequence should parse");
 		match index.lookup(mode, &keys) {
-			LookupResult::Match(entry) => entry.action_id,
+			LookupResult::Match(entry) => entry.action_id().expect("expected action binding"),
 			_ => panic!("expected a complete keybinding match"),
 		}
 	}

@@ -104,6 +104,18 @@ impl InputHandler {
 		KeyResult::ActionById { id, count, extend, register }
 	}
 
+	/// Consumes state and produces the appropriate [`KeyResult`] for a binding entry.
+	pub(crate) fn consume_binding(&mut self, entry: &xeno_registry::BindingEntry) -> KeyResult {
+		match &entry.target {
+			xeno_registry::BindingTarget::Action { id } => self.consume_action(*id),
+			xeno_registry::BindingTarget::InvocationSpec { spec, .. } => {
+				let spec = spec.clone();
+				self.reset_params();
+				KeyResult::InvocationSpec { spec }
+			}
+		}
+	}
+
 	/// Resets transient key-processing state to defaults.
 	pub(crate) fn reset_params(&mut self) {
 		self.count = 0;
@@ -222,11 +234,11 @@ impl InputHandler {
 				if binding_mode != BindingMode::Normal {
 					self.mode = Mode::Normal;
 				}
-				self.consume_action(entry.action_id)
+				self.consume_binding(entry)
 			}
 			LookupResult::Pending { sticky } => {
 				if let Some(entry) = sticky {
-					debug!(action = entry.action_name, keys = self.key_sequence.len(), "Pending with sticky action");
+					debug!(action = &*entry.name, keys = self.key_sequence.len(), "Pending with sticky action");
 				}
 				KeyResult::Pending {
 					keys_so_far: self.key_sequence.len(),
