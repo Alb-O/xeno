@@ -2147,9 +2147,9 @@ dependencies = [
 
 [[package]]
 name = "kitty-test-harness"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "056c731774ef7bb49da3f0d33f5f4450c80afae5f760cfea6e6088d4dc330564"
+checksum = "c1cbda326eda66b752b5e03246b52a988ec3cbfcbff72e6e7264654940b97c6f"
 dependencies = [
  "ansi-escape-sequences",
  "base64",

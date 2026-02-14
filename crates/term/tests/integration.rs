@@ -5,6 +5,8 @@
 mod completion;
 #[path = "integration/helpers.rs"]
 mod helpers;
+#[path = "integration/kitty_ltier_stale_syntax.rs"]
+mod kitty_ltier_stale_syntax;
 #[path = "integration/kitty_multiselect.rs"]
 mod kitty_multiselect;
 #[path = "integration/kitty_separator_animation.rs"]

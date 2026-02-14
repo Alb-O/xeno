@@ -1,0 +1,10 @@
+/
+S-M
+i
+s
+c
+enter
+pagedown
+S-pagedown
+d
+u
