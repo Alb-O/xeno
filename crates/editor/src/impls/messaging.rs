@@ -31,10 +31,12 @@ impl Editor {
 	/// Shows a typed notification (internal).
 	pub fn show_notification(&mut self, notification: Notification) {
 		push_notification(&mut self.state.notifications, notification);
+		self.state.frame.needs_redraw = true;
 	}
 
 	/// Clears all visible notifications.
 	pub fn clear_all_notifications(&mut self) {
 		self.state.notifications.clear();
+		self.state.frame.needs_redraw = true;
 	}
 }

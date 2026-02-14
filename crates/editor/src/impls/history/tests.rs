@@ -75,6 +75,17 @@ fn undo_restores_cursor_position() {
 }
 
 #[test]
+fn undo_without_history_requests_redraw_for_notification() {
+	let mut editor = test_editor("hello");
+	editor.state.frame.needs_redraw = false;
+
+	editor.undo();
+
+	assert!(editor.state.frame.needs_redraw);
+	assert!(!editor.take_notification_render_items().is_empty());
+}
+
+#[test]
 fn undo_restores_scroll_position() {
 	let mut editor = test_editor("line1\nline2\nline3\nline4\nline5");
 	set_scroll(&mut editor, 2, 0);

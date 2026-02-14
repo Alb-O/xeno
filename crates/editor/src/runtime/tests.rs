@@ -28,6 +28,19 @@ async fn test_on_event_implies_pump() {
 }
 
 #[tokio::test]
+async fn test_readonly_paste_requests_redraw() {
+	let mut editor = Editor::new_scratch();
+	let _ = editor.pump().await;
+	editor.mark_frame_drawn();
+	editor.buffer_mut().set_readonly(true);
+
+	let dir = editor.on_event(RuntimeEvent::Paste(String::from("x"))).await;
+
+	assert!(dir.needs_redraw);
+	assert!(!editor.take_notification_render_items().is_empty());
+}
+
+#[tokio::test]
 async fn test_runtime_event_scripts_converge_for_inserted_text() {
 	let esc = Key::new(KeyCode::Esc);
 

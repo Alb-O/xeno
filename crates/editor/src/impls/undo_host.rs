@@ -140,6 +140,7 @@ impl EditorUndoHost<'_> {
 
 	fn notify(&mut self, notification: impl Into<Notification>) {
 		push_notification(self.notifications, notification.into());
+		self.frame.needs_redraw = true;
 	}
 
 	fn mark_buffer_dirty_for_full_sync(&mut self, buffer_id: ViewId) {
