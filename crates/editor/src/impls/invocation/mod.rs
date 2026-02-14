@@ -255,6 +255,54 @@ impl Editor {
 	fn build_nu_ctx(&self, kind: &str, function: &str, args: &[String]) -> Value {
 		let span = Span::unknown();
 		let buffer = self.buffer();
+		let view_id = self.focused_view().0;
+		let primary_selection = buffer.selection.primary();
+		let cursor_char = buffer.cursor;
+
+		let (cursor_line, cursor_col, selection_start_line, selection_start_col, selection_end_line, selection_end_col) = buffer.with_doc(|doc| {
+			let text = doc.content();
+			let to_line_col = |idx: usize| {
+				let clamped = idx.min(text.len_chars());
+				let line = text.char_to_line(clamped);
+				let col = clamped.saturating_sub(text.line_to_char(line));
+				(line, col)
+			};
+
+			let (cursor_line, cursor_col) = to_line_col(cursor_char);
+			let (selection_start_line, selection_start_col) = to_line_col(primary_selection.min());
+			let (selection_end_line, selection_end_col) = to_line_col(primary_selection.max());
+			(
+				cursor_line,
+				cursor_col,
+				selection_start_line,
+				selection_start_col,
+				selection_end_line,
+				selection_end_col,
+			)
+		});
+
+		let to_nu_int = |value: usize| Value::int(value.min(i64::MAX as usize) as i64, span);
+		let to_nu_int_u64 = |value: u64| Value::int(value.min(i64::MAX as u64) as i64, span);
+
+		let mut view_record = Record::new();
+		view_record.push("id", to_nu_int_u64(view_id));
+
+		let mut cursor_record = Record::new();
+		cursor_record.push("line", to_nu_int(cursor_line));
+		cursor_record.push("col", to_nu_int(cursor_col));
+
+		let mut selection_start_record = Record::new();
+		selection_start_record.push("line", to_nu_int(selection_start_line));
+		selection_start_record.push("col", to_nu_int(selection_start_col));
+
+		let mut selection_end_record = Record::new();
+		selection_end_record.push("line", to_nu_int(selection_end_line));
+		selection_end_record.push("col", to_nu_int(selection_end_col));
+
+		let mut selection_record = Record::new();
+		selection_record.push("active", Value::bool(!primary_selection.is_point(), span));
+		selection_record.push("start", Value::record(selection_start_record, span));
+		selection_record.push("end", Value::record(selection_end_record, span));
 
 		let mut buffer_record = Record::new();
 		buffer_record.push(
@@ -270,12 +318,16 @@ impl Editor {
 				.map_or_else(|| Value::nothing(span), |file_type| Value::string(file_type, span)),
 		);
 		buffer_record.push("readonly", Value::bool(buffer.is_readonly(), span));
+		buffer_record.push("modified", Value::bool(buffer.modified(), span));
 
 		let mut ctx = Record::new();
 		ctx.push("kind", Value::string(kind, span));
 		ctx.push("function", Value::string(function, span));
 		ctx.push("args", Value::list(args.iter().map(|arg| Value::string(arg, span)).collect(), span));
 		ctx.push("mode", Value::string(format!("{:?}", self.mode()), span));
+		ctx.push("view", Value::record(view_record, span));
+		ctx.push("cursor", Value::record(cursor_record, span));
+		ctx.push("selection", Value::record(selection_record, span));
 		ctx.push("buffer", Value::record(buffer_record, span));
 
 		Value::record(ctx, span)

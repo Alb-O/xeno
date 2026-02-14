@@ -80,13 +80,31 @@ During `nu-run` and hook execution, Xeno sets `$env.XENO_CTX` with per-call cont
   function: "go",
   args: ["..."],
   mode: "Normal",
+  view: { id: 1 },
+  cursor: {
+    line: 10,
+    col: 4
+  },
+  selection: {
+    active: true,
+    start: { line: 10, col: 2 },
+    end: { line: 10, col: 8 }
+  },
   buffer: {
     path: "/abs/path/or/null",
     file_type: "rust" | null,
-    readonly: false
+    readonly: false,
+    modified: true
   }
 }
 ```
+
+Field semantics for `$env.XENO_CTX`:
+
+* `cursor.line`, `cursor.col`, and `selection.start/end` coordinates are 0-based
+* coordinates are character indices (not byte offsets)
+* `selection.start` / `selection.end` are normalized bounds (`start <= end`)
+* `selection.active == false` means a point selection (start and end equal the cursor position)
 
 ## Shared schema
 

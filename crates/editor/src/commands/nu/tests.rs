@@ -90,6 +90,31 @@ fn nu_run_command_injects_ctx() {
 }
 
 #[test]
+fn nu_run_command_injects_expanded_ctx_fields() {
+	let temp = tempfile::tempdir().expect("temp dir should exist");
+	write_script(
+		temp.path(),
+		r#"export def go [] {
+  let c = $env.XENO_CTX
+  if ($c.kind == "macro") and ($c.view.id == 1) and ($c.cursor.line == 0) and ($c.cursor.col == 0) and ($c.selection.active == false) and ($c.selection.start.line == 0) and ($c.selection.start.col == 0) and ($c.selection.end.line == 0) and ($c.selection.end.col == 0) and ($c.buffer.path == null) and ($c.buffer.file_type == null) and ($c.buffer.modified == false) and ($c.buffer.readonly == false) { "action:move_right" } else { "action:does-not-exist" }
+}"#,
+	);
+
+	let runtime = crate::nu::NuRuntime::load(temp.path()).expect("runtime should load");
+	let mut editor = Editor::from_content("abcd".to_string(), None);
+	editor.set_nu_runtime(Some(runtime));
+
+	let rt = tokio::runtime::Builder::new_current_thread()
+		.enable_all()
+		.build()
+		.expect("runtime should build");
+	let result = rt.block_on(editor.run_invocation(Invocation::editor_command("nu-run", vec!["go".to_string()]), InvocationPolicy::enforcing()));
+
+	assert!(matches!(result, InvocationResult::Ok));
+	assert_eq!(editor.buffer().cursor, 1, "expanded ctx fields should be available to macro scripts");
+}
+
+#[test]
 fn nu_run_dispatches_editor_command() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
 	write_script(temp.path(), "export def go [] { \"editor:stats\" }");
@@ -154,6 +179,33 @@ fn action_post_hook_dispatches_once_with_recursion_guard() {
 
 	assert!(matches!(result, InvocationResult::Ok));
 	assert_eq!(editor.buffer().cursor, 2, "hook should add exactly one extra move_right invocation");
+}
+
+#[test]
+fn action_post_hook_receives_expanded_ctx_fields() {
+	assert!(xeno_registry::find_action("move_right").is_some(), "expected move_right action to exist");
+
+	let temp = tempfile::tempdir().expect("temp dir should exist");
+	write_script(
+		temp.path(),
+		r#"export def on_action_post [name result] {
+  let c = $env.XENO_CTX
+  if ($c.kind == "hook") and ($name == "move_right") and ($result == "ok") and ($c.view.id == 1) and ($c.cursor.line == 0) and ($c.cursor.col == 1) and ($c.selection.active == false) and ($c.selection.start.col == 1) and ($c.selection.end.col == 1) and ($c.buffer.modified == false) and ($c.buffer.readonly == false) { "action:move_right" } else { [] }
+}"#,
+	);
+
+	let runtime = crate::nu::NuRuntime::load(temp.path()).expect("runtime should load");
+	let mut editor = Editor::from_content("abcd".to_string(), None);
+	editor.set_nu_runtime(Some(runtime));
+
+	let rt = tokio::runtime::Builder::new_current_thread()
+		.enable_all()
+		.build()
+		.expect("runtime should build");
+	let result = rt.block_on(editor.run_invocation(Invocation::action("move_right"), InvocationPolicy::enforcing()));
+
+	assert!(matches!(result, InvocationResult::Ok));
+	assert_eq!(editor.buffer().cursor, 2, "expanded ctx fields should be available to hook scripts");
 }
 
 #[test]
