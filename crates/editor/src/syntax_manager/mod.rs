@@ -125,12 +125,11 @@ pub(crate) use scheduling::DocSched;
 pub use tasks::TaskClass;
 pub(crate) use tasks::TaskCollector;
 use tasks::{TaskKind, TaskSpec};
-pub(crate) use types::InstalledTree;
-pub(crate) use types::PendingIncrementalEdits;
 pub use types::{
 	DocEpoch, EditSource, EnsureSyntaxContext, HighlightProjectionCtx, OptKey, SyntaxPollOutcome, SyntaxPollResult, SyntaxSelection, SyntaxSlot, TaskId,
 	ViewportCache, ViewportEntry, ViewportKey, ViewportTree,
 };
+pub(crate) use types::{InstalledTree, PendingIncrementalEdits};
 #[cfg(test)]
 pub(crate) use xeno_language::LanguageId;
 
