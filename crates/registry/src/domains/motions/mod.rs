@@ -141,5 +141,5 @@ pub fn all() -> Vec<MotionRef> {
 	MOTIONS.snapshot_guard().iter_refs().collect()
 }
 
-/// Unified motion input: either a static `MotionDef` or a KDL-linked definition.
+/// Unified motion input: either a static `MotionDef` or a registry-linked definition.
 pub type MotionInput = crate::core::def_input::DefInput<MotionDef, crate::motions::link::LinkedMotionDef>;

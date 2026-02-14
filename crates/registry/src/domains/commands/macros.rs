@@ -1,6 +1,6 @@
-/// Registers a handler function for a KDL-defined command.
+/// Registers a handler function for a registry-defined command.
 ///
-/// The metadata (description, aliases, etc.) comes from `commands.kdl`; this macro
+/// The metadata (description, aliases, etc.) comes from `commands.nuon`; this macro
 /// only provides the Rust handler and creates the inventory linkage.
 #[macro_export]
 macro_rules! command_handler {

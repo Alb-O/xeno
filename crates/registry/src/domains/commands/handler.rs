@@ -2,7 +2,7 @@
 //!
 //! Each `command_handler!` invocation creates a `CommandHandlerStatic` and
 //! submits it via `inventory::submit!`. At startup, the linking step collects
-//! all submitted handlers and pairs them with KDL metadata by name.
+//! all submitted handlers and pairs them with NUON metadata by name.
 
 use super::def::CommandHandler;
 

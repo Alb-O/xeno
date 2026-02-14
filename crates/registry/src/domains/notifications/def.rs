@@ -37,7 +37,7 @@ impl LinkedPayload<NotificationEntry> for NotificationPayload {
 	}
 }
 
-/// Linked notification definition assembled from KDL metadata.
+/// Linked notification definition assembled from NUON metadata.
 pub type LinkedNotificationDef = LinkedDef<NotificationPayload>;
 
 impl BuildEntry<NotificationEntry> for NotificationDef {

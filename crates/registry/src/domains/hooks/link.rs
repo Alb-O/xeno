@@ -36,13 +36,13 @@ pub fn link_hooks(spec: &HooksSpec, handlers: impl Iterator<Item = &'static Hook
 			let common = &meta.common;
 			let id = format!("xeno-registry::{}", common.name);
 
-			// Validate KDL event matches handler event
+			// Validate registry event matches handler event
 			let kdl_event = &meta.event;
 			let handler_event_str = handler.handler.event.as_str();
 			if kdl_event != handler_event_str {
 				panic!(
-					"hook '{}' event mismatch: KDL says '{}', handler says '{}' \
-					(hint: hooks.kdl must use HookEvent::as_str() values, e.g. \"buffer:open\")",
+					"hook '{}' event mismatch: registry says '{}', handler says '{}' \
+					(hint: hooks.nuon must use HookEvent::as_str() values, e.g. \"buffer:open\")",
 					common.name, kdl_event, handler_event_str
 				);
 			}

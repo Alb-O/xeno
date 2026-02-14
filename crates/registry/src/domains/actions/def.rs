@@ -62,5 +62,5 @@ impl BuildEntry<ActionEntry> for ActionDef {
 /// describing what the editor should do.
 pub type ActionHandler = fn(&ActionContext) -> ActionResult;
 
-/// Unified action input: either a static `ActionDef` or a KDL-linked definition.
+/// Unified action input: either a static `ActionDef` or a registry-linked definition.
 pub type ActionInput = crate::core::def_input::DefInput<ActionDef, crate::actions::link::LinkedActionDef>;

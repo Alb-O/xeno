@@ -1,10 +1,9 @@
 # Xeno config formats
 
-Xeno supports three user config entrypoints, loaded in this order:
+Xeno supports two user config entrypoints, loaded in this order:
 
-1. `~/.config/xeno/config.kdl`
-2. `~/.config/xeno/config.nuon`
-3. `~/.config/xeno/config.nu`
+1. `~/.config/xeno/config.nuon`
+2. `~/.config/xeno/config.nu`
 
 Later files win when fields overlap.
 
@@ -14,9 +13,8 @@ Options and keys merge with later layers overriding earlier values. Language ent
 
 | Layer | File | Precedence |
 | --- | --- | --- |
-| 1 | `config.kdl` | lowest |
-| 2 | `config.nuon` | overrides KDL |
-| 3 | `config.nu` | highest |
+| 1 | `config.nuon` | base |
+| 2 | `config.nu` | highest |
 
 `config.nu` must evaluate to a record that follows the same schema as `config.nuon`.
 
@@ -24,7 +22,7 @@ Options and keys merge with later layers overriding earlier values. Language ent
 
 Use `:reload-config` (or `:reload_config`) to reload config files without restarting the editor.
 
-- re-reads `config.kdl`, `config.nuon`, and `config.nu` in precedence order
+- re-reads `config.nuon` and `config.nu` in precedence order
 - replaces current key overrides and option layers with the newly loaded config state
 - logs per-file warnings and errors, then refreshes theme loading
 
@@ -79,7 +77,6 @@ Top-level fields:
 - `options`: global option overrides
 - `languages`: per-language option overrides
 - `keys`: keymap overrides
-- `theme`: reserved (currently not used for inline theme objects)
 
 ### `options`
 
@@ -153,8 +150,7 @@ Example:
 
 Depending on syntax and parse stage, failures can surface as either:
 
-- `NuSandbox` when sandbox policy rejected valid AST
-- `NuParse` when parsing/compilation fails before sandbox traversal can continue
+- `NuParse` when sandbox policy rejects the AST or when parsing/compilation fails
 
 ## Minimal examples
 

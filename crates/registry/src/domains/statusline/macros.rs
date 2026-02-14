@@ -1,8 +1,8 @@
 //! Statusline segment registration macros.
 
-/// Registers a handler for a KDL-defined statusline segment.
+/// Registers a handler for a registry-defined statusline segment.
 ///
-/// Metadata comes from `statusline.kdl`; this macro provides the render handler
+/// Metadata comes from `statusline.nuon`; this macro provides the render handler
 /// and creates the inventory linkage.
 #[macro_export]
 macro_rules! segment_handler {

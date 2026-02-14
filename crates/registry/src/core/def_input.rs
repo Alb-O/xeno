@@ -30,7 +30,7 @@ impl<Out: RegistryEntry> BuildEntry<Out> for NoLinked {
 pub enum DefInput<S, L = NoLinked> {
 	/// Static definition authored via macro.
 	Static(S),
-	/// Linked definition assembled from dynamic metadata (e.g. KDL).
+	/// Linked definition assembled from dynamic metadata (e.g. NUON).
 	Linked(L),
 }
 

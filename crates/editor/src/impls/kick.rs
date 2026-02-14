@@ -69,7 +69,7 @@ impl Editor {
 
 	/// Spawns a background task to load LSP server configurations.
 	///
-	/// Parses `lsp.kdl` and `languages.kdl`, registers server configs with the
+	/// Parses `lsp_servers.nuon` and `languages.nuon`, registers server configs with the
 	/// registry. Server availability is tested at spawn time rather than upfront.
 	/// Sends [`LspMsg::CatalogReady`] when complete.
 	#[cfg(feature = "lsp")]

@@ -2,7 +2,7 @@
 
 /// Defines a notification emitter.
 ///
-/// The metadata (level, auto-dismiss, etc.) comes from `notifications.kdl`.
+/// The metadata (level, auto-dismiss, etc.) comes from `notifications.nuon`.
 /// This macro creates a `NotificationKey` typed handle and optionally a builder function.
 #[macro_export]
 macro_rules! notif {

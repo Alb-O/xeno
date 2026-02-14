@@ -73,7 +73,7 @@ config-nuon = [
     "themes",
     "options",
 ]
-config-nu = ["config-nuon", "dep:nu-parser", "dep:nu-cmd-lang"]
+config-nu = ["config-nuon", "dep:xeno-nu"]
 
 # Contract enforcement
 registry-contracts = []
@@ -85,10 +85,9 @@ actions-handler-coverage = ["actions-builtins"]
 arc-swap = { workspace = true }
 bitflags = { workspace = true }
 inventory.workspace = true
-nu-cmd-lang = { workspace = true, optional = true }
 nu-engine = { workspace = true, optional = true, features = ["os"] }
-nu-parser = { workspace = true, optional = true }
 nu-protocol = { workspace = true, optional = true }
+xeno-nu = { workspace = true, optional = true }
 nuon = { workspace = true, optional = true }
 parking_lot.workspace = true
 paste.workspace = true

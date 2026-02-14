@@ -8,7 +8,7 @@ pub enum RegistrySource {
 	Builtin,
 	/// Defined in a library crate.
 	Crate(&'static str),
-	/// Loaded at runtime (e.g., from KDL config files).
+	/// Loaded at runtime (e.g., from NUON registry files).
 	Runtime,
 }
 

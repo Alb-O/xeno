@@ -175,7 +175,7 @@ impl LinkedPayload<ThemeEntry> for ThemePayload {
 	}
 }
 
-/// Linked theme definition assembled from KDL metadata.
+/// Linked theme definition assembled from NUON metadata.
 pub type LinkedThemeDef = LinkedDef<ThemePayload>;
 
 /// Symbolized theme entry.

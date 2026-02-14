@@ -140,7 +140,7 @@ impl<'a, 'b> StringCollector<'a, 'b> {
 pub enum StrListRef<'a> {
 	/// Static string slices (from `RegistryMetaStatic`).
 	Static(&'a [&'a str]),
-	/// Owned strings (from KDL-linked definitions).
+	/// Owned strings (from registry-linked definitions).
 	Owned(&'a [String]),
 }
 

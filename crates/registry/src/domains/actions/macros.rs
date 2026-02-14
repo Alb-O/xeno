@@ -1,8 +1,8 @@
 //! Action and result handler registration macros.
 
-/// Registers a handler function for a KDL-defined action.
+/// Registers a handler function for a registry-defined action.
 ///
-/// The metadata (description, bindings, etc.) comes from `actions.kdl`; this macro
+/// The metadata (description, bindings, etc.) comes from `actions.nuon`; this macro
 /// only provides the Rust handler and creates the `ActionKey` typed handle.
 #[macro_export]
 macro_rules! action_handler {

@@ -1,6 +1,6 @@
-/// Registers a handler function for a KDL-defined motion.
+/// Registers a handler function for a registry-defined motion.
 ///
-/// The metadata (description, aliases, etc.) comes from `motions.kdl`; this macro
+/// The metadata (description, aliases, etc.) comes from `motions.nuon`; this macro
 /// only provides the Rust handler and creates the inventory linkage.
 #[macro_export]
 macro_rules! motion_handler {

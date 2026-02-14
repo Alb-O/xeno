@@ -139,7 +139,7 @@ impl BuildEntry<TextObjectEntry> for TextObjectDef {
 }
 
 /// Unified input for text object registration — either a static `TextObjectDef`
-/// or a `LinkedTextObjectDef` assembled from KDL metadata + Rust handlers.
+/// or a `LinkedTextObjectDef` assembled from NUON metadata + Rust handlers.
 pub type TextObjectInput = crate::core::def_input::DefInput<TextObjectDef, crate::textobj::link::LinkedTextObjectDef>;
 
 #[cfg(feature = "db")]

@@ -6,7 +6,7 @@ use xeno_registry_spec::grammars::{GrammarSourceSpec, GrammarSpec};
 
 use crate::grammar::{cache_dir, runtime_dir};
 
-/// Grammar configuration from grammars.kdl.
+/// Grammar configuration from grammars.nuon.
 #[derive(Debug, Clone)]
 pub struct GrammarConfig {
 	/// The grammar name (used for the output library name).

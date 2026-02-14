@@ -41,7 +41,7 @@ pub fn link_commands(spec: &CommandsSpec, handlers: impl Iterator<Item = &'stati
 					description: common.description.clone(),
 					priority: common.priority,
 					source: RegistrySource::Crate(handler.crate_name),
-					required_caps: vec![], // Commands don't currently use required_caps from KDL in link/commands.rs
+					required_caps: vec![], // Commands don't currently use required_caps from NUON in link/commands.rs
 					flags: common.flags,
 					short_desc: Some(common.name.clone()), // commands.rs used name as short_desc
 				},

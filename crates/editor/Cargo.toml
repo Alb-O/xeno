@@ -16,10 +16,8 @@ clap.workspace = true
 dirs.workspace = true
 ignore.workspace = true
 inventory.workspace = true
-nu-cmd-lang.workspace = true
-nu-engine = { workspace = true, features = ["os"] }
-nu-parser.workspace = true
 nu-protocol.workspace = true
+xeno-nu.workspace = true
 parking_lot.workspace = true
 paste.workspace = true
 postcard.workspace = true

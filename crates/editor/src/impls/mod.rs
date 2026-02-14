@@ -319,7 +319,7 @@ impl Editor {
 
 		let (msg_tx, msg_rx) = crate::msg::channel();
 
-		// Initialize language loader from embedded languages.kdl
+		// Initialize language loader from embedded languages.nuon
 		let language_loader = LanguageLoader::from_embedded();
 
 		// Create buffer manager with initial buffer

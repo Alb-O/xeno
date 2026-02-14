@@ -6506,9 +6506,6 @@ dependencies = [
  "futures",
  "ignore",
  "inventory",
- "nu-cmd-lang",
- "nu-engine",
- "nu-parser",
  "nu-protocol",
  "parking_lot",
  "paste",
@@ -6532,6 +6529,7 @@ dependencies = [
  "xeno-language",
  "xeno-lsp",
  "xeno-matcher",
+ "xeno-nu",
  "xeno-primitives",
  "xeno-registry",
 ]
@@ -6649,6 +6647,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "xeno-nu"
+version = "0.8.20"
+dependencies = [
+ "nu-cmd-lang",
+ "nu-engine",
+ "nu-parser",
+ "nu-protocol",
+ "tempfile",
+]
+
+[[package]]
 name = "xeno-primitives"
 version = "0.8.20"
 dependencies = [
@@ -6670,9 +6679,7 @@ dependencies = [
  "arc-swap",
  "bitflags 2.10.0",
  "inventory",
- "nu-cmd-lang",
  "nu-engine",
- "nu-parser",
  "nu-protocol",
  "nuon",
  "parking_lot",
@@ -6687,6 +6694,7 @@ dependencies = [
  "tracing",
  "xeno-keymap-core",
  "xeno-macros",
+ "xeno-nu",
  "xeno-primitives",
  "xeno-registry-spec",
 ]

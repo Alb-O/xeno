@@ -6,7 +6,7 @@ use crate::HookEvent;
 /// Handler configuration carried by the static registration.
 ///
 /// Contains the executable logic and structural properties (event, mutability, priority)
-/// that are code-dependent and cannot be expressed in KDL.
+/// that are code-dependent and cannot be expressed in NUON.
 #[derive(Clone, Copy)]
 pub struct HookHandlerConfig {
 	/// Event this hook listens to.

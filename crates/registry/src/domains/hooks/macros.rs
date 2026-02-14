@@ -1,6 +1,6 @@
 //! Hook registration macros.
 //!
-//! `hook_handler!` for registering event lifecycle observers via KDL metadata.
+//! `hook_handler!` for registering event lifecycle observers via NUON metadata.
 //!
 //! Note: The `__hook_extract!` and `__async_hook_extract!` macros are generated
 //! by `xeno_macros::define_events!` in `lib.rs`.
@@ -26,9 +26,9 @@ macro_rules! __hook_param_expr {
 	};
 }
 
-/// Registers a handler for a KDL-defined hook.
+/// Registers a handler for a registry-defined hook.
 ///
-/// Metadata comes from `hooks.kdl`; this macro provides the handler function
+/// Metadata comes from `hooks.nuon`; this macro provides the handler function
 /// and creates the inventory linkage.
 #[macro_export]
 macro_rules! hook_handler {

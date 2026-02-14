@@ -1,8 +1,8 @@
 //! Registration macros for gutter columns.
 
-/// Registers a handler for a KDL-defined gutter.
+/// Registers a handler for a registry-defined gutter.
 ///
-/// Metadata comes from `gutters.kdl`; this macro provides width + render handlers
+/// Metadata comes from `gutters.nuon`; this macro provides width + render handlers
 /// and creates the inventory linkage.
 #[macro_export]
 macro_rules! gutter_handler {

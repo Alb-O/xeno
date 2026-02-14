@@ -1,8 +1,8 @@
 //! Registration macros for text objects.
 
-/// Registers a handler for a KDL-defined text object.
+/// Registers a handler for a registry-defined text object.
 ///
-/// The metadata (description, trigger, etc.) comes from `text_objects.kdl`; this macro
+/// The metadata (description, trigger, etc.) comes from `text_objects.nuon`; this macro
 /// only provides the Rust handlers and creates the inventory linkage.
 #[macro_export]
 macro_rules! text_object_handler {

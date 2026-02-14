@@ -26,19 +26,19 @@ fn eval_config_returns_config() {
 #[test]
 fn eval_config_rejects_external() {
 	let err = eval_config_str("^echo hi; { options: { tab-width: 4 } }", "config.nu").expect_err("external commands must be rejected");
-	assert!(matches!(err, ConfigError::NuSandbox(_) | ConfigError::NuParse(_)));
+	assert!(matches!(err, ConfigError::NuParse(_)));
 }
 
 #[test]
 fn eval_config_rejects_redirection() {
 	let err = eval_config_str("1 > out.txt; { options: { tab-width: 4 } }", "config.nu").expect_err("redirection must be rejected");
-	assert!(matches!(err, ConfigError::NuSandbox(_) | ConfigError::NuParse(_)));
+	assert!(matches!(err, ConfigError::NuParse(_)));
 }
 
 #[test]
 fn eval_config_rejects_while() {
 	let err = eval_config_str("while true { }; { options: { tab-width: 4 } }", "config.nu").expect_err("while loops must be rejected");
-	assert!(matches!(err, ConfigError::NuSandbox(_)));
+	assert!(matches!(err, ConfigError::NuParse(_)));
 }
 
 #[test]
@@ -75,7 +75,7 @@ fn eval_config_rejects_use_parent_dir() {
 	let config_path = config_dir.join("config.nu");
 	let err = eval_config_str("use ../outer/evil.nu *\n{ options: { tab-width: 4 } }", &config_path.to_string_lossy())
 		.expect_err("parent traversal should be rejected");
-	assert!(matches!(err, ConfigError::NuSandbox(_) | ConfigError::NuParse(_)));
+	assert!(matches!(err, ConfigError::NuParse(_)));
 	let _ = std::fs::remove_dir_all(base);
 }
 
@@ -84,6 +84,6 @@ fn eval_config_rejects_use_wildcard() {
 	let dir = unique_temp_dir("config-nu-wildcard");
 	let config_path = dir.join("config.nu");
 	let err = eval_config_str("use *.nu *\n{ options: { tab-width: 4 } }", &config_path.to_string_lossy()).expect_err("wildcard paths should be rejected");
-	assert!(matches!(err, ConfigError::NuSandbox(_) | ConfigError::NuParse(_)));
+	assert!(matches!(err, ConfigError::NuParse(_)));
 	let _ = std::fs::remove_dir_all(dir);
 }

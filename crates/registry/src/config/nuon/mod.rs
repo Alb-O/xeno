@@ -16,12 +16,9 @@ pub fn parse_config_str(input: &str) -> Result<Config> {
 /// Parse a NUON value into a [`Config`].
 pub fn parse_config_value(value: &Value) -> Result<Config> {
 	let root = expect_record(value, "config")?;
-	validate_allowed_fields(&root, &["theme", "keys", "options", "languages"], "config")?;
+	validate_allowed_fields(&root, &["keys", "options", "languages"], "config")?;
 
 	let mut warnings = Vec::new();
-
-	#[cfg(feature = "themes")]
-	let theme = parse_inline_theme(root.get("theme"))?;
 
 	let keys = root.get("keys").map(parse_keys_value).transpose()?;
 
@@ -60,8 +57,6 @@ pub fn parse_config_value(value: &Value) -> Result<Config> {
 	}
 
 	Ok(Config {
-		#[cfg(feature = "themes")]
-		theme,
 		keys,
 		options,
 		languages,
@@ -157,19 +152,6 @@ pub fn parse_theme_value(value: &Value) -> Result<crate::themes::LinkedThemeDef>
 
 fn parse_root_value(input: &str) -> Result<Value> {
 	nuon::from_nuon(input, None).map_err(|e| ConfigError::Nuon(e.to_string()))
-}
-
-#[cfg(feature = "themes")]
-fn parse_inline_theme(value: Option<&Value>) -> Result<Option<crate::themes::LinkedThemeDef>> {
-	let Some(value) = value else {
-		return Ok(None);
-	};
-
-	if value.is_nothing() {
-		Ok(None)
-	} else {
-		Err(invalid_type("theme", "nothing", value))
-	}
 }
 
 fn validate_allowed_fields(record: &Record, allowed: &[&str], parent: &str) -> Result<()> {

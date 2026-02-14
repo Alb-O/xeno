@@ -50,5 +50,5 @@ impl BuildEntry<CommandEntry> for CommandDef {
 	}
 }
 
-/// Unified command input: either a static `CommandDef` or a KDL-linked definition.
+/// Unified command input: either a static `CommandDef` or a registry-linked definition.
 pub type CommandInput = crate::core::def_input::DefInput<CommandDef, crate::commands::link::LinkedCommandDef>;

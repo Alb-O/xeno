@@ -51,7 +51,7 @@ impl UnresolvedKeys {
 pub enum ConfigWarning {
 	/// An option was used in the wrong scope (e.g., global option in language block).
 	ScopeMismatch {
-		/// The option's KDL key.
+		/// The option's config key.
 		option: String,
 		/// Where the option was found (e.g., "language block").
 		found_in: &'static str,
@@ -88,11 +88,6 @@ pub enum ConfigError {
 	#[error("Nu runtime error: {0}")]
 	NuRuntime(String),
 
-	/// Nu script violated sandbox restrictions.
-	#[cfg(feature = "config-nu")]
-	#[error("Nu sandbox error: {0}")]
-	NuSandbox(String),
-
 	/// A required field is missing from the configuration.
 	#[error("missing required field: {0}")]
 	MissingField(String),
@@ -125,7 +120,7 @@ pub enum ConfigError {
 	/// An option value has the wrong type.
 	#[error("type mismatch for option '{option}': expected {expected}, got {got}")]
 	OptionTypeMismatch {
-		/// The option's KDL key.
+		/// The option's config key.
 		option: String,
 		/// The expected type name.
 		expected: &'static str,
@@ -154,12 +149,9 @@ pub type Result<T> = std::result::Result<T, ConfigError>;
 
 /// Parsed configuration from a config file.
 ///
-/// May contain any combination of theme, keys, options, and language settings.
+/// May contain any combination of keys, options, and language settings.
 #[derive(Clone, Default)]
 pub struct Config {
-	/// Parsed theme definition from the config file.
-	#[cfg(feature = "themes")]
-	pub theme: Option<crate::themes::LinkedThemeDef>,
 	/// Keybinding overrides (unresolved strings).
 	pub keys: Option<UnresolvedKeys>,
 	/// Global option overrides.
@@ -174,11 +166,6 @@ pub struct Config {
 impl std::fmt::Debug for Config {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		let mut s = f.debug_struct("Config");
-
-		#[cfg(feature = "themes")]
-		{
-			s.field("theme", &self.theme.as_ref().map(|_| "<LinkedThemeDef>"));
-		}
 
 		s.field("keys", &self.keys);
 
@@ -196,11 +183,6 @@ impl Config {
 	///
 	/// Values from `other` override values in `self`.
 	pub fn merge(&mut self, other: Config) {
-		#[cfg(feature = "themes")]
-		if other.theme.is_some() {
-			self.theme = other.theme;
-		}
-
 		if let Some(other_keys) = other.keys {
 			match &mut self.keys {
 				Some(keys) => keys.merge(other_keys),

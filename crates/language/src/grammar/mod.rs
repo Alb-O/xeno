@@ -66,7 +66,7 @@ pub fn load_grammar(name: &str) -> Result<Grammar, GrammarError> {
 /// Loads a grammar by name, automatically fetching and building if necessary.
 ///
 /// This function first tries to load the grammar from the search paths.
-/// If not found and `grammars.kdl` contains a configuration for this grammar,
+/// If not found and `grammars.nuon` contains a configuration for this grammar,
 /// it will attempt to fetch the source and compile it.
 ///
 /// This provides a "just works" experience where grammars are built on demand.
@@ -101,7 +101,7 @@ fn auto_build_grammar(name: &str) -> Result<(), GrammarError> {
 	let config = configs
 		.into_iter()
 		.find(|c| c.grammar_id == name)
-		.ok_or_else(|| GrammarError::NotFound(format!("{} (no config in grammars.kdl)", name)))?;
+		.ok_or_else(|| GrammarError::NotFound(format!("{} (no config in grammars.nuon)", name)))?;
 
 	let fetch_status = fetch_grammar(&config).map_err(|e| GrammarError::Io(std::io::Error::other(format!("fetch failed: {}", e))))?;
 

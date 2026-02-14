@@ -104,7 +104,7 @@ pub enum OptionDefault {
 	Int(fn() -> i64),
 	/// String default value factory.
 	String(fn() -> String),
-	/// Static value (for KDL-linked definitions).
+	/// Static value (for registry-linked definitions).
 	Value(OptionValue),
 }
 
