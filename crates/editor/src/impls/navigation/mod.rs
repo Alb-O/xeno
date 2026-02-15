@@ -121,6 +121,7 @@ impl Editor {
 					.is_some_and(|path| crate::paths::fast_abs(&path) == target_path)
 			});
 
+			let is_existing = existing_view.is_some();
 			let replacement = if let Some(source_view) = existing_view {
 				let source = self.state.core.buffers.get_buffer(source_view).expect("existing source buffer must be present");
 				source.clone_for_split(focused_view)
@@ -137,7 +138,7 @@ impl Editor {
 
 			self.finalize_document_if_orphaned(replaced.document_id());
 
-			if existing_view.is_none()
+			if !is_existing
 				&& let Some(buffer) = self.state.core.buffers.get_buffer(focused_view)
 				&& let Some(path) = buffer.path()
 			{
@@ -149,6 +150,14 @@ impl Editor {
 					file_type: file_type.as_deref(),
 				}))
 				.await;
+			}
+
+			// Nu on_buffer_open hook — fires for both new and existing buffers.
+			let kind = if is_existing { "existing" } else { "disk" };
+			if let Some(hook_result) = self.emit_buffer_open_hook(&target_path, kind).await
+				&& hook_result.is_quit()
+			{
+				return Ok(focused_view);
 			}
 
 			#[cfg(feature = "lsp")]

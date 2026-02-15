@@ -5,7 +5,7 @@
 
 use std::time::{Duration, Instant};
 
-use nu_protocol::{Record, Span, Value};
+use nu_protocol::Value;
 use tracing::{debug, trace, trace_span, warn};
 use xeno_registry::actions::{ActionArgs, ActionContext, ActionResult, EditorContext, dispatch_result, find_action};
 use xeno_registry::commands::{CommandContext, find_command};
@@ -20,6 +20,28 @@ const MAX_NU_MACRO_DEPTH: u8 = 8;
 const SLOW_NU_HOOK_THRESHOLD: Duration = Duration::from_millis(2);
 const SLOW_NU_MACRO_THRESHOLD: Duration = Duration::from_millis(5);
 
+/// Build hook args for action post hooks: `[name, result_label]`.
+pub(crate) fn action_post_args(name: String, result: &InvocationResult) -> Vec<String> {
+	vec![name, invocation_result_label(result).to_string()]
+}
+
+/// Build hook args for command/editor-command post hooks: `[name, result_label, ...original_args]`.
+pub(crate) fn command_post_args(name: String, result: &InvocationResult, args: Vec<String>) -> Vec<String> {
+	let mut hook_args = vec![name, invocation_result_label(result).to_string()];
+	hook_args.extend(args);
+	hook_args
+}
+
+/// Build hook args for mode change: `[from_debug, to_debug]`.
+pub(crate) fn mode_change_args(from: &xeno_primitives::Mode, to: &xeno_primitives::Mode) -> Vec<String> {
+	vec![format!("{from:?}"), format!("{to:?}")]
+}
+
+/// Build hook args for buffer open: `[path, kind]`.
+pub(crate) fn buffer_open_args(path: &std::path::Path, kind: &str) -> Vec<String> {
+	vec![path.to_string_lossy().to_string(), kind.to_string()]
+}
+
 #[cfg(test)]
 mod tests;
 
@@ -31,7 +53,7 @@ impl Editor {
 
 	/// Executes a registry command with enforcement defaults.
 	pub async fn invoke_command(&mut self, name: &str, args: Vec<String>) -> InvocationResult {
-		self.run_command_invocation(name, args, InvocationPolicy::enforcing()).await
+		self.run_command_invocation(name, &args, InvocationPolicy::enforcing()).await
 	}
 
 	/// Executes an invocation with capability gating and hook emission.
@@ -47,7 +69,7 @@ impl Editor {
 	///
 	/// # Hook Emission
 	///
-	/// Pre/post hooks are emitted for actions. Command hooks may be added later.
+	/// Pre/post hooks are emitted for actions, commands, and editor commands.
 	pub async fn run_invocation(&mut self, invocation: Invocation, policy: InvocationPolicy) -> InvocationResult {
 		let span = trace_span!("run_invocation", invocation = %invocation.describe());
 		let _guard = span.enter();
@@ -56,12 +78,8 @@ impl Editor {
 		match invocation {
 			Invocation::Action { name, count, extend, register } => {
 				let result = self.run_action_invocation(&name, count, extend, register, None, policy);
-				if !result.is_quit()
-					&& let Some(hook_result) = self.run_nu_hook("on_action_post", vec![name, action_result_label(&result).to_string()]).await
-				{
-					return hook_result;
-				}
-				result
+				self.maybe_emit_post_hook(crate::nu::NuHook::ActionPost, action_post_args(name, &result), result)
+					.await
 			}
 
 			Invocation::ActionWithChar {
@@ -72,17 +90,21 @@ impl Editor {
 				char_arg,
 			} => {
 				let result = self.run_action_invocation(&name, count, extend, register, Some(char_arg), policy);
-				if !result.is_quit()
-					&& let Some(hook_result) = self.run_nu_hook("on_action_post", vec![name, action_result_label(&result).to_string()]).await
-				{
-					return hook_result;
-				}
-				result
+				self.maybe_emit_post_hook(crate::nu::NuHook::ActionPost, action_post_args(name, &result), result)
+					.await
 			}
 
-			Invocation::Command { name, args } => self.run_command_invocation(&name, args, policy).await,
+			Invocation::Command { name, args } => {
+				let result = self.run_command_invocation(&name, &args, policy).await;
+				self.maybe_emit_post_hook(crate::nu::NuHook::CommandPost, command_post_args(name, &result, args), result)
+					.await
+			}
 
-			Invocation::EditorCommand { name, args } => self.run_editor_command_invocation(&name, args, policy).await,
+			Invocation::EditorCommand { name, args } => {
+				let result = self.run_editor_command_invocation(&name, &args, policy).await;
+				self.maybe_emit_post_hook(crate::nu::NuHook::EditorCommandPost, command_post_args(name, &result, args), result)
+					.await
+			}
 
 			Invocation::Nu { name, args } => {
 				if self.state.nu_macro_depth >= MAX_NU_MACRO_DEPTH {
@@ -99,15 +121,51 @@ impl Editor {
 
 	/// Run a Nu hook function if runtime is loaded.
 	///
+	/// Runs a Nu post-hook if the result is non-quit, propagating hook quit.
+	async fn maybe_emit_post_hook(&mut self, hook: crate::nu::NuHook, args: Vec<String>, result: InvocationResult) -> InvocationResult {
+		if !result.is_quit() {
+			if let Some(hook_result) = self.run_nu_hook(hook, args).await {
+				return hook_result;
+			}
+		}
+		result
+	}
+
+	/// Emits `on_action_post` hook for key-handling action dispatch path.
+	pub(crate) async fn emit_action_post_hook(&mut self, name: String, result: &InvocationResult) -> Option<InvocationResult> {
+		if result.is_quit() {
+			return None;
+		}
+		self.run_nu_hook(crate::nu::NuHook::ActionPost, action_post_args(name, result)).await
+	}
+
+	/// Emits `on_mode_change` hook after a mode transition.
+	pub(crate) async fn emit_mode_change_hook(&mut self, old: &xeno_primitives::Mode, new: &xeno_primitives::Mode) -> Option<InvocationResult> {
+		self.run_nu_hook(crate::nu::NuHook::ModeChange, mode_change_args(old, new)).await
+	}
+
+	/// Emits `on_buffer_open` hook after a buffer is focused via navigation.
+	pub(crate) async fn emit_buffer_open_hook(&mut self, path: &std::path::Path, kind: &str) -> Option<InvocationResult> {
+		self.run_nu_hook(crate::nu::NuHook::BufferOpen, buffer_open_args(path, kind)).await
+	}
+
 	/// Hook errors are logged and ignored. Quit requests from hook-produced
 	/// invocations are propagated to the caller.
-	pub async fn run_nu_hook(&mut self, fn_name: &str, args: Vec<String>) -> Option<InvocationResult> {
+	async fn run_nu_hook(&mut self, hook: crate::nu::NuHook, args: Vec<String>) -> Option<InvocationResult> {
 		if self.state.nu_hook_guard {
 			return None;
 		}
 
-		let runtime = self.nu_runtime()?.clone();
-		let fn_name_owned = fn_name.to_string();
+		let fn_name = hook.fn_name();
+		let decl_id = match hook {
+			crate::nu::NuHook::ActionPost => self.state.nu_hook_ids.on_action_post,
+			crate::nu::NuHook::CommandPost => self.state.nu_hook_ids.on_command_post,
+			crate::nu::NuHook::EditorCommandPost => self.state.nu_hook_ids.on_editor_command_post,
+			crate::nu::NuHook::ModeChange => self.state.nu_hook_ids.on_mode_change,
+			crate::nu::NuHook::BufferOpen => self.state.nu_hook_ids.on_buffer_open,
+		}?;
+		self.ensure_nu_executor()?;
+
 		let limits = crate::nu::DecodeLimits::hook_defaults();
 		let args_len = args.len();
 		let hook_start = Instant::now();
@@ -120,22 +178,30 @@ impl Editor {
 			max_depth = limits.max_depth
 		);
 		let _hook_guard = hook_span.enter();
-		let span = tracing::Span::current();
-		let invocations = match tokio::task::spawn_blocking(move || {
-			let _span_guard = span.enter();
-			let env = [("XENO_CTX", nu_ctx)];
-			runtime.try_run_invocations_with_limits_and_env(&fn_name_owned, &args, limits, &env)
-		})
-		.await
-		{
-			Ok(Ok(Some(invocations))) => invocations,
-			Ok(Ok(None)) => return None,
-			Ok(Err(error)) => {
-				warn!(hook = fn_name, error = %error, "Nu hook failed");
+		let env = vec![("XENO_CTX".to_string(), nu_ctx)];
+		let invocations = match self.state.nu_executor.as_ref().unwrap().run(decl_id, args, limits, env).await {
+			Ok(invocations) => invocations,
+			Err(crate::nu::executor::NuExecError::Shutdown { decl_id, args, limits, env }) => {
+				warn!(hook = fn_name, "Nu executor died, restarting");
+				self.restart_nu_executor();
+				match self.ensure_nu_executor() {
+					Some(executor) => match executor.run(decl_id, args, limits, env).await {
+						Ok(invocations) => invocations,
+						Err(error) => {
+							warn!(hook = fn_name, error = ?error, "Nu hook failed after executor restart");
+							return None;
+						}
+					},
+					None => return None,
+				}
+			}
+			Err(crate::nu::executor::NuExecError::ReplyDropped) => {
+				warn!(hook = fn_name, "Nu executor worker died mid-evaluation, restarting");
+				self.restart_nu_executor();
 				return None;
 			}
-			Err(error) => {
-				warn!(hook = fn_name, error = %error, "Nu hook task join failed");
+			Err(crate::nu::executor::NuExecError::Eval(error)) => {
+				warn!(hook = fn_name, error = %error, "Nu hook failed");
 				return None;
 			}
 		};
@@ -183,33 +249,57 @@ impl Editor {
 			return InvocationResult::CommandError(error);
 		}
 
-		let Some(runtime) = self.nu_runtime().cloned() else {
+		let Some(runtime) = self.nu_runtime() else {
 			return InvocationResult::CommandError("Nu runtime is not loaded".to_string());
 		};
+
+		let Some(decl_id) = runtime.find_script_decl(&fn_name) else {
+			let error = format!("Nu runtime error: function '{}' is not defined in xeno.nu", fn_name);
+			self.show_notification(xeno_registry::notifications::keys::command_error(&error));
+			return InvocationResult::CommandError(error);
+		};
+
+		if self.ensure_nu_executor().is_none() {
+			return InvocationResult::CommandError("Nu executor is not available".to_string());
+		}
+
 		let limits = crate::nu::DecodeLimits::macro_defaults();
 		let args_len = args.len();
 		let macro_start = Instant::now();
 		let nu_ctx = self.build_nu_ctx("macro", &fn_name, &args);
 		let macro_span = trace_span!("nu.macro", function = %fn_name, args_len = args_len);
 		let _macro_guard = macro_span.enter();
-		let span = tracing::Span::current();
-		let fn_name_for_call = fn_name.clone();
-		let args_for_call = args.clone();
+		let env = vec![("XENO_CTX".to_string(), nu_ctx)];
 
-		let invocations = match tokio::task::spawn_blocking(move || {
-			let _span_guard = span.enter();
-			let env = [("XENO_CTX", nu_ctx)];
-			runtime.run_invocations_with_limits_and_env(&fn_name_for_call, &args_for_call, limits, &env)
-		})
-		.await
-		{
-			Ok(Ok(invocations)) => invocations,
-			Ok(Err(error)) => {
+		let invocations = match self.state.nu_executor.as_ref().unwrap().run(decl_id, args, limits, env).await {
+			Ok(invocations) => invocations,
+			Err(crate::nu::executor::NuExecError::Shutdown { decl_id, args, limits, env }) => {
+				warn!(function = %fn_name, "Nu executor died, restarting");
+				self.restart_nu_executor();
+				match self.ensure_nu_executor() {
+					Some(executor) => match executor.run(decl_id, args, limits, env).await {
+						Ok(invocations) => invocations,
+						Err(error) => {
+							let msg = exec_error_message(&error);
+							self.show_notification(xeno_registry::notifications::keys::command_error(&msg));
+							return InvocationResult::CommandError(msg);
+						}
+					},
+					None => {
+						let error = "Nu executor could not be restarted".to_string();
+						self.show_notification(xeno_registry::notifications::keys::command_error(&error));
+						return InvocationResult::CommandError(error);
+					}
+				}
+			}
+			Err(crate::nu::executor::NuExecError::ReplyDropped) => {
+				warn!(function = %fn_name, "Nu executor worker died mid-evaluation, restarting");
+				self.restart_nu_executor();
+				let error = "Nu executor worker died during evaluation".to_string();
 				self.show_notification(xeno_registry::notifications::keys::command_error(&error));
 				return InvocationResult::CommandError(error);
 			}
-			Err(error) => {
-				let error = format!("failed to join nu invocation task: {error}");
+			Err(crate::nu::executor::NuExecError::Eval(error)) => {
 				self.show_notification(xeno_registry::notifications::keys::command_error(&error));
 				return InvocationResult::CommandError(error);
 			}
@@ -253,13 +343,14 @@ impl Editor {
 	}
 
 	fn build_nu_ctx(&self, kind: &str, function: &str, args: &[String]) -> Value {
-		let span = Span::unknown();
+		use crate::nu::ctx::{NuCtx, NuCtxBuffer, NuCtxPosition, NuCtxSelection, NuCtxView};
+
 		let buffer = self.buffer();
 		let view_id = self.focused_view().0;
 		let primary_selection = buffer.selection.primary();
 		let cursor_char = buffer.cursor;
 
-		let (cursor_line, cursor_col, selection_start_line, selection_start_col, selection_end_line, selection_end_col) = buffer.with_doc(|doc| {
+		let (cursor_line, cursor_col, sel_start_line, sel_start_col, sel_end_line, sel_end_col) = buffer.with_doc(|doc| {
 			let text = doc.content();
 			let to_line_col = |idx: usize| {
 				let clamped = idx.min(text.len_chars());
@@ -268,69 +359,41 @@ impl Editor {
 				(line, col)
 			};
 
-			let (cursor_line, cursor_col) = to_line_col(cursor_char);
-			let (selection_start_line, selection_start_col) = to_line_col(primary_selection.min());
-			let (selection_end_line, selection_end_col) = to_line_col(primary_selection.max());
-			(
-				cursor_line,
-				cursor_col,
-				selection_start_line,
-				selection_start_col,
-				selection_end_line,
-				selection_end_col,
-			)
+			let (cl, cc) = to_line_col(cursor_char);
+			let (ssl, ssc) = to_line_col(primary_selection.min());
+			let (sel, sec) = to_line_col(primary_selection.max());
+			(cl, cc, ssl, ssc, sel, sec)
 		});
 
-		let to_nu_int = |value: usize| Value::int(value.min(i64::MAX as usize) as i64, span);
-		let to_nu_int_u64 = |value: u64| Value::int(value.min(i64::MAX as u64) as i64, span);
-
-		let mut view_record = Record::new();
-		view_record.push("id", to_nu_int_u64(view_id));
-
-		let mut cursor_record = Record::new();
-		cursor_record.push("line", to_nu_int(cursor_line));
-		cursor_record.push("col", to_nu_int(cursor_col));
-
-		let mut selection_start_record = Record::new();
-		selection_start_record.push("line", to_nu_int(selection_start_line));
-		selection_start_record.push("col", to_nu_int(selection_start_col));
-
-		let mut selection_end_record = Record::new();
-		selection_end_record.push("line", to_nu_int(selection_end_line));
-		selection_end_record.push("col", to_nu_int(selection_end_col));
-
-		let mut selection_record = Record::new();
-		selection_record.push("active", Value::bool(!primary_selection.is_point(), span));
-		selection_record.push("start", Value::record(selection_start_record, span));
-		selection_record.push("end", Value::record(selection_end_record, span));
-
-		let mut buffer_record = Record::new();
-		buffer_record.push(
-			"path",
-			buffer
-				.path()
-				.map_or_else(|| Value::nothing(span), |path| Value::string(path.to_string_lossy().to_string(), span)),
-		);
-		buffer_record.push(
-			"file_type",
-			buffer
-				.file_type()
-				.map_or_else(|| Value::nothing(span), |file_type| Value::string(file_type, span)),
-		);
-		buffer_record.push("readonly", Value::bool(buffer.is_readonly(), span));
-		buffer_record.push("modified", Value::bool(buffer.modified(), span));
-
-		let mut ctx = Record::new();
-		ctx.push("kind", Value::string(kind, span));
-		ctx.push("function", Value::string(function, span));
-		ctx.push("args", Value::list(args.iter().map(|arg| Value::string(arg, span)).collect(), span));
-		ctx.push("mode", Value::string(format!("{:?}", self.mode()), span));
-		ctx.push("view", Value::record(view_record, span));
-		ctx.push("cursor", Value::record(cursor_record, span));
-		ctx.push("selection", Value::record(selection_record, span));
-		ctx.push("buffer", Value::record(buffer_record, span));
-
-		Value::record(ctx, span)
+		NuCtx {
+			kind: kind.to_string(),
+			function: function.to_string(),
+			args: args.to_vec(),
+			mode: format!("{:?}", self.mode()),
+			view: NuCtxView { id: view_id },
+			cursor: NuCtxPosition {
+				line: cursor_line,
+				col: cursor_col,
+			},
+			selection: NuCtxSelection {
+				active: !primary_selection.is_point(),
+				start: NuCtxPosition {
+					line: sel_start_line,
+					col: sel_start_col,
+				},
+				end: NuCtxPosition {
+					line: sel_end_line,
+					col: sel_end_col,
+				},
+			},
+			buffer: NuCtxBuffer {
+				path: buffer.path().map(|p| p.to_string_lossy().to_string()),
+				file_type: buffer.file_type(),
+				readonly: buffer.is_readonly(),
+				modified: buffer.modified(),
+			},
+		}
+		.to_value()
 	}
 
 	pub(crate) fn run_action_invocation(
@@ -417,7 +480,7 @@ impl Editor {
 		outcome
 	}
 
-	async fn run_command_invocation(&mut self, name: &str, args: Vec<String>, policy: InvocationPolicy) -> InvocationResult {
+	async fn run_command_invocation(&mut self, name: &str, args: &[String], policy: InvocationPolicy) -> InvocationResult {
 		let Some(command_def) = find_command(name) else {
 			// Don't notify - caller may want to try editor commands next
 			return InvocationResult::NotFound(format!("command:{name}"));
@@ -483,7 +546,7 @@ impl Editor {
 	}
 
 	/// Executes editor-direct commands with capability gating and policy checks.
-	async fn run_editor_command_invocation(&mut self, name: &str, args: Vec<String>, policy: InvocationPolicy) -> InvocationResult {
+	async fn run_editor_command_invocation(&mut self, name: &str, args: &[String], policy: InvocationPolicy) -> InvocationResult {
 		let Some(editor_cmd) = find_editor_command(name) else {
 			return InvocationResult::NotFound(format!("editor_command:{name}"));
 		};
@@ -559,7 +622,7 @@ impl Editor {
 	}
 }
 
-fn action_result_label(result: &InvocationResult) -> &'static str {
+fn invocation_result_label(result: &InvocationResult) -> &'static str {
 	match result {
 		InvocationResult::Ok => "ok",
 		InvocationResult::Quit => "quit",
@@ -608,6 +671,14 @@ fn capability_error_result(error: &CommandError) -> InvocationResult {
 	match error {
 		CommandError::MissingCapability(cap) => InvocationResult::CapabilityDenied(*cap),
 		_ => InvocationResult::CommandError(error.to_string()),
+	}
+}
+
+fn exec_error_message(error: &crate::nu::executor::NuExecError) -> String {
+	match error {
+		crate::nu::executor::NuExecError::Shutdown { .. } => "Nu executor thread has shut down".to_string(),
+		crate::nu::executor::NuExecError::ReplyDropped => "Nu executor worker died during evaluation".to_string(),
+		crate::nu::executor::NuExecError::Eval(msg) => msg.clone(),
 	}
 }
 

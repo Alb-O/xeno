@@ -1,7 +1,7 @@
 use std::cell::Cell;
 
 use xeno_primitives::range::CharIdx;
-use xeno_primitives::{BoxFutureLocal, Mode, Selection};
+use xeno_primitives::{BoxFutureLocal, Key, KeyCode, Mode, Selection};
 use xeno_registry::actions::{ActionEffects, ActionResult, CursorAccess, EditorCapabilities, ModeAccess, NotificationAccess, SelectionAccess};
 use xeno_registry::commands::{CommandContext, CommandOutcome};
 use xeno_registry::hooks::{HookAction, HookContext, HookDef, HookHandler, HookMutability, HookPriority};
@@ -13,9 +13,17 @@ use super::*;
 thread_local! {
 	static ACTION_PRE_COUNT: Cell<usize> = const { Cell::new(0) };
 	static ACTION_POST_COUNT: Cell<usize> = const { Cell::new(0) };
+	static INVOCATION_TEST_ACTION_COUNT: Cell<usize> = const { Cell::new(0) };
+	static INVOCATION_TEST_ACTION_ALT_COUNT: Cell<usize> = const { Cell::new(0) };
 }
 
 fn handler_invocation_test_action(_ctx: &xeno_registry::actions::ActionContext) -> ActionResult {
+	INVOCATION_TEST_ACTION_COUNT.with(|c| c.set(c.get() + 1));
+	ActionResult::Effects(ActionEffects::ok())
+}
+
+fn handler_invocation_test_action_alt(_ctx: &xeno_registry::actions::ActionContext) -> ActionResult {
+	INVOCATION_TEST_ACTION_ALT_COUNT.with(|c| c.set(c.get() + 1));
 	ActionResult::Effects(ActionEffects::ok())
 }
 
@@ -32,6 +40,22 @@ static ACTION_INVOCATION_TEST: xeno_registry::actions::ActionDef = xeno_registry
 	},
 	short_desc: "Invocation test action",
 	handler: handler_invocation_test_action,
+	bindings: &[],
+};
+
+static ACTION_INVOCATION_TEST_ALT: xeno_registry::actions::ActionDef = xeno_registry::actions::ActionDef {
+	meta: xeno_registry::RegistryMetaStatic {
+		id: "xeno-editor::invocation_test_action_alt",
+		name: "invocation_test_action_alt",
+		keys: &[],
+		description: "Invocation test action alt",
+		priority: 0,
+		source: xeno_registry::RegistrySource::Crate("xeno-editor"),
+		required_caps: &[],
+		flags: 0,
+	},
+	short_desc: "Invocation test action alt",
+	handler: handler_invocation_test_action_alt,
 	bindings: &[],
 };
 
@@ -124,6 +148,7 @@ static CMD_TEST_FAIL: xeno_registry::commands::CommandDef = xeno_registry::comma
 
 fn register_invocation_test_plugin(db: &mut xeno_registry::db::builder::RegistryDbBuilder) -> Result<(), xeno_registry::RegistryError> {
 	db.push_domain::<xeno_registry::db::domains::Actions>(xeno_registry::actions::def::ActionInput::Static(ACTION_INVOCATION_TEST.clone()));
+	db.push_domain::<xeno_registry::db::domains::Actions>(xeno_registry::actions::def::ActionInput::Static(ACTION_INVOCATION_TEST_ALT.clone()));
 	db.push_domain::<xeno_registry::db::domains::Actions>(xeno_registry::actions::def::ActionInput::Static(ACTION_INVOCATION_EDIT.clone()));
 	db.push_domain::<xeno_registry::db::domains::Commands>(xeno_registry::commands::def::CommandInput::Static(CMD_TEST_FAIL.clone()));
 	db.push_domain::<xeno_registry::db::domains::Hooks>(xeno_registry::hooks::HookInput::Static(HOOK_ACTION_PRE));
@@ -310,7 +335,7 @@ fn command_error_propagates() {
 	// Test defs registered via inventory::submit!(PluginDef) at DB init time.
 	let mut editor = Editor::new_scratch();
 	let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
-	let result = rt.block_on(editor.run_command_invocation("invocation_test_command_fail", Vec::new(), InvocationPolicy::enforcing()));
+	let result = rt.block_on(editor.run_command_invocation("invocation_test_command_fail", &[], InvocationPolicy::enforcing()));
 
 	assert!(matches!(
 		result,
@@ -396,4 +421,370 @@ async fn nu_hook_ctx_is_injected() {
 	let post_count = ACTION_POST_COUNT.with(|count| count.get());
 	assert_eq!(pre_count, 2);
 	assert_eq!(post_count, 2);
+}
+
+#[tokio::test]
+async fn nu_runtime_reload_swaps_executor_and_disables_old_runtime_hooks() {
+	INVOCATION_TEST_ACTION_COUNT.with(|count| count.set(0));
+	INVOCATION_TEST_ACTION_ALT_COUNT.with(|count| count.set(0));
+
+	let temp_a = tempfile::tempdir().expect("temp dir should exist");
+	std::fs::write(
+		temp_a.path().join("xeno.nu"),
+		"export def on_action_post [name result] {\n\
+			if $name == \"invocation_edit_action\" and $result == \"ok\" {\n\
+				\"action:invocation_test_action\"\n\
+			}\n\
+		}",
+	)
+	.expect("xeno.nu should be writable");
+
+	let temp_b = tempfile::tempdir().expect("temp dir should exist");
+	std::fs::write(
+		temp_b.path().join("xeno.nu"),
+		"export def on_action_post [name result] {\n\
+			if $name == \"invocation_edit_action\" and $result == \"ok\" {\n\
+				\"action:invocation_test_action_alt\"\n\
+			}\n\
+		}",
+	)
+	.expect("xeno.nu should be writable");
+
+	let runtime_a = crate::nu::NuRuntime::load(temp_a.path()).expect("runtime A should load");
+	let runtime_b = crate::nu::NuRuntime::load(temp_b.path()).expect("runtime B should load");
+
+	let mut editor = Editor::new_scratch();
+	editor.set_nu_runtime(Some(runtime_a));
+
+	let result_a = editor
+		.run_invocation(Invocation::action("invocation_edit_action"), InvocationPolicy::enforcing())
+		.await;
+	assert!(matches!(result_a, InvocationResult::Ok));
+	assert_eq!(INVOCATION_TEST_ACTION_COUNT.with(|count| count.get()), 1, "runtime A hook should run once");
+	assert_eq!(
+		INVOCATION_TEST_ACTION_ALT_COUNT.with(|count| count.get()),
+		0,
+		"runtime B hook should not run yet"
+	);
+
+	let old_shutdown_acks = editor
+		.state
+		.nu_executor
+		.as_ref()
+		.expect("executor should exist after first Nu hook execution")
+		.shutdown_acks_for_tests();
+	assert_eq!(
+		old_shutdown_acks.load(std::sync::atomic::Ordering::SeqCst),
+		0,
+		"old executor should not be acked before swap"
+	);
+
+	editor.set_nu_runtime(Some(runtime_b));
+	assert_eq!(
+		old_shutdown_acks.load(std::sync::atomic::Ordering::SeqCst),
+		1,
+		"old executor should ack shutdown during runtime swap"
+	);
+
+	let result_b = editor
+		.run_invocation(Invocation::action("invocation_edit_action"), InvocationPolicy::enforcing())
+		.await;
+	assert!(matches!(result_b, InvocationResult::Ok));
+	assert_eq!(
+		INVOCATION_TEST_ACTION_COUNT.with(|count| count.get()),
+		1,
+		"runtime A action must not run again after reload"
+	);
+	assert_eq!(
+		INVOCATION_TEST_ACTION_ALT_COUNT.with(|count| count.get()),
+		1,
+		"runtime B hook should run after reload"
+	);
+}
+
+#[tokio::test]
+async fn command_post_hook_runs_and_receives_args() {
+	ACTION_PRE_COUNT.with(|count| count.set(0));
+	ACTION_POST_COUNT.with(|count| count.set(0));
+
+	let temp = tempfile::tempdir().expect("temp dir should exist");
+	std::fs::write(
+		temp.path().join("xeno.nu"),
+		// Hook fires invocation_test_action only when it receives the expected args.
+		"export def on_command_post [name result ...args] {\n\
+			if $name == \"invocation_test_command_fail\" and $result == \"error\" {\n\
+				\"action:invocation_test_action\"\n\
+			}\n\
+		}",
+	)
+	.expect("xeno.nu should be writable");
+
+	let runtime = crate::nu::NuRuntime::load(temp.path()).expect("runtime should load");
+	let mut editor = Editor::new_scratch();
+	editor.set_nu_runtime(Some(runtime));
+
+	// Run the failing command — its post-hook should fire the test action.
+	let result = editor
+		.run_invocation(Invocation::command("invocation_test_command_fail", vec![]), InvocationPolicy::enforcing())
+		.await;
+
+	// The command itself fails. The hook runs and fires test action, but since
+	// hook invocations all succeed (Ok), run_nu_hook returns None and the
+	// original command error result is preserved.
+	assert!(matches!(result, InvocationResult::CommandError(_)));
+	let pre_count = ACTION_PRE_COUNT.with(|count| count.get());
+	let post_count = ACTION_POST_COUNT.with(|count| count.get());
+	assert_eq!(pre_count, 1, "hook-produced action should fire pre hook");
+	assert_eq!(post_count, 1, "hook-produced action should fire post hook");
+}
+
+#[tokio::test]
+async fn editor_command_post_hook_runs() {
+	ACTION_PRE_COUNT.with(|count| count.set(0));
+	ACTION_POST_COUNT.with(|count| count.set(0));
+
+	let temp = tempfile::tempdir().expect("temp dir should exist");
+	std::fs::write(
+		temp.path().join("xeno.nu"),
+		"export def on_editor_command_post [name result ...args] {\n\
+			if $name == \"stats\" and $result == \"ok\" {\n\
+				\"action:invocation_test_action\"\n\
+			}\n\
+		}",
+	)
+	.expect("xeno.nu should be writable");
+
+	let runtime = crate::nu::NuRuntime::load(temp.path()).expect("runtime should load");
+	let mut editor = Editor::new_scratch();
+	editor.set_nu_runtime(Some(runtime));
+
+	let result = editor
+		.run_invocation(Invocation::editor_command("stats", vec![]), InvocationPolicy::enforcing())
+		.await;
+
+	// Hook should have fired the test action.
+	assert!(matches!(result, InvocationResult::Ok));
+	let pre_count = ACTION_PRE_COUNT.with(|count| count.get());
+	let post_count = ACTION_POST_COUNT.with(|count| count.get());
+	assert_eq!(pre_count, 1, "hook-produced action should fire pre hook");
+	assert_eq!(post_count, 1, "hook-produced action should fire post hook");
+}
+
+#[tokio::test]
+async fn mode_change_hook_runs_on_transition() {
+	ACTION_PRE_COUNT.with(|count| count.set(0));
+	ACTION_POST_COUNT.with(|count| count.set(0));
+
+	let temp = tempfile::tempdir().expect("temp dir should exist");
+	std::fs::write(
+		temp.path().join("xeno.nu"),
+		"export def on_mode_change [from to] {\n\
+			if $from == \"Normal\" and $to == \"Insert\" {\n\
+				\"action:invocation_test_action\"\n\
+			}\n\
+		}",
+	)
+	.expect("xeno.nu should be writable");
+
+	let runtime = crate::nu::NuRuntime::load(temp.path()).expect("runtime should load");
+	let mut editor = Editor::new_scratch();
+	editor.set_nu_runtime(Some(runtime));
+
+	assert!(editor.state.nu_hook_ids.on_mode_change.is_some(), "decl ID should be cached");
+
+	let result = editor
+		.run_nu_hook(crate::nu::NuHook::ModeChange, vec!["Normal".to_string(), "Insert".to_string()])
+		.await;
+
+	assert!(result.is_none());
+	let pre_count = ACTION_PRE_COUNT.with(|count| count.get());
+	let post_count = ACTION_POST_COUNT.with(|count| count.get());
+	assert_eq!(pre_count, 1, "hook-produced action should fire");
+	assert_eq!(post_count, 1, "hook-produced action should fire");
+}
+
+#[tokio::test]
+async fn mode_change_hook_does_not_run_for_non_matching_transition() {
+	ACTION_PRE_COUNT.with(|count| count.set(0));
+
+	let temp = tempfile::tempdir().expect("temp dir should exist");
+	std::fs::write(
+		temp.path().join("xeno.nu"),
+		"export def on_mode_change [from to] {\n\
+			if $from == \"Normal\" and $to == \"Insert\" {\n\
+				\"action:invocation_test_action\"\n\
+			}\n\
+		}",
+	)
+	.expect("xeno.nu should be writable");
+
+	let runtime = crate::nu::NuRuntime::load(temp.path()).expect("runtime should load");
+	let mut editor = Editor::new_scratch();
+	editor.set_nu_runtime(Some(runtime));
+
+	let result = editor
+		.run_nu_hook(crate::nu::NuHook::ModeChange, vec!["Normal".to_string(), "Normal".to_string()])
+		.await;
+
+	assert!(result.is_none());
+	let pre_count = ACTION_PRE_COUNT.with(|count| count.get());
+	assert_eq!(pre_count, 0, "no action should fire for non-matching transition");
+}
+
+#[tokio::test]
+async fn mode_change_hook_fires_on_insert_key() {
+	ACTION_PRE_COUNT.with(|count| count.set(0));
+	ACTION_POST_COUNT.with(|count| count.set(0));
+
+	let temp = tempfile::tempdir().expect("temp dir should exist");
+	std::fs::write(
+		temp.path().join("xeno.nu"),
+		"export def on_mode_change [from to] {\n\
+			if $from == \"Normal\" and $to == \"Insert\" and $env.XENO_CTX.mode == \"Insert\" {\n\
+				\"action:invocation_test_action\"\n\
+			}\n\
+		}",
+	)
+	.expect("xeno.nu should be writable");
+
+	let runtime = crate::nu::NuRuntime::load(temp.path()).expect("runtime should load");
+	let mut editor = Editor::new_scratch();
+	editor.set_nu_runtime(Some(runtime));
+	assert_eq!(editor.mode(), Mode::Normal);
+
+	// Press 'i' — the default keybinding for entering Insert mode.
+	let quit = editor.handle_key(Key::new(KeyCode::Char('i'))).await;
+	assert!(!quit);
+	assert_eq!(editor.mode(), Mode::Insert);
+
+	let pre_count = ACTION_PRE_COUNT.with(|count| count.get());
+	let post_count = ACTION_POST_COUNT.with(|count| count.get());
+	assert_eq!(pre_count, 1, "hook-produced action should fire via key handling");
+	assert_eq!(post_count, 1, "hook-produced action should fire via key handling");
+}
+
+#[tokio::test]
+async fn mode_change_hook_does_not_fire_when_mode_unchanged() {
+	INVOCATION_TEST_ACTION_COUNT.with(|c| c.set(0));
+
+	let temp = tempfile::tempdir().expect("temp dir should exist");
+	std::fs::write(
+		temp.path().join("xeno.nu"),
+		// Unconditional — fires for any mode change, so if guard fails we catch it.
+		"export def on_mode_change [from to] {\n\
+			\"action:invocation_test_action\"\n\
+		}",
+	)
+	.expect("xeno.nu should be writable");
+
+	let runtime = crate::nu::NuRuntime::load(temp.path()).expect("runtime should load");
+	let mut editor = Editor::new_scratch();
+	editor.set_nu_runtime(Some(runtime));
+	assert_eq!(editor.mode(), Mode::Normal);
+
+	// Press 'l' — a motion key that doesn't change mode.
+	let quit = editor.handle_key(Key::new(KeyCode::Char('l'))).await;
+	assert!(!quit);
+	assert_eq!(editor.mode(), Mode::Normal);
+
+	let count = INVOCATION_TEST_ACTION_COUNT.with(|c| c.get());
+	assert_eq!(count, 0, "no mode change should mean no hook-produced action");
+}
+
+#[tokio::test]
+async fn buffer_open_hook_fires_on_disk_open() {
+	INVOCATION_TEST_ACTION_COUNT.with(|c| c.set(0));
+
+	let temp = tempfile::tempdir().expect("temp dir should exist");
+	let file_path = temp.path().join("test.txt");
+	std::fs::write(&file_path, "hello world").expect("write test file");
+
+	let nu_dir = tempfile::tempdir().expect("nu temp dir");
+	std::fs::write(
+		nu_dir.path().join("xeno.nu"),
+		r#"export def "str ends-with" [suffix: string] { $in ends-with $suffix }
+export def on_buffer_open [path kind] {
+  if ($path | str ends-with "test.txt") and $kind == "disk" {
+    "action:invocation_test_action"
+  }
+}"#,
+	)
+	.expect("xeno.nu should be writable");
+
+	let runtime = crate::nu::NuRuntime::load(nu_dir.path()).expect("runtime should load");
+	let mut editor = Editor::new_scratch();
+	editor.set_nu_runtime(Some(runtime));
+
+	assert!(editor.state.nu_hook_ids.on_buffer_open.is_some(), "decl ID should be cached");
+
+	let location = crate::impls::navigation::Location {
+		path: file_path,
+		line: 0,
+		column: 0,
+	};
+	editor.goto_location(&location).await.expect("goto should succeed");
+
+	let count = INVOCATION_TEST_ACTION_COUNT.with(|c| c.get());
+	assert_eq!(count, 1, "on_buffer_open hook should fire exactly once for disk open");
+}
+
+#[tokio::test]
+async fn buffer_open_hook_fires_for_existing_switch() {
+	INVOCATION_TEST_ACTION_COUNT.with(|c| c.set(0));
+
+	let temp = tempfile::tempdir().expect("temp dir should exist");
+	let file_a = temp.path().join("a.txt");
+	let file_b = temp.path().join("b.txt");
+	std::fs::write(&file_a, "aaa").expect("write a");
+	std::fs::write(&file_b, "bbb").expect("write b");
+
+	let nu_dir = tempfile::tempdir().expect("nu temp dir");
+	std::fs::write(
+		nu_dir.path().join("xeno.nu"),
+		r#"export def on_buffer_open [path kind] {
+  if $kind == "existing" {
+    "action:invocation_test_action"
+  }
+}"#,
+	)
+	.expect("xeno.nu should be writable");
+
+	let runtime = crate::nu::NuRuntime::load(nu_dir.path()).expect("runtime should load");
+	let mut editor = Editor::new_scratch();
+	editor.handle_window_resize(100, 40);
+	editor.set_nu_runtime(Some(runtime));
+
+	// Open file A in a split so it stays alive when we navigate away.
+	let _view_a = editor.open_file(file_a.clone()).await.expect("open a");
+	// Open file B in a second split.
+	let _view_b = editor.open_file(file_b.clone()).await.expect("open b");
+
+	assert_eq!(
+		INVOCATION_TEST_ACTION_COUNT.with(|c| c.get()),
+		0,
+		"disk opens via open_file should not fire existing hook"
+	);
+
+	// Navigate focused view to A — A is already open in another view → "existing".
+	let loc_a = crate::impls::navigation::Location {
+		path: file_a.clone(),
+		line: 0,
+		column: 0,
+	};
+	editor.goto_location(&loc_a).await.expect("switch to a");
+	assert_eq!(
+		INVOCATION_TEST_ACTION_COUNT.with(|c| c.get()),
+		1,
+		"existing switch should fire hook exactly once"
+	);
+}
+
+#[test]
+fn hook_arg_builders_produce_correct_ordering() {
+	let result = InvocationResult::Ok;
+	let args = super::command_post_args("write".to_string(), &result, vec!["file.txt".to_string()]);
+	assert_eq!(args, vec!["write", "ok", "file.txt"]);
+
+	let action_args = super::action_post_args("move_right".to_string(), &InvocationResult::CommandError("boom".to_string()));
+	assert_eq!(action_args, vec!["move_right", "error"]);
 }

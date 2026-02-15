@@ -102,9 +102,7 @@ impl Editor {
 
 			if !action_result.is_quit()
 				&& let Some(action_name) = action_name_from_key_result(&result)
-				&& let Some(hook_result) = self
-					.run_nu_hook("on_action_post", vec![action_name, action_result_label(&action_result).to_string()])
-					.await
+				&& let Some(hook_result) = self.emit_action_post_hook(action_name, &action_result).await
 			{
 				quit = hook_result.is_quit();
 			}
@@ -139,7 +137,7 @@ impl Editor {
 						}))
 						.await;
 
-						if let Some(hook_result) = self.run_nu_hook("on_mode_change", vec![format!("{old_mode:?}"), format!("{new_mode:?}")]).await
+						if let Some(hook_result) = self.emit_mode_change_hook(&old_mode, &new_mode).await
 							&& hook_result.is_quit()
 						{
 							quit = true;
@@ -203,18 +201,6 @@ fn action_name_from_key_result(result: &KeyResult) -> Option<String> {
 			xeno_registry::ACTIONS.get_by_id(*id).map(|action| action.name_str().to_string())
 		}
 		_ => None,
-	}
-}
-
-fn action_result_label(result: &crate::types::InvocationResult) -> &'static str {
-	match result {
-		crate::types::InvocationResult::Ok => "ok",
-		crate::types::InvocationResult::Quit => "quit",
-		crate::types::InvocationResult::ForceQuit => "force_quit",
-		crate::types::InvocationResult::NotFound(_) => "not_found",
-		crate::types::InvocationResult::CapabilityDenied(_) => "cap_denied",
-		crate::types::InvocationResult::ReadonlyDenied => "readonly",
-		crate::types::InvocationResult::CommandError(_) => "error",
 	}
 }
 

@@ -65,17 +65,43 @@ You can return a single record or a list of records:
 ]
 ```
 
+### Module-only load
+
+`xeno.nu` is parsed and merged but **not evaluated** at load time. Only declarations are allowed at top level:
+
+* `def` / `export def`
+* `use` / `export use`
+* `const` / `export const`
+* `alias` / `export alias`
+* `module` / `export module`
+
+Top-level executable statements (expressions, function calls) are rejected.
+
+### Hooks
+
 Optional exported hook functions in `xeno.nu`:
 
-* `on_action_post [action_name result]`
-* `on_mode_change [old_mode new_mode]`
+* `on_action_post [name result]` — after an action completes
+* `on_command_post [name result ...args]` — after a registry command completes
+* `on_editor_command_post [name result ...args]` — after an editor command completes
+* `on_mode_change [from to]` — after an actual mode transition (`from != to`)
+* `on_buffer_open [path kind]` — after a buffer is opened or switched to
 
-Hook functions use the same return schema as `nu-run` and are sandboxed with the same policy as `config.nu` and `xeno.nu` macros.
+Result label values: `ok`, `quit`, `force_quit`, `not_found`, `cap_denied`, `readonly`, `error`.
+
+Mode arguments are debug-formatted mode names (e.g. `"Normal"`, `"Insert"`, `"Prefix"`). `$env.XENO_CTX.mode` reflects the new mode at hook time.
+
+Buffer open `kind` values: `"disk"` (loaded from filesystem), `"existing"` (switched to already-open document). `path` is always an absolute filesystem path. Hook fires on user navigation/focus changes (goto/open), not on internal buffer creation.
+
+Hooks only run when the original result is non-quit. Hook-produced invocations are executed under a recursion guard (hooks cannot trigger more hooks). If a hook invocation returns `Quit` or `ForceQuit`, it propagates to the caller.
+
+Hook functions use the same return schema as `nu-run` and are sandboxed with the same policy.
 
 During `nu-run` and hook execution, Xeno sets `$env.XENO_CTX` with per-call context:
 
 ```nu
 {
+  schema_version: 1,
   kind: "macro" | "hook",
   function: "go",
   args: ["..."],
@@ -105,6 +131,22 @@ Field semantics for `$env.XENO_CTX`:
 * coordinates are character indices (not byte offsets)
 * `selection.start` / `selection.end` are normalized bounds (`start <= end`)
 * `selection.active == false` means a point selection (start and end equal the cursor position)
+
+### Decode limits
+
+Return values from macros and hooks are decoded with safety limits:
+
+* max invocations: 256 (macros), 32 (hooks)
+* max decode depth: 8
+* max args per invocation: 64
+* max string length: 4096
+* max nodes visited: 50,000 (macros), 5,000 (hooks)
+
+Exceeding any limit produces a descriptive error with the decode path (e.g. `return[2].invocations[1].args[0]`).
+
+### Execution model
+
+Macros and hooks run on a dedicated persistent worker thread (not the tokio blocking pool). Jobs are processed sequentially. If the worker panics, it exits cleanly and is auto-restarted on the next call with a single retry.
 
 ## Shared schema
 
@@ -177,8 +219,11 @@ Example:
 * pipeline redirection
 * `source`, `source-env`, or overlay loading commands (`overlay use/new/hide`)
 * looping constructs (`for`, `while`, `loop`)
+* `extern` / `export extern` declarations (external signatures)
 * glob expressions (except `*` import selectors on `use`/`export use`)
 * any parsed module file resolving outside the config directory root (including symlink escapes)
+
+Nu's built-in operators (`ends-with`, `starts-with`, `like`, `=~`) work in the sandbox. For pipeline-style string operations, define shim functions in `xeno.nu` (see the template in `docs/xeno.nu.example`). Unknown commands may be treated as external calls and blocked.
 
 `use` and `export use` path parsing and resolution are delegated to Nushell parser semantics, then Xeno enforces that every resolved module file remains under the config directory root.
 

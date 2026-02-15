@@ -1,0 +1,62 @@
+# Example xeno.nu — user macro/hook definitions for Xeno.
+#
+# Place at ~/.config/xeno/xeno.nu
+# Reload with :nu-reload, run with :nu-run <fn> [args...]
+#
+# Module-only: only def/use/const/alias at top level (no expressions).
+
+# --- String helpers (built on Nu operators) ---
+
+export def "str ends-with"  [suffix: string] { $in ends-with $suffix }
+export def "str starts-with" [prefix: string] { $in starts-with $prefix }
+export def "str contains"    [needle: string] { $in like $needle }
+
+# --- Hooks ---
+
+# Runs after every action. Return null for no-op.
+export def on_action_post [name result] {
+  null
+}
+
+# Runs after every registry command.
+export def on_command_post [name result ...args] {
+  null
+}
+
+# Runs after every editor command.
+export def on_editor_command_post [name result ...args] {
+  null
+}
+
+# Runs after a mode transition (e.g. Normal → Insert).
+export def on_mode_change [from to] {
+  null
+}
+
+# Runs after a buffer is opened or switched to via navigation.
+# kind: "disk" (loaded from file) | "existing" (switched to open doc)
+export def on_buffer_open [path kind] {
+  null
+}
+
+# --- Macros ---
+
+# Simple: return an invocation string.
+export def save-and-format [] {
+  ["command:write", "command:format"]
+}
+
+# Structured: return a record with fields.
+export def move-down-5 [] {
+  { kind: "action", name: "move_down", count: 5 }
+}
+
+# Context-aware: read cursor/buffer state from $env.XENO_CTX.
+export def show-position [] {
+  let ctx = $env.XENO_CTX
+  let pos = $"($ctx.cursor.line):($ctx.cursor.col)"
+  let file = ($ctx.buffer.path | default "<scratch>")
+  # This would need a "notify" command to be useful;
+  # shown here as an example of reading XENO_CTX.
+  null
+}

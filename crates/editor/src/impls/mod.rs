@@ -31,7 +31,7 @@ mod history;
 /// Interaction manager for active overlays.
 mod interaction;
 /// Unified invocation dispatch.
-mod invocation;
+pub(crate) mod invocation;
 /// Background task spawning helpers.
 mod kick;
 /// Editor lifecycle (tick, render).
@@ -181,6 +181,10 @@ pub(crate) struct EditorState {
 	pub(crate) keymap_cache: Mutex<Option<EffectiveKeymapCache>>,
 	/// Loaded Nu macro runtime from `xeno.nu`.
 	pub(crate) nu_runtime: Option<crate::nu::NuRuntime>,
+	/// Persistent Nu worker thread for hook/macro evaluation.
+	pub(crate) nu_executor: Option<crate::nu::executor::NuExecutor>,
+	/// Cached decl IDs for Nu hook functions, populated when runtime is set.
+	pub(crate) nu_hook_ids: crate::nu::CachedHookIds,
 	/// Prevents Nu hook invocations from recursively triggering more hooks.
 	pub(crate) nu_hook_guard: bool,
 	/// Prevents unbounded recursive Nu macro expansion chains.
@@ -377,6 +381,8 @@ impl Editor {
 				key_overrides: None,
 				keymap_cache: Mutex::new(None),
 				nu_runtime: None,
+				nu_executor: None,
+				nu_hook_ids: crate::nu::CachedHookIds::default(),
 				nu_hook_guard: false,
 				nu_macro_depth: 0,
 				notifications: crate::notifications::NotificationCenter::new(),
@@ -578,13 +584,55 @@ impl Editor {
 	}
 
 	/// Replaces the loaded Nu runtime used by `:nu-run`.
+	///
+	/// Also creates or destroys the persistent executor thread. Runtime swap
+	/// order is:
+	/// * drop executor first (old worker receives explicit shutdown)
+	/// * update runtime and cached hook decl IDs
+	/// * create a fresh executor for the new runtime
+	///
+	/// This prevents a mixed state where cached IDs belong to a new runtime
+	/// while jobs are still executing on an old worker.
 	pub fn set_nu_runtime(&mut self, runtime: Option<crate::nu::NuRuntime>) {
+		self.state.nu_executor = None;
 		self.state.nu_runtime = runtime;
+		self.state.nu_hook_ids = self
+			.state
+			.nu_runtime
+			.as_ref()
+			.map(|rt| crate::nu::CachedHookIds {
+				on_action_post: rt.find_script_decl("on_action_post"),
+				on_command_post: rt.find_script_decl("on_command_post"),
+				on_editor_command_post: rt.find_script_decl("on_editor_command_post"),
+				on_mode_change: rt.find_script_decl("on_mode_change"),
+				on_buffer_open: rt.find_script_decl("on_buffer_open"),
+			})
+			.unwrap_or_default();
+		self.state.nu_executor = self.state.nu_runtime.as_ref().map(|rt| crate::nu::executor::NuExecutor::new(rt.clone()));
 	}
 
 	/// Returns the currently loaded Nu runtime, if any.
 	pub fn nu_runtime(&self) -> Option<&crate::nu::NuRuntime> {
 		self.state.nu_runtime.as_ref()
+	}
+
+	/// Returns the Nu executor, creating one from the current runtime if the
+	/// executor is missing (e.g. after a worker thread panic or first access).
+	pub fn ensure_nu_executor(&mut self) -> Option<&crate::nu::executor::NuExecutor> {
+		if self.state.nu_executor.is_none() {
+			if let Some(runtime) = self.state.nu_runtime.clone() {
+				self.state.nu_executor = Some(crate::nu::executor::NuExecutor::new(runtime));
+			}
+		}
+		self.state.nu_executor.as_ref()
+	}
+
+	/// Recreates the Nu executor from the current runtime. Used after the
+	/// executor reports a shutdown error (worker panic or channel close).
+	fn restart_nu_executor(&mut self) {
+		if let Some(runtime) = self.state.nu_runtime.clone() {
+			self.state.nu_executor = Some(crate::nu::executor::NuExecutor::new(runtime));
+		}
 	}
 
 	/// Returns the effective keymap for the current actions snapshot and overrides.

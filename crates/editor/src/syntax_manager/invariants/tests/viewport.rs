@@ -451,9 +451,11 @@ pub(crate) async fn test_l_history_edit_uses_eager_urgent_with_full_present() {
 		)
 		.unwrap();
 		let full_tree_id = entry.slot.alloc_tree_id();
+		// Version 0: stale relative to the edit at version 1, so the
+		// urgent viewport parse (at version 1) will be preferred.
 		entry.slot.full = Some(InstalledTree {
 			syntax: full,
-			doc_version: 1,
+			doc_version: 0,
 			tree_id: full_tree_id,
 		});
 	}

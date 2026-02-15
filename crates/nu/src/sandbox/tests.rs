@@ -145,6 +145,18 @@ fn blocks_use_symlink_escape() {
 }
 
 #[test]
+fn blocks_extern_decl() {
+	let err = sandbox_check("extern ls []", None).unwrap_err();
+	assert!(err.contains("external signatures") || err.contains("parse error"), "{err}");
+}
+
+#[test]
+fn blocks_export_extern_decl() {
+	let err = sandbox_check("export extern git []", None).unwrap_err();
+	assert!(err.contains("external signatures") || err.contains("parse error"), "{err}");
+}
+
+#[test]
 fn decl_inventory_audit() {
 	let engine_state = crate::create_engine_state(None);
 	let mut decls: Vec<String> = engine_state

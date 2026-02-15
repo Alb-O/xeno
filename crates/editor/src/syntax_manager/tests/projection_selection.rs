@@ -37,7 +37,7 @@ fn test_highlight_projection_ctx_available_for_aligned_pending_window() {
 }
 
 #[test]
-fn test_selection_prefers_eager_viewport_over_disabled_full() {
+fn test_selection_prefers_full_tree_over_eager_viewport() {
 	let mut mgr = SyntaxManager::default();
 	let doc_id = DocumentId(1);
 	let loader = Arc::new(LanguageLoader::from_embedded());
@@ -89,9 +89,10 @@ fn test_selection_prefers_eager_viewport_over_disabled_full() {
 		});
 	}
 
-	// Selection for overlapping viewport should prefer eager viewport
+	// Full tree should be preferred over eager viewport for complete
+	// structural context (e.g. file-spanning block comments).
 	let sel = mgr.syntax_for_viewport(doc_id, 1, 0..10).unwrap();
-	assert_eq!(sel.syntax.opts().injections, InjectionPolicy::Eager);
+	assert_eq!(sel.syntax.opts().injections, InjectionPolicy::Disabled);
 }
 
 #[tokio::test]

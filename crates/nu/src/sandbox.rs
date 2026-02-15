@@ -293,6 +293,7 @@ fn blocked_decl_reason(decl_name: &str) -> Option<&'static str> {
 		"source" | "source-env" => Some("source loading is disabled"),
 		"overlay use" | "overlay new" | "overlay hide" => Some("overlay loading is disabled"),
 		"for" | "while" | "loop" => Some("looping commands are disabled"),
+		"extern" | "export extern" => Some("external signatures are disabled"),
 		_ => None,
 	}
 }
