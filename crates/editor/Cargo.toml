@@ -28,7 +28,7 @@ serde.workspace = true
 serde_json.workspace = true
 smallvec.workspace = true
 thiserror = { workspace = true, optional = true }
-tokio.workspace = true
+tokio = { workspace = true, features = ["fs", "rt-multi-thread", "time"] }
 tokio-util = { workspace = true, optional = true }
 tracing.workspace = true
 unicode-width.workspace = true

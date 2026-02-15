@@ -111,8 +111,7 @@ fn module_only_accepts_use_and_const() {
 #[test]
 fn module_only_rejects_expression() {
 	let mut engine_state = create_engine_state(None).expect("engine state");
-	let err =
-		parse_and_validate_with_policy(&mut engine_state, "<test>", "42", None, ParsePolicy::ModuleOnly).expect_err("bare expression should be rejected");
+	let err = parse_and_validate_with_policy(&mut engine_state, "<test>", "42", None, ParsePolicy::ModuleOnly).expect_err("bare expression should be rejected");
 	assert!(err.contains("module-only"), "{err}");
 }
 
@@ -135,8 +134,7 @@ fn module_only_rejects_mut() {
 #[test]
 fn script_policy_allows_expressions() {
 	let mut engine_state = create_engine_state(None).expect("engine state");
-	parse_and_validate_with_policy(&mut engine_state, "<test>", "42", None, ParsePolicy::Script)
-		.expect("bare expression should be allowed in Script policy");
+	parse_and_validate_with_policy(&mut engine_state, "<test>", "42", None, ParsePolicy::Script).expect("bare expression should be allowed in Script policy");
 }
 
 #[test]

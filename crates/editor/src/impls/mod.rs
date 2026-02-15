@@ -620,9 +620,10 @@ impl Editor {
 	/// executor is missing (e.g. after a worker thread panic or first access).
 	pub fn ensure_nu_executor(&mut self) -> Option<&crate::nu::executor::NuExecutor> {
 		if self.state.nu_executor.is_none()
-			&& let Some(runtime) = self.state.nu_runtime.clone() {
-				self.state.nu_executor = Some(crate::nu::executor::NuExecutor::new(runtime));
-			}
+			&& let Some(runtime) = self.state.nu_runtime.clone()
+		{
+			self.state.nu_executor = Some(crate::nu::executor::NuExecutor::new(runtime));
+		}
 		self.state.nu_executor.as_ref()
 	}
 

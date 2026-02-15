@@ -1,0 +1,25 @@
+[package]
+name = "tree-house-bindings"
+description = "Tree-sitter bindings used by xeno language infrastructure"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[features]
+ropey = ["dep:ropey"]
+tree-sitter-language = ["dep:tree-sitter-language"]
+
+[dependencies]
+libloading.workspace = true
+regex-cursor.workspace = true
+ropey = { workspace = true, optional = true }
+thiserror.workspace = true
+tree-sitter-language = { workspace = true, optional = true }
+
+[build-dependencies]
+cc.workspace = true
+
+[lints]
+workspace = true

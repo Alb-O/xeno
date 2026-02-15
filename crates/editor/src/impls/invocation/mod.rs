@@ -124,9 +124,10 @@ impl Editor {
 	/// Runs a Nu post-hook if the result is non-quit, propagating hook quit.
 	async fn maybe_emit_post_hook(&mut self, hook: crate::nu::NuHook, args: Vec<String>, result: InvocationResult) -> InvocationResult {
 		if !result.is_quit()
-			&& let Some(hook_result) = self.run_nu_hook(hook, args).await {
-				return hook_result;
-			}
+			&& let Some(hook_result) = self.run_nu_hook(hook, args).await
+		{
+			return hook_result;
+		}
 		result
 	}
 
