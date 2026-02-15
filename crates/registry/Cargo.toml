@@ -11,7 +11,6 @@ default = ["full"]
 full = [
     "db",
     "keymap",
-    "config-kdl",
     "config-nuon",
     "config-nu",
     "actions-builtins",
@@ -65,13 +64,12 @@ hooks-builtins = ["hooks"]
 notifications-builtins = ["notifications"]
 languages-builtins = ["languages"]
 
-# Config KDL parsing
-config-kdl = ["dep:kdl", "themes", "options"]
+# Config NUON parsing
 config-nuon = [
-    "config-kdl",
     "dep:nu-engine",
     "dep:nu-protocol",
     "dep:nuon",
+    "dep:xeno-primitives",
     "themes",
     "options",
 ]
@@ -87,7 +85,6 @@ actions-handler-coverage = ["actions-builtins"]
 arc-swap = { workspace = true }
 bitflags = { workspace = true }
 inventory.workspace = true
-kdl = { workspace = true, optional = true }
 nu-cmd-lang = { workspace = true, optional = true }
 nu-engine = { workspace = true, optional = true, features = ["os"] }
 nu-parser = { workspace = true, optional = true }

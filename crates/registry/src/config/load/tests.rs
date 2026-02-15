@@ -26,13 +26,14 @@ fn load_ignores_missing_files() {
 	let _ = std::fs::remove_dir_all(dir);
 }
 
+#[cfg(feature = "config-nuon")]
 #[test]
-fn load_kdl_layer() {
-	let dir = unique_temp_dir("kdl");
-	write_file(&dir.join("config.kdl"), "options { tab-width 2 }");
+fn load_nuon_layer() {
+	let dir = unique_temp_dir("nuon");
+	write_file(&dir.join("config.nuon"), "{ options: { tab-width: 2 } }");
 
 	let report = load_user_config_from_dir(&dir);
-	let config = report.config.expect("kdl config should load");
+	let config = report.config.expect("nuon config should load");
 	let tab_width = crate::options::find("tab-width").expect("tab-width option should exist");
 	assert_eq!(config.options.get(tab_width.dense_id()), Some(&crate::options::OptionValue::Int(2)));
 	assert!(report.errors.is_empty());
@@ -42,9 +43,8 @@ fn load_kdl_layer() {
 
 #[cfg(all(feature = "config-nuon", feature = "config-nu"))]
 #[test]
-fn load_order_precedence_kdl_nuon_nu() {
+fn load_order_precedence_nuon_nu() {
 	let dir = unique_temp_dir("precedence");
-	write_file(&dir.join("config.kdl"), "options { tab-width 2 }");
 	write_file(&dir.join("config.nuon"), "{ options: { tab-width: 3 } }");
 	write_file(&dir.join("config.nu"), "{ options: { tab-width: 4 } }");
 
@@ -77,13 +77,10 @@ fn load_nu_use_module_under_root() {
 #[test]
 fn load_collects_diagnostics_per_file() {
 	let dir = unique_temp_dir("diagnostics");
-	write_file(&dir.join("config.kdl"), "options { tab-width 2 }");
 	write_file(&dir.join("config.nuon"), "{ options: ");
 
 	let report = load_user_config_from_dir(&dir);
-	let config = report.config.expect("valid layers should still merge");
-	let tab_width = crate::options::find("tab-width").expect("tab-width option should exist");
-	assert_eq!(config.options.get(tab_width.dense_id()), Some(&crate::options::OptionValue::Int(2)));
+	assert!(report.config.is_none(), "broken nuon should not produce config");
 	assert!(report.errors.iter().any(|(path, _)| path.ends_with("config.nuon")));
 
 	let _ = std::fs::remove_dir_all(dir);

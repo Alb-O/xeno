@@ -1,0 +1,14 @@
+# Text object definitions for xeno's selection system.
+# Each text object defines metadata; Rust handlers are linked at startup.
+{
+  text_objects: [
+    { common: { name: word, description: "Word text object" }, trigger: w }
+    { common: { name: parens, description: "Parentheses" }, trigger: "(", alt_triggers: [")", b] }
+    { common: { name: brackets, description: "Square brackets" }, trigger: "[", alt_triggers: ["]"] }
+    { common: { name: braces, description: "Curly braces" }, trigger: "{", alt_triggers: ["}", B] }
+    { common: { name: angle, description: "Angle brackets" }, trigger: "<", alt_triggers: [">"] }
+    { common: { name: quotes, description: "Double quotes" }, trigger: "\"" }
+    { common: { name: single_quotes, description: "Single quotes" }, trigger: "'" }
+    { common: { name: backticks, description: "Backticks" }, trigger: "`" }
+  ]
+}

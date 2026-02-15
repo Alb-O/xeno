@@ -7,11 +7,11 @@ license.workspace = true
 
 [features]
 default = []
-compile = ["dep:kdl", "dep:postcard", "dep:walkdir", "dep:serde_json"]
+compile = ["dep:nuon", "dep:nu-protocol", "dep:postcard", "dep:walkdir"]
 
 [dependencies]
-kdl = { workspace = true, optional = true }
+nu-protocol = { workspace = true, optional = true }
+nuon = { workspace = true, optional = true }
 postcard = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
-serde_json = { workspace = true, optional = true }
 walkdir = { version = "2", optional = true }

@@ -16,7 +16,7 @@ static BAD_OPT: crate::options::OptionDef = crate::options::OptionDef {
 		required_caps: &[],
 		flags: 0,
 	},
-	kdl_key: "bad-opt",
+	key: "bad-opt",
 	value_type: OptionType::Int,            // claims int
 	default: OptionDefault::Bool(def_bool), // actually bool
 	scope: OptionScope::Global,

@@ -127,8 +127,8 @@ pub fn all() -> Vec<OptionsRef> {
 
 /// Validates a parsed option value against the registry definition.
 #[cfg(feature = "db")]
-pub fn validate(kdl_key: &str, value: &OptionValue) -> Result<(), OptionError> {
-	let entry = OPTIONS.get(kdl_key).ok_or_else(|| OptionError::UnknownOption(kdl_key.to_string()))?;
+pub fn validate(key: &str, value: &OptionValue) -> Result<(), OptionError> {
+	let entry = OPTIONS.get(key).ok_or_else(|| OptionError::UnknownOption(key.to_string()))?;
 	validate_ref(&entry, value)
 }
 

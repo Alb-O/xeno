@@ -15,5 +15,6 @@ pub struct StatuslineSegmentSpec {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StatuslineSpec {
+	#[serde(default)]
 	pub segments: Vec<StatuslineSegmentSpec>,
 }

@@ -1,0 +1,6045 @@
+{
+  langs: [
+    {
+      common: {
+        name: rust
+      },
+      scope: "source.rust",
+      injection_regex: "rs|rust",
+      auto_format: true,
+      extensions: [
+        rs
+      ],
+      shebangs: [
+        rust-script,
+        cargo
+      ],
+      comment_tokens: [
+        //,
+        ///,
+        "//!"
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        rust-analyzer
+      ],
+      roots: [
+        "Cargo.toml",
+        "Cargo.lock"
+      ]
+    },
+    {
+      common: {
+        name: sway
+      },
+      scope: "source.sway",
+      injection_regex: sway,
+      extensions: [
+        sw
+      ],
+      comment_tokens: [
+        //
+      ],
+      lsp_servers: [
+        forc
+      ],
+      roots: [
+        "Forc.toml",
+        "Forc.lock"
+      ]
+    },
+    {
+      common: {
+        name: toml
+      },
+      scope: "source.toml",
+      injection_regex: toml,
+      extensions: [
+        toml
+      ],
+      filenames: [
+        "pdm.lock",
+        "poetry.lock",
+        "Cargo.lock",
+        "uv.lock",
+        "containers.conf",
+        "mounts.conf",
+        "policy.conf",
+        "registries.conf",
+        "storage.conf"
+      ],
+      globs: [
+        "containers.conf.d/*.conf",
+        "containers.conf.modules/*.conf"
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      lsp_servers: [
+        taplo,
+        tombi
+      ]
+    },
+    {
+      common: {
+        name: awk
+      },
+      scope: "source.awk",
+      injection_regex: awk,
+      extensions: [
+        awk,
+        gawk,
+        nawk,
+        mawk
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      lsp_servers: [
+        awk-language-server
+      ]
+    },
+    {
+      common: {
+        name: protobuf
+      },
+      scope: "source.proto",
+      grammar_name: proto,
+      injection_regex: proto,
+      extensions: [
+        proto
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        buf,
+        pbkit,
+        protols
+      ]
+    },
+    {
+      common: {
+        name: textproto
+      },
+      scope: "source.textproto",
+      auto_format: true,
+      extensions: [
+        txtpb,
+        textpb,
+        textproto
+      ],
+      comment_tokens: [
+        "#"
+      ]
+    },
+    {
+      common: {
+        name: eiffel
+      },
+      scope: "source.eiffel",
+      extensions: [
+        e
+      ],
+      comment_tokens: [
+        --
+      ],
+      lsp_servers: [
+        eiffel-language-server
+      ]
+    },
+    {
+      common: {
+        name: elixir
+      },
+      scope: "source.elixir",
+      injection_regex: "(elixir|ex)",
+      extensions: [
+        ex,
+        exs
+      ],
+      filenames: [
+        "mix.lock"
+      ],
+      shebangs: [
+        elixir
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      lsp_servers: [
+        elixir-ls,
+        expert
+      ],
+      roots: [
+        "mix.exs",
+        "mix.lock"
+      ]
+    },
+    {
+      common: {
+        name: fennel
+      },
+      scope: "source.fennel",
+      extensions: [
+        fnl,
+        fnlm
+      ],
+      shebangs: [
+        fennel
+      ],
+      comment_tokens: [
+        ";"
+      ],
+      lsp_servers: [
+        fennel-ls
+      ]
+    },
+    {
+      common: {
+        name: fish
+      },
+      scope: "source.fish",
+      injection_regex: fish,
+      auto_format: true,
+      extensions: [
+        fish
+      ],
+      shebangs: [
+        fish
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      lsp_servers: [
+        fish-lsp
+      ]
+    },
+    {
+      common: {
+        name: flatbuffers
+      },
+      scope: "source.flatbuffers",
+      injection_regex: "(flatbuffers?|fbs)",
+      extensions: [
+        fbs
+      ],
+      comment_tokens: [
+        //
+      ]
+    },
+    {
+      common: {
+        name: mint
+      },
+      scope: "source.mint",
+      injection_regex: mint,
+      extensions: [
+        mint
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        mint
+      ]
+    },
+    {
+      common: {
+        name: mojo
+      },
+      scope: "source.mojo",
+      injection_regex: mojo,
+      auto_format: true,
+      extensions: [
+        mojo,
+        🔥
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      lsp_servers: [
+        mojo-lsp-server
+      ],
+      roots: [
+        "pixi.toml",
+        "pixi.lock"
+      ]
+    },
+    {
+      common: {
+        name: janet
+      },
+      scope: "source.janet",
+      grammar_name: janet-simple,
+      injection_regex: janet,
+      extensions: [
+        cgen,
+        janet,
+        jdn
+      ],
+      shebangs: [
+        janet
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      roots: [
+        "project.janet"
+      ]
+    },
+    {
+      common: {
+        name: json
+      },
+      scope: "source.json",
+      injection_regex: json,
+      auto_format: true,
+      extensions: [
+        json,
+        arb,
+        ipynb,
+        geojson,
+        gltf,
+        webmanifest,
+        "js.map",
+        "ts.map",
+        "css.map",
+        jsonl,
+        avsc,
+        ldtk,
+        ldtkl,
+        sublime-build,
+        sublime-color-scheme,
+        sublime-commands,
+        sublime-completions,
+        sublime-keymap,
+        sublime-macro,
+        sublime-menu,
+        sublime-mousemap,
+        sublime-project,
+        sublime-settings,
+        sublime-theme,
+        sublime-workspace,
+        code-workspace
+      ],
+      filenames: [
+        "flake.lock",
+        ".babelrc",
+        ".bowerrc",
+        ".jscrc",
+        ".jslintrc",
+        ".vuerc",
+        "composer.lock",
+        ".watchmanconfig",
+        ".swift-format",
+        "devenv.lock",
+        "devbox.lock",
+        "manifest.lock",
+        "deno.lock"
+      ],
+      globs: [
+        ".pytest_cache/v/cache/*"
+      ],
+      lsp_servers: [
+        vscode-json-language-server
+      ]
+    },
+    {
+      common: {
+        name: jsonc
+      },
+      scope: "source.json",
+      grammar_name: json,
+      injection_regex: jsonc,
+      auto_format: true,
+      extensions: [
+        jsonc
+      ],
+      filenames: [
+        "{t,j}sconfig.json",
+        "bun.lock",
+        ".devcontainer.json",
+        "devcontainer.json"
+      ],
+      globs: [
+        ".vscode/*.json"
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        vscode-json-language-server
+      ]
+    },
+    {
+      common: {
+        name: json-ld
+      },
+      scope: "source.json-ld",
+      grammar_name: json,
+      injection_regex: json-ld,
+      auto_format: true,
+      extensions: [
+        jsonld
+      ],
+      lsp_servers: [
+        vscode-json-language-server
+      ]
+    },
+    {
+      common: {
+        name: "json5"
+      },
+      scope: "source.json5",
+      injection_regex: "json5",
+      extensions: [
+        "json5"
+      ],
+      comment_tokens: [
+        //
+      ]
+    },
+    {
+      common: {
+        name: c
+      },
+      scope: "source.c",
+      injection_regex: c,
+      extensions: [
+        c
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        clangd
+      ]
+    },
+    {
+      common: {
+        name: cpp
+      },
+      scope: "source.cpp",
+      injection_regex: cpp,
+      extensions: [
+        cc,
+        hh,
+        c++,
+        cpp,
+        hpp,
+        h,
+        ipp,
+        tpp,
+        cxx,
+        hxx,
+        ixx,
+        txx,
+        ino,
+        C,
+        H,
+        cu,
+        cuh,
+        cppm,
+        h++,
+        ii,
+        inl
+      ],
+      filenames: [
+        ".hpp.in",
+        ".h.in"
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        clangd
+      ]
+    },
+    {
+      common: {
+        name: crystal
+      },
+      scope: "source.cr",
+      extensions: [
+        cr
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      lsp_servers: [
+        crystalline,
+        ameba-ls
+      ],
+      roots: [
+        "shard.yml",
+        "shard.lock"
+      ]
+    },
+    {
+      common: {
+        name: c-sharp
+      },
+      scope: "source.csharp",
+      injection_regex: "c-?sharp",
+      extensions: [
+        cs,
+        csx,
+        cake
+      ],
+      comment_tokens: [
+        //,
+        ///
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        omnisharp,
+        csharp-ls
+      ],
+      roots: [
+        sln,
+        csproj
+      ]
+    },
+    {
+      common: {
+        name: cel
+      },
+      scope: "source.cel",
+      injection_regex: cel,
+      extensions: [
+        cel
+      ],
+      comment_tokens: [
+        //
+      ]
+    },
+    {
+      common: {
+        name: spicedb
+      },
+      scope: "source.zed",
+      injection_regex: spicedb,
+      extensions: [
+        zed
+      ],
+      comment_tokens: [
+        //
+      ]
+    },
+    {
+      common: {
+        name: go
+      },
+      scope: "source.go",
+      injection_regex: go,
+      auto_format: true,
+      extensions: [
+        go
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        gopls,
+        golangci-lint-lsp
+      ],
+      roots: [
+        "go.work",
+        "go.mod"
+      ]
+    },
+    {
+      common: {
+        name: gomod
+      },
+      scope: "source.gomod",
+      injection_regex: gomod,
+      auto_format: true,
+      filenames: [
+        "go.mod"
+      ],
+      comment_tokens: [
+        //
+      ],
+      lsp_servers: [
+        gopls
+      ]
+    },
+    {
+      common: {
+        name: gotmpl
+      },
+      scope: "source.gotmpl",
+      injection_regex: gotmpl,
+      extensions: [
+        gotmpl
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        gopls
+      ]
+    },
+    {
+      common: {
+        name: gowork
+      },
+      scope: "source.gowork",
+      injection_regex: gowork,
+      auto_format: true,
+      filenames: [
+        "go.work"
+      ],
+      comment_tokens: [
+        //
+      ],
+      lsp_servers: [
+        gopls
+      ]
+    },
+    {
+      common: {
+        name: go-format-string
+      },
+      scope: "source.go-format-string",
+      injection_regex: go-format-string
+    },
+    {
+      common: {
+        name: javascript
+      },
+      scope: "source.js",
+      injection_regex: "(js|javascript)",
+      extensions: [
+        js,
+        mjs,
+        cjs,
+        rules,
+        "es6",
+        pac
+      ],
+      filenames: [
+        ".node_repl_history",
+        jakefile
+      ],
+      shebangs: [
+        node
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        typescript-language-server
+      ],
+      roots: [
+        "package.json",
+        "jsconfig.json"
+      ]
+    },
+    {
+      common: {
+        name: jsx
+      },
+      scope: "source.jsx",
+      grammar_name: javascript,
+      injection_regex: jsx,
+      extensions: [
+        jsx
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        typescript-language-server
+      ],
+      roots: [
+        "package.json",
+        "jsconfig.json"
+      ]
+    },
+    {
+      common: {
+        name: typescript
+      },
+      scope: "source.ts",
+      injection_regex: "(ts|typescript)",
+      extensions: [
+        ts,
+        mts,
+        cts
+      ],
+      shebangs: [
+        deno,
+        bun,
+        ts-node
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        typescript-language-server
+      ],
+      roots: [
+        "package.json",
+        "tsconfig.json"
+      ]
+    },
+    {
+      common: {
+        name: typespec
+      },
+      scope: "source.typespec",
+      injection_regex: "(tsp|typespec)",
+      auto_format: true,
+      extensions: [
+        tsp
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        typespec
+      ],
+      roots: [
+        "tspconfig.yaml"
+      ]
+    },
+    {
+      common: {
+        name: tsx
+      },
+      scope: "source.tsx",
+      injection_regex: "(tsx)",
+      extensions: [
+        tsx
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        typescript-language-server
+      ],
+      roots: [
+        "package.json",
+        "tsconfig.json"
+      ]
+    },
+    {
+      common: {
+        name: css
+      },
+      scope: "source.css",
+      injection_regex: css,
+      auto_format: true,
+      extensions: [
+        css
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        vscode-css-language-server
+      ]
+    },
+    {
+      common: {
+        name: scss
+      },
+      scope: "source.scss",
+      injection_regex: scss,
+      auto_format: true,
+      extensions: [
+        scss
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        vscode-css-language-server
+      ]
+    },
+    {
+      common: {
+        name: html
+      },
+      scope: "text.html.basic",
+      injection_regex: html,
+      auto_format: true,
+      extensions: [
+        html,
+        htm,
+        shtml,
+        xhtml,
+        xht,
+        jsp,
+        asp,
+        aspx,
+        jshtm,
+        volt,
+        rhtml,
+        cshtml
+      ],
+      block_comment: [
+        "<!--",
+        -->
+      ],
+      lsp_servers: [
+        vscode-html-language-server,
+        superhtml
+      ]
+    },
+    {
+      common: {
+        name: htmldjango
+      },
+      scope: "source.htmldjango",
+      injection_regex: htmldjango,
+      lsp_servers: [
+        djlsp,
+        vscode-html-language-server,
+        superhtml
+      ],
+      roots: [
+        "manage.py"
+      ]
+    },
+    {
+      common: {
+        name: python
+      },
+      scope: "source.python",
+      injection_regex: "py(thon)?",
+      extensions: [
+        py,
+        pyi,
+        "py3",
+        pyw,
+        ptl,
+        rpy,
+        cpy,
+        ipy,
+        pyt
+      ],
+      filenames: [
+        ".python_history",
+        ".pythonstartup",
+        ".pythonrc"
+      ],
+      globs: [
+        *SConstruct,
+        *SConscript,
+        *sconstruct
+      ],
+      shebangs: [
+        python,
+        uv
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      lsp_servers: [
+        ty,
+        ruff,
+        jedi,
+        pylsp
+      ],
+      roots: [
+        "pyproject.toml",
+        "setup.py",
+        "poetry.lock",
+        "pyrightconfig.json"
+      ]
+    },
+    {
+      common: {
+        name: nickel
+      },
+      scope: "source.nickel",
+      injection_regex: nickel,
+      extensions: [
+        ncl
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      lsp_servers: [
+        nls
+      ]
+    },
+    {
+      common: {
+        name: nix
+      },
+      scope: "source.nix",
+      injection_regex: nix,
+      extensions: [
+        nix
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      lsp_servers: [
+        nixd,
+        nil
+      ]
+    },
+    {
+      common: {
+        name: ruby
+      },
+      scope: "source.ruby",
+      injection_regex: ruby,
+      extensions: [
+        rb,
+        rake,
+        irb,
+        gemspec,
+        rabl,
+        jbuilder,
+        jb,
+        podspec,
+        rjs,
+        rbi,
+        rbs
+      ],
+      filenames: [
+        rakefile,
+        gemfile,
+        Rakefile,
+        Gemfile,
+        Podfile,
+        Vagrantfile,
+        Brewfile,
+        Guardfile,
+        Capfile,
+        Cheffile,
+        Hobofile,
+        Appraisals,
+        Rantfile,
+        Berksfile,
+        "Berksfile.lock",
+        Thorfile,
+        Puppetfile,
+        Fastfile,
+        Appfile,
+        Deliverfile,
+        Matchfile,
+        Scanfile,
+        Snapfile,
+        Gymfile,
+        ".irbrc"
+      ],
+      shebangs: [
+        ruby
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      lsp_servers: [
+        ruby-lsp,
+        solargraph
+      ]
+    },
+    {
+      common: {
+        name: rshtml
+      },
+      scope: "source.rshtml",
+      globs: [
+        "*.rs.html"
+      ],
+      block_comment: [
+        @*,
+        *@
+      ],
+      lsp_servers: [
+        rshtml-analyzer,
+        vscode-html-language-server,
+        superhtml
+      ],
+      roots: [
+        "Cargo.lock",
+        "Cargo.toml"
+      ]
+    },
+    {
+      common: {
+        name: bash
+      },
+      scope: "source.bash",
+      injection_regex: "(shell|bash|zsh|sh)",
+      extensions: [
+        sh,
+        bash,
+        ash,
+        dash,
+        ksh,
+        mksh,
+        zsh,
+        zshenv,
+        zlogin,
+        zlogout,
+        zprofile,
+        zshrc,
+        eclass,
+        ebuild,
+        bazelrc,
+        Renviron,
+        zsh-theme,
+        cshrc,
+        tcshrc,
+        bashrc_Apple_Terminal,
+        zshrc_Apple_Terminal
+      ],
+      filenames: [
+        "i3/config",
+        sway/config,
+        ".tmux.conf",
+        "tmux.conf",
+        ".sh_history",
+        ".bash_history",
+        ".bash_login",
+        ".bash_logout",
+        ".bash_profile",
+        ".bashrc",
+        ".profile",
+        ".zshenv",
+        ".zlogin",
+        ".zlogout",
+        ".zprofile",
+        ".zshrc",
+        ".zimrc",
+        APKBUILD,
+        ".bash_aliases",
+        bash_completion,
+        ".Renviron",
+        ".xprofile",
+        ".xsession",
+        ".xsessionrc",
+        ".yashrc",
+        ".yash_profile",
+        ".hushlogin",
+        ".xinitrc",
+        xinitrc,
+        ".xserverrc",
+        xserverrc
+      ],
+      globs: [
+        bash-completion/completions/*,
+        "bash_completion.d/*"
+      ],
+      shebangs: [
+        sh,
+        bash,
+        dash,
+        zsh
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      lsp_servers: [
+        bash-language-server
+      ]
+    },
+    {
+      common: {
+        name: php
+      },
+      scope: "source.php",
+      injection_regex: php,
+      extensions: [
+        php,
+        inc,
+        "php4",
+        "php5",
+        phtml,
+        ctp
+      ],
+      shebangs: [
+        php
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /**,
+        */
+      ],
+      lsp_servers: [
+        intelephense
+      ],
+      roots: [
+        "composer.json",
+        "index.php"
+      ]
+    },
+    {
+      common: {
+        name: php-only
+      },
+      scope: "source.php-only",
+      injection_regex: php-only,
+      roots: [
+        "composer.json",
+        "index.php"
+      ]
+    },
+    {
+      common: {
+        name: blade
+      },
+      scope: "source.blade.php",
+      injection_regex: blade,
+      extensions: [
+        blade
+      ],
+      globs: [
+        "*.blade.php"
+      ],
+      roots: [
+        "composer.json",
+        "index.php"
+      ]
+    },
+    {
+      common: {
+        name: twig
+      },
+      scope: "source.twig",
+      injection_regex: twig,
+      extensions: [
+        twig
+      ],
+      block_comment: [
+        "{#",
+        "#}"
+      ]
+    },
+    {
+      common: {
+        name: latex
+      },
+      scope: "source.tex",
+      injection_regex: tex,
+      extensions: [
+        tex,
+        sty,
+        cls,
+        Rd,
+        bbx,
+        cbx
+      ],
+      comment_tokens: [
+        %
+      ],
+      lsp_servers: [
+        texlab
+      ]
+    },
+    {
+      common: {
+        name: bibtex
+      },
+      scope: "source.bib",
+      injection_regex: bib,
+      auto_format: true,
+      extensions: [
+        bib
+      ],
+      comment_tokens: [
+        %
+      ],
+      lsp_servers: [
+        texlab
+      ]
+    },
+    {
+      common: {
+        name: lean
+      },
+      scope: "source.lean",
+      injection_regex: lean,
+      extensions: [
+        lean
+      ],
+      comment_tokens: [
+        --
+      ],
+      block_comment: [
+        /-,
+        -/
+      ],
+      lsp_servers: [
+        lean
+      ],
+      roots: [
+        "lakefile.lean",
+        "lakefile.toml"
+      ]
+    },
+    {
+      common: {
+        name: lpf
+      },
+      scope: "source.lpf",
+      extensions: [
+        lpf
+      ],
+      comment_tokens: [
+        "#"
+      ]
+    },
+    {
+      common: {
+        name: julia
+      },
+      scope: "source.julia",
+      injection_regex: julia,
+      extensions: [
+        jl
+      ],
+      shebangs: [
+        julia
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      block_comment: [
+        "#=",
+        "=#"
+      ],
+      lsp_servers: [
+        julia
+      ],
+      roots: [
+        "Manifest.toml",
+        "Project.toml"
+      ]
+    },
+    {
+      common: {
+        name: java
+      },
+      scope: "source.java",
+      injection_regex: java,
+      extensions: [
+        java,
+        jav,
+        pde
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        jdtls
+      ],
+      roots: [
+        "pom.xml",
+        "build.gradle",
+        "build.gradle.kts"
+      ]
+    },
+    {
+      common: {
+        name: smali
+      },
+      scope: "source.smali",
+      injection_regex: smali,
+      extensions: [
+        smali
+      ],
+      comment_tokens: [
+        "#"
+      ]
+    },
+    {
+      common: {
+        name: ledger
+      },
+      scope: "source.ledger",
+      injection_regex: ledger,
+      extensions: [
+        ldg,
+        ledger,
+        journal
+      ],
+      comment_tokens: [
+        ";"
+      ]
+    },
+    {
+      common: {
+        name: beancount
+      },
+      scope: "source.beancount",
+      injection_regex: beancount,
+      extensions: [
+        beancount,
+        bean
+      ],
+      comment_tokens: [
+        ";"
+      ],
+      lsp_servers: [
+        beancount-language-server
+      ]
+    },
+    {
+      common: {
+        name: ocaml
+      },
+      scope: "source.ocaml",
+      injection_regex: ocaml,
+      extensions: [
+        ml
+      ],
+      shebangs: [
+        ocaml,
+        ocamlrun,
+        ocamlscript
+      ],
+      block_comment: [
+        "(*",
+        "*)"
+      ],
+      lsp_servers: [
+        ocamllsp
+      ]
+    },
+    {
+      common: {
+        name: ocaml-interface
+      },
+      scope: "source.ocaml.interface",
+      extensions: [
+        mli
+      ],
+      comment_tokens: [
+        "(**)"
+      ],
+      block_comment: [
+        "(*",
+        "*)"
+      ],
+      lsp_servers: [
+        ocamllsp
+      ]
+    },
+    {
+      common: {
+        name: dune
+      },
+      scope: "source.dune",
+      grammar_name: scheme,
+      auto_format: true,
+      filenames: [
+        dune-project,
+        dune
+      ],
+      comment_tokens: [
+        ";"
+      ],
+      roots: [
+        dune-project
+      ]
+    },
+    {
+      common: {
+        name: lua
+      },
+      scope: "source.lua",
+      injection_regex: lua,
+      extensions: [
+        lua,
+        rockspec
+      ],
+      shebangs: [
+        lua,
+        luajit
+      ],
+      comment_tokens: [
+        --
+      ],
+      block_comment: [
+        "--[[",
+        "--]]"
+      ],
+      lsp_servers: [
+        lua-language-server
+      ],
+      roots: [
+        ".luarc.json",
+        ".luacheckrc",
+        ".stylua.toml",
+        "selene.toml",
+        ".git"
+      ]
+    },
+    {
+      common: {
+        name: luap
+      },
+      scope: "source.luap",
+      injection_regex: luap
+    },
+    {
+      common: {
+        name: teal
+      },
+      scope: "source.tl",
+      injection_regex: teal,
+      extensions: [
+        tl
+      ],
+      block_comment: [
+        "--[[",
+        "--]]"
+      ],
+      lsp_servers: [
+        teal-language-server
+      ],
+      roots: [
+        "tlconfig.lua"
+      ]
+    },
+    {
+      common: {
+        name: svelte
+      },
+      scope: "source.svelte",
+      injection_regex: svelte,
+      extensions: [
+        svelte
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        svelteserver
+      ]
+    },
+    {
+      common: {
+        name: vue
+      },
+      scope: "source.vue",
+      injection_regex: vue,
+      extensions: [
+        vue
+      ],
+      block_comment: [
+        "<!--",
+        -->
+      ],
+      lsp_servers: [
+        vuels
+      ],
+      roots: [
+        "package.json"
+      ]
+    },
+    {
+      common: {
+        name: yaml
+      },
+      scope: "source.yaml",
+      injection_regex: "yml|yaml",
+      auto_format: true,
+      extensions: [
+        yml,
+        yaml,
+        sublime-syntax
+      ],
+      filenames: [
+        ".prettierrc",
+        ".clangd",
+        ".clang-format",
+        ".clang-tidy",
+        ".gem/credentials",
+        ".kube/config",
+        ".kube/kuberc",
+        "yarn.lock"
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      lsp_servers: [
+        yaml-language-server,
+        ansible-language-server
+      ]
+    },
+    {
+      common: {
+        name: nestedtext
+      },
+      scope: "text.nested",
+      grammar_name: yaml,
+      injection_regex: nestedtext,
+      extensions: [
+        nt
+      ],
+      comment_tokens: [
+        "#"
+      ]
+    },
+    {
+      common: {
+        name: haskell
+      },
+      scope: "source.haskell",
+      injection_regex: "hs|haskell",
+      extensions: [
+        hs,
+        hs-boot,
+        hsc
+      ],
+      shebangs: [
+        runhaskell,
+        stack
+      ],
+      comment_tokens: [
+        --
+      ],
+      block_comment: [
+        "{-",
+        "-}"
+      ],
+      lsp_servers: [
+        haskell-language-server
+      ],
+      roots: [
+        "Setup.hs",
+        "stack.yaml",
+        "cabal.project",
+        "hie.yaml"
+      ]
+    },
+    {
+      common: {
+        name: haskell-persistent
+      },
+      scope: "source.persistentmodels",
+      extensions: [
+        persistentmodels
+      ],
+      comment_tokens: [
+        --
+      ]
+    },
+    {
+      common: {
+        name: haskell-literate
+      },
+      scope: "source.haskell-literate",
+      injection_regex: lhs,
+      extensions: [
+        lhs
+      ],
+      shebangs: [
+        runhaskell,
+        stack
+      ],
+      comment_tokens: [
+        --
+      ],
+      block_comment: [
+        "{-",
+        "-}"
+      ],
+      lsp_servers: [
+        haskell-language-server
+      ],
+      roots: [
+        "Setup.hs",
+        "stack.yaml",
+        "cabal.project",
+        "hie.yaml"
+      ]
+    },
+    {
+      common: {
+        name: purescript
+      },
+      scope: "source.purescript",
+      injection_regex: purescript,
+      auto_format: true,
+      extensions: [
+        purs
+      ],
+      comment_tokens: [
+        --
+      ],
+      block_comment: [
+        "{-",
+        "-}"
+      ],
+      lsp_servers: [
+        purescript-language-server
+      ],
+      roots: [
+        "spago.yaml",
+        "spago.dhall",
+        "bower.json"
+      ]
+    },
+    {
+      common: {
+        name: zig
+      },
+      scope: "source.zig",
+      injection_regex: zig,
+      auto_format: true,
+      extensions: [
+        zig,
+        zon
+      ],
+      comment_tokens: [
+        //,
+        ///,
+        "//!"
+      ],
+      lsp_servers: [
+        zls
+      ],
+      roots: [
+        "build.zig"
+      ]
+    },
+    {
+      common: {
+        name: prolog
+      },
+      scope: "source.prolog",
+      extensions: [
+        pl,
+        prolog
+      ],
+      shebangs: [
+        swipl
+      ],
+      comment_tokens: [
+        %
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        swipl
+      ]
+    },
+    {
+      common: {
+        name: tsq
+      },
+      scope: "source.tsq",
+      grammar_name: query,
+      injection_regex: tsq,
+      filenames: [
+        "injections.scm",
+        "highlights.scm",
+        "indents.scm",
+        "textobjects.scm",
+        "locals.scm",
+        "tags.scm"
+      ],
+      globs: [
+        "queries/*.scm"
+      ],
+      comment_tokens: [
+        ";"
+      ],
+      lsp_servers: [
+        ts_query_ls
+      ]
+    },
+    {
+      common: {
+        name: cmake
+      },
+      scope: "source.cmake",
+      injection_regex: cmake,
+      extensions: [
+        cmake
+      ],
+      filenames: [
+        "CMakeLists.txt"
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      block_comment: [
+        "#[[",
+        "]]"
+      ],
+      lsp_servers: [
+        neocmakelsp,
+        cmake-language-server
+      ]
+    },
+    {
+      common: {
+        name: make
+      },
+      scope: "source.make",
+      injection_regex: "(make|makefile|Makefile|mk)",
+      extensions: [
+        make,
+        mk,
+        mak
+      ],
+      filenames: [
+        Makefile,
+        makefile,
+        GNUmakefile,
+        OCamlMakefile
+      ],
+      shebangs: [
+        make,
+        gmake
+      ],
+      comment_tokens: [
+        "#"
+      ]
+    },
+    {
+      common: {
+        name: glsl
+      },
+      scope: "source.glsl",
+      injection_regex: glsl,
+      extensions: [
+        glsl,
+        vert,
+        tesc,
+        tese,
+        geom,
+        frag,
+        comp
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        glsl_analyzer
+      ]
+    },
+    {
+      common: {
+        name: perl
+      },
+      scope: "source.perl",
+      extensions: [
+        pl,
+        pm,
+        t,
+        psgi,
+        raku,
+        rakumod,
+        rakutest,
+        rakudoc,
+        nqp,
+        "p6",
+        "pl6",
+        "pm6"
+      ],
+      filenames: [
+        latexmkrc,
+        ".latexmkrc"
+      ],
+      shebangs: [
+        perl
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      lsp_servers: [
+        perlnavigator
+      ]
+    },
+    {
+      common: {
+        name: pod
+      },
+      scope: "source.pod",
+      injection_regex: pod,
+      extensions: [
+        pod
+      ]
+    },
+    {
+      common: {
+        name: racket
+      },
+      scope: "source.racket",
+      grammar_name: scheme,
+      extensions: [
+        rkt,
+        rktd,
+        rktl,
+        scrbl,
+        zuo
+      ],
+      shebangs: [
+        racket,
+        zuo
+      ],
+      comment_tokens: [
+        ";"
+      ],
+      block_comment: [
+        "#|",
+        "|#"
+      ],
+      lsp_servers: [
+        racket
+      ]
+    },
+    {
+      common: {
+        name: common-lisp
+      },
+      scope: "source.lisp",
+      grammar_name: scheme,
+      extensions: [
+        lisp,
+        asd,
+        cl,
+        l,
+        lsp,
+        ny,
+        podsl,
+        ros,
+        sexp
+      ],
+      shebangs: [
+        lisp,
+        sbcl,
+        ccl,
+        clisp,
+        ecl
+      ],
+      comment_tokens: [
+        ";"
+      ],
+      lsp_servers: [
+        cl-lsp
+      ]
+    },
+    {
+      common: {
+        name: comment
+      },
+      scope: "scope.comment",
+      injection_regex: comment
+    },
+    {
+      common: {
+        name: wesl
+      },
+      scope: "source.wesl",
+      extensions: [
+        wesl
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ]
+    },
+    {
+      common: {
+        name: wgsl
+      },
+      scope: "source.wgsl",
+      extensions: [
+        wgsl
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        wgsl-analyzer
+      ]
+    },
+    {
+      common: {
+        name: llvm
+      },
+      scope: "source.llvm",
+      injection_regex: llvm,
+      extensions: [
+        ll
+      ],
+      comment_tokens: [
+        ";"
+      ]
+    },
+    {
+      common: {
+        name: llvm-mir
+      },
+      scope: "source.llvm_mir",
+      injection_regex: mir,
+      comment_tokens: [
+        ";"
+      ]
+    },
+    {
+      common: {
+        name: llvm-mir-yaml
+      },
+      scope: "source.yaml",
+      extensions: [
+        mir
+      ],
+      comment_tokens: [
+        "#"
+      ]
+    },
+    {
+      common: {
+        name: tablegen
+      },
+      scope: "source.tablegen",
+      injection_regex: tablegen,
+      extensions: [
+        td
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ]
+    },
+    {
+      common: {
+        name: mail
+      },
+      scope: "text.mail",
+      injection_regex: "mail|eml|email",
+      extensions: [
+        eml
+      ]
+    },
+    {
+      common: {
+        name: markdown
+      },
+      scope: "source.md",
+      injection_regex: "md|markdown",
+      extensions: [
+        md,
+        livemd,
+        markdown,
+        mdx,
+        mkd,
+        mkdn,
+        mdwn,
+        mdown,
+        markdn,
+        mdtxt,
+        mdtext,
+        workbook
+      ],
+      filenames: [
+        PULLREQ_EDITMSG
+      ],
+      block_comment: [
+        "<!--",
+        -->
+      ],
+      lsp_servers: [
+        marksman,
+        markdown-oxide,
+        rumdl
+      ],
+      roots: [
+        ".marksman.toml"
+      ]
+    },
+    {
+      common: {
+        name: markdown-rustdoc
+      },
+      scope: "source.markdown-rustdoc",
+      grammar_name: markdown,
+      injection_regex: markdown-rustdoc,
+      block_comment: [
+        "<!--",
+        -->
+      ]
+    },
+    {
+      common: {
+        name: "markdown.inline"
+      },
+      scope: "source.markdown.inline",
+      grammar_name: markdown_inline,
+      injection_regex: "markdown\\.inline"
+    },
+    {
+      common: {
+        name: djot
+      },
+      scope: "source.djot",
+      injection_regex: "dj|djot",
+      extensions: [
+        dj,
+        djot
+      ],
+      block_comment: [
+        "{%",
+        "%}"
+      ]
+    },
+    {
+      common: {
+        name: dart
+      },
+      scope: "source.dart",
+      auto_format: true,
+      extensions: [
+        dart
+      ],
+      comment_tokens: [
+        //,
+        ///
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        dart
+      ],
+      roots: [
+        "pubspec.yaml"
+      ]
+    },
+    {
+      common: {
+        name: scala
+      },
+      scope: "source.scala",
+      extensions: [
+        scala,
+        sbt,
+        sc
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        metals
+      ],
+      roots: [
+        "build.sbt",
+        "build.sc",
+        "build.gradle",
+        "build.gradle.kts",
+        "pom.xml",
+        ".scala-build"
+      ]
+    },
+    {
+      common: {
+        name: dockerfile
+      },
+      scope: "source.dockerfile",
+      injection_regex: "docker|dockerfile",
+      extensions: [
+        Dockerfile,
+        dockerfile,
+        Containerfile,
+        containerfile
+      ],
+      filenames: [
+        Dockerfile,
+        dockerfile,
+        Containerfile,
+        containerfile
+      ],
+      globs: [
+        "Dockerfile.*",
+        "dockerfile.*",
+        "Containerfile.*",
+        "containerfile.*"
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      lsp_servers: [
+        docker-langserver,
+        docker-language-server
+      ],
+      roots: [
+        Dockerfile,
+        Containerfile
+      ]
+    },
+    {
+      common: {
+        name: docker-compose
+      },
+      scope: "source.yaml.docker-compose",
+      grammar_name: yaml,
+      filenames: [
+        "docker-compose.yaml",
+        "docker-compose.yml",
+        "compose.yaml",
+        "compose.yml"
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      lsp_servers: [
+        docker-compose-langserver,
+        yaml-language-server,
+        docker-language-server
+      ],
+      roots: [
+        "docker-compose.yaml",
+        "docker-compose.yml",
+        "compose.yaml",
+        "compose.yml"
+      ]
+    },
+    {
+      common: {
+        name: git-commit
+      },
+      scope: "git.commitmsg",
+      grammar_name: gitcommit,
+      filenames: [
+        COMMIT_EDITMSG,
+        MERGE_MSG,
+        TAG_EDITMSG
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      lsp_servers: [
+        commit-lsp
+      ]
+    },
+    {
+      common: {
+        name: git-notes
+      },
+      scope: "git.notesmsg",
+      grammar_name: gitcommit,
+      filenames: [
+        NOTES_EDITMSG,
+        EDIT_DESCRIPTION
+      ],
+      comment_tokens: [
+        "#"
+      ]
+    },
+    {
+      common: {
+        name: diff
+      },
+      scope: "source.diff",
+      injection_regex: diff,
+      extensions: [
+        diff,
+        patch,
+        rej
+      ],
+      comment_tokens: [
+        "#"
+      ]
+    },
+    {
+      common: {
+        name: git-rebase
+      },
+      scope: "source.gitrebase",
+      injection_regex: git-rebase,
+      filenames: [
+        git-rebase-todo
+      ],
+      comment_tokens: [
+        "#"
+      ]
+    },
+    {
+      common: {
+        name: regex
+      },
+      scope: "source.regex",
+      injection_regex: regex,
+      extensions: [
+        regex
+      ],
+      filenames: [
+        ".Rbuildignore"
+      ]
+    },
+    {
+      common: {
+        name: git-config
+      },
+      scope: "source.gitconfig",
+      injection_regex: git-config,
+      extensions: [
+        gitconfig
+      ],
+      filenames: [
+        ".gitmodules",
+        gitconfig,
+        ".gitconfig",
+        ".git/config",
+        ".config/git/config"
+      ],
+      comment_tokens: [
+        "#"
+      ]
+    },
+    {
+      common: {
+        name: git-attributes
+      },
+      scope: "source.gitattributes",
+      grammar_name: gitattributes,
+      injection_regex: git-attributes,
+      filenames: [
+        ".gitattributes",
+        ".config/git/attributes"
+      ],
+      comment_tokens: [
+        "#"
+      ]
+    },
+    {
+      common: {
+        name: git-ignore
+      },
+      scope: "source.gitignore",
+      grammar_name: gitignore,
+      injection_regex: git-ignore,
+      filenames: [
+        ".gitignore_global",
+        git/ignore,
+        ".git/info/exclude",
+        ".ignore",
+        CODEOWNERS,
+        ".config/helix/ignore",
+        ".helix/ignore",
+        ".git-blame-ignore-revs"
+      ],
+      globs: [
+        ".*ignore"
+      ],
+      comment_tokens: [
+        "#"
+      ]
+    },
+    {
+      common: {
+        name: graphql
+      },
+      scope: "source.graphql",
+      injection_regex: graphql,
+      extensions: [
+        gql,
+        graphql,
+        graphqls
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      block_comment: [
+        "\"\"\"",
+        "\"\"\""
+      ],
+      lsp_servers: [
+        graphql-language-service
+      ]
+    },
+    {
+      common: {
+        name: elm
+      },
+      scope: "source.elm",
+      injection_regex: elm,
+      auto_format: true,
+      extensions: [
+        elm
+      ],
+      comment_tokens: [
+        --
+      ],
+      block_comment: [
+        "{-",
+        "-}"
+      ],
+      lsp_servers: [
+        elm-language-server
+      ],
+      roots: [
+        "elm.json"
+      ]
+    },
+    {
+      common: {
+        name: iex
+      },
+      scope: "source.iex",
+      injection_regex: iex,
+      extensions: [
+        iex
+      ],
+      comment_tokens: [
+        "#"
+      ]
+    },
+    {
+      common: {
+        name: rescript
+      },
+      scope: "source.rescript",
+      injection_regex: rescript,
+      auto_format: true,
+      extensions: [
+        res
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        rescript-language-server
+      ],
+      roots: [
+        "bsconfig.json"
+      ]
+    },
+    {
+      common: {
+        name: erlang
+      },
+      scope: "source.erlang",
+      injection_regex: "erl(ang)?",
+      extensions: [
+        erl,
+        hrl,
+        app
+      ],
+      filenames: [
+        "rebar.config",
+        "rebar.lock"
+      ],
+      globs: [
+        "*.app.src"
+      ],
+      shebangs: [
+        escript
+      ],
+      comment_tokens: [
+        %%
+      ],
+      lsp_servers: [
+        erlang-ls,
+        elp
+      ],
+      roots: [
+        "rebar.config"
+      ]
+    },
+    {
+      common: {
+        name: kotlin
+      },
+      scope: "source.kotlin",
+      extensions: [
+        kt,
+        kts
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        kotlin-language-server
+      ],
+      roots: [
+        "settings.gradle",
+        "settings.gradle.kts"
+      ]
+    },
+    {
+      common: {
+        name: hcl
+      },
+      scope: "source.hcl",
+      injection_regex: "(hcl|tf|nomad)",
+      auto_format: true,
+      extensions: [
+        hcl,
+        tf,
+        nomad
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        terraform-ls
+      ]
+    },
+    {
+      common: {
+        name: tfvars
+      },
+      scope: "source.tfvars",
+      grammar_name: hcl,
+      auto_format: true,
+      extensions: [
+        tfvars
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        terraform-ls
+      ]
+    },
+    {
+      common: {
+        name: org
+      },
+      scope: "source.org",
+      injection_regex: org,
+      extensions: [
+        org
+      ]
+    },
+    {
+      common: {
+        name: solidity
+      },
+      scope: "source.sol",
+      injection_regex: "(sol|solidity)",
+      extensions: [
+        sol
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        solc
+      ]
+    },
+    {
+      common: {
+        name: gleam
+      },
+      scope: "source.gleam",
+      injection_regex: gleam,
+      auto_format: true,
+      extensions: [
+        gleam
+      ],
+      comment_tokens: [
+        //,
+        ///,
+        ////
+      ],
+      lsp_servers: [
+        gleam
+      ],
+      roots: [
+        "gleam.toml"
+      ]
+    },
+    {
+      common: {
+        name: quarto
+      },
+      scope: "source.qmd",
+      grammar_name: markdown,
+      injection_regex: qmd,
+      extensions: [
+        qmd
+      ],
+      block_comment: [
+        "<!--",
+        -->
+      ]
+    },
+    {
+      common: {
+        name: ron
+      },
+      scope: "source.ron",
+      injection_regex: ron,
+      extensions: [
+        ron
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        ron-lsp
+      ],
+      roots: [
+        "Cargo.toml"
+      ]
+    },
+    {
+      common: {
+        name: robot
+      },
+      scope: "source.robot",
+      injection_regex: robot,
+      extensions: [
+        robot,
+        resource
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      lsp_servers: [
+        robotframework_ls
+      ]
+    },
+    {
+      common: {
+        name: r
+      },
+      scope: "source.r",
+      injection_regex: "(r|R)",
+      extensions: [
+        r,
+        R
+      ],
+      filenames: [
+        ".Rprofile",
+        "Rprofile.site",
+        ".RHistory"
+      ],
+      shebangs: [
+        r,
+        R
+      ],
+      comment_tokens: [
+        "#",
+        "#'"
+      ],
+      lsp_servers: [
+        r
+      ]
+    },
+    {
+      common: {
+        name: rmarkdown
+      },
+      scope: "source.rmd",
+      grammar_name: markdown,
+      injection_regex: "(r|R)md",
+      extensions: [
+        rmd,
+        Rmd
+      ],
+      block_comment: [
+        "<!--",
+        -->
+      ],
+      lsp_servers: [
+        r
+      ]
+    },
+    {
+      common: {
+        name: swift
+      },
+      scope: "source.swift",
+      injection_regex: swift,
+      extensions: [
+        swift,
+        swiftinterface
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        sourcekit-lsp
+      ],
+      roots: [
+        "Package.swift"
+      ]
+    },
+    {
+      common: {
+        name: erb
+      },
+      scope: "text.html.erb",
+      grammar_name: embedded-template,
+      injection_regex: erb,
+      extensions: [
+        erb
+      ],
+      block_comment: [
+        "<!--",
+        -->
+      ]
+    },
+    {
+      common: {
+        name: ejs
+      },
+      scope: "text.html.ejs",
+      grammar_name: embedded-template,
+      injection_regex: ejs,
+      extensions: [
+        ejs
+      ],
+      block_comment: [
+        "<!--",
+        -->
+      ]
+    },
+    {
+      common: {
+        name: eex
+      },
+      scope: "source.eex",
+      injection_regex: eex,
+      extensions: [
+        eex
+      ],
+      block_comment: [
+        "<!--",
+        -->
+      ],
+      roots: [
+        "mix.exs",
+        "mix.lock"
+      ]
+    },
+    {
+      common: {
+        name: heex
+      },
+      scope: "source.heex",
+      injection_regex: heex,
+      extensions: [
+        heex
+      ],
+      block_comment: [
+        "<!--",
+        -->
+      ],
+      lsp_servers: [
+        elixir-ls,
+        expert
+      ],
+      roots: [
+        "mix.exs",
+        "mix.lock"
+      ]
+    },
+    {
+      common: {
+        name: sql
+      },
+      scope: "source.sql",
+      injection_regex: sql,
+      extensions: [
+        sql,
+        dsql
+      ],
+      comment_tokens: [
+        --
+      ],
+      block_comment: [
+        /*,
+        */
+      ]
+    },
+    {
+      common: {
+        name: gdscript
+      },
+      scope: "source.gdscript",
+      injection_regex: gdscript,
+      auto_format: true,
+      extensions: [
+        gd
+      ],
+      comment_tokens: [
+        "#",
+        "##"
+      ],
+      roots: [
+        "project.godot"
+      ]
+    },
+    {
+      common: {
+        name: godot-resource
+      },
+      scope: "source.tscn",
+      injection_regex: godot,
+      extensions: [
+        tscn,
+        tres,
+        godot,
+        gdextension
+      ],
+      comment_tokens: [
+        ";"
+      ],
+      roots: [
+        "project.godot"
+      ]
+    },
+    {
+      common: {
+        name: nu
+      },
+      scope: "source.nu",
+      injection_regex: nu,
+      extensions: [
+        nu,
+        nuon
+      ],
+      shebangs: [
+        nu
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      lsp_servers: [
+        nu-lsp
+      ]
+    },
+    {
+      common: {
+        name: vala
+      },
+      scope: "source.vala",
+      injection_regex: vala,
+      extensions: [
+        vala,
+        vapi
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        vala-language-server
+      ]
+    },
+    {
+      common: {
+        name: hare
+      },
+      scope: "source.hare",
+      injection_regex: hare,
+      extensions: [
+        ha
+      ],
+      comment_tokens: [
+        //
+      ],
+      lsp_servers: [
+        hare-lsp
+      ]
+    },
+    {
+      common: {
+        name: devicetree
+      },
+      scope: "source.devicetree",
+      injection_regex: "(dtsi?|devicetree|fdt)",
+      extensions: [
+        dts,
+        dtsi
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        dts-lsp
+      ]
+    },
+    {
+      common: {
+        name: cairo
+      },
+      scope: "source.cairo",
+      injection_regex: cairo,
+      extensions: [
+        cairo
+      ],
+      comment_tokens: [
+        //
+      ],
+      lsp_servers: [
+        cairo-language-server
+      ]
+    },
+    {
+      common: {
+        name: cpon
+      },
+      scope: "scope.cpon",
+      injection_regex: cpon,
+      auto_format: true,
+      extensions: [
+        cpon,
+        cp
+      ],
+      comment_tokens: [
+        //
+      ]
+    },
+    {
+      common: {
+        name: odin
+      },
+      scope: "source.odin",
+      auto_format: true,
+      extensions: [
+        odin
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        ols
+      ],
+      roots: [
+        "ols.json",
+        "main.odin"
+      ]
+    },
+    {
+      common: {
+        name: meson
+      },
+      scope: "source.meson",
+      injection_regex: meson,
+      filenames: [
+        "meson.build",
+        "meson.options",
+        "meson_options.txt"
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      lsp_servers: [
+        mesonlsp
+      ]
+    },
+    {
+      common: {
+        name: sshclientconfig
+      },
+      scope: "source.sshclientconfig",
+      filenames: [
+        ".ssh/config",
+        /etc/ssh/ssh_config
+      ],
+      globs: [
+        "ssh_config.d/*.conf"
+      ],
+      comment_tokens: [
+        "#"
+      ]
+    },
+    {
+      common: {
+        name: scheme
+      },
+      scope: "source.scheme",
+      injection_regex: scheme,
+      extensions: [
+        ss,
+        scm,
+        sld
+      ],
+      shebangs: [
+        scheme,
+        guile,
+        chicken
+      ],
+      comment_tokens: [
+        ";"
+      ],
+      block_comment: [
+        "#|",
+        "|#"
+      ]
+    },
+    {
+      common: {
+        name: v
+      },
+      scope: "source.v",
+      auto_format: true,
+      extensions: [
+        v,
+        vv,
+        vsh
+      ],
+      shebangs: [
+        "v run"
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        vlang-language-server
+      ],
+      roots: [
+        "v.mod"
+      ]
+    },
+    {
+      common: {
+        name: verilog
+      },
+      scope: "source.verilog",
+      injection_regex: verilog,
+      extensions: [
+        v,
+        vh
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        svlangserver
+      ]
+    },
+    {
+      common: {
+        name: systemverilog
+      },
+      scope: "source.systemverilog",
+      extensions: [
+        sv,
+        svh
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        verible-verilog-ls
+      ]
+    },
+    {
+      common: {
+        name: edoc
+      },
+      scope: "source.edoc",
+      injection_regex: edoc,
+      extensions: [
+        edoc,
+        "edoc.in"
+      ]
+    },
+    {
+      common: {
+        name: jsdoc
+      },
+      scope: "source.jsdoc",
+      injection_regex: jsdoc,
+      extensions: [
+        jsdoc
+      ]
+    },
+    {
+      common: {
+        name: openscad
+      },
+      scope: "source.openscad",
+      injection_regex: openscad,
+      extensions: [
+        scad
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        openscad-lsp
+      ]
+    },
+    {
+      common: {
+        name: prisma
+      },
+      scope: "source.prisma",
+      injection_regex: prisma,
+      extensions: [
+        prisma
+      ],
+      comment_tokens: [
+        //
+      ],
+      lsp_servers: [
+        prisma-language-server
+      ],
+      roots: [
+        "package.json"
+      ]
+    },
+    {
+      common: {
+        name: clojure
+      },
+      scope: "source.clojure",
+      injection_regex: "(clojure|clj|edn|boot)",
+      extensions: [
+        clj,
+        cljs,
+        cljc,
+        clje,
+        cljr,
+        cljx,
+        edn,
+        boot
+      ],
+      comment_tokens: [
+        ";"
+      ],
+      lsp_servers: [
+        clojure-lsp
+      ],
+      roots: [
+        "project.clj",
+        "build.boot",
+        "deps.edn",
+        "shadow-cljs.edn"
+      ]
+    },
+    {
+      common: {
+        name: starlark
+      },
+      scope: "source.starlark",
+      grammar_name: python,
+      injection_regex: "(starlark|bzl|bazel|buck)",
+      extensions: [
+        bzl,
+        bazel,
+        star
+      ],
+      filenames: [
+        BUILD,
+        BUCK,
+        Tiltfile,
+        WORKSPACE,
+        "WORKSPACE.bzlmod",
+        PACKAGE
+      ],
+      globs: [
+        "BUILD.*"
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      lsp_servers: [
+        starpls
+      ]
+    },
+    {
+      common: {
+        name: elvish
+      },
+      scope: "source.elvish",
+      grammar_name: elvish,
+      extensions: [
+        elv
+      ],
+      shebangs: [
+        elvish
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      lsp_servers: [
+        elvish
+      ]
+    },
+    {
+      common: {
+        name: idris
+      },
+      scope: "source.idr",
+      injection_regex: idr,
+      extensions: [
+        idr
+      ],
+      comment_tokens: [
+        --
+      ],
+      block_comment: [
+        "{-",
+        "-}"
+      ],
+      lsp_servers: [
+        "idris2-lsp"
+      ]
+    },
+    {
+      common: {
+        name: fortran
+      },
+      scope: "source.fortran",
+      injection_regex: fortran,
+      extensions: [
+        f,
+        for,
+        "f90",
+        "f95",
+        "f03",
+        F,
+        "F90",
+        "F95",
+        "F03"
+      ],
+      comment_tokens: [
+        "!"
+      ],
+      lsp_servers: [
+        fortls
+      ],
+      roots: [
+        "fpm.toml"
+      ]
+    },
+    {
+      common: {
+        name: ungrammar
+      },
+      scope: "source.ungrammar",
+      injection_regex: ungrammar,
+      extensions: [
+        ungram,
+        ungrammar
+      ],
+      comment_tokens: [
+        //
+      ]
+    },
+    {
+      common: {
+        name: dot
+      },
+      scope: "source.dot",
+      injection_regex: dot,
+      extensions: [
+        dot
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        dot-language-server
+      ]
+    },
+    {
+      common: {
+        name: cue
+      },
+      scope: "source.cue",
+      injection_regex: cue,
+      auto_format: true,
+      extensions: [
+        cue
+      ],
+      comment_tokens: [
+        //
+      ],
+      lsp_servers: [
+        cuelsp
+      ],
+      roots: [
+        "cue.mod"
+      ]
+    },
+    {
+      common: {
+        name: slang
+      },
+      scope: "source.lang",
+      injection_regex: slang,
+      extensions: [
+        slang
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        slangd
+      ]
+    },
+    {
+      common: {
+        name: slint
+      },
+      scope: "source.slint",
+      injection_regex: slint,
+      extensions: [
+        slint
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        slint-lsp
+      ]
+    },
+    {
+      common: {
+        name: task
+      },
+      scope: "source.task",
+      injection_regex: task,
+      extensions: [
+        task
+      ],
+      comment_tokens: [
+        "#"
+      ]
+    },
+    {
+      common: {
+        name: xit
+      },
+      scope: "source.xit",
+      injection_regex: xit,
+      extensions: [
+        xit
+      ]
+    },
+    {
+      common: {
+        name: esdl
+      },
+      scope: "source.esdl",
+      injection_regex: esdl,
+      extensions: [
+        esdl
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      roots: [
+        "edgedb.toml"
+      ]
+    },
+    {
+      common: {
+        name: pascal
+      },
+      scope: "source.pascal",
+      injection_regex: pascal,
+      extensions: [
+        pas,
+        pp,
+        inc,
+        lpr,
+        lfm
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        "{",
+        "}"
+      ],
+      lsp_servers: [
+        pasls
+      ]
+    },
+    {
+      common: {
+        name: sml
+      },
+      scope: "source.sml",
+      injection_regex: sml,
+      extensions: [
+        sml
+      ],
+      block_comment: [
+        "(*",
+        "*)"
+      ]
+    },
+    {
+      common: {
+        name: jsonnet
+      },
+      scope: "source.jsonnet",
+      extensions: [
+        libsonnet,
+        jsonnet
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        jsonnet-language-server
+      ],
+      roots: [
+        "jsonnetfile.json"
+      ]
+    },
+    {
+      common: {
+        name: ada
+      },
+      scope: "source.ada",
+      injection_regex: ada,
+      extensions: [
+        adb,
+        ads
+      ],
+      comment_tokens: [
+        --
+      ],
+      lsp_servers: [
+        ada-language-server
+      ],
+      roots: [
+        "alire.toml"
+      ]
+    },
+    {
+      common: {
+        name: astro
+      },
+      scope: "source.astro",
+      injection_regex: astro,
+      extensions: [
+        astro
+      ],
+      block_comment: [
+        "<!--",
+        -->
+      ],
+      lsp_servers: [
+        astro-ls
+      ]
+    },
+    {
+      common: {
+        name: bass
+      },
+      scope: "source.bass",
+      injection_regex: bass,
+      extensions: [
+        bass
+      ],
+      comment_tokens: [
+        ";"
+      ],
+      lsp_servers: [
+        bass
+      ]
+    },
+    {
+      common: {
+        name: wat
+      },
+      scope: "source.wat",
+      extensions: [
+        wat
+      ],
+      comment_tokens: [
+        ";;"
+      ],
+      block_comment: [
+        "(;",
+        ";)"
+      ],
+      lsp_servers: [
+        wasm-language-tools
+      ]
+    },
+    {
+      common: {
+        name: wast
+      },
+      scope: "source.wast",
+      extensions: [
+        wast
+      ],
+      comment_tokens: [
+        ";;"
+      ],
+      block_comment: [
+        "(;",
+        ";)"
+      ]
+    },
+    {
+      common: {
+        name: d
+      },
+      scope: "source.d",
+      injection_regex: d,
+      extensions: [
+        d,
+        dd
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        serve-d
+      ]
+    },
+    {
+      common: {
+        name: vhs
+      },
+      scope: "source.vhs",
+      grammar_name: vhs,
+      extensions: [
+        tape
+      ],
+      comment_tokens: [
+        "#"
+      ]
+    },
+    {
+      common: {
+        name: kdl
+      },
+      scope: "source.kdl",
+      injection_regex: kdl,
+      extensions: [
+        kdl
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ]
+    },
+    {
+      common: {
+        name: xml
+      },
+      scope: "source.xml",
+      injection_regex: xml,
+      extensions: [
+        ascx,
+        atom,
+        axaml,
+        axml,
+        bpmn,
+        checkstyle,
+        cpt,
+        csl,
+        "csproj.user",
+        dita,
+        ditamap,
+        dtml,
+        fods,
+        fodt,
+        fxml,
+        gir,
+        glif,
+        gml,
+        gpx,
+        iml,
+        isml,
+        itermcolors,
+        jmx,
+        kml,
+        launch,
+        menu,
+        mobileconfig,
+        mpd,
+        musicxml,
+        mxml,
+        ncx,
+        nuspec,
+        opml,
+        osc,
+        osm,
+        plist,
+        policy,
+        pt,
+        publishsettings,
+        pubxml,
+        "pubxml.user",
+        rbxlx,
+        rbxmx,
+        resx,
+        rng,
+        rss,
+        shproj,
+        smil,
+        storyboard,
+        sublime-snippet,
+        svg,
+        terminal,
+        tld,
+        tmx,
+        ui,
+        "vbproj.user",
+        vcxproj,
+        "vcxproj.filters",
+        wixproj,
+        wsdl,
+        wxi,
+        wxs,
+        xaml,
+        xbl,
+        xib,
+        xlf,
+        xliff,
+        xml,
+        xmp,
+        xoml,
+        xpdl,
+        xrc,
+        xsd,
+        xsl,
+        xul
+      ],
+      globs: [
+        "*.tm[Ll]anguage",
+        "*.tm[Pp]references",
+        "*.tm[Tt]heme"
+      ],
+      block_comment: [
+        "<!--",
+        -->
+      ]
+    },
+    {
+      common: {
+        name: dtd
+      },
+      scope: "source.dtd",
+      injection_regex: dtd,
+      extensions: [
+        dtd,
+        ent
+      ],
+      block_comment: [
+        "<!--",
+        -->
+      ]
+    },
+    {
+      common: {
+        name: wit
+      },
+      scope: "source.wit",
+      injection_regex: wit,
+      extensions: [
+        wit
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ]
+    },
+    {
+      common: {
+        name: env
+      },
+      scope: "source.env",
+      grammar_name: bash,
+      injection_regex: env,
+      filenames: [
+        ".env",
+        ".envrc",
+        _environment,
+        "_environment.local",
+        "_environment.required"
+      ],
+      globs: [
+        ".env.*",
+        ".envrc.*",
+        _environment-*
+      ],
+      comment_tokens: [
+        "#"
+      ]
+    },
+    {
+      common: {
+        name: systemd
+      },
+      scope: "source.ini",
+      grammar_name: ini,
+      injection_regex: systemd,
+      extensions: [
+        service,
+        automount,
+        device,
+        mount,
+        nspawn,
+        path,
+        scope,
+        slice,
+        socket,
+        swap,
+        target,
+        timer
+      ],
+      globs: [
+        "systemd/**/*.conf"
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      lsp_servers: [
+        systemd-lsp
+      ]
+    },
+    {
+      common: {
+        name: ini
+      },
+      scope: "source.ini",
+      injection_regex: ini,
+      extensions: [
+        ini,
+        desktop,
+        container,
+        volume,
+        kube,
+        network,
+        properties,
+        cfg,
+        directory
+      ],
+      filenames: [
+        "mimeapps.list",
+        ".editorconfig",
+        ".npmrc",
+        hgrc,
+        npmrc,
+        "rclone.conf",
+        ".aws/config",
+        ".wslconfig"
+      ],
+      comment_tokens: [
+        "#"
+      ]
+    },
+    {
+      common: {
+        name: inko
+      },
+      scope: "source.inko",
+      injection_regex: inko,
+      auto_format: true,
+      extensions: [
+        inko
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      roots: [
+        "inko.pkg"
+      ]
+    },
+    {
+      common: {
+        name: bicep
+      },
+      scope: "source.bicep",
+      auto_format: true,
+      extensions: [
+        bicep,
+        bicepparam
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        bicep-langserver
+      ]
+    },
+    {
+      common: {
+        name: qml
+      },
+      scope: "source.qml",
+      grammar_name: qmljs,
+      extensions: [
+        qml
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        qmlls
+      ]
+    },
+    {
+      common: {
+        name: mermaid
+      },
+      scope: "source.mermaid",
+      injection_regex: mermaid,
+      extensions: [
+        mermaid,
+        mmd
+      ],
+      comment_tokens: [
+        %%
+      ]
+    },
+    {
+      common: {
+        name: matlab
+      },
+      scope: "source.m",
+      extensions: [
+        m
+      ],
+      shebangs: [
+        octave-cli,
+        matlab
+      ],
+      comment_tokens: [
+        %
+      ]
+    },
+    {
+      common: {
+        name: ponylang
+      },
+      scope: "source.pony",
+      injection_regex: pony,
+      extensions: [
+        pony
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      roots: [
+        "corral.json",
+        "lock.json"
+      ]
+    },
+    {
+      common: {
+        name: dhall
+      },
+      scope: "source.dhall",
+      injection_regex: dhall,
+      extensions: [
+        dhall
+      ],
+      comment_tokens: [
+        --
+      ],
+      block_comment: [
+        "{-",
+        "-}"
+      ],
+      lsp_servers: [
+        dhall-lsp-server
+      ]
+    },
+    {
+      common: {
+        name: sage
+      },
+      scope: "source.sage",
+      grammar_name: python,
+      injection_regex: sage,
+      extensions: [
+        sage
+      ],
+      comment_tokens: [
+        "#"
+      ]
+    },
+    {
+      common: {
+        name: msbuild
+      },
+      scope: "source.msbuild",
+      grammar_name: xml,
+      injection_regex: msbuild,
+      extensions: [
+        proj,
+        vbproj,
+        csproj,
+        fsproj,
+        targets,
+        props
+      ],
+      block_comment: [
+        "<!--",
+        -->
+      ]
+    },
+    {
+      common: {
+        name: pem
+      },
+      scope: "source.pem",
+      grammar_name: pem,
+      injection_regex: pem,
+      extensions: [
+        pem,
+        cert,
+        crt
+      ]
+    },
+    {
+      common: {
+        name: passwd
+      },
+      scope: "source.passwd",
+      filenames: [
+        passwd
+      ]
+    },
+    {
+      common: {
+        name: hosts
+      },
+      scope: "source.hosts",
+      filenames: [
+        hosts
+      ],
+      comment_tokens: [
+        "#"
+      ]
+    },
+    {
+      common: {
+        name: uxntal
+      },
+      scope: "source.tal",
+      injection_regex: tal,
+      extensions: [
+        tal
+      ],
+      block_comment: [
+        "(",
+        ")"
+      ]
+    },
+    {
+      common: {
+        name: yuck
+      },
+      scope: "source.yuck",
+      injection_regex: yuck,
+      extensions: [
+        yuck
+      ],
+      comment_tokens: [
+        ";"
+      ]
+    },
+    {
+      common: {
+        name: prql
+      },
+      scope: "source.prql",
+      injection_regex: prql,
+      extensions: [
+        prql
+      ],
+      comment_tokens: [
+        "#"
+      ]
+    },
+    {
+      common: {
+        name: po
+      },
+      scope: "source.po",
+      extensions: [
+        po,
+        pot
+      ],
+      comment_tokens: [
+        "#"
+      ]
+    },
+    {
+      common: {
+        name: nasm
+      },
+      scope: "source.nasm",
+      injection_regex: "n?asm",
+      extensions: [
+        asm,
+        S,
+        nasm
+      ],
+      comment_tokens: [
+        ";"
+      ],
+      lsp_servers: [
+        asm-lsp
+      ]
+    },
+    {
+      common: {
+        name: gas
+      },
+      scope: "source.gas",
+      injection_regex: gas,
+      extensions: [
+        s
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      lsp_servers: [
+        asm-lsp
+      ]
+    },
+    {
+      common: {
+        name: rst
+      },
+      scope: "source.rst",
+      extensions: [
+        rst
+      ],
+      comment_tokens: [
+        ".."
+      ]
+    },
+    {
+      common: {
+        name: capnp
+      },
+      scope: "source.capnp",
+      injection_regex: capnp,
+      extensions: [
+        capnp
+      ],
+      comment_tokens: [
+        "#"
+      ]
+    },
+    {
+      common: {
+        name: smithy
+      },
+      scope: "source.smithy",
+      injection_regex: smithy,
+      extensions: [
+        smithy
+      ],
+      comment_tokens: [
+        //
+      ],
+      lsp_servers: [
+        cs
+      ],
+      roots: [
+        "smithy-build.json"
+      ]
+    },
+    {
+      common: {
+        name: hdl
+      },
+      scope: "source.hdl",
+      injection_regex: hdl,
+      extensions: [
+        hdl
+      ],
+      lsp_servers: [
+        hdls
+      ]
+    },
+    {
+      common: {
+        name: vhdl
+      },
+      scope: "source.vhdl",
+      injection_regex: vhdl,
+      extensions: [
+        vhd,
+        vhdl
+      ],
+      comment_tokens: [
+        --
+      ],
+      lsp_servers: [
+        vhdl_ls
+      ]
+    },
+    {
+      common: {
+        name: rego
+      },
+      scope: "source.rego",
+      grammar_name: rego,
+      injection_regex: rego,
+      auto_format: true,
+      extensions: [
+        rego
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      lsp_servers: [
+        regols
+      ]
+    },
+    {
+      common: {
+        name: nim
+      },
+      scope: "source.nim",
+      injection_regex: nim,
+      extensions: [
+        nim,
+        nims,
+        nimble
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      block_comment: [
+        "#[",
+        "]#"
+      ],
+      lsp_servers: [
+        nimlangserver
+      ]
+    },
+    {
+      common: {
+        name: cabal
+      },
+      scope: "source.cabal",
+      extensions: [
+        cabal
+      ],
+      comment_tokens: [
+        --
+      ],
+      lsp_servers: [
+        haskell-language-server
+      ],
+      roots: [
+        "cabal.project",
+        "Setup.hs"
+      ]
+    },
+    {
+      common: {
+        name: hurl
+      },
+      scope: "source.hurl",
+      injection_regex: hurl,
+      extensions: [
+        hurl
+      ],
+      comment_tokens: [
+        "#"
+      ]
+    },
+    {
+      common: {
+        name: markdoc
+      },
+      scope: "text.markdoc",
+      extensions: [
+        mdoc
+      ],
+      block_comment: [
+        "<!--",
+        -->
+      ],
+      lsp_servers: [
+        markdoc-ls
+      ]
+    },
+    {
+      common: {
+        name: opencl
+      },
+      scope: "source.cl",
+      injection_regex: "(cl|opencl)",
+      extensions: [
+        cl
+      ],
+      comment_tokens: [
+        //
+      ],
+      lsp_servers: [
+        clangd
+      ]
+    },
+    {
+      common: {
+        name: just
+      },
+      scope: "source.just",
+      injection_regex: just,
+      extensions: [
+        just
+      ],
+      filenames: [
+        justfile,
+        Justfile,
+        ".justfile",
+        ".Justfile"
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      lsp_servers: [
+        just-lsp
+      ]
+    },
+    {
+      common: {
+        name: gn
+      },
+      scope: "source.gn",
+      injection_regex: gn,
+      extensions: [
+        gn,
+        gni
+      ],
+      comment_tokens: [
+        "#"
+      ]
+    },
+    {
+      common: {
+        name: blueprint
+      },
+      scope: "source.blueprint",
+      injection_regex: blueprint,
+      extensions: [
+        blp
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        blueprint-compiler
+      ]
+    },
+    {
+      common: {
+        name: forth
+      },
+      scope: "source.forth",
+      injection_regex: forth,
+      extensions: [
+        fs,
+        forth,
+        fth,
+        "4th"
+      ],
+      comment_tokens: [
+        \
+      ],
+      lsp_servers: [
+        forth-lsp
+      ]
+    },
+    {
+      common: {
+        name: fsharp
+      },
+      scope: "source.fs",
+      injection_regex: fsharp,
+      auto_format: true,
+      extensions: [
+        fs,
+        fsx,
+        fsi,
+        fsscript
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        "(*",
+        "*)"
+      ],
+      lsp_servers: [
+        fsharp-ls
+      ],
+      roots: [
+        sln,
+        fsproj
+      ]
+    },
+    {
+      common: {
+        name: "t32"
+      },
+      scope: "source.t32",
+      injection_regex: "t32",
+      extensions: [
+        cmm,
+        "t32"
+      ],
+      comment_tokens: [
+        ";"
+      ]
+    },
+    {
+      common: {
+        name: webc
+      },
+      scope: "text.html.webc",
+      grammar_name: html,
+      injection_regex: webc,
+      extensions: [
+        webc
+      ],
+      block_comment: [
+        "<!--",
+        -->
+      ]
+    },
+    {
+      common: {
+        name: typst
+      },
+      scope: "source.typst",
+      injection_regex: "typ(st)?",
+      extensions: [
+        typst,
+        typ
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        tinymist
+      ]
+    },
+    {
+      common: {
+        name: nunjucks
+      },
+      scope: "text.html.nunjucks",
+      grammar_name: "jinja2",
+      injection_regex: nunjucks,
+      extensions: [
+        njk
+      ],
+      block_comment: [
+        "{#",
+        "#}"
+      ]
+    },
+    {
+      common: {
+        name: jinja
+      },
+      scope: "text.html.jinja",
+      grammar_name: "jinja2",
+      injection_regex: jinja,
+      extensions: [
+        jinja,
+        "jinja2",
+        "j2"
+      ],
+      block_comment: [
+        "{#",
+        "#}"
+      ]
+    },
+    {
+      common: {
+        name: jjconfig
+      },
+      scope: "source.jjconfig",
+      grammar_name: toml,
+      injection_regex: jjconfig,
+      filenames: [
+        "jj/config.toml"
+      ],
+      globs: [
+        "jj/conf.d/*.toml",
+        ".jj/repo/*.toml"
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      lsp_servers: [
+        taplo,
+        tombi
+      ]
+    },
+    {
+      common: {
+        name: jjdescription
+      },
+      scope: "jj.description",
+      globs: [
+        "*.jjdescription"
+      ],
+      comment_tokens: [
+        "JJ:"
+      ]
+    },
+    {
+      common: {
+        name: jjrevset
+      },
+      scope: "jj.revset",
+      extensions: [
+        jjrevset
+      ]
+    },
+    {
+      common: {
+        name: jjtemplate
+      },
+      scope: "jj.template",
+      extensions: [
+        jjtemplate
+      ]
+    },
+    {
+      common: {
+        name: miseconfig
+      },
+      scope: "source.miseconfig",
+      grammar_name: toml,
+      injection_regex: miseconfig,
+      filenames: [
+        "mise.toml",
+        ".mise.toml",
+        "mise/config.toml",
+        ".mise/config.toml",
+        ".config/mise.toml"
+      ],
+      globs: [
+        "mise.*.toml",
+        ".mise.*.toml",
+        ".config/mise/conf.d/*.toml"
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      lsp_servers: [
+        taplo,
+        tombi
+      ]
+    },
+    {
+      common: {
+        name: jq
+      },
+      scope: "source.jq",
+      injection_regex: jq,
+      extensions: [
+        jq
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      lsp_servers: [
+        jq-lsp
+      ]
+    },
+    {
+      common: {
+        name: wren
+      },
+      scope: "source.wren",
+      injection_regex: wren,
+      extensions: [
+        wren
+      ]
+    },
+    {
+      common: {
+        name: unison
+      },
+      scope: "source.unison",
+      injection_regex: unison,
+      extensions: [
+        u
+      ],
+      comment_tokens: [
+        --
+      ]
+    },
+    {
+      common: {
+        name: todotxt
+      },
+      scope: "text.todotxt",
+      auto_format: true,
+      extensions: [
+        todotxt
+      ],
+      globs: [
+        "*.todo.txt"
+      ]
+    },
+    {
+      common: {
+        name: strace
+      },
+      scope: "source.strace",
+      extensions: [
+        strace
+      ]
+    },
+    {
+      common: {
+        name: gemini
+      },
+      scope: "source.gmi",
+      extensions: [
+        gmi
+      ]
+    },
+    {
+      common: {
+        name: agda
+      },
+      scope: "source.agda",
+      injection_regex: agda,
+      extensions: [
+        agda
+      ],
+      comment_tokens: [
+        --
+      ]
+    },
+    {
+      common: {
+        name: templ
+      },
+      scope: "source.templ",
+      extensions: [
+        templ
+      ],
+      comment_tokens: [
+        //
+      ],
+      lsp_servers: [
+        templ
+      ],
+      roots: [
+        "go.work",
+        "go.mod"
+      ]
+    },
+    {
+      common: {
+        name: dbml
+      },
+      scope: "source.dbml",
+      injection_regex: dbml,
+      extensions: [
+        dbml
+      ],
+      comment_tokens: [
+        ";"
+      ]
+    },
+    {
+      common: {
+        name: bitbake
+      },
+      scope: "source.bitbake",
+      extensions: [
+        bb,
+        bbappend,
+        bbclass
+      ],
+      globs: [
+        "conf/*.conf",
+        "conf/*/*.{inc,conf}",
+        "recipe-*/*/*.inc"
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      lsp_servers: [
+        bitbake-language-server
+      ]
+    },
+    {
+      common: {
+        name: log
+      },
+      scope: "source.log",
+      extensions: [
+        log
+      ]
+    },
+    {
+      common: {
+        name: hoon
+      },
+      scope: "source.hoon",
+      injection_regex: hoon,
+      extensions: [
+        hoon
+      ],
+      comment_tokens: [
+        "::"
+      ]
+    },
+    {
+      common: {
+        name: hocon
+      },
+      scope: "source.conf",
+      auto_format: true,
+      globs: [
+        "**/src/*/resources/**/*.conf",
+        "*scalafmt*.conf",
+        "*scalafix*.conf"
+      ],
+      comment_tokens: [
+        "#"
+      ]
+    },
+    {
+      common: {
+        name: koka
+      },
+      scope: "source.koka",
+      injection_regex: koka,
+      extensions: [
+        kk
+      ],
+      comment_tokens: [
+        //
+      ],
+      lsp_servers: [
+        koka
+      ]
+    },
+    {
+      common: {
+        name: tact
+      },
+      scope: "source.tact",
+      injection_regex: tact,
+      extensions: [
+        tact
+      ],
+      comment_tokens: [
+        //
+      ]
+    },
+    {
+      common: {
+        name: pkl
+      },
+      scope: "source.pkl",
+      injection_regex: pkl,
+      extensions: [
+        pkl,
+        pcf
+      ],
+      comment_tokens: [
+        //
+      ],
+      lsp_servers: [
+        pkl-lsp
+      ]
+    },
+    {
+      common: {
+        name: groovy
+      },
+      scope: "source.groovy",
+      extensions: [
+        gradle,
+        groovy,
+        jenkinsfile
+      ],
+      filenames: [
+        Jenkinsfile
+      ],
+      globs: [
+        "Jenkinsfile.*"
+      ],
+      shebangs: [
+        groovy
+      ],
+      comment_tokens: [
+        //
+      ]
+    },
+    {
+      common: {
+        name: fidl
+      },
+      scope: "source.fidl",
+      injection_regex: fidl,
+      extensions: [
+        fidl
+      ],
+      comment_tokens: [
+        //
+      ]
+    },
+    {
+      common: {
+        name: powershell
+      },
+      scope: "source.powershell",
+      injection_regex: "(pwsh|powershell)",
+      extensions: [
+        "ps1",
+        "psm1",
+        "psd1",
+        pscc,
+        psrc
+      ],
+      shebangs: [
+        pwsh,
+        powershell
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      block_comment: [
+        "<#",
+        "#>"
+      ]
+    },
+    {
+      common: {
+        name: ld
+      },
+      scope: "source.ld",
+      injection_regex: ld,
+      extensions: [
+        ld
+      ],
+      block_comment: [
+        /*,
+        */
+      ]
+    },
+    {
+      common: {
+        name: hy
+      },
+      scope: "source.hy",
+      grammar_name: scheme,
+      extensions: [
+        hy
+      ],
+      comment_tokens: [
+        ";"
+      ],
+      lsp_servers: [
+        hyuga
+      ],
+      roots: [
+        "pyproject.toml"
+      ]
+    },
+    {
+      common: {
+        name: hyprlang
+      },
+      scope: "source.hyprlang",
+      grammar_name: hyprlang,
+      globs: [
+        "hypr/*.conf"
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      lsp_servers: [
+        hyprls
+      ],
+      roots: [
+        "hyprland.conf"
+      ]
+    },
+    {
+      common: {
+        name: tcl
+      },
+      scope: "source.tcl",
+      injection_regex: tcl,
+      extensions: [
+        tcl
+      ],
+      shebangs: [
+        tclsh,
+        tclish,
+        jimsh,
+        wish
+      ],
+      comment_tokens: [
+        "#"
+      ]
+    },
+    {
+      common: {
+        name: supercollider
+      },
+      scope: "source.supercollider",
+      injection_regex: supercollider,
+      extensions: [
+        scd,
+        sc,
+        quark
+      ],
+      comment_tokens: [
+        //
+      ]
+    },
+    {
+      common: {
+        name: rpmspec
+      },
+      scope: "source.rpmspec",
+      extensions: [
+        spec
+      ],
+      comment_tokens: [
+        "#"
+      ]
+    },
+    {
+      common: {
+        name: pkgbuild
+      },
+      scope: "source.bash",
+      grammar_name: bash,
+      filenames: [
+        PKGBUILD
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      lsp_servers: [
+        bash-language-server
+      ]
+    },
+    {
+      common: {
+        name: helm
+      },
+      scope: "source.helm",
+      grammar_name: gotmpl,
+      filenames: [
+        "templates/NOTES.txt"
+      ],
+      globs: [
+        "templates/*.yaml",
+        "templates/*.yml",
+        "templates/_*.tpl"
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      lsp_servers: [
+        helm_ls
+      ],
+      roots: [
+        "Chart.yaml"
+      ]
+    },
+    {
+      common: {
+        name: glimmer
+      },
+      scope: "source.glimmer",
+      grammar_name: glimmer,
+      injection_regex: hbs,
+      globs: [
+        "{app,addon}/{components,templates}/*.hbs"
+      ],
+      block_comment: [
+        "{{!",
+        "}}"
+      ],
+      lsp_servers: [
+        ember-language-server
+      ],
+      roots: [
+        "package.json",
+        "ember-cli-build.js"
+      ]
+    },
+    {
+      common: {
+        name: ohm
+      },
+      scope: "source.ohm",
+      injection_regex: ohm,
+      extensions: [
+        ohm
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ]
+    },
+    {
+      common: {
+        name: earthfile
+      },
+      scope: "source.earthfile",
+      injection_regex: earthfile,
+      filenames: [
+        Earthfile
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      lsp_servers: [
+        earthlyls
+      ],
+      roots: [
+        Earthfile
+      ]
+    },
+    {
+      common: {
+        name: adl
+      },
+      scope: "source.adl",
+      injection_regex: adl,
+      extensions: [
+        adl
+      ],
+      comment_tokens: [
+        //
+      ]
+    },
+    {
+      common: {
+        name: ldif
+      },
+      scope: "source.ldif",
+      injection_regex: ldif,
+      extensions: [
+        ldif
+      ],
+      comment_tokens: [
+        "#"
+      ]
+    },
+    {
+      common: {
+        name: xtc
+      },
+      scope: "source.xtc",
+      extensions: [
+        xtc,
+        xpc,
+        xoa
+      ],
+      comment_tokens: [
+        ";"
+      ]
+    },
+    {
+      common: {
+        name: move
+      },
+      scope: "source.move",
+      injection_regex: move,
+      extensions: [
+        move
+      ],
+      comment_tokens: [
+        //
+      ],
+      roots: [
+        "Move.toml"
+      ]
+    },
+    {
+      common: {
+        name: pest
+      },
+      scope: "source.pest",
+      injection_regex: pest,
+      extensions: [
+        pest
+      ],
+      comment_tokens: [
+        //,
+        ///,
+        "//!"
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        pest-language-server
+      ]
+    },
+    {
+      common: {
+        name: elisp
+      },
+      scope: "source.elisp",
+      extensions: [
+        el
+      ],
+      comment_tokens: [
+        ";"
+      ]
+    },
+    {
+      common: {
+        name: gjs
+      },
+      scope: "source.gjs",
+      grammar_name: glimmer-javascript,
+      extensions: [
+        gjs
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        typescript-language-server
+      ],
+      roots: [
+        "package.json",
+        "ember-cli-build.js"
+      ]
+    },
+    {
+      common: {
+        name: gts
+      },
+      scope: "source.gts",
+      grammar_name: glimmer-typescript,
+      extensions: [
+        gts
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        typescript-language-server
+      ],
+      roots: [
+        "package.json",
+        "ember-cli-build.js"
+      ]
+    },
+    {
+      common: {
+        name: gherkin
+      },
+      scope: "source.feature",
+      extensions: [
+        feature
+      ],
+      comment_tokens: [
+        "#"
+      ]
+    },
+    {
+      common: {
+        name: thrift
+      },
+      scope: "source.thrift",
+      extensions: [
+        thrift
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ]
+    },
+    {
+      common: {
+        name: circom
+      },
+      scope: "source.circom",
+      injection_regex: circom,
+      extensions: [
+        circom
+      ],
+      lsp_servers: [
+        circom-lsp
+      ],
+      roots: [
+        "package.json"
+      ]
+    },
+    {
+      common: {
+        name: snakemake
+      },
+      scope: "source.snakemake",
+      extensions: [
+        smk
+      ],
+      filenames: [
+        Snakefile
+      ],
+      comment_tokens: [
+        "#",
+        "##"
+      ],
+      lsp_servers: [
+        pylsp
+      ],
+      roots: [
+        Snakefile,
+        "config.yaml",
+        "environment.yaml",
+        workflow/
+      ]
+    },
+    {
+      common: {
+        name: cylc
+      },
+      scope: "source.cylc",
+      injection_regex: cylc,
+      extensions: [
+        cylc
+      ],
+      filenames: [
+        "suite.rc"
+      ]
+    },
+    {
+      common: {
+        name: quint
+      },
+      scope: "source.quint",
+      extensions: [
+        qnt
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        quint-language-server
+      ]
+    },
+    {
+      common: {
+        name: spade
+      },
+      scope: "source.spade",
+      injection_regex: spade,
+      extensions: [
+        spade
+      ],
+      comment_tokens: [
+        //,
+        ///
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        spade-language-server
+      ],
+      roots: [
+        "swim.toml"
+      ]
+    },
+    {
+      common: {
+        name: amber
+      },
+      scope: "source.ab",
+      extensions: [
+        ab
+      ],
+      lsp_servers: [
+        amber-lsp
+      ]
+    },
+    {
+      common: {
+        name: koto
+      },
+      scope: "source.koto",
+      injection_regex: koto,
+      extensions: [
+        koto
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      lsp_servers: [
+        koto-ls
+      ]
+    },
+    {
+      common: {
+        name: gpr
+      },
+      scope: "source.gpr",
+      injection_regex: gpr,
+      extensions: [
+        gpr
+      ],
+      comment_tokens: [
+        --
+      ],
+      lsp_servers: [
+        ada-gpr-language-server
+      ],
+      roots: [
+        "alire.toml"
+      ]
+    },
+    {
+      common: {
+        name: vento
+      },
+      scope: "text.html.vto",
+      extensions: [
+        vto
+      ],
+      block_comment: [
+        "{{#",
+        "#}}"
+      ]
+    },
+    {
+      common: {
+        name: nginx
+      },
+      scope: "source.nginx",
+      injection_regex: nginx,
+      filenames: [
+        "nginx.conf"
+      ],
+      globs: [
+        "sites-available/*.conf",
+        "sites-enabled/*.conf",
+        "conf.d/*.conf"
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      roots: [
+        "nginx.conf"
+      ]
+    },
+    {
+      common: {
+        name: codeql
+      },
+      scope: "source.ql",
+      grammar_name: ql,
+      injection_regex: codeql,
+      extensions: [
+        ql,
+        qll
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        codeql
+      ]
+    },
+    {
+      common: {
+        name: gren
+      },
+      scope: "source.gren",
+      injection_regex: gren,
+      extensions: [
+        gren
+      ],
+      block_comment: [
+        "{-",
+        "-}"
+      ],
+      roots: [
+        "gren.json"
+      ]
+    },
+    {
+      common: {
+        name: ghostty
+      },
+      scope: "source.ghostty",
+      extensions: [
+        ghostty
+      ],
+      filenames: [
+        ghostty/config
+      ]
+    },
+    {
+      common: {
+        name: tera
+      },
+      scope: "source.tera",
+      extensions: [
+        tera
+      ],
+      block_comment: [
+        "{#",
+        "#}"
+      ]
+    },
+    {
+      common: {
+        name: fga
+      },
+      scope: "source.fga",
+      injection_regex: fga,
+      extensions: [
+        fga
+      ],
+      comment_tokens: [
+        "#"
+      ]
+    },
+    {
+      common: {
+        name: csv
+      },
+      scope: "source.csv",
+      extensions: [
+        csv
+      ]
+    },
+    {
+      common: {
+        name: yara
+      },
+      scope: "source.yara",
+      extensions: [
+        yara,
+        yar
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        yls
+      ]
+    },
+    {
+      common: {
+        name: ink
+      },
+      scope: "source.ink",
+      injection_regex: ink,
+      extensions: [
+        ink
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ]
+    },
+    {
+      common: {
+        name: sourcepawn
+      },
+      scope: "source.sourcepawn",
+      extensions: [
+        sp,
+        inc
+      ],
+      comment_tokens: [
+        //
+      ],
+      lsp_servers: [
+        sourcepawn-studio
+      ]
+    },
+    {
+      common: {
+        name: vim
+      },
+      scope: "source.vim",
+      injection_regex: vim,
+      extensions: [
+        vim
+      ],
+      filenames: [
+        ".vimrc",
+        ".nvimrc",
+        ".exrc"
+      ],
+      comment_tokens: [
+        "\""
+      ]
+    },
+    {
+      common: {
+        name: tlaplus
+      },
+      scope: "scope.tlaplus",
+      injection_regex: tla,
+      extensions: [
+        tla
+      ],
+      block_comment: [
+        "(*",
+        "*)"
+      ]
+    },
+    {
+      common: {
+        name: werk
+      },
+      scope: "source.werk",
+      extensions: [
+        werk
+      ],
+      filenames: [
+        Werkfile
+      ],
+      comment_tokens: [
+        "#"
+      ]
+    },
+    {
+      common: {
+        name: debian
+      },
+      scope: "text.debian",
+      extensions: [
+        dsc,
+        changes
+      ],
+      globs: [
+        debian/**/control,
+        "etc/apt/sources.list.d/*.sources"
+      ]
+    },
+    {
+      common: {
+        name: pug
+      },
+      scope: "source.pug",
+      extensions: [
+        pug
+      ],
+      comment_tokens: [
+        //,
+        //-
+      ]
+    },
+    {
+      common: {
+        name: dunstrc
+      },
+      scope: "source.dunstrc",
+      filenames: [
+        dunst/dunstrc
+      ],
+      comment_tokens: [
+        "#",
+        ";"
+      ]
+    },
+    {
+      common: {
+        name: rust-format-args
+      },
+      scope: "source.rust-format-args",
+      injection_regex: rust-format-args
+    },
+    {
+      common: {
+        name: rust-format-args-macro
+      },
+      scope: "source.rust-format-args-macro",
+      grammar_name: rust
+    },
+    {
+      common: {
+        name: clarity
+      },
+      scope: "source.clar",
+      injection_regex: clarity,
+      extensions: [
+        clar
+      ],
+      lsp_servers: [
+        clarinet
+      ],
+      roots: [
+        "Clarinet.toml"
+      ]
+    },
+    {
+      common: {
+        name: alloy
+      },
+      scope: "source.alloy",
+      injection_regex: alloy,
+      extensions: [
+        alloy
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ]
+    },
+    {
+      common: {
+        name: luau
+      },
+      scope: "source.luau",
+      injection_regex: "^luau$",
+      extensions: [
+        luau
+      ],
+      comment_tokens: [
+        --,
+        ---
+      ],
+      block_comment: [
+        "--[[",
+        "]]"
+      ],
+      lsp_servers: [
+        luau
+      ],
+      roots: [
+        "aftman.toml",
+        "default.project.json",
+        "wally.toml",
+        "rokit.toml",
+        "selene.toml",
+        ".darklua.json",
+        "foreman.toml",
+        ".luaurc"
+      ]
+    },
+    {
+      common: {
+        name: caddyfile
+      },
+      scope: "source.caddyfile",
+      injection_regex: caddyfile,
+      auto_format: true,
+      filenames: [
+        Caddyfile
+      ],
+      comment_tokens: [
+        "#"
+      ]
+    },
+    {
+      common: {
+        name: properties
+      },
+      scope: "source.properties",
+      injection_regex: properties,
+      extensions: [
+        properties,
+        prefs
+      ],
+      comment_tokens: [
+        "#"
+      ]
+    },
+    {
+      common: {
+        name: "robots.txt"
+      },
+      scope: "source.robots.txt",
+      grammar_name: robots,
+      injection_regex: "robots[\\.-]txt",
+      filenames: [
+        "robots.txt"
+      ],
+      comment_tokens: [
+        "#"
+      ]
+    },
+    {
+      common: {
+        name: pip-requirements
+      },
+      scope: "source.pip-requirements",
+      grammar_name: requirements,
+      injection_regex: "(pip-)?requirements(\\.txt)?",
+      filenames: [
+        "requirements.txt",
+        "constraints.txt"
+      ]
+    },
+    {
+      common: {
+        name: kconfig
+      },
+      scope: "source.kconfig",
+      extensions: [
+        kconfig
+      ],
+      globs: [
+        "kconfig.*"
+      ]
+    },
+    {
+      common: {
+        name: doxyfile
+      },
+      scope: "source.doxyfile",
+      injection_regex: "[Dd]oxyfile",
+      filenames: [
+        Doxyfile
+      ],
+      comment_tokens: [
+        "#"
+      ]
+    },
+    {
+      common: {
+        name: cross-config
+      },
+      scope: "source.cross-config",
+      grammar_name: toml,
+      injection_regex: "cross(-config)",
+      filenames: [
+        "Cross.toml"
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      lsp_servers: [
+        taplo,
+        tombi
+      ]
+    },
+    {
+      common: {
+        name: git-cliff-config
+      },
+      scope: "source.git-cliff-config",
+      grammar_name: toml,
+      injection_regex: "git-cliff(-config)",
+      filenames: [
+        "cliff.toml"
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      lsp_servers: [
+        taplo,
+        tombi
+      ]
+    },
+    {
+      common: {
+        name: cython
+      },
+      scope: "source.cython",
+      extensions: [
+        pxd,
+        pxi,
+        pyx
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      roots: [
+        "pyproject.toml",
+        "setup.py",
+        "poetry.lock"
+      ]
+    },
+    {
+      common: {
+        name: shellcheckrc
+      },
+      scope: "source.shellcheckrc",
+      injection_regex: "shellcheck(rc)?",
+      filenames: [
+        shellcheckrc,
+        ".shellcheckrc"
+      ],
+      comment_tokens: [
+        "#"
+      ]
+    },
+    {
+      common: {
+        name: strictdoc
+      },
+      scope: "source.strictdoc",
+      injection_regex: strictdoc,
+      extensions: [
+        sdoc,
+        sgra
+      ],
+      comment_tokens: [
+        ".."
+      ]
+    },
+    {
+      common: {
+        name: docker-bake
+      },
+      scope: "source.docker-bake",
+      grammar_name: hcl,
+      injection_regex: docker-bake,
+      filenames: [
+        "docker-bake.hcl",
+        "docker-bake.override.hcl"
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        docker-language-server
+      ]
+    },
+    {
+      common: {
+        name: gitlab-ci
+      },
+      scope: "source.gitlab-ci",
+      grammar_name: yaml,
+      injection_regex: "^gitlab-ci$",
+      filenames: [
+        ".gitlab-ci.yml"
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      lsp_servers: [
+        yaml-language-server,
+        gitlab-ci-ls
+      ]
+    },
+    {
+      common: {
+        name: wikitext
+      },
+      scope: "source.wikitext",
+      extensions: [
+        wikimedia,
+        mediawiki,
+        wikitext
+      ],
+      block_comment: [
+        "<!--",
+        -->
+      ],
+      lsp_servers: [
+        wikitext-lsp
+      ]
+    },
+    {
+      common: {
+        name: slisp
+      },
+      scope: "source.sl",
+      injection_regex: sl,
+      extensions: [
+        sl
+      ],
+      comment_tokens: [
+        ";"
+      ]
+    },
+    {
+      common: {
+        name: nearley
+      },
+      scope: "source.nearley",
+      extensions: [
+        ne
+      ],
+      comment_tokens: [
+        "#"
+      ]
+    },
+    {
+      common: {
+        name: kcl
+      },
+      scope: "source.kcl",
+      injection_regex: kcl,
+      extensions: [
+        kcl
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        kcl-lsp
+      ]
+    },
+    {
+      common: {
+        name: bovex
+      },
+      scope: "source.bovex",
+      extensions: [
+        bovex,
+        bibvex
+      ],
+      block_comment: [
+        "(*",
+        "*)"
+      ]
+    },
+    {
+      common: {
+        name: haxe
+      },
+      scope: "source.haxe",
+      injection_regex: "hx|haxe",
+      auto_format: true,
+      extensions: [
+        hx
+      ],
+      comment_tokens: [
+        //,
+        ///
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        haxe-language-server
+      ],
+      roots: [
+        "haxelib.json",
+        "project.xml",
+        "build.hxml"
+      ]
+    },
+    {
+      common: {
+        name: basic
+      },
+      scope: "source.basic",
+      injection_regex: basic,
+      extensions: [
+        bas
+      ],
+      comment_tokens: [
+        REM
+      ]
+    },
+    {
+      common: {
+        name: freebasic
+      },
+      scope: "source.freebasic",
+      injection_regex: freebasic,
+      extensions: [
+        bas,
+        bi
+      ],
+      comment_tokens: [
+        "'",
+        REM
+      ]
+    },
+    {
+      common: {
+        name: scfg
+      },
+      scope: "source.scfg",
+      filenames: [
+        kanshi/config
+      ],
+      comment_tokens: [
+        "#"
+      ]
+    },
+    {
+      common: {
+        name: ripple
+      },
+      scope: "source.ripple",
+      extensions: [
+        ripple
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        ripple-lsp
+      ],
+      roots: [
+        "package.json"
+      ]
+    },
+    {
+      common: {
+        name: woodpecker-ci
+      },
+      scope: "source.woodpecker-ci",
+      grammar_name: yaml,
+      injection_regex: "^woodpecker-ci$",
+      auto_format: true,
+      filenames: [
+        ".woodpecker.yaml"
+      ],
+      globs: [
+        ".woodpecker/*.yaml",
+        ".woodpecker/*.yml"
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      lsp_servers: [
+        yaml-language-server
+      ]
+    },
+    {
+      common: {
+        name: chuck
+      },
+      scope: "source.ck",
+      injection_regex: "^chuck$|^ck$",
+      globs: [
+        "*.ck"
+      ],
+      block_comment: [
+        /*,
+        */
+      ]
+    }
+  ]
+}

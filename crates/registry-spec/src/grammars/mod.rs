@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GrammarsSpec {
+	#[serde(default)]
 	pub grammars: Vec<GrammarSpec>,
 }
 
@@ -19,6 +20,7 @@ pub enum GrammarSourceSpec {
 	Git {
 		remote: String,
 		revision: String,
+		#[serde(default)]
 		subpath: Option<String>,
 	},
 	Local {

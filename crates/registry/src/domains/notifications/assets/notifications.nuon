@@ -1,0 +1,62 @@
+# Notification definitions for xeno.
+{
+  notifications: [
+    { common: { name: unknown_action, description: "Unknown action." }, level: error, auto_dismiss: after }
+    { common: { name: action_error, description: "Action execution failed." }, level: error, auto_dismiss: after }
+    { common: { name: unsaved_changes_force_quit, description: "Buffer has unsaved changes." }, level: error, auto_dismiss: after }
+    { common: { name: no_collisions, description: "No collisions found." }, level: info, auto_dismiss: after }
+    { common: { name: unknown_command, description: "Unknown command." }, level: error, auto_dismiss: after }
+    { common: { name: command_error, description: "Command failed." }, level: error, auto_dismiss: after }
+    { common: { name: not_implemented, description: "Feature not implemented." }, level: warn, auto_dismiss: after }
+    { common: { name: theme_set, description: "Theme set successfully." }, level: info, auto_dismiss: after }
+    { common: { name: help_text, description: "Help text output." }, level: info, auto_dismiss: never }
+    { common: { name: diagnostic_output, description: "Diagnostic output." }, level: info, auto_dismiss: never }
+    { common: { name: diagnostic_warning, description: "Diagnostic warning." }, level: warn, auto_dismiss: never }
+    { common: { name: viewport_unavailable, description: "Viewport info unavailable." }, level: error, auto_dismiss: after }
+    { common: { name: screen_motion_unavailable, description: "Screen motion target unavailable." }, level: error, auto_dismiss: after }
+    { common: { name: pending_prompt, description: "Pending prompt." }, level: info, auto_dismiss: after }
+    { common: { name: count_display, description: "Display count prefix." }, level: info, auto_dismiss: after }
+    { common: { name: buffer_readonly, description: "Buffer is read-only." }, level: warn, auto_dismiss: after }
+    { common: { name: buffer_modified, description: "Buffer has unsaved changes." }, level: warn, auto_dismiss: after }
+    { common: { name: no_buffers, description: "No buffers open." }, level: warn, auto_dismiss: after }
+    { common: { name: readonly_enabled, description: "Read-only enabled." }, level: info, auto_dismiss: after }
+    { common: { name: readonly_disabled, description: "Read-only disabled." }, level: info, auto_dismiss: after }
+    { common: { name: nothing_to_undo, description: "Nothing to undo." }, level: warn, auto_dismiss: after }
+    { common: { name: nothing_to_redo, description: "Nothing to redo." }, level: warn, auto_dismiss: after }
+    { common: { name: undo, description: "Undo." }, level: info, auto_dismiss: after }
+    { common: { name: redo, description: "Redo." }, level: info, auto_dismiss: after }
+    { common: { name: no_selection, description: "No selection." }, level: warn, auto_dismiss: after }
+    { common: { name: no_selections_remain, description: "No selections remain." }, level: warn, auto_dismiss: after }
+    { common: { name: search_wrapped, description: "Search wrapped." }, level: info, auto_dismiss: after }
+    { common: { name: no_search_pattern, description: "No search pattern." }, level: warn, auto_dismiss: after }
+    { common: { name: no_more_matches, description: "No more matches." }, level: warn, auto_dismiss: after }
+    { common: { name: no_matches_found, description: "No matches found." }, level: warn, auto_dismiss: after }
+    { common: { name: pattern_not_found, description: "Pattern not found." }, level: warn, auto_dismiss: after }
+    { common: { name: regex_error, description: "Regex error." }, level: error, auto_dismiss: after, dismiss_ms: 8000 }
+    { common: { name: search_info, description: "Search information." }, level: info, auto_dismiss: after }
+    { common: { name: replaced, description: "Replaced occurrences." }, level: info, auto_dismiss: after }
+    { common: { name: matches_count, description: "Matches count." }, level: info, auto_dismiss: after }
+    { common: { name: splits_count, description: "Splits count." }, level: info, auto_dismiss: after }
+    { common: { name: selections_kept, description: "Selections kept." }, level: info, auto_dismiss: after }
+    { common: { name: split_no_ranges, description: "Split produced no ranges." }, level: warn, auto_dismiss: after }
+    { common: { name: no_matches_to_split, description: "No matches found to split on." }, level: warn, auto_dismiss: after }
+    { common: { name: yanked_chars, description: "Yanked characters." }, level: info, auto_dismiss: after }
+    { common: { name: yanked_lines, description: "Yanked lines." }, level: info, auto_dismiss: after }
+    { common: { name: deleted_chars, description: "Deleted characters." }, level: info, auto_dismiss: after }
+    { common: { name: file_saved, description: "File saved." }, level: success, auto_dismiss: after }
+    { common: { name: file_not_found, description: "File not found." }, level: error, auto_dismiss: after }
+    { common: { name: file_load_error, description: "Failed to load file." }, level: error, auto_dismiss: after }
+    { common: { name: file_save_error, description: "Failed to save file." }, level: error, auto_dismiss: after }
+    { common: { name: buffer_closed, description: "Closed buffer." }, level: info, auto_dismiss: after }
+    { common: { name: option_set, description: "Option set successfully." }, level: info, auto_dismiss: after }
+    { common: { name: unhandled_result, description: "Unhandled action result." }, level: warn, auto_dismiss: after }
+    { common: { name: info, description: "Info message." }, level: info, auto_dismiss: after }
+    { common: { name: warn, description: "Warning message." }, level: warn, auto_dismiss: after }
+    { common: { name: error, description: "Error message." }, level: error, auto_dismiss: after }
+    { common: { name: success, description: "Success message." }, level: success, auto_dismiss: after }
+    { common: { name: debug, description: "Debug message." }, level: debug, auto_dismiss: after }
+    { common: { name: sync_taking_ownership, description: "Taking ownership." }, level: info, auto_dismiss: after }
+    { common: { name: sync_ownership_denied, description: "Ownership denied." }, level: info, auto_dismiss: after }
+    { common: { name: sync_history_unavailable, description: "Undo history unavailable." }, level: warn, auto_dismiss: after }
+  ]
+}

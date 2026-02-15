@@ -14,5 +14,6 @@ pub struct GutterSpec {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GuttersSpec {
+	#[serde(default)]
 	pub gutters: Vec<GutterSpec>,
 }

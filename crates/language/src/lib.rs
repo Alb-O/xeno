@@ -34,7 +34,6 @@ pub mod lsp_config;
 pub mod query;
 mod runtime;
 pub mod syntax;
-mod utils;
 
 pub use db::{LanguageDb, language_db};
 pub use grammar::{GrammarError, GrammarSource, cache_dir, grammar_search_paths, load_grammar, load_grammar_or_build, query_search_paths, runtime_dir};

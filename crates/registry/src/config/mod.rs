@@ -1,12 +1,11 @@
 //! Configuration types for Xeno.
 //!
 //! This module provides unified configuration structures that are format-neutral.
-//! KDL, NUON, and Nu script parsing are available behind `config-kdl`,
-//! `config-nuon`, and `config-nu`.
+//! NUON and Nu script parsing are available behind `config-nuon` and `config-nu`.
 
 use std::collections::HashMap;
 
-#[cfg(feature = "config-kdl")]
+#[cfg(feature = "config-nuon")]
 pub mod utils;
 
 #[cfg(feature = "config-nuon")]
@@ -15,7 +14,7 @@ pub mod nuon;
 #[cfg(feature = "config-nu")]
 pub mod nu;
 
-#[cfg(feature = "config-kdl")]
+#[cfg(feature = "config-nuon")]
 pub mod load;
 
 /// Configuration for a language-specific override.
@@ -74,11 +73,6 @@ impl std::fmt::Display for ConfigWarning {
 /// Configuration error types.
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigError {
-	/// Error parsing KDL syntax.
-	#[cfg(feature = "config-kdl")]
-	#[error("KDL parse error: {0}")]
-	Kdl(#[from] ::kdl::KdlError),
-
 	/// Error parsing NUON syntax.
 	#[cfg(feature = "config-nuon")]
 	#[error("NUON parse error: {0}")]
@@ -220,6 +214,3 @@ impl Config {
 		self.languages.extend(other.languages);
 	}
 }
-
-#[cfg(feature = "config-kdl")]
-pub mod kdl;

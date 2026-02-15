@@ -21,7 +21,7 @@ pub trait LinkedPayload<Out: RegistryEntry>: Clone + Send + Sync + 'static {
 		meta.short_desc.as_deref().unwrap_or(meta.name.as_str())
 	}
 
-	/// Stage C “extra keys” (e.g. options’ kdl_key). Default none.
+	/// Stage C "extra keys" (e.g. options' config key). Default none.
 	fn collect_extra_keys<'b>(&'b self, _collector: &mut crate::core::index::StringCollector<'_, 'b>) {}
 
 	/// Any extra strings that must be interned beyond meta/extra_keys/short_desc.

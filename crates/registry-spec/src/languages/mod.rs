@@ -14,19 +14,33 @@ pub struct LanguageQuerySpec {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LanguageSpec {
 	pub common: MetaCommonSpec,
+	#[serde(default)]
 	pub scope: Option<String>,
+	#[serde(default)]
 	pub grammar_name: Option<String>,
+	#[serde(default)]
 	pub injection_regex: Option<String>,
+	#[serde(default)]
 	pub auto_format: bool,
+	#[serde(default)]
 	pub extensions: Vec<String>,
+	#[serde(default)]
 	pub filenames: Vec<String>,
+	#[serde(default)]
 	pub globs: Vec<String>,
+	#[serde(default)]
 	pub shebangs: Vec<String>,
+	#[serde(default)]
 	pub comment_tokens: Vec<String>,
+	#[serde(default)]
 	pub block_comment: Option<(String, String)>,
+	#[serde(default)]
 	pub lsp_servers: Vec<String>,
+	#[serde(default)]
 	pub roots: Vec<String>,
+	#[serde(default)]
 	pub viewport_repair: Option<ViewportRepairSpec>,
+	#[serde(default)]
 	pub queries: Vec<LanguageQuerySpec>,
 }
 
@@ -59,5 +73,6 @@ pub enum ViewportRepairRuleSpec {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LanguagesSpec {
+	#[serde(default)]
 	pub langs: Vec<LanguageSpec>,
 }

@@ -1,0 +1,145 @@
+# Action registry definitions.
+#
+# Each action declares metadata for a handler function defined in Rust.
+# The `name` field is the linkage key matching the Rust `action_handler!(name, ...)` invocation.
+{
+  actions: [
+    # navigation
+    { common: { name: move_left, description: "Move cursor left" }, group: navigation, bindings: [{ mode: normal, keys: h }, { mode: normal, keys: left }, { mode: insert, keys: left }] }
+    { common: { name: move_right, description: "Move cursor right" }, group: navigation, bindings: [{ mode: normal, keys: l }, { mode: normal, keys: right }, { mode: insert, keys: right }] }
+    { common: { name: move_up, description: "Move cursor up" }, group: navigation, bindings: [{ mode: normal, keys: k }, { mode: normal, keys: up }, { mode: insert, keys: up }] }
+    { common: { name: move_down, description: "Move cursor down" }, group: navigation, bindings: [{ mode: normal, keys: j }, { mode: normal, keys: down }, { mode: insert, keys: down }] }
+    { common: { name: move_line_start, description: "Move to start of line" }, group: navigation, bindings: [{ mode: normal, keys: "0" }, { mode: normal, keys: home }] }
+    { common: { name: move_line_end, description: "Move to end of line" }, group: navigation, bindings: [{ mode: normal, keys: "$" }, { mode: normal, keys: end }] }
+    { common: { name: next_word_start, description: "Move to next word start" }, group: navigation, bindings: [{ mode: normal, keys: w }, { mode: normal, keys: ctrl-right }, { mode: insert, keys: ctrl-right }] }
+    { common: { name: prev_word_start, description: "Move to previous word start" }, group: navigation, bindings: [{ mode: normal, keys: b }, { mode: normal, keys: ctrl-left }, { mode: insert, keys: ctrl-left }] }
+    { common: { name: next_word_end, description: "Move to next word end" }, group: navigation, bindings: [{ mode: normal, keys: e }] }
+    { common: { name: next_long_word_start, description: "Move to next WORD start" }, group: navigation, bindings: [{ mode: normal, keys: W }] }
+    { common: { name: prev_long_word_start, description: "Move to previous WORD start" }, group: navigation, bindings: [{ mode: normal, keys: B }] }
+    { common: { name: next_long_word_end, description: "Move to next WORD end" }, group: navigation, bindings: [{ mode: normal, keys: E }] }
+    { common: { name: select_word_forward, description: "Select to next word start" }, group: navigation, bindings: [{ mode: normal, keys: alt-w }] }
+    { common: { name: select_word_backward, description: "Select to previous word start" }, group: navigation, bindings: [{ mode: normal, keys: alt-b }] }
+    { common: { name: select_word_end, description: "Select to next word end" }, group: navigation, bindings: [{ mode: normal, keys: alt-e }] }
+    { common: { name: next_paragraph, description: "Move to next paragraph" }, group: navigation, bindings: [{ mode: normal, keys: "}" }, { mode: normal, keys: ctrl-down }, { mode: insert, keys: ctrl-down }] }
+    { common: { name: prev_paragraph, description: "Move to previous paragraph" }, group: navigation, bindings: [{ mode: normal, keys: "{" }, { mode: normal, keys: ctrl-up }, { mode: insert, keys: ctrl-up }] }
+    { common: { name: document_start, description: "Goto file start", short_desc: "File start" }, group: navigation, bindings: [{ mode: normal, keys: "g g" }] }
+    { common: { name: document_end, description: "Goto file end", short_desc: "File end" }, group: navigation, bindings: [{ mode: normal, keys: "g e" }, { mode: normal, keys: G }] }
+    { common: { name: goto_line_start, description: "Goto line start", short_desc: "Line start" }, group: navigation, bindings: [{ mode: normal, keys: "g h" }] }
+    { common: { name: goto_line_end, description: "Goto line end", short_desc: "Line end" }, group: navigation, bindings: [{ mode: normal, keys: "g l" }] }
+    { common: { name: goto_first_nonwhitespace, description: "Goto first non-blank", short_desc: "First non-blank" }, group: navigation, bindings: [{ mode: normal, keys: "g s" }] }
+    { common: { name: move_top_screen, description: "Move to top of screen" }, group: navigation, bindings: [{ mode: normal, keys: H }] }
+    { common: { name: move_middle_screen, description: "Move to middle of screen" }, group: navigation, bindings: [{ mode: normal, keys: M }] }
+    { common: { name: move_bottom_screen, description: "Move to bottom of screen" }, group: navigation }
+    { common: { name: goto_next_hunk, description: "Goto next diff hunk", short_desc: "Next hunk" }, group: navigation, bindings: [{ mode: normal, keys: "] c" }] }
+    { common: { name: goto_prev_hunk, description: "Goto previous diff hunk", short_desc: "Previous hunk" }, group: navigation, bindings: [{ mode: normal, keys: "[ c" }] }
+
+    # modes
+    { common: { name: enter_insert, description: "Enter insert mode" }, group: modes, bindings: [{ mode: normal, keys: i }] }
+    { common: { name: enter_normal, description: "Enter normal mode" }, group: modes, bindings: [{ mode: insert, keys: esc }] }
+    { common: { name: normal_mode, description: "Switch to normal mode" }, group: modes, bindings: [{ mode: insert, keys: esc }] }
+
+    # editing
+    { common: { name: delete, description: "Delete selection" }, group: editing, bindings: [{ mode: normal, keys: d }] }
+    { common: { name: delete_no_yank, description: "Delete selection (no yank)" }, group: editing, bindings: [{ mode: normal, keys: alt-d }, { mode: normal, keys: delete }] }
+    { common: { name: change, description: "Change selection" }, group: editing, bindings: [{ mode: normal, keys: c }] }
+    { common: { name: change_no_yank, description: "Change selection (no yank)" }, group: editing, bindings: [{ mode: normal, keys: alt-c }] }
+    { common: { name: yank, description: "Yank selection" }, group: editing, bindings: [{ mode: normal, keys: y }] }
+    { common: { name: paste_after, description: "Paste after cursor" }, group: editing, bindings: [{ mode: normal, keys: p }] }
+    { common: { name: paste_before, description: "Paste before cursor" }, group: editing, bindings: [{ mode: normal, keys: P }] }
+    { common: { name: undo, description: "Undo last change" }, group: editing, bindings: [{ mode: normal, keys: u }] }
+    { common: { name: redo, description: "Redo last change" }, group: editing, bindings: [{ mode: normal, keys: U }] }
+    { common: { name: indent, description: "Indent line" }, group: editing, bindings: [{ mode: normal, keys: ">" }] }
+    { common: { name: deindent, description: "Deindent line" }, group: editing, bindings: [{ mode: normal, keys: "<" }] }
+    { common: { name: join_lines, description: "Join lines" }, group: editing, bindings: [{ mode: normal, keys: J }] }
+    { common: { name: delete_back, description: "Delete character before cursor" }, group: editing, bindings: [{ mode: normal, keys: backspace }] }
+    { common: { name: delete_forward, description: "Delete character after cursor" }, group: editing }
+    { common: { name: delete_word_back, description: "Delete word before cursor" }, group: editing, bindings: [{ mode: normal, keys: ctrl-backspace }, { mode: insert, keys: ctrl-backspace }] }
+    { common: { name: delete_word_forward, description: "Delete word after cursor" }, group: editing, bindings: [{ mode: normal, keys: ctrl-delete }, { mode: insert, keys: ctrl-delete }] }
+    { common: { name: paste_all_after, description: "Paste all after" }, group: editing, bindings: [{ mode: normal, keys: alt-p }] }
+    { common: { name: paste_all_before, description: "Paste all before" }, group: editing, bindings: [{ mode: normal, keys: alt-P }] }
+    { common: { name: to_lowercase, description: "Convert to lowercase" }, group: editing, bindings: [{ mode: normal, keys: "`" }] }
+    { common: { name: to_uppercase, description: "Convert to uppercase" }, group: editing, bindings: [{ mode: normal, keys: "~" }] }
+    { common: { name: swap_case, description: "Swap case" }, group: editing, bindings: [{ mode: normal, keys: "alt-`" }] }
+    { common: { name: open_below, description: "Open line below" }, group: editing, bindings: [{ mode: normal, keys: o }] }
+    { common: { name: open_above, description: "Open line above" }, group: editing, bindings: [{ mode: normal, keys: O }] }
+    { common: { name: replace_char, description: "Replace selection with character" }, group: editing, bindings: [{ mode: normal, keys: r }] }
+
+    # insert
+    { common: { name: insert_mode, description: "Switch to insert mode" }, group: insert, bindings: [{ mode: normal, keys: i }] }
+    { common: { name: insert_line_start, description: "Insert at start of line" }, group: insert, bindings: [{ mode: normal, keys: I }] }
+    { common: { name: insert_line_end, description: "Insert at end of line" }, group: insert, bindings: [{ mode: normal, keys: A }] }
+    { common: { name: insert_after, description: "Insert after cursor" }, group: insert, bindings: [{ mode: normal, keys: a }] }
+    { common: { name: insert_newline, description: "Insert newline with indentation" }, group: insert, bindings: [{ mode: insert, keys: enter }] }
+
+    # scrolling
+    { common: { name: scroll_up, description: "View scroll up", short_desc: "Scroll up" }, group: scrolling, bindings: [{ mode: normal, keys: "z k" }] }
+    { common: { name: scroll_down, description: "View scroll down", short_desc: "Scroll down" }, group: scrolling, bindings: [{ mode: normal, keys: "z j" }] }
+    { common: { name: scroll_half_page_up, description: "Scroll half page up" }, group: scrolling, bindings: [{ mode: normal, keys: ctrl-u }] }
+    { common: { name: scroll_half_page_down, description: "Scroll half page down" }, group: scrolling, bindings: [{ mode: normal, keys: ctrl-d }] }
+    { common: { name: scroll_page_up, description: "Scroll page up" }, group: scrolling, bindings: [{ mode: normal, keys: pageup }, { mode: normal, keys: ctrl-b }, { mode: insert, keys: pageup }] }
+    { common: { name: scroll_page_down, description: "Scroll page down" }, group: scrolling, bindings: [{ mode: normal, keys: pagedown }, { mode: normal, keys: ctrl-f }, { mode: insert, keys: pagedown }] }
+    { common: { name: move_up_visual, description: "Move up (visual lines)" }, group: scrolling, bindings: [{ mode: normal, keys: k }, { mode: normal, keys: up }, { mode: insert, keys: up }] }
+    { common: { name: move_down_visual, description: "Move down (visual lines)" }, group: scrolling, bindings: [{ mode: normal, keys: j }, { mode: normal, keys: down }, { mode: insert, keys: down }] }
+
+    # find
+    { common: { name: find_char, description: "Select to next occurrence of character (inclusive)" }, group: find, bindings: [{ mode: normal, keys: f }] }
+    { common: { name: find_char_to, description: "Select to next occurrence of character (exclusive)" }, group: find, bindings: [{ mode: normal, keys: t }] }
+    { common: { name: find_char_reverse, description: "Select to previous occurrence of character (inclusive)" }, group: find, bindings: [{ mode: normal, keys: alt-f }] }
+    { common: { name: find_char_to_reverse, description: "Select to previous occurrence of character (exclusive)" }, group: find, bindings: [{ mode: normal, keys: alt-t }] }
+
+    # search
+    { common: { name: search, description: "Open search prompt (forward)" }, group: search, bindings: [{ mode: normal, keys: "/" }] }
+    { common: { name: search_reverse, description: "Open search prompt (reverse)" }, group: search, bindings: [{ mode: normal, keys: "?" }] }
+    { common: { name: search_next, description: "Repeat last search (same direction)" }, group: search, bindings: [{ mode: normal, keys: n }] }
+    { common: { name: search_prev, description: "Repeat last search (opposite direction)" }, group: search, bindings: [{ mode: normal, keys: N }] }
+
+    # selection
+    { common: { name: collapse_selection, description: "Collapse selection to cursor" }, group: selection, bindings: [{ mode: normal, keys: ";" }, { mode: normal, keys: esc }] }
+    { common: { name: flip_selection, description: "Flip selection direction" }, group: selection, bindings: [{ mode: normal, keys: "alt-;" }] }
+    { common: { name: ensure_forward, description: "Ensure selection is forward" }, group: selection, bindings: [{ mode: normal, keys: "alt-:" }] }
+    { common: { name: select_line, description: "Select current line" }, group: selection, bindings: [{ mode: normal, keys: x }] }
+    { common: { name: extend_line, description: "Extend selection by line" }, group: selection, bindings: [{ mode: normal, keys: X }] }
+    { common: { name: select_all, description: "Select all text" }, group: selection, bindings: [{ mode: normal, keys: "%" }] }
+    { common: { name: expand_to_line, description: "Expand selection to cover full lines" }, group: selection, bindings: [{ mode: normal, keys: alt-x }] }
+    { common: { name: remove_primary_selection, description: "Remove the primary selection" }, group: selection, bindings: [{ mode: normal, keys: "alt-," }] }
+    { common: { name: remove_selections_except_primary, description: "Remove all selections except the primary one" }, group: selection, bindings: [{ mode: normal, keys: "," }] }
+    { common: { name: rotate_selections_forward, description: "Rotate selections forward" }, group: selection, bindings: [{ mode: normal, keys: ")" }] }
+    { common: { name: rotate_selections_backward, description: "Rotate selections backward" }, group: selection, bindings: [{ mode: normal, keys: "(" }] }
+    { common: { name: split_lines, description: "Split selection into lines" }, group: selection, bindings: [{ mode: normal, keys: alt-s }] }
+    { common: { name: duplicate_selections_down, description: "Duplicate selections on next lines" }, group: selection, bindings: [{ mode: normal, keys: C }, { mode: normal, keys: "+" }] }
+    { common: { name: duplicate_selections_up, description: "Duplicate selections on previous lines" }, group: selection, bindings: [{ mode: normal, keys: alt-C }] }
+    { common: { name: merge_selections, description: "Merge overlapping selections" }, group: selection, bindings: [{ mode: normal, keys: "alt-+" }] }
+
+    # text_objects
+    { common: { name: select_object_inner, description: "Select inner text object" }, group: text_objects, bindings: [{ mode: normal, keys: alt-i }] }
+    { common: { name: select_object_around, description: "Select around text object" }, group: text_objects, bindings: [{ mode: normal, keys: alt-a }] }
+    { common: { name: select_object_to_start, description: "Select to object start" }, group: text_objects, bindings: [{ mode: normal, keys: "[" }, { mode: normal, keys: "{" }] }
+    { common: { name: select_object_to_end, description: "Select to object end" }, group: text_objects, bindings: [{ mode: normal, keys: "]" }, { mode: normal, keys: "}" }] }
+
+    # misc
+    { common: { name: add_line_below, description: "Add empty line below cursor" }, group: misc }
+    { common: { name: add_line_above, description: "Add empty line above cursor" }, group: misc }
+    { common: { name: use_selection_as_search, description: "Use current selection as search pattern" }, group: misc }
+    { common: { name: open_palette, description: "Open command palette" }, group: misc, bindings: [{ mode: normal, keys: ":" }] }
+
+    # window
+    { common: { name: split_horizontal, description: "Split horizontal", short_desc: Horizontal }, group: window, bindings: [{ mode: normal, keys: "ctrl-w s h" }] }
+    { common: { name: split_vertical, description: "Split vertical", short_desc: Vertical }, group: window, bindings: [{ mode: normal, keys: "ctrl-w s v" }] }
+    { common: { name: focus_left, description: "Focus left", short_desc: Left }, group: window, bindings: [{ mode: normal, keys: "ctrl-w f h" }] }
+    { common: { name: focus_down, description: "Focus down", short_desc: Down }, group: window, bindings: [{ mode: normal, keys: "ctrl-w f j" }] }
+    { common: { name: focus_up, description: "Focus up", short_desc: Up }, group: window, bindings: [{ mode: normal, keys: "ctrl-w f k" }] }
+    { common: { name: focus_right, description: "Focus right", short_desc: Right }, group: window, bindings: [{ mode: normal, keys: "ctrl-w f l" }] }
+    { common: { name: buffer_next, description: "Next buffer", short_desc: Next }, group: window, bindings: [{ mode: normal, keys: "ctrl-w f n" }] }
+    { common: { name: buffer_prev, description: "Previous buffer", short_desc: Previous }, group: window, bindings: [{ mode: normal, keys: "ctrl-w f p" }] }
+    { common: { name: close_split, description: "Close current split", short_desc: Current }, group: window, bindings: [{ mode: normal, keys: "ctrl-w c c" }] }
+    { common: { name: close_other_buffers, description: "Close other buffers", short_desc: Others }, group: window, bindings: [{ mode: normal, keys: "ctrl-w c o" }] }
+  ]
+  prefixes: [
+    { mode: normal, keys: ctrl-w, description: Window }
+    { mode: normal, keys: "ctrl-w f", description: Focus }
+    { mode: normal, keys: "ctrl-w s", description: Split }
+    { mode: normal, keys: "ctrl-w c", description: Close }
+    { mode: normal, keys: g, description: Goto }
+    { mode: normal, keys: z, description: View }
+  ]
+}

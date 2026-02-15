@@ -147,9 +147,9 @@ impl RegistryDbBuilder {
 pub(crate) fn validate_option_def(def: &OptionDef) {
 	if def.default.value_type() != def.value_type {
 		panic!(
-			"OptionDef default type mismatch: name={} kdl_key={} value_type={:?} default_type={:?}",
+			"OptionDef default type mismatch: name={} key={} value_type={:?} default_type={:?}",
 			def.meta.name,
-			def.kdl_key,
+			def.key,
 			def.value_type,
 			def.default.value_type(),
 		);

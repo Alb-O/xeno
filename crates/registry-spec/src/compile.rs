@@ -1,7 +1,7 @@
-//! Build-time infrastructure for compiling KDL assets into binary blobs.
+//! Build-time infrastructure for compiling NUON assets into binary blobs.
 //!
 //! Gated behind the `compile` feature. Provides shared utilities used by
-//! each domain's `compile` submodule to parse KDL definitions and emit
+//! each domain's `compile` submodule to parse NUON definitions and emit
 //! postcard-serialized blob files consumed at runtime.
 
 use std::collections::HashSet;
@@ -9,6 +9,8 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+use nu_protocol::Value;
+use serde::de::DeserializeOwned;
 use walkdir::WalkDir;
 
 pub const MAGIC: &[u8; 8] = b"XENOASST";
@@ -59,35 +61,28 @@ impl BuildCtx {
 	}
 }
 
-/// Extracts the first positional string argument from a KDL node.
-pub fn node_name_arg(node: &kdl::KdlNode, domain: &str) -> String {
-	node.entry(0)
-		.and_then(|e| if e.name().is_none() { e.value().as_string().map(String::from) } else { None })
-		.unwrap_or_else(|| panic!("{domain} node missing name argument"))
+/// Reads a NUON file and parses it into a `nu_protocol::Value`.
+pub fn read_nuon_value(path: &Path) -> Value {
+	let content = fs::read_to_string(path).unwrap_or_else(|e| panic!("failed to read {}: {e}", path.display()));
+	nuon::from_nuon(&content, None).unwrap_or_else(|e| panic!("failed to parse NUON {}: {e}", path.display()))
 }
 
-/// Extracts a required string attribute.
-pub fn require_str(node: &kdl::KdlNode, attr: &str, context: &str) -> String {
-	node.get(attr)
-		.and_then(|v| v.as_string())
-		.unwrap_or_else(|| panic!("{context} missing '{attr}' attribute"))
-		.to_string()
+/// Reads a NUON file and deserializes it into `T` directly from `nu_protocol::Value`.
+pub fn read_nuon_spec<T: DeserializeOwned>(path: &Path) -> T {
+	let value = read_nuon_value(path);
+	crate::nu_de::from_nu_value(&value).unwrap_or_else(|e| panic!("failed to deserialize {}: {e}", path.display()))
 }
 
-/// Extracts positional string arguments from a `keys` child node.
-pub fn collect_keys(node: &kdl::KdlNode) -> Vec<String> {
-	let Some(children) = node.children() else {
-		return Vec::new();
-	};
-	let Some(keys_node) = children.get("keys") else {
-		return Vec::new();
-	};
-	keys_node
-		.entries()
-		.iter()
-		.filter(|e| e.name().is_none())
-		.filter_map(|e| e.value().as_string().map(String::from))
-		.collect()
+/// Collects all files with the given extension under `root`, sorted by path for determinism.
+pub fn collect_files_sorted(root: &Path, ext: &str) -> Vec<PathBuf> {
+	let mut paths: Vec<PathBuf> = WalkDir::new(root)
+		.into_iter()
+		.filter_map(|e| e.ok())
+		.filter(|e| e.path().extension().is_some_and(|x| x == ext))
+		.map(|e| e.into_path())
+		.collect();
+	paths.sort();
+	paths
 }
 
 /// Validates no duplicate names in a list of `(name, _)` pairs.

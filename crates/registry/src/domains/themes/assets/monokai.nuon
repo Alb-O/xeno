@@ -1,0 +1,435 @@
+{
+  common: {
+    name: monokai,
+    keys: [
+      monokai_extended
+    ]
+  },
+  palette: {
+    orange: "#FD971F",
+    gray: "#75715E",
+    green: "#A6E22E",
+    red: "#F92672",
+    selection: "#49483E",
+    yellow: "#E6DB74",
+    bg-dark: "#1E1F1C",
+    cursorline: "#31322C",
+    bg: "#272822",
+    fg: "#F8F8F2",
+    fg-bright: "#F8F8F0",
+    blue: "#66D9EF",
+    purple: "#AE81FF"
+  },
+  ui: {
+    nontext-bg: "$bg-dark",
+    gutter-fg: "$gray",
+    fg: "$fg",
+    selection-fg: "$fg",
+    message-fg: "$yellow",
+    selection-bg: "$selection",
+    command-input-fg: "$fg",
+    cursor-bg: "$fg-bright",
+    cursorline-bg: "$cursorline",
+    bg: "$bg",
+    cursor-fg: "$bg"
+  },
+  mode: {
+    insert-fg: "$bg",
+    command-bg: "$yellow",
+    normal-fg: "$bg",
+    prefix-fg: "$fg",
+    command-fg: "$bg",
+    normal-bg: "$blue",
+    insert-bg: "$green",
+    prefix-bg: "$purple"
+  },
+  semantic: {
+    match: "$green",
+    link: "$blue",
+    info: "$blue",
+    dim: "$gray",
+    success: "$green",
+    hint: "$gray",
+    accent: "$orange",
+    error: "$red",
+    warning: "$orange"
+  },
+  popup: {
+    bg: "$bg-dark",
+    title: "$yellow",
+    fg: "$fg",
+    border: "$gray"
+  },
+  syntax: {
+    "string.regexp": {
+      fg: "$orange",
+      bg: null,
+      modifiers: null
+    },
+    "comment.block": {
+      fg: "$gray",
+      bg: null,
+      modifiers: null
+    },
+    type: {
+      fg: "$blue",
+      bg: null,
+      modifiers: italic
+    },
+    operator: {
+      fg: "$red",
+      bg: null,
+      modifiers: null
+    },
+    "keyword.control.import": {
+      fg: "$red",
+      bg: null,
+      modifiers: null
+    },
+    "punctuation.bracket": {
+      fg: "$fg",
+      bg: null,
+      modifiers: null
+    },
+    "constant.numeric.float": {
+      fg: "$purple",
+      bg: null,
+      modifiers: null
+    },
+    "variable.other.member": {
+      fg: "$fg",
+      bg: null,
+      modifiers: null
+    },
+    "string.special.path": {
+      fg: "$orange",
+      bg: null,
+      modifiers: null
+    },
+    attribute: {
+      fg: "$green",
+      bg: null,
+      modifiers: null
+    },
+    "markup.strikethrough": {
+      fg: "$gray",
+      bg: null,
+      modifiers: crossed-out
+    },
+    "function.special": {
+      fg: "$green",
+      bg: null,
+      modifiers: null
+    },
+    "markup.raw.inline": {
+      fg: "$green",
+      bg: null,
+      modifiers: null
+    },
+    "string.special": {
+      fg: "$orange",
+      bg: null,
+      modifiers: null
+    },
+    constant: {
+      fg: "$purple",
+      bg: null,
+      modifiers: null
+    },
+    "keyword.control": {
+      fg: "$red",
+      bg: null,
+      modifiers: null
+    },
+    "constant.builtin": {
+      fg: "$purple",
+      bg: null,
+      modifiers: null
+    },
+    namespace: {
+      fg: "$fg",
+      bg: null,
+      modifiers: null
+    },
+    "markup.heading": {
+      fg: "$orange",
+      bg: null,
+      modifiers: bold
+    },
+    "markup.heading.3": {
+      fg: "$yellow",
+      bg: null,
+      modifiers: bold
+    },
+    "comment.block.documentation": {
+      fg: "$gray",
+      bg: null,
+      modifiers: null
+    },
+    "variable.builtin": {
+      fg: "$orange",
+      bg: null,
+      modifiers: null
+    },
+    constructor: {
+      fg: "$blue",
+      bg: null,
+      modifiers: null
+    },
+    label: {
+      fg: "$purple",
+      bg: null,
+      modifiers: null
+    },
+    "keyword.function": {
+      fg: "$blue",
+      bg: null,
+      modifiers: null
+    },
+    "type.builtin": {
+      fg: "$blue",
+      bg: null,
+      modifiers: italic
+    },
+    "markup.raw.block": {
+      fg: "$green",
+      bg: null,
+      modifiers: null
+    },
+    "constant.character": {
+      fg: "$purple",
+      bg: null,
+      modifiers: null
+    },
+    "punctuation.special": {
+      fg: "$red",
+      bg: null,
+      modifiers: null
+    },
+    "keyword.control.repeat": {
+      fg: "$red",
+      bg: null,
+      modifiers: null
+    },
+    "keyword.operator": {
+      fg: "$red",
+      bg: null,
+      modifiers: null
+    },
+    "markup.list": {
+      fg: "$red",
+      bg: null,
+      modifiers: null
+    },
+    "markup.heading.2": {
+      fg: "$orange",
+      bg: null,
+      modifiers: bold
+    },
+    "comment.line": {
+      fg: "$gray",
+      bg: null,
+      modifiers: null
+    },
+    "string.special.url": {
+      fg: "$yellow",
+      bg: null,
+      modifiers: underlined
+    },
+    "keyword.storage.type": {
+      fg: "$blue",
+      bg: null,
+      modifiers: null
+    },
+    keyword: {
+      fg: "$red",
+      bg: null,
+      modifiers: null
+    },
+    "variable.parameter": {
+      fg: "$orange",
+      bg: null,
+      modifiers: italic
+    },
+    "diff.plus": {
+      fg: "$green",
+      bg: "#1d2b1d",
+      modifiers: null
+    },
+    string: {
+      fg: "$yellow",
+      bg: null,
+      modifiers: null
+    },
+    "constant.character.escape": {
+      fg: "$purple",
+      bg: null,
+      modifiers: null
+    },
+    "punctuation.delimiter": {
+      fg: "$fg",
+      bg: null,
+      modifiers: null
+    },
+    "constant.builtin.boolean": {
+      fg: "$purple",
+      bg: null,
+      modifiers: null
+    },
+    "markup.link.url": {
+      fg: "$blue",
+      bg: null,
+      modifiers: underlined
+    },
+    comment: {
+      fg: "$gray",
+      bg: null,
+      modifiers: null
+    },
+    "markup.link": {
+      fg: "$blue",
+      bg: null,
+      modifiers: null
+    },
+    variable: {
+      fg: "$fg",
+      bg: null,
+      modifiers: null
+    },
+    "variable.other": {
+      fg: "$fg",
+      bg: null,
+      modifiers: null
+    },
+    "keyword.control.exception": {
+      fg: "$red",
+      bg: null,
+      modifiers: null
+    },
+    "keyword.storage": {
+      fg: "$red",
+      bg: null,
+      modifiers: null
+    },
+    "keyword.directive": {
+      fg: "$red",
+      bg: null,
+      modifiers: null
+    },
+    "type.parameter": {
+      fg: "$blue",
+      bg: null,
+      modifiers: italic
+    },
+    "markup.bold": {
+      fg: "$orange",
+      bg: null,
+      modifiers: bold
+    },
+    "keyword.control.return": {
+      fg: "$red",
+      bg: null,
+      modifiers: null
+    },
+    tag: {
+      fg: "$red",
+      bg: null,
+      modifiers: null
+    },
+    "markup.raw": {
+      fg: "$green",
+      bg: null,
+      modifiers: null
+    },
+    "markup.italic": {
+      fg: "$yellow",
+      bg: null,
+      modifiers: italic
+    },
+    "constant.numeric": {
+      fg: "$purple",
+      bg: null,
+      modifiers: null
+    },
+    punctuation: {
+      fg: "$fg",
+      bg: null,
+      modifiers: null
+    },
+    "keyword.control.conditional": {
+      fg: "$red",
+      bg: null,
+      modifiers: null
+    },
+    "constant.numeric.integer": {
+      fg: "$purple",
+      bg: null,
+      modifiers: null
+    },
+    "markup.heading.1": {
+      fg: "$red",
+      bg: null,
+      modifiers: bold
+    },
+    "diff.minus": {
+      fg: "$red",
+      bg: "#2b1d1d",
+      modifiers: null
+    },
+    "function.macro": {
+      fg: "$blue",
+      bg: null,
+      modifiers: null
+    },
+    "function.method": {
+      fg: "$green",
+      bg: null,
+      modifiers: null
+    },
+    "string.special.symbol": {
+      fg: "$purple",
+      bg: null,
+      modifiers: null
+    },
+    function: {
+      fg: "$green",
+      bg: null,
+      modifiers: null
+    },
+    "type.enum.variant": {
+      fg: "$blue",
+      bg: null,
+      modifiers: null
+    },
+    special: {
+      fg: "$blue",
+      bg: null,
+      modifiers: null
+    },
+    "diff.delta": {
+      fg: "$orange",
+      bg: "#2b2b1d",
+      modifiers: null
+    },
+    "function.builtin": {
+      fg: "$blue",
+      bg: null,
+      modifiers: null
+    },
+    "keyword.storage.modifier": {
+      fg: "$red",
+      bg: null,
+      modifiers: null
+    },
+    "markup.link.text": {
+      fg: "$purple",
+      bg: null,
+      modifiers: null
+    },
+    "markup.quote": {
+      fg: "$gray",
+      bg: null,
+      modifiers: italic
+    }
+  }
+}

@@ -20,7 +20,7 @@ impl OptionsRegistry {
 		self.inner.get(name)
 	}
 
-	pub fn by_kdl_key(&self, key: &str) -> Option<OptionsRef> {
+	pub fn by_key(&self, key: &str) -> Option<OptionsRef> {
 		self.inner.get(key)
 	}
 

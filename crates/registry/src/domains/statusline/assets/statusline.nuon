@@ -1,0 +1,13 @@
+# Statusline segment definitions for xeno's bottom status bar.
+# Each segment defines metadata; render handlers are linked at startup.
+{
+  segments: [
+    { common: { name: mode, description: "Current mode", priority: 100 }, position: left }
+    { common: { name: count, description: "Repeat count", priority: 90 }, position: left }
+    { common: { name: file, description: "File path", priority: 80 }, position: left }
+    { common: { name: readonly, description: "Read-only indicator", priority: 75 }, position: left }
+    { common: { name: filetype, description: "File type", priority: 50 }, position: right }
+    { common: { name: position, description: "Cursor position", priority: 100 }, position: right }
+    { common: { name: progress, description: "Document progress", priority: 90 }, position: right }
+  ]
+}

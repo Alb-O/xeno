@@ -15,7 +15,7 @@ use syn::{Expr, Item, Lit, Meta, parse_macro_input};
 ///
 /// ```ignore
 /// #[derive_option]
-/// #[option(kdl = "tab-width", scope = buffer, validate = positive_int)]
+/// #[option(key = "tab-width", scope = buffer, validate = positive_int)]
 /// /// Number of spaces a tab character occupies.
 /// pub static TAB_WIDTH: i64 = 4;
 /// ```
@@ -39,15 +39,15 @@ pub fn derive_option(input: TokenStream) -> TokenStream {
 		return syn::Error::new_spanned(&item, "missing #[option(...)] attribute").to_compile_error().into();
 	};
 
-	let mut kdl_key: Option<String> = None;
+	let mut key: Option<String> = None;
 	let mut scope: Option<syn::Ident> = None;
 	let mut priority: Option<i16> = None;
 	let mut validator: Option<syn::Ident> = None;
 
 	if let Err(e) = option_attr.parse_nested_meta(|meta| {
-		if meta.path.is_ident("kdl") {
+		if meta.path.is_ident("key") {
 			let value: syn::LitStr = meta.value()?.parse()?;
-			kdl_key = Some(value.value());
+			key = Some(value.value());
 			Ok(())
 		} else if meta.path.is_ident("scope") {
 			let ident: syn::Ident = meta.value()?.parse()?;
@@ -72,8 +72,8 @@ pub fn derive_option(input: TokenStream) -> TokenStream {
 		return e.to_compile_error().into();
 	}
 
-	let Some(kdl_key) = kdl_key else {
-		return syn::Error::new_spanned(option_attr, "missing required 'kdl' attribute")
+	let Some(key) = key else {
+		return syn::Error::new_spanned(option_attr, "missing required 'key' attribute")
 			.to_compile_error()
 			.into();
 	};
@@ -163,7 +163,7 @@ pub fn derive_option(input: TokenStream) -> TokenStream {
 			required_caps: &[],
 			flags: 0,
 		},
-		kdl_key: #kdl_key,
+		key: #key,
 		value_type: ::xeno_registry::options::OptionType::#option_type,
 		default: ::xeno_registry::options::OptionDefault::#value_wrapper(|| #default_value),
 		scope: ::xeno_registry::options::OptionScope::#scope_variant,

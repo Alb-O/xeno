@@ -13,10 +13,12 @@ pub struct NotificationSpec {
 	pub common: MetaCommonSpec,
 	pub level: String,
 	pub auto_dismiss: String,
+	#[serde(default)]
 	pub dismiss_ms: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NotificationsSpec {
+	#[serde(default)]
 	pub notifications: Vec<NotificationSpec>,
 }

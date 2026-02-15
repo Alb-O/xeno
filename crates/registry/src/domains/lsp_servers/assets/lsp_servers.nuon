@@ -1,0 +1,1626 @@
+{
+  servers: [
+    {
+      common: {
+        name: ada-gpr-language-server
+      },
+      command: ada_language_server,
+      args: [
+        --language-gpr
+      ],
+      source: "https://github.com/AdaCore/ada_language_server"
+    },
+    {
+      common: {
+        name: ada-language-server
+      },
+      command: ada_language_server,
+      source: "https://github.com/AdaCore/ada_language_server"
+    },
+    {
+      common: {
+        name: als
+      },
+      command: als,
+      source: "https://github.com/aml-org/als"
+    },
+    {
+      common: {
+        name: amber-lsp
+      },
+      command: amber-lsp,
+      source: "https://github.com/amber-lang/amber",
+      nix: amber-lang
+    },
+    {
+      common: {
+        name: ameba-ls
+      },
+      command: ameba-ls,
+      source: "https://github.com/crystal-ameba/ameba",
+      nix: ameba
+    },
+    {
+      common: {
+        name: angular
+      },
+      command: ngserver,
+      args: [
+        --stdio,
+        --tsProbeLocations,
+        ".",
+        --ngProbeLocations,
+        "."
+      ],
+      source: "https://github.com/angular/vscode-ng-language-service",
+      nix: angular-language-server
+    },
+    {
+      common: {
+        name: ansible-language-server
+      },
+      command: ansible-language-server,
+      args: [
+        --stdio
+      ],
+      source: "https://github.com/ansible/ansible-language-server"
+    },
+    {
+      common: {
+        name: asm-lsp
+      },
+      command: asm-lsp,
+      source: "https://github.com/bergercookie/asm-lsp",
+      nix: asm-lsp
+    },
+    {
+      common: {
+        name: astro-ls
+      },
+      command: astro-ls,
+      args: [
+        --stdio
+      ],
+      config_json: "{\"typescript\":{\"tsdk\":\"node_modules/typescript/lib\"}}",
+      source: "https://github.com/withastro/language-tools",
+      nix: astro-language-server
+    },
+    {
+      common: {
+        name: awk-language-server
+      },
+      command: awk-language-server,
+      source: "https://github.com/Beaglefoot/awk-language-server",
+      nix: awk-language-server
+    },
+    {
+      common: {
+        name: basedpyright
+      },
+      command: basedpyright-langserver,
+      args: [
+        --stdio
+      ],
+      source: "https://github.com/DetachHead/basedpyright",
+      nix: basedpyright
+    },
+    {
+      common: {
+        name: bash-language-server
+      },
+      command: bash-language-server,
+      args: [
+        start
+      ],
+      source: "https://github.com/bash-lsp/bash-language-server",
+      nix: bash-language-server
+    },
+    {
+      common: {
+        name: bass
+      },
+      command: bass,
+      args: [
+        --lsp
+      ],
+      source: "https://github.com/vito/bass"
+    },
+    {
+      common: {
+        name: beancount-language-server
+      },
+      command: beancount-language-server,
+      source: "https://github.com/polarmutex/beancount-language-server",
+      nix: beancount-language-server
+    },
+    {
+      common: {
+        name: bicep-langserver
+      },
+      command: bicep-langserver,
+      source: "https://github.com/Azure/bicep",
+      nix: bicep
+    },
+    {
+      common: {
+        name: bitbake-language-server
+      },
+      command: bitbake-language-server,
+      source: "https://github.com/Freed-Wu/bitbake-language-server"
+    },
+    {
+      common: {
+        name: blueprint-compiler
+      },
+      command: blueprint-compiler,
+      args: [
+        lsp
+      ],
+      source: "https://gitlab.gnome.org/jwestman/blueprint-compiler",
+      nix: blueprint-compiler
+    },
+    {
+      common: {
+        name: buf
+      },
+      command: buf,
+      args: [
+        lsp,
+        serve,
+        --timeout,
+        "0"
+      ],
+      source: "https://github.com/bufbuild/buf",
+      nix: buf
+    },
+    {
+      common: {
+        name: cairo-language-server
+      },
+      command: cairo-language-server,
+      source: "https://github.com/starkware-libs/cairo",
+      nix: cairo
+    },
+    {
+      common: {
+        name: circom-lsp
+      },
+      command: circom-lsp,
+      source: "https://github.com/rubydusa/circom-lsp"
+    },
+    {
+      common: {
+        name: cl-lsp
+      },
+      command: cl-lsp,
+      source: "https://github.com/cxxxr/cl-lsp"
+    },
+    {
+      common: {
+        name: clangd
+      },
+      command: clangd,
+      source: "https://clangd.llvm.org/",
+      nix: clang-tools
+    },
+    {
+      common: {
+        name: clarinet
+      },
+      command: clarinet,
+      args: [
+        lsp
+      ],
+      source: "https://github.com/hirosystems/clarinet"
+    },
+    {
+      common: {
+        name: clojure-lsp
+      },
+      command: clojure-lsp,
+      source: "https://github.com/clojure-lsp/clojure-lsp",
+      nix: clojure-lsp
+    },
+    {
+      common: {
+        name: cmake-language-server
+      },
+      command: cmake-language-server,
+      source: "https://github.com/regen100/cmake-language-server",
+      nix: cmake-language-server
+    },
+    {
+      common: {
+        name: codeql
+      },
+      command: codeql,
+      args: [
+        execute,
+        language-server,
+        "--check-errors=ON_CHANGE"
+      ],
+      source: "https://github.com/github/codeql",
+      nix: codeql
+    },
+    {
+      common: {
+        name: commit-lsp
+      },
+      command: commit-lsp,
+      args: [
+        run
+      ],
+      source: "https://github.com/texel-sensei/commit-lsp"
+    },
+    {
+      common: {
+        name: crystalline
+      },
+      command: crystalline,
+      args: [
+        --stdio
+      ],
+      source: "https://github.com/elbywan/crystalline",
+      nix: crystalline
+    },
+    {
+      common: {
+        name: cs
+      },
+      command: cs,
+      args: [
+        launch,
+        --contrib,
+        smithy-language-server,
+        --,
+        "0"
+      ],
+      source: "https://github.com/coursier/coursier",
+      nix: coursier
+    },
+    {
+      common: {
+        name: csharp-ls
+      },
+      command: csharp-ls,
+      source: "https://github.com/razzmatazz/csharp-language-server",
+      nix: csharp-ls
+    },
+    {
+      common: {
+        name: cuelsp
+      },
+      command: cuelsp,
+      source: "https://github.com/cue-lang/cue",
+      nix: cue
+    },
+    {
+      common: {
+        name: dart
+      },
+      command: dart,
+      args: [
+        language-server,
+        "--client-id=helix"
+      ],
+      source: "https://github.com/dart-lang/sdk",
+      nix: dart
+    },
+    {
+      common: {
+        name: dhall-lsp-server
+      },
+      command: dhall-lsp-server,
+      source: "https://github.com/dhall-lang/dhall-haskell",
+      nix: dhall-lsp-server
+    },
+    {
+      common: {
+        name: djlsp
+      },
+      command: djlsp,
+      source: "https://github.com/fourdigits/django-template-lsp"
+    },
+    {
+      common: {
+        name: docker-compose-langserver
+      },
+      command: docker-compose-langserver,
+      args: [
+        --stdio
+      ],
+      source: "https://github.com/microsoft/compose-language-service",
+      nix: docker-compose-language-service
+    },
+    {
+      common: {
+        name: docker-langserver
+      },
+      command: docker-langserver,
+      args: [
+        --stdio
+      ],
+      source: "https://github.com/rcjsuen/dockerfile-language-server-nodejs",
+      nix: dockerfile-language-server-nodejs
+    },
+    {
+      common: {
+        name: docker-language-server
+      },
+      command: docker-language-server,
+      args: [
+        start,
+        --stdio
+      ],
+      source: "https://github.com/docker/docker-language-server"
+    },
+    {
+      common: {
+        name: dot-language-server
+      },
+      command: dot-language-server,
+      args: [
+        --stdio
+      ],
+      source: "https://github.com/nikeee/dot-language-server",
+      nix: dot-language-server
+    },
+    {
+      common: {
+        name: dts-lsp
+      },
+      command: dts-lsp,
+      source: "https://github.com/igor-prusov/dts-lsp"
+    },
+    {
+      common: {
+        name: earthlyls
+      },
+      command: earthlyls,
+      source: "https://github.com/glehmann/earthlyls",
+      nix: earthlyls
+    },
+    {
+      common: {
+        name: eiffel-language-server
+      },
+      command: gelsp,
+      source: "https://github.com/gobo-eiffel/gobo"
+    },
+    {
+      common: {
+        name: elixir-ls
+      },
+      command: elixir-ls,
+      config_json: "{\"elixirLS\":{\"dialyzerEnabled\":false}}",
+      source: "https://github.com/elixir-lsp/elixir-ls",
+      nix: elixir-ls
+    },
+    {
+      common: {
+        name: elm-language-server
+      },
+      command: elm-language-server,
+      source: "https://github.com/elm-tooling/elm-language-server",
+      nix: "elmPackages.elm-language-server"
+    },
+    {
+      common: {
+        name: elp
+      },
+      command: elp,
+      args: [
+        server
+      ],
+      source: "https://github.com/WhatsApp/erlang-language-platform",
+      nix: erlang-language-platform
+    },
+    {
+      common: {
+        name: elvish
+      },
+      command: elvish,
+      args: [
+        -lsp
+      ],
+      source: "https://github.com/elves/elvish",
+      nix: elvish
+    },
+    {
+      common: {
+        name: ember-language-server
+      },
+      command: ember-language-server,
+      args: [
+        --stdio
+      ],
+      source: "https://github.com/emberwatch/ember-language-server",
+      nix: ember-language-server
+    },
+    {
+      common: {
+        name: erlang-ls
+      },
+      command: erlang_ls,
+      source: "https://github.com/erlang-ls/erlang_ls"
+    },
+    {
+      common: {
+        name: expert
+      },
+      command: expert,
+      source: "https://github.com/elixir-lang/expert"
+    },
+    {
+      common: {
+        name: fennel-ls
+      },
+      command: fennel-ls,
+      source: "https://git.sr.ht/~xerool/fennel-ls",
+      nix: fennel-ls
+    },
+    {
+      common: {
+        name: fish-lsp
+      },
+      command: fish-lsp,
+      args: [
+        start
+      ],
+      environment: {
+        fish_lsp_show_client_popups: "false"
+      },
+      source: "https://github.com/ndonfris/fish-lsp",
+      nix: fish-lsp
+    },
+    {
+      common: {
+        name: forc
+      },
+      command: forc,
+      args: [
+        lsp
+      ],
+      source: "https://github.com/FuelLabs/sway",
+      nix: sway
+    },
+    {
+      common: {
+        name: forth-lsp
+      },
+      command: forth-lsp,
+      source: "https://github.com/alexanderbrevig/forth-lsp"
+    },
+    {
+      common: {
+        name: fortls
+      },
+      command: fortls,
+      args: [
+        --lowercase_intrinsics
+      ],
+      source: "https://github.com/fortran-lang/fortls",
+      nix: fortls
+    },
+    {
+      common: {
+        name: fsharp-ls
+      },
+      command: fsautocomplete,
+      config_json: "{\"AutomaticWorkspaceInit\":true}",
+      source: "https://github.com/fsharp/FsAutoComplete",
+      nix: fsautocomplete
+    },
+    {
+      common: {
+        name: gitlab-ci-ls
+      },
+      command: gitlab-ci-ls,
+      source: "https://github.com/alesbrelih/gitlab-ci-ls",
+      nix: gitlab-ci-ls
+    },
+    {
+      common: {
+        name: gleam
+      },
+      command: gleam,
+      args: [
+        lsp
+      ],
+      source: "https://github.com/gleam-lang/gleam",
+      nix: gleam
+    },
+    {
+      common: {
+        name: glsl_analyzer
+      },
+      command: glsl_analyzer,
+      source: "https://github.com/nolanderc/glsl_analyzer",
+      nix: glsl_analyzer
+    },
+    {
+      common: {
+        name: golangci-lint-lsp
+      },
+      command: golangci-lint-langserver,
+      config_json: "{\"command\":\"golangci-lint\"}",
+      source: "https://github.com/nametake/golangci-lint-langserver",
+      nix: golangci-lint-langserver
+    },
+    {
+      common: {
+        name: gopls
+      },
+      command: gopls,
+      config_json: "{\"hints\":{\"assignVariableTypes\":true,\"compositeLiteralFields\":true,\"constantValues\":true,\"functionTypeParameters\":true,\"parameterNames\":true,\"rangeVariableTypes\":true}}",
+      source: "https://github.com/golang/tools/tree/master/gopls",
+      nix: gopls
+    },
+    {
+      common: {
+        name: graphql-language-service
+      },
+      command: graphql-lsp,
+      args: [
+        server,
+        -m,
+        stream
+      ],
+      source: "https://github.com/graphql/graphiql",
+      nix: graphql-language-service-cli
+    },
+    {
+      common: {
+        name: hare-lsp
+      },
+      command: harepls,
+      args: [
+        -S
+      ],
+      source: "https://sr.ht/~tomleb/harepls/"
+    },
+    {
+      common: {
+        name: harper-ls
+      },
+      command: harper-ls,
+      args: [
+        --stdio
+      ],
+      source: "https://github.com/elijah-potter/harper",
+      nix: harper
+    },
+    {
+      common: {
+        name: haskell-language-server
+      },
+      command: haskell-language-server-wrapper,
+      args: [
+        --lsp
+      ],
+      source: "https://github.com/haskell/haskell-language-server",
+      nix: haskell-language-server
+    },
+    {
+      common: {
+        name: hdls
+      },
+      command: hdls,
+      source: "https://github.com/VHDL-LS/rust_hdl"
+    },
+    {
+      common: {
+        name: helm_ls
+      },
+      command: helm_ls,
+      args: [
+        serve
+      ],
+      source: "https://github.com/mrjosh/helm-ls",
+      nix: helm-ls
+    },
+    {
+      common: {
+        name: hyprls
+      },
+      command: hyprls,
+      source: "https://github.com/hyprland-community/hyprls",
+      nix: hyprls
+    },
+    {
+      common: {
+        name: hyuga
+      },
+      command: hyuga,
+      source: "https://github.com/sakuraiyuta/hyuga"
+    },
+    {
+      common: {
+        name: "idris2-lsp"
+      },
+      command: "idris2-lsp",
+      source: "https://github.com/idris-community/idris2-lsp",
+      nix: "idris2Packages.idris2Lsp"
+    },
+    {
+      common: {
+        name: intelephense
+      },
+      command: intelephense,
+      args: [
+        --stdio
+      ],
+      source: "https://github.com/bmewburn/vscode-intelephense",
+      nix: "nodePackages.intelephense"
+    },
+    {
+      common: {
+        name: jdtls
+      },
+      command: jdtls,
+      source: "https://github.com/eclipse-jdtls/eclipse.jdt.ls",
+      nix: jdt-language-server
+    },
+    {
+      common: {
+        name: jedi
+      },
+      command: jedi-language-server,
+      source: "https://github.com/pappasam/jedi-language-server",
+      nix: "python3Packages.jedi-language-server"
+    },
+    {
+      common: {
+        name: jq-lsp
+      },
+      command: jq-lsp,
+      source: "https://github.com/wader/jq-lsp",
+      nix: jq-lsp
+    },
+    {
+      common: {
+        name: jsonnet-language-server
+      },
+      command: jsonnet-language-server,
+      args: [
+        -t,
+        --lint
+      ],
+      source: "https://github.com/grafana/jsonnet-language-server",
+      nix: jsonnet-language-server
+    },
+    {
+      common: {
+        name: julia
+      },
+      command: julia,
+      args: [
+        "--startup-file=no",
+        "--history-file=no",
+        --quiet,
+        -e,
+        "using LanguageServer; runserver()"
+      ],
+      source: "https://github.com/julia-vscode/LanguageServer.jl",
+      nix: julia
+    },
+    {
+      common: {
+        name: just-lsp
+      },
+      command: just-lsp,
+      source: "https://github.com/casey/just",
+      nix: just
+    },
+    {
+      common: {
+        name: kcl-lsp
+      },
+      command: kcl-language-server,
+      args: [
+        server,
+        --stdio
+      ],
+      source: "https://github.com/kcl-lang/kcl",
+      nix: kcl
+    },
+    {
+      common: {
+        name: koka
+      },
+      command: koka,
+      args: [
+        --language-server,
+        --lsstdio
+      ],
+      source: "https://github.com/koka-lang/koka",
+      nix: koka
+    },
+    {
+      common: {
+        name: kotlin-language-server
+      },
+      command: kotlin-language-server,
+      source: "https://github.com/fwcd/kotlin-language-server",
+      nix: kotlin-language-server
+    },
+    {
+      common: {
+        name: kotlin-lsp
+      },
+      command: kotlin-lsp,
+      args: [
+        --stdio
+      ],
+      source: "https://github.com/Kotlin/kotlin-lsp"
+    },
+    {
+      common: {
+        name: koto-ls
+      },
+      command: koto-ls,
+      source: "https://github.com/koto-lang/koto",
+      nix: koto
+    },
+    {
+      common: {
+        name: lean
+      },
+      command: lake,
+      args: [
+        serve
+      ],
+      source: "https://github.com/leanprover/lean4",
+      nix: "lean4"
+    },
+    {
+      common: {
+        name: ltex-ls
+      },
+      command: ltex-ls,
+      source: "https://github.com/valentjn/ltex-ls",
+      nix: ltex-ls
+    },
+    {
+      common: {
+        name: ltex-ls-plus
+      },
+      command: ltex-ls-plus,
+      source: "https://github.com/ltex-plus/ltex-ls-plus",
+      nix: ltex-ls-plus
+    },
+    {
+      common: {
+        name: lua-language-server
+      },
+      command: lua-language-server,
+      config_json: "{\"Lua\":{\"hint\":{\"arrayIndex\":\"Enable\",\"await\":true,\"enable\":true,\"paramName\":\"All\",\"paramType\":true,\"setType\":true}}}",
+      source: "https://github.com/LuaLS/lua-language-server",
+      nix: lua-language-server
+    },
+    {
+      common: {
+        name: luau
+      },
+      command: luau-lsp,
+      args: [
+        lsp
+      ],
+      source: "https://github.com/JohnnyMorganz/luau-lsp",
+      nix: luau-lsp
+    },
+    {
+      common: {
+        name: markdoc-ls
+      },
+      command: markdoc-ls,
+      args: [
+        --stdio
+      ],
+      source: "https://github.com/markdoc/language-server"
+    },
+    {
+      common: {
+        name: markdown-oxide
+      },
+      command: markdown-oxide,
+      source: "https://github.com/Feel-ix-343/markdown-oxide",
+      nix: markdown-oxide
+    },
+    {
+      common: {
+        name: marksman
+      },
+      command: marksman,
+      args: [
+        server
+      ],
+      source: "https://github.com/artempyanykh/marksman",
+      nix: marksman
+    },
+    {
+      common: {
+        name: mesonlsp
+      },
+      command: mesonlsp,
+      args: [
+        --lsp
+      ],
+      source: "https://github.com/JCWasmx86/mesonlsp",
+      nix: mesonlsp
+    },
+    {
+      common: {
+        name: metals
+      },
+      command: metals,
+      config_json: "{\"isHttpEnabled\":true,\"metals\":{\"inlayHints\":{\"hintsInPatternMatch\":{\"enable\":true},\"typeParameters\":{\"enable\":true}}}}",
+      source: "https://github.com/scalameta/metals",
+      nix: metals
+    },
+    {
+      common: {
+        name: mint
+      },
+      command: mint,
+      args: [
+        tool,
+        ls
+      ],
+      source: "https://github.com/mint-lang/mint",
+      nix: mint
+    },
+    {
+      common: {
+        name: mojo-lsp-server
+      },
+      command: pixi,
+      args: [
+        run,
+        mojo-lsp-server
+      ],
+      source: "https://github.com/modularml/mojo",
+      nix: pixi
+    },
+    {
+      common: {
+        name: neocmakelsp
+      },
+      command: neocmakelsp,
+      args: [
+        stdio
+      ],
+      source: "https://github.com/neocmakelsp/neocmakelsp",
+      nix: neocmakelsp
+    },
+    {
+      common: {
+        name: nil
+      },
+      command: nil,
+      source: "https://github.com/oxalica/nil",
+      nix: nil
+    },
+    {
+      common: {
+        name: nixd
+      },
+      command: nixd,
+      source: "https://github.com/nix-community/nixd",
+      nix: nixd
+    },
+    {
+      common: {
+        name: nls
+      },
+      command: nls,
+      source: "https://github.com/tweag/nickel",
+      nix: nickel
+    },
+    {
+      common: {
+        name: nu-lsp
+      },
+      command: nu,
+      args: [
+        --lsp
+      ],
+      source: "https://github.com/nushell/nushell",
+      nix: nushell
+    },
+    {
+      common: {
+        name: ocamllsp
+      },
+      command: ocamllsp,
+      source: "https://github.com/ocaml/ocaml-lsp",
+      nix: "ocamlPackages.ocaml-lsp"
+    },
+    {
+      common: {
+        name: ols
+      },
+      command: ols,
+      source: "https://github.com/DanielGavin/ols",
+      nix: ols
+    },
+    {
+      common: {
+        name: omnisharp
+      },
+      command: OmniSharp,
+      args: [
+        --languageserver
+      ],
+      source: "https://github.com/OmniSharp/omnisharp-roslyn",
+      nix: omnisharp-roslyn
+    },
+    {
+      common: {
+        name: openscad-lsp
+      },
+      command: openscad-lsp,
+      args: [
+        --stdio
+      ],
+      source: "https://github.com/Leathong/openscad-LSP",
+      nix: openscad-lsp
+    },
+    {
+      common: {
+        name: oxlint-language-server
+      },
+      command: oxlint,
+      args: [
+        --lsp
+      ],
+      source: "https://github.com/oxc-project/oxc",
+      nix: oxlint
+    },
+    {
+      common: {
+        name: pasls
+      },
+      command: pasls,
+      source: "https://github.com/genericptr/pascal-language-server"
+    },
+    {
+      common: {
+        name: pbkit
+      },
+      command: pb,
+      args: [
+        lsp
+      ],
+      source: "https://github.com/pbkit/pbkit"
+    },
+    {
+      common: {
+        name: perlnavigator
+      },
+      command: perlnavigator,
+      args: [
+        --stdio
+      ],
+      source: "https://github.com/bscan/PerlNavigator",
+      nix: perlnavigator
+    },
+    {
+      common: {
+        name: pest-language-server
+      },
+      command: pest-language-server,
+      source: "https://github.com/pest-parser/pest-ide-tools",
+      nix: pest-ide-tools
+    },
+    {
+      common: {
+        name: pkl-lsp
+      },
+      command: pkl-lsp,
+      source: "https://github.com/apple/pkl",
+      nix: pkl
+    },
+    {
+      common: {
+        name: prisma-language-server
+      },
+      command: prisma-language-server,
+      args: [
+        --stdio
+      ],
+      config_json: "{\"prisma\":{\"enableDiagnostics\":true}}",
+      source: "https://github.com/prisma/language-tools",
+      nix: "nodePackages.prisma"
+    },
+    {
+      common: {
+        name: protols
+      },
+      command: protols,
+      source: "https://github.com/coder3101/protols"
+    },
+    {
+      common: {
+        name: purescript-language-server
+      },
+      command: purescript-language-server,
+      args: [
+        --stdio
+      ],
+      source: "https://github.com/nwolverson/purescript-language-server"
+    },
+    {
+      common: {
+        name: pylsp
+      },
+      command: pylsp,
+      source: "https://github.com/python-lsp/python-lsp-server",
+      nix: "python3Packages.python-lsp-server"
+    },
+    {
+      common: {
+        name: pylyzer
+      },
+      command: pylyzer,
+      args: [
+        --server
+      ],
+      source: "https://github.com/mtshiba/pylyzer",
+      nix: pylyzer
+    },
+    {
+      common: {
+        name: pyrefly
+      },
+      command: pyrefly,
+      args: [
+        lsp
+      ],
+      source: "https://github.com/facebook/pyrefly"
+    },
+    {
+      common: {
+        name: pyright
+      },
+      command: pyright-langserver,
+      args: [
+        --stdio
+      ],
+      source: "https://github.com/microsoft/pyright",
+      nix: pyright
+    },
+    {
+      common: {
+        name: qmlls
+      },
+      command: qmlls,
+      source: "https://doc.qt.io/qt-6/qtqml-tooling-qmlls.html",
+      nix: "qt6.qtdeclarative"
+    },
+    {
+      common: {
+        name: quint-language-server
+      },
+      command: quint-language-server,
+      args: [
+        --stdio
+      ],
+      source: "https://github.com/informalsystems/quint"
+    },
+    {
+      common: {
+        name: r
+      },
+      command: R,
+      args: [
+        --no-echo,
+        -e,
+        "languageserver::run()"
+      ],
+      source: "https://github.com/REditorSupport/languageserver",
+      nix: "rPackages.languageserver"
+    },
+    {
+      common: {
+        name: racket
+      },
+      command: racket,
+      args: [
+        -l,
+        racket-langserver
+      ],
+      source: "https://github.com/jeapostrophe/racket-langserver",
+      nix: racket
+    },
+    {
+      common: {
+        name: regols
+      },
+      command: regols,
+      source: "https://github.com/kitagry/regols",
+      nix: regols
+    },
+    {
+      common: {
+        name: rescript-language-server
+      },
+      command: rescript-language-server,
+      args: [
+        --stdio
+      ],
+      source: "https://github.com/rescript-lang/rescript-vscode"
+    },
+    {
+      common: {
+        name: ripple-lsp
+      },
+      command: ripple-language-server,
+      args: [
+        --stdio
+      ],
+      source: "https://github.com/Ripple-TS/ripple"
+    },
+    {
+      common: {
+        name: robotframework_ls
+      },
+      command: robotframework_ls,
+      source: "https://github.com/robocorp/robotframework-lsp"
+    },
+    {
+      common: {
+        name: ron-lsp
+      },
+      command: ron-lsp,
+      source: "https://github.com/jasonjmcghee/ron-lsp"
+    },
+    {
+      common: {
+        name: rshtml-analyzer
+      },
+      command: rshtml-analyzer,
+      args: [
+        --stdio
+      ],
+      source: "https://github.com/rshtml/rshtml-analyzer"
+    },
+    {
+      common: {
+        name: ruby-lsp
+      },
+      command: ruby-lsp,
+      source: "https://github.com/Shopify/ruby-lsp",
+      nix: "rubyPackages.ruby-lsp"
+    },
+    {
+      common: {
+        name: ruff
+      },
+      command: ruff,
+      args: [
+        server
+      ],
+      source: "https://github.com/astral-sh/ruff",
+      nix: ruff
+    },
+    {
+      common: {
+        name: rumdl
+      },
+      command: rumdl,
+      args: [
+        server
+      ],
+      source: "https://github.com/rvben/rumdl"
+    },
+    {
+      common: {
+        name: rust-analyzer
+      },
+      command: rust-analyzer,
+      config_json: "{\"files\":{\"watcher\":\"server\"},\"inlayHints\":{\"bindingModeHints\":{\"enable\":false},\"closingBraceHints\":{\"minLines\":10},\"closureReturnTypeHints\":{\"enable\":\"with_block\"},\"discriminantHints\":{\"enable\":\"fieldless\"},\"lifetimeElisionHints\":{\"enable\":\"skip_trivial\"},\"typeHints\":{\"hideClosureInitialization\":false}}}",
+      source: "https://github.com/rust-lang/rust-analyzer",
+      nix: rust-analyzer
+    },
+    {
+      common: {
+        name: serve-d
+      },
+      command: serve-d,
+      source: "https://github.com/Pure-D/serve-d",
+      nix: serve-d
+    },
+    {
+      common: {
+        name: slangd
+      },
+      command: slangd,
+      source: "https://github.com/shader-slang/slang",
+      nix: slang
+    },
+    {
+      common: {
+        name: slint-lsp
+      },
+      command: slint-lsp,
+      source: "https://github.com/slint-ui/slint",
+      nix: slint-lsp
+    },
+    {
+      common: {
+        name: solargraph
+      },
+      command: solargraph,
+      args: [
+        stdio
+      ],
+      source: "https://github.com/castwide/solargraph",
+      nix: "rubyPackages.solargraph"
+    },
+    {
+      common: {
+        name: solc
+      },
+      command: solc,
+      args: [
+        --lsp
+      ],
+      source: "https://github.com/ethereum/solidity",
+      nix: solc
+    },
+    {
+      common: {
+        name: sourcekit-lsp
+      },
+      command: sourcekit-lsp,
+      source: "https://github.com/apple/sourcekit-lsp",
+      nix: sourcekit-lsp
+    },
+    {
+      common: {
+        name: sourcepawn-studio
+      },
+      command: sourcepawn-studio,
+      source: "https://github.com/Sarrus1/sourcepawn-studio"
+    },
+    {
+      common: {
+        name: spade-language-server
+      },
+      command: spade-language-server,
+      source: "https://gitlab.com/spade-lang/spade",
+      nix: spade
+    },
+    {
+      common: {
+        name: starpls
+      },
+      command: starpls,
+      source: "https://github.com/withered-magic/starpls"
+    },
+    {
+      common: {
+        name: superhtml
+      },
+      command: superhtml,
+      args: [
+        lsp
+      ],
+      source: "https://github.com/kristoff-it/superhtml"
+    },
+    {
+      common: {
+        name: svelteserver
+      },
+      command: svelteserver,
+      args: [
+        --stdio
+      ],
+      config_json: "{\"configuration\":{\"javascript\":{\"inlayHints\":{\"enumMemberValues\":{\"enabled\":true},\"functionLikeReturnTypes\":{\"enabled\":true},\"parameterNames\":{\"enabled\":\"all\"},\"parameterTypes\":{\"enabled\":true},\"propertyDeclarationTypes\":{\"enabled\":true},\"variableTypes\":{\"enabled\":true}}},\"typescript\":{\"inlayHints\":{\"enumMemberValues\":{\"enabled\":true},\"functionLikeReturnTypes\":{\"enabled\":true},\"parameterNames\":{\"enabled\":\"all\"},\"parameterTypes\":{\"enabled\":true},\"propertyDeclarationTypes\":{\"enabled\":true},\"variableTypes\":{\"enabled\":true}}}}}",
+      source: "https://github.com/sveltejs/language-tools",
+      nix: svelte-language-server
+    },
+    {
+      common: {
+        name: svlangserver
+      },
+      command: svlangserver,
+      source: "https://github.com/imc-trading/svlangserver"
+    },
+    {
+      common: {
+        name: swipl
+      },
+      command: swipl,
+      args: [
+        -g,
+        "use_module(library(lsp_server))",
+        -g,
+        "lsp_server:main",
+        -t,
+        halt,
+        --,
+        stdio
+      ],
+      source: "https://github.com/jamesnvc/lsp_server",
+      nix: swi-prolog
+    },
+    {
+      common: {
+        name: systemd-lsp
+      },
+      command: systemd-lsp,
+      source: "https://github.com/JFryy/systemd-lsp"
+    },
+    {
+      common: {
+        name: tailwindcss-ls
+      },
+      command: tailwindcss-language-server,
+      args: [
+        --stdio
+      ],
+      source: "https://github.com/tailwindlabs/tailwindcss-intellisense",
+      nix: tailwindcss-language-server
+    },
+    {
+      common: {
+        name: taplo
+      },
+      command: taplo,
+      args: [
+        lsp,
+        stdio
+      ],
+      source: "https://github.com/tamasfe/taplo",
+      nix: taplo
+    },
+    {
+      common: {
+        name: teal-language-server
+      },
+      command: teal-language-server,
+      source: "https://github.com/teal-language/teal-language-server"
+    },
+    {
+      common: {
+        name: templ
+      },
+      command: templ,
+      args: [
+        lsp
+      ],
+      source: "https://github.com/a-h/templ",
+      nix: templ
+    },
+    {
+      common: {
+        name: termux-language-server
+      },
+      command: termux-language-server,
+      source: "https://github.com/termux/termux-language-server"
+    },
+    {
+      common: {
+        name: terraform-ls
+      },
+      command: terraform-ls,
+      args: [
+        serve
+      ],
+      source: "https://github.com/hashicorp/terraform-ls",
+      nix: terraform-ls
+    },
+    {
+      common: {
+        name: texlab
+      },
+      command: texlab,
+      source: "https://github.com/latex-lsp/texlab",
+      nix: texlab
+    },
+    {
+      common: {
+        name: tinymist
+      },
+      command: tinymist,
+      source: "https://github.com/Myriad-Dreamin/tinymist",
+      nix: tinymist
+    },
+    {
+      common: {
+        name: tombi
+      },
+      command: tombi,
+      args: [
+        lsp
+      ],
+      source: "https://github.com/tombi-toml/tombi"
+    },
+    {
+      common: {
+        name: ts_query_ls
+      },
+      command: ts_query_ls,
+      source: "https://github.com/ribru17/ts_query_ls"
+    },
+    {
+      common: {
+        name: ty
+      },
+      command: ty,
+      args: [
+        server
+      ],
+      source: "https://github.com/astral-sh/ty"
+    },
+    {
+      common: {
+        name: typescript-language-server
+      },
+      command: typescript-language-server,
+      args: [
+        --stdio
+      ],
+      config_json: "{\"hostInfo\":\"helix\",\"javascript\":{\"inlayHints\":{\"includeInlayEnumMemberValueHints\":true,\"includeInlayFunctionLikeReturnTypeHints\":true,\"includeInlayFunctionParameterTypeHints\":true,\"includeInlayParameterNameHints\":\"all\",\"includeInlayParameterNameHintsWhenArgumentMatchesName\":true,\"includeInlayPropertyDeclarationTypeHints\":true,\"includeInlayVariableTypeHints\":true}},\"typescript\":{\"inlayHints\":{\"includeInlayEnumMemberValueHints\":true,\"includeInlayFunctionLikeReturnTypeHints\":true,\"includeInlayFunctionParameterTypeHints\":true,\"includeInlayParameterNameHints\":\"all\",\"includeInlayParameterNameHintsWhenArgumentMatchesName\":true,\"includeInlayPropertyDeclarationTypeHints\":true,\"includeInlayVariableTypeHints\":true}}}",
+      source: "https://github.com/typescript-language-server/typescript-language-server",
+      nix: typescript-language-server
+    },
+    {
+      common: {
+        name: typespec
+      },
+      command: tsp-server,
+      args: [
+        --stdio
+      ],
+      source: "https://github.com/microsoft/typespec"
+    },
+    {
+      common: {
+        name: vala-language-server
+      },
+      command: vala-language-server,
+      source: "https://github.com/vala-lang/vala-language-server",
+      nix: vala-language-server
+    },
+    {
+      common: {
+        name: vale-ls
+      },
+      command: vale-ls,
+      source: "https://github.com/errata-ai/vale-ls",
+      nix: vale-ls
+    },
+    {
+      common: {
+        name: vhdl_ls
+      },
+      command: vhdl_ls,
+      source: "https://github.com/VHDL-LS/rust_hdl",
+      nix: vhdl-ls
+    },
+    {
+      common: {
+        name: vlang-language-server
+      },
+      command: v-analyzer,
+      source: "https://github.com/vlang/v-analyzer"
+    },
+    {
+      common: {
+        name: vscode-css-language-server
+      },
+      command: vscode-css-language-server,
+      args: [
+        --stdio
+      ],
+      config_json: "{\"css\":{\"validate\":{\"enable\":true}},\"provideFormatter\":true}",
+      source: "https://github.com/microsoft/vscode-css-languageservice",
+      nix: vscode-langservers-extracted
+    },
+    {
+      common: {
+        name: vscode-eslint-language-server
+      },
+      command: vscode-eslint-language-server,
+      args: [
+        --stdio
+      ],
+      config_json: "{\"codeAction\":{\"disableRuleComment\":{\"enable\":true,\"location\":\"separateLine\"},\"showDocumentation\":{\"enable\":true}},\"experimental\":{\"useFlatConfig\":false},\"nodePath\":\"\",\"problems\":{\"shortenToSingleLine\":false},\"run\":\"onType\",\"validate\":\"on\",\"workingDirectory\":{\"mode\":\"location\"}}",
+      source: "https://github.com/microsoft/vscode-eslint",
+      nix: vscode-langservers-extracted
+    },
+    {
+      common: {
+        name: vscode-html-language-server
+      },
+      command: vscode-html-language-server,
+      args: [
+        --stdio
+      ],
+      config_json: "{\"provideFormatter\":true}",
+      source: "https://github.com/microsoft/vscode-html-languageservice",
+      nix: vscode-langservers-extracted
+    },
+    {
+      common: {
+        name: vscode-json-language-server
+      },
+      command: vscode-json-language-server,
+      args: [
+        --stdio
+      ],
+      config_json: "{\"json\":{\"validate\":{\"enable\":true}},\"provideFormatter\":true}",
+      source: "https://github.com/microsoft/vscode-json-languageservice",
+      nix: vscode-langservers-extracted
+    },
+    {
+      common: {
+        name: vuels
+      },
+      command: vue-language-server,
+      args: [
+        --stdio
+      ],
+      config_json: "{\"typescript\":{\"tsdk\":\"node_modules/typescript/lib/\"}}",
+      source: "https://github.com/vuejs/language-tools",
+      nix: vue-language-server
+    },
+    {
+      common: {
+        name: wasm-language-tools
+      },
+      command: wat_server,
+      source: "https://github.com/g-plane/wasm-language-tools"
+    },
+    {
+      common: {
+        name: wgsl-analyzer
+      },
+      command: wgsl-analyzer,
+      source: "https://github.com/wgsl-analyzer/wgsl-analyzer",
+      nix: wgsl-analyzer
+    },
+    {
+      common: {
+        name: wikitext-lsp
+      },
+      command: wikitext-lsp,
+      args: [
+        --stdio
+      ],
+      source: "https://github.com/bhsd-harry/vscode-extension-wikiparser"
+    },
+    {
+      common: {
+        name: yaml-language-server
+      },
+      command: yaml-language-server,
+      args: [
+        --stdio
+      ],
+      source: "https://github.com/redhat-developer/yaml-language-server",
+      nix: yaml-language-server
+    },
+    {
+      common: {
+        name: yls
+      },
+      command: yls,
+      args: [
+        -vv
+      ],
+      source: "https://github.com/avast/yls"
+    },
+    {
+      common: {
+        name: zls
+      },
+      command: zls,
+      source: "https://github.com/zigtools/zls",
+      nix: zls
+    }
+  ]
+}

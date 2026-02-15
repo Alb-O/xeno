@@ -9,6 +9,7 @@ use crate::MetaCommonSpec;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LspServersSpec {
+	#[serde(default)]
 	pub servers: Vec<LspServerSpec>,
 }
 
@@ -16,9 +17,14 @@ pub struct LspServersSpec {
 pub struct LspServerSpec {
 	pub common: MetaCommonSpec,
 	pub command: String,
+	#[serde(default)]
 	pub args: Vec<String>,
+	#[serde(default)]
 	pub environment: BTreeMap<String, String>,
+	#[serde(default)]
 	pub config_json: Option<String>,
+	#[serde(default)]
 	pub source: Option<String>,
+	#[serde(default)]
 	pub nix: Option<String>,
 }
