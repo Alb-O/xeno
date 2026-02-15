@@ -1,4 +1,5 @@
 #![feature(portable_simd)]
+#![cfg_attr(test, allow(unused_crate_dependencies))]
 //! Fuzzy matcher engine used by editor completion and search paths.
 //!
 //! Provides one-shot and incremental APIs, prefiltering backends, and
@@ -7,8 +8,6 @@
 
 use std::cmp::Ordering;
 
-#[cfg(test)]
-use criterion as _;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
