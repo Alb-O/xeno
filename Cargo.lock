@@ -6506,7 +6506,7 @@ checksum = "bec9e4a500ca8864c5b47b8b482a73d62e4237670e5b5f1d6b9e3cae50f28f2b"
 
 [[package]]
 name = "xeno-editor"
-version = "0.9.1"
+version = "0.9.2"
 dependencies = [
  "anyhow",
  "base64",
@@ -6547,7 +6547,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-editor-iced"
-version = "0.9.1"
+version = "0.9.2"
 dependencies = [
  "iced",
  "iced_core",
@@ -6558,7 +6558,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-editor-tui"
-version = "0.9.1"
+version = "0.9.2"
 dependencies = [
  "termina",
  "tracing",
@@ -6569,7 +6569,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-input"
-version = "0.9.1"
+version = "0.9.2"
 dependencies = [
  "regex",
  "ropey",
@@ -6581,11 +6581,11 @@ dependencies = [
 
 [[package]]
 name = "xeno-invocation-spec"
-version = "0.9.1"
+version = "0.9.2"
 
 [[package]]
 name = "xeno-keymap-core"
-version = "0.9.1"
+version = "0.9.2"
 dependencies = [
  "xeno-keymap-parser",
  "xeno-primitives",
@@ -6593,7 +6593,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-keymap-parser"
-version = "0.9.1"
+version = "0.9.2"
 dependencies = [
  "serde",
  "strum",
@@ -6603,7 +6603,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-language"
-version = "0.9.1"
+version = "0.9.2"
 dependencies = [
  "cc",
  "regex",
@@ -6620,7 +6620,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-lsp"
-version = "0.9.1"
+version = "0.9.2"
 dependencies = [
  "async-trait",
  "lsp-types",
@@ -6644,7 +6644,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-macros"
-version = "0.9.1"
+version = "0.9.2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6653,7 +6653,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-matcher"
-version = "0.9.1"
+version = "0.9.2"
 dependencies = [
  "criterion",
  "multiversion",
@@ -6663,7 +6663,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-nu"
-version = "0.9.1"
+version = "0.9.2"
 dependencies = [
  "nu-cmd-lang",
  "nu-engine",
@@ -6674,7 +6674,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-primitives"
-version = "0.9.1"
+version = "0.9.2"
 dependencies = [
  "bitflags 2.11.0",
  "proptest",
@@ -6689,7 +6689,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-registry"
-version = "0.9.1"
+version = "0.9.2"
 dependencies = [
  "arc-swap",
  "bitflags 2.11.0",
@@ -6716,7 +6716,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-registry-spec"
-version = "0.9.1"
+version = "0.9.2"
 dependencies = [
  "nu-protocol",
  "nuon",
@@ -6727,7 +6727,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-rpc"
-version = "0.9.1"
+version = "0.9.2"
 dependencies = [
  "pin-project-lite",
  "thiserror 2.0.18",
@@ -6738,7 +6738,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-term"
-version = "0.9.1"
+version = "0.9.2"
 dependencies = [
  "anyhow",
  "clap",
@@ -6761,7 +6761,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-tree-house"
-version = "0.9.1"
+version = "0.9.2"
 dependencies = [
  "arc-swap",
  "regex",
@@ -6773,7 +6773,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-tui"
-version = "0.9.1"
+version = "0.9.2"
 dependencies = [
  "anstyle",
  "bitflags 2.11.0",
