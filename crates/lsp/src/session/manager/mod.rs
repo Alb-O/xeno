@@ -1,4 +1,5 @@
 //! LSP session manager and transport event router.
+//! Anchor ID: XENO_ANCHOR_LSP_MANAGER
 //!
 //! # Purpose
 //!

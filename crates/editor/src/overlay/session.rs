@@ -1,4 +1,5 @@
 //! Overlay system for modal interactions and passive UI layers.
+//! Anchor ID: XENO_ANCHOR_OVERLAY_SESSION
 //!
 //! # Purpose
 //!

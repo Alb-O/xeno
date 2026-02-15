@@ -1,4 +1,5 @@
 //! Runtime registry container with atomic publication.
+//! Anchor ID: XENO_ANCHOR_REGISTRY_RUNTIME
 //!
 //! # Purpose
 //!

@@ -1,4 +1,5 @@
 //! Windowing and split layout system.
+//! Anchor ID: XENO_ANCHOR_LAYOUT_MANAGER
 //!
 //! # Purpose
 //!

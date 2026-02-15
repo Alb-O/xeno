@@ -1,4 +1,5 @@
 //! Syntax manager for background parsing, scheduling, and install policy.
+//! Anchor ID: XENO_ANCHOR_SYNTAX_MANAGER
 //!
 //! # Purpose
 //!

@@ -1,4 +1,5 @@
 //! Buffer - the core text editing unit.
+//! Anchor ID: XENO_ANCHOR_BUFFER
 //!
 //! # Purpose
 //!
