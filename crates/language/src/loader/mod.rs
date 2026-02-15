@@ -1,7 +1,7 @@
 //! Language loader and registry.
 //!
 //! The [`LanguageLoader`] is a thin wrapper over [`LanguageDb`] that implements
-//! [`tree_house::LanguageLoader`] for injection handling.
+//! [`xeno_tree_house::LanguageLoader`] for injection handling.
 //!
 //! [`LanguageDb`]: crate::db::LanguageDb
 
@@ -9,16 +9,16 @@ use std::borrow::Cow;
 use std::path::Path;
 use std::sync::Arc;
 
-pub use tree_house::Language as LanguageId;
-use tree_house::{InjectionLanguageMarker, Language, LanguageConfig as TreeHouseConfig};
 use xeno_registry::db::LANGUAGES;
 use xeno_registry::languages::registry::LanguageRef;
+pub use xeno_tree_house::Language as LanguageId;
+use xeno_tree_house::{InjectionLanguageMarker, Language, LanguageConfig as TreeHouseConfig};
 
 use crate::db::{LanguageDb, language_db};
 use crate::ids::{RegistryLanguageIdExt, TreeHouseLanguageExt};
 use crate::language::LanguageData;
 
-/// Wrapper over [`LanguageDb`] implementing `tree_house::LanguageLoader`.
+/// Wrapper over [`LanguageDb`] implementing `xeno_tree_house::LanguageLoader`.
 ///
 /// Use [`from_embedded()`](Self::from_embedded) to create a loader backed by
 /// the global language database (backed by the registry).
@@ -58,12 +58,12 @@ impl LanguageLoader {
 
 	/// Finds a language by name.
 	pub fn language_for_name(&self, name: &str) -> Option<Language> {
-		LANGUAGES.get(name).map(|r: LanguageRef| r.dense_id().to_tree_house())
+		LANGUAGES.get(name).map(|r: LanguageRef| r.dense_id().to_xeno_tree_house())
 	}
 
 	/// Finds a language by file path.
 	pub fn language_for_path(&self, path: &Path) -> Option<Language> {
-		LANGUAGES.resolve_path(path).map(|r: LanguageRef| r.dense_id().to_tree_house())
+		LANGUAGES.resolve_path(path).map(|r: LanguageRef| r.dense_id().to_xeno_tree_house())
 	}
 
 	/// Finds a language by shebang line.
@@ -83,7 +83,7 @@ impl LanguageLoader {
 
 		interpreter.and_then(|interp| {
 			let base = interp.trim_end_matches(|c: char| c.is_ascii_digit());
-			LANGUAGES.language_for_shebang(base).map(|r: LanguageRef| r.dense_id().to_tree_house())
+			LANGUAGES.language_for_shebang(base).map(|r: LanguageRef| r.dense_id().to_xeno_tree_house())
 		})
 	}
 
@@ -93,7 +93,7 @@ impl LanguageLoader {
 			let data = LanguageData { entry: l };
 			data.injection_regex()
 				.filter(|r| r.is_match(text))
-				.map(|_| data.entry.dense_id().to_tree_house())
+				.map(|_| data.entry.dense_id().to_xeno_tree_house())
 		})
 	}
 
@@ -102,7 +102,7 @@ impl LanguageLoader {
 		LANGUAGES
 			.snapshot_guard()
 			.iter_refs()
-			.map(|l: LanguageRef| (l.dense_id().to_tree_house(), LanguageData { entry: l }))
+			.map(|l: LanguageRef| (l.dense_id().to_xeno_tree_house(), LanguageData { entry: l }))
 	}
 
 	/// Returns the number of registered languages.
@@ -127,7 +127,7 @@ pub struct LoaderView<'a> {
 	injections: bool,
 }
 
-impl tree_house::LanguageLoader for LoaderView<'_> {
+impl xeno_tree_house::LanguageLoader for LoaderView<'_> {
 	fn language_for_marker(&self, marker: InjectionLanguageMarker) -> Option<Language> {
 		if !self.injections {
 			return None;
@@ -140,7 +140,7 @@ impl tree_house::LanguageLoader for LoaderView<'_> {
 	}
 }
 
-impl tree_house::LanguageLoader for LanguageLoader {
+impl xeno_tree_house::LanguageLoader for LanguageLoader {
 	fn language_for_marker(&self, marker: InjectionLanguageMarker) -> Option<Language> {
 		match marker {
 			InjectionLanguageMarker::Name(name) => self.language_for_name(name),

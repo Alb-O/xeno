@@ -1,9 +1,9 @@
 //! Language metadata wrapper and syntax-config derivation helpers.
 
 use tracing::warn;
-use tree_house::LanguageConfig as TreeHouseConfig;
 use xeno_registry::languages::registry::LanguageRef;
 use xeno_registry::themes::SyntaxStyles;
+use xeno_tree_house::LanguageConfig as TreeHouseConfig;
 
 use crate::grammar::load_grammar_or_build;
 use crate::query::read_query;
@@ -180,7 +180,7 @@ pub(crate) fn load_syntax_config(entry: &LanguageRef) -> Option<TreeHouseConfig>
 					}
 				}
 
-				best_index.map(|idx| tree_house::highlighter::Highlight::new(idx as u32))
+				best_index.map(|idx| xeno_tree_house::highlighter::Highlight::new(idx as u32))
 			});
 			Some(config)
 		}

@@ -6,20 +6,20 @@
 use std::iter;
 
 use ropey::RopeSlice;
-use tree_house::TREE_SITTER_MATCH_LIMIT;
-use tree_house::tree_sitter::query::{InvalidPredicateError, UserPredicate};
-use tree_house::tree_sitter::{Grammar, InactiveQueryCursor, Node, Query, RopeInput};
+use xeno_tree_house::TREE_SITTER_MATCH_LIMIT;
+use xeno_tree_house::tree_sitter::query::{InvalidPredicateError, UserPredicate};
+use xeno_tree_house::tree_sitter::{Grammar, InactiveQueryCursor, Node, Query, RopeInput};
 
 use crate::grammar::query_search_paths;
 
 /// Reads a query file for a language.
 ///
 /// Checks embedded assets first, then filesystem paths for user overrides.
-/// Resolves `; inherits` directives via [`tree_house::read_query`].
+/// Resolves `; inherits` directives via [`xeno_tree_house::read_query`].
 pub fn read_query(lang: &str, filename: &str) -> String {
 	let query_type = filename.strip_suffix(".scm").unwrap_or(filename);
 
-	tree_house::read_query(lang, |query_lang| {
+	xeno_tree_house::read_query(lang, |query_lang| {
 		if let Some(lang_ref) = xeno_registry::LANGUAGES.get(query_lang)
 			&& let Some(content) = xeno_registry::languages::queries::get_query_text(&lang_ref, query_type)
 		{
@@ -44,16 +44,16 @@ pub struct IndentQuery {
 	/// The compiled tree-sitter query.
 	query: Query,
 	/// Capture for nodes that increase indentation.
-	indent_capture: Option<tree_house::tree_sitter::Capture>,
+	indent_capture: Option<xeno_tree_house::tree_sitter::Capture>,
 	/// Capture for nodes that decrease indentation.
-	dedent_capture: Option<tree_house::tree_sitter::Capture>,
+	dedent_capture: Option<xeno_tree_house::tree_sitter::Capture>,
 	/// Capture for nodes that extend the current indentation scope.
-	extend_capture: Option<tree_house::tree_sitter::Capture>,
+	extend_capture: Option<xeno_tree_house::tree_sitter::Capture>,
 }
 
 impl IndentQuery {
 	/// Compiles an indent query from source.
-	pub fn new(grammar: Grammar, source: &str) -> Result<Self, tree_house::tree_sitter::query::ParseError> {
+	pub fn new(grammar: Grammar, source: &str) -> Result<Self, xeno_tree_house::tree_sitter::query::ParseError> {
 		let query = Query::new(grammar, source, |_pattern, predicate| {
 			// Allow common indent predicates
 			match predicate {
@@ -88,7 +88,7 @@ pub struct TextObjectQuery {
 
 impl TextObjectQuery {
 	/// Compiles a text object query from source.
-	pub fn new(grammar: Grammar, source: &str) -> Result<Self, tree_house::tree_sitter::query::ParseError> {
+	pub fn new(grammar: Grammar, source: &str) -> Result<Self, xeno_tree_house::tree_sitter::query::ParseError> {
 		let query = Query::new(grammar, source, |_, _| Ok(()))?;
 		Ok(Self { query })
 	}
@@ -179,7 +179,7 @@ pub struct TagQuery {
 
 impl TagQuery {
 	/// Compiles a tag query from source.
-	pub fn new(grammar: Grammar, source: &str) -> Result<Self, tree_house::tree_sitter::query::ParseError> {
+	pub fn new(grammar: Grammar, source: &str) -> Result<Self, xeno_tree_house::tree_sitter::query::ParseError> {
 		let query = Query::new(grammar, source, |_pattern, predicate| {
 			// Allow tag-specific predicates
 			match predicate {
@@ -202,14 +202,14 @@ pub struct RainbowQuery {
 	/// The compiled tree-sitter query for rainbow brackets.
 	pub query: Query,
 	/// Capture for nodes that define a nesting scope for bracket coloring.
-	pub scope_capture: Option<tree_house::tree_sitter::Capture>,
+	pub scope_capture: Option<xeno_tree_house::tree_sitter::Capture>,
 	/// Capture for bracket characters to be colorized.
-	pub bracket_capture: Option<tree_house::tree_sitter::Capture>,
+	pub bracket_capture: Option<xeno_tree_house::tree_sitter::Capture>,
 }
 
 impl RainbowQuery {
 	/// Compiles a rainbow query from source.
-	pub fn new(grammar: Grammar, source: &str) -> Result<Self, tree_house::tree_sitter::query::ParseError> {
+	pub fn new(grammar: Grammar, source: &str) -> Result<Self, xeno_tree_house::tree_sitter::query::ParseError> {
 		let query = Query::new(grammar, source, |_pattern, predicate| match predicate {
 			UserPredicate::SetProperty {
 				key: "rainbow.include-children",

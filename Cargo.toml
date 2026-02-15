@@ -81,7 +81,6 @@ tower-layer = "0.3"
 tower-service = "0.3"
 tracing = "0.1"
 tracing-subscriber = "0.3"
-tree-house = { path = "crates/tree-house", default-features = false }
 tree-sitter = { package = "tree-house-bindings", version = "0.2.2" }
 tree-sitter-language = "0.1.7"
 unicode-segmentation = "1.12"
@@ -106,6 +105,7 @@ xeno-primitives = { path = "crates/primitives" }
 xeno-registry = { path = "crates/registry" }
 xeno-registry-spec = { path = "crates/registry-spec" }
 xeno-rpc = { path = "crates/rpc" }
+xeno-tree-house = { path = "crates/tree-house", default-features = false }
 xeno-tui = { path = "crates/tui" }
 
 [workspace.lints.rust]

@@ -1,13 +1,13 @@
-use tree_house::Language as ThLanguage;
 use xeno_registry::{DenseId, LanguageId};
+use xeno_tree_house::Language as ThLanguage;
 
 /// Conversions are intentionally explicit and checked.
 pub trait RegistryLanguageIdExt {
-	fn to_tree_house(self) -> ThLanguage;
+	fn to_xeno_tree_house(self) -> ThLanguage;
 }
 
 impl RegistryLanguageIdExt for LanguageId {
-	fn to_tree_house(self) -> ThLanguage {
+	fn to_xeno_tree_house(self) -> ThLanguage {
 		ThLanguage::new(self.as_u32())
 	}
 }

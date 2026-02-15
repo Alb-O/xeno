@@ -1,5 +1,5 @@
 [package]
-name = "tree-house"
+name = "xeno-tree-house"
 description = "Tree-sitter syntax and highlighting integration"
 version.workspace = true
 edition.workspace = true

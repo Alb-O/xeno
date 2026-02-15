@@ -1,6 +1,6 @@
 //! Core syntax parsing and incremental updates.
 //!
-//! This module wraps tree-house's Syntax type to provide incremental parsing
+//! This module wraps xeno-tree-house's Syntax type to provide incremental parsing
 //! that integrates with Xeno's ChangeSet/Transaction system.
 
 use std::ops::RangeBounds;
@@ -9,9 +9,9 @@ use std::time::Duration;
 
 use ropey::RopeSlice;
 use thiserror::Error;
-pub use tree_house::SealedSource;
-use tree_house::tree_sitter::{InputEdit, Node, Tree};
-use tree_house::{Language, Layer, TreeCursor};
+pub use xeno_tree_house::SealedSource;
+use xeno_tree_house::tree_sitter::{InputEdit, Node, Tree};
+use xeno_tree_house::{Language, Layer, TreeCursor};
 
 use crate::highlight::Highlighter;
 use crate::loader::LanguageLoader;
@@ -30,7 +30,7 @@ const DEFAULT_PARSE_TIMEOUT: Duration = Duration::from_millis(500);
 /// Injection handling policy.
 ///
 /// NOTE: actual injection enable/disable is implemented by `LanguageLoader`
-/// (tree-house queries + injected language resolution). `SyntaxOptions` just
+/// (xeno-tree-house queries + injected language resolution). `SyntaxOptions` just
 /// plumbs the intent through the call chain.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum InjectionPolicy {
@@ -72,20 +72,20 @@ pub enum SyntaxError {
 	NoLanguage,
 }
 
-impl From<tree_house::Error> for SyntaxError {
-	fn from(e: tree_house::Error) -> Self {
+impl From<xeno_tree_house::Error> for SyntaxError {
+	fn from(e: xeno_tree_house::Error) -> Self {
 		match e {
-			tree_house::Error::Timeout => SyntaxError::Timeout,
+			xeno_tree_house::Error::Timeout => SyntaxError::Timeout,
 			other => SyntaxError::Parse(other.to_string()),
 		}
 	}
 }
 
-/// Wrapper around tree-house Syntax for Xeno integration.
+/// Wrapper around xeno-tree-house Syntax for Xeno integration.
 #[derive(Debug, Clone)]
 pub struct Syntax {
-	/// The underlying tree-house syntax tree.
-	inner: tree_house::Syntax,
+	/// The underlying xeno-tree-house syntax tree.
+	inner: xeno_tree_house::Syntax,
 	/// Options used for the current parse.
 	opts: SyntaxOptions,
 	/// Metadata for viewport-first trees.
@@ -103,7 +103,7 @@ impl Syntax {
 	/// Creates a new syntax tree with the given options.
 	pub fn new(source: RopeSlice, language: Language, loader: &LanguageLoader, opts: SyntaxOptions) -> Result<Self, SyntaxError> {
 		let loader = loader.with_injections(matches!(opts.injections, InjectionPolicy::Eager));
-		let inner = tree_house::Syntax::new(source, language, opts.parse_timeout, &loader)?;
+		let inner = xeno_tree_house::Syntax::new(source, language, opts.parse_timeout, &loader)?;
 		Ok(Self { inner, opts, viewport: None })
 	}
 
@@ -116,7 +116,7 @@ impl Syntax {
 		base_offset: u32,
 	) -> Result<Self, SyntaxError> {
 		let loader = loader.with_injections(matches!(opts.injections, InjectionPolicy::Eager));
-		let inner = tree_house::Syntax::new(sealed.slice(), language, opts.parse_timeout, &loader)?;
+		let inner = xeno_tree_house::Syntax::new(sealed.slice(), language, opts.parse_timeout, &loader)?;
 		Ok(Self {
 			inner,
 			opts,
@@ -186,7 +186,7 @@ impl Syntax {
 	}
 
 	/// Gets data for a specific layer.
-	pub fn layer(&self, layer: Layer) -> &tree_house::LayerData {
+	pub fn layer(&self, layer: Layer) -> &xeno_tree_house::LayerData {
 		self.inner.layer(layer)
 	}
 

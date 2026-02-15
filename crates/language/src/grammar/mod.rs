@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 
 use thiserror::Error;
 use tracing::{info, warn};
-use tree_house::tree_sitter::Grammar;
+use xeno_tree_house::tree_sitter::Grammar;
 
 /// Errors that can occur when loading a grammar.
 #[derive(Error, Debug)]

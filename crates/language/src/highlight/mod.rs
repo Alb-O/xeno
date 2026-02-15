@@ -6,8 +6,8 @@
 use std::ops::{Bound, RangeBounds};
 
 use ropey::RopeSlice;
-pub use tree_house::highlighter::{Highlight, HighlightEvent};
 use xeno_primitives::Style;
+pub use xeno_tree_house::highlighter::{Highlight, HighlightEvent};
 
 use crate::loader::LanguageLoader;
 
@@ -54,11 +54,11 @@ impl HighlightStyles {
 
 /// Iterator that produces syntax highlight spans.
 ///
-/// This wraps tree-house's highlighter to provide an ergonomic `Iterator` API
+/// This wraps xeno-tree-house's highlighter to provide an ergonomic `Iterator` API
 /// that yields `HighlightSpan` items directly, avoiding allocation.
 pub struct Highlighter<'a> {
-	/// The underlying tree-house highlighter.
-	inner: tree_house::highlighter::Highlighter<'a, 'a, LanguageLoader>,
+	/// The underlying xeno-tree-house highlighter.
+	inner: xeno_tree_house::highlighter::Highlighter<'a, 'a, LanguageLoader>,
 	/// Byte offset where highlighting should stop (local to the window).
 	end_byte: u32,
 	/// Current span start position (doc-global).
@@ -79,7 +79,7 @@ impl<'a> Highlighter<'a> {
 	}
 
 	/// Creates a new highlighter for the given syntax tree and range.
-	pub fn new(syntax: &'a tree_house::Syntax, source: RopeSlice<'a>, loader: &'a LanguageLoader, range: impl RangeBounds<u32>) -> Self {
+	pub fn new(syntax: &'a xeno_tree_house::Syntax, source: RopeSlice<'a>, loader: &'a LanguageLoader, range: impl RangeBounds<u32>) -> Self {
 		let start = match range.start_bound() {
 			Bound::Included(&n) => n,
 			Bound::Excluded(&n) => n + 1,
@@ -91,7 +91,7 @@ impl<'a> Highlighter<'a> {
 			Bound::Unbounded => source.len_bytes() as u32,
 		};
 
-		let inner = tree_house::highlighter::Highlighter::new(syntax, source, loader, start..end);
+		let inner = xeno_tree_house::highlighter::Highlighter::new(syntax, source, loader, start..end);
 
 		Self {
 			current_start: Self::doc_offset(0, inner.next_event_offset()),
@@ -105,7 +105,7 @@ impl<'a> Highlighter<'a> {
 
 	/// Creates a new mapped highlighter for a viewport tree parsed from a window.
 	pub fn new_mapped(
-		syntax: &'a tree_house::Syntax,
+		syntax: &'a xeno_tree_house::Syntax,
 		source: RopeSlice<'a>, // SEALED window source
 		loader: &'a LanguageLoader,
 		doc_range: impl RangeBounds<u32>, // doc-global viewport range
@@ -130,7 +130,7 @@ impl<'a> Highlighter<'a> {
 		let end_local_cap = end_doc.saturating_sub(base);
 		end_local = end_local.min(end_local_cap);
 
-		let inner = tree_house::highlighter::Highlighter::new(syntax, source, loader, start_local..end_local);
+		let inner = xeno_tree_house::highlighter::Highlighter::new(syntax, source, loader, start_local..end_local);
 
 		Self {
 			current_start: Self::doc_offset(base, inner.next_event_offset()),
@@ -175,7 +175,7 @@ impl<'a> Highlighter<'a> {
 	}
 }
 
-/// Advances through tree-house [`HighlightEvent`]s, emitting one
+/// Advances through xeno-tree-house [`HighlightEvent`]s, emitting one
 /// [`HighlightSpan`] per contiguous styled region.
 ///
 /// Each event marks a boundary where the highlight stack changes. The iterator

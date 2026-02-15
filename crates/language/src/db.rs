@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
-use tree_house::LanguageConfig as TreeHouseConfig;
 use xeno_registry::db::LANGUAGES;
 use xeno_registry::languages::registry::LanguageRef;
 use xeno_registry::{DenseId, LanguageId};
+use xeno_tree_house::LanguageConfig as TreeHouseConfig;
 
 use crate::language::LanguageData;
 use crate::lsp_config::LanguageLspInfo;

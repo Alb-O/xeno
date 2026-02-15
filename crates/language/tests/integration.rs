@@ -14,7 +14,7 @@ use xeno_language::grammar::{grammar_search_paths, load_grammar};
 use xeno_language::highlight::{Highlight, HighlightStyles};
 use xeno_language::syntax::Syntax;
 
-fn create_test_loader() -> (LanguageLoader, tree_house::Language) {
+fn create_test_loader() -> (LanguageLoader, xeno_tree_house::Language) {
 	let loader = LanguageLoader::from_embedded();
 	let rust_lang = loader.language_for_name("rust").expect("rust should be in embedded registry");
 	(loader, rust_lang)
@@ -208,9 +208,9 @@ fn test_full_highlighting_pipeline() {
 }
 
 #[test]
-fn test_language_loader_tree_house_trait() {
-	// Verify LanguageLoader implements tree_house::LanguageLoader
-	fn assert_language_loader<T: tree_house::LanguageLoader>() {}
+fn test_language_loader_xeno_tree_house_trait() {
+	// Verify LanguageLoader implements xeno_tree_house::LanguageLoader
+	fn assert_language_loader<T: xeno_tree_house::LanguageLoader>() {}
 	assert_language_loader::<LanguageLoader>();
 }
 
@@ -424,7 +424,7 @@ fn main() {}
 	// Print the rust tree
 	println!("\n--- Rust tree around doc comments ---");
 	let rust_tree = syntax.tree();
-	fn print_rust_tree(node: tree_house::tree_sitter::Node, depth: usize, max_depth: usize) {
+	fn print_rust_tree(node: xeno_tree_house::tree_sitter::Node, depth: usize, max_depth: usize) {
 		if depth > max_depth {
 			return;
 		}
@@ -465,9 +465,9 @@ fn main() {}
 		}
 	}
 
-	// Check via tree_house::LanguageLoader trait
-	use tree_house::LanguageLoader as TreeHouseLoader;
-	println!("\n--- tree_house::LanguageLoader.get_config checks ---");
+	// Check via xeno_tree_house::LanguageLoader trait
+	use xeno_tree_house::LanguageLoader as TreeHouseLoader;
+	println!("\n--- xeno_tree_house::LanguageLoader.get_config checks ---");
 	for layer in syntax.layers_for_byte_range(link_start as u32, link_end as u32) {
 		let layer_data = syntax.layer(layer);
 		let lang_id = layer_data.language;
@@ -489,7 +489,7 @@ fn main() {}
 
 			// Print the tree structure for markdown.inline
 			if lang_name == "markdown.inline" {
-				fn print_tree(node: tree_house::tree_sitter::Node, depth: usize) {
+				fn print_tree(node: xeno_tree_house::tree_sitter::Node, depth: usize) {
 					let indent = "  ".repeat(depth);
 					println!(
 						"{}    {} {} [{}-{}]",

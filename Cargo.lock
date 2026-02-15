@@ -5041,18 +5041,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tree-house"
-version = "0.9.1"
-dependencies = [
- "arc-swap",
- "regex",
- "regex-cursor",
- "ropey",
- "slab",
- "tree-house-bindings",
-]
-
-[[package]]
 name = "tree-house-bindings"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6624,10 +6612,10 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.18",
  "tracing",
- "tree-house",
  "xeno-primitives",
  "xeno-registry",
  "xeno-registry-spec",
+ "xeno-tree-house",
 ]
 
 [[package]]
@@ -6769,6 +6757,18 @@ dependencies = [
  "xeno-editor",
  "xeno-editor-tui",
  "xeno-language",
+]
+
+[[package]]
+name = "xeno-tree-house"
+version = "0.9.1"
+dependencies = [
+ "arc-swap",
+ "regex",
+ "regex-cursor",
+ "ropey",
+ "slab",
+ "tree-house-bindings",
 ]
 
 [[package]]

@@ -3,7 +3,7 @@
 //! Tree-sitter syntax integration
 //!
 //! This crate provides Tree-sitter parsing, syntax highlighting, and structural
-//! queries using the `tree-house` abstraction library.
+//! queries using the `xeno-tree-house` abstraction library.
 //! Grammar operations in this crate must emit diagnostics through tracing, not
 //! stderr.
 //!
@@ -11,7 +11,7 @@
 //!
 //! * [`grammar`]: Dynamic grammar loading from shared libraries
 //! * [`language`]: Language metadata (extensions, filenames, shebangs)
-//! * [`loader`]: Language registry implementing `tree_house::LanguageLoader`
+//! * [`loader`]: Language registry implementing `xeno_tree_house::LanguageLoader`
 //! * [`query`]: Query types for indentation, text objects, tags
 //! * [`highlight`]: Syntax highlighting via tree-sitter queries
 //! * [`build`]: Grammar source configuration and grammar build orchestration

@@ -1,6 +1,6 @@
 use ropey::RopeSlice;
-use tree_house::tree_sitter::{InputEdit, Point};
 use xeno_primitives::transaction::Operation;
+use xeno_tree_house::tree_sitter::{InputEdit, Point};
 
 /// Generates tree-sitter InputEdits from a Xeno ChangeSet.
 pub(super) fn generate_edits(old_text: RopeSlice, changeset: &xeno_primitives::ChangeSet) -> Vec<InputEdit> {

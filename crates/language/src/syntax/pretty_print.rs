@@ -1,6 +1,6 @@
 use std::fmt::Write;
 
-use tree_house::tree_sitter::Node;
+use xeno_tree_house::tree_sitter::Node;
 
 /// Pretty-prints a syntax tree node for debugging.
 pub fn pretty_print_tree<W: Write>(fmt: &mut W, node: Node) -> std::fmt::Result {
@@ -16,7 +16,7 @@ pub fn pretty_print_tree<W: Write>(fmt: &mut W, node: Node) -> std::fmt::Result 
 }
 
 /// Recursive implementation of tree pretty-printing.
-fn pretty_print_tree_impl<W: Write>(fmt: &mut W, cursor: &mut tree_house::tree_sitter::TreeCursor, depth: usize) -> std::fmt::Result {
+fn pretty_print_tree_impl<W: Write>(fmt: &mut W, cursor: &mut xeno_tree_house::tree_sitter::TreeCursor, depth: usize) -> std::fmt::Result {
 	let node = cursor.node();
 	let visible = node.is_missing() || (node.is_named() && node.grammar().node_kind_is_visible(node.kind_id()));
 
