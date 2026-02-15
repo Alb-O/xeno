@@ -42,7 +42,7 @@ pub(crate) async fn test_sync_bootstrap_attempted_only_once_when_throttled() {
 	assert_eq!(engine.parse_count.load(Ordering::SeqCst), 2);
 }
 
-/// Highlight rendering must skip spans when `tree_doc_version` differs from
+/// Must skip highlight spans when `tree_doc_version` differs from
 /// the rendered document version.
 ///
 /// * Enforced in: `HighlightTiles::build_tile_spans` (in `crate::render::cache::highlight`)

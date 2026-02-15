@@ -29,9 +29,6 @@ mod splits;
 mod types;
 mod views;
 
-#[cfg(test)]
-mod invariants;
-
 pub use manager::LayoutManager;
 pub use splits::SplitError;
 pub use types::{LayerError, LayerId, SeparatorHit, SeparatorId};

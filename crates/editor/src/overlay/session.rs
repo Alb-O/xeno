@@ -82,3 +82,7 @@ use crate::window::{GutterSelector, SurfaceStyle};
 mod state;
 
 pub use state::*;
+
+#[cfg(test)]
+#[path = "invariants.rs"]
+mod invariants;

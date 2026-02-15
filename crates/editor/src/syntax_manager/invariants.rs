@@ -147,4 +147,5 @@ pub(super) async fn wait_for_finish(mgr: &SyntaxManager) {
 /// * Enforced in: `SyntaxManager::ensure_syntax`
 /// * Failure symptom: Multiple redundant parse tasks for the same document identity.
 #[cfg(test)]
+#[path = "invariants/tests/mod.rs"]
 mod tests;

@@ -23,10 +23,10 @@ pub struct ParsedSpec {
 /// Parse an invocation spec string into its components.
 ///
 /// Accepted formats:
-/// - `action:<name>` — no whitespace allowed in name, no args
-/// - `command:<name> [args...]` — shell-like quoting for args
-/// - `editor:<name> [args...]` — shell-like quoting for args
-/// - `nu:<name> [args...]` — shell-like quoting for args
+/// * `action:<name>` — no whitespace allowed in name, no args
+/// * `command:<name> [args...]` — shell-like quoting for args
+/// * `editor:<name> [args...]` — shell-like quoting for args
+/// * `nu:<name> [args...]` — shell-like quoting for args
 pub fn parse_spec(spec: &str) -> Result<ParsedSpec, String> {
 	let spec = spec.trim();
 	if spec.is_empty() {

@@ -78,3 +78,7 @@ use crate::core::{DenseId, DuplicatePolicy, InternerBuilder, Party, RegistryEntr
 mod state;
 
 pub use state::{RegisterError, RuntimeEntry, RuntimeRegistry};
+
+#[cfg(test)]
+#[path = "invariants.rs"]
+mod invariants;

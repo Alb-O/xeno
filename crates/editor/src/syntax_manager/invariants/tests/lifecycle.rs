@@ -3,6 +3,10 @@ use xeno_primitives::transaction::Change;
 
 use super::*;
 
+/// Must enforce single-flight per document.
+///
+/// * Enforced in: `SyntaxManager::ensure_syntax`
+/// * Failure symptom: Multiple redundant parse tasks for the same document identity.
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_single_flight_per_doc() {
 	let engine = Arc::new(MockEngine::new());

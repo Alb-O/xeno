@@ -88,9 +88,6 @@ pub(crate) fn u32_index(idx: usize, what: &'static str) -> u32 {
 }
 
 #[cfg(test)]
-mod invariants;
-
-#[cfg(test)]
 pub(crate) mod test_fixtures;
 
 #[cfg(test)]

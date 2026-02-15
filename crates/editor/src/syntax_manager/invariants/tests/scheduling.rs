@@ -99,8 +99,10 @@ pub(crate) async fn test_invalidate_does_not_release_permit_until_task_finishes(
 	assert_eq!(r.result, SyntaxPollResult::Kicked);
 }
 
-/// Version monotonicity; a completed V5 parse must not clobber a
-/// V7 tree that was installed via sync incremental updates.
+/// Must keep installed syntax version monotonic across async completion races.
+///
+/// * Enforced in: `should_install_completed_parse`
+/// * Failure symptom: A stale background parse clobbers a newer resident tree.
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_monotonic_version_guard() {
 	let engine = Arc::new(MockEngine::new());
@@ -150,7 +152,10 @@ pub(crate) async fn test_monotonic_version_guard() {
 	assert_eq!(mgr.syntax_doc_version(doc_id), Some(7), "V5 should not clobber V7");
 }
 
-/// History edits bypass debounce.
+/// Must bypass debounce for history edits.
+///
+/// * Enforced in: `SyntaxManager::note_edit`, `SyntaxManager::ensure_syntax`
+/// * Failure symptom: Undo/redo highlighting lags behind and repaints late.
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_history_op_bypasses_debounce() {
 	let engine = Arc::new(MockEngine::new());
@@ -276,8 +281,10 @@ pub(crate) fn test_history_edit_restores_full_tree_from_memory() {
 	assert!(entry.sched.force_no_debounce);
 }
 
-/// Cold eviction and re-bootstrap; a document evicted due to Cold
-/// hotness is re-bootstrapped immediately when it becomes visible again.
+/// Must re-bootstrap immediately when a cold-evicted document becomes visible again.
+///
+/// * Enforced in: `SyntaxManager::sweep_retention`, `SyntaxManager::ensure_syntax`
+/// * Failure symptom: Visible document remains unhighlighted after cold eviction.
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_cold_eviction_reload() {
 	let engine = Arc::new(MockEngine::new());
@@ -318,8 +325,10 @@ pub(crate) async fn test_cold_eviction_reload() {
 	assert_eq!(poll.result, SyntaxPollResult::Kicked);
 }
 
-/// Cold retention throttles work; Cold hotness plus DropWhenHidden
-/// invalidates state and throttles new work until the permit is released.
+/// Must throttle cold-hidden work until in-flight permits are naturally released.
+///
+/// * Enforced in: `SyntaxManager::ensure_syntax`, `TaskCollector::spawn`
+/// * Failure symptom: Throttled documents bypass concurrency limits or resurrect stale work.
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_cold_throttles_work() {
 	let engine = Arc::new(MockEngine::new());
@@ -363,7 +372,7 @@ pub(crate) async fn test_cold_throttles_work() {
 	assert_eq!(poll3.result, SyntaxPollResult::Kicked);
 }
 
-/// Cold+DropWhenHidden invalidates the epoch, so returning to Visible re-kicks cleanly.
+/// Must re-kick cleanly after Cold+DropWhenHidden invalidates the epoch.
 ///
 /// * Enforced in: `SyntaxManager::ensure_syntax`, `SyntaxManager::sweep_retention`
 /// * Failure symptom: Document stays Disabled or stale task result installs after visibility change.

@@ -103,9 +103,9 @@ pub fn define_events(input: TokenStream) -> TokenStream {
 ///
 /// # Attributes
 ///
-/// - `key = "key-name"` - Required: configuration key
-/// - `scope = global | buffer` - Required: Option scope
-/// - `priority = N` - Optional: Sort priority (default 0)
+/// * `key = "key-name"` - Required: configuration key
+/// * `scope = global | buffer` - Required: Option scope
+/// * `priority = N` - Optional: Sort priority (default 0)
 ///
 /// # Supported Types
 ///

@@ -31,13 +31,13 @@
 //!
 //! # Key types
 //!
-//! | Type | Role | Notes |
-//! |---|---|---|
-//! | [`crate::syntax_manager::SyntaxManager`] | Orchestrator | Entry point from render/tick/edit paths |
-//! | [`crate::syntax_manager::SyntaxSlot`] | Tree state | Current tree, versions, pending incrementals |
-//! | `DocSched` | Scheduling state | Debounce, cooldown, in-flight bookkeeping |
-//! | [`crate::syntax_manager::EnsureSyntaxContext`] | Poll input | Per-document snapshot for scheduling |
-//! | [`crate::syntax_manager::HighlightProjectionCtx`] | Stale highlight mapping | Bridges stale tree spans to current rope |
+//! | Type | Meaning | Constraints | Constructed / mutated in |
+//! |---|---|---|---|
+//! | [`crate::syntax_manager::SyntaxManager`] | Orchestrator | Must route every poll through the derive→finalize pipeline | `SyntaxManager::ensure_syntax` |
+//! | [`crate::syntax_manager::SyntaxSlot`] | Per-document tree state | Must keep installed tree and `syntax_version` monotonic | `SyntaxManager::ensure_syntax`, `SyntaxManager::note_edit_incremental` |
+//! | `DocSched` | Per-document scheduling state | Must track cooldown/debounce/in-flight lanes without permit leaks | `scheduling::plan_work`, `tasks::TaskCollector::spawn` |
+//! | [`crate::syntax_manager::EnsureSyntaxContext`] | Poll input snapshot | Must represent a single coherent doc/version/language view | callsites in render/tick paths |
+//! | [`crate::syntax_manager::HighlightProjectionCtx`] | Stale highlight projection context | Must be exposed only when pending edits align to resident tree | `SyntaxManager::highlight_projection_ctx_for` |
 //!
 //! # Invariants
 //!
