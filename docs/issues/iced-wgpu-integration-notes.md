@@ -8,9 +8,9 @@ Investigate a minimal GUI frontend integration using `iced_wgpu` while preservin
 
 ## Implemented prototype
 
-* Added `xeno-editor-iced` crate (`crates/editor-iced`).
+* Added `xeno-frontend-iced` crate (`crates/frontend-iced`).
 * Added feature gate `iced-wgpu` so the crate can exist without forcing iced compilation in default workspace builds.
-* Added `xeno-iced` binary (`cargo run -p xeno-editor-iced --features iced-wgpu --bin xeno-iced`).
+* Added `xeno-iced` binary (`cargo run -p xeno-frontend-iced --features iced-wgpu --bin xeno-iced`).
 * Wired core runtime loop into iced:
   * `Editor::pump()` and `Editor::on_event(RuntimeEvent)` are driven by a local tokio runtime.
   * lifecycle hooks are emitted on startup and quit.
@@ -54,7 +54,7 @@ Investigate a minimal GUI frontend integration using `iced_wgpu` while preservin
 * Dependency wiring is local checkout based:
   * crate uses local `../iced` path checkout for `iced` dependency.
 * Linux display backend quirks:
-  * `xeno-editor-iced` enables both `x11` and `wayland` build features.
+  * `xeno-frontend-iced` enables both `x11` and `wayland` build features.
   * runtime now auto-selects Wayland first when available to avoid hard X11 runtime dependency on Wayland-only systems.
   * `XENO_ICED_BACKEND={wayland|x11}` can be used to force backend choice.
 

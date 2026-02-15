@@ -11,7 +11,7 @@ name = "xeno"
 path = "src/main.rs"
 
 [features]
-perf = ["xeno-editor-tui/perf"]
+perf = ["xeno-frontend-tui/perf"]
 lsp = ["xeno-editor/lsp"]
 
 [dependencies]
@@ -27,7 +27,7 @@ tracing-subscriber = { workspace = true, features = ["env-filter", "json"] }
 uuid.workspace = true
 which.workspace = true
 xeno-editor = { workspace = true, features = ["tui"] }
-xeno-editor-tui.workspace = true
+xeno-frontend-tui.workspace = true
 xeno-language.workspace = true
 
 [dev-dependencies]

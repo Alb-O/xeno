@@ -1,4 +1,4 @@
-# xeno-editor-iced
+# xeno-frontend-iced
 
 Experimental `iced_wgpu` frontend for `xeno-editor`.
 
@@ -11,8 +11,8 @@ If you keep a symlink at `xeno/iced -> ../iced`, the dependency path resolves co
 ## Commands
 
 ```bash
-cargo check -p xeno-editor-iced --features iced-wgpu
-cargo run -p xeno-editor-iced --features iced-wgpu --bin xeno-iced -- [path] [--theme NAME]
+cargo check -p xeno-frontend-iced --features iced-wgpu
+cargo run -p xeno-frontend-iced --features iced-wgpu --bin xeno-iced -- [path] [--theme NAME]
 ```
 
 ## Linux backend selection

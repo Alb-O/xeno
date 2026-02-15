@@ -6547,7 +6547,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "xeno-editor-iced"
+name = "xeno-frontend-iced"
 version = "0.9.3"
 dependencies = [
  "iced",
@@ -6558,7 +6558,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "xeno-editor-tui"
+name = "xeno-frontend-tui"
 version = "0.9.3"
 dependencies = [
  "termina",
@@ -6768,7 +6768,7 @@ dependencies = [
  "uuid",
  "which",
  "xeno-editor",
- "xeno-editor-tui",
+ "xeno-frontend-tui",
  "xeno-language",
 ]
 

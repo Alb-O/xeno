@@ -2,8 +2,8 @@
 resolver = "3"
 members = [
     "crates/editor",
-    "crates/editor-iced",
-    "crates/editor-tui",
+    "crates/frontend-iced",
+    "crates/frontend-tui",
     "crates/input",
     "crates/invocation",
     "crates/invocation-spec",
@@ -93,7 +93,7 @@ vt100 = "0.16"
 waitpid-any = "0.3"
 which = "8.0"
 xeno-editor = { path = "crates/editor" }
-xeno-editor-tui = { path = "crates/editor-tui" }
+xeno-frontend-tui = { path = "crates/frontend-tui" }
 xeno-input = { path = "crates/input" }
 xeno-invocation = { path = "crates/invocation" }
 xeno-invocation-spec = { path = "crates/invocation-spec" }

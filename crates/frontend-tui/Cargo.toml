@@ -1,5 +1,5 @@
 [package]
-name = "xeno-editor-tui"
+name = "xeno-frontend-tui"
 description = "Terminal frontend runtime and backend glue for xeno-editor"
 version.workspace = true
 edition.workspace = true

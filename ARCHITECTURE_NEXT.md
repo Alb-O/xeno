@@ -43,7 +43,7 @@ All returned types have private fields with getter-only access.
 
 ```bash
 # seam boundary grep (must be empty in frontend crates)
-rg -n "xeno_editor::(completion|snippet|overlay|ui|info_popup|window|geometry|render)::" crates/editor-tui/src crates/editor-iced/src
+rg -n "xeno_editor::(completion|snippet|overlay|ui|info_popup|window|geometry|render)::" crates/frontend-tui/src crates/frontend-iced/src
 
 # full check matrix
 cargo check --workspace --all-targets

@@ -15,7 +15,7 @@ Support multiple frontend implementations (TUI and GUI) with:
 Use a data-plan architecture:
 
 * `xeno-editor` owns behavior policy and emits frontend-facing data plans.
-* each frontend crate (`xeno-editor-tui`, future `xeno-editor-gui`) maps plans to native rendering/widgets.
+* each frontend crate (`xeno-frontend-tui`, future `xeno-frontend-gui`) maps plans to native rendering/widgets.
 * frontend crates own event loop, platform IO, and rendering backend details.
 
 ## Why this path
@@ -43,7 +43,7 @@ Expose:
 * scene/view-model plans
 * typed UI intents and overlay metadata (no direct access to overlay internals)
 
-### Frontends (`xeno-editor-tui`, `xeno-editor-gui`)
+### Frontends (`xeno-frontend-tui`, `xeno-frontend-gui`)
 
 Own:
 
@@ -96,7 +96,7 @@ Definition of done:
 
 ### Phase 4: add GUI frontend crate
 
-Create `xeno-editor-gui` with:
+Create `xeno-frontend-gui` with:
 
 * GUI event adapter -> `RuntimeEvent`
 * plan renderer for GUI toolkit
@@ -114,9 +114,9 @@ Completed:
 * frontend overlay reach-through removed (`overlay_interaction()` removed, overlay store access no longer needed in frontend crates)
 * plan-builder tests added for completion/snippet/statusline policy surfaces
 * TUI render-line adaptation centralized via a single adapter helper (`RenderLine` -> toolkit `Line`)
-* `xeno-editor-tui` no longer imports `xeno_registry` directly (hook lifecycle and notification payload mapping now route through `xeno-editor`)
+* `xeno-frontend-tui` no longer imports `xeno_registry` directly (hook lifecycle and notification payload mapping now route through `xeno-editor`)
 * `xeno-term` no longer imports `xeno_registry` directly (startup config load/apply now routes through `xeno-editor`)
-* experimental `xeno-editor-iced` frontend crate added behind `iced-wgpu` feature:
+* experimental `xeno-frontend-iced` frontend crate added behind `iced-wgpu` feature:
   * maps iced keyboard/window events into core `RuntimeEvent`
   * maps iced mouse cursor/button/scroll events into core `MouseEvent`
   * maps Command/Ctrl+V into core `RuntimeEvent::Paste` via iced clipboard read task
@@ -145,7 +145,7 @@ Current focus:
 Next:
 
 * add plan-builder snapshot/replay tests for cross-frontend behavior consistency
-* replace `xeno-editor-iced` snapshot rendering with full core render-plan adapters
+* replace `xeno-frontend-iced` snapshot rendering with full core render-plan adapters
 * extend iced event bridge (mouse, clipboard paste, IME) and align geometry semantics for non-terminal surfaces
 
 ## Guardrails (to avoid drift)
@@ -169,7 +169,7 @@ Run for each boundary-sensitive milestone:
 ```bash
 cargo check -p xeno-editor --all-targets
 cargo check -p xeno-editor --no-default-features --all-targets
-cargo check -p xeno-editor-tui
+cargo check -p xeno-frontend-tui
 cargo check -p xeno-term
 ```
 

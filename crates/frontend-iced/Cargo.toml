@@ -1,5 +1,5 @@
 [package]
-name = "xeno-editor-iced"
+name = "xeno-frontend-iced"
 description = "Experimental iced_wgpu frontend runtime for xeno-editor"
 version.workspace = true
 edition.workspace = true

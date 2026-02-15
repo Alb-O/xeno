@@ -11,7 +11,7 @@ use clap::Parser;
 use cli::{Cli, Command, FileLocation, GrammarAction};
 use tracing::info;
 use xeno_editor::Editor;
-use xeno_editor_tui::run_editor;
+use xeno_frontend_tui::run_editor;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
