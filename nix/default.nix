@@ -73,7 +73,12 @@ flake-parts.lib.mkFlake { inherit inputs; } {
         cargoLock = {
           lockFile = rootSrc + "/Cargo.lock";
           outputHashes = {
+            # my fork of tree-house
             "tree-house-0.3.0" = "sha256-sd9JUxcVaAyuI4DG/6qL95h+hC7Sk7BFEspxMKVRRKk=";
+            # required for iced upstream
+            "cryoglyph-0.1.0" = "sha256-Rnu2Du7zi/FCFgli1pPYIRNypuxBxcrOyIZzyWGezPE=";
+            "dpi-0.1.1" = "sha256-pQn1lCFSJMkjUfHoggEzMHnm5k+Chnzi5JEDjahnjUA=";
+            "iced-0.15.0-dev" = "sha256-VXdzZDDUjbPApvfEW1uqW9pVc65giJRmju9YN2IotHM=";
           };
         };
 
