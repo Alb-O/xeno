@@ -246,7 +246,7 @@ fn ensure_module_only(working_set: &StateWorkingSet<'_>, block: &Block) -> Resul
 			match &element.expr.expr {
 				Expr::Call(call) => {
 					let decl_name = working_set.get_decl(call.decl_id).name();
-					if !MODULE_ONLY_ALLOWED_DECLS.iter().any(|allowed| *allowed == decl_name) {
+					if !MODULE_ONLY_ALLOWED_DECLS.contains(&decl_name) {
 						return Err(format!(
 							"module-only script: top-level '{decl_name}' is not allowed; only def/use/const/alias/module are permitted"
 						));

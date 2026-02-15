@@ -180,7 +180,7 @@ fn prelude_str_helpers_work() {
 fn prelude_available_in_module_only_scripts() {
 	let mut engine_state = create_engine_state(None).expect("engine state");
 	let source = "export def go [] { action move_right --count 5 }";
-	let parsed = parse_and_validate_with_policy(&mut engine_state, "<test>", source, None, ParsePolicy::ModuleOnly)
+	parse_and_validate_with_policy(&mut engine_state, "<test>", source, None, ParsePolicy::ModuleOnly)
 		.expect("prelude should be available in module-only scripts");
 	let decl_id = find_decl(&engine_state, "go").expect("go should exist");
 	let value = call_function(&engine_state, decl_id, &[], &[]).expect("should call");

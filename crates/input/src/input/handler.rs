@@ -95,15 +95,6 @@ impl InputHandler {
 		self.last_search.as_ref().map(|(p, r)| (p.as_str(), *r))
 	}
 
-	/// Consumes the current count/extend/register state into an [`ActionById`] result.
-	pub(crate) fn consume_action(&mut self, id: xeno_registry::ActionId) -> KeyResult {
-		let count = self.effective_count() as usize;
-		let extend = self.extend;
-		let register = self.register;
-		self.reset_params();
-		KeyResult::ActionById { id, count, extend, register }
-	}
-
 	/// Consumes state and produces the appropriate [`KeyResult`] for a binding entry.
 	pub(crate) fn consume_binding(&mut self, entry: &xeno_registry::BindingEntry) -> KeyResult {
 		match &entry.target {
