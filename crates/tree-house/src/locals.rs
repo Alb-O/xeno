@@ -1,8 +1,6 @@
-use std::borrow::Cow;
+use std::collections::HashMap;
 use std::ops::{Index, IndexMut};
 
-use hashbrown::HashMap;
-use kstring::KString;
 use ropey::RopeSlice;
 use tree_sitter::{Capture, InactiveQueryCursor};
 
@@ -148,7 +146,7 @@ pub struct Definition {
 
 #[derive(Debug, Clone)]
 pub struct ScopeData {
-	definitions: HashMap<KString, Definition>,
+	definitions: HashMap<String, Definition>,
 	range: Range,
 	inherit: bool,
 	/// A list of sorted, non-overlapping child scopes.
@@ -193,10 +191,7 @@ impl Syntax {
 					parent: Some(scope),
 				});
 			} else if definition_captures.contains_key(&capture) {
-				let text = match source.byte_slice(range.start as usize..range.end as usize).into() {
-					Cow::Borrowed(inner) => KString::from_ref(inner),
-					Cow::Owned(inner) => KString::from_string(inner),
-				};
+				let text = source.byte_slice(range.start as usize..range.end as usize).to_string();
 				locals[scope].definitions.insert(text, Definition { capture, range });
 			}
 			// NOTE: `local.reference` captures are handled by the highlighter and are not

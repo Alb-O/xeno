@@ -1,9 +1,9 @@
 use core::slice;
+use std::collections::{HashMap, HashSet};
 use std::iter::Peekable;
 use std::mem::replace;
 use std::ops::RangeBounds;
 
-use hashbrown::{HashMap, HashSet};
 use ropey::RopeSlice;
 use tree_sitter::{Capture, InactiveQueryCursor, Node, Pattern, Query, QueryCursor, QueryMatch, RopeInput};
 

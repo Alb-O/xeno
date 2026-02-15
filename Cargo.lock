@@ -2168,15 +2168,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "kstring"
-version = "2.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "558bf9508a558512042d3095138b1f7b8fe90c5467d94f9f1da28b3731c5dbd1"
-dependencies = [
- "static_assertions",
-]
-
-[[package]]
 name = "kurbo"
 version = "0.10.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5054,9 +5045,6 @@ name = "tree-house"
 version = "0.9.1"
 dependencies = [
  "arc-swap",
- "hashbrown 0.16.1",
- "kstring",
- "once_cell",
  "regex",
  "regex-cursor",
  "ropey",

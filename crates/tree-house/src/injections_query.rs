@@ -1,11 +1,10 @@
 use std::cmp::Reverse;
+use std::collections::{HashMap, HashSet};
 use std::iter::{self, Peekable};
 use std::mem::take;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 use arc_swap::ArcSwap;
-use hashbrown::{HashMap, HashSet};
-use once_cell::sync::Lazy;
 use regex_cursor::engines::meta::Regex;
 use ropey::RopeSlice;
 use tree_sitter::query::{self, InvalidPredicateError, UserPredicate};
@@ -18,7 +17,7 @@ use crate::parse::LayerUpdateFlags;
 use crate::{Injection, Language, Layer, LayerData, Range, Syntax, TREE_SITTER_MATCH_LIMIT};
 
 const SHEBANG: &str = r"#!\s*(?:\S*[/\\](?:env\s+(?:\-\S+\s+)*)?)?([^\s\.\d]+)";
-static SHEBANG_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(SHEBANG).unwrap());
+static SHEBANG_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(SHEBANG).unwrap());
 
 #[derive(Clone, Default, Debug)]
 pub struct InjectionProperties {

@@ -33,43 +33,29 @@ arc-swap = "1.8"
 async-trait = "0.1"
 base64 = "0.22"
 bitflags = "2.11"
-bumpalo = { version = "3.19", features = ["collections"] }
 cc = "1.2"
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4.5", features = ["derive"] }
 criterion = "0.8"
 crossterm = "0.29"
-dashmap = "6.1"
 dirs = "6.0"
-fs2 = "0.4"
-globset = "0.4"
-hashbrown = "0.16"
-heed3 = "0.22"
 ignore = "0.4"
-include_dir = "0.7"
 insta = "1.46"
 inventory = "0.3"
-itertools = "0.14"
-kstring = "2.0"
-libc = "0.2"
 libloading = "0.8"
 lsp-types = "0.97"
-notify = "8.2"
 nu-cmd-lang = "0.110.0"
 nu-engine = { version = "0.110", default-features = false }
 nu-parser = "0.110"
 nu-protocol = { version = "0.110", default-features = false }
 nuon = "0.110"
-once_cell = "1.21"
 parking_lot = "0.12"
 paste = "1.0"
 pin-project-lite = "0.2"
-portable-pty = "0.9"
 postcard = { version = "1.1", default-features = false, features = ["use-std"] }
 proc-macro2 = "1.0"
 proptest = "1.10"
 quote = "1.0"
-rand = "0.10"
 regex = "1.12"
 regex-cursor = "0.1"
 ropey = "1.6"
@@ -78,7 +64,6 @@ rustix = "1.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serial_test = "3.3"
-sha2 = "0.10"
 slab = "0.4"
 smallvec = "1.15"
 strsim = "0.11"
@@ -92,7 +77,6 @@ thiserror = "2.0"
 tokio = { version = "1.49", default-features = false, features = ["macros", "rt", "sync", "io-util"] }
 tokio-util = "0.7"
 toml = "1.0"
-tower = "0.5"
 tower-layer = "0.3"
 tower-service = "0.3"
 tracing = "0.1"
@@ -103,7 +87,6 @@ tree-sitter-language = "0.1.7"
 unicode-segmentation = "1.12"
 unicode-width = "0.2"
 url = "2.5"
-urlencoding = "2.1"
 uuid = { version = "1.21", features = ["v4"] }
 vt100 = "0.16"
 waitpid-any = "0.3"
@@ -124,7 +107,6 @@ xeno-registry = { path = "crates/registry" }
 xeno-registry-spec = { path = "crates/registry-spec" }
 xeno-rpc = { path = "crates/rpc" }
 xeno-tui = { path = "crates/tui" }
-xxhash-rust = { version = "0.8", features = ["xxh3"] }
 
 [workspace.lints.rust]
 unused_crate_dependencies = "warn"

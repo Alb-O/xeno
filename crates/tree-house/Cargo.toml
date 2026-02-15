@@ -12,9 +12,6 @@ default = []
 
 [dependencies]
 arc-swap.workspace = true
-hashbrown.workspace = true
-kstring.workspace = true
-once_cell.workspace = true
 regex.workspace = true
 regex-cursor.workspace = true
 ropey.workspace = true

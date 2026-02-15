@@ -1,6 +1,6 @@
 use std::fmt::Write;
+use std::sync::LazyLock;
 
-use once_cell::sync::Lazy;
 use regex::Regex;
 use tree_sitter::{Grammar, query};
 
@@ -36,7 +36,7 @@ impl LanguageConfig {
 	}
 }
 
-static INHERITS_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r";+\s*inherits\s*:?\s*([a-z_,()-]+)\s*").unwrap());
+static INHERITS_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r";+\s*inherits\s*:?\s*([a-z_,()-]+)\s*").unwrap());
 
 /// reads a query by invoking `read_query_text`, handles any `inherits` directives
 pub fn read_query(language: &str, mut read_query_text: impl FnMut(&str) -> String) -> String {

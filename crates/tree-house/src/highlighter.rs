@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::collections::{HashMap, HashSet};
 use std::mem::replace;
 use std::num::NonZeroU32;
 use std::ops::RangeBounds;
@@ -6,7 +7,6 @@ use std::sync::Arc;
 use std::{cmp, fmt, slice};
 
 use arc_swap::ArcSwap;
-use hashbrown::{HashMap, HashSet};
 use ropey::RopeSlice;
 use tree_sitter::query::{self, InvalidPredicateError, Query, UserPredicate};
 use tree_sitter::{Capture, Grammar, Pattern, QueryMatch};
