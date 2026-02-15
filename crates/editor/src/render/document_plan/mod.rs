@@ -1,3 +1,5 @@
+//! Focused document render-plan assembly for frontend consumers.
+
 use xeno_primitives::Style;
 
 use super::{RenderLine, RenderSpan};

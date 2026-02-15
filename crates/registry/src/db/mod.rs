@@ -1,3 +1,5 @@
+//! Registry database construction and global accessor surfaces.
+
 use std::sync::{Arc, LazyLock, OnceLock};
 
 pub use crate::core::{

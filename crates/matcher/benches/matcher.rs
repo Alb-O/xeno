@@ -4,6 +4,8 @@ use criterion::{BatchSize, BenchmarkId, Criterion, criterion_group, criterion_ma
 use multiversion as _;
 #[cfg(feature = "parallel_sort")]
 use rayon as _;
+#[cfg(feature = "serde")]
+use serde as _;
 use xeno_matcher::prefilter::Prefilter;
 use xeno_matcher::{Config, IncrementalMatcher, match_list, match_list_parallel};
 

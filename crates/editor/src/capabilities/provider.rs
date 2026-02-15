@@ -12,11 +12,12 @@
 //!
 //! # Enforcement (The Delegator Rule)
 //!
-//! The following "tripwire" ensures that [`Editor`] does not implement [`CursorAccess`] directly.
+//! The following "tripwire" ensures that [`Editor`] does not implement
+//! [`CursorAccess`](xeno_registry::actions::CursorAccess) directly.
 //! If this block fails to compile, it means the Delegator Rule has been regressed.
 //!
 //! ```compile_fail
-//! use xeno_registry::CursorAccess;
+//! use xeno_registry::actions::CursorAccess;
 //! use crate::Editor;
 //! fn _assert_is_not_cursor_access(e: &mut Editor) {
 //!     let _x: &mut dyn CursorAccess = e;
@@ -24,7 +25,7 @@
 //! ```
 //!
 //! [`Editor`]: crate::Editor
-//! [`CursorAccess`]: xeno_registry::CursorAccess
+//! [`CursorAccess`]: xeno_registry::actions::CursorAccess
 
 use crate::Editor;
 

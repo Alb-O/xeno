@@ -1,3 +1,7 @@
+//! Statusline specification schema.
+//!
+//! Defines statusline segment templates and placement metadata.
+
 #[cfg(feature = "compile")]
 pub mod compile;
 

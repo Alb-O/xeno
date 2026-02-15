@@ -1,3 +1,8 @@
+//! UI state and panel orchestration.
+//!
+//! Exposes focus management, docked panel lifecycle, statusline planning, and
+//! keymap-facing UI requests used by frontend render layers.
+
 pub mod dock;
 mod focus;
 pub mod ids;

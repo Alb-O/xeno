@@ -1,3 +1,5 @@
+//! Row rendering pipeline modules for shaping and text emission.
+
 pub mod renderer;
 pub mod shaper;
 pub mod span_builder;

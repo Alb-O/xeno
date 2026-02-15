@@ -1,3 +1,9 @@
+//! Iced-to-runtime event bridge.
+//!
+//! Normalizes Iced keyboard/mouse/input-method events into
+//! `xeno_editor::runtime::RuntimeEvent` values and tracks bridge-local state
+//! such as pointer cell coordinates and IME preedit text.
+
 use iced::{Event, keyboard, mouse, window};
 use iced_core::input_method;
 use xeno_editor::runtime::RuntimeEvent;

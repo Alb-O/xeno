@@ -1,4 +1,6 @@
 #![warn(missing_docs)]
+//! Rectangle geometry primitives and helpers for terminal layout.
+
 use core::array::TryFromSliceError;
 use core::cmp::{max, min};
 use core::fmt;

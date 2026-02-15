@@ -1,3 +1,5 @@
+//! Highlight span index with byte-range style lookup for rendering.
+
 use std::collections::BTreeMap;
 use std::ops::Range;
 

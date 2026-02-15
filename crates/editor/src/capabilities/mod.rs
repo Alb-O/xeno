@@ -4,7 +4,7 @@
 //! capability requests to the underlying [`Editor`] instance while
 //! maintaining a clean crate boundary.
 //!
-//! [`EditorCapabilities`]: xeno_registry::EditorCapabilities
+//! [`EditorCapabilities`]: xeno_registry::actions::EditorCapabilities
 //! [`Editor`]: crate::Editor
 
 pub mod command_ops;

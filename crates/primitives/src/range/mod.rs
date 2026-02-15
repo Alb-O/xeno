@@ -1,3 +1,8 @@
+//! Character-indexed range primitives.
+//!
+//! Defines the 1-cell range model used across editing operations, including
+//! directionality, containment/overlap semantics, and grapheme-alignment helpers.
+
 use ropey::RopeSlice;
 
 use crate::graphemes::{ensure_grapheme_boundary_next, ensure_grapheme_boundary_prev};

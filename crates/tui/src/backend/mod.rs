@@ -4,7 +4,7 @@
 //! Defines the [`Backend`] trait used to abstract over terminal I/O. The main application provides
 //! its own backend implementation; [`TestBackend`] is available for testing.
 //!
-//! Most code should use the [`Terminal`] struct instead of calling backend methods directly.
+//! Most code should use [`crate::terminal::Terminal`] instead of calling backend methods directly.
 
 use crate::buffer::Cell;
 use crate::layout::{Position, Size};
@@ -45,7 +45,7 @@ pub struct WindowSize {
 /// methods required to draw content, manipulate the cursor, and clear the terminal screen.
 ///
 /// Most applications should not need to interact with the `Backend` trait directly as the
-/// [`Terminal`] struct provides a higher level interface for interacting with the terminal.
+/// [`crate::terminal::Terminal`] provides a higher level interface for terminal interaction.
 ///
 pub trait Backend {
 	/// Error type associated with this Backend.

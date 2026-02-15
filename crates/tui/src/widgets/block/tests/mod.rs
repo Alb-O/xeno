@@ -1,3 +1,5 @@
+//! Block widget tests for borders, titles, and styling behavior.
+
 use super::*;
 use crate::style::{Color, Modifier, Stylize};
 use crate::{enum_display_from_str_tests, render_test};

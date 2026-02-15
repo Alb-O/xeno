@@ -1,3 +1,5 @@
+//! Multithreaded one-shot matching entry points.
+
 use super::match_list;
 use crate::one_shot::matcher::match_list_impl;
 use crate::{Config, Match};

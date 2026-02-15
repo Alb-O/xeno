@@ -1,3 +1,5 @@
+//! Styled span primitive for contiguous text with one style.
+
 use core::fmt;
 use std::borrow::Cow;
 

@@ -1,3 +1,5 @@
+//! Rendering and scrolling tests for list widget behavior.
+
 use rstest::{fixture, rstest};
 
 use crate::buffer::Buffer;

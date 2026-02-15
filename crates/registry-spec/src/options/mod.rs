@@ -1,3 +1,7 @@
+//! Option specification schema.
+//!
+//! Defines configurable option metadata, typing, defaults, and scope.
+
 #[cfg(feature = "compile")]
 pub mod compile;
 

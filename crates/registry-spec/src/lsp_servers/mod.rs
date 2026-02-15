@@ -1,3 +1,7 @@
+//! LSP server specification schema.
+//!
+//! Declares server process configuration and language attachment metadata.
+
 #[cfg(feature = "compile")]
 pub mod compile;
 

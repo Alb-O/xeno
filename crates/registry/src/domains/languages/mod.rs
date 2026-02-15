@@ -1,3 +1,5 @@
+//! Languages domain registration and runtime entry construction.
+
 pub mod builtins;
 pub mod link;
 pub mod loader;

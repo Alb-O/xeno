@@ -1,3 +1,8 @@
+//! Internal render-plan assembly.
+//!
+//! Builds data-only plans for document views, overlays, completion popups, and
+//! wrapped text so frontends can render without policy logic.
+
 mod buffer;
 /// Render cache for efficient viewport rendering.
 pub mod cache;

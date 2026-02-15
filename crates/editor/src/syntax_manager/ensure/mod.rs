@@ -1,3 +1,9 @@
+//! Ensure-syntax pipeline orchestration.
+//!
+//! Implements the phased `ensure_syntax` flow (derive, normalize, install,
+//! gate, bootstrap, plan, spawn, finalize) and shared helpers used by the
+//! per-phase modules.
+
 use std::ops::ControlFlow;
 
 use super::*;

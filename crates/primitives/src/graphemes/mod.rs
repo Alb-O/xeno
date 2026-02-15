@@ -1,3 +1,8 @@
+//! Grapheme cluster boundary helpers.
+//!
+//! Provides boundary checks and snapping utilities so cursor and range motion
+//! operate on user-visible grapheme clusters instead of scalar values.
+
 use ropey::RopeSlice;
 use unicode_segmentation::UnicodeSegmentation;
 

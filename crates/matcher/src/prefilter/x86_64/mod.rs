@@ -1,3 +1,8 @@
+//! x86_64 prefilter implementation.
+//!
+//! Provides architecture-tuned prefilter kernels for case-sensitive and
+//! case-insensitive matching paths.
+
 use std::arch::x86_64::*;
 
 mod insensitive;

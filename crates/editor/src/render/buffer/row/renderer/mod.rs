@@ -1,3 +1,5 @@
+//! Concrete row renderers for gutter and text output assembly.
+
 use std::path::Path;
 
 use xeno_primitives::{Rope, Style};

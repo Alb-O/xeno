@@ -1,3 +1,5 @@
+//! Constraint-based layout engine for splitting terminal rectangles.
+
 use std::rc::Rc;
 
 use super::{Constraint, Direction, Rect};

@@ -1,3 +1,5 @@
+//! Line-drawing symbol constants and grouped line sets.
+
 /// Vertical line.
 pub const VERTICAL: &str = "│";
 /// Double vertical line.

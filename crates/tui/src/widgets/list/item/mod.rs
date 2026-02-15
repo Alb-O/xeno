@@ -1,3 +1,5 @@
+//! List item model combining text content with per-item style.
+
 use crate::style::Style;
 use crate::text::Text;
 

@@ -1,3 +1,5 @@
+//! Lifecycle operation implementations for Editor runtime behavior.
+
 #[cfg(feature = "lsp")]
 use std::time::Instant;
 

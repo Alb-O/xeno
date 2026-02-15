@@ -35,7 +35,7 @@
 //! |---|---|---|
 //! | [`crate::syntax_manager::SyntaxManager`] | Orchestrator | Entry point from render/tick/edit paths |
 //! | [`crate::syntax_manager::SyntaxSlot`] | Tree state | Current tree, versions, pending incrementals |
-//! | [`crate::syntax_manager::DocSched`] | Scheduling state | Debounce, cooldown, in-flight bookkeeping |
+//! | `DocSched` | Scheduling state | Debounce, cooldown, in-flight bookkeeping |
 //! | [`crate::syntax_manager::EnsureSyntaxContext`] | Poll input | Per-document snapshot for scheduling |
 //! | [`crate::syntax_manager::HighlightProjectionCtx`] | Stale highlight mapping | Bridges stale tree spans to current rope |
 //!
@@ -90,7 +90,7 @@
 //!
 //! * For edit bursts: use `note_edit_incremental`, then `ensure_syntax`.
 //! * For rendering stale-but-continuous highlights: use
-//!   [`crate::syntax_manager::SyntaxManager::highlight_projection_ctx`].
+//!   `SyntaxManager::highlight_projection_ctx_for`.
 
 use std::collections::HashMap;
 use std::sync::Arc;

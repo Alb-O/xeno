@@ -103,7 +103,7 @@ pub(crate) fn test_router_drops_stale_generation_events() {
 	let _manager = make_manager();
 }
 
-/// `LanguageServerId` must be slot + monotonic generation counter.
+/// Must encode `LanguageServerId` as slot + monotonic generation counter.
 ///
 /// * Enforced in: `RegistryState::next_gen`, `ServerConfig::id`
 /// * Failure symptom: Restarted servers reuse old IDs, causing event misrouting.
@@ -115,7 +115,7 @@ pub(crate) fn test_server_id_generation_increments_on_restart() {
 	assert_eq!(id1.slot, id2.slot, "same slot across restarts");
 }
 
-/// `ServerConfig` must carry a pre-assigned `LanguageServerId` before transport start.
+/// Must carry a pre-assigned `LanguageServerId` in `ServerConfig` before transport start.
 ///
 /// * Enforced in: `Registry::get_or_start`
 /// * Failure symptom: Transport starts without a valid server ID for event correlation.
@@ -124,7 +124,7 @@ pub(crate) fn test_singleflight_start() {
 	let _manager = make_manager();
 }
 
-/// `workspace/configuration` response must match the item count of the request.
+/// Must return `workspace/configuration` responses matching the request item count.
 ///
 /// * Enforced in: `handle_server_request` (workspace/configuration arm)
 /// * Failure symptom: Server receives wrong number of configuration sections.
@@ -133,7 +133,7 @@ pub(crate) fn test_server_request_workspace_configuration_section_slicing() {
 	let _manager = make_manager();
 }
 
-/// `workspace/workspaceFolders` response must use percent-encoded URIs.
+/// Must return `workspace/workspaceFolders` entries as percent-encoded URIs.
 ///
 /// * Enforced in: `handle_server_request` (workspace/workspaceFolders arm)
 /// * Failure symptom: Servers fail to parse workspace folder URIs with special characters.
@@ -169,7 +169,7 @@ pub(crate) fn test_client_handle_capabilities_returns_none_before_init() {
 	assert!(handle.capabilities().is_none(), "capabilities must be None before initialization");
 }
 
-/// Ready flag must require capabilities with release/acquire ordering.
+/// Must gate ready flag on initialized capabilities with release/acquire ordering.
 ///
 /// * Enforced in: `ClientHandle::set_ready`, `ClientHandle::is_ready`
 /// * Failure symptom: Client appears ready but capabilities load returns stale/null data.

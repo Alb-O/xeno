@@ -1,3 +1,5 @@
+//! Border symbol sets used by block and related widgets.
+
 use crate::symbols::{block, line};
 
 /// A set of symbols used to draw a border.

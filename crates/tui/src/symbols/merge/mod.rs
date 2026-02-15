@@ -39,8 +39,8 @@ use core::str::FromStr;
 /// * [`Self::Fuzzy`]: Merges symbols even if an exact composite unicode character doesn't exist,
 ///   using the closest match, and falling back to [`Self::Exact`] if necessary.
 ///
-/// See [`Cell::merge_symbol`] for how to use this strategy in practice, and
-/// [`Block::merge_borders`] for a more concrete example of merging borders in a layout.
+/// See [`crate::buffer::Cell::merge_symbol`] for practical usage, and
+/// [`crate::widgets::Block::merge_borders`] for a border-merging layout example.
 ///
 /// # Examples
 ///
@@ -53,8 +53,8 @@ use core::str::FromStr;
 /// ```
 ///
 /// [Box Drawing Unicode block]: https://en.wikipedia.org/wiki/Box_Drawing
-/// [`Block::merge_borders`]:
-/// [`Cell::merge_symbol`]: crate::buffer::Cell::merge_symbol
+/// [`crate::widgets::Block::merge_borders`]: crate::widgets::Block::merge_borders
+/// [`crate::buffer::Cell::merge_symbol`]: crate::buffer::Cell::merge_symbol
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Default)]
 pub enum MergeStrategy {
 	/// Replaces the previous symbol with the next one.

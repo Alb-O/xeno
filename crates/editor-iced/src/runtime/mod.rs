@@ -1,3 +1,8 @@
+//! Iced runtime orchestration.
+//!
+//! Owns app boot configuration, event bridge wiring, platform configuration,
+//! and snapshot extraction used by the Iced frontend loop.
+
 use std::path::PathBuf;
 use std::time::Duration;
 

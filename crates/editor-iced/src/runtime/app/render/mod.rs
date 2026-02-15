@@ -1,3 +1,5 @@
+//! Iced adapters that map editor render plans into widgets.
+
 use iced::widget::text::Wrapping;
 use iced::widget::{column, container, rich_text, span, text};
 use iced::{Background, Color, Element, Fill, Font, Pixels, border, font};

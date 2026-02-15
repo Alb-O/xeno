@@ -1,3 +1,8 @@
+//! Background fuzzy-search worker over indexed filesystem rows.
+//!
+//! Processes command/query messages, applies index deltas, runs ranked fuzzy
+//! matching with staleness cancellation, and returns bounded result sets.
+
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::sync::Arc;

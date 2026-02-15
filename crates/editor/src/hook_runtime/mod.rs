@@ -2,7 +2,7 @@
 //!
 //! This module provides [`crate::hook_runtime::HookRuntime`], which stores queued async hook futures
 //! and provides methods to drain them. It integrates with the sync emission path
-//! via [`xeno_registry::HookScheduler`].
+//! via [`xeno_registry::hooks::HookScheduler`].
 //!
 //! # Concurrency Model
 //!

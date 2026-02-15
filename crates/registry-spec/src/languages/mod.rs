@@ -1,3 +1,8 @@
+//! Language specification schema.
+//!
+//! Defines language metadata, matching rules, LSP associations, and viewport
+//! repair/query configuration used by runtime language loading.
+
 #[cfg(feature = "compile")]
 pub mod compile;
 

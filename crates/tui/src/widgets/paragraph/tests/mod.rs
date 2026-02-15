@@ -1,3 +1,5 @@
+//! Paragraph widget tests for alignment, wrapping, and styling.
+
 use rstest::rstest;
 
 use super::*;

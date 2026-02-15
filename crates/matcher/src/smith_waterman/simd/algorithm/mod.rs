@@ -1,3 +1,5 @@
+//! SIMD Smith-Waterman scoring kernels and mask helpers.
+
 use core::simd::cmp::*;
 use core::simd::num::SimdUint;
 use core::simd::{Mask, Simd};

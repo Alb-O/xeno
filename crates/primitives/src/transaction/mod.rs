@@ -1,3 +1,8 @@
+//! Transaction model for document edits.
+//!
+//! Wraps low-level change operations with optional selection updates and
+//! provides apply/invert/mapping helpers used by undo/redo and edit commands.
+
 /// Text change set implementation.
 mod changeset;
 #[cfg(test)]

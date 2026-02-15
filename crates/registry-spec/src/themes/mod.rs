@@ -1,3 +1,8 @@
+//! Theme specification schema.
+//!
+//! Defines palette, UI/mode/semantic/popup colors, and syntax style mappings
+//! for declarative theme definitions.
+
 #[cfg(feature = "compile")]
 pub mod compile;
 

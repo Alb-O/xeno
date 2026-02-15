@@ -1,3 +1,5 @@
+//! Snippet template AST and parser for snippet syntax expansion.
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SnippetTemplate {
 	pub nodes: Vec<Node>,

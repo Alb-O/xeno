@@ -1,3 +1,8 @@
+//! Hook specification schema.
+//!
+//! Describes lifecycle/event hook definitions and execution metadata for
+//! runtime registration.
+
 #[cfg(feature = "compile")]
 pub mod compile;
 

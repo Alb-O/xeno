@@ -10,8 +10,8 @@ use super::Editor;
 impl Editor {
 	/// Stores the configured theme name in global options.
 	///
-	/// This sets the persisted preference used by
-	/// [`Self::resolve_configured_theme`] once theme catalogs are available.
+	/// This sets the persisted preference used by `resolve_configured_theme`
+	/// once theme catalogs are available.
 	pub fn set_configured_theme_name(&mut self, theme_name: impl Into<String>) {
 		use xeno_registry::options::{OptionValue, keys};
 

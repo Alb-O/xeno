@@ -1,3 +1,5 @@
+//! Editor-backed snippet variable resolver for paths, time, and selection.
+
 use chrono::{Datelike, Local, Timelike};
 
 use crate::Editor;

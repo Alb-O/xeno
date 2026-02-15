@@ -1,3 +1,8 @@
+//! One-shot matching APIs.
+//!
+//! Provides direct list/indices matching entry points, including parallel list
+//! matching helpers.
+
 pub mod bucket;
 mod indices;
 mod matcher;

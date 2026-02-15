@@ -22,8 +22,8 @@ iced-wgpu = [
 ]
 
 [dependencies]
-iced = { git = "https://github.com/iced-rs/iced", revision = "8dce83de35cb96f57374bbd41fed47334f6b636b", default-features = false, features = ["wgpu", "tokio", "x11", "wayland"], optional = true }
-iced_core = { git = "https://github.com/iced-rs/iced", revision = "8dce83de35cb96f57374bbd41fed47334f6b636b", optional = true }
+iced = { git = "https://github.com/iced-rs/iced", rev = "8dce83de35cb96f57374bbd41fed47334f6b636b", default-features = false, features = ["wgpu", "tokio", "x11", "wayland"], optional = true }
+iced_core = { git = "https://github.com/iced-rs/iced", rev = "8dce83de35cb96f57374bbd41fed47334f6b636b", optional = true }
 tokio = { workspace = true, optional = true }
 xeno-editor = { path = "../editor", default-features = false, optional = true }
 xeno-primitives = { path = "../primitives", default-features = false, optional = true }

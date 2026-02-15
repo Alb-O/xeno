@@ -28,7 +28,7 @@ mod state;
 ///
 /// Use [`ListState`] to allow the user to [scroll] through items and [select] one of them.
 ///
-/// See the list in the [Examples] directory for a more in depth example of the various
+/// See the list example in the `examples/` directory for a more in-depth walkthrough of the
 /// configuration options and for how to handle state.
 ///
 ///

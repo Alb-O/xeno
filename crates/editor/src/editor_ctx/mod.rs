@@ -2,7 +2,8 @@
 //!
 //! # Purpose
 //!
-//! Translates registry-defined [`ActionResult`] and [`ActionEffects`] into concrete
+//! Translates registry-defined [`xeno_registry::actions::ActionResult`] and
+//! [`xeno_registry::actions::ActionEffects`] into concrete
 //! capability calls on the editor via [`EditorContext`].
 //!
 //! # Architecture

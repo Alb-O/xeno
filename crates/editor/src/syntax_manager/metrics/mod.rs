@@ -1,3 +1,8 @@
+//! Adaptive syntax-task metrics.
+//!
+//! Tracks per-language/tier/task-class EMAs for duration and failure signals
+//! and derives parse-timeout budgets from observed behavior.
+
 use std::collections::HashMap;
 use std::time::Duration;
 

@@ -1,4 +1,5 @@
 #![allow(clippy::unreadable_literal, reason = "hex color literals are more readable without underscores")]
+//! ANSI color model plus parsing and conversion helpers.
 
 use core::fmt;
 use core::str::FromStr;

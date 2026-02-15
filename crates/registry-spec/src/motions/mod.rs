@@ -1,3 +1,7 @@
+//! Motion specification schema.
+//!
+//! Defines motion metadata and runtime binding configuration.
+
 #[cfg(feature = "compile")]
 pub mod compile;
 

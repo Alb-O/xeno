@@ -1,3 +1,8 @@
+//! Snippet template renderer.
+//!
+//! Renders parsed snippet AST nodes into concrete text while collecting tabstop
+//! ranges, choice sets, and transform bindings for session-time updates.
+
 use std::collections::BTreeMap;
 use std::ops::Range;
 

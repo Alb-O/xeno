@@ -1,3 +1,5 @@
+//! Terminal buffer cell representation and symbol/style helpers.
+
 use compact_str::CompactString;
 
 #[cfg(feature = "underline-color")]

@@ -1,3 +1,8 @@
+//! Resolved view-plan assembly for documents, overlays, popups, and separators.
+//!
+//! Produces frontend-facing data-only plans with concrete geometry and rendered
+//! lines, while keeping layout/render policy in the core editor.
+
 use super::{BufferRenderContext, GutterLayout, RenderLine, ensure_buffer_cursor_visible};
 use crate::Editor;
 use crate::buffer::{SplitDirection, ViewId};
@@ -18,7 +23,7 @@ pub(crate) struct BufferViewRenderPlan {
 }
 
 impl Editor {
-	/// Returns the title string for the focused document (path or "[scratch]").
+	/// Returns the title string for the focused document (path or `"[scratch]"`).
 	pub fn focused_document_title(&self) -> String {
 		self.get_buffer(self.focused_view())
 			.and_then(|buffer| buffer.path().as_ref().map(|path| path.display().to_string()))

@@ -1,3 +1,5 @@
+//! Buffer viewport planning types and line-source abstractions.
+
 pub mod line_source;
 pub mod viewport;
 

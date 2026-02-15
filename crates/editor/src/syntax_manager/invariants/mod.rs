@@ -1,3 +1,8 @@
+//! Syntax-manager invariant test harness.
+//!
+//! Supplies deterministic mock engines and shared helpers used by
+//! `syntax_manager` invariant proofs.
+
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;

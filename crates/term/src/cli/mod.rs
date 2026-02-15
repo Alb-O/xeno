@@ -1,3 +1,5 @@
+//! CLI schema and parsing helpers for the xeno binary.
+
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};

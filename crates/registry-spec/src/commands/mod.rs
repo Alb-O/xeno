@@ -1,3 +1,7 @@
+//! Command specification schema.
+//!
+//! Defines declarative command metadata entries for registry ingestion.
+
 #[cfg(feature = "compile")]
 pub mod compile;
 

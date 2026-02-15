@@ -1,3 +1,8 @@
+//! Iced application shell and message loop.
+//!
+//! Hosts editor runtime state, subscribes to Iced events/ticks, forwards input
+//! into `xeno_editor`, and builds view trees from immutable snapshots.
+
 mod inspector;
 mod render;
 

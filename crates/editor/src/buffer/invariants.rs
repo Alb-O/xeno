@@ -7,7 +7,10 @@ use super::LockGuard;
 use crate::buffer::{Buffer, ViewId};
 use crate::core::document::DocumentId;
 
-/// Invariant: Re-entrant locking of the same document on a single thread MUST panic.
+/// Must panic on re-entrant locking of the same document on one thread.
+///
+/// * Enforced in: `crate::buffer::LockGuard::new`
+/// * Failure symptom: Self-deadlock in nested document access paths.
 #[cfg_attr(test, test)]
 pub(crate) fn test_reentrant_lock_panic() {
 	let id = DocumentId(0);
@@ -26,7 +29,10 @@ pub(crate) fn test_reentrant_lock_panic() {
 	drop(_guard);
 }
 
-/// Invariant: View state (cursor/selection) MUST be clamped within document bounds.
+/// Must clamp cursor and selection state to current document bounds.
+///
+/// * Enforced in: `crate::buffer::Buffer::ensure_valid_selection`
+/// * Failure symptom: Out-of-bounds cursor/selection causes rendering and edit panics.
 #[cfg_attr(test, test)]
 pub(crate) fn test_selection_clamping() {
 	let mut buffer = Buffer::scratch(ViewId::SCRATCH);
@@ -41,7 +47,10 @@ pub(crate) fn test_selection_clamping() {
 	assert!(buffer.cursor <= max_char, "cursor should be clamped to document bounds");
 }
 
-/// Invariant: Document versions MUST be monotonically increasing across edits.
+/// Must keep document versions monotonically increasing across non-identity edits.
+///
+/// * Enforced in: `crate::buffer::editing::apply`, `crate::core::document::Document::commit_unchecked`
+/// * Failure symptom: Stale-version logic accepts older edits or skips incremental updates.
 #[cfg_attr(test, test)]
 pub(crate) fn test_version_monotonicity() {
 	use crate::buffer::ApplyPolicy;

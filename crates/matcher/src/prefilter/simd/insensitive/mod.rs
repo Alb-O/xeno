@@ -1,3 +1,5 @@
+//! Case-insensitive SIMD prefilter variants.
+
 mod ordered;
 mod unordered;
 mod unordered_typos;

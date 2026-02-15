@@ -1,3 +1,5 @@
+//! Style traits and fluent color/modifier extension methods.
+
 use core::fmt;
 use std::borrow::Cow;
 

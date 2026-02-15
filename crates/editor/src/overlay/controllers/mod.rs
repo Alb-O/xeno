@@ -1,3 +1,8 @@
+//! Built-in overlay controllers and layers.
+//!
+//! Collects modal interaction controllers (command palette, file picker,
+//! search, rename, workspace search) and passive overlay layers.
+
 pub mod command_palette;
 pub mod file_picker;
 pub mod info_popup;

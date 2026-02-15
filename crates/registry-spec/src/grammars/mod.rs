@@ -1,3 +1,8 @@
+//! Grammar specification schema.
+//!
+//! Declares grammar bundle metadata and query-file mappings used by language
+//! loading and syntax highlighting.
+
 #[cfg(feature = "compile")]
 pub mod compile;
 

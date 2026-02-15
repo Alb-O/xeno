@@ -1,3 +1,5 @@
+//! Unit tests for line creation, styling, and rendering behavior.
+
 use core::iter;
 
 use rstest::{fixture, rstest};

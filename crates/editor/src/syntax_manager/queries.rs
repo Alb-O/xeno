@@ -14,7 +14,7 @@ impl SyntaxManager {
 
 	/// Returns a reference to the full tree if installed, falling back to any cached viewport tree.
 	///
-	/// Prefer [`syntax_for_viewport`] for rendering, which selects the best
+	/// Prefer [`Self::syntax_for_viewport`] for rendering, which selects the best
 	/// available tree for a given viewport range.
 	pub fn syntax_for_doc(&self, doc_id: DocumentId) -> Option<&Syntax> {
 		let slot = &self.entries.get(&doc_id)?.slot;

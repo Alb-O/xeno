@@ -1,3 +1,7 @@
+//! Notification specification schema.
+//!
+//! Defines named notification payload metadata and levels.
+
 #[cfg(feature = "compile")]
 pub mod compile;
 

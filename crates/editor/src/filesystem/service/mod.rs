@@ -1,3 +1,9 @@
+//! Filesystem indexing/search service coordinator.
+//!
+//! Owns worker channels and generation state, merges index updates into local
+//! snapshots, forwards deltas to the search worker, and exposes query results
+//! to overlay controllers.
+
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering as AtomicOrdering};

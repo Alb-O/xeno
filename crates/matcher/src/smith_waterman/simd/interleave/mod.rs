@@ -1,3 +1,5 @@
+//! Lane interleave routines with runtime ISA dispatch.
+
 use core::simd::Simd;
 
 use crate::simd_lanes::{LaneCount, SupportedLaneCount};

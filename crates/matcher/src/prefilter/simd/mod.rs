@@ -1,3 +1,8 @@
+//! Portable-SIMD prefilter implementation.
+//!
+//! Exposes case-sensitive and case-insensitive SIMD prefilter kernels shared by
+//! matcher pipelines.
+
 use core::simd::Simd;
 
 mod insensitive;

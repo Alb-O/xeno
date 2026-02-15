@@ -1,3 +1,8 @@
+//! Frontend-agnostic editor runtime loop contract.
+//!
+//! Defines runtime events, loop directives, cursor-style mapping inputs, and
+//! the core `Editor::{on_event,pump}` cycle used by terminal and GUI frontends.
+
 use std::time::Duration;
 
 use xeno_primitives::{Key, Mode, MouseEvent};

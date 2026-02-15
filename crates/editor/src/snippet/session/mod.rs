@@ -1,3 +1,9 @@
+//! Active snippet session runtime.
+//!
+//! Tracks tabstop ranges, choice state, and transform bindings after snippet
+//! insertion, and applies key-driven navigation/edit behavior over live buffer
+//! changes.
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Range;
 

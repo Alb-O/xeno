@@ -1,3 +1,5 @@
+//! Iterators over rectangle rows, columns, and positions.
+
 use crate::layout::{Position, Rect};
 
 /// An iterator over rows within a `Rect`.

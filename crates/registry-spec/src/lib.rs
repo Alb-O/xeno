@@ -1,3 +1,9 @@
+//! Schema types for declarative registry specifications.
+//!
+//! Defines the serializable spec surface for actions, commands, hooks,
+//! grammars, themes, snippets, and related registry domains. The optional
+//! `compile` feature exposes compilation helpers from spec into runtime forms.
+
 #[cfg(feature = "compile")]
 pub mod compile;
 #[cfg(feature = "compile")]

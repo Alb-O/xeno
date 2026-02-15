@@ -1,10 +1,11 @@
-// Prevent TUI pollution - grammar operations must use tracing, not stderr
 #![deny(clippy::print_stderr)]
 
 //! Tree-sitter syntax integration
 //!
 //! This crate provides Tree-sitter parsing, syntax highlighting, and structural
 //! queries using the `tree-house` abstraction library.
+//! Grammar operations in this crate must emit diagnostics through tracing, not
+//! stderr.
 //!
 //! # Architecture
 //!
@@ -13,11 +14,13 @@
 //! * [`loader`]: Language registry implementing `tree_house::LanguageLoader`
 //! * [`query`]: Query types for indentation, text objects, tags
 //! * [`highlight`]: Syntax highlighting via tree-sitter queries
-//! * [`config`]: Language configuration loading
+//! * [`build`]: Grammar source configuration and grammar build orchestration
+//! * [`lsp_config`]: Language-to-LSP server mapping configuration
 //!
 //! # Integration with Xeno
 //!
-//! Languages are loaded from precompiled postcard blobs via [`config::load_language_configs`].
+//! Runtime language entries are loaded through [`db::language_db`], and grammar
+//! source/build metadata is loaded through [`build::load_grammar_configs`].
 //! Each language definition includes:
 //! * Grammar name (for loading the .so file)
 //! * File type associations (extensions, filenames, globs)

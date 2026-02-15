@@ -1,5 +1,7 @@
 #![deny(missing_docs)]
 #![warn(clippy::pedantic, clippy::nursery, clippy::arithmetic_side_effects)]
+//! Styled single-line text primitive used by higher-level widgets.
+
 use core::fmt;
 use std::borrow::Cow;
 

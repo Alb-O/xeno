@@ -1,3 +1,5 @@
+//! Unit tests for span conversion, styling, and rendering.
+
 use rstest::fixture;
 
 use super::*;

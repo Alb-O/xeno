@@ -1,3 +1,9 @@
+//! Background filesystem indexer worker.
+//!
+//! Walks workspace files with ignore/git filtering, batches discovered paths,
+//! and emits incremental index progress/update messages for the picker/search
+//! service.
+
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;

@@ -1,3 +1,8 @@
+//! Snippet subsystem entry point.
+//!
+//! Exposes snippet parsing, rendering with variable resolution, and active
+//! snippet-session state used for tabstop traversal and choice UI.
+
 mod render;
 mod session;
 mod syntax;

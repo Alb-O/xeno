@@ -1,3 +1,8 @@
+//! Snapshot extraction from core editor state.
+//!
+//! Converts live `xeno_editor::Editor` state into immutable, data-only
+//! frontend snapshot structures consumed by the Iced renderer.
+
 use xeno_editor::Editor;
 use xeno_editor::render_api::{
 	CompletionRenderPlan, DocumentViewPlan, InfoPopupRenderTarget, OverlayControllerKind, OverlayPaneRenderTarget, Rect, RenderLine, SeparatorJunctionTarget,

@@ -1,3 +1,5 @@
+//! End-to-end syntax manager tests for lifecycle and projection behavior.
+
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::time::Duration;

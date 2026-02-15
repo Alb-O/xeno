@@ -1,3 +1,5 @@
+//! Registry domain modules grouped behind feature flags.
+
 #[cfg(feature = "actions")]
 pub mod actions;
 #[cfg(feature = "commands")]

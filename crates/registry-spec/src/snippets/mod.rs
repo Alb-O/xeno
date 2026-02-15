@@ -1,3 +1,7 @@
+//! Snippet specification schema.
+//!
+//! Declares snippet definitions and associated metadata for runtime expansion.
+
 #[cfg(feature = "compile")]
 pub mod compile;
 

@@ -1,3 +1,5 @@
+//! Buffer behavior and regression tests.
+
 use core::iter;
 use std::println;
 

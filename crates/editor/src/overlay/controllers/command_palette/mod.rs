@@ -1,3 +1,5 @@
+//! Command palette overlay controller with command and path completion.
+
 use std::fs;
 use std::future::Future;
 use std::path::{Path, PathBuf};

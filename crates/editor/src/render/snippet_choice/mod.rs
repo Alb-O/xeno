@@ -1,3 +1,8 @@
+//! Snippet-choice popup render-plan builders.
+//!
+//! Computes visibility, placement, and windowed option plans for snippet
+//! placeholder choices.
+
 use unicode_width::UnicodeWidthStr;
 
 use crate::Editor;

@@ -381,6 +381,10 @@ fn drain_queued_commands(editor: &mut crate::Editor) -> Vec<crate::command_queue
 	editor.state.core.workspace.command_queue.drain().collect()
 }
 
+/// Must preserve manual selection intent while the user stays in one token context.
+///
+/// * Enforced in: `crate::overlay::controllers::command_palette::CommandPaletteOverlay::update_completion_state`
+/// * Failure symptom: Arrow-key selection snaps back to auto-selected items mid-typing.
 #[cfg_attr(test, test)]
 pub(crate) fn test_palette_manual_selection_persists_within_token() {
 	let mut editor = crate::Editor::new_scratch();
@@ -418,6 +422,10 @@ pub(crate) fn test_palette_manual_selection_persists_within_token() {
 	assert_eq!(selected_after, selected);
 }
 
+/// Must reset selection intent to auto when completion token context changes.
+///
+/// * Enforced in: `crate::overlay::controllers::command_palette::CommandPaletteOverlay::update_completion_state`
+/// * Failure symptom: Selection from command token bleeds into argument-token completions.
 #[cfg_attr(test, test)]
 pub(crate) fn test_palette_token_transition_resets_selection_intent() {
 	let mut editor = crate::Editor::new_scratch();
@@ -440,6 +448,10 @@ pub(crate) fn test_palette_token_transition_resets_selection_intent() {
 	);
 }
 
+/// Must preserve typed path prefix when applying file completion with tab.
+///
+/// * Enforced in: `crate::overlay::controllers::command_palette::CommandPaletteOverlay::accept_tab_completion`
+/// * Failure symptom: Tab completion rewrites to wrong directory or drops prefix segments.
 #[cfg_attr(test, test)]
 pub(crate) fn test_palette_tab_preserves_path_prefix() {
 	let tmp = tempfile::tempdir().expect("temp dir");
@@ -460,6 +472,10 @@ pub(crate) fn test_palette_tab_preserves_path_prefix() {
 	assert!(text.contains("main.rs"));
 }
 
+/// Must preserve closing quote semantics when tab-completing quoted file arguments.
+///
+/// * Enforced in: `crate::overlay::controllers::command_palette::CommandPaletteOverlay::accept_tab_completion`
+/// * Failure symptom: Quote balancing breaks and cursor lands outside intended token.
 #[cfg_attr(test, test)]
 pub(crate) fn test_palette_tab_after_closing_quote_preserves_quote() {
 	let tmp = tempfile::tempdir().expect("temp dir");
@@ -480,6 +496,10 @@ pub(crate) fn test_palette_tab_after_closing_quote_preserves_quote() {
 	assert!(text.ends_with("\" "), "tab should keep quote and leave one space after it");
 }
 
+/// Must rank recently used commands first for empty command query completion.
+///
+/// * Enforced in: `crate::overlay::controllers::command_palette::CommandPaletteOverlay::build_command_items`, `crate::overlay::OverlayContext::record_command_usage`
+/// * Failure symptom: Command palette ignores recency and shows low-signal default ordering.
 #[cfg_attr(test, test)]
 pub(crate) fn test_palette_usage_recency_orders_empty_query() {
 	let cmd_name = xeno_registry::commands::COMMANDS
@@ -513,6 +533,10 @@ pub(crate) fn test_palette_usage_recency_orders_empty_query() {
 	assert_eq!(first, cmd_name);
 }
 
+/// Must commit the currently selected command when cursor is in command-name token.
+///
+/// * Enforced in: `crate::overlay::controllers::command_palette::CommandPaletteOverlay::on_commit`
+/// * Failure symptom: Executed command differs from visible selection in completion list.
 #[cfg_attr(test, test)]
 pub(crate) fn test_palette_commit_uses_selected_command_in_command_token() {
 	let query = xeno_registry::commands::COMMANDS
@@ -543,6 +567,10 @@ pub(crate) fn test_palette_commit_uses_selected_command_in_command_token() {
 	assert!(usage.count(&selected) > 0, "selected command should be recorded as used");
 }
 
+/// Must preserve quoted argument token boundaries on command commit.
+///
+/// * Enforced in: `crate::overlay::controllers::command_palette::CommandPaletteOverlay::tokenize`, `crate::overlay::controllers::command_palette::CommandPaletteOverlay::on_commit`
+/// * Failure symptom: Quoted filenames are split into multiple args.
 #[cfg_attr(test, test)]
 pub(crate) fn test_palette_commit_preserves_quoted_argument() {
 	let mut editor = crate::Editor::new_scratch();
@@ -561,6 +589,10 @@ pub(crate) fn test_palette_commit_preserves_quoted_argument() {
 	assert_eq!(commands[0].args, vec!["my file.rs".to_string()]);
 }
 
+/// Must preserve quoted snippet-body arguments on command commit.
+///
+/// * Enforced in: `crate::overlay::controllers::command_palette::CommandPaletteOverlay::tokenize`, `crate::overlay::controllers::command_palette::CommandPaletteOverlay::on_commit`
+/// * Failure symptom: Snippet placeholders are truncated or split across args.
 #[cfg_attr(test, test)]
 pub(crate) fn test_palette_commit_preserves_quoted_snippet_body_argument() {
 	let mut editor = crate::Editor::new_scratch();
@@ -579,6 +611,10 @@ pub(crate) fn test_palette_commit_preserves_quoted_snippet_body_argument() {
 	assert_eq!(commands[0].args, vec!["${1:x} ${2:y}".to_string()]);
 }
 
+/// Must provide snippet-name completions only for `@`-prefixed snippet query token.
+///
+/// * Enforced in: `crate::overlay::controllers::command_palette::CommandPaletteOverlay::build_items_for_token`, `crate::overlay::controllers::command_palette::CommandPaletteOverlay::build_snippet_items`
+/// * Failure symptom: Snippet command cannot discover named registry snippets.
 #[cfg_attr(test, test)]
 pub(crate) fn test_palette_snippet_name_completion_with_at_query() {
 	let mut editor = crate::Editor::new_scratch();
@@ -602,6 +638,10 @@ pub(crate) fn test_palette_snippet_name_completion_with_at_query() {
 	);
 }
 
+/// Must suppress snippet-name completions when snippet command uses inline body syntax.
+///
+/// * Enforced in: `crate::overlay::controllers::command_palette::CommandPaletteOverlay::build_items_for_token`
+/// * Failure symptom: Inline snippet editing is polluted by irrelevant snippet-name entries.
 #[cfg_attr(test, test)]
 pub(crate) fn test_palette_snippet_inline_body_has_no_name_completions() {
 	let mut editor = crate::Editor::new_scratch();
@@ -619,6 +659,10 @@ pub(crate) fn test_palette_snippet_inline_body_has_no_name_completions() {
 	assert!(state.items.is_empty());
 }
 
+/// Must hide completion UI and keep input unchanged when query has no matches.
+///
+/// * Enforced in: `crate::overlay::controllers::command_palette::CommandPaletteOverlay::update_completion_state`, `crate::overlay::controllers::command_palette::CommandPaletteOverlay::accept_tab_completion`
+/// * Failure symptom: Empty-match tab inserts stale completion text.
 #[cfg_attr(test, test)]
 pub(crate) fn test_palette_no_matches_hides_results_and_tab_noops() {
 	let mut editor = crate::Editor::new_scratch();

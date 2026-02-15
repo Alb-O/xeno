@@ -1,3 +1,8 @@
+//! Completion popup render-plan builders.
+//!
+//! Computes popup visibility, placement, and row-windowed completion plans for
+//! cursor-anchored and overlay-anchored completion menus.
+
 use unicode_width::UnicodeWidthStr;
 
 use crate::Editor;

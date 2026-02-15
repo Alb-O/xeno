@@ -1,3 +1,5 @@
+//! List widget rendering and viewport/selection computation.
+
 use crate::buffer::Buffer;
 use crate::layout::Rect;
 use crate::text::{Line, ToLine};

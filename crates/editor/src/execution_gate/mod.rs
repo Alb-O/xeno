@@ -1,3 +1,8 @@
+//! Cooperative execution gate for interactive and background work.
+//!
+//! Provides lightweight guards that enforce ordering between interactive tasks
+//! and background execution phases.
+
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 

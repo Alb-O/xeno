@@ -1,3 +1,9 @@
+//! Transaction-to-LSP change translation.
+//!
+//! Converts editor transactions into incremental LSP document changes using
+//! the requested offset encoding, with a safe fallback signal when a precise
+//! incremental mapping cannot be produced.
+
 use ropey::Rope;
 use xeno_primitives::Transaction;
 use xeno_primitives::lsp::{LspDocumentChange, LspPosition, LspRange};

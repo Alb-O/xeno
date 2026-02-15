@@ -1,3 +1,8 @@
+//! Overlay geometry helpers.
+//!
+//! Contains pure helpers for deriving inner content rects from surface style
+//! decorations (border and padding).
+
 use crate::geometry::Rect;
 use crate::window::SurfaceStyle;
 

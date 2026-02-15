@@ -1,4 +1,9 @@
 #![feature(portable_simd)]
+//! Fuzzy matcher engine used by editor completion and search paths.
+//!
+//! Provides one-shot and incremental APIs, prefiltering backends, and
+//! Smith-Waterman scoring implementations with SIMD acceleration where
+//! available.
 
 use std::cmp::Ordering;
 

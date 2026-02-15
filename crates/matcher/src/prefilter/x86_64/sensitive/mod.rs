@@ -1,3 +1,5 @@
+//! x86_64-optimized case-sensitive prefilter variants.
+
 mod ordered;
 mod unordered;
 mod unordered_typos;

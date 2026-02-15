@@ -1,3 +1,8 @@
+//! Effect sink application boundary.
+//!
+//! Drains queued editor effects, applies side effects in deterministic order,
+//! and routes overlay requests/events through validated capability boundaries.
+
 pub mod sink;
 pub mod types;
 

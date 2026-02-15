@@ -1,3 +1,7 @@
+//! Text-object specification schema.
+//!
+//! Defines text object metadata used by selection and motion systems.
+
 #[cfg(feature = "compile")]
 pub mod compile;
 

@@ -1,3 +1,9 @@
+//! Unified overlay subsystem.
+//!
+//! Coordinates modal overlay sessions, passive overlay layers, and shared
+//! type-erased overlay state used by completion, info popups, and other
+//! contextual UI features.
+
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::future::Future;
@@ -246,6 +252,7 @@ pub trait OverlayContext {
 	) -> xeno_lsp::Result<Option<(xeno_lsp::ClientHandle, xeno_lsp::lsp_types::Uri, xeno_lsp::lsp_types::Position)>>;
 
 	#[cfg(feature = "lsp")]
+	#[allow(dead_code, reason = "overlay controllers do not all consume LSP workspace edits yet")]
 	fn apply_workspace_edit<'a>(
 		&'a mut self,
 		edit: xeno_lsp::lsp_types::WorkspaceEdit,

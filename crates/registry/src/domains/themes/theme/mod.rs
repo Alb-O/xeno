@@ -1,3 +1,5 @@
+//! Theme entry types and operations.
+
 mod mod_types;
 mod ops;
 mod types;

@@ -1,3 +1,8 @@
+//! Editor-side LSP integration layer.
+//!
+//! Bridges `xeno_lsp` session functionality into editor state, UI overlays, and
+//! rendering helpers behind the optional `lsp` feature.
+
 #[cfg(feature = "lsp")]
 pub(crate) mod coalesce;
 #[cfg(feature = "lsp")]

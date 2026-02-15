@@ -13,7 +13,7 @@
 //! * Multiple buffers can point to the same document (enabling splits).
 //! * View-local state (like the cursor) is stored in the buffer.
 //! * Shared state (like text and history) is stored in the document.
-//! * Thread-safety for shared documents is managed via [`crate::buffer::DocumentHandle`] with re-entrancy protection.
+//! * Thread-safety for shared documents is managed via `DocumentHandle` with re-entrancy protection.
 //!
 //! # Key types
 //!
@@ -21,7 +21,7 @@
 //! |---|---|---|---|
 //! | [`crate::buffer::Buffer`] | Primary editing unit | MUST separate view state from content | `Buffer::new`, `Buffer::clone_for_split` |
 //! | [`crate::core::document::Document`] | Shared content | Authoritative source of text/history | `Document::new` |
-//! | [`crate::buffer::DocumentHandle`] | Thread-safe wrapper | MUST prevent re-entrant locks on same thread | `DocumentHandle::new` |
+//! | `DocumentHandle` | Thread-safe wrapper | MUST prevent re-entrant locks on same thread | `DocumentHandle::new` |
 //! | [`crate::buffer::ApplyPolicy`] | Edit validation rules | Controls readonly/history behavior | `editing::apply` |
 //!
 //! # Invariants
@@ -34,14 +34,14 @@
 //!
 //! 1. Input: User keys flow into [`InputHandler`].
 //! 2. Resolution: Input produces an action which calls `Buffer` methods.
-//! 3. Mutation: `Buffer` calls [`DocumentHandle::with_mut`] to apply edits.
+//! 3. Mutation: `Buffer` calls `DocumentHandle::with_mut` to apply edits.
 //! 4. Notification: Document changes trigger version bumps and event emission.
 //!
 //! # Lifecycle
 //!
 //! 1. Creation: `Buffer::new` creates a view over a fresh [`crate::core::document::Document`].
 //! 2. Split: `Buffer::clone_for_split` creates additional views over the same document.
-//! 3. Editing: input handlers mutate document state through [`DocumentHandle`].
+//! 3. Editing: input handlers mutate document state through `DocumentHandle`.
 //! 4. Disposal: dropping a buffer releases only view-local state; document lifetime follows shared ownership.
 //!
 //! # Concurrency & ordering

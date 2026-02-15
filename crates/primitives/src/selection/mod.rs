@@ -1,3 +1,8 @@
+//! Multi-range selection model.
+//!
+//! Provides non-empty selections with a designated primary range, normalization
+//! rules, and transformation helpers used by cursor, motion, and edit paths.
+
 use ropey::RopeSlice;
 use smallvec::{SmallVec, smallvec};
 

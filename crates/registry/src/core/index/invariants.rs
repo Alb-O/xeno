@@ -34,7 +34,10 @@ pub(crate) fn test_deterministic_iteration() {
 	assert_eq!(ids, vec!["A", "B"]);
 }
 
-/// Duplicate IDs in debug mode trigger panic (DuplicatePolicy::Panic).
+/// Must panic on duplicate canonical IDs in `DuplicatePolicy::Panic` mode.
+///
+/// * Enforced in: `crate::core::index::build::resolve_id_duplicates`
+/// * Failure symptom: Conflicting canonical IDs silently co-exist in one registry build.
 #[cfg_attr(test, test)]
 #[should_panic(expected = "Duplicate registry key")]
 pub(crate) fn test_duplicate_id_panics_in_debug() {
@@ -44,7 +47,10 @@ pub(crate) fn test_duplicate_id_panics_in_debug() {
 	let _ = builder.build(); // Should panic
 }
 
-/// Alias conflicts are recorded as collisions.
+/// Must record alias/key conflicts in collision metadata.
+///
+/// * Enforced in: `crate::core::index::build::resolve_key_duplicates`
+/// * Failure symptom: Collision diagnostics are lost and conflict debugging becomes opaque.
 #[cfg_attr(test, test)]
 pub(crate) fn test_key_collision_recording() {
 	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> = RegistryBuilder::new("test");
@@ -367,7 +373,10 @@ pub(crate) fn test_source_precedence() {
 	assert_eq!(entry2.name_str(), "runtime2", "Runtime source must win over Builtin at same priority (runtime)");
 }
 
-/// On canonical ID conflicts with identical priority and source, later ingest (higher ordinal) wins.
+/// Must use ingest ordinal as tie-breaker for canonical ID conflicts with equal precedence.
+///
+/// * Enforced in: `crate::core::index::collision::cmp_party`, `crate::core::index::build::resolve_id_duplicates`
+/// * Failure symptom: Equal-priority/equal-source duplicate IDs resolve nondeterministically.
 #[cfg_attr(test, test)]
 pub(crate) fn test_canonical_id_ordinal_tiebreaker() {
 	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> = RegistryBuilder::with_policy("test", DuplicatePolicy::ByPriority);
@@ -410,7 +419,10 @@ pub(crate) fn test_canonical_id_ordinal_tiebreaker() {
 	);
 }
 
-/// On key conflicts (name/key) with identical priority and source, later ingest wins (ordinal tie-break).
+/// Must use ingest ordinal as tie-breaker for key/name conflicts with equal precedence.
+///
+/// * Enforced in: `crate::core::index::collision::cmp_party`, `crate::core::index::build::resolve_key_duplicates`
+/// * Failure symptom: Key bindings flip unpredictably across rebuilds.
 #[cfg_attr(test, test)]
 pub(crate) fn test_key_conflict_ordinal_tiebreaker() {
 	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> = RegistryBuilder::with_policy("test", DuplicatePolicy::ByPriority);
@@ -454,11 +466,10 @@ pub(crate) fn test_key_conflict_ordinal_tiebreaker() {
 	);
 }
 
-/// Regression test: ID override must keep its name/key bindings even on tie.
+/// Must preserve name/key ownership for the winning entry after canonical-ID override ties.
 ///
-/// This verifies that when a definition is overridden in Stage A (Canonical ID),
-/// it also consistently wins its Stage B (Name) and Stage C (Key) bindings
-/// because it has the higher ordinal.
+/// * Enforced in: `crate::core::index::build::resolve_id_duplicates`, `crate::core::index::build::resolve_key_duplicates`
+/// * Failure symptom: Overriding entry wins ID but loses name/key lookups to stale entry.
 #[cfg_attr(test, test)]
 pub(crate) fn test_id_override_keeps_name_binding_on_tie() {
 	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> = RegistryBuilder::with_policy("test", DuplicatePolicy::ByPriority);
@@ -521,7 +532,10 @@ pub(crate) fn test_id_override_keeps_name_binding_on_tie() {
 	assert_eq!(index.interner.resolve(shared.meta().description), "v2", "Must be the latest version of A");
 }
 
-/// Runtime overrides of canonical IDs must be recorded as DuplicateId collisions.
+/// Must record runtime canonical-ID overrides as `DuplicateId` collisions.
+///
+/// * Enforced in: `crate::core::index::runtime::RuntimeRegistry::register`
+/// * Failure symptom: Runtime replacement happens without observable collision metadata.
 #[cfg_attr(test, test)]
 pub(crate) fn test_runtime_duplicate_id_records_collision() {
 	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> = RegistryBuilder::new("test");

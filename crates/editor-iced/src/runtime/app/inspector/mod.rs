@@ -1,3 +1,5 @@
+//! Inspector panel rendering for iced runtime snapshots.
+
 use iced::widget::text::Wrapping;
 use iced::widget::{Column, column, row, text};
 use iced::{Color, Font};
@@ -79,6 +81,37 @@ fn append_surface_rows(mut rows: Column<'static, Message>, surface: &SurfaceSnap
 		}
 	}
 
+	if surface.overlay_pane_views.is_empty() {
+		rows = rows.push(styled_inspector_text("overlay_pane_views=none", InspectorTone::Meta));
+	} else {
+		rows = rows.push(styled_inspector_text(
+			format!("overlay_pane_views={}", surface.overlay_pane_views.len()),
+			InspectorTone::Meta,
+		));
+		for pane in surface.overlay_pane_views.iter().take(2) {
+			rows = rows.push(styled_inspector_text(
+				format!(
+					"  {:?} outer={} content={} gutter={} text={} rows={}/{} style={:?}",
+					pane.role,
+					rect_brief(pane.rect),
+					rect_brief(pane.content_rect),
+					rect_brief(pane.gutter_rect),
+					rect_brief(pane.text_rect),
+					pane.gutter.len(),
+					pane.text.len(),
+					pane.style
+				),
+				InspectorTone::Meta,
+			));
+		}
+		if surface.overlay_pane_views.len() > 2 {
+			rows = rows.push(styled_inspector_text(
+				format!("  ... {} more overlay pane views", surface.overlay_pane_views.len() - 2),
+				InspectorTone::Meta,
+			));
+		}
+	}
+
 	match surface.completion_plan.as_ref() {
 		Some(plan) => {
 			let selected = plan
@@ -146,6 +179,35 @@ fn append_surface_rows(mut rows: Column<'static, Message>, surface: &SurfaceSnap
 		if surface.info_popup_plan.len() > 2 {
 			rows = rows.push(styled_inspector_text(
 				format!("  ... {} more popups", surface.info_popup_plan.len() - 2),
+				InspectorTone::Meta,
+			));
+		}
+	}
+
+	if surface.info_popup_views.is_empty() {
+		rows = rows.push(styled_inspector_text("info_popup_views=none", InspectorTone::Meta));
+	} else {
+		rows = rows.push(styled_inspector_text(
+			format!("info_popup_views={}", surface.info_popup_views.len()),
+			InspectorTone::Meta,
+		));
+		for popup in surface.info_popup_views.iter().take(2) {
+			rows = rows.push(styled_inspector_text(
+				format!(
+					"  outer={} inner={} gutter={} text={} rows={}/{}",
+					rect_brief(popup.rect),
+					rect_brief(popup.inner_rect),
+					rect_brief(popup.gutter_rect),
+					rect_brief(popup.text_rect),
+					popup.gutter.len(),
+					popup.text.len(),
+				),
+				InspectorTone::Meta,
+			));
+		}
+		if surface.info_popup_views.len() > 2 {
+			rows = rows.push(styled_inspector_text(
+				format!("  ... {} more info popup views", surface.info_popup_views.len() - 2),
 				InspectorTone::Meta,
 			));
 		}

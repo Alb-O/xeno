@@ -1,3 +1,8 @@
+//! Action specification schema.
+//!
+//! Defines action metadata and keybinding declarations used to build runtime
+//! action registries.
+
 #[cfg(feature = "compile")]
 pub mod compile;
 

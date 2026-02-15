@@ -1,3 +1,5 @@
+//! Registry database builder and per-domain accumulation helpers.
+
 use std::collections::HashSet;
 use std::sync::Arc;
 

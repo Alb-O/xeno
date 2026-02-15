@@ -1,4 +1,9 @@
 #![cfg_attr(test, allow(unused_crate_dependencies))]
+//! Terminal frontend runtime for Xeno.
+//!
+//! Owns the terminal event loop, frame rendering orchestration, cursor style
+//! synchronization, terminal capability setup/teardown, and event translation
+//! from `termina` into `xeno_editor::runtime::RuntimeEvent`.
 
 mod backend;
 mod compositor;

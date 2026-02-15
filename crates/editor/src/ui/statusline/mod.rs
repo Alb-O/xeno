@@ -1,3 +1,8 @@
+//! Statusline planning and style resolution.
+//!
+//! Builds frontend-neutral statusline segments from editor/runtime context and
+//! resolves style intents into theme-derived concrete styles.
+
 use unicode_width::UnicodeWidthStr;
 use xeno_primitives::Style;
 use xeno_registry::statusline::{SegmentPosition, SegmentStyle, StatuslineContext, render_position};

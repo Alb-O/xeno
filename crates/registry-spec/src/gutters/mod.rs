@@ -1,3 +1,7 @@
+//! Gutter annotation specification schema.
+//!
+//! Defines declarative gutter kinds and visual attributes for registry loading.
+
 #[cfg(feature = "compile")]
 pub mod compile;
 

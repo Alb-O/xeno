@@ -1,3 +1,5 @@
+//! LSP server domain registration and runtime entry construction.
+
 pub mod entry;
 pub mod loader;
 pub mod registry;

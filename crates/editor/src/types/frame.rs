@@ -16,7 +16,7 @@ pub struct FrameState {
 	/// Deferred overlay commit awaiting runtime pump.
 	///
 	/// Set when a `CloseModal { Commit }` effect arrives during the
-	/// synchronous flush loop; consumed by [`crate::runtime::Editor::pump`].
+	/// synchronous flush loop; consumed by [`crate::Editor::pump`].
 	pub pending_overlay_commit: bool,
 	/// Workspace edits queued from async overlay tasks.
 	#[cfg(feature = "lsp")]

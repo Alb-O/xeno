@@ -1,3 +1,8 @@
+//! Declarative overlay geometry and window specification.
+//!
+//! Defines reusable window roles and rect policies that controllers use to
+//! describe modal overlay layouts independently from concrete screen sizes.
+
 use std::collections::HashMap;
 
 use xeno_registry::options::OptionValue;
