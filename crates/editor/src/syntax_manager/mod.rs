@@ -111,15 +111,17 @@ mod core;
 mod edits;
 mod engine;
 mod ensure;
+mod manager_state;
 mod policy;
 mod queries;
 mod retention;
 mod scheduling;
 mod tasks;
 mod types;
-
 use engine::RealSyntaxEngine;
 pub use engine::SyntaxEngine;
+use manager_state::DocEntry;
+pub use manager_state::SyntaxManager;
 pub use metrics::SyntaxMetrics;
 pub use policy::{RetentionPolicy, SyntaxHotness, SyntaxManagerCfg, SyntaxTier, TierCfg, TieredSyntaxPolicy};
 use scheduling::CompletedSyntaxTask;
@@ -134,46 +136,6 @@ pub use types::{
 pub(crate) use types::{InstalledTree, PendingIncrementalEdits};
 #[cfg(test)]
 pub(crate) use xeno_language::LanguageId;
-
-struct DocEntry {
-	sched: DocSched,
-	slot: SyntaxSlot,
-	/// Last known tier for retention sweep (updated on each ensure_syntax call).
-	last_tier: Option<policy::SyntaxTier>,
-}
-
-impl DocEntry {
-	fn new(now: Instant) -> Self {
-		Self {
-			sched: DocSched::new(now),
-			slot: SyntaxSlot::default(),
-			last_tier: None,
-		}
-	}
-}
-
-/// Top-level scheduler for background syntax parsing and results storage.
-///
-/// The [`SyntaxManager`] enforces global concurrency limits via a semaphore and
-/// manages per-document state, including incremental updates and tiered policies.
-/// It integrates with the editor tick and render loops to ensure monotonic tree
-/// installation and prompt permit release.
-pub struct SyntaxManager {
-	/// Global configuration.
-	cfg: SyntaxManagerCfg,
-	/// Tiered policy mapping file size to specific configurations.
-	policy: TieredSyntaxPolicy,
-	/// Runtime metrics for adaptive scheduling.
-	metrics: SyntaxMetrics,
-	/// Global semaphore limiting concurrent background parse tasks.
-	permits: Arc<Semaphore>,
-	/// Per-document scheduling and syntax state.
-	entries: HashMap<DocumentId, DocEntry>,
-	/// Pluggable parsing engine (abstracted for tests).
-	engine: Arc<dyn SyntaxEngine>,
-	/// Collector for background tasks.
-	collector: TaskCollector,
-}
 
 #[cfg(test)]
 mod invariants;

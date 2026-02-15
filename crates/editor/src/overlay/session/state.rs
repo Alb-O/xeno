@@ -1,0 +1,221 @@
+use super::*;
+
+/// Renderable pane metadata for a modal overlay session.
+pub struct OverlayPane {
+	pub role: WindowRole,
+	pub buffer: ViewId,
+	pub rect: Rect,
+	pub content_rect: Rect,
+	pub style: SurfaceStyle,
+	pub gutter: GutterSelector,
+	pub dismiss_on_blur: bool,
+	pub sticky: bool,
+}
+
+/// Data-only pane target consumed by frontend overlay renderers.
+#[derive(Debug, Clone)]
+pub struct OverlayPaneRenderTarget {
+	pub(crate) role: WindowRole,
+	pub(crate) buffer: ViewId,
+	pub(crate) rect: Rect,
+	pub(crate) content_rect: Rect,
+	pub(crate) style: SurfaceStyle,
+	pub(crate) gutter: GutterSelector,
+	pub(crate) dismiss_on_blur: bool,
+	pub(crate) sticky: bool,
+}
+
+impl OverlayPaneRenderTarget {
+	pub fn role(&self) -> WindowRole {
+		self.role
+	}
+
+	pub fn buffer(&self) -> ViewId {
+		self.buffer
+	}
+
+	pub fn rect(&self) -> Rect {
+		self.rect
+	}
+
+	pub fn content_rect(&self) -> Rect {
+		self.content_rect
+	}
+
+	pub fn style(&self) -> &SurfaceStyle {
+		&self.style
+	}
+
+	pub fn gutter(&self) -> GutterSelector {
+		self.gutter
+	}
+
+	pub fn dismiss_on_blur(&self) -> bool {
+		self.dismiss_on_blur
+	}
+
+	pub fn sticky(&self) -> bool {
+		self.sticky
+	}
+}
+
+impl From<&OverlayPane> for OverlayPaneRenderTarget {
+	fn from(pane: &OverlayPane) -> Self {
+		Self {
+			role: pane.role,
+			buffer: pane.buffer,
+			rect: pane.rect,
+			content_rect: pane.content_rect,
+			style: pane.style.clone(),
+			gutter: pane.gutter,
+			dismiss_on_blur: pane.dismiss_on_blur,
+			sticky: pane.sticky,
+		}
+	}
+}
+
+/// State and resources for an active modal interaction session.
+///
+/// An `OverlaySession` is created by [`crate::overlay::OverlayHost`] and managed by [`crate::overlay::OverlayManager`].
+/// It tracks all allocated UI resources and provides mechanisms for temporary
+/// state capture and restoration.
+pub struct OverlaySession {
+	/// List of panes rendered for this session.
+	pub panes: Vec<OverlayPane>,
+	/// List of scratch buffer IDs allocated for this session.
+	pub buffers: Vec<ViewId>,
+	/// The primary input buffer ID for the interaction.
+	pub input: ViewId,
+
+	/// The focus target to restore after the session ends.
+	pub origin_focus: FocusTarget,
+	/// The editor mode to restore after the session ends.
+	pub origin_mode: Mode,
+	/// The buffer view that was active when the session started.
+	pub origin_view: ViewId,
+
+	/// Storage for captured buffer states (cursor, selection) for restoration.
+	pub capture: PreviewCapture,
+
+	/// Current status message displayed by the overlay.
+	pub status: OverlayStatus,
+}
+
+/// Storage for buffer states captured before transient changes.
+#[derive(Default)]
+pub struct PreviewCapture {
+	/// Mapping of view ID to (version, cursor position, selection).
+	pub per_view: HashMap<ViewId, CapturedViewState>,
+}
+
+#[derive(Debug, Clone)]
+pub struct CapturedViewState {
+	pub version: u64,
+	pub cursor: CharIdx,
+	pub selection: Selection,
+}
+
+/// Metadata about the current session status.
+#[derive(Debug, Default, Clone)]
+pub struct OverlayStatus {
+	/// Optional status message and its severity kind.
+	pub message: Option<(StatusKind, String)>,
+}
+
+/// Severity kind for overlay status messages.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StatusKind {
+	Info,
+}
+
+impl OverlaySession {
+	/// Returns a data-only pane plan for frontend rendering.
+	pub fn pane_render_plan(&self) -> Vec<OverlayPaneRenderTarget> {
+		self.panes.iter().map(OverlayPaneRenderTarget::from).collect()
+	}
+
+	/// Returns the resolved pane rect for a role when present.
+	pub fn pane_rect(&self, role: WindowRole) -> Option<Rect> {
+		self.panes.iter().find(|pane| pane.role == role).map(|pane| pane.rect)
+	}
+
+	/// Returns the current text content of the primary input buffer.
+	pub fn input_text(&self, ctx: &dyn OverlayContext) -> String {
+		ctx.buffer(self.input).map(|b| b.with_doc(|doc| doc.content().to_string())).unwrap_or_default()
+	}
+
+	/// Captures the current state of a view if it hasn't been captured yet.
+	///
+	/// Use this before applying preview modifications to a buffer to ensure
+	/// the original state can be restored.
+	pub fn capture_view(&mut self, ctx: &dyn OverlayContext, view: ViewId) {
+		if self.capture.per_view.contains_key(&view) {
+			return;
+		}
+		if let Some(buffer) = ctx.buffer(view) {
+			self.capture.per_view.insert(
+				view,
+				CapturedViewState {
+					version: buffer.version(),
+					cursor: buffer.cursor,
+					selection: buffer.selection.clone(),
+				},
+			);
+		}
+	}
+
+	/// Selects a range in a view, capturing its state first if necessary.
+	pub fn preview_select(&mut self, ctx: &mut dyn OverlayContext, view: ViewId, range: Range) {
+		self.capture_view(ctx, view);
+		if let Some(buffer) = ctx.buffer_mut(view) {
+			let start = range.min();
+			let end = range.max();
+			let selection = Selection::single(start, end);
+			buffer.set_cursor_and_selection(start, selection);
+		}
+	}
+
+	/// Restores all captured view states.
+	///
+	/// Only restores a buffer if its version still matches the captured version,
+	/// preventing user edits from being clobbered by stale preview restoration.
+	///
+	/// This is non-destructive; the capture map remains intact until
+	/// [`Self::clear_capture`] is called.
+	pub fn restore_all(&self, ctx: &mut dyn OverlayContext) {
+		for (view, captured) in &self.capture.per_view {
+			if let Some(buffer) = ctx.buffer_mut(*view)
+				&& buffer.version() == captured.version
+			{
+				buffer.set_cursor_and_selection(captured.cursor, captured.selection.clone());
+			}
+		}
+	}
+
+	/// Destroys all captured view state.
+	pub fn clear_capture(&mut self) {
+		self.capture.per_view.clear();
+	}
+
+	/// Sets the session status message.
+	pub fn set_status(&mut self, kind: StatusKind, msg: impl Into<String>) {
+		self.status.message = Some((kind, msg.into()));
+	}
+
+	/// Clears the session status message.
+	pub fn clear_status(&mut self) {
+		self.status.message = None;
+	}
+
+	/// Cleans up all resources allocated for the session.
+	///
+	/// Removes scratch buffers.
+	/// Safe to call multiple times.
+	pub fn teardown(&mut self, ctx: &mut dyn OverlayContext) {
+		self.panes.clear();
+		for buffer_id in self.buffers.drain(..) {
+			ctx.finalize_buffer_removal(buffer_id);
+		}
+		self.clear_capture();
+	}
+}
