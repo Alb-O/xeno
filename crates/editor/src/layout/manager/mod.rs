@@ -165,5 +165,5 @@ mod state;
 pub use state::LayoutManager;
 
 #[cfg(test)]
-#[path = "invariants.rs"]
+#[path = "../invariants.rs"]
 mod invariants;

@@ -80,5 +80,5 @@ mod state;
 pub use state::{RegisterError, RuntimeEntry, RuntimeRegistry};
 
 #[cfg(test)]
-#[path = "invariants.rs"]
+#[path = "../invariants.rs"]
 mod invariants;

@@ -73,7 +73,7 @@ subsystem architecture lives as `//!` module-level rustdoc in the anchor files l
 
 ### invariants
 
-each anchor module has a sibling `invariants.rs` file:
+each anchor module has an `invariants.rs` file:
 * in anchor `mod.rs`: `#[cfg(test)] mod invariants;`
 * in `invariants.rs`: implement `#[cfg_attr(test, test)]` (or `tokio::test`) proof functions with `test_*` names. each test carries the full invariant triad as a docstring.
 
