@@ -4,12 +4,12 @@
 # Reload with :nu-reload, run with :nu-run <fn> [args...]
 #
 # Module-only: only def/use/const/alias at top level (no expressions).
-
-# --- String helpers (built on Nu operators) ---
-
-export def "str ends-with"  [suffix: string] { $in ends-with $suffix }
-export def "str starts-with" [prefix: string] { $in starts-with $prefix }
-export def "str contains"    [needle: string] { $in like $needle }
+#
+# Built-in prelude commands available without import:
+#   action, command, editor, "nu run"       — invocation constructors
+#   "str ends-with", "str starts-with", "str contains" — string helpers
+#
+# You can also `use xeno *` explicitly (already in scope by default).
 
 # --- Hooks ---
 
@@ -41,14 +41,22 @@ export def on_buffer_open [path kind] {
 
 # --- Macros ---
 
-# Simple: return an invocation string.
+# Using built-in constructors (preferred):
 export def save-and-format [] {
-  ["command:write", "command:format"]
+  [(command write), (command format)]
 }
 
-# Structured: return a record with fields.
 export def move-down-5 [] {
-  { kind: "action", name: "move_down", count: 5 }
+  action move_down --count 5
+}
+
+export def find-x [] {
+  action find_char --char x
+}
+
+# Equivalent constructor-based form of "write then reload":
+export def reload-all [] {
+  [(command write), (editor reload_config)]
 }
 
 # Context-aware: read cursor/buffer state from $env.XENO_CTX.

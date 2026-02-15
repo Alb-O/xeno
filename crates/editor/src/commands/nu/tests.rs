@@ -28,7 +28,7 @@ fn parse_invocation_variants() {
 #[test]
 fn nu_run_dispatches_action() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
-	write_script(temp.path(), "export def go [name] { $\"action:($name)\" }");
+	write_script(temp.path(), "export def go [name] { action $name }");
 
 	let runtime = crate::nu::NuRuntime::load(temp.path()).expect("runtime should load");
 	let mut editor = Editor::new_scratch();
@@ -60,7 +60,7 @@ fn nu_run_command_injects_ctx() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
 	write_script(
 		temp.path(),
-		"export def go [] { if $env.XENO_CTX.kind == \"macro\" { \"action:move_right\" } else { \"action:does-not-exist\" } }",
+		"export def go [] { if $env.XENO_CTX.kind == \"macro\" { action move_right } else { action does-not-exist } }",
 	);
 
 	let runtime = crate::nu::NuRuntime::load(temp.path()).expect("runtime should load");
@@ -90,13 +90,31 @@ fn nu_run_command_injects_ctx() {
 }
 
 #[test]
+fn nu_run_noop_macro_returns_ok() {
+	let temp = tempfile::tempdir().expect("temp dir should exist");
+	write_script(temp.path(), "export def noop [] { null }");
+
+	let runtime = crate::nu::NuRuntime::load(temp.path()).expect("runtime should load");
+	let mut editor = Editor::new_scratch();
+	editor.set_nu_runtime(Some(runtime));
+
+	let rt = tokio::runtime::Builder::new_current_thread()
+		.enable_all()
+		.build()
+		.expect("runtime should build");
+	let result = rt.block_on(editor.run_invocation(Invocation::nu("noop", vec![]), InvocationPolicy::enforcing()));
+
+	assert!(matches!(result, InvocationResult::Ok), "null-returning macro should be Ok, got: {result:?}");
+}
+
+#[test]
 fn nu_run_command_injects_expanded_ctx_fields() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
 	write_script(
 		temp.path(),
 		r#"export def go [] {
   let c = $env.XENO_CTX
-  if ($c.kind == "macro") and ($c.view.id == 1) and ($c.cursor.line == 0) and ($c.cursor.col == 0) and ($c.selection.active == false) and ($c.selection.start.line == 0) and ($c.selection.start.col == 0) and ($c.selection.end.line == 0) and ($c.selection.end.col == 0) and ($c.buffer.path == null) and ($c.buffer.file_type == null) and ($c.buffer.modified == false) and ($c.buffer.readonly == false) { "action:move_right" } else { "action:does-not-exist" }
+  if ($c.kind == "macro") and ($c.view.id == 1) and ($c.cursor.line == 0) and ($c.cursor.col == 0) and ($c.selection.active == false) and ($c.selection.start.line == 0) and ($c.selection.start.col == 0) and ($c.selection.end.line == 0) and ($c.selection.end.col == 0) and ($c.buffer.path == null) and ($c.buffer.file_type == null) and ($c.buffer.modified == false) and ($c.buffer.readonly == false) { action move_right } else { action does-not-exist }
 }"#,
 	);
 
@@ -117,7 +135,7 @@ fn nu_run_command_injects_expanded_ctx_fields() {
 #[test]
 fn nu_run_dispatches_editor_command() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
-	write_script(temp.path(), "export def go [] { \"editor:stats\" }");
+	write_script(temp.path(), "export def go [] { editor stats }");
 
 	let runtime = crate::nu::NuRuntime::load(temp.path()).expect("runtime should load");
 	let mut editor = Editor::new_scratch();
@@ -135,7 +153,7 @@ fn nu_run_dispatches_editor_command() {
 #[test]
 fn nu_reload_rejects_external_script_and_keeps_existing_runtime() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
-	write_script(temp.path(), "export def ok [] { \"editor:stats\" }");
+	write_script(temp.path(), "export def ok [] { editor stats }");
 
 	let mut editor = Editor::new_scratch();
 	let initial_runtime = crate::nu::NuRuntime::load(temp.path()).expect("initial runtime should load");
@@ -164,7 +182,7 @@ fn action_post_hook_dispatches_once_with_recursion_guard() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
 	write_script(
 		temp.path(),
-		"export def on_action_post [name result] { if $name == \"move_right\" and $result == \"ok\" { \"action:move_right\" } else { [] } }",
+		"export def on_action_post [name result] { if $name == \"move_right\" and $result == \"ok\" { action move_right } else { [] } }",
 	);
 
 	let runtime = crate::nu::NuRuntime::load(temp.path()).expect("runtime should load");
@@ -190,7 +208,7 @@ fn action_post_hook_receives_expanded_ctx_fields() {
 		temp.path(),
 		r#"export def on_action_post [name result] {
   let c = $env.XENO_CTX
-  if ($c.kind == "hook") and ($name == "move_right") and ($result == "ok") and ($c.view.id == 1) and ($c.cursor.line == 0) and ($c.cursor.col == 1) and ($c.selection.active == false) and ($c.selection.start.col == 1) and ($c.selection.end.col == 1) and ($c.buffer.modified == false) and ($c.buffer.readonly == false) { "action:move_right" } else { [] }
+  if ($c.kind == "hook") and ($name == "move_right") and ($result == "ok") and ($c.view.id == 1) and ($c.cursor.line == 0) and ($c.cursor.col == 1) and ($c.selection.active == false) and ($c.selection.start.col == 1) and ($c.selection.end.col == 1) and ($c.buffer.modified == false) and ($c.buffer.readonly == false) { action move_right } else { [] }
 }"#,
 	);
 

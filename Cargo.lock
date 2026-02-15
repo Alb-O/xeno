@@ -6729,7 +6729,6 @@ dependencies = [
  "strsim",
  "thiserror 2.0.18",
  "tracing",
- "xeno-invocation-spec",
  "xeno-keymap-core",
  "xeno-macros",
  "xeno-nu",

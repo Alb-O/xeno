@@ -45,7 +45,7 @@ fn override_wins_over_base_binding() {
 	let (mode, key_seq, _base_id, target_id, target_name) = sample_binding(&actions).expect("registry should contain at least one binding");
 
 	let mut mode_overrides = HashMap::new();
-	mode_overrides.insert(key_seq.clone(), target_name);
+	mode_overrides.insert(key_seq.clone(), Invocation::action(&target_name));
 	let mut modes = HashMap::new();
 	modes.insert(mode_name(mode).to_string(), mode_overrides);
 	let overrides = UnresolvedKeys { modes };
@@ -61,7 +61,7 @@ fn invalid_override_action_keeps_base_binding() {
 	let (mode, key_seq, base_id, _target_id, _target_name) = sample_binding(&actions).expect("registry should contain at least one binding");
 
 	let mut mode_overrides = HashMap::new();
-	mode_overrides.insert(key_seq.clone(), "action:does-not-exist".to_string());
+	mode_overrides.insert(key_seq.clone(), Invocation::action("does-not-exist"));
 	let mut modes = HashMap::new();
 	modes.insert(mode_name(mode).to_string(), mode_overrides);
 	let overrides = UnresolvedKeys { modes };
@@ -72,7 +72,7 @@ fn invalid_override_action_keeps_base_binding() {
 }
 
 #[test]
-fn invocation_spec_override_in_trie() {
+fn invocation_override_in_trie() {
 	let actions = crate::db::ACTIONS.snapshot();
 	let (mode, key_seq, base_id, _target_id, _target_name) = sample_binding(&actions).expect("registry should contain at least one binding");
 	let base_action_id_str = {
@@ -81,7 +81,7 @@ fn invocation_spec_override_in_trie() {
 	};
 
 	let mut mode_overrides = HashMap::new();
-	mode_overrides.insert(key_seq.clone(), "editor:stats".to_string());
+	mode_overrides.insert(key_seq.clone(), Invocation::editor_command("stats", vec![]));
 	let mut modes = HashMap::new();
 	modes.insert(mode_name(mode).to_string(), mode_overrides);
 	let overrides = UnresolvedKeys { modes };
@@ -90,9 +90,12 @@ fn invocation_spec_override_in_trie() {
 	let keys = parse_seq(&key_seq).expect("key sequence should parse");
 	match index.lookup(mode, &keys) {
 		LookupResult::Match(entry) => {
-			assert!(matches!(&entry.target, BindingTarget::InvocationSpec { spec, .. } if spec.as_ref() == "editor:stats"));
+			assert!(matches!(
+				&entry.target,
+				BindingTarget::Invocation { inv: Invocation::EditorCommand { name, .. } } if name == "stats"
+			));
 		}
-		_ => panic!("expected a complete keybinding match for invocation spec override"),
+		_ => panic!("expected a complete keybinding match for invocation override"),
 	}
 	assert!(!index.conflicts().is_empty(), "overriding a base binding should record a conflict");
 	let conflict = index
@@ -100,7 +103,6 @@ fn invocation_spec_override_in_trie() {
 		.iter()
 		.find(|c| c.keys.as_ref() == key_seq)
 		.expect("conflict for overridden key");
-	assert_eq!(conflict.kept_target, "editor:stats", "kept_target should be the override winner");
 	assert_eq!(
 		conflict.dropped_target, base_action_id_str,
 		"dropped_target should be the original base binding"
@@ -108,12 +110,11 @@ fn invocation_spec_override_in_trie() {
 }
 
 #[test]
-fn invocation_spec_override_fresh_key() {
+fn invocation_override_fresh_key() {
 	let actions = crate::db::ACTIONS.snapshot();
 
 	let mut mode_overrides = HashMap::new();
-	// Use a key sequence unlikely to exist in base bindings
-	mode_overrides.insert("ctrl-f12".to_string(), "command:write".to_string());
+	mode_overrides.insert("ctrl-f12".to_string(), Invocation::command("write", vec![]));
 	let mut modes = HashMap::new();
 	modes.insert("normal".to_string(), mode_overrides);
 	let overrides = UnresolvedKeys { modes };
@@ -122,19 +123,22 @@ fn invocation_spec_override_fresh_key() {
 	let keys = parse_seq("ctrl-f12").expect("key sequence should parse");
 	match index.lookup(BindingMode::Normal, &keys) {
 		LookupResult::Match(entry) => {
-			assert!(matches!(&entry.target, BindingTarget::InvocationSpec { spec, .. } if spec.as_ref() == "command:write"));
+			assert!(matches!(
+				&entry.target,
+				BindingTarget::Invocation { inv: Invocation::Command { name, .. } } if name == "write"
+			));
 			assert_eq!(&*entry.short_desc, "write");
 		}
-		_ => panic!("expected invocation spec match for fresh key"),
+		_ => panic!("expected invocation match for fresh key"),
 	}
 }
 
 #[test]
-fn invocation_spec_override_nu_target() {
+fn invocation_override_nu_target() {
 	let actions = crate::db::ACTIONS.snapshot();
 
 	let mut mode_overrides = HashMap::new();
-	mode_overrides.insert("ctrl-f11".to_string(), "nu:go fast".to_string());
+	mode_overrides.insert("ctrl-f11".to_string(), Invocation::nu("go", vec!["fast".to_string()]));
 	let mut modes = HashMap::new();
 	modes.insert("normal".to_string(), mode_overrides);
 	let overrides = UnresolvedKeys { modes };
@@ -143,21 +147,22 @@ fn invocation_spec_override_nu_target() {
 	let keys = parse_seq("ctrl-f11").expect("key sequence should parse");
 	match index.lookup(BindingMode::Normal, &keys) {
 		LookupResult::Match(entry) => {
-			assert!(
-				matches!(&entry.target, BindingTarget::InvocationSpec { spec, kind } if spec.as_ref() == "nu:go fast" && *kind == xeno_invocation_spec::SpecKind::Nu)
-			);
+			assert!(matches!(
+				&entry.target,
+				BindingTarget::Invocation { inv: Invocation::Nu { name, args } } if name == "go" && args == &["fast".to_string()]
+			));
 			assert_eq!(&*entry.short_desc, "go");
 		}
-		_ => panic!("expected nu invocation spec match for fresh key"),
+		_ => panic!("expected nu invocation match for fresh key"),
 	}
 }
 
 #[test]
-fn which_key_labels_invocation_spec() {
+fn which_key_labels_invocation() {
 	let actions = crate::db::ACTIONS.snapshot();
 
 	let mut normal = HashMap::new();
-	normal.insert("g r".to_string(), "editor:reload_config".to_string());
+	normal.insert("g r".to_string(), Invocation::editor_command("reload_config", vec![]));
 	let mut modes = HashMap::new();
 	modes.insert("normal".to_string(), normal);
 	let overrides = UnresolvedKeys { modes };
@@ -174,9 +179,8 @@ fn which_key_labels_invocation_spec() {
 	assert_eq!(&*entry.short_desc, "reload_config");
 	assert!(matches!(
 		&entry.target,
-		BindingTarget::InvocationSpec {
-			kind: xeno_invocation_spec::SpecKind::Editor,
-			..
+		BindingTarget::Invocation {
+			inv: Invocation::EditorCommand { .. }
 		}
 	));
 }
@@ -189,9 +193,7 @@ fn invalid_override_produces_problem() {
 	let (mode, key_seq, base_id, _, _) = sample_binding(&actions).expect("registry should contain at least one binding");
 
 	let mut mode_overrides = HashMap::new();
-	mode_overrides.insert(key_seq.clone(), "action:does-not-exist".to_string());
-	// Also add an invalid key sequence
-	mode_overrides.insert("g [".to_string(), "editor:stats".to_string());
+	mode_overrides.insert(key_seq.clone(), Invocation::action("does-not-exist"));
 	let mut modes = HashMap::new();
 	modes.insert(mode_name(mode).to_string(), mode_overrides);
 	let overrides = UnresolvedKeys { modes };

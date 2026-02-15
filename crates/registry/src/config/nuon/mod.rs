@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use nu_protocol::{Record, Value};
 
-use super::{Config, ConfigError, ConfigWarning, LanguageConfig, Result, UnresolvedKeys};
+use super::{Config, ConfigError, ConfigWarning, DecodeLimitOverrides, LanguageConfig, NuConfig, Result, UnresolvedKeys};
 use crate::options::{OptionScope, OptionStore};
 
 /// Parse a NUON string into a [`Config`].
@@ -16,7 +16,7 @@ pub fn parse_config_str(input: &str) -> Result<Config> {
 /// Parse a NUON value into a [`Config`].
 pub fn parse_config_value(value: &Value) -> Result<Config> {
 	let root = expect_record(value, "config")?;
-	validate_allowed_fields(root, &["keys", "options", "languages"], "config")?;
+	validate_allowed_fields(root, &["keys", "options", "languages", "nu"], "config")?;
 
 	let mut warnings = Vec::new();
 
@@ -56,8 +56,11 @@ pub fn parse_config_value(value: &Value) -> Result<Config> {
 		}
 	}
 
+	let nu = root.get("nu").map(parse_nu_config).transpose()?;
+
 	Ok(Config {
 		keys,
+		nu,
 		options,
 		languages,
 		warnings,
@@ -161,6 +164,52 @@ fn validate_allowed_fields(record: &Record, allowed: &[&str], parent: &str) -> R
 		}
 	}
 	Ok(())
+}
+
+fn parse_nu_config(value: &Value) -> Result<NuConfig> {
+	let record = expect_record(value, "nu")?;
+	validate_allowed_fields(record, &["decode"], "nu")?;
+
+	let Some(decode_value) = record.get("decode") else {
+		return Ok(NuConfig::default());
+	};
+	let decode_record = expect_record(decode_value, "nu.decode")?;
+	validate_allowed_fields(decode_record, &["macro", "hook"], "nu.decode")?;
+
+	let decode_macro = decode_record
+		.get("macro")
+		.map(|v| parse_decode_limit_overrides(v, "nu.decode.macro"))
+		.transpose()?;
+	let decode_hook = decode_record
+		.get("hook")
+		.map(|v| parse_decode_limit_overrides(v, "nu.decode.hook"))
+		.transpose()?;
+
+	Ok(NuConfig { decode_macro, decode_hook })
+}
+
+fn parse_decode_limit_overrides(value: &Value, parent: &str) -> Result<DecodeLimitOverrides> {
+	let allowed = &["max_invocations", "max_depth", "max_string_len", "max_args", "max_action_count", "max_nodes"];
+	let record = expect_record(value, parent)?;
+	validate_allowed_fields(record, allowed, parent)?;
+
+	let get_usize = |field: &str| -> Result<Option<usize>> {
+		let Some(v) = record.get(field) else { return Ok(None) };
+		let n = v.as_int().map_err(|_| invalid_type(&format!("{parent}.{field}"), "int", v))?;
+		if n < 1 {
+			return Err(ConfigError::Nuon(format!("{parent}.{field} must be >= 1, got {n}")));
+		}
+		Ok(Some(n as usize))
+	};
+
+	Ok(DecodeLimitOverrides {
+		max_invocations: get_usize("max_invocations")?,
+		max_depth: get_usize("max_depth")?,
+		max_string_len: get_usize("max_string_len")?,
+		max_args: get_usize("max_args")?,
+		max_action_count: get_usize("max_action_count")?,
+		max_nodes: get_usize("max_nodes")?,
+	})
 }
 
 fn expect_record<'a>(value: &'a Value, field: &str) -> Result<&'a Record> {
@@ -284,9 +333,10 @@ fn parse_keys_value(value: &Value) -> Result<UnresolvedKeys> {
 		let mode_field = format!("keys.{mode_name}");
 		let binding_record = expect_record(mode_value, &mode_field)?;
 		let mut bindings = HashMap::new();
-		for (key, action_value) in binding_record.iter() {
-			let action = expect_string(action_value, &format!("{mode_field}.{key}"))?;
-			bindings.insert(key.clone(), action.to_string());
+		for (key, binding_value) in binding_record.iter() {
+			let field_path = format!("{mode_field}.{key}");
+			let inv = crate::invocation::decode::decode_single_invocation(binding_value, &field_path).map_err(ConfigError::InvalidKeyBinding)?;
+			bindings.insert(key.clone(), inv);
 		}
 		config.modes.insert(mode_name.clone(), bindings);
 	}

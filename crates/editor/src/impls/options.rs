@@ -108,8 +108,10 @@ impl Editor {
 		let mut global_options = OptionStore::new();
 		let mut language_options = HashMap::<String, OptionStore>::new();
 
+		let mut nu_config = None;
 		if let Some(mut loaded) = config.take() {
 			key_overrides = loaded.keys.take();
+			nu_config = loaded.nu.take();
 			global_options = loaded.options;
 
 			for lang_config in loaded.languages {
@@ -121,6 +123,7 @@ impl Editor {
 		let editor_config = self.config_mut();
 		editor_config.global_options = global_options;
 		editor_config.language_options = language_options;
+		editor_config.nu = nu_config;
 	}
 
 	/// Internal helper that performs resolution given the stores directly.

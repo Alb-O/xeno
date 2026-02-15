@@ -80,6 +80,59 @@ fn eval_config_rejects_use_parent_dir() {
 }
 
 #[test]
+fn config_nu_parses_structured_keys_with_prelude() {
+	let input = r#"{
+		keys: {
+			normal: {
+				"ctrl+s": (command write),
+				"g r": (editor reload_config),
+			}
+		}
+	}"#;
+	let config = eval_config_str(input, "config.nu").expect("config.nu with prelude keys should evaluate");
+	let keys = config.keys.expect("keys should be parsed");
+	let normal = keys.modes.get("normal").expect("normal mode should exist");
+
+	let ctrl_s = normal.get("ctrl+s").expect("ctrl+s binding should exist");
+	assert!(matches!(ctrl_s, crate::Invocation::Command { name, args } if name == "write" && args.is_empty()));
+
+	let gr = normal.get("g r").expect("g r binding should exist");
+	assert!(matches!(gr, crate::Invocation::EditorCommand { name, args } if name == "reload_config" && args.is_empty()));
+}
+
+#[test]
+fn config_nu_rejects_string_key_target() {
+	let input = r#"{
+		keys: {
+			normal: {
+				"ctrl+s": "command:write"
+			}
+		}
+	}"#;
+	let err = eval_config_str(input, "config.nu").expect_err("string key target should be rejected");
+	match err {
+		ConfigError::InvalidKeyBinding(msg) => assert!(msg.contains("expected invocation record"), "got: {msg}"),
+		other => panic!("expected Nuon error, got: {other:?}"),
+	}
+}
+
+#[test]
+fn config_nu_rejects_missing_kind() {
+	let input = r#"{
+		keys: {
+			normal: {
+				"ctrl+s": { name: "write" }
+			}
+		}
+	}"#;
+	let err = eval_config_str(input, "config.nu").expect_err("missing kind should be rejected");
+	match err {
+		ConfigError::InvalidKeyBinding(msg) => assert!(msg.contains("kind"), "got: {msg}"),
+		other => panic!("expected Nuon error, got: {other:?}"),
+	}
+}
+
+#[test]
 fn eval_config_rejects_use_wildcard() {
 	let dir = unique_temp_dir("config-nu-wildcard");
 	let config_path = dir.join("config.nu");

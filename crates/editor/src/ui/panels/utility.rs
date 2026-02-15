@@ -74,12 +74,12 @@ impl UtilityPanel {
 					}
 					ContinuationKind::Leaf => {
 						let description = cont.value.map_or_else(String::new, |entry| match &entry.target {
-							xeno_registry::BindingTarget::InvocationSpec { kind, .. } => {
-								let prefix = match kind {
-									xeno_invocation_spec::SpecKind::Command => ":",
-									xeno_invocation_spec::SpecKind::Editor => "@",
-									xeno_invocation_spec::SpecKind::Action => "",
-									xeno_invocation_spec::SpecKind::Nu => "~",
+							xeno_registry::BindingTarget::Invocation { inv } => {
+								let prefix = match inv {
+									xeno_registry::Invocation::Command { .. } => ":",
+									xeno_registry::Invocation::EditorCommand { .. } => "@",
+									xeno_registry::Invocation::Nu { .. } => "~",
+									_ => "",
 								};
 								format!("{prefix}{}", entry.short_desc)
 							}

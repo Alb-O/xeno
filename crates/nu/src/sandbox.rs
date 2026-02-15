@@ -1,8 +1,14 @@
 //! AST-level sandbox validation for Nu scripts.
 //!
-//! Walks the parsed AST and rejects constructs that could escape the sandbox:
-//! external commands, redirection/glob expansion, overlay loading, looping,
-//! and module paths that resolve outside the config root directory.
+//! Walks the parsed AST and rejects structural constructs that cannot be
+//! prevented by engine context alone: external commands (`^cmd`),
+//! pipeline redirection, glob expansion, and module paths that resolve
+//! outside the config root directory.
+//!
+//! Most dangerous commands (loops, overlays, extern signatures) are excluded
+//! at the engine level by [`create_xeno_lang_context`](super::create_xeno_lang_context)
+//! and fail at parse/compile time. This module provides defense-in-depth for
+//! `source`/`source-env` and handles structural AST escapes.
 //!
 //! Policy model:
 //! * Xeno intentionally reuses Nushell parser semantics for `use`/`export use`
@@ -80,6 +86,7 @@ fn check_expression(
 ) -> Result<(), String> {
 	match &expression.expr {
 		Expr::ExternalCall(_, _) => Err("external commands are disabled".to_string()),
+		Expr::Filepath(_, _) | Expr::Directory(_, _) => Err("filesystem path literals are disabled".to_string()),
 
 		Expr::Call(call) => {
 			let decl_name = working_set.get_decl(call.decl_id).name();
@@ -88,8 +95,10 @@ fn check_expression(
 				// `use` import patterns are parsed/validated by Nushell parser semantics.
 				return Ok(());
 			}
-			if let Some(reason) = blocked_decl_reason(decl_name) {
-				return Err(format!("'{decl_name}' is not allowed ({reason})"));
+			// Defense-in-depth: reject `source`/`source-env` if they somehow
+			// appear despite not being registered in the engine context.
+			if is_source_decl(decl_name) {
+				return Err(format!("'{decl_name}' is not allowed (source loading is disabled)"));
 			}
 
 			for arg in &call.arguments {
@@ -209,8 +218,6 @@ fn check_expression(
 		| Expr::VarDecl(_)
 		| Expr::Operator(_)
 		| Expr::DateTime(_)
-		| Expr::Filepath(_, _)
-		| Expr::Directory(_, _)
 		| Expr::String(_)
 		| Expr::RawString(_)
 		| Expr::CellPath(_)
@@ -284,18 +291,10 @@ fn is_virtual_filename(name: &str) -> bool {
 	name.starts_with('<') && name.ends_with('>')
 }
 
-// --- Blocked command list ---
+// --- Defense-in-depth checks ---
 
-fn blocked_decl_reason(decl_name: &str) -> Option<&'static str> {
-	let name = decl_name.to_ascii_lowercase();
-	match name.as_str() {
-		"run-external" => Some("external execution is disabled"),
-		"source" | "source-env" => Some("source loading is disabled"),
-		"overlay use" | "overlay new" | "overlay hide" => Some("overlay loading is disabled"),
-		"for" | "while" | "loop" => Some("looping commands are disabled"),
-		"extern" | "export extern" => Some("external signatures are disabled"),
-		_ => None,
-	}
+fn is_source_decl(decl_name: &str) -> bool {
+	matches!(decl_name, "source" | "source-env")
 }
 
 #[cfg(test)]

@@ -7,7 +7,7 @@ use std::path::Path;
 use super::*;
 
 fn sandbox_check(source: &str, config_root: Option<&Path>) -> Result<(), String> {
-	let mut engine_state = crate::create_engine_state(config_root);
+	let mut engine_state = crate::create_engine_state(config_root).expect("engine state");
 	let mut working_set = nu_protocol::engine::StateWorkingSet::new(&engine_state);
 	let block = nu_parser::parse(&mut working_set, Some("<test>"), source.as_bytes(), false);
 	if let Some(err) = working_set.parse_errors.first() {
@@ -52,7 +52,10 @@ fn blocks_networking() {
 fn blocks_looping() {
 	for cmd in ["while true { }", "for x in [1 2] { }", "loop { break }"] {
 		let err = sandbox_check(cmd, None).unwrap_err();
-		assert!(err.contains("looping") || err.contains("parse error"), "{cmd}: {err}");
+		assert!(
+			err.contains("looping") || err.contains("parse error") || err.contains("external"),
+			"{cmd}: {err}"
+		);
 	}
 }
 
@@ -157,8 +160,23 @@ fn blocks_export_extern_decl() {
 }
 
 #[test]
+fn blocks_bare_path_at_statement_level() {
+	// A bare path at statement level parses as an external call, which is blocked.
+	let err = sandbox_check(r#"/tmp/foo"#, None).unwrap_err();
+	assert!(err.contains("disabled"), "{err}");
+}
+
+#[test]
+fn use_with_module_path_still_allowed() {
+	let temp = tempfile::tempdir().expect("temp dir");
+	std::fs::write(temp.path().join("helper.nu"), "export def greet [] { 'hi' }").expect("write helper");
+	std::fs::write(temp.path().join("xeno.nu"), "use helper.nu *\ngreet").expect("write xeno.nu");
+	sandbox_check("use helper.nu *\ngreet", Some(temp.path())).expect("use with path should be allowed");
+}
+
+#[test]
 fn decl_inventory_audit() {
-	let engine_state = crate::create_engine_state(None);
+	let engine_state = crate::create_engine_state(None).expect("engine state");
 	let mut decls: Vec<String> = engine_state
 		.get_decls_sorted(false)
 		.into_iter()

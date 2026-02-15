@@ -12,7 +12,7 @@ languages: [
 	{ name: "rust", options: { tab-width: 2, theme: "monokai" } },
 ],
 keys: {
-	normal: { "ctrl+s": "command:write" }
+	normal: { "ctrl+s": { kind: "command", name: "write" } }
 }
 }
 "#;
@@ -32,10 +32,8 @@ keys: {
 	));
 
 	let keys = config.keys.expect("keys should be parsed");
-	assert_eq!(
-		keys.modes.get("normal").and_then(|m| m.get("ctrl+s")).map(String::as_str),
-		Some("command:write")
-	);
+	let binding = keys.modes.get("normal").and_then(|m| m.get("ctrl+s")).expect("binding should exist");
+	assert!(matches!(binding, crate::invocation::Invocation::Command { name, .. } if name == "write"));
 }
 
 #[test]
@@ -102,4 +100,45 @@ popup: {
 	assert_eq!(theme.meta.name, "nuon-demo");
 	assert_eq!(theme.meta.id, "xeno-registry::nuon-demo");
 	assert!(matches!(theme.payload.variant, crate::themes::ThemeVariant::Dark));
+}
+
+#[test]
+fn parse_config_nu_decode_limits() {
+	let input = r#"{
+		nu: {
+			decode: {
+				macro: { max_invocations: 512, max_nodes: 100000 },
+				hook: { max_invocations: 16 }
+			}
+		}
+	}"#;
+	let config = parse_config_str(input).expect("nu decode config should parse");
+	let nu = config.nu.expect("nu config should be present");
+	let macro_limits = nu.decode_macro.expect("macro limits should be present");
+	assert_eq!(macro_limits.max_invocations, Some(512));
+	assert_eq!(macro_limits.max_nodes, Some(100000));
+	assert_eq!(macro_limits.max_depth, None);
+
+	let hook_limits = nu.decode_hook.expect("hook limits should be present");
+	assert_eq!(hook_limits.max_invocations, Some(16));
+	assert_eq!(hook_limits.max_nodes, None);
+}
+
+#[test]
+fn parse_config_nu_decode_limits_apply() {
+	let overrides = super::super::DecodeLimitOverrides {
+		max_invocations: Some(10),
+		..Default::default()
+	};
+	let base = crate::invocation::decode::DecodeLimits::macro_defaults();
+	let applied = overrides.apply(base);
+	assert_eq!(applied.max_invocations, 10);
+	assert_eq!(applied.max_nodes, base.max_nodes);
+}
+
+#[test]
+fn parse_config_nu_rejects_unknown_decode_field() {
+	let input = r#"{ nu: { decode: { macro: { bogus: 1 } } } }"#;
+	let err = parse_config_str(input).expect_err("unknown field should fail");
+	assert!(matches!(err, super::super::ConfigError::UnknownField(f) if f.contains("bogus")));
 }

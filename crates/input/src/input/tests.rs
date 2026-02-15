@@ -74,9 +74,9 @@ fn invocation_spec_multi_key_pending_then_match() {
 
 	let actions = xeno_registry::db::ACTIONS.snapshot();
 
-	// Override "g r" → "editor:reload_config"
+	// Override "g r" → editor_command reload_config
 	let mut normal = HashMap::new();
-	normal.insert("g r".to_string(), "editor:reload_config".to_string());
+	normal.insert("g r".to_string(), xeno_registry::Invocation::editor_command("reload_config", vec![]));
 	let mut modes = HashMap::new();
 	modes.insert("normal".to_string(), normal);
 	let overrides = UnresolvedKeys { modes };
@@ -91,13 +91,13 @@ fn invocation_spec_multi_key_pending_then_match() {
 		"expected Pending after 'g', got {result:?}"
 	);
 
-	// Second key 'r' should produce InvocationSpec
+	// Second key 'r' should produce Invocation
 	let result = h.handle_key_with_registry(Key::char('r'), &keymap);
 	match result {
-		super::types::KeyResult::InvocationSpec { ref spec } => {
-			assert_eq!(spec.as_ref(), "editor:reload_config");
+		super::types::KeyResult::Invocation { ref inv } => {
+			assert!(matches!(inv, xeno_registry::Invocation::EditorCommand { name, .. } if name == "reload_config"));
 		}
-		_ => panic!("expected InvocationSpec after 'g r', got {result:?}"),
+		_ => panic!("expected Invocation after 'g r', got {result:?}"),
 	}
 
 	// State should be reset — count should be back to default

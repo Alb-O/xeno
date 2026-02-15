@@ -35,18 +35,11 @@ Xeno can run user-defined Nu macro functions from `~/.config/xeno/xeno.nu`.
 
 `nu-run` expects the function to return one of:
 
-* string: single invocation
-* list of strings: multiple invocations
-* record: `{ invocations: ["..."] }`
+* `null` / nothing: no-op (returns success)
+* record: a single structured invocation
+* list of records: multiple invocations
 
-Supported invocation prefixes:
-
-* `action:<id|name|key>`
-* `command:<name> [args...]`
-* `editor:<name> [args...]`
-* `nu:<fn> [args...]`
-
-Structured invocation records are also supported:
+Structured invocation records:
 
 ```nu
 { kind: "action", name: "move_right", count: 2 }
@@ -63,6 +56,27 @@ You can return a single record or a list of records:
   { kind: "editor", name: "stats" },
   { kind: "action", name: "move_right", count: 2 }
 ]
+```
+
+### Built-in prelude
+
+Xeno loads a built-in `xeno` module into every engine state. All exports are available without any `use` statement:
+
+* `action <name> [--count N] [--extend] [--register R] [--char C]` — structured action record
+* `command <name> [...args]` — structured command record
+* `editor <name> [...args]` — structured editor command record
+* `"nu run" <name> [...args]` — structured Nu macro record
+* `"str ends-with" <suffix>`, `"str starts-with" <prefix>`, `"str contains" <needle>` — string helpers
+
+Example using constructors:
+
+```nu
+export def save-and-format [] {
+  [(command write), (command format)]
+}
+export def move-down-5 [] {
+  action move_down --count 5
+}
 ```
 
 ### Module-only load
@@ -142,7 +156,7 @@ Return values from macros and hooks are decoded with safety limits:
 * max string length: 4096
 * max nodes visited: 50,000 (macros), 5,000 (hooks)
 
-Exceeding any limit produces a descriptive error with the decode path (e.g. `return[2].invocations[1].args[0]`).
+Exceeding any limit produces a descriptive error with the decode path (e.g. `return[2].args[0]`).
 
 ### Execution model
 
@@ -202,10 +216,10 @@ Example:
 {
   keys: {
     normal: {
-      "ctrl+s": "command:write",
-      "ctrl+q": "editor:quit",
-      "g r": "editor:reload_config",
-      "ctrl+o": "command:open \"my file.txt\""
+      "ctrl+s": { kind: "command", name: "write" },
+      "ctrl+q": { kind: "editor", name: "quit" },
+      "g r": { kind: "editor", name: "reload_config" },
+      "ctrl+o": { kind: "command", name: "open", args: ["my file.txt"] }
     }
   }
 }
@@ -223,7 +237,7 @@ Example:
 * glob expressions (except `*` import selectors on `use`/`export use`)
 * any parsed module file resolving outside the config directory root (including symlink escapes)
 
-Nu's built-in operators (`ends-with`, `starts-with`, `like`, `=~`) work in the sandbox. For pipeline-style string operations, define shim functions in `xeno.nu` (see the template in `docs/xeno.nu.example`). Unknown commands may be treated as external calls and blocked.
+Nu's built-in operators (`ends-with`, `starts-with`, `like`, `=~`) work in the sandbox. For pipeline-style string operations, use the built-in prelude helpers (`str ends-with`, `str starts-with`, `str contains`) or define custom shims in `xeno.nu`. Unknown commands may be treated as external calls and blocked.
 
 `use` and `export use` path parsing and resolution are delegated to Nushell parser semantics, then Xeno enforces that every resolved module file remains under the config directory root.
 
@@ -241,6 +255,7 @@ Depending on syntax and parse stage, failures can surface as either:
 ### `config.nu`
 
 ```nu
+# config.nu — prelude constructors are available (action, command, editor, "nu run")
 {
   options: {
     tab-width: 4,
@@ -248,7 +263,9 @@ Depending on syntax and parse stage, failures can surface as either:
   },
   keys: {
     normal: {
-      "ctrl+s": "action:xeno-registry::some_action_id"
+      "ctrl+s": (command write),
+      "ctrl+q": (editor quit),
+      "g r": (editor reload_config),
     }
   }
 }

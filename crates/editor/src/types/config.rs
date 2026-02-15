@@ -20,6 +20,8 @@ pub struct Config {
 	pub global_options: OptionStore,
 	/// Per-language option overrides.
 	pub language_options: HashMap<String, OptionStore>,
+	/// Nu scripting configuration (decode limits, etc.).
+	pub nu: Option<xeno_registry::config::NuConfig>,
 }
 
 impl Config {
@@ -40,6 +42,7 @@ impl Config {
 			language_loader: Arc::new(language_loader),
 			global_options: OptionStore::new(),
 			language_options: HashMap::new(),
+			nu: None,
 		}
 	}
 }

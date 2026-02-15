@@ -13,14 +13,23 @@ use crate::actions::{ActionEntry, BindingMode};
 use crate::config::UnresolvedKeys;
 use crate::core::index::Snapshot;
 use crate::core::{ActionId, DenseId, RegistryEntry};
+use crate::invocation::Invocation;
 
 /// What a keybinding resolves to.
 #[derive(Debug, Clone)]
 pub enum BindingTarget {
-	/// A resolved action from the registry.
-	Action { id: ActionId },
-	/// An invocation spec string (e.g., `command:write file.txt`, `editor:reload_config`).
-	InvocationSpec { spec: Arc<str>, kind: xeno_invocation_spec::SpecKind },
+	/// A resolved action from the registry (fast path).
+	Action {
+		id: ActionId,
+		/// Binding-level count (multiplied with prefix count at dispatch time).
+		count: usize,
+		/// Binding-level extend flag (OR'd with prefix extend at dispatch time).
+		extend: bool,
+		/// Binding-level register (prefix register takes priority if set).
+		register: Option<char>,
+	},
+	/// A structured invocation dispatched via `Editor::run_invocation`.
+	Invocation { inv: Invocation },
 }
 
 /// Binding entry storing target info and the key sequence.
@@ -42,8 +51,8 @@ impl BindingEntry {
 	/// Returns the action ID if this binding targets an action.
 	pub fn action_id(&self) -> Option<ActionId> {
 		match &self.target {
-			BindingTarget::Action { id } => Some(*id),
-			BindingTarget::InvocationSpec { .. } => None,
+			BindingTarget::Action { id, .. } => Some(*id),
+			BindingTarget::Invocation { .. } => None,
 		}
 	}
 }
@@ -69,8 +78,6 @@ pub enum KeymapProblemKind {
 	InvalidKeySequence,
 	/// Action target name couldn't be resolved in the registry.
 	UnknownActionTarget,
-	/// Invocation spec failed validation.
-	InvalidInvocationSpec,
 }
 
 /// A problem encountered during keymap index construction.
@@ -194,7 +201,12 @@ impl KeymapIndex {
 			seen.insert((def.mode, Arc::clone(&def.keys)), (action_id_str.clone(), def.priority));
 
 			let entry = BindingEntry {
-				target: BindingTarget::Action { id },
+				target: BindingTarget::Action {
+					id,
+					count: 1,
+					extend: false,
+					register: None,
+				},
 				name: Arc::from(actions.interner.resolve(action_entry.name())),
 				description: Arc::from(actions.interner.resolve(action_entry.description())),
 				short_desc: Arc::from(actions.interner.resolve(action_entry.short_desc)),
@@ -205,128 +217,173 @@ impl KeymapIndex {
 		}
 
 		if let Some(overrides) = overrides {
-			let mut override_entries: Vec<(BindingMode, Arc<str>, Arc<str>)> = Vec::new();
+			let mut override_entries: Vec<(BindingMode, Arc<str>, Invocation)> = Vec::new();
 			for (mode_name, key_map) in &overrides.modes {
 				let Some(mode) = parse_binding_mode(mode_name) else {
 					continue;
 				};
-				for (key_seq, action_name) in key_map {
-					override_entries.push((mode, Arc::from(key_seq.as_str()), Arc::from(action_name.as_str())));
+				for (key_seq, inv) in key_map {
+					override_entries.push((mode, Arc::from(key_seq.as_str()), inv.clone()));
 				}
 			}
 
-			override_entries.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1)).then_with(|| a.2.cmp(&b.2)));
+			override_entries.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
 
-			for (mode, key_seq, target_spec) in override_entries {
+			for (mode, key_seq, inv) in override_entries {
+				let target_desc: Arc<str> = Arc::from(inv.describe().as_str());
 				let Ok(keys) = parse_seq(&key_seq) else {
 					registry.push_problem(
 						Some(mode),
 						&key_seq,
-						&target_spec,
+						&target_desc,
 						KeymapProblemKind::InvalidKeySequence,
 						"invalid key sequence",
 					);
 					continue;
 				};
 
-				// Non-action targets go into the trie as InvocationSpec
-				if target_spec.starts_with("command:") || target_spec.starts_with("editor:") || target_spec.starts_with("nu:") {
-					let parsed = match xeno_invocation_spec::parse_spec(&target_spec) {
-						Ok(p) => p,
-						Err(e) => {
+				match &inv {
+					Invocation::Action { name, count, extend, register } => {
+						// Resolve action name against registry
+						let Some(sym) = actions.interner.get(name) else {
 							registry.push_problem(
 								Some(mode),
 								&key_seq,
-								&target_spec,
-								KeymapProblemKind::InvalidInvocationSpec,
-								&format!("invalid invocation spec: {e}"),
+								&target_desc,
+								KeymapProblemKind::UnknownActionTarget,
+								"unknown action target",
+							);
+							continue;
+						};
+
+						let Some(action_id) = actions
+							.by_id
+							.get(&sym)
+							.or_else(|| actions.by_name.get(&sym))
+							.or_else(|| actions.by_key.get(&sym))
+							.copied()
+						else {
+							registry.push_problem(
+								Some(mode),
+								&key_seq,
+								&target_desc,
+								KeymapProblemKind::UnknownActionTarget,
+								"unknown action target",
+							);
+							continue;
+						};
+
+						let action_entry = &actions.table[action_id.as_u32() as usize];
+						let action_name_str = actions.interner.resolve(action_entry.name()).to_string();
+						let action_id_str = actions.interner.resolve(action_entry.id()).to_string();
+
+						if let Some((prev_target, prev_priority)) = seen.get(&(mode, Arc::clone(&key_seq))).cloned() {
+							registry.conflicts.push(KeymapConflict {
+								mode,
+								keys: Arc::clone(&key_seq),
+								kept_target: action_id_str.clone(),
+								dropped_target: prev_target,
+								kept_priority: i16::MIN,
+								dropped_priority: prev_priority,
+							});
+						}
+						seen.insert((mode, Arc::clone(&key_seq)), (action_id_str, i16::MIN));
+
+						let entry = BindingEntry {
+							target: BindingTarget::Action {
+								id: action_id,
+								count: *count,
+								extend: *extend,
+								register: *register,
+							},
+							name: Arc::from(action_name_str.as_str()),
+							description: Arc::from(actions.interner.resolve(action_entry.description())),
+							short_desc: Arc::from(actions.interner.resolve(action_entry.short_desc)),
+							keys: keys.clone(),
+						};
+						registry.add(mode, keys, entry);
+					}
+					Invocation::ActionWithChar { name, .. } => {
+						// Validate action exists but store as Invocation (needs char dispatch)
+						if let Some(sym) = actions.interner.get(name) {
+							if actions
+								.by_id
+								.get(&sym)
+								.or_else(|| actions.by_name.get(&sym))
+								.or_else(|| actions.by_key.get(&sym))
+								.is_none()
+							{
+								registry.push_problem(
+									Some(mode),
+									&key_seq,
+									&target_desc,
+									KeymapProblemKind::UnknownActionTarget,
+									"unknown action target",
+								);
+								continue;
+							}
+						} else {
+							registry.push_problem(
+								Some(mode),
+								&key_seq,
+								&target_desc,
+								KeymapProblemKind::UnknownActionTarget,
+								"unknown action target",
 							);
 							continue;
 						}
-					};
 
-					if let Some((prev_target, prev_priority)) = seen.get(&(mode, Arc::clone(&key_seq))).cloned() {
-						registry.conflicts.push(KeymapConflict {
-							mode,
-							keys: Arc::clone(&key_seq),
-							kept_target: target_spec.to_string(),
-							dropped_target: prev_target,
-							kept_priority: i16::MIN,
-							dropped_priority: prev_priority,
-						});
+						if let Some((prev_target, prev_priority)) = seen.get(&(mode, Arc::clone(&key_seq))).cloned() {
+							registry.conflicts.push(KeymapConflict {
+								mode,
+								keys: Arc::clone(&key_seq),
+								kept_target: inv.describe(),
+								dropped_target: prev_target,
+								kept_priority: i16::MIN,
+								dropped_priority: prev_priority,
+							});
+						}
+						seen.insert((mode, Arc::clone(&key_seq)), (inv.describe(), i16::MIN));
+
+						let inv_name = name.clone();
+						let entry = BindingEntry {
+							target: BindingTarget::Invocation { inv },
+							name: Arc::from(inv_name.as_str()),
+							description: Arc::clone(&target_desc),
+							short_desc: Arc::from(inv_name.as_str()),
+							keys: keys.clone(),
+						};
+						registry.add(mode, keys, entry);
 					}
-					seen.insert((mode, Arc::clone(&key_seq)), (target_spec.to_string(), i16::MIN));
+					_ => {
+						// Command, EditorCommand, Nu — store as Invocation
+						let inv_name: Arc<str> = match &inv {
+							Invocation::Command { name, .. } | Invocation::EditorCommand { name, .. } | Invocation::Nu { name, .. } => Arc::from(name.as_str()),
+							_ => unreachable!(),
+						};
 
-					let spec_arc: Arc<str> = Arc::from(target_spec.as_ref());
-					let entry = BindingEntry {
-						target: BindingTarget::InvocationSpec {
-							spec: Arc::clone(&spec_arc),
-							kind: parsed.kind,
-						},
-						name: Arc::clone(&spec_arc),
-						description: Arc::clone(&spec_arc),
-						short_desc: Arc::from(parsed.name.as_str()),
-						keys: keys.clone(),
-					};
-					registry.add(mode, keys, entry);
-					continue;
+						if let Some((prev_target, prev_priority)) = seen.get(&(mode, Arc::clone(&key_seq))).cloned() {
+							registry.conflicts.push(KeymapConflict {
+								mode,
+								keys: Arc::clone(&key_seq),
+								kept_target: inv.describe(),
+								dropped_target: prev_target,
+								kept_priority: i16::MIN,
+								dropped_priority: prev_priority,
+							});
+						}
+						seen.insert((mode, Arc::clone(&key_seq)), (inv.describe(), i16::MIN));
+
+						let entry = BindingEntry {
+							target: BindingTarget::Invocation { inv },
+							name: Arc::clone(&inv_name),
+							description: Arc::clone(&target_desc),
+							short_desc: inv_name,
+							keys: keys.clone(),
+						};
+						registry.add(mode, keys, entry);
+					}
 				}
-
-				let resolved_name = target_spec.strip_prefix("action:").unwrap_or(&target_spec);
-				let Some(sym) = actions.interner.get(resolved_name) else {
-					registry.push_problem(
-						Some(mode),
-						&key_seq,
-						&target_spec,
-						KeymapProblemKind::UnknownActionTarget,
-						"unknown action target",
-					);
-					continue;
-				};
-
-				let Some(action_id) = actions
-					.by_id
-					.get(&sym)
-					.or_else(|| actions.by_name.get(&sym))
-					.or_else(|| actions.by_key.get(&sym))
-					.copied()
-				else {
-					registry.push_problem(
-						Some(mode),
-						&key_seq,
-						&target_spec,
-						KeymapProblemKind::UnknownActionTarget,
-						"unknown action target",
-					);
-					continue;
-				};
-
-				let action_entry = &actions.table[action_id.as_u32() as usize];
-				let action_name_str = actions.interner.resolve(action_entry.name()).to_string();
-				let action_id_str = actions.interner.resolve(action_entry.id()).to_string();
-
-				if let Some((prev_target, prev_priority)) = seen.get(&(mode, Arc::clone(&key_seq))).cloned() {
-					registry.conflicts.push(KeymapConflict {
-						mode,
-						keys: Arc::clone(&key_seq),
-						kept_target: action_id_str.clone(),
-						dropped_target: prev_target,
-						kept_priority: i16::MIN,
-						dropped_priority: prev_priority,
-					});
-				}
-
-				seen.insert((mode, Arc::clone(&key_seq)), (action_id_str, i16::MIN));
-
-				let entry = BindingEntry {
-					target: BindingTarget::Action { id: action_id },
-					name: Arc::from(action_name_str.as_str()),
-					description: Arc::from(actions.interner.resolve(action_entry.description())),
-					short_desc: Arc::from(actions.interner.resolve(action_entry.short_desc)),
-					keys: keys.clone(),
-				};
-
-				registry.add(mode, keys, entry);
 			}
 		}
 

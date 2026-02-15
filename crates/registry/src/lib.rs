@@ -10,6 +10,7 @@ use nu_engine as _;
 pub mod config;
 pub mod core;
 pub mod defs;
+pub mod invocation;
 
 #[cfg(test)]
 mod tests;
@@ -222,3 +223,4 @@ pub use domains::themes;
 pub use xeno_macros::derive_option;
 
 pub use crate::core::*;
+pub use crate::invocation::Invocation;

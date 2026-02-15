@@ -166,7 +166,12 @@ impl Editor {
 		}?;
 		self.ensure_nu_executor()?;
 
-		let limits = crate::nu::DecodeLimits::hook_defaults();
+		let limits = self
+			.state
+			.config
+			.nu
+			.as_ref()
+			.map_or_else(crate::nu::DecodeLimits::hook_defaults, |c| c.hook_decode_limits());
 		let args_len = args.len();
 		let hook_start = Instant::now();
 		let nu_ctx = self.build_nu_ctx("hook", fn_name, &args);
@@ -263,7 +268,12 @@ impl Editor {
 			return InvocationResult::CommandError("Nu executor is not available".to_string());
 		}
 
-		let limits = crate::nu::DecodeLimits::macro_defaults();
+		let limits = self
+			.state
+			.config
+			.nu
+			.as_ref()
+			.map_or_else(crate::nu::DecodeLimits::macro_defaults, |c| c.macro_decode_limits());
 		let args_len = args.len();
 		let macro_start = Instant::now();
 		let nu_ctx = self.build_nu_ctx("macro", &fn_name, &args);
@@ -310,7 +320,8 @@ impl Editor {
 		}
 
 		if invocations.is_empty() {
-			return InvocationResult::CommandError("Nu invocation produced no invocations".to_string());
+			debug!(function = %fn_name, "Nu macro produced no invocations");
+			return InvocationResult::Ok;
 		}
 
 		for invocation in invocations {

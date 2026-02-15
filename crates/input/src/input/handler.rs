@@ -107,11 +107,25 @@ impl InputHandler {
 	/// Consumes state and produces the appropriate [`KeyResult`] for a binding entry.
 	pub(crate) fn consume_binding(&mut self, entry: &xeno_registry::BindingEntry) -> KeyResult {
 		match &entry.target {
-			xeno_registry::BindingTarget::Action { id } => self.consume_action(*id),
-			xeno_registry::BindingTarget::InvocationSpec { spec, .. } => {
-				let spec = spec.clone();
+			xeno_registry::BindingTarget::Action { id, count, extend, register } => {
+				// Multiply prefix count with binding count; OR extends; prefix register wins
+				let prefix_count = (self.count as usize).max(1);
+				let binding_count = (*count).max(1);
+				let final_count = prefix_count * binding_count;
+				let final_extend = self.extend || *extend;
+				let final_register = self.register.or(*register);
 				self.reset_params();
-				KeyResult::InvocationSpec { spec }
+				KeyResult::ActionById {
+					id: *id,
+					count: final_count,
+					extend: final_extend,
+					register: final_register,
+				}
+			}
+			xeno_registry::BindingTarget::Invocation { inv } => {
+				let inv = inv.clone();
+				self.reset_params();
+				KeyResult::Invocation { inv }
 			}
 		}
 	}

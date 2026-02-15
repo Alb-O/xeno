@@ -108,16 +108,9 @@ impl Editor {
 			}
 		}
 
-		if !handled && let KeyResult::InvocationSpec { ref spec } = result {
-			match crate::types::Invocation::parse_spec(spec) {
-				Ok(invocation) => {
-					let inv_result = self.run_invocation(invocation, crate::types::InvocationPolicy::enforcing()).await;
-					quit = inv_result.is_quit();
-				}
-				Err(e) => {
-					tracing::warn!(spec = spec.as_ref(), error = %e, "Failed to parse invocation spec from key override");
-				}
-			}
+		if !handled && let KeyResult::Invocation { ref inv } = result {
+			let inv_result = self.run_invocation(inv.clone(), crate::types::InvocationPolicy::enforcing()).await;
+			quit = inv_result.is_quit();
 			handled = true;
 		}
 
@@ -282,7 +275,7 @@ mod tests {
 		assert_eq!(lookup_action_id(&keymap_before, mode, &key_seq), base_id);
 
 		let mut mode_overrides = HashMap::new();
-		mode_overrides.insert(key_seq.clone(), format!("action:{target_id_str}"));
+		mode_overrides.insert(key_seq.clone(), xeno_registry::Invocation::action(&target_id_str));
 		let mut modes = HashMap::new();
 		modes.insert(mode_name(mode).to_string(), mode_overrides);
 		editor.set_key_overrides(Some(UnresolvedKeys { modes }));
@@ -332,7 +325,7 @@ mod tests {
 		let full_key = format!("{prefix} {candidate}");
 
 		let mut normal = HashMap::new();
-		normal.insert(full_key, format!("action:{target_id_str}"));
+		normal.insert(full_key, xeno_registry::Invocation::action(&target_id_str));
 		let mut modes = HashMap::new();
 		modes.insert("normal".to_string(), normal);
 		editor.set_key_overrides(Some(UnresolvedKeys { modes }));
@@ -355,7 +348,7 @@ mod tests {
 		let (mode, key_seq, base_id, _target_id, _target_id_str) = sample_binding(&actions).expect("registry should contain at least one binding");
 
 		let mut mode_overrides = HashMap::new();
-		mode_overrides.insert(key_seq.clone(), "action:does-not-exist".to_string());
+		mode_overrides.insert(key_seq.clone(), xeno_registry::Invocation::action("does-not-exist"));
 		let mut modes = HashMap::new();
 		modes.insert(mode_name(mode).to_string(), mode_overrides);
 		editor.set_key_overrides(Some(UnresolvedKeys { modes }));

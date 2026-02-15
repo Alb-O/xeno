@@ -27,11 +27,11 @@ pub struct LanguageConfig {
 	pub options: crate::options::OptionStore,
 }
 
-/// Unresolved keybinding configuration (string keys before registry resolution).
+/// Unresolved keybinding configuration (structured invocations before registry resolution).
 #[derive(Debug, Clone, Default)]
 pub struct UnresolvedKeys {
-	/// Bindings per mode. Key: mode name, Value: key string -> action name.
-	pub modes: HashMap<String, HashMap<String, String>>,
+	/// Bindings per mode. Key: mode name, Value: key sequence -> invocation.
+	pub modes: HashMap<String, HashMap<String, crate::Invocation>>,
 }
 
 impl UnresolvedKeys {
@@ -92,6 +92,11 @@ pub enum ConfigError {
 	#[error("missing required field: {0}")]
 	MissingField(String),
 
+	/// A key binding value failed to decode.
+	#[cfg(feature = "config-nuon")]
+	#[error("invalid key binding: {0}")]
+	InvalidKeyBinding(String),
+
 	/// A color value could not be parsed.
 	#[error("invalid color format: {0}")]
 	InvalidColor(String),
@@ -147,6 +152,78 @@ pub enum ConfigError {
 /// Result type for configuration operations.
 pub type Result<T> = std::result::Result<T, ConfigError>;
 
+/// User-configurable overrides for Nu decode safety limits.
+///
+/// Each field, when `Some`, overrides the corresponding default in
+/// [`crate::invocation::decode::DecodeLimits`]. `None` fields keep defaults.
+#[cfg(feature = "config-nuon")]
+#[derive(Debug, Clone, Default)]
+pub struct DecodeLimitOverrides {
+	pub max_invocations: Option<usize>,
+	pub max_depth: Option<usize>,
+	pub max_string_len: Option<usize>,
+	pub max_args: Option<usize>,
+	pub max_action_count: Option<usize>,
+	pub max_nodes: Option<usize>,
+}
+
+#[cfg(feature = "config-nuon")]
+impl DecodeLimitOverrides {
+	/// Apply overrides on top of a base `DecodeLimits`, returning the merged result.
+	pub fn apply(&self, mut base: crate::invocation::decode::DecodeLimits) -> crate::invocation::decode::DecodeLimits {
+		if let Some(v) = self.max_invocations {
+			base.max_invocations = v;
+		}
+		if let Some(v) = self.max_depth {
+			base.max_depth = v;
+		}
+		if let Some(v) = self.max_string_len {
+			base.max_string_len = v;
+		}
+		if let Some(v) = self.max_args {
+			base.max_args = v;
+		}
+		if let Some(v) = self.max_action_count {
+			base.max_action_count = v;
+		}
+		if let Some(v) = self.max_nodes {
+			base.max_nodes = v;
+		}
+		base
+	}
+}
+
+/// Nu scripting configuration.
+#[cfg(feature = "config-nuon")]
+#[derive(Debug, Clone, Default)]
+pub struct NuConfig {
+	/// Decode limit overrides for macro return values.
+	pub decode_macro: Option<DecodeLimitOverrides>,
+	/// Decode limit overrides for hook return values.
+	pub decode_hook: Option<DecodeLimitOverrides>,
+}
+
+#[cfg(feature = "config-nuon")]
+impl NuConfig {
+	/// Effective macro decode limits (defaults + overrides).
+	pub fn macro_decode_limits(&self) -> crate::invocation::decode::DecodeLimits {
+		self.decode_macro
+			.as_ref()
+			.map_or_else(crate::invocation::decode::DecodeLimits::macro_defaults, |o| {
+				o.apply(crate::invocation::decode::DecodeLimits::macro_defaults())
+			})
+	}
+
+	/// Effective hook decode limits (defaults + overrides).
+	pub fn hook_decode_limits(&self) -> crate::invocation::decode::DecodeLimits {
+		self.decode_hook
+			.as_ref()
+			.map_or_else(crate::invocation::decode::DecodeLimits::hook_defaults, |o| {
+				o.apply(crate::invocation::decode::DecodeLimits::hook_defaults())
+			})
+	}
+}
+
 /// Parsed configuration from a config file.
 ///
 /// May contain any combination of keys, options, and language settings.
@@ -154,6 +231,9 @@ pub type Result<T> = std::result::Result<T, ConfigError>;
 pub struct Config {
 	/// Keybinding overrides (unresolved strings).
 	pub keys: Option<UnresolvedKeys>,
+	/// Nu scripting configuration (decode limits, etc.).
+	#[cfg(feature = "config-nuon")]
+	pub nu: Option<NuConfig>,
 	/// Global option overrides.
 	#[cfg(feature = "options")]
 	pub options: crate::options::OptionStore,
@@ -169,10 +249,11 @@ impl std::fmt::Debug for Config {
 
 		s.field("keys", &self.keys);
 
+		#[cfg(feature = "config-nuon")]
+		s.field("nu", &self.nu);
+
 		#[cfg(feature = "options")]
-		{
-			s.field("options", &self.options);
-		}
+		s.field("options", &self.options);
 
 		s.field("languages", &self.languages).field("warnings", &self.warnings).finish()
 	}
@@ -188,6 +269,11 @@ impl Config {
 				Some(keys) => keys.merge(other_keys),
 				None => self.keys = Some(other_keys),
 			}
+		}
+
+		#[cfg(feature = "config-nuon")]
+		if other.nu.is_some() {
+			self.nu = other.nu;
 		}
 
 		#[cfg(feature = "options")]

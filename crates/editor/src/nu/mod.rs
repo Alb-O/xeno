@@ -9,7 +9,6 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use decode::decode_invocation_specs;
 pub use decode::{DecodeLimits, decode_invocations, decode_invocations_with_limits};
 use nu_protocol::engine::EngineState;
 use nu_protocol::{DeclId, Value};
@@ -97,12 +96,6 @@ impl NuRuntime {
 		self.run_internal(fn_name, args, &[]).map_err(map_run_error)
 	}
 
-	/// Run a function and decode its return value into invocation specs.
-	pub fn run_invocation_specs(&self, fn_name: &str, args: &[String]) -> Result<Vec<String>, String> {
-		let value = self.run_internal(fn_name, args, &[]).map_err(map_run_error)?;
-		decode_invocation_specs(value)
-	}
-
 	/// Run a function and decode its return value into structured invocations.
 	pub fn run_invocations(&self, fn_name: &str, args: &[String]) -> Result<Vec<Invocation>, String> {
 		self.run_invocations_with_limits(fn_name, args, DecodeLimits::macro_defaults())
@@ -123,15 +116,6 @@ impl NuRuntime {
 	) -> Result<Vec<Invocation>, String> {
 		let value = self.run_internal(fn_name, args, env).map_err(map_run_error)?;
 		decode_invocations_with_limits(value, limits)
-	}
-
-	/// Run a function and decode invocation specs, returning `None` when the function is absent.
-	pub fn try_run_invocation_specs(&self, fn_name: &str, args: &[String]) -> Result<Option<Vec<String>>, String> {
-		match self.run_internal(fn_name, args, &[]) {
-			Ok(value) => decode_invocation_specs(value).map(Some),
-			Err(NuRunError::MissingFunction(_)) => Ok(None),
-			Err(NuRunError::Other(error)) => Err(error),
-		}
 	}
 
 	/// Run a function and decode structured invocations, returning `None` when the function is absent.
@@ -235,60 +219,21 @@ fn map_run_error(error: NuRunError) -> String {
 }
 
 fn build_base_engine(config_dir: &Path, script_path: &Path, script_src: &str) -> Result<(EngineState, HashSet<DeclId>), String> {
-	let mut engine_state = xeno_nu::create_engine_state(Some(config_dir));
+	let mut engine_state = xeno_nu::create_engine_state(Some(config_dir))?;
 	let fname = script_path.to_string_lossy().to_string();
-	let parsed = xeno_nu::parse_and_validate(&mut engine_state, &fname, script_src, Some(config_dir))?;
-	validate_module_shape(&engine_state, parsed.block.as_ref())?;
+	let parsed = xeno_nu::parse_and_validate_with_policy(&mut engine_state, &fname, script_src, Some(config_dir), xeno_nu::ParsePolicy::ModuleOnly)?;
 	Ok((engine_state, parsed.script_decl_ids.into_iter().collect()))
-}
-
-/// Validates that `xeno.nu` contains only declarations, imports, constants,
-/// and aliases — no top-level executable statements.
-fn validate_module_shape(engine_state: &nu_protocol::engine::EngineState, block: &nu_protocol::ast::Block) -> Result<(), String> {
-	/// Declaration names allowed at top-level in `xeno.nu`.
-	const ALLOWED_DECL_NAMES: &[&str] = &[
-		"export def",
-		"def",
-		"export use",
-		"use",
-		"export const",
-		"const",
-		"export alias",
-		"alias",
-		"export module",
-		"module",
-	];
-
-	for pipeline in &block.pipelines {
-		for element in &pipeline.elements {
-			if element.redirection.is_some() {
-				return Err("xeno.nu: top-level redirections are not allowed".to_string());
-			}
-			match &element.expr.expr {
-				nu_protocol::ast::Expr::Call(call) => {
-					let decl_name = engine_state.get_decl(call.decl_id).name();
-					if !ALLOWED_DECL_NAMES.iter().any(|allowed| *allowed == decl_name) {
-						return Err(format!(
-							"xeno.nu: top-level statements are not allowed; only def/use/const/alias are permitted (found '{decl_name}')"
-						));
-					}
-				}
-				nu_protocol::ast::Expr::Nothing => {}
-				other => {
-					return Err(format!(
-						"xeno.nu: top-level expressions are not allowed; only def/use/const/alias are permitted (found {:?})",
-						std::mem::discriminant(other)
-					));
-				}
-			}
-		}
-	}
-	Ok(())
 }
 
 /// Parse a macro invocation spec string into an [`Invocation`].
 pub fn parse_invocation_spec(spec: &str) -> Result<Invocation, String> {
-	Invocation::parse_spec(spec)
+	let parsed = xeno_invocation_spec::parse_spec(spec)?;
+	match parsed.kind {
+		xeno_invocation_spec::SpecKind::Action => Ok(Invocation::action(parsed.name)),
+		xeno_invocation_spec::SpecKind::Command => Ok(Invocation::command(parsed.name, parsed.args)),
+		xeno_invocation_spec::SpecKind::Editor => Ok(Invocation::editor_command(parsed.name, parsed.args)),
+		xeno_invocation_spec::SpecKind::Nu => Ok(Invocation::nu(parsed.name, parsed.args)),
+	}
 }
 
 #[cfg(test)]
@@ -309,33 +254,30 @@ mod tests {
 	}
 
 	#[test]
-	fn run_invocation_specs_supports_string_list_and_record() {
+	fn run_invocations_supports_record_and_list() {
 		let temp = tempfile::tempdir().expect("temp dir should exist");
 		write_script(
 			temp.path(),
-			"export def one [] { \"editor:stats\" }\nexport def many [] { [\"editor:stats\", \"command:help\"] }\nexport def rec [] { { invocations: [\"editor:stats\"] } }",
+			"export def one [] { editor stats }\nexport def many [] { [(editor stats), (command help)] }",
 		);
 
 		let runtime = NuRuntime::load(temp.path()).expect("runtime should load");
 
-		let one = runtime.run_invocation_specs("one", &[]).expect("string return should decode");
-		assert_eq!(one, vec!["editor:stats".to_string()]);
+		let one = runtime.run_invocations("one", &[]).expect("record return should decode");
+		assert!(matches!(one.as_slice(), [Invocation::EditorCommand { name, .. }] if name == "stats"));
 
-		let many = runtime.run_invocation_specs("many", &[]).expect("list return should decode");
-		assert_eq!(many, vec!["editor:stats".to_string(), "command:help".to_string()]);
-
-		let rec = runtime.run_invocation_specs("rec", &[]).expect("record return should decode");
-		assert_eq!(rec, vec!["editor:stats".to_string()]);
+		let many = runtime.run_invocations("many", &[]).expect("list return should decode");
+		assert_eq!(many.len(), 2);
 	}
 
 	#[test]
-	fn run_invocation_specs_supports_alias_entrypoint() {
+	fn run_invocations_supports_alias_entrypoint() {
 		let temp = tempfile::tempdir().expect("temp dir should exist");
-		write_script(temp.path(), "export alias go = echo editor:stats");
+		write_script(temp.path(), "export alias go = editor stats");
 
 		let runtime = NuRuntime::load(temp.path()).expect("runtime should load");
-		let specs = runtime.run_invocation_specs("go", &[]).expect("alias entrypoint should run");
-		assert_eq!(specs, vec!["editor:stats".to_string()]);
+		let invocations = runtime.run_invocations("go", &[]).expect("alias entrypoint should run");
+		assert!(matches!(invocations.as_slice(), [Invocation::EditorCommand { name, .. }] if name == "stats"));
 	}
 
 	#[test]
@@ -346,7 +288,6 @@ mod tests {
 			"export def action_rec [] { { kind: \"action\", name: \"move_right\", count: 2, extend: true, register: \"a\" } }\n\
 export def action_char [] { { kind: \"action\", name: \"find_char\", char: \"x\" } }\n\
 export def mixed [] { [ { kind: \"editor\", name: \"stats\" }, { kind: \"command\", name: \"help\", args: [\"themes\"] } ] }\n\
-export def wrapped [] { { invocations: [ { kind: \"editor\", name: \"stats\" } ] } }\n\
 export def nested_nu [] { { kind: \"nu\", name: \"go\", args: [\"a\", \"b\"] } }",
 		);
 
@@ -377,9 +318,6 @@ export def nested_nu [] { { kind: \"nu\", name: \"go\", args: [\"a\", \"b\"] } }
 		assert!(matches!(mixed.first(), Some(Invocation::EditorCommand { name, .. }) if name == "stats"));
 		assert!(matches!(mixed.get(1), Some(Invocation::Command { name, .. }) if name == "help"));
 
-		let wrapped = runtime.run_invocations("wrapped", &[]).expect("wrapped structured list should decode");
-		assert!(matches!(wrapped.as_slice(), [Invocation::EditorCommand { name, .. }] if name == "stats"));
-
 		let nested_nu = runtime.run_invocations("nested_nu", &[]).expect("structured nu invocation should decode");
 		assert!(matches!(nested_nu.as_slice(), [Invocation::Nu { name, args }] if name == "go" && args == &["a".to_string(), "b".to_string()]));
 	}
@@ -387,7 +325,7 @@ export def nested_nu [] { { kind: \"nu\", name: \"go\", args: [\"a\", \"b\"] } }
 	#[test]
 	fn decode_limits_cap_invocation_count() {
 		let temp = tempfile::tempdir().expect("temp dir should exist");
-		write_script(temp.path(), "export def many [] { [\"editor:stats\", \"editor:stats\"] }");
+		write_script(temp.path(), "export def many [] { [(editor stats), (editor stats)] }");
 
 		let runtime = NuRuntime::load(temp.path()).expect("runtime should load");
 		let err = runtime
@@ -407,18 +345,18 @@ export def nested_nu [] { { kind: \"nu\", name: \"go\", args: [\"a\", \"b\"] } }
 	#[test]
 	fn run_allows_use_within_config_root() {
 		let temp = tempfile::tempdir().expect("temp dir should exist");
-		std::fs::write(temp.path().join("mod.nu"), "export def mk [] { \"editor:stats\" }").expect("module should be writable");
+		std::fs::write(temp.path().join("mod.nu"), "export def mk [] { editor stats }").expect("module should be writable");
 		write_script(temp.path(), "use mod.nu *\nexport def go [] { mk }");
 
 		let runtime = NuRuntime::load(temp.path()).expect("runtime should load");
-		let specs = runtime.run_invocation_specs("go", &[]).expect("run should succeed");
-		assert_eq!(specs, vec!["editor:stats".to_string()]);
+		let invocations = runtime.run_invocations("go", &[]).expect("run should succeed");
+		assert!(matches!(invocations.as_slice(), [Invocation::EditorCommand { name, .. }] if name == "stats"));
 	}
 
 	#[test]
 	fn try_run_returns_none_for_missing_function() {
 		let temp = tempfile::tempdir().expect("temp dir should exist");
-		write_script(temp.path(), "export def known [] { \"editor:stats\" }");
+		write_script(temp.path(), "export def known [] { editor stats }");
 
 		let runtime = NuRuntime::load(temp.path()).expect("runtime should load");
 		let missing = runtime.try_run_invocations("missing", &[]).expect("missing function should be non-fatal");
@@ -428,7 +366,7 @@ export def nested_nu [] { { kind: \"nu\", name: \"go\", args: [\"a\", \"b\"] } }
 	#[test]
 	fn find_script_decl_rejects_builtins() {
 		let temp = tempfile::tempdir().expect("temp dir should exist");
-		write_script(temp.path(), "export def go [] { \"editor:stats\" }");
+		write_script(temp.path(), "export def go [] { editor stats }");
 
 		let runtime = NuRuntime::load(temp.path()).expect("runtime should load");
 		assert!(runtime.find_script_decl("go").is_some());
@@ -439,7 +377,7 @@ export def nested_nu [] { { kind: \"nu\", name: \"go\", args: [\"a\", \"b\"] } }
 	#[test]
 	fn run_rejects_builtin_decls() {
 		let temp = tempfile::tempdir().expect("temp dir should exist");
-		write_script(temp.path(), "export def go [] { \"editor:stats\" }");
+		write_script(temp.path(), "export def go [] { editor stats }");
 
 		let runtime = NuRuntime::load(temp.path()).expect("runtime should load");
 
@@ -467,7 +405,7 @@ export def nested_nu [] { { kind: \"nu\", name: \"go\", args: [\"a\", \"b\"] } }
 		let temp = tempfile::tempdir().expect("temp dir should exist");
 		write_script(temp.path(), "42");
 		let err = NuRuntime::load(temp.path()).expect_err("top-level expression should be rejected");
-		assert!(err.contains("top-level"), "{err}");
+		assert!(err.contains("top-level") || err.contains("module-only"), "{err}");
 	}
 
 	#[test]
@@ -475,16 +413,19 @@ export def nested_nu [] { { kind: \"nu\", name: \"go\", args: [\"a\", \"b\"] } }
 		let temp = tempfile::tempdir().expect("temp dir should exist");
 		write_script(temp.path(), "export extern git []");
 		let err = NuRuntime::load(temp.path()).expect_err("export extern should be rejected");
-		assert!(err.contains("not allowed") || err.contains("extern"), "{err}");
+		assert!(
+			err.contains("not allowed") || err.contains("extern") || err.contains("parse error") || err.contains("Unknown"),
+			"{err}"
+		);
 	}
 
 	#[test]
 	fn load_allows_const_used_by_macro() {
 		let temp = tempfile::tempdir().expect("temp dir should exist");
-		write_script(temp.path(), "const A = \"editor:stats\"\nexport def go [] { $A }");
+		write_script(temp.path(), "const CMD = \"stats\"\nexport def go [] { editor $CMD }");
 
 		let runtime = NuRuntime::load(temp.path()).expect("runtime should load");
-		let specs = runtime.run_invocation_specs("go", &[]).expect("run should succeed");
-		assert_eq!(specs, vec!["editor:stats".to_string()]);
+		let invocations = runtime.run_invocations("go", &[]).expect("run should succeed");
+		assert!(matches!(invocations.as_slice(), [Invocation::EditorCommand { name, .. }] if name == "stats"));
 	}
 }

@@ -211,7 +211,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn executor_runs_invocations() {
-		let runtime = make_runtime("export def go [] { \"editor:stats\" }");
+		let runtime = make_runtime("export def go [] { editor stats }");
 		let decl_id = runtime.find_script_decl("go").expect("go should exist");
 		let executor = NuExecutor::new(runtime);
 
@@ -226,7 +226,7 @@ mod tests {
 
 	#[test]
 	fn executor_shutdown_on_drop() {
-		let runtime = make_runtime("export def go [] { \"editor:stats\" }");
+		let runtime = make_runtime("export def go [] { editor stats }");
 		let executor = NuExecutor::new(runtime);
 		let shutdown_acks = executor.shutdown_acks_for_tests();
 

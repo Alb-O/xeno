@@ -29,7 +29,7 @@ full = [
 minimal = ["actions", "commands", "motions", "textobj", "options", "themes", "languages"]
 
 db = ["dep:tracing"]
-keymap = ["db", "actions", "dep:xeno-keymap-core", "dep:xeno-invocation-spec"]
+keymap = ["db", "actions", "dep:xeno-keymap-core"]
 
 # Domain type gates
 actions = [
@@ -98,7 +98,6 @@ serde.workspace = true
 strsim = { workspace = true, optional = true }
 thiserror.workspace = true
 tracing = { workspace = true, optional = true }
-xeno-invocation-spec = { workspace = true, optional = true }
 xeno-keymap-core = { workspace = true, optional = true }
 xeno-macros = { workspace = true, optional = true }
 xeno-nu = { workspace = true, optional = true }
