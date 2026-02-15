@@ -189,7 +189,7 @@ fn parse_nu_config(value: &Value) -> Result<NuConfig> {
 }
 
 fn parse_decode_limit_overrides(value: &Value, parent: &str) -> Result<DecodeLimitOverrides> {
-	let allowed = &["max_invocations", "max_depth", "max_string_len", "max_args", "max_action_count", "max_nodes"];
+	let allowed = &["max_invocations", "max_string_len", "max_args", "max_action_count", "max_nodes"];
 	let record = expect_record(value, parent)?;
 	validate_allowed_fields(record, allowed, parent)?;
 
@@ -204,7 +204,6 @@ fn parse_decode_limit_overrides(value: &Value, parent: &str) -> Result<DecodeLim
 
 	Ok(DecodeLimitOverrides {
 		max_invocations: get_usize("max_invocations")?,
-		max_depth: get_usize("max_depth")?,
 		max_string_len: get_usize("max_string_len")?,
 		max_args: get_usize("max_args")?,
 		max_action_count: get_usize("max_action_count")?,
@@ -335,13 +334,29 @@ fn parse_keys_value(value: &Value) -> Result<UnresolvedKeys> {
 		let mut bindings = HashMap::new();
 		for (key, binding_value) in binding_record.iter() {
 			let field_path = format!("{mode_field}.{key}");
-			let inv = crate::invocation::decode::decode_single_invocation(binding_value, &field_path).map_err(ConfigError::InvalidKeyBinding)?;
+			let inv = parse_keybinding_value(binding_value, &field_path)?;
 			bindings.insert(key.clone(), inv);
 		}
 		config.modes.insert(mode_name.clone(), bindings);
 	}
 
 	Ok(config)
+}
+
+/// Parse a single keybinding value: string spec, record, or custom value.
+fn parse_keybinding_value(value: &Value, field_path: &str) -> Result<xeno_invocation::Invocation> {
+	if let Value::String { val, .. } = value {
+		let parsed = xeno_invocation_spec::parse_spec(val)
+			.map_err(|e| ConfigError::InvalidKeyBinding(format!("at {field_path}: {e}")))?;
+		let inv = match parsed.kind {
+			xeno_invocation_spec::SpecKind::Action => xeno_invocation::Invocation::action(parsed.name),
+			xeno_invocation_spec::SpecKind::Command => xeno_invocation::Invocation::command(parsed.name, parsed.args),
+			xeno_invocation_spec::SpecKind::Editor => xeno_invocation::Invocation::editor_command(parsed.name, parsed.args),
+			xeno_invocation_spec::SpecKind::Nu => xeno_invocation::Invocation::nu(parsed.name, parsed.args),
+		};
+		return Ok(inv);
+	}
+	xeno_invocation::nu::decode_single_invocation(value, field_path).map_err(ConfigError::InvalidKeyBinding)
 }
 
 fn parse_variant(s: &str) -> Result<crate::themes::ThemeVariant> {

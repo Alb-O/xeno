@@ -1,0 +1,22 @@
+[package]
+name = "xeno-invocation"
+description = "Canonical invocation types and Nu interop for Xeno"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[features]
+nu = ["dep:nu-protocol", "dep:serde", "dep:typetag"]
+
+[dependencies]
+nu-protocol = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
+typetag = { version = "0.2", optional = true }
+
+[dev-dependencies]
+nu-protocol.workspace = true
+serde = { workspace = true }
+typetag = "0.2"
+
+[lints.rust]
+unused_crate_dependencies = "warn"

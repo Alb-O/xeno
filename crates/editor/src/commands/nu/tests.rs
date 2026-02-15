@@ -252,7 +252,7 @@ fn nu_run_structured_action_record_executes_count() {
 	assert!(xeno_registry::find_action("move_right").is_some(), "expected move_right action to exist");
 
 	let temp = tempfile::tempdir().expect("temp dir should exist");
-	write_script(temp.path(), "export def go [] { { kind: \"action\", name: \"move_right\", count: 2 } }");
+	write_script(temp.path(), "export def go [] { action move_right --count 2 }");
 
 	let runtime = crate::nu::NuRuntime::load(temp.path()).expect("runtime should load");
 	let mut editor = Editor::from_content("abcd".to_string(), None);
@@ -273,7 +273,7 @@ fn nu_run_structured_list_of_records_executes() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
 	write_script(
 		temp.path(),
-		"export def go [] { [\n  { kind: \"editor\", name: \"stats\" },\n  { kind: \"command\", name: \"help\" }\n] }",
+		"export def go [] { [ (editor stats), (command help) ] }",
 	);
 
 	let runtime = crate::nu::NuRuntime::load(temp.path()).expect("runtime should load");

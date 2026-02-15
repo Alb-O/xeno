@@ -5,47 +5,46 @@
 #
 # Module-only: only def/use/const/alias at top level (no expressions).
 #
-# Built-in prelude commands available without import:
-#   action, command, editor, "nu run"       — invocation constructors
-#   "str ends-with", "str starts-with", "str contains" — string helpers
-#
-# You can also `use xeno *` explicitly (already in scope by default).
+# Built-in commands available without import:
+#   action, command, editor, "nu run"  — invocation constructors
+#   "xeno ctx"                         — current invocation context
 
 # --- Hooks ---
 
 # Runs after every action. Return null for no-op.
-export def on_action_post [name result] {
+export def on_action_post [name: string, result: string] {
   null
 }
 
 # Runs after every registry command.
-export def on_command_post [name result ...args] {
+export def on_command_post [name: string, result: string, ...args: string] {
   null
 }
 
 # Runs after every editor command.
-export def on_editor_command_post [name result ...args] {
+export def on_editor_command_post [name: string, result: string, ...args: string] {
   null
 }
 
 # Runs after a mode transition (e.g. Normal → Insert).
-export def on_mode_change [from to] {
+export def on_mode_change [from: string, to: string] {
   null
 }
 
 # Runs after a buffer is opened or switched to via navigation.
 # kind: "disk" (loaded from file) | "existing" (switched to open doc)
-export def on_buffer_open [path kind] {
+export def on_buffer_open [path: string, kind: string] {
   null
 }
 
 # --- Macros ---
 
-# Using built-in constructors (preferred):
+# Return a list of invocations to execute sequentially.
 export def save-and-format [] {
   [(command write), (command format)]
 }
 
+# Single invocation with flags.
 export def move-down-5 [] {
   action move_down --count 5
 }
@@ -54,17 +53,23 @@ export def find-x [] {
   action find_char --char x
 }
 
-# Equivalent constructor-based form of "write then reload":
+# Chain commands.
 export def reload-all [] {
   [(command write), (editor reload_config)]
 }
 
-# Context-aware: read cursor/buffer state from $env.XENO_CTX.
+# Context-aware macro using `xeno ctx`.
+export def smart-save [] {
+  let ctx = (xeno ctx)
+  if $ctx.buffer.modified {
+    command write
+  }
+}
+
+# Read cursor position from context.
 export def show-position [] {
-  let ctx = $env.XENO_CTX
+  let ctx = (xeno ctx)
   let pos = $"($ctx.cursor.line):($ctx.cursor.col)"
-  let file = ($ctx.buffer.path | default "<scratch>")
-  # This would need a "notify" command to be useful;
-  # shown here as an example of reading XENO_CTX.
+  let file = if ($ctx.buffer.path == null) { "<scratch>" } else { $ctx.buffer.path }
   null
 }

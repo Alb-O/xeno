@@ -138,100 +138,104 @@ fn script_policy_allows_expressions() {
 }
 
 #[test]
-fn prelude_action_constructor_returns_record() {
+fn action_command_returns_custom_value() {
 	let mut engine_state = create_engine_state(None).expect("engine state");
 	let source = "action move_right --count 2";
 	let parsed = parse_and_validate(&mut engine_state, "<test>", source, None).expect("should parse");
 	let value = evaluate_block(&engine_state, parsed.block.as_ref()).expect("should evaluate");
-	let record = value.as_record().expect("should be record");
-	assert_eq!(record.get("kind").unwrap().as_str().unwrap(), "action");
-	assert_eq!(record.get("name").unwrap().as_str().unwrap(), "move_right");
-	assert_eq!(record.get("count").unwrap().as_int().unwrap(), 2);
-	assert!(record.get("register").unwrap().is_nothing());
-	assert!(record.get("char").unwrap().is_nothing());
+
+	// Should be a custom value (InvocationValue)
+	let cv = value.as_custom_value().expect("should be custom value");
+	let iv = cv.as_any().downcast_ref::<xeno_invocation::nu::InvocationValue>().expect("should downcast to InvocationValue");
+	assert!(matches!(
+		&iv.0,
+		xeno_invocation::Invocation::Action { name, count: 2, extend: false, register: None } if name == "move_right"
+	));
 }
 
 #[test]
-fn prelude_command_constructor_returns_record() {
+fn command_command_returns_custom_value() {
 	let mut engine_state = create_engine_state(None).expect("engine state");
 	let source = "command write foo.txt";
 	let parsed = parse_and_validate(&mut engine_state, "<test>", source, None).expect("should parse");
 	let value = evaluate_block(&engine_state, parsed.block.as_ref()).expect("should evaluate");
-	let record = value.as_record().expect("should be record");
-	assert_eq!(record.get("kind").unwrap().as_str().unwrap(), "command");
-	assert_eq!(record.get("name").unwrap().as_str().unwrap(), "write");
-	let args = record.get("args").unwrap().as_list().unwrap();
-	assert_eq!(args.len(), 1);
-	assert_eq!(args[0].as_str().unwrap(), "foo.txt");
+
+	let cv = value.as_custom_value().expect("should be custom value");
+	let iv = cv.as_any().downcast_ref::<xeno_invocation::nu::InvocationValue>().expect("should downcast to InvocationValue");
+	assert!(matches!(
+		&iv.0,
+		xeno_invocation::Invocation::Command { name, args } if name == "write" && args == &["foo.txt"]
+	));
 }
 
 #[test]
-fn prelude_str_helpers_work() {
-	let mut engine_state = create_engine_state(None).expect("engine state");
-	let source = r#""hello world" | str ends-with "world""#;
-	let parsed = parse_and_validate(&mut engine_state, "<test>", source, None).expect("should parse");
-	let value = evaluate_block(&engine_state, parsed.block.as_ref()).expect("should evaluate");
-	assert_eq!(value, Value::test_bool(true));
-}
-
-#[test]
-fn prelude_available_in_module_only_scripts() {
+fn commands_available_in_module_only_scripts() {
 	let mut engine_state = create_engine_state(None).expect("engine state");
 	let source = "export def go [] { action move_right --count 5 }";
 	parse_and_validate_with_policy(&mut engine_state, "<test>", source, None, ParsePolicy::ModuleOnly)
-		.expect("prelude should be available in module-only scripts");
+		.expect("commands should be available in module-only scripts");
 	let decl_id = find_decl(&engine_state, "go").expect("go should exist");
 	let value = call_function(&engine_state, decl_id, &[], &[]).expect("should call");
-	let record = value.as_record().expect("should be record");
-	assert_eq!(record.get("name").unwrap().as_str().unwrap(), "move_right");
-	assert_eq!(record.get("count").unwrap().as_int().unwrap(), 5);
+	let cv = value.as_custom_value().expect("should be custom value");
+	let iv = cv.as_any().downcast_ref::<xeno_invocation::nu::InvocationValue>().expect("should downcast");
+	assert!(matches!(
+		&iv.0,
+		xeno_invocation::Invocation::Action { name, count: 5, .. } if name == "move_right"
+	));
 }
 
 #[test]
-fn str_shim_defs_work_in_sandbox() {
-	let mut engine_state = create_engine_state(None).expect("engine state");
-	let source = r#"export def "str ends-with" [suffix: string] { $in ends-with $suffix }
-"abc" | str ends-with "bc""#;
-	let parsed = parse_and_validate(&mut engine_state, "<test>", source, None).expect("str shim should parse");
-	let value = evaluate_block(&engine_state, parsed.block.as_ref()).expect("str shim should evaluate");
-	assert_eq!(value, nu_protocol::Value::test_bool(true));
+fn create_engine_state_registers_builtin_commands() {
+	let engine_state = create_engine_state(None).expect("engine state should be created");
+	assert!(find_decl(&engine_state, "action").is_some(), "action command should be registered");
+	assert!(find_decl(&engine_state, "command").is_some(), "command command should be registered");
+	assert!(find_decl(&engine_state, "editor").is_some(), "editor command should be registered");
+	assert!(find_decl(&engine_state, "nu run").is_some(), "nu run command should be registered");
+	assert!(find_decl(&engine_state, "xeno ctx").is_some(), "xeno ctx command should be registered");
 }
 
 #[test]
-fn prelude_default_replaces_null() {
+fn module_only_rejects_shadowing_action_command() {
 	let mut engine_state = create_engine_state(None).expect("engine state");
-	let source = r#"null | default "x""#;
+	let err = parse_and_validate_with_policy(&mut engine_state, "<test>", "export def action [] { null }", None, ParsePolicy::ModuleOnly)
+		.expect_err("shadowing action should be rejected");
+	assert!(err.contains("reserved") && err.contains("action"), "got: {err}");
+}
+
+#[test]
+fn module_only_rejects_shadowing_multiword_command() {
+	let mut engine_state = create_engine_state(None).expect("engine state");
+	let err = parse_and_validate_with_policy(&mut engine_state, "<test>", "export def \"nu run\" [] { null }", None, ParsePolicy::ModuleOnly)
+		.expect_err("shadowing 'nu run' should be rejected");
+	assert!(err.contains("reserved") && err.contains("nu run"), "got: {err}");
+}
+
+#[test]
+fn xeno_ctx_returns_nothing_without_injection() {
+	let mut engine_state = create_engine_state(None).expect("engine state");
+	let source = "xeno ctx";
 	let parsed = parse_and_validate(&mut engine_state, "<test>", source, None).expect("should parse");
 	let value = evaluate_block(&engine_state, parsed.block.as_ref()).expect("should evaluate");
-	assert_eq!(value, nu_protocol::Value::test_string("x"));
+	assert!(matches!(value, Value::Nothing { .. }), "xeno ctx without env should return nothing");
 }
 
 #[test]
-fn prelude_default_preserves_non_null() {
+fn docs_xeno_nu_example_parses_under_module_only() {
+	let example_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/xeno.nu.example");
+	let source = std::fs::read_to_string(&example_path).expect("docs/xeno.nu.example should exist");
 	let mut engine_state = create_engine_state(None).expect("engine state");
-	let source = r#""y" | default "x""#;
+	parse_and_validate_with_policy(&mut engine_state, "docs/xeno.nu.example", &source, None, ParsePolicy::ModuleOnly)
+		.expect("docs example should parse under ModuleOnly policy");
+}
+
+#[test]
+fn xeno_ctx_returns_injected_env() {
+	let mut engine_state = create_engine_state(None).expect("engine state");
+	let source = "export def go [] { xeno ctx }";
 	let parsed = parse_and_validate(&mut engine_state, "<test>", source, None).expect("should parse");
-	let value = evaluate_block(&engine_state, parsed.block.as_ref()).expect("should evaluate");
-	assert_eq!(value, nu_protocol::Value::test_string("y"));
-}
-
-#[test]
-fn prelude_is_null() {
-	let mut engine_state = create_engine_state(None).expect("engine state");
-	let parsed = parse_and_validate(&mut engine_state, "<test>", "null | is-null", None).expect("should parse");
-	let value = evaluate_block(&engine_state, parsed.block.as_ref()).expect("should evaluate");
-	assert_eq!(value, nu_protocol::Value::test_bool(true));
-
-	let mut engine_state = create_engine_state(None).expect("engine state");
-	let parsed = parse_and_validate(&mut engine_state, "<test>", r#""hi" | is-null"#, None).expect("should parse");
-	let value = evaluate_block(&engine_state, parsed.block.as_ref()).expect("should evaluate");
-	assert_eq!(value, nu_protocol::Value::test_bool(false));
-}
-
-#[test]
-fn create_engine_state_succeeds_and_exposes_prelude_version() {
-	let mut engine_state = create_engine_state(None).expect("engine state should be created");
-	let parsed = parse_and_validate(&mut engine_state, "<test>", "$XENO_PRELUDE_VERSION", None).expect("should parse");
-	let value = evaluate_block(&engine_state, parsed.block.as_ref()).expect("should evaluate");
-	assert_eq!(value, nu_protocol::Value::test_int(XENO_PRELUDE_VERSION));
+	let _ = evaluate_block(&engine_state, parsed.block.as_ref()).expect("should evaluate");
+	let decl_id = find_decl(&engine_state, "go").expect("go should exist");
+	let ctx = Value::string("test-ctx", Span::unknown());
+	let result = call_function(&engine_state, decl_id, &[], &[("XENO_CTX", ctx)]).expect("should call");
+	assert_eq!(result.as_str().unwrap(), "test-ctx");
 }

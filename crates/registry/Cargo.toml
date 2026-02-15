@@ -70,6 +70,8 @@ config-nuon = [
     "dep:nu-protocol",
     "dep:nuon",
     "dep:xeno-primitives",
+    "dep:xeno-invocation-spec",
+    "xeno-invocation/nu",
     "themes",
     "options",
 ]
@@ -98,6 +100,8 @@ serde.workspace = true
 strsim = { workspace = true, optional = true }
 thiserror.workspace = true
 tracing = { workspace = true, optional = true }
+xeno-invocation = { workspace = true }
+xeno-invocation-spec = { workspace = true, optional = true }
 xeno-keymap-core = { workspace = true, optional = true }
 xeno-macros = { workspace = true, optional = true }
 xeno-nu = { workspace = true, optional = true }

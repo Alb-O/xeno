@@ -346,7 +346,7 @@ fn command_error_propagates() {
 #[tokio::test]
 async fn nu_macro_recursion_depth_guard_trips() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
-	std::fs::write(temp.path().join("xeno.nu"), "export def recur [] { { kind: \"nu\", name: \"recur\" } }").expect("xeno.nu should be writable");
+	std::fs::write(temp.path().join("xeno.nu"), "export def recur [] { nu run recur }").expect("xeno.nu should be writable");
 
 	let runtime = crate::nu::NuRuntime::load(temp.path()).expect("runtime should load");
 	let mut editor = Editor::new_scratch();
@@ -375,7 +375,7 @@ async fn nu_macro_ctx_is_injected() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
 	std::fs::write(
 		temp.path().join("xeno.nu"),
-		"export def go [] { if $env.XENO_CTX.kind == \"macro\" { (action invocation_test_action) } else { (action does-not-exist) } }",
+		"export def go [] { let ctx = (xeno ctx); if $ctx.kind == \"macro\" { (action invocation_test_action) } else { (action does-not-exist) } }",
 	)
 	.expect("xeno.nu should be writable");
 

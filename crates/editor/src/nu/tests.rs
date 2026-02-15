@@ -45,10 +45,10 @@ fn run_invocations_supports_structured_records() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
 	write_script(
 		temp.path(),
-		"export def action_rec [] { { kind: \"action\", name: \"move_right\", count: 2, extend: true, register: \"a\" } }\n\
-export def action_char [] { { kind: \"action\", name: \"find_char\", char: \"x\" } }\n\
-export def mixed [] { [ { kind: \"editor\", name: \"stats\" }, { kind: \"command\", name: \"help\", args: [\"themes\"] } ] }\n\
-export def nested_nu [] { { kind: \"nu\", name: \"go\", args: [\"a\", \"b\"] } }",
+		"export def action_rec [] { action move_right --count 2 --extend --register a }\n\
+export def action_char [] { action find_char --char x }\n\
+export def mixed [] { [ (editor stats), (command help themes) ] }\n\
+export def nested_nu [] { nu run go a b }",
 	);
 
 	let runtime = NuRuntime::load(temp.path()).expect("runtime should load");

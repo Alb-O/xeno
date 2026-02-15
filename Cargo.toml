@@ -5,6 +5,7 @@ members = [
     "crates/editor-iced",
     "crates/editor-tui",
     "crates/input",
+    "crates/invocation",
     "crates/invocation-spec",
     "crates/keymap/*",
     "crates/language",
@@ -75,6 +76,7 @@ termina = "0.1"
 termwiz = "0.23"
 thiserror = "2.0"
 tokio = { version = "1.49", default-features = false, features = ["macros", "rt", "sync", "io-util"] }
+typetag = "0.2"
 tokio-util = "0.7"
 toml = "1.0"
 tower-layer = "0.3"
@@ -93,6 +95,7 @@ which = "8.0"
 xeno-editor = { path = "crates/editor" }
 xeno-editor-tui = { path = "crates/editor-tui" }
 xeno-input = { path = "crates/input" }
+xeno-invocation = { path = "crates/invocation" }
 xeno-invocation-spec = { path = "crates/invocation-spec" }
 xeno-keymap-core = { path = "crates/keymap/core" }
 xeno-keymap-parser = { path = "crates/keymap/parser" }

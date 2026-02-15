@@ -80,7 +80,7 @@ fn eval_config_rejects_use_parent_dir() {
 }
 
 #[test]
-fn config_nu_parses_structured_keys_with_prelude() {
+fn config_nu_parses_structured_keys_with_builtins() {
 	let input = r#"{
 		keys: {
 			normal: {
@@ -89,7 +89,7 @@ fn config_nu_parses_structured_keys_with_prelude() {
 			}
 		}
 	}"#;
-	let config = eval_config_str(input, "config.nu").expect("config.nu with prelude keys should evaluate");
+	let config = eval_config_str(input, "config.nu").expect("config.nu with built-in keys should evaluate");
 	let keys = config.keys.expect("keys should be parsed");
 	let normal = keys.modes.get("normal").expect("normal mode should exist");
 
@@ -101,7 +101,7 @@ fn config_nu_parses_structured_keys_with_prelude() {
 }
 
 #[test]
-fn config_nu_rejects_string_key_target() {
+fn config_nu_accepts_string_key_target() {
 	let input = r#"{
 		keys: {
 			normal: {
@@ -109,11 +109,11 @@ fn config_nu_rejects_string_key_target() {
 			}
 		}
 	}"#;
-	let err = eval_config_str(input, "config.nu").expect_err("string key target should be rejected");
-	match err {
-		ConfigError::InvalidKeyBinding(msg) => assert!(msg.contains("expected invocation record"), "got: {msg}"),
-		other => panic!("expected Nuon error, got: {other:?}"),
-	}
+	let config = eval_config_str(input, "config.nu").expect("string key target should be accepted");
+	let keys = config.keys.expect("keys should be present");
+	let bindings = keys.modes.get("normal").expect("normal mode should exist");
+	let inv = bindings.get("ctrl+s").expect("ctrl+s should be bound");
+	assert!(matches!(inv, xeno_invocation::Invocation::Command { name, .. } if name == "write"));
 }
 
 #[test]

@@ -172,48 +172,15 @@ impl Editor {
 			.nu
 			.as_ref()
 			.map_or_else(crate::nu::DecodeLimits::hook_defaults, |c| c.hook_decode_limits());
-		let args_len = args.len();
-		let hook_start = Instant::now();
 		let nu_ctx = self.build_nu_ctx("hook", fn_name, &args);
-		let hook_span = trace_span!(
-			"nu.hook",
-			function = fn_name,
-			args_len = args_len,
-			max_invocations = limits.max_invocations,
-			max_depth = limits.max_depth
-		);
-		let _hook_guard = hook_span.enter();
-		let env = vec![("XENO_CTX".to_string(), nu_ctx)];
-		let invocations = match self.state.nu_executor.as_ref().unwrap().run(decl_id, args, limits, env).await {
+
+		let invocations = match self.run_nu_with_restart("hook", fn_name, decl_id, args, limits, nu_ctx).await {
 			Ok(invocations) => invocations,
-			Err(crate::nu::executor::NuExecError::Shutdown { decl_id, args, limits, env }) => {
-				warn!(hook = fn_name, "Nu executor died, restarting");
-				self.restart_nu_executor();
-				match self.ensure_nu_executor() {
-					Some(executor) => match executor.run(decl_id, args, limits, env).await {
-						Ok(invocations) => invocations,
-						Err(error) => {
-							warn!(hook = fn_name, error = ?error, "Nu hook failed after executor restart");
-							return None;
-						}
-					},
-					None => return None,
-				}
-			}
-			Err(crate::nu::executor::NuExecError::ReplyDropped) => {
-				warn!(hook = fn_name, "Nu executor worker died mid-evaluation, restarting");
-				self.restart_nu_executor();
-				return None;
-			}
-			Err(crate::nu::executor::NuExecError::Eval(error)) => {
-				warn!(hook = fn_name, error = %error, "Nu hook failed");
+			Err(error) => {
+				warn!(hook = fn_name, error = ?error, "Nu hook failed");
 				return None;
 			}
 		};
-		let hook_elapsed = hook_start.elapsed();
-		if hook_elapsed > SLOW_NU_HOOK_THRESHOLD {
-			debug!(hook = fn_name, elapsed_ms = hook_elapsed.as_millis() as u64, "slow Nu hook call");
-		}
 
 		self.state.nu_hook_guard = true;
 		for invocation in invocations {
@@ -274,50 +241,16 @@ impl Editor {
 			.nu
 			.as_ref()
 			.map_or_else(crate::nu::DecodeLimits::macro_defaults, |c| c.macro_decode_limits());
-		let args_len = args.len();
-		let macro_start = Instant::now();
 		let nu_ctx = self.build_nu_ctx("macro", &fn_name, &args);
-		let macro_span = trace_span!("nu.macro", function = %fn_name, args_len = args_len);
-		let _macro_guard = macro_span.enter();
-		let env = vec![("XENO_CTX".to_string(), nu_ctx)];
 
-		let invocations = match self.state.nu_executor.as_ref().unwrap().run(decl_id, args, limits, env).await {
+		let invocations = match self.run_nu_with_restart("macro", &fn_name, decl_id, args, limits, nu_ctx).await {
 			Ok(invocations) => invocations,
-			Err(crate::nu::executor::NuExecError::Shutdown { decl_id, args, limits, env }) => {
-				warn!(function = %fn_name, "Nu executor died, restarting");
-				self.restart_nu_executor();
-				match self.ensure_nu_executor() {
-					Some(executor) => match executor.run(decl_id, args, limits, env).await {
-						Ok(invocations) => invocations,
-						Err(error) => {
-							let msg = exec_error_message(&error);
-							self.show_notification(xeno_registry::notifications::keys::command_error(&msg));
-							return InvocationResult::CommandError(msg);
-						}
-					},
-					None => {
-						let error = "Nu executor could not be restarted".to_string();
-						self.show_notification(xeno_registry::notifications::keys::command_error(&error));
-						return InvocationResult::CommandError(error);
-					}
-				}
-			}
-			Err(crate::nu::executor::NuExecError::ReplyDropped) => {
-				warn!(function = %fn_name, "Nu executor worker died mid-evaluation, restarting");
-				self.restart_nu_executor();
-				let error = "Nu executor worker died during evaluation".to_string();
-				self.show_notification(xeno_registry::notifications::keys::command_error(&error));
-				return InvocationResult::CommandError(error);
-			}
-			Err(crate::nu::executor::NuExecError::Eval(error)) => {
-				self.show_notification(xeno_registry::notifications::keys::command_error(&error));
-				return InvocationResult::CommandError(error);
+			Err(error) => {
+				let msg = exec_error_message(&error);
+				self.show_notification(xeno_registry::notifications::keys::command_error(&msg));
+				return InvocationResult::CommandError(msg);
 			}
 		};
-		let macro_elapsed = macro_start.elapsed();
-		if macro_elapsed > SLOW_NU_MACRO_THRESHOLD {
-			debug!(function = %fn_name, elapsed_ms = macro_elapsed.as_millis() as u64, "slow Nu macro call");
-		}
 
 		if invocations.is_empty() {
 			debug!(function = %fn_name, "Nu macro produced no invocations");
@@ -332,6 +265,51 @@ impl Editor {
 		}
 
 		InvocationResult::Ok
+	}
+
+	/// Run a Nu function on the executor with automatic restart-and-retry on shutdown.
+	///
+	/// Handles `Shutdown` (retry once after restart), `ReplyDropped` (restart,
+	/// no retry), and `Eval` errors uniformly.
+	async fn run_nu_with_restart(
+		&mut self,
+		label: &str,
+		fn_name: &str,
+		decl_id: nu_protocol::DeclId,
+		args: Vec<String>,
+		limits: crate::nu::DecodeLimits,
+		nu_ctx: Value,
+	) -> Result<Vec<Invocation>, crate::nu::executor::NuExecError> {
+		let start = Instant::now();
+		let env = vec![("XENO_CTX".to_string(), nu_ctx)];
+
+		let invocations = match self.state.nu_executor.as_ref().unwrap().run(decl_id, args, limits, env).await {
+			Ok(invocations) => invocations,
+			Err(crate::nu::executor::NuExecError::Shutdown { decl_id, args, limits, env }) => {
+				warn!(%label, function = fn_name, "Nu executor died, restarting");
+				self.restart_nu_executor();
+				match self.ensure_nu_executor() {
+					Some(executor) => executor.run(decl_id, args, limits, env).await?,
+					None => {
+						return Err(crate::nu::executor::NuExecError::Eval("Nu executor could not be restarted".to_string()));
+					}
+				}
+			}
+			Err(crate::nu::executor::NuExecError::ReplyDropped) => {
+				warn!(%label, function = fn_name, "Nu executor worker died mid-evaluation, restarting");
+				self.restart_nu_executor();
+				return Err(crate::nu::executor::NuExecError::ReplyDropped);
+			}
+			Err(e) => return Err(e),
+		};
+
+		let elapsed = start.elapsed();
+		let threshold = if label == "hook" { SLOW_NU_HOOK_THRESHOLD } else { SLOW_NU_MACRO_THRESHOLD };
+		if elapsed > threshold {
+			debug!(%label, function = fn_name, elapsed_ms = elapsed.as_millis() as u64, "slow Nu call");
+		}
+
+		Ok(invocations)
 	}
 
 	async fn ensure_nu_runtime_loaded(&mut self) -> Result<(), String> {

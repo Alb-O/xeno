@@ -20,6 +20,7 @@
 //! * Nu parser import patterns:
 //!   <https://github.com/nushell/nushell/blob/main/crates/nu-parser/src/parser.rs>
 
+pub mod commands;
 mod sandbox;
 
 use std::path::Path;
@@ -31,36 +32,6 @@ use nu_protocol::debugger::WithoutDebug;
 use nu_protocol::engine::{EngineState, Stack, StateWorkingSet};
 use nu_protocol::{DeclId, PipelineData, Span, Type, Value};
 pub use sandbox::ensure_sandboxed;
-
-/// Built-in xeno prelude module source, loaded into every engine state.
-///
-/// Provides invocation constructors and string helpers so user scripts can
-/// use these directly (they are exported into the default scope).
-/// Users can also `use xeno *` explicitly in their scripts.
-/// Prelude version — bump when prelude API changes.
-pub const XENO_PRELUDE_VERSION: i64 = 1;
-
-const XENO_PRELUDE_SOURCE: &str = r#"
-module xeno {
-    # Invocation constructors — return structured records for decode.
-    # Optional fields use null (decode treats null as absent).
-    export def action [name: string, --count: int = 1, --extend, --register: string, --char: string] {
-        { kind: "action", name: $name, count: $count, extend: $extend, register: $register, char: $char }
-    }
-    export def command [name: string, ...args: string] { { kind: "command", name: $name, args: $args } }
-    export def editor [name: string, ...args: string] { { kind: "editor", name: $name, args: $args } }
-    export def "nu run" [name: string, ...args: string] { { kind: "nu", name: $name, args: $args } }
-    # Std-like small utilities (pure language; no nu-command deps).
-    export def default [value] { if $in == null { $value } else { $in } }
-    export def is-null [] { $in == null }
-    # String helpers using Nu operators (no command dependencies).
-    export def "str ends-with" [suffix: string] { $in ends-with $suffix }
-    export def "str starts-with" [prefix: string] { $in starts-with $prefix }
-    export def "str contains" [needle: string] { $in like $needle }
-    export const XENO_PRELUDE_VERSION = 1
-}
-use xeno *
-"#;
 
 const XENO_NU_RECURSION_LIMIT: i64 = 64;
 
@@ -82,28 +53,19 @@ pub fn create_engine_state(config_root: Option<&Path>) -> Result<EngineState, St
 		engine_state.add_env_var("PWD".to_string(), Value::string(cwd.to_string_lossy().to_string(), Span::unknown()));
 	}
 
-	load_xeno_prelude(&mut engine_state)?;
+	register_xeno_commands(&mut engine_state);
 	Ok(engine_state)
 }
 
-/// Parses and merges the built-in xeno prelude into the engine state.
-///
-/// The prelude is loaded as a virtual `<xeno/mod.nu>` file so `use xeno *`
-/// works in user scripts. Returns an error on parse/compile failure.
-fn load_xeno_prelude(engine_state: &mut EngineState) -> Result<(), String> {
-	let mut working_set = StateWorkingSet::new(engine_state);
-	let _block = nu_parser::parse(&mut working_set, Some("<xeno/prelude>"), XENO_PRELUDE_SOURCE.as_bytes(), false);
-
-	if let Some(error) = working_set.parse_errors.first() {
-		return Err(format!("xeno prelude parse error: {error}"));
-	}
-	if let Some(error) = working_set.compile_errors.first() {
-		return Err(format!("xeno prelude compile error: {error}"));
-	}
-
-	let delta = working_set.render();
-	engine_state.merge_delta(delta).map_err(|e| format!("xeno prelude merge error: {e}"))?;
-	Ok(())
+/// Registers built-in xeno invocation commands (`action`, `command`, `editor`,
+/// `nu run`) into the engine state so they are available in user scripts.
+fn register_xeno_commands(engine_state: &mut EngineState) {
+	let delta = {
+		let mut working_set = StateWorkingSet::new(engine_state);
+		commands::register_all(&mut working_set);
+		working_set.render()
+	};
+	engine_state.merge_delta(delta).expect("merge xeno commands");
 }
 
 /// Builds a restricted Nu engine context with only safe language commands.
@@ -216,10 +178,28 @@ pub fn parse_and_validate_with_policy(
 	let added_decls = working_set.delta.num_decls();
 	let script_decl_ids: Vec<DeclId> = (0..added_decls).map(|i| DeclId::new(base_decls + i)).collect();
 
+	if policy == ParsePolicy::ModuleOnly {
+		check_reserved_names(&working_set, &script_decl_ids)?;
+	}
+
 	let delta = working_set.render();
 	engine_state.merge_delta(delta).map_err(|error| format!("Nu merge error: {error}"))?;
 
 	Ok(ParseResult { block, script_decl_ids })
+}
+
+/// Built-in command names that user scripts must not shadow.
+const RESERVED_COMMAND_NAMES: &[&str] = &["action", "command", "editor", "nu run", "xeno ctx"];
+
+/// Reject user declarations that shadow built-in xeno commands.
+fn check_reserved_names(working_set: &nu_protocol::engine::StateWorkingSet<'_>, script_decl_ids: &[DeclId]) -> Result<(), String> {
+	for &decl_id in script_decl_ids {
+		let name = working_set.get_decl(decl_id).name();
+		if RESERVED_COMMAND_NAMES.contains(&name) {
+			return Err(format!("Nu script error: '{name}' is a reserved Xeno built-in command; rename your definition"));
+		}
+	}
+	Ok(())
 }
 
 /// Declaration names allowed at top level under [`ParsePolicy::ModuleOnly`].

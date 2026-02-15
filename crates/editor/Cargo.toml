@@ -33,6 +33,7 @@ tokio-util = { workspace = true, optional = true }
 tracing.workspace = true
 unicode-width.workspace = true
 xeno-input.workspace = true
+xeno-invocation = { workspace = true, features = ["nu"] }
 xeno-invocation-spec.workspace = true
 xeno-language.workspace = true
 xeno-lsp = { workspace = true, features = ["position"], optional = true }

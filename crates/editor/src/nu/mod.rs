@@ -1,7 +1,6 @@
 //! Nu runtime for editor macro scripts.
 
 pub(crate) mod ctx;
-mod decode;
 pub(crate) mod executor;
 
 use std::collections::HashSet;
@@ -9,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-pub use decode::{DecodeLimits, decode_invocations, decode_invocations_with_limits};
+pub use xeno_invocation::nu::{DecodeLimits, decode_runtime_invocations_with_limits};
 use nu_protocol::engine::EngineState;
 use nu_protocol::{DeclId, Value};
 
@@ -115,7 +114,7 @@ impl NuRuntime {
 		env: &[(&str, Value)],
 	) -> Result<Vec<Invocation>, String> {
 		let value = self.run_internal(fn_name, args, env).map_err(map_run_error)?;
-		decode_invocations_with_limits(value, limits)
+		decode_runtime_invocations_with_limits(value, limits)
 	}
 
 	/// Run a function and decode structured invocations, returning `None` when the function is absent.
@@ -137,7 +136,7 @@ impl NuRuntime {
 		env: &[(&str, Value)],
 	) -> Result<Option<Vec<Invocation>>, String> {
 		match self.run_internal(fn_name, args, env) {
-			Ok(value) => decode_invocations_with_limits(value, limits).map(Some),
+			Ok(value) => decode_runtime_invocations_with_limits(value, limits).map(Some),
 			Err(NuRunError::MissingFunction(_)) => Ok(None),
 			Err(NuRunError::Other(error)) => Err(error),
 		}
@@ -153,7 +152,7 @@ impl NuRuntime {
 	/// Run a pre-resolved declaration and decode into invocations.
 	pub fn run_invocations_by_decl_id(&self, decl_id: DeclId, args: &[String], limits: DecodeLimits, env: &[(&str, Value)]) -> Result<Vec<Invocation>, String> {
 		let value = self.call_by_decl_id(decl_id, args, env)?;
-		decode_invocations_with_limits(value, limits)
+		decode_runtime_invocations_with_limits(value, limits)
 	}
 
 	/// Run a pre-resolved declaration with owned args/env (zero-clone hot path).
@@ -170,7 +169,7 @@ impl NuRuntime {
 		if elapsed > SLOW_CALL_THRESHOLD {
 			tracing::debug!(elapsed_ms = elapsed.as_millis() as u64, "slow Nu call");
 		}
-		decode_invocations_with_limits(value, limits)
+		decode_runtime_invocations_with_limits(value, limits)
 	}
 
 	fn call_by_decl_id(&self, decl_id: DeclId, args: &[String], env: &[(&str, Value)]) -> Result<Value, String> {
@@ -221,8 +220,23 @@ fn map_run_error(error: NuRunError) -> String {
 fn build_base_engine(config_dir: &Path, script_path: &Path, script_src: &str) -> Result<(EngineState, HashSet<DeclId>), String> {
 	let mut engine_state = xeno_nu::create_engine_state(Some(config_dir))?;
 	let fname = script_path.to_string_lossy().to_string();
-	let parsed = xeno_nu::parse_and_validate_with_policy(&mut engine_state, &fname, script_src, Some(config_dir), xeno_nu::ParsePolicy::ModuleOnly)?;
+	let parsed = xeno_nu::parse_and_validate_with_policy(&mut engine_state, &fname, script_src, Some(config_dir), xeno_nu::ParsePolicy::ModuleOnly)
+		.map_err(|e| add_prelude_removal_hint(&e))?;
 	Ok((engine_state, parsed.script_decl_ids.into_iter().collect()))
+}
+
+/// Append a migration hint if the error looks like a `use xeno` failure.
+fn add_prelude_removal_hint(error: &str) -> String {
+	let lower = error.to_ascii_lowercase();
+	if lower.contains("use xeno") || (lower.contains("module") && lower.contains("xeno") && lower.contains("not found")) {
+		format!(
+			"{error}\n\nHint: the built-in `xeno` prelude module was removed. \
+			 Delete `use xeno *` and call built-in commands directly: \
+			 action, command, editor, \"nu run\", \"xeno ctx\"."
+		)
+	} else {
+		error.to_string()
+	}
 }
 
 /// Parse a macro invocation spec string into an [`Invocation`].

@@ -10,6 +10,7 @@ nu-cmd-lang.workspace = true
 nu-engine = { workspace = true }
 nu-parser.workspace = true
 nu-protocol.workspace = true
+xeno-invocation = { workspace = true, features = ["nu"] }
 
 [dev-dependencies]
 tempfile.workspace = true

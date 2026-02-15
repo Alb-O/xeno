@@ -155,12 +155,11 @@ pub type Result<T> = std::result::Result<T, ConfigError>;
 /// User-configurable overrides for Nu decode safety limits.
 ///
 /// Each field, when `Some`, overrides the corresponding default in
-/// [`crate::invocation::decode::DecodeLimits`]. `None` fields keep defaults.
+/// [`xeno_invocation::nu::DecodeLimits`]. `None` fields keep defaults.
 #[cfg(feature = "config-nuon")]
 #[derive(Debug, Clone, Default)]
 pub struct DecodeLimitOverrides {
 	pub max_invocations: Option<usize>,
-	pub max_depth: Option<usize>,
 	pub max_string_len: Option<usize>,
 	pub max_args: Option<usize>,
 	pub max_action_count: Option<usize>,
@@ -170,12 +169,9 @@ pub struct DecodeLimitOverrides {
 #[cfg(feature = "config-nuon")]
 impl DecodeLimitOverrides {
 	/// Apply overrides on top of a base `DecodeLimits`, returning the merged result.
-	pub fn apply(&self, mut base: crate::invocation::decode::DecodeLimits) -> crate::invocation::decode::DecodeLimits {
+	pub fn apply(&self, mut base: xeno_invocation::nu::DecodeLimits) -> xeno_invocation::nu::DecodeLimits {
 		if let Some(v) = self.max_invocations {
 			base.max_invocations = v;
-		}
-		if let Some(v) = self.max_depth {
-			base.max_depth = v;
 		}
 		if let Some(v) = self.max_string_len {
 			base.max_string_len = v;
@@ -206,20 +202,20 @@ pub struct NuConfig {
 #[cfg(feature = "config-nuon")]
 impl NuConfig {
 	/// Effective macro decode limits (defaults + overrides).
-	pub fn macro_decode_limits(&self) -> crate::invocation::decode::DecodeLimits {
+	pub fn macro_decode_limits(&self) -> xeno_invocation::nu::DecodeLimits {
 		self.decode_macro
 			.as_ref()
-			.map_or_else(crate::invocation::decode::DecodeLimits::macro_defaults, |o| {
-				o.apply(crate::invocation::decode::DecodeLimits::macro_defaults())
+			.map_or_else(xeno_invocation::nu::DecodeLimits::macro_defaults, |o| {
+				o.apply(xeno_invocation::nu::DecodeLimits::macro_defaults())
 			})
 	}
 
 	/// Effective hook decode limits (defaults + overrides).
-	pub fn hook_decode_limits(&self) -> crate::invocation::decode::DecodeLimits {
+	pub fn hook_decode_limits(&self) -> xeno_invocation::nu::DecodeLimits {
 		self.decode_hook
 			.as_ref()
-			.map_or_else(crate::invocation::decode::DecodeLimits::hook_defaults, |o| {
-				o.apply(crate::invocation::decode::DecodeLimits::hook_defaults())
+			.map_or_else(xeno_invocation::nu::DecodeLimits::hook_defaults, |o| {
+				o.apply(xeno_invocation::nu::DecodeLimits::hook_defaults())
 			})
 	}
 }
