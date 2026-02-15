@@ -47,28 +47,28 @@
 //!
 //! ## Core Layout Types
 //!
-//! - [`Layout`] - The primary layout engine that divides space using constraints and direction
-//! - [`Rect`] - Represents a rectangular area with position and dimensions
-//! - [`Constraint`] - Defines how space should be allocated (length, percentage, min)
-//! - [`Direction`] - Specifies layout orientation (horizontal or vertical)
+//! * [`Layout`] - The primary layout engine that divides space using constraints and direction
+//! * [`Rect`] - Represents a rectangular area with position and dimensions
+//! * [`Constraint`] - Defines how space should be allocated (length, percentage, min)
+//! * [`Direction`] - Specifies layout orientation (horizontal or vertical)
 //!
 //! ## Positioning and Sizing
 //!
-//! - [`Position`] - Represents a point in the terminal coordinate system
-//! - [`Size`] - Represents dimensions (width and height)
-//! - [`Margin`] - Defines spacing around rectangular areas
-//! - [`Offset`] - Represents relative movement in the coordinate system
+//! * [`Position`] - Represents a point in the terminal coordinate system
+//! * [`Size`] - Represents dimensions (width and height)
+//! * [`Margin`] - Defines spacing around rectangular areas
+//! * [`Offset`] - Represents relative movement in the coordinate system
 //!
 //! ## Alignment
 //!
-//! - [`HorizontalAlignment`] - Horizontal alignment options (left, center, right)
-//! - [`VerticalAlignment`] - Vertical alignment options (top, center, bottom)
+//! * [`HorizontalAlignment`] - Horizontal alignment options (left, center, right)
+//! * [`VerticalAlignment`] - Vertical alignment options (top, center, bottom)
 //!
 //! ## Iteration Support
 //!
-//! - [`Rows`] - Iterator over horizontal rows within a rectangular area
-//! - [`Columns`] - Iterator over vertical columns within a rectangular area
-//! - [`Positions`] - Iterator over all positions within a rectangular area
+//! * [`Rows`] - Iterator over horizontal rows within a rectangular area
+//! * [`Columns`] - Iterator over vertical columns within a rectangular area
+//! * [`Positions`] - Iterator over all positions within a rectangular area
 //!
 //! # Quick Start
 //!
@@ -181,9 +181,9 @@
 //! [`Constraint`]s define how space is allocated within a layout. The deterministic solver
 //! allocates space in priority passes. Different constraint types serve different purposes:
 //!
-//! - [`Constraint::Length`] - Fixed size in character cells (allocated first)
-//! - [`Constraint::Percentage`] - Relative size as a percentage of total space (allocated second)
-//! - [`Constraint::Min`] - Minimum size, receives remaining space (allocated last)
+//! * [`Constraint::Length`] - Fixed size in character cells (allocated first)
+//! * [`Constraint::Percentage`] - Relative size as a percentage of total space (allocated second)
+//! * [`Constraint::Min`] - Minimum size, receives remaining space (allocated last)
 //!
 //! # Positioning and Alignment
 //!

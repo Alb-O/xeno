@@ -41,10 +41,10 @@ impl Buffer {
 	/// a horizontal motion resets it.
 	///
 	/// # Parameters
-	/// - `direction`: Forward (down) or Backward (up)
-	/// - `count`: Number of visual lines to move
-	/// - `extend`: Whether to extend selection
-	/// - `tab_width`: Number of spaces a tab character occupies (from options)
+	/// * `direction`: Forward (down) or Backward (up)
+	/// * `count`: Number of visual lines to move
+	/// * `extend`: Whether to extend selection
+	/// * `tab_width`: Number of spaces a tab character occupies (from options)
 	pub fn move_visual_vertical(&mut self, direction: MoveDir, count: usize, extend: bool, tab_width: usize) {
 		self.ensure_valid_selection();
 		let ranges = self.selection.ranges().to_vec();
@@ -434,9 +434,9 @@ impl Buffer {
 	/// Wraps a line of text into segments.
 	///
 	/// # Parameters
-	/// - `text`: The text to wrap
-	/// - `width`: Maximum width in characters for each segment
-	/// - `tab_width`: Number of spaces a tab character occupies
+	/// * `text`: The text to wrap
+	/// * `width`: Maximum width in characters for each segment
+	/// * `tab_width`: Number of spaces a tab character occupies
 	pub fn wrap_line(&self, text: &str, width: usize, tab_width: usize) -> Vec<WrapSegment> {
 		crate::render::wrap_line(text, width, tab_width)
 	}

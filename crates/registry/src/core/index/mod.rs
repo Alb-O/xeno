@@ -23,12 +23,12 @@
 //! 1. Higher [`crate::core::meta::RegistryMeta::priority`] wins.
 //! 2. Higher rank [`crate::core::meta::RegistrySource`] wins (Runtime > Crate > Builtin).
 //! 3. Deterministic tie-breaker:
-//!    - Canonical-ID conflicts: higher (later) ingest ordinal wins.
-//!    - Key conflicts (name/key): canonical ID total order wins (via interned symbol).
+//!    * Canonical-ID conflicts: higher (later) ingest ordinal wins.
+//!    * Key conflicts (name/key): canonical ID total order wins (via interned symbol).
 //!
-//! - Enforced in: `cmp_party`, `RegistryEntry::total_order_cmp`
-//! - Tested by: `test_source_precedence` (in `invariants.rs`)
-//! - Failure symptom: Wrong definition wins a key binding or ID conflict.
+//! * Enforced in: `cmp_party`, `RegistryEntry::total_order_cmp`
+//! * Tested by: `test_source_precedence` (in `invariants.rs`)
+//! * Failure symptom: Wrong definition wins a key binding or ID conflict.
 //!
 //! # 3-Stage Key Model
 //!
@@ -51,16 +51,16 @@
 //!
 //! # Concurrency
 //!
-//! - Reads: wait-free (atomic load of current snapshot).
-//! - Writes: lock-free with linearizability (CAS retry loop on registration).
+//! * Reads: wait-free (atomic load of current snapshot).
+//! * Writes: lock-free with linearizability (CAS retry loop on registration).
 //!
 //! # Invariants
 //!
-//! - Must have unambiguous ID lookup (one winner per ID).
-//! - Must maintain deterministic iteration order by dense ID (table index).
+//! * Must have unambiguous ID lookup (one winner per ID).
+//! * Must maintain deterministic iteration order by dense ID (table index).
 //!   Builtins are built in canonical-ID order; runtime appends extend the table in registration order.
-//! - Must keep owned definitions alive while reachable.
-//! - Must provide linearizable writes without lost updates.
+//! * Must keep owned definitions alive while reachable.
+//! * Must provide linearizable writes without lost updates.
 
 mod build;
 mod collision;

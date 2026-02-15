@@ -36,8 +36,8 @@ impl LayoutManager {
 	/// Checks if the current drag state is stale.
 	///
 	/// Returns `true` if there is an active drag and:
-	/// - The layout revision has changed, OR
-	/// - The stored separator's layer generation is invalid (layer was cleared or reused).
+	/// * The layout revision has changed, OR
+	/// * The stored separator's layer generation is invalid (layer was cleared or reused).
 	pub fn is_drag_stale(&self) -> bool {
 		let Some(drag) = &self.dragging_separator else {
 			return false;

@@ -31,9 +31,9 @@ use crate::buffer::{DocumentId, ViewId};
 /// Manages editor-level undo/redo stacks.
 ///
 /// This component owns the undo and redo stacks and provides methods for:
-/// - Preparing an edit (capturing pre-edit state)
-/// - Finalizing an edit (pushing undo group if needed)
-/// - Executing undo/redo operations
+/// * Preparing an edit (capturing pre-edit state)
+/// * Finalizing an edit (pushing undo group if needed)
+/// * Executing undo/redo operations
 ///
 /// The actual document operations and view snapshot management are delegated
 /// to the [`UndoHost`] trait, which the Editor implements.

@@ -24,8 +24,8 @@ impl LayoutManager {
 	///
 	/// # Errors
 	///
-	/// - [`SplitError::ViewNotFound`] if the view is not found in any layer.
-	/// - [`SplitError::AreaTooSmall`] if the view area height is less than 3.
+	/// * [`SplitError::ViewNotFound`] if the view is not found in any layer.
+	/// * [`SplitError::AreaTooSmall`] if the view area height is less than 3.
 	pub fn can_split_horizontal(&self, base_layout: &Layout, current_view: ViewId, doc_area: Rect) -> Result<(LayerId, Rect), SplitError> {
 		let layer = self.layer_of_view(base_layout, current_view).ok_or(SplitError::ViewNotFound)?;
 
@@ -45,8 +45,8 @@ impl LayoutManager {
 	///
 	/// # Errors
 	///
-	/// - [`SplitError::ViewNotFound`] if the view is not found in any layer.
-	/// - [`SplitError::AreaTooSmall`] if the view area width is less than 3.
+	/// * [`SplitError::ViewNotFound`] if the view is not found in any layer.
+	/// * [`SplitError::AreaTooSmall`] if the view area width is less than 3.
 	pub fn can_split_vertical(&self, base_layout: &Layout, current_view: ViewId, doc_area: Rect) -> Result<(LayerId, Rect), SplitError> {
 		let layer = self.layer_of_view(base_layout, current_view).ok_or(SplitError::ViewNotFound)?;
 
@@ -126,9 +126,9 @@ impl LayoutManager {
 	/// # Errors
 	///
 	/// Returns `None` if:
-	/// - The view is not found in any layer.
-	/// - The view is the last one in the base layer (closing denied).
-	/// - Structural removal fails internally.
+	/// * The view is not found in any layer.
+	/// * The view is the last one in the base layer (closing denied).
+	/// * Structural removal fails internally.
 	pub fn remove_view(&mut self, base_layout: &mut Layout, view: ViewId, doc_area: Rect) -> Option<ViewId> {
 		let layer = self.layer_of_view(base_layout, view)?;
 

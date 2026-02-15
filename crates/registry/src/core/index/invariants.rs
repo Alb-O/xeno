@@ -13,8 +13,8 @@ use crate::core::{RegistryMetaStatic, RegistrySource};
 /// Builtins are built in canonical-ID order; runtime appends extend in registration order.
 /// This test verifies build-time sorting; runtime appends maintain insertion order.
 ///
-/// - Enforced in: `resolve_id_duplicates` (build-time), `RuntimeRegistry::register` (runtime)
-/// - Failure symptom: Iterator order changes unpredictably.
+/// * Enforced in: `resolve_id_duplicates` (build-time), `RuntimeRegistry::register` (runtime)
+/// * Failure symptom: Iterator order changes unpredictably.
 #[cfg_attr(test, test)]
 pub(crate) fn test_deterministic_iteration() {
 	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> = RegistryBuilder::new("test");
@@ -82,8 +82,8 @@ pub(crate) fn test_key_collision_recording() {
 
 /// Must have unambiguous ID lookup (one winner per ID).
 ///
-/// - Enforced in: `resolve_id_duplicates`, `RuntimeRegistry::register`
-/// - Failure symptom: Panics or inconsistent lookups.
+/// * Enforced in: `resolve_id_duplicates`, `RuntimeRegistry::register`
+/// * Failure symptom: Panics or inconsistent lookups.
 #[cfg_attr(test, test)]
 pub(crate) fn test_unambiguous_id_lookup() {
 	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> = RegistryBuilder::new("test");
@@ -104,8 +104,8 @@ pub(crate) fn test_unambiguous_id_lookup() {
 
 /// Must evict old definition on ID override (higher priority wins).
 ///
-/// - Enforced in: `RuntimeRegistry::register`
-/// - Failure symptom: Stale definition remains accessible after override.
+/// * Enforced in: `RuntimeRegistry::register`
+/// * Failure symptom: Stale definition remains accessible after override.
 #[cfg_attr(test, test)]
 pub(crate) fn test_id_override_eviction() {
 	use crate::core::index::collision::DuplicatePolicy;
@@ -147,8 +147,8 @@ pub(crate) fn test_id_override_eviction() {
 
 /// Must keep owned definitions alive while reachable via `RegistryRef`.
 ///
-/// - Enforced in: `Snapshot`, `RegistryRef` (holds `Arc<Snapshot>`)
-/// - Failure symptom: Use-after-free in `RegistryRef` deref.
+/// * Enforced in: `Snapshot`, `RegistryRef` (holds `Arc<Snapshot>`)
+/// * Failure symptom: Use-after-free in `RegistryRef` deref.
 #[cfg_attr(test, test)]
 pub(crate) fn test_snapshot_liveness_across_swap() {
 	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> = RegistryBuilder::new("test");
@@ -170,8 +170,8 @@ pub(crate) fn test_snapshot_liveness_across_swap() {
 
 /// Must provide linearizable writes without lost updates.
 ///
-/// - Enforced in: `RuntimeRegistry::register` (CAS loop)
-/// - Failure symptom: Concurrent registrations silently dropped.
+/// * Enforced in: `RuntimeRegistry::register` (CAS loop)
+/// * Failure symptom: Concurrent registrations silently dropped.
 #[cfg_attr(test, test)]
 pub(crate) fn test_no_lost_updates() {
 	use std::sync::Arc;
@@ -245,8 +245,8 @@ pub(crate) fn test_no_lost_updates() {
 
 /// Must keep symbol resolution stable across snapshot swaps.
 ///
-/// - Enforced in: interner prefix-copy in `RuntimeRegistry::register`
-/// - Failure symptom: Interned strings resolve to wrong text after snapshot swap.
+/// * Enforced in: interner prefix-copy in `RuntimeRegistry::register`
+/// * Failure symptom: Interned strings resolve to wrong text after snapshot swap.
 #[cfg_attr(test, test)]
 pub(crate) fn test_symbol_stability_across_swap() {
 	let mut builder: RegistryBuilder<TestDef, TestEntry, ActionId> = RegistryBuilder::new("test");
@@ -286,8 +286,8 @@ pub(crate) fn test_symbol_stability_across_swap() {
 
 /// Must respect source precedence: Runtime > Crate > Builtin.
 ///
-/// - Enforced in: `cmp_party`
-/// - Failure symptom: Wrong definition wins a key binding or ID conflict.
+/// * Enforced in: `cmp_party`
+/// * Failure symptom: Wrong definition wins a key binding or ID conflict.
 #[cfg_attr(test, test)]
 pub(crate) fn test_source_precedence() {
 	// 1. Build-time precedence: Runtime beats Builtin at same priority

@@ -112,7 +112,7 @@ impl<'a> ListItem<'a> {
 	///
 	/// # See also
 	///
-	/// - [`List::new`](super::List::new) to create a list of items that can be converted to
+	/// * [`List::new`](super::List::new) to create a list of items that can be converted to
 	///   [`ListItem`]
 	pub fn new<T>(content: T) -> Self
 	where

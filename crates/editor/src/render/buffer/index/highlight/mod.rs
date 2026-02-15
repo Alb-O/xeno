@@ -18,7 +18,7 @@ impl HighlightIndex {
 	///
 	/// # Parameters
 	///
-	/// - `spans`: The highlight spans with associated styles.
+	/// * `spans`: The highlight spans with associated styles.
 	pub fn new(spans: Vec<(HighlightSpan, Style)>) -> Self {
 		if spans.is_empty() {
 			return Self { spans: Vec::new() };

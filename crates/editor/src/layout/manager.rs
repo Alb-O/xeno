@@ -7,19 +7,19 @@
 //! Does not own: buffer/document content (owned by buffer/document subsystems), UI widget styling (owned by renderer + widget layer), overlay session policy (owned by overlay system; windowing hosts base layout and overlay layers).
 //!
 //! Source of truth:
-//! - Layout/layers/splits/navigation: [`crate::layout::manager::LayoutManager`] + [`crate::buffer::Layout`]
-//! - Base window containers: [`crate::window::WindowManager`], [`crate::window::BaseWindow`]
-//! - Editor integration: `Editor` split/close methods
+//! * Layout/layers/splits/navigation: [`crate::layout::manager::LayoutManager`] + [`crate::buffer::Layout`]
+//! * Base window containers: [`crate::window::WindowManager`], [`crate::window::BaseWindow`]
+//! * Editor integration: `Editor` split/close methods
 //!
 //! # Mental model
 //!
-//! - There is exactly one base split tree (owned by `BaseWindow.layout`).
-//! - There are zero or more overlay split trees (owned by `LayoutManager.layers: Vec<LayerSlot>`).
-//! - Every leaf in any split tree is a [`crate::buffer::ViewId`].
-//! - Any reference to an overlay layer that can outlive the immediate call stack must use `LayerId { idx, generation }` and must be validated before use.
-//! - A separator is identified by `(LayerId, SplitPath)`; resizing moves
+//! * There is exactly one base split tree (owned by `BaseWindow.layout`).
+//! * There are zero or more overlay split trees (owned by `LayoutManager.layers: Vec<LayerSlot>`).
+//! * Every leaf in any split tree is a [`crate::buffer::ViewId`].
+//! * Any reference to an overlay layer that can outlive the immediate call stack must use `LayerId { idx, generation }` and must be validated before use.
+//! * A separator is identified by `(LayerId, SplitPath)`; resizing moves
 //!   `Layout::Split.position` at that path.
-//! - Split operations are atomic at editor level: feasibility is checked before buffer
+//! * Split operations are atomic at editor level: feasibility is checked before buffer
 //!   allocation and before mutating layout.
 //!
 //! # Key types
@@ -41,14 +41,14 @@
 //!
 //! # Invariants
 //!
-//! - Must validate any stored [`crate::layout::types::LayerId`] before overlay access.
-//! - Must preserve [`crate::layout::types::LayerId`] generation between split preflight and apply.
-//! - Must not allocate or insert a new [`crate::buffer::ViewId`] when split preflight fails.
-//! - Must emit close hooks only after removal succeeds.
-//! - Must apply `remove_view` focus suggestions deterministically.
-//! - Must enforce soft-min sizing and avoid zero-sized panes when space allows.
-//! - Must cancel active separator drag when layout changes or layers become stale.
-//! - Must bump overlay generation when an overlay layer is cleared.
+//! * Must validate any stored [`crate::layout::types::LayerId`] before overlay access.
+//! * Must preserve [`crate::layout::types::LayerId`] generation between split preflight and apply.
+//! * Must not allocate or insert a new [`crate::buffer::ViewId`] when split preflight fails.
+//! * Must emit close hooks only after removal succeeds.
+//! * Must apply `remove_view` focus suggestions deterministically.
+//! * Must enforce soft-min sizing and avoid zero-sized panes when space allows.
+//! * Must cancel active separator drag when layout changes or layers become stale.
+//! * Must bump overlay generation when an overlay layer is cleared.
 //!
 //! # Data flow
 //!
@@ -85,47 +85,47 @@
 //!
 //! ## Base layout
 //!
-//! - Created with `WindowManager::new(base_layout, focused_view)`.
-//! - Mutated by split/close operations via `LayoutManager` calls that special-case
+//! * Created with `WindowManager::new(base_layout, focused_view)`.
+//! * Mutated by split/close operations via `LayoutManager` calls that special-case
 //!   `LayerId::BASE`.
 //!
 //! ## Overlay layout slots
 //!
-//! - Created/replaced via `LayoutManager::set_layer(index, Some(layout))` (always bumps generation).
-//! - Cleared when overlay becomes empty via `LayoutManager::remove_view` (bumps generation + sets `layout=None`).
-//! - Accessed via `LayerId` and `validate_layer`/`overlay_layout`.
+//! * Created/replaced via `LayoutManager::set_layer(index, Some(layout))` (always bumps generation).
+//! * Cleared when overlay becomes empty via `LayoutManager::remove_view` (bumps generation + sets `layout=None`).
+//! * Accessed via `LayerId` and `validate_layer`/`overlay_layout`.
 //!
 //! ## Drag state
 //!
-//! - Starts on separator hit.
-//! - Cancels if stale (revision changed or layer id invalid).
-//! - Ends on mouse release.
+//! * Starts on separator hit.
+//! * Cancels if stale (revision changed or layer id invalid).
+//! * Ends on mouse release.
 //!
 //! # Concurrency & ordering
 //!
 //! No internal multithreading is assumed in this subsystem; ordering constraints are about event sequencing and state mutation.
 //!
 //! Ordering requirements:
-//! - Split: preflight must happen before buffer allocation and before layout mutation.
-//! - Close: layout removal must happen before hooks/LSP close.
-//! - Drag: stale detection must happen before applying any resize update.
+//! * Split: preflight must happen before buffer allocation and before layout mutation.
+//! * Close: layout removal must happen before hooks/LSP close.
+//! * Drag: stale detection must happen before applying any resize update.
 //!
 //! `layout_revision`: must increment on structural changes (split creation, view removal, layer clear).
-//! - Enforced in: `increment_revision` calls in `splits.rs` (split apply) and `separators.rs` (resize structural changes).
+//! * Enforced in: `increment_revision` calls in `splits.rs` (split apply) and `separators.rs` (resize structural changes).
 //!
 //! # Failure modes & recovery
 //!
-//! - Split preflight failure (`SplitError::ViewNotFound`, `SplitError::AreaTooSmall`):
+//! * Split preflight failure (`SplitError::ViewNotFound`, `SplitError::AreaTooSmall`):
 //!   Recovery: do not mutate layout; do not allocate buffers; return no-op to caller.
 //!   Symptom: user command does nothing (optionally message).
-//! - Close denied (attempt to close last base view):
+//! * Close denied (attempt to close last base view):
 //!   Recovery: return false; no hooks; no buffer removal.
 //!   Symptom: close command is ignored.
-//! - Stale layer reference (`LayerError::*`):
+//! * Stale layer reference (`LayerError::*`):
 //!   Recovery: treat as stale and no-op; cancel drag; ignore resize.
 //!   Symptom: hover/drag cancels immediately; separator does not move.
-//! - Stale separator path: Recovery: rect lookup returns None; cancel drag; ignore resize. Symptom: drag cancels after a structural change (expected).
-//! - Geometry under tiny terminal sizes: Recovery: soft-min policy degrades to hard mins; split panes remain representable. Symptom: panes become very small but not negative/overflowing; hit-testing remains consistent.
+//! * Stale separator path: Recovery: rect lookup returns None; cancel drag; ignore resize. Symptom: drag cancels after a structural change (expected).
+//! * Geometry under tiny terminal sizes: Recovery: soft-min policy degrades to hard mins; split panes remain representable. Symptom: panes become very small but not negative/overflowing; hit-testing remains consistent.
 //!
 //! # Recipes
 //!

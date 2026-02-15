@@ -337,9 +337,9 @@ fn test_stage_blocking_collisions() {
 	let a_collisions: Vec<_> = snap.collisions.iter().filter(|c| snap.interner.resolve(c.key) == "A").collect();
 
 	// Should have 3 collisions for "A":
-	// - A blocks its own name (Stage A vs Stage B)
-	// - A blocks B's secondary key (Stage A vs Stage C)
-	// - A blocks C's name (Stage A vs Stage B)
+	// * A blocks its own name (Stage A vs Stage B)
+	// * A blocks B's secondary key (Stage A vs Stage C)
+	// * A blocks C's name (Stage A vs Stage B)
 	assert_eq!(a_collisions.len(), 3);
 
 	for c in a_collisions {
@@ -360,8 +360,8 @@ fn test_stage_blocking_collisions() {
 	let snap = registry.snapshot();
 	let b_collisions: Vec<_> = snap.collisions.iter().filter(|c| snap.interner.resolve(c.key) == "B").collect();
 
-	// - B blocks its own name (Stage A vs Stage B)
-	// - B blocks D's name (Stage A identity vs Stage B name conflict)
+	// * B blocks its own name (Stage A vs Stage B)
+	// * B blocks D's name (Stage A identity vs Stage B name conflict)
 	// B (id="B", name="B"). D (id="D", name="B").
 	// Identity "B" always wins over Stage B name "B".
 	assert_eq!(b_collisions.len(), 2);
@@ -385,9 +385,9 @@ fn test_stage_blocking_collisions() {
 	let b_collisions: Vec<_> = snap.collisions.iter().filter(|c| snap.interner.resolve(c.key) == "B").collect();
 
 	// Should have 3 collisions for "B" now:
-	// - B blocks its own name (Stage A vs Stage B)
-	// - B blocks D's name (Stage A vs Stage B)
-	// - B blocks E's secondary key (Stage A vs Stage C)
+	// * B blocks its own name (Stage A vs Stage B)
+	// * B blocks D's name (Stage A vs Stage B)
+	// * B blocks E's secondary key (Stage A vs Stage C)
 	assert_eq!(b_collisions.len(), 3);
 }
 

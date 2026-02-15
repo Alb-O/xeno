@@ -1,7 +1,7 @@
 /// Must not implement `xeno_registry::*Access` traits directly on `Editor`.
 ///
-/// - Enforced in: `EditorCaps` (via delegator pattern)
-/// - Failure symptom: Circular dependencies or accidental leakage of engine-specific
+/// * Enforced in: `EditorCaps` (via delegator pattern)
+/// * Failure symptom: Circular dependencies or accidental leakage of engine-specific
 ///   methods into the action registry.
 #[cfg_attr(test, test)]
 pub fn test_delegator_rule() {
@@ -10,8 +10,8 @@ pub fn test_delegator_rule() {
 
 /// Must enqueue layer events for capability mutations.
 ///
-/// - Enforced in: `EditorCaps` (via domain-specific implementations)
-/// - Failure symptom: UI layers (overlays, status bars) failing to update after an
+/// * Enforced in: `EditorCaps` (via domain-specific implementations)
+/// * Failure symptom: UI layers (overlays, status bars) failing to update after an
 ///   action executes.
 #[cfg_attr(test, test)]
 pub fn test_mutation_side_effect_invariant() {

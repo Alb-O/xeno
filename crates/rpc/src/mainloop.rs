@@ -44,10 +44,10 @@ pub trait RpcService<P: Protocol>: Service<P::Request, Response = P::ReqResult, 
 /// Service main loop driver for generic RPC protocols.
 ///
 /// This is a generic message pump that:
-/// - Reads inbound messages from the input stream
-/// - Dispatches requests, responses, and notifications appropriately
-/// - Manages concurrent request handlers
-/// - Routes internal events and outgoing messages
+/// * Reads inbound messages from the input stream
+/// * Dispatches requests, responses, and notifications appropriately
+/// * Manages concurrent request handlers
+/// * Routes internal events and outgoing messages
 pub struct MainLoop<S, P: Protocol> {
 	/// The wrapped service.
 	service: S,

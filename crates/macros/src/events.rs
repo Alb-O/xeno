@@ -1,11 +1,11 @@
 //! Proc macro for generating hook event types and extractors.
 //!
 //! The `define_events!` macro generates from a single event definition:
-//! - `HookEvent` enum
-//! - `HookEventData<'a>` enum with borrowed payloads
-//! - `OwnedHookContext` enum with owned payloads
-//! - `__hook_extract!` macro for sync parameter extraction
-//! - `__async_hook_extract!` macro for async parameter extraction
+//! * `HookEvent` enum
+//! * `HookEventData<'a>` enum with borrowed payloads
+//! * `OwnedHookContext` enum with owned payloads
+//! * `__hook_extract!` macro for sync parameter extraction
+//! * `__async_hook_extract!` macro for async parameter extraction
 
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;

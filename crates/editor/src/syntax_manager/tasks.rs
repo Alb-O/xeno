@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 use rustc_hash::FxHashMap;
 use tokio::sync::Semaphore;
 use tokio::task::JoinHandle;
-use xeno_language::syntax::{InjectionPolicy, SealedSource, Syntax, SyntaxError, SyntaxOptions};
+use xeno_language::syntax::{SealedSource, Syntax, SyntaxError, SyntaxOptions};
 use xeno_language::{LanguageId, LanguageLoader};
 use xeno_primitives::{ChangeSet, Rope};
 
@@ -72,7 +72,6 @@ pub(super) struct TaskDone {
 	pub(super) opts_key: OptKey,
 	pub(super) result: Result<Syntax, SyntaxError>,
 	pub(super) class: TaskClass,
-	pub(super) injections: InjectionPolicy,
 	pub(super) elapsed: Duration,
 	pub(super) viewport_key: Option<ViewportKey>,
 	pub(super) viewport_lane: Option<super::scheduling::ViewportLane>,
@@ -113,7 +112,6 @@ impl TaskCollector {
 		let task_id = TaskId(id_val);
 
 		let class = spec.kind.class();
-		let injections = spec.opts.injections;
 		let viewport_key = spec.viewport_key;
 		let viewport_lane = spec.viewport_lane;
 
@@ -157,7 +155,6 @@ impl TaskCollector {
 				opts_key: spec.opts_key,
 				result,
 				class,
-				injections,
 				elapsed,
 				viewport_key,
 				viewport_lane,

@@ -7,7 +7,7 @@
 //!
 //! # Invariants
 //!
-//! - `RegistryRef` must hold its source `Snapshot` alive while held (see `invariants::test_snapshot_liveness_across_swap`).
+//! * `RegistryRef` must hold its source `Snapshot` alive while held (see `invariants::test_snapshot_liveness_across_swap`).
 
 use std::sync::Arc;
 

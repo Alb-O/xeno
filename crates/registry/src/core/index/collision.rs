@@ -101,9 +101,9 @@ pub enum CollisionKind {
 	/// A binding attempt for `key` conflicted with an existing binding.
 	///
 	/// With explicit stage maps, this includes:
-	/// - Cross-stage blocks: Attempted Stage B/C binding blocked by a higher-stage winner
+	/// * Cross-stage blocks: Attempted Stage B/C binding blocked by a higher-stage winner
 	///   (resolution will be [`Resolution::KeptExisting`]).
-	/// - Within-stage conflicts: Multiple entries competing for the same key within the
+	/// * Within-stage conflicts: Multiple entries competing for the same key within the
 	///   same stage (e.g. two secondary keys), resolved by total order.
 	KeyConflict {
 		/// The stage of the existing winner for this key.

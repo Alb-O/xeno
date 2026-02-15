@@ -3,13 +3,13 @@
 //!
 //! # Public API surface
 //!
-//! - [`Editor`] — workspace state, input handling, and plan generation.
-//! - [`Buffer`], [`ViewId`] — text buffers with undo, syntax, and selections.
-//! - [`render_api`] — the explicit frontend seam. All render/layout plan types
+//! * [`Editor`] — workspace state, input handling, and plan generation.
+//! * [`Buffer`], [`ViewId`] — text buffers with undo, syntax, and selections.
+//! * [`render_api`] — the explicit frontend seam. All render/layout plan types
 //!   that frontends consume are re-exported here.
-//! - Message types ([`EditorMsg`], [`IoMsg`], [`LspMsg`], etc.) for async coordination.
-//! - [`EditorContext`] / [`EditorOps`] — capability surface for commands and effects.
-//! - Theme re-exports from `xeno_registry`.
+//! * Message types ([`EditorMsg`], [`IoMsg`], [`LspMsg`], etc.) for async coordination.
+//! * [`EditorContext`] / [`EditorOps`] — capability surface for commands and effects.
+//! * Theme re-exports from `xeno_registry`.
 //!
 //! # Seam contract
 //!

@@ -64,9 +64,9 @@ impl HunkHeader {
 	/// Parses a hunk header line.
 	///
 	/// Handles formats:
-	/// - `@@ -1,3 +1,4 @@` (standard)
-	/// - `@@ -1 +1 @@` (count defaults to 1)
-	/// - `@@ -0,0 +1,5 @@` (new file)
+	/// * `@@ -1,3 +1,4 @@` (standard)
+	/// * `@@ -1 +1 @@` (count defaults to 1)
+	/// * `@@ -0,0 +1,5 @@` (new file)
 	pub fn parse(line: &str) -> Option<Self> {
 		let line = line.trim();
 		if !line.starts_with("@@") {

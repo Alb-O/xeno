@@ -18,9 +18,9 @@ impl LayoutManager {
 	///
 	/// # Errors
 	///
-	/// - [`LayerError::InvalidIndex`] if the index is out of bounds for overlays.
-	/// - [`LayerError::EmptyLayer`] if the slot exists but has no layout.
-	/// - [`LayerError::StaleLayer`] if the generation doesn't match the current slot.
+	/// * [`LayerError::InvalidIndex`] if the index is out of bounds for overlays.
+	/// * [`LayerError::EmptyLayer`] if the slot exists but has no layout.
+	/// * [`LayerError::StaleLayer`] if the generation doesn't match the current slot.
 	pub(crate) fn validate_layer(&self, id: LayerId) -> Result<usize, LayerError> {
 		if id.is_base() {
 			return Ok(0);

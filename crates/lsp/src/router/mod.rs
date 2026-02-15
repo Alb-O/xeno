@@ -155,9 +155,9 @@ where
 	/// Create a `Router` with default LSP error handling.
 	///
 	/// Default fallback handlers:
-	/// - Requests: responds with [`ErrorCode::METHOD_NOT_FOUND`]
-	/// - Notifications starting with `$/`: silently ignored
-	/// - Other notifications/events: breaks main loop with routing error
+	/// * Requests: responds with [`ErrorCode::METHOD_NOT_FOUND`]
+	/// * Notifications starting with `$/`: silently ignored
+	/// * Other notifications/events: breaks main loop with routing error
 	#[must_use]
 	pub fn new(state: St) -> Self {
 		Self {

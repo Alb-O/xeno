@@ -1,10 +1,10 @@
 //! Generic async RPC message pump and protocol framework.
 //!
 //! This crate provides protocol-agnostic primitives for building async RPC systems:
-//! - `MainLoop`: A generic tokio-driven message pump
-//! - `PeerSocket`: Internal channel for communication with the main loop
-//! - `Protocol`: Trait for defining wire formats and message semantics
-//! - `AnyEvent`: Type-erased loopback event container
+//! * `MainLoop`: A generic tokio-driven message pump
+//! * `PeerSocket`: Internal channel for communication with the main loop
+//! * `Protocol`: Trait for defining wire formats and message semantics
+//! * `AnyEvent`: Type-erased loopback event container
 
 #![warn(missing_docs)]
 

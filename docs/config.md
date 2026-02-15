@@ -30,20 +30,20 @@ Use `:reload-config` (or `:reload_config`) to reload config files without restar
 
 Xeno can run user-defined Nu macro functions from `~/.config/xeno/xeno.nu`.
 
-- `:nu-reload` reloads and revalidates `xeno.nu`
-- `:nu-run <fn> [args...]` runs an exported function and dispatches its output as invocations
+* `:nu-reload` reloads and revalidates `xeno.nu`
+* `:nu-run <fn> [args...]` runs an exported function and dispatches its output as invocations
 
 `nu-run` expects the function to return one of:
 
-- string: single invocation
-- list of strings: multiple invocations
-- record: `{ invocations: ["..."] }`
+* string: single invocation
+* list of strings: multiple invocations
+* record: `{ invocations: ["..."] }`
 
 Supported invocation prefixes:
 
-- `action:<id|name|key>`
-- `command:<name> [args...]`
-- `editor:<name> [args...]`
+* `action:<id|name|key>`
+* `command:<name> [args...]`
+* `editor:<name> [args...]`
 
 Structured invocation records are also supported:
 
@@ -65,8 +65,8 @@ You can return a single record or a list of records:
 
 Optional exported hook functions in `xeno.nu`:
 
-- `on_action_post [action_name result]`
-- `on_mode_change [old_mode new_mode]`
+* `on_action_post [action_name result]`
+* `on_mode_change [old_mode new_mode]`
 
 Hook functions use the same return schema as `nu-run` and are sandboxed with the same policy as `config.nu` and `xeno.nu` macros.
 
@@ -92,8 +92,8 @@ Example:
 
 List of records with:
 
-- `name`: language name
-- `options`: language-local option overrides
+* `name`: language name
+* `options`: language-local option overrides
 
 Example:
 
@@ -111,7 +111,7 @@ Record keyed by mode name, then key sequence to action target.
 
 Current target support:
 
-- `action:<action-id|action-name|action-key>`
+* `action:<action-id|action-name|action-key>`
 
 Targets are resolved against the actions registry.
 
@@ -133,20 +133,20 @@ Example:
 
 `config.nu` runs in a restricted evaluator. The script is rejected when it attempts any of the following:
 
-- external calls
-- pipeline redirection
-- `source` and overlay loading commands
-- `use`/`export use` paths outside the config directory root
-- looping constructs (`for`, `while`, `loop`)
-- glob expressions
-- blocked process, filesystem, network, or plugin command names
+* external calls
+* pipeline redirection
+* `source` and overlay loading commands
+* `use`/`export use` paths outside the config directory root
+* looping constructs (`for`, `while`, `loop`)
+* glob expressions
+* blocked process, filesystem, network, or plugin command names
 
 `use` and `export use` are allowed only for static `.nu` paths rooted under the directory containing `config.nu` (the Xeno config directory).
 
-- path must be a static literal (no interpolation)
-- path must be relative and cannot contain `..`
-- path must not contain glob wildcard characters
-- resolved canonical target must stay under the config root and point to a file
+* path must be a static literal (no interpolation)
+* path must be relative and cannot contain `..`
+* path must not contain glob wildcard characters
+* resolved canonical target must stay under the config root and point to a file
 
 Depending on syntax and parse stage, failures can surface as either:
 

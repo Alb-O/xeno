@@ -13,8 +13,8 @@ use core::fmt;
 ///
 /// # Construction
 ///
-/// - [`new`](Self::new) - Create a new margin with horizontal and vertical spacing
-/// - [`default`](Default::default) - Create with zero margin
+/// * [`new`](Self::new) - Create a new margin with horizontal and vertical spacing
+/// * [`default`](Default::default) - Create with zero margin
 ///
 /// # Examples
 ///

@@ -7,8 +7,8 @@
 //!
 //! # Invariants
 //!
-//! - Must not implement `xeno_registry::*Access` traits directly on `Editor` (Delegator Rule).
-//! - Must enqueue layer events for capability mutations (Mutation Side-Effect Invariant).
+//! * Must not implement `xeno_registry::*Access` traits directly on `Editor` (Delegator Rule).
+//! * Must enqueue layer events for capability mutations (Mutation Side-Effect Invariant).
 //!
 //! # Enforcement (The Delegator Rule)
 //!

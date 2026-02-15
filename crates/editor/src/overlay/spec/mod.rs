@@ -83,21 +83,21 @@ impl RectPolicy {
 	/// This method promotes all coordinates to `u32` internally to prevent arithmetic overflow
 	/// before clamping the result back to `u16` screen bounds.
 	///
-	/// - `TopCenter`: Uses a "shift-to-fit" strategy. It attempts to center the window
+	/// * `TopCenter`: Uses a "shift-to-fit" strategy. It attempts to center the window
 	///   at the requested Y fraction. If the window would extend off the bottom of the screen,
 	///   it shifts the origin up to preserve the requested height. It only shrinks the height
 	///   if the screen is too small to fit the window at all.
-	/// - `Below`: Uses an "intersection" strategy. It calculates the requested position
+	/// * `Below`: Uses an "intersection" strategy. It calculates the requested position
 	///   and crops the result to the intersection with the screen. If the intersection is
 	///   empty, it returns `None`.
 	///
 	/// # Returns
 	///
 	/// Returns `None` if:
-	/// - The screen has zero width or height.
-	/// - A required anchor role is missing (for `Below`).
-	/// - The resolved area has zero area or is completely out of bounds.
-	/// - The `TopCenter` denominator is zero.
+	/// * The screen has zero width or height.
+	/// * A required anchor role is missing (for `Below`).
+	/// * The resolved area has zero area or is completely out of bounds.
+	/// * The `TopCenter` denominator is zero.
 	pub fn resolve_opt(&self, screen: Rect, roles: &HashMap<WindowRole, Rect>) -> Option<Rect> {
 		if screen.width == 0 || screen.height == 0 {
 			return None;

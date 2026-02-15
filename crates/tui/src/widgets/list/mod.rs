@@ -34,11 +34,11 @@ mod state;
 ///
 /// # Fluent setters
 ///
-/// - [`List::highlight_style`] sets the style of the selected item.
-/// - [`List::highlight_symbol`] sets the symbol to be displayed in front of the selected item.
-/// - [`List::repeat_highlight_symbol`] sets whether to repeat the symbol and style over selected
+/// * [`List::highlight_style`] sets the style of the selected item.
+/// * [`List::highlight_symbol`] sets the symbol to be displayed in front of the selected item.
+/// * [`List::repeat_highlight_symbol`] sets whether to repeat the symbol and style over selected
 ///   multi-line items
-/// - [`List::direction`] sets the list direction
+/// * [`List::direction`] sets the list direction
 ///
 /// # Examples
 ///
@@ -365,14 +365,14 @@ impl<'a> List<'a> {
 	/// and is used to shift the list when an item is selected. This method allows you to configure
 	/// when this spacing is allocated.
 	///
-	/// - [`HighlightSpacing::Always`] will always allocate the spacing, regardless of whether an
+	/// * [`HighlightSpacing::Always`] will always allocate the spacing, regardless of whether an
 	///   item is selected or not. This means that the table will never change size, regardless of
 	///   if an item is selected or not.
-	/// - [`HighlightSpacing::WhenSelected`] will only allocate the spacing if an item is selected.
+	/// * [`HighlightSpacing::WhenSelected`] will only allocate the spacing if an item is selected.
 	///   This means that the table will shift when an item is selected. This is the default setting
 	///   for backwards compatibility, but it is recommended to use `HighlightSpacing::Always` for a
 	///   better user experience.
-	/// - [`HighlightSpacing::Never`] will never allocate the spacing, regardless of whether an item
+	/// * [`HighlightSpacing::Never`] will never allocate the spacing, regardless of whether an item
 	///   is selected or not. This means that the highlight symbol will never be drawn.
 	///
 	/// This is a fluent setter method which must be chained or used as it consumes self

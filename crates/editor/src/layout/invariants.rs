@@ -15,9 +15,9 @@ fn doc_area() -> Rect {
 
 /// Must validate any stored `LayerId` before overlay access.
 ///
-/// - Enforced in: `LayoutManager::validate_layer`, `LayoutManager::overlay_layout`,
+/// * Enforced in: `LayoutManager::validate_layer`, `LayoutManager::overlay_layout`,
 ///   `LayoutManager::layer`, `LayoutManager::layer_mut`
-/// - Failure symptom: Drag/resize/focus can target the wrong overlay after layer reuse.
+/// * Failure symptom: Drag/resize/focus can target the wrong overlay after layer reuse.
 #[cfg_attr(test, test)]
 pub(crate) fn test_layerid_generation_rejects_stale() {
 	let mut mgr = LayoutManager::new();
@@ -33,8 +33,8 @@ pub(crate) fn test_layerid_generation_rejects_stale() {
 
 /// Must preserve `LayerId` generation between split preflight and apply.
 ///
-/// - Enforced in: `LayoutManager::can_split_horizontal`, `LayoutManager::can_split_vertical`
-/// - Failure symptom: Split applies to the wrong overlay after slot replacement.
+/// * Enforced in: `LayoutManager::can_split_horizontal`, `LayoutManager::can_split_vertical`
+/// * Failure symptom: Split applies to the wrong overlay after slot replacement.
 #[cfg_attr(test, test)]
 pub(crate) fn test_split_preflight_apply_generation_preserved() {
 	let mgr = LayoutManager::new();
@@ -50,10 +50,10 @@ pub(crate) fn test_split_preflight_apply_generation_preserved() {
 
 /// Must not allocate or insert a new `ViewId` when split preflight fails.
 ///
-/// - Enforced in: `Editor::split_horizontal_with_clone`,
+/// * Enforced in: `Editor::split_horizontal_with_clone`,
 ///   `Editor::split_vertical_with_clone`, `Editor::split_horizontal`,
 ///   `Editor::split_vertical`, `SplitError`
-/// - Failure symptom: Orphan view exists in buffers but not in any layout.
+/// * Failure symptom: Orphan view exists in buffers but not in any layout.
 #[cfg_attr(test, test)]
 pub(crate) fn test_split_preflight_no_orphan_buffer() {
 	let mgr = LayoutManager::new();
@@ -72,8 +72,8 @@ pub(crate) fn test_split_preflight_no_orphan_buffer() {
 
 /// Must emit close hooks only after removal succeeds.
 ///
-/// - Enforced in: `Editor::close_view`
-/// - Failure symptom: Hooks report a close that was denied.
+/// * Enforced in: `Editor::close_view`
+/// * Failure symptom: Hooks report a close that was denied.
 #[cfg_attr(test, test)]
 pub(crate) fn test_close_view_hooks_after_removal() {
 	let mut mgr = LayoutManager::new();
@@ -86,8 +86,8 @@ pub(crate) fn test_close_view_hooks_after_removal() {
 
 /// Must apply `remove_view` focus suggestions deterministically.
 ///
-/// - Enforced in: `LayoutManager::remove_view`, `Editor::close_view`
-/// - Failure symptom: Focus jumps to unintuitive views or becomes invalid.
+/// * Enforced in: `LayoutManager::remove_view`, `Editor::close_view`
+/// * Failure symptom: Focus jumps to unintuitive views or becomes invalid.
 #[cfg_attr(test, test)]
 pub(crate) fn test_close_view_focus_uses_overlap_suggestion() {
 	let mut mgr = LayoutManager::new();
@@ -101,8 +101,8 @@ pub(crate) fn test_close_view_focus_uses_overlap_suggestion() {
 
 /// Must enforce soft-min sizing and avoid zero-sized panes when space allows.
 ///
-/// - Enforced in: `Layout::compute_split_areas`, `Layout::do_resize_at_path`
-/// - Failure symptom: Panes collapse to zero width or height.
+/// * Enforced in: `Layout::compute_split_areas`, `Layout::do_resize_at_path`
+/// * Failure symptom: Panes collapse to zero width or height.
 #[cfg_attr(test, test)]
 pub(crate) fn test_compute_split_areas_soft_min_respected() {
 	let area = Rect {
@@ -121,8 +121,8 @@ pub(crate) fn test_compute_split_areas_soft_min_respected() {
 
 /// Must cancel active separator drag when layout changes or layers become stale.
 ///
-/// - Enforced in: `LayoutManager::is_drag_stale`, `LayoutManager::cancel_if_stale`
-/// - Failure symptom: Dragging resizes the wrong separator or hits invalid paths.
+/// * Enforced in: `LayoutManager::is_drag_stale`, `LayoutManager::cancel_if_stale`
+/// * Failure symptom: Dragging resizes the wrong separator or hits invalid paths.
 #[cfg_attr(test, test)]
 pub(crate) fn test_drag_cancels_on_layer_generation_change() {
 	use crate::layout::types::SeparatorId;
@@ -146,8 +146,8 @@ pub(crate) fn test_drag_cancels_on_layer_generation_change() {
 
 /// Must bump overlay generation when an overlay layer is cleared.
 ///
-/// - Enforced in: `LayoutManager::remove_view`, `LayoutManager::set_layer`
-/// - Failure symptom: Stale layer IDs keep validating against a new session.
+/// * Enforced in: `LayoutManager::remove_view`, `LayoutManager::set_layer`
+/// * Failure symptom: Stale layer IDs keep validating against a new session.
 #[cfg_attr(test, test)]
 pub(crate) fn test_overlay_generation_bumps_on_clear() {
 	let mut mgr = LayoutManager::new();

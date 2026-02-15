@@ -27,8 +27,8 @@ async fn test_stage_b_requires_stable_polls() {
 	// Bootstrap with a full tree so Stage-B has something to enrich.
 	{
 		let entry = mgr.entry_mut(doc_id);
-		entry.slot.full = Some(
-			Syntax::new(
+		entry.slot.full = Some(InstalledTree {
+			syntax: Syntax::new(
 				content.slice(..),
 				lang,
 				&loader,
@@ -38,8 +38,9 @@ async fn test_stage_b_requires_stable_polls() {
 				},
 			)
 			.unwrap(),
-		);
-		entry.slot.full_doc_version = Some(1);
+			doc_version: 1,
+			tree_id: 0,
+		});
 		entry.slot.language_id = Some(lang);
 		entry.slot.dirty = false;
 	}
@@ -123,9 +124,11 @@ async fn test_stage_b_stability_uses_covering_key_across_stride_boundary() {
 		)
 		.unwrap();
 		let full_tree_id = entry.slot.alloc_tree_id();
-		entry.slot.full = Some(syntax.clone());
-		entry.slot.full_doc_version = Some(1);
-		entry.slot.full_tree_id = full_tree_id;
+		entry.slot.full = Some(InstalledTree {
+			syntax: syntax.clone(),
+			doc_version: 1,
+			tree_id: full_tree_id,
+		});
 		entry.slot.language_id = Some(lang);
 		entry.slot.dirty = false;
 
@@ -197,8 +200,8 @@ async fn test_stage_b_does_not_kick_on_scroll_key_flip() {
 	// Bootstrap with a full tree.
 	{
 		let entry = mgr.entry_mut(doc_id);
-		entry.slot.full = Some(
-			Syntax::new(
+		entry.slot.full = Some(InstalledTree {
+			syntax: Syntax::new(
 				content.slice(..),
 				lang,
 				&loader,
@@ -208,8 +211,9 @@ async fn test_stage_b_does_not_kick_on_scroll_key_flip() {
 				},
 			)
 			.unwrap(),
-		);
-		entry.slot.full_doc_version = Some(1);
+			doc_version: 1,
+			tree_id: 0,
+		});
 		entry.slot.language_id = Some(lang);
 		entry.slot.dirty = false;
 	}
@@ -262,8 +266,8 @@ async fn test_stage_b_deferral_returns_pending_not_throttled() {
 	// Seed full tree so dirty=false and full exists
 	{
 		let entry = mgr.entry_mut(doc_id);
-		entry.slot.full = Some(
-			Syntax::new(
+		entry.slot.full = Some(InstalledTree {
+			syntax: Syntax::new(
 				content.slice(..),
 				lang,
 				&loader,
@@ -273,8 +277,9 @@ async fn test_stage_b_deferral_returns_pending_not_throttled() {
 				},
 			)
 			.unwrap(),
-		);
-		entry.slot.full_doc_version = Some(1);
+			doc_version: 1,
+			tree_id: 0,
+		});
 		entry.slot.language_id = Some(lang);
 		entry.slot.dirty = false;
 	}
@@ -289,7 +294,7 @@ async fn test_stage_b_deferral_returns_pending_not_throttled() {
 		loader: &loader,
 		viewport: Some(0..100),
 	});
-	assert_eq!(r.result, SyntaxPollResult::Pending, "enrich desired but deferred → Pending");
+	assert_eq!(r.result, SyntaxPollResult::Ready, "enrich desired but not schedulable → Ready");
 	assert!(!mgr.has_inflight_viewport_enrich(doc_id));
 }
 
@@ -312,8 +317,8 @@ async fn test_no_work_returns_ready() {
 	// Seed full tree at exact version, not dirty
 	{
 		let entry = mgr.entry_mut(doc_id);
-		entry.slot.full = Some(
-			Syntax::new(
+		entry.slot.full = Some(InstalledTree {
+			syntax: Syntax::new(
 				content.slice(..),
 				lang,
 				&loader,
@@ -323,8 +328,9 @@ async fn test_no_work_returns_ready() {
 				},
 			)
 			.unwrap(),
-		);
-		entry.slot.full_doc_version = Some(1);
+			doc_version: 1,
+			tree_id: 0,
+		});
 		entry.slot.language_id = Some(lang);
 		entry.slot.dirty = false;
 		entry.slot.last_opts_key = Some(super::types::OptKey {

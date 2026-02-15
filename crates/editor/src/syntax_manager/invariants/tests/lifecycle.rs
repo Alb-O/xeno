@@ -36,8 +36,8 @@ pub(crate) async fn test_single_flight_per_doc() {
 
 /// Must not perform unbounded parsing on the UI thread.
 ///
-/// - Enforced in: `SyntaxManager::ensure_syntax`, `SyntaxManager::note_edit_incremental`
-/// - Failure symptom: UI freezes or jitters during edits.
+/// * Enforced in: `SyntaxManager::ensure_syntax`, `SyntaxManager::note_edit_incremental`
+/// * Failure symptom: UI freezes or jitters during edits.
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_inflight_drained_even_if_doc_marked_clean() {
 	let engine = Arc::new(MockEngine::new());
@@ -74,8 +74,8 @@ pub(crate) async fn test_inflight_drained_even_if_doc_marked_clean() {
 
 /// Must not regress to a tree older than the currently installed `tree_doc_version`.
 ///
-/// - Enforced in: `should_install_completed_parse`
-/// - Failure symptom: Stale trees overwrite newer incrementals, or highlighting stays
+/// * Enforced in: `should_install_completed_parse`
+/// * Failure symptom: Stale trees overwrite newer incrementals, or highlighting stays
 ///   missing until an exact-version parse completes.
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_stale_parse_does_not_overwrite_clean_incremental() {
@@ -129,8 +129,8 @@ pub(crate) async fn test_stale_parse_does_not_overwrite_clean_incremental() {
 /// Must install stale completed parses for continuity when the slot is dirty
 /// and no resident tree exists, to keep highlighting visible during catch-up reparses.
 ///
-/// - Enforced in: `should_install_completed_parse`
-/// - Failure symptom: Highlighting stays missing until an exact-version parse completes.
+/// * Enforced in: `should_install_completed_parse`
+/// * Failure symptom: Highlighting stays missing until an exact-version parse completes.
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_stale_install_continuity() {
 	let engine = Arc::new(MockEngine::new());
@@ -170,8 +170,8 @@ pub(crate) async fn test_stale_install_continuity() {
 
 /// Must skip stale non-viewport installs when they would break projection continuity.
 ///
-/// - Enforced in: `SyntaxManager::ensure_syntax`
-/// - Failure symptom: Undo applies a stale intermediate full/incremental tree that
+/// * Enforced in: `SyntaxManager::ensure_syntax`
+/// * Failure symptom: Undo applies a stale intermediate full/incremental tree that
 ///   clears projection context, causing a broken repaint before the exact parse lands.
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_stale_incremental_parse_skips_install_when_projection_would_break() {
@@ -253,8 +253,8 @@ pub(crate) async fn test_stale_incremental_parse_skips_install_when_projection_w
 
 /// Must skip stale full-result installs when they don't advance resident version.
 ///
-/// - Enforced in: `should_install_completed_parse`
-/// - Failure symptom: Large-file edits trigger a delayed no-op repaint before the real catch-up repaint.
+/// * Enforced in: `should_install_completed_parse`
+/// * Failure symptom: Large-file edits trigger a delayed no-op repaint before the real catch-up repaint.
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_stale_same_version_parse_does_not_reinstall() {
 	let engine = Arc::new(MockEngine::new());
@@ -316,9 +316,9 @@ pub(crate) async fn test_stale_same_version_parse_does_not_reinstall() {
 
 /// Must call `note_edit_incremental` or `note_edit` on every document mutation.
 ///
-/// - Enforced in: `EditorUndoHost::apply_transaction_inner`,
+/// * Enforced in: `EditorUndoHost::apply_transaction_inner`,
 ///   `EditorUndoHost::apply_history_op`, `Editor::apply_buffer_edit_plan`
-/// - Failure symptom: Debounce is bypassed and background parses run without edit silence.
+/// * Failure symptom: Debounce is bypassed and background parses run without edit silence.
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_note_edit_updates_timestamp() {
 	let engine = Arc::new(MockEngine::new());
@@ -364,8 +364,8 @@ pub(crate) async fn test_note_edit_updates_timestamp() {
 
 /// Must skip debounce for bootstrap parses when no syntax tree is installed.
 ///
-/// - Enforced in: `SyntaxManager::ensure_syntax`
-/// - Failure symptom: Newly opened documents remain unhighlighted until debounce elapses.
+/// * Enforced in: `SyntaxManager::ensure_syntax`
+/// * Failure symptom: Newly opened documents remain unhighlighted until debounce elapses.
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_bootstrap_parse_skips_debounce() {
 	let engine = Arc::new(MockEngine::new());
@@ -392,8 +392,8 @@ pub(crate) async fn test_bootstrap_parse_skips_debounce() {
 
 /// Must detect completed inflight tasks from `tick()`, not only from `render()`.
 ///
-/// - Enforced in: `SyntaxManager::drain_finished_inflight` via `Editor::tick`
-/// - Failure symptom: Completed parses are not installed while idle until user input
+/// * Enforced in: `SyntaxManager::drain_finished_inflight` via `Editor::tick`
+/// * Failure symptom: Completed parses are not installed while idle until user input
 ///   triggers rendering.
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_idle_tick_polls_inflight_parse() {
@@ -428,8 +428,8 @@ pub(crate) async fn test_idle_tick_polls_inflight_parse() {
 
 /// Must bump `syntax_version` whenever the installed tree changes or is dropped.
 ///
-/// - Enforced in: `mark_updated`
-/// - Failure symptom: Highlight cache serves stale spans after reparse or retention drop.
+/// * Enforced in: `mark_updated`
+/// * Failure symptom: Highlight cache serves stale spans after reparse or retention drop.
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_syntax_version_bumps_on_install() {
 	let engine = Arc::new(MockEngine::new());
@@ -465,8 +465,8 @@ pub(crate) async fn test_syntax_version_bumps_on_install() {
 
 /// Must rotate full-tree identity when sync incremental updates mutate the tree.
 ///
-/// - Enforced in: `SyntaxManager::note_edit_incremental`
-/// - Failure symptom: Highlight tiles keyed by tree identity persist stale spans through edits.
+/// * Enforced in: `SyntaxManager::note_edit_incremental`
+/// * Failure symptom: Highlight tiles keyed by tree identity persist stale spans through edits.
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_full_tree_id_rotates_on_sync_incremental_update() {
 	let engine = Arc::new(MockEngine::new());
@@ -518,4 +518,122 @@ pub(crate) async fn test_full_tree_id_rotates_on_sync_incremental_update() {
 		.tree_id;
 
 	assert_ne!(tree_id_after, tree_id_before);
+}
+
+/// Must monotonically advance `syntax_version` across viewport install, full install,
+/// and retention drop via `sweep_retention`.
+///
+/// * Enforced in: `mark_updated`, `apply_retention`
+/// * Failure symptom: Highlight cache serves stale spans after a state transition.
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_syntax_version_monotonic_across_install_and_retention() {
+	let engine = Arc::new(MockEngine::new());
+	let _guard = EngineGuard(engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 2,
+			..Default::default()
+		},
+		engine.clone(),
+	);
+	let mut policy = TieredSyntaxPolicy::test_default();
+	policy.s.debounce = Duration::ZERO;
+	policy.s.retention_hidden_full = RetentionPolicy::DropWhenHidden;
+	policy.s.retention_hidden_viewport = RetentionPolicy::DropWhenHidden;
+	mgr.set_policy(policy);
+
+	let doc_id = DocumentId(1);
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang = loader.language_for_name("rust").unwrap();
+	let content = Rope::from("fn main() {}");
+
+	let v0 = mgr.syntax_version(doc_id);
+	assert_eq!(v0, 0, "no entry yet → version 0");
+
+	// Viewport install: seed a viewport completion manually.
+	{
+		let syntax = Syntax::new(content.slice(..), lang, &loader, SyntaxOptions::default()).unwrap();
+		let entry = mgr.entry_mut(doc_id);
+		entry.slot.language_id = Some(lang);
+		entry.slot.dirty = true;
+		entry.sched.completed.push_back(CompletedSyntaxTask {
+			doc_version: 1,
+			lang_id: lang,
+			opts: OptKey {
+				injections: InjectionPolicy::Disabled,
+			},
+			result: Ok(syntax),
+			class: TaskClass::Viewport,
+			elapsed: Duration::ZERO,
+			viewport_key: Some(ViewportKey(0)),
+			viewport_lane: Some(crate::syntax_manager::scheduling::ViewportLane::Urgent),
+		});
+	}
+	mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang), &content, SyntaxHotness::Visible, &loader));
+	let v1 = mgr.syntax_version(doc_id);
+	assert!(v1 > v0, "viewport install must bump version: {v1} > {v0}");
+
+	// Full install: kick + complete a full parse.
+	mgr.mark_dirty(doc_id);
+	mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang), &content, SyntaxHotness::Visible, &loader));
+	engine.proceed();
+	wait_for_finish(&mgr).await;
+	mgr.drain_finished_inflight();
+	mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang), &content, SyntaxHotness::Visible, &loader));
+	let v2 = mgr.syntax_version(doc_id);
+	assert!(v2 > v1, "full install must bump version: {v2} > {v1}");
+
+	// Retention drop via sweep_retention.
+	mgr.sweep_retention(Instant::now(), |_| SyntaxHotness::Cold);
+	let v3 = mgr.syntax_version(doc_id);
+	assert!(v3 > v2, "retention drop must bump version: {v3} > {v2}");
+}
+
+/// Must flush completed queue for cold docs with `parse_when_hidden = false`
+/// during `sweep_retention`, preventing unbounded memory accumulation.
+///
+/// * Enforced in: `SyntaxManager::sweep_retention`
+/// * Failure symptom: Completed `Syntax` trees accumulate in the queue for hidden
+///   docs, growing memory without bound.
+#[cfg_attr(test, test)]
+pub(crate) fn test_sweep_retention_flushes_completed_for_cold_disabled_docs() {
+	let engine = Arc::new(MockEngine::new());
+	let _guard = EngineGuard(engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 1,
+			..Default::default()
+		},
+		engine.clone(),
+	);
+	let mut policy = TieredSyntaxPolicy::test_default();
+	policy.s.debounce = Duration::ZERO;
+	mgr.set_policy(policy);
+
+	let doc_id = DocumentId(1);
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang = loader.language_for_name("rust").unwrap();
+
+	// Set last_tier manually (normally done by ensure_syntax) and push a completion.
+	let entry = mgr.entry_mut(doc_id);
+	entry.last_tier = Some(SyntaxTier::S);
+	entry.sched.completed.push_back(CompletedSyntaxTask {
+		doc_version: 1,
+		lang_id: lang,
+		opts: OptKey {
+			injections: InjectionPolicy::Disabled,
+		},
+		result: Err(SyntaxError::Timeout),
+		class: TaskClass::Full,
+		elapsed: Duration::ZERO,
+		viewport_key: None,
+		viewport_lane: None,
+	});
+	assert!(!entry.sched.completed.is_empty());
+
+	// Sweep as Cold → should flush the completed queue.
+	mgr.sweep_retention(Instant::now(), |_| SyntaxHotness::Cold);
+
+	let entry = mgr.entry_mut(doc_id);
+	assert!(entry.sched.completed.is_empty(), "completed queue must be flushed for cold disabled docs");
 }

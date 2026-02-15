@@ -21,8 +21,8 @@ use syn::{Expr, Item, Lit, Meta, parse_macro_input};
 /// ```
 ///
 /// Generates:
-/// - `__OPT_TAB_WIDTH` static registered in `OPTIONS` list
-/// - `TAB_WIDTH` constant as `TypedOptionKey<i64>`
+/// * `__OPT_TAB_WIDTH` static registered in `OPTIONS` list
+/// * `TAB_WIDTH` constant as `TypedOptionKey<i64>`
 ///
 /// The `validate` attribute is optional and references a validator function
 /// from `xeno_registry::options::validators`.

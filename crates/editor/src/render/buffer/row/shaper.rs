@@ -51,9 +51,9 @@ pub struct Glyph {
 /// Iterator that converts a line segment into display glyphs.
 ///
 /// Handles:
-/// - Continuation indent (virtual spaces at start of wrapped lines)
-/// - Tab expansion (variable-width, virtual spaces after first)
-/// - Unicode width calculation
+/// * Continuation indent (virtual spaces at start of wrapped lines)
+/// * Tab expansion (variable-width, virtual spaces after first)
+/// * Unicode width calculation
 pub struct SegmentGlyphIter<'a> {
 	line: &'a LineSlice,
 	segment: &'a WrappedSegment,

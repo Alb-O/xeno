@@ -45,9 +45,9 @@ pub enum MotionKind {
 	/// Word-boundary-aware selection semantics.
 	///
 	/// Applies sophisticated selection logic based on word boundaries:
-	/// - Forward from word: selects to target, excluding next word's first char
-	/// - Backward or non-word landing on word: selects just the target word
-	/// - Landing on non-word: moves cursor without selection
+	/// * Forward from word: selects to target, excluding next word's first char
+	/// * Backward or non-word landing on word: selects just the target word
+	/// * Landing on non-word: moves cursor without selection
 	Word,
 }
 
@@ -445,10 +445,10 @@ pub enum AppEffect {
 ///
 /// Effects are organized into domain-specific nested enums:
 ///
-/// - [`ViewEffect`]: Cursor, selection, viewport, search
-/// - [`EditEffect`]: Text modifications (EditOp, Paste)
-/// - [`UiEffect`]: Notifications, palette, redraw
-/// - [`AppEffect`]: Mode, focus, splits, lifecycle
+/// * [`ViewEffect`]: Cursor, selection, viewport, search
+/// * [`EditEffect`]: Text modifications (EditOp, Paste)
+/// * [`UiEffect`]: Notifications, palette, redraw
+/// * [`AppEffect`]: Mode, focus, splits, lifecycle
 ///
 /// # Ordering Invariants
 ///
@@ -478,9 +478,9 @@ pub enum AppEffect {
 ///
 /// ## Hook emissions
 ///
-/// - `SetCursor` emits `CursorMove` hook
-/// - `SetSelection` emits both `CursorMove` and `SelectionChange` hooks
-/// - `ScreenMotion` emits both hooks after computing the target position
+/// * `SetCursor` emits `CursorMove` hook
+/// * `SetSelection` emits both `CursorMove` and `SelectionChange` hooks
+/// * `ScreenMotion` emits both hooks after computing the target position
 ///
 /// These hooks fire immediately after each effect, not batched at the end.
 #[derive(Debug, Clone)]

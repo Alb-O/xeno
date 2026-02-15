@@ -175,10 +175,10 @@ where
 	///
 	/// # Errors
 	///
-	/// - `Error::Io` when the underlying `input` or `output` raises an error.
-	/// - `Error::Deserialize` when the peer sends undecodable or invalid message.
-	/// - `Error::Protocol` when the peer violates Language Server Protocol.
-	/// - Other errors raised from service handlers.
+	/// * `Error::Io` when the underlying `input` or `output` raises an error.
+	/// * `Error::Deserialize` when the peer sends undecodable or invalid message.
+	/// * `Error::Protocol` when the peer violates Language Server Protocol.
+	/// * Other errors raised from service handlers.
 	pub async fn run(self, input: impl AsyncBufRead + Unpin + Send, output: impl AsyncWrite + Unpin + Send) -> Result<()> {
 		self.inner.run(input, output).await
 	}

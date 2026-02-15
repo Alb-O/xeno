@@ -102,10 +102,10 @@ impl EditOp {
 	///
 	/// # Policy Resolution
 	///
-	/// - Text-modifying transforms (`Delete`, `Replace`, `Insert`, etc.): `UndoPolicy::Record`
-	/// - `Undo`/`Redo` transforms: `UndoPolicy::NoUndo` (undo system handles this)
-	/// - Non-modifying transforms (`None`): `UndoPolicy::NoUndo`
-	/// - All text-modifying transforms use `SyntaxPolicy::MarkDirty` (lazy reparse)
+	/// * Text-modifying transforms (`Delete`, `Replace`, `Insert`, etc.): `UndoPolicy::Record`
+	/// * `Undo`/`Redo` transforms: `UndoPolicy::NoUndo` (undo system handles this)
+	/// * Non-modifying transforms (`None`): `UndoPolicy::NoUndo`
+	/// * All text-modifying transforms use `SyntaxPolicy::MarkDirty` (lazy reparse)
 	pub fn compile(&self) -> EditPlan {
 		let (undo_policy, syntax_policy) = match &self.transform {
 			TextTransform::None => (UndoPolicy::NoUndo, SyntaxPolicy::None),

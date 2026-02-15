@@ -20,8 +20,8 @@ pub enum CursorKind {
 /// Index for efficient overlay queries (cursor, selection) during rendering.
 ///
 /// Pre-computes data structures to answer:
-/// - Is there a cursor at this document position?
-/// - Is this line/offset within a selection range?
+/// * Is there a cursor at this document position?
+/// * Is this line/offset within a selection range?
 pub struct OverlayIndex {
 	/// Set of all cursor head positions.
 	pub cursor_heads: HashSet<CharIdx>,
@@ -40,9 +40,9 @@ impl OverlayIndex {
 	///
 	/// # Parameters
 	///
-	/// - `selection`: The current multi-cursor selection.
-	/// - `primary_cursor`: The active cursor position.
-	/// - `rope`: Document content for line mapping.
+	/// * `selection`: The current multi-cursor selection.
+	/// * `primary_cursor`: The active cursor position.
+	/// * `rope`: Document content for line mapping.
 	pub fn new(selection: &Selection, primary_cursor: CharIdx, rope: &xeno_primitives::Rope) -> Self {
 		let len = rope.len_chars();
 		let primary_cursor = primary_cursor.min(len);

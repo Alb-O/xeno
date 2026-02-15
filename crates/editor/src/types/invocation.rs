@@ -103,14 +103,14 @@ impl Invocation {
 pub struct InvocationPolicy {
 	/// Whether to check and enforce required capabilities.
 	///
-	/// - `true`: Block execution if capabilities are missing (enforcement mode)
-	/// - `false`: Log violations but continue (log-only mode)
+	/// * `true`: Block execution if capabilities are missing (enforcement mode)
+	/// * `false`: Log violations but continue (log-only mode)
 	pub enforce_caps: bool,
 
 	/// Whether to check and enforce readonly buffer status.
 	///
-	/// - `true`: Block edits to readonly buffers
-	/// - `false`: Log but allow (useful for testing)
+	/// * `true`: Block edits to readonly buffers
+	/// * `false`: Log but allow (useful for testing)
 	pub enforce_readonly: bool,
 }
 

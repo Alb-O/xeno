@@ -2,9 +2,9 @@
 //!
 //! A terminal UI is at its root a lot of strings. In order to make it accessible and stylish, those
 //! strings may be associated to a set of styles. `xeno_tui` has three ways to represent them:
-//! - A single line string where all graphemes have the same style is represented by a [`Span`].
-//! - A single line string where each grapheme may have its own style is represented by [`Line`].
-//! - A multiple line string where each grapheme may have its own style is represented by a
+//! * A single line string where all graphemes have the same style is represented by a [`Span`].
+//! * A single line string where each grapheme may have its own style is represented by [`Line`].
+//! * A multiple line string where each grapheme may have its own style is represented by a
 //!   [`Text`].
 //!
 //! These types form a hierarchy: [`Line`] is a collection of [`Span`] and each line of [`Text`] is

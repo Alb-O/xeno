@@ -3,6 +3,6 @@ https://github.com/Ripple-TS/ripple/tree/6ccf86deaf03d48b2ca325b61bb129601628f8c
 
 Update policy:
 
-- Keep the upstream commit hash pinned in this file.
-- Prefer syncing from upstream first, then apply minimal Xeno-specific fixes.
-- If local adjustments are required, document why in the commit message.
+* Keep the upstream commit hash pinned in this file.
+* Prefer syncing from upstream first, then apply minimal Xeno-specific fixes.
+* If local adjustments are required, document why in the commit message.

@@ -11,11 +11,11 @@ use std::collections::HashMap;
 /// Map from line number (0-indexed) to diagnostic severity (gutter format).
 ///
 /// Severity values match `GutterAnnotations::diagnostic_severity`:
-/// - 4 = Error
-/// - 3 = Warning
-/// - 2 = Information
-/// - 1 = Hint
-/// - 0 = None
+/// * 4 = Error
+/// * 3 = Warning
+/// * 2 = Information
+/// * 1 = Hint
+/// * 0 = None
 pub type DiagnosticLineMap = HashMap<usize, u8>;
 
 /// A diagnostic span covering a character range within a single line.

@@ -8,8 +8,8 @@
 //!
 //! The undo system has two layers:
 //!
-//! - Document layer: Each document has its own undo stack storing text content.
-//! - Editor layer: The [`UndoManager`] stores view state (cursor, selection, scroll)
+//! * Document layer: Each document has its own undo stack storing text content.
+//! * Editor layer: The [`UndoManager`] stores view state (cursor, selection, scroll)
 //!   for all buffers affected by an edit.
 //!
 //! [`UndoManager`]: crate::types::UndoManager

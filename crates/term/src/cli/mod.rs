@@ -6,10 +6,10 @@ use xeno_editor::styles::cli_styles;
 /// A file path with optional line and column position.
 ///
 /// Supports:
-/// - `file.txt` - just a path
-/// - `file.txt:42` - path with line number (1-indexed)
-/// - `file.txt:42:10` - path with line and column (1-indexed)
-/// - `+42 file.txt` - vim-style line number (parsed as two arguments)
+/// * `file.txt` - just a path
+/// * `file.txt:42` - path with line number (1-indexed)
+/// * `file.txt:42:10` - path with line and column (1-indexed)
+/// * `+42 file.txt` - vim-style line number (parsed as two arguments)
 #[derive(Debug, Clone, Default)]
 pub struct FileLocation {
 	/// The file path.

@@ -13,9 +13,9 @@
 //! ```
 //!
 //! Domain-specific messages wrap their payloads:
-//! - [`crate::msg::ThemeMsg`] - Theme registry and active theme updates
-//! - [`crate::msg::IoMsg`] - File load completion
-//! - [`crate::msg::LspMsg`] - LSP catalog and server lifecycle
+//! * [`crate::msg::ThemeMsg`] - Theme registry and active theme updates
+//! * [`crate::msg::IoMsg`] - File load completion
+//! * [`crate::msg::LspMsg`] - LSP catalog and server lifecycle
 
 mod dirty;
 mod io;

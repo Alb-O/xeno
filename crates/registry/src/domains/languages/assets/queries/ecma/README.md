@@ -5,9 +5,9 @@ predictable by splitting shared query fragments into "private" query
 directories prefixed with `_` and reserving public directories for user-facing
 language names.
 
-- Private layers should not declare `; inherits`.
-- Public layers compose private layers (and `ecma`) explicitly.
-- Add shared rules to the most specific private layer so downstream languages
+* Private layers should not declare `; inherits`.
+* Public layers compose private layers (and `ecma`) explicitly.
+* Add shared rules to the most specific private layer so downstream languages
   inherit them automatically.
 
 | Language | Inherits from |

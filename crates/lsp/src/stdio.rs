@@ -7,9 +7,9 @@
 //!
 //! This mod defines [`PipeStdin`] and [`PipeStdout`] for only stdin/stdout with pipe-like
 //! backends, which actually supports asynchronous reads and writes. This currently means one of:
-//! - FIFO pipes. Eg. named pipes [mkfifo(3)] and unnamed pipes [pipe(2)].
-//! - Sockets. Eg. TCP connections and UNIX domain sockets [unix(7)].
-//! - Character devices. Eg. [tty(4)] or [pty(7)].
+//! * FIFO pipes. Eg. named pipes [mkfifo(3)] and unnamed pipes [pipe(2)].
+//! * Sockets. Eg. TCP connections and UNIX domain sockets [unix(7)].
+//! * Character devices. Eg. [tty(4)] or [pty(7)].
 //!
 //! [mkfifo(3)]: https://man7.org/linux/man-pages/man3/mkfifo.3.html
 //! [pipe(2)]: https://man7.org/linux/man-pages/man2/pipe.2.html

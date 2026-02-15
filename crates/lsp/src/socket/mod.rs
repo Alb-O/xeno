@@ -39,8 +39,8 @@ macro_rules! impl_socket_wrapper {
 			/// Send a request to the peer and wait for its response.
 			///
 			/// # Errors
-			/// - [`Error::ServiceStopped`] when the service main loop stopped.
-			/// - [`Error::Response`] when the peer replies an error.
+			/// * [`Error::ServiceStopped`] when the service main loop stopped.
+			/// * [`Error::Response`] when the peer replies an error.
 			pub async fn request<R: Request>(&self, params: R::Params) -> Result<R::Result> {
 				self.0.request::<R>(params).await
 			}
@@ -51,7 +51,7 @@ macro_rules! impl_socket_wrapper {
 			/// queued, but may not be sent to the peer yet.
 			///
 			/// # Errors
-			/// - [`Error::ServiceStopped`] when the service main loop stopped.
+			/// * [`Error::ServiceStopped`] when the service main loop stopped.
 			pub fn notify<N: Notification>(&self, params: N::Params) -> Result<()> {
 				self.0.notify::<N>(params)
 			}
@@ -62,7 +62,7 @@ macro_rules! impl_socket_wrapper {
 			/// queued, but may not be processed yet.
 			///
 			/// # Errors
-			/// - [`Error::ServiceStopped`] when the service main loop stopped.
+			/// * [`Error::ServiceStopped`] when the service main loop stopped.
 			pub fn emit<E: Send + 'static>(&self, event: E) -> Result<()> {
 				self.0.emit::<E>(event)
 			}

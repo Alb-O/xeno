@@ -3,15 +3,15 @@
 //! # Role
 //!
 //! This module implements the 3-stage key binding model with explicit stage maps:
-//! - Stage A (by_id): Canonical IDs - immutable identity
-//! - Stage B (by_name): Primary names - display names
-//! - Stage C (by_key): Secondary keys - aliases and domain keys
+//! * Stage A (by_id): Canonical IDs - immutable identity
+//! * Stage B (by_name): Primary names - display names
+//! * Stage C (by_key): Secondary keys - aliases and domain keys
 //!
 //! # Invariants
 //!
-//! - Stage B insertions are blocked if the symbol exists in by_id.
-//! - Stage C insertions are blocked if the symbol exists in by_id or by_name.
-//! - Within-stage conflicts are resolved using Party precedence.
+//! * Stage B insertions are blocked if the symbol exists in by_id.
+//! * Stage C insertions are blocked if the symbol exists in by_id or by_name.
+//! * Within-stage conflicts are resolved using Party precedence.
 
 use std::sync::Arc;
 

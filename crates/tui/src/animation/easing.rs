@@ -10,11 +10,11 @@
 ///
 /// # Variants
 ///
-/// - Linear: Constant speed, no acceleration.
-/// - EaseIn: Starts slow, accelerates toward end.
-/// - EaseOut: Starts fast, decelerates toward end.
-/// - EaseInOut: Slow at both ends, fast in middle.
-/// - EaseInCubic/EaseOutCubic/EaseInOutCubic: Cubic variants (more pronounced).
+/// * Linear: Constant speed, no acceleration.
+/// * EaseIn: Starts slow, accelerates toward end.
+/// * EaseOut: Starts fast, decelerates toward end.
+/// * EaseInOut: Slow at both ends, fast in middle.
+/// * EaseInCubic/EaseOutCubic/EaseInOutCubic: Cubic variants (more pronounced).
 ///
 /// # Example
 ///

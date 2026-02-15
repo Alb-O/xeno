@@ -55,6 +55,47 @@ impl SyntaxManager {
 		state.change_id = state.change_id.wrapping_add(1);
 	}
 
+	/// Sweeps all document entries for retention, dropping trees for cold docs that exceed TTL.
+	///
+	/// Runs independently of `ensure_syntax` so that cold/clean docs that are never
+	/// polled still have their trees evicted. Also invalidates inflight tasks and flushes
+	/// completed queues for cold hidden-parse-disabled docs, preventing unbounded memory
+	/// accumulation from completed `Syntax` trees that would never be installed.
+	/// Returns true if any artifact was dropped.
+	pub fn sweep_retention(&mut self, now: Instant, hotness: impl Fn(DocumentId) -> SyntaxHotness) -> bool {
+		let mut any_dropped = false;
+		let doc_ids: Vec<_> = self.entries.keys().copied().collect();
+		for doc_id in doc_ids {
+			let entry = self.entries.get_mut(&doc_id).unwrap();
+			let Some(tier) = entry.last_tier else { continue };
+			let cfg = self.policy.cfg(tier);
+			let h = hotness(doc_id);
+
+			// For cold docs that shouldn't parse when hidden, invalidate any pending
+			// work and flush the completed queue to prevent memory accumulation from
+			// completed syntax trees that would never be installed.
+			if h == SyntaxHotness::Cold && !cfg.parse_when_hidden && (entry.sched.any_active() || !entry.sched.completed.is_empty()) {
+				entry.sched.invalidate();
+			}
+
+			if Self::apply_retention(
+				now,
+				&entry.sched,
+				cfg.retention_hidden_full,
+				cfg.retention_hidden_viewport,
+				h,
+				&mut entry.slot,
+				doc_id,
+			) {
+				if entry.sched.any_active() {
+					entry.sched.invalidate();
+				}
+				any_dropped = true;
+			}
+		}
+		any_dropped
+	}
+
 	/// Applies memory retention rules separately for full tree and viewport cache.
 	///
 	/// Returns true if any artifact was dropped.

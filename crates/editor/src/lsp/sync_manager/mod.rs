@@ -1,15 +1,15 @@
 //! Unified LSP sync manager with owned pending state.
 //!
 //! [`LspSyncManager`] owns all pending changes per document and tracks:
-//! - Pending incremental change batches
-//! - Full-sync escalation and initial open state
-//! - Debounce scheduling and retry timing
-//! - Single in-flight sends with write timeout
+//! * Pending incremental change batches
+//! * Full-sync escalation and initial open state
+//! * Debounce scheduling and retry timing
+//! * Single in-flight sends with write timeout
 //!
 //! # Error Handling
 //!
-//! - Queue full / server not ready: retryable, payload retained
-//! - Other errors: escalate to full sync, set retry delay
+//! * Queue full / server not ready: retryable, payload retained
+//! * Other errors: escalate to full sync, set retry delay
 
 mod sync_state;
 use std::collections::HashMap;

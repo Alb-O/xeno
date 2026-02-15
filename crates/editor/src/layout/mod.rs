@@ -6,20 +6,20 @@
 //! # Layer System
 //!
 //! Layouts are organized in ordered layers (index 0 at bottom):
-//! - Layer 0: Base layout (owned by the base window)
-//! - Layer 1+: Overlay layers (transparent base, rendered on top)
+//! * Layer 0: Base layout (owned by the base window)
+//! * Layer 1+: Overlay layers (transparent base, rendered on top)
 //!
 //! Focus goes to the topmost layer containing views by default.
 //!
 //! # Modules
 //!
-//! - `manager` - Core `LayoutManager` struct
-//! - `types` - Type definitions (`LayerId`, `SeparatorId`, `SeparatorHit`)
-//! - `layers` - Layer management and area computation
-//! - `views` - View navigation and lookup
-//! - `splits` - Split creation and removal
-//! - `separators` - Separator hit detection
-//! - `drag` - Drag state and hover animation
+//! * `manager` - Core `LayoutManager` struct
+//! * `types` - Type definitions (`LayerId`, `SeparatorId`, `SeparatorHit`)
+//! * `layers` - Layer management and area computation
+//! * `views` - View navigation and lookup
+//! * `splits` - Split creation and removal
+//! * `separators` - Separator hit detection
+//! * `drag` - Drag state and hover animation
 
 mod drag;
 mod layers;

@@ -254,6 +254,13 @@ impl ViewportCache {
 	}
 }
 
+/// An installed full-document syntax tree with its version and identity.
+pub(crate) struct InstalledTree {
+	pub(crate) syntax: Syntax,
+	pub(crate) doc_version: u64,
+	pub(crate) tree_id: u64,
+}
+
 /// Per-document syntax state managed by [`crate::syntax_manager::SyntaxManager`].
 ///
 /// Maintains two independent tree slots: a full-document tree and a
@@ -262,12 +269,8 @@ impl ViewportCache {
 /// preventing viewport installs from clobbering a valid full tree.
 #[derive(Default)]
 pub struct SyntaxSlot {
-	/// Full-document syntax tree (may have injections enabled).
-	pub(super) full: Option<Syntax>,
-	/// Document version the full tree was parsed from.
-	pub(super) full_doc_version: Option<u64>,
-	/// Unique identity for the current full tree state.
-	pub(super) full_tree_id: u64,
+	/// Full-document syntax tree with version and identity metadata.
+	pub(super) full: Option<InstalledTree>,
 
 	/// LRU cache of viewport-bounded partial syntax trees keyed by aligned window.
 	pub(super) viewport_cache: ViewportCache,
@@ -312,17 +315,17 @@ impl SyntaxSlot {
 
 	/// Returns the document version of the best available tree.
 	pub(super) fn best_doc_version(&self) -> Option<u64> {
+		let full_ver = self.full.as_ref().map(|t| t.doc_version);
 		let vp_best = self.viewport_cache.best_doc_version();
-		match (self.full_doc_version, vp_best) {
+		match (full_ver, vp_best) {
 			(Some(f), Some(v)) => Some(f.max(v)),
 			(f, v) => f.or(v),
 		}
 	}
 
-	/// Drops the full tree and resets associated state.
+	/// Drops the full tree.
 	pub(super) fn drop_full(&mut self) {
 		self.full = None;
-		self.full_doc_version = None;
 	}
 
 	/// Drops all viewport cached trees.

@@ -19,7 +19,7 @@ impl SyntaxManager {
 	pub fn syntax_for_doc(&self, doc_id: DocumentId) -> Option<&Syntax> {
 		let slot = &self.entries.get(&doc_id)?.slot;
 		if let Some(ref full) = slot.full {
-			return Some(full);
+			return Some(&full.syntax);
 		}
 		// Fall back to best viewport tree from cache (MRU order, stage_b preferred)
 		for key in slot.viewport_cache.iter_keys_mru() {
@@ -91,9 +91,9 @@ impl SyntaxManager {
 		// Full tree candidate
 		if let Some(ref s) = slot.full {
 			consider!(SyntaxSelection {
-				syntax: s,
-				tree_id: slot.full_tree_id,
-				tree_doc_version: slot.full_doc_version.unwrap_or(0),
+				syntax: &s.syntax,
+				tree_id: s.tree_id,
+				tree_doc_version: s.doc_version,
 				coverage: None,
 			});
 		}
@@ -165,7 +165,7 @@ impl SyntaxManager {
 	#[cfg(test)]
 	pub(crate) fn syntax_doc_version(&self, doc_id: DocumentId) -> Option<u64> {
 		let slot = &self.entries.get(&doc_id)?.slot;
-		slot.full_doc_version.or(slot.viewport_cache.best_doc_version())
+		slot.full.as_ref().map(|t| t.doc_version).or(slot.viewport_cache.best_doc_version())
 	}
 
 	/// Returns projection context for mapping stale tree highlights onto current text.
@@ -234,7 +234,7 @@ impl SyntaxManager {
 		self.entries.get(&doc_id)?.slot.best_doc_version()
 	}
 
-	/// Returns true if a background task is currently active for a document (even if detached).
+	/// Returns true if a background task is currently active for a document.
 	#[cfg(test)]
 	pub(crate) fn has_inflight_task(&self, doc_id: DocumentId) -> bool {
 		self.entries.get(&doc_id).is_some_and(|e| e.sched.any_active())
@@ -273,12 +273,20 @@ impl SyntaxManager {
 		self.entries.values().filter(|d| d.sched.any_active()).count()
 	}
 
-	pub fn pending_docs(&self) -> impl Iterator<Item = DocumentId> + '_ {
+	pub(crate) fn pending_docs(&self) -> impl Iterator<Item = DocumentId> + '_ {
 		self.entries.iter().filter(|(_, d)| d.sched.any_active()).map(|(id, _)| *id)
 	}
 
-	pub fn dirty_docs(&self) -> impl Iterator<Item = DocumentId> + '_ {
+	pub(crate) fn dirty_docs(&self) -> impl Iterator<Item = DocumentId> + '_ {
 		self.entries.iter().filter(|(_, e)| e.slot.dirty).map(|(id, _)| *id)
+	}
+
+	/// Documents with unprocessed completed tasks in their queue.
+	///
+	/// These must be included in the render-frame workset so completions get
+	/// installed/discarded even for docs that are no longer visible or dirty.
+	pub(crate) fn docs_with_completed(&self) -> impl Iterator<Item = DocumentId> + '_ {
+		self.entries.iter().filter(|(_, e)| !e.sched.completed.is_empty()).map(|(id, _)| *id)
 	}
 
 	/// Returns true if any background task has completed its work.

@@ -17,23 +17,23 @@ use crate::widgets::Widget;
 ///
 /// # Constructor Methods
 ///
-/// - [`Span::default`] creates an span with empty content and the default style.
-/// - [`Span::raw`] creates an span with the specified content and the default style.
-/// - [`Span::styled`] creates an span with the specified content and style.
+/// * [`Span::default`] creates an span with empty content and the default style.
+/// * [`Span::raw`] creates an span with the specified content and the default style.
+/// * [`Span::styled`] creates an span with the specified content and style.
 ///
 /// # Setter Methods
 ///
 /// These methods are fluent setters. They return a new `Span` with the specified property set.
 ///
-/// - [`Span::content`] sets the content of the span.
-/// - [`Span::style`] sets the style of the span.
+/// * [`Span::content`] sets the content of the span.
+/// * [`Span::style`] sets the style of the span.
 ///
 /// # Other Methods
 ///
-/// - [`Span::patch_style`] patches the style of the span, adding modifiers from the given style.
-/// - [`Span::reset_style`] resets the style of the span.
-/// - [`Span::width`] returns the unicode width of the content held by this span.
-/// - [`Span::styled_graphemes`] returns an iterator over the graphemes held by this span.
+/// * [`Span::patch_style`] patches the style of the span, adding modifiers from the given style.
+/// * [`Span::reset_style`] resets the style of the span.
+/// * [`Span::width`] returns the unicode width of the content held by this span.
+/// * [`Span::styled_graphemes`] returns an iterator over the graphemes held by this span.
 ///
 /// # Examples
 ///

@@ -313,9 +313,9 @@ impl Selection {
 	/// Returns `true` if all ranges are within valid document boundaries.
 	///
 	/// A selection is considered in-bounds if:
-	/// - The primary index is valid for the current ranges vector.
-	/// - All range endpoints are within document bounds `[0, len]`.
-	/// - The extent `[from, to)` is allowed to be `[0, 1)` even for empty documents
+	/// * The primary index is valid for the current ranges vector.
+	/// * All range endpoints are within document bounds `[0, len]`.
+	/// * The extent `[from, to)` is allowed to be `[0, 1)` even for empty documents
 	///   to represent the 1-cell cursor (consumers should clamp this to the actual length).
 	#[inline]
 	pub fn is_in_bounds(&self, len: CharIdx) -> bool {

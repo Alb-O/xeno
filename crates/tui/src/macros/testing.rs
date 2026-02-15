@@ -1,9 +1,9 @@
 //! Test helper macros to reduce boilerplate in widget and layout tests.
 //!
 //! These macros are only available in test builds and provide convenient ways to:
-//! - Test widget rendering against expected buffer output
-//! - Test enum Display/FromStr roundtrips
-//! - Define data-driven layout constraint tests
+//! * Test widget rendering against expected buffer output
+//! * Test enum Display/FromStr roundtrips
+//! * Define data-driven layout constraint tests
 
 /// Asserts that rendering a widget to a buffer produces the expected output.
 ///

@@ -10,8 +10,8 @@ use crate::{Rope, RopeSlice};
 ///
 /// # Invariants
 ///
-/// - The sum of `retain` and `delete` lengths must equal `len` (input length).
-/// - The sum of `retain` and `insert` lengths must equal `len_after` (output length).
+/// * The sum of `retain` and `delete` lengths must equal `len` (input length).
+/// * The sum of `retain` and `insert` lengths must equal `len_after` (output length).
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct ChangeSet {
 	/// Sequence of retain/delete/insert operations.
@@ -179,8 +179,8 @@ impl ChangeSet {
 	///
 	/// * `pos` - The position in the pre-change document.
 	/// * `bias` - Determines behavior at insertion boundaries:
-	///   - `Bias::Left`: Stick to the character before the insertion (stay put).
-	///   - `Bias::Right`: Stick to the character after the insertion (move with inserted text).
+	///   * `Bias::Left`: Stick to the character before the insertion (stay put).
+	///   * `Bias::Right`: Stick to the character after the insertion (move with inserted text).
 	pub fn map_pos(&self, pos: CharIdx, bias: Bias) -> CharIdx {
 		let mut old_pos = 0;
 		let mut new_pos = 0;

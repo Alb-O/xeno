@@ -98,8 +98,8 @@ impl StatefulWidget for &List<'_> {
 			if selection_spacing {
 				for j in 0..item.content.height() {
 					// if the item is selected, we need to display the highlight symbol:
-					// - either for the first line of the item only,
-					// - or for each line of the item if the appropriate option is set
+					// * either for the first line of the item only,
+					// * or for each line of the item if the appropriate option is set
 					let line = if is_selected && (j == 0 || self.repeat_highlight_symbol) {
 						highlight_symbol
 					} else {

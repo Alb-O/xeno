@@ -1,10 +1,10 @@
 //! Render cache for efficient viewport rendering.
 //!
 //! Provides caching infrastructure for:
-//! - Line wrapping results (per document, per wrap configuration)
-//! - Syntax highlighting spans (tiled caching)
-//! - Diagnostics maps (line_map, range_map keyed by epoch)
-//! - Future: layout calculations
+//! * Line wrapping results (per document, per wrap configuration)
+//! * Syntax highlighting spans (tiled caching)
+//! * Diagnostics maps (line_map, range_map keyed by epoch)
+//! * Future: layout calculations
 
 mod diagnostics;
 mod diff;

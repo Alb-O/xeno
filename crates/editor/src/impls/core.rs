@@ -5,9 +5,9 @@
 //! presentation concerns remain in [`Editor`].
 //!
 //! This separation enables:
-//! - Independent testing of editing logic
-//! - Cleaner borrow checker relationships (borrow core separately from UI)
-//! - Capability trait implementations focused on editing concerns
+//! * Independent testing of editing logic
+//! * Cleaner borrow checker relationships (borrow core separately from UI)
+//! * Capability trait implementations focused on editing concerns
 //!
 //! [`Editor`]: super::Editor
 

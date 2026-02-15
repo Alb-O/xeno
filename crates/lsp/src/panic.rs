@@ -7,10 +7,10 @@
 //! This middleware uses [`AssertUnwindSafe`] to catch panics from the wrapped service.
 //! After a panic is caught:
 //!
-//! - The service's internal state may be inconsistent
-//! - The error response is returned to the client, but subsequent requests may fail or behave
+//! * The service's internal state may be inconsistent
+//! * The error response is returned to the client, but subsequent requests may fail or behave
 //!   unexpectedly
-//! - Callers should consider restarting the service connection after encountering a panic-derived
+//! * Callers should consider restarting the service connection after encountering a panic-derived
 //!   error
 //!
 //! This is an inherent limitation of panic recovery in Rust. The middleware converts panics to

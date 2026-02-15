@@ -1,9 +1,9 @@
 //! Procedural macros for Xeno editor.
 //!
 //! Provides derive macros and attribute macros:
-//! - `#[derive(DispatchResult)]` - generates result handler registries
-//! - `#[derive(Option)]` - option registration from static definitions
-//! - `define_events!` - hook event generation
+//! * `#[derive(DispatchResult)]` - generates result handler registries
+//! * `#[derive(Option)]` - option registration from static definitions
+//! * `define_events!` - hook event generation
 
 use proc_macro::TokenStream;
 
@@ -33,7 +33,7 @@ pub fn register_notification(input: TokenStream) -> TokenStream {
 /// function.
 ///
 /// Attributes:
-/// - `#[handler(Foo)]` - Use `RESULT_FOO_HANDLERS` instead of deriving from variant name
+/// * `#[handler(Foo)]` - Use `RESULT_FOO_HANDLERS` instead of deriving from variant name
 ///
 /// ```ignore
 /// #[derive(DispatchResult)]
@@ -52,11 +52,11 @@ pub fn derive_dispatch_result(input: TokenStream) -> TokenStream {
 /// Generates hook event types and extractor macros from a single definition.
 ///
 /// This proc macro is the single source of truth for hook events. It generates:
-/// - `HookEvent` enum for event discrimination
-/// - `HookEventData<'a>` enum with borrowed event payloads
-/// - `OwnedHookContext` enum with owned payloads for async
-/// - `__hook_extract!` macro for sync parameter extraction
-/// - `__async_hook_extract!` macro for async parameter extraction
+/// * `HookEvent` enum for event discrimination
+/// * `HookEventData<'a>` enum with borrowed event payloads
+/// * `OwnedHookContext` enum with owned payloads for async
+/// * `__hook_extract!` macro for sync parameter extraction
+/// * `__async_hook_extract!` macro for async parameter extraction
 ///
 /// # Example
 ///
@@ -77,10 +77,10 @@ pub fn derive_dispatch_result(input: TokenStream) -> TokenStream {
 /// # Field Types
 ///
 /// Special type tokens are mapped to borrowed/owned forms:
-/// - `Path` → `&Path` / `PathBuf`
-/// - `RopeSlice` → `RopeSlice<'a>` / `String`
-/// - `OptionStr` → `Option<&str>` / `Option<String>`
-/// - Other types are used as-is (must implement `Clone`)
+/// * `Path` → `&Path` / `PathBuf`
+/// * `RopeSlice` → `RopeSlice<'a>` / `String`
+/// * `OptionStr` → `Option<&str>` / `Option<String>`
+/// * Other types are used as-is (must implement `Clone`)
 #[proc_macro]
 pub fn define_events(input: TokenStream) -> TokenStream {
 	events::define_events(input)
@@ -98,8 +98,8 @@ pub fn define_events(input: TokenStream) -> TokenStream {
 /// ```
 ///
 /// Generates:
-/// - Static `OptionDef` registered in the `OPTIONS` slice
-/// - Typed `TypedOptionKey<T>` constant for compile-time type safety
+/// * Static `OptionDef` registered in the `OPTIONS` slice
+/// * Typed `TypedOptionKey<T>` constant for compile-time type safety
 ///
 /// # Attributes
 ///
@@ -109,10 +109,10 @@ pub fn define_events(input: TokenStream) -> TokenStream {
 ///
 /// # Supported Types
 ///
-/// - `i64` → `OptionType::Int`
-/// - `bool` → `OptionType::Bool`
-/// - `String` → `OptionType::String`
-/// - `&'static str` → `OptionType::String` (converted to owned)
+/// * `i64` → `OptionType::Int`
+/// * `bool` → `OptionType::Bool`
+/// * `String` → `OptionType::String`
+/// * `&'static str` → `OptionType::String` (converted to owned)
 #[proc_macro_attribute]
 pub fn derive_option(_attr: TokenStream, item: TokenStream) -> TokenStream {
 	option::derive_option(item)
