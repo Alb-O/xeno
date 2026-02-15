@@ -54,24 +54,6 @@ Notice:     crates/tree-house/LICENSE
 
 ================================================================================
 
-Component:  tree-house-bindings (Rust tree-sitter bindings)
-Path:       crates/tree-house-bindings/
-License:    MPL-2.0
-Copyright:  (c) tree-house contributors
-Source:     https://github.com/helix-editor/tree-house
-Notice:     crates/tree-house-bindings/LICENSE
-
-================================================================================
-
-Component:  tree-sitter C runtime sources
-Path:       crates/tree-house-bindings/vendor/
-License:    MIT
-Copyright:  (c) 2018-2024 Max Brunsfeld
-Source:     https://github.com/tree-sitter/tree-sitter
-Notice:     crates/tree-house-bindings/vendor/LICENSE
-
-================================================================================
-
 Component:  Snakemake tree-sitter queries
 Path:       crates/runtime/data/assets/language/queries/snakemake/
 License:    MIT
