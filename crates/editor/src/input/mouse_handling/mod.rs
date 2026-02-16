@@ -2,10 +2,15 @@
 //!
 //! Processing mouse input for text selection and separator dragging.
 
-use xeno_input::input::KeyResult;
-use xeno_primitives::{MouseEvent, ScrollDirection, Selection};
+mod context;
+mod effects;
+mod routing;
 
-use crate::impls::{Editor, FocusReason, FocusTarget};
+use routing::decide_mouse_route;
+use xeno_input::input::KeyResult;
+use xeno_primitives::MouseEvent;
+
+use crate::impls::{Editor, FocusTarget};
 
 impl Editor {
 	/// Processes a mouse event, returning true if the event triggered a quit.
@@ -81,216 +86,9 @@ impl Editor {
 	/// Text selection drags are confined to the view where they started.
 	/// This prevents selection from crossing split boundaries.
 	pub(crate) async fn handle_mouse_in_doc_area(&mut self, mouse: MouseEvent, doc_area: crate::geometry::Rect) -> bool {
-		let mouse_x = mouse.col();
-		let mouse_y = mouse.row();
-
-		if let Some(drag_state) = self.state.layout.drag_state().cloned() {
-			match mouse {
-				MouseEvent::Drag { .. } => {
-					let base_layout = &mut self.state.windows.base_window_mut().layout;
-					self.state.layout.resize_separator(base_layout, doc_area, &drag_state.id, mouse_x, mouse_y);
-					self.state.frame.needs_redraw = true;
-					return false;
-				}
-				MouseEvent::Release { .. } => {
-					self.state.layout.end_drag();
-					self.state.frame.needs_redraw = true;
-					return false;
-				}
-				_ => {}
-			}
-		}
-
-		// Handle active text selection drag - confine to origin view
-		if let Some((origin_view, origin_area)) = self.state.layout.text_selection_origin {
-			match mouse {
-				MouseEvent::Drag { .. }
-				| MouseEvent::Scroll {
-					direction: ScrollDirection::Up | ScrollDirection::Down,
-					..
-				} => {
-					let clamped_x = mouse_x.clamp(origin_area.x, origin_area.right().saturating_sub(1));
-					let clamped_y = mouse_y.clamp(origin_area.y, origin_area.bottom().saturating_sub(1));
-					let local_row = clamped_y.saturating_sub(origin_area.y);
-					let local_col = clamped_x.saturating_sub(origin_area.x);
-
-					let tab_width = self.tab_width_for(origin_view);
-					let scroll_lines = self.scroll_lines_for(origin_view);
-					if let Some(buffer) = self.state.core.buffers.get_buffer_mut(origin_view) {
-						if let MouseEvent::Scroll { direction, .. } = mouse
-							&& matches!(direction, ScrollDirection::Up | ScrollDirection::Down)
-						{
-							buffer.handle_mouse_scroll(direction, scroll_lines, tab_width);
-						}
-
-						let _ = buffer.input.handle_mouse(mouse);
-						let doc_pos = buffer.screen_to_doc_position(local_row, local_col, tab_width).or_else(|| {
-							let gutter_width = buffer.gutter_width();
-							(local_col < gutter_width)
-								.then(|| buffer.screen_to_doc_position(local_row, gutter_width, tab_width))
-								.flatten()
-						});
-
-						if let Some(doc_pos) = doc_pos {
-							let anchor = buffer.selection.primary().anchor;
-							buffer.set_selection(Selection::single(anchor, doc_pos));
-							buffer.sync_cursor_to_selection();
-						}
-					}
-					self.state.frame.needs_redraw = true;
-					return false;
-				}
-				MouseEvent::Release { .. } => {
-					self.state.layout.text_selection_origin = None;
-					self.state.frame.needs_redraw = true;
-				}
-				_ => {}
-			}
-		}
-
-		let overlay_hit = self.state.overlay_system.interaction().active().and_then(|active| {
-			active
-				.session
-				.panes
-				.iter()
-				.rev()
-				.find(|pane| {
-					mouse_x >= pane.rect.x
-						&& mouse_x < pane.rect.x.saturating_add(pane.rect.width)
-						&& mouse_y >= pane.rect.y
-						&& mouse_y < pane.rect.y.saturating_add(pane.rect.height)
-				})
-				.map(|pane| (pane.buffer, pane.rect, pane.style.clone()))
-		});
-
-		if let Some((overlay_buffer, overlay_rect, overlay_style)) = overlay_hit {
-			let inner = crate::overlay::geom::pane_inner_rect(overlay_rect, &overlay_style);
-			if inner.width == 0 || inner.height == 0 {
-				return false;
-			}
-
-			let reason = if matches!(mouse, MouseEvent::Press { .. }) {
-				FocusReason::Click
-			} else {
-				FocusReason::Programmatic
-			};
-			self.set_focus(FocusTarget::Overlay { buffer: overlay_buffer }, reason);
-
-			let clamped_x = mouse_x.clamp(inner.x, inner.right().saturating_sub(1));
-			let clamped_y = mouse_y.clamp(inner.y, inner.bottom().saturating_sub(1));
-			let local_row = clamped_y.saturating_sub(inner.y);
-			let local_col = clamped_x.saturating_sub(inner.x);
-
-			let result = self.buffer_mut().input.handle_mouse(mouse);
-			let quit = self.apply_mouse_key_result(result, local_row, local_col, Some((overlay_buffer, inner)));
-			self.state.frame.needs_redraw = true;
-			return quit;
-		}
-
-		let separator_hit = {
-			let base_layout = &self.base_window().layout;
-			self.state.layout.separator_hit_at_position(base_layout, doc_area, mouse_x, mouse_y)
-		};
-
-		self.state.layout.update_mouse_velocity(mouse_x, mouse_y);
-		let is_fast_mouse = self.state.layout.is_mouse_fast();
-
-		let current_separator = separator_hit.as_ref().map(|hit| (hit.direction, hit.rect));
-		self.state.layout.separator_under_mouse = current_separator;
-
-		match mouse {
-			MouseEvent::Move { .. } => {
-				let old_hover = self.state.layout.hovered_separator;
-
-				// Hover activation: sticky once active, velocity-gated for new hovers
-				self.state.layout.hovered_separator = match (old_hover, current_separator) {
-					(Some(old), Some(new)) if old == new => Some(old),
-					(_, Some(sep)) if !is_fast_mouse => Some(sep),
-					(_, Some(_)) => {
-						self.state.frame.needs_redraw = true;
-						None
-					}
-					(_, None) => None,
-				};
-
-				if old_hover != self.state.layout.hovered_separator {
-					self.state.layout.update_hover_animation(old_hover, self.state.layout.hovered_separator);
-					self.state.frame.needs_redraw = true;
-				}
-
-				if self.state.layout.hovered_separator.is_some() {
-					return false;
-				}
-			}
-			MouseEvent::Press { .. } => {
-				if let Some(hit) = &separator_hit {
-					self.state.layout.start_drag(hit);
-					self.state.frame.needs_redraw = true;
-					return false;
-				}
-				if self.state.layout.hovered_separator.is_some() {
-					let old_hover = self.state.layout.hovered_separator.take();
-					self.state.layout.update_hover_animation(old_hover, None);
-					self.state.frame.needs_redraw = true;
-				}
-			}
-			MouseEvent::Drag { .. } => {
-				if self.state.layout.hovered_separator.is_some() {
-					let old_hover = self.state.layout.hovered_separator.take();
-					self.state.layout.update_hover_animation(old_hover, None);
-					self.state.frame.needs_redraw = true;
-				}
-			}
-			_ => {
-				if separator_hit.is_none() && self.state.layout.hovered_separator.is_some() {
-					let old_hover = self.state.layout.hovered_separator.take();
-					self.state.layout.update_hover_animation(old_hover, None);
-					self.state.frame.needs_redraw = true;
-				}
-			}
-		}
-
-		let view_hit = {
-			let base_layout = &self.base_window().layout;
-			self.state
-				.layout
-				.view_at_position(base_layout, doc_area, mouse_x, mouse_y)
-				.map(|(view, area)| (view, area, self.state.windows.base_id()))
-		};
-		let Some((target_view, view_area, target_window)) = view_hit else {
-			return false;
-		};
-
-		let needs_focus = match &self.state.focus {
-			FocusTarget::Buffer { window, buffer } => *window != target_window || *buffer != target_view,
-			FocusTarget::Overlay { .. } => true,
-			FocusTarget::Panel(_) => true,
-		};
-		if needs_focus {
-			let focus_reason = match mouse {
-				MouseEvent::Press { .. } => FocusReason::Click,
-				_ if target_window == self.state.windows.base_id() => FocusReason::Hover,
-				_ => FocusReason::Programmatic,
-			};
-			let focus_changed = self.set_focus(
-				FocusTarget::Buffer {
-					window: target_window,
-					buffer: target_view,
-				},
-				focus_reason,
-			);
-			if !focus_changed && needs_focus {
-				return false;
-			}
-		}
-
-		// Translate screen coordinates to view-local coordinates
-		let local_row = mouse_y.saturating_sub(view_area.y);
-		let local_col = mouse_x.saturating_sub(view_area.x);
-
-		// Process the mouse event through the input handler
-		let result = self.buffer_mut().input.handle_mouse(mouse);
-		self.apply_mouse_key_result(result, local_row, local_col, Some((target_view, view_area)))
+		let context = self.build_mouse_route_context(mouse, doc_area);
+		let decision = decide_mouse_route(&context);
+		self.apply_mouse_route(context, decision)
 	}
 
 	fn apply_mouse_key_result(

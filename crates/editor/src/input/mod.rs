@@ -14,7 +14,10 @@
 //!   2. Active modal overlay interaction and passive overlay layers.
 //!   3. LSP/snippet-specialized handlers.
 //!   4. Base keymap dispatch through `xeno-input`.
-//! * Mouse handling first resolves layout context (panels, overlays, separators, views), then delegates local operations.
+//! * Mouse handling is staged:
+//!   1. Build route context (drag state, overlay hit, separator hit, view hit).
+//!   2. Select a single route decision (active drag, overlay, separator/view document path).
+//!   3. Apply side effects for that route (focus, selection, resize, redraw).
 //!
 //! # Key types
 //!
@@ -69,9 +72,9 @@
 //!   2. Return early on consume.
 //!   3. Add invariant proof for precedence.
 //! * Add a new mouse interaction mode:
-//!   1. Extend hit-testing in mouse handling.
-//!   2. Keep geometry/view ownership explicit.
-//!   3. Add invariant test for stale-state recovery.
+//!   1. Extend route context fields in `mouse_handling::context`.
+//!   2. Add route selection logic in `mouse_handling::routing`.
+//!   3. Add side-effect application in `mouse_handling::effects` and invariant tests.
 
 mod key_handling;
 mod mouse_handling;
