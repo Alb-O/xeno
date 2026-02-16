@@ -13,7 +13,6 @@ use xeno_nu_protocol::{Filesize, IntoValue, Range, Record, ShellError, Span, Typ
 /// > using this function in a command implementation such as
 /// > [`from nuon`](https://www.nushell.sh/commands/docs/from_nuon.html).
 ///
-/// also see [`super::to_nuon`] for the inverse operation
 pub fn from_nuon(input: &str, span: Option<Span>) -> Result<Value, ShellError> {
 	let mut engine_state = EngineState::default();
 	// NOTE: the parser needs `$env.PWD` to be set, that's a know _API issue_ with the

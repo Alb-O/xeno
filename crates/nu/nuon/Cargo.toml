@@ -10,13 +10,8 @@ version = "0.110.1"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-xeno-nu-engine = { path = "../engine", version = "0.110.1", default-features = false }
 xeno-nu-parser = { path = "../parser", version = "0.110.1" }
 xeno-nu-protocol = { path = "../protocol", version = "0.110.1", default-features = false }
-xeno-nu-utils = { path = "../utils", version = "0.110.1", default-features = false }
-
-[dev-dependencies]
-chrono = { workspace = true }
 
 [lints]
 workspace = true

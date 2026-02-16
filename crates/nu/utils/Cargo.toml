@@ -10,24 +10,20 @@ version = "0.110.1"
 [lib]
 bench = false
 
-[target.'cfg(unix)'.dependencies]
-nix = { workspace = true, default-features = false, features = ["user", "fs"] }
+[dependencies]
+fancy-regex = { workspace = true }
+memchr = { workspace = true }
+num-format = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+strip-ansi-escapes = { workspace = true }
+sys-locale = "0.3"
+unicase = "2.9.0"
 
 [target.'cfg(windows)'.dependencies]
 crossterm_winapi = "0.9"
 
-[dependencies]
-byteyarn.workspace = true
-fancy-regex = { workspace = true }
-lean_string.workspace = true
-lscolors = { workspace = true, default-features = false, features = ["nu-ansi-term"] }
-memchr = { workspace = true }
-num-format = { workspace = true }
-serde = { workspace = true, features = ["derive"] }
+[dev-dependencies]
 serde_json = { workspace = true }
-strip-ansi-escapes = { workspace = true }
-sys-locale = "0.3"
-unicase = "2.9.0"
 
 [lints]
 workspace = true

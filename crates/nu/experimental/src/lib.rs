@@ -1,111 +1,41 @@
-//! Experimental Options for the Nu codebase.
+//! Experimental options used by Xeno's vendored Nu runtime.
 //!
-//! This crate defines all experimental options used in Nushell.
-//!
-//! An [`ExperimentalOption`] is basically a fancy global boolean.
-//! It should be set very early during initialization and lets us switch between old and new
-//! behavior for parts of the system.
-//!
-//! The goal is to have a consistent way to handle experimental flags across the codebase, and to
-//! make it easy to find all available options.
-//!
-//! # Usage
-//!
-//! Using an option is simple:
-//!
-//! ```rust
-//! if xeno_nu_experimental::EXAMPLE.get() {
-//!     // new behavior
-//! } else {
-//!     // old behavior
-//! }
-//! ```
-//!
-//! # Adding New Options
-//!
-//! 1. Create a new module in `options.rs`.
-//! 2. Define a marker struct and implement `ExperimentalOptionMarker` for it.
-//! 3. Add a new static using `ExperimentalOption::new`.
-//! 4. Add the static to [`ALL`].
-//!
-//! That's it. See [`EXAMPLE`] in `options/example.rs` for a complete example.
-//!
-//! # For Users
-//!
-//! Users can view enabled options using either `version` or `debug experimental-options`.
-//!
-//! To enable or disable options, use either the `NU_EXPERIMENTAL_OPTIONS` environment variable
-//! (see [`ENV`]), or pass them via CLI using `--experimental-options`, e.g.:
-//!
-//! ```sh
-//! nu --experimental-options=[example]
-//! ```
-//!
-//! # For Embedders
-//!
-//! If you're embedding Nushell, prefer using [`parse_env`] or [`parse_iter`] to load options.
-//!
-//! `parse_iter` is useful if you want to feed in values from other sources.
-//! Since options are expected to stay stable during runtime, make sure to do this early.
-//!
-//! You can also call [`ExperimentalOption::set`] manually, but be careful with that.
+//! Xeno only consumes a narrow subset of Nushell's experimental toggles, so this
+//! crate intentionally keeps just the option state machinery and the option
+//! definitions that are read by the runtime.
 
 use std::fmt::Debug;
 use std::sync::atomic::Ordering;
 
+use crate::options::Version;
 use crate::util::AtomicMaybe;
 
 mod options;
-mod parse;
 mod util;
 
 pub use options::*;
-pub use parse::*;
 
 /// The status of an experimental option.
-///
-/// An option can either be disabled by default ([`OptIn`](Self::OptIn)) or enabled by default
-/// ([`OptOut`](Self::OptOut)), depending on its expected stability.
-///
-/// Experimental options can be deprecated in two ways:
-/// - If the feature becomes default behavior, it's marked as
-///   [`DeprecatedDefault`](Self::DeprecatedDefault).
-/// - If the feature is being fully removed, it's marked as
-///   [`DeprecatedDiscard`](Self::DeprecatedDiscard) and triggers a warning.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Status {
 	/// Disabled by default.
 	OptIn,
 	/// Enabled by default.
 	OptOut,
-	/// Deprecated as an experimental option; now default behavior.
+	/// Deprecated as an experimental option and now default behavior.
 	DeprecatedDefault,
-	/// Deprecated; the feature will be removed and triggers a warning.
+	/// Deprecated and intended to be discarded.
 	DeprecatedDiscard,
 }
 
-/// Experimental option (aka feature flag).
-///
-/// This struct holds one experimental option that can change some part of Nushell's behavior.
-/// These options let users opt in or out of experimental changes while keeping the rest stable.
-/// They're useful for testing new ideas and giving users a way to go back to older behavior if needed.
-///
-/// You can find all options in the statics of [`xeno_nu_experimental`](crate).
-/// Everything there, except [`ALL`], is a toggleable option.
-/// `ALL` gives a full list and can be used to check which options are set.
-///
-/// The [`Debug`] implementation shows the option's identifier, stability, and current value.
-/// To also include the description in the output, use the
-/// [plus sign](std::fmt::Formatter::sign_plus), e.g. `format!("{OPTION:+#?}")`.
+/// Experimental option (feature flag).
 pub struct ExperimentalOption {
 	value: AtomicMaybe,
 	marker: &'static (dyn DynExperimentalOptionMarker + Send + Sync),
 }
 
 impl ExperimentalOption {
-	/// Construct a new `ExperimentalOption`.
-	///
-	/// This should only be used to define a single static for a marker.
+	/// Construct a new experimental option.
 	pub(crate) const fn new(marker: &'static (dyn DynExperimentalOptionMarker + Send + Sync)) -> Self {
 		Self {
 			value: AtomicMaybe::new(None),
@@ -149,21 +79,17 @@ impl ExperimentalOption {
 	/// Sets the state of an experimental option.
 	///
 	/// # Safety
-	/// This method is unsafe to emphasize that experimental options are not designed to change
-	/// dynamically at runtime.
-	/// Changing their state at arbitrary points can lead to inconsistent behavior.
-	/// You should set experimental options only during initialization, before the application fully
-	/// starts.
+	/// These options are expected to be set during initialization and remain
+	/// stable afterwards.
 	pub unsafe fn set(&self, value: bool) {
 		self.value.store(value, Ordering::Relaxed);
 	}
 
-	/// Unsets an experimental option, resetting it to an uninitialized state.
+	/// Unsets an experimental option.
 	///
 	/// # Safety
-	/// Like [`set`](Self::set), this method is unsafe to highlight that experimental options should
-	/// remain stable during runtime.
-	/// Only unset options in controlled, initialization contexts to avoid unpredictable behavior.
+	/// Like [`set`](Self::set), callers must only use this in controlled
+	/// initialization contexts.
 	pub unsafe fn unset(&self) {
 		self.value.store(None, Ordering::Relaxed);
 	}
@@ -185,26 +111,23 @@ impl Debug for ExperimentalOption {
 
 impl PartialEq for ExperimentalOption {
 	fn eq(&self, other: &Self) -> bool {
-		// if both underlying atomics point to the same value, we talk about the same option
 		self.value.as_ptr() == other.value.as_ptr()
 	}
 }
 
 impl Eq for ExperimentalOption {}
 
-/// Sets the state of all experimental option that aren't deprecated.
+/// Sets all non-deprecated experimental options.
 ///
 /// # Safety
-/// This method is unsafe to emphasize that experimental options are not designed to change
-/// dynamically at runtime.
-/// Changing their state at arbitrary points can lead to inconsistent behavior.
-/// You should set experimental options only during initialization, before the application fully
-/// starts.
+/// Callers should only toggle options during initialization.
 pub unsafe fn set_all(value: bool) {
 	for option in ALL {
 		match option.status() {
-			// SAFETY: The safety bounds for `ExperimentalOption.set` are the same as this function.
-			Status::OptIn | Status::OptOut => unsafe { option.set(value) },
+			Status::OptIn | Status::OptOut => {
+				// SAFETY: The safety contract matches this function.
+				unsafe { option.set(value) }
+			}
 			Status::DeprecatedDefault | Status::DeprecatedDiscard => {}
 		}
 	}

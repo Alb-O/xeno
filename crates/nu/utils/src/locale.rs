@@ -1,4 +1,6 @@
 use num_format::Locale;
+#[cfg(test)]
+use sys_locale as _;
 
 pub const LOCALE_OVERRIDE_ENV_VAR: &str = "NU_TEST_LOCALE_OVERRIDE";
 
