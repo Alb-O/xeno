@@ -18,7 +18,7 @@ fn run_invocations_supports_record_and_list() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
 	write_script(
 		temp.path(),
-		"export def one [] { editor stats }\nexport def many [] { [(editor stats), (command help)] }",
+		"export def one [] { xeno emit editor stats }\nexport def many [] { [(xeno emit editor stats), (xeno emit command help)] }",
 	);
 
 	let runtime = NuRuntime::load(temp.path()).expect("runtime should load");
@@ -35,10 +35,10 @@ fn run_invocations_supports_structured_records() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
 	write_script(
 		temp.path(),
-		"export def action_rec [] { action move_right --count 2 --extend --register a }\n\
-export def action_char [] { action find_char --char x }\n\
-export def mixed [] { [ (editor stats), (command help themes) ] }\n\
-export def nested_nu [] { nu run go a b }",
+		"export def action_rec [] { xeno emit action move_right --count 2 --extend --register a }\n\
+export def action_char [] { xeno emit action find_char --char x }\n\
+export def mixed [] { [ (xeno emit editor stats), (xeno emit command help themes) ] }\n\
+export def nested_nu [] { xeno call go a b }",
 	);
 
 	let runtime = NuRuntime::load(temp.path()).expect("runtime should load");
@@ -75,7 +75,7 @@ export def nested_nu [] { nu run go a b }",
 #[test]
 fn decode_limits_cap_invocation_count() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
-	write_script(temp.path(), "export def many [] { [(editor stats), (editor stats)] }");
+	write_script(temp.path(), "export def many [] { [(xeno emit editor stats), (xeno emit editor stats)] }");
 
 	let runtime = NuRuntime::load(temp.path()).expect("runtime should load");
 	let err = runtime
@@ -95,7 +95,7 @@ fn decode_limits_cap_invocation_count() {
 #[test]
 fn run_allows_use_within_config_root() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
-	std::fs::write(temp.path().join("mod.nu"), "export def mk [] { editor stats }").expect("module should be writable");
+	std::fs::write(temp.path().join("mod.nu"), "export def mk [] { xeno emit editor stats }").expect("module should be writable");
 	write_script(temp.path(), "use mod.nu *\nexport def go [] { mk }");
 
 	let runtime = NuRuntime::load(temp.path()).expect("runtime should load");
@@ -106,7 +106,7 @@ fn run_allows_use_within_config_root() {
 #[test]
 fn try_run_returns_none_for_missing_function() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
-	write_script(temp.path(), "export def known [] { editor stats }");
+	write_script(temp.path(), "export def known [] { xeno emit editor stats }");
 
 	let runtime = NuRuntime::load(temp.path()).expect("runtime should load");
 	let missing = runtime.try_run_invocations("missing", &[]).expect("missing function should be non-fatal");
@@ -116,7 +116,7 @@ fn try_run_returns_none_for_missing_function() {
 #[test]
 fn find_script_decl_rejects_builtins() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
-	write_script(temp.path(), "export def go [] { editor stats }");
+	write_script(temp.path(), "export def go [] { xeno emit editor stats }");
 
 	let runtime = NuRuntime::load(temp.path()).expect("runtime should load");
 	assert!(runtime.find_script_decl("go").is_some());
@@ -127,7 +127,7 @@ fn find_script_decl_rejects_builtins() {
 #[test]
 fn run_rejects_builtin_decls() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
-	write_script(temp.path(), "export def go [] { editor stats }");
+	write_script(temp.path(), "export def go [] { xeno emit editor stats }");
 
 	let runtime = NuRuntime::load(temp.path()).expect("runtime should load");
 
@@ -172,7 +172,7 @@ fn load_rejects_export_extern_top_level() {
 #[test]
 fn load_allows_const_used_by_macro() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
-	write_script(temp.path(), "const CMD = \"stats\"\nexport def go [] { editor $CMD }");
+	write_script(temp.path(), "const CMD = \"stats\"\nexport def go [] { xeno emit editor $CMD }");
 
 	let runtime = NuRuntime::load(temp.path()).expect("runtime should load");
 	let invocations = runtime.run_invocations("go", &[]).expect("run should succeed");

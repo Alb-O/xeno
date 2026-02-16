@@ -39,8 +39,8 @@
 //! Conversions: `into int`, `into bool`, `into string` (simple column mode
 //! supported)
 //!
-//! Builtins (from `commands/`): `action`, `command`, `editor`, `nu run`,
-//! `xeno assert` (validation gate; errors abort evaluation), `xeno ctx`,
+//! Builtins (from `commands/`): `xeno call`, `xeno assert`
+//! (validation gate; errors abort evaluation), `xeno ctx`,
 //! `xeno emit` (validated invocation record constructor; preferred over
 //! manual record literals), `xeno emit-many` (bulk validate/normalize a list
 //! of invocation records), `xeno is-invocation` (predicate: true if input
@@ -206,10 +206,7 @@ pub(crate) fn parse_and_validate_with_policy(
 }
 
 const RESERVED_COMMAND_NAMES: &[&str] = &[
-	"action",
-	"command",
-	"editor",
-	"nu run",
+	"xeno call",
 	"xeno assert",
 	"xeno ctx",
 	"xeno emit",

@@ -2,7 +2,7 @@ use std::time::{Duration, Instant};
 
 use tracing::{debug, warn};
 use xeno_invocation::nu::DecodeLimits;
-use xeno_nu_runtime::FunctionId;
+use xeno_nu_runtime::ExportId;
 use xeno_nu_value::Value;
 
 use super::state::NuCoordinatorState;
@@ -43,7 +43,7 @@ pub(crate) async fn execute_with_restart(
 	nu: &mut NuCoordinatorState,
 	kind: NuExecKind,
 	fn_name: &str,
-	decl_id: FunctionId,
+	decl_id: ExportId,
 	args: Vec<String>,
 	limits: DecodeLimits,
 	nu_ctx: Value,

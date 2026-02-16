@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 pub use xeno_invocation::nu::{DecodeLimits, decode_runtime_invocations_with_limits};
-use xeno_nu_runtime::{FunctionId, Runtime as ScriptRuntime};
+use xeno_nu_runtime::{ExportId, NuProgram};
 use xeno_nu_value::Value;
 
 use crate::types::Invocation;
@@ -17,11 +17,11 @@ use crate::types::Invocation;
 /// Cached function IDs for hook functions, populated once when the runtime is set.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct CachedHookIds {
-	pub on_action_post: Option<FunctionId>,
-	pub on_command_post: Option<FunctionId>,
-	pub on_editor_command_post: Option<FunctionId>,
-	pub on_mode_change: Option<FunctionId>,
-	pub on_buffer_open: Option<FunctionId>,
+	pub on_action_post: Option<ExportId>,
+	pub on_command_post: Option<ExportId>,
+	pub on_editor_command_post: Option<ExportId>,
+	pub on_mode_change: Option<ExportId>,
+	pub on_buffer_open: Option<ExportId>,
 }
 
 /// Hook function identifiers used to select a cached function ID.
@@ -53,7 +53,7 @@ const SLOW_CALL_THRESHOLD: Duration = Duration::from_millis(5);
 pub struct NuRuntime {
 	config_dir: PathBuf,
 	script_path: PathBuf,
-	runtime: ScriptRuntime,
+	program: NuProgram,
 }
 
 impl std::fmt::Debug for NuRuntime {
@@ -68,12 +68,12 @@ impl std::fmt::Debug for NuRuntime {
 impl NuRuntime {
 	/// Load and validate the `xeno.nu` script from the given config directory.
 	pub fn load(config_dir: &Path) -> Result<Self, String> {
-		let runtime = ScriptRuntime::load(config_dir)?;
-		let script_path = runtime.script_path().to_path_buf();
+		let program = NuProgram::compile_macro_from_dir(config_dir).map_err(|error| error.to_string())?;
+		let script_path = program.script_path().to_path_buf();
 		Ok(Self {
 			config_dir: config_dir.to_path_buf(),
 			script_path,
-			runtime,
+			program,
 		})
 	}
 
@@ -136,14 +136,14 @@ impl NuRuntime {
 
 	/// Look up a script-defined declaration by name. Returns `None` for
 	/// missing functions and builtins.
-	pub fn find_script_decl(&self, name: &str) -> Option<FunctionId> {
-		self.runtime.resolve_function(name)
+	pub fn find_script_decl(&self, name: &str) -> Option<ExportId> {
+		self.program.resolve_export(name)
 	}
 
 	/// Run a pre-resolved declaration and decode into invocations.
 	pub fn run_invocations_by_decl_id(
 		&self,
-		decl_id: FunctionId,
+		decl_id: ExportId,
 		args: &[String],
 		limits: DecodeLimits,
 		env: &[(&str, Value)],
@@ -155,13 +155,13 @@ impl NuRuntime {
 	/// Run a pre-resolved declaration with owned args/env (zero-clone hot path).
 	pub fn run_invocations_by_decl_id_owned(
 		&self,
-		decl_id: FunctionId,
+		decl_id: ExportId,
 		args: Vec<String>,
 		limits: DecodeLimits,
 		env: Vec<(String, Value)>,
 	) -> Result<Vec<Invocation>, String> {
 		let start = Instant::now();
-		let value = self.runtime.call_owned(decl_id, args, env)?;
+		let value = self.program.call_export_owned(decl_id, args, env).map_err(|error| error.to_string())?;
 		let elapsed = start.elapsed();
 		if elapsed > SLOW_CALL_THRESHOLD {
 			tracing::debug!(elapsed_ms = elapsed.as_millis() as u64, "slow Nu call");
@@ -169,9 +169,9 @@ impl NuRuntime {
 		decode_runtime_invocations_with_limits(value, limits)
 	}
 
-	fn call_by_decl_id(&self, decl_id: FunctionId, args: &[String], env: &[(&str, Value)]) -> Result<Value, String> {
+	fn call_by_decl_id(&self, decl_id: ExportId, args: &[String], env: &[(&str, Value)]) -> Result<Value, String> {
 		let start = Instant::now();
-		let value = self.runtime.call(decl_id, args, env)?;
+		let value = self.program.call_export(decl_id, args, env).map_err(|error| error.to_string())?;
 		let elapsed = start.elapsed();
 		if elapsed > SLOW_CALL_THRESHOLD {
 			tracing::debug!(elapsed_ms = elapsed.as_millis() as u64, "slow Nu call");
@@ -183,11 +183,14 @@ impl NuRuntime {
 		let start = Instant::now();
 
 		let decl_id = self
-			.runtime
-			.resolve_function(fn_name)
+			.program
+			.resolve_export(fn_name)
 			.ok_or_else(|| NuRunError::MissingFunction(fn_name.to_string()))?;
 
-		let value = self.runtime.call(decl_id, args, env).map_err(NuRunError::Other)?;
+		let value = self
+			.program
+			.call_export(decl_id, args, env)
+			.map_err(|error| NuRunError::Other(error.to_string()))?;
 
 		let elapsed = start.elapsed();
 		if elapsed > SLOW_CALL_THRESHOLD {

@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use xeno_nu_runtime::FunctionId;
+use xeno_nu_runtime::ExportId;
 
 use crate::nu::executor::NuExecutor;
 use crate::nu::{CachedHookIds, NuHook, NuRuntime};
@@ -139,7 +139,7 @@ impl NuCoordinatorState {
 		self.executor.as_ref().map(NuExecutor::client)
 	}
 
-	pub(crate) fn hook_decl(&self, hook: NuHook) -> Option<FunctionId> {
+	pub(crate) fn hook_decl(&self, hook: NuHook) -> Option<ExportId> {
 		match hook {
 			NuHook::ActionPost => self.hook_ids.on_action_post,
 			NuHook::CommandPost => self.hook_ids.on_command_post,

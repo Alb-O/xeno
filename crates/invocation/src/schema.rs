@@ -114,6 +114,9 @@ pub fn validate_invocation_record(rec: &Record, idx: Option<usize>, limits: &Inv
 	match kind.as_str() {
 		KIND_ACTION => {
 			let count = val_optional_int(rec, COUNT, idx)?.map(|c| c.max(1)).unwrap_or(1);
+			if count as usize > limits.max_action_count {
+				return Err(val_err(idx, COUNT, &format!("exceeds {}", limits.max_action_count)));
+			}
 			let extend = val_optional_bool(rec, EXTEND, idx)?.unwrap_or(false);
 			let register = val_optional_char(rec, REGISTER, idx)?;
 			let char_arg = val_optional_char(rec, CHAR, idx)?;
@@ -131,6 +134,7 @@ pub fn validate_invocation_record(rec: &Record, idx: Option<usize>, limits: &Inv
 	}
 }
 
+#[cfg(feature = "nu")]
 fn val_err(idx: Option<usize>, field: &str, msg: &str) -> String {
 	match idx {
 		Some(i) => format!("items[{i}].{field}: {msg}"),

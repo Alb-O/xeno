@@ -346,7 +346,7 @@ fn command_error_propagates() {
 #[tokio::test]
 async fn nu_macro_recursion_depth_guard_trips() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
-	std::fs::write(temp.path().join("xeno.nu"), "export def recur [] { nu run recur }").expect("xeno.nu should be writable");
+	std::fs::write(temp.path().join("xeno.nu"), "export def recur [] { xeno call recur }").expect("xeno.nu should be writable");
 
 	let runtime = crate::nu::NuRuntime::load(temp.path()).expect("runtime should load");
 	let mut editor = Editor::new_scratch();
@@ -375,7 +375,7 @@ async fn nu_macro_ctx_is_injected() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
 	std::fs::write(
 		temp.path().join("xeno.nu"),
-		"export def go [] { let ctx = (xeno ctx); if $ctx.kind == \"macro\" { (action invocation_test_action) } else { (action does-not-exist) } }",
+		"export def go [] { let ctx = (xeno ctx); if $ctx.kind == \"macro\" { (xeno emit action invocation_test_action) } else { (xeno emit action does-not-exist) } }",
 	)
 	.expect("xeno.nu should be writable");
 
@@ -404,7 +404,7 @@ async fn nu_hook_ctx_is_injected() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
 	std::fs::write(
 		temp.path().join("xeno.nu"),
-		"export def on_action_post [name result] { if $env.XENO_CTX.kind == \"hook\" { (action invocation_test_action) } else { (action does-not-exist) } }",
+		"export def on_action_post [name result] { if $env.XENO_CTX.kind == \"hook\" { (xeno emit action invocation_test_action) } else { (xeno emit action does-not-exist) } }",
 	)
 	.expect("xeno.nu should be writable");
 
@@ -434,7 +434,7 @@ async fn nu_runtime_reload_swaps_executor_and_disables_old_runtime_hooks() {
 		temp_a.path().join("xeno.nu"),
 		"export def on_action_post [name result] {\n\
 			if $name == \"invocation_edit_action\" and $result == \"ok\" {\n\
-				(action invocation_test_action)\n\
+				(xeno emit action invocation_test_action)\n\
 			}\n\
 		}",
 	)
@@ -445,7 +445,7 @@ async fn nu_runtime_reload_swaps_executor_and_disables_old_runtime_hooks() {
 		temp_b.path().join("xeno.nu"),
 		"export def on_action_post [name result] {\n\
 			if $name == \"invocation_edit_action\" and $result == \"ok\" {\n\
-				(action invocation_test_action_alt)\n\
+				(xeno emit action invocation_test_action_alt)\n\
 			}\n\
 		}",
 	)
@@ -516,7 +516,7 @@ async fn command_post_hook_runs_and_receives_args() {
 		// Hook fires invocation_test_action only when it receives the expected args.
 		"export def on_command_post [name result ...args] {\n\
 			if $name == \"invocation_test_command_fail\" and $result == \"error\" {\n\
-				(action invocation_test_action)\n\
+				(xeno emit action invocation_test_action)\n\
 			}\n\
 		}",
 	)
@@ -551,7 +551,7 @@ async fn editor_command_post_hook_runs() {
 		temp.path().join("xeno.nu"),
 		"export def on_editor_command_post [name result ...args] {\n\
 			if $name == \"stats\" and $result == \"ok\" {\n\
-				(action invocation_test_action)\n\
+				(xeno emit action invocation_test_action)\n\
 			}\n\
 		}",
 	)
@@ -584,7 +584,7 @@ async fn mode_change_hook_runs_on_transition() {
 		temp.path().join("xeno.nu"),
 		"export def on_mode_change [from to] {\n\
 			if $from == \"Normal\" and $to == \"Insert\" {\n\
-				(action invocation_test_action)\n\
+				(xeno emit action invocation_test_action)\n\
 			}\n\
 		}",
 	)
@@ -615,7 +615,7 @@ async fn mode_change_hook_does_not_run_for_non_matching_transition() {
 		temp.path().join("xeno.nu"),
 		"export def on_mode_change [from to] {\n\
 			if $from == \"Normal\" and $to == \"Insert\" {\n\
-				(action invocation_test_action)\n\
+				(xeno emit action invocation_test_action)\n\
 			}\n\
 		}",
 	)
@@ -643,7 +643,7 @@ async fn mode_change_hook_fires_on_insert_key() {
 		temp.path().join("xeno.nu"),
 		"export def on_mode_change [from to] {\n\
 			if $from == \"Normal\" and $to == \"Insert\" and $env.XENO_CTX.mode == \"Insert\" {\n\
-				(action invocation_test_action)\n\
+				(xeno emit action invocation_test_action)\n\
 			}\n\
 		}",
 	)
@@ -677,7 +677,7 @@ async fn mode_change_hook_does_not_fire_when_mode_unchanged() {
 		temp.path().join("xeno.nu"),
 		// Unconditional — fires for any mode change, so if guard fails we catch it.
 		"export def on_mode_change [from to] {\n\
-			(action invocation_test_action)\n\
+			(xeno emit action invocation_test_action)\n\
 		}",
 	)
 	.expect("xeno.nu should be writable");
@@ -710,7 +710,7 @@ async fn buffer_open_hook_fires_on_disk_open() {
 		r#"export def "str ends-with" [suffix: string] { $in ends-with $suffix }
 export def on_buffer_open [path kind] {
   if ($path | str ends-with "test.txt") and $kind == "disk" {
-    (action invocation_test_action)
+    (xeno emit action invocation_test_action)
   }
 }"#,
 	)
@@ -749,7 +749,7 @@ async fn buffer_open_hook_fires_for_existing_switch() {
 		nu_dir.path().join("xeno.nu"),
 		r#"export def on_buffer_open [path kind] {
   if $kind == "existing" {
-    (action invocation_test_action)
+    (xeno emit action invocation_test_action)
   }
 }"#,
 	)
@@ -802,7 +802,7 @@ async fn nu_macro_respects_configured_decode_limits() {
 	std::fs::write(
 		temp.path().join("xeno.nu"),
 		// Returns 2 invocations — should exceed max_invocations=1
-		"export def go [] { [(action invocation_test_action), (action invocation_test_action)] }",
+		"export def go [] { [(xeno emit action invocation_test_action), (xeno emit action invocation_test_action)] }",
 	)
 	.expect("xeno.nu should be writable");
 
@@ -840,7 +840,7 @@ async fn nu_stats_reflect_hook_pipeline_state() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
 	std::fs::write(
 		temp.path().join("xeno.nu"),
-		"export def on_action_post [name result] { action invocation_test_action }",
+		"export def on_action_post [name result] { xeno emit action invocation_test_action }",
 	)
 	.expect("xeno.nu should be writable");
 

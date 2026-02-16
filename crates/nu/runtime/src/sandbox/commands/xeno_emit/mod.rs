@@ -1,7 +1,7 @@
 use xeno_invocation::schema;
 use xeno_nu_engine::CallExt;
 use xeno_nu_protocol::engine::{Call, Command, EngineState, Stack};
-use xeno_nu_protocol::{Category, PipelineData, ShellError, Signature, SyntaxShape, Type};
+use xeno_nu_protocol::{Category, PipelineData, Record, ShellError, Signature, SyntaxShape, Type, Value};
 
 #[derive(Clone)]
 pub struct XenoEmitCommand;
@@ -47,45 +47,32 @@ impl Command for XenoEmitCommand {
 			});
 		}
 
-		let record = match kind.as_str() {
+		let mut rec = Record::new();
+		rec.push(schema::KIND, Value::string(kind.clone(), span));
+		rec.push(schema::NAME, Value::string(name, span));
+
+		match kind.as_str() {
 			schema::KIND_ACTION => {
 				let count: Option<i64> = call.get_flag(engine_state, stack, "count")?;
 				let extend = call.has_flag(engine_state, stack, "extend")?;
 				let register: Option<String> = call.get_flag(engine_state, stack, "register")?;
 				let char_arg: Option<String> = call.get_flag(engine_state, stack, "char")?;
-				let count = count.map(|c| c.max(1)).unwrap_or(1);
-				let register = super::parse_single_char(register, "register", span)?;
-				let char_arg = super::parse_single_char(char_arg, "char", span)?;
-				schema::action_record(name, count, extend, register, char_arg, span)
+				if let Some(count) = count {
+					rec.push(schema::COUNT, Value::int(count, span));
+				}
+				if extend {
+					rec.push(schema::EXTEND, Value::bool(true, span));
+				}
+				if let Some(register) = register {
+					rec.push(schema::REGISTER, Value::string(register, span));
+				}
+				if let Some(char_arg) = char_arg {
+					rec.push(schema::CHAR, Value::string(char_arg, span));
+				}
 			}
 			schema::KIND_COMMAND | schema::KIND_EDITOR | schema::KIND_NU => {
-				let limits = &schema::DEFAULT_LIMITS;
 				let args: Vec<String> = call.rest(engine_state, stack, 2)?;
-				if args.len() > limits.max_args {
-					return Err(ShellError::GenericError {
-						error: format!("xeno emit: too many args ({}, max {})", args.len(), limits.max_args),
-						msg: "too many arguments".into(),
-						span: Some(span),
-						help: None,
-						inner: vec![],
-					});
-				}
-				for (i, arg) in args.iter().enumerate() {
-					if arg.len() > limits.max_string_len {
-						return Err(ShellError::GenericError {
-							error: format!("xeno emit: arg[{i}] exceeds {} bytes", limits.max_string_len),
-							msg: "argument too long".into(),
-							span: Some(span),
-							help: None,
-							inner: vec![],
-						});
-					}
-				}
-				match kind.as_str() {
-					schema::KIND_COMMAND => schema::command_record(name, args, span),
-					schema::KIND_EDITOR => schema::editor_record(name, args, span),
-					_ => schema::nu_record(name, args, span),
-				}
+				rec.push(schema::ARGS, Value::list(args.into_iter().map(|arg| Value::string(arg, span)).collect(), span));
 			}
 			other => {
 				return Err(ShellError::GenericError {
@@ -96,9 +83,17 @@ impl Command for XenoEmitCommand {
 					inner: vec![],
 				});
 			}
-		};
+		}
 
-		Ok(PipelineData::Value(record, None))
+		let normalized = schema::validate_invocation_record(&rec, None, &schema::DEFAULT_LIMITS, span).map_err(|msg| ShellError::GenericError {
+			error: format!("xeno emit: {msg}"),
+			msg: msg.clone(),
+			span: Some(span),
+			help: None,
+			inner: vec![],
+		})?;
+
+		Ok(PipelineData::Value(normalized, None))
 	}
 }
 

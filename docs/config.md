@@ -36,34 +36,33 @@ Xeno can run user-defined Nu macro functions from `~/.config/xeno/xeno.nu`.
 `nu-run` expects the function to return one of:
 
 * `null` / nothing: no-op (returns success)
-* a single invocation (from a built-in command)
+* a single invocation record
 * a list of invocations and/or nothing values
 
-Records and strings are **not** accepted as runtime return values. Use the built-in commands below.
+String return values are not accepted. Prefer `xeno emit`/`xeno emit-many` to construct validated invocation records.
 
 ### Built-in commands
 
 Xeno registers native commands into every engine state. No `use` statement needed:
 
-* `action <name> [--count N] [--extend] [--register R] [--char C]` — action invocation
-* `command <name> [...args]` — registry command invocation
-* `editor <name> [...args]` — editor command invocation
-* `"nu run" <name> [...args]` — Nu macro invocation (for chaining)
+* `xeno emit <kind> <name> [...args] [--count N] [--extend] [--register R] [--char C]` — validated invocation constructor
+* `xeno emit-many` — validate/normalize a record or list of invocation records
+* `xeno call <name> [...args]` — Nu macro invocation (for chaining)
 * `xeno ctx` — returns the current invocation context (same as `$env.XENO_CTX`, or `nothing` if not set)
 
 Examples:
 
 ```nu
 export def save-and-format [] {
-  [(command write), (command format)]
+  [(xeno emit command write), (xeno emit command format)]
 }
 export def move-down-5 [] {
-  action move_down --count 5
+  xeno emit action move_down --count 5
 }
 export def context-aware [] {
   let ctx = (xeno ctx)
   if $ctx.mode == "Insert" {
-    action normal_mode
+    xeno emit action normal_mode
   }
 }
 ```
@@ -202,7 +201,7 @@ Binding values may be:
 
 * string spec: `"command:write"`, `"editor:quit"`, `"nu:go fast"`
 * record: `{ kind: "command", name: "write" }`
-* custom value (`config.nu` only): `(command write)`
+* custom value (`config.nu` only): `(xeno emit command write)`
 
 Example using string specs:
 
@@ -264,7 +263,7 @@ Depending on syntax and parse stage, failures can surface as either:
 ### `config.nu`
 
 ```nu
-# config.nu — built-in commands are available (action, command, editor, "nu run", "xeno ctx")
+# config.nu — built-in commands are available (xeno emit, xeno emit-many, xeno call, xeno ctx)
 {
   options: {
     tab-width: 4,
@@ -272,9 +271,9 @@ Depending on syntax and parse stage, failures can surface as either:
   },
   keys: {
     normal: {
-      "ctrl+s": (command write),
-      "ctrl+q": (editor quit),
-      "g r": (editor reload_config),
+      "ctrl+s": (xeno emit command write),
+      "ctrl+q": (xeno emit editor quit),
+      "g r": (xeno emit editor reload_config),
     }
   }
 }
