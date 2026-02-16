@@ -567,38 +567,74 @@ pub(crate) fn test_palette_usage_recency_orders_empty_query() {
 	assert_eq!(first, cmd_name);
 }
 
-/// Must commit the currently selected command when cursor is in command-name token.
+/// Must prefer exact typed command resolution over selected completion when both are available.
 ///
-/// * Enforced in: `crate::overlay::controllers::command_palette::CommandPaletteOverlay::on_commit`
-/// * Failure symptom: Executed command differs from visible selection in completion list.
+/// * Enforced in: `crate::overlay::controllers::command_palette::CommandPaletteOverlay::resolve_command_name_for_commit`
+/// * Failure symptom: Enter executes a different command than the exact text the user entered.
 #[cfg_attr(test, test)]
-pub(crate) fn test_palette_commit_uses_selected_command_in_command_token() {
-	let query = xeno_registry::commands::COMMANDS
-		.snapshot_guard()
-		.iter_refs()
-		.next()
-		.and_then(|cmd| cmd.name_str().chars().next())
-		.map(|ch| ch.to_ascii_lowercase().to_string())
-		.expect("registry should contain at least one command");
-
+pub(crate) fn test_palette_commit_prefers_typed_resolved_command() {
 	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(120, 40);
 	assert!(editor.open_command_palette());
 
-	palette_set_input(&mut editor, &query, query.chars().count());
-	let selected = editor
-		.overlays()
-		.get::<crate::completion::CompletionState>()
-		.and_then(|state| state.selected_idx.and_then(|idx| state.items.get(idx)))
-		.map(|item| item.label.clone())
-		.expect("palette should have an auto-selected command");
+	palette_set_input(&mut editor, "write", 5);
+	let state = editor.overlays_mut().get_or_default::<crate::completion::CompletionState>();
+	state.active = true;
+	state.items = vec![crate::completion::CompletionItem {
+		label: "quit".to_string(),
+		insert_text: "quit".to_string(),
+		detail: None,
+		filter_text: None,
+		kind: crate::completion::CompletionKind::Command,
+		match_indices: None,
+		right: None,
+	}];
+	state.selected_idx = Some(0);
+	state.selection_intent = crate::completion::SelectionIntent::Manual;
 
 	with_interaction(&mut editor, |interaction, ed| {
 		futures::executor::block_on(interaction.commit(ed));
 	});
 
-	let usage = editor.state.command_usage.snapshot();
-	assert!(usage.count(&selected) > 0, "selected command should be recorded as used");
+	let commands = drain_queued_commands(&mut editor);
+	assert_eq!(commands.len(), 1);
+	assert_eq!(commands[0].name, "write");
+}
+
+/// Must fall back to selected command completion when typed command is unresolved.
+///
+/// * Enforced in: `crate::overlay::controllers::command_palette::CommandPaletteOverlay::resolve_command_name_for_commit`
+/// * Failure symptom: Enter on incomplete command emits unknown-command error instead of accepting active completion.
+#[cfg_attr(test, test)]
+pub(crate) fn test_palette_commit_falls_back_to_selected_command_when_unresolved() {
+	let mut editor = crate::Editor::new_scratch();
+	editor.handle_window_resize(120, 40);
+	assert!(editor.open_command_palette());
+
+	palette_set_input(&mut editor, "wri", 3);
+	let state = editor.overlays_mut().get_or_default::<crate::completion::CompletionState>();
+	state.active = true;
+	state.items = vec![crate::completion::CompletionItem {
+		label: "write".to_string(),
+		insert_text: "write".to_string(),
+		detail: None,
+		filter_text: None,
+		kind: crate::completion::CompletionKind::Command,
+		match_indices: None,
+		right: None,
+	}];
+	state.selected_idx = Some(0);
+	state.selection_intent = crate::completion::SelectionIntent::Manual;
+
+	with_interaction(&mut editor, |interaction, ed| {
+		futures::executor::block_on(interaction.commit(ed));
+	});
+
+	let commands = drain_queued_commands(&mut editor);
+	assert_eq!(commands.len(), 1);
+	assert_eq!(commands[0].name, "write");
+	let notifications = editor.take_notification_render_items();
+	assert!(notifications.is_empty(), "fallback completion should avoid unknown-command notifications");
 }
 
 /// Must preserve quoted argument token boundaries on command commit.

@@ -437,6 +437,38 @@ impl CommandPaletteOverlay {
 		}
 	}
 
+	fn selected_completion_item(ctx: &dyn OverlayContext) -> Option<CompletionItem> {
+		ctx.completion_state()
+			.and_then(|state| {
+				if !state.active {
+					return None;
+				}
+				state.selected_idx.and_then(|idx| state.items.get(idx)).or_else(|| state.items.first())
+			})
+			.cloned()
+	}
+
+	fn command_resolves(command_name: &str) -> bool {
+		crate::commands::find_editor_command(command_name).is_some() || xeno_registry::commands::find_command(command_name).is_some()
+	}
+
+	fn resolve_command_name_for_commit(typed_name: &str, token_index: usize, selected_item: Option<&CompletionItem>) -> String {
+		if Self::command_resolves(typed_name) {
+			return typed_name.to_string();
+		}
+
+		if token_index == 0
+			&& let Some(item) = selected_item
+			&& item.kind == CompletionKind::Command
+			&& !item.insert_text.is_empty()
+			&& Self::command_resolves(&item.insert_text)
+		{
+			return item.insert_text.clone();
+		}
+
+		typed_name.to_string()
+	}
+
 	fn build_snippet_items(query: &str) -> Vec<CompletionItem> {
 		let query = query.trim();
 		let query = query.strip_prefix('@').unwrap_or(query);
@@ -710,11 +742,7 @@ impl CommandPaletteOverlay {
 	}
 
 	fn accept_tab_completion(&mut self, ctx: &mut dyn OverlayContext, session: &mut OverlaySession) -> bool {
-		let mut selected = ctx
-			.completion_state()
-			.and_then(|state| state.selected_idx.and_then(|idx| state.items.get(idx)).or_else(|| state.items.first()))
-			.cloned();
-		let Some(mut selected_item) = selected.take() else {
+		let Some(mut selected_item) = Self::selected_completion_item(ctx) else {
 			return true;
 		};
 
@@ -725,11 +753,7 @@ impl CommandPaletteOverlay {
 
 		if current_replacement == selected_item.insert_text {
 			let _ = self.move_selection(ctx, 1);
-			if let Some(next) = ctx
-				.completion_state()
-				.and_then(|state| state.selected_idx.and_then(|idx| state.items.get(idx)).or_else(|| state.items.first()))
-				.cloned()
-			{
+			if let Some(next) = Self::selected_completion_item(ctx) {
 				selected_item = next;
 			}
 		}
@@ -857,16 +881,8 @@ impl OverlayController for CommandPaletteOverlay {
 					.map(|tok| chars[tok.content_start..tok.content_end].iter().collect())
 					.collect();
 				let token = Self::token_context(&input, Self::char_count(&input));
-				let mut command_name = typed_name;
-
-				if token.token_index == 0
-					&& let Some(state) = ctx.completion_state()
-					&& state.active && let Some(item) = state.selected_idx.and_then(|idx| state.items.get(idx)).or_else(|| state.items.first())
-					&& item.kind == CompletionKind::Command
-					&& !item.insert_text.is_empty()
-				{
-					command_name = item.insert_text.clone();
-				}
+				let selected_item = Self::selected_completion_item(ctx);
+				let command_name = Self::resolve_command_name_for_commit(&typed_name, token.token_index, selected_item.as_ref());
 
 				if let Some(cmd) = crate::commands::find_editor_command(&command_name) {
 					ctx.queue_command(cmd.name, args);
