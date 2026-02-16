@@ -243,7 +243,7 @@ fn add_prelude_removal_hint(error: &str) -> String {
 		format!(
 			"{error}\n\nHint: the built-in `xeno` prelude module was removed. \
 \t\t Delete `use xeno *` and call built-in commands directly: \
-\t\t xeno emit, xeno emit-many, xeno call, xeno ctx."
+\t\t xeno effect, xeno effects normalize, xeno call, xeno ctx."
 		)
 	} else {
 		error.to_string()

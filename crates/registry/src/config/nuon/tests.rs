@@ -103,41 +103,55 @@ popup: {
 }
 
 #[test]
-fn parse_config_nu_decode_limits() {
+fn parse_config_nu_budget_and_capabilities() {
 	let input = r#"{
 		nu: {
-			decode: {
-				macro: { max_invocations: 512, max_nodes: 100000 },
-				hook: { max_invocations: 16 }
+			budget: {
+				macro: { max_effects: 512, max_nodes: 100000 },
+				hook: { max_effects: 16 }
+			},
+			capabilities: {
+				macro: ["dispatch_action", "notify"],
+				hook: ["dispatch_action", "stop_propagation"]
 			}
 		}
 	}"#;
-	let config = parse_config_str(input).expect("nu decode config should parse");
+	let config = parse_config_str(input).expect("nu config should parse");
 	let nu = config.nu.expect("nu config should be present");
-	let macro_limits = nu.decode_macro.expect("macro limits should be present");
-	assert_eq!(macro_limits.max_invocations, Some(512));
-	assert_eq!(macro_limits.max_nodes, Some(100000));
+	let macro_budget = nu.budget_macro.expect("macro budget should be present");
+	assert_eq!(macro_budget.max_effects, Some(512));
+	assert_eq!(macro_budget.max_nodes, Some(100000));
 
-	let hook_limits = nu.decode_hook.expect("hook limits should be present");
-	assert_eq!(hook_limits.max_invocations, Some(16));
-	assert_eq!(hook_limits.max_nodes, None);
+	let hook_budget = nu.budget_hook.expect("hook budget should be present");
+	assert_eq!(hook_budget.max_effects, Some(16));
+	assert_eq!(hook_budget.max_nodes, None);
+	assert!(
+		nu.capabilities_macro
+			.expect("macro caps should be present")
+			.contains(&xeno_invocation::nu::NuCapability::Notify)
+	);
+	assert!(
+		nu.capabilities_hook
+			.expect("hook caps should be present")
+			.contains(&xeno_invocation::nu::NuCapability::StopPropagation)
+	);
 }
 
 #[test]
-fn parse_config_nu_decode_limits_apply() {
-	let overrides = super::super::DecodeLimitOverrides {
-		max_invocations: Some(10),
+fn parse_config_nu_budget_apply() {
+	let overrides = super::super::DecodeBudgetOverrides {
+		max_effects: Some(10),
 		..Default::default()
 	};
-	let base = xeno_invocation::nu::DecodeLimits::macro_defaults();
+	let base = xeno_invocation::nu::DecodeBudget::macro_defaults();
 	let applied = overrides.apply(base);
-	assert_eq!(applied.max_invocations, 10);
+	assert_eq!(applied.max_effects, 10);
 	assert_eq!(applied.max_nodes, base.max_nodes);
 }
 
 #[test]
-fn parse_config_nu_rejects_unknown_decode_field() {
-	let input = r#"{ nu: { decode: { macro: { bogus: 1 } } } }"#;
+fn parse_config_nu_rejects_unknown_budget_field() {
+	let input = r#"{ nu: { budget: { macro: { bogus: 1 } } } }"#;
 	let err = parse_config_str(input).expect_err("unknown field should fail");
 	assert!(matches!(err, super::super::ConfigError::UnknownField(f) if f.contains("bogus")));
 }

@@ -36,17 +36,19 @@ Xeno can run user-defined Nu macro functions from `~/.config/xeno/xeno.nu`.
 `nu-run` expects the function to return one of:
 
 * `null` / nothing: no-op (returns success)
-* a single invocation record
-* a list of invocations and/or nothing values
+* a single typed effect record
+* a list of typed effects and/or nothing values
 
-String return values are not accepted. Prefer `xeno emit`/`xeno emit-many` to construct validated invocation records.
+String return values are not accepted. Prefer `xeno effect`/`xeno effects normalize` to construct validated effects.
 
 ### Built-in commands
 
 Xeno registers native commands into every engine state. No `use` statement needed:
 
-* `xeno emit <kind> <name> [...args] [--count N] [--extend] [--register R] [--char C]` — validated invocation constructor
-* `xeno emit-many` — validate/normalize a record or list of invocation records
+* `xeno effect dispatch <kind> <name> [...args] [--count N] [--extend] [--register R] [--char C]` — validated dispatch effect constructor
+* `xeno effect notify <level> <message>` — typed notification effect constructor
+* `xeno effect stop` — stop-propagation effect constructor (hook surface only)
+* `xeno effects normalize` — validate/normalize typed effects
 * `xeno call <name> [...args]` — Nu macro invocation (for chaining)
 * `xeno ctx` — returns the current invocation context (same as `$env.XENO_CTX`, or `nothing` if not set)
 
@@ -54,15 +56,15 @@ Examples:
 
 ```nu
 export def save-and-format [] {
-  [(xeno emit command write), (xeno emit command format)]
+  [(xeno effect dispatch command write), (xeno effect dispatch command format)]
 }
 export def move-down-5 [] {
-  xeno emit action move_down --count 5
+  xeno effect dispatch action move_down --count 5
 }
 export def context-aware [] {
   let ctx = (xeno ctx)
   if $ctx.mode == "Insert" {
-    xeno emit action normal_mode
+    xeno effect dispatch action normal_mode
   }
 }
 ```
@@ -138,8 +140,8 @@ Field semantics for `$env.XENO_CTX`:
 
 Return values from macros and hooks are decoded with safety limits:
 
-* max invocations: 256 (macros), 32 (hooks)
-* max args per invocation: 64
+* max effects: 256 (macros), 32 (hooks)
+* max args per dispatch effect: 64
 * max string length: 4096
 * max nodes visited: 50,000 (macros), 5,000 (hooks)
 
@@ -156,6 +158,26 @@ Top-level fields:
 - `options`: global option overrides
 - `languages`: per-language option overrides
 - `keys`: keymap overrides
+- `nu`: optional Nu runtime policy (decode budget + capabilities)
+
+### `nu`
+
+Optional Nu runtime policy overrides:
+
+* `budget.macro` / `budget.hook`:
+  * `max_effects`
+  * `max_string_len`
+  * `max_args`
+  * `max_action_count`
+  * `max_nodes`
+* `capabilities.macro` / `capabilities.hook`: list of capability tokens
+  * `dispatch_action`
+  * `dispatch_command`
+  * `dispatch_editor_command`
+  * `dispatch_macro`
+  * `notify`
+  * `stop_propagation`
+  * `read_context`
 
 ### `options`
 
@@ -201,7 +223,7 @@ Binding values may be:
 
 * string spec: `"command:write"`, `"editor:quit"`, `"nu:go fast"`
 * record: `{ kind: "command", name: "write" }`
-* custom value (`config.nu` only): `(xeno emit command write)`
+* custom value (`config.nu` only): `(xeno effect dispatch command write)`
 
 Example using string specs:
 
@@ -263,7 +285,7 @@ Depending on syntax and parse stage, failures can surface as either:
 ### `config.nu`
 
 ```nu
-# config.nu — built-in commands are available (xeno emit, xeno emit-many, xeno call, xeno ctx)
+# config.nu — built-in commands are available (xeno effect, xeno effects normalize, xeno call, xeno ctx)
 {
   options: {
     tab-width: 4,
@@ -271,9 +293,9 @@ Depending on syntax and parse stage, failures can surface as either:
   },
   keys: {
     normal: {
-      "ctrl+s": (xeno emit command write),
-      "ctrl+q": (xeno emit editor quit),
-      "g r": (xeno emit editor reload_config),
+      "ctrl+s": (xeno effect dispatch command write),
+      "ctrl+q": (xeno effect dispatch editor quit),
+      "g r": (xeno effect dispatch editor reload_config),
     }
   }
 }

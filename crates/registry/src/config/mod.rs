@@ -3,7 +3,7 @@
 //! This module provides unified configuration structures that are format-neutral.
 //! NUON and Nu script parsing are available behind `config-nuon` and `config-nu`.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 #[cfg(feature = "config-nuon")]
 pub mod utils;
@@ -152,14 +152,14 @@ pub enum ConfigError {
 /// Result type for configuration operations.
 pub type Result<T> = std::result::Result<T, ConfigError>;
 
-/// User-configurable overrides for Nu decode safety limits.
+/// User-configurable overrides for Nu decode safety budgets.
 ///
 /// Each field, when `Some`, overrides the corresponding default in
-/// [`xeno_invocation::nu::DecodeLimits`]. `None` fields keep defaults.
+/// [`xeno_invocation::nu::DecodeBudget`]. `None` fields keep defaults.
 #[cfg(feature = "config-nuon")]
 #[derive(Debug, Clone, Default)]
-pub struct DecodeLimitOverrides {
-	pub max_invocations: Option<usize>,
+pub struct DecodeBudgetOverrides {
+	pub max_effects: Option<usize>,
 	pub max_string_len: Option<usize>,
 	pub max_args: Option<usize>,
 	pub max_action_count: Option<usize>,
@@ -167,11 +167,11 @@ pub struct DecodeLimitOverrides {
 }
 
 #[cfg(feature = "config-nuon")]
-impl DecodeLimitOverrides {
-	/// Apply overrides on top of a base `DecodeLimits`, returning the merged result.
-	pub fn apply(&self, mut base: xeno_invocation::nu::DecodeLimits) -> xeno_invocation::nu::DecodeLimits {
-		if let Some(v) = self.max_invocations {
-			base.max_invocations = v;
+impl DecodeBudgetOverrides {
+	/// Apply overrides on top of a base `DecodeBudget`, returning the merged result.
+	pub fn apply(&self, mut base: xeno_invocation::nu::DecodeBudget) -> xeno_invocation::nu::DecodeBudget {
+		if let Some(v) = self.max_effects {
+			base.max_effects = v;
 		}
 		if let Some(v) = self.max_string_len {
 			base.max_string_len = v;
@@ -193,27 +193,73 @@ impl DecodeLimitOverrides {
 #[cfg(feature = "config-nuon")]
 #[derive(Debug, Clone, Default)]
 pub struct NuConfig {
-	/// Decode limit overrides for macro return values.
-	pub decode_macro: Option<DecodeLimitOverrides>,
-	/// Decode limit overrides for hook return values.
-	pub decode_hook: Option<DecodeLimitOverrides>,
+	/// Decode budget overrides for macro return values.
+	pub budget_macro: Option<DecodeBudgetOverrides>,
+	/// Decode budget overrides for hook return values.
+	pub budget_hook: Option<DecodeBudgetOverrides>,
+	/// Optional macro capability override set.
+	pub capabilities_macro: Option<HashSet<xeno_invocation::nu::NuCapability>>,
+	/// Optional hook capability override set.
+	pub capabilities_hook: Option<HashSet<xeno_invocation::nu::NuCapability>>,
 }
 
 #[cfg(feature = "config-nuon")]
 impl NuConfig {
-	/// Effective macro decode limits (defaults + overrides).
-	pub fn macro_decode_limits(&self) -> xeno_invocation::nu::DecodeLimits {
-		self.decode_macro.as_ref().map_or_else(xeno_invocation::nu::DecodeLimits::macro_defaults, |o| {
-			o.apply(xeno_invocation::nu::DecodeLimits::macro_defaults())
+	/// Effective macro decode budget (defaults + overrides).
+	pub fn macro_decode_budget(&self) -> xeno_invocation::nu::DecodeBudget {
+		self.budget_macro.as_ref().map_or_else(xeno_invocation::nu::DecodeBudget::macro_defaults, |o| {
+			o.apply(xeno_invocation::nu::DecodeBudget::macro_defaults())
 		})
 	}
 
-	/// Effective hook decode limits (defaults + overrides).
-	pub fn hook_decode_limits(&self) -> xeno_invocation::nu::DecodeLimits {
-		self.decode_hook.as_ref().map_or_else(xeno_invocation::nu::DecodeLimits::hook_defaults, |o| {
-			o.apply(xeno_invocation::nu::DecodeLimits::hook_defaults())
+	/// Effective hook decode budget (defaults + overrides).
+	pub fn hook_decode_budget(&self) -> xeno_invocation::nu::DecodeBudget {
+		self.budget_hook.as_ref().map_or_else(xeno_invocation::nu::DecodeBudget::hook_defaults, |o| {
+			o.apply(xeno_invocation::nu::DecodeBudget::hook_defaults())
 		})
 	}
+
+	/// Effective macro capabilities (defaults + optional overrides).
+	pub fn macro_capabilities(&self) -> HashSet<xeno_invocation::nu::NuCapability> {
+		self.capabilities_macro.clone().unwrap_or_else(default_macro_capabilities)
+	}
+
+	/// Effective hook capabilities (defaults + optional overrides).
+	pub fn hook_capabilities(&self) -> HashSet<xeno_invocation::nu::NuCapability> {
+		self.capabilities_hook.clone().unwrap_or_else(default_hook_capabilities)
+	}
+}
+
+#[cfg(feature = "config-nuon")]
+fn default_macro_capabilities() -> HashSet<xeno_invocation::nu::NuCapability> {
+	use xeno_invocation::nu::NuCapability;
+
+	[
+		NuCapability::DispatchAction,
+		NuCapability::DispatchCommand,
+		NuCapability::DispatchEditorCommand,
+		NuCapability::DispatchMacro,
+		NuCapability::Notify,
+		NuCapability::ReadContext,
+	]
+	.into_iter()
+	.collect()
+}
+
+#[cfg(feature = "config-nuon")]
+fn default_hook_capabilities() -> HashSet<xeno_invocation::nu::NuCapability> {
+	use xeno_invocation::nu::NuCapability;
+
+	[
+		NuCapability::DispatchAction,
+		NuCapability::DispatchCommand,
+		NuCapability::DispatchEditorCommand,
+		NuCapability::Notify,
+		NuCapability::StopPropagation,
+		NuCapability::ReadContext,
+	]
+	.into_iter()
+	.collect()
 }
 
 /// Parsed configuration from a config file.
@@ -223,7 +269,7 @@ impl NuConfig {
 pub struct Config {
 	/// Keybinding overrides (unresolved strings).
 	pub keys: Option<UnresolvedKeys>,
-	/// Nu scripting configuration (decode limits, etc.).
+	/// Nu scripting configuration (decode budgets, capabilities).
 	#[cfg(feature = "config-nuon")]
 	pub nu: Option<NuConfig>,
 	/// Global option overrides.

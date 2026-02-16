@@ -1,20 +1,20 @@
 use crate::sandbox::{ParsePolicy, create_engine_state, evaluate_block, find_decl, parse_and_validate, parse_and_validate_with_policy};
 
 #[test]
-fn xeno_emit_many_accepts_single_record() {
+fn xeno_effects_normalize_accepts_single_record() {
 	let mut engine_state = create_engine_state(None).expect("engine state");
-	let source = r#"{kind: "action", name: "move_right"} | xeno emit-many"#;
+	let source = r#"{type: "dispatch", kind: "action", name: "move_right"} | xeno effects normalize"#;
 	let parsed = parse_and_validate(&mut engine_state, "<test>", source, None).expect("should parse");
 	let value = evaluate_block(&engine_state, parsed.block.as_ref()).expect("should evaluate");
 	let list = value.as_list().expect("should be list");
 	assert_eq!(list.len(), 1);
-	assert_eq!(list[0].as_record().unwrap().get("kind").unwrap().as_str().unwrap(), "action");
+	assert_eq!(list[0].as_record().unwrap().get("type").unwrap().as_str().unwrap(), "dispatch");
 }
 
 #[test]
-fn xeno_emit_many_accepts_list_of_records() {
+fn xeno_effects_normalize_accepts_list_of_records() {
 	let mut engine_state = create_engine_state(None).expect("engine state");
-	let source = r#"[{kind: "action", name: "x"}, {kind: "command", name: "y", args: ["a"]}] | xeno emit-many"#;
+	let source = r#"[{type: "dispatch", kind: "action", name: "x"}, {type: "dispatch", kind: "command", name: "y", args: ["a"]}] | xeno effects normalize"#;
 	let parsed = parse_and_validate(&mut engine_state, "<test>", source, None).expect("should parse");
 	let value = evaluate_block(&engine_state, parsed.block.as_ref()).expect("should evaluate");
 	let list = value.as_list().expect("should be list");
@@ -22,9 +22,9 @@ fn xeno_emit_many_accepts_list_of_records() {
 }
 
 #[test]
-fn xeno_emit_many_normalizes_action_defaults() {
+fn xeno_effects_normalize_normalizes_action_defaults() {
 	let mut engine_state = create_engine_state(None).expect("engine state");
-	let source = r#"{kind: "action", name: "x"} | xeno emit-many"#;
+	let source = r#"{type: "dispatch", kind: "action", name: "x"} | xeno effects normalize"#;
 	let parsed = parse_and_validate(&mut engine_state, "<test>", source, None).expect("should parse");
 	let value = evaluate_block(&engine_state, parsed.block.as_ref()).expect("should evaluate");
 	let list = value.as_list().expect("should be list");
@@ -34,38 +34,38 @@ fn xeno_emit_many_normalizes_action_defaults() {
 }
 
 #[test]
-fn xeno_emit_many_rejects_bad_args_type() {
+fn xeno_effects_normalize_rejects_bad_args_type() {
 	let mut engine_state = create_engine_state(None).expect("engine state");
-	let source = r#"{kind: "command", name: "x", args: [1 2]} | xeno emit-many"#;
+	let source = r#"{type: "dispatch", kind: "command", name: "x", args: [1 2]} | xeno effects normalize"#;
 	let parsed = parse_and_validate(&mut engine_state, "<test>", source, None).expect("should parse");
 	let err = evaluate_block(&engine_state, parsed.block.as_ref()).expect_err("should reject int args");
 	assert!(err.contains("string"), "got: {err}");
 }
 
 #[test]
-fn xeno_emit_many_round_trips_through_decoder() {
+fn xeno_effects_normalize_round_trips_through_decoder() {
 	let mut engine_state = create_engine_state(None).expect("engine state");
-	let source = r#"[{kind: "action", name: "x", count: 3}, {kind: "command", name: "y"}] | xeno emit-many"#;
+	let source = r#"[{type: "dispatch", kind: "action", name: "x", count: 3}, {type: "dispatch", kind: "command", name: "y"}] | xeno effects normalize"#;
 	let parsed = parse_and_validate(&mut engine_state, "<test>", source, None).expect("should parse");
 	let value = evaluate_block(&engine_state, parsed.block.as_ref()).expect("should evaluate");
-	let invocations = xeno_invocation::nu::decode_invocations(value).expect("should decode");
-	assert_eq!(invocations.len(), 2);
+	let effects = xeno_invocation::nu::decode_macro_effects(value).expect("should decode");
+	assert_eq!(effects.effects.len(), 2);
 }
 
 #[test]
-fn module_only_rejects_shadowing_xeno_emit_many() {
+fn module_only_rejects_shadowing_xeno_effects_normalize() {
 	let mut engine_state = create_engine_state(None).expect("engine state");
-	let source = r#"export def "xeno emit-many" [] { null }"#;
+	let source = r#"export def "xeno effects normalize" [] { null }"#;
 	let err = parse_and_validate_with_policy(&mut engine_state, "<test>", source, None, ParsePolicy::ModuleOnly)
-		.expect_err("shadowing 'xeno emit-many' should be rejected");
-	assert!(err.contains("reserved") && err.contains("xeno emit-many"), "got: {err}");
+		.expect_err("shadowing 'xeno effects normalize' should be rejected");
+	assert!(err.contains("reserved") && err.contains("xeno effects normalize"), "got: {err}");
 }
 
 #[test]
-fn create_engine_state_registers_xeno_emit_many_command() {
+fn create_engine_state_registers_xeno_effects_normalize_command() {
 	let engine_state = create_engine_state(None).expect("engine state should be created");
 	assert!(
-		find_decl(&engine_state, "xeno emit-many").is_some(),
-		"xeno emit-many command should be registered"
+		find_decl(&engine_state, "xeno effects normalize").is_some(),
+		"xeno effects normalize command should be registered"
 	);
 }

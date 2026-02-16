@@ -1,13 +1,13 @@
 use std::time::{Duration, Instant};
 
 use tracing::{debug, warn};
-use xeno_invocation::nu::DecodeLimits;
+use xeno_invocation::nu::DecodeBudget;
 use xeno_nu_runtime::ExportId;
 use xeno_nu_value::Value;
 
 use super::state::NuCoordinatorState;
 use crate::nu::executor::NuExecError;
-use crate::types::Invocation;
+use crate::nu::{NuDecodeSurface, NuEffectBatch};
 
 const SLOW_NU_HOOK_THRESHOLD: Duration = Duration::from_millis(2);
 const SLOW_NU_MACRO_THRESHOLD: Duration = Duration::from_millis(5);
@@ -45,9 +45,10 @@ pub(crate) async fn execute_with_restart(
 	fn_name: &str,
 	decl_id: ExportId,
 	args: Vec<String>,
-	limits: DecodeLimits,
+	surface: NuDecodeSurface,
+	budget: DecodeBudget,
 	nu_ctx: Value,
-) -> Result<Vec<Invocation>, NuExecError> {
+) -> Result<NuEffectBatch, NuExecError> {
 	nu.ensure_executor();
 	let Some(executor) = nu.executor_client() else {
 		return Err(NuExecError::Eval("Nu executor is not available".to_string()));
@@ -56,16 +57,22 @@ pub(crate) async fn execute_with_restart(
 	let start = Instant::now();
 	let env = vec![("XENO_CTX".to_string(), nu_ctx)];
 
-	let invocations = match executor.run(decl_id, args, limits, env).await {
-		Ok(invocations) => invocations,
-		Err(NuExecError::Shutdown { decl_id, args, limits, env }) => {
+	let effects = match executor.run(decl_id, surface, args, budget, env).await {
+		Ok(effects) => effects,
+		Err(NuExecError::Shutdown {
+			decl_id,
+			surface,
+			args,
+			budget,
+			env,
+		}) => {
 			warn!(label = kind.label(), function = fn_name, "Nu executor died, restarting");
 			nu.restart_executor();
 			nu.ensure_executor();
 			let Some(retry_executor) = nu.executor_client() else {
 				return Err(NuExecError::Eval("Nu executor could not be restarted".to_string()));
 			};
-			retry_executor.run(decl_id, args, limits, env).await?
+			retry_executor.run(decl_id, surface, args, budget, env).await?
 		}
 		Err(NuExecError::ReplyDropped) => {
 			warn!(label = kind.label(), function = fn_name, "Nu executor worker died mid-evaluation, restarting");
@@ -85,5 +92,5 @@ pub(crate) async fn execute_with_restart(
 		);
 	}
 
-	Ok(invocations)
+	Ok(effects)
 }

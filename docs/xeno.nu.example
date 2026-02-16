@@ -6,7 +6,7 @@
 # Module-only: only def/use/const/alias at top level (no expressions).
 #
 # Built-in commands available without import:
-#   xeno emit                           — invocation constructor
+#   xeno effect dispatch                           — invocation constructor
 #   xeno call                           — Nu macro invocation (chaining)
 #   "xeno ctx"                         — current invocation context
 
@@ -42,28 +42,28 @@ export def on_buffer_open [path: string, kind: string] {
 
 # Return a list of invocations to execute sequentially.
 export def save-and-format [] {
-  [(xeno emit command write), (xeno emit command format)]
+  [(xeno effect dispatch command write), (xeno effect dispatch command format)]
 }
 
 # Single invocation with flags.
 export def move-down-5 [] {
-  xeno emit action move_down --count 5
+  xeno effect dispatch action move_down --count 5
 }
 
 export def find-x [] {
-  xeno emit action find_char --char x
+  xeno effect dispatch action find_char --char x
 }
 
 # Chain commands.
 export def reload-all [] {
-  [(xeno emit command write), (xeno emit editor reload_config)]
+  [(xeno effect dispatch command write), (xeno effect dispatch editor reload_config)]
 }
 
 # Context-aware macro using `xeno ctx`.
 export def smart-save [] {
   let ctx = (xeno ctx)
   if $ctx.buffer.modified {
-    xeno emit command write
+    xeno effect dispatch command write
   }
 }
 

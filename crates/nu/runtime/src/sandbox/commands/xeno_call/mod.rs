@@ -1,7 +1,7 @@
 use xeno_invocation::schema;
 use xeno_nu_engine::CallExt;
 use xeno_nu_protocol::engine::{Call, Command, EngineState, Stack};
-use xeno_nu_protocol::{Category, PipelineData, ShellError, Signature, SyntaxShape, Type};
+use xeno_nu_protocol::{Category, PipelineData, Record, ShellError, Signature, SyntaxShape, Type, Value};
 
 #[derive(Clone)]
 pub struct XenoCallCommand;
@@ -20,7 +20,7 @@ impl Command for XenoCallCommand {
 	}
 
 	fn description(&self) -> &str {
-		"Create a Nu macro invocation"
+		"Create a typed dispatch effect targeting a Nu macro function."
 	}
 
 	fn run(&self, engine_state: &EngineState, stack: &mut Stack, call: &Call, _input: PipelineData) -> Result<PipelineData, ShellError> {
@@ -36,7 +36,12 @@ impl Command for XenoCallCommand {
 			});
 		}
 		let args: Vec<String> = call.rest(engine_state, stack, 1)?;
-		Ok(PipelineData::Value(schema::nu_record(name, args, span), None))
+		let mut rec = Record::new();
+		rec.push("type", Value::string("dispatch", span));
+		rec.push(schema::KIND, Value::string(schema::KIND_NU, span));
+		rec.push(schema::NAME, Value::string(name, span));
+		rec.push(schema::ARGS, Value::list(args.into_iter().map(|arg| Value::string(arg, span)).collect(), span));
+		Ok(PipelineData::Value(Value::record(rec, span), None))
 	}
 }
 

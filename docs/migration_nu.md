@@ -10,13 +10,13 @@ Before:
 
 ```nu
 use xeno *
-export def go [] { xeno emit action move_right }
+export def go [] { xeno effect dispatch action move_right }
 ```
 
 After:
 
 ```nu
-export def go [] { xeno emit action move_right }
+export def go [] { xeno effect dispatch action move_right }
 ```
 
 ## Constructor command reset
@@ -30,8 +30,8 @@ The old constructor commands are removed:
 
 Use the v2 commands instead:
 
-* `xeno emit <kind> <name> ...`
-* `xeno emit-many`
+* `xeno effect dispatch <kind> <name> ...`
+* `xeno effects normalize`
 * `xeno call <name> ...`
 
 Before:
@@ -52,10 +52,10 @@ After:
 
 ```nu
 export def go [] {
-  xeno emit action move_right --count 2
+  xeno effect dispatch action move_right --count 2
 }
 export def multi [] {
-  [(xeno emit editor stats), (xeno emit command help)]
+  [(xeno effect dispatch editor stats), (xeno effect dispatch command help)]
 }
 export def chain [] {
   xeno call other a b
@@ -80,7 +80,7 @@ Use `(xeno ctx)` for invocation context:
 export def context-aware [] {
   let ctx = (xeno ctx)
   if $ctx.mode == "Insert" {
-    xeno emit action normal_mode
+    xeno effect dispatch action normal_mode
   }
 }
 ```
@@ -101,7 +101,7 @@ String key targets remain unchanged:
 }
 ```
 
-If you used `config.nu` custom values, switch to `xeno emit` forms.
+If you used `config.nu` custom values, switch to `xeno effect dispatch` forms.
 
 Before:
 
@@ -112,25 +112,30 @@ Before:
 After:
 
 ```nu
-{ keys: { normal: { "ctrl+s": (xeno emit command write) } } }
+{ keys: { normal: { "ctrl+s": (xeno effect dispatch command write) } } }
 ```
 
-## Decode limits
+## Decode budget and capabilities
 
 `max_depth` is removed. Remaining configurable limits:
 
-* `max_invocations`
+* `max_effects`
 * `max_string_len`
 * `max_args`
 * `max_action_count`
 * `max_nodes`
 
+Nu policy now also supports capability lists:
+
+* `nu.capabilities.macro`
+* `nu.capabilities.hook`
+
 ## Built-in commands reference
 
-* `xeno emit <kind> <name> [...args] [--count N] [--extend] [--register R] [--char C]`
-* `xeno emit-many`
+* `xeno effect dispatch <kind> <name> [...args] [--count N] [--extend] [--register R] [--char C]`
+* `xeno effects normalize`
 * `xeno call <name> [...args]`
 * `xeno ctx`
 * `xeno assert`
-* `xeno is-invocation`
+* `xeno is-effect`
 * `xeno log`

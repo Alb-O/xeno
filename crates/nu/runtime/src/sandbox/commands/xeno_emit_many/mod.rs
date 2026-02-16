@@ -1,17 +1,18 @@
+use xeno_invocation::nu::{DecodeBudget, NuEffect};
 use xeno_invocation::schema;
 use xeno_nu_protocol::engine::{Call, Command, EngineState, Stack};
-use xeno_nu_protocol::{Category, PipelineData, ShellError, Signature, Type, Value};
+use xeno_nu_protocol::{Category, PipelineData, Record, ShellError, Signature, Type, Value};
 
 #[derive(Clone)]
 pub struct XenoEmitManyCommand;
 
 impl Command for XenoEmitManyCommand {
 	fn name(&self) -> &str {
-		"xeno emit-many"
+		"xeno effects normalize"
 	}
 
 	fn signature(&self) -> Signature {
-		Signature::build("xeno emit-many")
+		Signature::build("xeno effects normalize")
 			.input_output_types(vec![
 				(Type::List(Box::new(Type::Any)), Type::List(Box::new(Type::Any))),
 				(Type::Any, Type::List(Box::new(Type::Any))),
@@ -20,65 +21,93 @@ impl Command for XenoEmitManyCommand {
 	}
 
 	fn description(&self) -> &str {
-		"Validate and normalize a list of invocation records. Accepts a single record or a list."
+		"Validate and normalize typed effect records. Accepts record, list, or batch envelope."
 	}
 
 	fn run(&self, _engine_state: &EngineState, _stack: &mut Stack, call: &Call, input: PipelineData) -> Result<PipelineData, ShellError> {
 		let span = call.head;
 		let value = input.into_value(span).map_err(|e| ShellError::GenericError {
-			error: format!("xeno emit-many: {e}"),
+			error: format!("xeno effects normalize: {e}"),
 			msg: "failed to collect input".into(),
 			span: Some(span),
 			help: None,
 			inner: vec![],
 		})?;
 
-		let items = match value {
-			Value::Record { .. } => vec![value],
-			Value::List { vals, .. } => vals,
-			Value::Nothing { .. } => return Ok(PipelineData::Value(Value::list(vec![], span), None)),
-			other => {
-				return Err(ShellError::GenericError {
-					error: "xeno emit-many: expected record or list of records".into(),
-					msg: format!("got {}", other.get_type()),
-					span: Some(span),
-					help: None,
-					inner: vec![],
-				});
-			}
-		};
+		let batch = xeno_invocation::nu::decode_hook_effects_with_budget(value, DecodeBudget::macro_defaults()).map_err(|msg| ShellError::GenericError {
+			error: format!("xeno effects normalize: {msg}"),
+			msg: msg.clone(),
+			span: Some(span),
+			help: None,
+			inner: vec![],
+		})?;
 
-		let limits = &schema::DEFAULT_LIMITS;
-		if items.len() > limits.max_invocations {
-			return Err(ShellError::GenericError {
-				error: format!("xeno emit-many: {} items exceeds limit of {}", items.len(), limits.max_invocations),
-				msg: "too many invocations".into(),
-				span: Some(span),
-				help: None,
-				inner: vec![],
-			});
-		}
-
-		let mut out = Vec::with_capacity(items.len());
-		for (idx, item) in items.into_iter().enumerate() {
-			let rec = item.into_record().map_err(|_| ShellError::GenericError {
-				error: format!("xeno emit-many: items[{idx}] must be a record"),
-				msg: "expected record".into(),
-				span: Some(span),
-				help: None,
-				inner: vec![],
-			})?;
-			let normalized = schema::validate_invocation_record(&rec, Some(idx), limits, span).map_err(|msg| ShellError::GenericError {
-				error: format!("xeno emit-many: {msg}"),
-				msg: msg.clone(),
-				span: Some(span),
-				help: None,
-				inner: vec![],
-			})?;
-			out.push(normalized);
-		}
-
+		let out = batch.effects.into_iter().map(|effect| encode_effect(effect, span)).collect();
 		Ok(PipelineData::Value(Value::list(out, span), None))
+	}
+}
+
+fn encode_effect(effect: NuEffect, span: xeno_nu_protocol::Span) -> Value {
+	match effect {
+		NuEffect::Dispatch(invocation) => {
+			let mut rec = Record::new();
+			rec.push("type", Value::string("dispatch", span));
+			match invocation {
+				xeno_invocation::Invocation::Action { name, count, extend, register } => {
+					rec.push(schema::KIND, Value::string(schema::KIND_ACTION, span));
+					rec.push(schema::NAME, Value::string(name, span));
+					rec.push(schema::COUNT, Value::int(count as i64, span));
+					rec.push(schema::EXTEND, Value::bool(extend, span));
+					if let Some(register) = register {
+						rec.push(schema::REGISTER, Value::string(register.to_string(), span));
+					}
+				}
+				xeno_invocation::Invocation::ActionWithChar {
+					name,
+					count,
+					extend,
+					register,
+					char_arg,
+				} => {
+					rec.push(schema::KIND, Value::string(schema::KIND_ACTION, span));
+					rec.push(schema::NAME, Value::string(name, span));
+					rec.push(schema::COUNT, Value::int(count as i64, span));
+					rec.push(schema::EXTEND, Value::bool(extend, span));
+					if let Some(register) = register {
+						rec.push(schema::REGISTER, Value::string(register.to_string(), span));
+					}
+					rec.push(schema::CHAR, Value::string(char_arg.to_string(), span));
+				}
+				xeno_invocation::Invocation::Command { name, args } => {
+					rec.push(schema::KIND, Value::string(schema::KIND_COMMAND, span));
+					rec.push(schema::NAME, Value::string(name, span));
+					rec.push(schema::ARGS, Value::list(args.into_iter().map(|arg| Value::string(arg, span)).collect(), span));
+				}
+				xeno_invocation::Invocation::EditorCommand { name, args } => {
+					rec.push(schema::KIND, Value::string(schema::KIND_EDITOR, span));
+					rec.push(schema::NAME, Value::string(name, span));
+					rec.push(schema::ARGS, Value::list(args.into_iter().map(|arg| Value::string(arg, span)).collect(), span));
+				}
+				xeno_invocation::Invocation::Nu { name, args } => {
+					rec.push(schema::KIND, Value::string(schema::KIND_NU, span));
+					rec.push(schema::NAME, Value::string(name, span));
+					rec.push(schema::ARGS, Value::list(args.into_iter().map(|arg| Value::string(arg, span)).collect(), span));
+				}
+			}
+			Value::record(rec, span)
+		}
+		NuEffect::Notify { level, message } => {
+			let mut rec = Record::new();
+			rec.push("type", Value::string("notify", span));
+			rec.push("level", Value::string(level.as_str(), span));
+			rec.push("message", Value::string(message, span));
+			Value::record(rec, span)
+		}
+		NuEffect::StopPropagation => {
+			let mut rec = Record::new();
+			rec.push("type", Value::string("stop", span));
+			Value::record(rec, span)
+		}
 	}
 }
 

@@ -221,6 +221,11 @@ impl NuCoordinatorState {
 		!self.hook_queue.is_empty()
 	}
 
+	pub(crate) fn clear_queued_hooks(&mut self) {
+		self.hook_queue.clear();
+		self.refresh_hook_phase();
+	}
+
 	pub(crate) fn hook_queue_len(&self) -> usize {
 		self.hook_queue.len()
 	}
@@ -278,6 +283,11 @@ impl NuCoordinatorState {
 
 	pub(crate) fn has_pending_hook_invocations(&self) -> bool {
 		!self.hook_pending_invocations.is_empty()
+	}
+
+	pub(crate) fn clear_pending_hook_invocations(&mut self) {
+		self.hook_pending_invocations.clear();
+		self.refresh_hook_phase();
 	}
 
 	pub(crate) fn pending_hook_invocations_len(&self) -> usize {

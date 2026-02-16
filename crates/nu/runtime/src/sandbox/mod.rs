@@ -41,10 +41,10 @@
 //!
 //! Builtins (from `commands/`): `xeno call`, `xeno assert`
 //! (validation gate; errors abort evaluation), `xeno ctx`,
-//! `xeno emit` (validated invocation record constructor; preferred over
-//! manual record literals), `xeno emit-many` (bulk validate/normalize a list
-//! of invocation records), `xeno is-invocation` (predicate: true if input
-//! record has valid kind + name), `xeno log` (pass-through pipeline logger)
+//! `xeno effect` (typed effect constructor),
+//! `xeno effects normalize` (bulk validate/normalize typed effects),
+//! `xeno is-effect` (predicate: true if input decodes as a single effect),
+//! `xeno log` (pass-through pipeline logger)
 //!
 //! Caveats:
 //! * `split row --regex` and `str replace --regex` are disabled (no
@@ -209,9 +209,9 @@ const RESERVED_COMMAND_NAMES: &[&str] = &[
 	"xeno call",
 	"xeno assert",
 	"xeno ctx",
-	"xeno emit",
-	"xeno emit-many",
-	"xeno is-invocation",
+	"xeno effect",
+	"xeno effects normalize",
+	"xeno is-effect",
 	"xeno log",
 ];
 

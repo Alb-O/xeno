@@ -10,6 +10,7 @@ use crate::impls::Editor;
 #[cfg(test)]
 use crate::nu::coordinator::runner::{NuExecKind, execute_with_restart};
 use crate::nu::coordinator::{InFlightNuHook, QueuedNuHook};
+use crate::nu::{NuDecodeSurface, NuEffect, NuNotifyLevel, required_capability_for_effect};
 use crate::types::{InvocationPolicy, InvocationResult};
 
 /// Maximum pending Nu hooks before oldest are dropped.
@@ -97,12 +98,12 @@ pub(crate) fn kick_nu_hook_eval(editor: &mut Editor) {
 		return;
 	}
 
-	let limits = editor
+	let budget = editor
 		.state
 		.config
 		.nu
 		.as_ref()
-		.map_or_else(crate::nu::DecodeLimits::hook_defaults, |c| c.hook_decode_limits());
+		.map_or_else(crate::nu::DecodeBudget::hook_defaults, |c| c.hook_decode_budget());
 	let nu_ctx = editor.build_nu_ctx("hook", fn_name, &queued.args);
 	let env = vec![("XENO_CTX".to_string(), nu_ctx)];
 
@@ -122,8 +123,8 @@ pub(crate) fn kick_nu_hook_eval(editor: &mut Editor) {
 
 	editor.state.work_scheduler.schedule(crate::scheduler::WorkItem {
 		future: Box::pin(async move {
-			let result = match executor_client.run(decl_id, args_for_eval, limits, env).await {
-				Ok(invocations) => Ok(invocations),
+			let result = match executor_client.run(decl_id, NuDecodeSurface::Hook, args_for_eval, budget, env).await {
+				Ok(effects) => Ok(effects),
 				Err(crate::nu::executor::NuExecError::Eval(msg)) => Err(crate::msg::NuHookEvalError::Eval(msg)),
 				Err(crate::nu::executor::NuExecError::Shutdown { .. }) => Err(crate::msg::NuHookEvalError::ExecutorShutdown),
 				Err(crate::nu::executor::NuExecError::ReplyDropped) => Err(crate::msg::NuHookEvalError::ReplyDropped),
@@ -150,15 +151,7 @@ pub(crate) fn apply_nu_hook_eval_done(editor: &mut Editor, msg: crate::msg::NuHo
 	let in_flight = editor.state.nu.take_hook_in_flight().expect("in-flight hook should exist");
 
 	match msg.result {
-		Ok(invocations) => {
-			let dirty = if invocations.is_empty() {
-				crate::msg::Dirty::NONE
-			} else {
-				crate::msg::Dirty::FULL
-			};
-			editor.state.nu.extend_pending_hook_invocations(invocations);
-			dirty
-		}
+		Ok(effects) => apply_hook_effect_batch(editor, effects),
 		Err(crate::msg::NuHookEvalError::Eval(error)) => {
 			warn!(error = %error, "Nu hook evaluation failed");
 			crate::msg::Dirty::NONE
@@ -224,6 +217,64 @@ pub(crate) async fn drain_nu_hook_invocations(editor: &mut Editor, max: usize) -
 	false
 }
 
+fn apply_hook_effect_batch(editor: &mut Editor, batch: crate::nu::NuEffectBatch) -> crate::msg::Dirty {
+	let allowed = editor
+		.state
+		.config
+		.nu
+		.as_ref()
+		.map_or_else(|| xeno_registry::config::NuConfig::default().hook_capabilities(), |cfg| cfg.hook_capabilities());
+
+	let mut dispatches = Vec::new();
+	let mut stop_requested = false;
+	let mut dirty = crate::msg::Dirty::NONE;
+
+	for effect in batch.effects {
+		let required = required_capability_for_effect(&effect);
+		if !allowed.contains(&required) {
+			warn!(capability = %required.as_str(), "Nu hook effect denied by capability policy");
+			continue;
+		}
+
+		match effect {
+			NuEffect::Dispatch(invocation) => {
+				dispatches.push(invocation);
+				dirty |= crate::msg::Dirty::FULL;
+			}
+			NuEffect::Notify { level, message } => {
+				emit_nu_notification(editor, level, message);
+				dirty |= crate::msg::Dirty::FULL;
+			}
+			NuEffect::StopPropagation => {
+				stop_requested = true;
+				dirty |= crate::msg::Dirty::FULL;
+				break;
+			}
+		}
+	}
+
+	if stop_requested {
+		editor.state.nu.clear_queued_hooks();
+		editor.state.nu.clear_pending_hook_invocations();
+	} else if !dispatches.is_empty() {
+		editor.state.nu.extend_pending_hook_invocations(dispatches);
+	}
+
+	dirty
+}
+
+fn emit_nu_notification(editor: &mut Editor, level: NuNotifyLevel, message: String) {
+	use xeno_registry::notifications::keys;
+
+	match level {
+		NuNotifyLevel::Debug => editor.notify(keys::debug(message)),
+		NuNotifyLevel::Info => editor.notify(keys::info(message)),
+		NuNotifyLevel::Warn => editor.notify(keys::warn(message)),
+		NuNotifyLevel::Error => editor.notify(keys::error(message)),
+		NuNotifyLevel::Success => editor.notify(keys::success(message)),
+	}
+}
+
 /// Legacy synchronous drain for tests that need immediate hook evaluation.
 ///
 /// Evaluates hooks synchronously via the executor (blocks on each one). Only
@@ -262,23 +313,43 @@ async fn run_single_nu_hook_sync(editor: &mut Editor, hook: crate::nu::NuHook, a
 	let decl_id = editor.state.nu.hook_decl(hook)?;
 	editor.state.nu.ensure_executor()?;
 
-	let limits = editor
+	let budget = editor
 		.state
 		.config
 		.nu
 		.as_ref()
-		.map_or_else(crate::nu::DecodeLimits::hook_defaults, |c| c.hook_decode_limits());
+		.map_or_else(crate::nu::DecodeBudget::hook_defaults, |c| c.hook_decode_budget());
 	let nu_ctx = editor.build_nu_ctx("hook", fn_name, &args);
 
-	let invocations = match execute_with_restart(&mut editor.state.nu, NuExecKind::Hook, fn_name, decl_id, args, limits, nu_ctx).await {
-		Ok(invocations) => invocations,
+	let effects = match execute_with_restart(
+		&mut editor.state.nu,
+		NuExecKind::Hook,
+		fn_name,
+		decl_id,
+		args,
+		NuDecodeSurface::Hook,
+		budget,
+		nu_ctx,
+	)
+	.await
+	{
+		Ok(effects) => effects,
 		Err(error) => {
 			warn!(hook = fn_name, error = ?error, "Nu hook failed");
 			return None;
 		}
 	};
 
-	for invocation in invocations {
+	let mut dispatches = Vec::new();
+	for effect in effects.effects {
+		match effect {
+			NuEffect::Dispatch(invocation) => dispatches.push(invocation),
+			NuEffect::Notify { level, message } => emit_nu_notification(editor, level, message),
+			NuEffect::StopPropagation => return None,
+		}
+	}
+
+	for invocation in dispatches {
 		let result = Box::pin(editor.run_invocation(invocation, InvocationPolicy::enforcing())).await;
 
 		match result {

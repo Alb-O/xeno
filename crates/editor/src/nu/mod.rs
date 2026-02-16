@@ -8,7 +8,7 @@ pub(crate) mod pipeline;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-pub use xeno_invocation::nu::{DecodeLimits, decode_runtime_invocations_with_limits};
+pub use xeno_invocation::nu::{DecodeBudget, NuCapability, NuEffect, NuEffectBatch, NuNotifyLevel, required_capability_for_effect};
 use xeno_nu_runtime::{ExportId, NuProgram};
 use xeno_nu_value::Value;
 
@@ -47,6 +47,12 @@ impl NuHook {
 }
 
 const SLOW_CALL_THRESHOLD: Duration = Duration::from_millis(5);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NuDecodeSurface {
+	Macro,
+	Hook,
+}
 
 /// Loaded Nu macro script runtime state.
 #[derive(Clone)]
@@ -89,11 +95,23 @@ impl NuRuntime {
 
 	/// Run a function and decode its return value into structured invocations.
 	pub fn run_invocations(&self, fn_name: &str, args: &[String]) -> Result<Vec<Invocation>, String> {
-		self.run_invocations_with_limits(fn_name, args, DecodeLimits::macro_defaults())
+		self.run_invocations_with_limits(fn_name, args, DecodeBudget::macro_defaults())
+	}
+
+	/// Run a macro function and decode its return value into typed effects.
+	pub fn run_macro_effects_with_budget_and_env(
+		&self,
+		fn_name: &str,
+		args: &[String],
+		budget: DecodeBudget,
+		env: &[(&str, Value)],
+	) -> Result<NuEffectBatch, String> {
+		let value = self.run_internal(fn_name, args, env).map_err(map_run_error)?;
+		xeno_invocation::nu::decode_macro_effects_with_budget(value, budget)
 	}
 
 	/// Run a function and decode its return value into structured invocations with explicit decode limits.
-	pub fn run_invocations_with_limits(&self, fn_name: &str, args: &[String], limits: DecodeLimits) -> Result<Vec<Invocation>, String> {
+	pub fn run_invocations_with_limits(&self, fn_name: &str, args: &[String], limits: DecodeBudget) -> Result<Vec<Invocation>, String> {
 		self.run_invocations_with_limits_and_env(fn_name, args, limits, &[])
 	}
 
@@ -102,20 +120,20 @@ impl NuRuntime {
 		&self,
 		fn_name: &str,
 		args: &[String],
-		limits: DecodeLimits,
+		limits: DecodeBudget,
 		env: &[(&str, Value)],
 	) -> Result<Vec<Invocation>, String> {
-		let value = self.run_internal(fn_name, args, env).map_err(map_run_error)?;
-		decode_runtime_invocations_with_limits(value, limits)
+		let effects = self.run_macro_effects_with_budget_and_env(fn_name, args, limits, env)?;
+		Ok(effects.into_dispatches())
 	}
 
 	/// Run a function and decode structured invocations, returning `None` when the function is absent.
 	pub fn try_run_invocations(&self, fn_name: &str, args: &[String]) -> Result<Option<Vec<Invocation>>, String> {
-		self.try_run_invocations_with_limits(fn_name, args, DecodeLimits::macro_defaults())
+		self.try_run_invocations_with_limits(fn_name, args, DecodeBudget::macro_defaults())
 	}
 
 	/// Run a function and decode structured invocations with explicit limits, returning `None` when the function is absent.
-	pub fn try_run_invocations_with_limits(&self, fn_name: &str, args: &[String], limits: DecodeLimits) -> Result<Option<Vec<Invocation>>, String> {
+	pub fn try_run_invocations_with_limits(&self, fn_name: &str, args: &[String], limits: DecodeBudget) -> Result<Option<Vec<Invocation>>, String> {
 		self.try_run_invocations_with_limits_and_env(fn_name, args, limits, &[])
 	}
 
@@ -124,11 +142,11 @@ impl NuRuntime {
 		&self,
 		fn_name: &str,
 		args: &[String],
-		limits: DecodeLimits,
+		limits: DecodeBudget,
 		env: &[(&str, Value)],
 	) -> Result<Option<Vec<Invocation>>, String> {
 		match self.run_internal(fn_name, args, env) {
-			Ok(value) => decode_runtime_invocations_with_limits(value, limits).map(Some),
+			Ok(value) => xeno_invocation::nu::decode_macro_effects_with_budget(value, limits).map(|batch| Some(batch.into_dispatches())),
 			Err(NuRunError::MissingFunction(_)) => Ok(None),
 			Err(NuRunError::Other(error)) => Err(error),
 		}
@@ -140,33 +158,36 @@ impl NuRuntime {
 		self.program.resolve_export(name)
 	}
 
-	/// Run a pre-resolved declaration and decode into invocations.
-	pub fn run_invocations_by_decl_id(
+	/// Run a pre-resolved declaration and decode into typed effects.
+	pub fn run_effects_by_decl_id(
 		&self,
 		decl_id: ExportId,
+		surface: NuDecodeSurface,
 		args: &[String],
-		limits: DecodeLimits,
+		budget: DecodeBudget,
 		env: &[(&str, Value)],
-	) -> Result<Vec<Invocation>, String> {
+	) -> Result<NuEffectBatch, String> {
 		let value = self.call_by_decl_id(decl_id, args, env)?;
-		decode_runtime_invocations_with_limits(value, limits)
+		decode_effects(surface, value, budget)
 	}
 
-	/// Run a pre-resolved declaration with owned args/env (zero-clone hot path).
-	pub fn run_invocations_by_decl_id_owned(
+	/// Run a pre-resolved declaration with owned args/env (zero-clone hot path)
+	/// and decode into typed effects.
+	pub fn run_effects_by_decl_id_owned(
 		&self,
 		decl_id: ExportId,
+		surface: NuDecodeSurface,
 		args: Vec<String>,
-		limits: DecodeLimits,
+		budget: DecodeBudget,
 		env: Vec<(String, Value)>,
-	) -> Result<Vec<Invocation>, String> {
+	) -> Result<NuEffectBatch, String> {
 		let start = Instant::now();
 		let value = self.program.call_export_owned(decl_id, args, env).map_err(|error| error.to_string())?;
 		let elapsed = start.elapsed();
 		if elapsed > SLOW_CALL_THRESHOLD {
 			tracing::debug!(elapsed_ms = elapsed.as_millis() as u64, "slow Nu call");
 		}
-		decode_runtime_invocations_with_limits(value, limits)
+		decode_effects(surface, value, budget)
 	}
 
 	fn call_by_decl_id(&self, decl_id: ExportId, args: &[String], env: &[(&str, Value)]) -> Result<Value, String> {
@@ -198,6 +219,13 @@ impl NuRuntime {
 		}
 
 		Ok(value)
+	}
+}
+
+fn decode_effects(surface: NuDecodeSurface, value: Value, budget: DecodeBudget) -> Result<NuEffectBatch, String> {
+	match surface {
+		NuDecodeSurface::Macro => xeno_invocation::nu::decode_macro_effects_with_budget(value, budget),
+		NuDecodeSurface::Hook => xeno_invocation::nu::decode_hook_effects_with_budget(value, budget),
 	}
 }
 

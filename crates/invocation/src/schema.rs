@@ -2,7 +2,7 @@
 ///
 /// All invocation records share these field names. The constructors produce
 /// `xeno_nu_value::Value::Record` values that are guaranteed to decode
-/// correctly through [`crate::nu::decode_invocations`].
+/// correctly through Nu effect dispatch decoding.
 
 #[cfg(feature = "nu")]
 use xeno_nu_value::{Record, Span, Value};

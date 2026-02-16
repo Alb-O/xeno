@@ -1,7 +1,4 @@
-//! Native Nu command declarations for invocation constructors and builtins.
-//!
-//! Each invocation command returns a plain `Value::Record` with a `kind` field
-//! identifying the invocation type. No custom values needed.
+//! Native Nu command declarations for typed effect constructors and builtins.
 
 mod xeno_assert;
 mod xeno_call;

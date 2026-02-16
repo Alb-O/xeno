@@ -14,6 +14,7 @@ use crate::commands::{CommandOutcome, EditorCommandContext, find_editor_command}
 use crate::impls::Editor;
 use crate::nu::coordinator::errors::exec_error_message;
 use crate::nu::coordinator::runner::{NuExecKind, execute_with_restart};
+use crate::nu::{NuDecodeSurface, NuEffect, NuNotifyLevel, required_capability_for_effect};
 use crate::types::{Invocation, InvocationPolicy, InvocationResult};
 
 const MAX_NU_MACRO_DEPTH: u8 = 8;
@@ -194,16 +195,27 @@ impl Editor {
 			return InvocationResult::CommandError("Nu executor is not available".to_string());
 		}
 
-		let limits = self
+		let budget = self
 			.state
 			.config
 			.nu
 			.as_ref()
-			.map_or_else(crate::nu::DecodeLimits::macro_defaults, |c| c.macro_decode_limits());
+			.map_or_else(crate::nu::DecodeBudget::macro_defaults, |c| c.macro_decode_budget());
 		let nu_ctx = self.build_nu_ctx("macro", &fn_name, &args);
 
-		let invocations = match execute_with_restart(&mut self.state.nu, NuExecKind::Macro, &fn_name, decl_id, args, limits, nu_ctx).await {
-			Ok(invocations) => invocations,
+		let effects = match execute_with_restart(
+			&mut self.state.nu,
+			NuExecKind::Macro,
+			&fn_name,
+			decl_id,
+			args,
+			NuDecodeSurface::Macro,
+			budget,
+			nu_ctx,
+		)
+		.await
+		{
+			Ok(effects) => effects,
 			Err(error) => {
 				let msg = exec_error_message(&error);
 				self.show_notification(xeno_registry::notifications::keys::command_error(&msg));
@@ -211,15 +223,45 @@ impl Editor {
 			}
 		};
 
-		if invocations.is_empty() {
+		if effects.effects.is_empty() {
 			debug!(function = %fn_name, "Nu macro produced no invocations");
 			return InvocationResult::Ok;
 		}
 
-		for invocation in invocations {
-			match Box::pin(self.run_invocation(invocation, policy)).await {
-				InvocationResult::Ok => {}
-				other => return other,
+		let allowed = self.state.config.nu.as_ref().map_or_else(
+			|| xeno_registry::config::NuConfig::default().macro_capabilities(),
+			|cfg| cfg.macro_capabilities(),
+		);
+
+		for effect in effects.effects {
+			let required = required_capability_for_effect(&effect);
+			if !allowed.contains(&required) {
+				let msg = format!("Nu macro effect denied by capability policy: {}", required.as_str());
+				self.show_notification(xeno_registry::notifications::keys::command_error(&msg));
+				return InvocationResult::CommandError(msg);
+			}
+
+			match effect {
+				NuEffect::Dispatch(invocation) => match Box::pin(self.run_invocation(invocation, policy)).await {
+					InvocationResult::Ok => {}
+					other => return other,
+				},
+				NuEffect::Notify { level, message } => {
+					use xeno_registry::notifications::keys;
+
+					match level {
+						NuNotifyLevel::Debug => self.notify(keys::debug(message)),
+						NuNotifyLevel::Info => self.notify(keys::info(message)),
+						NuNotifyLevel::Warn => self.notify(keys::warn(message)),
+						NuNotifyLevel::Error => self.notify(keys::error(message)),
+						NuNotifyLevel::Success => self.notify(keys::success(message)),
+					}
+				}
+				NuEffect::StopPropagation => {
+					let msg = "Nu macro produced hook-only stop effect".to_string();
+					self.show_notification(xeno_registry::notifications::keys::command_error(&msg));
+					return InvocationResult::CommandError(msg);
+				}
 			}
 		}
 

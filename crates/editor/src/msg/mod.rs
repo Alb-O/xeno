@@ -59,8 +59,8 @@ pub enum NuHookEvalError {
 pub struct NuHookEvalDoneMsg {
 	/// Matches the eval token assigned when the hook job is scheduled.
 	pub token: crate::nu::coordinator::NuEvalToken,
-	/// Produced invocations or a structured error.
-	pub result: Result<Vec<crate::types::Invocation>, NuHookEvalError>,
+	/// Produced effects or a structured error.
+	pub result: Result<crate::nu::NuEffectBatch, NuHookEvalError>,
 }
 
 /// Top-level message enum dispatched to editor state.

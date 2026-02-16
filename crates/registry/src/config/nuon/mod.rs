@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use xeno_nu_value::{Record, Value};
 
-use super::{Config, ConfigError, ConfigWarning, DecodeLimitOverrides, LanguageConfig, NuConfig, Result, UnresolvedKeys};
+use super::{Config, ConfigError, ConfigWarning, DecodeBudgetOverrides, LanguageConfig, NuConfig, Result, UnresolvedKeys};
 use crate::options::{OptionScope, OptionStore};
 
 /// Parse a NUON string into a [`Config`].
@@ -168,28 +168,60 @@ fn validate_allowed_fields(record: &Record, allowed: &[&str], parent: &str) -> R
 
 fn parse_nu_config(value: &Value) -> Result<NuConfig> {
 	let record = expect_record(value, "nu")?;
-	validate_allowed_fields(record, &["decode"], "nu")?;
+	validate_allowed_fields(record, &["budget", "capabilities"], "nu")?;
 
-	let Some(decode_value) = record.get("decode") else {
-		return Ok(NuConfig::default());
+	let (budget_macro, budget_hook) = if let Some(budget_value) = record.get("budget") {
+		let budget_record = expect_record(budget_value, "nu.budget")?;
+		validate_allowed_fields(budget_record, &["macro", "hook"], "nu.budget")?;
+		let budget_macro = budget_record
+			.get("macro")
+			.map(|v| parse_decode_budget_overrides(v, "nu.budget.macro"))
+			.transpose()?;
+		let budget_hook = budget_record
+			.get("hook")
+			.map(|v| parse_decode_budget_overrides(v, "nu.budget.hook"))
+			.transpose()?;
+		(budget_macro, budget_hook)
+	} else {
+		(None, None)
 	};
-	let decode_record = expect_record(decode_value, "nu.decode")?;
-	validate_allowed_fields(decode_record, &["macro", "hook"], "nu.decode")?;
 
-	let decode_macro = decode_record
-		.get("macro")
-		.map(|v| parse_decode_limit_overrides(v, "nu.decode.macro"))
-		.transpose()?;
-	let decode_hook = decode_record
-		.get("hook")
-		.map(|v| parse_decode_limit_overrides(v, "nu.decode.hook"))
-		.transpose()?;
+	let (capabilities_macro, capabilities_hook) = if let Some(capabilities_value) = record.get("capabilities") {
+		let caps_record = expect_record(capabilities_value, "nu.capabilities")?;
+		validate_allowed_fields(caps_record, &["macro", "hook"], "nu.capabilities")?;
 
-	Ok(NuConfig { decode_macro, decode_hook })
+		let parse_caps = |value: &Value, parent: &str| -> Result<std::collections::HashSet<xeno_invocation::nu::NuCapability>> {
+			let list = expect_list(value, parent)?;
+			let mut caps = std::collections::HashSet::with_capacity(list.len());
+			for (idx, item) in list.iter().enumerate() {
+				let field = format!("{parent}[{idx}]");
+				let raw = expect_string(item, &field)?;
+				let Some(cap) = xeno_invocation::nu::NuCapability::parse(raw) else {
+					return Err(ConfigError::Nuon(format!("unknown Nu capability at {field}: '{raw}'")));
+				};
+				caps.insert(cap);
+			}
+			Ok(caps)
+		};
+
+		let capabilities_macro = caps_record.get("macro").map(|v| parse_caps(v, "nu.capabilities.macro")).transpose()?;
+		let capabilities_hook = caps_record.get("hook").map(|v| parse_caps(v, "nu.capabilities.hook")).transpose()?;
+
+		(capabilities_macro, capabilities_hook)
+	} else {
+		(None, None)
+	};
+
+	Ok(NuConfig {
+		budget_macro,
+		budget_hook,
+		capabilities_macro,
+		capabilities_hook,
+	})
 }
 
-fn parse_decode_limit_overrides(value: &Value, parent: &str) -> Result<DecodeLimitOverrides> {
-	let allowed = &["max_invocations", "max_string_len", "max_args", "max_action_count", "max_nodes"];
+fn parse_decode_budget_overrides(value: &Value, parent: &str) -> Result<DecodeBudgetOverrides> {
+	let allowed = &["max_effects", "max_string_len", "max_args", "max_action_count", "max_nodes"];
 	let record = expect_record(value, parent)?;
 	validate_allowed_fields(record, allowed, parent)?;
 
@@ -202,8 +234,8 @@ fn parse_decode_limit_overrides(value: &Value, parent: &str) -> Result<DecodeLim
 		Ok(Some(n as usize))
 	};
 
-	Ok(DecodeLimitOverrides {
-		max_invocations: get_usize("max_invocations")?,
+	Ok(DecodeBudgetOverrides {
+		max_effects: get_usize("max_effects")?,
 		max_string_len: get_usize("max_string_len")?,
 		max_args: get_usize("max_args")?,
 		max_action_count: get_usize("max_action_count")?,
@@ -355,7 +387,7 @@ fn parse_keybinding_value(value: &Value, field_path: &str) -> Result<xeno_invoca
 		};
 		return Ok(inv);
 	}
-	xeno_invocation::nu::decode_single_invocation(value, field_path).map_err(ConfigError::InvalidKeyBinding)
+	xeno_invocation::nu::decode_single_dispatch_effect(value, field_path).map_err(ConfigError::InvalidKeyBinding)
 }
 
 fn parse_variant(s: &str) -> Result<crate::themes::ThemeVariant> {

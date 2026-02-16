@@ -84,8 +84,8 @@ fn config_nu_parses_structured_keys_with_builtins() {
 	let input = r#"{
 		keys: {
 			normal: {
-				"ctrl+s": (xeno emit command write),
-				"g r": (xeno emit editor reload_config),
+				"ctrl+s": (xeno effect dispatch command write),
+				"g r": (xeno effect dispatch editor reload_config),
 			}
 		}
 	}"#;

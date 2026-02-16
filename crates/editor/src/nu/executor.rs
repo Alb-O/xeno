@@ -24,22 +24,22 @@ use std::time::{Duration, Instant};
 
 use tokio::sync::oneshot;
 use tokio::sync::oneshot::error::TryRecvError;
-use xeno_invocation::nu::DecodeLimits;
+use xeno_invocation::nu::DecodeBudget;
 use xeno_nu_runtime::ExportId;
 use xeno_nu_value::Value;
 
-use super::NuRuntime;
-use crate::types::Invocation;
+use super::{NuDecodeSurface, NuEffectBatch, NuRuntime};
 
 /// A job sent to the Nu worker thread.
 enum Job {
 	Run {
 		decl_id: ExportId,
+		surface: NuDecodeSurface,
 		args: Vec<String>,
-		limits: DecodeLimits,
+		budget: DecodeBudget,
 		env: Vec<(String, Value)>,
 		span: tracing::Span,
-		reply: oneshot::Sender<Result<Vec<Invocation>, String>>,
+		reply: oneshot::Sender<Result<NuEffectBatch, String>>,
 	},
 	Shutdown {
 		ack: oneshot::Sender<()>,
@@ -53,8 +53,9 @@ pub enum NuExecError {
 	/// Channel send failed — receiver is gone. Payload returned for retry.
 	Shutdown {
 		decl_id: ExportId,
+		surface: NuDecodeSurface,
 		args: Vec<String>,
-		limits: DecodeLimits,
+		budget: DecodeBudget,
 		env: Vec<(String, Value)>,
 	},
 	/// Job was enqueued but the reply channel was dropped (worker died
@@ -94,14 +95,16 @@ impl NuExecutor {
 					match job {
 						Job::Run {
 							decl_id,
+							surface,
 							args,
-							limits,
+							budget,
 							env,
 							span,
 							reply,
 						} => {
 							let _guard = span.enter();
-							let result = std::panic::catch_unwind(AssertUnwindSafe(|| runtime.run_invocations_by_decl_id_owned(decl_id, args, limits, env)));
+							let result =
+								std::panic::catch_unwind(AssertUnwindSafe(|| runtime.run_effects_by_decl_id_owned(decl_id, surface, args, budget, env)));
 							match result {
 								Ok(value) => {
 									let _ = reply.send(value);
@@ -150,22 +153,41 @@ impl NuExecutor {
 	///
 	/// On transport failure ([`NuExecError::Shutdown`]), the original payload
 	/// is returned so the caller can retry without cloning.
-	pub async fn run(&self, decl_id: ExportId, args: Vec<String>, limits: DecodeLimits, env: Vec<(String, Value)>) -> Result<Vec<Invocation>, NuExecError> {
+	pub async fn run(
+		&self,
+		decl_id: ExportId,
+		surface: NuDecodeSurface,
+		args: Vec<String>,
+		budget: DecodeBudget,
+		env: Vec<(String, Value)>,
+	) -> Result<NuEffectBatch, NuExecError> {
 		let (reply_tx, reply_rx) = oneshot::channel();
 
 		if let Err(err) = self.tx.send(Job::Run {
 			decl_id,
+			surface,
 			args,
-			limits,
+			budget,
 			env,
 			span: tracing::Span::current(),
 			reply: reply_tx,
 		}) {
 			match err.0 {
 				Job::Run {
-					decl_id, args, limits, env, ..
+					decl_id,
+					surface,
+					args,
+					budget,
+					env,
+					..
 				} => {
-					return Err(NuExecError::Shutdown { decl_id, args, limits, env });
+					return Err(NuExecError::Shutdown {
+						decl_id,
+						surface,
+						args,
+						budget,
+						env,
+					});
 				}
 				Job::Shutdown { .. } => unreachable!("shutdown jobs are only sent from Drop"),
 			}
@@ -229,6 +251,7 @@ impl Drop for NuExecutor {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::nu::NuEffect;
 
 	fn make_runtime(script: &str) -> NuRuntime {
 		let temp = tempfile::tempdir().expect("temp dir should exist");
@@ -238,23 +261,23 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn executor_runs_invocations() {
-		let runtime = make_runtime("export def go [] { xeno emit editor stats }");
+	async fn executor_runs_effects() {
+		let runtime = make_runtime("export def go [] { xeno effect dispatch editor stats }");
 		let decl_id = runtime.find_script_decl("go").expect("go should exist");
 		let executor = NuExecutor::new(runtime);
 
 		let result = executor
-			.run(decl_id, vec![], DecodeLimits::macro_defaults(), vec![])
+			.run(decl_id, NuDecodeSurface::Macro, vec![], DecodeBudget::macro_defaults(), vec![])
 			.await
 			.expect("run should succeed");
 
-		assert!(!result.is_empty());
-		assert!(matches!(result.as_slice(), [Invocation::EditorCommand { name, .. }] if name == "stats"));
+		assert_eq!(result.effects.len(), 1);
+		assert!(matches!(result.effects.as_slice(), [NuEffect::Dispatch(crate::types::Invocation::EditorCommand { name, .. })] if name == "stats"));
 	}
 
 	#[test]
 	fn executor_shutdown_on_drop() {
-		let runtime = make_runtime("export def go [] { xeno emit editor stats }");
+		let runtime = make_runtime("export def go [] { xeno effect dispatch editor stats }");
 		let executor = NuExecutor::new(runtime);
 		let shutdown_acks = executor.shutdown_acks_for_tests();
 
@@ -272,11 +295,16 @@ mod tests {
 		let args = vec!["a".to_string(), "b".to_string()];
 		let env = vec![("KEY".to_string(), Value::test_string("val"))];
 
-		let result = executor.run(ExportId::from_raw(42), args, DecodeLimits::macro_defaults(), env).await;
+		let result = executor
+			.run(ExportId::from_raw(42), NuDecodeSurface::Macro, args, DecodeBudget::macro_defaults(), env)
+			.await;
 
 		match result {
-			Err(NuExecError::Shutdown { decl_id, args, env, .. }) => {
+			Err(NuExecError::Shutdown {
+				decl_id, surface, args, env, ..
+			}) => {
 				assert_eq!(decl_id, ExportId::from_raw(42));
+				assert_eq!(surface, NuDecodeSurface::Macro);
 				assert_eq!(args, vec!["a".to_string(), "b".to_string()]);
 				assert_eq!(env.len(), 1);
 				assert_eq!(env[0].0, "KEY");
@@ -287,7 +315,7 @@ mod tests {
 
 	#[test]
 	fn client_clone_does_not_send_shutdown() {
-		let runtime = make_runtime("export def go [] { xeno emit editor stats }");
+		let runtime = make_runtime("export def go [] { xeno effect dispatch editor stats }");
 		let executor = NuExecutor::new(runtime);
 		let shutdown_acks = executor.shutdown_acks_for_tests();
 

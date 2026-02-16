@@ -79,3 +79,21 @@ pub(crate) fn test_retry_payload_tracks_single_retry() {
 	let queued = state.pop_queued_hook().expect("retry hook should be queued");
 	assert_eq!(queued.retries, 1);
 }
+
+/// Must drop queued and pending hook work when stop-propagation is requested.
+///
+/// * Enforced in: `nu::pipeline::apply_hook_effect_batch`
+/// * Failure symptom: stopped hooks still dispatch queued invocations.
+#[cfg_attr(test, test)]
+pub(crate) fn test_stop_propagation_clears_queued_and_pending() {
+	let mut state = NuCoordinatorState::new();
+	state.enqueue_hook(NuHook::ActionPost, vec!["a".to_string(), "ok".to_string()], 64);
+	state.extend_pending_hook_invocations(vec![Invocation::action("move_right")]);
+
+	state.clear_queued_hooks();
+	state.clear_pending_hook_invocations();
+
+	assert!(!state.has_queued_hooks(), "stop propagation should clear queued hooks");
+	assert!(!state.has_pending_hook_invocations(), "stop propagation should clear pending hook invocations");
+	assert_eq!(state.hook_phase(), HookPipelinePhase::Idle);
+}
