@@ -1,6 +1,6 @@
 use xeno_language::syntax::{SyntaxError, SyntaxOptions};
 
-use super::install::{InstallDecision, decide_install};
+use super::install::{InstallDecision, decide_install, install_completions};
 use super::*;
 
 #[test]
@@ -282,4 +282,98 @@ fn test_docs_with_completed_includes_queued() {
 	mgr.entry_mut(doc_id).sched.completed.push_back(done);
 	let ids: Vec<_> = mgr.docs_with_completed().collect();
 	assert_eq!(ids, vec![doc_id], "doc with queued completion should appear");
+}
+
+#[test]
+fn test_install_completions_timeout_sets_urgent_lane_cooldown_without_update() {
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang = loader.language_for_name("rust").unwrap();
+	let content = Rope::from("x".repeat(300_000));
+
+	let policy = {
+		let mut p = TieredSyntaxPolicy::test_default();
+		p.s_max_bytes_inclusive = 0;
+		p.m_max_bytes_inclusive = 0;
+		p.l.debounce = Duration::ZERO;
+		p
+	};
+	let now = Instant::now();
+	let ctx = EnsureSyntaxContext {
+		doc_id: DocumentId(1),
+		doc_version: 1,
+		language_id: Some(lang),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+		viewport: Some(0..128),
+	};
+	let d = derive(&ctx, &policy);
+	let mut entry = DocEntry::new(now);
+	entry.slot.language_id = Some(lang);
+	entry.sched.completed.push_back(dummy_completed(
+		1,
+		lang,
+		TaskClass::Viewport,
+		d.cfg.viewport_injections,
+		Some(ViewportKey(0)),
+		Some(scheduling::ViewportLane::Urgent),
+	));
+
+	let mut metrics = SyntaxMetrics::new();
+	let updated = install_completions(&mut entry, now, &ctx, &d, &mut metrics);
+	assert!(!updated, "timeout completion must not report syntax-tree updates");
+	assert!(
+		entry.sched.lanes.viewport_urgent.cooldown_until.is_some(),
+		"urgent viewport timeout must enter viewport lane cooldown"
+	);
+}
+
+#[test]
+fn test_install_completions_stage_b_timeout_sets_key_cooldown() {
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang = loader.language_for_name("rust").unwrap();
+	let content = Rope::from("x".repeat(300_000));
+
+	let policy = {
+		let mut p = TieredSyntaxPolicy::test_default();
+		p.s_max_bytes_inclusive = 0;
+		p.m_max_bytes_inclusive = 0;
+		p.l.debounce = Duration::ZERO;
+		p
+	};
+	let now = Instant::now();
+	let ctx = EnsureSyntaxContext {
+		doc_id: DocumentId(1),
+		doc_version: 1,
+		language_id: Some(lang),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+		viewport: Some(0..128),
+	};
+	let d = derive(&ctx, &policy);
+	let mut entry = DocEntry::new(now);
+	entry.slot.language_id = Some(lang);
+	let key = ViewportKey(0);
+	let ce = entry.slot.viewport_cache.get_mut_or_insert(key);
+	ce.attempted_b_for = Some(1);
+	entry.sched.completed.push_back(dummy_completed(
+		1,
+		lang,
+		TaskClass::Viewport,
+		InjectionPolicy::Eager,
+		Some(key),
+		Some(scheduling::ViewportLane::Enrich),
+	));
+
+	let mut metrics = SyntaxMetrics::new();
+	let updated = install_completions(&mut entry, now, &ctx, &d, &mut metrics);
+	assert!(!updated, "timeout completion must not report syntax-tree updates");
+	let ce = entry.slot.viewport_cache.map.get(&key).expect("cache entry must exist");
+	assert!(ce.stage_b_cooldown_until.is_some(), "Stage-B timeout must apply per-key viewport cooldown");
+	assert_eq!(ce.attempted_b_for, None, "Stage-B timeout must clear attempted marker");
+	assert!(
+		entry.sched.lanes.viewport_enrich.cooldown_until.is_none(),
+		"Stage-B cooldown must stay per-key and avoid lane-level cooldown"
+	);
 }
