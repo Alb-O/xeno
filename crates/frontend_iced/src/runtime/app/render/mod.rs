@@ -1,5 +1,9 @@
 //! Iced adapters that map editor render plans into widgets.
 
+use std::borrow::Cow;
+use std::path::Path;
+
+use devicons::FileIcon;
 use iced::widget::text::Wrapping;
 use iced::widget::{column, container, rich_text, span, text};
 use iced::{Background, Color, Element, Fill, Font, Pixels, border, font};
@@ -8,6 +12,8 @@ use xeno_editor::render_api::{CompletionKind, CompletionRenderItem, CompletionRe
 use xeno_primitives::{Color as UiColor, Style as UiStyle};
 
 use super::Message;
+
+const GENERIC_FILE_ICON: &str = "󰈔";
 
 pub(super) fn render_document_line(line: &RenderLine<'_>, line_height_px: f32) -> Element<'static, Message> {
 	let mut spans = Vec::new();
@@ -103,7 +109,7 @@ pub(super) fn render_palette_completion_menu(editor: &Editor, plan: &CompletionR
 pub(super) fn format_palette_completion_row(plan: &CompletionRenderPlan, item: &CompletionRenderItem) -> String {
 	let mut line = String::new();
 	line.push(' ');
-	line.push_str(completion_icon(item.kind()));
+	line.push_str(&completion_icon(item.kind(), item.label()));
 	line.push(' ');
 	line.push_str(&pad_right(item.label(), plan.max_label_width()));
 
@@ -134,13 +140,20 @@ fn completion_kind_label(kind: CompletionKind) -> &'static str {
 	}
 }
 
-fn completion_icon(kind: CompletionKind) -> &'static str {
+fn completion_icon(kind: CompletionKind, label: &str) -> Cow<'static, str> {
 	match kind {
-		CompletionKind::Command => "C",
-		CompletionKind::File => "F",
-		CompletionKind::Buffer => "B",
-		CompletionKind::Snippet => "S",
-		CompletionKind::Theme => "T",
+		CompletionKind::File => {
+			let icon = FileIcon::from(Path::new(label)).icon;
+			if icon == '*' {
+				Cow::Borrowed(GENERIC_FILE_ICON)
+			} else {
+				Cow::Owned(icon.to_string())
+			}
+		}
+		CompletionKind::Command => Cow::Borrowed("C"),
+		CompletionKind::Buffer => Cow::Borrowed("B"),
+		CompletionKind::Snippet => Cow::Borrowed("S"),
+		CompletionKind::Theme => Cow::Borrowed("T"),
 	}
 }
 
