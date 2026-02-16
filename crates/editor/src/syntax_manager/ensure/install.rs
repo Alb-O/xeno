@@ -77,6 +77,11 @@ enum CompletionEval {
 	},
 }
 
+/// Identity checks that must pass before install freshness/retention checks.
+struct CompletionIdentity {
+	is_viewport: bool,
+}
+
 /// Checks whether a viewport task's injection policy matches the current config.
 fn viewport_opts_ok(lane: Option<scheduling::ViewportLane>, injections: InjectionPolicy, cfg: &TierCfg) -> bool {
 	match lane {
@@ -86,8 +91,37 @@ fn viewport_opts_ok(lane: Option<scheduling::ViewportLane>, injections: Injectio
 	}
 }
 
+/// Validates identity constraints (language, lane metadata, options, work gate).
+fn validate_completion_identity(done: &CompletedSyntaxTask, ctx: &EnsureBase<'_>) -> Option<CompletionIdentity> {
+	let Some(current_lang) = ctx.language_id else {
+		return None;
+	};
+	if ctx.work_disabled {
+		return None;
+	}
+
+	let is_viewport = done.class == TaskClass::Viewport;
+	if is_viewport && (done.viewport_key.is_none() || done.viewport_lane.is_none()) {
+		return None;
+	}
+	if done.lang_id != current_lang {
+		return None;
+	}
+
+	let opts_ok = if is_viewport {
+		viewport_opts_ok(done.viewport_lane, done.opts.injections, &ctx.cfg)
+	} else {
+		done.opts == ctx.opts_key
+	};
+	if !opts_ok {
+		return None;
+	}
+
+	Some(CompletionIdentity { is_viewport })
+}
+
 /// Checks whether a viewport completion should be installed (version, requested-min, continuity).
-fn viewport_allow_install(done: &CompletedSyntaxTask, ctx: &EnsureSyntaxContext<'_>, d: &EnsureDerived, entry: &DocEntry) -> bool {
+fn viewport_allow_install(done: &CompletedSyntaxTask, ctx: &EnsureBase<'_>, entry: &DocEntry) -> bool {
 	let not_future = done.doc_version <= ctx.doc_version;
 	let requested_min = match done.viewport_lane {
 		Some(scheduling::ViewportLane::Enrich) => entry.sched.lanes.viewport_enrich.requested_doc_version,
@@ -95,75 +129,59 @@ fn viewport_allow_install(done: &CompletedSyntaxTask, ctx: &EnsureSyntaxContext<
 	};
 	let requested_ok = done.doc_version >= requested_min;
 	let continuity_needed = if done.doc_version < ctx.doc_version {
-		match &d.viewport {
-			Some(vp) => !(entry.slot.full.is_some() || entry.slot.viewport_cache.covers_range(vp)),
+		match &ctx.viewport {
+			Some(viewport) => !(entry.slot.full.is_some() || entry.slot.viewport_cache.covers_range(viewport)),
 			None => true,
 		}
 	} else {
 		true
 	};
+
 	not_future && requested_ok && continuity_needed
 }
 
 /// Checks whether a full-parse completion should be installed (version, projection continuity).
-fn full_allow_install(done: &CompletedSyntaxTask, ctx: &EnsureSyntaxContext<'_>, entry: &DocEntry) -> bool {
+fn full_allow_install(done: &CompletedSyntaxTask, ctx: &EnsureBase<'_>, entry: &DocEntry) -> bool {
 	let preserves_projection = if done.doc_version < ctx.doc_version {
 		entry.slot.full.is_none()
 			|| entry
 				.slot
 				.pending_incremental
 				.as_ref()
-				.is_some_and(|p| p.base_tree_doc_version == done.doc_version)
+				.is_some_and(|pending| pending.base_tree_doc_version == done.doc_version)
 	} else {
 		true
 	};
 	SyntaxManager::should_install_completed_parse(
 		done.doc_version,
-		entry.slot.full.as_ref().map(|t| t.doc_version),
+		entry.slot.full.as_ref().map(|tree| tree.doc_version),
 		entry.sched.lanes.bg.requested_doc_version,
 		ctx.doc_version,
 		entry.slot.dirty,
 	) && preserves_projection
 }
 
-/// Pure decision: given a successful parse result, determine what to do with it.
-pub(super) fn decide_install(done: &CompletedSyntaxTask, now: Instant, ctx: &EnsureSyntaxContext<'_>, d: &EnsureDerived, entry: &DocEntry) -> InstallDecision {
-	let Some(current_lang) = ctx.language_id else {
-		return InstallDecision::Discard;
-	};
-	if d.work_disabled {
-		return InstallDecision::Discard;
-	}
-
-	let lang_ok = done.lang_id == current_lang;
-	let is_viewport = done.class == TaskClass::Viewport;
-
-	if is_viewport && (done.viewport_key.is_none() || done.viewport_lane.is_none()) {
-		return InstallDecision::Discard;
-	}
-
-	let opts_ok = if is_viewport {
-		viewport_opts_ok(done.viewport_lane, done.opts.injections, &d.cfg)
-	} else {
-		done.opts == d.opts_key
-	};
-
-	if !lang_ok || !opts_ok {
-		return InstallDecision::Discard;
-	}
-
-	let retain_policy = if is_viewport {
-		d.cfg.retention_hidden_viewport
-	} else {
-		d.cfg.retention_hidden_full
-	};
-	let retain_ok = SyntaxManager::retention_allows_install(now, &entry.sched, retain_policy, ctx.hotness);
-
-	let allow = if is_viewport {
-		viewport_allow_install(done, ctx, d, entry)
+/// Validates freshness/continuity checks once identity checks pass.
+fn validate_completion_freshness(done: &CompletedSyntaxTask, ctx: &EnsureBase<'_>, entry: &DocEntry, identity: &CompletionIdentity) -> bool {
+	if identity.is_viewport {
+		viewport_allow_install(done, ctx, entry)
 	} else {
 		full_allow_install(done, ctx, entry)
+	}
+}
+
+/// Pure decision: given a successful parse result, determine what to do with it.
+pub(super) fn decide_install(done: &CompletedSyntaxTask, now: Instant, ctx: &EnsureBase<'_>, entry: &DocEntry) -> InstallDecision {
+	let Some(identity) = validate_completion_identity(done, ctx) else {
+		return InstallDecision::Discard;
 	};
+	let retain_policy = if identity.is_viewport {
+		ctx.cfg.retention_hidden_viewport
+	} else {
+		ctx.cfg.retention_hidden_full
+	};
+	let retain_ok = SyntaxManager::retention_allows_install(now, &entry.sched, retain_policy, ctx.hotness);
+	let allow = validate_completion_freshness(done, ctx, entry, &identity);
 
 	if retain_ok && allow {
 		InstallDecision::Install
@@ -228,7 +246,7 @@ fn apply_full_install(
 	entry: &mut DocEntry,
 	done: &CompletedRef,
 	syntax: xeno_language::syntax::Syntax,
-	ctx: &EnsureSyntaxContext<'_>,
+	ctx: &EnsureBase<'_>,
 	current_lang: xeno_language::LanguageId,
 ) -> bool {
 	let tree_id = entry.slot.alloc_tree_id();
@@ -243,7 +261,7 @@ fn apply_full_install(
 			.slot
 			.pending_incremental
 			.as_ref()
-			.is_some_and(|p| p.base_tree_doc_version == done.doc_version);
+			.is_some_and(|pending| pending.base_tree_doc_version == done.doc_version);
 	if !keep_pending {
 		entry.slot.pending_incremental = None;
 	}
@@ -305,10 +323,10 @@ fn apply_failure_cooldowns(
 }
 
 /// Computes the action for one completed item without mutating state.
-fn evaluate_completion(done: CompletedSyntaxTask, now: Instant, ctx: &EnsureSyntaxContext<'_>, d: &EnsureDerived, entry: &DocEntry) -> CompletionEval {
+fn evaluate_completion(done: CompletedSyntaxTask, now: Instant, ctx: &EnsureBase<'_>, entry: &DocEntry) -> CompletionEval {
 	let meta = CompletionMeta::from_done(&done);
 	let done_ref = CompletedRef::from_done(&done);
-	let decision = decide_install(&done, now, ctx, d, entry);
+	let decision = decide_install(&done, now, ctx, entry);
 	match done.result {
 		Ok(syntax_tree) => {
 			let action = match decision {
@@ -349,7 +367,7 @@ fn evaluate_completion(done: CompletedSyntaxTask, now: Instant, ctx: &EnsureSynt
 }
 
 /// Applies an install action and returns whether syntax state changed.
-fn apply_install_action(entry: &mut DocEntry, now: Instant, ctx: &EnsureSyntaxContext<'_>, cfg: &TierCfg, action: InstallAction) -> ApplyResult {
+fn apply_install_action(entry: &mut DocEntry, now: Instant, ctx: &EnsureBase<'_>, cfg: &TierCfg, action: InstallAction) -> ApplyResult {
 	match action {
 		InstallAction::InstallViewport { done, syntax } => {
 			let Some(current_lang) = ctx.language_id else {
@@ -387,17 +405,17 @@ fn apply_install_action(entry: &mut DocEntry, now: Instant, ctx: &EnsureSyntaxCo
 }
 
 /// Drains completed tasks, decides and applies install/discard/cooldown. Returns was_updated.
-pub(super) fn install_completions(entry: &mut DocEntry, now: Instant, ctx: &EnsureSyntaxContext<'_>, d: &EnsureDerived, metrics: &mut SyntaxMetrics) -> bool {
+pub(super) fn install_completions(entry: &mut DocEntry, now: Instant, ctx: &EnsureBase<'_>, metrics: &mut SyntaxMetrics) -> bool {
 	let mut was_updated = false;
 
 	while let Some(done) = entry.sched.completed.pop_front() {
-		match evaluate_completion(done, now, ctx, d, entry) {
+		match evaluate_completion(done, now, ctx, entry) {
 			CompletionEval::Success { meta, decision, action } => {
-				let result = apply_install_action(entry, now, ctx, &d.cfg, action);
+				let result = apply_install_action(entry, now, ctx, &ctx.cfg, action);
 				was_updated |= result.was_updated;
 				metrics.record_task_result(
 					meta.lang_id,
-					d.tier,
+					ctx.tier,
 					meta.class,
 					meta.injections,
 					meta.elapsed,
@@ -420,8 +438,8 @@ pub(super) fn install_completions(entry: &mut DocEntry, now: Instant, ctx: &Ensu
 				);
 			}
 			CompletionEval::Timeout { meta, action } => {
-				let _ = apply_install_action(entry, now, ctx, &d.cfg, action);
-				metrics.record_task_result(meta.lang_id, d.tier, meta.class, meta.injections, meta.elapsed, true, false, false);
+				let _ = apply_install_action(entry, now, ctx, &ctx.cfg, action);
+				metrics.record_task_result(meta.lang_id, ctx.tier, meta.class, meta.injections, meta.elapsed, true, false, false);
 				tracing::trace!(
 					target: "xeno_undo_trace",
 					doc_id = ?ctx.doc_id,
@@ -435,9 +453,9 @@ pub(super) fn install_completions(entry: &mut DocEntry, now: Instant, ctx: &Ensu
 				);
 			}
 			CompletionEval::Error { meta, action, error } => {
-				tracing::warn!(doc_id = ?ctx.doc_id, tier = ?d.tier, error=%error, "Background syntax parse failed");
-				let _ = apply_install_action(entry, now, ctx, &d.cfg, action);
-				metrics.record_task_result(meta.lang_id, d.tier, meta.class, meta.injections, meta.elapsed, false, true, false);
+				tracing::warn!(doc_id = ?ctx.doc_id, tier = ?ctx.tier, error=%error, "Background syntax parse failed");
+				let _ = apply_install_action(entry, now, ctx, &ctx.cfg, action);
+				metrics.record_task_result(meta.lang_id, ctx.tier, meta.class, meta.injections, meta.elapsed, false, true, false);
 				tracing::trace!(
 					target: "xeno_undo_trace",
 					doc_id = ?ctx.doc_id,

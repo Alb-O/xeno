@@ -18,7 +18,7 @@
 //! * `install` — drain completions; evaluate policy (pure) then apply install/drop/cooldown actions.
 //! * `gate` — language/disabled/ready/debounce early exits.
 //! * `bootstrap` — synchronous first-visible parse for small/medium docs.
-//! * `plan` — pure scheduling decisions → `WorkPlan` (Stage-A, Stage-B, BG).
+//! * `plan` — pure lane-specific scheduling decisions → `PlanSet` (Stage-A, Stage-B, BG).
 //! * `spawn` — execute plan, apply side effects on successful task spawn.
 //! * `finalize` — derive poll result from plan + active state.
 //!
@@ -35,7 +35,7 @@
 //! |---|---|---|---|
 //! | [`crate::syntax_manager::SyntaxManager`] | Orchestrator | Must route every poll through the derive→finalize pipeline | `SyntaxManager::ensure_syntax` |
 //! | [`crate::syntax_manager::SyntaxSlot`] | Per-document tree state | Must keep installed tree and `syntax_version` monotonic | `SyntaxManager::ensure_syntax`, `SyntaxManager::note_edit_incremental` |
-//! | `DocSched` | Per-document scheduling state | Must track cooldown/debounce/in-flight lanes without permit leaks | `scheduling::plan_work`, `tasks::TaskCollector::spawn` |
+//! | `DocSched` | Per-document scheduling state | Must track cooldown/debounce/in-flight lanes without permit leaks | `ensure::plan::compute_plan`, `ensure::plan::spawn_plan` |
 //! | [`crate::syntax_manager::EnsureSyntaxContext`] | Poll input snapshot | Must represent a single coherent doc/version/language view | callsites in render/tick paths |
 //! | [`crate::syntax_manager::HighlightProjectionCtx`] | Stale highlight projection context | Must be exposed only when pending edits align to resident tree | `SyntaxManager::highlight_projection_ctx_for` |
 //!
@@ -54,6 +54,9 @@
 //! * Must bound viewport scheduling to a capped visible byte span.
 //! * Must use viewport-specific cooldowns for viewport task failures.
 //! * Must suppress same-version history Stage-A retries after urgent timeout/error so background catch-up is not starved.
+//! * Must run bootstrap/plan/finalize only after language/work-disabled gate success.
+//! * Must run viewport-specific lane planning only when a normalized viewport is present.
+//! * Must suppress Stage-B planning within a poll when Stage-A is already planned.
 //!
 //! # Data flow
 //!
