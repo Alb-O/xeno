@@ -6,12 +6,12 @@ edition.workspace = true
 license.workspace = true
 
 [features]
-nu = ["dep:nu-protocol", "dep:serde", "dep:typetag"]
+nu = ["dep:xeno-nu-protocol", "dep:serde", "dep:typetag"]
 
 [dependencies]
-nu-protocol = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 typetag = { version = "0.2", optional = true }
+xeno-nu-protocol = { workspace = true, optional = true }
 
 [lints.rust]
 unused_crate_dependencies = "warn"

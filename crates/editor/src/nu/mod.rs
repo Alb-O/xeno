@@ -8,9 +8,9 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use nu_protocol::engine::EngineState;
-use nu_protocol::{DeclId, Value};
 pub use xeno_invocation::nu::{DecodeLimits, decode_runtime_invocations_with_limits};
+use xeno_nu_protocol::engine::EngineState;
+use xeno_nu_protocol::{DeclId, Value};
 
 use crate::types::Invocation;
 
@@ -145,7 +145,7 @@ impl NuRuntime {
 	/// Look up a script-defined declaration by name. Returns `None` for
 	/// missing functions and builtins.
 	pub fn find_script_decl(&self, name: &str) -> Option<DeclId> {
-		let decl_id = xeno_nu::find_decl(&self.base_engine, name)?;
+		let decl_id = xeno_nu_sandbox::find_decl(&self.base_engine, name)?;
 		self.script_decls.contains(&decl_id).then_some(decl_id)
 	}
 
@@ -164,7 +164,7 @@ impl NuRuntime {
 		env: Vec<(String, Value)>,
 	) -> Result<Vec<Invocation>, String> {
 		let start = Instant::now();
-		let value = xeno_nu::call_function_owned(&self.base_engine, decl_id, args, env)?;
+		let value = xeno_nu_sandbox::call_function_owned(&self.base_engine, decl_id, args, env)?;
 		let elapsed = start.elapsed();
 		if elapsed > SLOW_CALL_THRESHOLD {
 			tracing::debug!(elapsed_ms = elapsed.as_millis() as u64, "slow Nu call");
@@ -174,7 +174,7 @@ impl NuRuntime {
 
 	fn call_by_decl_id(&self, decl_id: DeclId, args: &[String], env: &[(&str, Value)]) -> Result<Value, String> {
 		let start = Instant::now();
-		let value = xeno_nu::call_function(&self.base_engine, decl_id, args, env)?;
+		let value = xeno_nu_sandbox::call_function(&self.base_engine, decl_id, args, env)?;
 		let elapsed = start.elapsed();
 		if elapsed > SLOW_CALL_THRESHOLD {
 			tracing::debug!(elapsed_ms = elapsed.as_millis() as u64, "slow Nu call");
@@ -185,13 +185,13 @@ impl NuRuntime {
 	fn run_internal(&self, fn_name: &str, args: &[String], env: &[(&str, Value)]) -> Result<Value, NuRunError> {
 		let start = Instant::now();
 
-		let decl_id = xeno_nu::find_decl(&self.base_engine, fn_name).ok_or_else(|| NuRunError::MissingFunction(fn_name.to_string()))?;
+		let decl_id = xeno_nu_sandbox::find_decl(&self.base_engine, fn_name).ok_or_else(|| NuRunError::MissingFunction(fn_name.to_string()))?;
 
 		if !self.script_decls.contains(&decl_id) {
 			return Err(NuRunError::MissingFunction(fn_name.to_string()));
 		}
 
-		let value = xeno_nu::call_function(&self.base_engine, decl_id, args, env).map_err(NuRunError::Other)?;
+		let value = xeno_nu_sandbox::call_function(&self.base_engine, decl_id, args, env).map_err(NuRunError::Other)?;
 
 		let elapsed = start.elapsed();
 		if elapsed > SLOW_CALL_THRESHOLD {
@@ -218,10 +218,16 @@ fn map_run_error(error: NuRunError) -> String {
 }
 
 fn build_base_engine(config_dir: &Path, script_path: &Path, script_src: &str) -> Result<(EngineState, HashSet<DeclId>), String> {
-	let mut engine_state = xeno_nu::create_engine_state(Some(config_dir))?;
+	let mut engine_state = xeno_nu_sandbox::create_engine_state(Some(config_dir))?;
 	let fname = script_path.to_string_lossy().to_string();
-	let parsed = xeno_nu::parse_and_validate_with_policy(&mut engine_state, &fname, script_src, Some(config_dir), xeno_nu::ParsePolicy::ModuleOnly)
-		.map_err(|e| add_prelude_removal_hint(&e))?;
+	let parsed = xeno_nu_sandbox::parse_and_validate_with_policy(
+		&mut engine_state,
+		&fname,
+		script_src,
+		Some(config_dir),
+		xeno_nu_sandbox::ParsePolicy::ModuleOnly,
+	)
+	.map_err(|e| add_prelude_removal_hint(&e))?;
 	Ok((engine_state, parsed.script_decl_ids.into_iter().collect()))
 }
 

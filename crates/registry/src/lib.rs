@@ -5,7 +5,7 @@
 extern crate self as xeno_registry;
 
 #[cfg(feature = "config-nuon")]
-use nu_engine as _;
+use xeno_nu_engine as _;
 
 pub mod config;
 pub mod core;

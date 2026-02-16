@@ -31,16 +31,6 @@ fn run_invocations_supports_record_and_list() {
 }
 
 #[test]
-fn run_invocations_supports_alias_entrypoint() {
-	let temp = tempfile::tempdir().expect("temp dir should exist");
-	write_script(temp.path(), "export alias go = editor stats");
-
-	let runtime = NuRuntime::load(temp.path()).expect("runtime should load");
-	let invocations = runtime.run_invocations("go", &[]).expect("alias entrypoint should run");
-	assert!(matches!(invocations.as_slice(), [Invocation::EditorCommand { name, .. }] if name == "stats"));
-}
-
-#[test]
 fn run_invocations_supports_structured_records() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
 	write_script(

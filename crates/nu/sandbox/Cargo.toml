@@ -1,0 +1,19 @@
+[package]
+name = "xeno-nu-sandbox"
+description = "Shared Nu script sandbox and evaluation helpers"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+xeno-invocation = { workspace = true, features = ["nu"] }
+xeno-nu-cmd-lang.workspace = true
+xeno-nu-engine = { workspace = true }
+xeno-nu-parser.workspace = true
+xeno-nu-protocol.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints.rust]
+unused_crate_dependencies = "warn"

@@ -10,8 +10,8 @@
 /// * Config (NUON keybindings): record-schema fallback via [`decode_single_invocation`].
 use std::fmt::Write;
 
-use nu_protocol::{Record, ShellError, Span, Value};
 use serde::{Deserialize, Serialize};
+use xeno_nu_protocol::{Record, ShellError, Span, Value};
 
 use crate::Invocation;
 
@@ -39,7 +39,7 @@ impl InvocationValue {
 }
 
 #[typetag::serde]
-impl nu_protocol::CustomValue for InvocationValue {
+impl xeno_nu_protocol::CustomValue for InvocationValue {
 	fn clone_value(&self, span: Span) -> Value {
 		Value::custom(Box::new(self.clone()), span)
 	}
@@ -335,7 +335,7 @@ fn decode_runtime_value(value: Value, limits: &DecodeLimits, state: &mut DecodeS
 	}
 }
 
-fn decode_invocation_record(record: &nu_protocol::Record, limits: &DecodeLimits, state: &mut DecodeState<'_>) -> Result<(), String> {
+fn decode_invocation_record(record: &xeno_nu_protocol::Record, limits: &DecodeLimits, state: &mut DecodeState<'_>) -> Result<(), String> {
 	if !record.contains("kind") {
 		return Err(state.err("record must include 'kind'"));
 	}
@@ -344,7 +344,7 @@ fn decode_invocation_record(record: &nu_protocol::Record, limits: &DecodeLimits,
 	state.push_invocation(invocation, limits)
 }
 
-fn decode_structured_invocation(record: &nu_protocol::Record, limits: &DecodeLimits, state: &mut DecodeState<'_>) -> Result<Invocation, String> {
+fn decode_structured_invocation(record: &xeno_nu_protocol::Record, limits: &DecodeLimits, state: &mut DecodeState<'_>) -> Result<Invocation, String> {
 	let kind = required_string_field(record, "kind", limits, state)?;
 	let name = required_string_field(record, "name", limits, state)?;
 
@@ -385,7 +385,7 @@ fn decode_structured_invocation(record: &nu_protocol::Record, limits: &DecodeLim
 
 // --- Field helpers ---
 
-fn required_string_field<'a>(record: &nu_protocol::Record, field: &'a str, limits: &DecodeLimits, state: &mut DecodeState<'a>) -> Result<String, String> {
+fn required_string_field<'a>(record: &xeno_nu_protocol::Record, field: &'a str, limits: &DecodeLimits, state: &mut DecodeState<'a>) -> Result<String, String> {
 	let value = record.get(field).ok_or_else(|| state.err(format_args!("missing required field '{field}'")))?;
 	match value {
 		Value::String { val, .. } => {
@@ -403,7 +403,7 @@ fn required_string_field<'a>(record: &nu_protocol::Record, field: &'a str, limit
 	}
 }
 
-fn optional_bool_field<'a>(record: &nu_protocol::Record, field: &'a str, state: &mut DecodeState<'a>) -> Result<Option<bool>, String> {
+fn optional_bool_field<'a>(record: &xeno_nu_protocol::Record, field: &'a str, state: &mut DecodeState<'a>) -> Result<Option<bool>, String> {
 	let Some(value) = record.get(field) else {
 		return Ok(None);
 	};
@@ -419,7 +419,12 @@ fn optional_bool_field<'a>(record: &nu_protocol::Record, field: &'a str, state: 
 	}
 }
 
-fn optional_int_field<'a>(record: &nu_protocol::Record, field: &'a str, limits: &DecodeLimits, state: &mut DecodeState<'a>) -> Result<Option<usize>, String> {
+fn optional_int_field<'a>(
+	record: &xeno_nu_protocol::Record,
+	field: &'a str,
+	limits: &DecodeLimits,
+	state: &mut DecodeState<'a>,
+) -> Result<Option<usize>, String> {
 	let Some(value) = record.get(field) else {
 		return Ok(None);
 	};
@@ -443,7 +448,12 @@ fn optional_int_field<'a>(record: &nu_protocol::Record, field: &'a str, limits: 
 	}
 }
 
-fn optional_char_field<'a>(record: &nu_protocol::Record, field: &'a str, limits: &DecodeLimits, state: &mut DecodeState<'a>) -> Result<Option<char>, String> {
+fn optional_char_field<'a>(
+	record: &xeno_nu_protocol::Record,
+	field: &'a str,
+	limits: &DecodeLimits,
+	state: &mut DecodeState<'a>,
+) -> Result<Option<char>, String> {
 	let Some(value) = record.get(field) else {
 		return Ok(None);
 	};
@@ -479,7 +489,7 @@ fn optional_char_field<'a>(record: &nu_protocol::Record, field: &'a str, limits:
 }
 
 fn optional_string_list_field<'a>(
-	record: &nu_protocol::Record,
+	record: &xeno_nu_protocol::Record,
 	field: &'a str,
 	limits: &DecodeLimits,
 	state: &mut DecodeState<'a>,

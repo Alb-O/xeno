@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use nu_protocol::{Record, Value};
+use xeno_nu_protocol::{Record, Value};
 
 use super::{Config, ConfigError, ConfigWarning, DecodeLimitOverrides, LanguageConfig, NuConfig, Result, UnresolvedKeys};
 use crate::options::{OptionScope, OptionStore};
@@ -154,7 +154,7 @@ pub fn parse_theme_value(value: &Value) -> Result<crate::themes::LinkedThemeDef>
 }
 
 fn parse_root_value(input: &str) -> Result<Value> {
-	nuon::from_nuon(input, None).map_err(|e| ConfigError::Nuon(e.to_string()))
+	xeno_nu_nuon::from_nuon(input, None).map_err(|e| ConfigError::Nuon(e.to_string()))
 }
 
 fn validate_allowed_fields(record: &Record, allowed: &[&str], parent: &str) -> Result<()> {

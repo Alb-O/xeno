@@ -22,10 +22,10 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use nu_protocol::{DeclId, Value};
 use tokio::sync::oneshot;
 use tokio::sync::oneshot::error::TryRecvError;
 use xeno_invocation::nu::DecodeLimits;
+use xeno_nu_protocol::{DeclId, Value};
 
 use super::NuRuntime;
 use crate::types::Invocation;
