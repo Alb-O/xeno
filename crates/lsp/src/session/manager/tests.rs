@@ -1,4 +1,7 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
+use parking_lot::Mutex;
 use serde_json::Value as JsonValue;
 use tokio::sync::{mpsc, oneshot};
 
@@ -6,13 +9,26 @@ use super::*;
 use crate::client::LanguageServerId;
 use crate::types::{AnyNotification, AnyRequest, AnyResponse, ResponseError};
 
-struct StubTransport;
+struct StubTransport {
+	events_rx: Mutex<Option<mpsc::UnboundedReceiver<TransportEvent>>>,
+}
+
+impl StubTransport {
+	fn new() -> Self {
+		let (_tx, rx) = mpsc::unbounded_channel();
+		Self {
+			events_rx: Mutex::new(Some(rx)),
+		}
+	}
+}
 
 #[async_trait]
 impl LspTransport for StubTransport {
-	fn events(&self) -> mpsc::UnboundedReceiver<TransportEvent> {
-		let (_, rx) = mpsc::unbounded_channel();
-		rx
+	fn subscribe_events(&self) -> crate::Result<mpsc::UnboundedReceiver<TransportEvent>> {
+		self.events_rx
+			.lock()
+			.take()
+			.ok_or_else(|| crate::Error::Protocol("events already subscribed".into()))
 	}
 
 	async fn start(&self, _cfg: crate::client::ServerConfig) -> crate::Result<crate::client::transport::StartedServer> {
@@ -43,35 +59,36 @@ impl LspTransport for StubTransport {
 }
 
 #[test]
-fn test_lsp_manager_creation() {
-	let transport: Arc<dyn LspTransport> = Arc::new(StubTransport);
-	let manager = LspManager::new(transport);
-	assert_eq!(manager.diagnostics_version(), 0);
+fn test_lsp_session_creation() {
+	let transport: Arc<dyn LspTransport> = Arc::new(StubTransport::new());
+	let (session, runtime) = LspSession::new(transport);
+	assert_eq!(session.diagnostics_version(), 0);
+	assert!(!runtime.is_started());
 }
 
 #[test]
-fn test_router_no_runtime() {
-	let transport: Arc<dyn LspTransport> = Arc::new(StubTransport);
-	let manager = LspManager::new(transport);
+fn test_runtime_start_requires_tokio_runtime() {
+	let transport: Arc<dyn LspTransport> = Arc::new(StubTransport::new());
+	let (_session, runtime) = LspSession::new(transport);
 
-	match manager.spawn_router() {
-		Err(SpawnRouterError::NoRuntime) => {}
-		other => panic!("expected NoRuntime, got: {:?}", other),
+	match runtime.start() {
+		Err(RuntimeStartError::NoRuntime) => {}
+		other => panic!("expected NoRuntime, got: {other:?}"),
 	}
 }
 
 #[test]
-fn test_router_single_spawn() {
-	let transport: Arc<dyn LspTransport> = Arc::new(StubTransport);
-	let manager = LspManager::new(transport);
+fn test_runtime_single_start() {
+	let transport: Arc<dyn LspTransport> = Arc::new(StubTransport::new());
+	let (_session, runtime) = LspSession::new(transport);
 
 	let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
 	let _guard = rt.enter();
 
-	assert!(manager.spawn_router().is_ok());
+	assert!(runtime.start().is_ok());
 
-	match manager.spawn_router() {
-		Err(SpawnRouterError::AlreadyStarted) => {}
-		other => panic!("expected AlreadyStarted, got: {:?}", other),
+	match runtime.start() {
+		Err(RuntimeStartError::AlreadyStarted) => {}
+		other => panic!("expected AlreadyStarted, got: {other:?}"),
 	}
 }

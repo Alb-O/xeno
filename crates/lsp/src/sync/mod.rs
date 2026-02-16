@@ -91,7 +91,8 @@ impl DocumentSync {
 
 	/// Open a document using an owned snapshot.
 	pub async fn open_document_text(&self, path: &Path, language: &str, text: String) -> Result<ClientHandle> {
-		let client = self.registry.get_or_start(language, path).await?;
+		let acquired = self.registry.acquire(language, path).await?;
+		let client = acquired.handle;
 
 		let uri = self
 			.documents

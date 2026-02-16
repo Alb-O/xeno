@@ -68,8 +68,11 @@ pub struct StartedServer {
 /// Abstracts server process management and JSON-RPC message routing.
 #[async_trait]
 pub trait LspTransport: Send + Sync {
-	/// Returns a receiver for asynchronous events from the transport.
-	fn events(&self) -> mpsc::UnboundedReceiver<TransportEvent>;
+	/// Subscribes to the asynchronous event stream from the transport.
+	///
+	/// Implementations may support a single subscriber and return an error on
+	/// repeated calls.
+	fn subscribe_events(&self) -> crate::Result<mpsc::UnboundedReceiver<TransportEvent>>;
 
 	/// Starts or acquires a language server for the given configuration.
 	async fn start(&self, cfg: crate::client::ServerConfig) -> crate::Result<StartedServer>;
