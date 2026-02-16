@@ -1,4 +1,17 @@
 use super::CommandPaletteOverlay;
+use crate::completion::{CompletionItem, CompletionKind};
+
+fn command_completion(insert_text: &str) -> CompletionItem {
+	CompletionItem {
+		label: insert_text.to_string(),
+		insert_text: insert_text.to_string(),
+		detail: None,
+		filter_text: None,
+		kind: CompletionKind::Command,
+		match_indices: None,
+		right: None,
+	}
+}
 
 #[test]
 fn token_context_switches_to_arg_after_space() {
@@ -76,4 +89,18 @@ fn command_space_policy_is_enabled_for_commands_with_arg_completion() {
 fn command_space_policy_resolves_aliases() {
 	assert!(CommandPaletteOverlay::command_supports_argument_completion("e"));
 	assert!(CommandPaletteOverlay::command_supports_argument_completion("snip"));
+}
+
+#[test]
+fn commit_resolution_prefers_exact_typed_command_when_resolved() {
+	let selected = command_completion("quit");
+	let resolved = CommandPaletteOverlay::resolve_command_name_for_commit("write", 0, Some(&selected));
+	assert_eq!(resolved, "write");
+}
+
+#[test]
+fn commit_resolution_falls_back_to_selected_command_when_typed_unresolved() {
+	let selected = command_completion("write");
+	let resolved = CommandPaletteOverlay::resolve_command_name_for_commit("wri", 0, Some(&selected));
+	assert_eq!(resolved, "write");
 }
