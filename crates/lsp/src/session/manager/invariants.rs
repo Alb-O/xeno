@@ -374,7 +374,7 @@ pub(crate) async fn test_router_drops_stale_generation_events() {
 	runtime.shutdown().await;
 }
 
-/// `LanguageServerId` must be slot + monotonic generation counter.
+/// Must keep `LanguageServerId` as slot + monotonic generation counter.
 ///
 /// * Enforced in: `RegistryState::next_gen`, `ServerConfig::id`
 /// * Failure symptom: Restarted servers reuse old IDs, causing event misrouting.
@@ -553,7 +553,7 @@ pub(crate) fn test_client_handle_capabilities_returns_none_before_init() {
 	assert!(handle.capabilities().is_none(), "capabilities must be None before initialization");
 }
 
-/// Ready flag must require initialized capabilities with release/acquire ordering.
+/// Must require initialized capabilities before setting ready with release/acquire ordering.
 ///
 /// * Enforced in: `ClientHandle::set_ready`, `ClientHandle::is_ready`
 /// * Failure symptom: Client appears ready but capabilities load returns stale/null data.
@@ -595,7 +595,7 @@ pub(crate) async fn test_registry_lookup_uses_canonical_path() {
 	}
 }
 
-/// Runtime start must fail when called without Tokio runtime context.
+/// Must fail runtime start when called without Tokio runtime context.
 ///
 /// * Enforced in: `LspRuntime::start`
 /// * Failure symptom: Router startup silently fails and no transport events are consumed.

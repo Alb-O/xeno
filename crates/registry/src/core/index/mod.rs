@@ -7,7 +7,7 @@
 //! registry definitions. It handles the transition from static definitions (Def) to symbolized
 //! runtime entries (Entry), manages string interning, and implements collision resolution.
 //!
-//! # Mental Model
+//! # Mental model
 //!
 //! 1. [`RegistryBuilder`] ingests static definitions, deduplicates by canonical ID, assigns
 //!    dense IDs, and constructs a [`RegistryIndex`].
@@ -39,7 +39,7 @@
 //! 2. Stage B: Primary Name - Friendly display name lookup.
 //! 3. Stage C: Secondary Keys - User secondary keys and domain-specific lookup keys.
 //!
-//! # Key Types
+//! # Key types
 //!
 //! | Type | Role |
 //! |------|------|

@@ -64,7 +64,7 @@
 //!
 //! ## Apply an edit
 //!
-//! * Use `buffer.apply_transaction(tx, policy)`.
+//! * Use `buffer.apply(&tx, policy)`.
 //! * This handles versioning, history, and readonly checks automatically.
 //!
 mod editing;

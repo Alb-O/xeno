@@ -9,7 +9,7 @@ fn readonly_flag_roundtrip() {
 }
 
 #[test]
-fn readonly_blocks_apply_transaction() {
+fn readonly_blocks_apply() {
 	let mut buffer = Buffer::scratch(ViewId::SCRATCH);
 	let (tx, _selection) = buffer.prepare_insert("hi");
 	buffer.set_readonly(true);
