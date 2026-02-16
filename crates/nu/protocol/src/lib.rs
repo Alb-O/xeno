@@ -6,6 +6,10 @@
 		reason = "This file may be compiled as host build-script code while building the wasm target"
 	)
 )]
+#![allow(
+	clippy::result_large_err,
+	reason = "ShellError is intentionally rich and shared across public APIs in this crate"
+)]
 
 #[cfg(test)]
 use os_pipe as _;

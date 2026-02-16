@@ -451,7 +451,8 @@ impl ByteStream {
 	/// Attempt to convert the [`ByteStream`] into a [`Stdio`].
 	///
 	/// This will succeed if the [`ByteStreamSource`] of the [`ByteStream`] is either:
-	/// - [`File`](ByteStreamSource::File)
+	/// * [`File`](ByteStreamSource::File)
+	///
 	/// All other cases return an `Err` with the original [`ByteStream`] in it.
 	pub fn into_stdio(self) -> Result<Stdio, Self> {
 		match self.stream {

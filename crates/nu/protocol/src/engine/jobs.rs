@@ -239,7 +239,7 @@ impl FrozenJob {
 	pub fn kill(&self) -> shell_error::io::Result<()> {
 		#[cfg(unix)]
 		{
-			Ok(kill_job_process(self.unfreeze.pid() as i64)?)
+			kill_job_process(self.unfreeze.pid() as i64)
 		}
 
 		// it doesn't happen outside unix.
