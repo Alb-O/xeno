@@ -57,12 +57,9 @@ impl Editor {
 		crate::nu::pipeline::apply_nu_hook_eval_done(self, msg)
 	}
 
-	/// Drains pending Nu hook invocations under the depth guard.
-	///
-	/// Called from pump() after message drain. Executes invocations produced
-	/// by completed hook evaluations. Returns true if any produced quit.
-	pub(crate) async fn drain_nu_hook_invocations(&mut self, max: usize) -> bool {
-		crate::nu::pipeline::drain_nu_hook_invocations(self, max).await
+	/// Drains pending Nu hook invocations and reports progress metadata.
+	pub(crate) async fn drain_nu_hook_invocations_report(&mut self, max: usize) -> crate::nu::pipeline::NuHookInvocationDrainReport {
+		crate::nu::pipeline::drain_nu_hook_invocations_report(self, max).await
 	}
 
 	/// Legacy synchronous drain for tests that need immediate hook evaluation.

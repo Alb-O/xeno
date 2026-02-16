@@ -22,6 +22,13 @@ const MAX_PENDING_NU_HOOKS: usize = 64;
 /// Maximum Nu hooks drained per pump() cycle.
 pub(crate) const MAX_NU_HOOKS_PER_PUMP: usize = 2;
 
+/// Report emitted after draining pending Nu hook-generated invocations.
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct NuHookInvocationDrainReport {
+	pub(crate) drained_count: usize,
+	pub(crate) should_quit: bool,
+}
+
 /// Build hook args for action post hooks: `[name, result_label]`.
 pub(crate) fn action_post_args(name: String, result: &InvocationResult) -> Vec<String> {
 	vec![name, invocation_result_label(result).to_string()]
@@ -169,29 +176,31 @@ pub(crate) fn apply_nu_hook_eval_done(editor: &mut Editor, msg: crate::msg::NuHo
 	}
 }
 
-/// Drains pending Nu hook invocations under the depth guard.
+/// Drains pending Nu hook invocations and reports progress metadata.
 ///
 /// Called from pump() after message drain. Executes invocations produced by
-/// completed hook evaluations. Returns true if any produced quit.
-pub(crate) async fn drain_nu_hook_invocations(editor: &mut Editor, max: usize) -> bool {
+/// completed hook evaluations.
+pub(crate) async fn drain_nu_hook_invocations_report(editor: &mut Editor, max: usize) -> NuHookInvocationDrainReport {
 	if !editor.state.nu.has_pending_hook_invocations() {
-		return false;
+		return NuHookInvocationDrainReport::default();
 	}
 
+	let mut report = NuHookInvocationDrainReport::default();
 	editor.state.nu.inc_hook_depth();
 
 	for _ in 0..max {
 		let Some(invocation) = editor.state.nu.pop_pending_hook_invocation() else {
 			break;
 		};
+		report.drained_count += 1;
 
 		let result = Box::pin(editor.run_invocation(invocation, InvocationPolicy::enforcing())).await;
 
 		match result {
 			InvocationResult::Ok => {}
 			InvocationResult::Quit | InvocationResult::ForceQuit => {
-				editor.state.nu.dec_hook_depth();
-				return true;
+				report.should_quit = true;
+				break;
 			}
 			InvocationResult::NotFound(target) => {
 				warn!(target = %target, "Nu hook invocation not found");
@@ -209,7 +218,7 @@ pub(crate) async fn drain_nu_hook_invocations(editor: &mut Editor, max: usize) -
 	}
 
 	editor.state.nu.dec_hook_depth();
-	false
+	report
 }
 
 fn apply_hook_effect_batch(editor: &mut Editor, batch: crate::nu::NuEffectBatch) -> crate::msg::Dirty {

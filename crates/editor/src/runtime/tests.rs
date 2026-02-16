@@ -1,8 +1,10 @@
 use std::time::Duration;
 
 use xeno_primitives::{Key, KeyCode, Mode};
+use xeno_registry::hooks::HookPriority;
 
 use super::*;
+use crate::scheduler::{WorkItem, WorkKind};
 
 async fn run_script(editor: &mut Editor, events: impl IntoIterator<Item = RuntimeEvent>) {
 	for event in events {
@@ -193,4 +195,23 @@ async fn test_runtime_event_scripts_converge_for_search_overlay_input() {
 	assert_eq!(via_paste.overlay_kind(), via_keys.overlay_kind());
 	assert_eq!(panes_via_paste, panes_via_keys);
 	assert_eq!(via_paste.statusline_render_plan(), via_keys.statusline_render_plan());
+}
+
+#[tokio::test]
+async fn test_pump_runs_multiple_rounds_under_scheduler_backlog() {
+	let mut editor = Editor::new_scratch();
+	editor.set_mode(Mode::Insert);
+
+	for _ in 0..40 {
+		editor.work_scheduler_mut().schedule(WorkItem {
+			future: Box::pin(async {}),
+			kind: WorkKind::Hook,
+			priority: HookPriority::Interactive,
+			doc_id: None,
+		});
+	}
+
+	tokio::task::yield_now().await;
+	let (_directive, report) = editor.pump_with_report().await;
+	assert!(report.rounds_executed >= 2, "scheduler backlog should require more than one round");
 }

@@ -844,12 +844,28 @@ impl Editor {
 	///
 	/// Returns aggregated dirty flags indicating what needs redraw.
 	pub fn drain_messages(&mut self) -> crate::msg::Dirty {
-		let mut dirty = crate::msg::Dirty::NONE;
-		while let Ok(msg) = self.state.msg_rx.try_recv() {
-			dirty |= msg.apply(self);
-		}
-		dirty
+		self.drain_messages_report().dirty
 	}
+
+	/// Drains pending messages and reports aggregate dirty flags and progress.
+	pub(crate) fn drain_messages_report(&mut self) -> MessageDrainReport {
+		let mut report = MessageDrainReport {
+			dirty: crate::msg::Dirty::NONE,
+			drained_count: 0,
+		};
+		while let Ok(msg) = self.state.msg_rx.try_recv() {
+			report.drained_count += 1;
+			report.dirty |= msg.apply(self);
+		}
+		report
+	}
+}
+
+/// Report emitted after draining pending async editor messages.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct MessageDrainReport {
+	pub(crate) dirty: crate::msg::Dirty,
+	pub(crate) drained_count: usize,
 }
 
 fn hash_unresolved_keys(keys: Option<&xeno_registry::config::UnresolvedKeys>) -> u64 {

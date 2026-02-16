@@ -12,6 +12,13 @@ use super::state::FlushHandle;
 use crate::metrics::StatsSnapshot;
 use crate::types::{Invocation, InvocationPolicy, InvocationResult};
 
+/// Report emitted after draining queued commands from workspace state.
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct CommandQueueDrainReport {
+	pub(crate) executed_count: usize,
+	pub(crate) should_quit: bool,
+}
+
 impl Editor {
 	/// Orchestrates background syntax parsing for all buffers and installs results.
 	///
@@ -245,10 +252,17 @@ impl Editor {
 
 	/// Drains and executes all queued commands.
 	pub async fn drain_command_queue(&mut self) -> bool {
+		self.drain_command_queue_report().await.should_quit
+	}
+
+	/// Drains and executes all queued commands, returning progress metadata.
+	pub(crate) async fn drain_command_queue_report(&mut self) -> CommandQueueDrainReport {
 		let commands: Vec<_> = self.state.core.workspace.command_queue.drain().collect();
 		let policy = InvocationPolicy::log_only();
+		let mut report = CommandQueueDrainReport::default();
 
 		for cmd in commands {
+			report.executed_count += 1;
 			let args: Vec<String> = cmd.args.iter().map(|s| s.to_string()).collect();
 			let invocation = Invocation::EditorCommand {
 				name: cmd.name.to_string(),
@@ -266,15 +280,22 @@ impl Editor {
 						InvocationResult::NotFound(_) => {
 							self.show_notification(xeno_registry::notifications::keys::unknown_command(cmd.name));
 						}
-						InvocationResult::Quit | InvocationResult::ForceQuit => return true,
+						InvocationResult::Quit | InvocationResult::ForceQuit => {
+							report.should_quit = true;
+							return report;
+						}
 						_ => {}
 					}
 				}
-				InvocationResult::Quit | InvocationResult::ForceQuit => return true,
+				InvocationResult::Quit | InvocationResult::ForceQuit => {
+					report.should_quit = true;
+					return report;
+				}
 				_ => {}
 			}
 		}
-		false
+
+		report
 	}
 
 	/// Collects a snapshot of current editor statistics.
