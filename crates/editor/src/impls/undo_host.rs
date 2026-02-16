@@ -25,7 +25,7 @@ pub(super) struct EditorUndoHost<'a> {
 	pub config: &'a Config,
 	pub frame: &'a mut FrameState,
 	pub notifications: &'a mut crate::notifications::NotificationCenter,
-	pub syntax_manager: &'a mut crate::syntax_manager::SyntaxManager,
+	pub syntax_manager: &'a mut xeno_syntax::SyntaxManager,
 	#[cfg(feature = "lsp")]
 	pub lsp: &'a mut LspSystem,
 }
@@ -124,7 +124,7 @@ impl EditorUndoHost<'_> {
 				&after_rope,
 				tx.changes(),
 				&self.config.language_loader,
-				crate::syntax_manager::EditSource::Typing,
+				xeno_syntax::EditSource::Typing,
 			);
 			self.sync_all_view_selections_for_doc(doc_id, std::slice::from_ref(tx), Some(buffer_id));
 			for id in self.buffers.buffer_ids() {
@@ -285,7 +285,7 @@ impl EditorUndoHost<'_> {
 				&after_rope,
 				&net_changes,
 				&self.config.language_loader,
-				crate::syntax_manager::EditSource::History,
+				xeno_syntax::EditSource::History,
 			);
 		}
 

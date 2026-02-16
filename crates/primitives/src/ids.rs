@@ -1,5 +1,21 @@
 //! Identifier types for editor entities.
 
+use std::sync::atomic::{AtomicU64, Ordering};
+
+/// Counter for generating unique document IDs.
+static NEXT_DOCUMENT_ID: AtomicU64 = AtomicU64::new(1);
+
+/// Unique identifier for a document.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct DocumentId(pub u64);
+
+impl DocumentId {
+	/// Generates a new unique document ID.
+	pub fn next() -> Self {
+		Self(NEXT_DOCUMENT_ID.fetch_add(1, Ordering::Relaxed))
+	}
+}
+
 /// Unique identifier for a view (buffer instance).
 ///
 /// Each view represents an independent editing context with its own cursor,

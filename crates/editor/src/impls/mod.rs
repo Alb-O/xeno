@@ -226,7 +226,7 @@ pub(crate) struct EditorState {
 	pub(crate) lsp: LspSystem,
 
 	/// Background syntax loading manager.
-	pub(crate) syntax_manager: crate::syntax_manager::SyntaxManager,
+	pub(crate) syntax_manager: xeno_syntax::SyntaxManager,
 
 	/// Unified async work scheduler (hooks, LSP, indexing, watchers).
 	pub(crate) work_scheduler: WorkScheduler,
@@ -422,7 +422,7 @@ impl Editor {
 				nu_hook_failed_total: 0,
 				notifications: crate::notifications::NotificationCenter::new(),
 				lsp: LspSystem::new(),
-				syntax_manager: crate::syntax_manager::SyntaxManager::new(crate::syntax_manager::SyntaxManagerCfg {
+				syntax_manager: xeno_syntax::SyntaxManager::new(xeno_syntax::SyntaxManagerCfg {
 					max_concurrency: 2,
 					..Default::default()
 				}),
@@ -882,12 +882,12 @@ impl Editor {
 	}
 
 	#[inline]
-	pub fn syntax_manager(&self) -> &crate::syntax_manager::SyntaxManager {
+	pub fn syntax_manager(&self) -> &xeno_syntax::SyntaxManager {
 		&self.state.syntax_manager
 	}
 
 	#[inline]
-	pub fn syntax_manager_mut(&mut self) -> &mut crate::syntax_manager::SyntaxManager {
+	pub fn syntax_manager_mut(&mut self) -> &mut xeno_syntax::SyntaxManager {
 		&mut self.state.syntax_manager
 	}
 

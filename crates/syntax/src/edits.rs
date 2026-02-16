@@ -229,5 +229,6 @@ impl SyntaxManager {
 		if let Some(mut entry) = self.entries.remove(&doc_id) {
 			entry.sched.invalidate();
 		}
+		self.warm_docs.remove(doc_id);
 	}
 }

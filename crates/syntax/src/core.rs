@@ -21,6 +21,7 @@ impl SyntaxManager {
 			entries: HashMap::new(),
 			engine: Arc::new(RealSyntaxEngine),
 			collector: TaskCollector::new(),
+			warm_docs: RecentDocLru::default(),
 			cfg,
 		}
 	}
@@ -39,6 +40,7 @@ impl SyntaxManager {
 			entries: HashMap::new(),
 			engine,
 			collector: TaskCollector::new(),
+			warm_docs: RecentDocLru::default(),
 			cfg,
 		}
 	}
@@ -65,10 +67,20 @@ impl SyntaxManager {
 	/// Returns true if the document's last-known tier disables parsing when hidden.
 	///
 	/// Used by call sites to skip polling cold docs that don't need background work.
-	pub(crate) fn is_hidden_parse_disabled(&self, doc_id: DocumentId) -> bool {
+	pub fn is_hidden_parse_disabled(&self, doc_id: DocumentId) -> bool {
 		self.entries
 			.get(&doc_id)
 			.is_some_and(|entry| entry.last_tier.is_some_and(|tier| !self.policy.cfg(tier).parse_when_hidden))
+	}
+
+	/// Marks a document as recently visible for warm retention behavior.
+	pub fn note_visible_doc(&mut self, doc_id: DocumentId) {
+		self.warm_docs.touch(doc_id);
+	}
+
+	/// Returns true when the document is in the warm visibility set.
+	pub fn is_warm_doc(&self, doc_id: DocumentId) -> bool {
+		self.warm_docs.contains(doc_id)
 	}
 
 	pub(super) fn entry_mut(&mut self, doc_id: DocumentId) -> &mut DocEntry {

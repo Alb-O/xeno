@@ -1,3 +1,4 @@
+#![cfg_attr(test, allow(unused_crate_dependencies))]
 //! Syntax manager for background parsing, scheduling, and install policy.
 //! Anchor ID: XENO_ANCHOR_SYNTAX_MANAGER
 //!
@@ -33,11 +34,11 @@
 //!
 //! | Type | Meaning | Constraints | Constructed / mutated in |
 //! |---|---|---|---|
-//! | [`crate::syntax_manager::SyntaxManager`] | Orchestrator | Must route every poll through the derive→finalize pipeline | `SyntaxManager::ensure_syntax` |
-//! | [`crate::syntax_manager::SyntaxSlot`] | Per-document tree state | Must keep installed tree and `syntax_version` monotonic | `SyntaxManager::ensure_syntax`, `SyntaxManager::note_edit_incremental` |
+//! | [`crate::SyntaxManager`] | Orchestrator | Must route every poll through the derive→finalize pipeline | `SyntaxManager::ensure_syntax` |
+//! | [`crate::SyntaxSlot`] | Per-document tree state | Must keep installed tree and `syntax_version` monotonic | `SyntaxManager::ensure_syntax`, `SyntaxManager::note_edit_incremental` |
 //! | `DocSched` | Per-document scheduling state | Must track cooldown/debounce/in-flight lanes without permit leaks | `ensure::plan::compute_plan`, `ensure::plan::spawn_plan` |
-//! | [`crate::syntax_manager::EnsureSyntaxContext`] | Poll input snapshot | Must represent a single coherent doc/version/language view | callsites in render/tick paths |
-//! | [`crate::syntax_manager::HighlightProjectionCtx`] | Stale highlight projection context | Must be exposed only when pending edits align to resident tree | `SyntaxManager::highlight_projection_ctx_for` |
+//! | [`crate::EnsureSyntaxContext`] | Poll input snapshot | Must represent a single coherent doc/version/language view | callsites in render/tick paths |
+//! | [`crate::HighlightProjectionCtx`] | Stale highlight projection context | Must be exposed only when pending edits align to resident tree | `SyntaxManager::highlight_projection_ctx_for` |
 //!
 //! # Invariants
 //!
@@ -102,10 +103,9 @@ use std::time::{Duration, Instant};
 use tokio::sync::Semaphore;
 use xeno_language::LanguageLoader;
 use xeno_language::syntax::{InjectionPolicy, SyntaxOptions};
-use xeno_primitives::{ChangeSet, Rope};
+use xeno_primitives::{ChangeSet, DocumentId, Rope};
 
-use crate::core::document::DocumentId;
-
+pub mod highlight_cache;
 pub mod lru;
 mod metrics;
 
@@ -123,6 +123,8 @@ mod tasks;
 mod types;
 use engine::RealSyntaxEngine;
 pub use engine::SyntaxEngine;
+pub use highlight_cache::{HighlightSpanQuery, HighlightTiles};
+pub use lru::RecentDocLru;
 use manager_state::DocEntry;
 pub use manager_state::SyntaxManager;
 pub use metrics::SyntaxMetrics;

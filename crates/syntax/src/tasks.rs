@@ -6,11 +6,10 @@ use tokio::sync::Semaphore;
 use tokio::task::JoinHandle;
 use xeno_language::syntax::{SealedSource, Syntax, SyntaxError, SyntaxOptions};
 use xeno_language::{LanguageId, LanguageLoader};
-use xeno_primitives::{ChangeSet, Rope};
+use xeno_primitives::{ChangeSet, DocumentId, Rope};
 
 use super::engine::SyntaxEngine;
 use super::types::{DocEpoch, OptKey, TaskId, ViewportKey};
-use crate::core::document::DocumentId;
 
 /// Categorization of syntax tasks for metrics and scheduling.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

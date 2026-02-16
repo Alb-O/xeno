@@ -5,9 +5,8 @@
 
 use std::collections::{HashMap, VecDeque};
 
-use xeno_primitives::Rope;
+use xeno_primitives::{DocumentId, Rope};
 
-use crate::core::document::DocumentId;
 use crate::render::buffer::plan::WrapAccess;
 use crate::render::wrap::{WrappedSegment, wrap_line_ranges_rope};
 

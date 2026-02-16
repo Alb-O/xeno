@@ -8,16 +8,14 @@
 
 mod diagnostics;
 mod diff;
-mod highlight;
 mod wrap;
 
 use diagnostics::DiagnosticsCache;
 use diff::DiffLineNumbersCache;
-pub(crate) use highlight::HighlightSpanQuery;
-use highlight::HighlightTiles;
 use wrap::WrapBuckets;
-
-use crate::core::document::DocumentId;
+use xeno_primitives::DocumentId;
+pub(crate) use xeno_syntax::HighlightSpanQuery;
+use xeno_syntax::HighlightTiles;
 
 /// The main render cache.
 ///

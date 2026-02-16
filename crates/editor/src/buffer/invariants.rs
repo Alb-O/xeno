@@ -3,9 +3,10 @@
 //! Each invariant is expressed as a `pub(crate) fn test_*()` that is both
 //! a runnable test and an intra-doc link target for the anchor module-level docs.
 
+use xeno_primitives::DocumentId;
+
 use super::LockGuard;
 use crate::buffer::{Buffer, ViewId};
-use crate::core::document::DocumentId;
 
 /// Must panic on re-entrant locking of the same document on one thread.
 ///

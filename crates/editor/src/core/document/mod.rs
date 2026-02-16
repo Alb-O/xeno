@@ -13,27 +13,13 @@
 mod tests;
 
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
 
 use tracing::trace;
 use xeno_language::LanguageLoader;
+pub use xeno_primitives::DocumentId;
 use xeno_primitives::{CommitResult, EditCommit, EditError, ReadOnlyReason, ReadOnlyScope, Rope, Transaction, UndoPolicy, ViewId};
 
 use super::undo_store::UndoBackend;
-
-/// Counter for generating unique document IDs.
-static NEXT_DOCUMENT_ID: AtomicU64 = AtomicU64::new(1);
-
-/// Unique identifier for a document.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct DocumentId(pub u64);
-
-impl DocumentId {
-	/// Generates a new unique document ID.
-	pub fn next() -> Self {
-		Self(NEXT_DOCUMENT_ID.fetch_add(1, Ordering::Relaxed))
-	}
-}
 
 /// Outcomes of a metadata change on a document.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

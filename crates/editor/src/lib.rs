@@ -81,8 +81,6 @@ pub mod separator;
 pub(crate) mod snippet;
 /// Style utilities and conversions.
 pub mod styles;
-/// Background syntax loading manager.
-pub mod syntax_manager;
 /// Terminal capability configuration.
 pub mod terminal_config;
 pub mod test_events;

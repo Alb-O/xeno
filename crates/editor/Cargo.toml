@@ -41,6 +41,7 @@ xeno-nu-protocol.workspace = true
 xeno-nu-sandbox.workspace = true
 xeno-primitives.workspace = true
 xeno-registry.workspace = true
+xeno-syntax.workspace = true
 [dev-dependencies]
 futures = "0.3"
 proptest.workspace = true

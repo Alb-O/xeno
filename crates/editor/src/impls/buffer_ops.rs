@@ -247,6 +247,5 @@ impl Editor {
 
 		self.state.syntax_manager.on_document_close(doc_id);
 		self.state.render_cache.invalidate_document(doc_id);
-		self.state.core.warm_docs.remove(doc_id);
 	}
 }

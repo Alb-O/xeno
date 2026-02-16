@@ -219,7 +219,7 @@ impl TieredSyntaxPolicy {
 	}
 }
 
-/// Global configuration for the [`crate::syntax_manager::SyntaxManager`].
+/// Global configuration for the [`crate::SyntaxManager`].
 #[derive(Debug, Clone)]
 pub struct SyntaxManagerCfg {
 	/// Maximum concurrent background parse tasks.
