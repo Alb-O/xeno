@@ -19,9 +19,9 @@
 //!
 //! | Type | Meaning | Constraints | Constructed / mutated in |
 //! |---|---|---|---|
-//! | [`crate::buffer::Buffer`] | Primary editing unit | MUST separate view state from content | `Buffer::new`, `Buffer::clone_for_split` |
+//! | [`crate::buffer::Buffer`] | Primary editing unit | Must separate view state from content | `Buffer::new`, `Buffer::clone_for_split` |
 //! | [`crate::core::document::Document`] | Shared content | Authoritative source of text/history | `Document::new` |
-//! | `DocumentHandle` | Thread-safe wrapper | MUST prevent re-entrant locks on same thread | `DocumentHandle::new` |
+//! | `DocumentHandle` | Thread-safe wrapper | Must prevent re-entrant locks on same thread | `DocumentHandle::new` |
 //! | [`crate::buffer::ApplyPolicy`] | Edit validation rules | Controls readonly/history behavior | `editing::apply` |
 //!
 //! # Invariants

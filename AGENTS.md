@@ -48,12 +48,12 @@ where
 module-level rustdoc is the ground truth for subsystem behavior and invariants, must read when relevant and keep updated.
 
 get the filepath and read the file in one:
-* buffer: `rg -N -C999 --glob '!AGENTS.md' "XENO_ANCHOR_BUFFER"`
-* registry: `rg -N -C999 --glob '!AGENTS.md' "XENO_ANCHOR_REGISTRY_RUNTIME"`
-* lsp: `rg -N -C999 --glob '!AGENTS.md' "XENO_ANCHOR_LSP_MANAGER"`
-* overlay: `rg -N -C999 --glob '!AGENTS.md' "XENO_ANCHOR_OVERLAY_SESSION"`
-* syntax: `rg -N -C999 --glob '!AGENTS.md' "XENO_ANCHOR_SYNTAX_MANAGER"`
-* windowing: `rg -N -C999 --glob '!AGENTS.md' "XENO_ANCHOR_LAYOUT_MANAGER"`
+* buffer: `rg -N -C999 "XENO_ANCHOR_BUFFER" crates`
+* registry: `rg -N -C999 "XENO_ANCHOR_REGISTRY_RUNTIME" crates`
+* lsp: `rg -N -C999 "XENO_ANCHOR_LSP_MANAGER" crates`
+* overlay: `rg -N -C999 "XENO_ANCHOR_OVERLAY_SESSION" crates`
+* syntax: `rg -N -C999 "XENO_ANCHOR_SYNTAX_MANAGER" crates`
+* windowing: `rg -N -C999 "XENO_ANCHOR_LAYOUT_MANAGER" crates`
 
 ## architecture docs
 
