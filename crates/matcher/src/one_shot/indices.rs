@@ -24,11 +24,10 @@ pub fn match_indices<S1: AsRef<str>, S2: AsRef<str>>(needle: S1, haystack: S2, c
 	// Trace indices from the same full-needle DP path used for typo counting.
 	let (score, typos, indices, exact) = smith_waterman_with_indices(needle, haystack, &config.scoring);
 
-	if let Some(max_typos) = config.max_typos {
-		if typos > max_typos {
+	if let Some(max_typos) = config.max_typos
+		&& typos > max_typos {
 			return None;
 		}
-	}
 
 	Some(MatchIndices { score, indices, exact })
 }

@@ -229,16 +229,15 @@ mod tests {
 				for &gap in &gaps {
 					let mut haystack = String::new();
 					haystack.push(first);
-					haystack.extend(std::iter::repeat(fill).take(gap));
+					haystack.extend(std::iter::repeat_n(fill, gap));
 					haystack.push(last);
-					haystack.extend(std::iter::repeat(last).take(4));
+					haystack.extend(std::iter::repeat_n(last, 4));
 
-					if let Some((end_score, new_typos, old_typos)) = analyze_contract(needle, &haystack, &scoring) {
-						if old_typos > new_typos {
+					if let Some((end_score, new_typos, old_typos)) = analyze_contract(needle, &haystack, &scoring)
+						&& old_typos > new_typos {
 							found = Some((needle.to_string(), haystack, end_score, new_typos, old_typos));
 							break 'outer;
 						}
-					}
 				}
 			}
 		}
@@ -258,12 +257,11 @@ mod tests {
 				for _ in 0..hlen {
 					hay.push(hay_alpha[rng.next_usize(hay_alpha.len())] as char);
 				}
-				if let Some((end_score, new_typos, old_typos)) = analyze_contract(&needle, &hay, &scoring) {
-					if old_typos > new_typos {
+				if let Some((end_score, new_typos, old_typos)) = analyze_contract(&needle, &hay, &scoring)
+					&& old_typos > new_typos {
 						found = Some((needle, hay, end_score, new_typos, old_typos));
 						break;
 					}
-				}
 			}
 		}
 

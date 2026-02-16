@@ -505,12 +505,11 @@ impl Syntax {
 				}
 			}
 			let mut mapped_node_range_end = (matched_node_range.end as i32 + offset) as u32;
-			if let Some(edit) = edits.peek().filter(|edit| edit.start_byte <= matched_node_range.end) {
-				if edit.start_byte < matched_node_range.start {
+			if let Some(edit) = edits.peek().filter(|edit| edit.start_byte <= matched_node_range.end)
+				&& edit.start_byte < matched_node_range.start {
 					mapped_node_range_start = (edit.new_end_byte as i32 + offset) as u32;
 					mapped_node_range_end = mapped_node_range_start;
 				}
-			}
 			*injection_range = mapped_start..mapped_end;
 			*matched_node_range = mapped_node_range_start..mapped_node_range_end;
 		}
