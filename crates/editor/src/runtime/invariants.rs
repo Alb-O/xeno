@@ -8,7 +8,7 @@ use crate::Editor;
 use crate::commands::{CommandError, CommandOutcome, EditorCommandContext};
 use crate::runtime::pump::PumpPhase;
 use crate::scheduler::{WorkItem, WorkKind};
-use crate::types::Invocation;
+use crate::types::{DeferredWorkItem, Invocation};
 
 fn runtime_invariant_test_quit_command<'a>(_ctx: &'a mut EditorCommandContext<'a>) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move { Ok(CommandOutcome::Quit) })
@@ -35,7 +35,7 @@ async fn test_on_event_implies_single_pump_cycle() {
 	assert_eq!(directive.poll_timeout, Some(Duration::from_millis(16)));
 }
 
-/// Must defer overlay commit execution to `pump` via pending-commit flag.
+/// Must defer overlay commit execution to `pump` via deferred work queue.
 ///
 /// * Enforced in: `Editor::handle_key_active`, `Editor::pump`
 /// * Failure symptom: overlay commit runs re-entrantly inside key handling.
@@ -46,12 +46,31 @@ async fn test_overlay_commit_deferred_until_pump() {
 	assert!(editor.open_command_palette());
 
 	let _ = editor.handle_key(Key::new(KeyCode::Enter)).await;
-	assert!(editor.frame().pending_overlay_commit);
+	assert!(editor.frame().deferred_work.has_overlay_commit());
 	assert!(editor.overlay_kind().is_some());
 
 	let _ = editor.pump().await;
-	assert!(!editor.frame().pending_overlay_commit);
+	assert!(!editor.frame().deferred_work.has_overlay_commit());
 	assert!(editor.overlay_kind().is_none());
+}
+
+/// Must apply at most one deferred overlay commit per pump cycle.
+///
+/// * Enforced in: `runtime::pump::run_pump_cycle_with_report`
+/// * Failure symptom: duplicate commit requests execute repeatedly in one cycle and reorder deferred work.
+#[tokio::test]
+async fn test_pump_applies_at_most_one_overlay_commit_per_cycle() {
+	let mut editor = Editor::new_scratch();
+	editor.handle_window_resize(100, 40);
+	assert!(editor.open_command_palette());
+
+	editor.frame_mut().deferred_work.push(DeferredWorkItem::OverlayCommit);
+	editor.frame_mut().deferred_work.push(DeferredWorkItem::OverlayCommit);
+
+	let _ = editor.pump().await;
+
+	assert!(editor.overlay_kind().is_none());
+	assert!(editor.frame().deferred_work.has_overlay_commit());
 }
 
 /// Must default cursor style to Beam in insert mode and Block otherwise.

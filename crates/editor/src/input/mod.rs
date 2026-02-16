@@ -32,7 +32,7 @@
 //! # Invariants
 //!
 //! * Must allow active overlay interaction/layers to consume input before base keymap dispatch.
-//! * Must defer overlay commit execution to runtime `pump` via pending-commit flag.
+//! * Must defer overlay commit execution to runtime `pump` via deferred-work queue.
 //! * Must route keymap-produced action/command invocations through `Editor::run_invocation`.
 //! * Must confine drag-selection updates to the origin view during active text-selection drags.
 //! * Must cancel or ignore stale separator drag paths after structural layout changes.

@@ -2,6 +2,7 @@
 //!
 //! Grouped structs for editor state management:
 //! * [`crate::types::FrameState`] - Per-frame runtime state (hot fields)
+//! * [`crate::types::DeferredWorkQueue`] - Deferred runtime work backlog for pump convergence
 //! * [`crate::types::Viewport`] - Terminal dimensions
 //! * [`crate::types::Workspace`] - Session state (registers, jumps, macros)
 //! * [`crate::types::Config`] - Editor configuration (theme, languages, options)
@@ -21,7 +22,7 @@ mod workspace;
 
 pub use config::Config;
 pub use edit_policy::ApplyEditPolicy;
-pub use frame::FrameState;
+pub use frame::{DeferredWorkItem, DeferredWorkQueue, FrameState};
 pub use history::{DocumentHistoryEntry, EditorUndoGroup, ViewSnapshot};
 pub use invocation::{Invocation, InvocationPolicy, InvocationResult};
 pub use undo_manager::{PreparedEdit, UndoHost, UndoManager};

@@ -54,13 +54,13 @@ fn lookup_action_id(index: &xeno_registry::KeymapIndex, mode: BindingMode, key_s
 }
 
 #[tokio::test]
-async fn enter_sets_pending_commit_and_pump_consumes() {
+async fn enter_queues_deferred_commit_and_pump_consumes() {
 	let mut editor = Editor::new_scratch();
 	editor.handle_window_resize(100, 40);
 	assert!(editor.open_command_palette());
 
 	let _ = editor.handle_key(key_enter()).await;
-	assert!(editor.frame().pending_overlay_commit);
+	assert!(editor.frame().deferred_work.has_overlay_commit());
 
 	let _ = editor.pump().await;
 	assert!(!editor.state.overlay_system.interaction().is_open());

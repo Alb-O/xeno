@@ -37,13 +37,13 @@ fn first_separator_cell(editor: &Editor) -> (u16, u16) {
 /// * Enforced in: `Editor::handle_key_active`
 /// * Failure symptom: modal commit executes re-entrantly in key handling.
 #[tokio::test]
-async fn test_overlay_enter_sets_pending_commit() {
+async fn test_overlay_enter_queues_deferred_commit() {
 	let mut editor = Editor::new_scratch();
 	editor.handle_window_resize(100, 40);
 	assert!(editor.open_command_palette());
 
 	let _ = editor.handle_key(Key::new(KeyCode::Enter)).await;
-	assert!(editor.frame().pending_overlay_commit);
+	assert!(editor.frame().deferred_work.has_overlay_commit());
 	assert!(editor.overlay_kind().is_some());
 }
 

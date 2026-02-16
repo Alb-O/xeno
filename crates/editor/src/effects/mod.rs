@@ -13,6 +13,7 @@ use xeno_registry::actions::editor_ctx::OverlayRequest;
 use xeno_registry::commands::CommandError;
 
 use crate::effects::sink::DrainedEffects;
+use crate::types::DeferredWorkItem;
 
 impl crate::Editor {
 	/// Flushes all pending effects from the sink and applies them.
@@ -97,7 +98,7 @@ impl crate::Editor {
 
 	/// Dispatches a single [`OverlayRequest`] to the overlay system.
 	///
-	/// Commit closes are deferred via [`crate::types::FrameState::pending_overlay_commit`]
+	/// Commit closes are deferred by enqueuing [`crate::types::DeferredWorkItem::OverlayCommit`]
 	/// because [`crate::overlay::OverlayController::on_commit`] is async and cannot run inside
 	/// the synchronous effect flush loop.
 	pub(crate) fn handle_overlay_request(&mut self, req: OverlayRequest) -> Result<(), CommandError> {
@@ -128,7 +129,7 @@ impl crate::Editor {
 				use crate::overlay::CloseReason;
 				match reason {
 					OverlayCloseReason::Commit => {
-						self.state.frame.pending_overlay_commit = true;
+						self.state.frame.deferred_work.push(DeferredWorkItem::OverlayCommit);
 					}
 					reason => {
 						let reason = match reason {

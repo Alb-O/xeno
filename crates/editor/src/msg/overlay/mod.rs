@@ -4,6 +4,8 @@ use xeno_registry::notifications::Notification;
 
 use super::Dirty;
 use crate::Editor;
+#[cfg(feature = "lsp")]
+use crate::types::DeferredWorkItem;
 
 /// Messages for async overlay outcomes.
 #[derive(Debug)]
@@ -25,7 +27,7 @@ impl OverlayMsg {
 			}
 			#[cfg(feature = "lsp")]
 			Self::ApplyWorkspaceEdit(edit) => {
-				editor.frame_mut().pending_workspace_edits.push(edit);
+				editor.frame_mut().deferred_work.push(DeferredWorkItem::ApplyWorkspaceEdit(edit));
 				Dirty::REDRAW
 			}
 		}

@@ -78,11 +78,10 @@ pub(crate) fn phase_filesystem_pump(editor: &mut Editor) -> FilesystemPhaseOutco
 }
 
 pub(crate) async fn phase_overlay_commit_if_pending(editor: &mut Editor, allow_commit: bool) -> OverlayCommitPhaseOutcome {
-	if !allow_commit || !editor.state.frame.pending_overlay_commit {
+	if !allow_commit || !editor.state.frame.deferred_work.take_overlay_commit() {
 		return OverlayCommitPhaseOutcome::default();
 	}
 
-	editor.state.frame.pending_overlay_commit = false;
 	editor.interaction_commit().await;
 	OverlayCommitPhaseOutcome { committed: true }
 }
@@ -101,8 +100,8 @@ pub(crate) fn phase_drain_messages(editor: &mut Editor) -> MessageDrainPhaseOutc
 pub(crate) async fn phase_apply_workspace_edits(editor: &mut Editor) -> WorkspaceEditsPhaseOutcome {
 	#[cfg(feature = "lsp")]
 	{
-		if !editor.state.frame.pending_workspace_edits.is_empty() {
-			let edits = std::mem::take(&mut editor.state.frame.pending_workspace_edits);
+		let edits = editor.state.frame.deferred_work.take_workspace_edits();
+		if !edits.is_empty() {
 			let applied_count = edits.len();
 			for edit in edits {
 				if let Err(err) = editor.apply_workspace_edit(edit).await {
