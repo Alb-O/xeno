@@ -156,8 +156,8 @@ fn push_row_window(out: &mut String, label: &str, row: &[u16], j: usize, radius:
 	let start = j.saturating_sub(radius);
 	let end = (j + radius + 1).min(row.len());
 	write!(out, "{label}[{start}..{end}]:").ok();
-	for idx in start..end {
-		write!(out, " {:>4}", row[idx]).ok();
+	for value in row.iter().take(end).skip(start) {
+		write!(out, " {:>4}", value).ok();
 	}
 	writeln!(out).ok();
 }
@@ -188,8 +188,7 @@ fn explain_reference_cell(needle: &str, haystack: &str, scoring: &Scoring, targe
 	let mut prev_row = vec![0u16; h];
 	let mut curr_row = vec![0u16; h];
 
-	for i in 0..n {
-		let needle_b = needle[i];
+	for (i, &needle_b) in needle.iter().enumerate().take(n) {
 		let needle_is_upper = needle_b.is_ascii_uppercase();
 		let needle_lower = needle_b.to_ascii_lowercase();
 		let mut up_score_prev: u16 = 0;
@@ -315,8 +314,7 @@ fn explain_simd_scoring_cell(needle: &str, haystack: &str, scoring: &Scoring, ta
 	let mut prev_row = vec![0u16; h];
 	let mut curr_row = vec![0u16; h];
 
-	for i in 0..n {
-		let needle_b = needle[i];
+	for (i, &needle_b) in needle.iter().enumerate().take(n) {
 		let needle_is_capital = needle_b.is_ascii_uppercase();
 		let needle_lower = needle_b.to_ascii_lowercase();
 		let mut up_score_prev: u16 = 0;

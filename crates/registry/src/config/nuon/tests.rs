@@ -12,7 +12,7 @@ languages: [
 	{ name: "rust", options: { tab-width: 2, theme: "monokai" } },
 ],
 keys: {
-	normal: { "ctrl+s": { kind: "command", name: "write" } }
+	normal: { "ctrl+s": "command:write" }
 }
 }
 "#;

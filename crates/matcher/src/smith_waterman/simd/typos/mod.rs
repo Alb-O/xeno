@@ -33,8 +33,8 @@ where
 
 	let last_scores = &score_matrix[n - 1];
 	let mut end_scores = Simd::splat(0u16);
-	for row in 0..W {
-		end_scores = end_scores.simd_max(last_scores[row]);
+	for lane_scores in last_scores.iter().take(W) {
+		end_scores = end_scores.simd_max(*lane_scores);
 	}
 
 	let (mut out, bailed) = typos_scalar::<W, L>(score_matrix, max_typos, end_scores);
@@ -79,28 +79,22 @@ where
 		memo.fill(u16::MAX);
 		let col = n - 1;
 		let mut best = u16::MAX;
-		let mut visited = 0usize;
-		let mut lane_bailed = false;
-		for row in 0..W {
-			if last[row][lane] != end_score {
+		let mut trace_state = TracebackState {
+			memo: &mut memo,
+			visited: 0,
+			visit_limit,
+			bailed: false,
+		};
+		for (row, row_scores) in last.iter().enumerate().take(W) {
+			if row_scores[lane] != end_score {
 				continue;
 			}
-			best = best.min(traceback_lane::<W, L>(
-				score_matrix,
-				lane,
-				col,
-				row,
-				cap,
-				&mut memo,
-				&mut visited,
-				visit_limit,
-				&mut lane_bailed,
-			));
-			if best == 0 || lane_bailed {
+			best = best.min(traceback_lane::<W, L>(score_matrix, lane, col, row, cap, &mut trace_state));
+			if best == 0 || trace_state.bailed {
 				break;
 			}
 		}
-		if lane_bailed {
+		if trace_state.bailed {
 			bailed[lane] = true;
 		} else {
 			out[lane] = best.min(cap);
@@ -109,21 +103,18 @@ where
 	(out, bailed)
 }
 
-fn traceback_lane<const W: usize, const L: usize>(
-	m: &[[Simd<u16, L>; W]],
-	lane: usize,
-	col: usize,
-	row: usize,
-	cap: u16,
-	memo: &mut [u16],
-	visited: &mut usize,
+struct TracebackState<'a> {
+	memo: &'a mut [u16],
+	visited: usize,
 	visit_limit: usize,
-	bailed: &mut bool,
-) -> u16
+	bailed: bool,
+}
+
+fn traceback_lane<const W: usize, const L: usize>(m: &[[Simd<u16, L>; W]], lane: usize, col: usize, row: usize, cap: u16, state: &mut TracebackState<'_>) -> u16
 where
 	LaneCount<L>: SupportedLaneCount,
 {
-	if *bailed {
+	if state.bailed {
 		return cap;
 	}
 	if row == 0 {
@@ -133,13 +124,13 @@ where
 		return if m[0][row][lane] == 0 { 1 } else { 0 };
 	}
 	let idx = col * W + row;
-	if memo[idx] != u16::MAX {
-		return memo[idx];
+	if state.memo[idx] != u16::MAX {
+		return state.memo[idx];
 	}
 
-	*visited += 1;
-	if *visited > visit_limit {
-		*bailed = true;
+	state.visited += 1;
+	if state.visited > state.visit_limit {
+		state.bailed = true;
 		return cap;
 	}
 
@@ -151,19 +142,19 @@ where
 	let mut best = cap;
 	if diag == max_prev {
 		let add: u16 = if diag >= cur { 1 } else { 0 };
-		let v = add.saturating_add(traceback_lane::<W, L>(m, lane, col - 1, row - 1, cap, memo, visited, visit_limit, bailed));
+		let v = add.saturating_add(traceback_lane::<W, L>(m, lane, col - 1, row - 1, cap, state));
 		best = best.min(v.min(cap));
 	}
-	if left == max_prev && !*bailed {
-		let v = 1u16.saturating_add(traceback_lane::<W, L>(m, lane, col - 1, row, cap, memo, visited, visit_limit, bailed));
+	if left == max_prev && !state.bailed {
+		let v = 1u16.saturating_add(traceback_lane::<W, L>(m, lane, col - 1, row, cap, state));
 		best = best.min(v.min(cap));
 	}
-	if up == max_prev && !*bailed {
-		let v = traceback_lane::<W, L>(m, lane, col, row - 1, cap, memo, visited, visit_limit, bailed);
+	if up == max_prev && !state.bailed {
+		let v = traceback_lane::<W, L>(m, lane, col, row - 1, cap, state);
 		best = best.min(v.min(cap));
 	}
-	if !*bailed {
-		memo[idx] = best;
+	if !state.bailed {
+		state.memo[idx] = best;
 	}
 	best
 }
@@ -184,9 +175,9 @@ where
 	let mut prev = [Simd::splat(0u16); W];
 	let mut curr = [Simd::splat(0u16); W];
 
-	for row in 0..W {
-		let is_zero = score_matrix[0][row].simd_eq(zero);
-		prev[row] = is_zero.select(one, zero);
+	for (prev_row, first_col_scores) in prev.iter_mut().zip(score_matrix[0].iter()).take(W) {
+		let is_zero = first_col_scores.simd_eq(zero);
+		*prev_row = is_zero.select(one, zero);
 	}
 
 	for col in 1..n {
@@ -226,9 +217,9 @@ where
 	}
 
 	let mut best = cap_s;
-	for row in 0..W {
-		let mask = last_scores[row].simd_eq(end_scores);
-		let cand = mask.select(prev[row], cap_s);
+	for (row_scores, prev_row) in last_scores.iter().zip(prev.iter()).take(W) {
+		let mask = row_scores.simd_eq(end_scores);
+		let cand = mask.select(*prev_row, cap_s);
 		best = best.simd_min(cand);
 	}
 

@@ -84,5 +84,4 @@ mod state;
 pub use state::*;
 
 #[cfg(test)]
-#[path = "../invariants.rs"]
 mod invariants;

@@ -127,7 +127,10 @@ fn config_nu_rejects_missing_kind() {
 	}"#;
 	let err = eval_config_str(input, "config.nu").expect_err("missing kind should be rejected");
 	match err {
-		ConfigError::InvalidKeyBinding(msg) => assert!(msg.contains("kind"), "got: {msg}"),
+		ConfigError::InvalidKeyBinding(msg) => {
+			assert!(msg.contains("keys.normal.ctrl+s.type"), "got: {msg}");
+			assert!(msg.contains("missing required field"), "got: {msg}");
+		}
 		other => panic!("expected Nuon error, got: {other:?}"),
 	}
 }

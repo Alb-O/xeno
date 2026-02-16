@@ -12,7 +12,6 @@ pub use crate::core::{
 	CapabilitySet, FrozenInterner, RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta, RegistryMetaStatic, RegistryMetadata, RegistryRef,
 	RegistrySource, RuntimeRegistry, StatuslineId, Symbol, SymbolList,
 };
-// Re-export macros
 pub use crate::segment_handler;
 
 pub fn register_plugin(db: &mut crate::db::builder::RegistryDbBuilder) -> Result<(), crate::error::RegistryError> {
