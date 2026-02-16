@@ -17,7 +17,7 @@ use crate::animation::lerp::Animatable;
 /// use xeno_tui::animation::{Animatable, Easing, Tween};
 ///
 /// // Animate from 0.0 to 100.0 over 500ms with ease-out
-/// let tween = Tween::new(0.0f32, 100.0f32, Duration::from_millis(500))
+/// let tween = Tween::new(0.0f32, 100.0f32, Duration::from_secs(30))
 ///     .with_easing(Easing::EaseOut);
 ///
 /// // Immediately after creation, value is very close to start

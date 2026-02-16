@@ -2,10 +2,11 @@ use super::*;
 
 #[test]
 fn test_tween_immediate_value() {
-	let tween = Tween::new(0.0f32, 100.0f32, Duration::from_millis(100));
+	let tween = Tween::new(0.0f32, 100.0f32, Duration::from_secs(60));
 	// Immediately after creation, value should be very close to start
-	// (allowing for tiny elapsed time between creation and check)
-	assert!(tween.value() < 1.0, "expected near-zero, got {}", tween.value());
+	// even under scheduler jitter.
+	let value = tween.value();
+	assert!(value < 1.0, "expected near-zero, got {value}");
 }
 
 #[test]

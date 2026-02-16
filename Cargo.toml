@@ -26,7 +26,7 @@ version = "0.9.3"
 edition = "2024"
 license = "AGPL-3.0-only"
 repository = "https://github.com/Alb-O/xeno"
-rust-version = "1.88.0"
+rust-version = "1.95.0"
 
 [workspace.dependencies]
 anyhow = "1.0"
