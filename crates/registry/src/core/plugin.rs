@@ -1,6 +1,7 @@
 use crate::core::meta::RegistryMetaStatic;
 #[cfg(feature = "db")]
 use crate::db::builder::RegistryDbBuilder;
+#[cfg(feature = "db")]
 use crate::error::RegistryError;
 
 /// A plugin descriptor that registers multiple items into the registry.

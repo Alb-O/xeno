@@ -1,3 +1,12 @@
+#[cfg(any(
+	feature = "actions",
+	feature = "commands",
+	feature = "motions",
+	feature = "textobj",
+	feature = "hooks",
+	feature = "statusline",
+	feature = "gutter",
+))]
 use std::collections::HashSet;
 
 #[test]

@@ -131,12 +131,12 @@ pub mod sync;
 #[cfg(feature = "position")]
 pub use sync::{DocumentSync, DocumentSyncEventHandler};
 
-#[cfg(feature = "client")]
-#[cfg_attr(docsrs, doc(cfg(feature = "client")))]
+#[cfg(all(feature = "client", feature = "position"))]
+#[cfg_attr(docsrs, doc(cfg(all(feature = "client", feature = "position"))))]
 /// LSP session management (completion, etc.).
 pub mod session;
 
-#[cfg(feature = "client")]
+#[cfg(all(feature = "client", feature = "position"))]
 pub use session::{CompletionController, CompletionRequest, CompletionTrigger, LspManager};
 
 /// A convenient type alias for `Result` with `E` = [`enum@crate::Error`].

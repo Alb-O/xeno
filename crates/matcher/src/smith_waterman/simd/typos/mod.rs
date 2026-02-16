@@ -173,7 +173,6 @@ fn typos_simd_dp<const W: usize, const L: usize>(score_matrix: &[[Simd<u16, L>; 
 where
 	LaneCount<L>: SupportedLaneCount,
 {
-	let mut out = [0u16; L];
 	let n = score_matrix.len();
 	let cap = max_typos.saturating_add(1);
 	let cap_s = Simd::splat(cap);
@@ -237,8 +236,7 @@ where
 	let end_zero = end_scores.simd_eq(zero);
 	best = end_zero.select(Simd::splat(n_typos), best);
 
-	out = best.to_array();
-	out
+	best.to_array()
 }
 
 #[cfg(test)]

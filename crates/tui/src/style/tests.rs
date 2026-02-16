@@ -289,17 +289,25 @@ fn serialize_then_deserialize() {
 	let json_str = serde_json::to_string(&style).unwrap();
 	let json_value: serde_json::Value = serde_json::from_str(&json_str).unwrap();
 
-	let mut expected_json = serde_json::json!({
+	#[cfg(feature = "underline-color")]
+	let expected_json = {
+		let mut expected_json = serde_json::json!({
+			"fg": "#FF00FF",
+			"bg": "White",
+			"add_modifier": "UNDERLINED",
+			"sub_modifier": "CROSSED_OUT"
+		});
+		expected_json.as_object_mut().unwrap().insert("underline_color".into(), "3".into());
+		expected_json
+	};
+
+	#[cfg(not(feature = "underline-color"))]
+	let expected_json = serde_json::json!({
 		"fg": "#FF00FF",
 		"bg": "White",
 		"add_modifier": "UNDERLINED",
 		"sub_modifier": "CROSSED_OUT"
 	});
-
-	#[cfg(feature = "underline-color")]
-	{
-		expected_json.as_object_mut().unwrap().insert("underline_color".into(), "3".into());
-	}
 
 	assert_eq!(json_value, expected_json);
 

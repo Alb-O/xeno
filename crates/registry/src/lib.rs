@@ -204,6 +204,7 @@ pub use domains::gutter;
 pub use domains::hooks;
 #[cfg(feature = "languages")]
 pub use domains::languages;
+#[cfg(feature = "db")]
 pub use domains::lsp_servers;
 #[cfg(feature = "motions")]
 pub use domains::motions;

@@ -28,11 +28,28 @@ full = [
 
 minimal = ["actions", "commands", "motions", "textobj", "options", "themes", "languages"]
 
-db = ["dep:tracing"]
+db = [
+    "dep:inventory",
+    "dep:parking_lot",
+    "dep:paste",
+    "dep:tracing",
+    "actions",
+    "commands",
+    "motions",
+    "textobj",
+    "options",
+    "themes",
+    "statusline",
+    "gutter",
+    "hooks",
+    "notifications",
+    "languages",
+]
 keymap = ["db", "actions", "dep:xeno-keymap-core"]
 
 # Domain type gates
 actions = [
+    "db",
     "dep:ropey",
     "dep:xeno-primitives",
     "dep:xeno-macros",
@@ -40,16 +57,16 @@ actions = [
     "options",
     "textobj",
 ]
-commands = ["motions", "notifications", "textobj"]
-motions = ["dep:regex", "dep:ropey", "dep:xeno-primitives"]
-textobj = ["dep:ropey", "dep:xeno-primitives", "motions"]
-options = ["dep:strsim", "dep:xeno-macros"]
-themes = ["dep:strsim", "dep:xeno-primitives"]
-statusline = []
-gutter = ["dep:ropey", "themes"]
-hooks = ["dep:tracing", "dep:xeno-macros", "dep:xeno-primitives"]
-notifications = []
-languages = []
+commands = ["db", "motions", "notifications", "textobj"]
+motions = ["db", "dep:regex", "dep:ropey", "dep:xeno-primitives"]
+textobj = ["db", "dep:ropey", "dep:xeno-primitives", "motions"]
+options = ["db", "dep:strsim", "dep:xeno-macros"]
+themes = ["db", "dep:strsim", "dep:xeno-primitives"]
+statusline = ["db"]
+gutter = ["db", "dep:ropey", "themes"]
+hooks = ["db", "dep:tracing", "dep:xeno-macros", "dep:xeno-primitives"]
+notifications = ["db"]
+languages = ["db"]
 
 # Builtins gates
 actions-builtins = ["actions"]
@@ -86,12 +103,12 @@ actions-handler-coverage = ["actions-builtins"]
 [dependencies]
 arc-swap = { workspace = true }
 bitflags = { workspace = true }
-inventory.workspace = true
+inventory = { workspace = true, optional = true }
 nu-engine = { workspace = true, optional = true, features = ["os"] }
 nu-protocol = { workspace = true, optional = true }
 nuon = { workspace = true, optional = true }
-parking_lot.workspace = true
-paste.workspace = true
+parking_lot = { workspace = true, optional = true }
+paste = { workspace = true, optional = true }
 postcard.workspace = true
 regex = { workspace = true, optional = true }
 ropey = { workspace = true, optional = true }

@@ -12,6 +12,7 @@ pub mod hooks;
 pub mod grammars;
 #[cfg(feature = "languages")]
 pub mod languages;
+#[cfg(feature = "db")]
 pub mod lsp_servers;
 #[cfg(feature = "motions")]
 pub mod motions;

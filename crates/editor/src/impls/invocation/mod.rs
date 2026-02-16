@@ -156,11 +156,12 @@ impl Editor {
 
 		// Coalesce: if back of queue is the same hook type, replace args and reset retries.
 		if let Some(back) = self.state.nu_hook_queue.back_mut()
-			&& back.hook == hook {
-				back.args = args;
-				back.retries = 0;
-				return;
-			}
+			&& back.hook == hook
+		{
+			back.args = args;
+			back.retries = 0;
+			return;
+		}
 
 		// Backlog cap: drop oldest if full.
 		if self.state.nu_hook_queue.len() >= MAX_PENDING_NU_HOOKS {

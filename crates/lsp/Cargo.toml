@@ -19,10 +19,9 @@ client = [
     "tokio/sync",
     "dep:async-trait",
     "dep:parking_lot",
-    "dep:tokio-util",
 ]
 # Position conversion utilities (requires ropey)
-position = ["dep:ropey", "client", "dep:xeno-primitives"]
+position = ["client", "dep:ropey", "dep:tokio-util", "dep:xeno-primitives"]
 
 [dependencies]
 async-trait = { workspace = true, optional = true }
@@ -46,7 +45,6 @@ xeno-rpc.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["io-std", "io-util", "macros", "process", "rt", "time"] }
-tokio-util.workspace = true
 
 [lints]
 workspace = true

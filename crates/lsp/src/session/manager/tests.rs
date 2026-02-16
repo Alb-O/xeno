@@ -65,7 +65,7 @@ fn test_router_single_spawn() {
 	let transport: Arc<dyn LspTransport> = Arc::new(StubTransport);
 	let manager = LspManager::new(transport);
 
-	let rt = tokio::runtime::Runtime::new().unwrap();
+	let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
 	let _guard = rt.enter();
 
 	assert!(manager.spawn_router().is_ok());

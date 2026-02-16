@@ -13,10 +13,5 @@ nu-protocol = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 typetag = { version = "0.2", optional = true }
 
-[dev-dependencies]
-nu-protocol.workspace = true
-serde = { workspace = true }
-typetag = "0.2"
-
 [lints.rust]
 unused_crate_dependencies = "warn"

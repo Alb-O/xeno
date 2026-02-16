@@ -101,9 +101,10 @@ impl Editor {
 			handled = true;
 
 			if !action_result.is_quit()
-				&& let Some(action_name) = action_name_from_key_result(&result) {
-					self.enqueue_action_post_hook(action_name, &action_result);
-				}
+				&& let Some(action_name) = action_name_from_key_result(&result)
+			{
+				self.enqueue_action_post_hook(action_name, &action_result);
+			}
 		}
 
 		if !handled && let KeyResult::Invocation { ref inv } = result {

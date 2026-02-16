@@ -209,7 +209,7 @@ mod tests {
 
 	/// Proves the tie-aware traceback is strictly better than the old deterministic one.
 	///
-		/// Finds a case where `old_det > new_min` on the same score matrix.
+	/// Finds a case where `old_det > new_min` on the same score matrix.
 	#[test]
 	fn tie_aware_traceback_improves_over_deterministic() {
 		let scoring = Scoring::default();
@@ -234,10 +234,11 @@ mod tests {
 					haystack.extend(std::iter::repeat_n(last, 4));
 
 					if let Some((end_score, new_typos, old_typos)) = analyze_contract(needle, &haystack, &scoring)
-						&& old_typos > new_typos {
-							found = Some((needle.to_string(), haystack, end_score, new_typos, old_typos));
-							break 'outer;
-						}
+						&& old_typos > new_typos
+					{
+						found = Some((needle.to_string(), haystack, end_score, new_typos, old_typos));
+						break 'outer;
+					}
 				}
 			}
 		}
@@ -258,10 +259,11 @@ mod tests {
 					hay.push(hay_alpha[rng.next_usize(hay_alpha.len())] as char);
 				}
 				if let Some((end_score, new_typos, old_typos)) = analyze_contract(&needle, &hay, &scoring)
-					&& old_typos > new_typos {
-						found = Some((needle, hay, end_score, new_typos, old_typos));
-						break;
-					}
+					&& old_typos > new_typos
+				{
+					found = Some((needle, hay, end_score, new_typos, old_typos));
+					break;
+				}
 			}
 		}
 

@@ -62,6 +62,7 @@ where
 		}
 	}
 
+	#[cfg(feature = "incremental")]
 	#[inline(always)]
 	pub(crate) fn from_haystack(haystacks: &[&str; L], i: usize) -> Self {
 		// Convert haystacks to a static array of bytes chunked for SIMD

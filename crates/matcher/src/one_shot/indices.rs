@@ -25,9 +25,10 @@ pub fn match_indices<S1: AsRef<str>, S2: AsRef<str>>(needle: S1, haystack: S2, c
 	let (score, typos, indices, exact) = smith_waterman_with_indices(needle, haystack, &config.scoring);
 
 	if let Some(max_typos) = config.max_typos
-		&& typos > max_typos {
-			return None;
-		}
+		&& typos > max_typos
+	{
+		return None;
+	}
 
 	Some(MatchIndices { score, indices, exact })
 }
