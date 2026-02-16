@@ -422,6 +422,13 @@ impl CommandPaletteOverlay {
 		Self::command_arg_completion(command_name) != CommandArgCompletion::None
 	}
 
+	fn command_requires_argument_for_commit(command_name: &str) -> bool {
+		matches!(
+			Self::command_arg_completion(command_name),
+			CommandArgCompletion::Theme | CommandArgCompletion::Snippet
+		)
+	}
+
 	fn should_append_space_after_completion(selected: &CompletionItem, token: &TokenCtx, is_dir_completion: bool, quoted_arg: bool) -> bool {
 		match selected.kind {
 			CompletionKind::Command => {
@@ -467,6 +474,79 @@ impl CommandPaletteOverlay {
 		}
 
 		typed_name.to_string()
+	}
+
+	fn should_promote_enter_to_tab_completion(input: &str, cursor: usize, selected_item: Option<&CompletionItem>) -> bool {
+		let chars: Vec<char> = input.chars().collect();
+		let tokens = Self::tokenize(&chars);
+		let Some(name_tok) = tokens.first() else {
+			return false;
+		};
+		if tokens.len() != 1 {
+			return false;
+		}
+
+		let token = Self::token_context(input, cursor);
+		if token.token_index != 0 {
+			return false;
+		}
+
+		let typed_name: String = chars[name_tok.content_start..name_tok.content_end].iter().collect();
+		if Self::command_resolves(&typed_name) {
+			return false;
+		}
+
+		let Some(selected) = selected_item else {
+			return false;
+		};
+		if selected.kind != CompletionKind::Command || selected.insert_text.is_empty() {
+			return false;
+		}
+		if !Self::command_resolves(&selected.insert_text) {
+			return false;
+		}
+
+		Self::command_requires_argument_for_commit(&selected.insert_text)
+	}
+
+	fn command_argument_is_resolved_for_commit(command_name: &str, arg: Option<&str>) -> bool {
+		match Self::command_arg_completion(command_name) {
+			CommandArgCompletion::Theme => arg.is_some_and(|value| xeno_registry::themes::get_theme(value).is_some()),
+			CommandArgCompletion::Snippet => {
+				arg.is_some_and(|value| !value.is_empty() && (!value.starts_with('@') || xeno_registry::snippets::find_snippet(value).is_some()))
+			}
+			CommandArgCompletion::File | CommandArgCompletion::None => true,
+		}
+	}
+
+	fn should_apply_selected_argument_on_commit(input: &str, cursor: usize, command_name: &str, selected_item: Option<&CompletionItem>) -> bool {
+		if !Self::command_requires_argument_for_commit(command_name) {
+			return false;
+		}
+
+		let token = Self::token_context(input, cursor);
+		if token.token_index != 1 {
+			return false;
+		}
+
+		let Some(selected) = selected_item else {
+			return false;
+		};
+
+		let expected_kind = match Self::command_arg_completion(command_name) {
+			CommandArgCompletion::Theme => CompletionKind::Theme,
+			CommandArgCompletion::Snippet => CompletionKind::Snippet,
+			CommandArgCompletion::File | CommandArgCompletion::None => return false,
+		};
+		if selected.kind != expected_kind || selected.insert_text.is_empty() {
+			return false;
+		}
+
+		let chars: Vec<char> = input.chars().collect();
+		let tokens = Self::tokenize(&chars);
+		let arg = tokens.get(1).map(|tok| chars[tok.content_start..tok.content_end].iter().collect::<String>());
+
+		!Self::command_argument_is_resolved_for_commit(command_name, arg.as_deref())
 	}
 
 	fn build_snippet_items(query: &str) -> Vec<CompletionItem> {
@@ -797,6 +877,16 @@ impl CommandPaletteOverlay {
 		true
 	}
 
+	fn accept_enter_completion_if_needed(&mut self, ctx: &mut dyn OverlayContext, session: &mut OverlaySession) -> bool {
+		let (input, cursor) = Self::current_input_and_cursor(ctx, session);
+		let selected_item = Self::selected_completion_item(ctx);
+		if !Self::should_promote_enter_to_tab_completion(&input, cursor, selected_item.as_ref()) {
+			return false;
+		}
+
+		self.accept_tab_completion(ctx, session)
+	}
+
 	fn effective_replace_end(token: &TokenCtx, cursor: usize) -> usize {
 		match (token.quoted, token.close_quote_idx) {
 			(Some(_), Some(close_quote_idx)) if cursor > close_quote_idx => close_quote_idx,
@@ -856,6 +946,7 @@ impl OverlayController for CommandPaletteOverlay {
 
 	fn on_key(&mut self, ctx: &mut dyn OverlayContext, session: &mut OverlaySession, key: Key) -> bool {
 		match key.code {
+			KeyCode::Enter => self.accept_enter_completion_if_needed(ctx, session),
 			KeyCode::Up => self.move_selection(ctx, -1),
 			KeyCode::Down => self.move_selection(ctx, 1),
 			KeyCode::PageUp => self.page_selection(ctx, -1),
@@ -868,21 +959,36 @@ impl OverlayController for CommandPaletteOverlay {
 	}
 
 	fn on_commit<'a>(&'a mut self, ctx: &'a mut dyn OverlayContext, session: &'a mut OverlaySession) -> Pin<Box<dyn Future<Output = ()> + 'a>> {
-		let input = session.input_text(ctx).trim().to_string();
+		let mut input = session.input_text(ctx).trim_end_matches('\n').to_string();
 
-		if !input.is_empty() {
-			let chars: Vec<char> = input.chars().collect();
-			let tokens = Self::tokenize(&chars);
+		if !input.trim().is_empty() {
+			let mut chars: Vec<char> = input.chars().collect();
+			let mut tokens = Self::tokenize(&chars);
 			if let Some(name_tok) = tokens.first() {
 				let typed_name: String = chars[name_tok.content_start..name_tok.content_end].iter().collect();
+				let cursor = Self::char_count(&input);
+				let token = Self::token_context(&input, cursor);
+				let selected_item = Self::selected_completion_item(ctx);
+				let mut command_name = Self::resolve_command_name_for_commit(&typed_name, token.token_index, selected_item.as_ref());
+
+				if Self::should_apply_selected_argument_on_commit(&input, cursor, &command_name, selected_item.as_ref()) {
+					let _ = self.accept_tab_completion(ctx, session);
+					input = session.input_text(ctx).trim_end_matches('\n').to_string();
+					chars = input.chars().collect();
+					tokens = Self::tokenize(&chars);
+					if let Some(updated_name_tok) = tokens.first() {
+						let updated_typed_name: String = chars[updated_name_tok.content_start..updated_name_tok.content_end].iter().collect();
+						let updated_token = Self::token_context(&input, Self::char_count(&input));
+						let updated_selected = Self::selected_completion_item(ctx);
+						command_name = Self::resolve_command_name_for_commit(&updated_typed_name, updated_token.token_index, updated_selected.as_ref());
+					}
+				}
+
 				let args: Vec<String> = tokens
 					.iter()
 					.skip(1)
 					.map(|tok| chars[tok.content_start..tok.content_end].iter().collect())
 					.collect();
-				let token = Self::token_context(&input, Self::char_count(&input));
-				let selected_item = Self::selected_completion_item(ctx);
-				let command_name = Self::resolve_command_name_for_commit(&typed_name, token.token_index, selected_item.as_ref());
 
 				if let Some(cmd) = crate::commands::find_editor_command(&command_name) {
 					ctx.queue_command(cmd.name, args);

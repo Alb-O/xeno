@@ -332,6 +332,13 @@ fn key_tab() -> Key {
 	}
 }
 
+fn key_enter() -> Key {
+	Key {
+		code: KeyCode::Enter,
+		modifiers: Modifiers::NONE,
+	}
+}
+
 fn with_interaction(editor: &mut crate::Editor, f: impl FnOnce(&mut crate::overlay::OverlayManager, &mut crate::Editor)) {
 	let mut interaction = editor.state.overlay_system.take_interaction();
 	f(&mut interaction, editor);
@@ -528,6 +535,81 @@ pub(crate) fn test_palette_tab_argument_command_appends_space() {
 
 	let text = palette_input_text(&editor);
 	assert_eq!(text, "theme ");
+}
+
+/// Must treat Enter as completion (not commit) for unresolved command prefixes that expand to commands requiring arguments.
+///
+/// * Enforced in: `crate::overlay::controllers::command_palette::CommandPaletteOverlay::accept_enter_completion_if_needed`
+/// * Failure symptom: Enter closes palette and emits missing-argument command error instead of applying completion text.
+#[cfg_attr(test, test)]
+pub(crate) fn test_palette_enter_promotes_required_arg_command_completion() {
+	let mut editor = crate::Editor::new_scratch();
+	editor.handle_window_resize(120, 40);
+	assert!(editor.open_command_palette());
+
+	palette_set_input(&mut editor, "the", 3);
+	let state = editor.overlays_mut().get_or_default::<crate::completion::CompletionState>();
+	state.active = true;
+	state.items = vec![crate::completion::CompletionItem {
+		label: "theme".to_string(),
+		insert_text: "theme".to_string(),
+		detail: None,
+		filter_text: None,
+		kind: crate::completion::CompletionKind::Command,
+		match_indices: None,
+		right: None,
+	}];
+	state.selected_idx = Some(0);
+	state.selection_intent = crate::completion::SelectionIntent::Manual;
+
+	let _ = futures::executor::block_on(editor.handle_key(key_enter()));
+
+	assert_eq!(palette_input_text(&editor), "theme ");
+	assert!(editor.state.overlay_system.interaction().is_open(), "enter completion should keep palette open");
+	assert!(!editor.frame().pending_overlay_commit, "enter completion should not schedule commit");
+	assert!(drain_queued_commands(&mut editor).is_empty(), "enter completion should not queue commands");
+}
+
+/// Must commit selected theme completion as the first argument when command input is `theme `.
+///
+/// * Enforced in: `crate::overlay::controllers::command_palette::CommandPaletteOverlay::should_apply_selected_argument_on_commit`, `crate::overlay::controllers::command_palette::CommandPaletteOverlay::on_commit`
+/// * Failure symptom: Committing palette with selected theme runs `theme` without args and raises missing-argument errors.
+#[cfg_attr(test, test)]
+pub(crate) fn test_palette_commit_theme_with_selected_completion_supplies_argument() {
+	let theme_name = xeno_registry::themes::THEMES
+		.snapshot_guard()
+		.iter_refs()
+		.next()
+		.map(|theme| theme.name_str().to_string())
+		.expect("themes registry should contain at least one theme");
+
+	let mut editor = crate::Editor::new_scratch();
+	editor.handle_window_resize(120, 40);
+	assert!(editor.open_command_palette());
+
+	palette_set_input(&mut editor, "theme ", 6);
+	let state = editor.overlays_mut().get_or_default::<crate::completion::CompletionState>();
+	state.active = true;
+	state.items = vec![crate::completion::CompletionItem {
+		label: theme_name.clone(),
+		insert_text: theme_name.clone(),
+		detail: None,
+		filter_text: None,
+		kind: crate::completion::CompletionKind::Theme,
+		match_indices: None,
+		right: None,
+	}];
+	state.selected_idx = Some(0);
+	state.selection_intent = crate::completion::SelectionIntent::Manual;
+
+	with_interaction(&mut editor, |interaction, ed| {
+		futures::executor::block_on(interaction.commit(ed));
+	});
+
+	let commands = drain_queued_commands(&mut editor);
+	assert_eq!(commands.len(), 1);
+	assert_eq!(commands[0].name, "theme");
+	assert_eq!(commands[0].args, vec![theme_name]);
 }
 
 /// Must rank recently used commands first for empty command query completion.

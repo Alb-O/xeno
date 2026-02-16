@@ -104,3 +104,40 @@ fn commit_resolution_falls_back_to_selected_command_when_typed_unresolved() {
 	let resolved = CommandPaletteOverlay::resolve_command_name_for_commit("wri", 0, Some(&selected));
 	assert_eq!(resolved, "write");
 }
+
+#[test]
+fn enter_promotes_to_tab_for_unresolved_required_arg_command() {
+	let selected = command_completion("theme");
+	assert!(CommandPaletteOverlay::should_promote_enter_to_tab_completion("the", 3, Some(&selected)));
+}
+
+#[test]
+fn enter_does_not_promote_when_typed_command_already_resolves() {
+	let selected = command_completion("theme");
+	assert!(!CommandPaletteOverlay::should_promote_enter_to_tab_completion("theme", 5, Some(&selected)));
+}
+
+#[test]
+fn enter_does_not_promote_for_unresolved_command_without_required_args() {
+	let selected = command_completion("write");
+	assert!(!CommandPaletteOverlay::should_promote_enter_to_tab_completion("wri", 3, Some(&selected)));
+}
+
+#[test]
+fn commit_applies_selected_theme_argument_when_missing() {
+	let selected = CompletionItem {
+		label: "catppuccin-mocha".to_string(),
+		insert_text: "catppuccin-mocha".to_string(),
+		detail: None,
+		filter_text: None,
+		kind: CompletionKind::Theme,
+		match_indices: None,
+		right: None,
+	};
+	assert!(CommandPaletteOverlay::should_apply_selected_argument_on_commit(
+		"theme ",
+		6,
+		"theme",
+		Some(&selected)
+	));
+}
