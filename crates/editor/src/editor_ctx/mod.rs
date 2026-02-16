@@ -1,374 +1,82 @@
-//! Editor context and effect handling.
+//! Registry action effect interpreter over capability boundaries.
+//! Anchor ID: XENO_ANCHOR_EFFECTS_BOUNDARY
 //!
 //! # Purpose
 //!
-//! Translates registry-defined [`xeno_registry::actions::ActionResult`] and
-//! [`xeno_registry::actions::ActionEffects`] into concrete
-//! capability calls on the editor via [`EditorContext`].
+//! * Interprets registry action outcomes (`ActionResult`/`ActionEffects`) into editor mutations through capability traits.
+//! * Keeps registry semantics engine-agnostic by operating only on [`EditorContext`], not concrete `Editor`.
+//! * Acts as the policy bridge between effect-oriented actions and editor effect sink/layer notifications.
 //!
-//! # Architecture
+//! # Mental model
 //!
-//! This module implements a "Capability-First" interpreter. It does not know about
-//! the concrete `Editor` type; instead, it operates purely through the abstract
-//! traits provided by the registry.
+//! * Actions produce data (`ActionEffects`) instead of mutating editor internals directly.
+//! * This module is a capability-first interpreter: each effect variant maps to a narrow capability operation.
+//! * Side effects are emitted through capability providers and then flushed by the editor effect sink.
+//!
+//! # Key types
+//!
+//! | Type | Meaning | Constraints | Constructed / mutated in |
+//! |---|---|---|---|
+//! | [`xeno_registry::actions::ActionEffects`] | Ordered effect list from action handlers | Must be applied in-order by interpreter | action handlers, `apply_effects` |
+//! | [`xeno_registry::actions::editor_ctx::EditorContext`] | Capability façade for editor access | Must remain engine-agnostic and downcast-free | command/action execution paths |
+//! | [`xeno_registry::actions::Effect`] | Effect variant union | Must map to specific apply path (`View`/`Edit`/`Ui`/`App`) | `apply_effects` |
+//! | [`crate::effects::sink::EffectSink`] | Deferred side-effect queue | Must be the single downstream sink for visual/UI consequences | editor lifecycle flush paths |
+//! | [`crate::capabilities::EditorCaps`] | Editor capability provider | Must be sole trait implementation boundary for registry capabilities | `Editor::caps` |
 //!
 //! # Invariants
 //!
-//! * Must not use RTTI or engine-specific downcasting (Honesty Rule).
-//! * Must route all side effects through capability providers (Single Path Side-Effects).
+//! * Must not use RTTI or engine-specific downcasting to reach concrete editor internals.
+//! * Must route all side effects through capability providers and effect sink flush paths.
+//! * Must preserve effect ordering from `ActionEffects`.
+//! * Must handle unknown effect variants as debug assertions plus safe no-op traces.
 //!
+//! # Data flow
+//!
+//! 1. Invocation/command path resolves an action result.
+//! 2. `dispatch_result` enters this interpreter with `EditorContext`.
+//! 3. `apply_effects` iterates ordered effects and delegates to variant handlers.
+//! 4. Capability methods enqueue downstream UI/layer/overlay side effects.
+//! 5. Editor lifecycle later drains the effect sink via `flush_effects`.
+//!
+//! # Lifecycle
+//!
+//! * Construct `EditorCaps`, wrap in `EditorContext`, and call `dispatch_result`.
+//! * Execute `apply_effects` synchronously in invocation path.
+//! * Runtime/lifecycle flush applies deferred sink consequences.
+//!
+//! # Concurrency & ordering
+//!
+//! * Interpreter runs synchronously on the editor thread.
+//! * Ordering is strictly in effect-list order.
+//! * Re-entrant side effects are deferred by flush-depth logic in effect sink layer.
+//!
+//! # Failure modes & recovery
+//!
+//! * Missing optional capability: effect branch becomes no-op with trace logging.
+//! * Unsupported effect variant: debug assertion plus no-op in release.
+//! * Overlay request validation failure: converted to command error at sink boundary.
+//!
+//! # Recipes
+//!
+//! * Add a new effect variant:
+//!   1. Extend registry effect enum.
+//!   2. Add interpreter arm in `apply_*_effect`.
+//!   3. Add invariant/test proving ordering and sink routing.
+//! * Add a new capability-backed operation:
+//!   1. Add capability trait surface.
+//!   2. Implement in `EditorCaps`.
+//!   3. Route interpreter arm through that capability.
+//!
+
+mod core;
+
+pub use core::apply_effects;
+pub(crate) use core::register_result_handlers;
+
+pub use xeno_registry::actions::editor_ctx::*;
 
 #[cfg(test)]
 mod invariants;
-
-use std::time::Instant;
-
-use tracing::{trace, trace_span};
-use xeno_primitives::{Mode, Selection};
-pub use xeno_registry::actions::editor_ctx::*;
-use xeno_registry::actions::{ActionEffects, ActionResult, AppEffect, EditEffect, Effect, ScreenPosition, ScrollAmount, UiEffect, ViewEffect};
-use xeno_registry::hooks::{HookContext, emit_sync as emit_hook_sync};
-use xeno_registry::notifications::keys;
-use xeno_registry::{HookEventData, result_handler};
-
-/// Applies a set of effects to the editor context.
-///
-/// Effects are applied in order. Hook emissions are centralized here,
-/// avoiding the duplication present in individual result handlers.
-///
-/// Returns `true` if the editor should quit.
-pub fn apply_effects(effects: &ActionEffects, ctx: &mut xeno_registry::actions::editor_ctx::EditorContext, extend: bool) -> HandleOutcome {
-	if !effects.is_empty() {
-		trace!(count = effects.len(), "applying effects");
-	}
-
-	let mut outcome = HandleOutcome::Handled;
-
-	for effect in effects {
-		let (kind, triggers_lsp_sync) = effect_kind(effect);
-		let span = trace_span!("editor.effect", kind, triggers_lsp_sync);
-		let _guard = span.enter();
-		let start = Instant::now();
-
-		match effect {
-			Effect::View(view) => {
-				apply_view_effect(view, ctx, extend);
-			}
-			Effect::Edit(edit) => apply_edit_effect(edit, ctx),
-			Effect::Ui(ui) => apply_ui_effect(ui, ctx),
-			Effect::App(app) => {
-				if let Some(quit) = apply_app_effect(app, ctx) {
-					outcome = quit;
-				}
-			}
-			_ => {
-				debug_assert!(false, "Unhandled effect variant: {effect:?}");
-				trace!(?effect, "unhandled effect variant");
-			}
-		}
-		trace!(duration_ms = start.elapsed().as_millis() as u64, "effect.applied");
-	}
-
-	outcome
-}
-
-fn effect_kind(effect: &Effect) -> (&'static str, bool) {
-	match effect {
-		Effect::View(_) => ("view", false),
-		Effect::Edit(_) => ("edit", true),
-		Effect::Ui(_) => ("ui", false),
-		Effect::App(_) => ("app", false),
-		_ => ("unknown", false),
-	}
-}
-
-/// Applies a view-related effect.
-fn apply_view_effect(effect: &ViewEffect, ctx: &mut xeno_registry::actions::editor_ctx::EditorContext, extend: bool) {
-	match effect {
-		ViewEffect::SetCursor(pos) => {
-			ctx.set_cursor(*pos);
-			emit_cursor_hook(ctx);
-		}
-
-		ViewEffect::SetSelection(sel) => {
-			ctx.set_cursor(sel.primary().head);
-			ctx.set_selection(sel.clone());
-			emit_cursor_hook(ctx);
-			emit_selection_hook(ctx, sel);
-		}
-
-		ViewEffect::Motion(req) => {
-			if let Some(dispatch) = ctx.motion_dispatch() {
-				let sel = dispatch.apply_motion(req);
-				ctx.set_cursor(sel.primary().head);
-				ctx.set_selection(sel.clone());
-				emit_cursor_hook(ctx);
-				emit_selection_hook(ctx, &sel);
-			} else {
-				trace!("motion dispatch not available");
-			}
-		}
-
-		ViewEffect::ScreenMotion { position, count } => {
-			apply_screen_motion(ctx, *position, *count, extend);
-		}
-
-		ViewEffect::Scroll {
-			direction,
-			amount,
-			extend: scroll_extend,
-		} => {
-			let count = scroll_amount_to_lines(amount);
-			if let Some(motion) = ctx.motion() {
-				motion.move_visual_vertical(*direction, count, *scroll_extend);
-			}
-		}
-
-		ViewEffect::VisualMove {
-			direction,
-			count,
-			extend: move_extend,
-		} => {
-			if let Some(motion) = ctx.motion() {
-				motion.move_visual_vertical(*direction, *count, *move_extend);
-			}
-		}
-
-		ViewEffect::Search { direction, add_selection } => {
-			if let Some(search) = ctx.search() {
-				search.search(*direction, *add_selection, extend);
-			}
-		}
-
-		ViewEffect::SearchRepeat {
-			flip,
-			add_selection,
-			extend: repeat_extend,
-		} => {
-			if let Some(search) = ctx.search() {
-				search.search_repeat(*flip, *add_selection, *repeat_extend);
-			}
-		}
-
-		ViewEffect::UseSelectionAsSearch => {
-			if let Some(search) = ctx.search() {
-				search.use_selection_as_pattern();
-			}
-		}
-
-		_ => {
-			debug_assert!(false, "Unhandled view effect variant: {effect:?}");
-			trace!(?effect, "unhandled view effect variant");
-		}
-	}
-}
-
-/// Applies a text editing effect.
-fn apply_edit_effect(effect: &EditEffect, ctx: &mut xeno_registry::actions::editor_ctx::EditorContext) {
-	match effect {
-		EditEffect::EditOp(op) => {
-			if let Some(edit) = ctx.edit() {
-				edit.execute_edit_op(op);
-			}
-		}
-
-		EditEffect::Paste { before } => {
-			if let Some(edit) = ctx.edit() {
-				edit.paste(*before);
-			}
-		}
-
-		_ => {
-			debug_assert!(false, "Unhandled edit effect variant: {effect:?}");
-			trace!(?effect, "unhandled edit effect variant");
-		}
-	}
-}
-
-/// Applies a UI-related effect.
-fn apply_ui_effect(effect: &UiEffect, ctx: &mut xeno_registry::actions::editor_ctx::EditorContext) {
-	match effect {
-		UiEffect::Notify(notification) => {
-			ctx.emit(notification.clone());
-		}
-
-		UiEffect::Error(msg) => {
-			ctx.emit(keys::action_error(msg));
-		}
-
-		UiEffect::OpenPalette => {
-			ctx.open_palette();
-		}
-
-		UiEffect::ClosePalette => {
-			ctx.close_palette();
-		}
-
-		UiEffect::ExecutePalette => {
-			ctx.execute_palette();
-		}
-
-		UiEffect::ForceRedraw => {}
-
-		_ => {
-			debug_assert!(false, "Unhandled ui effect variant: {effect:?}");
-			trace!(?effect, "unhandled ui effect variant");
-		}
-	}
-}
-
-/// Applies an application-level effect.
-///
-/// Returns `Some(HandleOutcome::Quit)` if this is a quit effect.
-fn apply_app_effect(effect: &AppEffect, ctx: &mut xeno_registry::actions::editor_ctx::EditorContext) -> Option<HandleOutcome> {
-	match effect {
-		AppEffect::SetMode(mode) => {
-			ctx.set_mode(mode.clone());
-		}
-
-		AppEffect::Pending(pending) => {
-			ctx.emit(keys::pending_prompt(&pending.prompt));
-			ctx.set_mode(Mode::PendingAction(pending.kind));
-		}
-
-		AppEffect::FocusBuffer(direction) => {
-			if let Some(ops) = ctx.focus_ops() {
-				ops.buffer_switch(*direction);
-			}
-		}
-
-		AppEffect::FocusSplit(direction) => {
-			if let Some(ops) = ctx.focus_ops() {
-				ops.focus(*direction);
-			}
-		}
-
-		AppEffect::Split(axis) => {
-			if let Some(ops) = ctx.split_ops()
-				&& let Err(e) = ops.split(*axis)
-			{
-				tracing::warn!(error = ?e, "Split operation failed");
-			}
-		}
-
-		AppEffect::CloseSplit => {
-			if let Some(ops) = ctx.split_ops() {
-				ops.close_split();
-			}
-		}
-
-		AppEffect::CloseOtherBuffers => {
-			if let Some(ops) = ctx.split_ops() {
-				ops.close_other_buffers();
-			}
-		}
-
-		AppEffect::OpenSearchPrompt { reverse } => {
-			ctx.open_search_prompt(*reverse);
-		}
-
-		AppEffect::Quit { force: _ } => {
-			return Some(HandleOutcome::Quit);
-		}
-
-		AppEffect::QueueCommand { name, args } => {
-			if let Some(queue) = ctx.command_queue() {
-				queue.queue_command(name, args.clone());
-			}
-		}
-
-		_ => {
-			debug_assert!(false, "Unhandled app effect variant: {effect:?}");
-			trace!(?effect, "unhandled app effect variant");
-		}
-	}
-
-	None
-}
-
-/// Converts scroll amount to line count.
-fn scroll_amount_to_lines(amount: &ScrollAmount) -> usize {
-	match amount {
-		ScrollAmount::Line(n) => *n,
-		ScrollAmount::HalfPage => 10,
-		ScrollAmount::FullPage => 20,
-	}
-}
-
-/// Emits cursor move hook if position is available.
-fn emit_cursor_hook(ctx: &xeno_registry::actions::editor_ctx::EditorContext) {
-	if let Some((line, col)) = ctx.cursor_line_col() {
-		emit_hook_sync(&HookContext::new(HookEventData::CursorMove { line, col }));
-	}
-}
-
-/// Emits selection change hook.
-fn emit_selection_hook(_ctx: &xeno_registry::actions::editor_ctx::EditorContext, sel: &Selection) {
-	let primary = sel.primary();
-	emit_hook_sync(&HookContext::new(HookEventData::SelectionChange {
-		anchor: primary.anchor,
-		head: primary.head,
-	}));
-}
-
-/// Applies a screen-relative motion (H/M/L).
-fn apply_screen_motion(ctx: &mut xeno_registry::actions::editor_ctx::EditorContext, position: ScreenPosition, count: usize, extend: bool) {
-	let Some(viewport) = ctx.viewport() else {
-		ctx.emit(keys::VIEWPORT_UNAVAILABLE);
-		return;
-	};
-
-	let height = viewport.viewport_height();
-	if height == 0 {
-		ctx.emit(keys::VIEWPORT_HEIGHT_UNAVAILABLE);
-		return;
-	}
-
-	let count = count.max(1);
-	let mut row = match position {
-		ScreenPosition::Top => count.saturating_sub(1),
-		ScreenPosition::Middle => height / 2 + count.saturating_sub(1),
-		ScreenPosition::Bottom => height.saturating_sub(count),
-	};
-	if row >= height {
-		row = height.saturating_sub(1);
-	}
-
-	let Some(target) = viewport.viewport_row_to_doc_position(row) else {
-		ctx.emit(keys::SCREEN_MOTION_UNAVAILABLE);
-		return;
-	};
-
-	let selection = ctx.selection();
-	let primary_index = selection.primary_index();
-	let new_ranges: Vec<xeno_primitives::range::Range> = selection
-		.ranges()
-		.iter()
-		.map(|range| {
-			if extend {
-				xeno_primitives::range::Range::new(range.anchor, target)
-			} else {
-				xeno_primitives::range::Range::point(target)
-			}
-		})
-		.collect();
-	let new_selection = Selection::from_vec(new_ranges, primary_index);
-
-	ctx.set_cursor(new_selection.primary().head);
-	ctx.set_selection(new_selection.clone());
-	emit_cursor_hook(ctx);
-	emit_selection_hook(ctx, &new_selection);
-}
-
-// Register the handler for ActionResult::Effects
-result_handler!(RESULT_EFFECTS_HANDLERS, HANDLE_EFFECTS, "effects", |r, ctx, extend| {
-	let ActionResult::Effects(effects) = r;
-	apply_effects(effects, ctx, extend)
-});
-
-pub(crate) fn register_result_handlers() {
-	xeno_registry::actions::register_result_handler(&HANDLE_EFFECTS);
-}
 
 #[cfg(test)]
 mod tests;

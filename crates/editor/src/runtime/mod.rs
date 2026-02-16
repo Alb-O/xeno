@@ -1,174 +1,85 @@
-//! Frontend-agnostic editor runtime loop contract.
+//! Frontend-agnostic runtime event loop and maintenance scheduler.
+//! Anchor ID: XENO_ANCHOR_RUNTIME_LOOP
 //!
-//! Defines runtime events, loop directives, cursor-style mapping inputs, and
-//! the core `Editor::{on_event,pump}` cycle used by terminal and GUI frontends.
+//! # Purpose
+//!
+//! * Defines the runtime event contract consumed by frontends (`RuntimeEvent`).
+//! * Owns `Editor::{on_event,pump}` ordering for UI ticks, background drains, message handling, and quit propagation.
+//! * Produces loop directives (`LoopDirective`) that frontends use for polling cadence and redraw behavior.
+//!
+//! # Mental model
+//!
+//! * `on_event` applies one input/resize/focus event then always executes one `pump`.
+//! * `pump` is the canonical maintenance phase; all async completion and deferred side-effects converge here.
+//! * Frontends are thin adapters that feed events and obey returned loop directives.
+//!
+//! # Key types
+//!
+//! | Type | Meaning | Constraints | Constructed / mutated in |
+//! |---|---|---|---|
+//! | [`RuntimeEvent`] | Frontend event payload | Must be translated into editor handlers before `pump` | frontend adapters |
+//! | [`LoopDirective`] | Frontend control output | Must reflect redraw/quit state after full `pump` | `Editor::pump` |
+//! | [`CursorStyle`] | Editor cursor intent | Must remain mode-consistent unless UI explicitly overrides | `Editor::derive_cursor_style` |
+//! | [`crate::scheduler::DrainBudget`] | Completion budget for scheduler drain | Must switch to fast budget in insert mode | `Editor::pump` |
+//!
+//! # Invariants
+//!
+//! * `on_event` must execute exactly one maintenance `pump` after applying each event.
+//! * `pump` must kick queued Nu hook evaluation before draining scheduler completions.
+//! * Pending overlay commit must be applied during `pump`, not during key handling.
+//! * Runtime must return immediate quit directive when drained Nu hook invocations request quit.
+//! * Cursor style must default to insert beam vs non-insert block when UI has no override.
+//!
+//! # Data flow
+//!
+//! 1. Frontend submits one `RuntimeEvent`.
+//! 2. `on_event` routes to key/mouse/paste/resize/focus handlers.
+//! 3. `pump` runs subsystem maintenance (UI tick, filesystem pump, hook kick, work drain, message drain).
+//! 4. Deferred invocations and workspace edits are applied.
+//! 5. Runtime emits `LoopDirective` for frontend scheduling and rendering.
+//!
+//! # Lifecycle
+//!
+//! * Startup: frontends create editor instance and begin event/pump loop.
+//! * Running: repeated `on_event` and occasional direct `pump` calls drive state progression.
+//! * Shutdown: `LoopDirective::should_quit` ends frontend loop.
+//!
+//! # Concurrency & ordering
+//!
+//! * Event handling and `pump` run on the editor thread.
+//! * Work scheduler completions are drained under explicit budgets to preserve interactivity.
+//! * Nu hook eval is kicked before draining so completions can surface quickly in subsequent cycles.
+//! * Overlay commit is serialized through `pending_overlay_commit` flag and applied in `pump`.
+//!
+//! # Failure modes & recovery
+//!
+//! * Filesystem worker lag: bounded pump budget; redraw requested when new data arrives.
+//! * Nu hook failures: handled in invocation pipeline; runtime continues loop.
+//! * Workspace edit apply failure: user notification emitted, runtime remains live.
+//! * Scheduler backlog: tracked by scheduler metrics and drop policy, loop continues.
+//!
+//! # Recipes
+//!
+//! * Add new runtime event:
+//!   1. Add variant to [`RuntimeEvent`].
+//!   2. Route it in `Editor::on_event`.
+//!   3. Add invariant/test proving `on_event` still implies one `pump`.
+//! * Add new maintenance phase:
+//!   1. Insert step in `Editor::pump` with explicit placement rationale.
+//!   2. Update invariants for ordering constraints.
+//!   3. Add tests for redraw/quit behavior impact.
 
-use std::time::Duration;
+mod core;
 
-use xeno_primitives::{Key, Mode, MouseEvent};
+pub use core::{CursorStyle, LoopDirective, RuntimeEvent};
 
+#[cfg(test)]
 use crate::Editor;
 
-#[derive(Debug, Clone, Copy)]
-pub struct LoopDirective {
-	pub poll_timeout: Option<Duration>,
-	pub needs_redraw: bool,
-	pub cursor_style: CursorStyle,
-	pub should_quit: bool,
-}
-
-/// Editor-defined cursor style (term maps to termina CSI).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum CursorStyle {
-	#[default]
-	Block,
-	Beam,
-	Underline,
-	Hidden,
-}
-
-/// Frontend-agnostic event stream consumed by the editor runtime.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum RuntimeEvent {
-	Key(Key),
-	Mouse(MouseEvent),
-	Paste(String),
-	/// Viewport size expressed in text-grid cells.
-	WindowResized {
-		cols: u16,
-		rows: u16,
-	},
-	FocusIn,
-	FocusOut,
-}
-
-/// Runtime policy constants.
-const DRAIN_BUDGET_FAST: crate::scheduler::DrainBudget = crate::scheduler::DrainBudget {
-	duration: Duration::from_millis(1),
-	max_completions: 32,
-};
-const DRAIN_BUDGET_SLOW: crate::scheduler::DrainBudget = crate::scheduler::DrainBudget {
-	duration: Duration::from_millis(3),
-	max_completions: 64,
-};
-
-impl Editor {
-	/// Runs one maintenance cycle.
-	pub async fn pump(&mut self) -> LoopDirective {
-		self.ui_tick();
-		self.tick();
-
-		let fs_changed = self.state.filesystem.pump(crate::filesystem::PumpBudget {
-			max_index_msgs: 32,
-			max_search_msgs: 8,
-			max_time: Duration::from_millis(4),
-		});
-		if fs_changed {
-			self.interaction_refresh_file_picker();
-			self.frame_mut().needs_redraw = true;
-		}
-
-		// Kick one queued Nu hook eval onto the WorkScheduler (non-blocking).
-		// The eval result arrives via EditorMsg::NuHookEvalDone in drain_messages().
-		self.kick_nu_hook_eval();
-
-		let drain_budget = if matches!(self.mode(), Mode::Insert) {
-			DRAIN_BUDGET_FAST
-		} else {
-			DRAIN_BUDGET_SLOW
-		};
-
-		let drain_stats = self.work_scheduler_mut().drain_budget(drain_budget).await;
-		self.metrics().record_hook_tick(drain_stats.completed, drain_stats.pending);
-
-		let should_quit = self.drain_command_queue().await || self.take_quit_request();
-
-		if self.state.frame.pending_overlay_commit {
-			self.state.frame.pending_overlay_commit = false;
-			self.interaction_commit().await;
-		}
-
-		let msg_dirty = self.drain_messages();
-		if msg_dirty.needs_redraw() {
-			self.frame_mut().needs_redraw = true;
-		}
-
-		// Execute invocations produced by completed Nu hook evaluations.
-		let nu_hook_quit = self.drain_nu_hook_invocations(crate::impls::invocation::MAX_NU_HOOKS_PER_PUMP).await;
-		if nu_hook_quit {
-			return LoopDirective {
-				poll_timeout: None,
-				needs_redraw: true,
-				cursor_style: self.derive_cursor_style(),
-				should_quit: true,
-			};
-		}
-
-		#[cfg(feature = "lsp")]
-		if !self.state.frame.pending_workspace_edits.is_empty() {
-			let edits = std::mem::take(&mut self.state.frame.pending_workspace_edits);
-			for edit in edits {
-				if let Err(err) = self.apply_workspace_edit(edit).await {
-					self.notify(xeno_registry::notifications::keys::error(err.to_string()));
-				}
-			}
-			self.frame_mut().needs_redraw = true;
-		}
-
-		let needs_redraw = self.frame().needs_redraw;
-
-		let poll_timeout = if matches!(self.mode(), Mode::Insert) || self.any_panel_open() || needs_redraw {
-			Some(Duration::from_millis(16))
-		} else {
-			Some(Duration::from_millis(50))
-		};
-
-		LoopDirective {
-			poll_timeout,
-			needs_redraw,
-			cursor_style: self.derive_cursor_style(),
-			should_quit,
-		}
-	}
-
-	/// Handle a single frontend event and then run `pump`.
-	pub async fn on_event(&mut self, ev: RuntimeEvent) -> LoopDirective {
-		if let Some(rec) = &mut self.state.recorder {
-			rec.record(&ev);
-		}
-		match ev {
-			RuntimeEvent::Key(key) => {
-				let _ = self.handle_key(key).await;
-			}
-			RuntimeEvent::Mouse(mouse) => {
-				let _ = self.handle_mouse(mouse).await;
-			}
-			RuntimeEvent::Paste(content) => {
-				self.handle_paste(content);
-			}
-			RuntimeEvent::WindowResized { cols, rows } => {
-				self.handle_window_resize(cols, rows);
-			}
-			RuntimeEvent::FocusIn => {
-				self.handle_focus_in();
-			}
-			RuntimeEvent::FocusOut => {
-				self.handle_focus_out();
-			}
-		}
-
-		self.pump().await
-	}
-
-	pub(crate) fn derive_cursor_style(&self) -> CursorStyle {
-		self.ui().cursor_style().unwrap_or_else(|| match self.mode() {
-			Mode::Insert => CursorStyle::Beam,
-			_ => CursorStyle::Block,
-		})
-	}
-}
-
 pub(crate) mod recorder;
+
+#[cfg(test)]
+mod invariants;
 
 #[cfg(test)]
 mod tests;

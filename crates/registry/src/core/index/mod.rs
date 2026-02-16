@@ -1,4 +1,5 @@
 //! Centralized registry index infrastructure.
+//! Anchor ID: XENO_ANCHOR_REGISTRY_INDEX
 //!
 //! # Purpose
 //!
@@ -49,11 +50,6 @@
 //! | [`RegistryBuilder`] | Pipeline for string interning and ID assignment. |
 //! | [`crate::db::domain::DomainSpec`] | Definition of a specific registry domain. |
 //!
-//! # Concurrency
-//!
-//! * Reads: wait-free (atomic load of current snapshot).
-//! * Writes: lock-free with linearizability (CAS retry loop on registration).
-//!
 //! # Invariants
 //!
 //! * Must have unambiguous ID lookup (one winner per ID).
@@ -61,6 +57,44 @@
 //!   Builtins are built in canonical-ID order; runtime appends extend the table in registration order.
 //! * Must keep owned definitions alive while reachable.
 //! * Must provide linearizable writes without lost updates.
+//!
+//! # Data flow
+//!
+//! 1. Domain definitions are pushed into [`RegistryBuilder`].
+//! 2. Build phase interns strings, resolves ID/key collisions, and emits [`RegistryIndex`].
+//! 3. Runtime wraps the index in [`RuntimeRegistry`] snapshot storage.
+//! 4. Readers resolve by key/ID and receive snapshot-pinned [`RegistryRef`] handles.
+//! 5. Runtime registrations build extended snapshots and CAS-publish them.
+//!
+//! # Lifecycle
+//!
+//! * Build-time bootstrap from builtins/plugins into immutable [`RegistryIndex`].
+//! * Runtime steady-state reads from latest snapshot.
+//! * Optional runtime mutation via `register`/`register_owned`.
+//! * Old snapshots remain valid while referenced by pinned refs.
+//!
+//! # Concurrency & ordering
+//!
+//! * Reads are wait-free through atomic snapshot loads.
+//! * Writes use CAS loops for lock-free linearizable publication.
+//! * Conflict resolution order is deterministic through precedence contract.
+//!
+//! # Failure modes & recovery
+//!
+//! * Duplicate-policy rejection returns `RegisterError::Rejected`.
+//! * CAS race retries against latest snapshot until publish succeeds or policy rejects.
+//! * Collision metadata retains diagnostics when keys/IDs conflict.
+//!
+//! # Recipes
+//!
+//! * Add a new registry domain:
+//!   1. Define domain `Input/Entry/Id`.
+//!   2. Wire builder path and index emission.
+//!   3. Reuse this precedence/collision contract for lookup semantics.
+//! * Change precedence policy:
+//!   1. Update `cmp_party` contract.
+//!   2. Update invariant proofs in `invariants.rs`.
+//!   3. Validate deterministic winner behavior across build/runtime paths.
 
 mod build;
 mod collision;
@@ -70,6 +104,7 @@ pub mod precedence;
 pub(crate) mod runtime;
 pub(crate) mod snapshot;
 mod types;
+mod util;
 
 pub use build::{BuildCtx, BuildCtxExt, BuildEntry, RegistryBuilder, RegistryMetaRef, StrListRef, StringCollector};
 pub(crate) use collision::cmp_party;
@@ -77,15 +112,7 @@ pub use collision::{Collision, CollisionKind, DuplicatePolicy, KeyKind, Party, R
 pub use runtime::{RegisterError, RuntimeEntry, RuntimeRegistry};
 pub use snapshot::{RegistryRef, Snapshot, SnapshotGuard};
 pub use types::RegistryIndex;
-
-/// Safely converts a usize index to u32 for registry storage.
-///
-/// # Panics
-///
-/// Panics if `idx` exceeds `u32::MAX`.
-pub(crate) fn u32_index(idx: usize, what: &'static str) -> u32 {
-	u32::try_from(idx).unwrap_or_else(|_| panic!("{} index overflow: {}", what, idx))
-}
+pub(crate) use util::u32_index;
 
 #[cfg(test)]
 pub(crate) mod test_fixtures;
