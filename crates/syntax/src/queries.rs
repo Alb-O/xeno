@@ -183,12 +183,7 @@ impl SyntaxManager {
 	}
 
 	/// Returns projection context for a specific tree version mapped to the target doc version.
-	pub(crate) fn highlight_projection_ctx_for(
-		&self,
-		doc_id: DocumentId,
-		tree_doc_version: u64,
-		target_doc_version: u64,
-	) -> Option<HighlightProjectionCtx<'_>> {
+	pub fn highlight_projection_ctx_for(&self, doc_id: DocumentId, tree_doc_version: u64, target_doc_version: u64) -> Option<HighlightProjectionCtx<'_>> {
 		if tree_doc_version == target_doc_version {
 			tracing::trace!(
 				target: "xeno_undo_trace",
@@ -264,7 +259,7 @@ impl SyntaxManager {
 		self.entries.get(&doc_id).is_some_and(|d| d.sched.any_active())
 	}
 
-	pub(crate) fn viewport_visible_span_cap_for_bytes(&self, bytes: usize) -> u32 {
+	pub fn viewport_visible_span_cap_for_bytes(&self, bytes: usize) -> u32 {
 		let tier = self.policy.tier_for_bytes(bytes);
 		self.policy.cfg(tier).viewport_visible_span_cap
 	}
@@ -273,11 +268,11 @@ impl SyntaxManager {
 		self.entries.values().filter(|d| d.sched.any_active()).count()
 	}
 
-	pub(crate) fn pending_docs(&self) -> impl Iterator<Item = DocumentId> + '_ {
+	pub fn pending_docs(&self) -> impl Iterator<Item = DocumentId> + '_ {
 		self.entries.iter().filter(|(_, d)| d.sched.any_active()).map(|(id, _)| *id)
 	}
 
-	pub(crate) fn dirty_docs(&self) -> impl Iterator<Item = DocumentId> + '_ {
+	pub fn dirty_docs(&self) -> impl Iterator<Item = DocumentId> + '_ {
 		self.entries.iter().filter(|(_, e)| e.slot.dirty).map(|(id, _)| *id)
 	}
 
@@ -285,7 +280,7 @@ impl SyntaxManager {
 	///
 	/// These must be included in the render-frame workset so completions get
 	/// installed/discarded even for docs that are no longer visible or dirty.
-	pub(crate) fn docs_with_completed(&self) -> impl Iterator<Item = DocumentId> + '_ {
+	pub fn docs_with_completed(&self) -> impl Iterator<Item = DocumentId> + '_ {
 		self.entries.iter().filter(|(_, e)| !e.sched.completed.is_empty()).map(|(id, _)| *id)
 	}
 

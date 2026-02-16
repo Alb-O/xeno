@@ -570,7 +570,7 @@ pub(crate) async fn test_syntax_version_monotonic_across_install_and_retention()
 			class: TaskClass::Viewport,
 			elapsed: Duration::ZERO,
 			viewport_key: Some(ViewportKey(0)),
-			viewport_lane: Some(crate::syntax_manager::scheduling::ViewportLane::Urgent),
+			viewport_lane: Some(crate::scheduling::ViewportLane::Urgent),
 		});
 	}
 	mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang), &content, SyntaxHotness::Visible, &loader));

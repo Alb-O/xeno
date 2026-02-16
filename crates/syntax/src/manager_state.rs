@@ -1,4 +1,5 @@
 use super::*;
+use crate::lru::RecentDocLru;
 
 pub(super) struct DocEntry {
 	pub(super) sched: DocSched,
@@ -38,4 +39,6 @@ pub struct SyntaxManager {
 	pub(super) engine: Arc<dyn SyntaxEngine>,
 	/// Collector for background tasks.
 	pub(super) collector: TaskCollector,
+	/// Recently visible documents for `Warm` hotness state.
+	pub(super) warm_docs: RecentDocLru,
 }

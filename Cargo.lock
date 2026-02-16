@@ -5953,6 +5953,7 @@ dependencies = [
  "xeno-nu-sandbox",
  "xeno-primitives",
  "xeno-registry",
+ "xeno-syntax",
 ]
 
 [[package]]
@@ -6278,6 +6279,21 @@ dependencies = [
  "tokio",
  "tower-service",
  "tracing",
+]
+
+[[package]]
+name = "xeno-syntax"
+version = "0.9.3"
+dependencies = [
+ "futures",
+ "parking_lot",
+ "ropey",
+ "rustc-hash 2.1.1",
+ "tokio",
+ "tracing",
+ "xeno-language",
+ "xeno-primitives",
+ "xeno-registry",
 ]
 
 [[package]]

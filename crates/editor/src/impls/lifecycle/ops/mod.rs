@@ -24,7 +24,7 @@ impl Editor {
 	pub fn ensure_syntax_for_buffers(&mut self) {
 		use std::collections::{HashMap, HashSet};
 
-		use crate::syntax_manager::{EnsureSyntaxContext, SyntaxHotness};
+		use xeno_syntax::{EnsureSyntaxContext, SyntaxHotness};
 
 		let loader = std::sync::Arc::clone(&self.state.config.language_loader);
 		let mut visible_ids: HashSet<_> = self.state.windows.base_window().layout.views().into_iter().collect();
@@ -92,9 +92,9 @@ impl Editor {
 		for buffer in self.state.core.buffers.buffers() {
 			let doc_id = buffer.document_id();
 			let hotness = if visible_ids.contains(&buffer.id) {
-				self.state.core.warm_docs.touch(doc_id);
+				self.state.syntax_manager.note_visible_doc(doc_id);
 				SyntaxHotness::Visible
-			} else if self.state.core.warm_docs.contains(doc_id) {
+			} else if self.state.syntax_manager.is_warm_doc(doc_id) {
 				SyntaxHotness::Warm
 			} else {
 				SyntaxHotness::Cold

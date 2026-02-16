@@ -4,9 +4,7 @@ use std::sync::Arc;
 use rustc_hash::FxHashMap;
 use xeno_language::syntax::{InjectionPolicy, Syntax};
 use xeno_language::{LanguageId, LanguageLoader};
-use xeno_primitives::{ChangeSet, Rope};
-
-use crate::core::document::DocumentId;
+use xeno_primitives::{ChangeSet, DocumentId, Rope};
 
 /// Maximum number of remembered full-tree snapshots per document for undo/redo reuse.
 const FULL_TREE_MEMORY_CAP: usize = 8;
@@ -42,7 +40,7 @@ impl DocEpoch {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TaskId(pub(super) u64);
 
-/// Context provided to [`crate::syntax_manager::SyntaxManager::ensure_syntax`] for scheduling.
+/// Context provided to [`crate::SyntaxManager::ensure_syntax`] for scheduling.
 pub struct EnsureSyntaxContext<'a> {
 	pub doc_id: DocumentId,
 	pub doc_version: u64,
@@ -85,7 +83,7 @@ pub(crate) struct PendingIncrementalEdits {
 
 /// Best-available syntax tree selected for rendering a viewport.
 ///
-/// Returned by [`crate::syntax_manager::SyntaxManager::syntax_for_viewport`]
+/// Returned by [`crate::SyntaxManager::syntax_for_viewport`]
 /// and consumed by the highlight cache. The `tree_id` serves as the cache
 /// key for highlight tiles, ensuring correct invalidation across tree swaps
 /// and in-place full-tree incremental updates.
@@ -268,11 +266,11 @@ pub(crate) struct FullTreeMemoryEntry {
 	pub(crate) syntax: Syntax,
 }
 
-/// Per-document syntax state managed by [`crate::syntax_manager::SyntaxManager`].
+/// Per-document syntax state managed by [`crate::SyntaxManager`].
 ///
 /// Maintains two independent tree slots: a full-document tree and a
 /// viewport-bounded partial tree. Rendering selects the best available
-/// tree via [`crate::syntax_manager::SyntaxManager::syntax_for_viewport`],
+/// tree via [`crate::SyntaxManager::syntax_for_viewport`],
 /// preventing viewport installs from clobbering a valid full tree.
 #[derive(Default)]
 pub struct SyntaxSlot {

@@ -145,6 +145,7 @@ impl SyntaxManager {
 			entries,
 			engine,
 			collector,
+			..
 		} = self;
 		let entry = entries.entry(doc_id).or_insert_with(|| DocEntry::new(now));
 		let ensure = derive(&ctx, policy);

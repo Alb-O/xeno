@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 
 use tracing::warn;
 use xeno_lsp::Error as LspError;
-use xeno_primitives::LspDocumentChange;
+use xeno_primitives::{DocumentId, LspDocumentChange};
 
 /// Default debounce duration for LSP notifications.
 pub const LSP_DEBOUNCE: Duration = Duration::from_millis(30);
@@ -55,7 +55,7 @@ impl FlushResult {
 /// Completion message from spawned LSP send tasks.
 #[derive(Debug)]
 pub struct FlushComplete {
-	pub doc_id: crate::core::document::DocumentId,
+	pub doc_id: DocumentId,
 	pub generation: u64,
 	pub result: FlushResult,
 	/// Whether this was a full sync (for expected_prev reset).

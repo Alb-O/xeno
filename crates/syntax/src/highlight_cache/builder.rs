@@ -4,7 +4,7 @@ use xeno_language::syntax::Syntax;
 use xeno_primitives::transaction::Bias;
 use xeno_primitives::{ChangeSet, Rope, Style};
 
-use crate::syntax_manager::HighlightProjectionCtx;
+use crate::HighlightProjectionCtx;
 
 #[inline]
 pub(super) fn line_to_byte_or_eof(rope: &Rope, line: usize) -> u32 {

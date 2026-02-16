@@ -6,7 +6,7 @@ use xeno_primitives::Transaction;
 use xeno_primitives::transaction::Change;
 
 use super::*;
-use crate::syntax_manager::HighlightProjectionCtx;
+use crate::HighlightProjectionCtx;
 
 fn default_style(_: &str) -> Style {
 	Style::default()

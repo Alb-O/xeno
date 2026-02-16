@@ -21,10 +21,9 @@ pub use sync_state::*;
 use tokio::sync::mpsc;
 use tracing::{debug, warn};
 use xeno_lsp::DocumentSync;
-use xeno_primitives::LspDocumentChange;
+use xeno_primitives::{DocumentId, LspDocumentChange};
 
 use super::coalesce::coalesce_changes;
-use crate::core::document::DocumentId;
 use crate::metrics::EditorMetrics;
 
 /// Unified LSP sync manager owning all pending changes per document.

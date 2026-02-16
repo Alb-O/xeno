@@ -24,7 +24,7 @@ fn test_render_baseline() {
 	let buffer = Buffer::new(ViewId::text(1), "Hello world".to_string(), None);
 	let theme = theme_from_entry(xeno_registry::themes::get_theme("monokai").unwrap());
 	let loader = xeno_language::LanguageLoader::from_embedded();
-	let syntax_manager = crate::syntax_manager::SyntaxManager::default();
+	let syntax_manager = xeno_syntax::SyntaxManager::default();
 
 	let ctx = BufferRenderContext {
 		theme: &theme,
@@ -59,7 +59,7 @@ fn test_render_wrapping() {
 	let buffer = Buffer::new(ViewId::text(1), "One two three four five".to_string(), None);
 	let theme = theme_from_entry(xeno_registry::themes::get_theme("monokai").unwrap());
 	let loader = xeno_language::LanguageLoader::from_embedded();
-	let syntax_manager = crate::syntax_manager::SyntaxManager::default();
+	let syntax_manager = xeno_syntax::SyntaxManager::default();
 
 	let ctx = BufferRenderContext {
 		theme: &theme,

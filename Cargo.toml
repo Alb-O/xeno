@@ -17,6 +17,7 @@ members = [
     "crates/registry",
     "crates/registry-spec",
     "crates/rpc",
+    "crates/syntax",
     "crates/term",
     "crates/tui",
 ]
@@ -145,6 +146,7 @@ xeno-primitives = { path = "crates/primitives" }
 xeno-registry = { path = "crates/registry" }
 xeno-registry-spec = { path = "crates/registry-spec" }
 xeno-rpc = { path = "crates/rpc" }
+xeno-syntax = { path = "crates/syntax" }
 xeno-tree-house = { path = "crates/tree-house", default-features = false }
 xeno-tui = { path = "crates/tui" }
 

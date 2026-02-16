@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
-use crate::core::document::DocumentId;
+use xeno_primitives::DocumentId;
+
 use crate::render::buffer::diff::DiffLineNumbers;
 use crate::render::cache::diff::DiffLineNumbersCache;
 

@@ -28,7 +28,7 @@ mod unit_tests {
 		let tab_width = 4;
 		let theme = theme_from_entry(xeno_registry::themes::get_theme("monokai").unwrap());
 		let loader = xeno_language::LanguageLoader::new();
-		let syntax_manager = crate::syntax_manager::SyntaxManager::default();
+		let syntax_manager = xeno_syntax::SyntaxManager::default();
 
 		let line_idx = 0;
 		let line_slice = LineSlice {
@@ -117,7 +117,7 @@ mod unit_tests {
 		let tab_width = 4;
 		let theme = theme_from_entry(xeno_registry::themes::get_theme("monokai").unwrap());
 		let loader = xeno_language::LanguageLoader::new();
-		let syntax_manager = crate::syntax_manager::SyntaxManager::default();
+		let syntax_manager = xeno_syntax::SyntaxManager::default();
 
 		let line_idx = 0;
 		let line_slice = LineSlice {
@@ -204,7 +204,7 @@ mod unit_tests {
 		let doc = Rope::from("Long line that wraps");
 		let theme = theme_from_entry(xeno_registry::themes::get_theme("monokai").unwrap());
 		let loader = xeno_language::LanguageLoader::new();
-		let syntax_manager = crate::syntax_manager::SyntaxManager::default();
+		let syntax_manager = xeno_syntax::SyntaxManager::default();
 
 		let line_idx = 0;
 		let line_slice = LineSlice {
@@ -316,7 +316,7 @@ mod unit_tests {
 		let doc = Rope::from("a\n");
 		let theme = theme_from_entry(xeno_registry::themes::get_theme("monokai").unwrap());
 		let loader = xeno_language::LanguageLoader::new();
-		let syntax_manager = crate::syntax_manager::SyntaxManager::default();
+		let syntax_manager = xeno_syntax::SyntaxManager::default();
 
 		let line_slice = LineSlice {
 			line_idx: 0,

@@ -1,8 +1,7 @@
 use std::collections::VecDeque;
 
 use rustc_hash::FxHashSet;
-
-use crate::core::document::DocumentId;
+use xeno_primitives::DocumentId;
 
 /// Bounded LRU tracker for recently visible documents.
 ///
