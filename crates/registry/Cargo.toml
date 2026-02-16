@@ -62,7 +62,7 @@ motions = ["db", "dep:regex", "dep:ropey", "dep:xeno-primitives"]
 textobj = ["db", "dep:ropey", "dep:xeno-primitives", "motions"]
 options = ["db", "dep:strsim", "dep:xeno-macros"]
 themes = ["db", "dep:strsim", "dep:xeno-primitives"]
-statusline = ["db"]
+statusline = ["db", "dep:devicons"]
 gutter = ["db", "dep:ropey", "themes"]
 hooks = ["db", "dep:tracing", "dep:xeno-macros", "dep:xeno-primitives"]
 notifications = ["db"]
@@ -113,6 +113,7 @@ serde.workspace = true
 strsim = { workspace = true, optional = true }
 thiserror.workspace = true
 tracing = { workspace = true, optional = true }
+devicons = { workspace = true, optional = true }
 xeno-invocation = { workspace = true }
 xeno-invocation-spec = { workspace = true, optional = true }
 xeno-keymap-core = { workspace = true, optional = true }

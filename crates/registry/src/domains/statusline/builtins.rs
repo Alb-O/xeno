@@ -1,7 +1,18 @@
 //! Built-in statusline segment implementations.
 
+use std::path::Path;
+
+use devicons::FileIcon;
+
 use crate::segment_handler;
 use crate::statusline::{RenderedSegment, SegmentStyle};
+
+const GENERIC_FILE_ICON: &str = "󰈔";
+
+fn statusline_file_icon(path: &str) -> String {
+	let icon = FileIcon::from(Path::new(path)).icon;
+	if icon == '*' { GENERIC_FILE_ICON.to_string() } else { icon.to_string() }
+}
 
 segment_handler!(mode, |ctx| {
 	Some(RenderedSegment {
@@ -23,9 +34,10 @@ segment_handler!(count, |ctx| {
 
 segment_handler!(file, |ctx| {
 	let path = ctx.path.unwrap_or("[No Name]");
+	let icon = statusline_file_icon(path);
 	let modified = if ctx.modified { " [+]" } else { "" };
 	Some(RenderedSegment {
-		text: format!(" {}{} ", path, modified),
+		text: format!(" {} {}{} ", icon, path, modified),
 		style: SegmentStyle::Normal,
 	})
 });

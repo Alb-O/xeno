@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use super::*;
 
 #[test]
@@ -45,4 +47,42 @@ fn segment_style_uses_theme_mode_style_for_mode_segments() {
 
 	let style = segment_style(&editor, StatuslineRenderStyle::Mode);
 	assert_eq!(style, expected);
+}
+
+#[test]
+fn statusline_file_segment_prefixes_icon_before_path_text() {
+	let mut editor = Editor::new_scratch();
+	let _ = editor.buffer_mut().set_path(Some(PathBuf::from("Cargo.toml")), None);
+
+	let plan = render_plan(&editor);
+	let file_segment = plan
+		.iter()
+		.find(|segment| segment.text.contains("Cargo.toml"))
+		.expect("statusline should include file segment");
+
+	assert!(
+		!file_segment.text.starts_with(" Cargo.toml"),
+		"file segment should include an icon prefix before the path"
+	);
+}
+
+#[test]
+fn statusline_file_segment_uses_generic_icon_for_unknown_filetypes() {
+	let mut editor = Editor::new_scratch();
+	let _ = editor.buffer_mut().set_path(Some(PathBuf::from("scratch.unknown_ext_xeno")), None);
+
+	let plan = render_plan(&editor);
+	let file_segment = plan
+		.iter()
+		.find(|segment| segment.text.contains("scratch.unknown_ext_xeno"))
+		.expect("statusline should include file segment");
+
+	assert!(
+		file_segment.text.contains("󰈔"),
+		"file segment should use generic file icon when devicons returns unknown"
+	);
+	assert!(
+		!file_segment.text.contains('*'),
+		"file segment should not render devicons unknown fallback asterisk"
+	);
 }
