@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Sync tree-sitter queries from Helix (queries only, not languages.toml).
-# Usage: ./scripts/sync-helix-runtime.sh [ref]
+# Usage: ./scripts/sync_helix_runtime.sh [ref]
 
 set -euo pipefail
 
@@ -46,7 +46,7 @@ rm -rf "$QUERIES_DIR/queries"
 cp -r runtime/queries "$QUERIES_DIR/"
 
 # Write provenance file
-cat > "$SCRIPT_DIR/sync-helix-runtime-stats.txt" << EOF
+cat > "$SCRIPT_DIR/sync_helix_runtime_stats.txt" << EOF
 upstream = "https://github.com/helix-editor/helix"
 ref = "$REF"
 commit = "$COMMIT_HASH"
@@ -61,4 +61,4 @@ echo ""
 echo "Sync complete!"
 echo "  Languages: $LANG_COUNT"
 echo "  Query files: $SCM_COUNT"
-echo "  Provenance: scripts/sync-helix-runtime-stats.txt"
+echo "  Provenance: scripts/sync_helix_runtime_stats.txt"

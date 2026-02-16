@@ -22,7 +22,7 @@ flake-parts.lib.mkFlake { inherit inputs; } {
       workspaceVersion = cargoToml.workspace.package.version;
 
       rustPkgs = pkgs.extend rust-overlay.overlays.default;
-      rustToolchain = rustPkgs.rust-bin.fromRustupToolchainFile (rootSrc + "/rust-toolchain.toml");
+      rustToolchain = rustPkgs.rust-bin.fromRustupToolchainFile (rootSrc + "/rust_toolchain.toml");
       rustPlatform = pkgs.makeRustPlatform {
         cargo = rustToolchain;
         rustc = rustToolchain;

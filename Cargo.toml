@@ -2,11 +2,11 @@
 resolver = "3"
 members = [
     "crates/editor",
-    "crates/frontend-iced",
-    "crates/frontend-tui",
+    "crates/frontend_iced",
+    "crates/frontend_tui",
     "crates/input",
     "crates/invocation",
-    "crates/invocation-spec",
+    "crates/invocation_spec",
     "crates/keymap/*",
     "crates/language",
     "crates/lsp",
@@ -17,7 +17,7 @@ members = [
     "crates/nu/value",
     "crates/primitives",
     "crates/registry",
-    "crates/registry-spec",
+    "crates/registry_spec",
     "crates/rpc",
     "crates/syntax",
     "crates/term",
@@ -128,17 +128,17 @@ which = "8.0"
 windows = "0.62"
 windows-sys = "0.61"
 xeno-editor = { path = "crates/editor" }
-xeno-frontend-tui = { path = "crates/frontend-tui" }
+xeno-frontend-tui = { path = "crates/frontend_tui" }
 xeno-input = { path = "crates/input" }
 xeno-invocation = { path = "crates/invocation" }
-xeno-invocation-spec = { path = "crates/invocation-spec" }
+xeno-invocation-spec = { path = "crates/invocation_spec" }
 xeno-keymap-core = { path = "crates/keymap/core" }
 xeno-keymap-parser = { path = "crates/keymap/parser" }
 xeno-language = { path = "crates/language" }
 xeno-lsp = { path = "crates/lsp" }
 xeno-macros = { path = "crates/macros" }
 xeno-matcher = { path = "crates/matcher" }
-xeno-nu-cmd-lang = { path = "crates/nu/cmd-lang", version = "0.110.1", default-features = false }
+xeno-nu-cmd-lang = { path = "crates/nu/cmd_lang", version = "0.110.1", default-features = false }
 xeno-nu-engine = { path = "crates/nu/engine", version = "0.110.1", default-features = false }
 xeno-nu-nuon = { path = "crates/nu/nuon", version = "0.110.1" }
 xeno-nu-parser = { path = "crates/nu/parser", version = "0.110.1" }
@@ -148,10 +148,10 @@ xeno-nu-safe-commands = { path = "crates/nu/safe_commands" }
 xeno-nu-value = { path = "crates/nu/value" }
 xeno-primitives = { path = "crates/primitives" }
 xeno-registry = { path = "crates/registry" }
-xeno-registry-spec = { path = "crates/registry-spec" }
+xeno-registry-spec = { path = "crates/registry_spec" }
 xeno-rpc = { path = "crates/rpc" }
 xeno-syntax = { path = "crates/syntax" }
-xeno-tree-house = { path = "crates/tree-house", default-features = false }
+xeno-tree-house = { path = "crates/tree_house", default-features = false }
 xeno-tui = { path = "crates/tui" }
 
 [workspace.lints.rust]

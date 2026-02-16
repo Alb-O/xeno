@@ -46,11 +46,11 @@ Notice:     crates/lsp/LICENSE
 ================================================================================
 
 Component:  tree-house (syntax/highlighting core)
-Path:       crates/tree-house/
+Path:       crates/tree_house/
 License:    MPL-2.0
 Copyright:  (c) tree-house contributors
 Source:     https://github.com/helix-editor/tree-house
-Notice:     crates/tree-house/LICENSE
+Notice:     crates/tree_house/LICENSE
 
 ================================================================================
 

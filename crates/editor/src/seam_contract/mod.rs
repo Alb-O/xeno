@@ -34,7 +34,7 @@ const FORBIDDEN_PATTERNS: &[(&str, &str)] = &[
 ];
 
 /// Frontend source directories to scan, relative to this crate's manifest dir.
-const FRONTEND_DIRS: &[&str] = &["../frontend-tui/src", "../frontend-iced/src"];
+const FRONTEND_DIRS: &[&str] = &["../frontend_tui/src", "../frontend_iced/src"];
 
 #[cfg(test)]
 mod tests;

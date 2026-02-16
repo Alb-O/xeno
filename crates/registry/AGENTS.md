@@ -24,7 +24,7 @@ The registry is a typed database of editor definitions (actions, commands, optio
   * runtime `Entry` types and `Input` types ingested by the builder
 
 * **Shared substrate**:
-  * `crates/registry-spec`: shared pure-data spec structs (serde models).
+  * `crates/registry_spec`: shared pure-data spec structs (serde models).
   * `src/defs/loader.rs`: blob header/validation + postcard decode
   * `src/defs/link.rs`: shared linking utilities (e.g. `link_by_name`)
   * `src/core/index/*`: generic index building, lookup resolution, collision recording, runtime registration
@@ -38,7 +38,7 @@ The registry is a typed database of editor definitions (actions, commands, optio
 
 **Build time**
 1. Authoring input: domain metadata authored as NUON under `crates/registry/src/domains/<domain>/assets/`.
-2. Compilation: `crates/registry/build.rs` dispatches to `xeno_registry_spec::<domain>::compile::build` in `crates/registry-spec/src/<domain>/compile.rs`.
+2. Compilation: `crates/registry/build.rs` dispatches to `xeno_registry_spec::<domain>::compile::build` in `crates/registry_spec/src/<domain>/compile.rs`.
 3. Serialization: specs are serialized with `postcard` and written as `<domain>.bin` using the shared blob wrapper.
 4. Embedding: `.bin` files are embedded into the final binary (`include_bytes!(concat!(env!("OUT_DIR"), ...))`).
 
@@ -272,7 +272,7 @@ Run with `--features registry-contracts` if you’re touching collection/build l
 ### 3) Add the compiled spec pipeline (format-neutral)
 
 **Spec definition**:
-* Add domain spec structs to `crates/registry-spec/src/<domain>/mod.rs`.
+* Add domain spec structs to `crates/registry_spec/src/<domain>/mod.rs`.
 * Re-export them in `src/domains/<domain>/spec.rs`.
 
 **Runtime (domain module)**:
@@ -280,7 +280,7 @@ Run with `--features registry-contracts` if you’re touching collection/build l
 * `link.rs`: domain-specific linking/validation/parsing
   * handler-driven domains should use `defs::link::link_by_name`
 
-**Build time (`crates/registry/build.rs` + `crates/registry-spec/src/<domain>/compile.rs`)**:
+**Build time (`crates/registry/build.rs` + `crates/registry_spec/src/<domain>/compile.rs`)**:
 - parse authoring format (NUON)
 - emit the same `Spec` structs
 - serialize via `postcard` using the shared blob wrapper

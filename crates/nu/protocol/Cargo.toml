@@ -40,7 +40,7 @@ strum_macros = { workspace = true }
 thiserror = { workspace = true }
 typetag = "0.2"
 web-time = { workspace = true, optional = true }
-xeno-nu-derive-value = { path = "../derive-value", version = "0.110.1" }
+xeno-nu-derive-value = { path = "../derive_value", version = "0.110.1" }
 xeno-nu-experimental = { path = "../experimental", version = "0.110.1" }
 xeno-nu-glob = { path = "../glob", version = "0.110.1" }
 xeno-nu-path = { path = "../path", version = "0.110.1" }
