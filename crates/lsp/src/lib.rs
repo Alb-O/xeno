@@ -117,7 +117,7 @@ pub use changes::{IncrementalResult, compute_lsp_changes};
 #[cfg_attr(docsrs, doc(cfg(feature = "client")))]
 pub mod registry;
 #[cfg(feature = "client")]
-pub use registry::{LanguageServerConfig, Registry};
+pub use registry::{AcquireDisposition, AcquireResult, LanguageServerConfig, Registry};
 
 #[cfg(feature = "client")]
 #[cfg_attr(docsrs, doc(cfg(feature = "client")))]
@@ -137,7 +137,7 @@ pub use sync::{DocumentSync, DocumentSyncEventHandler};
 pub mod session;
 
 #[cfg(all(feature = "client", feature = "position"))]
-pub use session::{CompletionController, CompletionRequest, CompletionTrigger, LspManager};
+pub use session::{CompletionController, CompletionRequest, CompletionTrigger, LspRuntime, LspSession, RuntimeStartError};
 
 /// A convenient type alias for `Result` with `E` = [`enum@crate::Error`].
 pub type Result<T, E = Error> = std::result::Result<T, E>;

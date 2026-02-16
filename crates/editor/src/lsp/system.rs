@@ -1,7 +1,7 @@
 //! Editor-side LSP integration root. See `xeno_lsp::session::manager` for full LSP architecture.
 
 #[cfg(feature = "lsp")]
-use xeno_lsp::LspManager;
+use xeno_lsp::{LspRuntime, LspSession};
 #[cfg(feature = "lsp")]
 use xeno_primitives::{CommitResult, Rope, Transaction};
 
@@ -35,7 +35,8 @@ impl LspHandle {
 
 #[cfg(feature = "lsp")]
 pub(super) struct RealLspSystem {
-	pub(super) manager: LspManager,
+	pub(super) session: LspSession,
+	pub(super) runtime: LspRuntime,
 	pub(super) sync_manager: crate::lsp::sync_manager::LspSyncManager,
 	pub(super) completion: xeno_lsp::CompletionController,
 	pub(super) signature_gen: u64,
@@ -50,12 +51,15 @@ impl LspSystem {
 		let (ui_tx, ui_rx) = tokio::sync::mpsc::unbounded_channel();
 
 		let transport = xeno_lsp::LocalTransport::new();
-		let manager = LspManager::new(transport);
-		let _ = manager.spawn_router();
+		let (session, runtime) = LspSession::new(transport);
+		if let Err(err) = runtime.start() {
+			tracing::error!(error = ?err, "failed to start LSP runtime");
+		}
 
 		Self {
 			inner: RealLspSystem {
-				manager,
+				session,
+				runtime,
 				sync_manager: crate::lsp::sync_manager::LspSyncManager::new(),
 				completion: xeno_lsp::CompletionController::new(),
 				signature_gen: 0,
@@ -68,7 +72,7 @@ impl LspSystem {
 
 	pub fn handle(&self) -> LspHandle {
 		LspHandle {
-			sync: self.inner.manager.sync().clone(),
+			sync: self.inner.session.sync().clone(),
 		}
 	}
 }
@@ -89,36 +93,36 @@ impl Default for LspSystem {
 #[cfg(feature = "lsp")]
 impl LspSystem {
 	pub(crate) fn poll_diagnostics(&mut self) -> Vec<xeno_lsp::DiagnosticsEvent> {
-		self.inner.manager.poll_diagnostics()
+		self.inner.session.poll_diagnostics()
 	}
 
 	pub fn diagnostics_version(&self) -> u64 {
-		self.inner.manager.diagnostics_version()
+		self.inner.session.diagnostics_version()
 	}
 
 	pub fn configure_server(&self, language: impl Into<String>, config: crate::lsp::api::LanguageServerConfig) {
 		let internal_config = config.into_xeno_lsp();
-		self.inner.manager.configure_server(language, internal_config);
+		self.inner.session.configure_server(language, internal_config);
 	}
 
 	pub fn remove_server(&self, language: &str) {
-		self.inner.manager.remove_server(language);
+		self.inner.session.remove_server(language);
 	}
 
 	pub(crate) fn sync(&self) -> &xeno_lsp::DocumentSync {
-		self.inner.manager.sync()
+		self.inner.session.sync()
 	}
 
 	pub(crate) fn sync_clone(&self) -> xeno_lsp::DocumentSync {
-		self.inner.manager.sync().clone()
+		self.inner.session.sync().clone()
 	}
 
 	pub(crate) fn registry(&self) -> &xeno_lsp::Registry {
-		self.inner.manager.registry()
+		self.inner.session.registry()
 	}
 
 	pub(crate) fn documents(&self) -> &xeno_lsp::DocumentStateManager {
-		self.inner.manager.documents()
+		self.inner.session.documents()
 	}
 
 	pub(crate) fn get_raw_diagnostics(&self, buffer: &Buffer) -> Vec<xeno_lsp::lsp_types::Diagnostic> {
@@ -165,11 +169,11 @@ impl LspSystem {
 	}
 
 	pub fn total_error_count(&self) -> usize {
-		self.inner.manager.sync().total_error_count()
+		self.inner.session.sync().total_error_count()
 	}
 
 	pub fn total_warning_count(&self) -> usize {
-		self.inner.manager.sync().total_warning_count()
+		self.inner.session.sync().total_warning_count()
 	}
 
 	pub fn on_local_edit(&mut self, buffer: &Buffer, before: Option<Rope>, tx: &Transaction, result: &CommitResult) {
@@ -204,7 +208,8 @@ impl LspSystem {
 	}
 
 	pub async fn shutdown_all(&self) {
-		self.inner.manager.shutdown_all().await;
+		self.inner.runtime.shutdown().await;
+		self.inner.session.shutdown_all().await;
 	}
 
 	pub(crate) fn sync_manager(&self) -> &crate::lsp::sync_manager::LspSyncManager {

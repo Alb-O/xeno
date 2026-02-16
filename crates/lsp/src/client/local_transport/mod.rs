@@ -63,7 +63,7 @@ pub struct LocalTransport {
 	servers: RwLock<HashMap<LanguageServerId, ServerProcess>>,
 	/// Channel for emitting transport events to the manager.
 	event_tx: mpsc::UnboundedSender<TransportEvent>,
-	/// Receiver template for cloning (only used once in spawn_router).
+	/// Receiver template for single-consumer subscription.
 	event_rx: RwLock<Option<mpsc::UnboundedReceiver<TransportEvent>>>,
 }
 
@@ -130,8 +130,11 @@ impl Default for LocalTransport {
 
 #[async_trait]
 impl LspTransport for LocalTransport {
-	fn events(&self) -> mpsc::UnboundedReceiver<TransportEvent> {
-		self.event_rx.write().take().expect("events() can only be called once")
+	fn subscribe_events(&self) -> Result<mpsc::UnboundedReceiver<TransportEvent>> {
+		self.event_rx
+			.write()
+			.take()
+			.ok_or_else(|| Error::Protocol("transport events already subscribed".into()))
 	}
 
 	async fn start(&self, cfg: ServerConfig) -> Result<StartedServer> {

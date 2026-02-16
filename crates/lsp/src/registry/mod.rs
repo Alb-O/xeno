@@ -90,6 +90,26 @@ pub struct ServerMeta {
 	pub settings: Option<Value>,
 }
 
+/// How a server acquisition resolved.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AcquireDisposition {
+	/// Reused an already running server instance.
+	Existing,
+	/// Started a new server instance.
+	Started,
+}
+
+/// Result of acquiring a server handle for a `(language, root_path)` key.
+#[derive(Clone)]
+pub struct AcquireResult {
+	/// Resolved client handle.
+	pub handle: ClientHandle,
+	/// Server instance identifier (slot + generation).
+	pub server_id: LanguageServerId,
+	/// Acquisition disposition.
+	pub disposition: AcquireDisposition,
+}
+
 /// Consolidated server state under a single lock for atomic operations.
 ///
 /// The core indices (`servers`, `server_meta`, `id_index`) MUST be updated atomically
@@ -146,8 +166,8 @@ impl RegistryState {
 
 /// Tracking state for a server startup in progress.
 struct InFlightStart {
-	tx: watch::Sender<Option<Arc<Result<ClientHandle>>>>,
-	rx: watch::Receiver<Option<Arc<Result<ClientHandle>>>>,
+	tx: watch::Sender<Option<Arc<Result<AcquireResult>>>>,
+	rx: watch::Receiver<Option<Arc<Result<AcquireResult>>>>,
 }
 
 /// Registry for managing language servers.
@@ -200,15 +220,20 @@ impl Registry {
 	}
 
 	/// Synchronous check for a running server.
-	fn get_running(&self, key: &(String, PathBuf)) -> Option<ClientHandle> {
+	fn get_running(&self, key: &(String, PathBuf)) -> Option<AcquireResult> {
 		let state = self.state.read();
-		state.servers.get(key).map(|i| i.handle.clone())
+		state.servers.get(key).map(|instance| AcquireResult {
+			handle: instance.handle.clone(),
+			server_id: instance.id,
+			disposition: AcquireDisposition::Existing,
+		})
 	}
 
-	/// Get or start a language server for a file path.
+	/// Acquire a language server for a file path.
 	///
-	/// Returns an existing server handle if one is running for the resolved `(language, root_path)` key,
-	/// otherwise starts a new server using singleflight pattern to prevent duplicate starts.
+	/// Returns an existing server if one is running for the resolved
+	/// `(language, root_path)` key, otherwise starts a new server using
+	/// singleflight to prevent duplicate starts.
 	///
 	/// # Singleflight Protocol
 	///
@@ -223,10 +248,8 @@ impl Registry {
 	///
 	/// # Errors
 	///
-	/// Invariant enforcement: Get a running language server instance or start a new one.
-	///
 	/// Returns error if no configuration exists for the language or if transport start fails.
-	pub async fn get_or_start(&self, language: &str, file_path: &Path) -> Result<ClientHandle> {
+	pub async fn acquire(&self, language: &str, file_path: &Path) -> Result<AcquireResult> {
 		let config = self
 			.get_config(language)
 			.ok_or_else(|| crate::Error::Protocol(format!("No server configured for {language}")))?;
@@ -235,8 +258,8 @@ impl Registry {
 		let key = (language.to_string(), root_path.clone());
 
 		// 1. Fast path
-		if let Some(handle) = self.get_running(&key) {
-			return Ok(handle);
+		if let Some(acquired) = self.get_running(&key) {
+			return Ok(acquired);
 		}
 
 		// 2. Leader election
@@ -275,8 +298,8 @@ impl Registry {
 		let mut guard = StartGuard::new(key.clone(), self.inflight.clone(), inflight.clone(), self.transport.clone());
 
 		// Re-check state after lock acquisition to prevent double-start
-		if let Some(handle) = self.get_running(&key) {
-			return guard.complete(Ok(handle));
+		if let Some(acquired) = self.get_running(&key) {
+			return guard.complete(Ok(acquired)).await;
 		}
 
 		let (slot_id, generation) = {
@@ -299,11 +322,18 @@ impl Registry {
 		let final_res = match started_res {
 			Ok(started) => {
 				guard.note_started(started.id);
-				let (handle, stop_id) = {
+				let (acquired, stop_id) = {
 					let mut state = self.state.write();
 					// Final pathological race check
 					if let Some(existing) = state.servers.get(&key) {
-						(existing.handle.clone(), Some(started.id))
+						(
+							AcquireResult {
+								handle: existing.handle.clone(),
+								server_id: existing.id,
+								disposition: AcquireDisposition::Existing,
+							},
+							Some(started.id),
+						)
 					} else {
 						let handle = ClientHandle::new(started.id, config.command.clone(), root_path.clone(), self.transport.clone());
 
@@ -340,7 +370,14 @@ impl Registry {
 							}
 						});
 
-						(handle, None)
+						(
+							AcquireResult {
+								handle,
+								server_id: started.id,
+								disposition: AcquireDisposition::Started,
+							},
+							None,
+						)
 					}
 				};
 
@@ -352,12 +389,18 @@ impl Registry {
 					});
 				}
 
-				Ok(handle)
+				Ok(acquired)
 			}
 			Err(e) => Err(e),
 		};
 
-		guard.complete(final_res)
+		guard.complete(final_res).await
+	}
+
+	/// Compatibility helper that returns only the client handle.
+	pub async fn get_or_start(&self, language: &str, file_path: &Path) -> Result<ClientHandle> {
+		let acquired = self.acquire(language, file_path).await?;
+		Ok(acquired.handle)
 	}
 
 	/// Get an active client for a language and file path, if one exists and is alive.
@@ -449,19 +492,16 @@ impl StartGuard {
 		self.started_id = Some(id);
 	}
 
-	fn complete(mut self, res: Result<ClientHandle>) -> Result<ClientHandle> {
+	async fn complete(mut self, res: Result<AcquireResult>) -> Result<AcquireResult> {
 		self.completed = true;
 
-		// 1) publish result to waiters (sync, no await points)
+		// 1) publish result to waiters
 		let _ = self.inflight.tx.send(Some(Arc::new(res.clone())));
 
-		// 2) remove inflight entry asynchronously (so cancellation after this point can't wedge)
-		let key = self.key.clone();
-		let inflight_map = Arc::clone(&self.inflight_map);
-		tokio::spawn(async move {
-			let mut map = inflight_map.lock().await;
-			map.remove(&key);
-		});
+		// 2) remove inflight entry before returning so future callers do not
+		// observe stale in-flight state after completion.
+		let mut map = self.inflight_map.lock().await;
+		map.remove(&self.key);
 
 		res
 	}

@@ -10,7 +10,7 @@ use crate::lsp::LspSystem;
 ///
 /// # Test Coverage
 ///
-/// 1. Singleflight correctness: concurrent `get_or_start()` must yield single server instance
+/// 1. Singleflight correctness: concurrent `acquire()` must yield one started instance
 /// 2. Server→client request routing: `workspace/configuration`, progress notifications
 /// 3. Basic LSP operations: document open, hover requests
 #[cfg(feature = "lsp")]
@@ -54,14 +54,14 @@ pub async fn run_lsp_smoke(workspace: Option<std::path::PathBuf>) -> anyhow::Res
 	}
 
 	let registry = lsp_system.registry();
-	let (h1, h2) = tokio::join!(async { registry.get_or_start("rust", &test_file).await }, async {
-		registry.get_or_start("rust", &test_file).await
+	let (h1, h2) = tokio::join!(async { registry.acquire("rust", &test_file).await }, async {
+		registry.acquire("rust", &test_file).await
 	});
 
-	let handle1 = h1.map_err(|e| anyhow::anyhow!(e))?;
-	let _handle2 = h2.map_err(|e| anyhow::anyhow!(e))?;
+	let acquired_1 = h1.map_err(|e| anyhow::anyhow!(e))?;
+	let _acquired_2 = h2.map_err(|e| anyhow::anyhow!(e))?;
 	info!(
-		id1 = %handle1.id(),
+		id1 = %acquired_1.server_id,
 		"Concurrent start complete"
 	);
 

@@ -11,9 +11,9 @@ use super::*;
 struct SimpleStubTransport;
 #[async_trait]
 impl crate::client::transport::LspTransport for SimpleStubTransport {
-	fn events(&self) -> mpsc::UnboundedReceiver<crate::client::transport::TransportEvent> {
+	fn subscribe_events(&self) -> crate::Result<mpsc::UnboundedReceiver<crate::client::transport::TransportEvent>> {
 		let (_, rx) = mpsc::unbounded_channel();
-		rx
+		Ok(rx)
 	}
 	async fn start(&self, _cfg: crate::client::ServerConfig) -> crate::Result<crate::client::transport::StartedServer> {
 		Ok(crate::client::transport::StartedServer {
@@ -93,9 +93,9 @@ async fn test_document_sync_returns_not_ready_before_init() {
 	struct InitStubTransport;
 	#[async_trait]
 	impl crate::client::transport::LspTransport for InitStubTransport {
-		fn events(&self) -> mpsc::UnboundedReceiver<crate::client::transport::TransportEvent> {
+		fn subscribe_events(&self) -> crate::Result<mpsc::UnboundedReceiver<crate::client::transport::TransportEvent>> {
 			let (_, rx) = mpsc::unbounded_channel();
-			rx
+			Ok(rx)
 		}
 		async fn start(&self, _cfg: crate::client::ServerConfig) -> crate::Result<crate::client::transport::StartedServer> {
 			Ok(crate::client::transport::StartedServer {
@@ -159,7 +159,7 @@ async fn test_document_sync_returns_not_ready_before_init() {
 	// Open it first (didOpen does not check initialization in DocumentSync)
 	sync.open_document(path, "rust", &content).await.unwrap();
 
-	// get_or_start will spawn initialize in background
+	// acquire will spawn initialize in background
 	let client = registry.get("rust", path).unwrap();
 
 	// Ensure it's NOT initialized yet (background task might not have run)

@@ -14,9 +14,9 @@ struct MockTransport {
 
 #[async_trait]
 impl LspTransport for MockTransport {
-	fn events(&self) -> tokio::sync::mpsc::UnboundedReceiver<crate::client::transport::TransportEvent> {
+	fn subscribe_events(&self) -> crate::Result<tokio::sync::mpsc::UnboundedReceiver<crate::client::transport::TransportEvent>> {
 		let (_, rx) = tokio::sync::mpsc::unbounded_channel();
-		rx
+		Ok(rx)
 	}
 
 	async fn start(&self, cfg: ServerConfig) -> Result<StartedServer> {
@@ -50,7 +50,7 @@ impl LspTransport for MockTransport {
 }
 
 #[tokio::test]
-async fn test_get_or_start_singleflight() {
+async fn test_acquire_singleflight() {
 	let started_notify = Arc::new(tokio::sync::Notify::new());
 	let finish_notify = Arc::new(tokio::sync::Notify::new());
 	let transport = Arc::new(MockTransport {
@@ -73,13 +73,13 @@ async fn test_get_or_start_singleflight() {
 	let r1 = registry.clone();
 	let r2 = registry.clone();
 
-	let h1_fut = tokio::spawn(async move { r1.get_or_start("rust", path).await });
+	let h1_fut = tokio::spawn(async move { r1.acquire("rust", path).await });
 
 	// Wait for leader to enter transport.start()
 	started_notify.notified().await;
 
 	// Join concurrent caller
-	let h2_fut = tokio::spawn(async move { r2.get_or_start("rust", path).await });
+	let h2_fut = tokio::spawn(async move { r2.acquire("rust", path).await });
 
 	// Give h2 a moment to surely be waiting on the watch channel
 	tokio::time::sleep(Duration::from_millis(50)).await;
@@ -95,5 +95,9 @@ async fn test_get_or_start_singleflight() {
 	assert!(h1.is_ok());
 	assert!(h2.is_ok());
 	assert_eq!(transport.start_count.load(Ordering::SeqCst), 1);
-	assert_eq!(h1.unwrap().id(), h2.unwrap().id());
+	let h1 = h1.unwrap();
+	let h2 = h2.unwrap();
+	assert_eq!(h1.server_id, h2.server_id);
+	assert_eq!(h1.disposition, AcquireDisposition::Started);
+	assert_eq!(h2.disposition, AcquireDisposition::Started);
 }
