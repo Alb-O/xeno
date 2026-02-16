@@ -19,11 +19,7 @@ pub fn match_list_parallel<S1: AsRef<str>, S2: AsRef<str> + Sync + Send>(needle:
 
 	let needle = needle.as_ref();
 	let items_per_thread = haystacks.len().div_ceil(thread_count);
-	let mut matches = if config.max_typos.is_none() {
-		Vec::with_capacity(haystacks.len())
-	} else {
-		Vec::new()
-	};
+	let mut matches = Vec::with_capacity(haystacks.len());
 
 	std::thread::scope(|s| {
 		let mut tasks = Vec::new();
@@ -31,11 +27,7 @@ pub fn match_list_parallel<S1: AsRef<str>, S2: AsRef<str> + Sync + Send>(needle:
 		for (thread_idx, haystacks) in haystacks.chunks(items_per_thread).enumerate() {
 			let index_offset = (thread_idx * items_per_thread) as u32;
 			tasks.push(s.spawn(move || {
-				let mut local_matches = if config.max_typos.is_none() {
-					Vec::with_capacity(haystacks.len())
-				} else {
-					Vec::new()
-				};
+				let mut local_matches = Vec::with_capacity(haystacks.len());
 				match_list_impl(needle, haystacks, index_offset, config, &mut local_matches);
 				local_matches
 			}));

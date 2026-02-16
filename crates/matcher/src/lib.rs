@@ -99,8 +99,16 @@ pub struct Config {
 	/// which drastically improves performance when most of the haystack does not match
 	/// Automatically disabled when max_typos = None
 	pub prefilter: bool,
-	/// The maximum number of characters missing from the needle, before an item in the
-	/// haystack is filtered out
+	/// Typo budget used when `Some(k)`.
+	///
+	/// Semantics:
+	/// * We compute Smith-Waterman scores (same DP as score-only).
+	/// * Then we do a deterministic traceback over the score matrix to count "typos".
+	/// * Candidates are rejected when `typos > k`.
+	///
+	/// This is **not** "maximize score subject to typos<=k" (constrained DP). Among equally
+	/// best-score alignments, typo counting picks the minimum typo traceback to reduce
+	/// false negatives from tie-breaking artifacts.
 	pub max_typos: Option<u16>,
 	/// Sort the results by score (descending)
 	pub sort: bool,

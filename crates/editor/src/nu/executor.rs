@@ -27,8 +27,8 @@ use tokio::sync::oneshot;
 use tokio::sync::oneshot::error::TryRecvError;
 
 use super::NuRuntime;
-use xeno_invocation::nu::DecodeLimits;
 use crate::types::Invocation;
+use xeno_invocation::nu::DecodeLimits;
 
 /// A job sent to the Nu worker thread.
 enum Job {

@@ -227,10 +227,29 @@ where
 ))]
 /// Computes Smith-Waterman scores and typo counts for a needle against interleaved haystacks.
 ///
-/// Uses an unbanded full-width DP to compute the score matrix, then determines typo counts
-/// via matrix traceback. The contract is score-first-then-gate: we find the best-scoring
-/// alignment and count its typos; if typos exceed the budget, the candidate is rejected
-/// by the caller.
+/// ### Contract / semantics
+///
+/// **Score**
+/// * Returned score matches score-only SW: the maximum DP score over the entire matrix
+///   (local alignment), plus `exact_match_bonus` when `haystack == needle`.
+///
+/// **Typos**
+/// * Typos are counted via a deterministic traceback over the *materialized score matrix*.
+/// * Traceback starts from the best-scoring cell in the **last needle row**
+///   (`argmax_j DP[last_needle][j]`), i.e. it forces consuming the full needle.
+/// * Move costs (as implemented by `typos_from_score_matrix`):
+///   * `left` (skip needle char) => +1 typo
+///   * `diag` chosen where predecessor score does not strictly decrease => +1 typo (substitution)
+///   * `up` (skip haystack char) => +0 typos
+///   * plus a final "last column typo" compensation when ending at score==0
+///
+/// **Gate**
+/// * Callers reject when `typos > max_typos`.
+///
+/// ### Tie-awareness
+/// Among equally best-score alignments, the traceback explores all max-predecessor paths
+/// and picks the one with minimum typo count. This eliminates false negatives from
+/// arbitrary tie-breaking while keeping scores unchanged.
 pub fn smith_waterman_scores_typos<const W: usize, const L: usize>(
 	needle_str: &str,
 	haystack_strs: &[&str; L],

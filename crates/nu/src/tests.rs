@@ -146,7 +146,10 @@ fn action_command_returns_custom_value() {
 
 	// Should be a custom value (InvocationValue)
 	let cv = value.as_custom_value().expect("should be custom value");
-	let iv = cv.as_any().downcast_ref::<xeno_invocation::nu::InvocationValue>().expect("should downcast to InvocationValue");
+	let iv = cv
+		.as_any()
+		.downcast_ref::<xeno_invocation::nu::InvocationValue>()
+		.expect("should downcast to InvocationValue");
 	assert!(matches!(
 		&iv.0,
 		xeno_invocation::Invocation::Action { name, count: 2, extend: false, register: None } if name == "move_right"
@@ -161,7 +164,10 @@ fn command_command_returns_custom_value() {
 	let value = evaluate_block(&engine_state, parsed.block.as_ref()).expect("should evaluate");
 
 	let cv = value.as_custom_value().expect("should be custom value");
-	let iv = cv.as_any().downcast_ref::<xeno_invocation::nu::InvocationValue>().expect("should downcast to InvocationValue");
+	let iv = cv
+		.as_any()
+		.downcast_ref::<xeno_invocation::nu::InvocationValue>()
+		.expect("should downcast to InvocationValue");
 	assert!(matches!(
 		&iv.0,
 		xeno_invocation::Invocation::Command { name, args } if name == "write" && args == &["foo.txt"]

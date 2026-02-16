@@ -261,7 +261,11 @@ impl<'a> DecodeState<'a> {
 	fn visit_node(&mut self, limits: &DecodeLimits) -> Result<(), String> {
 		self.nodes_visited += 1;
 		if self.nodes_visited > limits.max_nodes {
-			Err(format!("Nu decode error at {}: value traversal exceeds {} nodes", self.path.format(), limits.max_nodes))
+			Err(format!(
+				"Nu decode error at {}: value traversal exceeds {} nodes",
+				self.path.format(),
+				limits.max_nodes
+			))
 		} else {
 			Ok(())
 		}
