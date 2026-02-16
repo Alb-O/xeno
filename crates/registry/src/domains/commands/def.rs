@@ -1,6 +1,7 @@
 use std::any::Any;
 
 use super::entry::CommandEntry;
+use super::spec::CommandPaletteSpec;
 use crate::core::index::{BuildEntry, RegistryMetaRef, StrListRef};
 use crate::core::{RegistryMetaStatic, Symbol};
 
@@ -44,6 +45,7 @@ impl BuildEntry<CommandEntry> for CommandDef {
 
 		CommandEntry {
 			meta,
+			palette: CommandPaletteSpec::default(),
 			handler: self.handler,
 			user_data: self.user_data,
 		}

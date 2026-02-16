@@ -20,6 +20,7 @@ pub use builtins::register_builtins;
 pub use def::{CommandDef, CommandHandler, CommandInput};
 pub use entry::CommandEntry;
 pub use handler::{CommandHandlerReg, CommandHandlerStatic};
+pub use spec::{CommandPaletteSpec, PaletteArgKind, PaletteArgSpec, PaletteCommitPolicy};
 
 use crate::error::RegistryError;
 

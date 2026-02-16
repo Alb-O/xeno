@@ -539,7 +539,7 @@ pub(crate) fn test_palette_tab_argument_command_appends_space() {
 
 /// Must treat Enter as completion (not commit) for unresolved command prefixes that expand to commands requiring arguments.
 ///
-/// * Enforced in: `crate::overlay::controllers::command_palette::CommandPaletteOverlay::accept_enter_completion_if_needed`
+/// * Enforced in: `crate::overlay::controllers::command_palette::CommandPaletteOverlay::enter_commit_decision`, `crate::overlay::controllers::command_palette::CommandPaletteOverlay::handle_picker_action`
 /// * Failure symptom: Enter closes palette and emits missing-argument command error instead of applying completion text.
 #[cfg_attr(test, test)]
 pub(crate) fn test_palette_enter_promotes_required_arg_command_completion() {
@@ -562,6 +562,25 @@ pub(crate) fn test_palette_enter_promotes_required_arg_command_completion() {
 	state.selected_idx = Some(0);
 	state.selection_intent = crate::completion::SelectionIntent::Manual;
 
+	let _ = futures::executor::block_on(editor.handle_key(key_enter()));
+
+	assert_eq!(palette_input_text(&editor), "theme ");
+	assert!(editor.state.overlay_system.interaction().is_open(), "enter completion should keep palette open");
+	assert!(!editor.frame().pending_overlay_commit, "enter completion should not schedule commit");
+	assert!(drain_queued_commands(&mut editor).is_empty(), "enter completion should not queue commands");
+}
+
+/// Must treat Enter as completion (not commit) for exact command input when the command requires a missing argument.
+///
+/// * Enforced in: `crate::overlay::controllers::command_palette::CommandPaletteOverlay::should_promote_enter_to_tab_completion`, `crate::overlay::controllers::command_palette::CommandPaletteOverlay::enter_commit_decision`
+/// * Failure symptom: Enter commits `theme` without args and triggers required-argument errors instead of transitioning to argument completion.
+#[cfg_attr(test, test)]
+pub(crate) fn test_palette_enter_promotes_exact_required_arg_command_completion() {
+	let mut editor = crate::Editor::new_scratch();
+	editor.handle_window_resize(120, 40);
+	assert!(editor.open_command_palette());
+
+	palette_set_input(&mut editor, "theme", 5);
 	let _ = futures::executor::block_on(editor.handle_key(key_enter()));
 
 	assert_eq!(palette_input_text(&editor), "theme ");

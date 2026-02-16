@@ -75,7 +75,7 @@ fn command_items_include_files_picker_command() {
 #[test]
 fn command_space_policy_is_disabled_for_no_arg_commands() {
 	assert!(!CommandPaletteOverlay::command_supports_argument_completion("quit"));
-	assert!(!CommandPaletteOverlay::command_supports_argument_completion("wq"));
+	assert!(!CommandPaletteOverlay::command_supports_argument_completion("force_quit"));
 }
 
 #[test]
@@ -112,9 +112,15 @@ fn enter_promotes_to_tab_for_unresolved_required_arg_command() {
 }
 
 #[test]
-fn enter_does_not_promote_when_typed_command_already_resolves() {
+fn enter_promotes_when_typed_command_resolves_but_requires_arg() {
 	let selected = command_completion("theme");
-	assert!(!CommandPaletteOverlay::should_promote_enter_to_tab_completion("theme", 5, Some(&selected)));
+	assert!(CommandPaletteOverlay::should_promote_enter_to_tab_completion("theme", 5, Some(&selected)));
+}
+
+#[test]
+fn enter_does_not_promote_when_typed_command_resolves_without_required_arg() {
+	let selected = command_completion("write");
+	assert!(!CommandPaletteOverlay::should_promote_enter_to_tab_completion("write", 5, Some(&selected)));
 }
 
 #[test]
