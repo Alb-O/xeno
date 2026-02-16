@@ -1,0 +1,28 @@
+[package]
+authors = ["The Nushell Project Developers"]
+build = "build.rs"
+description = "Nushell's core language commands"
+repository = "https://github.com/nushell/nushell/tree/main/crates/nu-cmd-lang"
+edition = "2024"
+license = "MIT"
+name = "xeno-nu-cmd-lang"
+version = "0.110.1"
+
+[lib]
+bench = false
+
+[features]
+default = ["os"]
+os = ["xeno-nu-engine/os", "xeno-nu-protocol/os"]
+plugin = ["xeno-nu-protocol/plugin", "os"]
+
+[dependencies]
+
+xeno-nu-engine = { path = "../engine", version = "0.110.1", default-features = false }
+xeno-nu-protocol = { path = "../protocol", version = "0.110.1", default-features = false }
+
+[build-dependencies]
+shadow-rs = { version = "1.7", default-features = false, features = ["build"] }
+
+[lints]
+workspace = true

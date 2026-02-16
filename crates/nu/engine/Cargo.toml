@@ -1,0 +1,28 @@
+[package]
+authors = ["The Nushell Project Developers"]
+description = "Nushell's evaluation engine"
+repository = "https://github.com/nushell/nushell/tree/main/crates/nu-engine"
+edition = "2024"
+license = "MIT"
+name = "xeno-nu-engine"
+version = "0.110.1"
+
+[lib]
+bench = false
+
+[features]
+default = ["os"]
+os = ["xeno-nu-protocol/os", "xeno-nu-utils/os"]
+plugin = ["xeno-nu-protocol/plugin", "os"]
+
+[dependencies]
+fancy-regex = { workspace = true }
+log = { workspace = true }
+xeno-nu-experimental = { path = "../experimental", version = "0.110.1" }
+xeno-nu-glob = { path = "../glob", version = "0.110.1" }
+xeno-nu-path = { path = "../path", version = "0.110.1" }
+xeno-nu-protocol = { path = "../protocol", version = "0.110.1", default-features = false }
+xeno-nu-utils = { path = "../utils", version = "0.110.1", default-features = false }
+
+[lints]
+workspace = true

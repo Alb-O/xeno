@@ -83,16 +83,16 @@ languages-builtins = ["languages"]
 
 # Config NUON parsing
 config-nuon = [
-    "dep:nu-engine",
-    "dep:nu-protocol",
-    "dep:nuon",
+    "dep:xeno-nu-engine",
+    "dep:xeno-nu-protocol",
+    "dep:xeno-nu-nuon",
     "dep:xeno-primitives",
     "dep:xeno-invocation-spec",
     "xeno-invocation/nu",
     "themes",
     "options",
 ]
-config-nu = ["config-nuon", "dep:xeno-nu"]
+config-nu = ["config-nuon", "dep:xeno-nu-sandbox"]
 
 # Contract enforcement
 registry-contracts = []
@@ -104,9 +104,6 @@ actions-handler-coverage = ["actions-builtins"]
 arc-swap = { workspace = true }
 bitflags = { workspace = true }
 inventory = { workspace = true, optional = true }
-nu-engine = { workspace = true, optional = true, features = ["os"] }
-nu-protocol = { workspace = true, optional = true }
-nuon = { workspace = true, optional = true }
 parking_lot = { workspace = true, optional = true }
 paste = { workspace = true, optional = true }
 postcard.workspace = true
@@ -121,7 +118,10 @@ xeno-invocation = { workspace = true }
 xeno-invocation-spec = { workspace = true, optional = true }
 xeno-keymap-core = { workspace = true, optional = true }
 xeno-macros = { workspace = true, optional = true }
-xeno-nu = { workspace = true, optional = true }
+xeno-nu-engine = { workspace = true, optional = true, features = ["os"] }
+xeno-nu-nuon = { workspace = true, optional = true }
+xeno-nu-protocol = { workspace = true, optional = true }
+xeno-nu-sandbox = { workspace = true, optional = true }
 xeno-primitives = { workspace = true, optional = true }
 xeno-registry-spec = { workspace = true }
 
