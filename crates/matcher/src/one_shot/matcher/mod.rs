@@ -11,11 +11,7 @@ use crate::{Config, Match};
 /// automatically chunk the haystacks based on string length to avoid unnecessary computation
 /// due to SIMD
 pub fn match_list<S1: AsRef<str>, S2: AsRef<str>>(needle: S1, haystacks: &[S2], config: &Config) -> Vec<Match> {
-	let mut matches = if config.max_typos.is_none() {
-		Vec::with_capacity(haystacks.len())
-	} else {
-		vec![]
-	};
+	let mut matches = Vec::with_capacity(haystacks.len());
 
 	match_list_impl(needle, haystacks, 0, config, &mut matches);
 

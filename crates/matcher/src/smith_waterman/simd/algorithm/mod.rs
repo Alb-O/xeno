@@ -238,6 +238,11 @@ where
 /// Tracks `matched_count` per cell alongside scores using the same winner selection
 /// as `smith_waterman_inner`. On diagonal match steps, matched_count increments;
 /// all other transitions carry their predecessor's matched_count unchanged.
+/// This implementation avoids materializing the score matrix or running traceback:
+/// it streams DP columns and carries matched-count state in lockstep with score
+/// winner selection.
+///
+/// `_max_typos` is retained for API compatibility and is not used in this path.
 pub fn smith_waterman_scores_typos<const W: usize, const L: usize>(
 	needle_str: &str,
 	haystack_strs: &[&str; L],
