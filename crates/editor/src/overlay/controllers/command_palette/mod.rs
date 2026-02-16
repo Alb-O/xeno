@@ -44,6 +44,14 @@ pub struct CommandPaletteOverlay {
 	file_cache: Option<(PathBuf, Vec<(String, bool)>)>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CommandArgCompletion {
+	None,
+	File,
+	Snippet,
+	Theme,
+}
+
 impl Default for CommandPaletteOverlay {
 	fn default() -> Self {
 		Self::new()
@@ -167,7 +175,7 @@ impl CommandPaletteOverlay {
 			let mut query: String = chars[tok.content_start..cursor_in_content].iter().collect();
 			let mut path_dir = None;
 
-			if idx >= 1 && Self::is_file_command(&cmd) {
+			if idx >= 1 && Self::command_arg_completion(&cmd) == CommandArgCompletion::File {
 				let (dir_part, file_part) = Self::split_path_query(&query);
 				start = start.saturating_add(Self::char_count(&dir_part));
 				query = file_part;
@@ -398,12 +406,35 @@ impl CommandPaletteOverlay {
 		scored.into_iter().map(|(_, item)| item).collect()
 	}
 
-	fn is_file_command(cmd: &str) -> bool {
-		matches!(cmd, "open" | "edit" | "e" | "cd")
+	fn command_arg_completion(command_name: &str) -> CommandArgCompletion {
+		let canonical = xeno_registry::commands::find_command(command_name)
+			.map(|cmd| cmd.name_str().to_ascii_lowercase())
+			.unwrap_or_else(|| command_name.to_ascii_lowercase());
+		match canonical.as_str() {
+			"open" | "edit" | "cd" => CommandArgCompletion::File,
+			"snippet" => CommandArgCompletion::Snippet,
+			"theme" | "colorscheme" => CommandArgCompletion::Theme,
+			_ => CommandArgCompletion::None,
+		}
 	}
 
-	fn is_snippet_command(cmd: &str) -> bool {
-		matches!(cmd, "snippet" | "snip")
+	fn command_supports_argument_completion(command_name: &str) -> bool {
+		Self::command_arg_completion(command_name) != CommandArgCompletion::None
+	}
+
+	fn should_append_space_after_completion(selected: &CompletionItem, token: &TokenCtx, is_dir_completion: bool, quoted_arg: bool) -> bool {
+		match selected.kind {
+			CompletionKind::Command => {
+				if token.token_index == 0 {
+					Self::command_supports_argument_completion(&selected.insert_text)
+				} else {
+					true
+				}
+			}
+			CompletionKind::File => !is_dir_completion && !quoted_arg,
+			CompletionKind::Snippet | CompletionKind::Theme => true,
+			CompletionKind::Buffer => false,
+		}
 	}
 
 	fn build_snippet_items(query: &str) -> Vec<CompletionItem> {
@@ -554,20 +585,21 @@ impl CommandPaletteOverlay {
 			return Self::build_command_items(&token.query, usage);
 		}
 
-		if matches!(token.cmd.as_str(), "theme" | "colorscheme") && token.token_index == 1 {
-			return Self::build_theme_items(&token.query);
-		}
-
-		if Self::is_snippet_command(&token.cmd) && token.token_index == 1 {
-			let query = token.query.trim_start();
-			if !query.starts_with('@') {
-				return Vec::new();
+		match Self::command_arg_completion(&token.cmd) {
+			CommandArgCompletion::Theme if token.token_index == 1 => {
+				return Self::build_theme_items(&token.query);
 			}
-			return Self::build_snippet_items(query);
-		}
-
-		if Self::is_file_command(&token.cmd) && token.token_index >= 1 {
-			return self.build_file_items(&token.query, token.path_dir.as_deref(), ctx, session);
+			CommandArgCompletion::Snippet if token.token_index == 1 => {
+				let query = token.query.trim_start();
+				if !query.starts_with('@') {
+					return Vec::new();
+				}
+				return Self::build_snippet_items(query);
+			}
+			CommandArgCompletion::File if token.token_index >= 1 => {
+				return self.build_file_items(&token.query, token.path_dir.as_deref(), ctx, session);
+			}
+			CommandArgCompletion::None | CommandArgCompletion::Snippet | CommandArgCompletion::Theme | CommandArgCompletion::File => {}
 		}
 
 		Vec::new()
@@ -678,25 +710,35 @@ impl CommandPaletteOverlay {
 	}
 
 	fn accept_tab_completion(&mut self, ctx: &mut dyn OverlayContext, session: &mut OverlaySession) -> bool {
-		let selected = ctx
+		let mut selected = ctx
 			.completion_state()
 			.and_then(|state| state.selected_idx.and_then(|idx| state.items.get(idx)).or_else(|| state.items.first()))
 			.cloned();
-		let Some(selected) = selected else {
-			return false;
+		let Some(mut selected_item) = selected.take() else {
+			return true;
 		};
 
 		let (input, cursor) = Self::current_input_and_cursor(ctx, session);
 		let token = Self::token_context(&input, cursor);
 		let replace_end = Self::effective_replace_end(&token, cursor);
+		let current_replacement: String = input.chars().skip(token.start).take(replace_end.saturating_sub(token.start)).collect();
 
-		let is_dir_completion = selected.kind == CompletionKind::File && selected.insert_text.ends_with('/');
-		let quoted_arg = selected.kind == CompletionKind::File && token.quoted.is_some();
+		if current_replacement == selected_item.insert_text {
+			let _ = self.move_selection(ctx, 1);
+			if let Some(next) = ctx
+				.completion_state()
+				.and_then(|state| state.selected_idx.and_then(|idx| state.items.get(idx)).or_else(|| state.items.first()))
+				.cloned()
+			{
+				selected_item = next;
+			}
+		}
 
-		let mut replacement = selected.insert_text.clone();
-		if matches!(selected.kind, CompletionKind::Command | CompletionKind::Snippet | CompletionKind::Theme)
-			|| (selected.kind == CompletionKind::File && !is_dir_completion && !quoted_arg)
-		{
+		let is_dir_completion = selected_item.kind == CompletionKind::File && selected_item.insert_text.ends_with('/');
+		let quoted_arg = selected_item.kind == CompletionKind::File && token.quoted.is_some();
+
+		let mut replacement = selected_item.insert_text.clone();
+		if Self::should_append_space_after_completion(&selected_item, &token, is_dir_completion, quoted_arg) {
 			replacement.push(' ');
 		}
 
@@ -706,7 +748,7 @@ impl CommandPaletteOverlay {
 
 		let (mut new_input, mut new_cursor) = Self::replace_char_range(&input, token.start, replace_end, &replacement);
 
-		if selected.kind == CompletionKind::File
+		if selected_item.kind == CompletionKind::File
 			&& !is_dir_completion
 			&& quoted_arg
 			&& let Some(close_quote_idx) = token.close_quote_idx

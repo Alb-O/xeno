@@ -1,9 +1,10 @@
+use std::fs;
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::time::{Duration, Instant};
 
-use xeno_primitives::{Key, KeyCode};
+use xeno_primitives::{Key, KeyCode, Selection};
 use xeno_registry::options::OptionValue;
 
 use crate::completion::{CompletionItem, CompletionKind, CompletionState, SelectionIntent};
@@ -12,6 +13,12 @@ use crate::window::GutterSelector;
 
 const FILE_PICKER_LIMIT: usize = 200;
 const QUERY_REFRESH_INTERVAL: Duration = Duration::from_millis(120);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PickerQueryMode {
+	Indexed,
+	Path,
+}
 
 pub struct FilePickerOverlay {
 	root: Option<PathBuf>,
@@ -65,7 +72,7 @@ impl FilePickerOverlay {
 		}
 	}
 
-	fn build_items(&self, ctx: &dyn OverlayContext, query: &str) -> Vec<CompletionItem> {
+	fn build_indexed_items(&self, ctx: &dyn OverlayContext, query: &str) -> Vec<CompletionItem> {
 		if query.is_empty() {
 			return ctx
 				.filesystem()
@@ -105,8 +112,165 @@ impl FilePickerOverlay {
 			.collect()
 	}
 
-	fn update_completion_state(&mut self, ctx: &mut dyn OverlayContext, query: &str) {
-		let waiting_for_query = !query.is_empty() && ctx.filesystem().result_query() != query;
+	fn query_mode(query: &str) -> PickerQueryMode {
+		if query.is_empty() {
+			return PickerQueryMode::Indexed;
+		}
+
+		if Self::is_path_like_query(query) {
+			PickerQueryMode::Path
+		} else {
+			PickerQueryMode::Indexed
+		}
+	}
+
+	fn is_path_like_query(query: &str) -> bool {
+		if query.starts_with('/') || query.starts_with('\\') {
+			return true;
+		}
+		if query.starts_with("./") || query.starts_with(".\\") || query.starts_with("../") || query.starts_with("..\\") {
+			return true;
+		}
+		if query == "." || query == ".." {
+			return true;
+		}
+		if query.starts_with('~') {
+			return true;
+		}
+		if query.contains('/') || query.contains('\\') {
+			return true;
+		}
+
+		let mut chars = query.chars();
+		matches!(
+			(chars.next(), chars.next()),
+			(Some(drive), Some(':')) if drive.is_ascii_alphabetic()
+		)
+	}
+
+	fn split_path_query(query: &str) -> (String, String) {
+		if query == "~" {
+			return ("~/".to_string(), String::new());
+		}
+
+		let slash_idx = query
+			.char_indices()
+			.rev()
+			.find(|(_, ch)| *ch == '/' || *ch == '\\')
+			.map(|(idx, ch)| idx + ch.len_utf8());
+		if let Some(idx) = slash_idx {
+			(query[..idx].to_string(), query[idx..].to_string())
+		} else {
+			(String::new(), query.to_string())
+		}
+	}
+
+	fn expand_home_path(input: &str) -> PathBuf {
+		if input == "~" {
+			return dirs::home_dir().unwrap_or_else(|| PathBuf::from("~"));
+		}
+
+		if let Some(rest) = input.strip_prefix("~/").or_else(|| input.strip_prefix("~\\")) {
+			if let Some(home) = dirs::home_dir() {
+				return home.join(rest);
+			}
+		}
+
+		PathBuf::from(input)
+	}
+
+	fn picker_base_dir(&self) -> PathBuf {
+		self.root
+			.clone()
+			.unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))
+	}
+
+	fn resolve_user_path(&self, input: &str) -> PathBuf {
+		let base_dir = self.picker_base_dir();
+		let path = Self::expand_home_path(input);
+		let abs_path = if path.is_absolute() { path } else { base_dir.join(path) };
+		crate::paths::normalize_lexical(&abs_path)
+	}
+
+	fn resolve_query_directory(&self, dir_part: &str) -> PathBuf {
+		if dir_part.is_empty() {
+			return self.picker_base_dir();
+		}
+
+		let dir = Self::expand_home_path(dir_part);
+		if dir.is_absolute() {
+			crate::paths::normalize_lexical(&dir)
+		} else {
+			crate::paths::normalize_lexical(&self.picker_base_dir().join(dir))
+		}
+	}
+
+	fn build_path_items(&self, query: &str) -> Vec<CompletionItem> {
+		let (dir_part, file_part) = Self::split_path_query(query);
+		let dir_path = self.resolve_query_directory(&dir_part);
+		let Ok(entries) = fs::read_dir(&dir_path) else {
+			return Vec::new();
+		};
+
+		let mut scored = Vec::new();
+		let show_hidden = file_part.starts_with('.');
+		let prefix_len = dir_part.chars().count();
+
+		for entry in entries.flatten().take(FILE_PICKER_LIMIT) {
+			let name = entry.file_name().to_string_lossy().to_string();
+			if !show_hidden && name.starts_with('.') {
+				continue;
+			}
+
+			let is_dir = entry.file_type().ok().is_some_and(|ft| ft.is_dir());
+			let suffix = if is_dir { "/" } else { "" };
+			let insert_text = format!("{dir_part}{name}{suffix}");
+
+			let (score, match_indices) = if file_part.is_empty() {
+				(0i32, None)
+			} else {
+				let Some((score, _, indices)) = crate::completion::frizbee_match(&file_part, &name) else {
+					continue;
+				};
+				let adjusted = if indices.is_empty() {
+					None
+				} else {
+					Some(indices.into_iter().map(|idx| idx.saturating_add(prefix_len)).collect())
+				};
+				(score as i32, adjusted)
+			};
+
+			scored.push((
+				score + if is_dir { 40 } else { 0 },
+				CompletionItem {
+					label: insert_text.clone(),
+					insert_text,
+					detail: Some(if is_dir { "directory".into() } else { "file".into() }),
+					filter_text: None,
+					kind: CompletionKind::File,
+					match_indices,
+					right: Some(if is_dir { "dir".into() } else { "file".into() }),
+				},
+			));
+		}
+
+		scored.sort_by(|(score_a, item_a), (score_b, item_b)| score_b.cmp(score_a).then_with(|| item_a.label.cmp(&item_b.label)));
+		scored.into_iter().map(|(_, item)| item).collect()
+	}
+
+	fn build_items(&self, ctx: &dyn OverlayContext, query: &str, mode: PickerQueryMode) -> Vec<CompletionItem> {
+		match mode {
+			PickerQueryMode::Indexed => self.build_indexed_items(ctx, query),
+			PickerQueryMode::Path => self.build_path_items(query),
+		}
+	}
+
+	fn is_directory_item(item: &CompletionItem) -> bool {
+		item.right.as_deref() == Some("dir") || item.detail.as_deref() == Some("directory")
+	}
+
+	fn update_completion_state(&mut self, ctx: &mut dyn OverlayContext, query: &str, mode: PickerQueryMode) {
+		let waiting_for_query = mode == PickerQueryMode::Indexed && !query.is_empty() && ctx.filesystem().result_query() != query;
 		if waiting_for_query {
 			let state = ctx.completion_state_mut();
 			state.show_kind = false;
@@ -123,7 +287,7 @@ impl FilePickerOverlay {
 			return;
 		}
 
-		let items = self.build_items(ctx, query);
+		let items = self.build_items(ctx, query, mode);
 
 		let previous_label = self.selected_label.clone();
 		let state = ctx.completion_state_mut();
@@ -156,7 +320,11 @@ impl FilePickerOverlay {
 		self.selected_label = state.selected_idx.and_then(|idx| state.items.get(idx).map(|item| item.label.clone()));
 	}
 
-	fn maybe_issue_query(&mut self, ctx: &mut dyn OverlayContext, query: &str, query_changed: bool) {
+	fn maybe_issue_query(&mut self, ctx: &mut dyn OverlayContext, query: &str, query_changed: bool, mode: PickerQueryMode) {
+		if mode != PickerQueryMode::Indexed {
+			return;
+		}
+
 		if query.is_empty() {
 			return;
 		}
@@ -175,11 +343,67 @@ impl FilePickerOverlay {
 		}
 	}
 
+	fn set_input_text(&mut self, ctx: &mut dyn OverlayContext, session: &OverlaySession, input: &str) {
+		ctx.reset_buffer_content(session.input, input);
+		if let Some(buffer) = ctx.buffer_mut(session.input) {
+			let cursor = input.chars().count();
+			buffer.set_cursor_and_selection(cursor, Selection::point(cursor));
+		}
+	}
+
+	fn selected_item(ctx: &dyn OverlayContext) -> Option<CompletionItem> {
+		ctx.completion_state()
+			.and_then(|state| state.selected_idx.and_then(|idx| state.items.get(idx)).or_else(|| state.items.first()))
+			.cloned()
+	}
+
+	fn handle_enter(&mut self, ctx: &mut dyn OverlayContext, session: &mut OverlaySession) -> bool {
+		let Some(selected) = Self::selected_item(ctx) else {
+			return false;
+		};
+		if !Self::is_directory_item(&selected) {
+			return false;
+		}
+
+		let mut next_input = selected.insert_text.clone();
+		if !next_input.ends_with('/') && !next_input.ends_with('\\') {
+			next_input.push('/');
+		}
+
+		self.set_input_text(ctx, session, &next_input);
+		self.refresh_items(ctx, session, &next_input);
+		true
+	}
+
+	fn accept_tab_completion(&mut self, ctx: &mut dyn OverlayContext, session: &mut OverlaySession) -> bool {
+		let current_input = session.input_text(ctx).trim_end_matches('\n').to_string();
+		let Some(mut selected) = Self::selected_item(ctx) else {
+			return false;
+		};
+		if current_input == selected.insert_text {
+			let _ = self.move_selection(ctx, 1);
+			let Some(next) = Self::selected_item(ctx) else {
+				return true;
+			};
+			selected = next;
+		}
+
+		let mut next_input = selected.insert_text.clone();
+		if Self::is_directory_item(&selected) && !next_input.ends_with('/') && !next_input.ends_with('\\') {
+			next_input.push('/');
+		}
+
+		self.set_input_text(ctx, session, &next_input);
+		self.refresh_items(ctx, session, &next_input);
+		true
+	}
+
 	fn refresh_items(&mut self, ctx: &mut dyn OverlayContext, session: &mut OverlaySession, text: &str) {
 		let query = text.trim_end_matches('\n').to_string();
+		let mode = Self::query_mode(&query);
 		let query_changed = query != self.last_input;
-		self.maybe_issue_query(ctx, &query, query_changed);
-		self.update_completion_state(ctx, &query);
+		self.maybe_issue_query(ctx, &query, query_changed, mode);
+		self.update_completion_state(ctx, &query, mode);
 		self.status_from_progress(ctx, session);
 		self.last_indexed_files = ctx.filesystem().progress().indexed_files;
 		self.last_input = query;
@@ -280,8 +504,13 @@ impl OverlayController for FilePickerOverlay {
 		self.refresh_items(ctx, session, text);
 	}
 
-	fn on_key(&mut self, ctx: &mut dyn OverlayContext, _session: &mut OverlaySession, key: Key) -> bool {
+	fn on_key(&mut self, ctx: &mut dyn OverlayContext, session: &mut OverlaySession, key: Key) -> bool {
 		match key.code {
+			KeyCode::Enter => self.handle_enter(ctx, session),
+			KeyCode::Tab => {
+				let _ = self.accept_tab_completion(ctx, session);
+				true
+			}
 			KeyCode::Up => self.move_selection(ctx, -1),
 			KeyCode::Down => self.move_selection(ctx, 1),
 			KeyCode::PageUp => self.page_selection(ctx, -1),
@@ -292,15 +521,20 @@ impl OverlayController for FilePickerOverlay {
 		}
 	}
 
-	fn on_commit<'a>(&'a mut self, ctx: &'a mut dyn OverlayContext, _session: &'a mut OverlaySession) -> Pin<Box<dyn Future<Output = ()> + 'a>> {
-		let selected = ctx
-			.completion_state()
-			.and_then(|state| state.selected_idx.and_then(|idx| state.items.get(idx)).or_else(|| state.items.first()))
-			.cloned();
-
+	fn on_commit<'a>(&'a mut self, ctx: &'a mut dyn OverlayContext, session: &'a mut OverlaySession) -> Pin<Box<dyn Future<Output = ()> + 'a>> {
+		let selected = Self::selected_item(ctx);
 		if let Some(selected) = selected {
-			let root = self.root.clone().unwrap_or_else(|| PathBuf::from("."));
-			let abs_path = crate::paths::fast_abs(&root).join(&selected.insert_text);
+			if Self::is_directory_item(&selected) {
+				return Box::pin(async {});
+			}
+			let abs_path = self.resolve_user_path(&selected.insert_text);
+			ctx.queue_command("edit", vec![abs_path.to_string_lossy().to_string()]);
+			return Box::pin(async {});
+		}
+
+		let typed = session.input_text(ctx).trim_end_matches('\n').trim().to_string();
+		if !typed.is_empty() {
+			let abs_path = self.resolve_user_path(&typed);
 			ctx.queue_command("edit", vec![abs_path.to_string_lossy().to_string()]);
 		}
 
@@ -317,3 +551,6 @@ impl OverlayController for FilePickerOverlay {
 		ctx.request_redraw();
 	}
 }
+
+#[cfg(test)]
+mod tests;

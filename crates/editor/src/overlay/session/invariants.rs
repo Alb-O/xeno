@@ -496,6 +496,40 @@ pub(crate) fn test_palette_tab_after_closing_quote_preserves_quote() {
 	assert!(text.ends_with("\" "), "tab should keep quote and leave one space after it");
 }
 
+/// Must avoid appending trailing space when tab-completing a command name that has no argument completion.
+///
+/// * Enforced in: `crate::overlay::controllers::command_palette::CommandPaletteOverlay::should_append_space_after_completion`
+/// * Failure symptom: Tab completion dismisses command list for terminal commands like `quit`.
+#[cfg_attr(test, test)]
+pub(crate) fn test_palette_tab_terminal_command_does_not_append_space() {
+	let mut editor = crate::Editor::new_scratch();
+	editor.handle_window_resize(120, 40);
+	assert!(editor.open_command_palette());
+
+	palette_set_input(&mut editor, "q", 1);
+	palette_key(&mut editor, key_tab());
+
+	let text = palette_input_text(&editor);
+	assert_eq!(text, "quit");
+}
+
+/// Must append trailing space when tab-completing a command with argument completion flow.
+///
+/// * Enforced in: `crate::overlay::controllers::command_palette::CommandPaletteOverlay::should_append_space_after_completion`
+/// * Failure symptom: Tab completion does not transition into argument completion for commands like `theme`.
+#[cfg_attr(test, test)]
+pub(crate) fn test_palette_tab_argument_command_appends_space() {
+	let mut editor = crate::Editor::new_scratch();
+	editor.handle_window_resize(120, 40);
+	assert!(editor.open_command_palette());
+
+	palette_set_input(&mut editor, "the", 3);
+	palette_key(&mut editor, key_tab());
+
+	let text = palette_input_text(&editor);
+	assert_eq!(text, "theme ");
+}
+
 /// Must rank recently used commands first for empty command query completion.
 ///
 /// * Enforced in: `crate::overlay::controllers::command_palette::CommandPaletteOverlay::build_command_items`, `crate::overlay::OverlayContext::record_command_usage`
