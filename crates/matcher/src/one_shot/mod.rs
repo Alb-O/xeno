@@ -7,10 +7,12 @@ pub mod bucket;
 mod indices;
 mod matcher;
 mod parallel;
+mod score;
 
 pub use indices::match_indices;
 pub use matcher::match_list;
 pub use parallel::match_list_parallel;
+pub use score::{ScoreMatcher, match_score};
 
 pub trait Appendable<T> {
 	fn append(&mut self, value: T);

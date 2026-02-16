@@ -56,7 +56,6 @@ pub(crate) fn smith_waterman_inner<const L: usize>(
 	prev_score_col: Option<&[Simd<u16, L>]>,
 	curr_score_col: &mut [Simd<u16, L>],
 	scoring: &Scoring,
-	all_time_max_score: &mut Simd<u16, L>,
 ) where
 	LaneCount<L>: SupportedLaneCount,
 {
@@ -158,7 +157,6 @@ pub(crate) fn smith_waterman_inner<const L: usize>(
 		// Store the scores for the next iterations
 		up_score_simd = max_score;
 		curr_score_col[haystack_idx] = max_score;
-		*all_time_max_score = (*all_time_max_score).simd_max(max_score);
 	}
 }
 
@@ -183,7 +181,6 @@ where
 
 	let mut prev_score_col = [Simd::splat(0); W];
 	let mut curr_score_col = [Simd::splat(0); W];
-	let mut all_time_max_score = Simd::splat(0);
 
 	for (needle_idx, &needle_byte) in needle.iter().enumerate() {
 		let needle_char = NeedleChar::new(needle_byte as u16);
@@ -199,15 +196,22 @@ where
 			prev_col,
 			curr_score_col.as_mut_slice(),
 			scoring,
-			&mut all_time_max_score,
 		);
 
 		std::mem::swap(&mut prev_score_col, &mut curr_score_col);
 	}
 
+	// Full-needle contract: score is the best alignment that consumes the whole needle,
+	// i.e. max over the last needle row (prev_score_col after final swap).
+	let last_row_max = if needle.is_empty() {
+		Simd::splat(0)
+	} else {
+		prev_score_col.iter().copied().reduce(|a, b| a.simd_max(b)).unwrap_or(Simd::splat(0))
+	};
+
 	let exact_matches: [bool; L] = std::array::from_fn(|i| haystack_strs[i] == needle_str);
 	let max_scores = std::array::from_fn(|i| {
-		let mut score = all_time_max_score[i];
+		let mut score = last_row_max[i];
 		if exact_matches[i] {
 			score += scoring.exact_match_bonus;
 		}
@@ -225,16 +229,19 @@ where
     // x86-64-v2 without lahfsahf
     "x86_64+cmpxchg16b+fxsr+popcnt+sse+sse2+sse3+sse4.1+sse4.2+ssse3",
 ))]
-/// Computes Smith-Waterman scores and typo counts for a needle against interleaved haystacks.
+/// Computes Smith-Waterman scores and typo counts via streaming forward DP.
 ///
-/// Uses an unbanded full-width DP to compute the score matrix, then determines typo counts
-/// via matrix traceback. The contract is score-first-then-gate: we find the best-scoring
-/// alignment and count its typos; if typos exceed the budget, the candidate is rejected
-/// by the caller.
+/// Full-needle contract: score is the best alignment consuming the whole needle (max
+/// over the last needle row). Typo count = `needle_len - matched_chars`, where
+/// `matched_chars` is the number of diagonal-match steps on the chosen path.
+///
+/// Tracks `matched_count` per cell alongside scores using the same winner selection
+/// as `smith_waterman_inner`. On diagonal match steps, matched_count increments;
+/// all other transitions carry their predecessor's matched_count unchanged.
 pub fn smith_waterman_scores_typos<const W: usize, const L: usize>(
 	needle_str: &str,
 	haystack_strs: &[&str; L],
-	max_typos: u16,
+	_max_typos: u16,
 	scoring: &Scoring,
 ) -> ([u16; L], [u16; L], [bool; L])
 where
@@ -247,43 +254,148 @@ where
 	let needs_mask = haystack_strs.iter().any(|s| s.len() < W);
 	let haystack_valid_mask = if needs_mask { Some(valid_masks::<W, L>(haystack_strs)) } else { None };
 
-	let mut score_matrix = vec![[Simd::splat(0); W]; needle.len()];
-	let mut all_time_max_score = Simd::splat(0);
+	let mut prev_score_col = [Simd::<u16, L>::splat(0); W];
+	let mut curr_score_col = [Simd::<u16, L>::splat(0); W];
+	let mut prev_matched_col = [Simd::<u16, L>::splat(0); W];
+	let mut curr_matched_col = [Simd::<u16, L>::splat(0); W];
 
-	for needle_idx in 0..needle.len() {
-		let needle_char = NeedleChar::new(needle[needle_idx] as u16);
+	for (needle_idx, &needle_byte) in needle.iter().enumerate() {
+		let needle_char = NeedleChar::new(needle_byte as u16);
 
-		let (prev_score_col, curr_score_col) = if needle_idx == 0 {
-			(None, &mut score_matrix[needle_idx])
-		} else {
-			let (a, b) = score_matrix.split_at_mut(needle_idx);
-			(Some(a[needle_idx - 1].as_slice()), &mut b[0])
-		};
+		let mut up_score_simd = Simd::splat(0);
+		let mut up_matched_simd = Simd::splat(0);
+		let mut up_gap_penalty_mask = Mask::splat(true);
+		let mut left_gap_penalty_mask = Mask::splat(true);
+		let mut delimiter_bonus_enabled_mask = Mask::<i16, L>::splat(false);
 
-		smith_waterman_inner(
-			0,
-			W,
-			needle_char,
-			&haystacks,
-			haystack_delimiter_mask.as_slice(),
-			haystack_valid_mask.as_ref().map(|m| m.as_slice()),
-			prev_score_col,
-			curr_score_col,
-			scoring,
-			&mut all_time_max_score,
-		);
+		for haystack_idx in 0..W {
+			let haystack_char = haystacks[haystack_idx];
+			let haystack_is_delimiter_mask = haystack_delimiter_mask[haystack_idx];
+
+			// Load predecessors: (score, matched_count) for diagonal, left, and up paths
+			let (diag_score_prev, diag_matched_prev, left_score_prev, left_matched_prev) = if haystack_idx == 0 {
+				let left = if needle_idx == 0 { Simd::splat(0) } else { prev_score_col[0] };
+				let left_matched = if needle_idx == 0 { Simd::splat(0) } else { prev_matched_col[0] };
+				// Boundary diagonal: no previous alignment, matched_count = 0
+				(Simd::splat(0), Simd::splat(0), left, left_matched)
+			} else if needle_idx == 0 {
+				(Simd::splat(0), Simd::splat(0), Simd::splat(0), Simd::splat(0))
+			} else {
+				(
+					prev_score_col[haystack_idx - 1],
+					prev_matched_col[haystack_idx - 1],
+					prev_score_col[haystack_idx],
+					prev_matched_col[haystack_idx],
+				)
+			};
+
+			// Calculate diagonal (match/mismatch) scores — same logic as smith_waterman_inner
+			let match_mask: Mask<i16, L> = needle_char.lowercase.simd_eq(haystack_char.lowercase);
+			let matched_casing_mask: Mask<i16, L> = needle_char.is_capital_mask.simd_eq(haystack_char.is_capital_mask);
+
+			let match_score = if haystack_idx > 0 {
+				let base_match_score = {
+					let prev_haystack_char = haystacks[haystack_idx - 1];
+					let prev_haystack_is_delimiter_mask = haystack_delimiter_mask[haystack_idx - 1];
+
+					let capitalization_bonus_mask: Mask<i16, L> = haystack_char.is_capital_mask & prev_haystack_char.is_lower_mask;
+					let capitalization_bonus = capitalization_bonus_mask.select(Simd::splat(scoring.capitalization_bonus), Simd::splat(0));
+
+					let delimiter_bonus_mask: Mask<i16, L> = prev_haystack_is_delimiter_mask & delimiter_bonus_enabled_mask & !haystack_is_delimiter_mask;
+					let delimiter_bonus = delimiter_bonus_mask.select(Simd::splat(scoring.delimiter_bonus), Simd::splat(0));
+
+					capitalization_bonus + delimiter_bonus + Simd::splat(scoring.match_score)
+				};
+
+				if haystack_idx == 1 {
+					let offset_prefix_mask = !(haystacks[0].is_lower_mask | haystacks[0].is_capital_mask) & diag_score_prev.simd_eq(Simd::splat(0));
+					offset_prefix_mask.select(Simd::splat(scoring.offset_prefix_bonus + scoring.match_score), base_match_score)
+				} else {
+					base_match_score
+				}
+			} else {
+				Simd::splat(scoring.prefix_bonus + scoring.match_score)
+			};
+
+			let diag_score = match_mask.select(
+				diag_score_prev + matched_casing_mask.select(Simd::splat(scoring.matching_case_bonus), Simd::splat(0)) + match_score,
+				diag_score_prev.saturating_sub(Simd::splat(scoring.mismatch_penalty)),
+			);
+
+			// Up score (skip haystack char)
+			let up_gap_penalty = up_gap_penalty_mask.select(Simd::splat(scoring.gap_open_penalty), Simd::splat(scoring.gap_extend_penalty));
+			let up_score = up_score_simd.saturating_sub(up_gap_penalty);
+
+			// Left score (skip needle char)
+			let left_gap_penalty = left_gap_penalty_mask.select(Simd::splat(scoring.gap_open_penalty), Simd::splat(scoring.gap_extend_penalty));
+			let left_score = left_score_prev.saturating_sub(left_gap_penalty);
+
+			// Winner selection: same as smith_waterman_inner (score-based, diag wins ties)
+			let max_score = diag_score.simd_max(up_score).simd_max(left_score);
+			let diag_wins: Mask<i16, L> = max_score.simd_eq(diag_score);
+			let up_wins: Mask<i16, L> = max_score.simd_eq(up_score) & !diag_wins;
+
+			// Matched-count tracking:
+			// diagonal match → matched + 1; all other transitions → carry predecessor's count
+			let diag_matched = diag_matched_prev + match_mask.select(Simd::splat(1), Simd::splat(0));
+			let up_matched = up_matched_simd;
+			let left_matched = left_matched_prev;
+
+			let max_matched = diag_wins.select(diag_matched, up_wins.select(up_matched, left_matched));
+
+			// Update gap penalty masks (same logic as smith_waterman_inner)
+			let diag_mask = max_score.simd_eq(diag_score);
+			up_gap_penalty_mask = max_score.simd_ne(up_score) | diag_mask;
+			left_gap_penalty_mask = max_score.simd_ne(left_score) | diag_mask;
+
+			delimiter_bonus_enabled_mask |= haystack_is_delimiter_mask.not();
+
+			// Zero out padded lanes
+			let (max_score, max_matched) = if let Some(mask) = &haystack_valid_mask {
+				(
+					mask[haystack_idx].select(max_score, Simd::splat(0)),
+					mask[haystack_idx].select(max_matched, Simd::splat(0)),
+				)
+			} else {
+				(max_score, max_matched)
+			};
+
+			up_score_simd = max_score;
+			up_matched_simd = max_matched;
+			curr_score_col[haystack_idx] = max_score;
+			curr_matched_col[haystack_idx] = max_matched;
+		}
+
+		std::mem::swap(&mut prev_score_col, &mut curr_score_col);
+		std::mem::swap(&mut prev_matched_col, &mut curr_matched_col);
 	}
+
+	// Full-needle contract: score and matched from last needle row argmax.
+	let needle_len = Simd::splat(needle.len() as u16);
+	let (last_row_scores, last_row_typos) = if needle.is_empty() {
+		(Simd::splat(0), Simd::splat(0))
+	} else {
+		let mut best_scores = prev_score_col[0];
+		let mut best_matched = prev_matched_col[0];
+		for j in 1..W {
+			let better: Mask<i16, L> = prev_score_col[j].simd_gt(best_scores);
+			best_scores = better.select(prev_score_col[j], best_scores);
+			best_matched = better.select(prev_matched_col[j], best_matched);
+		}
+		// typos = needle_len - matched_chars
+		let typos = needle_len - best_matched.simd_min(needle_len);
+		(best_scores, typos)
+	};
 
 	let exact_matches: [bool; L] = std::array::from_fn(|i| haystack_strs[i] == needle_str);
 	let max_scores = std::array::from_fn(|i| {
-		let mut score = all_time_max_score[i];
+		let mut score = last_row_scores[i];
 		if exact_matches[i] {
 			score += scoring.exact_match_bonus;
 		}
 		score
 	});
-
-	let typos = super::typos_from_score_matrix::<W, L>(&score_matrix, max_typos);
+	let typos: [u16; L] = last_row_typos.to_array();
 
 	(max_scores, typos, exact_matches)
 }
@@ -318,7 +430,6 @@ where
 
 	// State
 	let mut score_matrix = vec![[Simd::splat(0); W]; needle.len()];
-	let mut all_time_max_score = Simd::splat(0);
 
 	for (needle_idx, haystack_start, haystack_end) in (0..needle.len()).map(|needle_idx| {
 		let haystack_start = max_typos.map(|max_typos| needle_idx.saturating_sub(max_typos as usize)).unwrap_or(0);
@@ -346,14 +457,26 @@ where
 			prev_score_col,
 			curr_score_col,
 			scoring,
-			&mut all_time_max_score,
 		);
 	}
+
+	// Full-needle contract: score is max over the last needle row.
+	let last_row_max = if needle.is_empty() {
+		Simd::splat(0)
+	} else {
+		score_matrix
+			.last()
+			.unwrap()
+			.iter()
+			.copied()
+			.reduce(|a, b| a.simd_max(b))
+			.unwrap_or(Simd::splat(0))
+	};
 
 	let exact_matches: [bool; L] = std::array::from_fn(|i| haystack_strs[i] == needle_str);
 
 	let max_scores = std::array::from_fn(|i| {
-		let mut score = all_time_max_score[i];
+		let mut score = last_row_max[i];
 		if exact_matches[i] {
 			score += scoring.exact_match_bonus;
 		}

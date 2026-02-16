@@ -1,7 +1,6 @@
 use super::*;
 use crate::Scoring;
 use crate::r#const::*;
-use crate::smith_waterman::reference::typos_from_score_matrix;
 use crate::smith_waterman::simd::{smith_waterman as smith_waterman_simd, smith_waterman_scores_typos};
 
 const CHAR_SCORE: u16 = MATCH_SCORE + MATCHING_CASE_BONUS;
@@ -20,9 +19,7 @@ fn get_score_with_scoring(needle: &str, haystack: &str, scoring: &Scoring) -> u1
 }
 
 fn ref_score_typos_exact(needle: &str, haystack: &str, scoring: &Scoring) -> (u16, u16, bool) {
-	let (score, score_matrix, exact) = smith_waterman(needle, haystack, scoring);
-	let score_matrix_ref = score_matrix.iter().map(|row| row.as_slice()).collect::<Vec<_>>();
-	let typos = typos_from_score_matrix(&score_matrix_ref);
+	let (score, typos, _, exact) = smith_waterman(needle, haystack, scoring);
 	(score, typos, exact)
 }
 
@@ -88,7 +85,9 @@ fn test_score_exact_match() {
 	assert_eq!(get_score("a", "a"), CHAR_SCORE + EXACT_MATCH_BONUS + PREFIX_BONUS);
 	assert_eq!(get_score("abc", "abc"), 3 * CHAR_SCORE + EXACT_MATCH_BONUS + PREFIX_BONUS);
 	assert_eq!(get_score("ab", "abc"), 2 * CHAR_SCORE + PREFIX_BONUS);
-	assert_eq!(get_score("abc", "ab"), 2 * CHAR_SCORE + PREFIX_BONUS);
+	// Full-needle contract: needle longer than haystack forces the last needle char through
+	// a gap/mismatch path, so score is lower than the 2-char prefix match.
+	assert!(get_score("abc", "ab") < 2 * CHAR_SCORE + PREFIX_BONUS);
 }
 
 #[test]
@@ -197,4 +196,16 @@ fn simd_typo_counts_and_gating_match_reference() {
 		let haystack = String::from_utf8(gen_ascii_bytes(&mut rng, haystack_len, alphabet)).expect("haystack is valid ASCII");
 		assert_case(&needle, &haystack, &scoring);
 	}
+}
+
+#[test]
+fn with_indices_uses_full_needle_argmax_traceback() {
+	let scoring = Scoring::default();
+	let (score, typos, indices, exact) = smith_waterman_with_indices("ab", "bab", &scoring);
+	let (base_score, base_typos, _, base_exact) = smith_waterman("ab", "bab", &scoring);
+
+	assert_eq!(score, base_score);
+	assert_eq!(typos, base_typos);
+	assert_eq!(exact, base_exact);
+	assert_eq!(indices, vec![1, 2]);
 }

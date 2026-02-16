@@ -17,10 +17,9 @@ const STALE_CHECK_INTERVAL: usize = 256;
 
 #[derive(Clone, Debug)]
 struct RankedMatch {
-	score: i32,
+	score: u16,
 	index: usize,
 	path: Arc<str>,
-	match_indices: Option<Vec<usize>>,
 }
 
 impl PartialEq for RankedMatch {
@@ -33,7 +32,7 @@ impl Eq for RankedMatch {}
 
 impl Ord for RankedMatch {
 	fn cmp(&self, other: &Self) -> Ordering {
-		self.score.cmp(&other.score).then_with(|| other.index.cmp(&self.index))
+		(self.score as i32).cmp(&(other.score as i32)).then_with(|| other.index.cmp(&self.index))
 	}
 }
 
@@ -82,6 +81,9 @@ fn worker_loop(generation: u64, mut data: SearchData, command_rx: Receiver<Searc
 				let Some(result) = run_query(generation, id, &query, limit, &data, latest_query_id.as_ref()) else {
 					continue;
 				};
+				if should_abort(id, latest_query_id.as_ref()) {
+					continue;
+				}
 
 				match result_tx.try_send(result) {
 					Ok(()) => {}
@@ -122,24 +124,25 @@ fn run_query(generation: u64, id: u64, query: &str, limit: usize, data: &SearchD
 	}
 
 	let config = crate::completion::frizbee_config_for_query(query);
+	let scorer = xeno_matcher::ScoreMatcher::new(query, &config);
 	let mut heap: BinaryHeap<std::cmp::Reverse<RankedMatch>> = BinaryHeap::new();
 	let mut scanned = 0usize;
 
+	// Phase 1: score-only scan to find top-K candidates via SIMD (fast)
 	for (idx, file) in data.files.iter().enumerate() {
 		scanned += 1;
 		if scanned.is_multiple_of(STALE_CHECK_INTERVAL) && should_abort(id, latest_query_id) {
 			return None;
 		}
 
-		let Some(matched) = xeno_matcher::match_indices(query, file.path.as_ref(), &config) else {
+		let Some((score, _exact)) = scorer.score(file.path.as_ref()) else {
 			continue;
 		};
 
 		let candidate = RankedMatch {
-			score: matched.score as i32,
+			score,
 			index: idx,
 			path: Arc::clone(&file.path),
-			match_indices: if matched.indices.is_empty() { None } else { Some(matched.indices) },
 		};
 
 		if heap.len() < limit {
@@ -159,16 +162,12 @@ fn run_query(generation: u64, id: u64, query: &str, limit: usize, data: &SearchD
 		return None;
 	}
 
-	let mut rows = heap
-		.into_iter()
-		.map(|std::cmp::Reverse(entry)| SearchRow {
-			path: entry.path,
-			score: entry.score,
-			match_indices: entry.match_indices,
-		})
-		.collect::<Vec<_>>();
+	// Phase 2: compute match indices only for top-K results (reference SW, slow)
+	let rows = build_search_rows(query, id, &config, heap, latest_query_id)?;
 
-	rows.sort_by(|a, b| b.score.cmp(&a.score).then_with(|| a.path.as_ref().cmp(b.path.as_ref())));
+	if should_abort(id, latest_query_id) {
+		return None;
+	}
 
 	Some(SearchMsg::Result {
 		generation,
@@ -178,6 +177,39 @@ fn run_query(generation: u64, id: u64, query: &str, limit: usize, data: &SearchD
 		scanned,
 		elapsed_ms: start.elapsed().as_millis() as u64,
 	})
+}
+
+fn build_search_rows(
+	query: &str,
+	id: u64,
+	config: &xeno_matcher::Config,
+	heap: BinaryHeap<std::cmp::Reverse<RankedMatch>>,
+	latest_query_id: &AtomicU64,
+) -> Option<Vec<SearchRow>> {
+	let mut rows = Vec::with_capacity(heap.len());
+	for std::cmp::Reverse(entry) in heap {
+		if should_abort(id, latest_query_id) {
+			return None;
+		}
+
+		let match_indices =
+			xeno_matcher::match_indices(query, entry.path.as_ref(), config).and_then(|mi| if mi.indices.is_empty() { None } else { Some(mi.indices) });
+		rows.push(SearchRow {
+			path: entry.path,
+			score: entry.score as i32,
+			match_indices,
+		});
+	}
+	if should_abort(id, latest_query_id) {
+		return None;
+	}
+
+	rows.sort_by(|a, b| b.score.cmp(&a.score).then_with(|| a.path.as_ref().cmp(b.path.as_ref())));
+
+	if should_abort(id, latest_query_id) {
+		return None;
+	}
+	Some(rows)
 }
 
 fn should_abort(id: u64, latest_query_id: &AtomicU64) -> bool {

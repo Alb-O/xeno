@@ -6,8 +6,10 @@ use multiversion as _;
 use rayon as _;
 #[cfg(feature = "serde")]
 use serde as _;
+#[cfg(feature = "incremental")]
+use xeno_matcher::IncrementalMatcher;
 use xeno_matcher::prefilter::Prefilter;
-use xeno_matcher::{Config, IncrementalMatcher, match_list, match_list_parallel};
+use xeno_matcher::{Config, match_list, match_list_parallel};
 
 const NEEDLES: [&str; 3] = ["foo", "deadbeef", "serialfmt"];
 
@@ -145,6 +147,7 @@ fn bench_parallel_vs_serial(c: &mut Criterion) {
 	group.finish();
 }
 
+#[cfg(feature = "incremental")]
 fn bench_incremental_typing(c: &mut Criterion) {
 	let haystacks = generate_haystacks(10_000);
 	let haystack_refs: Vec<&str> = haystacks.iter().map(String::as_str).collect();
@@ -203,5 +206,8 @@ fn bench_prefilter(c: &mut Criterion) {
 	group.finish();
 }
 
+#[cfg(feature = "incremental")]
 criterion_group!(benches, bench_match_list, bench_parallel_vs_serial, bench_incremental_typing, bench_prefilter,);
+#[cfg(not(feature = "incremental"))]
+criterion_group!(benches, bench_match_list, bench_parallel_vs_serial, bench_prefilter,);
 criterion_main!(benches);

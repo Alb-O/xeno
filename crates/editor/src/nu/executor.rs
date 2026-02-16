@@ -25,9 +25,9 @@ use std::time::{Duration, Instant};
 use nu_protocol::{DeclId, Value};
 use tokio::sync::oneshot;
 use tokio::sync::oneshot::error::TryRecvError;
+use xeno_invocation::nu::DecodeLimits;
 
 use super::NuRuntime;
-use xeno_invocation::nu::DecodeLimits;
 use crate::types::Invocation;
 
 /// A job sent to the Nu worker thread.

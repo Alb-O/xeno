@@ -102,13 +102,13 @@ fn four_way_score_comparison() {
 	];
 
 	for (needle, haystack) in &cases {
-		let (ref_score, _, ref_exact) = ref_sw(needle, haystack, &scoring);
+		let (ref_score, ref_typos, _, ref_exact) = ref_sw(needle, haystack, &scoring);
 		let (scores_only, exact_only) = smith_waterman_scores::<16, 1>(needle, &[haystack], &scoring);
 		let (matrix_scores, _, matrix_exact) = smith_waterman::<16, 1>(needle, &[haystack], None, &scoring);
 		let (typo_scores, typo_counts, typo_exact) = smith_waterman_scores_typos::<16, 1>(needle, &[haystack], 3, &scoring);
 
 		eprintln!("--- needle={needle:?} haystack={haystack:?} ---");
-		eprintln!("  reference:    score={ref_score}, exact={ref_exact}");
+		eprintln!("  reference:    score={ref_score}, typos={ref_typos}, exact={ref_exact}");
 		eprintln!("  scores_only:  score={}, exact={}", scores_only[0], exact_only[0]);
 		eprintln!("  matrix(None): score={}, exact={}", matrix_scores[0], matrix_exact[0]);
 		eprintln!("  scores_typos: score={}, typos={}, exact={}", typo_scores[0], typo_counts[0], typo_exact[0]);
@@ -116,45 +116,28 @@ fn four_way_score_comparison() {
 		assert_eq!(ref_score, scores_only[0], "ref vs scores_only mismatch for {needle:?}/{haystack:?}");
 		assert_eq!(ref_score, matrix_scores[0], "ref vs matrix mismatch for {needle:?}/{haystack:?}");
 		assert_eq!(ref_score, typo_scores[0], "ref vs typo_scores mismatch for {needle:?}/{haystack:?}");
+		assert_eq!(ref_typos, typo_counts[0], "ref vs simd typos mismatch for {needle:?}/{haystack:?}");
 	}
 }
 
 #[test]
 fn debug_traceback_divergence() {
-	use crate::smith_waterman::reference::{smith_waterman as ref_sw, typos_from_score_matrix as ref_typos};
+	use crate::smith_waterman::reference::smith_waterman as ref_sw;
 
 	let scoring = Scoring::default();
 	let needle = "eb--E";
 	let haystack = "eaADcAb";
 
-	// Get reference matrix and compute typos both ways
-	let (_, ref_matrix, _) = ref_sw(needle, haystack, &scoring);
-	let ref_matrix_slices: Vec<&[u16]> = ref_matrix.iter().map(|v| v.as_slice()).collect();
-	let ref_typo_count = ref_typos(&ref_matrix_slices);
-
-	// Get SIMD matrix and compute typos
-	let (_, simd_matrix, _) = smith_waterman::<16, 1>(needle, &[haystack], None, &scoring);
-	let simd_typo_count = super::super::typos_from_score_matrix::<16, 1>(&simd_matrix, 100)[0];
-
-	// Also compute reference typos on the SIMD matrix (extracted to scalar)
-	let simd_as_scalar: Vec<Vec<u16>> = simd_matrix.iter().map(|col| col.iter().map(|s| s[0]).collect()).collect();
-	let simd_scalar_slices: Vec<&[u16]> = simd_as_scalar.iter().map(|v| v.as_slice()).collect();
-	let ref_typos_on_simd_matrix = ref_typos(&simd_scalar_slices);
+	let (ref_score, ref_typos, ref_matrix, _) = ref_sw(needle, haystack, &scoring);
+	let (simd_scores, simd_typos, _) = smith_waterman_scores_typos::<16, 1>(needle, &[haystack], 3, &scoring);
 
 	eprintln!("needle={needle:?} haystack={haystack:?}");
-	eprintln!("ref_typos (ref matrix):  {ref_typo_count}");
-	eprintln!("simd_typos (simd matrix): {simd_typo_count}");
-	eprintln!("ref_typos (simd matrix): {ref_typos_on_simd_matrix}");
+	eprintln!("ref: score={ref_score}, typos={ref_typos}");
+	eprintln!("simd: score={}, typos={}", simd_scores[0], simd_typos[0]);
 
-	// Print both matrices
 	eprintln!("ref matrix:");
 	for (i, col) in ref_matrix.iter().enumerate().take(needle.len()) {
 		let row: Vec<u16> = col.iter().copied().take(haystack.len()).collect();
-		eprintln!("  [{i}] {:?}", row);
-	}
-	eprintln!("simd matrix (lane 0, full W=16):");
-	for (i, col) in simd_matrix.iter().enumerate().take(needle.len()) {
-		let row: Vec<u16> = col.iter().take(16).map(|s| s[0]).collect();
 		eprintln!("  [{i}] {:?}", row);
 	}
 }
@@ -162,7 +145,6 @@ fn debug_traceback_divergence() {
 #[test]
 fn score_typo_contract_parity() {
 	use crate::smith_waterman::reference::smith_waterman as ref_sw;
-
 	let scoring = Scoring::default();
 	let mut rng = XorShift64::new(0xA3B7_C4D2_E1F0_9856);
 	let alphabet = b"abcdeABCDE_-/";
@@ -173,7 +155,7 @@ fn score_typo_contract_parity() {
 		let needle = String::from_utf8(gen_ascii_bytes(&mut rng, needle_len, alphabet)).unwrap();
 		let haystack = String::from_utf8(gen_ascii_bytes(&mut rng, haystack_len, alphabet)).unwrap();
 
-		let (ref_score, _, ref_exact) = ref_sw(&needle, &haystack, &scoring);
+		let (ref_score, ref_typos, _, ref_exact) = ref_sw(&needle, &haystack, &scoring);
 		let (scores_only, exact_only) = smith_waterman_scores::<16, 1>(&needle, &[haystack.as_str()], &scoring);
 
 		assert_eq!(ref_score, scores_only[0], "ref vs scores_only: needle={needle:?} haystack={haystack:?}");
@@ -182,20 +164,18 @@ fn score_typo_contract_parity() {
 		for max_typos in [0u16, 1, 3] {
 			let (typo_scores, typo_counts, typo_exacts) = smith_waterman_scores_typos::<16, 1>(&needle, &[haystack.as_str()], max_typos, &scoring);
 
-			// scores_typos must produce the same score as score-only (independent of max_typos)
+			// Scores must match score-only path
 			assert_eq!(
 				scores_only[0], typo_scores[0],
 				"score_only vs score_typos: needle={needle:?} haystack={haystack:?} max_typos={max_typos}"
 			);
 			assert_eq!(exact_only[0], typo_exacts[0]);
 
-			// internal consistency: scores_typos uses same matrix+traceback
-			let (matrix_scores, matrix, matrix_exacts) = smith_waterman::<16, 1>(&needle, &[haystack.as_str()], None, &scoring);
-			let matrix_typos = super::super::typos_from_score_matrix::<16, 1>(&matrix, max_typos);
-
-			assert_eq!(typo_scores[0], matrix_scores[0]);
-			assert_eq!(typo_counts[0], matrix_typos[0]);
-			assert_eq!(typo_exacts[0], matrix_exacts[0]);
+			// Streaming SIMD typos must agree with reference DP-consistent typos
+			assert_eq!(
+				typo_counts[0], ref_typos,
+				"streaming vs reference typos: needle={needle:?} haystack={haystack:?} max_typos={max_typos}"
+			);
 		}
 	}
 }

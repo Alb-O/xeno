@@ -1,6 +1,6 @@
 use crate::limits::{exceeds_typo_budget, match_too_large};
 use crate::smith_waterman::greedy::match_greedy;
-use crate::smith_waterman::reference::{char_indices_from_score_matrix, smith_waterman, typos_from_score_matrix};
+use crate::smith_waterman::reference::smith_waterman_with_indices;
 use crate::{Config, MatchIndices};
 
 /// Gets the matched indices for the needle on a single haystack.
@@ -21,19 +21,14 @@ pub fn match_indices<S1: AsRef<str>, S2: AsRef<str>>(needle: S1, haystack: S2, c
 		return Some(MatchIndices { score, indices, exact });
 	}
 
-	// Get score matrix
-	let (score, score_matrix, exact) = smith_waterman(needle, haystack, &config.scoring);
-	let score_matrix_ref = score_matrix.iter().map(|v| v.as_slice()).collect::<Vec<_>>();
+	// Trace indices from the same full-needle DP path used for typo counting.
+	let (score, typos, indices, exact) = smith_waterman_with_indices(needle, haystack, &config.scoring);
 
-	// Ensure there's not too many typos
 	if let Some(max_typos) = config.max_typos {
-		let typos = typos_from_score_matrix(&score_matrix_ref);
 		if typos > max_typos {
 			return None;
 		}
 	}
-
-	let indices = char_indices_from_score_matrix(&score_matrix_ref);
 
 	Some(MatchIndices { score, indices, exact })
 }
@@ -64,5 +59,16 @@ mod tests {
 		};
 
 		assert!(match_indices(&needle, &haystack, &config).is_some());
+	}
+
+	#[test]
+	fn typo_gate_and_indices_use_same_sw_traceback_path() {
+		let config = Config {
+			max_typos: Some(0),
+			..Config::default()
+		};
+
+		let matched = match_indices("ab", "bab", &config).expect("expected in-budget match");
+		assert_eq!(matched.indices, vec![1, 2]);
 	}
 }

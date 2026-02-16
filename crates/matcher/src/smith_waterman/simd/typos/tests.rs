@@ -60,47 +60,40 @@ fn test_typos_basic() {
 	assert_eq!(get_typos("d", ""), 1);
 }
 
+/// Validates streaming SIMD typo counts against the reference scalar implementation.
+///
+/// Both the SIMD streaming DP and the reference DP-consistent matched-count tracking
+/// must agree on scores and typo counts for the same needle/haystack pairs.
 #[test]
-fn streaming_typos_matches_matrix_traceback() {
+fn streaming_typos_matches_reference() {
+	use crate::smith_waterman::reference::smith_waterman as ref_sw;
+
 	const W: usize = 32;
-	const L: usize = 8;
+	const L: usize = 1;
 
 	let scoring = Scoring::default();
 	let mut rng = XorShift64::new(0xD1A4_93B5_77C2_1E0F);
 
-	for max_typos in [0u16, 1u16] {
+	for max_typos in [0u16, 1u16, 3u16] {
 		for case_idx in 0..200 {
 			let needle_len = 1 + rng.next_usize(12);
 			let needle = gen_ascii(&mut rng, needle_len);
+			let haystack_len = rng.next_usize(W + 1);
+			let haystack = gen_ascii(&mut rng, haystack_len);
 
-			let haystack_storage: [String; L] = std::array::from_fn(|_| {
-				let len = rng.next_usize(W + 1);
-				gen_ascii(&mut rng, len)
-			});
-			let haystacks: [&str; L] = std::array::from_fn(|i| haystack_storage[i].as_str());
+			let (ref_score, ref_typos, _, ref_exact) = ref_sw(&needle, &haystack, &scoring);
 
-			let (old_scores, score_matrix, old_exact) = smith_waterman::<W, L>(&needle, &haystacks, None, &scoring);
-			let old_typos = typos_from_score_matrix::<W, L>(&score_matrix, max_typos);
+			let (simd_scores, simd_typos, simd_exact) = smith_waterman_scores_typos::<W, L>(&needle, &[haystack.as_str()], max_typos, &scoring);
 
-			let (new_scores, new_typos, new_exact) = smith_waterman_scores_typos::<W, L>(&needle, &haystacks, max_typos, &scoring);
-
-			assert_eq!(new_scores, old_scores, "score mismatch on case {case_idx} max_typos={max_typos}");
-			assert_eq!(new_exact, old_exact, "exact mismatch on case {case_idx} max_typos={max_typos}");
-			let old_within_budget = old_typos.map(|typo| typo <= max_typos);
-			let new_within_budget = new_typos.map(|typo| typo <= max_typos);
 			assert_eq!(
-				new_within_budget, old_within_budget,
-				"typo budget mismatch on case {case_idx} max_typos={max_typos} needle={needle:?} haystacks={haystacks:?}"
+				simd_scores[0], ref_score,
+				"score mismatch case {case_idx} max_typos={max_typos} needle={needle:?} haystack={haystack:?}"
 			);
-
-			for lane_idx in 0..L {
-				if old_typos[lane_idx] <= max_typos {
-					assert_eq!(
-						new_typos[lane_idx], old_typos[lane_idx],
-						"in-budget typo mismatch lane {lane_idx} case {case_idx} max_typos={max_typos}"
-					);
-				}
-			}
+			assert_eq!(simd_exact[0], ref_exact, "exact mismatch case {case_idx}");
+			assert_eq!(
+				simd_typos[0], ref_typos,
+				"typo mismatch case {case_idx} max_typos={max_typos} needle={needle:?} haystack={haystack:?}"
+			);
 		}
 	}
 }

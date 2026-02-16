@@ -346,8 +346,7 @@ fn parse_keys_value(value: &Value) -> Result<UnresolvedKeys> {
 /// Parse a single keybinding value: string spec, record, or custom value.
 fn parse_keybinding_value(value: &Value, field_path: &str) -> Result<xeno_invocation::Invocation> {
 	if let Value::String { val, .. } = value {
-		let parsed = xeno_invocation_spec::parse_spec(val)
-			.map_err(|e| ConfigError::InvalidKeyBinding(format!("at {field_path}: {e}")))?;
+		let parsed = xeno_invocation_spec::parse_spec(val).map_err(|e| ConfigError::InvalidKeyBinding(format!("at {field_path}: {e}")))?;
 		let inv = match parsed.kind {
 			xeno_invocation_spec::SpecKind::Action => xeno_invocation::Invocation::action(parsed.name),
 			xeno_invocation_spec::SpecKind::Command => xeno_invocation::Invocation::command(parsed.name, parsed.args),

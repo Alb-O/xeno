@@ -45,6 +45,7 @@ pub(crate) use for_each_bucket_spec;
 
 mod r#const;
 mod engine;
+#[cfg(feature = "incremental")]
 mod incremental;
 mod kernels;
 mod limits;
@@ -53,8 +54,9 @@ pub mod prefilter;
 pub mod smith_waterman;
 
 use r#const::*;
+#[cfg(feature = "incremental")]
 pub use incremental::IncrementalMatcher;
-pub use one_shot::{match_indices, match_list, match_list_parallel};
+pub use one_shot::{ScoreMatcher, match_indices, match_list, match_list_parallel, match_score};
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]

@@ -6,7 +6,6 @@
 use nu_engine::CallExt;
 use nu_protocol::engine::{Call, Command, EngineState, Stack};
 use nu_protocol::{Category, PipelineData, ShellError, Signature, Span, SyntaxShape, Type};
-
 use xeno_invocation::Invocation;
 use xeno_invocation::nu::InvocationValue;
 

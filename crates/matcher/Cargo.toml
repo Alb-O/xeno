@@ -8,6 +8,7 @@ repository.workspace = true
 
 [features]
 default = ["parallel_sort"]
+incremental = []
 serde = ["dep:serde"]
 parallel_sort = ["dep:rayon"]
 

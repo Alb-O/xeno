@@ -62,7 +62,6 @@ where
 			self.score_matrix.truncate(target_len);
 		}
 
-		let mut ignored_max_score = Simd::splat(0);
 		let haystack_delimiter_masks = delimiter_masks(&self.haystacks, scoring.delimiters.as_bytes());
 		for (i, &needle_char) in new_needle_chars.iter().enumerate() {
 			let needle_idx = i + prefix_to_keep;
@@ -84,17 +83,22 @@ where
 				prev_score_col,
 				curr_score_col,
 				scoring,
-				&mut ignored_max_score,
 			);
 		}
 
-		let mut all_time_max_score = Simd::splat(0);
-		for score_col in self.score_matrix.iter() {
-			for score in score_col {
-				all_time_max_score = score.simd_max(all_time_max_score);
-			}
-		}
-		let scores: [u16; L] = all_time_max_score.to_array();
+		// Full-needle contract: score is max over the last needle row.
+		let last_row_max = if self.score_matrix.is_empty() {
+			Simd::splat(0)
+		} else {
+			self.score_matrix
+				.last()
+				.unwrap()
+				.iter()
+				.copied()
+				.reduce(|a, b| a.simd_max(b))
+				.unwrap_or(Simd::splat(0))
+		};
+		let scores: [u16; L] = last_row_max.to_array();
 
 		for ((&score_idx, haystack), &score_base) in self.idxs.iter().zip(self.haystack_strs.iter()).zip(scores.iter()).take(self.length) {
 			let exact = *haystack == needle;

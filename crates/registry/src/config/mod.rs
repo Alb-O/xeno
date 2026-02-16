@@ -203,20 +203,16 @@ pub struct NuConfig {
 impl NuConfig {
 	/// Effective macro decode limits (defaults + overrides).
 	pub fn macro_decode_limits(&self) -> xeno_invocation::nu::DecodeLimits {
-		self.decode_macro
-			.as_ref()
-			.map_or_else(xeno_invocation::nu::DecodeLimits::macro_defaults, |o| {
-				o.apply(xeno_invocation::nu::DecodeLimits::macro_defaults())
-			})
+		self.decode_macro.as_ref().map_or_else(xeno_invocation::nu::DecodeLimits::macro_defaults, |o| {
+			o.apply(xeno_invocation::nu::DecodeLimits::macro_defaults())
+		})
 	}
 
 	/// Effective hook decode limits (defaults + overrides).
 	pub fn hook_decode_limits(&self) -> xeno_invocation::nu::DecodeLimits {
-		self.decode_hook
-			.as_ref()
-			.map_or_else(xeno_invocation::nu::DecodeLimits::hook_defaults, |o| {
-				o.apply(xeno_invocation::nu::DecodeLimits::hook_defaults())
-			})
+		self.decode_hook.as_ref().map_or_else(xeno_invocation::nu::DecodeLimits::hook_defaults, |o| {
+			o.apply(xeno_invocation::nu::DecodeLimits::hook_defaults())
+		})
 	}
 }
 

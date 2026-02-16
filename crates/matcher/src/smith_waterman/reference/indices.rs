@@ -77,7 +77,7 @@ mod tests {
 	use crate::Scoring;
 
 	fn get_indices(needle: &str, haystack: &str) -> Vec<usize> {
-		let (_, score_matrix, _) = smith_waterman(needle, haystack, &Scoring::default());
+		let (_, _, score_matrix, _) = smith_waterman(needle, haystack, &Scoring::default());
 		let score_matrix_ref = score_matrix.iter().map(|v| v.as_slice()).collect::<Vec<_>>();
 		char_indices_from_score_matrix(&score_matrix_ref)
 	}
