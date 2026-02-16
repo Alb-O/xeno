@@ -20,7 +20,7 @@ default = []
 # enables SQLite history
 sqlite = []
 # enables the Nu profiler implementation
-profiler = []
+profiler = ["dep:web-time"]
 
 [dependencies]
 
@@ -39,7 +39,7 @@ strum = { workspace = true }
 strum_macros = { workspace = true }
 thiserror = { workspace = true }
 typetag = "0.2"
-web-time = { workspace = true }
+web-time = { workspace = true, optional = true }
 xeno-nu-derive-value = { path = "../derive-value", version = "0.110.1" }
 xeno-nu-experimental = { path = "../experimental", version = "0.110.1" }
 xeno-nu-glob = { path = "../glob", version = "0.110.1" }

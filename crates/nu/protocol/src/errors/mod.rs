@@ -1,3 +1,5 @@
+#![allow(unused_assignments, reason = "derive-generated diagnostic code triggers false-positive assignment warnings")]
+
 mod chained_error;
 mod compile_error;
 mod config;
