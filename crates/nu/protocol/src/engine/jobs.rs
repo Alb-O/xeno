@@ -4,18 +4,13 @@ use std::sync::{Arc, Mutex};
 #[cfg(not(target_family = "wasm"))]
 use std::time::{Duration, Instant};
 
-#[cfg(feature = "os-system")]
-use xeno_nu_system::UnfreezeHandle;
-
 use crate::{JobId, PipelineData, Signals, shell_error};
 
-#[cfg(not(feature = "os-system"))]
 #[derive(Clone, Debug)]
 pub struct UnfreezeHandle {
 	pid: u32,
 }
 
-#[cfg(not(feature = "os-system"))]
 impl UnfreezeHandle {
 	pub const fn new(pid: u32) -> Self {
 		Self { pid }
@@ -26,12 +21,6 @@ impl UnfreezeHandle {
 	}
 }
 
-#[cfg(feature = "os-system")]
-fn kill_job_process(pid: i64) -> shell_error::io::Result<()> {
-	Ok(xeno_nu_system::kill_by_pid(pid)?)
-}
-
-#[cfg(not(feature = "os-system"))]
 fn kill_job_process(_pid: i64) -> shell_error::io::Result<()> {
 	Ok(())
 }

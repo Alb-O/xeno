@@ -387,16 +387,6 @@ I/O errors should always be specific, provide more context
 	}
 }
 
-#[cfg(feature = "os-system")]
-impl From<xeno_nu_system::KillByPidError> for ErrorKind {
-	fn from(value: xeno_nu_system::KillByPidError) -> Self {
-		match value {
-			xeno_nu_system::KillByPidError::Output(error) => error.into(),
-			xeno_nu_system::KillByPidError::KillProcess => ErrorKind::KillJobProcess,
-		}
-	}
-}
-
 impl StdError for IoError {}
 impl Display for IoError {
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {

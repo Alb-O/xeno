@@ -19,8 +19,6 @@ bench = false
 default = []
 # enables SQLite history
 sqlite = []
-# enables process/job integration and OS info collection via xeno-nu-system
-os-system = ["dep:xeno-nu-system"]
 # enables the Nu profiler implementation
 profiler = []
 
@@ -46,7 +44,6 @@ xeno-nu-derive-value = { path = "../derive-value", version = "0.110.1" }
 xeno-nu-experimental = { path = "../experimental", version = "0.110.1" }
 xeno-nu-glob = { path = "../glob", version = "0.110.1" }
 xeno-nu-path = { path = "../path", version = "0.110.1" }
-xeno-nu-system = { path = "../system", version = "0.110.1", optional = true }
 xeno-nu-utils = { path = "../utils", version = "0.110.1", default-features = false }
 
 [target.'cfg(windows)'.dependencies]

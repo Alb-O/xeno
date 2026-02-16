@@ -5,25 +5,18 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-#[cfg(feature = "os-system")]
-use xeno_nu_system::os_info::{get_kernel_version, get_os_arch, get_os_family, get_os_name};
-
-#[cfg(not(feature = "os-system"))]
 fn get_os_name() -> &'static str {
 	std::env::consts::OS
 }
 
-#[cfg(not(feature = "os-system"))]
 fn get_os_arch() -> &'static str {
 	std::env::consts::ARCH
 }
 
-#[cfg(not(feature = "os-system"))]
 fn get_os_family() -> &'static str {
 	std::env::consts::FAMILY
 }
 
-#[cfg(not(feature = "os-system"))]
 fn get_kernel_version() -> String {
 	"unknown".to_string()
 }
