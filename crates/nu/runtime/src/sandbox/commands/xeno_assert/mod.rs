@@ -2,6 +2,8 @@ use xeno_nu_engine::CallExt;
 use xeno_nu_protocol::engine::{Call, Command, EngineState, Stack};
 use xeno_nu_protocol::{Category, PipelineData, ShellError, Signature, SyntaxShape, Type};
 
+use super::err_help;
+
 #[derive(Clone)]
 pub struct XenoAssertCommand;
 
@@ -39,13 +41,7 @@ impl Command for XenoAssertCommand {
 		if predicate {
 			Ok(input)
 		} else {
-			Err(ShellError::GenericError {
-				error: "xeno assert failed".into(),
-				msg: message,
-				span: Some(span),
-				help: Some("predicate evaluated to false".into()),
-				inner: vec![],
-			})
+			Err(err_help(span, "xeno assert failed", message, "predicate evaluated to false"))
 		}
 	}
 }

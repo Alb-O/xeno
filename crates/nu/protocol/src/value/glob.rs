@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use serde::Deserialize;
 
-// Introduce this `NuGlob` enum rather than using `Value::Glob` directlry
+// Introduce this `NuGlob` enum rather than using `Value::Glob` directly
 // So we can handle glob easily without considering too much variant of `Value` enum.
 #[derive(Debug, Clone, Deserialize)]
 pub enum NuGlob {

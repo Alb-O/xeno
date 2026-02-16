@@ -85,7 +85,7 @@ const MAX_ENV_STRING_LEN: usize = 4096;
 
 /// Creates a minimal Nu engine state suitable for sandboxed evaluation.
 pub(crate) fn create_engine_state(config_root: Option<&Path>) -> Result<EngineState, String> {
-	let mut engine_state = create_xeno_lang_context();
+	let mut engine_state = create_xeno_lang_context()?;
 	let mut config: Config = engine_state.get_config().as_ref().clone();
 	config.recursion_limit = XENO_NU_RECURSION_LIMIT;
 	engine_state.set_config(config);
@@ -94,20 +94,21 @@ pub(crate) fn create_engine_state(config_root: Option<&Path>) -> Result<EngineSt
 		engine_state.add_env_var("PWD".to_string(), Value::string(cwd.to_string_lossy().to_string(), Span::unknown()));
 	}
 
-	register_xeno_commands(&mut engine_state);
+	register_xeno_commands(&mut engine_state)?;
 	Ok(engine_state)
 }
 
-fn register_xeno_commands(engine_state: &mut EngineState) {
+fn register_xeno_commands(engine_state: &mut EngineState) -> Result<(), String> {
 	let delta = {
 		let mut working_set = StateWorkingSet::new(engine_state);
 		commands::register_all(&mut working_set);
 		working_set.render()
 	};
-	engine_state.merge_delta(delta).expect("merge xeno commands");
+	engine_state.merge_delta(delta).map_err(|error| format!("Nu merge error: {error}"))?;
+	Ok(())
 }
 
-fn create_xeno_lang_context() -> EngineState {
+fn create_xeno_lang_context() -> Result<EngineState, String> {
 	let mut engine_state = EngineState::new();
 	let delta = {
 		let mut working_set = StateWorkingSet::new(&engine_state);
@@ -139,8 +140,8 @@ fn create_xeno_lang_context() -> EngineState {
 		xeno_nu_safe_commands::register_all(&mut working_set);
 		working_set.render()
 	};
-	engine_state.merge_delta(delta).expect("merge xeno lang context");
-	engine_state
+	engine_state.merge_delta(delta).map_err(|error| format!("Nu merge error: {error}"))?;
+	Ok(engine_state)
 }
 
 /// Result of parsing and validating a Nu script.

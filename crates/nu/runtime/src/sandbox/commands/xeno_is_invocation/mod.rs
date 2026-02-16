@@ -2,6 +2,8 @@ use xeno_invocation::nu::DecodeBudget;
 use xeno_nu_protocol::engine::{Call, Command, EngineState, Stack};
 use xeno_nu_protocol::{Category, PipelineData, ShellError, Signature, Type, Value};
 
+use super::err;
+
 #[derive(Clone)]
 pub struct XenoIsInvocationCommand;
 
@@ -22,13 +24,9 @@ impl Command for XenoIsInvocationCommand {
 
 	fn run(&self, _engine_state: &EngineState, _stack: &mut Stack, call: &Call, input: PipelineData) -> Result<PipelineData, ShellError> {
 		let span = call.head;
-		let value = input.into_value(span).map_err(|e| ShellError::GenericError {
-			error: format!("xeno is-effect: {e}"),
-			msg: "failed to collect input".into(),
-			span: Some(span),
-			help: None,
-			inner: vec![],
-		})?;
+		let value = input
+			.into_value(span)
+			.map_err(|e| err(span, format!("xeno is-effect: {e}"), "failed to collect input"))?;
 
 		let is_effect = xeno_invocation::nu::decode_hook_effects_with_budget(
 			value,

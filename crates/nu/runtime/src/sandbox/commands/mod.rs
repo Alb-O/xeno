@@ -9,6 +9,27 @@ mod xeno_is_invocation;
 mod xeno_log;
 
 use xeno_nu_protocol::engine::StateWorkingSet;
+use xeno_nu_protocol::{ShellError, Span};
+
+pub(super) fn err(span: Span, error: impl Into<String>, msg: impl Into<String>) -> ShellError {
+	ShellError::GenericError {
+		error: error.into(),
+		msg: msg.into(),
+		span: Some(span),
+		help: None,
+		inner: vec![],
+	}
+}
+
+pub(super) fn err_help(span: Span, error: impl Into<String>, msg: impl Into<String>, help: impl Into<String>) -> ShellError {
+	ShellError::GenericError {
+		error: error.into(),
+		msg: msg.into(),
+		span: Some(span),
+		help: Some(help.into()),
+		inner: vec![],
+	}
+}
 
 /// Register all xeno invocation commands into a working set.
 pub fn register_all(working_set: &mut StateWorkingSet<'_>) {

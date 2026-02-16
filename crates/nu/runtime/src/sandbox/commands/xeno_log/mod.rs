@@ -2,6 +2,8 @@ use xeno_nu_engine::CallExt;
 use xeno_nu_protocol::engine::{Call, Command, EngineState, Stack};
 use xeno_nu_protocol::{Category, PipelineData, ShellError, Signature, SyntaxShape, Type, Value};
 
+use super::err_help;
+
 #[derive(Clone)]
 pub struct XenoLogCommand;
 
@@ -35,13 +37,12 @@ impl Command for XenoLogCommand {
 		match level_str {
 			"debug" | "info" | "warn" | "error" => {}
 			other => {
-				return Err(ShellError::GenericError {
-					error: format!("invalid log level: '{other}'"),
-					msg: "expected one of: debug, info, warn, error".into(),
-					span: Some(span),
-					help: Some("valid levels: debug|info|warn|error".into()),
-					inner: vec![],
-				});
+				return Err(err_help(
+					span,
+					format!("invalid log level: '{other}'"),
+					"expected one of: debug, info, warn, error",
+					"valid levels: debug|info|warn|error",
+				));
 			}
 		}
 

@@ -4,6 +4,8 @@ use xeno_nu_engine::CallExt;
 use xeno_nu_protocol::engine::{Call, Command, EngineState, Stack};
 use xeno_nu_protocol::{Category, PipelineData, Record, ShellError, Signature, SyntaxShape, Type, Value};
 
+use super::{err, err_help};
+
 #[derive(Clone)]
 pub struct XenoEmitCommand;
 
@@ -42,13 +44,12 @@ impl Command for XenoEmitCommand {
 			"notify" => build_notify_effect(span, args)?,
 			"stop" => build_stop_effect(span, args)?,
 			other => {
-				return Err(ShellError::GenericError {
-					error: format!("xeno effect: unknown effect type '{other}'"),
-					msg: "expected one of: dispatch, notify, stop".into(),
-					span: Some(span),
-					help: Some("valid effect types: dispatch, notify, stop".into()),
-					inner: vec![],
-				});
+				return Err(err_help(
+					span,
+					format!("xeno effect: unknown effect type '{other}'"),
+					"expected one of: dispatch, notify, stop",
+					"valid effect types: dispatch, notify, stop",
+				));
 			}
 		};
 
@@ -64,25 +65,18 @@ fn build_dispatch_effect(
 	args: Vec<String>,
 ) -> Result<Value, ShellError> {
 	if args.len() < 2 {
-		return Err(ShellError::GenericError {
-			error: "xeno effect: dispatch requires <kind> <name>".into(),
-			msg: "missing required dispatch arguments".into(),
-			span: Some(span),
-			help: Some("usage: xeno effect dispatch <kind> <name> [args...]".into()),
-			inner: vec![],
-		});
+		return Err(err_help(
+			span,
+			"xeno effect: dispatch requires <kind> <name>",
+			"missing required dispatch arguments",
+			"usage: xeno effect dispatch <kind> <name> [args...]",
+		));
 	}
 
 	let kind = &args[0];
 	let name = &args[1];
 	if name.is_empty() {
-		return Err(ShellError::GenericError {
-			error: "xeno effect: dispatch name must not be empty".into(),
-			msg: "empty name".into(),
-			span: Some(span),
-			help: None,
-			inner: vec![],
-		});
+		return Err(err(span, "xeno effect: dispatch name must not be empty", "empty name"));
 	}
 
 	let mut invocation = Record::new();
@@ -115,30 +109,26 @@ fn build_dispatch_effect(
 			);
 		}
 		other => {
-			return Err(ShellError::GenericError {
-				error: format!("xeno effect: unknown invocation kind '{other}'"),
-				msg: "expected one of: action, command, editor, nu".into(),
-				span: Some(span),
-				help: Some("valid kinds: action, command, editor, nu".into()),
-				inner: vec![],
-			});
+			return Err(err_help(
+				span,
+				format!("xeno effect: unknown invocation kind '{other}'"),
+				"expected one of: action, command, editor, nu",
+				"valid kinds: action, command, editor, nu",
+			));
 		}
 	}
 
-	let normalized = schema::validate_invocation_record(&invocation, None, &schema::DEFAULT_LIMITS, span).map_err(|msg| ShellError::GenericError {
-		error: format!("xeno effect: {msg}"),
-		msg: msg.clone(),
-		span: Some(span),
-		help: None,
-		inner: vec![],
+	let normalized = schema::validate_invocation_record(&invocation, None, &schema::DEFAULT_LIMITS, span).map_err(|msg| {
+		let error = format!("xeno effect: {msg}");
+		err(span, error, msg)
 	})?;
 
-	let normalized_record = normalized.into_record().map_err(|error| ShellError::GenericError {
-		error: format!("xeno effect: failed to normalize dispatch effect: {error}"),
-		msg: "normalized dispatch shape is invalid".into(),
-		span: Some(span),
-		help: None,
-		inner: vec![],
+	let normalized_record = normalized.into_record().map_err(|error| {
+		err(
+			span,
+			format!("xeno effect: failed to normalize dispatch effect: {error}"),
+			"normalized dispatch shape is invalid",
+		)
 	})?;
 
 	let mut effect = Record::new();
@@ -151,34 +141,26 @@ fn build_dispatch_effect(
 
 fn build_notify_effect(span: xeno_nu_protocol::Span, args: Vec<String>) -> Result<Value, ShellError> {
 	if args.len() < 2 {
-		return Err(ShellError::GenericError {
-			error: "xeno effect: notify requires <level> <message>".into(),
-			msg: "missing notify arguments".into(),
-			span: Some(span),
-			help: Some("usage: xeno effect notify <debug|info|warn|error|success> <message>".into()),
-			inner: vec![],
-		});
+		return Err(err_help(
+			span,
+			"xeno effect: notify requires <level> <message>",
+			"missing notify arguments",
+			"usage: xeno effect notify <debug|info|warn|error|success> <message>",
+		));
 	}
 
 	let level = &args[0];
 	let Some(parsed_level) = NuNotifyLevel::parse(level) else {
-		return Err(ShellError::GenericError {
-			error: format!("xeno effect: unknown notify level '{level}'"),
-			msg: "invalid notify level".into(),
-			span: Some(span),
-			help: Some("valid levels: debug, info, warn, error, success".into()),
-			inner: vec![],
-		});
+		return Err(err_help(
+			span,
+			format!("xeno effect: unknown notify level '{level}'"),
+			"invalid notify level",
+			"valid levels: debug, info, warn, error, success",
+		));
 	};
 	let message = args.into_iter().skip(1).collect::<Vec<_>>().join(" ");
 	if message.is_empty() {
-		return Err(ShellError::GenericError {
-			error: "xeno effect: notify message must not be empty".into(),
-			msg: "empty message".into(),
-			span: Some(span),
-			help: None,
-			inner: vec![],
-		});
+		return Err(err(span, "xeno effect: notify message must not be empty", "empty message"));
 	}
 
 	let mut rec = Record::new();
@@ -190,13 +172,12 @@ fn build_notify_effect(span: xeno_nu_protocol::Span, args: Vec<String>) -> Resul
 
 fn build_stop_effect(span: xeno_nu_protocol::Span, args: Vec<String>) -> Result<Value, ShellError> {
 	if !args.is_empty() {
-		return Err(ShellError::GenericError {
-			error: "xeno effect: stop does not take arguments".into(),
-			msg: "unexpected arguments".into(),
-			span: Some(span),
-			help: Some("usage: xeno effect stop".into()),
-			inner: vec![],
-		});
+		return Err(err_help(
+			span,
+			"xeno effect: stop does not take arguments",
+			"unexpected arguments",
+			"usage: xeno effect stop",
+		));
 	}
 
 	let mut rec = Record::new();

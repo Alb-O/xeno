@@ -3,6 +3,8 @@ use xeno_nu_engine::CallExt;
 use xeno_nu_protocol::engine::{Call, Command, EngineState, Stack};
 use xeno_nu_protocol::{Category, PipelineData, Record, ShellError, Signature, SyntaxShape, Type, Value};
 
+use super::err;
+
 #[derive(Clone)]
 pub struct XenoCallCommand;
 
@@ -27,13 +29,7 @@ impl Command for XenoCallCommand {
 		let span = call.head;
 		let name: String = call.req(engine_state, stack, 0)?;
 		if name.is_empty() {
-			return Err(ShellError::GenericError {
-				error: "xeno call: name must not be empty".into(),
-				msg: "empty name".into(),
-				span: Some(span),
-				help: None,
-				inner: vec![],
-			});
+			return Err(err(span, "xeno call: name must not be empty", "empty name"));
 		}
 		let args: Vec<String> = call.rest(engine_state, stack, 1)?;
 		let mut rec = Record::new();

@@ -3,6 +3,8 @@ use xeno_invocation::schema;
 use xeno_nu_protocol::engine::{Call, Command, EngineState, Stack};
 use xeno_nu_protocol::{Category, PipelineData, Record, ShellError, Signature, Type, Value};
 
+use super::err;
+
 #[derive(Clone)]
 pub struct XenoEmitManyCommand;
 
@@ -26,21 +28,12 @@ impl Command for XenoEmitManyCommand {
 
 	fn run(&self, _engine_state: &EngineState, _stack: &mut Stack, call: &Call, input: PipelineData) -> Result<PipelineData, ShellError> {
 		let span = call.head;
-		let value = input.into_value(span).map_err(|e| ShellError::GenericError {
-			error: format!("xeno effects normalize: {e}"),
-			msg: "failed to collect input".into(),
-			span: Some(span),
-			help: None,
-			inner: vec![],
-		})?;
+		let value = input
+			.into_value(span)
+			.map_err(|e| err(span, format!("xeno effects normalize: {e}"), "failed to collect input"))?;
 
-		let batch = xeno_invocation::nu::decode_hook_effects_with_budget(value, DecodeBudget::macro_defaults()).map_err(|msg| ShellError::GenericError {
-			error: format!("xeno effects normalize: {msg}"),
-			msg: msg.clone(),
-			span: Some(span),
-			help: None,
-			inner: vec![],
-		})?;
+		let batch = xeno_invocation::nu::decode_hook_effects_with_budget(value, DecodeBudget::macro_defaults())
+			.map_err(|msg| err(span, format!("xeno effects normalize: {msg}"), msg))?;
 
 		let out = batch.effects.into_iter().map(|effect| encode_effect(effect, span)).collect();
 		Ok(PipelineData::Value(Value::list(out, span), None))
