@@ -37,8 +37,8 @@ xeno-invocation-spec.workspace = true
 xeno-language.workspace = true
 xeno-lsp = { workspace = true, features = ["position"], optional = true }
 xeno-matcher.workspace = true
-xeno-nu-protocol.workspace = true
-xeno-nu-sandbox.workspace = true
+xeno-nu-runtime.workspace = true
+xeno-nu-value.workspace = true
 xeno-primitives.workspace = true
 xeno-registry.workspace = true
 xeno-syntax.workspace = true

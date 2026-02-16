@@ -1,4 +1,4 @@
-//! Serde deserializer from `xeno_nu_protocol::Value` (compile-time only).
+//! Serde deserializer from `xeno_nu_value::Value` (compile-time only).
 //!
 //! Replaces the previous JSON bridge (`Value` → `serde_json::Value` → `T`).
 //! Handles the subset of Nushell types used in asset files:
@@ -6,9 +6,9 @@
 
 use serde::de::{self, DeserializeSeed, IntoDeserializer, MapAccess, SeqAccess, Visitor};
 use serde::forward_to_deserialize_any;
-use xeno_nu_protocol::{Record, Value};
+use xeno_nu_value::{Record, Value};
 
-/// Deserialize `T` directly from a `xeno_nu_protocol::Value`.
+/// Deserialize `T` directly from a `xeno_nu_value::Value`.
 pub fn from_nu_value<T: de::DeserializeOwned>(value: &Value) -> Result<T, Error> {
 	T::deserialize(NuDe(value))
 }

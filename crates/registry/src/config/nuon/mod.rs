@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use xeno_nu_protocol::{Record, Value};
+use xeno_nu_value::{Record, Value};
 
 use super::{Config, ConfigError, ConfigWarning, DecodeLimitOverrides, LanguageConfig, NuConfig, Result, UnresolvedKeys};
 use crate::options::{OptionScope, OptionStore};

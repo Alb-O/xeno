@@ -52,6 +52,7 @@ windows = { workspace = true }
 windows-sys = { workspace = true, features = ["Win32_UI_Shell"] }
 
 [dev-dependencies]
+os_pipe = { workspace = true }
 rstest = { workspace = true }
 serde_json = { workspace = true }
 tempfile = { workspace = true }

@@ -7,11 +7,11 @@ license.workspace = true
 
 [features]
 default = []
-compile = ["dep:xeno-nu-nuon", "dep:xeno-nu-protocol", "dep:postcard", "dep:walkdir"]
+compile = ["dep:xeno-nu-nuon", "dep:xeno-nu-value", "dep:postcard", "dep:walkdir"]
 
 [dependencies]
 postcard = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
 walkdir = { version = "2", optional = true }
 xeno-nu-nuon = { workspace = true, optional = true }
-xeno-nu-protocol = { workspace = true, optional = true }
+xeno-nu-value = { workspace = true, optional = true }

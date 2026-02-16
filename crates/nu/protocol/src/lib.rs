@@ -7,6 +7,9 @@
 	)
 )]
 
+#[cfg(test)]
+use os_pipe as _;
+
 mod alias;
 pub mod ast;
 pub mod casing;

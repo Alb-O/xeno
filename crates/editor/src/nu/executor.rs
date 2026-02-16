@@ -25,7 +25,8 @@ use std::time::{Duration, Instant};
 use tokio::sync::oneshot;
 use tokio::sync::oneshot::error::TryRecvError;
 use xeno_invocation::nu::DecodeLimits;
-use xeno_nu_protocol::{DeclId, Value};
+use xeno_nu_runtime::FunctionId;
+use xeno_nu_value::Value;
 
 use super::NuRuntime;
 use crate::types::Invocation;
@@ -33,7 +34,7 @@ use crate::types::Invocation;
 /// A job sent to the Nu worker thread.
 enum Job {
 	Run {
-		decl_id: DeclId,
+		decl_id: FunctionId,
 		args: Vec<String>,
 		limits: DecodeLimits,
 		env: Vec<(String, Value)>,
@@ -51,7 +52,7 @@ enum Job {
 pub enum NuExecError {
 	/// Channel send failed — receiver is gone. Payload returned for retry.
 	Shutdown {
-		decl_id: DeclId,
+		decl_id: FunctionId,
 		args: Vec<String>,
 		limits: DecodeLimits,
 		env: Vec<(String, Value)>,
@@ -149,7 +150,7 @@ impl NuExecutor {
 	///
 	/// On transport failure ([`NuExecError::Shutdown`]), the original payload
 	/// is returned so the caller can retry without cloning.
-	pub async fn run(&self, decl_id: DeclId, args: Vec<String>, limits: DecodeLimits, env: Vec<(String, Value)>) -> Result<Vec<Invocation>, NuExecError> {
+	pub async fn run(&self, decl_id: FunctionId, args: Vec<String>, limits: DecodeLimits, env: Vec<(String, Value)>) -> Result<Vec<Invocation>, NuExecError> {
 		let (reply_tx, reply_rx) = oneshot::channel();
 
 		if let Err(err) = self.tx.send(Job::Run {
@@ -271,11 +272,11 @@ mod tests {
 		let args = vec!["a".to_string(), "b".to_string()];
 		let env = vec![("KEY".to_string(), Value::test_string("val"))];
 
-		let result = executor.run(DeclId::new(42), args, DecodeLimits::macro_defaults(), env).await;
+		let result = executor.run(FunctionId::from_raw(42), args, DecodeLimits::macro_defaults(), env).await;
 
 		match result {
 			Err(NuExecError::Shutdown { decl_id, args, env, .. }) => {
-				assert_eq!(decl_id, DeclId::new(42));
+				assert_eq!(decl_id, FunctionId::from_raw(42));
 				assert_eq!(args, vec!["a".to_string(), "b".to_string()]);
 				assert_eq!(env.len(), 1);
 				assert_eq!(env[0].0, "KEY");

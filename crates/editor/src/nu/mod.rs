@@ -3,28 +3,26 @@
 pub(crate) mod ctx;
 pub(crate) mod executor;
 
-use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 pub use xeno_invocation::nu::{DecodeLimits, decode_runtime_invocations_with_limits};
-use xeno_nu_protocol::engine::EngineState;
-use xeno_nu_protocol::{DeclId, Value};
+use xeno_nu_runtime::{FunctionId, Runtime as ScriptRuntime};
+use xeno_nu_value::Value;
 
 use crate::types::Invocation;
 
-/// Cached decl IDs for hook functions, populated once when the runtime is set.
+/// Cached function IDs for hook functions, populated once when the runtime is set.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct CachedHookIds {
-	pub on_action_post: Option<DeclId>,
-	pub on_command_post: Option<DeclId>,
-	pub on_editor_command_post: Option<DeclId>,
-	pub on_mode_change: Option<DeclId>,
-	pub on_buffer_open: Option<DeclId>,
+	pub on_action_post: Option<FunctionId>,
+	pub on_command_post: Option<FunctionId>,
+	pub on_editor_command_post: Option<FunctionId>,
+	pub on_mode_change: Option<FunctionId>,
+	pub on_buffer_open: Option<FunctionId>,
 }
 
-/// Hook function identifiers used to select a cached decl ID.
+/// Hook function identifiers used to select a cached function ID.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum NuHook {
 	ActionPost,
@@ -46,7 +44,6 @@ impl NuHook {
 	}
 }
 
-const SCRIPT_FILE_NAME: &str = "xeno.nu";
 const SLOW_CALL_THRESHOLD: Duration = Duration::from_millis(5);
 
 /// Loaded Nu macro script runtime state.
@@ -54,10 +51,7 @@ const SLOW_CALL_THRESHOLD: Duration = Duration::from_millis(5);
 pub struct NuRuntime {
 	config_dir: PathBuf,
 	script_path: PathBuf,
-	base_engine: Arc<EngineState>,
-	/// Declarations introduced by `xeno.nu` (and its module imports).
-	/// Only these may be called externally; builtins are denied.
-	script_decls: Arc<HashSet<DeclId>>,
+	runtime: ScriptRuntime,
 }
 
 impl std::fmt::Debug for NuRuntime {
@@ -72,16 +66,12 @@ impl std::fmt::Debug for NuRuntime {
 impl NuRuntime {
 	/// Load and validate the `xeno.nu` script from the given config directory.
 	pub fn load(config_dir: &Path) -> Result<Self, String> {
-		let script_path = config_dir.join(SCRIPT_FILE_NAME);
-		let script_src = std::fs::read_to_string(&script_path).map_err(|error| format!("failed to read {}: {error}", script_path.display()))?;
-
-		let (base_engine, script_decls) = build_base_engine(config_dir, &script_path, &script_src)?;
-
+		let runtime = ScriptRuntime::load(config_dir)?;
+		let script_path = runtime.script_path().to_path_buf();
 		Ok(Self {
 			config_dir: config_dir.to_path_buf(),
 			script_path,
-			base_engine: Arc::new(base_engine),
-			script_decls: Arc::new(script_decls),
+			runtime,
 		})
 	}
 
@@ -144,13 +134,18 @@ impl NuRuntime {
 
 	/// Look up a script-defined declaration by name. Returns `None` for
 	/// missing functions and builtins.
-	pub fn find_script_decl(&self, name: &str) -> Option<DeclId> {
-		let decl_id = xeno_nu_sandbox::find_decl(&self.base_engine, name)?;
-		self.script_decls.contains(&decl_id).then_some(decl_id)
+	pub fn find_script_decl(&self, name: &str) -> Option<FunctionId> {
+		self.runtime.resolve_function(name)
 	}
 
 	/// Run a pre-resolved declaration and decode into invocations.
-	pub fn run_invocations_by_decl_id(&self, decl_id: DeclId, args: &[String], limits: DecodeLimits, env: &[(&str, Value)]) -> Result<Vec<Invocation>, String> {
+	pub fn run_invocations_by_decl_id(
+		&self,
+		decl_id: FunctionId,
+		args: &[String],
+		limits: DecodeLimits,
+		env: &[(&str, Value)],
+	) -> Result<Vec<Invocation>, String> {
 		let value = self.call_by_decl_id(decl_id, args, env)?;
 		decode_runtime_invocations_with_limits(value, limits)
 	}
@@ -158,13 +153,13 @@ impl NuRuntime {
 	/// Run a pre-resolved declaration with owned args/env (zero-clone hot path).
 	pub fn run_invocations_by_decl_id_owned(
 		&self,
-		decl_id: DeclId,
+		decl_id: FunctionId,
 		args: Vec<String>,
 		limits: DecodeLimits,
 		env: Vec<(String, Value)>,
 	) -> Result<Vec<Invocation>, String> {
 		let start = Instant::now();
-		let value = xeno_nu_sandbox::call_function_owned(&self.base_engine, decl_id, args, env)?;
+		let value = self.runtime.call_owned(decl_id, args, env)?;
 		let elapsed = start.elapsed();
 		if elapsed > SLOW_CALL_THRESHOLD {
 			tracing::debug!(elapsed_ms = elapsed.as_millis() as u64, "slow Nu call");
@@ -172,9 +167,9 @@ impl NuRuntime {
 		decode_runtime_invocations_with_limits(value, limits)
 	}
 
-	fn call_by_decl_id(&self, decl_id: DeclId, args: &[String], env: &[(&str, Value)]) -> Result<Value, String> {
+	fn call_by_decl_id(&self, decl_id: FunctionId, args: &[String], env: &[(&str, Value)]) -> Result<Value, String> {
 		let start = Instant::now();
-		let value = xeno_nu_sandbox::call_function(&self.base_engine, decl_id, args, env)?;
+		let value = self.runtime.call(decl_id, args, env)?;
 		let elapsed = start.elapsed();
 		if elapsed > SLOW_CALL_THRESHOLD {
 			tracing::debug!(elapsed_ms = elapsed.as_millis() as u64, "slow Nu call");
@@ -185,13 +180,12 @@ impl NuRuntime {
 	fn run_internal(&self, fn_name: &str, args: &[String], env: &[(&str, Value)]) -> Result<Value, NuRunError> {
 		let start = Instant::now();
 
-		let decl_id = xeno_nu_sandbox::find_decl(&self.base_engine, fn_name).ok_or_else(|| NuRunError::MissingFunction(fn_name.to_string()))?;
+		let decl_id = self
+			.runtime
+			.resolve_function(fn_name)
+			.ok_or_else(|| NuRunError::MissingFunction(fn_name.to_string()))?;
 
-		if !self.script_decls.contains(&decl_id) {
-			return Err(NuRunError::MissingFunction(fn_name.to_string()));
-		}
-
-		let value = xeno_nu_sandbox::call_function(&self.base_engine, decl_id, args, env).map_err(NuRunError::Other)?;
+		let value = self.runtime.call(decl_id, args, env).map_err(NuRunError::Other)?;
 
 		let elapsed = start.elapsed();
 		if elapsed > SLOW_CALL_THRESHOLD {
@@ -214,34 +208,6 @@ fn map_run_error(error: NuRunError) -> String {
 			format!("Nu runtime error: function '{name}' is not defined in xeno.nu")
 		}
 		NuRunError::Other(msg) => msg,
-	}
-}
-
-fn build_base_engine(config_dir: &Path, script_path: &Path, script_src: &str) -> Result<(EngineState, HashSet<DeclId>), String> {
-	let mut engine_state = xeno_nu_sandbox::create_engine_state(Some(config_dir))?;
-	let fname = script_path.to_string_lossy().to_string();
-	let parsed = xeno_nu_sandbox::parse_and_validate_with_policy(
-		&mut engine_state,
-		&fname,
-		script_src,
-		Some(config_dir),
-		xeno_nu_sandbox::ParsePolicy::ModuleOnly,
-	)
-	.map_err(|e| add_prelude_removal_hint(&e))?;
-	Ok((engine_state, parsed.script_decl_ids.into_iter().collect()))
-}
-
-/// Append a migration hint if the error looks like a `use xeno` failure.
-fn add_prelude_removal_hint(error: &str) -> String {
-	let lower = error.to_ascii_lowercase();
-	if lower.contains("use xeno") || (lower.contains("module") && lower.contains("xeno") && lower.contains("not found")) {
-		format!(
-			"{error}\n\nHint: the built-in `xeno` prelude module was removed. \
-			 Delete `use xeno *` and call built-in commands directly: \
-			 action, command, editor, \"nu run\", \"xeno ctx\"."
-		)
-	} else {
-		error.to_string()
 	}
 }
 

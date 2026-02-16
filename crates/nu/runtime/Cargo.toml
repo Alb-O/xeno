@@ -1,0 +1,16 @@
+[package]
+name = "xeno-nu-runtime"
+description = "Xeno Nu runtime facade"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+xeno-nu-core.workspace = true
+xeno-nu-value.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

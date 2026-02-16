@@ -1,4 +1,4 @@
-use xeno_nu_protocol::{CustomValue, Record, Span, Value};
+use xeno_nu_value::{CustomValue, Record, Span, Value};
 
 use super::*;
 

@@ -6,7 +6,8 @@
 use std::time::{Duration, Instant};
 
 use tracing::{debug, trace, trace_span, warn};
-use xeno_nu_protocol::Value;
+use xeno_nu_runtime::FunctionId;
+use xeno_nu_value::Value;
 use xeno_registry::actions::{ActionArgs, ActionContext, ActionResult, EditorContext, dispatch_result, find_action};
 use xeno_registry::commands::{CommandContext, find_command};
 use xeno_registry::hooks::{HookContext, emit_sync_with as emit_hook_sync_with};
@@ -499,7 +500,7 @@ impl Editor {
 		&mut self,
 		label: &str,
 		fn_name: &str,
-		decl_id: xeno_nu_protocol::DeclId,
+		decl_id: FunctionId,
 		args: Vec<String>,
 		limits: crate::nu::DecodeLimits,
 		nu_ctx: Value,
