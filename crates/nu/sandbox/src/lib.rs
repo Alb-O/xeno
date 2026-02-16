@@ -202,16 +202,7 @@ fn check_reserved_names(working_set: &xeno_nu_protocol::engine::StateWorkingSet<
 }
 
 /// Declaration names allowed at top level under [`ParsePolicy::ModuleOnly`].
-const MODULE_ONLY_ALLOWED_DECLS: &[&str] = &[
-	"export def",
-	"def",
-	"export use",
-	"use",
-	"export const",
-	"const",
-	"export module",
-	"module",
-];
+const MODULE_ONLY_ALLOWED_DECLS: &[&str] = &["export def", "def", "export use", "use", "export const", "const", "export module", "module"];
 
 /// Validates that a block contains only declarations at top level.
 fn ensure_module_only(working_set: &StateWorkingSet<'_>, block: &Block) -> Result<(), String> {

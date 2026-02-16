@@ -387,6 +387,7 @@ I/O errors should always be specific, provide more context
 	}
 }
 
+#[cfg(feature = "os-system")]
 impl From<xeno_nu_system::KillByPidError> for ErrorKind {
 	fn from(value: xeno_nu_system::KillByPidError) -> Self {
 		match value {

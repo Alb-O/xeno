@@ -5197,20 +5197,20 @@ pub fn parse_expression(working_set: &mut StateWorkingSet, spans: &[Span]) -> Ex
 				));
 				parse_call(working_set, &spans[pos..], spans[0])
 			}
-				b"overlay" => {
-					if spans.len() > 1 && working_set.get_span_contents(spans[1]) == b"list" {
-						// whitelist 'overlay list'
-						parse_call(working_set, &spans[pos..], spans[0])
-					} else {
+			b"overlay" => {
+				if spans.len() > 1 && working_set.get_span_contents(spans[1]) == b"list" {
+					// whitelist 'overlay list'
+					parse_call(working_set, &spans[pos..], spans[0])
+				} else {
 					working_set.error(ParseError::BuiltinCommandInPipeline("overlay".into(), spans[0]));
 
-						parse_call(working_set, &spans[pos..], spans[0])
-					}
+					parse_call(working_set, &spans[pos..], spans[0])
 				}
-				b"where" => parse_where_expr(working_set, &spans[pos..]),
-				_ => parse_call(working_set, &spans[pos..], spans[0]),
 			}
-		};
+			b"where" => parse_where_expr(working_set, &spans[pos..]),
+			_ => parse_call(working_set, &spans[pos..], spans[0]),
+		}
+	};
 
 	if !shorthand.is_empty() {
 		let with_env = working_set.find_decl(b"with-env");
@@ -5310,11 +5310,11 @@ pub fn parse_builtin_commands(working_set: &mut StateWorkingSet, lite_command: &
 			}
 			parse_keyword(working_set, lite_command)
 		}
-			b"source" | b"source-env" => parse_source(working_set, lite_command),
-			b"hide" => parse_hide(working_set, lite_command),
-			b"where" => parse_where(working_set, lite_command),
-			_ => {
-				let element = parse_pipeline_element(working_set, lite_command);
+		b"source" | b"source-env" => parse_source(working_set, lite_command),
+		b"hide" => parse_hide(working_set, lite_command),
+		b"where" => parse_where(working_set, lite_command),
+		_ => {
+			let element = parse_pipeline_element(working_set, lite_command);
 
 			// There is still a chance to make `parse_pipeline_element` parse into
 			// some keyword that should apply side effects first, Example:

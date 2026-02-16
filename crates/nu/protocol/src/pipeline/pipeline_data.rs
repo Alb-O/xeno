@@ -631,7 +631,6 @@ impl PipelineData {
 			},
 		}
 	}
-
 }
 
 pub fn write_all_and_flush<T>(data: T, destination: &mut impl Write, destination_name: &str, span: Option<Span>, signals: &Signals) -> Result<(), ShellError>

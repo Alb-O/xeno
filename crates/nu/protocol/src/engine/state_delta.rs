@@ -33,11 +33,11 @@ impl StateDelta {
 			decls: vec![],
 			blocks: vec![],
 			modules: vec![],
-				spans: vec![],
-				scope: vec![scope_frame],
-				doccomments: Doccomments::new(),
-			}
+			spans: vec![],
+			scope: vec![scope_frame],
+			doccomments: Doccomments::new(),
 		}
+	}
 
 	pub fn num_files(&self) -> usize {
 		self.files.len()

@@ -4,9 +4,37 @@ use std::sync::{Arc, Mutex};
 #[cfg(not(target_family = "wasm"))]
 use std::time::{Duration, Instant};
 
-use xeno_nu_system::{UnfreezeHandle, kill_by_pid};
+#[cfg(feature = "os-system")]
+use xeno_nu_system::UnfreezeHandle;
 
 use crate::{JobId, PipelineData, Signals, shell_error};
+
+#[cfg(not(feature = "os-system"))]
+#[derive(Clone, Debug)]
+pub struct UnfreezeHandle {
+	pid: u32,
+}
+
+#[cfg(not(feature = "os-system"))]
+impl UnfreezeHandle {
+	pub const fn new(pid: u32) -> Self {
+		Self { pid }
+	}
+
+	pub const fn pid(&self) -> u32 {
+		self.pid
+	}
+}
+
+#[cfg(feature = "os-system")]
+fn kill_job_process(pid: i64) -> shell_error::io::Result<()> {
+	Ok(xeno_nu_system::kill_by_pid(pid)?)
+}
+
+#[cfg(not(feature = "os-system"))]
+fn kill_job_process(_pid: i64) -> shell_error::io::Result<()> {
+	Ok(())
+}
 
 pub struct Jobs {
 	next_job_id: usize,
@@ -175,7 +203,7 @@ impl ThreadJob {
 		let mut pids = self.pids.lock().expect("PIDs lock was poisoned");
 
 		for pid in pids.iter() {
-			kill_by_pid((*pid).into())?;
+			kill_job_process((*pid).into())?;
 		}
 
 		pids.clear();
@@ -222,7 +250,7 @@ impl FrozenJob {
 	pub fn kill(&self) -> shell_error::io::Result<()> {
 		#[cfg(unix)]
 		{
-			Ok(kill_by_pid(self.unfreeze.pid() as i64)?)
+			Ok(kill_job_process(self.unfreeze.pid() as i64)?)
 		}
 
 		// it doesn't happen outside unix.

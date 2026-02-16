@@ -166,11 +166,11 @@ impl EngineState {
 				buffer: "".to_string(),
 				cursor_pos: 0,
 				accept: false,
-				})),
-				table_decl_id: None,
-				config_path: HashMap::new(),
-				history_enabled: true,
-				history_session_id: 0,
+			})),
+			table_decl_id: None,
+			config_path: HashMap::new(),
+			history_enabled: true,
+			history_session_id: 0,
 			file: None,
 			regex_cache: Arc::new(Mutex::new(LruCache::new(
 				NonZeroUsize::new(REGEX_CACHE_SIZE).expect("tried to create cache of size zero"),
@@ -274,8 +274,8 @@ impl EngineState {
 		self.scope.active_overlays.retain(|id| !activated_ids.contains(id));
 		self.scope.active_overlays.append(&mut activated_ids);
 
-			Ok(())
-		}
+		Ok(())
+	}
 
 	/// Merge the environment from the runtime Stack into the engine state
 	pub fn merge_env(&mut self, stack: &mut Stack) -> Result<(), ShellError> {
@@ -294,10 +294,10 @@ impl EngineState {
 		let cwd = self.cwd(Some(stack))?;
 		std::env::set_current_dir(cwd).map_err(|err| IoError::new_internal(err, "Could not set current dir", crate::location!()))?;
 
-			if let Some(config) = stack.config.take() {
-				// If config was updated in the stack, replace it.
-				self.config = config;
-			}
+		if let Some(config) = stack.config.take() {
+			// If config was updated in the stack, replace it.
+			self.config = config;
+		}
 
 		Ok(())
 	}

@@ -498,11 +498,11 @@ fn eval_instruction<D: DebugContext>(
 			ctx.redirect_err = eval_redirection(ctx, mode, *span, RedirectionStream::Err)?;
 			Ok(Continue)
 		}
-			Instruction::CheckErrRedirected { src } => match ctx.borrow_reg(*src) {
-				_ => Err(ShellError::GenericError {
-					error: "Can't redirect stderr of internal command output".into(),
-					msg: "piping stderr only works on external commands".into(),
-					span: Some(*span),
+		Instruction::CheckErrRedirected { src } => match ctx.borrow_reg(*src) {
+			_ => Err(ShellError::GenericError {
+				error: "Can't redirect stderr of internal command output".into(),
+				msg: "piping stderr only works on external commands".into(),
+				span: Some(*span),
 				help: None,
 				inner: vec![],
 			}),
@@ -554,13 +554,13 @@ fn eval_instruction<D: DebugContext>(
 					PipelineData::ListStream(s, ..) => s.push_caller_span(*span),
 					_ => (),
 				};
-				}
-				// After eval_call, attach result's exit_status_future
-				// to `original_exit`, so all exit_status_future are tracked
-				// in the new PipelineData, and wrap it into `PipelineExecutionData`
-				ctx.put_reg(*src_dst, PipelineExecutionData { body: result });
-				Ok(Continue)
 			}
+			// After eval_call, attach result's exit_status_future
+			// to `original_exit`, so all exit_status_future are tracked
+			// in the new PipelineData, and wrap it into `PipelineExecutionData`
+			ctx.put_reg(*src_dst, PipelineExecutionData { body: result });
+			Ok(Continue)
+		}
 		Instruction::StringAppend { src_dst, val } => {
 			let string_value = ctx.collect_reg(*src_dst, *span)?;
 			let operand_value = ctx.collect_reg(*val, *span)?;

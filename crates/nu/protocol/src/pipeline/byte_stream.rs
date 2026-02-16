@@ -566,16 +566,16 @@ impl ByteStream {
 	pub fn write_to(self, dest: impl Write) -> Result<(), ShellError> {
 		let span = self.span;
 		let signals = &self.signals;
-			match self.stream {
-				ByteStreamSource::Read(read) => {
-					copy_with_signals(read, dest, span, signals)?;
-				}
-				ByteStreamSource::File(file) => {
-					copy_with_signals(file, dest, span, signals)?;
-				}
+		match self.stream {
+			ByteStreamSource::Read(read) => {
+				copy_with_signals(read, dest, span, signals)?;
 			}
-			Ok(())
+			ByteStreamSource::File(file) => {
+				copy_with_signals(file, dest, span, signals)?;
+			}
 		}
+		Ok(())
+	}
 }
 
 impl From<ByteStream> for PipelineData {

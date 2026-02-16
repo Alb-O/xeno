@@ -201,7 +201,7 @@ fn xeno_ctx_returns_nothing_without_injection() {
 
 #[test]
 fn docs_xeno_nu_example_parses_under_module_only() {
-	let example_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/xeno.nu.example");
+	let example_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../docs/xeno.nu.example");
 	let source = std::fs::read_to_string(&example_path).expect("docs/xeno.nu.example should exist");
 	let mut engine_state = create_engine_state(None).expect("engine state");
 	parse_and_validate_with_policy(&mut engine_state, "docs/xeno.nu.example", &source, None, ParsePolicy::ModuleOnly)
