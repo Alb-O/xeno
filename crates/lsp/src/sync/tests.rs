@@ -164,7 +164,26 @@ async fn test_document_sync_returns_not_ready_before_init() {
 
 	// Ensure it's NOT initialized yet (background task might not have run)
 	if !client.is_initialized() {
-		let result = sync.notify_change_full(path, "rust", &content).await;
+		let result = sync
+			.send_change(ChangeRequest::full_text(path, "rust", content.to_string()).with_barrier(BarrierMode::None))
+			.await;
 		assert!(matches!(result, Err(crate::Error::NotReady)));
 	}
+}
+
+#[tokio::test]
+async fn test_send_change_incremental_empty_is_noop() {
+	let transport = Arc::new(SimpleStubTransport);
+	let registry = Arc::new(Registry::new(transport));
+	let documents = Arc::new(DocumentStateManager::new());
+	let sync = DocumentSync::with_registry(registry, documents);
+
+	let dispatch = sync
+		.send_change(ChangeRequest::incremental(Path::new("does/not/matter.rs"), "rust", Vec::new()))
+		.await
+		.expect("empty incremental request should noop");
+
+	assert!(dispatch.barrier.is_none());
+	assert!(dispatch.applied_version.is_none());
+	assert!(!dispatch.opened_document);
 }

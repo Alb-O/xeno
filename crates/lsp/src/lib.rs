@@ -129,7 +129,7 @@ pub use document::{DiagnosticsEvent, DiagnosticsEventReceiver, DiagnosticsEventS
 #[cfg_attr(docsrs, doc(cfg(feature = "position")))]
 pub mod sync;
 #[cfg(feature = "position")]
-pub use sync::{DocumentSync, DocumentSyncEventHandler};
+pub use sync::{BarrierMode, ChangeDispatch, ChangePayload, ChangeRequest, DocumentSync, DocumentSyncEventHandler};
 
 #[cfg(all(feature = "client", feature = "position"))]
 #[cfg_attr(docsrs, doc(cfg(all(feature = "client", feature = "position"))))]

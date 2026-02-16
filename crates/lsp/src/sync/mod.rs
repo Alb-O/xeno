@@ -18,6 +18,113 @@ pub struct DocumentSyncEventHandler {
 	documents: Arc<DocumentStateManager>,
 }
 
+/// Barrier behavior for document change dispatch.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BarrierMode {
+	/// Send and ack synchronously without waiting for a write barrier.
+	None,
+	/// Send with write barrier and ack when the barrier resolves.
+	Tracked,
+}
+
+/// Change payload sent through [`DocumentSync::send_change`].
+#[derive(Debug, Clone)]
+pub enum ChangePayload {
+	/// Full document content replacement.
+	FullText(String),
+	/// Incremental edits without full content snapshots.
+	Incremental(Vec<LspDocumentChange>),
+}
+
+/// Unified document change request.
+#[derive(Debug)]
+pub struct ChangeRequest<'a> {
+	/// Filesystem path of the target document.
+	pub path: &'a Path,
+	/// Language identifier for server lookup/open.
+	pub language: &'a str,
+	/// Payload to send.
+	pub payload: ChangePayload,
+	/// Barrier mode for this change.
+	pub barrier: BarrierMode,
+	/// Whether full-text payloads may open/reopen a missing document/client.
+	pub open_if_needed: bool,
+}
+
+impl<'a> ChangeRequest<'a> {
+	/// Construct a full-text change request.
+	pub fn full_text(path: &'a Path, language: &'a str, text: String) -> Self {
+		Self {
+			path,
+			language,
+			payload: ChangePayload::FullText(text),
+			barrier: BarrierMode::None,
+			open_if_needed: true,
+		}
+	}
+
+	/// Construct an incremental change request.
+	pub fn incremental(path: &'a Path, language: &'a str, changes: Vec<LspDocumentChange>) -> Self {
+		Self {
+			path,
+			language,
+			payload: ChangePayload::Incremental(changes),
+			barrier: BarrierMode::None,
+			open_if_needed: false,
+		}
+	}
+
+	/// Set barrier behavior.
+	pub fn with_barrier(mut self, mode: BarrierMode) -> Self {
+		self.barrier = mode;
+		self
+	}
+
+	/// Configure open-if-needed behavior.
+	pub fn with_open_if_needed(mut self, open_if_needed: bool) -> Self {
+		self.open_if_needed = open_if_needed;
+		self
+	}
+}
+
+/// Outcome of a unified change dispatch.
+pub struct ChangeDispatch {
+	/// Completion signal for tracked barriers.
+	pub barrier: Option<oneshot::Receiver<()>>,
+	/// Version queued for this change when one was sent.
+	pub applied_version: Option<i32>,
+	/// Whether this request opened/reopened the document instead of sending a didChange.
+	pub opened_document: bool,
+}
+
+impl std::fmt::Debug for ChangeDispatch {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		f.debug_struct("ChangeDispatch")
+			.field("has_barrier", &self.barrier.is_some())
+			.field("applied_version", &self.applied_version)
+			.field("opened_document", &self.opened_document)
+			.finish()
+	}
+}
+
+impl ChangeDispatch {
+	fn noop() -> Self {
+		Self {
+			barrier: None,
+			applied_version: None,
+			opened_document: false,
+		}
+	}
+
+	fn opened() -> Self {
+		Self {
+			barrier: None,
+			applied_version: None,
+			opened_document: true,
+		}
+	}
+}
+
 fn base_range_to_lsp(range: xeno_primitives::lsp::LspRange) -> lsp_types::Range {
 	lsp_types::Range {
 		start: lsp_types::Position {
@@ -86,11 +193,11 @@ impl DocumentSync {
 
 	/// Open a document with the appropriate language server.
 	pub async fn open_document(&self, path: &Path, language: &str, text: &Rope) -> Result<ClientHandle> {
-		self.open_document_text(path, language, text.to_string()).await
+		self.ensure_open_text(path, language, text.to_string()).await
 	}
 
 	/// Open a document using an owned snapshot.
-	pub async fn open_document_text(&self, path: &Path, language: &str, text: String) -> Result<ClientHandle> {
+	pub async fn ensure_open_text(&self, path: &Path, language: &str, text: String) -> Result<ClientHandle> {
 		let acquired = self.registry.acquire(language, path).await?;
 		let client = acquired.handle;
 
@@ -108,23 +215,44 @@ impl DocumentSync {
 		Ok(client)
 	}
 
-	/// Notify language servers of a document change.
-	pub async fn notify_change_full(&self, path: &Path, language: &str, text: &Rope) -> Result<()> {
-		self.notify_change_full_text(path, language, text.to_string()).await
-	}
+	/// Send a unified document change request.
+	pub async fn send_change(&self, request: ChangeRequest<'_>) -> Result<ChangeDispatch> {
+		let ChangeRequest {
+			path,
+			language,
+			payload,
+			barrier,
+			open_if_needed,
+		} = request;
 
-	/// Notify language servers of a full document change using an owned snapshot.
-	pub async fn notify_change_full_text(&self, path: &Path, language: &str, text: String) -> Result<()> {
+		if let ChangePayload::Incremental(changes) = &payload
+			&& changes.is_empty()
+		{
+			return Ok(ChangeDispatch::noop());
+		}
+
 		let uri = crate::uri_from_path(path).ok_or_else(|| crate::Error::Protocol("Invalid path".into()))?;
 
 		if !self.documents.is_opened(&uri) {
-			self.open_document_text(path, language, text).await?;
-			return Ok(());
+			return match payload {
+				ChangePayload::FullText(text) if open_if_needed => {
+					self.ensure_open_text(path, language, text).await?;
+					Ok(ChangeDispatch::opened())
+				}
+				ChangePayload::FullText(_) => Err(crate::Error::Protocol("Document not opened for full sync".into())),
+				ChangePayload::Incremental(_) => Err(crate::Error::Protocol("Document not opened for incremental sync".into())),
+			};
 		}
 
 		let Some(client) = self.registry.get(language, path) else {
-			self.open_document_text(path, language, text).await?;
-			return Ok(());
+			return match payload {
+				ChangePayload::FullText(text) if open_if_needed => {
+					self.ensure_open_text(path, language, text).await?;
+					Ok(ChangeDispatch::opened())
+				}
+				ChangePayload::FullText(_) => Err(crate::Error::Protocol("No client for language".into())),
+				ChangePayload::Incremental(_) => Err(crate::Error::Protocol("No client for language".into())),
+			};
 		};
 
 		if !client.is_initialized() {
@@ -136,121 +264,53 @@ impl DocumentSync {
 			.queue_change(&uri)
 			.ok_or_else(|| crate::Error::Protocol("Document not registered".into()))?;
 
-		if let Err(err) = client.text_document_did_change_full(uri.clone(), version, text).await {
-			self.documents.mark_force_full_sync(&uri);
-			return Err(err);
+		match payload {
+			ChangePayload::FullText(text) => self.dispatch_full_change(client, uri, version, text, barrier).await,
+			ChangePayload::Incremental(changes) => self.dispatch_incremental_change(client, uri, version, changes, barrier).await,
 		}
-		self.documents.ack_change(&uri, version);
-
-		Ok(())
 	}
 
-	/// Notify language servers of a document change with a barrier after write.
-	pub async fn notify_change_full_with_barrier(&self, path: &Path, language: &str, text: &Rope) -> Result<Option<oneshot::Receiver<()>>> {
-		self.notify_change_full_with_barrier_text(path, language, text.to_string()).await
-	}
-
-	/// Notify language servers of a full document change with a barrier and owned snapshot.
-	pub async fn notify_change_full_with_barrier_text(&self, path: &Path, language: &str, text: String) -> Result<Option<oneshot::Receiver<()>>> {
-		let uri = crate::uri_from_path(path).ok_or_else(|| crate::Error::Protocol("Invalid path".into()))?;
-
-		if !self.documents.is_opened(&uri) {
-			self.open_document_text(path, language, text).await?;
-			return Ok(None);
-		}
-
-		let Some(client) = self.registry.get(language, path) else {
-			self.open_document_text(path, language, text).await?;
-			return Ok(None);
-		};
-
-		if !client.is_initialized() {
-			return Err(crate::Error::NotReady);
-		}
-
-		let version = self
-			.documents
-			.queue_change(&uri)
-			.ok_or_else(|| crate::Error::Protocol("Document not registered".into()))?;
-
-		let barrier = match client.text_document_did_change_full_with_barrier(uri.clone(), version, text).await {
-			Ok(barrier) => barrier,
-			Err(err) => {
-				self.documents.mark_force_full_sync(&uri);
-				return Err(err);
+	async fn dispatch_full_change(&self, client: ClientHandle, uri: Uri, version: i32, text: String, barrier: BarrierMode) -> Result<ChangeDispatch> {
+		match barrier {
+			BarrierMode::None => {
+				if let Err(err) = client.text_document_did_change_full(uri.clone(), version, text).await {
+					self.documents.mark_force_full_sync(&uri);
+					return Err(err);
+				}
+				if !self.documents.ack_change(&uri, version) {
+					tracing::warn!(uri = uri.as_str(), version, "LSP immediate ack mismatch");
+				}
+				Ok(ChangeDispatch {
+					barrier: None,
+					applied_version: Some(version),
+					opened_document: false,
+				})
 			}
-		};
-		Ok(Some(self.wrap_barrier(uri, version, barrier)))
+			BarrierMode::Tracked => {
+				let barrier = match client.text_document_did_change_full_with_barrier(uri.clone(), version, text).await {
+					Ok(barrier) => barrier,
+					Err(err) => {
+						self.documents.mark_force_full_sync(&uri);
+						return Err(err);
+					}
+				};
+				Ok(ChangeDispatch {
+					barrier: Some(self.wrap_barrier(uri, version, barrier)),
+					applied_version: Some(version),
+					opened_document: false,
+				})
+			}
+		}
 	}
 
-	/// Notify language servers of an incremental document change without content.
-	pub async fn notify_change_incremental_no_content(&self, path: &Path, language: &str, changes: Vec<LspDocumentChange>) -> Result<()> {
-		if changes.is_empty() {
-			return Ok(());
-		}
-
-		let uri = crate::uri_from_path(path).ok_or_else(|| crate::Error::Protocol("Invalid path".into()))?;
-
-		if !self.documents.is_opened(&uri) {
-			return Err(crate::Error::Protocol("Document not opened for incremental sync".into()));
-		}
-
-		let Some(client) = self.registry.get(language, path) else {
-			return Err(crate::Error::Protocol("No client for language".into()));
-		};
-
-		if !client.is_initialized() {
-			return Err(crate::Error::NotReady);
-		}
-
-		let content_changes: Vec<TextDocumentContentChangeEvent> = changes
-			.into_iter()
-			.map(|change| TextDocumentContentChangeEvent {
-				range: Some(base_range_to_lsp(change.range)),
-				range_length: None,
-				text: change.new_text,
-			})
-			.collect();
-
-		let version = self
-			.documents
-			.queue_change(&uri)
-			.ok_or_else(|| crate::Error::Protocol("Document not registered".into()))?;
-
-		if let Err(err) = client.text_document_did_change(uri.clone(), version, content_changes).await {
-			self.documents.mark_force_full_sync(&uri);
-			return Err(err);
-		}
-		self.documents.ack_change(&uri, version);
-
-		Ok(())
-	}
-
-	/// Like [`Self::notify_change_incremental_no_content`] but returns a barrier receiver.
-	pub async fn notify_change_incremental_no_content_with_barrier(
+	async fn dispatch_incremental_change(
 		&self,
-		path: &Path,
-		language: &str,
+		client: ClientHandle,
+		uri: Uri,
+		version: i32,
 		changes: Vec<LspDocumentChange>,
-	) -> Result<Option<oneshot::Receiver<()>>> {
-		if changes.is_empty() {
-			return Ok(None);
-		}
-
-		let uri = crate::uri_from_path(path).ok_or_else(|| crate::Error::Protocol("Invalid path".into()))?;
-
-		if !self.documents.is_opened(&uri) {
-			return Err(crate::Error::Protocol("Document not opened for incremental sync".into()));
-		}
-
-		let Some(client) = self.registry.get(language, path) else {
-			return Err(crate::Error::Protocol("No client for language".into()));
-		};
-
-		if !client.is_initialized() {
-			return Err(crate::Error::NotReady);
-		}
-
+		barrier: BarrierMode,
+	) -> Result<ChangeDispatch> {
 		let content_changes: Vec<TextDocumentContentChangeEvent> = changes
 			.into_iter()
 			.map(|change| TextDocumentContentChangeEvent {
@@ -260,19 +320,36 @@ impl DocumentSync {
 			})
 			.collect();
 
-		let version = self
-			.documents
-			.queue_change(&uri)
-			.ok_or_else(|| crate::Error::Protocol("Document not registered".into()))?;
-
-		let barrier = match client.text_document_did_change_with_barrier(uri.clone(), version, content_changes).await {
-			Ok(barrier) => barrier,
-			Err(err) => {
-				self.documents.mark_force_full_sync(&uri);
-				return Err(err);
+		match barrier {
+			BarrierMode::None => {
+				if let Err(err) = client.text_document_did_change(uri.clone(), version, content_changes).await {
+					self.documents.mark_force_full_sync(&uri);
+					return Err(err);
+				}
+				if !self.documents.ack_change(&uri, version) {
+					tracing::warn!(uri = uri.as_str(), version, "LSP immediate ack mismatch");
+				}
+				Ok(ChangeDispatch {
+					barrier: None,
+					applied_version: Some(version),
+					opened_document: false,
+				})
 			}
-		};
-		Ok(Some(self.wrap_barrier(uri, version, barrier)))
+			BarrierMode::Tracked => {
+				let barrier = match client.text_document_did_change_with_barrier(uri.clone(), version, content_changes).await {
+					Ok(barrier) => barrier,
+					Err(err) => {
+						self.documents.mark_force_full_sync(&uri);
+						return Err(err);
+					}
+				};
+				Ok(ChangeDispatch {
+					barrier: Some(self.wrap_barrier(uri, version, barrier)),
+					applied_version: Some(version),
+					opened_document: false,
+				})
+			}
+		}
 	}
 
 	fn wrap_barrier(&self, uri: Uri, version: i32, barrier: oneshot::Receiver<crate::Result<()>>) -> oneshot::Receiver<()> {

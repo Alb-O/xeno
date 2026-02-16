@@ -196,7 +196,7 @@ async fn make_session_runtime(transport: Arc<TestTransport>) -> (LspSession, Lsp
 	let path = make_temp_file("session", false);
 	session
 		.sync()
-		.open_document_text(&path, "rust", "fn main() {}".to_string())
+		.ensure_open_text(&path, "rust", "fn main() {}".to_string())
 		.await
 		.expect("must open document");
 	let server_id = session.registry().get("rust", &path).expect("server must exist").id();
@@ -481,7 +481,7 @@ pub(crate) async fn test_server_request_workspace_folders_uri_encoding() {
 
 /// Must not send change notifications before client initialization completes.
 ///
-/// * Enforced in: `DocumentSync::*` (initialization gate)
+/// * Enforced in: `DocumentSync::send_change` (initialization gate)
 /// * Failure symptom: Server receives didChange before didOpen/initialization.
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_document_sync_returns_not_ready_before_init() {
@@ -498,8 +498,39 @@ pub(crate) async fn test_document_sync_returns_not_ready_before_init() {
 	let path = make_temp_file("not-ready", false);
 	let content = ropey::Rope::from("fn main() {}\n");
 	sync.open_document(&path, "rust", &content).await.expect("must open document");
-	let result = sync.notify_change_full(&path, "rust", &content).await;
+	let result = sync
+		.send_change(crate::ChangeRequest::full_text(&path, "rust", content.to_string()).with_barrier(crate::BarrierMode::None))
+		.await;
 	assert!(matches!(result, Err(crate::Error::NotReady)));
+}
+
+/// Must route outbound document changes through `DocumentSync::send_change`.
+///
+/// * Enforced in: `DocumentSync::send_change`
+/// * Failure symptom: Divergent didChange open/ack behavior across call paths.
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_document_sync_send_change_full_opens_when_missing() {
+	let transport = TestTransport::new();
+	let (sync, registry, _documents, _receiver) = DocumentSync::create(transport);
+	registry.register(
+		"rust",
+		LanguageServerConfig {
+			command: "rust-analyzer".into(),
+			..Default::default()
+		},
+	);
+
+	let path = make_temp_file("send-change-open", false);
+	let dispatch = sync
+		.send_change(crate::ChangeRequest::full_text(&path, "rust", "fn main() {}\n".to_string()).with_barrier(crate::BarrierMode::Tracked))
+		.await
+		.expect("full request should open missing document");
+
+	assert!(dispatch.opened_document);
+	assert!(dispatch.applied_version.is_none());
+	assert!(dispatch.barrier.is_none());
+	let uri = crate::uri_from_path(&path).expect("uri");
+	assert!(sync.documents().is_opened(&uri));
 }
 
 /// Must gate position-dependent requests on client readiness.

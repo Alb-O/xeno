@@ -69,7 +69,7 @@ pub async fn run_lsp_smoke(workspace: Option<std::path::PathBuf>) -> anyhow::Res
 	let content = std::fs::read_to_string(&test_file)?;
 	let client = lsp_system
 		.sync()
-		.open_document_text(&test_file, "rust", content)
+		.ensure_open_text(&test_file, "rust", content)
 		.await
 		.map_err(|e| anyhow::anyhow!(e))?;
 

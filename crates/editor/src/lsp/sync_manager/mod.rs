@@ -13,18 +13,35 @@
 
 mod sync_state;
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
 use ropey::Rope;
 pub use sync_state::*;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, warn};
-use xeno_lsp::DocumentSync;
+use xeno_lsp::{BarrierMode, ChangePayload, ChangeRequest, DocumentSync};
 use xeno_primitives::{DocumentId, LspDocumentChange};
 
 use super::coalesce::coalesce_changes;
 use crate::metrics::EditorMetrics;
+
+#[derive(Debug)]
+enum SendWork {
+	Full { content: Rope, snapshot_bytes: u64 },
+	Incremental { changes: Vec<LspDocumentChange> },
+}
+
+impl SendWork {
+	fn was_full(&self) -> bool {
+		matches!(self, Self::Full { .. })
+	}
+
+	fn mode(&self) -> &'static str {
+		if self.was_full() { "full" } else { "incremental" }
+	}
+}
 
 /// Unified LSP sync manager owning all pending changes per document.
 pub struct LspSyncManager {
@@ -111,6 +128,124 @@ impl LspSyncManager {
 		}
 	}
 
+	fn spawn_send_task(
+		completion_tx: mpsc::UnboundedSender<FlushComplete>,
+		sync: DocumentSync,
+		metrics: Arc<EditorMetrics>,
+		doc_id: DocumentId,
+		generation: u64,
+		path: PathBuf,
+		language: String,
+		work: SendWork,
+		done_tx: Option<oneshot::Sender<()>>,
+	) {
+		tokio::spawn(async move {
+			let mode = work.mode();
+			let was_full = work.was_full();
+			let start = Instant::now();
+
+			let send_result = match work {
+				SendWork::Full { content, snapshot_bytes } => {
+					let snapshot = match tokio::task::spawn_blocking(move || content.to_string()).await {
+						Ok(snapshot) => snapshot,
+						Err(e) => {
+							metrics.inc_send_error();
+							warn!(
+								doc_id = doc_id.0,
+								path = ?path,
+								error = %e,
+								"lsp.sync_manager.snapshot_join_failed"
+							);
+							let _ = completion_tx.send(FlushComplete {
+								doc_id,
+								generation,
+								result: FlushResult::Failed,
+								was_full,
+							});
+							if let Some(done_tx) = done_tx {
+								let _ = done_tx.send(());
+							}
+							return;
+						}
+					};
+					metrics.add_snapshot_bytes(snapshot_bytes);
+					sync.send_change(
+						ChangeRequest::full_text(&path, &language, snapshot)
+							.with_barrier(BarrierMode::Tracked)
+							.with_open_if_needed(true),
+					)
+					.await
+				}
+				SendWork::Incremental { changes } => {
+					sync.send_change(ChangeRequest {
+						path: &path,
+						language: &language,
+						payload: ChangePayload::Incremental(changes),
+						barrier: BarrierMode::Tracked,
+						open_if_needed: false,
+					})
+					.await
+				}
+			};
+
+			let latency_ms = start.elapsed().as_millis() as u64;
+			let flush_result = match send_result {
+				Ok(dispatch) => match dispatch.barrier {
+					Some(barrier) => match tokio::time::timeout(LSP_WRITE_TIMEOUT, barrier).await {
+						Ok(Ok(())) => {
+							if was_full {
+								metrics.inc_full_sync();
+							} else {
+								metrics.inc_incremental_sync();
+							}
+							debug!(doc_id = doc_id.0, path = ?path, mode, latency_ms, "lsp.sync_manager.flush_done");
+							FlushResult::Success
+						}
+						Ok(Err(_)) => {
+							metrics.inc_send_error();
+							warn!(doc_id = doc_id.0, path = ?path, mode, latency_ms, "lsp.sync_manager.barrier_dropped");
+							FlushResult::Failed
+						}
+						Err(_) => {
+							metrics.inc_send_error();
+							warn!(doc_id = doc_id.0, path = ?path, mode, latency_ms, "lsp.sync_manager.barrier_timeout");
+							FlushResult::Failed
+						}
+					},
+					None => {
+						if was_full {
+							metrics.inc_full_sync();
+						} else {
+							metrics.inc_incremental_sync();
+						}
+						debug!(doc_id = doc_id.0, path = ?path, mode, latency_ms, "lsp.sync_manager.flush_done");
+						FlushResult::Success
+					}
+				},
+				Err(err) => {
+					metrics.inc_send_error();
+					let classified = FlushResult::from_error(&err);
+					if classified == FlushResult::Retryable {
+						debug!(doc_id = doc_id.0, path = ?path, mode, latency_ms, error = ?err, "lsp.sync_manager.flush_retryable");
+					} else {
+						warn!(doc_id = doc_id.0, path = ?path, mode, latency_ms, error = ?err, "lsp.sync_manager.flush_failed");
+					}
+					classified
+				}
+			};
+
+			let _ = completion_tx.send(FlushComplete {
+				doc_id,
+				generation,
+				result: flush_result,
+				was_full,
+			});
+			if let Some(done_tx) = done_tx {
+				let _ = done_tx.send(());
+			}
+		});
+	}
+
 	/// Flushes one tracked document immediately, bypassing debounce.
 	///
 	/// Returns a receiver that resolves when the write barrier (if any) completes.
@@ -141,71 +276,11 @@ impl LspSyncManager {
 		let use_full = state.needs_full || !state.config.supports_incremental;
 		let (done_tx, done_rx) = tokio::sync::oneshot::channel();
 
-		if use_full {
+		let work = if use_full {
 			let (content, _snapshot_version) = snapshot?;
 			let snapshot_bytes = content.len_bytes() as u64;
 			let _ = state.take_for_send(true);
-			let sync = sync.clone();
-			let tx = self.completion_tx.clone();
-			let metrics = metrics.clone();
-
-			tokio::spawn(async move {
-				let snapshot = match tokio::task::spawn_blocking(move || content.to_string()).await {
-					Ok(snapshot) => snapshot,
-					Err(e) => {
-						metrics.inc_send_error();
-						warn!(
-							doc_id = doc_id.0,
-							path = ?path,
-							error = %e,
-							"lsp.sync_manager.snapshot_join_failed"
-						);
-						let _ = tx.send(FlushComplete {
-							doc_id,
-							generation,
-							result: FlushResult::Failed,
-							was_full: true,
-						});
-						let _ = done_tx.send(());
-						return;
-					}
-				};
-				metrics.add_snapshot_bytes(snapshot_bytes);
-
-				let result = sync.notify_change_full_with_barrier_text(&path, &language, snapshot).await;
-				let flush_result = match result {
-					Ok(Some(barrier)) => match tokio::time::timeout(LSP_WRITE_TIMEOUT, barrier).await {
-						Ok(Ok(())) => {
-							metrics.inc_full_sync();
-							FlushResult::Success
-						}
-						Ok(Err(_)) => {
-							metrics.inc_send_error();
-							FlushResult::Failed
-						}
-						Err(_) => {
-							metrics.inc_send_error();
-							FlushResult::Failed
-						}
-					},
-					Ok(None) => {
-						metrics.inc_full_sync();
-						FlushResult::Success
-					}
-					Err(err) => {
-						metrics.inc_send_error();
-						FlushResult::from_error(&err)
-					}
-				};
-
-				let _ = tx.send(FlushComplete {
-					doc_id,
-					generation,
-					result: flush_result,
-					was_full: true,
-				});
-				let _ = done_tx.send(());
-			});
+			SendWork::Full { content, snapshot_bytes }
 		} else {
 			let (raw_changes, _) = state.take_for_send(false);
 			let raw_count = raw_changes.len();
@@ -214,47 +289,20 @@ impl LspSyncManager {
 			if coalesced > 0 {
 				metrics.add_coalesced(coalesced as u64);
 			}
+			SendWork::Incremental { changes }
+		};
 
-			let sync = sync.clone();
-			let tx = self.completion_tx.clone();
-			let metrics = metrics.clone();
-
-			tokio::spawn(async move {
-				let result = sync.notify_change_incremental_no_content_with_barrier(&path, &language, changes).await;
-				let flush_result = match result {
-					Ok(Some(barrier)) => match tokio::time::timeout(LSP_WRITE_TIMEOUT, barrier).await {
-						Ok(Ok(())) => {
-							metrics.inc_incremental_sync();
-							FlushResult::Success
-						}
-						Ok(Err(_)) => {
-							metrics.inc_send_error();
-							FlushResult::Failed
-						}
-						Err(_) => {
-							metrics.inc_send_error();
-							FlushResult::Failed
-						}
-					},
-					Ok(None) => {
-						metrics.inc_incremental_sync();
-						FlushResult::Success
-					}
-					Err(err) => {
-						metrics.inc_send_error();
-						FlushResult::from_error(&err)
-					}
-				};
-
-				let _ = tx.send(FlushComplete {
-					doc_id,
-					generation,
-					result: flush_result,
-					was_full: false,
-				});
-				let _ = done_tx.send(());
-			});
-		}
+		Self::spawn_send_task(
+			self.completion_tx.clone(),
+			sync.clone(),
+			metrics.clone(),
+			doc_id,
+			generation,
+			path,
+			language,
+			work,
+			Some(done_tx),
+		);
 
 		if let Some(state) = self.docs.get_mut(&doc_id) {
 			state.retry_after = None;
@@ -337,7 +385,7 @@ impl LspSyncManager {
 			let use_full = state.needs_full || !state.config.supports_incremental;
 			let editor_version = state.editor_version;
 
-			if use_full {
+			let work = if use_full {
 				let Some((content, snapshot_version)) = snapshot_provider(doc_id) else {
 					warn!(doc_id = doc_id.0, "lsp.sync_manager.no_snapshot");
 					continue;
@@ -357,78 +405,7 @@ impl LspSyncManager {
 					"lsp.sync_manager.flush_start"
 				);
 
-				let sync = sync.clone();
-				let tx = self.completion_tx.clone();
-				let metrics = metrics.clone();
-
-				tokio::spawn(async move {
-					let start = Instant::now();
-					let snapshot = match tokio::task::spawn_blocking(move || content.to_string()).await {
-						Ok(snapshot) => snapshot,
-						Err(e) => {
-							metrics.inc_send_error();
-							warn!(
-								doc_id = doc_id.0,
-								path = ?path,
-								error = %e,
-								"lsp.sync_manager.snapshot_join_failed"
-							);
-							let _ = tx.send(FlushComplete {
-								doc_id,
-								generation,
-								result: FlushResult::Failed,
-								was_full: true,
-							});
-							return;
-						}
-					};
-					metrics.add_snapshot_bytes(snapshot_bytes);
-
-					let result = sync.notify_change_full_with_barrier_text(&path, &language, snapshot).await;
-					let latency_ms = start.elapsed().as_millis() as u64;
-
-					let flush_result = match result {
-						Ok(Some(barrier)) => match tokio::time::timeout(LSP_WRITE_TIMEOUT, barrier).await {
-							Ok(Ok(())) => {
-								metrics.inc_full_sync();
-								debug!(doc_id = doc_id.0, path = ?path, mode = "full", latency_ms, "lsp.sync_manager.flush_done");
-								FlushResult::Success
-							}
-							Ok(Err(_)) => {
-								metrics.inc_send_error();
-								warn!(doc_id = doc_id.0, path = ?path, mode = "full", latency_ms, "lsp.sync_manager.barrier_dropped");
-								FlushResult::Failed
-							}
-							Err(_) => {
-								metrics.inc_send_error();
-								warn!(doc_id = doc_id.0, path = ?path, mode = "full", latency_ms, "lsp.sync_manager.barrier_timeout");
-								FlushResult::Failed
-							}
-						},
-						Ok(None) => {
-							metrics.inc_full_sync();
-							debug!(doc_id = doc_id.0, path = ?path, mode = "full", latency_ms, "lsp.sync_manager.flush_done");
-							FlushResult::Success
-						}
-						Err(err) => {
-							metrics.inc_send_error();
-							let classified = FlushResult::from_error(&err);
-							if classified == FlushResult::Retryable {
-								debug!(doc_id = doc_id.0, path = ?path, mode = "full", latency_ms, error = ?err, "lsp.sync_manager.flush_retryable");
-							} else {
-								warn!(doc_id = doc_id.0, path = ?path, mode = "full", latency_ms, error = ?err, "lsp.sync_manager.flush_failed");
-							}
-							classified
-						}
-					};
-
-					let _ = tx.send(FlushComplete {
-						doc_id,
-						generation,
-						result: flush_result,
-						was_full: true,
-					});
-				});
+				SendWork::Full { content, snapshot_bytes }
 			} else {
 				let (raw_changes, _) = state.take_for_send(false);
 				let raw_count = raw_changes.len();
@@ -452,58 +429,20 @@ impl LspSyncManager {
 					"lsp.sync_manager.flush_start"
 				);
 
-				let sync = sync.clone();
-				let tx = self.completion_tx.clone();
-				let metrics = metrics.clone();
+				SendWork::Incremental { changes }
+			};
 
-				tokio::spawn(async move {
-					let start = Instant::now();
-					let result = sync.notify_change_incremental_no_content_with_barrier(&path, &language, changes).await;
-					let latency_ms = start.elapsed().as_millis() as u64;
-
-					let flush_result = match result {
-						Ok(Some(barrier)) => match tokio::time::timeout(LSP_WRITE_TIMEOUT, barrier).await {
-							Ok(Ok(())) => {
-								metrics.inc_incremental_sync();
-								debug!(doc_id = doc_id.0, path = ?path, mode = "incremental", latency_ms, "lsp.sync_manager.flush_done");
-								FlushResult::Success
-							}
-							Ok(Err(_)) => {
-								metrics.inc_send_error();
-								warn!(doc_id = doc_id.0, path = ?path, mode = "incremental", latency_ms, "lsp.sync_manager.barrier_dropped");
-								FlushResult::Failed
-							}
-							Err(_) => {
-								metrics.inc_send_error();
-								warn!(doc_id = doc_id.0, path = ?path, mode = "incremental", latency_ms, "lsp.sync_manager.barrier_timeout");
-								FlushResult::Failed
-							}
-						},
-						Ok(None) => {
-							metrics.inc_incremental_sync();
-							debug!(doc_id = doc_id.0, path = ?path, mode = "incremental", latency_ms, "lsp.sync_manager.flush_done");
-							FlushResult::Success
-						}
-						Err(err) => {
-							metrics.inc_send_error();
-							let classified = FlushResult::from_error(&err);
-							if classified == FlushResult::Retryable {
-								debug!(doc_id = doc_id.0, path = ?path, mode = "incremental", latency_ms, error = ?err, "lsp.sync_manager.flush_retryable");
-							} else {
-								warn!(doc_id = doc_id.0, path = ?path, mode = "incremental", latency_ms, error = ?err, "lsp.sync_manager.flush_failed");
-							}
-							classified
-						}
-					};
-
-					let _ = tx.send(FlushComplete {
-						doc_id,
-						generation,
-						result: flush_result,
-						was_full: false,
-					});
-				});
-			}
+			Self::spawn_send_task(
+				self.completion_tx.clone(),
+				sync.clone(),
+				metrics.clone(),
+				doc_id,
+				generation,
+				path,
+				language,
+				work,
+				None,
+			);
 
 			if let Some(state) = self.docs.get_mut(&doc_id) {
 				state.retry_after = None;

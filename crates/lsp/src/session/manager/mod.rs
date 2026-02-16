@@ -21,7 +21,7 @@
 //! | `LspSystem` (in `xeno-editor`) | Editor integration root for LSP | Must hold both session and runtime | `LspSystem::new` |
 //! | [`crate::session::manager::LspSession`] | High-level client/session API | Must not own router task lifecycle | [`crate::session::manager::LspSession::new`] |
 //! | [`crate::session::manager::LspRuntime`] | Router lifecycle owner | Must subscribe transport events exactly once | [`crate::session::manager::LspRuntime::start`] |
-//! | [`crate::sync::DocumentSync`] | High-level document sync coordinator | Must gate change notifications on initialization state | `DocumentSync::*` |
+//! | [`crate::sync::DocumentSync`] | High-level document sync coordinator | Must route outbound edits through `send_change` and gate change notifications on initialization state | `DocumentSync::send_change` |
 //! | [`crate::registry::Registry`] | Maps `(language, root_path)` to running clients | Must singleflight `transport.start()` per key | `Registry::acquire` |
 //! | `RegistryState` | Consolidated registry indices + slot/generation tracking | Must update `servers`/`server_meta`/`id_index` atomically | `Registry::acquire`, `Registry::remove_server` |
 //! | [`crate::client::LanguageServerId`] | Instance identifier: slot + generation | Generation must increase on each restart | `RegistryState::next_gen`, `ServerConfig::id` |
@@ -40,6 +40,7 @@
 //! * `workspace/configuration` response must match the request item count.
 //! * `workspace/workspaceFolders` response must use percent-encoded URIs.
 //! * Must not send change notifications before client initialization completes.
+//! * Must route outbound document changes through `DocumentSync::send_change`.
 //! * Must gate position-dependent requests on client readiness.
 //! * Must return `None` for capabilities before initialization.
 //! * Ready flag must require capabilities with release/acquire ordering.
@@ -61,7 +62,7 @@
 //!
 //! * Configuration: editor registers [`crate::registry::LanguageServerConfig`] via [`crate::session::manager::LspSession::configure_server`].
 //! * Startup: first open/change acquires or starts the server in [`crate::registry::Registry`].
-//! * Running: didOpen/didChange/didSave/didClose flow through [`crate::sync::DocumentSync`].
+//! * Running: didOpen/didChange/didSave/didClose flow through [`crate::sync::DocumentSync`] (`ensure_open_text`, `send_change`, save/close helpers).
 //! * Shutdown: editor first stops runtime, then stops all servers via [`crate::session::manager::LspSession::shutdown_all`].
 //!
 //! # Concurrency & ordering
