@@ -3,10 +3,7 @@
 //! Single entry point for user-invoked operations with consistent capability
 //! checking, hook emission, and error handling.
 
-use std::time::{Duration, Instant};
-
 use tracing::{debug, trace, trace_span, warn};
-use xeno_nu_runtime::FunctionId;
 use xeno_nu_value::Value;
 use xeno_registry::actions::{ActionArgs, ActionContext, ActionResult, EditorContext, dispatch_result, find_action};
 use xeno_registry::commands::{CommandContext, find_command};
@@ -15,11 +12,12 @@ use xeno_registry::{CommandError, HookEventData, RegistryEntry};
 
 use crate::commands::{CommandOutcome, EditorCommandContext, find_editor_command};
 use crate::impls::Editor;
+use crate::nu::coordinator::errors::exec_error_message;
+use crate::nu::coordinator::runner::{NuExecKind, execute_with_restart};
+use crate::nu::coordinator::{InFlightNuHook, QueuedNuHook};
 use crate::types::{Invocation, InvocationPolicy, InvocationResult};
 
 const MAX_NU_MACRO_DEPTH: u8 = 8;
-const SLOW_NU_HOOK_THRESHOLD: Duration = Duration::from_millis(2);
-const SLOW_NU_MACRO_THRESHOLD: Duration = Duration::from_millis(5);
 
 /// Maximum pending Nu hooks before oldest are dropped.
 const MAX_PENDING_NU_HOOKS: usize = 64;
@@ -121,13 +119,13 @@ impl Editor {
 			}
 
 			Invocation::Nu { name, args } => {
-				if self.state.nu_macro_depth >= MAX_NU_MACRO_DEPTH {
+				if self.state.nu.macro_depth() >= MAX_NU_MACRO_DEPTH {
 					return InvocationResult::CommandError(format!("Nu macro recursion depth exceeded ({MAX_NU_MACRO_DEPTH})"));
 				}
 
-				self.state.nu_macro_depth += 1;
+				self.state.nu.inc_macro_depth();
 				let result = self.run_nu_macro_invocation(name, args, policy).await;
-				self.state.nu_macro_depth = self.state.nu_macro_depth.saturating_sub(1);
+				self.state.nu.dec_macro_depth();
 				result
 			}
 		}
@@ -139,43 +137,22 @@ impl Editor {
 	/// drops the oldest entry when the queue exceeds `MAX_PENDING_NU_HOOKS`.
 	fn enqueue_nu_hook(&mut self, hook: crate::nu::NuHook, args: Vec<String>) {
 		// Don't enqueue during hook drain (prevents recursive hook chains).
-		if self.state.nu_hook_depth > 0 {
+		if self.state.nu.in_hook_drain() {
 			return;
 		}
 
 		// Skip if the hook function isn't defined.
-		let has_decl = match hook {
-			crate::nu::NuHook::ActionPost => self.state.nu_hook_ids.on_action_post.is_some(),
-			crate::nu::NuHook::CommandPost => self.state.nu_hook_ids.on_command_post.is_some(),
-			crate::nu::NuHook::EditorCommandPost => self.state.nu_hook_ids.on_editor_command_post.is_some(),
-			crate::nu::NuHook::ModeChange => self.state.nu_hook_ids.on_mode_change.is_some(),
-			crate::nu::NuHook::BufferOpen => self.state.nu_hook_ids.on_buffer_open.is_some(),
-		};
-		if !has_decl {
+		if !self.state.nu.has_hook_decl(hook) {
 			return;
 		}
 
-		// Coalesce: if back of queue is the same hook type, replace args and reset retries.
-		if let Some(back) = self.state.nu_hook_queue.back_mut()
-			&& back.hook == hook
-		{
-			back.args = args;
-			back.retries = 0;
-			return;
-		}
-
-		// Backlog cap: drop oldest if full.
-		if self.state.nu_hook_queue.len() >= MAX_PENDING_NU_HOOKS {
-			self.state.nu_hook_queue.pop_front();
-			self.state.nu_hook_dropped_total += 1;
+		if self.state.nu.enqueue_hook(hook, args, MAX_PENDING_NU_HOOKS) {
 			trace!(
-				queue_len = self.state.nu_hook_queue.len(),
-				dropped_total = self.state.nu_hook_dropped_total,
+				queue_len = self.state.nu.hook_queue_len(),
+				dropped_total = self.state.nu.hook_dropped_total(),
 				"nu_hook.drop_oldest"
 			);
 		}
-
-		self.state.nu_hook_queue.push_back(super::QueuedNuHook { hook, args, retries: 0 });
 	}
 
 	/// Enqueues `on_action_post` hook for key-handling action dispatch path.
@@ -202,28 +179,22 @@ impl Editor {
 	/// Each kicked job receives a monotonic `job_id` for stale-result
 	/// protection after runtime swaps.
 	pub(crate) fn kick_nu_hook_eval(&mut self) {
-		if self.state.nu_hook_in_flight.is_some() || self.state.nu_hook_queue.is_empty() {
+		if self.state.nu.hook_in_flight().is_some() || !self.state.nu.has_queued_hooks() {
 			return;
 		}
 
-		let Some(queued) = self.state.nu_hook_queue.pop_front() else {
+		let Some(queued) = self.state.nu.pop_queued_hook() else {
 			return;
 		};
 
 		let fn_name = queued.hook.fn_name();
-		let decl_id = match queued.hook {
-			crate::nu::NuHook::ActionPost => self.state.nu_hook_ids.on_action_post,
-			crate::nu::NuHook::CommandPost => self.state.nu_hook_ids.on_command_post,
-			crate::nu::NuHook::EditorCommandPost => self.state.nu_hook_ids.on_editor_command_post,
-			crate::nu::NuHook::ModeChange => self.state.nu_hook_ids.on_mode_change,
-			crate::nu::NuHook::BufferOpen => self.state.nu_hook_ids.on_buffer_open,
-		};
+		let decl_id = self.state.nu.hook_decl(queued.hook);
 
 		let Some(decl_id) = decl_id else {
 			return;
 		};
 
-		if self.ensure_nu_executor().is_none() {
+		if self.state.nu.ensure_executor().is_none() {
 			return;
 		}
 
@@ -236,13 +207,12 @@ impl Editor {
 		let nu_ctx = self.build_nu_ctx("hook", fn_name, &queued.args);
 		let env = vec![("XENO_CTX".to_string(), nu_ctx)];
 
-		let executor_client = self.state.nu_executor.as_ref().unwrap().client();
+		let executor_client = self.state.nu.executor_client().expect("executor should exist");
 		let msg_tx = self.state.msg_tx.clone();
 
-		let job_id = self.state.nu_hook_job_next;
-		self.state.nu_hook_job_next = self.state.nu_hook_job_next.wrapping_add(1);
+		let job_id = self.state.nu.next_hook_job_id();
 
-		self.state.nu_hook_in_flight = Some(super::InFlightNuHook {
+		self.state.nu.set_hook_in_flight(InFlightNuHook {
 			job_id,
 			hook: queued.hook,
 			args: queued.args.clone(),
@@ -272,13 +242,13 @@ impl Editor {
 	/// Ignores stale results (job_id mismatch after runtime swap).
 	/// On executor death, restarts the executor and retries once.
 	pub(crate) fn apply_nu_hook_eval_done(&mut self, msg: crate::msg::NuHookEvalDoneMsg) -> crate::msg::Dirty {
-		let in_flight_job_id = self.state.nu_hook_in_flight.as_ref().map(|i| i.job_id);
+		let in_flight_job_id = self.state.nu.hook_in_flight_job_id();
 		if in_flight_job_id != Some(msg.job_id) {
 			// Stale result from a previous runtime — ignore.
 			return crate::msg::Dirty::NONE;
 		}
 
-		let in_flight = self.state.nu_hook_in_flight.take().unwrap();
+		let in_flight = self.state.nu.take_hook_in_flight().unwrap();
 
 		match msg.result {
 			Ok(invocations) => {
@@ -287,7 +257,7 @@ impl Editor {
 				} else {
 					crate::msg::Dirty::FULL
 				};
-				self.state.nu_hook_pending_invocations.extend(invocations);
+				self.state.nu.extend_pending_hook_invocations(invocations);
 				dirty
 			}
 			Err(crate::msg::NuHookEvalError::Eval(error)) => {
@@ -296,16 +266,16 @@ impl Editor {
 			}
 			Err(crate::msg::NuHookEvalError::ExecutorShutdown | crate::msg::NuHookEvalError::ReplyDropped) => {
 				warn!("Nu executor died during hook eval, restarting");
-				self.restart_nu_executor();
+				self.state.nu.restart_executor();
 				if in_flight.retries == 0 {
-					self.state.nu_hook_queue.push_front(super::QueuedNuHook {
+					self.state.nu.push_front_queued_hook(QueuedNuHook {
 						hook: in_flight.hook,
 						args: in_flight.args,
 						retries: 1,
 					});
 				} else {
-					self.state.nu_hook_failed_total += 1;
-					warn!(failed_total = self.state.nu_hook_failed_total, "Nu hook retry exhausted");
+					self.state.nu.inc_hook_failed_total();
+					warn!(failed_total = self.state.nu.hook_failed_total(), "Nu hook retry exhausted");
 				}
 				crate::msg::Dirty::NONE
 			}
@@ -317,14 +287,14 @@ impl Editor {
 	/// Called from pump() after message drain. Executes invocations produced
 	/// by completed hook evaluations. Returns true if any produced quit.
 	pub(crate) async fn drain_nu_hook_invocations(&mut self, max: usize) -> bool {
-		if self.state.nu_hook_pending_invocations.is_empty() {
+		if !self.state.nu.has_pending_hook_invocations() {
 			return false;
 		}
 
-		self.state.nu_hook_depth += 1;
+		self.state.nu.inc_hook_depth();
 
 		for _ in 0..max {
-			let Some(invocation) = self.state.nu_hook_pending_invocations.pop_front() else {
+			let Some(invocation) = self.state.nu.pop_pending_hook_invocation() else {
 				break;
 			};
 
@@ -333,7 +303,7 @@ impl Editor {
 			match result {
 				InvocationResult::Ok => {}
 				InvocationResult::Quit | InvocationResult::ForceQuit => {
-					self.state.nu_hook_depth = self.state.nu_hook_depth.saturating_sub(1);
+					self.state.nu.dec_hook_depth();
 					return true;
 				}
 				InvocationResult::NotFound(target) => {
@@ -351,7 +321,7 @@ impl Editor {
 			}
 		}
 
-		self.state.nu_hook_depth = self.state.nu_hook_depth.saturating_sub(1);
+		self.state.nu.dec_hook_depth();
 		false
 	}
 
@@ -361,28 +331,28 @@ impl Editor {
 	/// Only used in tests; production code uses kick + poll via pump().
 	#[cfg(test)]
 	pub(crate) async fn drain_nu_hook_queue(&mut self, max: usize) -> bool {
-		if self.state.nu_hook_queue.is_empty() {
+		if !self.state.nu.has_queued_hooks() {
 			return false;
 		}
 
-		let to_drain = max.min(self.state.nu_hook_queue.len());
-		self.state.nu_hook_depth += 1;
+		let to_drain = max.min(self.state.nu.hook_queue_len());
+		self.state.nu.inc_hook_depth();
 
 		for _ in 0..to_drain {
-			let Some(queued) = self.state.nu_hook_queue.pop_front() else {
+			let Some(queued) = self.state.nu.pop_queued_hook() else {
 				break;
 			};
 
 			match self.run_single_nu_hook_sync(queued.hook, queued.args).await {
 				Some(InvocationResult::Quit) | Some(InvocationResult::ForceQuit) => {
-					self.state.nu_hook_depth = self.state.nu_hook_depth.saturating_sub(1);
+					self.state.nu.dec_hook_depth();
 					return true;
 				}
 				_ => {}
 			}
 		}
 
-		self.state.nu_hook_depth = self.state.nu_hook_depth.saturating_sub(1);
+		self.state.nu.dec_hook_depth();
 		false
 	}
 
@@ -390,15 +360,8 @@ impl Editor {
 	#[cfg(test)]
 	async fn run_single_nu_hook_sync(&mut self, hook: crate::nu::NuHook, args: Vec<String>) -> Option<InvocationResult> {
 		let fn_name = hook.fn_name();
-		let decl_id = match hook {
-			crate::nu::NuHook::ActionPost => self.state.nu_hook_ids.on_action_post,
-			crate::nu::NuHook::CommandPost => self.state.nu_hook_ids.on_command_post,
-			crate::nu::NuHook::EditorCommandPost => self.state.nu_hook_ids.on_editor_command_post,
-			crate::nu::NuHook::ModeChange => self.state.nu_hook_ids.on_mode_change,
-			crate::nu::NuHook::BufferOpen => self.state.nu_hook_ids.on_buffer_open,
-		}?;
-
-		self.ensure_nu_executor()?;
+		let decl_id = self.state.nu.hook_decl(hook)?;
+		self.state.nu.ensure_executor()?;
 
 		let limits = self
 			.state
@@ -408,7 +371,7 @@ impl Editor {
 			.map_or_else(crate::nu::DecodeLimits::hook_defaults, |c| c.hook_decode_limits());
 		let nu_ctx = self.build_nu_ctx("hook", fn_name, &args);
 
-		let invocations = match self.run_nu_with_restart("hook", fn_name, decl_id, args, limits, nu_ctx).await {
+		let invocations = match execute_with_restart(&mut self.state.nu, NuExecKind::Hook, fn_name, decl_id, args, limits, nu_ctx).await {
 			Ok(invocations) => invocations,
 			Err(error) => {
 				warn!(hook = fn_name, error = ?error, "Nu hook failed");
@@ -456,7 +419,7 @@ impl Editor {
 			return InvocationResult::CommandError(error);
 		};
 
-		if self.ensure_nu_executor().is_none() {
+		if self.state.nu.ensure_executor().is_none() {
 			return InvocationResult::CommandError("Nu executor is not available".to_string());
 		}
 
@@ -468,7 +431,7 @@ impl Editor {
 			.map_or_else(crate::nu::DecodeLimits::macro_defaults, |c| c.macro_decode_limits());
 		let nu_ctx = self.build_nu_ctx("macro", &fn_name, &args);
 
-		let invocations = match self.run_nu_with_restart("macro", &fn_name, decl_id, args, limits, nu_ctx).await {
+		let invocations = match execute_with_restart(&mut self.state.nu, NuExecKind::Macro, &fn_name, decl_id, args, limits, nu_ctx).await {
 			Ok(invocations) => invocations,
 			Err(error) => {
 				let msg = exec_error_message(&error);
@@ -490,51 +453,6 @@ impl Editor {
 		}
 
 		InvocationResult::Ok
-	}
-
-	/// Run a Nu function on the executor with automatic restart-and-retry on shutdown.
-	///
-	/// Handles `Shutdown` (retry once after restart), `ReplyDropped` (restart,
-	/// no retry), and `Eval` errors uniformly.
-	async fn run_nu_with_restart(
-		&mut self,
-		label: &str,
-		fn_name: &str,
-		decl_id: FunctionId,
-		args: Vec<String>,
-		limits: crate::nu::DecodeLimits,
-		nu_ctx: Value,
-	) -> Result<Vec<Invocation>, crate::nu::executor::NuExecError> {
-		let start = Instant::now();
-		let env = vec![("XENO_CTX".to_string(), nu_ctx)];
-
-		let invocations = match self.state.nu_executor.as_ref().unwrap().run(decl_id, args, limits, env).await {
-			Ok(invocations) => invocations,
-			Err(crate::nu::executor::NuExecError::Shutdown { decl_id, args, limits, env }) => {
-				warn!(%label, function = fn_name, "Nu executor died, restarting");
-				self.restart_nu_executor();
-				match self.ensure_nu_executor() {
-					Some(executor) => executor.run(decl_id, args, limits, env).await?,
-					None => {
-						return Err(crate::nu::executor::NuExecError::Eval("Nu executor could not be restarted".to_string()));
-					}
-				}
-			}
-			Err(crate::nu::executor::NuExecError::ReplyDropped) => {
-				warn!(%label, function = fn_name, "Nu executor worker died mid-evaluation, restarting");
-				self.restart_nu_executor();
-				return Err(crate::nu::executor::NuExecError::ReplyDropped);
-			}
-			Err(e) => return Err(e),
-		};
-
-		let elapsed = start.elapsed();
-		let threshold = if label == "hook" { SLOW_NU_HOOK_THRESHOLD } else { SLOW_NU_MACRO_THRESHOLD };
-		if elapsed > threshold {
-			debug!(%label, function = fn_name, elapsed_ms = elapsed.as_millis() as u64, "slow Nu call");
-		}
-
-		Ok(invocations)
 	}
 
 	async fn ensure_nu_runtime_loaded(&mut self) -> Result<(), String> {
@@ -885,14 +803,6 @@ fn capability_error_result(error: &CommandError) -> InvocationResult {
 	match error {
 		CommandError::MissingCapability(cap) => InvocationResult::CapabilityDenied(*cap),
 		_ => InvocationResult::CommandError(error.to_string()),
-	}
-}
-
-fn exec_error_message(error: &crate::nu::executor::NuExecError) -> String {
-	match error {
-		crate::nu::executor::NuExecError::Shutdown { .. } => "Nu executor thread has shut down".to_string(),
-		crate::nu::executor::NuExecError::ReplyDropped => "Nu executor worker died during evaluation".to_string(),
-		crate::nu::executor::NuExecError::Eval(msg) => msg.clone(),
 	}
 }
 

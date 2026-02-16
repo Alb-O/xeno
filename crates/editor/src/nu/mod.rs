@@ -1,5 +1,6 @@
 //! Nu runtime for editor macro scripts.
 
+pub(crate) mod coordinator;
 pub(crate) mod ctx;
 pub(crate) mod executor;
 

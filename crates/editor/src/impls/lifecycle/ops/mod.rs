@@ -285,16 +285,16 @@ impl Editor {
 		let (lsp_pending_docs, lsp_in_flight) = (0, 0);
 
 		let nu = crate::metrics::NuStats {
-			runtime_loaded: self.state.nu_runtime.is_some(),
-			script_path: self.state.nu_runtime.as_ref().map(|rt| rt.script_path().to_string_lossy().to_string()),
-			executor_alive: self.state.nu_executor.is_some(),
-			hook_queue_len: self.state.nu_hook_queue.len(),
-			hook_in_flight: self.state.nu_hook_in_flight.as_ref().map(|i| (i.job_id, i.hook.fn_name().to_string())),
-			hook_pending_invocations_len: self.state.nu_hook_pending_invocations.len(),
-			hook_dropped_total: self.state.nu_hook_dropped_total,
-			hook_failed_total: self.state.nu_hook_failed_total,
-			hook_job_next: self.state.nu_hook_job_next,
-			macro_depth: self.state.nu_macro_depth,
+			runtime_loaded: self.state.nu.runtime().is_some(),
+			script_path: self.state.nu.runtime().as_ref().map(|rt| rt.script_path().to_string_lossy().to_string()),
+			executor_alive: self.state.nu.executor().is_some(),
+			hook_queue_len: self.state.nu.hook_queue_len(),
+			hook_in_flight: self.state.nu.hook_in_flight().map(|i| (i.job_id, i.hook.fn_name().to_string())),
+			hook_pending_invocations_len: self.state.nu.pending_hook_invocations_len(),
+			hook_dropped_total: self.state.nu.hook_dropped_total(),
+			hook_failed_total: self.state.nu.hook_failed_total(),
+			hook_job_next: self.state.nu.hook_job_next(),
+			macro_depth: self.state.nu.macro_depth(),
 		};
 
 		StatsSnapshot {

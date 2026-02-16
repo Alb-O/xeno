@@ -84,23 +84,6 @@ use crate::ui::{PanelRenderTarget, UiManager};
 use crate::view_manager::ViewManager;
 use crate::window::{BaseWindow, WindowManager};
 
-/// A queued Nu post-hook awaiting evaluation during pump().
-#[derive(Debug, Clone)]
-pub(crate) struct QueuedNuHook {
-	pub hook: crate::nu::NuHook,
-	pub args: Vec<String>,
-	pub retries: u8,
-}
-
-/// Tracks a single in-flight Nu hook evaluation on the WorkScheduler.
-#[derive(Debug)]
-pub(crate) struct InFlightNuHook {
-	pub job_id: u64,
-	pub hook: crate::nu::NuHook,
-	pub args: Vec<String>,
-	pub retries: u8,
-}
-
 static REGISTRY_SUMMARY_ONCE: Once = Once::new();
 
 fn log_registry_summary_once() {
@@ -196,28 +179,8 @@ pub(crate) struct EditorState {
 	pub(crate) key_overrides: Option<xeno_registry::config::UnresolvedKeys>,
 	/// Cached effective keymap index for the current actions snapshot and overrides.
 	pub(crate) keymap_cache: Mutex<Option<EffectiveKeymapCache>>,
-	/// Loaded Nu macro runtime from `xeno.nu`.
-	pub(crate) nu_runtime: Option<crate::nu::NuRuntime>,
-	/// Persistent Nu worker thread for hook/macro evaluation.
-	pub(crate) nu_executor: Option<crate::nu::executor::NuExecutor>,
-	/// Cached decl IDs for Nu hook functions, populated when runtime is set.
-	pub(crate) nu_hook_ids: crate::nu::CachedHookIds,
-	/// Depth counter preventing recursive Nu hook enqueue during drain.
-	pub(crate) nu_hook_depth: u8,
-	/// Prevents unbounded recursive Nu macro expansion chains.
-	pub(crate) nu_macro_depth: u8,
-	/// Queued Nu post-hooks awaiting evaluation during pump().
-	pub(crate) nu_hook_queue: std::collections::VecDeque<QueuedNuHook>,
-	/// Currently in-flight Nu hook evaluation, if any.
-	pub(crate) nu_hook_in_flight: Option<InFlightNuHook>,
-	/// Monotonic job ID counter for in-flight hook tracking.
-	pub(crate) nu_hook_job_next: u64,
-	/// Invocations produced by completed Nu hook evaluations, pending execution.
-	pub(crate) nu_hook_pending_invocations: std::collections::VecDeque<crate::types::Invocation>,
-	/// Total Nu hooks dropped due to backlog.
-	pub(crate) nu_hook_dropped_total: u64,
-	/// Total Nu hooks that failed after exhausting retries.
-	pub(crate) nu_hook_failed_total: u64,
+	/// Nu runtime/executor lifecycle and hook/macro orchestration state.
+	pub(crate) nu: crate::nu::coordinator::NuCoordinatorState,
 
 	/// Notification system.
 	pub(crate) notifications: crate::notifications::NotificationCenter,
@@ -409,17 +372,7 @@ impl Editor {
 				config: Config::new(language_loader),
 				key_overrides: None,
 				keymap_cache: Mutex::new(None),
-				nu_runtime: None,
-				nu_executor: None,
-				nu_hook_ids: crate::nu::CachedHookIds::default(),
-				nu_hook_depth: 0,
-				nu_macro_depth: 0,
-				nu_hook_queue: std::collections::VecDeque::new(),
-				nu_hook_in_flight: None,
-				nu_hook_job_next: 0,
-				nu_hook_pending_invocations: std::collections::VecDeque::new(),
-				nu_hook_dropped_total: 0,
-				nu_hook_failed_total: 0,
+				nu: crate::nu::coordinator::NuCoordinatorState::new(),
 				notifications: crate::notifications::NotificationCenter::new(),
 				lsp: LspSystem::new(),
 				syntax_manager: xeno_syntax::SyntaxManager::new(xeno_syntax::SyntaxManagerCfg {
@@ -629,48 +582,18 @@ impl Editor {
 	/// This prevents a mixed state where cached IDs belong to a new runtime
 	/// while jobs are still executing on an old worker.
 	pub fn set_nu_runtime(&mut self, runtime: Option<crate::nu::NuRuntime>) {
-		self.state.nu_executor = None;
-		self.state.nu_hook_queue.clear();
-		self.state.nu_hook_pending_invocations.clear();
-		self.state.nu_hook_in_flight = None;
-		self.state.nu_runtime = runtime;
-		self.state.nu_hook_ids = self
-			.state
-			.nu_runtime
-			.as_ref()
-			.map(|rt| crate::nu::CachedHookIds {
-				on_action_post: rt.find_script_decl("on_action_post"),
-				on_command_post: rt.find_script_decl("on_command_post"),
-				on_editor_command_post: rt.find_script_decl("on_editor_command_post"),
-				on_mode_change: rt.find_script_decl("on_mode_change"),
-				on_buffer_open: rt.find_script_decl("on_buffer_open"),
-			})
-			.unwrap_or_default();
-		self.state.nu_executor = self.state.nu_runtime.as_ref().map(|rt| crate::nu::executor::NuExecutor::new(rt.clone()));
+		self.state.nu.set_runtime(runtime);
 	}
 
 	/// Returns the currently loaded Nu runtime, if any.
 	pub fn nu_runtime(&self) -> Option<&crate::nu::NuRuntime> {
-		self.state.nu_runtime.as_ref()
+		self.state.nu.runtime()
 	}
 
 	/// Returns the Nu executor, creating one from the current runtime if the
 	/// executor is missing (e.g. after a worker thread panic or first access).
 	pub fn ensure_nu_executor(&mut self) -> Option<&crate::nu::executor::NuExecutor> {
-		if self.state.nu_executor.is_none()
-			&& let Some(runtime) = self.state.nu_runtime.clone()
-		{
-			self.state.nu_executor = Some(crate::nu::executor::NuExecutor::new(runtime));
-		}
-		self.state.nu_executor.as_ref()
-	}
-
-	/// Recreates the Nu executor from the current runtime. Used after the
-	/// executor reports a shutdown error (worker panic or channel close).
-	fn restart_nu_executor(&mut self) {
-		if let Some(runtime) = self.state.nu_runtime.clone() {
-			self.state.nu_executor = Some(crate::nu::executor::NuExecutor::new(runtime));
-		}
+		self.state.nu.ensure_executor()
 	}
 
 	/// Returns the effective keymap for the current actions snapshot and overrides.

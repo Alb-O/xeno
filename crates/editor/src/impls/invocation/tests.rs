@@ -471,8 +471,8 @@ async fn nu_runtime_reload_swaps_executor_and_disables_old_runtime_hooks() {
 
 	let old_shutdown_acks = editor
 		.state
-		.nu_executor
-		.as_ref()
+		.nu
+		.executor()
 		.expect("executor should exist after first Nu hook execution")
 		.shutdown_acks_for_tests();
 	assert_eq!(
@@ -594,7 +594,7 @@ async fn mode_change_hook_runs_on_transition() {
 	let mut editor = Editor::new_scratch();
 	editor.set_nu_runtime(Some(runtime));
 
-	assert!(editor.state.nu_hook_ids.on_mode_change.is_some(), "decl ID should be cached");
+	assert!(editor.state.nu.hook_ids().on_mode_change.is_some(), "decl ID should be cached");
 
 	editor.enqueue_mode_change_hook(&xeno_primitives::Mode::Normal, &xeno_primitives::Mode::Insert);
 	let quit = editor.drain_nu_hook_queue(usize::MAX).await;
@@ -720,7 +720,7 @@ export def on_buffer_open [path kind] {
 	let mut editor = Editor::new_scratch();
 	editor.set_nu_runtime(Some(runtime));
 
-	assert!(editor.state.nu_hook_ids.on_buffer_open.is_some(), "decl ID should be cached");
+	assert!(editor.state.nu.hook_ids().on_buffer_open.is_some(), "decl ID should be cached");
 
 	let location = crate::impls::navigation::Location {
 		path: file_path,
