@@ -1,3 +1,7 @@
+use std::borrow::Cow;
+use std::path::Path;
+
+use devicons::FileIcon;
 use xeno_editor::Editor;
 use xeno_editor::render_api::{CompletionKind, CompletionRenderPlan};
 use xeno_tui::layout::Rect;
@@ -9,6 +13,8 @@ use xeno_tui::widgets::{Block, Borders, List};
 use crate::layer::SceneBuilder;
 use crate::scene::{SurfaceKind, SurfaceOp};
 use crate::text_width::{cell_width, char_width};
+
+const GENERIC_FILE_ICON: &str = "󰈔";
 
 fn build_highlighted_label(label: &str, match_indices: Option<&[usize]>, min_width: usize, normal_style: Style, highlight_style: Style) -> Vec<Span<'static>> {
 	let Some(indices) = match_indices else {
@@ -53,6 +59,23 @@ fn build_highlighted_label(label: &str, match_indices: Option<&[usize]>, min_wid
 	spans
 }
 
+fn completion_icon(kind: CompletionKind, label: &str) -> Cow<'static, str> {
+	match kind {
+		CompletionKind::File => {
+			let icon = FileIcon::from(Path::new(label)).icon;
+			if icon == '*' {
+				Cow::Borrowed(GENERIC_FILE_ICON)
+			} else {
+				Cow::Owned(icon.to_string())
+			}
+		}
+		CompletionKind::Command => Cow::Borrowed("󰘳"),
+		CompletionKind::Buffer => Cow::Borrowed("󰈙"),
+		CompletionKind::Snippet => Cow::Borrowed("󰘦"),
+		CompletionKind::Theme => Cow::Borrowed("󰏘"),
+	}
+}
+
 pub fn render_completion_menu(ed: &Editor, frame: &mut xeno_tui::Frame, area: Rect, plan: &CompletionRenderPlan) {
 	let theme = &ed.config().theme;
 	let max_label_width = plan.max_label_width();
@@ -64,14 +87,7 @@ pub fn render_completion_menu(ed: &Editor, frame: &mut xeno_tui::Frame, area: Re
 		.iter()
 		.map(|item| {
 			let is_selected = item.selected();
-
-			let kind_icon = match item.kind() {
-				CompletionKind::Command => "󰘳",
-				CompletionKind::File => "󰈔",
-				CompletionKind::Buffer => "󰈙",
-				CompletionKind::Snippet => "󰘦",
-				CompletionKind::Theme => "󰏘",
-			};
+			let kind_icon = completion_icon(item.kind(), item.label());
 
 			let kind_color: Color = match item.kind() {
 				CompletionKind::Command => theme.colors.mode.command.bg,

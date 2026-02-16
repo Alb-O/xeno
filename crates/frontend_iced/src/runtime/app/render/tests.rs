@@ -1,3 +1,7 @@
+use std::path::Path;
+
+use devicons::FileIcon;
+
 use super::*;
 
 #[test]
@@ -45,4 +49,26 @@ fn format_palette_completion_row_includes_kind_and_right_columns() {
 	assert!(row.contains("write"));
 	assert!(row.contains("[Cmd]"));
 	assert!(row.contains(" w"));
+}
+
+#[test]
+fn format_palette_completion_row_uses_devicon_for_file_items() {
+	let plan = CompletionRenderPlan::new(Vec::new(), 10, 24, false, false);
+	let item = CompletionRenderItem::new(String::from("Cargo.toml"), CompletionKind::File, None, None, false, false);
+
+	let row = format_palette_completion_row(&plan, &item);
+	let expected_icon = FileIcon::from(Path::new("Cargo.toml")).icon;
+
+	assert!(row.contains(expected_icon), "row should contain file devicon glyph");
+}
+
+#[test]
+fn format_palette_completion_row_uses_generic_file_icon_for_unknown_filetypes() {
+	let plan = CompletionRenderPlan::new(Vec::new(), 24, 32, false, false);
+	let item = CompletionRenderItem::new(String::from("somefile.unknown_xeno_ext"), CompletionKind::File, None, None, false, false);
+
+	let row = format_palette_completion_row(&plan, &item);
+
+	assert!(row.contains("󰈔"), "row should use generic file glyph for unknown filetypes");
+	assert!(!row.contains('*'), "row should not show devicons fallback asterisk");
 }
