@@ -2,6 +2,7 @@
 
 pub(crate) mod coordinator;
 pub(crate) mod ctx;
+pub(crate) mod effects;
 pub(crate) mod executor;
 pub(crate) mod pipeline;
 

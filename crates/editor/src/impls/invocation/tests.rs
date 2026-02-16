@@ -1,4 +1,5 @@
 use std::cell::Cell;
+use std::collections::HashSet;
 
 use xeno_primitives::range::CharIdx;
 use xeno_primitives::{BoxFutureLocal, Key, KeyCode, Mode, Selection};
@@ -397,6 +398,76 @@ async fn nu_macro_ctx_is_injected() {
 }
 
 #[tokio::test]
+async fn nu_macro_stop_effect_is_rejected() {
+	let temp = tempfile::tempdir().expect("temp dir should exist");
+	std::fs::write(temp.path().join("xeno.nu"), "export def go [] { xeno effect stop }").expect("xeno.nu should be writable");
+
+	let runtime = crate::nu::NuRuntime::load(temp.path()).expect("runtime should load");
+	let mut editor = Editor::new_scratch();
+	editor.set_nu_runtime(Some(runtime));
+
+	let result = editor
+		.run_invocation(
+			Invocation::Nu {
+				name: "go".to_string(),
+				args: Vec::new(),
+			},
+			InvocationPolicy::enforcing(),
+		)
+		.await;
+
+	assert!(
+		matches!(
+			result,
+			InvocationResult::CommandError(ref msg) if msg.contains("only allowed in hook") || msg.contains("hook-only stop effect")
+		),
+		"expected macro stop rejection, got: {result:?}"
+	);
+}
+
+#[tokio::test]
+async fn nu_macro_capability_denial_is_command_error() {
+	INVOCATION_TEST_ACTION_COUNT.with(|count| count.set(0));
+
+	let temp = tempfile::tempdir().expect("temp dir should exist");
+	std::fs::write(
+		temp.path().join("xeno.nu"),
+		"export def go [] { xeno effect dispatch action invocation_test_action }",
+	)
+	.expect("xeno.nu should be writable");
+
+	let runtime = crate::nu::NuRuntime::load(temp.path()).expect("runtime should load");
+	let mut editor = Editor::new_scratch();
+	editor.set_nu_runtime(Some(runtime));
+	editor.state.config.nu = Some(xeno_registry::config::NuConfig {
+		budget_macro: None,
+		budget_hook: None,
+		capabilities_macro: Some(HashSet::new()),
+		capabilities_hook: None,
+	});
+
+	let result = editor
+		.run_invocation(
+			Invocation::Nu {
+				name: "go".to_string(),
+				args: Vec::new(),
+			},
+			InvocationPolicy::enforcing(),
+		)
+		.await;
+
+	assert!(
+		matches!(result, InvocationResult::CommandError(ref msg) if msg.contains("denied by capability policy")),
+		"expected macro capability denial, got: {result:?}"
+	);
+	assert_eq!(
+		INVOCATION_TEST_ACTION_COUNT.with(|count| count.get()),
+		0,
+		"denied macro effect must not dispatch actions"
+	);
+}
+
+#[tokio::test]
 async fn nu_hook_ctx_is_injected() {
 	ACTION_PRE_COUNT.with(|count| count.set(0));
 	ACTION_POST_COUNT.with(|count| count.set(0));
@@ -422,6 +493,72 @@ async fn nu_hook_ctx_is_injected() {
 	let post_count = ACTION_POST_COUNT.with(|count| count.get());
 	assert_eq!(pre_count, 2);
 	assert_eq!(post_count, 2);
+}
+
+#[tokio::test]
+async fn nu_hook_capability_denial_is_non_fatal() {
+	INVOCATION_TEST_ACTION_COUNT.with(|count| count.set(0));
+
+	let temp = tempfile::tempdir().expect("temp dir should exist");
+	std::fs::write(
+		temp.path().join("xeno.nu"),
+		"export def on_action_post [name result] { xeno effect dispatch action invocation_test_action }",
+	)
+	.expect("xeno.nu should be writable");
+
+	let runtime = crate::nu::NuRuntime::load(temp.path()).expect("runtime should load");
+	let mut editor = Editor::new_scratch();
+	editor.set_nu_runtime(Some(runtime));
+	editor.state.config.nu = Some(xeno_registry::config::NuConfig {
+		budget_macro: None,
+		budget_hook: None,
+		capabilities_macro: None,
+		capabilities_hook: Some(HashSet::new()),
+	});
+
+	let result = editor
+		.run_invocation(Invocation::action("invocation_test_action"), InvocationPolicy::enforcing())
+		.await;
+	editor.drain_nu_hook_queue(usize::MAX).await;
+
+	assert!(matches!(result, InvocationResult::Ok), "base invocation should remain successful");
+	assert_eq!(
+		INVOCATION_TEST_ACTION_COUNT.with(|count| count.get()),
+		1,
+		"hook-side denial should suppress extra dispatch without failing base invocation"
+	);
+}
+
+#[tokio::test]
+async fn nu_hook_stop_propagation_clears_queued_work() {
+	INVOCATION_TEST_ACTION_COUNT.with(|count| count.set(0));
+
+	let temp = tempfile::tempdir().expect("temp dir should exist");
+	std::fs::write(
+		temp.path().join("xeno.nu"),
+		"export def on_action_post [name result] { xeno effect stop }\n\
+export def on_command_post [name result ...args] { xeno effect dispatch action invocation_test_action }",
+	)
+	.expect("xeno.nu should be writable");
+
+	let runtime = crate::nu::NuRuntime::load(temp.path()).expect("runtime should load");
+	let mut editor = Editor::new_scratch();
+	editor.set_nu_runtime(Some(runtime));
+
+	let _ = editor
+		.run_invocation(Invocation::action("invocation_test_action"), InvocationPolicy::enforcing())
+		.await;
+	let _ = editor
+		.run_invocation(Invocation::command("invocation_test_command_fail", vec![]), InvocationPolicy::enforcing())
+		.await;
+
+	editor.drain_nu_hook_queue(usize::MAX).await;
+
+	assert_eq!(
+		INVOCATION_TEST_ACTION_COUNT.with(|count| count.get()),
+		1,
+		"stop-propagation should prevent later queued hook dispatches"
+	);
 }
 
 #[tokio::test]

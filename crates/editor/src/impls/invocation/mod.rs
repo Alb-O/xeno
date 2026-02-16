@@ -12,9 +12,10 @@ use xeno_registry::{CommandError, HookEventData, RegistryEntry};
 
 use crate::commands::{CommandOutcome, EditorCommandContext, find_editor_command};
 use crate::impls::Editor;
+use crate::nu::NuDecodeSurface;
 use crate::nu::coordinator::errors::exec_error_message;
 use crate::nu::coordinator::runner::{NuExecKind, execute_with_restart};
-use crate::nu::{NuDecodeSurface, NuEffect, NuNotifyLevel, required_capability_for_effect};
+use crate::nu::effects::{NuEffectApplyError, NuEffectApplyMode, apply_effect_batch};
 use crate::types::{Invocation, InvocationPolicy, InvocationResult};
 
 const MAX_NU_MACRO_DEPTH: u8 = 8;
@@ -233,35 +234,24 @@ impl Editor {
 			|cfg| cfg.macro_capabilities(),
 		);
 
-		for effect in effects.effects {
-			let required = required_capability_for_effect(&effect);
-			if !allowed.contains(&required) {
-				let msg = format!("Nu macro effect denied by capability policy: {}", required.as_str());
+		let outcome = match apply_effect_batch(self, effects, NuEffectApplyMode::Macro, &allowed) {
+			Ok(outcome) => outcome,
+			Err(error) => {
+				let msg = match error {
+					NuEffectApplyError::CapabilityDenied { capability } => {
+						format!("Nu macro effect denied by capability policy: {}", capability.as_str())
+					}
+					NuEffectApplyError::StopPropagationUnsupportedForMacro => "Nu macro produced hook-only stop effect".to_string(),
+				};
 				self.show_notification(xeno_registry::notifications::keys::command_error(&msg));
 				return InvocationResult::CommandError(msg);
 			}
+		};
 
-			match effect {
-				NuEffect::Dispatch(invocation) => match Box::pin(self.run_invocation(invocation, policy)).await {
-					InvocationResult::Ok => {}
-					other => return other,
-				},
-				NuEffect::Notify { level, message } => {
-					use xeno_registry::notifications::keys;
-
-					match level {
-						NuNotifyLevel::Debug => self.notify(keys::debug(message)),
-						NuNotifyLevel::Info => self.notify(keys::info(message)),
-						NuNotifyLevel::Warn => self.notify(keys::warn(message)),
-						NuNotifyLevel::Error => self.notify(keys::error(message)),
-						NuNotifyLevel::Success => self.notify(keys::success(message)),
-					}
-				}
-				NuEffect::StopPropagation => {
-					let msg = "Nu macro produced hook-only stop effect".to_string();
-					self.show_notification(xeno_registry::notifications::keys::command_error(&msg));
-					return InvocationResult::CommandError(msg);
-				}
+		for invocation in outcome.dispatches {
+			match Box::pin(self.run_invocation(invocation, policy)).await {
+				InvocationResult::Ok => {}
+				other => return other,
 			}
 		}
 

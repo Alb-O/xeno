@@ -1,5 +1,5 @@
 use crate::nu::NuHook;
-use crate::nu::coordinator::{HookPipelinePhase, InFlightNuHook, NuCoordinatorState};
+use crate::nu::coordinator::{HookEvalFailureTransition, HookPipelinePhase, InFlightNuHook, NuCoordinatorState, QueuedNuHook};
 use crate::types::Invocation;
 
 /// Must invalidate in-flight hook identity when runtime generation changes.
@@ -56,33 +56,38 @@ pub(crate) fn test_hook_phase_tracks_pipeline_lifecycle() {
 
 /// Must retry at most once for a failed in-flight hook.
 ///
-/// * Enforced in: hook requeue logic in `nu::pipeline::apply_nu_hook_eval_done`
+/// * Enforced in: `NuCoordinatorState::complete_hook_eval_transport_failure`
 /// * Failure symptom: failed hook loops forever and starves the scheduler.
 #[cfg_attr(test, test)]
 pub(crate) fn test_retry_payload_tracks_single_retry() {
 	let mut state = NuCoordinatorState::new();
 	let token = state.next_hook_eval_token();
-	state.set_hook_in_flight(InFlightNuHook {
+	let args_for_eval = state.begin_hook_eval(
 		token,
-		hook: NuHook::CommandPost,
-		args: vec!["write".to_string(), "ok".to_string()],
-		retries: 0,
-	});
+		QueuedNuHook {
+			hook: NuHook::CommandPost,
+			args: vec!["write".to_string(), "ok".to_string()],
+			retries: 0,
+		},
+	);
+	assert_eq!(args_for_eval, vec!["write".to_string(), "ok".to_string()]);
+	assert_eq!(state.complete_hook_eval_transport_failure(token), HookEvalFailureTransition::Retried);
 
-	let in_flight = state.take_hook_in_flight().expect("in-flight hook should exist");
-	state.push_front_queued_hook(crate::nu::coordinator::QueuedNuHook {
-		hook: in_flight.hook,
-		args: in_flight.args,
-		retries: 1,
-	});
+	let retried = state.pop_queued_hook().expect("retry hook should be queued");
+	assert_eq!(retried.retries, 1, "first transport failure should schedule single retry");
 
-	let queued = state.pop_queued_hook().expect("retry hook should be queued");
-	assert_eq!(queued.retries, 1);
+	let token2 = state.next_hook_eval_token();
+	state.begin_hook_eval(token2, retried);
+	assert_eq!(
+		state.complete_hook_eval_transport_failure(token2),
+		HookEvalFailureTransition::RetryExhausted { failed_total: 1 }
+	);
+	assert_eq!(state.hook_failed_total(), 1, "second transport failure should increment failed total");
 }
 
 /// Must drop queued and pending hook work when stop-propagation is requested.
 ///
-/// * Enforced in: `nu::pipeline::apply_hook_effect_batch`
+/// * Enforced in: `NuCoordinatorState::clear_hook_work_on_stop_propagation`
 /// * Failure symptom: stopped hooks still dispatch queued invocations.
 #[cfg_attr(test, test)]
 pub(crate) fn test_stop_propagation_clears_queued_and_pending() {
@@ -90,10 +95,33 @@ pub(crate) fn test_stop_propagation_clears_queued_and_pending() {
 	state.enqueue_hook(NuHook::ActionPost, vec!["a".to_string(), "ok".to_string()], 64);
 	state.extend_pending_hook_invocations(vec![Invocation::action("move_right")]);
 
-	state.clear_queued_hooks();
-	state.clear_pending_hook_invocations();
+	state.clear_hook_work_on_stop_propagation();
 
 	assert!(!state.has_queued_hooks(), "stop propagation should clear queued hooks");
 	assert!(!state.has_pending_hook_invocations(), "stop propagation should clear pending hook invocations");
 	assert_eq!(state.hook_phase(), HookPipelinePhase::Idle);
+}
+
+/// Must keep in-flight state when completion token is stale.
+///
+/// * Enforced in: `NuCoordinatorState::complete_hook_eval`
+/// * Failure symptom: stale completions clear active in-flight hook state.
+#[cfg_attr(test, test)]
+pub(crate) fn test_stale_completion_keeps_inflight_state() {
+	let mut state = NuCoordinatorState::new();
+	let token = state.next_hook_eval_token();
+	state.set_hook_in_flight(InFlightNuHook {
+		token,
+		hook: NuHook::ActionPost,
+		args: vec!["name".to_string(), "ok".to_string()],
+		retries: 0,
+	});
+
+	let stale = crate::nu::coordinator::NuEvalToken {
+		runtime_epoch: token.runtime_epoch.wrapping_add(1),
+		seq: token.seq,
+	};
+
+	assert!(!state.complete_hook_eval(stale), "stale completion should be ignored");
+	assert_eq!(state.hook_in_flight_token(), Some(token), "stale completion must not clear active in-flight");
 }

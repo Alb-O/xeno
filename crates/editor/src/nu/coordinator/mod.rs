@@ -14,4 +14,4 @@ pub(crate) mod runner;
 mod state;
 
 #[allow(unused_imports)]
-pub(crate) use state::{HookPipelinePhase, InFlightNuHook, NuCoordinatorState, NuEvalToken, QueuedNuHook};
+pub(crate) use state::{HookEvalFailureTransition, HookPipelinePhase, InFlightNuHook, NuCoordinatorState, NuEvalToken, QueuedNuHook};

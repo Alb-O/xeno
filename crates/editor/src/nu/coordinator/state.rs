@@ -53,6 +53,14 @@ pub(crate) struct InFlightNuHook {
 	pub retries: u8,
 }
 
+/// Result of handling a transport-level hook eval failure.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum HookEvalFailureTransition {
+	Stale,
+	Retried,
+	RetryExhausted { failed_total: u64 },
+}
+
 /// Unified Nu pipeline state for runtime, executor, and hook/macro lifecycle.
 pub(crate) struct NuCoordinatorState {
 	runtime: Option<NuRuntime>,
@@ -221,18 +229,30 @@ impl NuCoordinatorState {
 		!self.hook_queue.is_empty()
 	}
 
-	pub(crate) fn clear_queued_hooks(&mut self) {
-		self.hook_queue.clear();
-		self.refresh_hook_phase();
-	}
-
 	pub(crate) fn hook_queue_len(&self) -> usize {
 		self.hook_queue.len()
 	}
 
+	#[cfg(test)]
 	pub(crate) fn set_hook_in_flight(&mut self, in_flight: InFlightNuHook) {
 		self.hook_in_flight = Some(in_flight);
 		self.refresh_hook_phase();
+	}
+
+	/// Mark a queued hook as in-flight and return owned args for evaluation.
+	///
+	/// Keeps args/retry metadata in in-flight state for failure recovery while
+	/// returning a cloned args payload for the async executor request.
+	pub(crate) fn begin_hook_eval(&mut self, token: NuEvalToken, queued: QueuedNuHook) -> Vec<String> {
+		let args_for_eval = queued.args.clone();
+		self.hook_in_flight = Some(InFlightNuHook {
+			token,
+			hook: queued.hook,
+			args: queued.args,
+			retries: queued.retries,
+		});
+		self.refresh_hook_phase();
+		args_for_eval
 	}
 
 	pub(crate) fn hook_in_flight(&self) -> Option<&InFlightNuHook> {
@@ -247,6 +267,44 @@ impl NuCoordinatorState {
 
 	pub(crate) fn hook_in_flight_token(&self) -> Option<NuEvalToken> {
 		self.hook_in_flight.as_ref().map(|i| i.token)
+	}
+
+	/// Complete a hook eval and clear in-flight state when token matches.
+	///
+	/// Returns `false` for stale completions from older runtime epochs.
+	pub(crate) fn complete_hook_eval(&mut self, token: NuEvalToken) -> bool {
+		if self.hook_in_flight_token() != Some(token) {
+			return false;
+		}
+		let _ = self.take_hook_in_flight();
+		true
+	}
+
+	/// Handle hook eval transport failure with built-in single-retry policy.
+	///
+	/// Retry is only scheduled for first-failure in-flight requests.
+	pub(crate) fn complete_hook_eval_transport_failure(&mut self, token: NuEvalToken) -> HookEvalFailureTransition {
+		if self.hook_in_flight_token() != Some(token) {
+			return HookEvalFailureTransition::Stale;
+		}
+
+		let Some(in_flight) = self.take_hook_in_flight() else {
+			return HookEvalFailureTransition::Stale;
+		};
+
+		if in_flight.retries == 0 {
+			self.push_front_queued_hook(QueuedNuHook {
+				hook: in_flight.hook,
+				args: in_flight.args,
+				retries: 1,
+			});
+			return HookEvalFailureTransition::Retried;
+		}
+
+		self.hook_failed_total = self.hook_failed_total.saturating_add(1);
+		HookEvalFailureTransition::RetryExhausted {
+			failed_total: self.hook_failed_total,
+		}
 	}
 
 	pub(crate) fn next_hook_eval_token(&mut self) -> NuEvalToken {
@@ -285,7 +343,9 @@ impl NuCoordinatorState {
 		!self.hook_pending_invocations.is_empty()
 	}
 
-	pub(crate) fn clear_pending_hook_invocations(&mut self) {
+	/// Clear all pending hook work for stop-propagation semantics.
+	pub(crate) fn clear_hook_work_on_stop_propagation(&mut self) {
+		self.hook_queue.clear();
 		self.hook_pending_invocations.clear();
 		self.refresh_hook_phase();
 	}
@@ -300,10 +360,6 @@ impl NuCoordinatorState {
 
 	pub(crate) fn hook_failed_total(&self) -> u64 {
 		self.hook_failed_total
-	}
-
-	pub(crate) fn inc_hook_failed_total(&mut self) {
-		self.hook_failed_total = self.hook_failed_total.saturating_add(1);
 	}
 
 	fn refresh_hook_phase(&mut self) {

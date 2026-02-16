@@ -1,16 +1,20 @@
 //! Nu hook pipeline service.
 //!
 //! Owns queueing, async hook evaluation scheduling, stale-result protection,
-//! and pending-invocation draining. This module centralizes hook lifecycle
-//! transitions so `impls::invocation` can focus on action/command dispatch.
+//! pending-invocation draining, and hook-surface effect application.
+//!
+//! Hook completion transitions are delegated to `NuCoordinatorState`, while
+//! effect semantics are delegated to `nu::effects`, keeping this module focused
+//! on scheduling/orchestration.
 
 use tracing::{trace, warn};
 
 use crate::impls::Editor;
+use crate::nu::coordinator::HookEvalFailureTransition;
 #[cfg(test)]
 use crate::nu::coordinator::runner::{NuExecKind, execute_with_restart};
-use crate::nu::coordinator::{InFlightNuHook, QueuedNuHook};
-use crate::nu::{NuDecodeSurface, NuEffect, NuNotifyLevel, required_capability_for_effect};
+use crate::nu::effects::{NuEffectApplyMode, apply_effect_batch};
+use crate::nu::{NuCapability, NuDecodeSurface};
 use crate::types::{InvocationPolicy, InvocationResult};
 
 /// Maximum pending Nu hooks before oldest are dropped.
@@ -111,15 +115,7 @@ pub(crate) fn kick_nu_hook_eval(editor: &mut Editor) {
 	let msg_tx = editor.state.msg_tx.clone();
 
 	let token = editor.state.nu.next_hook_eval_token();
-
-	editor.state.nu.set_hook_in_flight(InFlightNuHook {
-		token,
-		hook: queued.hook,
-		args: queued.args.clone(),
-		retries: queued.retries,
-	});
-
-	let args_for_eval = queued.args;
+	let args_for_eval = editor.state.nu.begin_hook_eval(token, queued);
 
 	editor.state.work_scheduler.schedule(crate::scheduler::WorkItem {
 		future: Box::pin(async move {
@@ -142,33 +138,31 @@ pub(crate) fn kick_nu_hook_eval(editor: &mut Editor) {
 /// Ignores stale results (token mismatch after runtime swap). On executor
 /// death, restarts and retries once.
 pub(crate) fn apply_nu_hook_eval_done(editor: &mut Editor, msg: crate::msg::NuHookEvalDoneMsg) -> crate::msg::Dirty {
-	let in_flight_token = editor.state.nu.hook_in_flight_token();
-	if in_flight_token != Some(msg.token) {
-		// Stale result from a previous runtime — ignore.
-		return crate::msg::Dirty::NONE;
-	}
-
-	let in_flight = editor.state.nu.take_hook_in_flight().expect("in-flight hook should exist");
-
 	match msg.result {
-		Ok(effects) => apply_hook_effect_batch(editor, effects),
+		Ok(effects) => {
+			if !editor.state.nu.complete_hook_eval(msg.token) {
+				// Stale result from a previous runtime — ignore.
+				return crate::msg::Dirty::NONE;
+			}
+			apply_hook_effect_batch(editor, effects)
+		}
 		Err(crate::msg::NuHookEvalError::Eval(error)) => {
+			if !editor.state.nu.complete_hook_eval(msg.token) {
+				return crate::msg::Dirty::NONE;
+			}
 			warn!(error = %error, "Nu hook evaluation failed");
 			crate::msg::Dirty::NONE
 		}
 		Err(crate::msg::NuHookEvalError::ExecutorShutdown | crate::msg::NuHookEvalError::ReplyDropped) => {
 			warn!(token = ?msg.token, "Nu executor died during hook eval, restarting");
-			editor.state.nu.restart_executor();
-			if in_flight.retries == 0 {
-				editor.state.nu.push_front_queued_hook(QueuedNuHook {
-					hook: in_flight.hook,
-					args: in_flight.args,
-					retries: 1,
-				});
-			} else {
-				editor.state.nu.inc_hook_failed_total();
-				warn!(failed_total = editor.state.nu.hook_failed_total(), "Nu hook retry exhausted");
+			match editor.state.nu.complete_hook_eval_transport_failure(msg.token) {
+				HookEvalFailureTransition::Stale => return crate::msg::Dirty::NONE,
+				HookEvalFailureTransition::Retried => {}
+				HookEvalFailureTransition::RetryExhausted { failed_total } => {
+					warn!(failed_total, "Nu hook retry exhausted");
+				}
 			}
+			editor.state.nu.restart_executor();
 			crate::msg::Dirty::NONE
 		}
 	}
@@ -218,61 +212,16 @@ pub(crate) async fn drain_nu_hook_invocations(editor: &mut Editor, max: usize) -
 }
 
 fn apply_hook_effect_batch(editor: &mut Editor, batch: crate::nu::NuEffectBatch) -> crate::msg::Dirty {
-	let allowed = editor
-		.state
-		.config
-		.nu
-		.as_ref()
-		.map_or_else(|| xeno_registry::config::NuConfig::default().hook_capabilities(), |cfg| cfg.hook_capabilities());
+	let allowed = hook_allowed_capabilities(editor);
+	let outcome = apply_effect_batch(editor, batch, NuEffectApplyMode::Hook, &allowed).expect("hook mode effect apply should not fail");
 
-	let mut dispatches = Vec::new();
-	let mut stop_requested = false;
-	let mut dirty = crate::msg::Dirty::NONE;
-
-	for effect in batch.effects {
-		let required = required_capability_for_effect(&effect);
-		if !allowed.contains(&required) {
-			warn!(capability = %required.as_str(), "Nu hook effect denied by capability policy");
-			continue;
-		}
-
-		match effect {
-			NuEffect::Dispatch(invocation) => {
-				dispatches.push(invocation);
-				dirty |= crate::msg::Dirty::FULL;
-			}
-			NuEffect::Notify { level, message } => {
-				emit_nu_notification(editor, level, message);
-				dirty |= crate::msg::Dirty::FULL;
-			}
-			NuEffect::StopPropagation => {
-				stop_requested = true;
-				dirty |= crate::msg::Dirty::FULL;
-				break;
-			}
-		}
+	if outcome.stop_requested {
+		editor.state.nu.clear_hook_work_on_stop_propagation();
+	} else if !outcome.dispatches.is_empty() {
+		editor.state.nu.extend_pending_hook_invocations(outcome.dispatches);
 	}
 
-	if stop_requested {
-		editor.state.nu.clear_queued_hooks();
-		editor.state.nu.clear_pending_hook_invocations();
-	} else if !dispatches.is_empty() {
-		editor.state.nu.extend_pending_hook_invocations(dispatches);
-	}
-
-	dirty
-}
-
-fn emit_nu_notification(editor: &mut Editor, level: NuNotifyLevel, message: String) {
-	use xeno_registry::notifications::keys;
-
-	match level {
-		NuNotifyLevel::Debug => editor.notify(keys::debug(message)),
-		NuNotifyLevel::Info => editor.notify(keys::info(message)),
-		NuNotifyLevel::Warn => editor.notify(keys::warn(message)),
-		NuNotifyLevel::Error => editor.notify(keys::error(message)),
-		NuNotifyLevel::Success => editor.notify(keys::success(message)),
-	}
+	outcome.dirty
 }
 
 /// Legacy synchronous drain for tests that need immediate hook evaluation.
@@ -340,16 +289,14 @@ async fn run_single_nu_hook_sync(editor: &mut Editor, hook: crate::nu::NuHook, a
 		}
 	};
 
-	let mut dispatches = Vec::new();
-	for effect in effects.effects {
-		match effect {
-			NuEffect::Dispatch(invocation) => dispatches.push(invocation),
-			NuEffect::Notify { level, message } => emit_nu_notification(editor, level, message),
-			NuEffect::StopPropagation => return None,
-		}
+	let allowed = hook_allowed_capabilities(editor);
+	let outcome = apply_effect_batch(editor, effects, NuEffectApplyMode::Hook, &allowed).expect("hook mode effect apply should not fail");
+	if outcome.stop_requested {
+		editor.state.nu.clear_hook_work_on_stop_propagation();
+		return None;
 	}
 
-	for invocation in dispatches {
+	for invocation in outcome.dispatches {
 		let result = Box::pin(editor.run_invocation(invocation, InvocationPolicy::enforcing())).await;
 
 		match result {
@@ -371,6 +318,15 @@ async fn run_single_nu_hook_sync(editor: &mut Editor, hook: crate::nu::NuHook, a
 	}
 
 	None
+}
+
+fn hook_allowed_capabilities(editor: &Editor) -> std::collections::HashSet<NuCapability> {
+	editor
+		.state
+		.config
+		.nu
+		.as_ref()
+		.map_or_else(|| xeno_registry::config::NuConfig::default().hook_capabilities(), |cfg| cfg.hook_capabilities())
 }
 
 fn invocation_result_label(result: &InvocationResult) -> &'static str {
