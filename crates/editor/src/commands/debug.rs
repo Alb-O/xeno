@@ -52,7 +52,7 @@ fn cmd_stats<'a>(ctx: &'a mut EditorCommandContext<'a>) -> BoxFutureLocal<'a, Re
 		stats.emit();
 
 		let nu_in_flight = match &stats.nu.hook_in_flight {
-			Some((id, hook)) => format!("{}:{}", id, hook),
+			Some((epoch, seq, hook)) => format!("{epoch}:{seq}:{hook}"),
 			None => "none".to_string(),
 		};
 		let nu_script = stats.nu.script_path.as_deref().unwrap_or("none");
@@ -62,7 +62,7 @@ fn cmd_stats<'a>(ctx: &'a mut EditorCommandContext<'a>) -> BoxFutureLocal<'a, Re
 
 ## Nu
 - Runtime: loaded={} executor={} script={}
-- Hooks: queued={} in_flight={} pending_inv={} dropped={} failed={} next_job={}
+- Hooks: phase={} queued={} in_flight={} pending_inv={} dropped={} failed={} epoch={} next_seq={}
 - Macros: depth={}
 
 ## Work Scheduler
@@ -81,12 +81,14 @@ fn cmd_stats<'a>(ctx: &'a mut EditorCommandContext<'a>) -> BoxFutureLocal<'a, Re
 			stats.nu.runtime_loaded,
 			stats.nu.executor_alive,
 			nu_script,
+			stats.nu.hook_phase,
 			stats.nu.hook_queue_len,
 			nu_in_flight,
 			stats.nu.hook_pending_invocations_len,
 			stats.nu.hook_dropped_total,
 			stats.nu.hook_failed_total,
-			stats.nu.hook_job_next,
+			stats.nu.runtime_epoch,
+			stats.nu.hook_eval_seq_next,
 			stats.nu.macro_depth,
 			stats.hooks_pending,
 			stats.hooks_pending_tick,

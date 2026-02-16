@@ -57,8 +57,8 @@ pub enum NuHookEvalError {
 /// Result of a completed async Nu hook evaluation.
 #[derive(Debug)]
 pub struct NuHookEvalDoneMsg {
-	/// Matches the job_id assigned in `kick_nu_hook_eval`.
-	pub job_id: u64,
+	/// Matches the eval token assigned when the hook job is scheduled.
+	pub token: crate::nu::coordinator::NuEvalToken,
 	/// Produced invocations or a structured error.
 	pub result: Result<Vec<crate::types::Invocation>, NuHookEvalError>,
 }

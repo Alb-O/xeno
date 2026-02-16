@@ -3,6 +3,7 @@
 pub(crate) mod coordinator;
 pub(crate) mod ctx;
 pub(crate) mod executor;
+pub(crate) mod pipeline;
 
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};

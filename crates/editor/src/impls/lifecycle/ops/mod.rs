@@ -288,12 +288,18 @@ impl Editor {
 			runtime_loaded: self.state.nu.runtime().is_some(),
 			script_path: self.state.nu.runtime().as_ref().map(|rt| rt.script_path().to_string_lossy().to_string()),
 			executor_alive: self.state.nu.executor().is_some(),
+			hook_phase: self.state.nu.hook_phase().label(),
 			hook_queue_len: self.state.nu.hook_queue_len(),
-			hook_in_flight: self.state.nu.hook_in_flight().map(|i| (i.job_id, i.hook.fn_name().to_string())),
+			hook_in_flight: self
+				.state
+				.nu
+				.hook_in_flight()
+				.map(|i| (i.token.runtime_epoch, i.token.seq, i.hook.fn_name().to_string())),
 			hook_pending_invocations_len: self.state.nu.pending_hook_invocations_len(),
 			hook_dropped_total: self.state.nu.hook_dropped_total(),
 			hook_failed_total: self.state.nu.hook_failed_total(),
-			hook_job_next: self.state.nu.hook_job_next(),
+			runtime_epoch: self.state.nu.runtime_epoch(),
+			hook_eval_seq_next: self.state.nu.hook_eval_seq_next(),
 			macro_depth: self.state.nu.macro_depth(),
 		};
 

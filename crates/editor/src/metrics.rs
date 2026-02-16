@@ -134,12 +134,14 @@ pub struct NuStats {
 	pub runtime_loaded: bool,
 	pub script_path: Option<String>,
 	pub executor_alive: bool,
+	pub hook_phase: &'static str,
 	pub hook_queue_len: usize,
-	pub hook_in_flight: Option<(u64, String)>,
+	pub hook_in_flight: Option<(u64, u64, String)>,
 	pub hook_pending_invocations_len: usize,
 	pub hook_dropped_total: u64,
 	pub hook_failed_total: u64,
-	pub hook_job_next: u64,
+	pub runtime_epoch: u64,
+	pub hook_eval_seq_next: u64,
 	pub macro_depth: u8,
 }
 
@@ -201,10 +203,13 @@ impl StatsSnapshot {
 			lsp_snapshot_bytes_tick = self.lsp_snapshot_bytes_tick,
 			nu_runtime = self.nu.runtime_loaded,
 			nu_executor = self.nu.executor_alive,
+			nu_hook_phase = self.nu.hook_phase,
 			nu_hook_queue = self.nu.hook_queue_len,
 			nu_hook_pending_inv = self.nu.hook_pending_invocations_len,
 			nu_hook_dropped = self.nu.hook_dropped_total,
 			nu_hook_failed = self.nu.hook_failed_total,
+			nu_epoch = self.nu.runtime_epoch,
+			nu_eval_seq_next = self.nu.hook_eval_seq_next,
 			nu_macro_depth = self.nu.macro_depth,
 			"editor.stats"
 		);
