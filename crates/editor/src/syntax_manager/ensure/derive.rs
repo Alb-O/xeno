@@ -1,7 +1,7 @@
 use super::*;
 
 /// Computes derived policy state from context and policy. Pure computation.
-pub(super) fn derive(ctx: &EnsureSyntaxContext<'_>, policy: &TieredSyntaxPolicy) -> EnsureDerived {
+pub(super) fn derive<'a>(ctx: &'a EnsureSyntaxContext<'a>, policy: &TieredSyntaxPolicy) -> EnsureBase<'a> {
 	let bytes = ctx.content.len_bytes();
 	let bytes_u32 = bytes as u32;
 	let tier = policy.tier_for_bytes(bytes);
@@ -18,7 +18,13 @@ pub(super) fn derive(ctx: &EnsureSyntaxContext<'_>, policy: &TieredSyntaxPolicy)
 		start..end
 	});
 	let work_disabled = matches!(ctx.hotness, SyntaxHotness::Cold) && !cfg.parse_when_hidden;
-	EnsureDerived {
+	EnsureBase {
+		doc_id: ctx.doc_id,
+		doc_version: ctx.doc_version,
+		language_id: ctx.language_id,
+		content: ctx.content,
+		hotness: ctx.hotness,
+		loader: ctx.loader,
 		bytes,
 		bytes_u32,
 		tier,

@@ -1,7 +1,7 @@
 use super::*;
 
 /// Normalizes entry state for language/opts changes. Returns was_updated.
-pub(super) fn normalize(entry: &mut DocEntry, now: Instant, ctx: &EnsureSyntaxContext<'_>, d: &EnsureDerived) -> bool {
+pub(super) fn normalize(entry: &mut DocEntry, now: Instant, ctx: &EnsureBase<'_>) -> bool {
 	let mut updated = entry.slot.take_updated();
 
 	if entry.slot.language_id != ctx.language_id {
@@ -18,14 +18,14 @@ pub(super) fn normalize(entry: &mut DocEntry, now: Instant, ctx: &EnsureSyntaxCo
 		entry.sched.last_visible_at = now;
 	}
 
-	if entry.slot.last_opts_key.is_some_and(|k| k != d.opts_key) {
+	if entry.slot.last_opts_key.is_some_and(|k| k != ctx.opts_key) {
 		entry.sched.invalidate();
 		entry.slot.dirty = true;
 		entry.slot.drop_tree();
 		SyntaxManager::mark_updated(&mut entry.slot);
 		updated = true;
 	}
-	entry.slot.last_opts_key = Some(d.opts_key);
+	entry.slot.last_opts_key = Some(ctx.opts_key);
 
 	updated
 }

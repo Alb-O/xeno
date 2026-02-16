@@ -3,6 +3,38 @@ use xeno_primitives::transaction::Change;
 
 use super::*;
 
+/// Must short-circuit missing-language polls before any parse lane can spawn.
+///
+/// * Enforced in: `SyntaxManager::ensure_syntax`, `ensure::gate`
+/// * Failure symptom: parse tasks run for language-less buffers and consume
+///   permits with results that can never install.
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_missing_language_never_spawns_parse_lanes() {
+	let engine = Arc::new(MockEngine::new());
+	let _guard = EngineGuard(engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 1,
+			..Default::default()
+		},
+		engine.clone(),
+	);
+	let mut policy = TieredSyntaxPolicy::test_default();
+	policy.s.debounce = Duration::ZERO;
+	mgr.set_policy(policy);
+
+	let doc_id = DocumentId(7);
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let content = Rope::from("fn main() {}");
+
+	let r = mgr.ensure_syntax(make_ctx(doc_id, 1, None, &content, SyntaxHotness::Visible, &loader));
+	assert_eq!(r.result, SyntaxPollResult::NoLanguage);
+	assert!(!mgr.has_pending(doc_id));
+	assert!(!mgr.has_inflight_viewport(doc_id));
+	assert!(!mgr.has_inflight_bg(doc_id));
+	assert_eq!(engine.parse_count.load(Ordering::SeqCst), 0);
+}
+
 /// Must clear `pending_incremental` on language change, syntax reset, and retention drop.
 ///
 /// * Enforced in: `SyntaxManager::ensure_syntax`, `SyntaxManager::reset_syntax`,

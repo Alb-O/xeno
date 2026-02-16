@@ -48,12 +48,13 @@ fn test_plan_stage_a_suppresses_stage_b() {
 	};
 
 	let d = derive(&ctx, &policy);
+	let lang_ctx = d.clone().into_lang(lang);
 	let g = GateState {
 		viewport_stable_polls: 10, // well above min
 		viewport_uncovered: true,
 	};
 
-	let plan = compute_plan(&entry, Instant::now(), &ctx, &d, &g, &SyntaxMetrics::new());
+	let plan = compute_plan(&entry, Instant::now(), &lang_ctx, &g, &SyntaxMetrics::new());
 	assert!(plan.stage_a.is_some(), "Stage-A should be planned (viewport uncovered)");
 	assert!(plan.stage_b.is_none(), "Stage-B must not be planned when Stage-A is planned");
 }
@@ -90,9 +91,10 @@ fn test_plan_bg_independent_of_stage_a() {
 	};
 
 	let d = derive(&ctx, &policy);
+	let lang_ctx = d.clone().into_lang(lang);
 	let g = GateState::default();
 
-	let plan = compute_plan(&entry, Instant::now(), &ctx, &d, &g, &SyntaxMetrics::new());
+	let plan = compute_plan(&entry, Instant::now(), &lang_ctx, &g, &SyntaxMetrics::new());
 	assert!(plan.stage_a.is_some(), "Stage-A should be planned");
 	assert!(plan.bg.is_some(), "BG should be planned independently of Stage-A");
 }
@@ -173,7 +175,7 @@ fn test_stale_viewport_discards_when_covered() {
 		Some(ViewportKey(0)),
 		Some(scheduling::ViewportLane::Urgent),
 	);
-	let decision = decide_install(&done, Instant::now(), &ctx, &d, &entry);
+	let decision = decide_install(&done, Instant::now(), &d, &entry);
 	assert!(
 		matches!(decision, InstallDecision::Discard),
 		"stale viewport should discard when full tree covers: {decision:?}"
@@ -190,7 +192,7 @@ fn test_stale_viewport_discards_when_covered() {
 		Some(ViewportKey(0)),
 		Some(scheduling::ViewportLane::Urgent),
 	);
-	let decision2 = decide_install(&done2, Instant::now(), &ctx, &d, &entry2);
+	let decision2 = decide_install(&done2, Instant::now(), &d, &entry2);
 	assert!(
 		matches!(decision2, InstallDecision::Install),
 		"stale viewport should install when uncovered: {decision2:?}"
@@ -246,7 +248,7 @@ fn test_stale_full_discards_on_projection_mismatch() {
 	entry.sched.lanes.bg.requested_doc_version = 1;
 
 	let done = dummy_completed(3, lang, TaskClass::Full, d.cfg.injections, None, None);
-	let decision = decide_install(&done, Instant::now(), &ctx, &d, &entry);
+	let decision = decide_install(&done, Instant::now(), &d, &entry);
 	assert!(
 		matches!(decision, InstallDecision::Discard),
 		"stale full with projection mismatch should discard: {decision:?}"
@@ -260,7 +262,7 @@ fn test_stale_full_discards_on_projection_mismatch() {
 	});
 
 	let done2 = dummy_completed(3, lang, TaskClass::Full, d.cfg.injections, None, None);
-	let decision2 = decide_install(&done2, Instant::now(), &ctx, &d, &entry);
+	let decision2 = decide_install(&done2, Instant::now(), &d, &entry);
 	assert!(
 		matches!(decision2, InstallDecision::Install),
 		"stale full with matching projection should install: {decision2:?}"
@@ -320,7 +322,7 @@ fn test_install_completions_timeout_sets_urgent_lane_cooldown_without_update() {
 	));
 
 	let mut metrics = SyntaxMetrics::new();
-	let updated = install_completions(&mut entry, now, &ctx, &d, &mut metrics);
+	let updated = install_completions(&mut entry, now, &d, &mut metrics);
 	assert!(!updated, "timeout completion must not report syntax-tree updates");
 	assert!(
 		entry.sched.lanes.viewport_urgent.cooldown_until.is_some(),
@@ -367,7 +369,7 @@ fn test_install_completions_stage_b_timeout_sets_key_cooldown() {
 	));
 
 	let mut metrics = SyntaxMetrics::new();
-	let updated = install_completions(&mut entry, now, &ctx, &d, &mut metrics);
+	let updated = install_completions(&mut entry, now, &d, &mut metrics);
 	assert!(!updated, "timeout completion must not report syntax-tree updates");
 	let ce = entry.slot.viewport_cache.map.get(&key).expect("cache entry must exist");
 	assert!(ce.stage_b_cooldown_until.is_some(), "Stage-B timeout must apply per-key viewport cooldown");

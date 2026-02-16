@@ -4,17 +4,17 @@ use super::*;
 
 /// Language checks, gating, and scheduling state computation.
 ///
-/// Returns `Continue(GateState)` if scheduling should proceed, or `Break(outcome)` for early exit.
+/// Returns `Continue(GateOutput)` if scheduling should proceed, or `Break(outcome)` for early exit.
 ///
 /// Retention is handled by `sweep_retention` before the workset is built, not here.
 /// This keeps a single owner for tree eviction and avoids surprising
 /// "drop during visible ensure" edges.
-pub(super) fn gate(entry: &mut DocEntry, now: Instant, ctx: &EnsureSyntaxContext<'_>, d: &EnsureDerived, was_updated: bool) -> Flow<GateState> {
-	let cfg = d.cfg;
+pub(super) fn gate<'a>(entry: &mut DocEntry, now: Instant, ctx: EnsureBase<'a>, was_updated: bool) -> Flow<GateOutput<'a>> {
+	let cfg = ctx.cfg;
 	let mut was_updated = was_updated;
 
 	// Language check
-	let Some(_lang_id) = ctx.language_id else {
+	let Some(lang_id) = ctx.language_id else {
 		if entry.slot.has_any_tree() {
 			entry.slot.drop_tree();
 			SyntaxManager::mark_updated(&mut entry.slot);
@@ -39,7 +39,7 @@ pub(super) fn gate(entry: &mut DocEntry, now: Instant, ctx: &EnsureSyntaxContext
 	};
 
 	// Work disabled gate
-	if d.work_disabled {
+	if ctx.work_disabled {
 		if entry.sched.any_active() {
 			entry.sched.invalidate();
 		}
@@ -57,7 +57,7 @@ pub(super) fn gate(entry: &mut DocEntry, now: Instant, ctx: &EnsureSyntaxContext
 	};
 
 	// Viewport stability tracking
-	let viewport_stable_polls = if let Some(vp) = &d.viewport {
+	let viewport_stable_polls = if let Some(vp) = &ctx.viewport {
 		let focus_key = entry
 			.slot
 			.viewport_cache
@@ -69,7 +69,7 @@ pub(super) fn gate(entry: &mut DocEntry, now: Instant, ctx: &EnsureSyntaxContext
 	};
 
 	// MRU touch
-	if let Some(vp) = &d.viewport {
+	if let Some(vp) = &ctx.viewport {
 		if let Some(covering) = entry.slot.viewport_cache.covering_key(vp) {
 			entry.slot.viewport_cache.touch(covering);
 		} else {
@@ -81,13 +81,16 @@ pub(super) fn gate(entry: &mut DocEntry, now: Instant, ctx: &EnsureSyntaxContext
 	}
 
 	// Enrichment desire
-	let want_enrich = d.tier == SyntaxTier::L && ctx.hotness == SyntaxHotness::Visible && cfg.viewport_stage_b_budget.is_some() && d.viewport.is_some() && {
-		let vp = d.viewport.as_ref().unwrap();
-		!slot_has_stage_b_exact_viewport_coverage(&entry.slot, vp, ctx.doc_version)
-	};
+	let want_enrich = ctx.tier == SyntaxTier::L
+		&& ctx.hotness == SyntaxHotness::Visible
+		&& cfg.viewport_stage_b_budget.is_some()
+		&& ctx
+			.viewport
+			.as_ref()
+			.is_some_and(|vp| !slot_has_stage_b_exact_viewport_coverage(&entry.slot, vp, ctx.doc_version));
 
 	let viewport_uncovered =
-		d.tier == SyntaxTier::L && entry.slot.full.is_none() && d.viewport.as_ref().is_some_and(|vp| !entry.slot.viewport_cache.covers_range(vp));
+		ctx.tier == SyntaxTier::L && entry.slot.full.is_none() && ctx.viewport.as_ref().is_some_and(|vp| !entry.slot.viewport_cache.covers_range(vp));
 
 	// Ready fast path
 	if entry.slot.has_any_tree() && !entry.slot.dirty && !want_enrich && !viewport_uncovered {
@@ -121,8 +124,11 @@ pub(super) fn gate(entry: &mut DocEntry, now: Instant, ctx: &EnsureSyntaxContext
 		});
 	}
 
-	ControlFlow::Continue(GateState {
-		viewport_stable_polls,
-		viewport_uncovered,
+	ControlFlow::Continue(GateOutput {
+		ctx: ctx.into_lang(lang_id),
+		state: GateState {
+			viewport_stable_polls,
+			viewport_uncovered,
+		},
 	})
 }

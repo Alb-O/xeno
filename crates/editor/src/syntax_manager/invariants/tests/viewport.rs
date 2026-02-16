@@ -1,5 +1,48 @@
 use super::*;
 
+/// Must suppress Stage-B planning within a poll when Stage-A is already planned.
+///
+/// * Enforced in: `ensure::plan::compute_plan`
+/// * Failure symptom: urgent and enrich viewport lanes run concurrently for the
+///   same poll window, causing avoidable permit contention and parse churn.
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_stage_a_precedes_stage_b_within_single_poll() {
+	let engine = Arc::new(MockEngine::new());
+	let _guard = EngineGuard(engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 2,
+			..Default::default()
+		},
+		engine,
+	);
+	let mut policy = TieredSyntaxPolicy::test_default();
+	policy.s_max_bytes_inclusive = 0;
+	policy.m_max_bytes_inclusive = 0;
+	policy.l.debounce = Duration::ZERO;
+	policy.l.viewport_stage_b_budget = Some(Duration::from_secs(5));
+	policy.l.viewport_stage_b_min_stable_polls = 0;
+	mgr.set_policy(policy);
+
+	let doc_id = DocumentId(3);
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang = loader.language_for_name("rust").unwrap();
+	let content = Rope::from("x".repeat(300_000));
+
+	let poll = mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 1,
+		language_id: Some(lang),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+		viewport: Some(0..128),
+	});
+	assert_eq!(poll.result, SyntaxPollResult::Kicked);
+	assert!(mgr.has_inflight_viewport_urgent(doc_id));
+	assert!(!mgr.has_inflight_viewport_enrich(doc_id));
+}
+
 /// Must only attempt synchronous bootstrap once per bootstrap window to
 /// avoid repeated stutter when background parsing is throttled.
 ///
