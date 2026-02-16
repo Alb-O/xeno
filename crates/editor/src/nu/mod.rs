@@ -10,8 +10,8 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 pub use xeno_invocation::nu::{DecodeBudget, NuCapability, NuEffect, NuEffectBatch, NuNotifyLevel, required_capability_for_effect};
-use xeno_nu_runtime::{ExportId, NuProgram};
-use xeno_nu_value::Value;
+use xeno_nu_api::{ExportId, NuProgram};
+use xeno_nu_data::Value;
 
 use crate::types::Invocation;
 

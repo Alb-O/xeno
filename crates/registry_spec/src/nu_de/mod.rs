@@ -1,4 +1,4 @@
-//! Serde deserializer from `xeno_nu_value::Value` (compile-time only).
+//! Serde deserializer from `xeno_nu_data::Value` (compile-time only).
 //!
 //! Replaces the previous JSON bridge (`Value` → `serde_json::Value` → `T`).
 //! Handles the subset of Nushell types used in asset files:
@@ -6,9 +6,9 @@
 
 use serde::de::{self, DeserializeSeed, IntoDeserializer, MapAccess, SeqAccess, Visitor};
 use serde::forward_to_deserialize_any;
-use xeno_nu_value::{Record, Value};
+use xeno_nu_data::{Record, Value};
 
-/// Deserialize `T` directly from a `xeno_nu_value::Value`.
+/// Deserialize `T` directly from a `xeno_nu_data::Value`.
 pub fn from_nu_value<T: de::DeserializeOwned>(value: &Value) -> Result<T, Error> {
 	T::deserialize(NuDe(value))
 }
@@ -44,10 +44,6 @@ impl<'de, 'a> de::Deserializer<'de> for NuDe<'a> {
 			Value::List { vals, .. } => visitor.visit_seq(NuSeq { iter: vals.iter() }),
 			Value::Record { val, .. } => visitor.visit_map(NuMap::new(val)),
 			Value::Nothing { .. } => visitor.visit_none(),
-			other => Err(de::Error::custom(format!(
-				"unsupported NUON type: {:?} (quote scalars; don't use duration/filesize literals)",
-				other.get_type()
-			))),
 		}
 	}
 

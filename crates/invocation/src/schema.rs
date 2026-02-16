@@ -1,11 +1,11 @@
-/// Canonical invocation record field names and Nu Value constructors.
+/// Canonical invocation record field names and Nu value constructors.
 ///
 /// All invocation records share these field names. The constructors produce
-/// `xeno_nu_value::Value::Record` values that are guaranteed to decode
+/// `xeno_nu_data::Value::Record` values that are guaranteed to decode
 /// correctly through Nu effect dispatch decoding.
 
 #[cfg(feature = "nu")]
-use xeno_nu_value::{Record, Span, Value};
+use xeno_nu_data::{Record, Span, Value};
 
 // ---------------------------------------------------------------------------
 // Field name constants

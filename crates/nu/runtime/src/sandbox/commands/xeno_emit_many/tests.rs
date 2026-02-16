@@ -48,6 +48,7 @@ fn xeno_effects_normalize_round_trips_through_decoder() {
 	let source = r#"[{type: "dispatch", kind: "action", name: "x", count: 3}, {type: "dispatch", kind: "command", name: "y"}] | xeno effects normalize"#;
 	let parsed = parse_and_validate(&mut engine_state, "<test>", source, None).expect("should parse");
 	let value = evaluate_block(&engine_state, parsed.block.as_ref()).expect("should evaluate");
+	let value = xeno_nu_data::Value::try_from(value).expect("value should convert");
 	let effects = xeno_invocation::nu::decode_macro_effects(value).expect("should decode");
 	assert_eq!(effects.effects.len(), 2);
 }

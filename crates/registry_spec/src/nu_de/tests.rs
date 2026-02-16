@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn deserialize_basic_record() {
-	let value = xeno_nu_nuon::from_nuon(r#"{ name: "test", count: 42, enabled: true }"#, None).unwrap();
+	let value = xeno_nu_api::parse_nuon(r#"{ name: "test", count: 42, enabled: true }"#).unwrap();
 
 	#[derive(serde::Deserialize, Debug, PartialEq)]
 	struct Basic {
@@ -24,7 +24,7 @@ fn deserialize_basic_record() {
 
 #[test]
 fn deserialize_externally_tagged_enum() {
-	let value = xeno_nu_nuon::from_nuon(r#"{ Git: { remote: "https://example.com", revision: "main" } }"#, None).unwrap();
+	let value = xeno_nu_api::parse_nuon(r#"{ Git: { remote: "https://example.com", revision: "main" } }"#).unwrap();
 
 	#[derive(serde::Deserialize, Debug, PartialEq)]
 	enum Source {
@@ -44,7 +44,7 @@ fn deserialize_externally_tagged_enum() {
 
 #[test]
 fn deserialize_option_and_tuple() {
-	let value = xeno_nu_nuon::from_nuon(r#"{ comment: ["/*", "*/"], nothing: null }"#, None).unwrap();
+	let value = xeno_nu_api::parse_nuon(r#"{ comment: ["/*", "*/"], nothing: null }"#).unwrap();
 
 	#[derive(serde::Deserialize, Debug, PartialEq)]
 	struct WithOpt {
@@ -64,7 +64,7 @@ fn deserialize_option_and_tuple() {
 
 #[test]
 fn deserialize_list_and_defaults() {
-	let value = xeno_nu_nuon::from_nuon(r#"{ items: [1, 2, 3] }"#, None).unwrap();
+	let value = xeno_nu_api::parse_nuon(r#"{ items: [1, 2, 3] }"#).unwrap();
 
 	#[derive(serde::Deserialize, Debug, PartialEq)]
 	struct WithList {
@@ -85,7 +85,7 @@ fn deserialize_list_and_defaults() {
 
 #[test]
 fn deserialize_hashmap() {
-	let value = xeno_nu_nuon::from_nuon(r##"{ fg: "#ff0000", bg: "#000000" }"##, None).unwrap();
+	let value = xeno_nu_api::parse_nuon(r##"{ fg: "#ff0000", bg: "#000000" }"##).unwrap();
 
 	let result: std::collections::HashMap<String, String> = from_nu_value(&value).unwrap();
 	assert_eq!(result.len(), 2);

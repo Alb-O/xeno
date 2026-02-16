@@ -12,9 +12,10 @@ members = [
     "crates/lsp",
     "crates/macros",
     "crates/matcher",
+    "crates/nu/api",
+    "crates/nu/data",
     "crates/nu/runtime",
     "crates/nu/safe_commands",
-    "crates/nu/value",
     "crates/primitives",
     "crates/registry",
     "crates/registry_spec",
@@ -138,14 +139,15 @@ xeno-language = { path = "crates/language" }
 xeno-lsp = { path = "crates/lsp" }
 xeno-macros = { path = "crates/macros" }
 xeno-matcher = { path = "crates/matcher" }
+xeno-nu-api = { path = "crates/nu/api" }
 xeno-nu-cmd-lang = { path = "crates/nu/cmd_lang", version = "0.110.1", default-features = false }
+xeno-nu-data = { path = "crates/nu/data" }
 xeno-nu-engine = { path = "crates/nu/engine", version = "0.110.1", default-features = false }
 xeno-nu-nuon = { path = "crates/nu/nuon", version = "0.110.1" }
 xeno-nu-parser = { path = "crates/nu/parser", version = "0.110.1" }
 xeno-nu-protocol = { path = "crates/nu/protocol", version = "0.110.1", default-features = false }
 xeno-nu-runtime = { path = "crates/nu/runtime" }
 xeno-nu-safe-commands = { path = "crates/nu/safe_commands" }
-xeno-nu-value = { path = "crates/nu/value" }
 xeno-primitives = { path = "crates/primitives" }
 xeno-registry = { path = "crates/registry" }
 xeno-registry-spec = { path = "crates/registry_spec" }

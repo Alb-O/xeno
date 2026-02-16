@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use xeno_nu_runtime::ExportId;
+use xeno_nu_api::ExportId;
 
 use crate::nu::executor::NuExecutor;
 use crate::nu::{CachedHookIds, NuHook, NuRuntime};

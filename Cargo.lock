@@ -5949,8 +5949,8 @@ dependencies = [
  "xeno-language",
  "xeno-lsp",
  "xeno-matcher",
- "xeno-nu-runtime",
- "xeno-nu-value",
+ "xeno-nu-api",
+ "xeno-nu-data",
  "xeno-primitives",
  "xeno-registry",
  "xeno-syntax",
@@ -5994,7 +5994,7 @@ dependencies = [
 name = "xeno-invocation"
 version = "0.9.3"
 dependencies = [
- "xeno-nu-value",
+ "xeno-nu-data",
 ]
 
 [[package]]
@@ -6080,10 +6080,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "xeno-nu-api"
+version = "0.9.3"
+dependencies = [
+ "xeno-nu-data",
+ "xeno-nu-nuon",
+ "xeno-nu-runtime",
+]
+
+[[package]]
 name = "xeno-nu-cmd-lang"
 version = "0.110.1"
 dependencies = [
  "xeno-nu-engine",
+ "xeno-nu-protocol",
+]
+
+[[package]]
+name = "xeno-nu-data"
+version = "0.9.3"
+dependencies = [
  "xeno-nu-protocol",
 ]
 
@@ -6195,11 +6211,11 @@ dependencies = [
  "tracing",
  "xeno-invocation",
  "xeno-nu-cmd-lang",
+ "xeno-nu-data",
  "xeno-nu-engine",
  "xeno-nu-parser",
  "xeno-nu-protocol",
  "xeno-nu-safe-commands",
- "xeno-nu-value",
 ]
 
 [[package]]
@@ -6223,13 +6239,6 @@ dependencies = [
  "strip-ansi-escapes",
  "sys-locale",
  "unicase",
-]
-
-[[package]]
-name = "xeno-nu-value"
-version = "0.9.3"
-dependencies = [
- "xeno-nu-protocol",
 ]
 
 [[package]]
@@ -6268,9 +6277,8 @@ dependencies = [
  "xeno-invocation-spec",
  "xeno-keymap-core",
  "xeno-macros",
- "xeno-nu-nuon",
- "xeno-nu-runtime",
- "xeno-nu-value",
+ "xeno-nu-api",
+ "xeno-nu-data",
  "xeno-primitives",
  "xeno-registry-spec",
 ]
@@ -6282,8 +6290,8 @@ dependencies = [
  "postcard",
  "serde",
  "walkdir",
- "xeno-nu-nuon",
- "xeno-nu-value",
+ "xeno-nu-api",
+ "xeno-nu-data",
 ]
 
 [[package]]

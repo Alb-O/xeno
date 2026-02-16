@@ -15,10 +15,10 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use xeno_nu_protocol::DeclId;
+use xeno_nu_data::Value;
 use xeno_nu_protocol::ast::Block;
 use xeno_nu_protocol::engine::EngineState;
-use xeno_nu_value::Value;
+use xeno_nu_protocol::{DeclId, Value as ProtocolValue};
 
 const SCRIPT_FILE_NAME: &str = "xeno.nu";
 
@@ -201,13 +201,17 @@ impl NuProgram {
 	/// Call a pre-resolved export.
 	pub fn call_export(&self, export: ExportId, args: &[String], env: &[(&str, Value)]) -> Result<Value, ExecError> {
 		let decl_id = self.checked_decl_id(export)?;
-		sandbox::call_function(&self.engine_state, decl_id, args, env).map_err(ExecError::Runtime)
+		let env = env.iter().map(|(key, value)| (*key, ProtocolValue::from(value.clone()))).collect::<Vec<_>>();
+		let value = sandbox::call_function(&self.engine_state, decl_id, args, &env).map_err(ExecError::Runtime)?;
+		Value::try_from(value).map_err(|error| ExecError::Runtime(format!("Nu runtime error: {error}")))
 	}
 
 	/// Call a pre-resolved export with owned args/env.
 	pub fn call_export_owned(&self, export: ExportId, args: Vec<String>, env: Vec<(String, Value)>) -> Result<Value, ExecError> {
 		let decl_id = self.checked_decl_id(export)?;
-		sandbox::call_function_owned(&self.engine_state, decl_id, args, env).map_err(ExecError::Runtime)
+		let env = env.into_iter().map(|(key, value)| (key, ProtocolValue::from(value))).collect::<Vec<_>>();
+		let value = sandbox::call_function_owned(&self.engine_state, decl_id, args, env).map_err(ExecError::Runtime)?;
+		Value::try_from(value).map_err(|error| ExecError::Runtime(format!("Nu runtime error: {error}")))
 	}
 
 	/// Resolve and call an export by name.
@@ -225,7 +229,8 @@ impl NuProgram {
 				"Nu runtime error: execute_root is only available for config-script programs".to_string(),
 			));
 		};
-		sandbox::evaluate_block(&self.engine_state, block.as_ref()).map_err(ExecError::Runtime)
+		let value = sandbox::evaluate_block(&self.engine_state, block.as_ref()).map_err(ExecError::Runtime)?;
+		Value::try_from(value).map_err(|error| ExecError::Runtime(format!("Nu runtime error: {error}")))
 	}
 
 	fn checked_decl_id(&self, export: ExportId) -> Result<DeclId, ExecError> {

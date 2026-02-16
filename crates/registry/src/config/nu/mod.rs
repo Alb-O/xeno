@@ -7,7 +7,7 @@ use super::{Config, ConfigError, Result};
 /// Evaluate a Nu script and parse its resulting value as [`Config`].
 pub fn eval_config_str(input: &str, fname: &str) -> Result<Config> {
 	let config_root = Path::new(fname).parent();
-	let program = xeno_nu_runtime::NuProgram::compile_config_script(fname, input, config_root).map_err(|error| ConfigError::NuParse(error.to_string()))?;
+	let program = xeno_nu_api::NuProgram::compile_config_script(fname, input, config_root).map_err(|error| ConfigError::NuParse(error.to_string()))?;
 	let value = program.execute_root().map_err(|error| ConfigError::NuRuntime(error.to_string()))?;
 
 	if value.as_record().is_err() {

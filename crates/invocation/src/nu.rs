@@ -8,7 +8,7 @@
 /// * keybinding custom values decode through [`decode_single_dispatch_effect`].
 use std::fmt::Write;
 
-use xeno_nu_value::{Record, Value};
+use xeno_nu_data::{Record, Value};
 
 use crate::{Invocation, schema};
 

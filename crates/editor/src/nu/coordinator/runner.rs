@@ -2,8 +2,8 @@ use std::time::{Duration, Instant};
 
 use tracing::{debug, warn};
 use xeno_invocation::nu::DecodeBudget;
-use xeno_nu_runtime::ExportId;
-use xeno_nu_value::Value;
+use xeno_nu_api::ExportId;
+use xeno_nu_data::Value;
 
 use super::state::NuCoordinatorState;
 use crate::nu::executor::NuExecError;

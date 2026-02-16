@@ -1,0 +1,14 @@
+[package]
+name = "xeno-nu-api"
+description = "Public Nu runtime/data boundary for Xeno"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+xeno-nu-data.workspace = true
+xeno-nu-nuon.workspace = true
+xeno-nu-runtime.workspace = true
+
+[lints]
+workspace = true

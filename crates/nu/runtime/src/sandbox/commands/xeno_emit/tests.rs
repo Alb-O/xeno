@@ -53,6 +53,7 @@ fn xeno_effect_dispatch_round_trips_through_decoder() {
 	let source = r#"xeno effect dispatch action move_right --count 2 --char x"#;
 	let parsed = parse_and_validate(&mut engine_state, "<test>", source, None).expect("should parse");
 	let value = evaluate_block(&engine_state, parsed.block.as_ref()).expect("should evaluate");
+	let value = xeno_nu_data::Value::try_from(value).expect("value should convert");
 	let effects = xeno_invocation::nu::decode_macro_effects(value).expect("should decode");
 	assert_eq!(effects.effects.len(), 1);
 	match &effects.effects[0] {

@@ -1,5 +1,6 @@
 use xeno_invocation::nu::NuNotifyLevel;
 use xeno_invocation::schema;
+use xeno_nu_data::Record as DataRecord;
 use xeno_nu_engine::CallExt;
 use xeno_nu_protocol::engine::{Call, Command, EngineState, Stack};
 use xeno_nu_protocol::{Category, PipelineData, Record, ShellError, Signature, SyntaxShape, Type, Value};
@@ -118,7 +119,10 @@ fn build_dispatch_effect(
 		}
 	}
 
-	let normalized = schema::validate_invocation_record(&invocation, None, &schema::DEFAULT_LIMITS, span).map_err(|msg| {
+	let invocation =
+		DataRecord::try_from(invocation).map_err(|error| err(span, format!("xeno effect: {error}"), "invocation contains unsupported Nu value types"))?;
+
+	let normalized = schema::validate_invocation_record(&invocation, None, &schema::DEFAULT_LIMITS, span.into()).map_err(|msg| {
 		let error = format!("xeno effect: {msg}");
 		err(span, error, msg)
 	})?;
@@ -126,7 +130,7 @@ fn build_dispatch_effect(
 	let normalized_record = normalized.into_record().map_err(|error| {
 		err(
 			span,
-			format!("xeno effect: failed to normalize dispatch effect: {error}"),
+			format!("xeno effect: failed to normalize dispatch effect: {error:?}"),
 			"normalized dispatch shape is invalid",
 		)
 	})?;
@@ -134,7 +138,7 @@ fn build_dispatch_effect(
 	let mut effect = Record::new();
 	effect.push("type", Value::string("dispatch", span));
 	for (key, value) in normalized_record.iter() {
-		effect.push(key, value.clone());
+		effect.push(key, Value::from(value.clone()));
 	}
 	Ok(Value::record(effect, span))
 }

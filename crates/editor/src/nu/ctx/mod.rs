@@ -4,7 +4,7 @@
 //! functions. The struct representation is the single source of truth;
 //! [`NuCtx::to_value`] is the only place that constructs the Nu record.
 
-use xeno_nu_value::{Record, Span, Value};
+use xeno_nu_data::{Record, Span, Value};
 
 /// Current schema version. Bump when adding/removing/renaming fields.
 pub const SCHEMA_VERSION: i64 = 1;

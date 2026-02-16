@@ -25,8 +25,8 @@ use std::time::{Duration, Instant};
 use tokio::sync::oneshot;
 use tokio::sync::oneshot::error::TryRecvError;
 use xeno_invocation::nu::DecodeBudget;
-use xeno_nu_runtime::ExportId;
-use xeno_nu_value::Value;
+use xeno_nu_api::ExportId;
+use xeno_nu_data::Value;
 
 use super::{NuDecodeSurface, NuEffectBatch, NuRuntime};
 

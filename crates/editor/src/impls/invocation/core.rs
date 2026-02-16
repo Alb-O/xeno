@@ -1,5 +1,5 @@
 use tracing::{debug, trace, trace_span, warn};
-use xeno_nu_value::Value;
+use xeno_nu_data::Value;
 use xeno_registry::actions::{ActionArgs, ActionContext, ActionResult, EditorContext, dispatch_result, find_action};
 use xeno_registry::commands::{CommandContext, find_command};
 use xeno_registry::hooks::{HookContext, emit_sync_with as emit_hook_sync_with};

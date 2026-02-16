@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 
 use serde::de::DeserializeOwned;
 use walkdir::WalkDir;
-use xeno_nu_value::Value;
+use xeno_nu_data::Value;
 
 pub const MAGIC: &[u8; 8] = b"XENOASST";
 pub const SCHEMA_VERSION: u32 = 1;
@@ -61,13 +61,13 @@ impl BuildCtx {
 	}
 }
 
-/// Reads a NUON file and parses it into a `xeno_nu_value::Value`.
+/// Reads a NUON file and parses it into a `xeno_nu_data::Value`.
 pub fn read_nuon_value(path: &Path) -> Value {
 	let content = fs::read_to_string(path).unwrap_or_else(|e| panic!("failed to read {}: {e}", path.display()));
-	xeno_nu_nuon::from_nuon(&content, None).unwrap_or_else(|e| panic!("failed to parse NUON {}: {e}", path.display()))
+	xeno_nu_api::parse_nuon(&content).unwrap_or_else(|e| panic!("failed to parse NUON {}: {e}", path.display()))
 }
 
-/// Reads a NUON file and deserializes it into `T` directly from `xeno_nu_value::Value`.
+/// Reads a NUON file and deserializes it into `T` directly from `xeno_nu_data::Value`.
 pub fn read_nuon_spec<T: DeserializeOwned>(path: &Path) -> T {
 	let value = read_nuon_value(path);
 	crate::nu_de::from_nu_value(&value).unwrap_or_else(|e| panic!("failed to deserialize {}: {e}", path.display()))

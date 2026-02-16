@@ -83,15 +83,15 @@ languages-builtins = ["languages"]
 
 # Config NUON parsing
 config-nuon = [
-    "dep:xeno-nu-value",
-    "dep:xeno-nu-nuon",
+    "dep:xeno-nu-api",
+    "dep:xeno-nu-data",
     "dep:xeno-primitives",
     "dep:xeno-invocation-spec",
     "xeno-invocation/nu",
     "themes",
     "options",
 ]
-config-nu = ["config-nuon", "dep:xeno-nu-runtime"]
+config-nu = ["config-nuon"]
 
 # Contract enforcement
 registry-contracts = []
@@ -117,9 +117,8 @@ xeno-invocation = { workspace = true }
 xeno-invocation-spec = { workspace = true, optional = true }
 xeno-keymap-core = { workspace = true, optional = true }
 xeno-macros = { workspace = true, optional = true }
-xeno-nu-nuon = { workspace = true, optional = true }
-xeno-nu-runtime = { workspace = true, optional = true }
-xeno-nu-value = { workspace = true, optional = true }
+xeno-nu-api = { workspace = true, optional = true }
+xeno-nu-data = { workspace = true, optional = true }
 xeno-primitives = { workspace = true, optional = true }
 xeno-registry-spec = { workspace = true }
 

@@ -1,4 +1,4 @@
-use xeno_nu_value::{Record, Span, Value};
+use xeno_nu_data::{Record, Span, Value};
 
 use super::*;
 

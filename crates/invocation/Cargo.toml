@@ -6,10 +6,10 @@ edition.workspace = true
 license.workspace = true
 
 [features]
-nu = ["dep:xeno-nu-value"]
+nu = ["dep:xeno-nu-data"]
 
 [dependencies]
-xeno-nu-value = { workspace = true, optional = true }
+xeno-nu-data = { workspace = true, optional = true }
 
 [lints.rust]
 unused_crate_dependencies = "warn"
