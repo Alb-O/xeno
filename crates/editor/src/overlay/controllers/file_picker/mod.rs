@@ -8,6 +8,7 @@ use xeno_primitives::{Key, KeyCode, Selection};
 use xeno_registry::options::OptionValue;
 
 use crate::completion::{CompletionItem, CompletionKind, CompletionState, SelectionIntent};
+use crate::overlay::picker_engine::model::{CommitDecision, PickerAction};
 use crate::overlay::{CloseReason, OverlayContext, OverlayController, OverlaySession, OverlayUiSpec, RectPolicy, StatusKind};
 use crate::window::GutterSelector;
 
@@ -352,9 +353,7 @@ impl FilePickerOverlay {
 	}
 
 	fn selected_item(ctx: &dyn OverlayContext) -> Option<CompletionItem> {
-		ctx.completion_state()
-			.and_then(|state| state.selected_idx.and_then(|idx| state.items.get(idx)).or_else(|| state.items.first()))
-			.cloned()
+		crate::overlay::picker_engine::decision::selected_completion_item(ctx.completion_state())
 	}
 
 	fn handle_enter(&mut self, ctx: &mut dyn OverlayContext, session: &mut OverlaySession) -> bool {
@@ -380,7 +379,7 @@ impl FilePickerOverlay {
 		let Some(mut selected) = Self::selected_item(ctx) else {
 			return false;
 		};
-		if current_input == selected.insert_text {
+		if crate::overlay::picker_engine::decision::is_exact_selection_match(&current_input, &selected) {
 			let _ = self.move_selection(ctx, 1);
 			let Some(next) = Self::selected_item(ctx) else {
 				return true;
@@ -396,6 +395,47 @@ impl FilePickerOverlay {
 		self.set_input_text(ctx, session, &next_input);
 		self.refresh_items(ctx, session, &next_input);
 		true
+	}
+
+	fn enter_commit_decision(&self, ctx: &dyn OverlayContext) -> CommitDecision {
+		let Some(selected) = Self::selected_item(ctx) else {
+			return CommitDecision::CommitTyped;
+		};
+
+		if Self::is_directory_item(&selected) {
+			CommitDecision::ApplySelectionThenStay
+		} else {
+			CommitDecision::CommitTyped
+		}
+	}
+
+	fn picker_action_for_key(key: Key) -> Option<PickerAction> {
+		match key.code {
+			KeyCode::Enter => Some(PickerAction::Commit(CommitDecision::CommitTyped)),
+			KeyCode::Tab => Some(PickerAction::ApplySelection),
+			KeyCode::Up => Some(PickerAction::MoveSelection { delta: -1 }),
+			KeyCode::Down => Some(PickerAction::MoveSelection { delta: 1 }),
+			KeyCode::PageUp => Some(PickerAction::PageSelection { direction: -1 }),
+			KeyCode::PageDown => Some(PickerAction::PageSelection { direction: 1 }),
+			KeyCode::Char('n') if key.modifiers.ctrl => Some(PickerAction::MoveSelection { delta: 1 }),
+			KeyCode::Char('p') if key.modifiers.ctrl => Some(PickerAction::MoveSelection { delta: -1 }),
+			_ => None,
+		}
+	}
+
+	fn handle_picker_action(&mut self, ctx: &mut dyn OverlayContext, session: &mut OverlaySession, action: PickerAction) -> bool {
+		match action {
+			PickerAction::MoveSelection { delta } => self.move_selection(ctx, delta),
+			PickerAction::PageSelection { direction } => self.page_selection(ctx, direction),
+			PickerAction::ApplySelection => {
+				let _ = self.accept_tab_completion(ctx, session);
+				true
+			}
+			PickerAction::Commit(_) => match self.enter_commit_decision(ctx) {
+				CommitDecision::CommitTyped => false,
+				CommitDecision::ApplySelectionThenStay => self.handle_enter(ctx, session),
+			},
+		}
 	}
 
 	fn refresh_items(&mut self, ctx: &mut dyn OverlayContext, session: &mut OverlaySession, text: &str) {
@@ -505,20 +545,10 @@ impl OverlayController for FilePickerOverlay {
 	}
 
 	fn on_key(&mut self, ctx: &mut dyn OverlayContext, session: &mut OverlaySession, key: Key) -> bool {
-		match key.code {
-			KeyCode::Enter => self.handle_enter(ctx, session),
-			KeyCode::Tab => {
-				let _ = self.accept_tab_completion(ctx, session);
-				true
-			}
-			KeyCode::Up => self.move_selection(ctx, -1),
-			KeyCode::Down => self.move_selection(ctx, 1),
-			KeyCode::PageUp => self.page_selection(ctx, -1),
-			KeyCode::PageDown => self.page_selection(ctx, 1),
-			KeyCode::Char('n') if key.modifiers.ctrl => self.move_selection(ctx, 1),
-			KeyCode::Char('p') if key.modifiers.ctrl => self.move_selection(ctx, -1),
-			_ => false,
-		}
+		let Some(action) = Self::picker_action_for_key(key) else {
+			return false;
+		};
+		self.handle_picker_action(ctx, session, action)
 	}
 
 	fn on_commit<'a>(&'a mut self, ctx: &'a mut dyn OverlayContext, session: &'a mut OverlaySession) -> Pin<Box<dyn Future<Output = ()> + 'a>> {

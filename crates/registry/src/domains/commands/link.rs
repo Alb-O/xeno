@@ -10,12 +10,14 @@ pub type LinkedCommandDef = LinkedDef<CommandPayload>;
 #[derive(Clone)]
 pub struct CommandPayload {
 	pub handler: CommandHandler,
+	pub palette: super::spec::CommandPaletteSpec,
 }
 
 impl LinkedPayload<CommandEntry> for CommandPayload {
 	fn build_entry(&self, _ctx: &mut dyn crate::core::index::BuildCtx, meta: RegistryMeta, _short_desc: Symbol) -> CommandEntry {
 		CommandEntry {
 			meta,
+			palette: self.palette.clone(),
 			handler: self.handler,
 			user_data: None,
 		}
@@ -45,7 +47,10 @@ pub fn link_commands(spec: &CommandsSpec, handlers: impl Iterator<Item = &'stati
 					flags: common.flags,
 					short_desc: Some(common.name.clone()), // commands.rs used name as short_desc
 				},
-				payload: CommandPayload { handler: handler.handler },
+				payload: CommandPayload {
+					handler: handler.handler,
+					palette: meta.palette.clone(),
+				},
 			}
 		},
 		"command",

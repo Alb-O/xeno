@@ -18,6 +18,7 @@ use crate::window::{SurfaceBorder, SurfacePadding, SurfaceStyle};
 pub mod controllers;
 pub(crate) mod geom;
 pub mod host;
+pub(crate) mod picker_engine;
 pub mod session;
 pub mod spec;
 

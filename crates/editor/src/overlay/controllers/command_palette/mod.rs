@@ -6,13 +6,15 @@ use std::path::{Path, PathBuf};
 use std::pin::Pin;
 
 use xeno_primitives::{Key, KeyCode, Selection};
-use xeno_registry::commands::COMMANDS;
+use xeno_registry::commands::{COMMANDS, PaletteArgKind, PaletteCommitPolicy};
 use xeno_registry::notifications::keys;
-use xeno_registry::options::{OptionValue, keys as opt_keys};
+use xeno_registry::options::{OPTIONS, OptionType, OptionValue, keys as opt_keys};
 use xeno_registry::snippets::SNIPPETS;
 use xeno_registry::themes::{THEMES, ThemeVariant};
 
 use crate::completion::{CompletionItem, CompletionKind, CompletionState, SelectionIntent};
+use crate::overlay::picker_engine::model::{CommitDecision, PickerAction};
+use crate::overlay::picker_engine::providers::{FnPickerProvider, PickerProvider};
 use crate::overlay::{CloseReason, OverlayContext, OverlayController, OverlaySession, OverlayUiSpec, RectPolicy};
 use crate::window::GutterSelector;
 
@@ -22,20 +24,13 @@ struct TokenCtx {
 	token_index: usize,
 	start: usize,
 	query: String,
+	args: Vec<String>,
 	path_dir: Option<String>,
 	quoted: Option<char>,
 	close_quote_idx: Option<usize>,
 }
 
-#[derive(Debug, Clone)]
-struct Tok {
-	start: usize,
-	end: usize,
-	content_start: usize,
-	content_end: usize,
-	quoted: Option<char>,
-	close_quote_idx: Option<usize>,
-}
+type Tok = crate::overlay::picker_engine::parser::PickerToken;
 
 pub struct CommandPaletteOverlay {
 	last_input: String,
@@ -47,9 +42,44 @@ pub struct CommandPaletteOverlay {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum CommandArgCompletion {
 	None,
-	File,
+	FilePath,
 	Snippet,
 	Theme,
+	OptionKey,
+	OptionValue,
+	Buffer,
+	CommandName,
+	FreeText,
+}
+
+impl CommandArgCompletion {
+	fn from_palette_kind(kind: PaletteArgKind) -> Self {
+		match kind {
+			PaletteArgKind::FilePath => Self::FilePath,
+			PaletteArgKind::ThemeName => Self::Theme,
+			PaletteArgKind::SnippetRefOrBody => Self::Snippet,
+			PaletteArgKind::OptionKey => Self::OptionKey,
+			PaletteArgKind::OptionValue => Self::OptionValue,
+			PaletteArgKind::BufferRef => Self::Buffer,
+			PaletteArgKind::CommandName => Self::CommandName,
+			PaletteArgKind::FreeText => Self::FreeText,
+		}
+	}
+
+	fn completion_kind(self) -> Option<CompletionKind> {
+		match self {
+			Self::None | Self::FreeText => None,
+			Self::FilePath => Some(CompletionKind::File),
+			Self::Snippet => Some(CompletionKind::Snippet),
+			Self::Theme => Some(CompletionKind::Theme),
+			Self::OptionKey | Self::OptionValue | Self::CommandName => Some(CompletionKind::Command),
+			Self::Buffer => Some(CompletionKind::Buffer),
+		}
+	}
+
+	fn supports_completion(self) -> bool {
+		self.completion_kind().is_some()
+	}
 }
 
 impl Default for CommandPaletteOverlay {
@@ -91,71 +121,11 @@ impl CommandPaletteOverlay {
 	}
 
 	fn replace_char_range(input: &str, start: usize, end: usize, replacement: &str) -> (String, usize) {
-		let chars: Vec<char> = input.chars().collect();
-		let start = start.min(chars.len());
-		let end = end.min(chars.len()).max(start);
-
-		let mut out = String::new();
-		for ch in &chars[..start] {
-			out.push(*ch);
-		}
-		out.push_str(replacement);
-		for ch in &chars[end..] {
-			out.push(*ch);
-		}
-
-		let cursor = start + replacement.chars().count();
-		(out, cursor)
+		crate::overlay::picker_engine::apply::replace_char_range(input, start, end, replacement)
 	}
 
 	fn tokenize(chars: &[char]) -> Vec<Tok> {
-		let mut out = Vec::new();
-		let mut i = 0usize;
-		while i < chars.len() {
-			while i < chars.len() && chars[i].is_whitespace() {
-				i += 1;
-			}
-			if i >= chars.len() {
-				break;
-			}
-
-			let start = i;
-			if chars[i] == '"' || chars[i] == '\'' {
-				let quote = chars[i];
-				i += 1;
-				let content_start = i;
-				while i < chars.len() && chars[i] != quote {
-					i += 1;
-				}
-				let content_end = i.min(chars.len());
-				let close_quote_idx = if i < chars.len() && chars[i] == quote { Some(i) } else { None };
-				if close_quote_idx.is_some() {
-					i += 1;
-				}
-				out.push(Tok {
-					start,
-					end: i,
-					content_start,
-					content_end,
-					quoted: Some(quote),
-					close_quote_idx,
-				});
-			} else {
-				let content_start = i;
-				while i < chars.len() && !chars[i].is_whitespace() {
-					i += 1;
-				}
-				out.push(Tok {
-					start,
-					end: i,
-					content_start,
-					content_end: i,
-					quoted: None,
-					close_quote_idx: None,
-				});
-			}
-		}
-		out
+		crate::overlay::picker_engine::parser::tokenize(chars)
 	}
 
 	fn token_context(input: &str, cursor: usize) -> TokenCtx {
@@ -168,6 +138,11 @@ impl CommandPaletteOverlay {
 			.first()
 			.map(|tok| chars[tok.content_start..tok.content_end].iter().collect::<String>().to_ascii_lowercase())
 			.unwrap_or_default();
+		let args = tokens
+			.iter()
+			.skip(1)
+			.map(|tok| chars[tok.content_start..tok.content_end].iter().collect::<String>())
+			.collect::<Vec<_>>();
 
 		if let Some((idx, tok)) = tokens.iter().enumerate().find(|(_, tok)| cursor >= tok.start && cursor <= tok.end) {
 			let cursor_in_content = cursor.clamp(tok.content_start, tok.content_end);
@@ -175,7 +150,7 @@ impl CommandPaletteOverlay {
 			let mut query: String = chars[tok.content_start..cursor_in_content].iter().collect();
 			let mut path_dir = None;
 
-			if idx >= 1 && Self::command_arg_completion(&cmd) == CommandArgCompletion::File {
+			if idx >= 1 && Self::command_arg_completion(&cmd, idx) == CommandArgCompletion::FilePath {
 				let (dir_part, file_part) = Self::split_path_query(&query);
 				start = start.saturating_add(Self::char_count(&dir_part));
 				query = file_part;
@@ -189,6 +164,7 @@ impl CommandPaletteOverlay {
 				token_index: idx,
 				start,
 				query,
+				args,
 				path_dir,
 				quoted: tok.quoted,
 				close_quote_idx: tok.close_quote_idx,
@@ -201,6 +177,7 @@ impl CommandPaletteOverlay {
 			token_index,
 			start: cursor,
 			query: String::new(),
+			args,
 			path_dir: None,
 			quoted: None,
 			close_quote_idx: None,
@@ -406,27 +383,35 @@ impl CommandPaletteOverlay {
 		scored.into_iter().map(|(_, item)| item).collect()
 	}
 
-	fn command_arg_completion(command_name: &str) -> CommandArgCompletion {
-		let canonical = xeno_registry::commands::find_command(command_name)
-			.map(|cmd| cmd.name_str().to_ascii_lowercase())
-			.unwrap_or_else(|| command_name.to_ascii_lowercase());
-		match canonical.as_str() {
-			"open" | "edit" | "cd" => CommandArgCompletion::File,
-			"snippet" => CommandArgCompletion::Snippet,
-			"theme" | "colorscheme" => CommandArgCompletion::Theme,
-			_ => CommandArgCompletion::None,
+	fn command_arg_spec(command_name: &str, token_index: usize) -> Option<xeno_registry::commands::PaletteArgSpec> {
+		if token_index == 0 {
+			return None;
 		}
+
+		let arg_index = token_index.saturating_sub(1);
+		let cmd = xeno_registry::commands::find_command(command_name)?;
+		let args = &cmd.palette().args;
+		if let Some(spec) = args.get(arg_index) {
+			return Some(spec.clone());
+		}
+
+		args.last().filter(|last| last.variadic).cloned()
+	}
+
+	fn command_arg_completion(command_name: &str, token_index: usize) -> CommandArgCompletion {
+		Self::command_arg_spec(command_name, token_index)
+			.map(|spec| CommandArgCompletion::from_palette_kind(spec.kind))
+			.unwrap_or(CommandArgCompletion::None)
 	}
 
 	fn command_supports_argument_completion(command_name: &str) -> bool {
-		Self::command_arg_completion(command_name) != CommandArgCompletion::None
+		Self::command_arg_completion(command_name, 1).supports_completion()
 	}
 
 	fn command_requires_argument_for_commit(command_name: &str) -> bool {
-		matches!(
-			Self::command_arg_completion(command_name),
-			CommandArgCompletion::Theme | CommandArgCompletion::Snippet
-		)
+		xeno_registry::commands::find_command(command_name)
+			.map(|cmd| cmd.palette().commit_policy == PaletteCommitPolicy::RequireResolvedArgs)
+			.unwrap_or(false)
 	}
 
 	fn should_append_space_after_completion(selected: &CompletionItem, token: &TokenCtx, is_dir_completion: bool, quoted_arg: bool) -> bool {
@@ -445,14 +430,7 @@ impl CommandPaletteOverlay {
 	}
 
 	fn selected_completion_item(ctx: &dyn OverlayContext) -> Option<CompletionItem> {
-		ctx.completion_state()
-			.and_then(|state| {
-				if !state.active {
-					return None;
-				}
-				state.selected_idx.and_then(|idx| state.items.get(idx)).or_else(|| state.items.first())
-			})
-			.cloned()
+		crate::overlay::picker_engine::decision::selected_completion_item(ctx.completion_state())
 	}
 
 	fn command_resolves(command_name: &str) -> bool {
@@ -492,30 +470,49 @@ impl CommandPaletteOverlay {
 		}
 
 		let typed_name: String = chars[name_tok.content_start..name_tok.content_end].iter().collect();
-		if Self::command_resolves(&typed_name) {
-			return false;
-		}
-
-		let Some(selected) = selected_item else {
-			return false;
+		let command_name = if Self::command_resolves(&typed_name) {
+			typed_name
+		} else {
+			let Some(selected) = selected_item else {
+				return false;
+			};
+			if selected.kind != CompletionKind::Command || selected.insert_text.is_empty() {
+				return false;
+			}
+			if !Self::command_resolves(&selected.insert_text) {
+				return false;
+			}
+			selected.insert_text.clone()
 		};
-		if selected.kind != CompletionKind::Command || selected.insert_text.is_empty() {
-			return false;
-		}
-		if !Self::command_resolves(&selected.insert_text) {
+
+		if !Self::command_requires_argument_for_commit(&command_name) {
 			return false;
 		}
 
-		Self::command_requires_argument_for_commit(&selected.insert_text)
+		Self::command_arg_spec(&command_name, 1).map(|spec| spec.required).unwrap_or(false)
 	}
 
-	fn command_argument_is_resolved_for_commit(command_name: &str, arg: Option<&str>) -> bool {
-		match Self::command_arg_completion(command_name) {
-			CommandArgCompletion::Theme => arg.is_some_and(|value| xeno_registry::themes::get_theme(value).is_some()),
-			CommandArgCompletion::Snippet => {
-				arg.is_some_and(|value| !value.is_empty() && (!value.starts_with('@') || xeno_registry::snippets::find_snippet(value).is_some()))
-			}
-			CommandArgCompletion::File | CommandArgCompletion::None => true,
+	fn command_argument_is_resolved_for_commit(command_name: &str, token_index: usize, arg: Option<&str>) -> bool {
+		let Some(spec) = Self::command_arg_spec(command_name, token_index) else {
+			return true;
+		};
+
+		if arg.is_none() {
+			return !spec.required;
+		}
+		let value = arg.expect("arg presence checked");
+		if value.is_empty() {
+			return !spec.required;
+		}
+
+		match CommandArgCompletion::from_palette_kind(spec.kind) {
+			CommandArgCompletion::Theme => xeno_registry::themes::get_theme(value).is_some(),
+			CommandArgCompletion::Snippet => !value.starts_with('@') || xeno_registry::snippets::find_snippet(value).is_some(),
+			CommandArgCompletion::CommandName => Self::command_resolves(value),
+			CommandArgCompletion::OptionKey => xeno_registry::options::find(value).is_some(),
+			CommandArgCompletion::OptionValue => true,
+			CommandArgCompletion::FilePath | CommandArgCompletion::Buffer | CommandArgCompletion::FreeText => true,
+			CommandArgCompletion::None => true,
 		}
 	}
 
@@ -525,7 +522,7 @@ impl CommandPaletteOverlay {
 		}
 
 		let token = Self::token_context(input, cursor);
-		if token.token_index != 1 {
+		if token.token_index < 1 {
 			return false;
 		}
 
@@ -533,10 +530,9 @@ impl CommandPaletteOverlay {
 			return false;
 		};
 
-		let expected_kind = match Self::command_arg_completion(command_name) {
-			CommandArgCompletion::Theme => CompletionKind::Theme,
-			CommandArgCompletion::Snippet => CompletionKind::Snippet,
-			CommandArgCompletion::File | CommandArgCompletion::None => return false,
+		let completion_kind = Self::command_arg_completion(command_name, token.token_index);
+		let Some(expected_kind) = completion_kind.completion_kind() else {
+			return false;
 		};
 		if selected.kind != expected_kind || selected.insert_text.is_empty() {
 			return false;
@@ -544,9 +540,11 @@ impl CommandPaletteOverlay {
 
 		let chars: Vec<char> = input.chars().collect();
 		let tokens = Self::tokenize(&chars);
-		let arg = tokens.get(1).map(|tok| chars[tok.content_start..tok.content_end].iter().collect::<String>());
+		let arg = tokens
+			.get(token.token_index)
+			.map(|tok| chars[tok.content_start..tok.content_end].iter().collect::<String>());
 
-		!Self::command_argument_is_resolved_for_commit(command_name, arg.as_deref())
+		!Self::command_argument_is_resolved_for_commit(command_name, token.token_index, arg.as_deref())
 	}
 
 	fn build_snippet_items(query: &str) -> Vec<CompletionItem> {
@@ -686,6 +684,91 @@ impl CommandPaletteOverlay {
 		scored.into_iter().map(|(_, item)| item).collect()
 	}
 
+	fn build_option_key_items(query: &str) -> Vec<CompletionItem> {
+		let query = query.trim();
+		let mut scored: Vec<(i32, CompletionItem)> = OPTIONS
+			.snapshot_guard()
+			.iter_refs()
+			.filter_map(|opt| {
+				let name = opt.name_str();
+				let mut best_score = i32::MIN;
+				let mut match_indices: Option<Vec<usize>> = None;
+
+				if let Some((score, _, indices)) = crate::completion::frizbee_match(query, name) {
+					best_score = score as i32 + 200;
+					if !indices.is_empty() {
+						match_indices = Some(indices);
+					}
+				}
+
+				for alias in opt.keys_resolved() {
+					if let Some((score, _, _)) = crate::completion::frizbee_match(query, alias) {
+						best_score = best_score.max(score as i32 + 80);
+					}
+				}
+
+				if query.is_empty() {
+					best_score = 0;
+				}
+				if !query.is_empty() && best_score == i32::MIN {
+					return None;
+				}
+
+				Some((
+					best_score,
+					CompletionItem {
+						label: name.to_string(),
+						insert_text: name.to_string(),
+						detail: Some("option".to_string()),
+						filter_text: None,
+						kind: CompletionKind::Command,
+						match_indices,
+						right: Some("opt".to_string()),
+					},
+				))
+			})
+			.collect();
+
+		scored.sort_by(|(score_a, item_a), (score_b, item_b)| score_b.cmp(score_a).then_with(|| item_a.label.cmp(&item_b.label)));
+		scored.into_iter().map(|(_, item)| item).collect()
+	}
+
+	fn build_option_value_items(query: &str, option_key: Option<&str>) -> Vec<CompletionItem> {
+		let values: Vec<&str> = if let Some(key) = option_key
+			&& let Some(opt) = xeno_registry::options::find(key)
+		{
+			match opt.value_type {
+				OptionType::Bool => vec!["true", "false", "on", "off"],
+				OptionType::Int => Vec::new(),
+				OptionType::String => Vec::new(),
+			}
+		} else {
+			vec!["true", "false", "on", "off"]
+		};
+
+		let query = query.trim();
+		let mut scored = Vec::new();
+		for value in values {
+			if let Some((score, _, indices)) = crate::completion::frizbee_match(query, value) {
+				scored.push((
+					score as i32,
+					CompletionItem {
+						label: value.to_string(),
+						insert_text: value.to_string(),
+						detail: Some("value".to_string()),
+						filter_text: None,
+						kind: CompletionKind::Command,
+						match_indices: if indices.is_empty() { None } else { Some(indices) },
+						right: Some("value".to_string()),
+					},
+				));
+			}
+		}
+
+		scored.sort_by(|(score_a, item_a), (score_b, item_b)| score_b.cmp(score_a).then_with(|| item_a.label.cmp(&item_b.label)));
+		scored.into_iter().map(|(_, item)| item).collect()
+	}
+
 	fn build_items_for_token(
 		&mut self,
 		token: &TokenCtx,
@@ -694,24 +777,42 @@ impl CommandPaletteOverlay {
 		usage: &crate::completion::CommandUsageSnapshot,
 	) -> Vec<CompletionItem> {
 		if token.token_index == 0 {
-			return Self::build_command_items(&token.query, usage);
+			let mut provider = FnPickerProvider::new(|query: &str| Self::build_command_items(query, usage));
+			return provider.candidates(&token.query);
 		}
 
-		match Self::command_arg_completion(&token.cmd) {
-			CommandArgCompletion::Theme if token.token_index == 1 => {
-				return Self::build_theme_items(&token.query);
+		match Self::command_arg_completion(&token.cmd, token.token_index) {
+			CommandArgCompletion::Theme => {
+				let mut provider = FnPickerProvider::new(Self::build_theme_items);
+				return provider.candidates(&token.query);
 			}
-			CommandArgCompletion::Snippet if token.token_index == 1 => {
+			CommandArgCompletion::Snippet => {
 				let query = token.query.trim_start();
 				if !query.starts_with('@') {
 					return Vec::new();
 				}
-				return Self::build_snippet_items(query);
+				let mut provider = FnPickerProvider::new(Self::build_snippet_items);
+				return provider.candidates(query);
 			}
-			CommandArgCompletion::File if token.token_index >= 1 => {
-				return self.build_file_items(&token.query, token.path_dir.as_deref(), ctx, session);
+			CommandArgCompletion::FilePath => {
+				let dir_part = token.path_dir.clone();
+				let mut provider = FnPickerProvider::new(|query: &str| self.build_file_items(query, dir_part.as_deref(), ctx, session));
+				return provider.candidates(&token.query);
 			}
-			CommandArgCompletion::None | CommandArgCompletion::Snippet | CommandArgCompletion::Theme | CommandArgCompletion::File => {}
+			CommandArgCompletion::OptionKey => {
+				let mut provider = FnPickerProvider::new(Self::build_option_key_items);
+				return provider.candidates(&token.query);
+			}
+			CommandArgCompletion::OptionValue => {
+				let option_key = token.args.first().map(String::as_str);
+				let mut provider = FnPickerProvider::new(|query: &str| Self::build_option_value_items(query, option_key));
+				return provider.candidates(&token.query);
+			}
+			CommandArgCompletion::CommandName => {
+				let mut provider = FnPickerProvider::new(|query: &str| Self::build_command_items(query, usage));
+				return provider.candidates(&token.query);
+			}
+			CommandArgCompletion::None | CommandArgCompletion::Buffer | CommandArgCompletion::FreeText => {}
 		}
 
 		Vec::new()
@@ -821,7 +922,7 @@ impl CommandPaletteOverlay {
 		true
 	}
 
-	fn accept_tab_completion(&mut self, ctx: &mut dyn OverlayContext, session: &mut OverlaySession) -> bool {
+	fn apply_selected_completion(&mut self, ctx: &mut dyn OverlayContext, session: &mut OverlaySession, cycle_on_exact_match: bool) -> bool {
 		let Some(mut selected_item) = Self::selected_completion_item(ctx) else {
 			return true;
 		};
@@ -831,7 +932,7 @@ impl CommandPaletteOverlay {
 		let replace_end = Self::effective_replace_end(&token, cursor);
 		let current_replacement: String = input.chars().skip(token.start).take(replace_end.saturating_sub(token.start)).collect();
 
-		if current_replacement == selected_item.insert_text {
+		if cycle_on_exact_match && crate::overlay::picker_engine::decision::is_exact_selection_match(&current_replacement, &selected_item) {
 			let _ = self.move_selection(ctx, 1);
 			if let Some(next) = Self::selected_completion_item(ctx) {
 				selected_item = next;
@@ -877,21 +978,56 @@ impl CommandPaletteOverlay {
 		true
 	}
 
-	fn accept_enter_completion_if_needed(&mut self, ctx: &mut dyn OverlayContext, session: &mut OverlaySession) -> bool {
+	fn accept_tab_completion(&mut self, ctx: &mut dyn OverlayContext, session: &mut OverlaySession) -> bool {
+		self.apply_selected_completion(ctx, session, true)
+	}
+
+	fn enter_commit_decision(&mut self, ctx: &mut dyn OverlayContext, session: &mut OverlaySession) -> CommitDecision {
 		let (input, cursor) = Self::current_input_and_cursor(ctx, session);
 		let selected_item = Self::selected_completion_item(ctx);
-		if !Self::should_promote_enter_to_tab_completion(&input, cursor, selected_item.as_ref()) {
-			return false;
+		if Self::should_promote_enter_to_tab_completion(&input, cursor, selected_item.as_ref()) {
+			return CommitDecision::ApplySelectionThenStay;
 		}
 
-		self.accept_tab_completion(ctx, session)
+		CommitDecision::CommitTyped
+	}
+
+	fn picker_action_for_key(key: Key) -> Option<PickerAction> {
+		match key.code {
+			KeyCode::Enter => Some(PickerAction::Commit(CommitDecision::CommitTyped)),
+			KeyCode::Up => Some(PickerAction::MoveSelection { delta: -1 }),
+			KeyCode::Down => Some(PickerAction::MoveSelection { delta: 1 }),
+			KeyCode::PageUp => Some(PickerAction::PageSelection { direction: -1 }),
+			KeyCode::PageDown => Some(PickerAction::PageSelection { direction: 1 }),
+			KeyCode::Char('n') if key.modifiers.ctrl => Some(PickerAction::MoveSelection { delta: 1 }),
+			KeyCode::Char('p') if key.modifiers.ctrl => Some(PickerAction::MoveSelection { delta: -1 }),
+			KeyCode::Tab => Some(PickerAction::ApplySelection),
+			_ => None,
+		}
+	}
+
+	fn handle_picker_action(&mut self, ctx: &mut dyn OverlayContext, session: &mut OverlaySession, action: PickerAction) -> bool {
+		match action {
+			PickerAction::MoveSelection { delta } => self.move_selection(ctx, delta),
+			PickerAction::PageSelection { direction } => self.page_selection(ctx, direction),
+			PickerAction::ApplySelection => self.accept_tab_completion(ctx, session),
+			PickerAction::Commit(_) => match self.enter_commit_decision(ctx, session) {
+				CommitDecision::CommitTyped => false,
+				CommitDecision::ApplySelectionThenStay => self.apply_selected_completion(ctx, session, false),
+			},
+		}
 	}
 
 	fn effective_replace_end(token: &TokenCtx, cursor: usize) -> usize {
-		match (token.quoted, token.close_quote_idx) {
-			(Some(_), Some(close_quote_idx)) if cursor > close_quote_idx => close_quote_idx,
-			_ => cursor,
-		}
+		let picker_token = crate::overlay::picker_engine::parser::PickerToken {
+			start: token.start,
+			end: cursor,
+			content_start: token.start,
+			content_end: cursor,
+			quoted: token.quoted,
+			close_quote_idx: token.close_quote_idx,
+		};
+		crate::overlay::picker_engine::parser::effective_replace_end(&picker_token, cursor)
 	}
 }
 
@@ -945,17 +1081,10 @@ impl OverlayController for CommandPaletteOverlay {
 	}
 
 	fn on_key(&mut self, ctx: &mut dyn OverlayContext, session: &mut OverlaySession, key: Key) -> bool {
-		match key.code {
-			KeyCode::Enter => self.accept_enter_completion_if_needed(ctx, session),
-			KeyCode::Up => self.move_selection(ctx, -1),
-			KeyCode::Down => self.move_selection(ctx, 1),
-			KeyCode::PageUp => self.page_selection(ctx, -1),
-			KeyCode::PageDown => self.page_selection(ctx, 1),
-			KeyCode::Char('n') if key.modifiers.ctrl => self.move_selection(ctx, 1),
-			KeyCode::Char('p') if key.modifiers.ctrl => self.move_selection(ctx, -1),
-			KeyCode::Tab => self.accept_tab_completion(ctx, session),
-			_ => false,
-		}
+		let Some(action) = Self::picker_action_for_key(key) else {
+			return false;
+		};
+		self.handle_picker_action(ctx, session, action)
 	}
 
 	fn on_commit<'a>(&'a mut self, ctx: &'a mut dyn OverlayContext, session: &'a mut OverlaySession) -> Pin<Box<dyn Future<Output = ()> + 'a>> {
@@ -972,7 +1101,7 @@ impl OverlayController for CommandPaletteOverlay {
 				let mut command_name = Self::resolve_command_name_for_commit(&typed_name, token.token_index, selected_item.as_ref());
 
 				if Self::should_apply_selected_argument_on_commit(&input, cursor, &command_name, selected_item.as_ref()) {
-					let _ = self.accept_tab_completion(ctx, session);
+					let _ = self.apply_selected_completion(ctx, session, false);
 					input = session.input_text(ctx).trim_end_matches('\n').to_string();
 					chars = input.chars().collect();
 					tokens = Self::tokenize(&chars);

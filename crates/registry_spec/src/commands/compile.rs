@@ -16,6 +16,26 @@ pub fn build(ctx: &BuildCtx) {
 		if !seen.insert(&cmd.common.name) {
 			panic!("duplicate command name: '{}'", cmd.common.name);
 		}
+
+		let mut seen_optional = false;
+		let mut variadic_count = 0usize;
+		for (idx, arg) in cmd.palette.args.iter().enumerate() {
+			if !arg.required {
+				seen_optional = true;
+			} else if seen_optional {
+				panic!("command '{}' has required arg '{}' after optional args", cmd.common.name, arg.name);
+			}
+
+			if arg.variadic {
+				variadic_count += 1;
+				if idx + 1 != cmd.palette.args.len() {
+					panic!("command '{}' arg '{}' is variadic but not last", cmd.common.name, arg.name);
+				}
+			}
+		}
+		if variadic_count > 1 {
+			panic!("command '{}' has multiple variadic args; only one variadic arg is supported", cmd.common.name);
+		}
 	}
 
 	let bin = postcard::to_stdvec(&spec).expect("failed to serialize commands spec");
