@@ -50,7 +50,7 @@ impl Editor {
 				view_id: new_id,
 				direction: SplitDirection::Horizontal,
 			}),
-			&mut self.state.hook_runtime,
+			&mut self.state.work_scheduler,
 		);
 
 		Ok(())
@@ -85,7 +85,7 @@ impl Editor {
 				view_id: new_id,
 				direction: SplitDirection::Vertical,
 			}),
-			&mut self.state.hook_runtime,
+			&mut self.state.work_scheduler,
 		);
 
 		Ok(())
@@ -109,7 +109,7 @@ impl Editor {
 				view_id: new_buffer_id,
 				direction: SplitDirection::Horizontal,
 			}),
-			&mut self.state.hook_runtime,
+			&mut self.state.work_scheduler,
 		);
 	}
 
@@ -131,7 +131,7 @@ impl Editor {
 				view_id: new_buffer_id,
 				direction: SplitDirection::Vertical,
 			}),
-			&mut self.state.hook_runtime,
+			&mut self.state.work_scheduler,
 		);
 	}
 
@@ -196,7 +196,7 @@ impl Editor {
 					path: &path,
 					file_type: file_type.as_deref(),
 				}),
-				&mut self.state.hook_runtime,
+				&mut self.state.work_scheduler,
 			);
 
 			#[cfg(feature = "lsp")]
@@ -214,7 +214,7 @@ impl Editor {
 			}
 		}
 
-		emit_hook_sync_with(&HookContext::new(HookEventData::SplitClosed { view_id: view }), &mut self.state.hook_runtime);
+		emit_hook_sync_with(&HookContext::new(HookEventData::SplitClosed { view_id: view }), &mut self.state.work_scheduler);
 
 		self.finalize_buffer_removal(view);
 		self.repair_invariants();

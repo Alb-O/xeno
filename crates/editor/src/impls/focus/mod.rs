@@ -160,7 +160,7 @@ impl Editor {
 					view_id: new_view,
 					prev_view_id: Some(old_view),
 				}),
-				&mut self.state.hook_runtime,
+				&mut self.state.work_scheduler,
 			);
 		}
 
@@ -483,7 +483,7 @@ impl Editor {
 						window_id: window.into(),
 						focused: false,
 					}),
-					&mut self.state.hook_runtime,
+					&mut self.state.work_scheduler,
 				);
 			}
 			if let Some(window) = new_window {
@@ -492,7 +492,7 @@ impl Editor {
 						window_id: window.into(),
 						focused: true,
 					}),
-					&mut self.state.hook_runtime,
+					&mut self.state.work_scheduler,
 				);
 			}
 		}

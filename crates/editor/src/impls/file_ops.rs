@@ -118,7 +118,7 @@ impl Editor {
 				text: rope.slice(..),
 				file_type: file_type.as_deref(),
 			}),
-			&mut self.state.hook_runtime,
+			&mut self.state.work_scheduler,
 		);
 
 		if let Some((line, column)) = self.state.deferred_goto.take() {

@@ -43,11 +43,11 @@ pub enum RuntimeEvent {
 }
 
 /// Runtime policy constants.
-const HOOK_BUDGET_FAST: crate::hook_runtime::HookDrainBudget = crate::hook_runtime::HookDrainBudget {
+const DRAIN_BUDGET_FAST: crate::scheduler::DrainBudget = crate::scheduler::DrainBudget {
 	duration: Duration::from_millis(1),
 	max_completions: 32,
 };
-const HOOK_BUDGET_SLOW: crate::hook_runtime::HookDrainBudget = crate::hook_runtime::HookDrainBudget {
+const DRAIN_BUDGET_SLOW: crate::scheduler::DrainBudget = crate::scheduler::DrainBudget {
 	duration: Duration::from_millis(3),
 	max_completions: 64,
 };
@@ -68,14 +68,18 @@ impl Editor {
 			self.frame_mut().needs_redraw = true;
 		}
 
-		let hook_budget = if matches!(self.mode(), Mode::Insert) {
-			HOOK_BUDGET_FAST
+		// Kick one queued Nu hook eval onto the WorkScheduler (non-blocking).
+		// The eval result arrives via EditorMsg::NuHookEvalDone in drain_messages().
+		self.kick_nu_hook_eval();
+
+		let drain_budget = if matches!(self.mode(), Mode::Insert) {
+			DRAIN_BUDGET_FAST
 		} else {
-			HOOK_BUDGET_SLOW
+			DRAIN_BUDGET_SLOW
 		};
 
-		let hook_stats = self.hook_runtime_mut().drain_budget(hook_budget).await;
-		self.metrics().record_hook_tick(hook_stats.completed, hook_stats.pending);
+		let drain_stats = self.work_scheduler_mut().drain_budget(drain_budget).await;
+		self.metrics().record_hook_tick(drain_stats.completed, drain_stats.pending);
 
 		let should_quit = self.drain_command_queue().await || self.take_quit_request();
 
@@ -87,6 +91,17 @@ impl Editor {
 		let msg_dirty = self.drain_messages();
 		if msg_dirty.needs_redraw() {
 			self.frame_mut().needs_redraw = true;
+		}
+
+		// Execute invocations produced by completed Nu hook evaluations.
+		let nu_hook_quit = self.drain_nu_hook_invocations(crate::impls::invocation::MAX_NU_HOOKS_PER_PUMP).await;
+		if nu_hook_quit {
+			return LoopDirective {
+				poll_timeout: None,
+				needs_redraw: true,
+				cursor_style: self.derive_cursor_style(),
+				should_quit: true,
+			};
 		}
 
 		#[cfg(feature = "lsp")]

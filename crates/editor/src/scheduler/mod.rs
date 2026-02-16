@@ -7,5 +7,6 @@ mod types;
 #[cfg(test)]
 mod tests;
 
+pub use ops::{DrainBudget, DrainStats};
 pub use state::WorkScheduler;
 pub use types::{DocId, WorkItem, WorkKind};

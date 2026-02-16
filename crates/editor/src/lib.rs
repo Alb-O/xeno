@@ -44,8 +44,6 @@ pub mod execution_gate;
 pub(crate) mod filesystem;
 /// Shared geometry aliases for core/front-end seams.
 pub(crate) mod geometry;
-/// Async hook execution runtime.
-pub mod hook_runtime;
 mod impls;
 /// Info popups for documentation and contextual help.
 pub(crate) mod info_popup;

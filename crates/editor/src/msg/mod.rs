@@ -43,6 +43,26 @@ pub fn channel() -> (MsgSender, MsgReceiver) {
 	mpsc::unbounded_channel()
 }
 
+/// Structured error for Nu hook evaluation failures.
+#[derive(Debug)]
+pub enum NuHookEvalError {
+	/// Nu evaluated and returned an error string.
+	Eval(String),
+	/// Executor channel closed (worker died or was swapped).
+	ExecutorShutdown,
+	/// Worker died mid-evaluation (reply channel dropped).
+	ReplyDropped,
+}
+
+/// Result of a completed async Nu hook evaluation.
+#[derive(Debug)]
+pub struct NuHookEvalDoneMsg {
+	/// Matches the job_id assigned in `kick_nu_hook_eval`.
+	pub job_id: u64,
+	/// Produced invocations or a structured error.
+	pub result: Result<Vec<crate::types::Invocation>, NuHookEvalError>,
+}
+
 /// Top-level message enum dispatched to editor state.
 #[derive(Debug)]
 pub enum EditorMsg {
@@ -50,6 +70,8 @@ pub enum EditorMsg {
 	Io(IoMsg),
 	Lsp(LspMsg),
 	Overlay(OverlayMsg),
+	/// Async Nu hook evaluation completed.
+	NuHookEvalDone(NuHookEvalDoneMsg),
 }
 
 impl EditorMsg {
@@ -60,6 +82,7 @@ impl EditorMsg {
 			Self::Io(msg) => msg.apply(editor),
 			Self::Lsp(msg) => msg.apply(editor),
 			Self::Overlay(msg) => msg.apply(editor),
+			Self::NuHookEvalDone(msg) => editor.apply_nu_hook_eval_done(msg),
 		}
 	}
 }

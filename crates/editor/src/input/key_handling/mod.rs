@@ -100,11 +100,10 @@ impl Editor {
 			quit = action_result.is_quit();
 			handled = true;
 
-			if !action_result.is_quit()
-				&& let Some(action_name) = action_name_from_key_result(&result)
-				&& let Some(hook_result) = self.emit_action_post_hook(action_name, &action_result).await
-			{
-				quit = hook_result.is_quit();
+			if !action_result.is_quit() {
+				if let Some(action_name) = action_name_from_key_result(&result) {
+					self.enqueue_action_post_hook(action_name, &action_result);
+				}
 			}
 		}
 
@@ -130,11 +129,7 @@ impl Editor {
 						}))
 						.await;
 
-						if let Some(hook_result) = self.emit_mode_change_hook(&old_mode, &new_mode).await
-							&& hook_result.is_quit()
-						{
-							quit = true;
-						}
+						self.enqueue_mode_change_hook(&old_mode, &new_mode);
 					}
 					if leaving_insert {
 						self.cancel_snippet_session();

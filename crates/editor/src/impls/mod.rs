@@ -71,7 +71,6 @@ use xeno_registry::{ActionId, HookEventData};
 
 use crate::buffer::{Buffer, Layout, ViewId};
 use crate::geometry::Rect;
-use crate::hook_runtime::HookRuntime;
 use crate::layout::LayoutManager;
 #[cfg(feature = "lsp")]
 use crate::lsp::LspHandle;
@@ -79,10 +78,28 @@ use crate::lsp::LspSystem;
 use crate::msg::{MsgReceiver, MsgSender};
 use crate::overlay::{OverlayStore, OverlaySystem};
 use crate::paste::normalize_to_lf;
+use crate::scheduler::WorkScheduler;
 use crate::types::{Config, FrameState, UndoManager, Viewport, Workspace};
 use crate::ui::{PanelRenderTarget, UiManager};
 use crate::view_manager::ViewManager;
 use crate::window::{BaseWindow, WindowManager};
+
+/// A queued Nu post-hook awaiting evaluation during pump().
+#[derive(Debug, Clone)]
+pub(crate) struct QueuedNuHook {
+	pub hook: crate::nu::NuHook,
+	pub args: Vec<String>,
+	pub retries: u8,
+}
+
+/// Tracks a single in-flight Nu hook evaluation on the WorkScheduler.
+#[derive(Debug)]
+pub(crate) struct InFlightNuHook {
+	pub job_id: u64,
+	pub hook: crate::nu::NuHook,
+	pub args: Vec<String>,
+	pub retries: u8,
+}
 
 static REGISTRY_SUMMARY_ONCE: Once = Once::new();
 
@@ -185,10 +202,22 @@ pub(crate) struct EditorState {
 	pub(crate) nu_executor: Option<crate::nu::executor::NuExecutor>,
 	/// Cached decl IDs for Nu hook functions, populated when runtime is set.
 	pub(crate) nu_hook_ids: crate::nu::CachedHookIds,
-	/// Prevents Nu hook invocations from recursively triggering more hooks.
-	pub(crate) nu_hook_guard: bool,
+	/// Depth counter preventing recursive Nu hook enqueue during drain.
+	pub(crate) nu_hook_depth: u8,
 	/// Prevents unbounded recursive Nu macro expansion chains.
 	pub(crate) nu_macro_depth: u8,
+	/// Queued Nu post-hooks awaiting evaluation during pump().
+	pub(crate) nu_hook_queue: std::collections::VecDeque<QueuedNuHook>,
+	/// Currently in-flight Nu hook evaluation, if any.
+	pub(crate) nu_hook_in_flight: Option<InFlightNuHook>,
+	/// Monotonic job ID counter for in-flight hook tracking.
+	pub(crate) nu_hook_job_next: u64,
+	/// Invocations produced by completed Nu hook evaluations, pending execution.
+	pub(crate) nu_hook_pending_invocations: std::collections::VecDeque<crate::types::Invocation>,
+	/// Total Nu hooks dropped due to backlog.
+	pub(crate) nu_hook_dropped_total: u64,
+	/// Total Nu hooks that failed after exhausting retries.
+	pub(crate) nu_hook_failed_total: u64,
 
 	/// Notification system.
 	pub(crate) notifications: crate::notifications::NotificationCenter,
@@ -199,8 +228,8 @@ pub(crate) struct EditorState {
 	/// Background syntax loading manager.
 	pub(crate) syntax_manager: crate::syntax_manager::SyntaxManager,
 
-	/// Runtime for scheduling async hooks during sync emission.
-	pub(crate) hook_runtime: HookRuntime,
+	/// Unified async work scheduler (hooks, LSP, indexing, watchers).
+	pub(crate) work_scheduler: WorkScheduler,
 
 	/// Unified overlay system for modal interactions and passive layers.
 	pub(crate) overlay_system: OverlaySystem,
@@ -340,14 +369,14 @@ impl Editor {
 			buffer: buffer_id,
 		};
 
-		let mut hook_runtime = HookRuntime::new();
+		let mut work_scheduler = WorkScheduler::new();
 
 		emit_hook_sync_with(
 			&HookContext::new(HookEventData::WindowCreated {
 				window_id: window_manager.base_id().into(),
 				kind: WindowKind::Base,
 			}),
-			&mut hook_runtime,
+			&mut work_scheduler,
 		);
 
 		let scratch_path = PathBuf::from("[scratch]");
@@ -361,7 +390,7 @@ impl Editor {
 				text: content.slice(..),
 				file_type: buffer.file_type().as_deref(),
 			}),
-			&mut hook_runtime,
+			&mut work_scheduler,
 		);
 
 		// Create EditorCore with buffers, workspace, and undo manager
@@ -383,15 +412,21 @@ impl Editor {
 				nu_runtime: None,
 				nu_executor: None,
 				nu_hook_ids: crate::nu::CachedHookIds::default(),
-				nu_hook_guard: false,
+				nu_hook_depth: 0,
 				nu_macro_depth: 0,
+				nu_hook_queue: std::collections::VecDeque::new(),
+				nu_hook_in_flight: None,
+				nu_hook_job_next: 0,
+				nu_hook_pending_invocations: std::collections::VecDeque::new(),
+				nu_hook_dropped_total: 0,
+				nu_hook_failed_total: 0,
 				notifications: crate::notifications::NotificationCenter::new(),
 				lsp: LspSystem::new(),
 				syntax_manager: crate::syntax_manager::SyntaxManager::new(crate::syntax_manager::SyntaxManagerCfg {
 					max_concurrency: 2,
 					..Default::default()
 				}),
-				hook_runtime,
+				work_scheduler,
 				overlay_system: OverlaySystem::default(),
 				effects: crate::effects::sink::EffectSink::default(),
 				flush_depth: 0,
@@ -595,6 +630,9 @@ impl Editor {
 	/// while jobs are still executing on an old worker.
 	pub fn set_nu_runtime(&mut self, runtime: Option<crate::nu::NuRuntime>) {
 		self.state.nu_executor = None;
+		self.state.nu_hook_queue.clear();
+		self.state.nu_hook_pending_invocations.clear();
+		self.state.nu_hook_in_flight = None;
 		self.state.nu_runtime = runtime;
 		self.state.nu_hook_ids = self
 			.state
@@ -689,13 +727,13 @@ impl Editor {
 	}
 
 	#[inline]
-	pub(crate) fn hook_runtime_mut(&mut self) -> &mut HookRuntime {
-		&mut self.state.hook_runtime
+	pub(crate) fn work_scheduler_mut(&mut self) -> &mut WorkScheduler {
+		&mut self.state.work_scheduler
 	}
 
-	/// Emits the editor-start lifecycle hook on the sync hook runtime.
+	/// Emits the editor-start lifecycle hook on the work scheduler.
 	pub fn emit_editor_start_hook(&mut self) {
-		emit_hook_sync_with(&HookContext::new(HookEventData::EditorStart), &mut self.state.hook_runtime);
+		emit_hook_sync_with(&HookContext::new(HookEventData::EditorStart), &mut self.state.work_scheduler);
 	}
 
 	/// Emits the editor-quit lifecycle hook asynchronously.

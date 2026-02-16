@@ -25,7 +25,7 @@ pub(crate) struct CachedHookIds {
 }
 
 /// Hook function identifiers used to select a cached decl ID.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum NuHook {
 	ActionPost,
 	CommandPost,

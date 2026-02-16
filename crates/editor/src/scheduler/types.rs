@@ -11,6 +11,8 @@ pub type DocId = u64;
 pub enum WorkKind {
 	/// Hook execution.
 	Hook,
+	/// Nu hook async evaluation.
+	NuHook,
 	/// LSP document sync flush.
 	LspFlush,
 	/// File indexing.

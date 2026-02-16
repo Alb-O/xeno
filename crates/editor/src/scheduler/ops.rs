@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 
 use tokio::task::JoinSet;
-use xeno_registry::hooks::HookPriority;
+use xeno_registry::hooks::{HookFuture as HookBoxFuture, HookPriority, HookScheduler};
 
 use super::state::{BACKGROUND_DROP_THRESHOLD, BACKLOG_HIGH_WATER, WorkScheduler};
 use super::types::{DocId, WorkItem, WorkKind};
@@ -114,24 +114,35 @@ impl WorkScheduler {
 		self.dropped_total
 	}
 
-	/// Drains completions within a time budget.
-	pub async fn drain_budget(&mut self, budget: Duration) {
+	/// Drains completions within a time and count budget.
+	pub async fn drain_budget(&mut self, budget: impl Into<DrainBudget>) -> DrainStats {
 		if !self.has_pending() {
-			return;
+			return DrainStats::default();
 		}
 
+		let budget = budget.into();
 		let start = Instant::now();
-		let deadline = start + budget;
+		let deadline = start + budget.duration;
 		let completed_before = self.completed_total;
+		let mut remaining_completions = budget.max_completions;
 
-		while Instant::now() < deadline && !self.interactive.is_empty() {
+		if remaining_completions == 0 {
+			return DrainStats {
+				completed: 0,
+				pending: self.pending_count(),
+			};
+		}
+
+		while Instant::now() < deadline && !self.interactive.is_empty() && remaining_completions > 0 {
 			let remaining = deadline.saturating_duration_since(Instant::now());
 			match tokio::time::timeout(remaining, self.interactive.join_next()).await {
 				Ok(Some(Ok(()))) => {
 					self.completed_total += 1;
+					remaining_completions = remaining_completions.saturating_sub(1);
 				}
 				Ok(Some(Err(e))) => {
 					self.completed_total += 1;
+					remaining_completions = remaining_completions.saturating_sub(1);
 					tracing::error!(?e, "interactive work task failed");
 				}
 				_ => break,
@@ -141,14 +152,16 @@ impl WorkScheduler {
 		if self.interactive.is_empty() {
 			let _scope = self.gate.open_background_scope();
 
-			while Instant::now() < deadline && !self.background.is_empty() {
+			while Instant::now() < deadline && !self.background.is_empty() && remaining_completions > 0 {
 				let remaining = deadline.saturating_duration_since(Instant::now());
 				match tokio::time::timeout(remaining, self.background.join_next()).await {
 					Ok(Some(Ok(()))) => {
 						self.completed_total += 1;
+						remaining_completions = remaining_completions.saturating_sub(1);
 					}
 					Ok(Some(Err(e))) => {
 						self.completed_total += 1;
+						remaining_completions = remaining_completions.saturating_sub(1);
 						tracing::error!(?e, "background work task failed");
 					}
 					_ => break,
@@ -160,9 +173,10 @@ impl WorkScheduler {
 		let pending_after = self.pending_count();
 		if completed_this_drain > 0 || pending_after > 0 {
 			tracing::debug!(
-				budget_ms = budget.as_millis() as u64,
+				budget_ms = budget.duration.as_millis() as u64,
 				elapsed_ms = start.elapsed().as_millis() as u64,
 				completed = completed_this_drain,
+				budget_max = budget.max_completions,
 				interactive_pending = self.interactive.len(),
 				background_pending = self.background.len(),
 				"work.drain_budget"
@@ -178,6 +192,11 @@ impl WorkScheduler {
 				dropped = self.dropped_total,
 				"work backlog exceeds high-water mark"
 			);
+		}
+
+		DrainStats {
+			completed: completed_this_drain,
+			pending: pending_after,
 		}
 	}
 
@@ -210,4 +229,46 @@ impl WorkScheduler {
 			tracing::info!(dropped = count, "dropped all background work");
 		}
 	}
+}
+
+impl HookScheduler for WorkScheduler {
+	fn schedule(&mut self, fut: HookBoxFuture, priority: HookPriority) {
+		self.schedule(WorkItem {
+			future: Box::pin(async move {
+				let _ = fut.await;
+			}),
+			kind: WorkKind::Hook,
+			priority,
+			doc_id: None,
+		});
+	}
+}
+
+/// Budget for draining scheduled work completions.
+#[derive(Debug, Clone, Copy)]
+pub struct DrainBudget {
+	pub duration: Duration,
+	pub max_completions: usize,
+}
+
+impl DrainBudget {
+	pub fn new(duration: Duration, max_completions: usize) -> Self {
+		Self { duration, max_completions }
+	}
+}
+
+impl From<Duration> for DrainBudget {
+	fn from(duration: Duration) -> Self {
+		Self {
+			duration,
+			max_completions: usize::MAX,
+		}
+	}
+}
+
+/// Statistics from a drain cycle.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct DrainStats {
+	pub completed: u64,
+	pub pending: usize,
 }

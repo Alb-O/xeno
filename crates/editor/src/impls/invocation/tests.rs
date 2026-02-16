@@ -415,6 +415,7 @@ async fn nu_hook_ctx_is_injected() {
 	let result = editor
 		.run_invocation(Invocation::action("invocation_test_action"), InvocationPolicy::enforcing())
 		.await;
+	editor.drain_nu_hook_queue(usize::MAX).await;
 	assert!(matches!(result, InvocationResult::Ok));
 
 	let pre_count = ACTION_PRE_COUNT.with(|count| count.get());
@@ -459,6 +460,7 @@ async fn nu_runtime_reload_swaps_executor_and_disables_old_runtime_hooks() {
 	let result_a = editor
 		.run_invocation(Invocation::action("invocation_edit_action"), InvocationPolicy::enforcing())
 		.await;
+	editor.drain_nu_hook_queue(usize::MAX).await;
 	assert!(matches!(result_a, InvocationResult::Ok));
 	assert_eq!(INVOCATION_TEST_ACTION_COUNT.with(|count| count.get()), 1, "runtime A hook should run once");
 	assert_eq!(
@@ -489,6 +491,7 @@ async fn nu_runtime_reload_swaps_executor_and_disables_old_runtime_hooks() {
 	let result_b = editor
 		.run_invocation(Invocation::action("invocation_edit_action"), InvocationPolicy::enforcing())
 		.await;
+	editor.drain_nu_hook_queue(usize::MAX).await;
 	assert!(matches!(result_b, InvocationResult::Ok));
 	assert_eq!(
 		INVOCATION_TEST_ACTION_COUNT.with(|count| count.get()),
@@ -527,10 +530,10 @@ async fn command_post_hook_runs_and_receives_args() {
 	let result = editor
 		.run_invocation(Invocation::command("invocation_test_command_fail", vec![]), InvocationPolicy::enforcing())
 		.await;
+	editor.drain_nu_hook_queue(usize::MAX).await;
 
-	// The command itself fails. The hook runs and fires test action, but since
-	// hook invocations all succeed (Ok), run_nu_hook returns None and the
-	// original command error result is preserved.
+	// The command itself fails. The hook enqueues and drain runs it, firing
+	// the test action. The original command error result is preserved.
 	assert!(matches!(result, InvocationResult::CommandError(_)));
 	let pre_count = ACTION_PRE_COUNT.with(|count| count.get());
 	let post_count = ACTION_POST_COUNT.with(|count| count.get());
@@ -561,6 +564,7 @@ async fn editor_command_post_hook_runs() {
 	let result = editor
 		.run_invocation(Invocation::editor_command("stats", vec![]), InvocationPolicy::enforcing())
 		.await;
+	editor.drain_nu_hook_queue(usize::MAX).await;
 
 	// Hook should have fired the test action.
 	assert!(matches!(result, InvocationResult::Ok));
@@ -592,11 +596,10 @@ async fn mode_change_hook_runs_on_transition() {
 
 	assert!(editor.state.nu_hook_ids.on_mode_change.is_some(), "decl ID should be cached");
 
-	let result = editor
-		.run_nu_hook(crate::nu::NuHook::ModeChange, vec!["Normal".to_string(), "Insert".to_string()])
-		.await;
+	editor.enqueue_mode_change_hook(&xeno_primitives::Mode::Normal, &xeno_primitives::Mode::Insert);
+	let quit = editor.drain_nu_hook_queue(usize::MAX).await;
 
-	assert!(result.is_none());
+	assert!(!quit);
 	let pre_count = ACTION_PRE_COUNT.with(|count| count.get());
 	let post_count = ACTION_POST_COUNT.with(|count| count.get());
 	assert_eq!(pre_count, 1, "hook-produced action should fire");
@@ -622,11 +625,10 @@ async fn mode_change_hook_does_not_run_for_non_matching_transition() {
 	let mut editor = Editor::new_scratch();
 	editor.set_nu_runtime(Some(runtime));
 
-	let result = editor
-		.run_nu_hook(crate::nu::NuHook::ModeChange, vec!["Normal".to_string(), "Normal".to_string()])
-		.await;
+	editor.enqueue_mode_change_hook(&xeno_primitives::Mode::Normal, &xeno_primitives::Mode::Normal);
+	let quit = editor.drain_nu_hook_queue(usize::MAX).await;
 
-	assert!(result.is_none());
+	assert!(!quit);
 	let pre_count = ACTION_PRE_COUNT.with(|count| count.get());
 	assert_eq!(pre_count, 0, "no action should fire for non-matching transition");
 }
@@ -656,6 +658,9 @@ async fn mode_change_hook_fires_on_insert_key() {
 	let quit = editor.handle_key(Key::new(KeyCode::Char('i'))).await;
 	assert!(!quit);
 	assert_eq!(editor.mode(), Mode::Insert);
+
+	// Hooks are now deferred — drain to execute them.
+	editor.drain_nu_hook_queue(usize::MAX).await;
 
 	let pre_count = ACTION_PRE_COUNT.with(|count| count.get());
 	let post_count = ACTION_POST_COUNT.with(|count| count.get());
@@ -723,6 +728,7 @@ export def on_buffer_open [path kind] {
 		column: 0,
 	};
 	editor.goto_location(&location).await.expect("goto should succeed");
+	editor.drain_nu_hook_queue(usize::MAX).await;
 
 	let count = INVOCATION_TEST_ACTION_COUNT.with(|c| c.get());
 	assert_eq!(count, 1, "on_buffer_open hook should fire exactly once for disk open");
@@ -772,6 +778,7 @@ async fn buffer_open_hook_fires_for_existing_switch() {
 		column: 0,
 	};
 	editor.goto_location(&loc_a).await.expect("switch to a");
+	editor.drain_nu_hook_queue(usize::MAX).await;
 	assert_eq!(
 		INVOCATION_TEST_ACTION_COUNT.with(|c| c.get()),
 		1,
@@ -826,4 +833,45 @@ async fn nu_macro_respects_configured_decode_limits() {
 		matches!(result, InvocationResult::CommandError(ref msg) if msg.contains("invocation count exceeds")),
 		"expected decode limit error, got: {result:?}"
 	);
+}
+
+#[tokio::test]
+async fn nu_stats_reflect_hook_pipeline_state() {
+	let temp = tempfile::tempdir().expect("temp dir should exist");
+	std::fs::write(
+		temp.path().join("xeno.nu"),
+		"export def on_action_post [name result] { action invocation_test_action }",
+	)
+	.expect("xeno.nu should be writable");
+
+	let runtime = crate::nu::NuRuntime::load(temp.path()).expect("runtime should load");
+	let script_path = runtime.script_path().to_string_lossy().to_string();
+	let mut editor = Editor::new_scratch();
+
+	// Before loading: stats should show no runtime.
+	let stats = editor.stats_snapshot();
+	assert!(!stats.nu.runtime_loaded);
+	assert!(!stats.nu.executor_alive);
+
+	editor.set_nu_runtime(Some(runtime));
+
+	// After loading: runtime present, executor created.
+	let stats = editor.stats_snapshot();
+	assert!(stats.nu.runtime_loaded);
+	assert!(stats.nu.executor_alive);
+	assert_eq!(stats.nu.script_path, Some(script_path));
+	assert_eq!(stats.nu.hook_queue_len, 0);
+
+	// Enqueue a hook and check queue length.
+	editor.enqueue_action_post_hook("invocation_test_action".to_string(), &InvocationResult::Ok);
+	let stats = editor.stats_snapshot();
+	assert_eq!(stats.nu.hook_queue_len, 1, "hook should be enqueued");
+	assert!(stats.nu.hook_in_flight.is_none());
+
+	// Drain to clear.
+	editor.drain_nu_hook_queue(usize::MAX).await;
+	let stats = editor.stats_snapshot();
+	assert_eq!(stats.nu.hook_queue_len, 0);
+	assert_eq!(stats.nu.hook_dropped_total, 0);
+	assert_eq!(stats.nu.hook_failed_total, 0);
 }

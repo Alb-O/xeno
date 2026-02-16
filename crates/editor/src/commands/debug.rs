@@ -51,10 +51,21 @@ fn cmd_stats<'a>(ctx: &'a mut EditorCommandContext<'a>) -> BoxFutureLocal<'a, Re
 		// Emit to tracing for log viewer
 		stats.emit();
 
+		let nu_in_flight = match &stats.nu.hook_in_flight {
+			Some((id, hook)) => format!("{}:{}", id, hook),
+			None => "none".to_string(),
+		};
+		let nu_script = stats.nu.script_path.as_deref().unwrap_or("none");
+
 		let content = format!(
 			"# Editor Statistics
 
-## Hooks
+## Nu
+- Runtime: loaded={} executor={} script={}
+- Hooks: queued={} in_flight={} pending_inv={} dropped={} failed={} next_job={}
+- Macros: depth={}
+
+## Work Scheduler
 - Pending (current/tick): {} / {}
 - Scheduled: {}
 - Completed (total/tick): {} / {}
@@ -67,6 +78,16 @@ fn cmd_stats<'a>(ctx: &'a mut EditorCommandContext<'a>) -> BoxFutureLocal<'a, Re
 - Send errors: {}
 - Coalesced: {}
 - Snapshot bytes (total/tick): {} / {}",
+			stats.nu.runtime_loaded,
+			stats.nu.executor_alive,
+			nu_script,
+			stats.nu.hook_queue_len,
+			nu_in_flight,
+			stats.nu.hook_pending_invocations_len,
+			stats.nu.hook_dropped_total,
+			stats.nu.hook_failed_total,
+			stats.nu.hook_job_next,
+			stats.nu.macro_depth,
 			stats.hooks_pending,
 			stats.hooks_pending_tick,
 			stats.hooks_scheduled,

@@ -108,7 +108,7 @@ impl Editor {
 						path: &path,
 						file_type: file_type.as_deref(),
 					}),
-					&mut self.state.hook_runtime,
+					&mut self.state.work_scheduler,
 				);
 			}
 
@@ -154,11 +154,7 @@ impl Editor {
 
 			// Nu on_buffer_open hook — fires for both new and existing buffers.
 			let kind = if is_existing { "existing" } else { "disk" };
-			if let Some(hook_result) = self.emit_buffer_open_hook(&target_path, kind).await
-				&& hook_result.is_quit()
-			{
-				return Ok(focused_view);
-			}
+			self.enqueue_buffer_open_hook(&target_path, kind);
 
 			#[cfg(feature = "lsp")]
 			self.maybe_track_lsp_for_buffer(focused_view, false);

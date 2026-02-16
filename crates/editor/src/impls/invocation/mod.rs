@@ -20,6 +20,11 @@ const MAX_NU_MACRO_DEPTH: u8 = 8;
 const SLOW_NU_HOOK_THRESHOLD: Duration = Duration::from_millis(2);
 const SLOW_NU_MACRO_THRESHOLD: Duration = Duration::from_millis(5);
 
+/// Maximum pending Nu hooks before oldest are dropped.
+const MAX_PENDING_NU_HOOKS: usize = 64;
+/// Maximum Nu hooks drained per pump() cycle.
+pub(crate) const MAX_NU_HOOKS_PER_PUMP: usize = 2;
+
 /// Build hook args for action post hooks: `[name, result_label]`.
 pub(crate) fn action_post_args(name: String, result: &InvocationResult) -> Vec<String> {
 	vec![name, invocation_result_label(result).to_string()]
@@ -78,8 +83,10 @@ impl Editor {
 		match invocation {
 			Invocation::Action { name, count, extend, register } => {
 				let result = self.run_action_invocation(&name, count, extend, register, None, policy);
-				self.maybe_emit_post_hook(crate::nu::NuHook::ActionPost, action_post_args(name, &result), result)
-					.await
+				if !result.is_quit() {
+					self.enqueue_nu_hook(crate::nu::NuHook::ActionPost, action_post_args(name, &result));
+				}
+				result
 			}
 
 			Invocation::ActionWithChar {
@@ -90,20 +97,26 @@ impl Editor {
 				char_arg,
 			} => {
 				let result = self.run_action_invocation(&name, count, extend, register, Some(char_arg), policy);
-				self.maybe_emit_post_hook(crate::nu::NuHook::ActionPost, action_post_args(name, &result), result)
-					.await
+				if !result.is_quit() {
+					self.enqueue_nu_hook(crate::nu::NuHook::ActionPost, action_post_args(name, &result));
+				}
+				result
 			}
 
 			Invocation::Command { name, args } => {
 				let result = self.run_command_invocation(&name, &args, policy).await;
-				self.maybe_emit_post_hook(crate::nu::NuHook::CommandPost, command_post_args(name, &result, args), result)
-					.await
+				if !result.is_quit() {
+					self.enqueue_nu_hook(crate::nu::NuHook::CommandPost, command_post_args(name, &result, args));
+				}
+				result
 			}
 
 			Invocation::EditorCommand { name, args } => {
 				let result = self.run_editor_command_invocation(&name, &args, policy).await;
-				self.maybe_emit_post_hook(crate::nu::NuHook::EditorCommandPost, command_post_args(name, &result, args), result)
-					.await
+				if !result.is_quit() {
+					self.enqueue_nu_hook(crate::nu::NuHook::EditorCommandPost, command_post_args(name, &result, args));
+				}
+				result
 			}
 
 			Invocation::Nu { name, args } => {
@@ -119,43 +132,262 @@ impl Editor {
 		}
 	}
 
-	/// Run a Nu hook function if runtime is loaded.
+	/// Enqueues a Nu post-hook for deferred evaluation during pump().
 	///
-	/// Runs a Nu post-hook if the result is non-quit, propagating hook quit.
-	async fn maybe_emit_post_hook(&mut self, hook: crate::nu::NuHook, args: Vec<String>, result: InvocationResult) -> InvocationResult {
-		if !result.is_quit()
-			&& let Some(hook_result) = self.run_nu_hook(hook, args).await
-		{
-			return hook_result;
-		}
-		result
-	}
-
-	/// Emits `on_action_post` hook for key-handling action dispatch path.
-	pub(crate) async fn emit_action_post_hook(&mut self, name: String, result: &InvocationResult) -> Option<InvocationResult> {
-		if result.is_quit() {
-			return None;
-		}
-		self.run_nu_hook(crate::nu::NuHook::ActionPost, action_post_args(name, result)).await
-	}
-
-	/// Emits `on_mode_change` hook after a mode transition.
-	pub(crate) async fn emit_mode_change_hook(&mut self, old: &xeno_primitives::Mode, new: &xeno_primitives::Mode) -> Option<InvocationResult> {
-		self.run_nu_hook(crate::nu::NuHook::ModeChange, mode_change_args(old, new)).await
-	}
-
-	/// Emits `on_buffer_open` hook after a buffer is focused via navigation.
-	pub(crate) async fn emit_buffer_open_hook(&mut self, path: &std::path::Path, kind: &str) -> Option<InvocationResult> {
-		self.run_nu_hook(crate::nu::NuHook::BufferOpen, buffer_open_args(path, kind)).await
-	}
-
-	/// Hook errors are logged and ignored. Quit requests from hook-produced
-	/// invocations are propagated to the caller.
-	async fn run_nu_hook(&mut self, hook: crate::nu::NuHook, args: Vec<String>) -> Option<InvocationResult> {
-		if self.state.nu_hook_guard {
-			return None;
+	/// Coalesces consecutive identical hook types (keeps latest args) and
+	/// drops the oldest entry when the queue exceeds `MAX_PENDING_NU_HOOKS`.
+	fn enqueue_nu_hook(&mut self, hook: crate::nu::NuHook, args: Vec<String>) {
+		// Don't enqueue during hook drain (prevents recursive hook chains).
+		if self.state.nu_hook_depth > 0 {
+			return;
 		}
 
+		// Skip if the hook function isn't defined.
+		let has_decl = match hook {
+			crate::nu::NuHook::ActionPost => self.state.nu_hook_ids.on_action_post.is_some(),
+			crate::nu::NuHook::CommandPost => self.state.nu_hook_ids.on_command_post.is_some(),
+			crate::nu::NuHook::EditorCommandPost => self.state.nu_hook_ids.on_editor_command_post.is_some(),
+			crate::nu::NuHook::ModeChange => self.state.nu_hook_ids.on_mode_change.is_some(),
+			crate::nu::NuHook::BufferOpen => self.state.nu_hook_ids.on_buffer_open.is_some(),
+		};
+		if !has_decl {
+			return;
+		}
+
+		// Coalesce: if back of queue is the same hook type, replace args and reset retries.
+		if let Some(back) = self.state.nu_hook_queue.back_mut() {
+			if back.hook == hook {
+				back.args = args;
+				back.retries = 0;
+				return;
+			}
+		}
+
+		// Backlog cap: drop oldest if full.
+		if self.state.nu_hook_queue.len() >= MAX_PENDING_NU_HOOKS {
+			self.state.nu_hook_queue.pop_front();
+			self.state.nu_hook_dropped_total += 1;
+			trace!(
+				queue_len = self.state.nu_hook_queue.len(),
+				dropped_total = self.state.nu_hook_dropped_total,
+				"nu_hook.drop_oldest"
+			);
+		}
+
+		self.state.nu_hook_queue.push_back(super::QueuedNuHook { hook, args, retries: 0 });
+	}
+
+	/// Enqueues `on_action_post` hook for key-handling action dispatch path.
+	pub(crate) fn enqueue_action_post_hook(&mut self, name: String, result: &InvocationResult) {
+		if !result.is_quit() {
+			self.enqueue_nu_hook(crate::nu::NuHook::ActionPost, action_post_args(name, result));
+		}
+	}
+
+	/// Enqueues `on_mode_change` hook after a mode transition.
+	pub(crate) fn enqueue_mode_change_hook(&mut self, old: &xeno_primitives::Mode, new: &xeno_primitives::Mode) {
+		self.enqueue_nu_hook(crate::nu::NuHook::ModeChange, mode_change_args(old, new));
+	}
+
+	/// Enqueues `on_buffer_open` hook after a buffer is focused via navigation.
+	pub(crate) fn enqueue_buffer_open_hook(&mut self, path: &std::path::Path, kind: &str) {
+		self.enqueue_nu_hook(crate::nu::NuHook::BufferOpen, buffer_open_args(path, kind));
+	}
+
+	/// Kicks one queued Nu hook evaluation onto the WorkScheduler.
+	///
+	/// Only kicks when no hook eval is already in flight (sequential
+	/// evaluation preserves the single-threaded NuExecutor contract).
+	/// Each kicked job receives a monotonic `job_id` for stale-result
+	/// protection after runtime swaps.
+	pub(crate) fn kick_nu_hook_eval(&mut self) {
+		if self.state.nu_hook_in_flight.is_some() || self.state.nu_hook_queue.is_empty() {
+			return;
+		}
+
+		let Some(queued) = self.state.nu_hook_queue.pop_front() else {
+			return;
+		};
+
+		let fn_name = queued.hook.fn_name();
+		let decl_id = match queued.hook {
+			crate::nu::NuHook::ActionPost => self.state.nu_hook_ids.on_action_post,
+			crate::nu::NuHook::CommandPost => self.state.nu_hook_ids.on_command_post,
+			crate::nu::NuHook::EditorCommandPost => self.state.nu_hook_ids.on_editor_command_post,
+			crate::nu::NuHook::ModeChange => self.state.nu_hook_ids.on_mode_change,
+			crate::nu::NuHook::BufferOpen => self.state.nu_hook_ids.on_buffer_open,
+		};
+
+		let Some(decl_id) = decl_id else {
+			return;
+		};
+
+		if self.ensure_nu_executor().is_none() {
+			return;
+		}
+
+		let limits = self
+			.state
+			.config
+			.nu
+			.as_ref()
+			.map_or_else(crate::nu::DecodeLimits::hook_defaults, |c| c.hook_decode_limits());
+		let nu_ctx = self.build_nu_ctx("hook", fn_name, &queued.args);
+		let env = vec![("XENO_CTX".to_string(), nu_ctx)];
+
+		let executor_client = self.state.nu_executor.as_ref().unwrap().client();
+		let msg_tx = self.state.msg_tx.clone();
+
+		let job_id = self.state.nu_hook_job_next;
+		self.state.nu_hook_job_next = self.state.nu_hook_job_next.wrapping_add(1);
+
+		self.state.nu_hook_in_flight = Some(super::InFlightNuHook {
+			job_id,
+			hook: queued.hook,
+			args: queued.args.clone(),
+			retries: queued.retries,
+		});
+
+		let args_for_eval = queued.args;
+
+		self.state.work_scheduler.schedule(crate::scheduler::WorkItem {
+			future: Box::pin(async move {
+				let result = match executor_client.run(decl_id, args_for_eval, limits, env).await {
+					Ok(invocations) => Ok(invocations),
+					Err(crate::nu::executor::NuExecError::Eval(msg)) => Err(crate::msg::NuHookEvalError::Eval(msg)),
+					Err(crate::nu::executor::NuExecError::Shutdown { .. }) => Err(crate::msg::NuHookEvalError::ExecutorShutdown),
+					Err(crate::nu::executor::NuExecError::ReplyDropped) => Err(crate::msg::NuHookEvalError::ReplyDropped),
+				};
+				let _ = msg_tx.send(crate::msg::EditorMsg::NuHookEvalDone(crate::msg::NuHookEvalDoneMsg { job_id, result }));
+			}),
+			kind: crate::scheduler::WorkKind::NuHook,
+			priority: xeno_registry::hooks::HookPriority::Interactive,
+			doc_id: None,
+		});
+	}
+
+	/// Applies the result of an async Nu hook evaluation.
+	///
+	/// Ignores stale results (job_id mismatch after runtime swap).
+	/// On executor death, restarts the executor and retries once.
+	pub(crate) fn apply_nu_hook_eval_done(&mut self, msg: crate::msg::NuHookEvalDoneMsg) -> crate::msg::Dirty {
+		let in_flight_job_id = self.state.nu_hook_in_flight.as_ref().map(|i| i.job_id);
+		if in_flight_job_id != Some(msg.job_id) {
+			// Stale result from a previous runtime — ignore.
+			return crate::msg::Dirty::NONE;
+		}
+
+		let in_flight = self.state.nu_hook_in_flight.take().unwrap();
+
+		match msg.result {
+			Ok(invocations) => {
+				let dirty = if invocations.is_empty() {
+					crate::msg::Dirty::NONE
+				} else {
+					crate::msg::Dirty::FULL
+				};
+				self.state.nu_hook_pending_invocations.extend(invocations);
+				dirty
+			}
+			Err(crate::msg::NuHookEvalError::Eval(error)) => {
+				warn!(error = %error, "Nu hook evaluation failed");
+				crate::msg::Dirty::NONE
+			}
+			Err(crate::msg::NuHookEvalError::ExecutorShutdown | crate::msg::NuHookEvalError::ReplyDropped) => {
+				warn!("Nu executor died during hook eval, restarting");
+				self.restart_nu_executor();
+				if in_flight.retries == 0 {
+					self.state.nu_hook_queue.push_front(super::QueuedNuHook {
+						hook: in_flight.hook,
+						args: in_flight.args,
+						retries: 1,
+					});
+				} else {
+					self.state.nu_hook_failed_total += 1;
+					warn!(failed_total = self.state.nu_hook_failed_total, "Nu hook retry exhausted");
+				}
+				crate::msg::Dirty::NONE
+			}
+		}
+	}
+
+	/// Drains pending Nu hook invocations under the depth guard.
+	///
+	/// Called from pump() after message drain. Executes invocations produced
+	/// by completed hook evaluations. Returns true if any produced quit.
+	pub(crate) async fn drain_nu_hook_invocations(&mut self, max: usize) -> bool {
+		if self.state.nu_hook_pending_invocations.is_empty() {
+			return false;
+		}
+
+		self.state.nu_hook_depth += 1;
+
+		for _ in 0..max {
+			let Some(invocation) = self.state.nu_hook_pending_invocations.pop_front() else {
+				break;
+			};
+
+			let result = Box::pin(self.run_invocation(invocation, InvocationPolicy::enforcing())).await;
+
+			match result {
+				InvocationResult::Ok => {}
+				InvocationResult::Quit | InvocationResult::ForceQuit => {
+					self.state.nu_hook_depth = self.state.nu_hook_depth.saturating_sub(1);
+					return true;
+				}
+				InvocationResult::NotFound(target) => {
+					warn!(target = %target, "Nu hook invocation not found");
+				}
+				InvocationResult::CapabilityDenied(cap) => {
+					warn!(capability = ?cap, "Nu hook invocation denied by capability");
+				}
+				InvocationResult::ReadonlyDenied => {
+					warn!("Nu hook invocation denied by readonly mode");
+				}
+				InvocationResult::CommandError(error) => {
+					warn!(error = %error, "Nu hook invocation failed");
+				}
+			}
+		}
+
+		self.state.nu_hook_depth = self.state.nu_hook_depth.saturating_sub(1);
+		false
+	}
+
+	/// Legacy synchronous drain for tests that need immediate hook evaluation.
+	///
+	/// Evaluates hooks synchronously via the executor (blocks on each one).
+	/// Only used in tests; production code uses kick + poll via pump().
+	#[cfg(test)]
+	pub(crate) async fn drain_nu_hook_queue(&mut self, max: usize) -> bool {
+		if self.state.nu_hook_queue.is_empty() {
+			return false;
+		}
+
+		let to_drain = max.min(self.state.nu_hook_queue.len());
+		self.state.nu_hook_depth += 1;
+
+		for _ in 0..to_drain {
+			let Some(queued) = self.state.nu_hook_queue.pop_front() else {
+				break;
+			};
+
+			match self.run_single_nu_hook_sync(queued.hook, queued.args).await {
+				Some(InvocationResult::Quit) | Some(InvocationResult::ForceQuit) => {
+					self.state.nu_hook_depth = self.state.nu_hook_depth.saturating_sub(1);
+					return true;
+				}
+				_ => {}
+			}
+		}
+
+		self.state.nu_hook_depth = self.state.nu_hook_depth.saturating_sub(1);
+		false
+	}
+
+	/// Synchronous single-hook evaluation for tests.
+	#[cfg(test)]
+	async fn run_single_nu_hook_sync(&mut self, hook: crate::nu::NuHook, args: Vec<String>) -> Option<InvocationResult> {
 		let fn_name = hook.fn_name();
 		let decl_id = match hook {
 			crate::nu::NuHook::ActionPost => self.state.nu_hook_ids.on_action_post,
@@ -164,7 +396,10 @@ impl Editor {
 			crate::nu::NuHook::ModeChange => self.state.nu_hook_ids.on_mode_change,
 			crate::nu::NuHook::BufferOpen => self.state.nu_hook_ids.on_buffer_open,
 		}?;
-		self.ensure_nu_executor()?;
+
+		if self.ensure_nu_executor().is_none() {
+			return None;
+		}
 
 		let limits = self
 			.state
@@ -182,20 +417,12 @@ impl Editor {
 			}
 		};
 
-		self.state.nu_hook_guard = true;
 		for invocation in invocations {
 			let result = Box::pin(self.run_invocation(invocation, InvocationPolicy::enforcing())).await;
 
 			match result {
 				InvocationResult::Ok => {}
-				InvocationResult::Quit => {
-					self.state.nu_hook_guard = false;
-					return Some(InvocationResult::Quit);
-				}
-				InvocationResult::ForceQuit => {
-					self.state.nu_hook_guard = false;
-					return Some(InvocationResult::ForceQuit);
-				}
+				InvocationResult::Quit | InvocationResult::ForceQuit => return Some(result),
 				InvocationResult::NotFound(target) => {
 					warn!(hook = fn_name, target = %target, "Nu hook invocation not found");
 				}
@@ -211,7 +438,6 @@ impl Editor {
 			}
 		}
 
-		self.state.nu_hook_guard = false;
 		None
 	}
 
@@ -426,7 +652,7 @@ impl Editor {
 
 		emit_hook_sync_with(
 			&HookContext::new(HookEventData::ActionPre { action_id: &action_id_str }),
-			&mut self.state.hook_runtime,
+			&mut self.state.work_scheduler,
 		);
 
 		let span = trace_span!(
@@ -605,7 +831,7 @@ impl Editor {
 
 		emit_hook_sync_with(
 			&HookContext::new(HookEventData::ActionPost { action_id, result_variant }),
-			&mut self.state.hook_runtime,
+			&mut self.state.work_scheduler,
 		);
 		should_quit
 	}

@@ -67,8 +67,14 @@ pub enum NuExecError {
 ///
 /// Sending jobs through `run` dispatches them to the worker. The worker
 /// processes jobs sequentially using the `NuRuntime` it owns.
+///
+/// Supports owner/client semantics: the original `NuExecutor` is the owner
+/// and sends a `Shutdown` job on drop. Clones are clients that share the
+/// same channel but do not trigger shutdown when dropped.
 pub struct NuExecutor {
 	tx: std::sync::mpsc::Sender<Job>,
+	/// Only the owner sends `Shutdown` on drop.
+	is_owner: bool,
 	#[cfg(test)]
 	shutdown_acks: Arc<AtomicUsize>,
 }
@@ -116,8 +122,23 @@ impl NuExecutor {
 
 		Self {
 			tx,
+			is_owner: true,
 			#[cfg(test)]
 			shutdown_acks,
+		}
+	}
+
+	/// Creates a non-owning client clone that shares the worker channel.
+	///
+	/// Client clones can submit jobs but do not send `Shutdown` on drop.
+	/// This is safe to move into `'static + Send` futures for background
+	/// hook evaluation.
+	pub fn client(&self) -> Self {
+		Self {
+			tx: self.tx.clone(),
+			is_owner: false,
+			#[cfg(test)]
+			shutdown_acks: Arc::clone(&self.shutdown_acks),
 		}
 	}
 
@@ -160,6 +181,7 @@ impl NuExecutor {
 	fn from_sender(tx: std::sync::mpsc::Sender<Job>) -> Self {
 		Self {
 			tx,
+			is_owner: true,
 			shutdown_acks: Arc::new(AtomicUsize::new(0)),
 		}
 	}
@@ -174,6 +196,10 @@ const SHUTDOWN_ACK_TIMEOUT: Duration = Duration::from_millis(100);
 
 impl Drop for NuExecutor {
 	fn drop(&mut self) {
+		if !self.is_owner {
+			return;
+		}
+
 		let (ack_tx, mut ack_rx) = oneshot::channel();
 		if self.tx.send(Job::Shutdown { ack: ack_tx }).is_err() {
 			return;
@@ -256,6 +282,23 @@ mod tests {
 			}
 			other => panic!("expected Shutdown, got {:?}", other.is_ok()),
 		}
+	}
+
+	#[test]
+	fn client_clone_does_not_send_shutdown() {
+		let runtime = make_runtime("export def go [] { editor stats }");
+		let executor = NuExecutor::new(runtime);
+		let shutdown_acks = executor.shutdown_acks_for_tests();
+
+		let client = executor.client();
+		drop(client);
+
+		// Client drop must not send shutdown.
+		assert_eq!(shutdown_acks.load(Ordering::SeqCst), 0, "client drop should not send shutdown");
+
+		// Owner drop sends shutdown.
+		drop(executor);
+		assert_eq!(shutdown_acks.load(Ordering::SeqCst), 1, "owner drop should send shutdown");
 	}
 
 	/// Compile-time proof that `tracing::Span` is `Send`.

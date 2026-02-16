@@ -64,7 +64,7 @@ impl Editor {
 				text: text.slice(..),
 				file_type: buffer.file_type().as_deref(),
 			}),
-			&mut self.state.hook_runtime,
+			&mut self.state.work_scheduler,
 		);
 
 		buffer_id

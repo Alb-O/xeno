@@ -87,14 +87,14 @@ impl Editor {
 					file_type: file_type.as_deref(),
 					version,
 				}),
-				&mut self.state.hook_runtime,
+				&mut self.state.work_scheduler,
 			);
 		}
 
 		#[cfg(feature = "lsp")]
 		self.tick_lsp_sync();
 
-		emit_hook_sync_with(&HookContext::new(HookEventData::EditorTick), &mut self.state.hook_runtime);
+		emit_hook_sync_with(&HookContext::new(HookEventData::EditorTick), &mut self.state.work_scheduler);
 
 		self.flush_effects();
 	}
@@ -127,7 +127,7 @@ impl Editor {
 		self.state.effects.request_redraw();
 		emit_hook_sync_with(
 			&HookContext::new(HookEventData::WindowResize { width: cols, height: rows }),
-			&mut self.state.hook_runtime,
+			&mut self.state.work_scheduler,
 		);
 		self.flush_effects();
 	}
@@ -135,14 +135,14 @@ impl Editor {
 	/// Handles terminal focus gained events, emitting the FocusGained hook.
 	pub fn handle_focus_in(&mut self) {
 		self.state.effects.request_redraw();
-		emit_hook_sync_with(&HookContext::new(HookEventData::FocusGained), &mut self.state.hook_runtime);
+		emit_hook_sync_with(&HookContext::new(HookEventData::FocusGained), &mut self.state.work_scheduler);
 		self.flush_effects();
 	}
 
 	/// Handles terminal focus lost events, emitting the FocusLost hook.
 	pub fn handle_focus_out(&mut self) {
 		self.state.effects.request_redraw();
-		emit_hook_sync_with(&HookContext::new(HookEventData::FocusLost), &mut self.state.hook_runtime);
+		emit_hook_sync_with(&HookContext::new(HookEventData::FocusLost), &mut self.state.work_scheduler);
 		self.flush_effects();
 	}
 

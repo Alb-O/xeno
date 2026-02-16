@@ -194,6 +194,7 @@ fn action_post_hook_dispatches_once_with_recursion_guard() {
 		.build()
 		.expect("runtime should build");
 	let result = rt.block_on(editor.run_invocation(Invocation::action("move_right"), InvocationPolicy::enforcing()));
+	rt.block_on(editor.drain_nu_hook_queue(usize::MAX));
 
 	assert!(matches!(result, InvocationResult::Ok));
 	assert_eq!(editor.buffer().cursor, 2, "hook should add exactly one extra move_right invocation");
@@ -221,6 +222,7 @@ fn action_post_hook_receives_expanded_ctx_fields() {
 		.build()
 		.expect("runtime should build");
 	let result = rt.block_on(editor.run_invocation(Invocation::action("move_right"), InvocationPolicy::enforcing()));
+	rt.block_on(editor.drain_nu_hook_queue(usize::MAX));
 
 	assert!(matches!(result, InvocationResult::Ok));
 	assert_eq!(editor.buffer().cursor, 2, "expanded ctx fields should be available to hook scripts");

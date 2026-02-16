@@ -128,6 +128,21 @@ impl EditorMetrics {
 	}
 }
 
+/// Nu runtime and hook pipeline health snapshot.
+#[derive(Debug, Clone, Default)]
+pub struct NuStats {
+	pub runtime_loaded: bool,
+	pub script_path: Option<String>,
+	pub executor_alive: bool,
+	pub hook_queue_len: usize,
+	pub hook_in_flight: Option<(u64, String)>,
+	pub hook_pending_invocations_len: usize,
+	pub hook_dropped_total: u64,
+	pub hook_failed_total: u64,
+	pub hook_job_next: u64,
+	pub macro_depth: u8,
+}
+
 /// Snapshot of current editor statistics for display.
 #[derive(Debug, Clone, Default)]
 pub struct StatsSnapshot {
@@ -161,6 +176,8 @@ pub struct StatsSnapshot {
 	pub lsp_incremental_sync_tick: u64,
 	/// Snapshot bytes scheduled in the last tick.
 	pub lsp_snapshot_bytes_tick: u64,
+	/// Nu runtime and hook pipeline health.
+	pub nu: NuStats,
 }
 
 impl StatsSnapshot {
@@ -182,6 +199,13 @@ impl StatsSnapshot {
 			lsp_full_sync_tick = self.lsp_full_sync_tick,
 			lsp_incremental_sync_tick = self.lsp_incremental_sync_tick,
 			lsp_snapshot_bytes_tick = self.lsp_snapshot_bytes_tick,
+			nu_runtime = self.nu.runtime_loaded,
+			nu_executor = self.nu.executor_alive,
+			nu_hook_queue = self.nu.hook_queue_len,
+			nu_hook_pending_inv = self.nu.hook_pending_invocations_len,
+			nu_hook_dropped = self.nu.hook_dropped_total,
+			nu_hook_failed = self.nu.hook_failed_total,
+			nu_macro_depth = self.nu.macro_depth,
 			"editor.stats"
 		);
 	}

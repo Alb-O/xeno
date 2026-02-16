@@ -284,10 +284,23 @@ impl Editor {
 		#[cfg(not(feature = "lsp"))]
 		let (lsp_pending_docs, lsp_in_flight) = (0, 0);
 
+		let nu = crate::metrics::NuStats {
+			runtime_loaded: self.state.nu_runtime.is_some(),
+			script_path: self.state.nu_runtime.as_ref().map(|rt| rt.script_path().to_string_lossy().to_string()),
+			executor_alive: self.state.nu_executor.is_some(),
+			hook_queue_len: self.state.nu_hook_queue.len(),
+			hook_in_flight: self.state.nu_hook_in_flight.as_ref().map(|i| (i.job_id, i.hook.fn_name().to_string())),
+			hook_pending_invocations_len: self.state.nu_hook_pending_invocations.len(),
+			hook_dropped_total: self.state.nu_hook_dropped_total,
+			hook_failed_total: self.state.nu_hook_failed_total,
+			hook_job_next: self.state.nu_hook_job_next,
+			macro_depth: self.state.nu_macro_depth,
+		};
+
 		StatsSnapshot {
-			hooks_pending: self.state.hook_runtime.pending_count(),
-			hooks_scheduled: self.state.hook_runtime.scheduled_total(),
-			hooks_completed: self.state.hook_runtime.completed_total(),
+			hooks_pending: self.state.work_scheduler.pending_count(),
+			hooks_scheduled: self.state.work_scheduler.scheduled_total(),
+			hooks_completed: self.state.work_scheduler.completed_total(),
 			hooks_completed_tick: self.state.metrics.hooks_completed_tick_count(),
 			hooks_pending_tick: self.state.metrics.hooks_pending_tick_count(),
 			lsp_pending_docs,
@@ -300,6 +313,7 @@ impl Editor {
 			lsp_full_sync_tick: self.state.metrics.full_sync_tick_count(),
 			lsp_incremental_sync_tick: self.state.metrics.incremental_sync_tick_count(),
 			lsp_snapshot_bytes_tick: self.state.metrics.snapshot_bytes_tick_count(),
+			nu,
 		}
 	}
 }

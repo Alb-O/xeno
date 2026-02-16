@@ -55,7 +55,7 @@ impl CommandEditorOps for EditorCaps<'_> {
 					key: resolved_key,
 					scope: "global",
 				}),
-				&mut self.ed.state.hook_runtime,
+				&mut self.ed.state.work_scheduler,
 			);
 		}
 		Ok(())
@@ -86,7 +86,7 @@ impl CommandEditorOps for EditorCaps<'_> {
 				key: resolved_key,
 				scope: "buffer",
 			}),
-			&mut self.ed.state.hook_runtime,
+			&mut self.ed.state.work_scheduler,
 		);
 		Ok(())
 	}
