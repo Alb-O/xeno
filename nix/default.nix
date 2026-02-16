@@ -101,8 +101,10 @@ flake-parts.lib.mkFlake { inherit inputs; } {
       treefmt = {
         projectRootFile = "flake.nix";
 
-        programs.rustfmt.enable = true;
         programs.nixfmt.enable = true;
+
+        programs.rustfmt.enable = true;
+        programs.rustfmt.package = rustToolchain;
 
         settings.formatter.cargo-sort = {
           command = "${cargoSortWrapper}/bin/cargo-sort-wrapper";
