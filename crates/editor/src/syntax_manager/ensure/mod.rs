@@ -3,6 +3,9 @@
 //! Implements the phased `ensure_syntax` flow (derive, normalize, install,
 //! gate, bootstrap, plan, spawn, finalize) and shared helpers used by the
 //! per-phase modules.
+//!
+//! The install phase follows an explicit evaluate/apply split: it evaluates
+//! completion policy without mutating state, then applies the resulting action.
 
 use std::ops::ControlFlow;
 

@@ -11,6 +11,72 @@ pub(super) enum InstallDecision {
 	Discard,
 }
 
+/// Action computed for a completed parse result.
+enum InstallAction {
+	InstallViewport {
+		done: CompletedRef,
+		syntax: xeno_language::syntax::Syntax,
+	},
+	InstallFull {
+		done: CompletedRef,
+		syntax: xeno_language::syntax::Syntax,
+	},
+	DropRetention,
+	ApplyFailureCooldown {
+		done: CompletedRef,
+		is_timeout: bool,
+	},
+	NoOp,
+}
+
+/// Result emitted by action application.
+#[derive(Default)]
+struct ApplyResult {
+	was_updated: bool,
+	is_installed: bool,
+}
+
+/// Task fields used by metrics and tracing after evaluation.
+struct CompletionMeta {
+	doc_version: u64,
+	lang_id: xeno_language::LanguageId,
+	class: TaskClass,
+	injections: InjectionPolicy,
+	elapsed: Duration,
+	viewport_lane: Option<scheduling::ViewportLane>,
+}
+
+impl CompletionMeta {
+	fn from_done(done: &CompletedSyntaxTask) -> Self {
+		Self {
+			doc_version: done.doc_version,
+			lang_id: done.lang_id,
+			class: done.class,
+			injections: done.opts.injections,
+			elapsed: done.elapsed,
+			viewport_lane: done.viewport_lane,
+		}
+	}
+}
+
+/// Evaluation result for one completion item.
+enum CompletionEval {
+	Success {
+		meta: CompletionMeta,
+		decision: InstallDecision,
+		action: InstallAction,
+	},
+	Timeout {
+		meta: CompletionMeta,
+		action: InstallAction,
+	},
+	Error {
+		meta: CompletionMeta,
+		action: InstallAction,
+		error: xeno_language::syntax::SyntaxError,
+	},
+}
+
 /// Checks whether a viewport task's injection policy matches the current config.
 fn viewport_opts_ok(lane: Option<scheduling::ViewportLane>, injections: InjectionPolicy, cfg: &TierCfg) -> bool {
 	match lane {
@@ -109,10 +175,21 @@ pub(super) fn decide_install(done: &CompletedSyntaxTask, now: Instant, ctx: &Ens
 }
 
 /// Lightweight subset of completed task fields needed for apply helpers.
+#[derive(Clone, Copy)]
 struct CompletedRef {
 	doc_version: u64,
 	viewport_key: Option<ViewportKey>,
 	viewport_lane: Option<scheduling::ViewportLane>,
+}
+
+impl CompletedRef {
+	fn from_done(done: &CompletedSyntaxTask) -> Self {
+		Self {
+			doc_version: done.doc_version,
+			viewport_key: done.viewport_key,
+			viewport_lane: done.viewport_lane,
+		}
+	}
 }
 
 /// Applies a successful viewport parse install. Returns true (always updates).
@@ -227,99 +304,150 @@ fn apply_failure_cooldowns(
 	}
 }
 
+/// Computes the action for one completed item without mutating state.
+fn evaluate_completion(done: CompletedSyntaxTask, now: Instant, ctx: &EnsureSyntaxContext<'_>, d: &EnsureDerived, entry: &DocEntry) -> CompletionEval {
+	let meta = CompletionMeta::from_done(&done);
+	let done_ref = CompletedRef::from_done(&done);
+	let decision = decide_install(&done, now, ctx, d, entry);
+	match done.result {
+		Ok(syntax_tree) => {
+			let action = match decision {
+				InstallDecision::Install => {
+					if done.class == TaskClass::Viewport {
+						InstallAction::InstallViewport {
+							done: done_ref,
+							syntax: syntax_tree,
+						}
+					} else {
+						InstallAction::InstallFull {
+							done: done_ref,
+							syntax: syntax_tree,
+						}
+					}
+				}
+				InstallDecision::DropRetention => InstallAction::DropRetention,
+				InstallDecision::Discard => InstallAction::NoOp,
+			};
+			CompletionEval::Success { meta, decision, action }
+		}
+		Err(xeno_language::syntax::SyntaxError::Timeout) => CompletionEval::Timeout {
+			meta,
+			action: InstallAction::ApplyFailureCooldown {
+				done: done_ref,
+				is_timeout: true,
+			},
+		},
+		Err(error) => CompletionEval::Error {
+			meta,
+			action: InstallAction::ApplyFailureCooldown {
+				done: done_ref,
+				is_timeout: false,
+			},
+			error,
+		},
+	}
+}
+
+/// Applies an install action and returns whether syntax state changed.
+fn apply_install_action(entry: &mut DocEntry, now: Instant, ctx: &EnsureSyntaxContext<'_>, cfg: &TierCfg, action: InstallAction) -> ApplyResult {
+	match action {
+		InstallAction::InstallViewport { done, syntax } => {
+			let Some(current_lang) = ctx.language_id else {
+				return ApplyResult::default();
+			};
+			let is_installed = apply_viewport_install(entry, &done, syntax, current_lang);
+			ApplyResult {
+				was_updated: is_installed,
+				is_installed,
+			}
+		}
+		InstallAction::InstallFull { done, syntax } => {
+			let Some(current_lang) = ctx.language_id else {
+				return ApplyResult::default();
+			};
+			let was_updated = apply_full_install(entry, &done, syntax, ctx, current_lang);
+			ApplyResult {
+				was_updated,
+				is_installed: true,
+			}
+		}
+		InstallAction::DropRetention => {
+			let was_updated = apply_retention_drop(entry);
+			ApplyResult {
+				was_updated,
+				is_installed: false,
+			}
+		}
+		InstallAction::ApplyFailureCooldown { done, is_timeout } => {
+			apply_failure_cooldowns(entry, now, done.doc_version, done.viewport_key, done.viewport_lane, cfg, is_timeout);
+			ApplyResult::default()
+		}
+		InstallAction::NoOp => ApplyResult::default(),
+	}
+}
+
 /// Drains completed tasks, decides and applies install/discard/cooldown. Returns was_updated.
 pub(super) fn install_completions(entry: &mut DocEntry, now: Instant, ctx: &EnsureSyntaxContext<'_>, d: &EnsureDerived, metrics: &mut SyntaxMetrics) -> bool {
 	let mut was_updated = false;
 
 	while let Some(done) = entry.sched.completed.pop_front() {
-		let decision = decide_install(&done, now, ctx, d, entry);
-		let CompletedSyntaxTask {
-			doc_version,
-			lang_id,
-			opts,
-			result,
-			class,
-			elapsed,
-			viewport_key,
-			viewport_lane,
-		} = done;
-		let injections = opts.injections;
-		match result {
-			Ok(syntax_tree) => {
-				let is_installed = match decision {
-					InstallDecision::Install => {
-						let current_lang = ctx.language_id.unwrap();
-						let done_ref = CompletedRef {
-							doc_version,
-							viewport_key,
-							viewport_lane,
-						};
-						if class == TaskClass::Viewport {
-							if apply_viewport_install(entry, &done_ref, syntax_tree, current_lang) {
-								was_updated = true;
-								true
-							} else {
-								false
-							}
-						} else {
-							if apply_full_install(entry, &done_ref, syntax_tree, ctx, current_lang) {
-								was_updated = true;
-							}
-							true
-						}
-					}
-					InstallDecision::DropRetention => {
-						if apply_retention_drop(entry) {
-							was_updated = true;
-						}
-						false
-					}
-					InstallDecision::Discard => false,
-				};
-				metrics.record_task_result(lang_id, d.tier, class, injections, elapsed, false, false, is_installed);
+		match evaluate_completion(done, now, ctx, d, entry) {
+			CompletionEval::Success { meta, decision, action } => {
+				let result = apply_install_action(entry, now, ctx, &d.cfg, action);
+				was_updated |= result.was_updated;
+				metrics.record_task_result(
+					meta.lang_id,
+					d.tier,
+					meta.class,
+					meta.injections,
+					meta.elapsed,
+					false,
+					false,
+					result.is_installed,
+				);
 				tracing::trace!(
 					target: "xeno_undo_trace",
 					doc_id = ?ctx.doc_id,
-					done_doc_version = doc_version,
+					done_doc_version = meta.doc_version,
 					ctx_doc_version = ctx.doc_version,
-					?class,
-					?viewport_lane,
-					?injections,
-					elapsed_ms = elapsed.as_millis() as u64,
-					is_installed,
+					class = ?meta.class,
+					viewport_lane = ?meta.viewport_lane,
+					injections = ?meta.injections,
+					elapsed_ms = meta.elapsed.as_millis() as u64,
+					is_installed = result.is_installed,
 					?decision,
 					"syntax.ensure.completed.ok"
 				);
 			}
-			Err(xeno_language::syntax::SyntaxError::Timeout) => {
-				apply_failure_cooldowns(entry, now, doc_version, viewport_key, viewport_lane, &d.cfg, true);
-				metrics.record_task_result(lang_id, d.tier, class, injections, elapsed, true, false, false);
+			CompletionEval::Timeout { meta, action } => {
+				let _ = apply_install_action(entry, now, ctx, &d.cfg, action);
+				metrics.record_task_result(meta.lang_id, d.tier, meta.class, meta.injections, meta.elapsed, true, false, false);
 				tracing::trace!(
 					target: "xeno_undo_trace",
 					doc_id = ?ctx.doc_id,
-					done_doc_version = doc_version,
+					done_doc_version = meta.doc_version,
 					ctx_doc_version = ctx.doc_version,
-					?class,
-					?viewport_lane,
-					?injections,
-					elapsed_ms = elapsed.as_millis() as u64,
+					class = ?meta.class,
+					viewport_lane = ?meta.viewport_lane,
+					injections = ?meta.injections,
+					elapsed_ms = meta.elapsed.as_millis() as u64,
 					"syntax.ensure.completed.timeout"
 				);
 			}
-			Err(e) => {
-				tracing::warn!(doc_id = ?ctx.doc_id, tier = ?d.tier, error=%e, "Background syntax parse failed");
-				apply_failure_cooldowns(entry, now, doc_version, viewport_key, viewport_lane, &d.cfg, false);
-				metrics.record_task_result(lang_id, d.tier, class, injections, elapsed, false, true, false);
+			CompletionEval::Error { meta, action, error } => {
+				tracing::warn!(doc_id = ?ctx.doc_id, tier = ?d.tier, error=%error, "Background syntax parse failed");
+				let _ = apply_install_action(entry, now, ctx, &d.cfg, action);
+				metrics.record_task_result(meta.lang_id, d.tier, meta.class, meta.injections, meta.elapsed, false, true, false);
 				tracing::trace!(
 					target: "xeno_undo_trace",
 					doc_id = ?ctx.doc_id,
-					done_doc_version = doc_version,
+					done_doc_version = meta.doc_version,
 					ctx_doc_version = ctx.doc_version,
-					?class,
-					?viewport_lane,
-					?injections,
-					elapsed_ms = elapsed.as_millis() as u64,
-					error = %e,
+					class = ?meta.class,
+					viewport_lane = ?meta.viewport_lane,
+					injections = ?meta.injections,
+					elapsed_ms = meta.elapsed.as_millis() as u64,
+					error = %error,
 					"syntax.ensure.completed.error"
 				);
 			}

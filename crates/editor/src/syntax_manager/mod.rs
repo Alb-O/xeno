@@ -15,7 +15,7 @@
 //!
 //! * `derive` — compute tier, config, viewport bounds from policy + context (pure).
 //! * `normalize` — reset on language/opts changes.
-//! * `install` — drain completed tasks; decide install/discard/retention-drop per result.
+//! * `install` — drain completions; evaluate policy (pure) then apply install/drop/cooldown actions.
 //! * `gate` — language/disabled/ready/debounce early exits.
 //! * `bootstrap` — synchronous first-visible parse for small/medium docs.
 //! * `plan` — pure scheduling decisions → `WorkPlan` (Stage-A, Stage-B, BG).
@@ -60,7 +60,7 @@
 //! 1. Edit path calls `note_edit`/`note_edit_incremental`.
 //! 2. Render/tick path calls `ensure_syntax` with current snapshot.
 //! 3. Background tasks complete and are drained.
-//! 4. Install policy accepts or discards completion.
+//! 4. Completion policy is evaluated, then install/drop/cooldown actions are applied.
 //! 5. Render uses tree and optional projection context for highlighting.
 //!
 //! # Lifecycle
