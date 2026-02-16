@@ -1,9 +1,8 @@
 //! Key event handling.
 
 mod ops;
-mod types;
 
-use types::ActionDispatch;
+use ops::KeyInvocation;
 use xeno_input::input::KeyResult;
 use xeno_primitives::{Key, KeyCode, Mode};
 
@@ -96,20 +95,16 @@ impl Editor {
 		#[cfg(feature = "lsp")]
 		let mut mode_change = None;
 
-		if let ActionDispatch::Executed(action_result) = self.dispatch_action(&result) {
-			quit = action_result.is_quit();
-			handled = true;
-
-			if !action_result.is_quit()
-				&& let Some(action_name) = action_name_from_key_result(&result)
-			{
-				self.enqueue_action_post_hook(action_name, &action_result);
+		if !handled && let Some(key_invocation) = self.key_invocation_from_result(&result) {
+			match key_invocation {
+				KeyInvocation::Invocation(invocation) => {
+					let inv_result = self.run_invocation(invocation, crate::types::InvocationPolicy::enforcing()).await;
+					quit = inv_result.is_quit();
+				}
+				KeyInvocation::InvalidActionId(action_id) => {
+					self.show_notification(xeno_registry::notifications::keys::unknown_action(&action_id));
+				}
 			}
-		}
-
-		if !handled && let KeyResult::Invocation { ref inv } = result {
-			let inv_result = self.run_invocation(inv.clone(), crate::types::InvocationPolicy::enforcing()).await;
-			quit = inv_result.is_quit();
 			handled = true;
 		}
 
@@ -180,15 +175,6 @@ impl Editor {
 		self.update_lsp_completion_state(mode_change.as_ref(), old_buffer_id, old_cursor, old_version, inserted_char);
 
 		quit
-	}
-}
-
-fn action_name_from_key_result(result: &KeyResult) -> Option<String> {
-	match result {
-		KeyResult::ActionById { id, .. } | KeyResult::ActionByIdWithChar { id, .. } => {
-			xeno_registry::ACTIONS.get_by_id(*id).map(|action| action.name_str().to_string())
-		}
-		_ => None,
 	}
 }
 

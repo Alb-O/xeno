@@ -1,21 +1,29 @@
 use xeno_input::input::KeyResult;
 use xeno_primitives::Selection;
 
-use super::types::ActionDispatch;
 use crate::Editor;
+use crate::types::Invocation;
+
+pub(crate) enum KeyInvocation {
+	Invocation(Invocation),
+	InvalidActionId(String),
+}
 
 impl Editor {
-	/// Dispatches an action based on the key result.
-	pub(crate) fn dispatch_action(&mut self, result: &KeyResult) -> ActionDispatch {
+	/// Converts keymap action/invocation results into canonical invocations.
+	pub(crate) fn key_invocation_from_result(&self, result: &KeyResult) -> Option<KeyInvocation> {
 		match result {
 			KeyResult::ActionById { id, count, extend, register } => {
-				let action_result = if let Some(action) = xeno_registry::ACTIONS.get_by_id(*id) {
-					self.invoke_action(action.name_str(), *count, *extend, *register, None)
+				if let Some(action) = xeno_registry::ACTIONS.get_by_id(*id) {
+					Some(KeyInvocation::Invocation(Invocation::Action {
+						name: action.name_str().to_string(),
+						count: *count,
+						extend: *extend,
+						register: *register,
+					}))
 				} else {
-					self.show_notification(xeno_registry::notifications::keys::unknown_action(&id.to_string()));
-					crate::types::InvocationResult::NotFound(format!("action:{id}"))
-				};
-				ActionDispatch::Executed(action_result)
+					Some(KeyInvocation::InvalidActionId(id.to_string()))
+				}
 			}
 			KeyResult::ActionByIdWithChar {
 				id,
@@ -24,15 +32,20 @@ impl Editor {
 				register,
 				char_arg,
 			} => {
-				let action_result = if let Some(action) = xeno_registry::ACTIONS.get_by_id(*id) {
-					self.invoke_action(action.name_str(), *count, *extend, *register, Some(*char_arg))
+				if let Some(action) = xeno_registry::ACTIONS.get_by_id(*id) {
+					Some(KeyInvocation::Invocation(Invocation::ActionWithChar {
+						name: action.name_str().to_string(),
+						count: *count,
+						extend: *extend,
+						register: *register,
+						char_arg: *char_arg,
+					}))
 				} else {
-					self.show_notification(xeno_registry::notifications::keys::unknown_action(&id.to_string()));
-					crate::types::InvocationResult::NotFound(format!("action:{id}"))
-				};
-				ActionDispatch::Executed(action_result)
+					Some(KeyInvocation::InvalidActionId(id.to_string()))
+				}
 			}
-			_ => ActionDispatch::NotAction,
+			KeyResult::Invocation { inv } => Some(KeyInvocation::Invocation(inv.clone())),
+			_ => None,
 		}
 	}
 

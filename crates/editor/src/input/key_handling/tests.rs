@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use xeno_input::input::KeyResult;
 use xeno_keymap_core::parser::parse_seq;
 use xeno_primitives::{Key, KeyCode};
 use xeno_registry::actions::{ActionEntry, BindingMode};
@@ -8,6 +9,7 @@ use xeno_registry::config::UnresolvedKeys;
 use xeno_registry::core::index::Snapshot;
 use xeno_registry::{ActionId, DenseId, LookupResult, RegistryEntry};
 
+use super::ops::KeyInvocation;
 use crate::Editor;
 
 fn key_enter() -> Key {
@@ -154,4 +156,52 @@ fn invalid_override_keeps_base_binding() {
 
 	let keymap = editor.effective_keymap();
 	assert_eq!(lookup_action_id(&keymap, mode, &key_seq), base_id);
+}
+
+#[test]
+fn action_by_id_key_result_normalizes_to_invocation() {
+	let editor = Editor::new_scratch();
+	let actions = xeno_registry::db::ACTIONS.snapshot();
+	let action_id = ActionId::from_u32(actions.table.iter().enumerate().next().expect("registry should contain actions").0 as u32);
+	let action_name = xeno_registry::ACTIONS
+		.get_by_id(action_id)
+		.expect("action id should exist")
+		.name_str()
+		.to_string();
+
+	let result = KeyResult::ActionById {
+		id: action_id,
+		count: 3,
+		extend: true,
+		register: Some('a'),
+	};
+
+	let mapped = editor.key_invocation_from_result(&result);
+	assert!(matches!(
+		mapped,
+		Some(KeyInvocation::Invocation(xeno_registry::Invocation::Action {
+			name,
+			count: 3,
+			extend: true,
+			register: Some('a'),
+		})) if name == action_name
+	));
+}
+
+#[test]
+fn unknown_action_id_key_result_surfaces_invalid_id() {
+	let editor = Editor::new_scratch();
+	let invalid_id = ActionId::from_u32(u32::MAX);
+	let result = KeyResult::ActionById {
+		id: invalid_id,
+		count: 1,
+		extend: false,
+		register: None,
+	};
+
+	let mapped = editor.key_invocation_from_result(&result);
+	assert!(matches!(
+		mapped,
+		Some(KeyInvocation::InvalidActionId(id)) if id == invalid_id.to_string()
+	));
 }

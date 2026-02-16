@@ -182,22 +182,9 @@ impl Editor {
 			let local_col = clamped_x.saturating_sub(inner.x);
 
 			let result = self.buffer_mut().input.handle_mouse(mouse);
-			match result {
-				KeyResult::MouseClick { extend, .. } => {
-					self.state.layout.text_selection_origin = Some((overlay_buffer, inner));
-					self.handle_mouse_click_local(local_row, local_col, extend);
-				}
-				KeyResult::MouseDrag { .. } => {
-					self.handle_mouse_drag_local(local_row, local_col);
-				}
-				KeyResult::MouseScroll { direction, count } => {
-					self.handle_mouse_scroll(direction, count);
-				}
-				_ => {}
-			}
-
+			let quit = self.apply_mouse_key_result(result, local_row, local_col, Some((overlay_buffer, inner)));
 			self.state.frame.needs_redraw = true;
-			return false;
+			return quit;
 		}
 
 		let separator_hit = {
@@ -303,9 +290,19 @@ impl Editor {
 
 		// Process the mouse event through the input handler
 		let result = self.buffer_mut().input.handle_mouse(mouse);
+		self.apply_mouse_key_result(result, local_row, local_col, Some((target_view, view_area)))
+	}
+
+	fn apply_mouse_key_result(
+		&mut self,
+		result: KeyResult,
+		local_row: u16,
+		local_col: u16,
+		selection_origin: Option<(crate::buffer::ViewId, crate::geometry::Rect)>,
+	) -> bool {
 		match result {
 			KeyResult::MouseClick { extend, .. } => {
-				self.state.layout.text_selection_origin = Some((target_view, view_area));
+				self.state.layout.text_selection_origin = selection_origin;
 				self.handle_mouse_click_local(local_row, local_col, extend);
 				false
 			}

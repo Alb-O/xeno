@@ -11,7 +11,7 @@
 //!
 //! * `Invocation` is input intent (`Action`, `Command`, `EditorCommand`, `Nu`).
 //! * `run_invocation` is the canonical dispatcher and must be the first stop for user-triggered execution.
-//! * Each branch resolves definitions, performs policy checks, executes handler logic, then flushes effects.
+//! * Dispatch is staged as resolve -> preflight policy gates -> execute -> effect flush -> deferred post hooks.
 //! * Nu post hooks are queued only for non-quit outcomes, then drained later from runtime `pump()`.
 //!
 //! # Key types
@@ -21,6 +21,8 @@
 //! | [`crate::types::Invocation`] | User/script invocation request | Must be dispatched only through `run_invocation` | key handling, command paths, Nu pipelines |
 //! | [`crate::types::InvocationPolicy`] | Enforcement policy toggles | Enforcing mode must block capability/readonly violations | `InvocationPolicy::enforcing` |
 //! | [`crate::types::InvocationResult`] | Canonical execution outcome | Must preserve quit/force-quit/error propagation | branch handlers in this module |
+//! | [`preflight::InvocationSubject`] | Shared preflight envelope for targets | Must carry required caps and mutability intent before execution | action/command/editor-command executors |
+//! | [`preflight::PreflightDecision`] | Policy gate result | `Deny` must return without running target handlers | `Editor::preflight_invocation_subject` |
 //! | [`crate::impls::Editor`] | Runtime owner of invocation execution | Must flush queued effects after each command/action execution branch | `run_*_invocation` methods |
 //! | [`crate::nu::NuHook`] | Deferred hook kind | Must enqueue only when execution does not request quit | `run_invocation` |
 //!
@@ -28,6 +30,7 @@
 //!
 //! * Must gate capability violations through `InvocationPolicy` before handler execution.
 //! * Must gate readonly edits when policy enforces readonly and target requires edit capability.
+//! * Action, command, and editor-command execution must all pass through the shared preflight gate.
 //! * Must enqueue Nu post hooks only for non-quit invocation outcomes.
 //! * Must cap Nu macro recursion depth to prevent unbounded self-recursion.
 //! * Must flush queued effects after action/command/editor-command execution branches.
@@ -35,10 +38,11 @@
 //! # Data flow
 //!
 //! 1. Caller builds an [`crate::types::Invocation`] and calls `run_invocation`.
-//! 2. Dispatcher resolves target definition and runs policy gates.
-//! 3. Handler executes and returns typed outcome/effects.
-//! 4. Effects are flushed and transformed into editor mutations and overlay/layer events.
-//! 5. Non-quit outcomes enqueue Nu post hooks, later drained by runtime `pump()`.
+//! 2. Dispatcher resolves target definition and constructs shared preflight subject metadata.
+//! 3. Preflight enforces capability/readonly policy and either denies or proceeds.
+//! 4. Handler executes and returns typed outcome/effects.
+//! 5. Effects are flushed and transformed into editor mutations and overlay/layer events.
+//! 6. Non-quit outcomes enqueue Nu post hooks, later drained by runtime `pump()`.
 //!
 //! # Lifecycle
 //!
@@ -70,15 +74,22 @@
 //!   3. Decide post-hook contract (if any) and add tests.
 //! * Add a new enforcement rule:
 //!   1. Add gate before handler call.
-//!   2. Route violations through `handle_capability_violation`-style shaping.
+//!   2. Route violations through the shared `preflight` policy helpers.
 //!   3. Add invariant proof in `invariants.rs`.
 
-mod core;
+mod dispatch;
+mod execute_action;
+mod execute_command;
+mod execute_editor_command;
+mod execute_nu;
+mod hooks_bridge;
+mod preflight;
 
-pub(crate) use core::MAX_NU_HOOKS_PER_PUMP;
+pub(crate) use hooks_bridge::MAX_NU_HOOKS_PER_PUMP;
 #[cfg(test)]
-pub(crate) use core::{action_post_args, command_post_args, handle_capability_violation};
-
+pub(crate) use hooks_bridge::{action_post_args, command_post_args};
+#[cfg(test)]
+pub(crate) use preflight::handle_capability_violation;
 #[cfg(test)]
 use xeno_registry::actions::EditorContext;
 

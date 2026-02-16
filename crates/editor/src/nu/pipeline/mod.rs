@@ -65,6 +65,7 @@ pub(crate) fn enqueue_nu_hook(editor: &mut Editor, hook: crate::nu::NuHook, args
 	}
 }
 
+#[cfg(test)]
 pub(crate) fn enqueue_action_post_hook(editor: &mut Editor, name: String, result: &InvocationResult) {
 	if !result.is_quit() {
 		enqueue_nu_hook(editor, crate::nu::NuHook::ActionPost, action_post_args(name, result));

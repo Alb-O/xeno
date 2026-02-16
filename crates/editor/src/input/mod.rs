@@ -30,6 +30,7 @@
 //!
 //! * Must allow active overlay interaction/layers to consume input before base keymap dispatch.
 //! * Must defer overlay commit execution to runtime `pump` via pending-commit flag.
+//! * Must route keymap-produced action/command invocations through `Editor::run_invocation`.
 //! * Must confine drag-selection updates to the origin view during active text-selection drags.
 //! * Must cancel or ignore stale separator drag paths after structural layout changes.
 //! * Mouse/panel focus transitions must synchronize editor focus after UI handling.
@@ -38,8 +39,8 @@
 //!
 //! 1. Runtime receives key/mouse event and forwards to this subsystem.
 //! 2. Input cascade determines interception target (UI, overlay, base view).
-//! 3. Base dispatch returns `KeyResult` that maps to invocation/edit/mode behavior.
-//! 4. Resulting effects are routed to invocation/effect pipelines.
+//! 3. Base dispatch returns `KeyResult` that maps to canonical invocations or local edit/mode behavior.
+//! 4. Canonical invocations flow through invocation preflight/execution; local effects are applied directly.
 //! 5. Runtime `pump` applies deferred commit/drain consequences.
 //!
 //! # Lifecycle
