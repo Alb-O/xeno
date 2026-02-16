@@ -1,109 +1,14 @@
-/// Nu interop for invocation types: [`InvocationValue`] custom value and decode logic.
-///
-/// [`InvocationValue`] wraps [`Invocation`] as a Nu [`CustomValue`], enabling
-/// typed returns from built-in commands (`action`, `command`, `editor`, `nu run`)
-/// without schema-based record decoding.
+/// Nu interop for invocation types: decode logic for record-based returns.
 ///
 /// Two decode surfaces:
-/// * Runtime (macros/hooks): typed-only — `Nothing`, `Custom(InvocationValue)`,
-///   or `List` of those. Records are rejected.
-/// * Config (NUON keybindings): record-schema fallback via [`decode_single_invocation`].
+/// * Runtime (macros/hooks): `Nothing`, `Record`, or `List` of those.
+/// * Config (NUON keybindings): record-schema via [`decode_single_invocation`].
 use std::fmt::Write;
 
-use serde::{Deserialize, Serialize};
-use xeno_nu_value::{Record, ShellError, Span, Value};
+use xeno_nu_value::{Record, Value};
 
 use crate::Invocation;
-
-// ---------------------------------------------------------------------------
-// InvocationValue (CustomValue wrapper)
-// ---------------------------------------------------------------------------
-
-/// Nu [`CustomValue`] wrapping an [`Invocation`].
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct InvocationValue(pub Invocation);
-
-impl InvocationValue {
-	/// Wrap into a Nu `Value::Custom`.
-	pub fn into_value(self, span: Span) -> Value {
-		Value::custom(Box::new(self), span)
-	}
-
-	/// Downcast a `Value` reference to `InvocationValue`.
-	pub fn try_from_value(value: &Value) -> Option<&Self> {
-		match value {
-			Value::Custom { val, .. } => val.as_any().downcast_ref::<Self>(),
-			_ => None,
-		}
-	}
-}
-
-#[typetag::serde]
-impl xeno_nu_value::CustomValue for InvocationValue {
-	fn clone_value(&self, span: Span) -> Value {
-		Value::custom(Box::new(self.clone()), span)
-	}
-
-	fn type_name(&self) -> String {
-		"invocation".to_string()
-	}
-
-	fn to_base_value(&self, span: Span) -> Result<Value, ShellError> {
-		Ok(invocation_to_record(&self.0, span))
-	}
-
-	fn as_any(&self) -> &dyn std::any::Any {
-		self
-	}
-
-	fn as_mut_any(&mut self) -> &mut dyn std::any::Any {
-		self
-	}
-}
-
-/// Render an [`Invocation`] as a Nu record (for debugging / `to_base_value`).
-fn invocation_to_record(inv: &Invocation, s: Span) -> Value {
-	let mut r = Record::new();
-	match inv {
-		Invocation::Action { name, count, extend, register } => {
-			r.push("kind", Value::string("action", s));
-			r.push("name", Value::string(name, s));
-			r.push("count", Value::int(*count as i64, s));
-			r.push("extend", Value::bool(*extend, s));
-			r.push("register", register.map_or_else(|| Value::nothing(s), |c| Value::string(c.to_string(), s)));
-		}
-		Invocation::ActionWithChar {
-			name,
-			count,
-			extend,
-			register,
-			char_arg,
-		} => {
-			r.push("kind", Value::string("action", s));
-			r.push("name", Value::string(name, s));
-			r.push("count", Value::int(*count as i64, s));
-			r.push("extend", Value::bool(*extend, s));
-			r.push("register", register.map_or_else(|| Value::nothing(s), |c| Value::string(c.to_string(), s)));
-			r.push("char", Value::string(char_arg.to_string(), s));
-		}
-		Invocation::Command { name, args } => {
-			r.push("kind", Value::string("command", s));
-			r.push("name", Value::string(name, s));
-			r.push("args", Value::list(args.iter().map(|a| Value::string(a, s)).collect(), s));
-		}
-		Invocation::EditorCommand { name, args } => {
-			r.push("kind", Value::string("editor", s));
-			r.push("name", Value::string(name, s));
-			r.push("args", Value::list(args.iter().map(|a| Value::string(a, s)).collect(), s));
-		}
-		Invocation::Nu { name, args } => {
-			r.push("kind", Value::string("nu", s));
-			r.push("name", Value::string(name, s));
-			r.push("args", Value::list(args.iter().map(|a| Value::string(a, s)).collect(), s));
-		}
-	}
-	Value::record(r, s)
-}
+use crate::schema;
 
 // ---------------------------------------------------------------------------
 // Decode limits
@@ -123,10 +28,10 @@ pub struct DecodeLimits {
 impl DecodeLimits {
 	pub const fn macro_defaults() -> Self {
 		Self {
-			max_invocations: 256,
-			max_string_len: 4096,
-			max_args: 64,
-			max_action_count: 10_000,
+			max_invocations: schema::DEFAULT_LIMITS.max_invocations,
+			max_string_len: schema::DEFAULT_LIMITS.max_string_len,
+			max_args: schema::DEFAULT_LIMITS.max_args,
+			max_action_count: schema::DEFAULT_LIMITS.max_action_count,
 			max_nodes: 50_000,
 		}
 	}
@@ -144,10 +49,9 @@ impl DecodeLimits {
 // Decode — public API
 // ---------------------------------------------------------------------------
 
-/// Decode runtime (macro/hook) return values: typed-only.
+/// Decode runtime (macro/hook) return values.
 ///
-/// Accepts: `Nothing`, `Custom(InvocationValue)`, or flat `List` of those.
-/// Records and all other shapes are rejected with an actionable error.
+/// Accepts: `Nothing`, `Record` (single invocation), or flat `List` of those.
 pub fn decode_runtime_invocations_with_limits(value: Value, limits: DecodeLimits) -> Result<Vec<Invocation>, String> {
 	let mut state = DecodeState::new();
 	decode_runtime_value(value, &limits, &mut state)?;
@@ -164,21 +68,10 @@ pub fn decode_invocations_with_limits(value: Value, limits: DecodeLimits) -> Res
 	decode_runtime_invocations_with_limits(value, limits)
 }
 
-/// Decode a single Nu record/custom value into an [`Invocation`].
+/// Decode a single Nu record into an [`Invocation`].
 ///
-/// Config-only surface: accepts records (NUON keybindings) and custom values.
+/// Config-only surface: accepts records (NUON keybindings).
 pub fn decode_single_invocation(value: &Value, field_path: &str) -> Result<Invocation, String> {
-	// Fast path: typed custom value
-	if let Some(iv) = InvocationValue::try_from_value(value) {
-		let limits = DecodeLimits::macro_defaults();
-		let mut state = DecodeState::new();
-		state.path.segments.clear();
-		state.path.segments.push(PathSeg::RootLabel(field_path));
-		validate_invocation_limits(&iv.0, &mut state, &limits)?;
-		return Ok(iv.0.clone());
-	}
-
-	// Fallback: record schema (config only)
 	match value {
 		Value::Record { val, .. } => {
 			let limits = DecodeLimits::macro_defaults();
@@ -284,43 +177,27 @@ impl<'a> DecodeState<'a> {
 	}
 }
 
-/// Runtime decode: typed-only (Nothing, Custom, flat List of those).
+/// Runtime decode: Nothing, Record, or flat List of those.
 fn decode_runtime_value(value: Value, limits: &DecodeLimits, state: &mut DecodeState<'_>) -> Result<(), String> {
 	state.visit_node(limits)?;
 
 	match value {
 		Value::Nothing { .. } => Ok(()),
-		Value::Custom { ref val, .. } => {
-			if let Some(iv) = val.as_any().downcast_ref::<InvocationValue>() {
-				validate_invocation_limits(&iv.0, state, limits)?;
-				state.push_invocation(iv.0.clone(), limits)
-			} else {
-				Err(state.err(format_args!("expected InvocationValue custom value, got {}", val.type_name())))
-			}
-		}
+		Value::Record { ref val, .. } => decode_invocation_record(val, limits, state),
 		Value::List { vals, .. } => {
 			for (idx, item) in vals.into_iter().enumerate() {
 				state.path.push_index(idx);
 				state.visit_node(limits)?;
 				match item {
 					Value::Nothing { .. } => {}
-					Value::Custom { ref val, .. } => {
-						if let Some(iv) = val.as_any().downcast_ref::<InvocationValue>() {
-							validate_invocation_limits(&iv.0, state, limits)?;
-							state.push_invocation(iv.0.clone(), limits)?;
-						} else {
-							let err = state.err(format_args!("expected InvocationValue, got {}", val.type_name()));
+					Value::Record { ref val, .. } => {
+						decode_invocation_record(val, limits, state).map_err(|e| {
 							state.path.pop();
-							return Err(err);
-						}
-					}
-					Value::Record { .. } => {
-						let err = state.err("record returns are not supported at runtime; use built-in commands: action, command, editor, \"nu run\"");
-						state.path.pop();
-						return Err(err);
+							e
+						})?;
 					}
 					other => {
-						let err = state.err(format_args!("expected invocation or nothing, got {}", other.get_type()));
+						let err = state.err(format_args!("expected invocation record or nothing, got {}", other.get_type()));
 						state.path.pop();
 						return Err(err);
 					}
@@ -329,31 +206,30 @@ fn decode_runtime_value(value: Value, limits: &DecodeLimits, state: &mut DecodeS
 			}
 			Ok(())
 		}
-		Value::Record { .. } => Err(state.err("record returns are not supported at runtime; use built-in commands: action, command, editor, \"nu run\"")),
 		Value::String { .. } => Err(state.err("string returns are not supported; use built-in commands: action, command, editor, \"nu run\"")),
-		other => Err(state.err(format_args!("expected invocation/list/nothing, got {}", other.get_type()))),
+		other => Err(state.err(format_args!("expected record/list/nothing, got {}", other.get_type()))),
 	}
 }
 
-fn decode_invocation_record(record: &xeno_nu_value::Record, limits: &DecodeLimits, state: &mut DecodeState<'_>) -> Result<(), String> {
-	if !record.contains("kind") {
-		return Err(state.err("record must include 'kind'"));
+fn decode_invocation_record(record: &Record, limits: &DecodeLimits, state: &mut DecodeState<'_>) -> Result<(), String> {
+	if !record.contains(schema::KIND) {
+		return Err(state.err(format_args!("record must include '{}'", schema::KIND)));
 	}
 	let invocation = decode_structured_invocation(record, limits, state)?;
 	validate_invocation_limits(&invocation, state, limits)?;
 	state.push_invocation(invocation, limits)
 }
 
-fn decode_structured_invocation(record: &xeno_nu_value::Record, limits: &DecodeLimits, state: &mut DecodeState<'_>) -> Result<Invocation, String> {
-	let kind = required_string_field(record, "kind", limits, state)?;
-	let name = required_string_field(record, "name", limits, state)?;
+fn decode_structured_invocation(record: &Record, limits: &DecodeLimits, state: &mut DecodeState<'_>) -> Result<Invocation, String> {
+	let kind = required_string_field(record, schema::KIND, limits, state)?;
+	let name = required_string_field(record, schema::NAME, limits, state)?;
 
 	match kind.as_str() {
-		"action" => {
-			let count = optional_int_field(record, "count", limits, state)?.unwrap_or(1).max(1);
-			let extend = optional_bool_field(record, "extend", state)?.unwrap_or(false);
-			let register = optional_char_field(record, "register", limits, state)?;
-			let char_arg = optional_char_field(record, "char", limits, state)?;
+		schema::KIND_ACTION => {
+			let count = optional_int_field(record, schema::COUNT, limits, state)?.unwrap_or(1).max(1);
+			let extend = optional_bool_field(record, schema::EXTEND, state)?.unwrap_or(false);
+			let register = optional_char_field(record, schema::REGISTER, limits, state)?;
+			let char_arg = optional_char_field(record, schema::CHAR, limits, state)?;
 
 			if let Some(char_arg) = char_arg {
 				Ok(Invocation::ActionWithChar {
@@ -367,17 +243,17 @@ fn decode_structured_invocation(record: &xeno_nu_value::Record, limits: &DecodeL
 				Ok(Invocation::Action { name, count, extend, register })
 			}
 		}
-		"command" => Ok(Invocation::Command {
+		schema::KIND_COMMAND => Ok(Invocation::Command {
 			name,
-			args: optional_string_list_field(record, "args", limits, state)?.unwrap_or_default(),
+			args: optional_string_list_field(record, schema::ARGS, limits, state)?.unwrap_or_default(),
 		}),
-		"editor" => Ok(Invocation::EditorCommand {
+		schema::KIND_EDITOR => Ok(Invocation::EditorCommand {
 			name,
-			args: optional_string_list_field(record, "args", limits, state)?.unwrap_or_default(),
+			args: optional_string_list_field(record, schema::ARGS, limits, state)?.unwrap_or_default(),
 		}),
-		"nu" => Ok(Invocation::Nu {
+		schema::KIND_NU => Ok(Invocation::Nu {
 			name,
-			args: optional_string_list_field(record, "args", limits, state)?.unwrap_or_default(),
+			args: optional_string_list_field(record, schema::ARGS, limits, state)?.unwrap_or_default(),
 		}),
 		other => Err(state.err(format_args!("unknown invocation kind '{other}'"))),
 	}
@@ -385,7 +261,7 @@ fn decode_structured_invocation(record: &xeno_nu_value::Record, limits: &DecodeL
 
 // --- Field helpers ---
 
-fn required_string_field<'a>(record: &xeno_nu_value::Record, field: &'a str, limits: &DecodeLimits, state: &mut DecodeState<'a>) -> Result<String, String> {
+fn required_string_field<'a>(record: &Record, field: &'a str, limits: &DecodeLimits, state: &mut DecodeState<'a>) -> Result<String, String> {
 	let value = record.get(field).ok_or_else(|| state.err(format_args!("missing required field '{field}'")))?;
 	match value {
 		Value::String { val, .. } => {
@@ -403,7 +279,7 @@ fn required_string_field<'a>(record: &xeno_nu_value::Record, field: &'a str, lim
 	}
 }
 
-fn optional_bool_field<'a>(record: &xeno_nu_value::Record, field: &'a str, state: &mut DecodeState<'a>) -> Result<Option<bool>, String> {
+fn optional_bool_field<'a>(record: &Record, field: &'a str, state: &mut DecodeState<'a>) -> Result<Option<bool>, String> {
 	let Some(value) = record.get(field) else {
 		return Ok(None);
 	};
@@ -419,7 +295,7 @@ fn optional_bool_field<'a>(record: &xeno_nu_value::Record, field: &'a str, state
 	}
 }
 
-fn optional_int_field<'a>(record: &xeno_nu_value::Record, field: &'a str, limits: &DecodeLimits, state: &mut DecodeState<'a>) -> Result<Option<usize>, String> {
+fn optional_int_field<'a>(record: &Record, field: &'a str, limits: &DecodeLimits, state: &mut DecodeState<'a>) -> Result<Option<usize>, String> {
 	let Some(value) = record.get(field) else {
 		return Ok(None);
 	};
@@ -443,7 +319,7 @@ fn optional_int_field<'a>(record: &xeno_nu_value::Record, field: &'a str, limits
 	}
 }
 
-fn optional_char_field<'a>(record: &xeno_nu_value::Record, field: &'a str, limits: &DecodeLimits, state: &mut DecodeState<'a>) -> Result<Option<char>, String> {
+fn optional_char_field<'a>(record: &Record, field: &'a str, limits: &DecodeLimits, state: &mut DecodeState<'a>) -> Result<Option<char>, String> {
 	let Some(value) = record.get(field) else {
 		return Ok(None);
 	};
@@ -478,12 +354,7 @@ fn optional_char_field<'a>(record: &xeno_nu_value::Record, field: &'a str, limit
 	Ok(Some(ch))
 }
 
-fn optional_string_list_field<'a>(
-	record: &xeno_nu_value::Record,
-	field: &'a str,
-	limits: &DecodeLimits,
-	state: &mut DecodeState<'a>,
-) -> Result<Option<Vec<String>>, String> {
+fn optional_string_list_field<'a>(record: &Record, field: &'a str, limits: &DecodeLimits, state: &mut DecodeState<'a>) -> Result<Option<Vec<String>>, String> {
 	let Some(value) = record.get(field) else {
 		return Ok(None);
 	};

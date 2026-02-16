@@ -6,7 +6,13 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-xeno-nu-core.workspace = true
+tracing.workspace = true
+xeno-invocation = { workspace = true, features = ["nu"] }
+xeno-nu-cmd-lang.workspace = true
+xeno-nu-engine.workspace = true
+xeno-nu-parser.workspace = true
+xeno-nu-protocol.workspace = true
+xeno-nu-safe-commands.workspace = true
 xeno-nu-value.workspace = true
 
 [dev-dependencies]

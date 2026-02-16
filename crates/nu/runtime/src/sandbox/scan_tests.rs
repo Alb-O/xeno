@@ -7,7 +7,7 @@ use std::path::Path;
 use super::*;
 
 fn sandbox_check(source: &str, config_root: Option<&Path>) -> Result<(), String> {
-	let mut engine_state = crate::create_engine_state(config_root).expect("engine state");
+	let mut engine_state = super::super::create_engine_state(config_root).expect("engine state");
 	let mut working_set = xeno_nu_protocol::engine::StateWorkingSet::new(&engine_state);
 	let block = xeno_nu_parser::parse(&mut working_set, Some("<test>"), source.as_bytes(), false);
 	if let Some(err) = working_set.parse_errors.first() {
@@ -176,7 +176,7 @@ fn use_with_module_path_still_allowed() {
 
 #[test]
 fn decl_inventory_audit() {
-	let engine_state = crate::create_engine_state(None).expect("engine state");
+	let engine_state = super::super::create_engine_state(None).expect("engine state");
 	let mut decls: Vec<String> = engine_state
 		.get_decls_sorted(false)
 		.into_iter()

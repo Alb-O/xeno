@@ -185,18 +185,7 @@ fn check_expression(
 			Ok(())
 		}
 
-		Expr::Range(range) => {
-			if let Some(from) = &range.from {
-				check_expression(working_set, from, visited, state)?;
-			}
-			if let Some(next) = &range.next {
-				check_expression(working_set, next, visited, state)?;
-			}
-			if let Some(to) = &range.to {
-				check_expression(working_set, to, visited, state)?;
-			}
-			Ok(())
-		}
+		Expr::Range(_) => Err("range expressions are disabled (potential unbounded iteration)".to_string()),
 
 		Expr::Table(table) => {
 			for col in table.columns.iter() {
@@ -210,6 +199,8 @@ fn check_expression(
 			Ok(())
 		}
 
+		Expr::Overlay(_) => Err("overlays are disabled".to_string()),
+
 		Expr::Bool(_)
 		| Expr::Int(_)
 		| Expr::Float(_)
@@ -222,7 +213,6 @@ fn check_expression(
 		| Expr::RawString(_)
 		| Expr::CellPath(_)
 		| Expr::ImportPattern(_)
-		| Expr::Overlay(_)
 		| Expr::Signature(_)
 		| Expr::Nothing
 		| Expr::Garbage => Ok(()),
@@ -263,9 +253,17 @@ fn is_use_decl(decl_name: &str) -> bool {
 	matches!(decl_name, "use" | "export use")
 }
 
+/// Maximum number of files resolved in a module import graph.
+const MAX_MODULE_FILES: usize = 256;
+
 fn validate_resolved_module_paths(working_set: &StateWorkingSet<'_>, config_root: Option<&Path>) -> Result<(), String> {
 	let config_root = config_root.ok_or_else(|| "use requires a real config directory path".to_string())?;
 	let root_canon = std::fs::canonicalize(config_root).map_err(|e| format!("failed to resolve config directory root: {e}"))?;
+
+	let file_count = working_set.files().count();
+	if file_count > MAX_MODULE_FILES {
+		return Err(format!("module import graph exceeds {MAX_MODULE_FILES} files ({file_count} resolved)"));
+	}
 
 	for file in working_set.files() {
 		let name = file.name.as_ref();
@@ -298,4 +296,5 @@ fn is_source_decl(decl_name: &str) -> bool {
 }
 
 #[cfg(test)]
+#[path = "scan_tests.rs"]
 mod tests;

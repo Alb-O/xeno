@@ -1,7 +1,9 @@
 //! Nu runtime facade for Xeno.
 //!
-//! This crate provides a stable, Xeno-focused API around the vendored Nu
-//! internals used for `xeno.nu` and `config.nu` evaluation.
+//! Provides a stable API around the vendored Nu internals used for `xeno.nu`
+//! and `config.nu` evaluation. Includes the sandboxed evaluation environment.
+
+mod sandbox;
 
 use std::collections::HashSet;
 use std::error::Error;
@@ -9,12 +11,16 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use xeno_nu_core::{DeclId, EngineState};
+use xeno_nu_protocol::DeclId;
+use xeno_nu_protocol::engine::EngineState;
 use xeno_nu_value::Value;
+
+pub use sandbox::ParsePolicy;
 
 const SCRIPT_FILE_NAME: &str = "xeno.nu";
 
-pub use xeno_nu_core::ParsePolicy;
+/// Hard limit on script/source size to prevent DoS via pathological input.
+const MAX_SCRIPT_BYTES: usize = 512 * 1024;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct FunctionId(usize);
@@ -63,14 +69,21 @@ impl fmt::Debug for Runtime {
 impl Runtime {
 	pub fn load(config_dir: &Path) -> Result<Self, String> {
 		let script_path = config_dir.join(SCRIPT_FILE_NAME);
+		let metadata = std::fs::metadata(&script_path).map_err(|error| format!("failed to read {}: {error}", script_path.display()))?;
+		if metadata.len() as usize > MAX_SCRIPT_BYTES {
+			return Err(format!("Nu runtime error: script exceeds {} byte limit", MAX_SCRIPT_BYTES));
+		}
 		let script_src = std::fs::read_to_string(&script_path).map_err(|error| format!("failed to read {}: {error}", script_path.display()))?;
 		Self::load_source(config_dir, &script_path, &script_src)
 	}
 
 	pub fn load_source(config_dir: &Path, script_path: &Path, script_src: &str) -> Result<Self, String> {
-		let mut engine_state = xeno_nu_core::create_engine_state(Some(config_dir))?;
+		if script_src.len() > MAX_SCRIPT_BYTES {
+			return Err(format!("Nu runtime error: script exceeds {} byte limit", MAX_SCRIPT_BYTES));
+		}
+		let mut engine_state = sandbox::create_engine_state(Some(config_dir))?;
 		let fname = script_path.to_string_lossy().to_string();
-		let parsed = xeno_nu_core::parse_and_validate_with_policy(&mut engine_state, &fname, script_src, Some(config_dir), ParsePolicy::ModuleOnly)
+		let parsed = sandbox::parse_and_validate_with_policy(&mut engine_state, &fname, script_src, Some(config_dir), ParsePolicy::ModuleOnly)
 			.map_err(|e| add_prelude_removal_hint(&e))?;
 
 		Ok(Self {
@@ -86,18 +99,18 @@ impl Runtime {
 	}
 
 	pub fn resolve_function(&self, name: &str) -> Option<FunctionId> {
-		let decl_id = xeno_nu_core::find_decl(&self.engine_state, name)?;
+		let decl_id = sandbox::find_decl(&self.engine_state, name)?;
 		self.script_decls.contains(&decl_id).then_some(FunctionId::from_decl_id(decl_id))
 	}
 
 	pub fn call(&self, function: FunctionId, args: &[String], env: &[(&str, Value)]) -> Result<Value, String> {
 		let decl_id = self.checked_decl_id(function)?;
-		xeno_nu_core::call_function(&self.engine_state, decl_id, args, env)
+		sandbox::call_function(&self.engine_state, decl_id, args, env)
 	}
 
 	pub fn call_owned(&self, function: FunctionId, args: Vec<String>, env: Vec<(String, Value)>) -> Result<Value, String> {
 		let decl_id = self.checked_decl_id(function)?;
-		xeno_nu_core::call_function_owned(&self.engine_state, decl_id, args, env)
+		sandbox::call_function_owned(&self.engine_state, decl_id, args, env)
 	}
 
 	pub fn run_function(&self, name: &str, args: &[String], env: &[(&str, Value)]) -> Result<Value, String> {
@@ -133,9 +146,12 @@ impl fmt::Display for EvalError {
 impl Error for EvalError {}
 
 pub fn eval_source_with_policy(fname: &str, source: &str, config_root: Option<&Path>, policy: ParsePolicy) -> Result<Value, EvalError> {
-	let mut engine_state = xeno_nu_core::create_engine_state(config_root).map_err(EvalError::Parse)?;
-	let parsed = xeno_nu_core::parse_and_validate_with_policy(&mut engine_state, fname, source, config_root, policy).map_err(EvalError::Parse)?;
-	xeno_nu_core::evaluate_block(&engine_state, parsed.block.as_ref()).map_err(EvalError::Runtime)
+	if source.len() > MAX_SCRIPT_BYTES {
+		return Err(EvalError::Parse(format!("Nu runtime error: script exceeds {} byte limit", MAX_SCRIPT_BYTES)));
+	}
+	let mut engine_state = sandbox::create_engine_state(config_root).map_err(EvalError::Parse)?;
+	let parsed = sandbox::parse_and_validate_with_policy(&mut engine_state, fname, source, config_root, policy).map_err(EvalError::Parse)?;
+	sandbox::evaluate_block(&engine_state, parsed.block.as_ref()).map_err(EvalError::Runtime)
 }
 
 pub fn eval_source(fname: &str, source: &str, config_root: Option<&Path>) -> Result<Value, EvalError> {

@@ -5994,8 +5994,6 @@ dependencies = [
 name = "xeno-invocation"
 version = "0.9.3"
 dependencies = [
- "serde",
- "typetag",
  "xeno-nu-value",
 ]
 
@@ -6087,15 +6085,6 @@ version = "0.110.1"
 dependencies = [
  "xeno-nu-engine",
  "xeno-nu-protocol",
-]
-
-[[package]]
-name = "xeno-nu-core"
-version = "0.9.3"
-dependencies = [
- "xeno-nu-protocol",
- "xeno-nu-sandbox",
- "xeno-nu-value",
 ]
 
 [[package]]
@@ -6203,19 +6192,21 @@ name = "xeno-nu-runtime"
 version = "0.9.3"
 dependencies = [
  "tempfile",
- "xeno-nu-core",
- "xeno-nu-value",
-]
-
-[[package]]
-name = "xeno-nu-sandbox"
-version = "0.9.3"
-dependencies = [
- "tempfile",
+ "tracing",
  "xeno-invocation",
  "xeno-nu-cmd-lang",
  "xeno-nu-engine",
  "xeno-nu-parser",
+ "xeno-nu-protocol",
+ "xeno-nu-safe-commands",
+ "xeno-nu-value",
+]
+
+[[package]]
+name = "xeno-nu-safe-commands"
+version = "0.9.3"
+dependencies = [
+ "xeno-nu-engine",
  "xeno-nu-protocol",
 ]
 

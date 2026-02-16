@@ -39,3 +39,27 @@ fn eval_source_returns_runtime_error_for_eval_failure() {
 	let err = eval_source("config.nu", "error make { msg: 'boom' }", None).expect_err("error command should fail at runtime");
 	assert!(matches!(err, EvalError::Runtime(_)));
 }
+
+#[test]
+fn load_rejects_oversized_script_file() {
+	let temp = tempfile::tempdir().expect("temp dir");
+	let big = "x".repeat(MAX_SCRIPT_BYTES + 1);
+	std::fs::write(temp.path().join("xeno.nu"), &big).unwrap();
+	let err = Runtime::load(temp.path()).expect_err("oversized script file should be rejected");
+	assert!(err.contains("exceeds"), "got: {err}");
+}
+
+#[test]
+fn load_source_rejects_oversized_source() {
+	let temp = tempfile::tempdir().expect("temp dir");
+	let big = "x".repeat(MAX_SCRIPT_BYTES + 1);
+	let err = Runtime::load_source(temp.path(), &temp.path().join("xeno.nu"), &big).expect_err("oversized source should be rejected");
+	assert!(err.contains("exceeds"), "got: {err}");
+}
+
+#[test]
+fn eval_source_rejects_oversized_source() {
+	let big = "x".repeat(MAX_SCRIPT_BYTES + 1);
+	let err = eval_source("config.nu", &big, None).expect_err("oversized eval source should be rejected");
+	assert!(matches!(err, EvalError::Parse(_)));
+}

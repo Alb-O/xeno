@@ -1,14 +1,13 @@
 [package]
-name = "xeno-nu-core"
-description = "Internal Nu core wrappers for Xeno"
+name = "xeno-nu-safe-commands"
+description = "Xeno safe Nu stdlib commands (allowlisted subset)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
+xeno-nu-engine.workspace = true
 xeno-nu-protocol.workspace = true
-xeno-nu-sandbox.workspace = true
-xeno-nu-value.workspace = true
 
 [lints]
 workspace = true

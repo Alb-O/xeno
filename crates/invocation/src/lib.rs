@@ -6,12 +6,13 @@
 #[cfg(feature = "nu")]
 pub mod nu;
 
+pub mod schema;
+
 /// A user-invoked operation routed through capability gating.
 ///
 /// All entry points (keymap, palette, command queue) convert requests into
 /// `Invocation` variants before dispatch via `Editor::run_invocation`.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[cfg_attr(feature = "nu", derive(serde::Serialize, serde::Deserialize))]
 pub enum Invocation {
 	/// Execute a named action from the registry.
 	Action {

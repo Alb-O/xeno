@@ -1,9 +1,9 @@
-use xeno_nu_value::{CustomValue, Record, Span, Value};
+use xeno_nu_value::{Record, Span, Value};
 
 use super::*;
 
 // ---------------------------------------------------------------------------
-// Runtime decode (typed-only)
+// Runtime decode (record-based)
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -13,51 +13,27 @@ fn runtime_allows_nothing_return() {
 }
 
 #[test]
-fn runtime_decodes_custom_value() {
+fn runtime_decodes_record() {
 	let span = Span::unknown();
-	let inv = Invocation::action("move_right");
-	let value = InvocationValue(inv.clone()).into_value(span);
-	let result = decode_invocations(value).expect("custom value should decode");
-	assert_eq!(result, vec![inv]);
+	let mut r = Record::new();
+	r.push("kind", Value::string("action", span));
+	r.push("name", Value::string("move_right", span));
+	let result = decode_invocations(Value::record(r, span)).expect("record should decode");
+	assert_eq!(result, vec![Invocation::action("move_right")]);
 }
 
 #[test]
-fn runtime_decodes_list_of_custom_values() {
+fn runtime_decodes_list_of_records() {
 	let span = Span::unknown();
-	let inv1 = Invocation::action("move_right");
-	let inv2 = Invocation::command("write", vec![]);
-	let list = Value::list(
-		vec![
-			InvocationValue(inv1.clone()).into_value(span),
-			Value::nothing(span),
-			InvocationValue(inv2.clone()).into_value(span),
-		],
-		span,
-	);
-	let result = decode_invocations(list).expect("list of custom values should decode");
-	assert_eq!(result, vec![inv1, inv2]);
-}
-
-#[test]
-fn runtime_rejects_record_return() {
-	let span = Span::unknown();
-	let mut record = Record::new();
-	record.push("kind", Value::string("action", span));
-	record.push("name", Value::string("move_right", span));
-	let err = decode_invocations(Value::record(record, span)).expect_err("record should be rejected");
-	assert!(err.contains("record returns are not supported at runtime"), "got: {err}");
-}
-
-#[test]
-fn runtime_rejects_record_in_list() {
-	let span = Span::unknown();
-	let mut record = Record::new();
-	record.push("kind", Value::string("action", span));
-	record.push("name", Value::string("move_right", span));
-	let list = Value::list(vec![Value::record(record, span)], span);
-	let err = decode_invocations(list).expect_err("record in list should be rejected");
-	assert!(err.contains("return[0]"), "error should include path, got: {err}");
-	assert!(err.contains("record returns are not supported at runtime"), "got: {err}");
+	let mut r1 = Record::new();
+	r1.push("kind", Value::string("action", span));
+	r1.push("name", Value::string("move_right", span));
+	let mut r2 = Record::new();
+	r2.push("kind", Value::string("command", span));
+	r2.push("name", Value::string("write", span));
+	let list = Value::list(vec![Value::record(r1, span), Value::nothing(span), Value::record(r2, span)], span);
+	let result = decode_invocations(list).expect("list of records should decode");
+	assert_eq!(result, vec![Invocation::action("move_right"), Invocation::command("write", vec![])]);
 }
 
 #[test]
@@ -87,8 +63,10 @@ fn runtime_rejects_string_in_list() {
 #[test]
 fn runtime_error_includes_path_for_bad_item() {
 	let span = Span::unknown();
-	let inv = Invocation::action("move_right");
-	let list = Value::list(vec![InvocationValue(inv).into_value(span), Value::int(42, span)], span);
+	let mut r = Record::new();
+	r.push("kind", Value::string("action", span));
+	r.push("name", Value::string("move_right", span));
+	let list = Value::list(vec![Value::record(r, span), Value::int(42, span)], span);
 	let err = decode_invocations(list).expect_err("bad list item should fail");
 	assert!(err.contains("return[1]"), "error should include path, got: {err}");
 }
@@ -108,21 +86,17 @@ fn runtime_limits_max_nodes_trips_on_large_list() {
 }
 
 #[test]
-fn runtime_custom_value_enforces_limits() {
+fn runtime_record_enforces_limits() {
 	let span = Span::unknown();
-	let inv = Invocation::Action {
-		name: "x".repeat(5000),
-		count: 1,
-		extend: false,
-		register: None,
-	};
-	let value = InvocationValue(inv).into_value(span);
-	let err = decode_invocations(value).expect_err("oversized name in custom value should be rejected");
+	let mut r = Record::new();
+	r.push("kind", Value::string("action", span));
+	r.push("name", Value::string("x".repeat(5000), span));
+	let err = decode_invocations(Value::record(r, span)).expect_err("oversized name should be rejected");
 	assert!(err.contains("max string length"), "got: {err}");
 }
 
 // ---------------------------------------------------------------------------
-// Config decode (decode_single_invocation — records + custom)
+// Config decode (decode_single_invocation — records)
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -133,15 +107,6 @@ fn config_single_accepts_record() {
 	record.push("name", Value::string("write", span));
 	let inv = decode_single_invocation(&Value::record(record, span), "keys.normal.ctrl+s").expect("should decode");
 	assert!(matches!(inv, Invocation::Command { name, .. } if name == "write"));
-}
-
-#[test]
-fn config_single_accepts_custom_value() {
-	let span = Span::unknown();
-	let inv = Invocation::editor_command("stats", vec![]);
-	let value = InvocationValue(inv.clone()).into_value(span);
-	let result = decode_single_invocation(&value, "keys.normal.s").expect("should decode custom value");
-	assert_eq!(result, inv);
 }
 
 #[test]
@@ -233,37 +198,69 @@ fn config_rejects_wrapper_record() {
 	assert!(err.contains("must include 'kind'"), "error should require kind, got: {err}");
 }
 
+// ---------------------------------------------------------------------------
+// Schema contract tests (23A)
+// ---------------------------------------------------------------------------
+
 #[test]
-fn config_single_custom_value_enforces_limits() {
+fn decode_rejects_multi_char_register() {
 	let span = Span::unknown();
-	let inv = Invocation::Command {
-		name: "x".repeat(5000),
-		args: vec![],
-	};
-	let value = InvocationValue(inv).into_value(span);
-	let err = decode_single_invocation(&value, "keys.normal.x").expect_err("oversized name should be rejected");
-	assert!(err.contains("keys.normal.x"), "error should include field path, got: {err}");
+	let mut r = Record::new();
+	r.push(schema::KIND, Value::string(schema::KIND_ACTION, span));
+	r.push(schema::NAME, Value::string("x", span));
+	r.push(schema::COUNT, Value::int(1, span));
+	r.push(schema::EXTEND, Value::bool(false, span));
+	r.push(schema::REGISTER, Value::string("ab", span));
+	let err = decode_invocations(Value::record(r, span)).expect_err("multi-char register should fail");
+	assert!(err.contains("one character"), "got: {err}");
 }
 
-// ---------------------------------------------------------------------------
-// CustomValue / InvocationValue
-// ---------------------------------------------------------------------------
+#[test]
+fn decode_clamps_count_zero_to_one() {
+	let span = Span::unknown();
+	let mut r = Record::new();
+	r.push(schema::KIND, Value::string(schema::KIND_ACTION, span));
+	r.push(schema::NAME, Value::string("x", span));
+	r.push(schema::COUNT, Value::int(0, span));
+	let result = decode_invocations(Value::record(r, span)).expect("count=0 should decode");
+	assert_eq!(result.len(), 1);
+	match &result[0] {
+		Invocation::Action { count, .. } => assert_eq!(*count, 1, "count should be clamped to 1"),
+		other => panic!("expected Action, got: {other:?}"),
+	}
+}
 
 #[test]
-fn custom_value_to_base_value_roundtrips() {
+fn decode_rejects_unknown_kind() {
 	let span = Span::unknown();
-	let inv = Invocation::Action {
-		name: "move_right".to_string(),
-		count: 3,
-		extend: true,
-		register: Some('a'),
-	};
-	let cv = InvocationValue(inv);
-	let base = cv.to_base_value(span).expect("to_base_value should succeed");
-	let record = base.as_record().expect("should be record");
-	assert_eq!(record.get("kind").unwrap().as_str().unwrap(), "action");
-	assert_eq!(record.get("name").unwrap().as_str().unwrap(), "move_right");
-	assert_eq!(record.get("count").unwrap().as_int().unwrap(), 3);
+	let mut r = Record::new();
+	r.push(schema::KIND, Value::string("wat", span));
+	r.push(schema::NAME, Value::string("x", span));
+	let err = decode_invocations(Value::record(r, span)).expect_err("unknown kind should fail");
+	assert!(err.contains("unknown") && err.contains("wat"), "got: {err}");
+}
+
+#[test]
+fn decode_rejects_non_string_args() {
+	let span = Span::unknown();
+	let mut r = Record::new();
+	r.push(schema::KIND, Value::string(schema::KIND_COMMAND, span));
+	r.push(schema::NAME, Value::string("x", span));
+	r.push(schema::ARGS, Value::list(vec![Value::int(1, span), Value::int(2, span)], span));
+	let err = decode_invocations(Value::record(r, span)).expect_err("int args should fail");
+	assert!(err.contains("string"), "got: {err}");
+}
+
+#[test]
+fn decode_ignores_extra_fields() {
+	let span = Span::unknown();
+	let mut r = Record::new();
+	r.push(schema::KIND, Value::string(schema::KIND_COMMAND, span));
+	r.push(schema::NAME, Value::string("x", span));
+	r.push(schema::ARGS, Value::list(vec![], span));
+	r.push("extra", Value::int(1, span));
+	let result = decode_invocations(Value::record(r, span)).expect("extra fields should be ignored");
+	assert_eq!(result.len(), 1);
 }
 
 // ---------------------------------------------------------------------------
