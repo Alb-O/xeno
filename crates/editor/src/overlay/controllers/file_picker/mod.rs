@@ -375,6 +375,29 @@ impl FilePickerOverlay {
 		true
 	}
 
+	fn accept_tab_completion(&mut self, ctx: &mut dyn OverlayContext, session: &mut OverlaySession) -> bool {
+		let current_input = session.input_text(ctx).trim_end_matches('\n').to_string();
+		let Some(mut selected) = Self::selected_item(ctx) else {
+			return false;
+		};
+		if current_input == selected.insert_text {
+			let _ = self.move_selection(ctx, 1);
+			let Some(next) = Self::selected_item(ctx) else {
+				return true;
+			};
+			selected = next;
+		}
+
+		let mut next_input = selected.insert_text.clone();
+		if Self::is_directory_item(&selected) && !next_input.ends_with('/') && !next_input.ends_with('\\') {
+			next_input.push('/');
+		}
+
+		self.set_input_text(ctx, session, &next_input);
+		self.refresh_items(ctx, session, &next_input);
+		true
+	}
+
 	fn refresh_items(&mut self, ctx: &mut dyn OverlayContext, session: &mut OverlaySession, text: &str) {
 		let query = text.trim_end_matches('\n').to_string();
 		let mode = Self::query_mode(&query);
@@ -484,6 +507,10 @@ impl OverlayController for FilePickerOverlay {
 	fn on_key(&mut self, ctx: &mut dyn OverlayContext, session: &mut OverlaySession, key: Key) -> bool {
 		match key.code {
 			KeyCode::Enter => self.handle_enter(ctx, session),
+			KeyCode::Tab => {
+				let _ = self.accept_tab_completion(ctx, session);
+				true
+			}
 			KeyCode::Up => self.move_selection(ctx, -1),
 			KeyCode::Down => self.move_selection(ctx, 1),
 			KeyCode::PageUp => self.page_selection(ctx, -1),

@@ -58,3 +58,22 @@ fn command_items_include_files_picker_command() {
 	let items = CommandPaletteOverlay::build_command_items("fi", &usage);
 	assert!(items.iter().any(|item| item.label == "files"));
 }
+
+#[test]
+fn command_space_policy_is_disabled_for_no_arg_commands() {
+	assert!(!CommandPaletteOverlay::command_supports_argument_completion("quit"));
+	assert!(!CommandPaletteOverlay::command_supports_argument_completion("wq"));
+}
+
+#[test]
+fn command_space_policy_is_enabled_for_commands_with_arg_completion() {
+	assert!(CommandPaletteOverlay::command_supports_argument_completion("theme"));
+	assert!(CommandPaletteOverlay::command_supports_argument_completion("edit"));
+	assert!(CommandPaletteOverlay::command_supports_argument_completion("snippet"));
+}
+
+#[test]
+fn command_space_policy_resolves_aliases() {
+	assert!(CommandPaletteOverlay::command_supports_argument_completion("e"));
+	assert!(CommandPaletteOverlay::command_supports_argument_completion("snip"));
+}
