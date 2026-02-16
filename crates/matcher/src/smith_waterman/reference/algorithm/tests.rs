@@ -10,6 +10,8 @@ fn get_score(needle: &str, haystack: &str) -> u16 {
 }
 
 fn get_score_with_scoring(needle: &str, haystack: &str, scoring: &Scoring) -> u16 {
+	crate::smith_waterman::debug::assert_sw_score_matrix_parity(needle, haystack, scoring);
+
 	let ref_score = smith_waterman(needle, haystack, scoring).0;
 	let simd_score = smith_waterman_simd::<16, 1>(needle, &[haystack], None, scoring).0[0];
 
@@ -147,6 +149,7 @@ fn test_custom_delimiter_set_changes_bonus_behavior() {
 #[test]
 fn simd_typo_counts_and_gating_match_reference() {
 	fn assert_case(needle: &str, haystack: &str, scoring: &Scoring) {
+		crate::smith_waterman::debug::assert_sw_score_matrix_parity(needle, haystack, scoring);
 		let (ref_score, ref_typos, ref_exact) = ref_score_typos_exact(needle, haystack, scoring);
 
 		for max_typos in 0..=3 {
