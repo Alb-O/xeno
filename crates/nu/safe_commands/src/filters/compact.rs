@@ -1,5 +1,6 @@
-use crate::limits::collect_list_capped;
 use xeno_nu_engine::command_prelude::*;
+
+use crate::limits::collect_list_capped;
 
 #[derive(Clone)]
 pub struct Compact;

@@ -1,7 +1,8 @@
 use std::borrow::Cow;
 
 use xeno_nu_engine::command_prelude::*;
-use xeno_nu_protocol::{DeprecationEntry, DeprecationType, ReportMode, Signals, ast::PathMember};
+use xeno_nu_protocol::ast::PathMember;
+use xeno_nu_protocol::{DeprecationEntry, DeprecationType, ReportMode, Signals};
 
 #[derive(Clone)]
 pub struct Get;

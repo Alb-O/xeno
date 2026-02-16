@@ -1,6 +1,8 @@
-use crate::limits::{MAX_ITEMS, err_limit};
-use xeno_nu_engine::{ClosureEval, ClosureEvalOnce, command_prelude::*};
+use xeno_nu_engine::command_prelude::*;
+use xeno_nu_engine::{ClosureEval, ClosureEvalOnce};
 use xeno_nu_protocol::ast::PathMember;
+
+use crate::limits::{MAX_ITEMS, err_limit};
 
 #[derive(Clone)]
 pub struct Update;

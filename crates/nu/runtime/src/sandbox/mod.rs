@@ -39,7 +39,7 @@
 //! Conversions: `into int`, `into bool`, `into string` (simple column mode
 //! supported)
 //!
-//! Builtins (from `commands.rs`): `action`, `command`, `editor`, `nu run`,
+//! Builtins (from `commands/`): `action`, `command`, `editor`, `nu run`,
 //! `xeno assert` (validation gate; errors abort evaluation), `xeno ctx`,
 //! `xeno emit` (validated invocation record constructor; preferred over
 //! manual record literals), `xeno emit-many` (bulk validate/normalize a list
@@ -68,13 +68,12 @@ mod scan;
 use std::path::Path;
 use std::sync::Arc;
 
+pub(crate) use scan::ensure_sandboxed;
 use xeno_nu_protocol::ast::{Block, Expr, Expression};
 use xeno_nu_protocol::config::Config;
 use xeno_nu_protocol::debugger::WithoutDebug;
 use xeno_nu_protocol::engine::{EngineState, Stack, StateWorkingSet};
 use xeno_nu_protocol::{DeclId, PipelineData, Span, Type, Value};
-
-pub(crate) use scan::ensure_sandboxed;
 
 const XENO_NU_RECURSION_LIMIT: i64 = 64;
 

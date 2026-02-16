@@ -11,11 +11,10 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+pub use sandbox::ParsePolicy;
 use xeno_nu_protocol::DeclId;
 use xeno_nu_protocol::engine::EngineState;
 use xeno_nu_value::Value;
-
-pub use sandbox::ParsePolicy;
 
 const SCRIPT_FILE_NAME: &str = "xeno.nu";
 

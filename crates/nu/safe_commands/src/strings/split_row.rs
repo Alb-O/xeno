@@ -1,6 +1,7 @@
+use xeno_nu_engine::command_prelude::*;
+
 use crate::limits::{MAX_ITEMS, MAX_SPLITS, err_limit};
 use crate::strings::column_apply::extract_column_names;
-use xeno_nu_engine::command_prelude::*;
 
 /// Xeno-owned literal-only `split row` implementation (no regex).
 #[derive(Clone)]

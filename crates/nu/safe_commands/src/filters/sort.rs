@@ -1,6 +1,7 @@
+use xeno_nu_engine::command_prelude::*;
+
 use crate::filters::sort_key::{SortKey, compare_keys_with_order, key_for_value, validate_homogeneous};
 use crate::limits::collect_list_capped;
-use xeno_nu_engine::command_prelude::*;
 
 #[derive(Clone)]
 pub struct Sort;

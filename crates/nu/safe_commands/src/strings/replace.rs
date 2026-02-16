@@ -1,5 +1,6 @@
-use crate::strings::column_apply::{extract_column_names, map_columns};
 use xeno_nu_engine::command_prelude::*;
+
+use crate::strings::column_apply::{extract_column_names, map_columns};
 
 /// Xeno-owned literal-only `str replace` implementation (no regex).
 #[derive(Clone)]

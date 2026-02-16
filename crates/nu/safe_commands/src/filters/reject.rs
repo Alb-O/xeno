@@ -1,9 +1,12 @@
 use std::cmp::Reverse;
 use std::collections::HashSet;
 
-use crate::limits::{MAX_COLUMNS, MAX_ITEMS, err_limit};
 use xeno_nu_engine::command_prelude::*;
-use xeno_nu_protocol::{DeprecationEntry, DeprecationType, ReportMode, ast::PathMember, casing::Casing};
+use xeno_nu_protocol::ast::PathMember;
+use xeno_nu_protocol::casing::Casing;
+use xeno_nu_protocol::{DeprecationEntry, DeprecationType, ReportMode};
+
+use crate::limits::{MAX_COLUMNS, MAX_ITEMS, err_limit};
 
 #[derive(Clone)]
 pub struct Reject;

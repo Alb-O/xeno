@@ -1,9 +1,10 @@
+use xeno_nu_engine::command_prelude::*;
+
 /// Shared helper for applying string transforms to record columns.
 ///
 /// Used by `str trim`, `str replace`, and `split row` in column mode.
 /// Only simple single-member string cell paths are supported.
 use crate::limits::{MAX_COLUMNS, MAX_ITEMS, err_limit};
-use xeno_nu_engine::command_prelude::*;
 
 /// Extract simple column names from cell paths. Errors on complex paths or too many columns.
 pub(crate) fn extract_column_names(columns: &[CellPath], head: Span) -> Result<Vec<String>, ShellError> {
@@ -259,9 +260,10 @@ pub(crate) fn map_columns_values(
 
 #[cfg(test)]
 mod tests {
-	use super::*;
 	use xeno_nu_protocol::ast::{CellPath, PathMember};
 	use xeno_nu_protocol::casing::Casing;
+
+	use super::*;
 
 	fn simple_cell_path(name: &str) -> CellPath {
 		CellPath {

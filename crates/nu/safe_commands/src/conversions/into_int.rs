@@ -1,5 +1,6 @@
-use crate::strings::column_apply::{extract_column_names, map_columns_values};
 use xeno_nu_engine::command_prelude::*;
+
+use crate::strings::column_apply::{extract_column_names, map_columns_values};
 
 #[derive(Clone)]
 pub struct IntoInt;

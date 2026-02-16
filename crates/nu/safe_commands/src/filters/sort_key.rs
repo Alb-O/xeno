@@ -109,8 +109,9 @@ pub(crate) fn compare_key_vecs_with_order(a: &[SortKey], b: &[SortKey], nulls_fi
 
 #[cfg(test)]
 mod tests {
-	use super::*;
 	use std::cmp::Ordering;
+
+	use super::*;
 
 	#[test]
 	fn reverse_keeps_null_last() {

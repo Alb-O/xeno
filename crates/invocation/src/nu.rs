@@ -7,8 +7,7 @@ use std::fmt::Write;
 
 use xeno_nu_value::{Record, Value};
 
-use crate::Invocation;
-use crate::schema;
+use crate::{Invocation, schema};
 
 // ---------------------------------------------------------------------------
 // Decode limits

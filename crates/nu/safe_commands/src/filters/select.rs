@@ -1,5 +1,6 @@
-use crate::limits::{MAX_COLUMNS, MAX_ITEMS, err_limit};
 use xeno_nu_engine::command_prelude::*;
+
+use crate::limits::{MAX_COLUMNS, MAX_ITEMS, err_limit};
 
 /// Xeno-owned minimal `select` implementation (no SQLite).
 #[derive(Clone)]

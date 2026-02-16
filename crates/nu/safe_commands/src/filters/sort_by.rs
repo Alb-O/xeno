@@ -1,7 +1,8 @@
+use xeno_nu_engine::command_prelude::*;
+
 use crate::filters::sort_key::{SortKey, compare_key_vecs_with_order, key_for_value, validate_homogeneous};
 use crate::limits::collect_list_capped;
 use crate::strings::column_apply::extract_column_names;
-use xeno_nu_engine::command_prelude::*;
 
 #[derive(Clone)]
 pub struct SortBy;
