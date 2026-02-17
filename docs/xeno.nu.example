@@ -143,7 +143,7 @@ export def debounce-save [] {
 
 # Schedule: format after idle (300ms) with args.
 export def format-after-idle [] {
-  xeno effect schedule set fmt 300 format-buffer --quiet
+  xeno effect schedule set fmt 300 format-buffer "--quiet"
 }
 
 # Schedule: cancel a pending timer.
