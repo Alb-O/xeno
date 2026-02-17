@@ -5951,6 +5951,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "unicode-width 0.2.2",
+ "xeno-file-display",
  "xeno-input",
  "xeno-invocation",
  "xeno-invocation-spec",
@@ -5966,10 +5967,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "xeno-frontend-iced"
+name = "xeno-file-display"
 version = "0.9.3"
 dependencies = [
  "devicons",
+]
+
+[[package]]
+name = "xeno-frontend-iced"
+version = "0.9.3"
+dependencies = [
  "iced",
  "iced_core",
  "tokio",
@@ -5981,7 +5988,6 @@ dependencies = [
 name = "xeno-frontend-tui"
 version = "0.9.3"
 dependencies = [
- "devicons",
  "termina",
  "tracing",
  "unicode-width 0.2.2",
@@ -6285,6 +6291,7 @@ dependencies = [
  "strsim",
  "thiserror 2.0.18",
  "tracing",
+ "xeno-file-display",
  "xeno-invocation",
  "xeno-invocation-spec",
  "xeno-keymap-core",

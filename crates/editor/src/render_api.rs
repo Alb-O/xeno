@@ -7,7 +7,7 @@
 // Buffer types.
 pub use crate::buffer::{SplitDirection, ViewId};
 // Completion types.
-pub use crate::completion::{CompletionKind, CompletionRenderItem, CompletionRenderPlan};
+pub use crate::completion::{CompletionKind, CompletionRenderItem, CompletionRenderPlan, FilePresentationRender};
 // Geometry.
 pub use crate::geometry::Rect;
 // Info popup types.

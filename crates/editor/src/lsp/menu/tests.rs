@@ -57,6 +57,7 @@ async fn tab_accept_uses_display_to_raw_mapping_for_lsp_completions() {
 		kind: CompletionKind::Command,
 		match_indices: None,
 		right: None,
+		file: None,
 	}];
 	completion_state.lsp_display_to_raw = vec![1];
 	completion_state.selected_idx = Some(0);

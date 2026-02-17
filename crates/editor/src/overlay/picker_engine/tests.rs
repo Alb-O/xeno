@@ -20,6 +20,7 @@ fn decision_selected_item_requires_active_state() {
 		kind: CompletionKind::Command,
 		match_indices: None,
 		right: None,
+		file: None,
 	}];
 	state.selected_idx = Some(0);
 	state.selection_intent = SelectionIntent::Manual;

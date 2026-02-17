@@ -1,5 +1,5 @@
 use super::*;
-use crate::completion::CompletionItem;
+use crate::completion::{CompletionFileMeta, CompletionItem};
 
 fn item(label: &str, kind: CompletionKind) -> CompletionItem {
 	CompletionItem {
@@ -10,6 +10,7 @@ fn item(label: &str, kind: CompletionKind) -> CompletionItem {
 		kind,
 		match_indices: None,
 		right: Some("meta".to_string()),
+		file: None,
 	}
 }
 
@@ -58,6 +59,33 @@ fn completion_render_plan_applies_width_column_policy() {
 	let wide = editor.completion_render_plan(31, 10).expect("plan should exist");
 	assert!(!wide.show_kind);
 	assert!(wide.show_right);
+}
+
+#[test]
+fn completion_render_plan_includes_file_presentation_payload() {
+	let mut editor = Editor::new_scratch();
+
+	let state = editor.overlays_mut().get_or_default::<CompletionState>();
+	state.active = true;
+	state.items = vec![CompletionItem {
+		label: String::from("somefile.unknown_xeno_ext"),
+		insert_text: String::from("somefile.unknown_xeno_ext"),
+		detail: Some(String::from("file")),
+		filter_text: None,
+		kind: CompletionKind::File,
+		match_indices: None,
+		right: Some(String::from("file")),
+		file: Some(CompletionFileMeta::new("somefile.unknown_xeno_ext", xeno_file_display::FileKind::File)),
+	}];
+	state.selected_idx = Some(0);
+
+	let plan = editor.completion_render_plan(40, 10).expect("plan should exist");
+	let row = plan.items.first().expect("file row should exist");
+	let presentation = row.file_presentation().expect("file presentation should be set");
+
+	assert_eq!(presentation.icon(), "󰈔");
+	assert_eq!(presentation.label(), "somefile.unknown_xeno_ext");
+	assert!(!presentation.icon().contains('*'));
 }
 
 #[test]

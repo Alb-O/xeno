@@ -3,7 +3,7 @@
 use xeno_primitives::Style;
 
 use super::{RenderLine, RenderSpan};
-use crate::{Editor, ViewId};
+use crate::Editor;
 
 #[derive(Debug, Clone)]
 pub(crate) struct DocumentRenderPlan {
@@ -14,7 +14,7 @@ pub(crate) struct DocumentRenderPlan {
 impl Editor {
 	pub(crate) fn focused_document_render_plan(&mut self) -> DocumentRenderPlan {
 		let focused = self.focused_view();
-		let title = focused_document_title(self, focused);
+		let title = self.focused_document_title();
 		let area = self.view_area(focused);
 
 		if area.width < 2 || area.height == 0 {
@@ -31,13 +31,6 @@ impl Editor {
 
 		DocumentRenderPlan { title, lines }
 	}
-}
-
-fn focused_document_title(editor: &Editor, focused: ViewId) -> String {
-	editor
-		.get_buffer(focused)
-		.and_then(|buffer| buffer.path().as_ref().map(|path| path.display().to_string()))
-		.unwrap_or_else(|| String::from("[scratch]"))
 }
 
 fn merge_render_lines(gutter: Vec<RenderLine<'static>>, text: Vec<RenderLine<'static>>) -> Vec<RenderLine<'static>> {

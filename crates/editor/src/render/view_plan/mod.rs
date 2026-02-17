@@ -26,7 +26,12 @@ impl Editor {
 	/// Returns the title string for the focused document (path or `"[scratch]"`).
 	pub fn focused_document_title(&self) -> String {
 		self.get_buffer(self.focused_view())
-			.and_then(|buffer| buffer.path().as_ref().map(|path| path.display().to_string()))
+			.and_then(|buffer| {
+				buffer
+					.path()
+					.as_ref()
+					.map(|path| xeno_file_display::format_file_label(path, None, xeno_file_display::FileDisplayContext::default()))
+			})
 			.unwrap_or_else(|| String::from("[scratch]"))
 	}
 

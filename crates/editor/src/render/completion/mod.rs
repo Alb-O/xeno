@@ -6,7 +6,7 @@
 use unicode_width::UnicodeWidthStr;
 
 use crate::Editor;
-use crate::completion::{CompletionKind, CompletionRenderItem, CompletionRenderPlan, CompletionState};
+use crate::completion::{CompletionItem, CompletionKind, CompletionRenderItem, CompletionRenderPlan, CompletionState, FilePresentationRender};
 use crate::geometry::Rect;
 use crate::overlay::{OverlayControllerKind, WindowRole};
 
@@ -36,6 +36,25 @@ fn command_query_is_exact_alias(query: &str, label: &str) -> bool {
 	};
 
 	!command.name_str().eq_ignore_ascii_case(query) && command.name_str().eq_ignore_ascii_case(label)
+}
+
+fn completion_file_presentation(item: &CompletionItem) -> Option<FilePresentationRender> {
+	let file_meta = item.file.as_ref()?;
+	let file = xeno_file_display::FileItem::new(file_meta.path())
+		.with_label_override(&item.label)
+		.with_kind(file_meta.kind());
+	let presentation = xeno_file_display::present_file(file, xeno_file_display::FileDisplayContext::default());
+	Some(FilePresentationRender::new(presentation.icon().to_string(), presentation.label().to_string()))
+}
+
+fn completion_display_label(item: &CompletionRenderItem) -> &str {
+	item.file_presentation().map_or(item.label(), |presentation| presentation.label())
+}
+
+fn completion_label_width(item: &CompletionItem) -> usize {
+	completion_file_presentation(item)
+		.as_ref()
+		.map_or_else(|| item.label.width(), |presentation| presentation.label().width())
 }
 
 impl Editor {
@@ -103,7 +122,7 @@ impl Editor {
 		}
 
 		let show_kind = view_area.width >= 24;
-		let max_label_width = completions.items.iter().map(|it| it.label.width()).max().unwrap_or(0);
+		let max_label_width = completions.items.iter().map(completion_label_width).max().unwrap_or(0);
 		let border_cols = 1;
 		let icon_cols = 4;
 		let kind_cols = if show_kind { 7 } else { 0 };
@@ -143,26 +162,30 @@ impl Editor {
 		let normalized_rows = max_visible_rows.max(1);
 		completions.ensure_selected_visible_with_limit(normalized_rows);
 
-		let max_label_width = completions.items.iter().map(|item| item.label.width()).max().unwrap_or(0);
 		let show_kind = completions.show_kind && menu_width >= 24;
 		let show_right = !completions.show_kind && menu_width >= 30;
 		let visible_range = completions.visible_range_with_limit(normalized_rows);
 		let selected_idx = completions.selected_idx;
 
-		let items = completions
+		let items: Vec<CompletionRenderItem> = completions
 			.items
 			.iter()
 			.enumerate()
 			.filter(|(idx, _)| visible_range.contains(idx))
-			.map(|(idx, item)| CompletionRenderItem {
-				label: item.label.clone(),
-				kind: item.kind,
-				right: item.right.clone(),
-				match_indices: item.match_indices.clone(),
-				selected: Some(idx) == selected_idx,
-				command_alias_match: item.kind == CompletionKind::Command && command_query_is_exact_alias(&completions.query, &item.label),
+			.map(|(idx, item)| {
+				let file_presentation = completion_file_presentation(item);
+				CompletionRenderItem::from_parts(
+					item.label.clone(),
+					item.kind,
+					item.right.clone(),
+					item.match_indices.clone(),
+					Some(idx) == selected_idx,
+					item.kind == CompletionKind::Command && command_query_is_exact_alias(&completions.query, &item.label),
+					file_presentation,
+				)
 			})
 			.collect();
+		let max_label_width = items.iter().map(|item| completion_display_label(item).width()).max().unwrap_or(0);
 
 		Some(CompletionRenderPlan {
 			items,

@@ -6,8 +6,24 @@ use super::*;
 fn completion_row_parts_marks_selected_item() {
 	let plan = CompletionRenderPlan::new(
 		vec![
-			CompletionRenderItem::new(String::from("alpha"), CompletionKind::Command, Some(String::from("left")), None, false, false),
-			CompletionRenderItem::new(String::from("beta"), CompletionKind::Command, Some(String::from("right")), None, true, false),
+			CompletionRenderItem::from_parts(
+				String::from("alpha"),
+				CompletionKind::Command,
+				Some(String::from("left")),
+				None,
+				false,
+				false,
+				None,
+			),
+			CompletionRenderItem::from_parts(
+				String::from("beta"),
+				CompletionKind::Command,
+				Some(String::from("right")),
+				None,
+				true,
+				false,
+				None,
+			),
 		],
 		8,
 		40,

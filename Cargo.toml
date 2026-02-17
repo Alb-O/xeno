@@ -2,6 +2,7 @@
 resolver = "3"
 members = [
     "crates/editor",
+    "crates/file_display",
     "crates/frontend_iced",
     "crates/frontend_tui",
     "crates/input",
@@ -130,6 +131,7 @@ which = "8.0"
 windows = "0.62"
 windows-sys = "0.61"
 xeno-editor = { path = "crates/editor" }
+xeno-file-display = { path = "crates/file_display" }
 xeno-frontend-tui = { path = "crates/frontend_tui" }
 xeno-input = { path = "crates/input" }
 xeno-invocation = { path = "crates/invocation" }

@@ -558,6 +558,7 @@ pub(crate) fn test_palette_enter_promotes_required_arg_command_completion() {
 		kind: crate::completion::CompletionKind::Command,
 		match_indices: None,
 		right: None,
+		file: None,
 	}];
 	state.selected_idx = Some(0);
 	state.selection_intent = crate::completion::SelectionIntent::Manual;
@@ -623,6 +624,7 @@ pub(crate) fn test_palette_commit_theme_with_selected_completion_supplies_argume
 		kind: crate::completion::CompletionKind::Theme,
 		match_indices: None,
 		right: None,
+		file: None,
 	}];
 	state.selected_idx = Some(0);
 	state.selection_intent = crate::completion::SelectionIntent::Manual;
@@ -695,6 +697,7 @@ pub(crate) fn test_palette_commit_prefers_typed_resolved_command() {
 		kind: crate::completion::CompletionKind::Command,
 		match_indices: None,
 		right: None,
+		file: None,
 	}];
 	state.selected_idx = Some(0);
 	state.selection_intent = crate::completion::SelectionIntent::Manual;
@@ -729,6 +732,7 @@ pub(crate) fn test_palette_commit_falls_back_to_selected_command_when_unresolved
 		kind: crate::completion::CompletionKind::Command,
 		match_indices: None,
 		right: None,
+		file: None,
 	}];
 	state.selected_idx = Some(0);
 	state.selection_intent = crate::completion::SelectionIntent::Manual;

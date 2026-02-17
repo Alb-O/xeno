@@ -1,9 +1,5 @@
-use std::borrow::Cow;
-use std::path::Path;
-
-use devicons::FileIcon;
 use xeno_editor::Editor;
-use xeno_editor::render_api::{CompletionKind, CompletionRenderPlan};
+use xeno_editor::render_api::{CompletionKind, CompletionRenderItem, CompletionRenderPlan};
 use xeno_tui::layout::Rect;
 use xeno_tui::style::{Color, Modifier, Style};
 use xeno_tui::text::{Line, Span};
@@ -59,20 +55,17 @@ fn build_highlighted_label(label: &str, match_indices: Option<&[usize]>, min_wid
 	spans
 }
 
-fn completion_icon(kind: CompletionKind, label: &str) -> Cow<'static, str> {
-	match kind {
-		CompletionKind::File => {
-			let icon = FileIcon::from(Path::new(label)).icon;
-			if icon == '*' {
-				Cow::Borrowed(GENERIC_FILE_ICON)
-			} else {
-				Cow::Owned(icon.to_string())
-			}
-		}
-		CompletionKind::Command => Cow::Borrowed("󰘳"),
-		CompletionKind::Buffer => Cow::Borrowed("󰈙"),
-		CompletionKind::Snippet => Cow::Borrowed("󰘦"),
-		CompletionKind::Theme => Cow::Borrowed("󰏘"),
+fn completion_label(item: &CompletionRenderItem) -> &str {
+	item.file_presentation().map_or(item.label(), |presentation| presentation.label())
+}
+
+fn completion_icon(item: &CompletionRenderItem) -> &str {
+	match item.kind() {
+		CompletionKind::File => item.file_presentation().map_or(GENERIC_FILE_ICON, |presentation| presentation.icon()),
+		CompletionKind::Command => "󰘳",
+		CompletionKind::Buffer => "󰈙",
+		CompletionKind::Snippet => "󰘦",
+		CompletionKind::Theme => "󰏘",
 	}
 }
 
@@ -87,7 +80,8 @@ pub fn render_completion_menu(ed: &Editor, frame: &mut xeno_tui::Frame, area: Re
 		.iter()
 		.map(|item| {
 			let is_selected = item.selected();
-			let kind_icon = completion_icon(item.kind(), item.label());
+			let kind_icon = completion_icon(item);
+			let label = completion_label(item);
 
 			let kind_color: Color = match item.kind() {
 				CompletionKind::Command => theme.colors.mode.command.bg,
@@ -132,7 +126,7 @@ pub fn render_completion_menu(ed: &Editor, frame: &mut xeno_tui::Frame, area: Re
 				theme.colors.semantic.match_hl.into()
 			};
 			let match_style = label_style.fg(match_color);
-			let label_spans = build_highlighted_label(item.label(), item.match_indices(), max_label_width, label_style, match_style);
+			let label_spans = build_highlighted_label(label, item.match_indices(), max_label_width, label_style, match_style);
 
 			let icon_text = format!(" {} ", kind_icon);
 			let mut row_width = cell_width(&icon_text) + max_label_width;

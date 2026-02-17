@@ -12,7 +12,7 @@ use xeno_registry::options::{OPTIONS, OptionType, OptionValue, keys as opt_keys}
 use xeno_registry::snippets::SNIPPETS;
 use xeno_registry::themes::{THEMES, ThemeVariant};
 
-use crate::completion::{CompletionItem, CompletionKind, CompletionState, SelectionIntent};
+use crate::completion::{CompletionFileMeta, CompletionItem, CompletionKind, CompletionState, SelectionIntent};
 use crate::overlay::picker_engine::model::{CommitDecision, PickerAction};
 use crate::overlay::picker_engine::providers::{FnPickerProvider, PickerProvider};
 use crate::overlay::{CloseReason, OverlayContext, OverlayController, OverlaySession, OverlayUiSpec, RectPolicy};
@@ -249,6 +249,7 @@ impl CommandPaletteOverlay {
 						kind: CompletionKind::Command,
 						match_indices,
 						right,
+						file: None,
 					},
 				))
 			})
@@ -301,6 +302,7 @@ impl CommandPaletteOverlay {
 						kind: CompletionKind::Command,
 						match_indices,
 						right: Some("fp".to_string()),
+						file: None,
 					},
 				));
 			}
@@ -373,6 +375,7 @@ impl CommandPaletteOverlay {
 						kind: CompletionKind::Theme,
 						match_indices,
 						right: Some(variant.to_string()),
+						file: None,
 					},
 				))
 			})
@@ -590,6 +593,7 @@ impl CommandPaletteOverlay {
 						kind: CompletionKind::Snippet,
 						match_indices,
 						right: None,
+						file: None,
 					},
 				))
 			})
@@ -664,6 +668,12 @@ impl CommandPaletteOverlay {
 			};
 
 			let insert_text = if is_dir { format!("{label}/") } else { label.clone() };
+			let file_kind = if is_dir {
+				xeno_file_display::FileKind::Directory
+			} else {
+				xeno_file_display::FileKind::File
+			};
+			let file_meta = CompletionFileMeta::new(dir_path.join(&label), file_kind);
 
 			scored.push((
 				score as i32 + if is_dir { 40 } else { 0 },
@@ -675,6 +685,7 @@ impl CommandPaletteOverlay {
 					kind: CompletionKind::File,
 					match_indices: if indices.is_empty() { None } else { Some(indices) },
 					right: Some(if is_dir { "dir".into() } else { "file".into() }),
+					file: Some(file_meta),
 				},
 			));
 		}
@@ -724,6 +735,7 @@ impl CommandPaletteOverlay {
 						kind: CompletionKind::Command,
 						match_indices,
 						right: Some("opt".to_string()),
+						file: None,
 					},
 				))
 			})
@@ -760,6 +772,7 @@ impl CommandPaletteOverlay {
 						kind: CompletionKind::Command,
 						match_indices: if indices.is_empty() { None } else { Some(indices) },
 						right: Some("value".to_string()),
+						file: None,
 					},
 				));
 			}

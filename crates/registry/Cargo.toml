@@ -62,7 +62,7 @@ motions = ["db", "dep:regex", "dep:ropey", "dep:xeno-primitives"]
 textobj = ["db", "dep:ropey", "dep:xeno-primitives", "motions"]
 options = ["db", "dep:strsim", "dep:xeno-macros"]
 themes = ["db", "dep:strsim", "dep:xeno-primitives"]
-statusline = ["db", "dep:devicons"]
+statusline = ["db", "dep:xeno-file-display"]
 gutter = ["db", "dep:ropey", "themes"]
 hooks = ["db", "dep:tracing", "dep:xeno-macros", "dep:xeno-primitives"]
 notifications = ["db"]
@@ -120,6 +120,7 @@ xeno-keymap-core = { workspace = true, optional = true }
 xeno-macros = { workspace = true, optional = true }
 xeno-nu-api = { workspace = true, optional = true }
 xeno-nu-data = { workspace = true, optional = true }
+xeno-file-display = { workspace = true, optional = true }
 xeno-primitives = { workspace = true, optional = true }
 xeno-registry-spec = { workspace = true }
 
