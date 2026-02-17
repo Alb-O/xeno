@@ -8,8 +8,8 @@ use xeno_registry::hooks::HookPriority;
 use super::{CursorStyle, RuntimeEvent};
 use crate::Editor;
 use crate::commands::{CommandError, CommandOutcome, EditorCommandContext};
-use crate::runtime::mailbox::DeferredInvocationSource;
 use crate::runtime::pump::PumpPhase;
+use crate::runtime::work_queue::RuntimeWorkSource;
 use crate::scheduler::{WorkItem, WorkKind};
 use crate::types::Invocation;
 
@@ -71,20 +71,20 @@ async fn test_overlay_commit_deferred_until_pump() {
 	assert!(editor.open_command_palette());
 
 	let _ = editor.handle_key(Key::new(KeyCode::Enter)).await;
-	assert!(editor.has_overlay_commit_deferred());
+	assert!(editor.has_runtime_overlay_commit_work());
 	assert!(editor.overlay_kind().is_some());
 
 	let _ = editor.pump().await;
-	assert!(!editor.has_overlay_commit_deferred());
+	assert!(!editor.has_runtime_overlay_commit_work());
 	assert!(editor.overlay_kind().is_none());
 }
 
-/// Must route deferred overlay commits and deferred invocations through the shared runtime-deferred state.
+/// Must route deferred overlay commits and deferred invocations through the shared runtime work queue.
 ///
-/// * Enforced in: `Editor::handle_key_active`, `Editor::enqueue_deferred_invocation`, `runtime::pump::phases`
+/// * Enforced in: `Editor::handle_key_active`, `Editor::enqueue_runtime_invocation`, `runtime::pump::phases`
 /// * Failure symptom: deferred work fragments across multiple queues and pump convergence skips work.
 #[tokio::test]
-async fn test_runtime_deferred_state_converges_overlay_and_invocations() {
+async fn test_runtime_work_queue_state_converges_overlay_and_invocations() {
 	RUNTIME_INVARIANT_RECORDS.with(|records| records.borrow_mut().clear());
 
 	let mut editor = Editor::new_scratch();
@@ -92,37 +92,37 @@ async fn test_runtime_deferred_state_converges_overlay_and_invocations() {
 	assert!(editor.open_command_palette());
 
 	let _ = editor.handle_key(Key::new(KeyCode::Enter)).await;
-	editor.enqueue_deferred_command(
+	editor.enqueue_runtime_command_invocation(
 		"runtime_invariant_record_command".to_string(),
 		vec!["merged".to_string()],
-		DeferredInvocationSource::Overlay,
+		RuntimeWorkSource::Overlay,
 	);
 
-	assert!(editor.has_overlay_commit_deferred());
-	assert_eq!(editor.runtime_deferred_invocation_len(), 1);
+	assert!(editor.has_runtime_overlay_commit_work());
+	assert_eq!(editor.runtime_work_len(), 2);
 
 	let _ = editor.pump().await;
 	assert!(editor.overlay_kind().is_none());
 	assert_eq!(RUNTIME_INVARIANT_RECORDS.with(|records| records.borrow().clone()), vec!["merged".to_string()]);
 }
 
-/// Must apply at most one deferred overlay commit per pump cycle.
+/// Must drain queued overlay commit items through the runtime work phase.
 ///
-/// * Enforced in: `runtime::pump::run_pump_cycle_with_report`
-/// * Failure symptom: duplicate commit requests execute repeatedly in one cycle and reorder deferred work.
+/// * Enforced in: `runtime::work_drain::Editor::drain_runtime_work_report`
+/// * Failure symptom: queued commits remain stuck in queue after pump cycles.
 #[tokio::test]
-async fn test_pump_applies_at_most_one_overlay_commit_per_cycle() {
+async fn test_pump_drains_overlay_commit_work_items() {
 	let mut editor = Editor::new_scratch();
 	editor.handle_window_resize(100, 40);
 	assert!(editor.open_command_palette());
 
-	editor.request_overlay_commit_deferred();
-	editor.request_overlay_commit_deferred();
+	editor.enqueue_runtime_overlay_commit_work();
+	editor.enqueue_runtime_overlay_commit_work();
 
 	let _ = editor.pump().await;
 
 	assert!(editor.overlay_kind().is_none());
-	assert!(editor.has_overlay_commit_deferred());
+	assert!(!editor.has_runtime_overlay_commit_work());
 }
 
 /// Must default cursor style to Beam in insert mode and Block otherwise.
@@ -151,12 +151,10 @@ async fn test_pump_round_phase_order_is_stable() {
 	let expected = vec![
 		PumpPhase::UiTickAndTick,
 		PumpPhase::FilesystemPump,
-		PumpPhase::OverlayCommit,
 		PumpPhase::DrainMessages,
-		PumpPhase::ApplyWorkspaceEdits,
 		PumpPhase::KickNuHookEval,
 		PumpPhase::DrainScheduler,
-		PumpPhase::DrainDeferredInvocations,
+		PumpPhase::DrainRuntimeWork,
 	];
 
 	assert_eq!(report.rounds[0].phases, expected);
@@ -194,20 +192,16 @@ async fn test_pump_rounds_are_bounded_by_cap() {
 #[tokio::test]
 async fn test_pump_quit_requests_return_immediate_quit_directive() {
 	let mut editor = Editor::new_scratch();
-	editor.enqueue_deferred_command(
-		"runtime_invariant_test_quit_command".to_string(),
-		Vec::new(),
-		DeferredInvocationSource::CommandOps,
-	);
+	editor.enqueue_runtime_command_invocation("runtime_invariant_test_quit_command".to_string(), Vec::new(), RuntimeWorkSource::CommandOps);
 
 	let directive = editor.pump().await;
 	assert!(directive.should_quit);
 	assert_eq!(directive.poll_timeout, None);
 
 	let mut via_hook = Editor::new_scratch();
-	via_hook.enqueue_nu_deferred_invocation(
+	via_hook.enqueue_runtime_nu_invocation(
 		Invocation::editor_command("runtime_invariant_test_quit_command", Vec::new()),
-		DeferredInvocationSource::NuHookDispatch,
+		RuntimeWorkSource::NuHookDispatch,
 	);
 
 	let directive = via_hook.pump().await;
@@ -215,28 +209,28 @@ async fn test_pump_quit_requests_return_immediate_quit_directive() {
 	assert_eq!(directive.poll_timeout, None);
 }
 
-/// Must preserve global FIFO order when draining deferred invocations from mixed sources.
+/// Must preserve global FIFO order when draining runtime work from mixed sources.
 ///
-/// * Enforced in: `Editor::drain_runtime_deferred_invocations_report`
+/// * Enforced in: `Editor::drain_runtime_work_report`
 /// * Failure symptom: deferred commands execute out-of-order across queue sources.
 #[tokio::test]
-async fn test_deferred_invocation_mailbox_preserves_fifo_across_sources() {
+async fn test_runtime_work_queue_preserves_fifo_across_sources() {
 	RUNTIME_INVARIANT_RECORDS.with(|records| records.borrow_mut().clear());
 
 	let mut editor = Editor::new_scratch();
-	editor.enqueue_deferred_command(
+	editor.enqueue_runtime_command_invocation(
 		"runtime_invariant_record_command".to_string(),
 		vec!["one".to_string()],
-		DeferredInvocationSource::Overlay,
+		RuntimeWorkSource::Overlay,
 	);
-	editor.enqueue_deferred_command(
+	editor.enqueue_runtime_command_invocation(
 		"runtime_invariant_record_command".to_string(),
 		vec!["two".to_string()],
-		DeferredInvocationSource::ActionEffect,
+		RuntimeWorkSource::ActionEffect,
 	);
-	editor.enqueue_nu_deferred_invocation(
+	editor.enqueue_runtime_nu_invocation(
 		Invocation::command("runtime_invariant_record_command", vec!["three".to_string()]),
-		DeferredInvocationSource::NuScheduledMacro,
+		RuntimeWorkSource::NuScheduledMacro,
 	);
 
 	let _ = editor.pump().await;
@@ -244,56 +238,56 @@ async fn test_deferred_invocation_mailbox_preserves_fifo_across_sources() {
 	assert_eq!(recorded, vec!["one".to_string(), "two".to_string(), "three".to_string()]);
 }
 
-/// Must bound deferred invocation drain count per round to preserve latency.
+/// Must bound runtime work drain count per round to preserve latency.
 ///
-/// * Enforced in: `runtime::pump::phases::phase_drain_deferred_invocations`
-/// * Failure symptom: one round drains unbounded invocation backlog and stalls input responsiveness.
+/// * Enforced in: `runtime::pump::phases::phase_drain_runtime_work`
+/// * Failure symptom: one round drains unbounded work backlog and stalls input responsiveness.
 #[tokio::test]
-async fn test_deferred_invocation_drain_is_bounded_per_round() {
+async fn test_runtime_work_drain_is_bounded_per_round() {
 	RUNTIME_INVARIANT_RECORDS.with(|records| records.borrow_mut().clear());
 
 	let mut editor = Editor::new_scratch();
 	for idx in 0..100 {
-		editor.enqueue_deferred_command(
+		editor.enqueue_runtime_command_invocation(
 			"runtime_invariant_record_command".to_string(),
 			vec![idx.to_string()],
-			DeferredInvocationSource::ActionEffect,
+			RuntimeWorkSource::ActionEffect,
 		);
 	}
 
 	let (_directive, report) = editor.pump_with_report().await;
 	assert!(!report.rounds.is_empty());
-	assert!(report.rounds.iter().all(|round| round.work.drained_deferred_invocations <= 32));
-	assert_eq!(report.rounds[0].work.drained_deferred_invocations, 32);
-	assert_eq!(editor.runtime_deferred_invocation_len(), 4);
+	assert!(report.rounds.iter().all(|round| round.work.drained_runtime_work <= 32));
+	assert_eq!(report.rounds[0].work.drained_runtime_work, 32);
+	assert_eq!(editor.runtime_work_len(), 4);
 	assert!(report.reached_round_cap);
 }
 
-/// Must clear only the targeted Nu stop-scope generation from the deferred mailbox.
+/// Must clear only the targeted Nu stop-scope generation from queued runtime work.
 ///
-/// * Enforced in: `Editor::clear_deferred_nu_scope`, `Editor::enqueue_nu_deferred_invocation`
+/// * Enforced in: `Editor::clear_runtime_nu_scope`, `Editor::enqueue_runtime_nu_invocation`
 /// * Failure symptom: stop propagation drops unrelated deferred work or fails to drop stale Nu work.
 #[tokio::test]
 async fn test_nu_stop_scope_clear_is_generation_local() {
 	RUNTIME_INVARIANT_RECORDS.with(|records| records.borrow_mut().clear());
 
 	let mut editor = Editor::new_scratch();
-	editor.enqueue_nu_deferred_invocation(
+	editor.enqueue_runtime_nu_invocation(
 		Invocation::command("runtime_invariant_record_command", vec!["nu-old".to_string()]),
-		DeferredInvocationSource::NuHookDispatch,
+		RuntimeWorkSource::NuHookDispatch,
 	);
-	editor.enqueue_deferred_command(
+	editor.enqueue_runtime_command_invocation(
 		"runtime_invariant_record_command".to_string(),
 		vec!["global".to_string()],
-		DeferredInvocationSource::Overlay,
+		RuntimeWorkSource::Overlay,
 	);
 
 	let cleared_generation = editor.state.nu.advance_stop_scope_generation();
-	editor.clear_deferred_nu_scope(cleared_generation);
+	editor.clear_runtime_nu_scope(cleared_generation);
 
-	editor.enqueue_nu_deferred_invocation(
+	editor.enqueue_runtime_nu_invocation(
 		Invocation::command("runtime_invariant_record_command", vec!["nu-new".to_string()]),
-		DeferredInvocationSource::NuHookDispatch,
+		RuntimeWorkSource::NuHookDispatch,
 	);
 
 	let _ = editor.pump().await;

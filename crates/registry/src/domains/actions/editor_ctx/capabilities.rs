@@ -331,17 +331,17 @@ pub trait ViewportAccess {
 
 /// Deferred invocation operations (optional).
 ///
-/// Allows actions to defer command invocations for async execution. When an action
-/// returns [`AppEffect::DeferCommand`], the result handler uses this trait
+/// Allows actions to queue invocation requests for async execution. When an action
+/// returns [`AppEffect::QueueInvocation`], the result handler uses this trait
 /// to enqueue execution on the runtime pump.
 ///
-/// [`AppEffect::DeferCommand`]: crate::actions::effects::AppEffect::DeferCommand
+/// [`AppEffect::QueueInvocation`]: crate::actions::effects::AppEffect::QueueInvocation
 pub trait DeferredInvocationAccess {
-	/// Defers a command invocation for async execution.
+	/// Queues a deferred invocation request for async execution.
 	///
-	/// The command will be executed by the runtime pump,
-	/// with full async context and editor access.
-	fn defer_command(&mut self, name: String, args: Vec<String>);
+	/// The request will be executed by the runtime pump, with full async
+	/// context and editor access.
+	fn queue_invocation(&mut self, request: crate::actions::DeferredInvocationRequest);
 }
 
 /// Command palette operations.

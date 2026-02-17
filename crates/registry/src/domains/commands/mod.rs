@@ -105,8 +105,8 @@ pub trait CommandEditorOps {
 	///
 	/// If the file is already open, switches to it. Line and column are 0-indexed.
 	fn goto_file(&mut self, path: PathBuf, line: usize, column: usize) -> BoxFutureLocal<'_, Result<(), CommandError>>;
-	/// Defers a command for execution on the editor runtime loop.
-	fn defer_command(&mut self, name: String, args: Vec<String>);
+	/// Queues an invocation request for execution on the editor runtime loop.
+	fn queue_invocation(&mut self, request: crate::actions::DeferredInvocationRequest);
 }
 
 /// Context provided to command handlers.

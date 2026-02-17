@@ -43,7 +43,7 @@ async fn test_overlay_enter_queues_deferred_commit() {
 	assert!(editor.open_command_palette());
 
 	let _ = editor.handle_key(Key::new(KeyCode::Enter)).await;
-	assert!(editor.has_overlay_commit_deferred());
+	assert!(editor.has_runtime_overlay_commit_work());
 	assert!(editor.overlay_kind().is_some());
 }
 

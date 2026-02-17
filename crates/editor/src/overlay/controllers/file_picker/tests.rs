@@ -157,10 +157,7 @@ fn tab_applies_selected_item_without_committing_picker() {
 		.trim_end_matches('\n')
 		.to_string();
 	assert_eq!(text, "src/main.rs");
-	assert!(
-		editor.runtime_deferred_invocation_is_empty(),
-		"tab completion should not commit queued commands"
-	);
+	assert!(editor.runtime_work_is_empty(), "tab completion should not commit queued commands");
 	assert!(editor.state.overlay_system.interaction().is_open(), "picker should stay open after Tab");
 }
 

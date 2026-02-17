@@ -260,7 +260,7 @@ impl Editor {
 				.nu
 				.hook_in_flight()
 				.map(|i| (i.token.runtime_epoch, i.token.seq, i.hook.fn_name().to_string())),
-			deferred_invocation_mailbox_len: self.runtime_deferred_invocation_len(),
+			runtime_work_queue_len: self.runtime_work_len(),
 			hook_dropped_total: self.state.nu.hook_dropped_total(),
 			hook_failed_total: self.state.nu.hook_failed_total(),
 			runtime_epoch: self.state.nu.runtime_epoch(),

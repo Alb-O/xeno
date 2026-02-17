@@ -10,7 +10,7 @@ use xeno_registry::notifications::Notification;
 use xeno_registry::options::{OptionScope, find};
 
 use crate::capabilities::provider::EditorCaps;
-use crate::runtime::mailbox::DeferredInvocationSource;
+use crate::runtime::work_queue::RuntimeWorkSource;
 
 impl CommandEditorOps for EditorCaps<'_> {
 	fn emit(&mut self, notification: Notification) {
@@ -127,7 +127,7 @@ impl CommandEditorOps for EditorCaps<'_> {
 		})
 	}
 
-	fn defer_command(&mut self, name: String, args: Vec<String>) {
-		self.ed.enqueue_deferred_command(name, args, DeferredInvocationSource::CommandOps);
+	fn queue_invocation(&mut self, request: xeno_registry::actions::DeferredInvocationRequest) {
+		self.ed.enqueue_runtime_invocation_request(request, RuntimeWorkSource::CommandOps);
 	}
 }

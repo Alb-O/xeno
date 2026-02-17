@@ -1,9 +1,10 @@
 use tracing::{trace, trace_span};
 use xeno_invocation::CommandRoute;
+use xeno_registry::actions::{DeferredInvocationKind, DeferredInvocationPolicy, DeferredInvocationRequest, DeferredInvocationScopeHint};
 
 use super::engine::InvocationEngine;
 use crate::impls::Editor;
-use crate::runtime::mailbox::{DeferredInvocationExecutionPolicy, DeferredInvocationScope, DeferredInvocationSource};
+use crate::runtime::work_queue::{RuntimeWorkSource, WorkExecutionPolicy, WorkScope};
 use crate::types::{Invocation, InvocationOutcome, InvocationPolicy};
 
 impl Editor {
@@ -27,39 +28,52 @@ impl Editor {
 		InvocationEngine::new(self, policy).run(invocation).await
 	}
 
-	/// Enqueues a deferred invocation into the runtime mailbox.
-	pub(crate) fn enqueue_deferred_invocation(
-		&mut self,
-		invocation: Invocation,
-		source: DeferredInvocationSource,
-		execution: DeferredInvocationExecutionPolicy,
-		scope: DeferredInvocationScope,
-	) {
-		self.enqueue_runtime_deferred_invocation(invocation, source, execution, scope);
+	/// Enqueues one runtime invocation item with explicit execution metadata.
+	pub(crate) fn enqueue_runtime_invocation(&mut self, invocation: Invocation, source: RuntimeWorkSource, execution: WorkExecutionPolicy, scope: WorkScope) {
+		self.enqueue_runtime_invocation_work(invocation, source, execution, scope);
 	}
 
-	/// Enqueues a deferred command invocation into the runtime mailbox.
-	pub(crate) fn enqueue_deferred_command(&mut self, name: String, args: Vec<String>, source: DeferredInvocationSource) {
-		self.enqueue_deferred_invocation(
+	/// Enqueues one runtime command invocation in global command-path scope.
+	#[cfg(test)]
+	pub(crate) fn enqueue_runtime_command_invocation(&mut self, name: String, args: Vec<String>, source: RuntimeWorkSource) {
+		self.enqueue_runtime_invocation(
 			Invocation::command(name, args),
 			source,
-			DeferredInvocationExecutionPolicy::LogOnlyCommandPath,
-			DeferredInvocationScope::Global,
+			WorkExecutionPolicy::LogOnlyCommandPath,
+			WorkScope::Global,
 		);
 	}
 
-	/// Enqueues a deferred Nu-produced invocation into the runtime mailbox.
-	pub(crate) fn enqueue_nu_deferred_invocation(&mut self, invocation: Invocation, source: DeferredInvocationSource) {
-		self.enqueue_deferred_invocation(
+	/// Enqueues one runtime Nu-produced invocation in the current Nu scope.
+	pub(crate) fn enqueue_runtime_nu_invocation(&mut self, invocation: Invocation, source: RuntimeWorkSource) {
+		self.enqueue_runtime_invocation(
 			invocation,
 			source,
-			DeferredInvocationExecutionPolicy::EnforcingNuPipeline,
-			DeferredInvocationScope::NuStopScope(self.state.nu.current_stop_scope_generation()),
+			WorkExecutionPolicy::EnforcingNuPipeline,
+			WorkScope::NuStopScope(self.state.nu.current_stop_scope_generation()),
 		);
 	}
 
-	/// Removes deferred invocations scoped to a single Nu stop-propagation generation.
-	pub(crate) fn clear_deferred_nu_scope(&mut self, scope_generation: u64) {
-		let _ = self.remove_runtime_deferred_invocation_scope(DeferredInvocationScope::NuStopScope(scope_generation));
+	/// Removes queued runtime work scoped to one Nu stop-propagation generation.
+	pub(crate) fn clear_runtime_nu_scope(&mut self, scope_generation: u64) {
+		let _ = self.clear_runtime_work_scope(WorkScope::NuStopScope(scope_generation));
+	}
+
+	/// Enqueues one typed invocation request from capability surfaces.
+	pub(crate) fn enqueue_runtime_invocation_request(&mut self, request: DeferredInvocationRequest, source: RuntimeWorkSource) {
+		let invocation = match request.kind {
+			DeferredInvocationKind::Command { name, args } => Invocation::command(name, args),
+			DeferredInvocationKind::EditorCommand { name, args } => Invocation::editor_command(name, args),
+		};
+		let execution = match request.policy {
+			DeferredInvocationPolicy::LogOnlyCommandPath => WorkExecutionPolicy::LogOnlyCommandPath,
+			DeferredInvocationPolicy::EnforcingNuPipeline => WorkExecutionPolicy::EnforcingNuPipeline,
+		};
+		let scope = match request.scope_hint {
+			DeferredInvocationScopeHint::Global => WorkScope::Global,
+			DeferredInvocationScopeHint::CurrentNuStopScope => WorkScope::NuStopScope(self.state.nu.current_stop_scope_generation()),
+		};
+
+		self.enqueue_runtime_invocation(invocation, source, execution, scope);
 	}
 }

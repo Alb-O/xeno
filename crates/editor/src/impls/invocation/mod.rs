@@ -13,8 +13,8 @@
 //! * `run_invocation` is the canonical dispatcher and must be the first stop for user-triggered execution.
 //! * Dispatch is staged as resolve -> policy gate -> execute -> effect flush -> deferred post hooks.
 //! * `run_invocation` drains an internal queue iteratively, so Nu-generated follow-up dispatches do not recurse futures.
-//! * Deferred follow-up invocations from effects/overlays/Nu schedule into the runtime mailbox and are drained by runtime `pump()`.
-//! * Nu post hooks are queued only for non-quit outcomes, then evaluated asynchronously and may enqueue mailbox dispatches.
+//! * Deferred follow-up invocations from effects/overlays/Nu schedule into the runtime work queue and are drained by runtime `pump()`.
+//! * Nu post hooks are queued only for non-quit outcomes, then evaluated asynchronously and may enqueue deferred work dispatches.
 //!
 //! # Key types
 //!
@@ -32,7 +32,7 @@
 //! | [`crate::types::invocation::adapters`] | Consumer translation helpers | Must keep Nu consumers aligned on outcome mapping and logging | `commands::nu`, `nu::pipeline` |
 //! | [`crate::impls::Editor`] | Runtime owner of invocation execution | Must flush queued effects after each command/action execution branch | `run_*_invocation` methods |
 //! | [`crate::nu::NuHook`] | Deferred hook kind | Must enqueue only when execution does not request quit | `run_invocation` |
-//! | [`crate::runtime::mailbox::InvocationMailbox`] | Runtime deferred invocation mailbox | Must preserve FIFO sequence and source metadata for policy routing | queue producers and `Editor::drain_runtime_deferred_invocations_report` |
+//! | [`crate::runtime::work_queue::RuntimeWorkQueue`] | Runtime deferred work queue | Must preserve FIFO sequence and source metadata for policy routing | queue producers and `Editor::drain_runtime_work_report` |
 //!
 //! # Invariants
 //!
@@ -55,8 +55,8 @@
 //! 6. Engine converts step outcomes into explicit post-hook emissions and follow-up frames.
 //! 7. Nu macro outcomes enqueue follow-up invocations into the local invocation queue as `origin=NuMacro` frames.
 //! 8. Non-quit outcomes enqueue Nu post hooks.
-//! 9. Effects/overlays/Nu schedule enqueue deferred invocations into the runtime mailbox.
-//! 10. Runtime `pump()` drains mailboxed invocations in FIFO order with source-aware policy.
+//! 9. Effects/overlays/Nu schedule enqueue deferred invocations into runtime work queue.
+//! 10. Runtime `pump()` drains queued invocation work in FIFO order with source-aware policy.
 //!
 //! # Lifecycle
 //!

@@ -1137,10 +1137,10 @@ impl OverlayController for CommandPaletteOverlay {
 					.collect();
 
 				if let Some(cmd) = crate::commands::find_editor_command(&command_name) {
-					ctx.defer_command(cmd.name.to_string(), args);
+					ctx.queue_invocation(xeno_registry::actions::DeferredInvocationRequest::editor_command(cmd.name.to_string(), args));
 					ctx.record_command_usage(cmd.name);
 				} else if let Some(cmd) = xeno_registry::commands::find_command(&command_name) {
-					ctx.defer_command(cmd.name_str().to_string(), args);
+					ctx.queue_invocation(xeno_registry::actions::DeferredInvocationRequest::command(cmd.name_str().to_string(), args));
 					ctx.record_command_usage(cmd.name_str());
 				} else {
 					ctx.notify(keys::unknown_command(&command_name));

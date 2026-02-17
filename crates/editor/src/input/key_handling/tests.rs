@@ -59,7 +59,7 @@ async fn enter_queues_deferred_commit_and_pump_consumes() {
 	assert!(editor.open_command_palette());
 
 	let _ = editor.handle_key(key_enter()).await;
-	assert!(editor.has_overlay_commit_deferred());
+	assert!(editor.has_runtime_overlay_commit_work());
 
 	let _ = editor.pump().await;
 	assert!(!editor.state.overlay_system.interaction().is_open());

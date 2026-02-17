@@ -78,7 +78,7 @@ use crate::lsp::LspSystem;
 use crate::msg::{MsgReceiver, MsgSender};
 use crate::overlay::{OverlayStore, OverlaySystem};
 use crate::paste::normalize_to_lf;
-use crate::runtime::deferred::RuntimeDeferredState;
+use crate::runtime::work_queue::RuntimeWorkQueue;
 use crate::scheduler::WorkScheduler;
 use crate::types::{Config, FrameState, UndoManager, Viewport, Workspace};
 use crate::ui::{PanelRenderTarget, UiManager};
@@ -174,8 +174,8 @@ pub(crate) struct EditorState {
 
 	/// Per-frame runtime state (redraw flags, dirty buffers, etc.).
 	pub(crate) frame: FrameState,
-	/// Runtime-owned deferred state drained by runtime pump phases.
-	runtime_deferred: RuntimeDeferredState,
+	/// Runtime-owned deferred work queue drained by runtime pump phases.
+	runtime_work_queue: RuntimeWorkQueue,
 
 	/// Editor configuration (theme, languages, options).
 	pub(crate) config: Config,
@@ -251,13 +251,13 @@ pub struct Editor {
 
 impl EditorState {
 	#[inline]
-	pub(crate) fn runtime_deferred(&self) -> &RuntimeDeferredState {
-		&self.runtime_deferred
+	pub(crate) fn runtime_work_queue(&self) -> &RuntimeWorkQueue {
+		&self.runtime_work_queue
 	}
 
 	#[inline]
-	pub(crate) fn runtime_deferred_mut(&mut self) -> &mut RuntimeDeferredState {
-		&mut self.runtime_deferred
+	pub(crate) fn runtime_work_queue_mut(&mut self) -> &mut RuntimeWorkQueue {
+		&mut self.runtime_work_queue
 	}
 }
 
@@ -393,7 +393,7 @@ impl Editor {
 				viewport: Viewport::default(),
 				ui: UiManager::new(),
 				frame: FrameState::default(),
-				runtime_deferred: RuntimeDeferredState::default(),
+				runtime_work_queue: RuntimeWorkQueue::default(),
 				config: Config::new(language_loader),
 				key_overrides: None,
 				keymap_preset_spec: xeno_registry::keymaps::DEFAULT_PRESET.to_string(),

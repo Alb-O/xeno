@@ -577,14 +577,20 @@ impl OverlayController for FilePickerOverlay {
 				return Box::pin(async {});
 			}
 			let abs_path = self.resolve_user_path(&selected.insert_text);
-			ctx.defer_command("edit".to_string(), vec![abs_path.to_string_lossy().to_string()]);
+			ctx.queue_invocation(xeno_registry::actions::DeferredInvocationRequest::command(
+				"edit".to_string(),
+				vec![abs_path.to_string_lossy().to_string()],
+			));
 			return Box::pin(async {});
 		}
 
 		let typed = session.input_text(ctx).trim_end_matches('\n').trim().to_string();
 		if !typed.is_empty() {
 			let abs_path = self.resolve_user_path(&typed);
-			ctx.defer_command("edit".to_string(), vec![abs_path.to_string_lossy().to_string()]);
+			ctx.queue_invocation(xeno_registry::actions::DeferredInvocationRequest::command(
+				"edit".to_string(),
+				vec![abs_path.to_string_lossy().to_string()],
+			));
 		}
 
 		Box::pin(async {})

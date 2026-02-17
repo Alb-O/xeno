@@ -286,6 +286,73 @@ impl<'a> IntoIterator for &'a ActionEffects {
 	}
 }
 
+/// Invocation policy hint for deferred execution.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DeferredInvocationPolicy {
+	/// Use log-only invocation policy and unknown-command notification handling.
+	LogOnlyCommandPath,
+	/// Use enforcing policy for Nu pipeline dispatch.
+	EnforcingNuPipeline,
+}
+
+/// Scope hint used for targeted stop-propagation clearing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DeferredInvocationScopeHint {
+	/// Default scope for regular deferred invocations.
+	Global,
+	/// Bind invocation to current Nu stop-scope generation.
+	CurrentNuStopScope,
+}
+
+/// Invocation target kind for deferred requests.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DeferredInvocationKind {
+	/// Route through command auto-resolution.
+	Command { name: String, args: Vec<String> },
+	/// Route through editor-command resolution.
+	EditorCommand { name: String, args: Vec<String> },
+}
+
+/// Typed deferred invocation request used by action and command surfaces.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeferredInvocationRequest {
+	pub kind: DeferredInvocationKind,
+	pub policy: DeferredInvocationPolicy,
+	pub scope_hint: DeferredInvocationScopeHint,
+}
+
+impl DeferredInvocationRequest {
+	/// Creates a command invocation request with default command-path policy.
+	pub fn command(name: String, args: Vec<String>) -> Self {
+		Self {
+			kind: DeferredInvocationKind::Command { name, args },
+			policy: DeferredInvocationPolicy::LogOnlyCommandPath,
+			scope_hint: DeferredInvocationScopeHint::Global,
+		}
+	}
+
+	/// Creates an editor-command invocation request with default command-path policy.
+	pub fn editor_command(name: String, args: Vec<String>) -> Self {
+		Self {
+			kind: DeferredInvocationKind::EditorCommand { name, args },
+			policy: DeferredInvocationPolicy::LogOnlyCommandPath,
+			scope_hint: DeferredInvocationScopeHint::Global,
+		}
+	}
+
+	/// Overrides policy hint.
+	pub fn with_policy(mut self, policy: DeferredInvocationPolicy) -> Self {
+		self.policy = policy;
+		self
+	}
+
+	/// Overrides scope hint.
+	pub fn with_scope_hint(mut self, scope_hint: DeferredInvocationScopeHint) -> Self {
+		self.scope_hint = scope_hint;
+		self
+	}
+}
+
 /// View-related effects (cursor, selection, viewport).
 #[derive(Debug, Clone)]
 #[non_exhaustive]
@@ -426,13 +493,8 @@ pub enum AppEffect {
 		force: bool,
 	},
 
-	/// Defer a command invocation for async execution.
-	DeferCommand {
-		/// Command name.
-		name: String,
-		/// Command arguments.
-		args: Vec<String>,
-	},
+	/// Queue a deferred invocation for runtime pump execution.
+	QueueInvocation(DeferredInvocationRequest),
 }
 
 /// Primitive state mutation.

@@ -17,11 +17,11 @@ fn empty_edit() -> WorkspaceEdit {
 #[test]
 fn overlaymsg_apply_enqueues_workspace_edit() {
 	let mut editor = Editor::new_scratch();
-	assert_eq!(editor.pending_workspace_edits_deferred(), 0);
+	assert_eq!(editor.pending_runtime_workspace_edit_work(), 0);
 
 	OverlayMsg::ApplyWorkspaceEdit(empty_edit()).apply(&mut editor);
 
-	assert_eq!(editor.pending_workspace_edits_deferred(), 1);
+	assert_eq!(editor.pending_runtime_workspace_edit_work(), 1);
 }
 
 #[cfg(feature = "lsp")]
@@ -34,17 +34,17 @@ fn drain_messages_processes_overlaymsg() {
 	let dirty = editor.drain_messages();
 
 	assert!(dirty.needs_redraw());
-	assert_eq!(editor.pending_workspace_edits_deferred(), 1);
+	assert_eq!(editor.pending_runtime_workspace_edit_work(), 1);
 }
 
 #[cfg(feature = "lsp")]
 #[tokio::test]
 async fn pump_drains_deferred_workspace_edits_queue() {
 	let mut editor = Editor::new_scratch();
-	editor.enqueue_workspace_edit_deferred(empty_edit());
-	assert_eq!(editor.pending_workspace_edits_deferred(), 1);
+	editor.enqueue_runtime_workspace_edit_work(empty_edit());
+	assert_eq!(editor.pending_runtime_workspace_edit_work(), 1);
 
 	let _ = editor.pump().await;
 
-	assert_eq!(editor.pending_workspace_edits_deferred(), 0);
+	assert_eq!(editor.pending_runtime_workspace_edit_work(), 0);
 }

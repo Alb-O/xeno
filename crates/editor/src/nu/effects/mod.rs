@@ -520,11 +520,11 @@ mod tests {
 		tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 		editor.drain_messages();
 
-		// The invocation should now be in the deferred invocation mailbox.
-		let inv = editor
-			.pop_runtime_deferred_invocation()
-			.expect("scheduled invocation should be enqueued")
-			.invocation;
+		let queued = editor.pop_runtime_work().expect("scheduled invocation should be enqueued");
+		let crate::runtime::work_queue::RuntimeWorkKind::Invocation(queued) = queued.kind else {
+			panic!("expected queued invocation work");
+		};
+		let inv = queued.invocation;
 		assert!(matches!(inv, Invocation::Nu { ref name, ref args } if name == "my-macro" && args == &["arg1"]));
 	}
 
@@ -580,7 +580,11 @@ mod tests {
 		tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 		editor.drain_messages();
 
-		let inv = editor.pop_runtime_deferred_invocation().expect("current schedule should still fire").invocation;
+		let queued = editor.pop_runtime_work().expect("current schedule should still fire");
+		let crate::runtime::work_queue::RuntimeWorkKind::Invocation(queued) = queued.kind else {
+			panic!("expected queued invocation work");
+		};
+		let inv = queued.invocation;
 		assert!(matches!(inv, Invocation::Nu { ref name, ref args } if name == "current" && args == &["arg"]));
 	}
 

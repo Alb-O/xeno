@@ -2,7 +2,7 @@
 //!
 //! Grouped structs for editor state management:
 //! * [`crate::types::FrameState`] - Per-frame runtime state (hot fields)
-//! * [`crate::runtime::mailbox::InvocationMailbox`] - Deferred invocation mailbox primitive for runtime convergence
+//! * [`crate::runtime::work_queue::RuntimeWorkQueue`] - Deferred runtime work queue primitive for runtime convergence
 //! * [`crate::types::Viewport`] - Terminal dimensions
 //! * [`crate::types::Workspace`] - Session state (registers, jumps, macros)
 //! * [`crate::types::Config`] - Editor configuration (theme, languages, options)
@@ -31,6 +31,4 @@ pub use viewport::Viewport;
 pub use workspace::{JumpList, JumpLocation, MacroState, NuState, Registers, Workspace, Yank};
 pub use xeno_primitives::range::CharIdx;
 
-pub use crate::runtime::mailbox::{
-	DeferredInvocation, DeferredInvocationExecutionPolicy, DeferredInvocationScope, DeferredInvocationSource, InvocationMailbox,
-};
+pub use crate::runtime::work_queue::{QueuedInvocation, RuntimeWorkItem, RuntimeWorkKind, RuntimeWorkQueue, RuntimeWorkSource, WorkExecutionPolicy, WorkScope};

@@ -404,7 +404,7 @@ impl NuCoordinatorState {
 	}
 
 	/// Handle a fired scheduled macro. Verifies token, enqueues invocation
-	/// into the runtime deferred invocation mailbox.
+	/// into the runtime work queue.
 	pub(crate) fn apply_schedule_fired(&mut self, msg: NuScheduleFiredMsg) -> Option<Invocation> {
 		let Some(entry) = self.scheduled.get(&msg.key) else {
 			return None;

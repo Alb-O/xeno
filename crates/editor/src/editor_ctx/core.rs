@@ -248,9 +248,9 @@ fn apply_app_effect(effect: &AppEffect, ctx: &mut xeno_registry::actions::editor
 			return Some(HandleOutcome::Quit);
 		}
 
-		AppEffect::DeferCommand { name, args } => {
+		AppEffect::QueueInvocation(request) => {
 			if let Some(deferred) = ctx.deferred_invocations() {
-				deferred.defer_command(name.clone(), args.clone());
+				deferred.queue_invocation(request.clone());
 			}
 		}
 

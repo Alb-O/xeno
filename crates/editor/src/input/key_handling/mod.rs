@@ -64,7 +64,7 @@ impl Editor {
 		}
 
 		if self.state.overlay_system.interaction().is_open() && key.code == KeyCode::Enter {
-			self.request_overlay_commit_deferred();
+			self.enqueue_runtime_overlay_commit_work();
 			self.state.frame.needs_redraw = true;
 			return false;
 		}

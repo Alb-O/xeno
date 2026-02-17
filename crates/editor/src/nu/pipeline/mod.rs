@@ -15,7 +15,7 @@ use crate::nu::coordinator::HookEvalFailureTransition;
 use crate::nu::coordinator::runner::{NuExecKind, execute_with_restart};
 use crate::nu::effects::{NuEffectApplyMode, apply_effect_batch};
 use crate::nu::{NuCapability, NuDecodeSurface};
-use crate::runtime::mailbox::DeferredInvocationSource;
+use crate::runtime::work_queue::RuntimeWorkSource;
 use crate::types::InvocationOutcome;
 #[cfg(test)]
 use crate::types::{InvocationPolicy, PipelineDisposition, PipelineLogContext, classify_for_nu_pipeline, log_pipeline_non_ok};
@@ -177,10 +177,10 @@ fn apply_hook_effect_batch(editor: &mut Editor, batch: crate::nu::NuEffectBatch)
 	if outcome.stop_requested {
 		let scope_generation = editor.state.nu.advance_stop_scope_generation();
 		editor.state.nu.clear_hook_work_on_stop_propagation();
-		editor.clear_deferred_nu_scope(scope_generation);
+		editor.clear_runtime_nu_scope(scope_generation);
 	} else {
 		for invocation in outcome.dispatches {
-			editor.enqueue_nu_deferred_invocation(invocation, DeferredInvocationSource::NuHookDispatch);
+			editor.enqueue_runtime_nu_invocation(invocation, RuntimeWorkSource::NuHookDispatch);
 		}
 	}
 

@@ -13,7 +13,7 @@ use xeno_registry::actions::editor_ctx::OverlayRequest;
 use xeno_registry::commands::CommandError;
 
 use crate::effects::sink::DrainedEffects;
-use crate::runtime::mailbox::{DeferredInvocationExecutionPolicy, DeferredInvocationScope, DeferredInvocationSource};
+use crate::runtime::work_queue::RuntimeWorkSource;
 
 impl crate::Editor {
 	/// Flushes all pending effects from the sink and applies them.
@@ -71,13 +71,8 @@ impl crate::Editor {
 			}
 		}
 
-		for invocation in eff.queued_invocations {
-			self.enqueue_deferred_invocation(
-				invocation,
-				DeferredInvocationSource::ActionEffect,
-				DeferredInvocationExecutionPolicy::LogOnlyCommandPath,
-				DeferredInvocationScope::Global,
-			);
+		for request in eff.queued_invocation_requests {
+			self.enqueue_runtime_invocation_request(request, RuntimeWorkSource::ActionEffect);
 		}
 
 		if needs_redraw {
@@ -134,7 +129,7 @@ impl crate::Editor {
 				use crate::overlay::CloseReason;
 				match reason {
 					OverlayCloseReason::Commit => {
-						self.request_overlay_commit_deferred();
+						self.enqueue_runtime_overlay_commit_work();
 					}
 					reason => {
 						let reason = match reason {

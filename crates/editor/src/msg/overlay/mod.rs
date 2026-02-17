@@ -25,7 +25,7 @@ impl OverlayMsg {
 			}
 			#[cfg(feature = "lsp")]
 			Self::ApplyWorkspaceEdit(edit) => {
-				editor.enqueue_workspace_edit_deferred(edit);
+				editor.enqueue_runtime_workspace_edit_work(edit);
 				Dirty::REDRAW
 			}
 		}
