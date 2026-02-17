@@ -274,6 +274,10 @@ fn default_macro_capabilities() -> HashSet<xeno_invocation::nu::NuCapability> {
 		NuCapability::DispatchMacro,
 		NuCapability::Notify,
 		NuCapability::ReadContext,
+		NuCapability::EditText,
+		NuCapability::SetClipboard,
+		NuCapability::WriteState,
+		NuCapability::ScheduleMacro,
 	]
 	.into_iter()
 	.collect()
@@ -290,6 +294,9 @@ fn default_hook_capabilities() -> HashSet<xeno_invocation::nu::NuCapability> {
 		NuCapability::Notify,
 		NuCapability::StopPropagation,
 		NuCapability::ReadContext,
+		NuCapability::EditText,
+		NuCapability::WriteState,
+		NuCapability::ScheduleMacro,
 	]
 	.into_iter()
 	.collect()

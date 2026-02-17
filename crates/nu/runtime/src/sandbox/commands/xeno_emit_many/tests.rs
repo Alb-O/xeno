@@ -30,7 +30,7 @@ fn xeno_effects_normalize_normalizes_action_defaults() {
 	let list = value.as_list().expect("should be list");
 	let rec = list[0].as_record().unwrap();
 	assert_eq!(rec.get("count").unwrap().as_int().unwrap(), 1);
-	assert_eq!(rec.get("extend").unwrap().as_bool().unwrap(), false);
+	assert!(!rec.get("extend").unwrap().as_bool().unwrap());
 }
 
 #[test]

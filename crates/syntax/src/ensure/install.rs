@@ -93,9 +93,7 @@ fn viewport_opts_ok(lane: Option<scheduling::ViewportLane>, injections: Injectio
 
 /// Validates identity constraints (language, lane metadata, options, work gate).
 fn validate_completion_identity(done: &CompletedSyntaxTask, ctx: &EnsureBase<'_>) -> Option<CompletionIdentity> {
-	let Some(current_lang) = ctx.language_id else {
-		return None;
-	};
+	let current_lang = ctx.language_id?;
 	if ctx.work_disabled {
 		return None;
 	}

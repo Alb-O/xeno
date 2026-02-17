@@ -28,5 +28,5 @@ pub(crate) use invocation::adapters::{PipelineDisposition, PipelineLogContext, c
 pub use invocation::{Invocation, InvocationDetail, InvocationOutcome, InvocationPolicy, InvocationStatus, InvocationTarget};
 pub use undo_manager::{PreparedEdit, UndoHost, UndoManager};
 pub use viewport::Viewport;
-pub use workspace::{JumpList, JumpLocation, MacroState, Registers, Workspace, Yank};
+pub use workspace::{JumpList, JumpLocation, MacroState, NuState, Registers, Workspace, Yank};
 pub use xeno_primitives::range::CharIdx;

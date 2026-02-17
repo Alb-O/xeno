@@ -11,7 +11,7 @@ fn xeno_effect_dispatch_action_works() {
 	assert_eq!(rec.get("kind").unwrap().as_str().unwrap(), "action");
 	assert_eq!(rec.get("name").unwrap().as_str().unwrap(), "move_right");
 	assert_eq!(rec.get("count").unwrap().as_int().unwrap(), 3);
-	assert_eq!(rec.get("extend").unwrap().as_bool().unwrap(), true);
+	assert!(rec.get("extend").unwrap().as_bool().unwrap());
 }
 
 #[test]

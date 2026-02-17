@@ -1,7 +1,7 @@
-/// Canonical invocation types for unified action/command dispatch.
-///
-/// All entry points (keymap, palette, command queue, Nu macros/hooks) convert
-/// requests into [`Invocation`] variants before dispatch.
+//! Canonical invocation types for unified action/command dispatch.
+//!
+//! All entry points (keymap, palette, command queue, Nu macros/hooks) convert
+//! requests into [`Invocation`] variants before dispatch.
 
 #[cfg(feature = "nu")]
 pub mod nu;

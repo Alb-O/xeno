@@ -7,6 +7,12 @@
 //! Public API: only [`register_all`] is exported. All command implementations,
 //! helpers, and limits are internal. Sandbox caps: `MAX_ITEMS` (10 000),
 //! `MAX_COLUMNS` (128), `MAX_SPLITS` (10 000).
+#![allow(clippy::result_large_err, reason = "ShellError is intentionally rich and shared across Nu command APIs")]
+#![allow(clippy::collapsible_if, reason = "Some command logic keeps nested guards for readability and traceability")]
+#![allow(
+	clippy::redundant_locals,
+	reason = "Local rebinding is used in closures to make ownership and move points explicit"
+)]
 
 mod conversions;
 mod filters;
@@ -35,8 +41,12 @@ pub fn register_all(working_set: &mut StateWorkingSet<'_>) {
 	working_set.add_decl(Box::new(filters::Where));
 	working_set.add_decl(Box::new(strings::SplitRow));
 	working_set.add_decl(Box::new(strings::StrContains));
+	working_set.add_decl(Box::new(strings::StrDowncase));
+	working_set.add_decl(Box::new(strings::StrEndsWith));
 	working_set.add_decl(Box::new(strings::StrReplace));
+	working_set.add_decl(Box::new(strings::StrStartsWith));
 	working_set.add_decl(Box::new(strings::StrTrim));
+	working_set.add_decl(Box::new(strings::StrUpcase));
 	working_set.add_decl(Box::new(conversions::IntoBool));
 	working_set.add_decl(Box::new(conversions::IntoInt));
 	working_set.add_decl(Box::new(conversions::IntoString));

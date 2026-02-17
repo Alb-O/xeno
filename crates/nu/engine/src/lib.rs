@@ -1,4 +1,12 @@
 #![doc = include_str!("../README.md")]
+#![allow(
+	clippy::result_large_err,
+	reason = "ShellError is intentionally rich and shared across public APIs in this crate"
+)]
+#![allow(
+	clippy::match_single_binding,
+	reason = "match arms mirror IR instruction structure for readability in dispatch code"
+)]
 mod call_ext;
 mod closure_eval;
 pub mod column;

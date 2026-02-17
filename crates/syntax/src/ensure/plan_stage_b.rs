@@ -4,9 +4,7 @@ use super::*;
 pub(super) fn plan_stage_b(entry: &DocEntry, now: Instant, ctx: &EnsureViewport<'_>, g: &GateState, metrics: &SyntaxMetrics) -> Option<LanePlan> {
 	let base = &ctx.lang.base;
 	let cfg = base.cfg;
-	let Some(budget) = cfg.viewport_stage_b_budget else {
-		return None;
-	};
+	let budget = cfg.viewport_stage_b_budget?;
 	if base.tier != SyntaxTier::L
 		|| base.hotness != SyntaxHotness::Visible
 		|| entry.sched.viewport_enrich_active()

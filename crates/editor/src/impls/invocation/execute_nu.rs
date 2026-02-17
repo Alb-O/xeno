@@ -38,7 +38,7 @@ impl Editor {
 			.nu
 			.as_ref()
 			.map_or_else(crate::nu::DecodeBudget::macro_defaults, |config| config.macro_decode_budget());
-		let nu_ctx = self.build_nu_ctx("macro", &fn_name, &args);
+		let nu_ctx = self.build_nu_ctx("macro", &fn_name, &args, true);
 
 		let effects = match execute_with_restart(
 			&mut self.state.nu,
@@ -106,15 +106,24 @@ impl Editor {
 		}
 	}
 
-	pub(crate) fn build_nu_ctx(&self, kind: &str, function: &str, args: &[String]) -> Value {
-		use crate::nu::ctx::{NuCtx, NuCtxBuffer, NuCtxPosition, NuCtxSelection, NuCtxView};
+	/// Build the `$env.XENO_CTX` value for a Nu invocation.
+	///
+	/// When `include_text` is true (macro surface), the `text` record is
+	/// populated with the current cursor line and selection content, each
+	/// clamped to [`NuCtxText`]'s byte budget. Hooks pass `false` to skip
+	/// the extraction cost.
+	pub(crate) fn build_nu_ctx(&self, kind: &str, function: &str, args: &[String], include_text: bool) -> Value {
+		use crate::nu::ctx::{
+			NuCtx, NuCtxBuffer, NuCtxEvent, NuCtxPosition, NuCtxSelection, NuCtxText, NuCtxView, TEXT_SNAPSHOT_MAX_BYTES, rope_slice_clamped,
+		};
 
 		let buffer = self.buffer();
 		let view_id = self.focused_view().0;
 		let primary_selection = buffer.selection.primary();
 		let cursor_char = buffer.cursor;
+		let sel_active = !primary_selection.is_point();
 
-		let (cursor_line, cursor_col, sel_start_line, sel_start_col, sel_end_line, sel_end_col) = buffer.with_doc(|doc| {
+		let (cursor_line, cursor_col, sel_start_line, sel_start_col, sel_end_line, sel_end_col, text_snapshot) = buffer.with_doc(|doc| {
 			let text = doc.content();
 			let to_line_col = |idx: usize| {
 				let clamped = idx.min(text.len_chars());
@@ -126,8 +135,38 @@ impl Editor {
 			let (cl, cc) = to_line_col(cursor_char);
 			let (ssl, ssc) = to_line_col(primary_selection.min());
 			let (sel, sec) = to_line_col(primary_selection.max());
-			(cl, cc, ssl, ssc, sel, sec)
+
+			let snapshot = if include_text {
+				let line_slice = text.line(cl);
+				let (mut line_str, line_trunc) = rope_slice_clamped(line_slice, TEXT_SNAPSHOT_MAX_BYTES);
+				// Strip trailing line endings (not part of line content).
+				let trimmed_len = line_str.trim_end_matches('\n').trim_end_matches('\r').len();
+				line_str.truncate(trimmed_len);
+
+				let (sel_str, sel_trunc) = if sel_active {
+					let sel_min = primary_selection.min().min(text.len_chars());
+					let sel_max = primary_selection.max().min(text.len_chars());
+					let sel_slice = text.slice(sel_min..sel_max);
+					let (s, t) = rope_slice_clamped(sel_slice, TEXT_SNAPSHOT_MAX_BYTES);
+					(Some(s), t)
+				} else {
+					(None, false)
+				};
+
+				NuCtxText {
+					line: Some(line_str),
+					line_truncated: line_trunc,
+					selection: sel_str,
+					selection_truncated: sel_trunc,
+				}
+			} else {
+				NuCtxText::empty()
+			};
+
+			(cl, cc, ssl, ssc, sel, sec, snapshot)
 		});
+
+		let state_snapshot: Vec<(String, String)> = self.state.core.workspace.nu_state.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
 
 		NuCtx {
 			kind: kind.to_string(),
@@ -140,7 +179,7 @@ impl Editor {
 				col: cursor_col,
 			},
 			selection: NuCtxSelection {
-				active: !primary_selection.is_point(),
+				active: sel_active,
 				start: NuCtxPosition {
 					line: sel_start_line,
 					col: sel_start_col,
@@ -156,6 +195,9 @@ impl Editor {
 				readonly: buffer.is_readonly(),
 				modified: buffer.modified(),
 			},
+			text: text_snapshot,
+			event: if kind == "hook" { NuCtxEvent::from_hook(function, args) } else { None },
+			state: state_snapshot,
 		}
 		.to_value()
 	}

@@ -7,7 +7,12 @@
 use xeno_nu_data::{Record, Span, Value};
 
 /// Current schema version. Bump when adding/removing/renaming fields.
-pub const SCHEMA_VERSION: i64 = 1;
+pub const SCHEMA_VERSION: i64 = 4;
+
+/// Max byte length for text snapshots (cursor line, selection text).
+///
+/// Uses the same cap as invocation string limits for consistency.
+pub const TEXT_SNAPSHOT_MAX_BYTES: usize = xeno_invocation::schema::DEFAULT_LIMITS.max_string_len;
 
 /// Snapshot of editor state passed to Nu functions as `$env.XENO_CTX`.
 pub struct NuCtx {
@@ -19,6 +24,9 @@ pub struct NuCtx {
 	pub cursor: NuCtxPosition,
 	pub selection: NuCtxSelection,
 	pub buffer: NuCtxBuffer,
+	pub text: NuCtxText,
+	pub event: Option<NuCtxEvent>,
+	pub state: Vec<(String, String)>,
 }
 
 pub struct NuCtxView {
@@ -41,6 +49,163 @@ pub struct NuCtxBuffer {
 	pub file_type: Option<String>,
 	pub readonly: bool,
 	pub modified: bool,
+}
+
+/// Text snapshot from the buffer at the cursor/selection.
+///
+/// Populated only for macro invocations (hooks get null/false defaults)
+/// to avoid per-action extraction cost on high-frequency hook calls.
+pub struct NuCtxText {
+	pub line: Option<String>,
+	pub line_truncated: bool,
+	pub selection: Option<String>,
+	pub selection_truncated: bool,
+}
+
+impl NuCtxText {
+	/// Empty snapshot used for hook invocations.
+	pub fn empty() -> Self {
+		Self {
+			line: None,
+			line_truncated: false,
+			selection: None,
+			selection_truncated: false,
+		}
+	}
+}
+
+/// Structured hook event data, replacing positional-arg dependence.
+///
+/// Populated for hook invocations so scripts can inspect event details
+/// via `$ctx.event.type` and `$ctx.event.data` instead of relying on
+/// positional arguments. Macros receive `null`.
+pub enum NuCtxEvent {
+	ActionPost { name: String, result: String },
+	CommandPost { name: String, result: String, args: Vec<String> },
+	EditorCommandPost { name: String, result: String, args: Vec<String> },
+	ModeChange { from: String, to: String },
+	BufferOpen { path: String, kind: String },
+}
+
+impl NuCtxEvent {
+	/// Attempt to construct an event from the hook function name and its args.
+	///
+	/// Returns `None` for unrecognized hooks or insufficient args.
+	pub fn from_hook(function: &str, args: &[String]) -> Option<Self> {
+		match function {
+			"on_action_post" if args.len() >= 2 => Some(Self::ActionPost {
+				name: args[0].clone(),
+				result: args[1].clone(),
+			}),
+			"on_command_post" if args.len() >= 2 => Some(Self::CommandPost {
+				name: args[0].clone(),
+				result: args[1].clone(),
+				args: args[2..].to_vec(),
+			}),
+			"on_editor_command_post" if args.len() >= 2 => Some(Self::EditorCommandPost {
+				name: args[0].clone(),
+				result: args[1].clone(),
+				args: args[2..].to_vec(),
+			}),
+			"on_mode_change" if args.len() >= 2 => Some(Self::ModeChange {
+				from: args[0].clone(),
+				to: args[1].clone(),
+			}),
+			"on_buffer_open" if args.len() >= 2 => Some(Self::BufferOpen {
+				path: args[0].clone(),
+				kind: args[1].clone(),
+			}),
+			_ => None,
+		}
+	}
+
+	fn type_str(&self) -> &'static str {
+		match self {
+			Self::ActionPost { .. } => "action_post",
+			Self::CommandPost { .. } => "command_post",
+			Self::EditorCommandPost { .. } => "editor_command_post",
+			Self::ModeChange { .. } => "mode_change",
+			Self::BufferOpen { .. } => "buffer_open",
+		}
+	}
+
+	fn to_value(&self, s: Span) -> Value {
+		let mut data = Record::new();
+		match self {
+			Self::ActionPost { name, result } => {
+				data.push("name", Value::string(name, s));
+				data.push("result", Value::string(result, s));
+			}
+			Self::CommandPost { name, result, args } | Self::EditorCommandPost { name, result, args } => {
+				data.push("name", Value::string(name, s));
+				data.push("result", Value::string(result, s));
+				data.push("args", Value::list(args.iter().map(|a| Value::string(a, s)).collect(), s));
+			}
+			Self::ModeChange { from, to } => {
+				data.push("from", Value::string(from, s));
+				data.push("to", Value::string(to, s));
+			}
+			Self::BufferOpen { path, kind } => {
+				data.push("path", Value::string(path, s));
+				data.push("kind", Value::string(kind, s));
+			}
+		}
+		let mut rec = Record::new();
+		rec.push("type", Value::string(self.type_str(), s));
+		rec.push("data", Value::record(data, s));
+		Value::record(rec, s)
+	}
+}
+
+/// Truncate a string at a UTF-8 safe boundary.
+///
+/// Returns the (possibly shortened) string and whether truncation occurred.
+#[cfg(test)]
+pub(crate) fn clamp_utf8(s: &str, max_bytes: usize) -> (String, bool) {
+	if s.len() <= max_bytes {
+		return (s.to_string(), false);
+	}
+	let mut end = max_bytes;
+	while end > 0 && !s.is_char_boundary(end) {
+		end -= 1;
+	}
+	(s[..end].to_string(), true)
+}
+
+/// Extract text from a rope slice with a hard byte cap, streaming chunks.
+///
+/// Avoids allocating the full slice contents when the slice is larger than
+/// `max_bytes`. Iterates rope chunks and stops as soon as the budget is
+/// exhausted, truncating at a UTF-8 char boundary.
+pub(crate) fn rope_slice_clamped(slice: xeno_primitives::RopeSlice<'_>, max_bytes: usize) -> (String, bool) {
+	if max_bytes == 0 {
+		return (String::new(), slice.len_bytes() > 0);
+	}
+	let total = slice.len_bytes();
+	if total <= max_bytes {
+		return (String::from(slice), false);
+	}
+	let mut out = String::with_capacity(max_bytes.min(256));
+	let mut remaining = max_bytes;
+	let mut chunks = slice.chunks();
+	while let Some(chunk) = chunks.next() {
+		if chunk.len() <= remaining {
+			out.push_str(chunk);
+			remaining -= chunk.len();
+			if remaining == 0 {
+				let truncated = chunks.next().is_some();
+				return (out, truncated);
+			}
+		} else {
+			let mut end = remaining;
+			while end > 0 && !chunk.is_char_boundary(end) {
+				end -= 1;
+			}
+			out.push_str(&chunk[..end]);
+			return (out, true);
+		}
+	}
+	(out, false)
 }
 
 impl NuCtx {
@@ -89,6 +254,30 @@ impl NuCtx {
 		ctx.push("cursor", Value::record(cursor, s));
 		ctx.push("selection", Value::record(selection, s));
 		ctx.push("buffer", Value::record(buffer, s));
+
+		let opt_str = |v: &Option<String>| v.as_ref().map_or_else(|| Value::nothing(s), |v| Value::string(v, s));
+		let mut text = Record::new();
+		text.push("line", opt_str(&self.text.line));
+		text.push("line_truncated", Value::bool(self.text.line_truncated, s));
+		text.push("selection", opt_str(&self.text.selection));
+		text.push("selection_truncated", Value::bool(self.text.selection_truncated, s));
+		ctx.push("text", Value::record(text, s));
+		ctx.push("event", self.event.as_ref().map_or_else(|| Value::nothing(s), |e| e.to_value(s)));
+		ctx.push(
+			"state",
+			Value::list(
+				self.state
+					.iter()
+					.map(|(k, v)| {
+						let mut entry = Record::new();
+						entry.push("key", Value::string(k, s));
+						entry.push("value", Value::string(v, s));
+						Value::record(entry, s)
+					})
+					.collect(),
+				s,
+			),
+		);
 
 		Value::record(ctx, s)
 	}
