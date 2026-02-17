@@ -56,7 +56,7 @@ impl xeno_worker::WorkerActor for NuActor {
 				reply,
 			} => {
 				let runtime = self.runtime.clone();
-				let result = xeno_worker::spawn_blocking(xeno_worker::TaskClass::CpuBlocking, move || {
+				let result = tokio::task::spawn_blocking(move || {
 					let _guard = span.enter();
 					std::panic::catch_unwind(AssertUnwindSafe(|| runtime.run_effects_by_decl_id_owned(decl_id, surface, args, budget, env)))
 				})

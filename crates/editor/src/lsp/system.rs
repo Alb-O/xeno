@@ -4,6 +4,7 @@
 use xeno_lsp::{LspRuntime, LspSession};
 #[cfg(feature = "lsp")]
 use xeno_primitives::{CommitResult, Rope, Transaction};
+use xeno_worker::WorkerRuntime;
 
 #[cfg(feature = "lsp")]
 use crate::buffer::Buffer;
@@ -47,11 +48,11 @@ pub(super) struct RealLspSystem {
 
 #[cfg(feature = "lsp")]
 impl LspSystem {
-	pub fn new() -> Self {
+	pub fn new(worker_runtime: WorkerRuntime) -> Self {
 		let (ui_tx, ui_rx) = tokio::sync::mpsc::unbounded_channel();
 
-		let transport = xeno_lsp::LocalTransport::new();
-		let (session, runtime) = LspSession::new(transport);
+		let transport = xeno_lsp::LocalTransport::new(worker_runtime.clone());
+		let (session, runtime) = LspSession::new(transport, worker_runtime.clone());
 		if let Err(err) = runtime.start() {
 			tracing::error!(error = ?err, "failed to start LSP runtime");
 		}
@@ -60,8 +61,8 @@ impl LspSystem {
 			inner: RealLspSystem {
 				session,
 				runtime,
-				sync_manager: crate::lsp::sync_manager::LspSyncManager::new(),
-				completion: xeno_lsp::CompletionController::new(),
+				sync_manager: crate::lsp::sync_manager::LspSyncManager::new(worker_runtime.clone()),
+				completion: xeno_lsp::CompletionController::new(worker_runtime),
 				signature_gen: 0,
 				signature_cancel: None,
 				ui_tx,
@@ -79,14 +80,14 @@ impl LspSystem {
 
 #[cfg(not(feature = "lsp"))]
 impl LspSystem {
-	pub fn new() -> Self {
+	pub fn new(_worker_runtime: WorkerRuntime) -> Self {
 		Self
 	}
 }
 
 impl Default for LspSystem {
 	fn default() -> Self {
-		Self::new()
+		Self::new(WorkerRuntime::new())
 	}
 }
 

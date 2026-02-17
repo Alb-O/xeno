@@ -41,13 +41,17 @@ impl PartialOrd for RankedMatch {
 	}
 }
 
-pub fn spawn_search_worker(generation: u64, data: SearchData) -> (Sender<SearchCmd>, Receiver<SearchMsg>, Arc<AtomicU64>) {
+pub fn spawn_search_worker(
+	runtime: &xeno_worker::WorkerRuntime,
+	generation: u64,
+	data: SearchData,
+) -> (Sender<SearchCmd>, Receiver<SearchMsg>, Arc<AtomicU64>) {
 	let (command_tx, command_rx) = mpsc::channel();
 	let (result_tx, result_rx) = mpsc::sync_channel(1);
 	let latest_query_id = Arc::new(AtomicU64::new(0));
 	let worker_latest = Arc::clone(&latest_query_id);
 
-	xeno_worker::spawn_thread(xeno_worker::TaskClass::CpuBlocking, move || {
+	runtime.spawn_thread(xeno_worker::TaskClass::CpuBlocking, move || {
 		worker_loop(generation, data, command_rx, result_tx, worker_latest)
 	});
 

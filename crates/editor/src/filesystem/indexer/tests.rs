@@ -14,7 +14,8 @@ fn indexer_streams_relative_normalized_paths() {
 	fs::write(src.join("main.rs"), "fn main() {}\n").expect("write main");
 	fs::write(src.join("lib.rs"), "pub fn lib() {}\n").expect("write lib");
 
-	let rx = spawn_filesystem_index(1, root.to_path_buf(), FilesystemOptions::default());
+	let runtime = xeno_worker::WorkerRuntime::new();
+	let rx = spawn_filesystem_index(&runtime, 1, root.to_path_buf(), FilesystemOptions::default());
 	let mut seen_paths: Vec<String> = Vec::new();
 
 	loop {

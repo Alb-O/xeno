@@ -48,6 +48,7 @@ pub struct CompletionRequest<T> {
 pub struct CompletionController {
 	generation: u64,
 	in_flight: Option<InFlightCompletion>,
+	worker_runtime: xeno_worker::WorkerRuntime,
 }
 
 struct InFlightCompletion {
@@ -56,16 +57,17 @@ struct InFlightCompletion {
 
 impl Default for CompletionController {
 	fn default() -> Self {
-		Self::new()
+		Self::new(xeno_worker::WorkerRuntime::new())
 	}
 }
 
 impl CompletionController {
 	/// Creates a new completion controller.
-	pub fn new() -> Self {
+	pub fn new(worker_runtime: xeno_worker::WorkerRuntime) -> Self {
 		Self {
 			generation: 0,
 			in_flight: None,
+			worker_runtime,
 		}
 	}
 
@@ -98,7 +100,7 @@ impl CompletionController {
 		let cancel = CancellationToken::new();
 		self.in_flight = Some(InFlightCompletion { cancel: cancel.clone() });
 
-		xeno_worker::spawn(xeno_worker::TaskClass::Background, async move {
+		self.worker_runtime.spawn(xeno_worker::TaskClass::Background, async move {
 			if request.debounce > Duration::ZERO {
 				tokio::select! {
 					_ = cancel.cancelled() => return,

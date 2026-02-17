@@ -79,13 +79,15 @@ pub(super) struct TaskDone {
 pub(crate) struct TaskCollector {
 	next_id: u64,
 	tasks: FxHashMap<u64, JoinHandle<TaskDone>>,
+	runtime: xeno_worker::WorkerRuntime,
 }
 
 impl TaskCollector {
-	pub(super) fn new() -> Self {
+	pub(super) fn new_with_runtime(runtime: xeno_worker::WorkerRuntime) -> Self {
 		Self {
 			next_id: 0,
 			tasks: FxHashMap::default(),
+			runtime,
 		}
 	}
 
@@ -113,7 +115,7 @@ impl TaskCollector {
 		let viewport_key = spec.viewport_key;
 		let viewport_lane = spec.viewport_lane;
 
-		let handle = xeno_worker::spawn_blocking(xeno_worker::TaskClass::CpuBlocking, move || {
+		let handle = self.runtime.spawn_blocking(xeno_worker::TaskClass::CpuBlocking, move || {
 			let _permit = permit; // Tie permit lifetime to closure
 
 			let t0 = Instant::now();

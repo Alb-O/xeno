@@ -6366,6 +6366,7 @@ dependencies = [
  "xeno-editor",
  "xeno-frontend-tui",
  "xeno-language",
+ "xeno-worker",
 ]
 
 [[package]]

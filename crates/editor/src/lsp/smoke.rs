@@ -25,7 +25,7 @@ pub async fn run_lsp_smoke(workspace: Option<std::path::PathBuf>) -> anyhow::Res
 		anyhow::bail!("Workspace does not contain Cargo.toml: {}", workspace_path.display());
 	}
 
-	let lsp_system = LspSystem::new();
+	let lsp_system = LspSystem::new(xeno_worker::WorkerRuntime::new());
 
 	lsp_system.configure_server(
 		"rust",

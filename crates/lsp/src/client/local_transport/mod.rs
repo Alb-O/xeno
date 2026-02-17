@@ -65,16 +65,19 @@ pub struct LocalTransport {
 	event_tx: mpsc::UnboundedSender<TransportEvent>,
 	/// Receiver template for single-consumer subscription.
 	event_rx: RwLock<Option<mpsc::UnboundedReceiver<TransportEvent>>>,
+	/// Shared worker runtime for transport tasks.
+	worker_runtime: xeno_worker::WorkerRuntime,
 }
 
 impl LocalTransport {
 	/// Create a new local transport.
-	pub fn new() -> Arc<Self> {
+	pub fn new(worker_runtime: xeno_worker::WorkerRuntime) -> Arc<Self> {
 		let (event_tx, event_rx) = mpsc::unbounded_channel();
 		Arc::new(Self {
 			servers: RwLock::new(HashMap::new()),
 			event_tx,
 			event_rx: RwLock::new(Some(event_rx)),
+			worker_runtime,
 		})
 	}
 
@@ -111,7 +114,8 @@ impl LocalTransport {
 		let event_tx = self.event_tx.clone();
 
 		// Spawn the I/O task for this server
-		xeno_worker::spawn(xeno_worker::TaskClass::Background, io::run_server_io(id, stdin, stdout, outbound_rx, event_tx));
+		self.worker_runtime
+			.spawn(xeno_worker::TaskClass::Background, io::run_server_io(id, stdin, stdout, outbound_rx, event_tx));
 
 		Ok(ServerProcess { child, outbound_tx })
 	}
@@ -124,6 +128,7 @@ impl Default for LocalTransport {
 			servers: RwLock::new(HashMap::new()),
 			event_tx,
 			event_rx: RwLock::new(Some(event_rx)),
+			worker_runtime: xeno_worker::WorkerRuntime::new(),
 		}
 	}
 }

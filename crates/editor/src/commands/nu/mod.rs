@@ -65,7 +65,10 @@ fn cmd_nu_run<'a>(ctx: &'a mut EditorCommandContext<'a>) -> BoxFutureLocal<'a, R
 }
 
 async fn reload_runtime_from_dir(editor: &mut Editor, config_dir: PathBuf) -> Result<PathBuf, CommandError> {
-	let loaded = xeno_worker::spawn_blocking(xeno_worker::TaskClass::CpuBlocking, move || crate::nu::NuRuntime::load(&config_dir))
+	let loaded = editor
+		.state
+		.worker_runtime
+		.spawn_blocking(xeno_worker::TaskClass::CpuBlocking, move || crate::nu::NuRuntime::load(&config_dir))
 		.await
 		.map_err(|error| CommandError::Failed(format!("failed to join Nu runtime load task: {error}")))?;
 

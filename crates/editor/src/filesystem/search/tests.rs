@@ -19,7 +19,8 @@ fn seed_data() -> SearchData {
 
 #[test]
 fn worker_returns_matches_for_latest_query() {
-	let (command_tx, result_rx, latest_query_id) = spawn_search_worker(1, SearchData::default());
+	let runtime = xeno_worker::WorkerRuntime::new();
+	let (command_tx, result_rx, latest_query_id) = spawn_search_worker(&runtime, 1, SearchData::default());
 
 	command_tx
 		.send(SearchCmd::Update {
@@ -46,7 +47,8 @@ fn worker_returns_matches_for_latest_query() {
 
 #[test]
 fn worker_suppresses_stale_query_results() {
-	let (command_tx, result_rx, latest_query_id) = spawn_search_worker(1, SearchData::default());
+	let runtime = xeno_worker::WorkerRuntime::new();
+	let (command_tx, result_rx, latest_query_id) = spawn_search_worker(&runtime, 1, SearchData::default());
 
 	command_tx
 		.send(SearchCmd::Update {

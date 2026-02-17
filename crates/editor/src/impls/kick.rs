@@ -22,9 +22,10 @@ impl Editor {
 		let tx = self.msg_tx();
 		let config_themes_dir = crate::paths::get_config_dir().map(|d| d.join("themes"));
 		let data_themes_dir = crate::paths::get_data_dir().map(|d| d.join("themes"));
+		let runtime = self.state.worker_runtime.clone();
 
-		xeno_worker::spawn(xeno_worker::TaskClass::Background, async move {
-			let errors = load_themes_blocking(config_themes_dir, data_themes_dir).await;
+		runtime.clone().spawn(xeno_worker::TaskClass::Background, async move {
+			let errors = load_themes_blocking(runtime.clone(), config_themes_dir, data_themes_dir).await;
 			send(&tx, ThemeMsg::ThemesReady { errors });
 		});
 	}
@@ -34,16 +35,18 @@ impl Editor {
 	/// Sends [`crate::msg::IoMsg::FileLoaded`] or [`crate::msg::IoMsg::LoadFailed`] on completion.
 	pub fn kick_file_load(&self, path: PathBuf) {
 		let tx = self.msg_tx();
-		xeno_worker::spawn(xeno_worker::TaskClass::IoBlocking, async move {
+		let runtime = self.state.worker_runtime.clone();
+		runtime.clone().spawn(xeno_worker::TaskClass::IoBlocking, async move {
 			match tokio::fs::read_to_string(&path).await {
 				Ok(content) => {
 					let path_for_build = path.clone();
-					let built = xeno_worker::spawn_blocking(xeno_worker::TaskClass::CpuBlocking, move || {
-						let rope = ropey::Rope::from_str(&normalize_to_lf(content));
-						let readonly = !is_writable(&path_for_build);
-						(rope, readonly)
-					})
-					.await;
+					let built = runtime
+						.spawn_blocking(xeno_worker::TaskClass::CpuBlocking, move || {
+							let rope = ropey::Rope::from_str(&normalize_to_lf(content));
+							let readonly = !is_writable(&path_for_build);
+							(rope, readonly)
+						})
+						.await;
 
 					match built {
 						Ok((rope, readonly)) => {
@@ -76,14 +79,16 @@ impl Editor {
 	pub fn kick_lsp_catalog_load(&self) {
 		let sync = self.state.lsp.sync_clone();
 		let tx = self.msg_tx();
+		let runtime = self.state.worker_runtime.clone();
 
-		xeno_worker::spawn(xeno_worker::TaskClass::Background, async move {
-			let parsed = xeno_worker::spawn_blocking(xeno_worker::TaskClass::IoBlocking, || {
-				let server_defs = xeno_language::load_lsp_configs().map_err(|e| format!("failed to load LSP configs: {e}"))?;
-				let lang_mapping = xeno_language::language_db().lsp_mapping();
-				Ok::<_, String>((server_defs, lang_mapping))
-			})
-			.await;
+		runtime.clone().spawn(xeno_worker::TaskClass::Background, async move {
+			let parsed = runtime
+				.spawn_blocking(xeno_worker::TaskClass::IoBlocking, || {
+					let server_defs = xeno_language::load_lsp_configs().map_err(|e| format!("failed to load LSP configs: {e}"))?;
+					let lang_mapping = xeno_language::language_db().lsp_mapping();
+					Ok::<_, String>((server_defs, lang_mapping))
+				})
+				.await;
 
 			let (server_defs, lang_mapping) = match parsed {
 				Ok(Ok(pair)) => pair,
@@ -137,31 +142,36 @@ impl Editor {
 ///
 /// Embedded themes are seeded into the data directory before loading so users
 /// can discover and customize them on disk.
-async fn load_themes_blocking(config_themes_dir: Option<PathBuf>, data_themes_dir: Option<PathBuf>) -> Vec<(String, String)> {
-	xeno_worker::spawn_blocking(xeno_worker::TaskClass::IoBlocking, move || {
-		let mut errors = Vec::new();
-		let mut all_themes: Vec<xeno_registry::themes::LinkedThemeDef> = Vec::new();
+async fn load_themes_blocking(
+	runtime: xeno_worker::WorkerRuntime,
+	config_themes_dir: Option<PathBuf>,
+	data_themes_dir: Option<PathBuf>,
+) -> Vec<(String, String)> {
+	runtime
+		.spawn_blocking(xeno_worker::TaskClass::IoBlocking, move || {
+			let mut errors = Vec::new();
+			let mut all_themes: Vec<xeno_registry::themes::LinkedThemeDef> = Vec::new();
 
-		if let Some(ref dir) = data_themes_dir {
-			collect_dir_themes(dir, &mut all_themes, &mut errors);
-		}
+			if let Some(ref dir) = data_themes_dir {
+				collect_dir_themes(dir, &mut all_themes, &mut errors);
+			}
 
-		if let Some(ref dir) = config_themes_dir {
-			collect_dir_themes(dir, &mut all_themes, &mut errors);
-		}
+			if let Some(ref dir) = config_themes_dir {
+				collect_dir_themes(dir, &mut all_themes, &mut errors);
+			}
 
-		// Deduplicate by canonical ID (xeno-registry::<name>)
-		let mut deduped = std::collections::BTreeMap::new();
-		for theme in all_themes {
-			deduped.insert(theme.meta.id.clone(), theme);
-		}
+			// Deduplicate by canonical ID (xeno-registry::<name>)
+			let mut deduped = std::collections::BTreeMap::new();
+			for theme in all_themes {
+				deduped.insert(theme.meta.id.clone(), theme);
+			}
 
-		xeno_registry::themes::register_runtime_themes(deduped.into_values().collect());
+			xeno_registry::themes::register_runtime_themes(deduped.into_values().collect());
 
-		errors
-	})
-	.await
-	.unwrap_or_default()
+			errors
+		})
+		.await
+		.unwrap_or_default()
 }
 
 /// Loads themes from `dir` into the accumulator vectors, logging on failure.

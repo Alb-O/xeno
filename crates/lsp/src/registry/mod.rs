@@ -185,16 +185,18 @@ pub struct Registry {
 	state: RwLock<RegistryState>,
 	transport: Arc<dyn LspTransport>,
 	inflight: InFlightMap,
+	worker_runtime: xeno_worker::WorkerRuntime,
 }
 
 impl Registry {
 	/// Create a new registry with the given transport.
-	pub fn new(transport: Arc<dyn LspTransport>) -> Self {
+	pub fn new(transport: Arc<dyn LspTransport>, worker_runtime: xeno_worker::WorkerRuntime) -> Self {
 		Self {
 			configs: RwLock::new(HashMap::new()),
 			state: RwLock::new(RegistryState::new()),
 			transport,
 			inflight: Arc::new(Mutex::new(HashMap::new())),
+			worker_runtime,
 		}
 	}
 
@@ -295,7 +297,13 @@ impl Registry {
 		}
 
 		// 3b. Leader work
-		let mut guard = StartGuard::new(key.clone(), self.inflight.clone(), inflight.clone(), self.transport.clone());
+		let mut guard = StartGuard::new(
+			key.clone(),
+			self.inflight.clone(),
+			inflight.clone(),
+			self.transport.clone(),
+			self.worker_runtime.clone(),
+		);
 
 		// Re-check state after lock acquisition to prevent double-start
 		if let Some(acquired) = self.get_running(&key) {
@@ -358,7 +366,7 @@ impl Registry {
 						let enable_snippets = config.enable_snippets;
 						let init_config = config.config.clone();
 
-						xeno_worker::spawn(xeno_worker::TaskClass::Background, async move {
+						self.worker_runtime.spawn(xeno_worker::TaskClass::Background, async move {
 							match tokio::time::timeout(Duration::from_secs(30), init_handle.initialize(enable_snippets, init_config)).await {
 								Ok(Ok(_)) => {}
 								Ok(Err(e)) => {
@@ -384,7 +392,7 @@ impl Registry {
 				if let Some(id) = stop_id {
 					// Stop the redundant server we just started
 					let transport = self.transport.clone();
-					xeno_worker::spawn(xeno_worker::TaskClass::Background, async move {
+					self.worker_runtime.spawn(xeno_worker::TaskClass::Background, async move {
 						let _ = transport.stop(id).await;
 					});
 				}
@@ -448,6 +456,11 @@ impl Registry {
 		self.transport.clone()
 	}
 
+	/// Returns the shared worker runtime used for registry background work.
+	pub fn worker_runtime(&self) -> xeno_worker::WorkerRuntime {
+		self.worker_runtime.clone()
+	}
+
 	/// Check if any server is ready (initialized and accepting requests).
 	pub fn any_server_ready(&self) -> bool {
 		self.state.read().servers.values().any(|instance| instance.handle.is_ready())
@@ -472,17 +485,25 @@ struct StartGuard {
 	inflight_map: InFlightMap,
 	inflight: Arc<InFlightStart>,
 	transport: Arc<dyn LspTransport>,
+	worker_runtime: xeno_worker::WorkerRuntime,
 	started_id: Option<LanguageServerId>,
 	completed: bool,
 }
 
 impl StartGuard {
-	fn new(key: (String, PathBuf), inflight_map: InFlightMap, inflight: Arc<InFlightStart>, transport: Arc<dyn LspTransport>) -> Self {
+	fn new(
+		key: (String, PathBuf),
+		inflight_map: InFlightMap,
+		inflight: Arc<InFlightStart>,
+		transport: Arc<dyn LspTransport>,
+		worker_runtime: xeno_worker::WorkerRuntime,
+	) -> Self {
 		Self {
 			key,
 			inflight_map,
 			inflight,
 			transport,
+			worker_runtime,
 			started_id: None,
 			completed: false,
 		}
@@ -518,9 +539,10 @@ impl Drop for StartGuard {
 		let inflight_map = Arc::clone(&self.inflight_map);
 		let tx = self.inflight.tx.clone();
 		let transport = Arc::clone(&self.transport);
+		let worker_runtime = self.worker_runtime.clone();
 		let started_id = self.started_id;
 
-		xeno_worker::spawn(xeno_worker::TaskClass::Background, async move {
+		worker_runtime.spawn(xeno_worker::TaskClass::Background, async move {
 			// If we already spawned a server but never registered it, try to stop it.
 			if let Some(id) = started_id {
 				let _ = transport.stop(id).await;

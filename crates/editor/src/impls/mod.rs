@@ -68,6 +68,7 @@ use xeno_registry::hooks::{HookContext, WindowKind, emit as emit_hook, emit_sync
 use xeno_registry::options::OPTIONS;
 use xeno_registry::themes::THEMES;
 use xeno_registry::{ActionId, HookEventData};
+use xeno_worker::WorkerRuntime;
 
 use crate::buffer::{Buffer, Layout, ViewId};
 use crate::geometry::Rect;
@@ -176,6 +177,8 @@ pub(crate) struct EditorState {
 	pub(crate) frame: FrameState,
 	/// Runtime-owned deferred work queue drained by runtime pump phases.
 	runtime_work_queue: RuntimeWorkQueue,
+	/// Shared worker runtime root for editor-owned async/background tasks.
+	pub(crate) worker_runtime: WorkerRuntime,
 
 	/// Editor configuration (theme, languages, options).
 	pub(crate) config: Config,
@@ -382,6 +385,7 @@ impl Editor {
 
 		// Create EditorCore with buffers, workspace, and undo manager
 		let core = EditorCore::new(view_manager, Workspace::default(), UndoManager::new());
+		let worker_runtime = WorkerRuntime::new();
 
 		Self {
 			state: EditorState {
@@ -394,6 +398,7 @@ impl Editor {
 				ui: UiManager::new(),
 				frame: FrameState::default(),
 				runtime_work_queue: RuntimeWorkQueue::default(),
+				worker_runtime: worker_runtime.clone(),
 				config: Config::new(language_loader),
 				key_overrides: None,
 				keymap_preset_spec: xeno_registry::keymaps::DEFAULT_PRESET.to_string(),
@@ -409,13 +414,16 @@ impl Editor {
 				keymap_behavior: xeno_registry::keymaps::KeymapBehavior::default(),
 				keymap_initial_mode: xeno_primitives::Mode::Normal,
 				keymap_cache: Mutex::new(None),
-				nu: crate::nu::coordinator::NuCoordinatorState::new(),
+				nu: crate::nu::coordinator::NuCoordinatorState::new_with_runtime(worker_runtime.clone()),
 				notifications: crate::notifications::NotificationCenter::new(),
-				lsp: LspSystem::new(),
-				syntax_manager: xeno_syntax::SyntaxManager::new(xeno_syntax::SyntaxManagerCfg {
-					max_concurrency: 2,
-					..Default::default()
-				}),
+				lsp: LspSystem::new(worker_runtime.clone()),
+				syntax_manager: xeno_syntax::SyntaxManager::new_with_runtime(
+					xeno_syntax::SyntaxManagerCfg {
+						max_concurrency: 2,
+						..Default::default()
+					},
+					worker_runtime.clone(),
+				),
 				work_scheduler,
 				overlay_system: OverlaySystem::default(),
 				effects: crate::effects::sink::EffectSink::default(),
@@ -428,7 +436,7 @@ impl Editor {
 				lsp_catalog_ready: false,
 				render_cache: crate::render::cache::RenderCache::new(),
 				command_usage: crate::completion::CommandPaletteUsage::default(),
-				filesystem: crate::filesystem::FsService::new(),
+				filesystem: crate::filesystem::FsService::new_with_runtime(worker_runtime),
 				recorder: crate::runtime::recorder::EventRecorder::from_env(),
 			},
 		}

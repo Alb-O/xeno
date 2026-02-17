@@ -67,15 +67,18 @@ impl FilesystemOptions {
 	}
 }
 
-pub fn spawn_filesystem_index(generation: u64, root: PathBuf, options: FilesystemOptions) -> Receiver<IndexMsg> {
+pub fn spawn_filesystem_index(runtime: &xeno_worker::WorkerRuntime, generation: u64, root: PathBuf, options: FilesystemOptions) -> Receiver<IndexMsg> {
 	let (update_tx, update_rx) = mpsc::sync_channel(options.update_channel_capacity.max(1));
+	let runtime = runtime.clone();
 
-	xeno_worker::spawn_thread(xeno_worker::TaskClass::IoBlocking, move || run_indexer(generation, root, options, update_tx));
+	runtime.clone().spawn_thread(xeno_worker::TaskClass::IoBlocking, move || {
+		run_indexer(runtime, generation, root, options, update_tx)
+	});
 
 	update_rx
 }
 
-fn run_indexer(generation: u64, root: PathBuf, options: FilesystemOptions, update_tx: SyncSender<IndexMsg>) {
+fn run_indexer(runtime: xeno_worker::WorkerRuntime, generation: u64, root: PathBuf, options: FilesystemOptions, update_tx: SyncSender<IndexMsg>) {
 	let start = Instant::now();
 	tracing::info!(generation, root = %root.display(), threads = options.thread_count(), "fs.index.start");
 
@@ -98,7 +101,7 @@ fn run_indexer(generation: u64, root: PathBuf, options: FilesystemOptions, updat
 
 	let (file_tx, file_rx) = mpsc::sync_channel::<FileRow>(options.file_channel_capacity.max(1));
 	let aggregator_tx = update_tx.clone();
-	let aggregator = xeno_worker::spawn_thread(xeno_worker::TaskClass::Background, move || aggregate_files(generation, file_rx, aggregator_tx));
+	let aggregator = runtime.spawn_thread(xeno_worker::TaskClass::Background, move || aggregate_files(generation, file_rx, aggregator_tx));
 	let walk_error_tx = update_tx.clone();
 
 	let extension_filter = options.extension_filter().map(Arc::new);

@@ -166,7 +166,7 @@ where
 }
 
 fn make_registry(transport: Arc<dyn LspTransport>) -> Arc<Registry> {
-	let registry = Arc::new(Registry::new(transport));
+	let registry = Arc::new(Registry::new(transport, xeno_worker::WorkerRuntime::new()));
 	registry.register(
 		"rust",
 		LanguageServerConfig {
@@ -184,7 +184,7 @@ fn make_client_handle() -> crate::client::ClientHandle {
 }
 
 async fn make_session_runtime(transport: Arc<TestTransport>) -> (LspSession, LspRuntime, PathBuf, LanguageServerId) {
-	let (session, runtime) = LspSession::new(transport.clone());
+	let (session, runtime) = LspSession::new(transport.clone(), xeno_worker::WorkerRuntime::new());
 	runtime.start().expect("runtime must start in tokio tests");
 	session.configure_server(
 		"rust",
@@ -440,7 +440,7 @@ pub(crate) async fn test_singleflight_start() {
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_server_request_workspace_configuration_section_slicing() {
 	let transport = TestTransport::new();
-	let registry = Arc::new(Registry::new(transport));
+	let registry = Arc::new(Registry::new(transport, xeno_worker::WorkerRuntime::new()));
 	registry.register(
 		"rust",
 		LanguageServerConfig {
@@ -511,7 +511,7 @@ pub(crate) async fn test_server_request_workspace_folders_uri_encoding() {
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_document_sync_returns_not_ready_before_init() {
 	let transport = TestTransport::new();
-	let (sync, registry, _documents, _receiver) = DocumentSync::create(transport);
+	let (sync, registry, _documents, _receiver) = DocumentSync::create(transport, xeno_worker::WorkerRuntime::new());
 	registry.register(
 		"rust",
 		LanguageServerConfig {
@@ -536,7 +536,7 @@ pub(crate) async fn test_document_sync_returns_not_ready_before_init() {
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_document_sync_send_change_full_opens_when_missing() {
 	let transport = TestTransport::new();
-	let (sync, registry, _documents, _receiver) = DocumentSync::create(transport);
+	let (sync, registry, _documents, _receiver) = DocumentSync::create(transport, xeno_worker::WorkerRuntime::new());
 	registry.register(
 		"rust",
 		LanguageServerConfig {
@@ -627,6 +627,6 @@ pub(crate) async fn test_registry_lookup_uses_canonical_path() {
 #[cfg_attr(test, test)]
 pub(crate) fn test_runtime_start_requires_runtime_context() {
 	let transport = TestTransport::new();
-	let (_session, runtime) = LspSession::new(transport);
+	let (_session, runtime) = LspSession::new(transport, xeno_worker::WorkerRuntime::new());
 	assert!(matches!(runtime.start(), Err(RuntimeStartError::NoRuntime)));
 }

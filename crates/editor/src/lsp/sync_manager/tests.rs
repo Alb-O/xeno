@@ -15,7 +15,7 @@ fn test_config() -> LspDocumentConfig {
 
 #[test]
 fn test_doc_open_close() {
-	let mut mgr = LspSyncManager::new();
+	let mut mgr = LspSyncManager::new(xeno_worker::WorkerRuntime::new());
 	let doc_id = DocumentId(1);
 
 	mgr.reset_tracked(doc_id, test_config(), 1);
@@ -39,7 +39,7 @@ fn test_change(text: &str) -> LspDocumentChange {
 
 #[test]
 fn test_record_changes() {
-	let mut mgr = LspSyncManager::new();
+	let mut mgr = LspSyncManager::new(xeno_worker::WorkerRuntime::new());
 	let doc_id = DocumentId(1);
 	mgr.reset_tracked(doc_id, test_config(), 1);
 
@@ -54,7 +54,7 @@ fn test_record_changes() {
 
 #[test]
 fn test_threshold_escalation() {
-	let mut mgr = LspSyncManager::new();
+	let mut mgr = LspSyncManager::new(xeno_worker::WorkerRuntime::new());
 	let doc_id = DocumentId(1);
 	mgr.reset_tracked(doc_id, test_config(), 1);
 

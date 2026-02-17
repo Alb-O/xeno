@@ -58,7 +58,7 @@ async fn test_acquire_singleflight() {
 		started_notify: started_notify.clone(),
 		finish_notify: finish_notify.clone(),
 	});
-	let registry = Arc::new(Registry::new(transport.clone()));
+	let registry = Arc::new(Registry::new(transport.clone(), xeno_worker::WorkerRuntime::new()));
 
 	registry.register(
 		"rust",

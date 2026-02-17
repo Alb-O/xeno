@@ -11,7 +11,11 @@ use super::fetch::{FetchStatus, fetch_grammar};
 pub type ProgressCallback = Box<dyn Fn(&str, &str) + Send + Sync>;
 
 /// Fetch all grammars in parallel.
-pub fn fetch_all_grammars(grammars: Vec<GrammarConfig>, on_progress: Option<ProgressCallback>) -> Vec<(GrammarConfig, Result<FetchStatus>)> {
+pub fn fetch_all_grammars(
+	runtime: &xeno_worker::WorkerRuntime,
+	grammars: Vec<GrammarConfig>,
+	on_progress: Option<ProgressCallback>,
+) -> Vec<(GrammarConfig, Result<FetchStatus>)> {
 	let (tx, rx) = mpsc::channel();
 	let num_jobs = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4).min(8);
 
@@ -21,7 +25,7 @@ pub fn fetch_all_grammars(grammars: Vec<GrammarConfig>, on_progress: Option<Prog
 	for chunk in chunks {
 		let tx = tx.clone();
 
-		xeno_worker::spawn_thread(xeno_worker::TaskClass::IoBlocking, move || {
+		runtime.spawn_thread(xeno_worker::TaskClass::IoBlocking, move || {
 			for grammar in chunk {
 				let result = fetch_grammar(&grammar);
 				let _ = tx.send((grammar, result));
@@ -49,7 +53,11 @@ pub fn fetch_all_grammars(grammars: Vec<GrammarConfig>, on_progress: Option<Prog
 }
 
 /// Build all grammars in parallel.
-pub fn build_all_grammars(grammars: Vec<GrammarConfig>, on_progress: Option<ProgressCallback>) -> Vec<(GrammarConfig, Result<BuildStatus>)> {
+pub fn build_all_grammars(
+	runtime: &xeno_worker::WorkerRuntime,
+	grammars: Vec<GrammarConfig>,
+	on_progress: Option<ProgressCallback>,
+) -> Vec<(GrammarConfig, Result<BuildStatus>)> {
 	let (tx, rx) = mpsc::channel();
 	let num_jobs = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4).min(8);
 
@@ -59,7 +67,7 @@ pub fn build_all_grammars(grammars: Vec<GrammarConfig>, on_progress: Option<Prog
 	for chunk in chunks {
 		let tx = tx.clone();
 
-		xeno_worker::spawn_thread(xeno_worker::TaskClass::CpuBlocking, move || {
+		runtime.spawn_thread(xeno_worker::TaskClass::CpuBlocking, move || {
 			for grammar in chunk {
 				let result = build_grammar(&grammar);
 				let _ = tx.send((grammar, result));

@@ -3,11 +3,11 @@ use std::time::Instant;
 
 use tokio::sync::Mutex;
 
+use crate::TaskClass;
 use crate::budget::{DrainBudget, DrainReport};
 use crate::join_set::WorkerJoinSet;
 use crate::registry::WorkerRegistry;
 use crate::supervisor::{ActorHandle, ActorSpec, WorkerActor, spawn_supervised_actor};
-use crate::{TaskClass, spawn, spawn_blocking, spawn_named_thread, spawn_thread};
 
 /// Unified runtime entrypoint for worker task execution and actor supervision.
 #[derive(Debug, Clone)]
@@ -39,7 +39,8 @@ impl WorkerRuntime {
 		F: Future + Send + 'static,
 		F::Output: Send + 'static,
 	{
-		spawn(class, fut)
+		tracing::trace!(worker_class = class.as_str(), "worker.spawn");
+		tokio::spawn(fut)
 	}
 
 	/// Spawns blocking work.
@@ -48,7 +49,8 @@ impl WorkerRuntime {
 		F: FnOnce() -> R + Send + 'static,
 		R: Send + 'static,
 	{
-		spawn_blocking(class, f)
+		tracing::trace!(worker_class = class.as_str(), "worker.spawn_blocking");
+		tokio::task::spawn_blocking(f)
 	}
 
 	/// Spawns an OS thread.
@@ -57,7 +59,8 @@ impl WorkerRuntime {
 		F: FnOnce() -> R + Send + 'static,
 		R: Send + 'static,
 	{
-		spawn_thread(class, f)
+		tracing::trace!(worker_class = class.as_str(), "worker.spawn_thread");
+		std::thread::spawn(f)
 	}
 
 	/// Spawns a named OS thread.
@@ -66,7 +69,8 @@ impl WorkerRuntime {
 		F: FnOnce() -> R + Send + 'static,
 		R: Send + 'static,
 	{
-		spawn_named_thread(class, name, f)
+		tracing::trace!(worker_class = class.as_str(), "worker.spawn_named_thread");
+		std::thread::Builder::new().name(name.into()).spawn(f)
 	}
 
 	/// Submits managed runtime work drained by [`Self::drain`].

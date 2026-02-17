@@ -60,11 +60,12 @@ pub struct LspSyncManager {
 	docs: HashMap<DocumentId, DocSyncState>,
 	completion_rx: mpsc::UnboundedReceiver<FlushComplete>,
 	completion_tx: mpsc::UnboundedSender<FlushComplete>,
+	worker_runtime: xeno_worker::WorkerRuntime,
 }
 
 impl Default for LspSyncManager {
 	fn default() -> Self {
-		Self::new()
+		Self::new(xeno_worker::WorkerRuntime::new())
 	}
 }
 
@@ -75,12 +76,13 @@ impl std::fmt::Debug for LspSyncManager {
 }
 
 impl LspSyncManager {
-	pub fn new() -> Self {
+	pub fn new(worker_runtime: xeno_worker::WorkerRuntime) -> Self {
 		let (completion_tx, completion_rx) = mpsc::unbounded_channel();
 		Self {
 			docs: HashMap::new(),
 			completion_rx,
 			completion_tx,
+			worker_runtime,
 		}
 	}
 
@@ -140,7 +142,7 @@ impl LspSyncManager {
 		}
 	}
 
-	fn spawn_send_task(input: SendTaskInput) {
+	fn spawn_send_task(runtime: xeno_worker::WorkerRuntime, input: SendTaskInput) {
 		let SendTaskInput {
 			completion_tx,
 			sync,
@@ -152,14 +154,14 @@ impl LspSyncManager {
 			work,
 			done_tx,
 		} = input;
-		xeno_worker::spawn(xeno_worker::TaskClass::Background, async move {
+		runtime.spawn(xeno_worker::TaskClass::Background, async move {
 			let mode = work.mode();
 			let was_full = work.was_full();
 			let start = Instant::now();
 
 			let send_result = match work {
 				SendWork::Full { content, snapshot_bytes } => {
-					let snapshot = match xeno_worker::spawn_blocking(xeno_worker::TaskClass::CpuBlocking, move || content.to_string()).await {
+					let snapshot = match runtime.spawn_blocking(xeno_worker::TaskClass::CpuBlocking, move || content.to_string()).await {
 						Ok(snapshot) => snapshot,
 						Err(e) => {
 							metrics.inc_send_error();
@@ -305,17 +307,20 @@ impl LspSyncManager {
 			SendWork::Incremental { changes }
 		};
 
-		Self::spawn_send_task(SendTaskInput {
-			completion_tx: self.completion_tx.clone(),
-			sync: sync.clone(),
-			metrics: metrics.clone(),
-			doc_id,
-			generation,
-			path,
-			language,
-			work,
-			done_tx: Some(done_tx),
-		});
+		Self::spawn_send_task(
+			self.worker_runtime.clone(),
+			SendTaskInput {
+				completion_tx: self.completion_tx.clone(),
+				sync: sync.clone(),
+				metrics: metrics.clone(),
+				doc_id,
+				generation,
+				path,
+				language,
+				work,
+				done_tx: Some(done_tx),
+			},
+		);
 
 		if let Some(state) = self.docs.get_mut(&doc_id) {
 			state.retry_after = None;
@@ -445,17 +450,20 @@ impl LspSyncManager {
 				SendWork::Incremental { changes }
 			};
 
-			Self::spawn_send_task(SendTaskInput {
-				completion_tx: self.completion_tx.clone(),
-				sync: sync.clone(),
-				metrics: metrics.clone(),
-				doc_id,
-				generation,
-				path,
-				language,
-				work,
-				done_tx: None,
-			});
+			Self::spawn_send_task(
+				self.worker_runtime.clone(),
+				SendTaskInput {
+					completion_tx: self.completion_tx.clone(),
+					sync: sync.clone(),
+					metrics: metrics.clone(),
+					doc_id,
+					generation,
+					path,
+					language,
+					work,
+					done_tx: None,
+				},
+			);
 
 			if let Some(state) = self.docs.get_mut(&doc_id) {
 				state.retry_after = None;

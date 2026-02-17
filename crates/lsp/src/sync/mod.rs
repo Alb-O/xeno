@@ -169,23 +169,33 @@ pub struct DocumentSync {
 	registry: Arc<Registry>,
 	/// Document state manager.
 	documents: Arc<DocumentStateManager>,
+	/// Shared worker runtime for async helper tasks.
+	worker_runtime: xeno_worker::WorkerRuntime,
 }
 
 impl DocumentSync {
 	/// Create a new document sync coordinator with a pre-configured registry.
 	pub fn with_registry(registry: Arc<Registry>, documents: Arc<DocumentStateManager>) -> Self {
-		Self { registry, documents }
+		Self {
+			worker_runtime: registry.worker_runtime(),
+			registry,
+			documents,
+		}
 	}
 
 	/// Create a document sync coordinator and a properly configured registry.
-	pub fn create(transport: Arc<dyn crate::client::transport::LspTransport>) -> (Self, Arc<Registry>, Arc<DocumentStateManager>, DiagnosticsEventReceiver) {
+	pub fn create(
+		transport: Arc<dyn crate::client::transport::LspTransport>,
+		worker_runtime: xeno_worker::WorkerRuntime,
+	) -> (Self, Arc<Registry>, Arc<DocumentStateManager>, DiagnosticsEventReceiver) {
 		let (documents, event_receiver) = DocumentStateManager::with_events();
 		let documents = Arc::new(documents);
-		let registry = Arc::new(Registry::new(transport));
+		let registry = Arc::new(Registry::new(transport, worker_runtime.clone()));
 
 		let sync = Self {
 			registry: registry.clone(),
 			documents: documents.clone(),
+			worker_runtime,
 		};
 
 		(sync, registry, documents, event_receiver)
@@ -355,7 +365,7 @@ impl DocumentSync {
 	fn wrap_barrier(&self, uri: Uri, version: i32, barrier: oneshot::Receiver<crate::Result<()>>) -> oneshot::Receiver<()> {
 		let (tx, rx) = oneshot::channel();
 		let documents = self.documents.clone();
-		xeno_worker::spawn(xeno_worker::TaskClass::Background, async move {
+		self.worker_runtime.spawn(xeno_worker::TaskClass::Background, async move {
 			match barrier.await {
 				Ok(Ok(())) => {
 					if !documents.ack_change(&uri, version) {

@@ -14,6 +14,7 @@ struct IndexSpec {
 }
 
 pub struct FsService {
+	worker_runtime: xeno_worker::WorkerRuntime,
 	generation: u64,
 	index_rx: Option<Receiver<IndexMsg>>,
 	search_tx: Option<Sender<SearchCmd>>,
@@ -28,9 +29,15 @@ pub struct FsService {
 	results: Arc<[SearchRow]>,
 }
 
-impl Default for FsService {
-	fn default() -> Self {
+impl FsService {
+	#[cfg(test)]
+	pub fn new() -> Self {
+		Self::default()
+	}
+
+	pub fn new_with_runtime(worker_runtime: xeno_worker::WorkerRuntime) -> Self {
 		Self {
+			worker_runtime,
 			generation: 0,
 			index_rx: None,
 			search_tx: None,
@@ -47,11 +54,13 @@ impl Default for FsService {
 	}
 }
 
-impl FsService {
-	pub fn new() -> Self {
-		Self::default()
+impl Default for FsService {
+	fn default() -> Self {
+		Self::new_with_runtime(xeno_worker::WorkerRuntime::new())
 	}
+}
 
+impl FsService {
 	pub fn ensure_index(&mut self, root: PathBuf, options: FilesystemOptions) -> bool {
 		let requested = IndexSpec {
 			root: root.clone(),
@@ -65,10 +74,11 @@ impl FsService {
 		self.stop_index();
 		let generation = self.begin_new_generation();
 		self.data.root = Some(root.clone());
-		let rx = spawn_filesystem_index(generation, root.clone(), options);
+		let rx = spawn_filesystem_index(&self.worker_runtime, generation, root.clone(), options);
 		self.set_index_receiver(rx);
 
 		let (search_tx, search_rx, latest_query_id) = spawn_search_worker(
+			&self.worker_runtime,
 			generation,
 			SearchData {
 				root: Some(root),

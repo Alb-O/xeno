@@ -8,7 +8,7 @@
 //!
 //! # Mental model
 //!
-//! * `LspSystem` (in `xeno-editor`) creates `(LspSession, LspRuntime)` and starts runtime once.
+//! * `LspSystem` (in `xeno-editor`) creates one injected `xeno_worker::WorkerRuntime`, then creates `(LspSession, LspRuntime)` and starts runtime once.
 //! * [`crate::sync::DocumentSync`] owns didOpen/didChange/didSave/didClose policy and document state updates.
 //! * [`crate::registry::Registry`] maps `(language, workspace_root)` to active server slots and singleflights startup.
 //! * `LspRuntime` is the only transport-event subscriber. It forwards events into one supervised router actor that processes them sequentially.
@@ -46,6 +46,7 @@
 //! * Must return `None` for capabilities before initialization.
 //! * Ready flag must require capabilities with release/acquire ordering.
 //! * Must use canonicalized paths for registry lookups.
+//! * Must execute LSP background tasks via the injected worker runtime, not ad hoc global spawns.
 //!
 //! # Data flow
 //!
@@ -97,7 +98,7 @@
 //!
 //! ## Integrate with editor startup/shutdown
 //!
-//! * Construct `(session, runtime)` with `LspSession::new`.
+//! * Construct `(session, runtime)` with `LspSession::new(transport, worker_runtime)`.
 //! * Call `runtime.start()` from Tokio runtime context.
 //! * During shutdown call `runtime.shutdown().await` then `session.shutdown_all().await`.
 

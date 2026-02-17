@@ -47,7 +47,7 @@ impl crate::client::transport::LspTransport for SimpleStubTransport {
 #[test]
 fn test_document_sync_with_registry() {
 	let transport = Arc::new(SimpleStubTransport);
-	let registry = Arc::new(Registry::new(transport));
+	let registry = Arc::new(Registry::new(transport, xeno_worker::WorkerRuntime::new()));
 	let documents = Arc::new(DocumentStateManager::new());
 	let sync = DocumentSync::with_registry(registry, documents);
 
@@ -58,7 +58,7 @@ fn test_document_sync_with_registry() {
 #[tokio::test]
 async fn test_document_sync_create() {
 	let transport = Arc::new(SimpleStubTransport);
-	let (sync, _registry, _documents, _receiver) = DocumentSync::create(transport);
+	let (sync, _registry, _documents, _receiver) = DocumentSync::create(transport, xeno_worker::WorkerRuntime::new());
 
 	assert_eq!(sync.total_error_count(), 0);
 	assert_eq!(sync.total_warning_count(), 0);
@@ -143,7 +143,7 @@ async fn test_document_sync_returns_not_ready_before_init() {
 	}
 
 	let transport = Arc::new(InitStubTransport);
-	let (sync, registry, _documents, _receiver) = DocumentSync::create(transport);
+	let (sync, registry, _documents, _receiver) = DocumentSync::create(transport, xeno_worker::WorkerRuntime::new());
 
 	registry.register(
 		"rust",
@@ -174,7 +174,7 @@ async fn test_document_sync_returns_not_ready_before_init() {
 #[tokio::test]
 async fn test_send_change_incremental_empty_is_noop() {
 	let transport = Arc::new(SimpleStubTransport);
-	let registry = Arc::new(Registry::new(transport));
+	let registry = Arc::new(Registry::new(transport, xeno_worker::WorkerRuntime::new()));
 	let documents = Arc::new(DocumentStateManager::new());
 	let sync = DocumentSync::with_registry(registry, documents);
 

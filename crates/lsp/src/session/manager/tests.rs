@@ -61,7 +61,7 @@ impl LspTransport for StubTransport {
 #[test]
 fn test_lsp_session_creation() {
 	let transport: Arc<dyn LspTransport> = Arc::new(StubTransport::new());
-	let (session, runtime) = LspSession::new(transport);
+	let (session, runtime) = LspSession::new(transport, xeno_worker::WorkerRuntime::new());
 	assert_eq!(session.diagnostics_version(), 0);
 	assert!(!runtime.is_started());
 }
@@ -69,7 +69,7 @@ fn test_lsp_session_creation() {
 #[test]
 fn test_runtime_start_requires_tokio_runtime() {
 	let transport: Arc<dyn LspTransport> = Arc::new(StubTransport::new());
-	let (_session, runtime) = LspSession::new(transport);
+	let (_session, runtime) = LspSession::new(transport, xeno_worker::WorkerRuntime::new());
 
 	match runtime.start() {
 		Err(RuntimeStartError::NoRuntime) => {}
@@ -80,7 +80,7 @@ fn test_runtime_start_requires_tokio_runtime() {
 #[test]
 fn test_runtime_single_start() {
 	let transport: Arc<dyn LspTransport> = Arc::new(StubTransport::new());
-	let (_session, runtime) = LspSession::new(transport);
+	let (_session, runtime) = LspSession::new(transport, xeno_worker::WorkerRuntime::new());
 
 	let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
 	let _guard = rt.enter();

@@ -78,6 +78,7 @@ fn handle_grammar_command(action: GrammarAction) -> anyhow::Result<()> {
 	use xeno_language::build::{build_all_grammars, fetch_all_grammars, load_grammar_configs};
 
 	let configs = load_grammar_configs()?;
+	let worker_runtime = xeno_worker::WorkerRuntime::new();
 
 	match action {
 		GrammarAction::Fetch { only } => {
@@ -87,7 +88,7 @@ fn handle_grammar_command(action: GrammarAction) -> anyhow::Result<()> {
 				configs
 			};
 			println!("Fetching {} grammars...", configs.len());
-			let results = fetch_all_grammars(configs, None);
+			let results = fetch_all_grammars(&worker_runtime, configs, None);
 			report_fetch_results(&results);
 		}
 		GrammarAction::Build { only } => {
@@ -97,7 +98,7 @@ fn handle_grammar_command(action: GrammarAction) -> anyhow::Result<()> {
 				configs
 			};
 			println!("Building {} grammars...", configs.len());
-			let results = build_all_grammars(configs, None);
+			let results = build_all_grammars(&worker_runtime, configs, None);
 			report_build_results(&results);
 		}
 		GrammarAction::Sync { only } => {
@@ -108,10 +109,10 @@ fn handle_grammar_command(action: GrammarAction) -> anyhow::Result<()> {
 			};
 			println!("Syncing {} grammars...", configs.len());
 			println!("\n=== Fetching ===");
-			let fetch_results = fetch_all_grammars(configs.clone(), None);
+			let fetch_results = fetch_all_grammars(&worker_runtime, configs.clone(), None);
 			report_fetch_results(&fetch_results);
 			println!("\n=== Building ===");
-			let build_results = build_all_grammars(configs, None);
+			let build_results = build_all_grammars(&worker_runtime, configs, None);
 			report_build_results(&build_results);
 		}
 	}
