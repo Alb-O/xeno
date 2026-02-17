@@ -6403,7 +6403,9 @@ dependencies = [
 name = "xeno-worker"
 version = "0.9.3"
 dependencies = [
+ "async-trait",
  "tokio",
+ "tokio-util",
  "tracing",
 ]
 
