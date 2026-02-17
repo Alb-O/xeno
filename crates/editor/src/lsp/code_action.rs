@@ -172,6 +172,7 @@ fn map_code_action_item(action: &CodeActionOrCommand) -> CompletionItem {
 		kind: CompletionKind::Command,
 		match_indices: None,
 		right: None,
+		file: None,
 	}
 }
 

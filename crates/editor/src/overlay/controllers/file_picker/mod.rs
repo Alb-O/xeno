@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 use xeno_primitives::{Key, KeyCode, Selection};
 use xeno_registry::options::OptionValue;
 
-use crate::completion::{CompletionItem, CompletionKind, CompletionState, SelectionIntent};
+use crate::completion::{CompletionFileMeta, CompletionItem, CompletionKind, CompletionState, SelectionIntent};
 use crate::overlay::picker_engine::model::{CommitDecision, PickerAction};
 use crate::overlay::{CloseReason, OverlayContext, OverlayController, OverlaySession, OverlayUiSpec, RectPolicy, StatusKind};
 use crate::window::GutterSelector;
@@ -81,14 +81,18 @@ impl FilePickerOverlay {
 				.files
 				.iter()
 				.take(FILE_PICKER_LIMIT)
-				.map(|row| CompletionItem {
-					label: row.path.to_string(),
-					insert_text: row.path.to_string(),
-					detail: Some("file".into()),
-					filter_text: None,
-					kind: CompletionKind::File,
-					match_indices: None,
-					right: Some("file".into()),
+				.map(|row| {
+					let path_text = row.path.to_string();
+					CompletionItem {
+						label: path_text.clone(),
+						insert_text: path_text.clone(),
+						detail: Some("file".into()),
+						filter_text: None,
+						kind: CompletionKind::File,
+						match_indices: None,
+						right: Some("file".into()),
+						file: Some(CompletionFileMeta::new(path_text, xeno_file_display::FileKind::File)),
+					}
 				})
 				.collect();
 		}
@@ -101,14 +105,18 @@ impl FilePickerOverlay {
 			.results()
 			.iter()
 			.take(FILE_PICKER_LIMIT)
-			.map(|row| CompletionItem {
-				label: row.path.to_string(),
-				insert_text: row.path.to_string(),
-				detail: Some("file".into()),
-				filter_text: None,
-				kind: CompletionKind::File,
-				match_indices: row.match_indices.clone(),
-				right: Some("file".into()),
+			.map(|row| {
+				let path_text = row.path.to_string();
+				CompletionItem {
+					label: path_text.clone(),
+					insert_text: path_text.clone(),
+					detail: Some("file".into()),
+					filter_text: None,
+					kind: CompletionKind::File,
+					match_indices: row.match_indices.clone(),
+					right: Some("file".into()),
+					file: Some(CompletionFileMeta::new(path_text, xeno_file_display::FileKind::File)),
+				}
 			})
 			.collect()
 	}
@@ -226,6 +234,12 @@ impl FilePickerOverlay {
 			let is_dir = entry.file_type().ok().is_some_and(|ft| ft.is_dir());
 			let suffix = if is_dir { "/" } else { "" };
 			let insert_text = format!("{dir_part}{name}{suffix}");
+			let file_kind = if is_dir {
+				xeno_file_display::FileKind::Directory
+			} else {
+				xeno_file_display::FileKind::File
+			};
+			let file_meta = CompletionFileMeta::new(dir_path.join(&name), file_kind);
 
 			let (score, match_indices) = if file_part.is_empty() {
 				(0i32, None)
@@ -251,6 +265,7 @@ impl FilePickerOverlay {
 					kind: CompletionKind::File,
 					match_indices,
 					right: Some(if is_dir { "dir".into() } else { "file".into() }),
+					file: Some(file_meta),
 				},
 			));
 		}
@@ -267,7 +282,7 @@ impl FilePickerOverlay {
 	}
 
 	fn is_directory_item(item: &CompletionItem) -> bool {
-		item.right.as_deref() == Some("dir") || item.detail.as_deref() == Some("directory")
+		item.file.as_ref().is_some_and(|meta| meta.kind() == xeno_file_display::FileKind::Directory)
 	}
 
 	fn update_completion_state(&mut self, ctx: &mut dyn OverlayContext, query: &str, mode: PickerQueryMode) {

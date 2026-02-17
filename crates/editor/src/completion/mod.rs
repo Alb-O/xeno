@@ -5,6 +5,7 @@
 //! This cleanly separates "where to replace" from "what to replace with".
 
 use std::collections::{HashMap, VecDeque};
+use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 /// Type of completion item.
@@ -24,6 +25,27 @@ pub enum CompletionKind {
 
 /// A single completion suggestion.
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CompletionFileMeta {
+	path: PathBuf,
+	kind: xeno_file_display::FileKind,
+}
+
+impl CompletionFileMeta {
+	pub fn new(path: impl Into<PathBuf>, kind: xeno_file_display::FileKind) -> Self {
+		Self { path: path.into(), kind }
+	}
+
+	pub fn path(&self) -> &Path {
+		&self.path
+	}
+
+	pub fn kind(&self) -> xeno_file_display::FileKind {
+		self.kind
+	}
+}
+
+/// A single completion suggestion.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompletionItem {
 	/// The text to display in the menu.
 	pub label: String,
@@ -39,6 +61,8 @@ pub struct CompletionItem {
 	pub match_indices: Option<Vec<usize>>,
 	/// Optional right-aligned metadata shown in compact completion lists.
 	pub right: Option<String>,
+	/// Structured file metadata for file completion items.
+	pub file: Option<CompletionFileMeta>,
 }
 
 /// Tracks how the current completion selection was made.
@@ -135,6 +159,27 @@ impl CompletionState {
 	}
 }
 
+/// Data-only icon + label payload for file completion rows.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FilePresentationRender {
+	pub(crate) icon: String,
+	pub(crate) label: String,
+}
+
+impl FilePresentationRender {
+	pub fn new(icon: String, label: String) -> Self {
+		Self { icon, label }
+	}
+
+	pub fn icon(&self) -> &str {
+		&self.icon
+	}
+
+	pub fn label(&self) -> &str {
+		&self.label
+	}
+}
+
 /// Data-only completion menu row used by frontend renderers.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompletionRenderItem {
@@ -144,16 +189,18 @@ pub struct CompletionRenderItem {
 	pub(crate) match_indices: Option<Vec<usize>>,
 	pub(crate) selected: bool,
 	pub(crate) command_alias_match: bool,
+	pub(crate) file_presentation: Option<FilePresentationRender>,
 }
 
 impl CompletionRenderItem {
-	pub fn new(
+	pub fn from_parts(
 		label: String,
 		kind: CompletionKind,
 		right: Option<String>,
 		match_indices: Option<Vec<usize>>,
 		selected: bool,
 		command_alias_match: bool,
+		file_presentation: Option<FilePresentationRender>,
 	) -> Self {
 		Self {
 			label,
@@ -162,6 +209,7 @@ impl CompletionRenderItem {
 			match_indices,
 			selected,
 			command_alias_match,
+			file_presentation,
 		}
 	}
 
@@ -182,6 +230,9 @@ impl CompletionRenderItem {
 	}
 	pub fn command_alias_match(&self) -> bool {
 		self.command_alias_match
+	}
+	pub fn file_presentation(&self) -> Option<&FilePresentationRender> {
+		self.file_presentation.as_ref()
 	}
 }
 

@@ -174,5 +174,6 @@ pub(crate) fn map_completion_item_with_indices(item: &xeno_lsp::lsp_types::Compl
 		kind,
 		match_indices,
 		right: None,
+		file: None,
 	}
 }

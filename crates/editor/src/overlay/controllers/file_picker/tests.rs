@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use xeno_primitives::{Key, KeyCode, Modifiers, Selection};
 
 use super::{FilePickerOverlay, PickerQueryMode};
-use crate::completion::{CompletionItem, CompletionKind};
+use crate::completion::{CompletionFileMeta, CompletionItem, CompletionKind};
 
 fn key_tab() -> Key {
 	Key {
@@ -14,6 +14,11 @@ fn key_tab() -> Key {
 }
 
 fn completion_item(insert_text: &str, detail: &str, right: &str) -> CompletionItem {
+	let file_kind = if right == "dir" {
+		xeno_file_display::FileKind::Directory
+	} else {
+		xeno_file_display::FileKind::File
+	};
 	CompletionItem {
 		label: insert_text.to_string(),
 		insert_text: insert_text.to_string(),
@@ -22,6 +27,7 @@ fn completion_item(insert_text: &str, detail: &str, right: &str) -> CompletionIt
 		kind: CompletionKind::File,
 		match_indices: None,
 		right: Some(right.to_string()),
+		file: Some(CompletionFileMeta::new(insert_text, file_kind)),
 	}
 }
 

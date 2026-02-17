@@ -10,6 +10,7 @@ fn command_completion(insert_text: &str) -> CompletionItem {
 		kind: CompletionKind::Command,
 		match_indices: None,
 		right: None,
+		file: None,
 	}
 }
 
@@ -139,6 +140,7 @@ fn commit_applies_selected_theme_argument_when_missing() {
 		kind: CompletionKind::Theme,
 		match_indices: None,
 		right: None,
+		file: None,
 	};
 	assert!(CommandPaletteOverlay::should_apply_selected_argument_on_commit(
 		"theme ",

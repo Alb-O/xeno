@@ -1,8 +1,12 @@
-use std::path::Path;
-
-use devicons::FileIcon;
-
 use super::*;
+
+fn file_presentation(label: &str) -> xeno_editor::render_api::FilePresentationRender {
+	xeno_editor::render_api::FilePresentationRender::new(String::from("󰈙"), label.to_string())
+}
+
+fn generic_file_presentation(label: &str) -> xeno_editor::render_api::FilePresentationRender {
+	xeno_editor::render_api::FilePresentationRender::new(String::from("󰈔"), label.to_string())
+}
 
 #[test]
 fn map_ui_color_maps_reset_and_rgb() {
@@ -43,7 +47,15 @@ fn background_style_uses_color_mapping_with_black_fallback() {
 #[test]
 fn format_palette_completion_row_includes_kind_and_right_columns() {
 	let plan = CompletionRenderPlan::new(Vec::new(), 8, 20, true, true);
-	let item = CompletionRenderItem::new(String::from("write"), CompletionKind::Command, Some(String::from("w")), None, false, false);
+	let item = CompletionRenderItem::from_parts(
+		String::from("write"),
+		CompletionKind::Command,
+		Some(String::from("w")),
+		None,
+		false,
+		false,
+		None,
+	);
 
 	let row = format_palette_completion_row(&plan, &item);
 	assert!(row.contains("write"));
@@ -54,18 +66,34 @@ fn format_palette_completion_row_includes_kind_and_right_columns() {
 #[test]
 fn format_palette_completion_row_uses_devicon_for_file_items() {
 	let plan = CompletionRenderPlan::new(Vec::new(), 10, 24, false, false);
-	let item = CompletionRenderItem::new(String::from("Cargo.toml"), CompletionKind::File, None, None, false, false);
+	let item = CompletionRenderItem::from_parts(
+		String::from("Cargo.toml"),
+		CompletionKind::File,
+		None,
+		None,
+		false,
+		false,
+		Some(file_presentation("Cargo.toml")),
+	);
 
 	let row = format_palette_completion_row(&plan, &item);
-	let expected_icon = FileIcon::from(Path::new("Cargo.toml")).icon;
+	let expected_icon = item.file_presentation().map(|presentation| presentation.icon()).unwrap_or("");
 
-	assert!(row.contains(expected_icon), "row should contain file devicon glyph");
+	assert!(row.contains(expected_icon), "row should contain file icon glyph");
 }
 
 #[test]
 fn format_palette_completion_row_uses_generic_file_icon_for_unknown_filetypes() {
 	let plan = CompletionRenderPlan::new(Vec::new(), 24, 32, false, false);
-	let item = CompletionRenderItem::new(String::from("somefile.unknown_xeno_ext"), CompletionKind::File, None, None, false, false);
+	let item = CompletionRenderItem::from_parts(
+		String::from("somefile.unknown_xeno_ext"),
+		CompletionKind::File,
+		None,
+		None,
+		false,
+		false,
+		Some(generic_file_presentation("somefile.unknown_xeno_ext")),
+	);
 
 	let row = format_palette_completion_row(&plan, &item);
 

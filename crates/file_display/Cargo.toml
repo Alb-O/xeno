@@ -1,0 +1,12 @@
+[package]
+name = "xeno-file-display"
+description = "Shared file icon and label presentation helpers"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+devicons.workspace = true
+
+[lints]
+workspace = true
