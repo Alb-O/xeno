@@ -48,11 +48,7 @@ pub(crate) fn phase_ui_tick_and_editor_tick(editor: &mut Editor) {
 }
 
 pub(crate) fn phase_filesystem_pump(editor: &mut Editor) -> FilesystemPhaseOutcome {
-	let changed = editor.state.filesystem.pump(crate::filesystem::PumpBudget {
-		max_index_msgs: 32,
-		max_search_msgs: 8,
-		max_time: Duration::from_millis(4),
-	});
+	let changed = editor.state.filesystem.pump();
 	if changed {
 		editor.interaction_refresh_file_picker();
 		editor.frame_mut().needs_redraw = true;

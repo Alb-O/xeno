@@ -6,7 +6,7 @@ use std::time::Duration;
 use parking_lot::RwLock;
 use tokio::sync::mpsc;
 
-use crate::filesystem::types::{IndexDelta, IndexMsg, ProgressSnapshot, PumpBudget, SearchData, SearchMsg, SearchRow};
+use crate::filesystem::types::{IndexDelta, IndexMsg, ProgressSnapshot, SearchData, SearchMsg, SearchRow};
 use crate::filesystem::{FilesystemOptions, apply_search_delta, run_filesystem_index, run_search_query};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -43,26 +43,23 @@ impl Default for FsSharedState {
 }
 
 /// Command protocol for the filesystem service actor.
-#[allow(dead_code)]
 #[derive(Debug)]
-pub enum FsServiceCmd {
+pub(crate) enum FsServiceCmd {
 	EnsureIndex { root: PathBuf, options: FilesystemOptions },
 	Query { query: String, limit: usize },
-	StopIndex,
 	Indexer(FsIndexerEvt),
 	Search(FsSearchEvt),
 }
 
 /// Event protocol emitted by the filesystem service actor.
-#[allow(dead_code)]
 #[derive(Debug, Clone)]
-pub enum FsServiceEvt {
-	SnapshotChanged { generation: u64 },
+pub(crate) enum FsServiceEvt {
+	SnapshotChanged,
 }
 
 /// Command protocol for the indexer worker actor.
 #[derive(Debug)]
-pub enum FsIndexerCmd {
+pub(crate) enum FsIndexerCmd {
 	Start {
 		generation: u64,
 		root: PathBuf,
@@ -73,13 +70,13 @@ pub enum FsIndexerCmd {
 
 /// Event protocol emitted by the indexer worker actor.
 #[derive(Debug)]
-pub enum FsIndexerEvt {
+pub(crate) enum FsIndexerEvt {
 	Message(IndexMsg),
 }
 
 /// Command protocol for the search worker actor.
 #[derive(Debug)]
-pub enum FsSearchCmd {
+pub(crate) enum FsSearchCmd {
 	Start { generation: u64, data: SearchData },
 	UpdateDelta { generation: u64, delta: IndexDelta },
 	RunQuery { generation: u64, id: u64, query: String, limit: usize },
@@ -88,7 +85,7 @@ pub enum FsSearchCmd {
 
 /// Event protocol emitted by the search worker actor.
 #[derive(Debug)]
-pub enum FsSearchEvt {
+pub(crate) enum FsSearchEvt {
 	Message(SearchMsg),
 }
 
@@ -414,12 +411,6 @@ impl xeno_worker::WorkerActor for FsServiceActor {
 					})
 					.await;
 			}
-			FsServiceCmd::StopIndex => {
-				self.stop_workers().await;
-				self.generation = self.generation.saturating_add(1);
-				self.next_query_id = 0;
-				changed = true;
-			}
 			FsServiceCmd::Indexer(FsIndexerEvt::Message(msg)) => {
 				changed = self.apply_index_msg(msg).await;
 			}
@@ -431,7 +422,7 @@ impl xeno_worker::WorkerActor for FsServiceActor {
 		if changed {
 			self.sync_shared();
 			self.changed.store(true, AtomicOrdering::Release);
-			ctx.emit(FsServiceEvt::SnapshotChanged { generation: self.generation });
+			ctx.emit(FsServiceEvt::SnapshotChanged);
 		}
 
 		Ok(xeno_worker::ActorFlow::Continue)
@@ -595,20 +586,9 @@ impl FsService {
 			.is_ok()
 	}
 
-	#[allow(dead_code)]
-	pub fn stop_index(&mut self) {
-		let _ = self.command_tx.send(FsServiceCmd::StopIndex);
-	}
-
 	#[cfg(test)]
 	pub fn generation(&self) -> u64 {
 		self.state.read().generation
-	}
-
-	#[cfg(test)]
-	#[allow(dead_code)]
-	pub fn result_id(&self) -> Option<u64> {
-		self.state.read().result_id
 	}
 
 	#[cfg(test)]
@@ -661,7 +641,7 @@ impl FsService {
 	}
 
 	/// Compatibility shim for runtime pump: state is now pushed by actors.
-	pub fn pump(&mut self, _budget: PumpBudget) -> bool {
+	pub fn pump(&mut self) -> bool {
 		self.changed.swap(false, AtomicOrdering::AcqRel)
 	}
 }

@@ -1,16 +1,15 @@
-//! Background fuzzy-search worker over indexed filesystem rows.
+//! Fuzzy-search primitives over indexed filesystem rows.
 //!
-//! Processes command/query messages, applies index deltas, runs ranked fuzzy
-//! matching with staleness cancellation, and returns bounded result sets.
+//! Applies corpus deltas and runs ranked fuzzy matching with staleness
+//! cancellation to produce bounded result sets.
 
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering as AtomicOrdering};
-use std::sync::mpsc::{self, Receiver, Sender, SyncSender, TrySendError};
 use std::time::Instant;
 
-use super::types::{IndexDelta, SearchCmd, SearchData, SearchMsg, SearchRow};
+use super::types::{IndexDelta, SearchData, SearchMsg, SearchRow};
 
 const STALE_CHECK_INTERVAL: usize = 256;
 
@@ -38,74 +37,6 @@ impl Ord for RankedMatch {
 impl PartialOrd for RankedMatch {
 	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
 		Some(self.cmp(other))
-	}
-}
-
-#[allow(dead_code)]
-pub fn spawn_search_worker(
-	runtime: &xeno_worker::WorkerRuntime,
-	generation: u64,
-	data: SearchData,
-) -> (Sender<SearchCmd>, Receiver<SearchMsg>, Arc<AtomicU64>) {
-	let (command_tx, command_rx) = mpsc::channel();
-	let (result_tx, result_rx) = mpsc::sync_channel(1);
-	let latest_query_id = Arc::new(AtomicU64::new(0));
-	let worker_latest = Arc::clone(&latest_query_id);
-
-	runtime.spawn_thread(xeno_worker::TaskClass::CpuBlocking, move || {
-		worker_loop(generation, data, command_rx, result_tx, worker_latest)
-	});
-
-	(command_tx, result_rx, latest_query_id)
-}
-
-#[allow(dead_code)]
-fn worker_loop(generation: u64, mut data: SearchData, command_rx: Receiver<SearchCmd>, result_tx: SyncSender<SearchMsg>, latest_query_id: Arc<AtomicU64>) {
-	while let Ok(command) = command_rx.recv() {
-		match command {
-			SearchCmd::Update {
-				generation: command_generation,
-				delta,
-			} => {
-				if command_generation != generation {
-					continue;
-				}
-				apply_search_delta(&mut data, delta);
-			}
-			SearchCmd::Query {
-				generation: command_generation,
-				id,
-				query,
-				limit,
-			} => {
-				if command_generation != generation {
-					continue;
-				}
-				if should_abort(id, latest_query_id.as_ref()) {
-					continue;
-				}
-
-				let Some(result) = run_search_query(generation, id, &query, limit, &data, latest_query_id.as_ref()) else {
-					continue;
-				};
-				if should_abort(id, latest_query_id.as_ref()) {
-					continue;
-				}
-
-				match result_tx.try_send(result) {
-					Ok(()) => {}
-					Err(TrySendError::Full(_)) => {}
-					Err(TrySendError::Disconnected(_)) => break,
-				}
-			}
-			SearchCmd::Shutdown {
-				generation: command_generation,
-			} => {
-				if command_generation == generation {
-					break;
-				}
-			}
-		}
 	}
 }
 

@@ -1,10 +1,9 @@
 use std::collections::BinaryHeap;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering as AtomicOrdering};
-use std::time::Duration;
+use std::sync::atomic::AtomicU64;
 
-use super::{RankedMatch, build_search_rows, spawn_search_worker};
-use crate::filesystem::{FileRow, IndexDelta, SearchCmd, SearchData, SearchMsg};
+use super::{RankedMatch, apply_search_delta, build_search_rows, run_search_query};
+use crate::filesystem::types::{FileRow, IndexDelta, SearchData, SearchMsg};
 
 fn seed_data() -> SearchData {
 	SearchData {
@@ -18,66 +17,28 @@ fn seed_data() -> SearchData {
 }
 
 #[test]
-fn worker_returns_matches_for_latest_query() {
-	let runtime = xeno_worker::WorkerRuntime::new();
-	let (command_tx, result_rx, latest_query_id) = spawn_search_worker(&runtime, 1, SearchData::default());
+fn run_search_query_returns_matches_for_latest_query() {
+	let mut data = SearchData::default();
+	apply_search_delta(&mut data, IndexDelta::Replace(seed_data()));
+	let latest_query_id = AtomicU64::new(1);
 
-	command_tx
-		.send(SearchCmd::Update {
-			generation: 1,
-			delta: IndexDelta::Replace(seed_data()),
-		})
-		.expect("send update");
-
-	latest_query_id.store(1, AtomicOrdering::Release);
-	command_tx
-		.send(SearchCmd::Query {
-			generation: 1,
-			id: 1,
-			query: "main".to_string(),
-			limit: 10,
-		})
-		.expect("send query");
-
-	let result = result_rx.recv_timeout(Duration::from_secs(2)).expect("receive search result");
+	let result = run_search_query(1, 1, "main", 10, &data, &latest_query_id).expect("receive search result");
 	let SearchMsg::Result { id, rows, .. } = result;
 	assert_eq!(id, 1);
 	assert!(rows.iter().any(|row| row.path.as_ref() == "src/main.rs"));
 }
 
 #[test]
-fn worker_suppresses_stale_query_results() {
-	let runtime = xeno_worker::WorkerRuntime::new();
-	let (command_tx, result_rx, latest_query_id) = spawn_search_worker(&runtime, 1, SearchData::default());
+fn run_search_query_suppresses_stale_query_results() {
+	let mut data = SearchData::default();
+	apply_search_delta(&mut data, IndexDelta::Replace(seed_data()));
+	let latest_query_id = AtomicU64::new(2);
 
-	command_tx
-		.send(SearchCmd::Update {
-			generation: 1,
-			delta: IndexDelta::Replace(seed_data()),
-		})
-		.expect("send update");
+	let stale = run_search_query(1, 1, "lib", 10, &data, &latest_query_id);
+	assert!(stale.is_none());
 
-	latest_query_id.store(2, AtomicOrdering::Release);
-	command_tx
-		.send(SearchCmd::Query {
-			generation: 1,
-			id: 1,
-			query: "lib".to_string(),
-			limit: 10,
-		})
-		.expect("send stale query");
-
-	command_tx
-		.send(SearchCmd::Query {
-			generation: 1,
-			id: 2,
-			query: "main".to_string(),
-			limit: 10,
-		})
-		.expect("send latest query");
-
-	let result = result_rx.recv_timeout(Duration::from_secs(2)).expect("receive latest search result");
-	let SearchMsg::Result { id, .. } = result;
+	let latest = run_search_query(1, 2, "main", 10, &data, &latest_query_id).expect("latest query result");
+	let SearchMsg::Result { id, .. } = latest;
 	assert_eq!(id, 2);
 }
 

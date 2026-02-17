@@ -1,6 +1,5 @@
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Duration;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct FileRow {
@@ -19,11 +18,6 @@ pub struct SearchData {
 	pub files: Vec<FileRow>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum IndexKind {
-	Live,
-}
-
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ProgressSnapshot {
 	pub indexed_files: usize,
@@ -34,7 +28,6 @@ pub struct ProgressSnapshot {
 #[derive(Debug, Clone)]
 pub struct IndexUpdate {
 	pub generation: u64,
-	pub kind: IndexKind,
 	pub reset: bool,
 	pub files: Arc<[FileRow]>,
 	pub progress: ProgressSnapshot,
@@ -55,25 +48,6 @@ pub enum IndexDelta {
 	Append(Arc<[FileRow]>),
 }
 
-#[allow(dead_code)]
-#[derive(Debug)]
-pub enum SearchCmd {
-	Query {
-		generation: u64,
-		id: u64,
-		query: String,
-		limit: usize,
-	},
-	Update {
-		generation: u64,
-		delta: IndexDelta,
-	},
-	#[allow(dead_code)]
-	Shutdown {
-		generation: u64,
-	},
-}
-
 #[derive(Debug, Clone)]
 pub struct SearchRow {
 	pub path: Arc<str>,
@@ -91,11 +65,4 @@ pub enum SearchMsg {
 		scanned: usize,
 		elapsed_ms: u64,
 	},
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct PumpBudget {
-	pub max_index_msgs: usize,
-	pub max_search_msgs: usize,
-	pub max_time: Duration,
 }

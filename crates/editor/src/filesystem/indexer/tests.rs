@@ -1,8 +1,9 @@
 use std::fs;
+use std::sync::{Arc, mpsc};
 use std::time::Duration;
 
-use super::{FilesystemOptions, spawn_filesystem_index};
-use crate::filesystem::IndexMsg;
+use super::{FilesystemOptions, run_filesystem_index};
+use crate::filesystem::types::IndexMsg;
 
 #[test]
 fn indexer_streams_relative_normalized_paths() {
@@ -15,11 +16,20 @@ fn indexer_streams_relative_normalized_paths() {
 	fs::write(src.join("lib.rs"), "pub fn lib() {}\n").expect("write lib");
 
 	let runtime = xeno_worker::WorkerRuntime::new();
-	let rx = spawn_filesystem_index(&runtime, 1, root.to_path_buf(), FilesystemOptions::default());
+	let (tx, rx) = mpsc::channel();
+	run_filesystem_index(
+		runtime,
+		1,
+		root.to_path_buf(),
+		FilesystemOptions::default(),
+		Arc::new(move |msg| tx.send(msg).is_ok()),
+	);
 	let mut seen_paths: Vec<String> = Vec::new();
 
 	loop {
-		let msg = rx.recv_timeout(Duration::from_secs(2)).expect("expected index message");
+		let Ok(msg) = rx.recv_timeout(Duration::from_secs(2)) else {
+			break;
+		};
 		match msg {
 			IndexMsg::Update(update) => {
 				for file in update.files.iter() {

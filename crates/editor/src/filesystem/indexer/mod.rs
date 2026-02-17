@@ -12,7 +12,7 @@ use std::time::{Duration, Instant};
 
 use ignore::{DirEntry, Error as IgnoreError, WalkBuilder, WalkState};
 
-use super::types::{FileRow, IndexKind, IndexMsg, IndexUpdate, ProgressSnapshot};
+use super::types::{FileRow, IndexMsg, IndexUpdate, ProgressSnapshot};
 
 const DISPATCH_INTERVAL: Duration = Duration::from_millis(120);
 const MIN_BATCH_SIZE: usize = 32;
@@ -68,19 +68,6 @@ impl FilesystemOptions {
 	}
 }
 
-#[allow(dead_code)]
-pub fn spawn_filesystem_index(runtime: &xeno_worker::WorkerRuntime, generation: u64, root: PathBuf, options: FilesystemOptions) -> Receiver<IndexMsg> {
-	let (update_tx, update_rx) = mpsc::sync_channel(options.update_channel_capacity.max(1));
-	let runtime = runtime.clone();
-	let emit: IndexEmit = Arc::new(move |msg: IndexMsg| update_tx.send(msg).is_ok());
-
-	runtime.clone().spawn_thread(xeno_worker::TaskClass::IoBlocking, move || {
-		run_indexer(runtime, generation, root, options, emit)
-	});
-
-	update_rx
-}
-
 pub(crate) fn run_filesystem_index(runtime: xeno_worker::WorkerRuntime, generation: u64, root: PathBuf, options: FilesystemOptions, emit: IndexEmit) {
 	run_indexer(runtime, generation, root, options, emit);
 }
@@ -91,7 +78,6 @@ fn run_indexer(runtime: xeno_worker::WorkerRuntime, generation: u64, root: PathB
 
 	let reset_msg = IndexMsg::Update(IndexUpdate {
 		generation,
-		kind: IndexKind::Live,
 		reset: true,
 		files: Arc::from(Vec::<FileRow>::new()),
 		progress: ProgressSnapshot {
@@ -203,7 +189,6 @@ fn flush_update(generation: u64, indexed_files: usize, complete: bool, pending_f
 	let files: Arc<[FileRow]> = std::mem::take(pending_files).into();
 	let msg = IndexMsg::Update(IndexUpdate {
 		generation,
-		kind: IndexKind::Live,
 		reset: false,
 		files,
 		progress: ProgressSnapshot {

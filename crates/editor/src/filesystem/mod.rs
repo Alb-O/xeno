@@ -8,6 +8,3 @@ mod types;
 pub(crate) use indexer::{FilesystemOptions, run_filesystem_index};
 pub(crate) use search::{apply_search_delta, run_search_query};
 pub(crate) use service::FsService;
-#[allow(unused_imports)]
-pub use service::{FsIndexerCmd, FsIndexerEvt, FsSearchCmd, FsSearchEvt, FsServiceCmd, FsServiceEvt};
-pub(crate) use types::*;

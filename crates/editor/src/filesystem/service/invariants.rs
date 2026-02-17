@@ -4,7 +4,7 @@ use std::time::Duration;
 use tokio::time::{sleep, timeout};
 
 use super::FsService;
-use crate::filesystem::{FileRow, IndexKind, IndexMsg, IndexUpdate, ProgressSnapshot, SearchMsg, SearchRow};
+use crate::filesystem::types::{FileRow, IndexMsg, IndexUpdate, ProgressSnapshot, SearchMsg, SearchRow};
 
 async fn wait_until<F>(name: &str, mut condition: F)
 where
@@ -37,7 +37,6 @@ pub(crate) async fn test_stale_index_generation_ignored() {
 
 	service.inject_index_msg(IndexMsg::Update(IndexUpdate {
 		generation: stale_generation,
-		kind: IndexKind::Live,
 		reset: false,
 		files: vec![FileRow::new(Arc::<str>::from("src/lib.rs"))].into(),
 		progress: ProgressSnapshot {

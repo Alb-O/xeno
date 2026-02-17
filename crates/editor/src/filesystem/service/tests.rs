@@ -1,10 +1,9 @@
-use std::sync::Arc;
 use std::time::Duration;
 
 use tokio::time::{sleep, timeout};
 
 use super::FsService;
-use crate::filesystem::{FileRow, FilesystemOptions, IndexKind, IndexMsg, IndexUpdate, ProgressSnapshot};
+use crate::filesystem::FilesystemOptions;
 
 async fn wait_until<F>(name: &str, mut condition: F)
 where
@@ -60,39 +59,5 @@ async fn pump_reports_actor_pushed_state_changes() {
 	std::fs::write(&file, "fn main() {}\n").expect("must create file");
 
 	service.ensure_index(root.path().to_path_buf(), FilesystemOptions::default());
-	wait_until("pump changed", || {
-		service.pump(crate::filesystem::PumpBudget {
-			max_index_msgs: 32,
-			max_search_msgs: 8,
-			max_time: Duration::from_millis(4),
-		})
-	})
-	.await;
-}
-
-#[tokio::test]
-async fn stop_index_advances_generation_and_blocks_queries() {
-	let mut service = FsService::new();
-	let root = tempfile::tempdir().expect("must create tempdir");
-	service.ensure_index(root.path().to_path_buf(), FilesystemOptions::default());
-	wait_until("generation start", || service.generation() > 0).await;
-	let generation = service.generation();
-
-	service.inject_index_msg(IndexMsg::Update(IndexUpdate {
-		generation,
-		kind: IndexKind::Live,
-		reset: false,
-		files: vec![FileRow::new(Arc::<str>::from("src/main.rs"))].into(),
-		progress: ProgressSnapshot {
-			indexed_files: 1,
-			total_files: Some(1),
-			complete: false,
-		},
-		cached_data: None,
-	}));
-	wait_until("data update", || !service.data().files.is_empty()).await;
-
-	service.stop_index();
-	wait_until("generation advance after stop", || service.generation() > generation).await;
-	assert!(service.query("main", 20).is_none());
+	wait_until("pump changed", || service.pump()).await;
 }
