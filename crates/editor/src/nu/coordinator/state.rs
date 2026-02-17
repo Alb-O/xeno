@@ -417,12 +417,13 @@ impl NuCoordinatorState {
 	/// Handle a fired scheduled macro. Verifies token, enqueues invocation
 	/// into the hook pending invocations queue for drain in pump phase 9.
 	pub(crate) fn apply_schedule_fired(&mut self, msg: NuScheduleFiredMsg) -> bool {
-		let Some(entry) = self.scheduled.remove(&msg.key) else {
+		let Some(entry) = self.scheduled.get(&msg.key) else {
 			return false;
 		};
 		if entry.token != msg.token {
 			return false;
 		}
+		let _ = self.scheduled.remove(&msg.key);
 		self.hook_pending_invocations.push_back(Invocation::Nu {
 			name: msg.name,
 			args: msg.args,

@@ -125,3 +125,41 @@ pub(crate) fn test_stale_completion_keeps_inflight_state() {
 	assert!(!state.complete_hook_eval(stale), "stale completion should be ignored");
 	assert_eq!(state.hook_in_flight_token(), Some(token), "stale completion must not clear active in-flight");
 }
+
+/// Must not clear the active schedule when handling a stale schedule token.
+///
+/// * Enforced in: `NuCoordinatorState::apply_schedule_fired`
+/// * Failure symptom: stale timer messages cancel the latest debounced macro.
+#[tokio::test]
+pub(crate) async fn test_stale_schedule_token_preserves_active_schedule() {
+	use crate::nu::coordinator::NuScheduleFiredMsg;
+
+	let (msg_tx, _msg_rx) = crate::msg::channel();
+	let mut state = NuCoordinatorState::new();
+
+	state.schedule_macro("debounce".to_string(), 60_000, "old".to_string(), Vec::new(), &msg_tx); // token 1
+	state.schedule_macro("debounce".to_string(), 60_000, "current".to_string(), vec!["arg".to_string()], &msg_tx); // token 2
+
+	let stale = state.apply_schedule_fired(NuScheduleFiredMsg {
+		key: "debounce".to_string(),
+		token: 1,
+		name: "stale".to_string(),
+		args: Vec::new(),
+	});
+	assert!(!stale, "stale token should be ignored");
+
+	let current = state.apply_schedule_fired(NuScheduleFiredMsg {
+		key: "debounce".to_string(),
+		token: 2,
+		name: "current".to_string(),
+		args: vec!["arg".to_string()],
+	});
+	assert!(current, "active token should remain valid after stale message");
+	assert!(matches!(
+		state.pop_pending_hook_invocation(),
+		Some(Invocation::Nu { name, args }) if name == "current" && args == vec!["arg".to_string()]
+	));
+
+	// Ensure spawned schedule tasks are cancelled in test teardown.
+	state.set_runtime(None);
+}

@@ -1,6 +1,10 @@
 use std::collections::HashMap;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use super::*;
+
+static RUNTIME_OVERRIDE_SEQ: AtomicU64 = AtomicU64::new(0);
 
 fn mode_name(mode: BindingMode) -> &'static str {
 	match mode {
@@ -37,6 +41,48 @@ fn lookup_action_id(index: &KeymapIndex, mode: BindingMode, key_seq: &str) -> Ac
 		LookupResult::Match(entry) => entry.action_id().expect("expected action binding"),
 		_ => panic!("expected a complete keybinding match"),
 	}
+}
+
+fn leak_str(value: String) -> &'static str {
+	Box::leak(value.into_boxed_str())
+}
+
+fn register_runtime_action_binding(key: &str, priority: i16) -> String {
+	use crate::actions::{ActionContext, ActionDef, ActionEffects, ActionResult, KeyBindingDef};
+	use crate::core::{RegistryMetaStatic, RegistrySource};
+
+	fn handler(_ctx: &ActionContext) -> ActionResult {
+		ActionResult::Effects(ActionEffects::default())
+	}
+
+	let seq = RUNTIME_OVERRIDE_SEQ.fetch_add(1, Ordering::Relaxed);
+	let canonical_id = format!("test::runtime_override_binding_{seq}");
+	let name = format!("runtime_override_binding_{seq}");
+	let short_desc = format!("rt_override_{seq}");
+
+	let def: &'static ActionDef = Box::leak(Box::new(ActionDef {
+		meta: RegistryMetaStatic {
+			id: leak_str(canonical_id.clone()),
+			name: leak_str(name),
+			keys: &[],
+			description: "runtime keymap override test action",
+			priority,
+			source: RegistrySource::Runtime,
+			required_caps: &[],
+			flags: 0,
+		},
+		short_desc: leak_str(short_desc),
+		handler,
+		bindings: Box::leak(Box::new([KeyBindingDef {
+			mode: BindingMode::Normal,
+			keys: Arc::from(key),
+			action: Arc::from(canonical_id.as_str()),
+			priority,
+		}])),
+	}));
+
+	crate::db::ACTIONS.register(def).expect("runtime action registration should succeed");
+	canonical_id
 }
 
 #[test]
@@ -277,4 +323,38 @@ fn preset_emacs_loads() {
 		matches!(index.lookup(BindingMode::Insert, &prefix), LookupResult::Pending { .. }),
 		"emacs ctrl-x should be Pending"
 	);
+}
+
+#[test]
+fn runtime_binding_with_higher_priority_overrides_preset_binding() {
+	let key = "ctrl-alt-shift-r";
+	let runtime_id = register_runtime_action_binding(key, 10);
+	let actions = crate::db::ACTIONS.snapshot();
+
+	let preset_target_id = actions
+		.table
+		.iter()
+		.find_map(|entry| {
+			let id = actions.interner.resolve(entry.id());
+			(id != runtime_id).then(|| id.to_string())
+		})
+		.expect("expected at least one non-runtime action id");
+
+	let preset = crate::keymaps::KeymapPreset {
+		name: Arc::from("runtime_override_test"),
+		initial_mode: xeno_primitives::Mode::Normal,
+		behavior: crate::keymaps::KeymapBehavior::default(),
+		bindings: vec![crate::keymaps::PresetBinding {
+			mode: "normal".to_string(),
+			keys: Arc::from(key),
+			target: format!("action:{preset_target_id}"),
+		}],
+		prefixes: Vec::new(),
+	};
+
+	let index = KeymapIndex::build_with_preset(&actions, Some(&preset), None);
+	let resolved_id = lookup_action_id(&index, BindingMode::Normal, key);
+	let resolved_entry = &actions.table[resolved_id.as_u32() as usize];
+	let resolved_target = actions.interner.resolve(resolved_entry.id());
+	assert_eq!(resolved_target, runtime_id);
 }

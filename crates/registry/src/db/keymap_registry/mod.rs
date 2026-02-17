@@ -372,7 +372,7 @@ fn apply_runtime_action_bindings(
 	actions: &Snapshot<ActionEntry, ActionId>,
 	slots: &mut HashMap<(BindingMode, Arc<str>), Slot>,
 	problems: &mut Vec<KeymapBuildProblem>,
-	_conflicts: &mut Vec<KeymapConflict>,
+	conflicts: &mut Vec<KeymapConflict>,
 ) {
 	for (idx, action_entry) in actions.table.iter().enumerate() {
 		let action_id = ActionId::from_u32(idx as u32);
@@ -384,46 +384,67 @@ fn apply_runtime_action_bindings(
 		}
 
 		for binding in action_entry.bindings.iter() {
+			let action_id_str = actions.interner.resolve(action_entry.id()).to_string();
 			let slot_key = (binding.mode, Arc::clone(&binding.keys));
-			if slots.contains_key(&slot_key) {
-				continue;
-			}
 
+			let target_desc: Arc<str> = Arc::from(action_id_str.as_str());
 			let Ok(parsed_keys) = parse_seq(&binding.keys) else {
 				push_problem(
 					problems,
 					Some(binding.mode),
 					&binding.keys,
-					&binding.action,
+					&target_desc,
 					KeymapProblemKind::InvalidKeySequence,
 					"invalid key sequence",
 				);
 				continue;
 			};
 
-			let entry = BindingEntry {
-				target: BindingTarget::Action {
-					id: action_id,
-					count: 1,
-					extend: false,
-					register: None,
+			let slot = Slot {
+				entry: BindingEntry {
+					target: BindingTarget::Action {
+						id: action_id,
+						count: 1,
+						extend: false,
+						register: None,
+					},
+					name: Arc::from(actions.interner.resolve(action_entry.name())),
+					description: Arc::from(actions.interner.resolve(action_entry.description())),
+					short_desc: Arc::from(actions.interner.resolve(action_entry.short_desc)),
+					keys: parsed_keys.clone(),
 				},
-				name: Arc::from(actions.interner.resolve(action_entry.name())),
-				description: Arc::from(actions.interner.resolve(action_entry.description())),
-				short_desc: Arc::from(actions.interner.resolve(action_entry.short_desc)),
-				keys: parsed_keys.clone(),
+				parsed_keys,
+				target_desc: action_id_str.clone(),
+				priority: binding.priority,
 			};
 
-			let action_id_str = actions.interner.resolve(action_entry.id()).to_string();
-			slots.insert(
-				slot_key,
-				Slot {
-					entry,
-					parsed_keys,
-					target_desc: action_id_str,
-					priority: binding.priority,
-				},
-			);
+			if let Some(existing) = slots.get(&slot_key) {
+				// Runtime/plugin bindings should be able to replace preset bindings
+				// when they provide equal-or-stronger priority.
+				if binding.priority <= existing.priority {
+					conflicts.push(KeymapConflict {
+						mode: binding.mode,
+						keys: Arc::clone(&binding.keys),
+						kept_target: action_id_str.clone(),
+						dropped_target: existing.target_desc.clone(),
+						kept_priority: binding.priority,
+						dropped_priority: existing.priority,
+					});
+					slots.insert(slot_key, slot);
+				} else {
+					conflicts.push(KeymapConflict {
+						mode: binding.mode,
+						keys: Arc::clone(&binding.keys),
+						kept_target: existing.target_desc.clone(),
+						dropped_target: action_id_str,
+						kept_priority: existing.priority,
+						dropped_priority: binding.priority,
+					});
+				}
+				continue;
+			}
+
+			slots.insert(slot_key, slot);
 		}
 	}
 }

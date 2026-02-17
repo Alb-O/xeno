@@ -57,6 +57,19 @@ pub(crate) fn apply_effect_batch(
 	let mut outcome = NuEffectApplyOutcome::default();
 	let mut did_record_nu_edit = false;
 
+	// Macro surface must be all-or-nothing for policy validation.
+	if matches!(mode, NuEffectApplyMode::Macro) {
+		for effect in &batch.effects {
+			let required = required_capability_for_effect(effect);
+			if !allowed.contains(&required) {
+				return Err(NuEffectApplyError::CapabilityDenied { capability: required });
+			}
+			if matches!(effect, NuEffect::StopPropagation) {
+				return Err(NuEffectApplyError::StopPropagationUnsupportedForMacro);
+			}
+		}
+	}
+
 	for effect in batch.effects {
 		let required = required_capability_for_effect(&effect);
 		if !allowed.contains(&required) {
@@ -237,6 +250,28 @@ mod tests {
 				capability: NuCapability::DispatchAction
 			}
 		));
+	}
+
+	#[test]
+	fn macro_mode_capability_denial_is_atomic() {
+		let mut editor = Editor::new_scratch();
+		let allowed = HashSet::from([NuCapability::WriteState]);
+		let batch = batch(vec![
+			NuEffect::StateSet {
+				key: "foo".to_string(),
+				value: "bar".to_string(),
+			},
+			NuEffect::Dispatch(Invocation::action("move_right")),
+		]);
+
+		let err = apply_effect_batch(&mut editor, batch, NuEffectApplyMode::Macro, &allowed).expect_err("macro denial should error");
+		assert!(matches!(
+			err,
+			NuEffectApplyError::CapabilityDenied {
+				capability: NuCapability::DispatchAction
+			}
+		));
+		assert!(editor.state.core.workspace.nu_state.iter().next().is_none());
 	}
 
 	#[test]
@@ -505,6 +540,48 @@ mod tests {
 		});
 		assert!(!fired);
 		assert!(!state.has_pending_hook_invocations());
+	}
+
+	#[tokio::test]
+	async fn stale_schedule_token_does_not_cancel_current_schedule() {
+		use crate::nu::coordinator::NuScheduleFiredMsg;
+
+		let mut editor = Editor::new_scratch();
+		let allowed = HashSet::from([NuCapability::ScheduleMacro]);
+
+		// Token 1: replaced by the next schedule set on the same key.
+		let old = batch(vec![NuEffect::ScheduleSet {
+			key: "debounce".to_string(),
+			delay_ms: 60_000,
+			name: "old".to_string(),
+			args: vec![],
+		}]);
+		apply_effect_batch(&mut editor, old, NuEffectApplyMode::Macro, &allowed).expect("first schedule should succeed");
+
+		// Token 2: current active entry.
+		let current = batch(vec![NuEffect::ScheduleSet {
+			key: "debounce".to_string(),
+			delay_ms: 10,
+			name: "current".to_string(),
+			args: vec!["arg".to_string()],
+		}]);
+		apply_effect_batch(&mut editor, current, NuEffectApplyMode::Macro, &allowed).expect("reschedule should succeed");
+
+		// Stale fire for token 1 should not remove the active token 2 schedule.
+		let fired = editor.state.nu.apply_schedule_fired(NuScheduleFiredMsg {
+			key: "debounce".to_string(),
+			token: 1,
+			name: "stale".to_string(),
+			args: vec![],
+		});
+		assert!(!fired);
+
+		tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+		editor.drain_messages();
+
+		assert!(editor.state.nu.has_pending_hook_invocations());
+		let inv = editor.state.nu.pop_pending_hook_invocation().expect("current schedule should still fire");
+		assert!(matches!(inv, Invocation::Nu { ref name, ref args } if name == "current" && args == &["arg"]));
 	}
 
 	#[test]
