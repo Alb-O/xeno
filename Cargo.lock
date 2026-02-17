@@ -5934,6 +5934,7 @@ name = "xeno-editor"
 version = "0.9.3"
 dependencies = [
  "anyhow",
+ "async-trait",
  "base64",
  "chrono",
  "clap",

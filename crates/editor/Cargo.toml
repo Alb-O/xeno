@@ -11,6 +11,7 @@ tui = ["xeno-primitives/tui-style", "xeno-primitives/terminal-input"]
 lsp = ["dep:xeno-lsp", "dep:thiserror", "dep:tokio-util"]
 [dependencies]
 anyhow.workspace = true
+async-trait.workspace = true
 base64.workspace = true
 chrono.workspace = true
 clap.workspace = true

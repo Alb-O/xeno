@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
 
 use parking_lot::Mutex;
 use tokio::task::JoinHandle;
@@ -23,7 +24,8 @@ pub enum RuntimeStartError {
 
 struct RuntimeState {
 	cancel: CancellationToken,
-	router_task: Option<JoinHandle<()>>,
+	router_actor: Option<Arc<xeno_worker::ActorHandle<TransportEvent, ()>>>,
+	forward_task: Option<JoinHandle<()>>,
 }
 
 /// Lifecycle owner for the LSP transport event router.
@@ -45,7 +47,8 @@ impl LspRuntime {
 			started: AtomicBool::new(false),
 			state: Mutex::new(RuntimeState {
 				cancel: CancellationToken::new(),
-				router_task: None,
+				router_actor: None,
+				forward_task: None,
 			}),
 		}
 	}
@@ -70,10 +73,22 @@ impl LspRuntime {
 			}
 		};
 
-		let cancel = self.state.lock().cancel.clone();
 		let sync = self.sync.clone();
 		let transport = self.transport.clone();
 		let documents = self.sync.documents_arc();
+		let cancel = self.state.lock().cancel.clone();
+		let router_actor = Arc::new(xeno_worker::spawn_supervised_actor(
+			xeno_worker::ActorSpec::new("lsp.runtime.router", xeno_worker::TaskClass::Interactive, move || RouterActor {
+				sync: sync.clone(),
+				transport: transport.clone(),
+				documents: Arc::clone(&documents),
+			})
+			.supervisor(xeno_worker::SupervisorSpec {
+				restart: xeno_worker::RestartPolicy::Never,
+				event_buffer: 8,
+			}),
+		));
+		let router_for_forward = Arc::clone(&router_actor);
 
 		let task = xeno_worker::spawn(xeno_worker::TaskClass::Background, async move {
 			loop {
@@ -83,7 +98,7 @@ impl LspRuntime {
 						let Some(event) = maybe_event else {
 							break;
 						};
-						if !process_transport_event(&sync, documents.as_ref(), transport.as_ref(), event).await {
+						if router_for_forward.send(event).await.is_err() {
 							break;
 						}
 					}
@@ -91,18 +106,28 @@ impl LspRuntime {
 			}
 		});
 
-		self.state.lock().router_task = Some(task);
+		let mut state = self.state.lock();
+		state.router_actor = Some(router_actor);
+		state.forward_task = Some(task);
 		Ok(())
 	}
 
 	/// Stop the event router and wait for the task to exit.
 	pub async fn shutdown(&self) {
-		let (cancel, task) = {
+		let (cancel, router_actor, task) = {
 			let mut state = self.state.lock();
-			(state.cancel.clone(), state.router_task.take())
+			(state.cancel.clone(), state.router_actor.take(), state.forward_task.take())
 		};
 
 		cancel.cancel();
+
+		if let Some(actor) = router_actor {
+			let _ = actor
+				.shutdown(xeno_worker::ShutdownMode::Graceful {
+					timeout: Duration::from_secs(2),
+				})
+				.await;
+		}
 		if let Some(task) = task {
 			let _ = task.await;
 		}
@@ -111,6 +136,27 @@ impl LspRuntime {
 	/// Returns whether the runtime has been started.
 	pub fn is_started(&self) -> bool {
 		self.started.load(Ordering::Acquire)
+	}
+}
+
+struct RouterActor {
+	sync: DocumentSync,
+	transport: Arc<dyn LspTransport>,
+	documents: Arc<DocumentStateManager>,
+}
+
+#[async_trait::async_trait]
+impl xeno_worker::WorkerActor for RouterActor {
+	type Cmd = TransportEvent;
+	type Evt = ();
+
+	async fn handle(&mut self, event: Self::Cmd, _ctx: &mut xeno_worker::ActorContext<Self::Evt>) -> Result<xeno_worker::ActorFlow, String> {
+		let keep_running = process_transport_event(&self.sync, self.documents.as_ref(), self.transport.as_ref(), event).await;
+		Ok(if keep_running {
+			xeno_worker::ActorFlow::Continue
+		} else {
+			xeno_worker::ActorFlow::Stop
+		})
 	}
 }
 

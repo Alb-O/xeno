@@ -1,38 +1,22 @@
-//! Persistent Nu worker thread for hook and macro evaluation.
+//! Persistent Nu worker actor for hook and macro evaluation.
 //!
-//! Replaces per-call `spawn_blocking` with a dedicated thread that owns the
-//! `NuRuntime` and processes jobs sequentially. This eliminates tokio blocking
-//! pool scheduling overhead on the hot path (every action with a post-hook).
-//!
-//! The executor self-heals on recoverable transport failures: when the worker
-//! channel send fails, `run()` performs one internal restart and retries the
-//! same job payload. If the worker dies mid-evaluation and drops the reply
-//! channel, payload replay is unsafe and `run()` returns transport error after
-//! attempting to respawn for future calls.
-//!
-//! Shutdown is explicit and deterministic: dropping the owning `NuExecutor`
-//! sets a closed flag and sends a `Shutdown` job. Once closed, no restarts
-//! are allowed — stale client clones from previous runtime epochs get
-//! `NuExecError::Closed`.
+//! Uses `xeno-worker` supervision + mailbox policies instead of custom
+//! thread/channel lifecycle management.
 
 use std::panic::AssertUnwindSafe;
-#[cfg(test)]
 use std::sync::Arc;
 #[cfg(test)]
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::thread;
-use std::time::{Duration, Instant};
 
 use tokio::sync::oneshot;
-use tokio::sync::oneshot::error::TryRecvError;
 use xeno_invocation::nu::DecodeBudget;
 use xeno_nu_api::ExportId;
 use xeno_nu_data::Value;
 
 use super::{NuDecodeSurface, NuEffectBatch, NuRuntime};
 
-/// A job sent to the Nu worker thread.
+/// A command sent to the supervised Nu worker actor.
 enum Job {
 	Run {
 		decl_id: ExportId,
@@ -41,11 +25,65 @@ enum Job {
 		budget: DecodeBudget,
 		env: Vec<(String, Value)>,
 		span: tracing::Span,
-		reply: oneshot::Sender<Result<NuEffectBatch, String>>,
+		reply: oneshot::Sender<Result<NuEffectBatch, JobError>>,
 	},
-	Shutdown {
-		ack: oneshot::Sender<()>,
-	},
+}
+
+#[derive(Debug)]
+enum JobError {
+	Eval(String),
+	Transport(String),
+}
+
+struct NuActor {
+	runtime: NuRuntime,
+}
+
+#[async_trait::async_trait]
+impl xeno_worker::WorkerActor for NuActor {
+	type Cmd = Job;
+	type Evt = ();
+
+	async fn handle(&mut self, cmd: Self::Cmd, _ctx: &mut xeno_worker::ActorContext<Self::Evt>) -> Result<xeno_worker::ActorFlow, String> {
+		match cmd {
+			Job::Run {
+				decl_id,
+				surface,
+				args,
+				budget,
+				env,
+				span,
+				reply,
+			} => {
+				let runtime = self.runtime.clone();
+				let result = xeno_worker::spawn_blocking(xeno_worker::TaskClass::CpuBlocking, move || {
+					let _guard = span.enter();
+					std::panic::catch_unwind(AssertUnwindSafe(|| runtime.run_effects_by_decl_id_owned(decl_id, surface, args, budget, env)))
+				})
+				.await;
+
+				match result {
+					Ok(Ok(Ok(batch))) => {
+						let _ = reply.send(Ok(batch));
+						Ok(xeno_worker::ActorFlow::Continue)
+					}
+					Ok(Ok(Err(eval_error))) => {
+						let _ = reply.send(Err(JobError::Eval(eval_error)));
+						Ok(xeno_worker::ActorFlow::Continue)
+					}
+					Ok(Err(_panic)) => {
+						let _ = reply.send(Err(JobError::Transport("Nu executor panicked during evaluation".to_string())));
+						Err("nu actor panic".to_string())
+					}
+					Err(join_error) => {
+						let reason = format!("Nu executor join failure: {join_error}");
+						let _ = reply.send(Err(JobError::Transport(reason.clone())));
+						Err(reason)
+					}
+				}
+			}
+		}
+	}
 }
 
 /// Executor error surfaced by the persistent Nu worker.
@@ -61,42 +99,44 @@ pub enum NuExecError {
 
 /// Shared state between owner and client clones.
 pub(crate) struct Shared {
-	runtime: NuRuntime,
-	tx: std::sync::Mutex<std::sync::mpsc::Sender<Job>>,
+	handle: Arc<xeno_worker::ActorHandle<Job, ()>>,
 	closed: AtomicBool,
 	#[cfg(test)]
 	pub(crate) shutdown_acks: AtomicUsize,
 }
 
-/// Handle to a persistent Nu evaluation thread.
+/// Handle to a supervised Nu evaluation worker actor.
 ///
-/// Sending jobs through `run` dispatches them to the worker. The worker
-/// processes jobs sequentially using the `NuRuntime` it owns.
-///
-/// Supports owner/client semantics: the original `NuExecutor` is the owner
-/// and sends a `Shutdown` job on drop. Clones are clients that share the
-/// same channel but do not trigger shutdown when dropped.
-///
-/// Self-heals on recoverable transport failures: if send fails, `run()`
-/// respawns once and retries the same payload. After the owner is dropped
-/// (`closed=true`), no restarts are allowed.
+/// Supports owner/client semantics: the original `NuExecutor` is the owner.
+/// Client clones can submit jobs but do not trigger shutdown on drop.
 pub struct NuExecutor {
-	shared: std::sync::Arc<Shared>,
+	shared: Arc<Shared>,
 	is_owner: bool,
 }
 
 impl NuExecutor {
-	/// Spawn a new worker thread for the given runtime.
+	/// Spawn a new worker actor for the given runtime.
 	pub fn new(runtime: NuRuntime) -> Self {
-		let (tx, rx) = std::sync::mpsc::channel::<Job>();
-		let rt = runtime.clone();
+		let actor_runtime = runtime.clone();
+		let spec = xeno_worker::ActorSpec::new("nu.executor", xeno_worker::TaskClass::CpuBlocking, move || NuActor {
+			runtime: actor_runtime.clone(),
+		})
+		.mailbox(xeno_worker::MailboxSpec {
+			capacity: 256,
+			policy: xeno_worker::MailboxPolicy::Backpressure,
+		})
+		.supervisor(xeno_worker::SupervisorSpec {
+			restart: xeno_worker::RestartPolicy::OnFailure {
+				max_restarts: usize::MAX,
+				backoff: std::time::Duration::from_millis(1),
+			},
+			event_buffer: 8,
+		});
 
-		Self::spawn_worker(rt, rx);
-
+		let handle = Arc::new(xeno_worker::spawn_supervised_actor(spec));
 		Self {
-			shared: std::sync::Arc::new(Shared {
-				runtime,
-				tx: std::sync::Mutex::new(tx),
+			shared: Arc::new(Shared {
+				handle,
 				closed: AtomicBool::new(false),
 				#[cfg(test)]
 				shutdown_acks: AtomicUsize::new(0),
@@ -105,69 +145,15 @@ impl NuExecutor {
 		}
 	}
 
-	fn spawn_worker(runtime: NuRuntime, rx: std::sync::mpsc::Receiver<Job>) {
-		xeno_worker::spawn_named_thread(xeno_worker::TaskClass::CpuBlocking, "nu-executor", move || {
-			while let Ok(job) = rx.recv() {
-				match job {
-					Job::Run {
-						decl_id,
-						surface,
-						args,
-						budget,
-						env,
-						span,
-						reply,
-					} => {
-						let _guard = span.enter();
-						let result = std::panic::catch_unwind(AssertUnwindSafe(|| runtime.run_effects_by_decl_id_owned(decl_id, surface, args, budget, env)));
-						match result {
-							Ok(value) => {
-								let _ = reply.send(value);
-							}
-							Err(_) => {
-								let _ = reply.send(Err("Nu executor panicked during evaluation".to_string()));
-								break;
-							}
-						}
-					}
-					Job::Shutdown { ack } => {
-						let _ = ack.send(());
-						break;
-					}
-				}
-			}
-		})
-		.expect("failed to spawn nu-executor thread");
-	}
-
-	/// Respawn the worker thread. Returns false if closed.
-	fn respawn(&self) -> bool {
-		if self.shared.closed.load(Ordering::SeqCst) {
-			return false;
-		}
-		let (new_tx, rx) = std::sync::mpsc::channel::<Job>();
-		Self::spawn_worker(self.shared.runtime.clone(), rx);
-		*self.shared.tx.lock().expect("tx lock poisoned") = new_tx;
-		true
-	}
-
-	/// Creates a non-owning client clone that shares the worker channel.
-	///
-	/// Client clones can submit jobs but do not send `Shutdown` on drop.
-	/// This is safe to move into `'static + Send` futures for background
-	/// hook evaluation.
+	/// Creates a non-owning client clone that shares the worker actor.
 	pub fn client(&self) -> Self {
 		Self {
-			shared: std::sync::Arc::clone(&self.shared),
+			shared: Arc::clone(&self.shared),
 			is_owner: false,
 		}
 	}
 
 	/// Submit a job and await the result.
-	///
-	/// On recoverable transport failure, restarts once and retries the same job.
-	/// If payload replay is unsafe (reply dropped), returns transport error.
-	/// If the executor is closed (owner dropped), returns `NuExecError::Closed`.
 	pub async fn run(
 		&self,
 		decl_id: ExportId,
@@ -180,51 +166,11 @@ impl NuExecutor {
 			return Err(NuExecError::Closed);
 		}
 
-		match self.try_run(decl_id, surface, args, budget, env).await {
-			Ok(batch) => Ok(batch),
-			Err(TransportOrEval::Eval(e)) => Err(NuExecError::Eval(e)),
-			Err(TransportOrEval::Transport {
-				payload: Some(RetryPayload {
-					decl_id,
-					surface,
-					args,
-					budget,
-					env,
-				}),
-				reason,
-			}) => {
-				tracing::warn!(reason = %reason, "Nu executor transport failure, attempting restart");
-				if !self.respawn() {
-					return Err(NuExecError::Closed);
-				}
-				// Retry once after restart.
-				match self.try_run(decl_id, surface, args, budget, env).await {
-					Ok(batch) => Ok(batch),
-					Err(TransportOrEval::Eval(e)) => Err(NuExecError::Eval(e)),
-					Err(TransportOrEval::Transport { reason, .. }) => Err(NuExecError::Transport(reason)),
-				}
-			}
-			Err(TransportOrEval::Transport { payload: None, reason }) => {
-				// Payload was lost mid-flight (reply channel dropped), so replay is not safe.
-				let _ = self.respawn();
-				Err(NuExecError::Transport(reason))
-			}
-		}
-	}
-
-	async fn try_run(
-		&self,
-		decl_id: ExportId,
-		surface: NuDecodeSurface,
-		args: Vec<String>,
-		budget: DecodeBudget,
-		env: Vec<(String, Value)>,
-	) -> Result<NuEffectBatch, TransportOrEval> {
 		let (reply_tx, reply_rx) = oneshot::channel();
-
-		{
-			let tx = self.shared.tx.lock().expect("tx lock poisoned");
-			if let Err(err) = tx.send(Job::Run {
+		let send_result = self
+			.shared
+			.handle
+			.send(Job::Run {
 				decl_id,
 				surface,
 				args,
@@ -232,65 +178,28 @@ impl NuExecutor {
 				env,
 				span: tracing::Span::current(),
 				reply: reply_tx,
-			}) {
-				match err.0 {
-					Job::Run {
-						decl_id,
-						surface,
-						args,
-						budget,
-						env,
-						..
-					} => {
-						return Err(TransportOrEval::Transport {
-							payload: Some(RetryPayload {
-								decl_id,
-								surface,
-								args,
-								budget,
-								env,
-							}),
-							reason: "channel send failed (worker dead)".to_string(),
-						});
-					}
-					Job::Shutdown { .. } => unreachable!("shutdown jobs are only sent from Drop"),
-				}
+			})
+			.await;
+		if let Err(err) = send_result {
+			if self.shared.closed.load(Ordering::SeqCst) {
+				return Err(NuExecError::Closed);
 			}
+			return Err(NuExecError::Transport(format!("channel send failed (worker unavailable): {err:?}")));
 		}
 
 		match reply_rx.await {
 			Ok(Ok(batch)) => Ok(batch),
-			Ok(Err(eval_error)) => Err(TransportOrEval::Eval(eval_error)),
-			Err(_) => Err(TransportOrEval::Transport {
-				payload: None, // payload lost when reply dropped
-				reason: "reply channel dropped (worker died mid-evaluation)".to_string(),
-			}),
+			Ok(Err(JobError::Eval(msg))) => Err(NuExecError::Eval(msg)),
+			Ok(Err(JobError::Transport(msg))) => Err(NuExecError::Transport(msg)),
+			Err(_) => Err(NuExecError::Transport("reply channel dropped (worker stopped mid-evaluation)".to_string())),
 		}
 	}
 
 	#[cfg(test)]
-	pub(crate) fn shutdown_acks_for_tests(&self) -> std::sync::Arc<Shared> {
-		std::sync::Arc::clone(&self.shared)
+	pub(crate) fn shutdown_acks_for_tests(&self) -> Arc<Shared> {
+		Arc::clone(&self.shared)
 	}
 }
-
-/// Internal error type for try_run: distinguishes recoverable transport
-/// failures (payload retained for retry), non-replayable transport failures,
-/// and evaluation errors.
-enum TransportOrEval {
-	Transport { payload: Option<RetryPayload>, reason: String },
-	Eval(String),
-}
-
-struct RetryPayload {
-	decl_id: ExportId,
-	surface: NuDecodeSurface,
-	args: Vec<String>,
-	budget: DecodeBudget,
-	env: Vec<(String, Value)>,
-}
-
-const SHUTDOWN_ACK_TIMEOUT: Duration = Duration::from_millis(100);
 
 impl Drop for NuExecutor {
 	fn drop(&mut self) {
@@ -299,31 +208,9 @@ impl Drop for NuExecutor {
 		}
 
 		self.shared.closed.store(true, Ordering::SeqCst);
-
-		let (ack_tx, mut ack_rx) = oneshot::channel();
-		let tx = self.shared.tx.lock().expect("tx lock poisoned");
-		if tx.send(Job::Shutdown { ack: ack_tx }).is_err() {
-			return;
-		}
-		drop(tx);
-
-		let deadline = Instant::now() + SHUTDOWN_ACK_TIMEOUT;
-		loop {
-			match ack_rx.try_recv() {
-				Ok(()) => {
-					#[cfg(test)]
-					self.shared.shutdown_acks.fetch_add(1, Ordering::SeqCst);
-					return;
-				}
-				Err(TryRecvError::Empty) => {
-					if Instant::now() >= deadline {
-						return;
-					}
-					thread::yield_now();
-				}
-				Err(TryRecvError::Closed) => return,
-			}
-		}
+		self.shared.handle.cancel();
+		#[cfg(test)]
+		self.shared.shutdown_acks.fetch_add(1, Ordering::SeqCst);
 	}
 }
 
