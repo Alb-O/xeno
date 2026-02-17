@@ -98,7 +98,7 @@ impl CompletionController {
 		let cancel = CancellationToken::new();
 		self.in_flight = Some(InFlightCompletion { cancel: cancel.clone() });
 
-		tokio::spawn(async move {
+		xeno_worker::spawn(xeno_worker::TaskClass::Background, async move {
 			if request.debounce > Duration::ZERO {
 				tokio::select! {
 					_ = cancel.cancelled() => return,

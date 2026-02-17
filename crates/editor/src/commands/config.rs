@@ -22,9 +22,11 @@ fn cmd_reload_config<'a>(ctx: &'a mut EditorCommandContext<'a>) -> BoxFutureLoca
 			return Ok(CommandOutcome::Ok);
 		};
 
-		let report = tokio::task::spawn_blocking(move || xeno_registry::config::load::load_user_config_from_dir(&config_dir))
-			.await
-			.map_err(|error| CommandError::Failed(format!("failed to join config reload task: {error}")))?;
+		let report = xeno_worker::spawn_blocking(xeno_worker::TaskClass::IoBlocking, move || {
+			xeno_registry::config::load::load_user_config_from_dir(&config_dir)
+		})
+		.await
+		.map_err(|error| CommandError::Failed(format!("failed to join config reload task: {error}")))?;
 
 		for (path, warning) in &report.warnings {
 			tracing::warn!(path = %path.display(), "{warning}");

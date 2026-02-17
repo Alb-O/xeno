@@ -42,6 +42,7 @@ url.workspace = true
 waitpid-any = { workspace = true, optional = true }
 xeno-primitives = { workspace = true, optional = true }
 xeno-rpc.workspace = true
+xeno-worker.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["io-std", "io-util", "macros", "process", "rt", "time"] }

@@ -8,7 +8,6 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::mpsc::{self, Receiver, SyncSender};
-use std::thread;
 use std::time::{Duration, Instant};
 
 use ignore::{DirEntry, Error as IgnoreError, WalkBuilder, WalkState};
@@ -71,7 +70,7 @@ impl FilesystemOptions {
 pub fn spawn_filesystem_index(generation: u64, root: PathBuf, options: FilesystemOptions) -> Receiver<IndexMsg> {
 	let (update_tx, update_rx) = mpsc::sync_channel(options.update_channel_capacity.max(1));
 
-	thread::spawn(move || run_indexer(generation, root, options, update_tx));
+	xeno_worker::spawn_thread(xeno_worker::TaskClass::IoBlocking, move || run_indexer(generation, root, options, update_tx));
 
 	update_rx
 }
@@ -99,7 +98,7 @@ fn run_indexer(generation: u64, root: PathBuf, options: FilesystemOptions, updat
 
 	let (file_tx, file_rx) = mpsc::sync_channel::<FileRow>(options.file_channel_capacity.max(1));
 	let aggregator_tx = update_tx.clone();
-	let aggregator = thread::spawn(move || aggregate_files(generation, file_rx, aggregator_tx));
+	let aggregator = xeno_worker::spawn_thread(xeno_worker::TaskClass::Background, move || aggregate_files(generation, file_rx, aggregator_tx));
 	let walk_error_tx = update_tx.clone();
 
 	let extension_filter = options.extension_filter().map(Arc::new);

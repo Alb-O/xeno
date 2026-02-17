@@ -106,41 +106,38 @@ impl NuExecutor {
 	}
 
 	fn spawn_worker(runtime: NuRuntime, rx: std::sync::mpsc::Receiver<Job>) {
-		thread::Builder::new()
-			.name("nu-executor".into())
-			.spawn(move || {
-				while let Ok(job) = rx.recv() {
-					match job {
-						Job::Run {
-							decl_id,
-							surface,
-							args,
-							budget,
-							env,
-							span,
-							reply,
-						} => {
-							let _guard = span.enter();
-							let result =
-								std::panic::catch_unwind(AssertUnwindSafe(|| runtime.run_effects_by_decl_id_owned(decl_id, surface, args, budget, env)));
-							match result {
-								Ok(value) => {
-									let _ = reply.send(value);
-								}
-								Err(_) => {
-									let _ = reply.send(Err("Nu executor panicked during evaluation".to_string()));
-									break;
-								}
+		xeno_worker::spawn_named_thread(xeno_worker::TaskClass::CpuBlocking, "nu-executor", move || {
+			while let Ok(job) = rx.recv() {
+				match job {
+					Job::Run {
+						decl_id,
+						surface,
+						args,
+						budget,
+						env,
+						span,
+						reply,
+					} => {
+						let _guard = span.enter();
+						let result = std::panic::catch_unwind(AssertUnwindSafe(|| runtime.run_effects_by_decl_id_owned(decl_id, surface, args, budget, env)));
+						match result {
+							Ok(value) => {
+								let _ = reply.send(value);
+							}
+							Err(_) => {
+								let _ = reply.send(Err("Nu executor panicked during evaluation".to_string()));
+								break;
 							}
 						}
-						Job::Shutdown { ack } => {
-							let _ = ack.send(());
-							break;
-						}
+					}
+					Job::Shutdown { ack } => {
+						let _ = ack.send(());
+						break;
 					}
 				}
-			})
-			.expect("failed to spawn nu-executor thread");
+			}
+		})
+		.expect("failed to spawn nu-executor thread");
 	}
 
 	/// Respawn the worker thread. Returns false if closed.

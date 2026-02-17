@@ -24,6 +24,7 @@ members = [
     "crates/syntax",
     "crates/term",
     "crates/tui",
+    "crates/worker",
 ]
 
 [workspace.package]
@@ -158,6 +159,7 @@ xeno-rpc = { path = "crates/rpc" }
 xeno-syntax = { path = "crates/syntax" }
 xeno-tree-house = { path = "crates/tree_house", default-features = false }
 xeno-tui = { path = "crates/tui" }
+xeno-worker = { path = "crates/worker" }
 
 [workspace.lints.rust]
 unused_crate_dependencies = "warn"

@@ -75,7 +75,7 @@ impl LspRuntime {
 		let transport = self.transport.clone();
 		let documents = self.sync.documents_arc();
 
-		let task = tokio::spawn(async move {
+		let task = xeno_worker::spawn(xeno_worker::TaskClass::Background, async move {
 			loop {
 				tokio::select! {
 					_ = cancel.cancelled() => break,

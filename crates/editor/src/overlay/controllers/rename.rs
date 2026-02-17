@@ -93,7 +93,7 @@ impl OverlayController for RenameOverlay {
 			};
 
 			let tx = ctx.msg_tx();
-			tokio::spawn(async move {
+			xeno_worker::spawn(xeno_worker::TaskClass::Background, async move {
 				let msg = match client.rename(uri, pos, new_name).await {
 					Ok(Some(edit)) => OverlayMsg::ApplyWorkspaceEdit(edit),
 					Ok(None) => OverlayMsg::Notify(keys::info("Rename not supported for this buffer")),

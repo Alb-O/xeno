@@ -11,6 +11,7 @@ thiserror.workspace = true
 tokio = { workspace = true, features = ["rt", "sync", "io-util", "macros"] }
 tower-service.workspace = true
 tracing.workspace = true
+xeno-worker.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["io-std", "macros", "rt", "time"] }

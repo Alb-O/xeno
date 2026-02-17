@@ -1,6 +1,5 @@
 use std::time::{Duration, Instant};
 
-use tokio::task::JoinSet;
 use xeno_registry::hooks::{HookFuture as HookBoxFuture, HookPriority, HookScheduler};
 
 use super::state::{BACKGROUND_DROP_THRESHOLD, BACKLOG_HIGH_WATER, WorkScheduler};
@@ -224,7 +223,6 @@ impl WorkScheduler {
 		let count = self.background.len();
 		if count > 0 {
 			self.background.abort_all();
-			self.background = JoinSet::new();
 			self.dropped_total += count as u64;
 			tracing::info!(dropped = count, "dropped all background work");
 		}

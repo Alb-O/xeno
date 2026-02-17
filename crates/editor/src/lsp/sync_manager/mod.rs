@@ -152,14 +152,14 @@ impl LspSyncManager {
 			work,
 			done_tx,
 		} = input;
-		tokio::spawn(async move {
+		xeno_worker::spawn(xeno_worker::TaskClass::Background, async move {
 			let mode = work.mode();
 			let was_full = work.was_full();
 			let start = Instant::now();
 
 			let send_result = match work {
 				SendWork::Full { content, snapshot_bytes } => {
-					let snapshot = match tokio::task::spawn_blocking(move || content.to_string()).await {
+					let snapshot = match xeno_worker::spawn_blocking(xeno_worker::TaskClass::CpuBlocking, move || content.to_string()).await {
 						Ok(snapshot) => snapshot,
 						Err(e) => {
 							metrics.inc_send_error();

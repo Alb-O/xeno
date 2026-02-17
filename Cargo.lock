@@ -5971,6 +5971,7 @@ dependencies = [
  "xeno-primitives",
  "xeno-registry",
  "xeno-syntax",
+ "xeno-worker",
 ]
 
 [[package]]
@@ -6051,6 +6052,7 @@ dependencies = [
  "xeno-registry",
  "xeno-registry-spec",
  "xeno-tree-house",
+ "xeno-worker",
 ]
 
 [[package]]
@@ -6075,6 +6077,7 @@ dependencies = [
  "waitpid-any",
  "xeno-primitives",
  "xeno-rpc",
+ "xeno-worker",
 ]
 
 [[package]]
@@ -6322,6 +6325,7 @@ dependencies = [
  "tokio",
  "tower-service",
  "tracing",
+ "xeno-worker",
 ]
 
 [[package]]
@@ -6337,6 +6341,7 @@ dependencies = [
  "xeno-language",
  "xeno-primitives",
  "xeno-registry",
+ "xeno-worker",
 ]
 
 [[package]]
@@ -6392,6 +6397,14 @@ dependencies = [
  "unicode-truncate",
  "unicode-width 0.2.2",
  "vt100",
+]
+
+[[package]]
+name = "xeno-worker"
+version = "0.9.3"
+dependencies = [
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

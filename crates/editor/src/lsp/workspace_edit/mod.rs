@@ -318,7 +318,7 @@ impl Editor {
 		};
 		if let (Some(path), Some(lang)) = (buffer.path().map(|p| p.to_path_buf()), buffer.file_type().map(|s| s.to_string())) {
 			let lsp_handle = self.state.lsp.handle();
-			tokio::spawn(async move {
+			xeno_worker::spawn(xeno_worker::TaskClass::Background, async move {
 				if let Err(e) = lsp_handle.close_document(path, lang).await {
 					tracing::warn!(error = %e, "LSP buffer close failed");
 				}

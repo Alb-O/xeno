@@ -43,6 +43,7 @@ xeno-nu-data.workspace = true
 xeno-primitives.workspace = true
 xeno-registry.workspace = true
 xeno-syntax.workspace = true
+xeno-worker.workspace = true
 [dev-dependencies]
 futures = "0.3"
 proptest.workspace = true

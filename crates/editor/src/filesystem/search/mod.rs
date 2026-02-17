@@ -8,7 +8,6 @@ use std::collections::BinaryHeap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering as AtomicOrdering};
 use std::sync::mpsc::{self, Receiver, Sender, SyncSender, TrySendError};
-use std::thread;
 use std::time::Instant;
 
 use super::types::{IndexDelta, SearchCmd, SearchData, SearchMsg, SearchRow};
@@ -48,7 +47,9 @@ pub fn spawn_search_worker(generation: u64, data: SearchData) -> (Sender<SearchC
 	let latest_query_id = Arc::new(AtomicU64::new(0));
 	let worker_latest = Arc::clone(&latest_query_id);
 
-	thread::spawn(move || worker_loop(generation, data, command_rx, result_tx, worker_latest));
+	xeno_worker::spawn_thread(xeno_worker::TaskClass::CpuBlocking, move || {
+		worker_loop(generation, data, command_rx, result_tx, worker_latest)
+	});
 
 	(command_tx, result_rx, latest_query_id)
 }

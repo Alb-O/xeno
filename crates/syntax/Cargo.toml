@@ -13,6 +13,7 @@ tracing.workspace = true
 xeno-language.workspace = true
 xeno-primitives.workspace = true
 xeno-registry.workspace = true
+xeno-worker.workspace = true
 
 [dev-dependencies]
 futures = "0.3"

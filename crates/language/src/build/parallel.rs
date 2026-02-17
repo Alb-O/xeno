@@ -1,7 +1,6 @@
 //! Parallel grammar fetching and building.
 
 use std::sync::mpsc;
-use std::thread;
 
 use super::Result;
 use super::compile::{BuildStatus, build_grammar};
@@ -22,7 +21,7 @@ pub fn fetch_all_grammars(grammars: Vec<GrammarConfig>, on_progress: Option<Prog
 	for chunk in chunks {
 		let tx = tx.clone();
 
-		thread::spawn(move || {
+		xeno_worker::spawn_thread(xeno_worker::TaskClass::IoBlocking, move || {
 			for grammar in chunk {
 				let result = fetch_grammar(&grammar);
 				let _ = tx.send((grammar, result));
@@ -60,7 +59,7 @@ pub fn build_all_grammars(grammars: Vec<GrammarConfig>, on_progress: Option<Prog
 	for chunk in chunks {
 		let tx = tx.clone();
 
-		thread::spawn(move || {
+		xeno_worker::spawn_thread(xeno_worker::TaskClass::CpuBlocking, move || {
 			for grammar in chunk {
 				let result = build_grammar(&grammar);
 				let _ = tx.send((grammar, result));

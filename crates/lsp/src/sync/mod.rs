@@ -355,7 +355,7 @@ impl DocumentSync {
 	fn wrap_barrier(&self, uri: Uri, version: i32, barrier: oneshot::Receiver<crate::Result<()>>) -> oneshot::Receiver<()> {
 		let (tx, rx) = oneshot::channel();
 		let documents = self.documents.clone();
-		tokio::spawn(async move {
+		xeno_worker::spawn(xeno_worker::TaskClass::Background, async move {
 			match barrier.await {
 				Ok(Ok(())) => {
 					if !documents.ack_change(&uri, version) {

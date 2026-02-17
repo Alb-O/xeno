@@ -50,6 +50,7 @@ use std::ops::ControlFlow;
 pub use lsp_types;
 pub use serde_json::Value as JsonValue;
 use tower_service::Service;
+use xeno_worker as _;
 
 mod event;
 #[macro_use]

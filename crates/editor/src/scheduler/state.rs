@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use tokio::task::JoinSet;
+use xeno_worker::{TaskClass, WorkerJoinSet};
 
 use super::super::execution_gate::ExecutionGate;
 use super::types::{DocId, WorkKind};
@@ -11,9 +11,9 @@ use super::types::{DocId, WorkKind};
 /// backpressure system with explicit budgets and priorities.
 pub struct WorkScheduler {
 	/// Interactive work (must complete).
-	pub(super) interactive: JoinSet<()>,
+	pub(super) interactive: WorkerJoinSet<()>,
 	/// Background work (can be dropped).
-	pub(super) background: JoinSet<()>,
+	pub(super) background: WorkerJoinSet<()>,
 	/// Gate for enforcing strict ordering.
 	pub(super) gate: ExecutionGate,
 	/// Pending work items by (doc_id, kind) for cancellation.
@@ -35,8 +35,8 @@ pub(super) const BACKGROUND_DROP_THRESHOLD: usize = 200;
 impl Default for WorkScheduler {
 	fn default() -> Self {
 		Self {
-			interactive: JoinSet::new(),
-			background: JoinSet::new(),
+			interactive: WorkerJoinSet::new(TaskClass::Interactive),
+			background: WorkerJoinSet::new(TaskClass::Background),
 			gate: ExecutionGate::new(),
 			pending_by_doc: HashMap::new(),
 			scheduled_total: 0,

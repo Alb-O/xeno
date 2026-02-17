@@ -17,6 +17,7 @@ xeno-primitives.workspace = true
 xeno-registry.workspace = true
 xeno-registry-spec.workspace = true
 xeno-tree-house.workspace = true
+xeno-worker.workspace = true
 
 [lints.rust]
 unused_crate_dependencies = "warn"

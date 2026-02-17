@@ -78,7 +78,7 @@ impl Editor {
 		}
 
 		let config_dir = crate::paths::get_config_dir().ok_or_else(|| "config directory is unavailable; cannot auto-load xeno.nu".to_string())?;
-		let loaded = tokio::task::spawn_blocking(move || crate::nu::NuRuntime::load(&config_dir))
+		let loaded = xeno_worker::spawn_blocking(xeno_worker::TaskClass::CpuBlocking, move || crate::nu::NuRuntime::load(&config_dir))
 			.await
 			.map_err(|error| format!("failed to join Nu runtime load task: {error}"))?;
 

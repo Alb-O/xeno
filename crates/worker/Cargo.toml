@@ -1,0 +1,13 @@
+[package]
+name = "xeno-worker"
+description = "Shared worker runtime primitives and task orchestration"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+tokio = { workspace = true, features = ["rt", "sync"] }
+tracing.workspace = true
+
+[lints]
+workspace = true
