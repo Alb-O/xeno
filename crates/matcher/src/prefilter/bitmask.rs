@@ -1,4 +1,6 @@
-//! Kept for reference, but no longer used in the codebase due to poor performance without AVX512
+//! Legacy bitmask prototype kept for reference and test coverage.
+//!
+//! This module is not used by the runtime prefilter pipeline.
 
 use core::simd::Simd;
 use core::simd::cmp::SimdPartialOrd;
@@ -12,7 +14,7 @@ const LANES: usize = 8;
 /// in the needle which are not in the haystack and the number of characters in the haystack which
 /// are not in the needle.
 ///
-/// TODO: Only fast on AVX512
+/// Note: this SIMD path is only faster on AVX512-capable hardware.
 pub fn string_to_bitmask(s: &[u8]) -> u64 {
 	let mut mask: u64 = 0;
 
@@ -59,7 +61,7 @@ pub fn string_to_bitmask_scalar(s: &[u8]) -> u64 {
 
 #[cfg(test)]
 mod tests {
-	use super::string_to_bitmask;
+	use super::{string_to_bitmask, string_to_bitmask_scalar};
 
 	#[test]
 	fn test_case_insensitive() {
@@ -88,5 +90,11 @@ mod tests {
 			string_to_bitmask("!\"#$%&'()*+,-./".as_bytes()),
 			0b00000000000000000000000000000000000000000000001111111111111110
 		);
+	}
+
+	#[test]
+	fn test_scalar_parity() {
+		let input = "AbC123!xyz";
+		assert_eq!(string_to_bitmask(input.as_bytes()), string_to_bitmask_scalar(input.as_bytes()));
 	}
 }

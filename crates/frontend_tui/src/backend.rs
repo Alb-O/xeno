@@ -11,20 +11,21 @@ use xeno_tui::buffer::Cell;
 use xeno_tui::layout::{Position, Size};
 
 /// Backend implementation using the termina crate.
-pub struct TerminaBackend<T: Terminal> {
+pub struct TerminaBackend<T>
+where
+	T: Terminal,
+{
 	/// The underlying terminal instance.
 	terminal: T,
 }
 
-impl<T: Terminal> TerminaBackend<T> {
+impl<T> TerminaBackend<T>
+where
+	T: Terminal,
+{
 	/// Creates a new backend wrapping the given terminal.
 	pub fn new(terminal: T) -> Self {
 		Self { terminal }
-	}
-
-	/// Returns a reference to the underlying terminal.
-	pub fn _terminal(&self) -> &T {
-		&self.terminal
 	}
 
 	/// Returns a mutable reference to the underlying terminal.
@@ -33,7 +34,10 @@ impl<T: Terminal> TerminaBackend<T> {
 	}
 }
 
-impl<T: Terminal> Backend for TerminaBackend<T> {
+impl<T> Backend for TerminaBackend<T>
+where
+	T: Terminal,
+{
 	type Error = io::Error;
 
 	fn draw<'a, I>(&mut self, content: I) -> io::Result<()>

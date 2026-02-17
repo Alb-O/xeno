@@ -62,9 +62,9 @@ pub use one_shot::{ScoreMatcher, match_indices, match_list, match_list_parallel,
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Match {
 	pub score: u16,
-	/** Index of the match in the original list of haystacks */
+	/// Index of the match in the original list of haystacks.
 	pub index: u32,
-	/** Matched the needle exactly (i.e. "foo" on "foo") */
+	/// Matched the needle exactly (i.e. "foo" on "foo").
 	pub exact: bool,
 }
 
@@ -90,7 +90,7 @@ impl Eq for Match {}
 pub struct MatchIndices {
 	pub score: u16,
 	pub indices: Vec<usize>,
-	/** Matched the needle exactly (i.e. "foo" on "foo") */
+	/// Matched the needle exactly (i.e. "foo" on "foo").
 	pub exact: bool,
 }
 

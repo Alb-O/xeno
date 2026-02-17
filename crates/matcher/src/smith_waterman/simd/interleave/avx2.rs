@@ -104,7 +104,7 @@ mod tests {
 
 	#[test]
 	fn test_interleave_avx2() {
-		// TODO: what the fuck
+		// Build deterministic per-lane byte patterns so transpose positions are easy to verify.
 		let strings_owned: [String; 16] = std::array::from_fn(|i| -> [u8; 32] { std::array::from_fn(|j| (i * 16 + j) as u8) })
 			.map(|str| unsafe { String::from_utf8_unchecked(str.to_vec()) });
 		let strings = strings_owned.iter().map(|s| s.as_str()).collect::<Vec<_>>();

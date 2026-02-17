@@ -64,7 +64,7 @@ pub fn derive_dispatch_result(input: TokenStream) -> TokenStream {
 /// define_events! {
 ///     /// Editor is starting up.
 ///     EditorStart => "editor:start",
-///     
+///
 ///     /// A buffer was opened.
 ///     BufferOpen => "buffer:open" {
 ///         path: Path,

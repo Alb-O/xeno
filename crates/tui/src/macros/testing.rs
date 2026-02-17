@@ -345,7 +345,7 @@ macro_rules! test_cases {
 ///     fn check(a: i32, b: i32, expected: i32) {
 ///         assert_eq!(a + b, expected);
 ///     }
-///     
+///
 ///     run_cases!(check, [
 ///         (1, 2, 3),
 ///         (4, 5, 9),

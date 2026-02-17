@@ -11,7 +11,8 @@
 //!
 //! All algorithms, except scalar, assume that needle.len() > 0 && haystack.len() >= 8
 
-pub mod bitmask;
+#[cfg(test)]
+mod bitmask;
 pub mod scalar;
 pub mod simd;
 mod typos;
