@@ -77,7 +77,7 @@ pub mod keys {
 
 pub use builtins::register_builtins;
 
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub use crate::db::ACTIONS;
 use crate::error::RegistryError;
 
@@ -129,19 +129,19 @@ impl crate::db::domain::DomainSpec for Actions {
 /// Registers an action definition at runtime.
 ///
 /// Returns `true` if the action was added, `false` if rejected (e.g., lower priority duplicate).
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub fn register_action(def: &'static ActionDef) -> bool {
 	ACTIONS.register(def).is_ok()
 }
 
 /// Finds an action by name, key, or id.
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub fn find_action(name: &str) -> Option<ActionRef> {
 	ACTIONS.get(name)
 }
 
 /// Returns all registered actions (builtins + runtime), sorted by name.
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub fn all_actions() -> Vec<ActionRef> {
 	ACTIONS.snapshot_guard().iter_refs().collect()
 }

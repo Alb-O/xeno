@@ -126,17 +126,17 @@ impl BuildEntry<MotionEntry> for MotionDef {
 /// Typed reference to a runtime motion entry.
 pub type MotionRef = RegistryRef<MotionEntry, MotionId>;
 
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub use crate::db::MOTIONS;
 
 /// Finds a motion by name or key.
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub fn find(name: &str) -> Option<MotionRef> {
 	MOTIONS.get(name)
 }
 
 /// Returns all registered motions, sorted by name.
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub fn all() -> Vec<MotionRef> {
 	MOTIONS.snapshot_guard().iter_refs().collect()
 }

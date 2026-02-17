@@ -171,17 +171,17 @@ xeno_macros::define_events! {
 	},
 }
 
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub mod db;
 
 #[macro_use]
 pub mod domains;
 
-#[cfg(all(feature = "db", feature = "commands"))]
+#[cfg(all(feature = "minimal", feature = "commands"))]
 pub use db::SNIPPETS;
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub use db::index;
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub use db::index::{
 	all_actions, all_commands, all_motions, all_text_objects, find_action, find_action_by_id, find_command, find_motion, find_text_object_by_trigger,
 	resolve_action_id, resolve_action_key,
@@ -190,7 +190,7 @@ pub use db::index::{
 pub use db::keymap_registry::{
 	BindingEntry, BindingTarget, KeymapBuildProblem, KeymapIndex, KeymapProblemKind, KeymapRegistry, LookupResult, get_keymap_registry,
 };
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub use db::{ACTIONS, COMMANDS, GUTTERS, HOOKS, LANGUAGES, LSP_SERVERS, MOTIONS, NOTIFICATIONS, OPTIONS, STATUSLINE_SEGMENTS, TEXT_OBJECTS, THEMES};
 #[cfg(feature = "actions")]
 pub use domains::actions;
@@ -202,7 +202,7 @@ pub use domains::gutter;
 pub use domains::hooks;
 #[cfg(feature = "languages")]
 pub use domains::languages;
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub use domains::lsp_servers;
 #[cfg(feature = "motions")]
 pub use domains::motions;

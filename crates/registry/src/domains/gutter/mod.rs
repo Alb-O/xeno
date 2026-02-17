@@ -187,20 +187,20 @@ impl BuildEntry<GutterEntry> for GutterDef {
 /// Unified input for gutter registration.
 pub type GutterInput = crate::core::def_input::DefInput<GutterDef, crate::gutter::link::LinkedGutterDef>;
 
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub use crate::db::GUTTERS;
 
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub fn enabled_gutters() -> Vec<RegistryRef<GutterEntry, GutterId>> {
 	GUTTERS.snapshot_guard().iter_refs().filter(|g| g.default_enabled).collect()
 }
 
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub fn find(name: &str) -> Option<RegistryRef<GutterEntry, GutterId>> {
 	GUTTERS.get(name)
 }
 
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub fn all() -> Vec<RegistryRef<GutterEntry, GutterId>> {
 	GUTTERS.snapshot_guard().iter_refs().collect()
 }
@@ -212,13 +212,13 @@ pub fn column_width(gutter: &GutterEntry, ctx: &GutterWidthContext) -> u16 {
 	}
 }
 
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub fn total_width(ctx: &GutterWidthContext) -> u16 {
 	let width: u16 = enabled_gutters().iter().map(|g| column_width(g, ctx)).sum();
 	if width > 0 { width + 1 } else { 0 }
 }
 
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub fn column_widths(ctx: &GutterWidthContext) -> Vec<(u16, RegistryRef<GutterEntry, GutterId>)> {
 	enabled_gutters().into_iter().map(|g| (column_width(&g, ctx), g)).collect()
 }

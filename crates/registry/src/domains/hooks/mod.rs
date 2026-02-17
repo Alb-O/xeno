@@ -67,30 +67,30 @@ pub use handler::{HookHandlerReg, HookHandlerStatic};
 pub use types::{HookAction, HookDef, HookEntry, HookFuture, HookHandler, HookInput, HookMutability, HookPriority, HookResult};
 pub use xeno_primitives::Mode;
 
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub use crate::db::HOOKS;
 // Re-export macros
 pub use crate::hook_handler;
 
 pub type HooksRef = RegistryRef<HookEntry, HookId>;
 
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub fn register_hook(def: &'static HookDef) -> bool {
 	HOOKS.register(def)
 }
 
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub fn hooks_for_event(event: crate::HookEvent) -> Vec<HooksRef> {
 	HOOKS.for_event(event)
 }
 
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub fn find_hooks(event: crate::HookEvent) -> Vec<HooksRef> {
 	hooks_for_event(event)
 }
 
 /// Returns all registered hooks.
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub fn all_hooks() -> Vec<HooksRef> {
 	HOOKS.snapshot_guard().iter_refs().collect()
 }

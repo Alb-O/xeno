@@ -142,20 +142,20 @@ impl BuildEntry<TextObjectEntry> for TextObjectDef {
 /// or a `LinkedTextObjectDef` assembled from NUON metadata + Rust handlers.
 pub type TextObjectInput = crate::core::def_input::DefInput<TextObjectDef, crate::textobj::link::LinkedTextObjectDef>;
 
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub use crate::db::TEXT_OBJECTS;
 
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub fn find_by_trigger(trigger: char) -> Option<TextObjectRef> {
 	TEXT_OBJECTS.by_trigger(trigger)
 }
 
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub fn find(name: &str) -> Option<TextObjectRef> {
 	TEXT_OBJECTS.get(name)
 }
 
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub fn all() -> Vec<TextObjectRef> {
 	TEXT_OBJECTS.snapshot_guard().iter_refs().collect()
 }

@@ -52,7 +52,7 @@ impl crate::db::domain::DomainSpec for Snippets {
 
 pub type SnippetRef = crate::core::RegistryRef<SnippetEntry, crate::core::SnippetId>;
 
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub use crate::db::SNIPPETS;
 
 pub fn find_snippet(key: &str) -> Option<SnippetRef> {
@@ -61,19 +61,19 @@ pub fn find_snippet(key: &str) -> Option<SnippetRef> {
 		return None;
 	}
 
-	#[cfg(feature = "db")]
+	#[cfg(feature = "minimal")]
 	{
 		SNIPPETS.get(key)
 	}
 
-	#[cfg(not(feature = "db"))]
+	#[cfg(not(feature = "minimal"))]
 	{
 		let _ = key;
 		None
 	}
 }
 
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub fn all_snippets() -> Vec<SnippetRef> {
 	SNIPPETS.snapshot_guard().iter_refs().collect()
 }
@@ -82,7 +82,7 @@ fn normalize_lookup_key(key: &str) -> &str {
 	key.strip_prefix('@').unwrap_or(key)
 }
 
-#[cfg(all(test, feature = "db"))]
+#[cfg(all(test, feature = "minimal"))]
 mod tests {
 	use super::{all_snippets, find_snippet};
 

@@ -9,7 +9,7 @@ license.workspace = true
 default = ["full"]
 
 full = [
-    "db",
+    "minimal",
     "keymap",
     "config-nuon",
     "config-nu",
@@ -26,9 +26,7 @@ full = [
     "languages-builtins",
 ]
 
-minimal = ["actions", "commands", "motions", "textobj", "options", "themes", "languages"]
-
-db = [
+minimal = [
     "dep:inventory",
     "dep:parking_lot",
     "dep:paste",
@@ -45,11 +43,11 @@ db = [
     "notifications",
     "languages",
 ]
-keymap = ["db", "actions", "dep:xeno-keymap-core"]
+keymap = ["minimal", "actions", "dep:xeno-keymap-core"]
 
 # Domain type gates
 actions = [
-    "db",
+    "minimal",
     "dep:ropey",
     "dep:xeno-primitives",
     "dep:xeno-macros",
@@ -57,16 +55,16 @@ actions = [
     "options",
     "textobj",
 ]
-commands = ["db", "motions", "notifications", "textobj"]
-motions = ["db", "dep:regex", "dep:ropey", "dep:xeno-primitives"]
-textobj = ["db", "dep:ropey", "dep:xeno-primitives", "motions"]
-options = ["db", "dep:strsim", "dep:xeno-macros"]
-themes = ["db", "dep:strsim", "dep:xeno-primitives"]
-statusline = ["db"]
-gutter = ["db", "dep:ropey", "themes"]
-hooks = ["db", "dep:tracing", "dep:xeno-macros", "dep:xeno-primitives"]
-notifications = ["db"]
-languages = ["db"]
+commands = ["minimal", "motions", "notifications", "textobj"]
+motions = ["minimal", "dep:regex", "dep:ropey", "dep:xeno-primitives"]
+textobj = ["minimal", "dep:ropey", "dep:xeno-primitives", "motions"]
+options = ["minimal", "dep:strsim", "dep:xeno-macros"]
+themes = ["minimal", "dep:strsim", "dep:xeno-primitives"]
+statusline = ["minimal"]
+gutter = ["minimal", "dep:ropey", "themes"]
+hooks = ["minimal", "dep:xeno-macros", "dep:xeno-primitives"]
+notifications = ["minimal"]
+languages = ["minimal"]
 
 # Builtins gates
 actions-builtins = ["actions"]

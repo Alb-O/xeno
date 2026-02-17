@@ -159,10 +159,10 @@ impl BuildEntry<StatuslineEntry> for StatuslineSegmentDef {
 /// Unified input for statusline segment registration.
 pub type StatuslineInput = crate::core::def_input::DefInput<StatuslineSegmentDef, crate::statusline::link::LinkedStatuslineDef>;
 
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub use crate::db::STATUSLINE_SEGMENTS;
 
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub fn segments_for_position(position: SegmentPosition) -> Vec<RegistryRef<StatuslineEntry, StatuslineId>> {
 	STATUSLINE_SEGMENTS
 		.snapshot_guard()
@@ -171,19 +171,19 @@ pub fn segments_for_position(position: SegmentPosition) -> Vec<RegistryRef<Statu
 		.collect()
 }
 
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub fn render_position(position: SegmentPosition, ctx: &StatuslineContext) -> Vec<RenderedSegment> {
 	let mut segments = segments_for_position(position);
 	segments.sort_by(|a, b| b.meta().priority.cmp(&a.meta().priority));
 	segments.into_iter().filter_map(|seg| (seg.render)(ctx)).collect()
 }
 
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub fn find_segment(name: &str) -> Option<RegistryRef<StatuslineEntry, StatuslineId>> {
 	STATUSLINE_SEGMENTS.get(name)
 }
 
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub fn all_segments() -> Vec<RegistryRef<StatuslineEntry, StatuslineId>> {
 	STATUSLINE_SEGMENTS.snapshot_guard().iter_refs().collect()
 }

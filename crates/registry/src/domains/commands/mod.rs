@@ -179,17 +179,17 @@ pub mod flags {
 	pub const NONE: u32 = 0;
 }
 
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub use crate::db::COMMANDS;
 
 /// Finds a command by name or key.
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub fn find_command(name: &str) -> Option<RegistryRef<CommandEntry, crate::core::CommandId>> {
 	COMMANDS.get(name)
 }
 
 /// Returns all registered commands (builtins + runtime), sorted by name.
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub fn all_commands() -> Vec<RegistryRef<CommandEntry, crate::core::CommandId>> {
 	COMMANDS.snapshot_guard().iter_refs().collect()
 }

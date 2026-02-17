@@ -112,28 +112,28 @@ macro_rules! option_validator {
 	};
 }
 
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub use crate::db::OPTIONS;
 
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub fn find(name: &str) -> Option<OptionsRef> {
 	OPTIONS.get(name)
 }
 
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub fn all() -> Vec<OptionsRef> {
 	OPTIONS.snapshot_guard().iter_refs().collect()
 }
 
 /// Validates a parsed option value against the registry definition.
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub fn validate(key: &str, value: &OptionValue) -> Result<(), OptionError> {
 	let entry = OPTIONS.get(key).ok_or_else(|| OptionError::UnknownOption(key.to_string()))?;
 	validate_ref(&entry, value)
 }
 
 /// Validates a parsed option value against a resolved reference.
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub fn validate_ref(opt: &OptionsRef, value: &OptionValue) -> Result<(), OptionError> {
 	if !value.matches_type(opt.value_type) {
 		return Err(OptionError::TypeMismatch {

@@ -72,12 +72,12 @@ pub static DEFAULT_THEME: ThemeDef = ThemeDef {
 /// Default theme ID to use when no theme is specified.
 pub const DEFAULT_THEME_ID: &str = "xeno-registry::monokai";
 
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub use crate::db::THEMES;
 
 /// Find a theme by name or key.
 pub fn get_theme(name: &str) -> Option<crate::core::RegistryRef<ThemeEntry, crate::core::ThemeId>> {
-	#[cfg(feature = "db")]
+	#[cfg(feature = "minimal")]
 	{
 		if let Some(theme) = THEMES.get(name) {
 			return Some(theme);

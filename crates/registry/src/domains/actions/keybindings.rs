@@ -4,19 +4,19 @@ use std::sync::{Arc, LazyLock};
 
 use xeno_primitives::Mode;
 
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 use crate::db::get_db;
 
 /// Key prefixes extracted from the registry database.
 pub static KEY_PREFIXES: LazyLock<&'static [KeyPrefixDef]> = LazyLock::new(current_key_prefixes);
 
 fn current_key_prefixes() -> &'static [KeyPrefixDef] {
-	#[cfg(feature = "db")]
+	#[cfg(feature = "minimal")]
 	{
 		get_db().key_prefixes.as_slice()
 	}
 
-	#[cfg(not(feature = "db"))]
+	#[cfg(not(feature = "minimal"))]
 	{
 		&[]
 	}

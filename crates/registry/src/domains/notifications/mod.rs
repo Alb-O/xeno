@@ -216,11 +216,11 @@ impl From<NotificationKey> for Notification {
 	}
 }
 
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub use crate::db::NOTIFICATIONS;
 
 /// Returns all registered notification definitions.
-#[cfg(feature = "db")]
+#[cfg(feature = "minimal")]
 pub fn all() -> Vec<crate::core::RegistryRef<NotificationEntry, NotificationId>> {
 	NOTIFICATIONS.snapshot_guard().iter_refs().collect()
 }
