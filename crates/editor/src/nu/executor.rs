@@ -4,9 +4,11 @@
 //! `NuRuntime` and processes jobs sequentially. This eliminates tokio blocking
 //! pool scheduling overhead on the hot path (every action with a post-hook).
 //!
-//! The executor self-heals: on transport failure (worker died or channel
-//! closed), `run()` performs one internal restart and retries the job. If the
-//! retry also fails, `NuExecError::Transport` is returned.
+//! The executor self-heals on recoverable transport failures: when the worker
+//! channel send fails, `run()` performs one internal restart and retries the
+//! same job payload. If the worker dies mid-evaluation and drops the reply
+//! channel, payload replay is unsafe and `run()` returns transport error after
+//! attempting to respawn for future calls.
 //!
 //! Shutdown is explicit and deterministic: dropping the owning `NuExecutor`
 //! sets a closed flag and sends a `Shutdown` job. Once closed, no restarts
@@ -46,12 +48,12 @@ enum Job {
 	},
 }
 
-/// Executor error after internal retry has been exhausted.
+/// Executor error surfaced by the persistent Nu worker.
 #[derive(Debug)]
 pub enum NuExecError {
 	/// Owner dropped or runtime was swapped; no restart allowed.
 	Closed,
-	/// Transport failure persisted after one internal restart.
+	/// Transport failure not recoverable for this call.
 	Transport(String),
 	/// Nu evaluated and returned an error string.
 	Eval(String),
@@ -60,6 +62,7 @@ pub enum NuExecError {
 /// Shared state between owner and client clones.
 pub(crate) struct Shared {
 	runtime: NuRuntime,
+	tx: std::sync::Mutex<std::sync::mpsc::Sender<Job>>,
 	closed: AtomicBool,
 	#[cfg(test)]
 	pub(crate) shutdown_acks: AtomicUsize,
@@ -74,11 +77,10 @@ pub(crate) struct Shared {
 /// and sends a `Shutdown` job on drop. Clones are clients that share the
 /// same channel but do not trigger shutdown when dropped.
 ///
-/// Self-heals on transport failure: if the worker dies, `run()` respawns
-/// it once and retries. After the owner is dropped (`closed=true`), no
-/// restarts are allowed.
+/// Self-heals on recoverable transport failures: if send fails, `run()`
+/// respawns once and retries the same payload. After the owner is dropped
+/// (`closed=true`), no restarts are allowed.
 pub struct NuExecutor {
-	tx: std::sync::Mutex<std::sync::mpsc::Sender<Job>>,
 	shared: std::sync::Arc<Shared>,
 	is_owner: bool,
 }
@@ -92,9 +94,9 @@ impl NuExecutor {
 		Self::spawn_worker(rt, rx);
 
 		Self {
-			tx: std::sync::Mutex::new(tx),
 			shared: std::sync::Arc::new(Shared {
 				runtime,
+				tx: std::sync::Mutex::new(tx),
 				closed: AtomicBool::new(false),
 				#[cfg(test)]
 				shutdown_acks: AtomicUsize::new(0),
@@ -148,7 +150,7 @@ impl NuExecutor {
 		}
 		let (new_tx, rx) = std::sync::mpsc::channel::<Job>();
 		Self::spawn_worker(self.shared.runtime.clone(), rx);
-		*self.tx.lock().expect("tx lock poisoned") = new_tx;
+		*self.shared.tx.lock().expect("tx lock poisoned") = new_tx;
 		true
 	}
 
@@ -159,7 +161,6 @@ impl NuExecutor {
 	/// hook evaluation.
 	pub fn client(&self) -> Self {
 		Self {
-			tx: std::sync::Mutex::new(self.tx.lock().expect("tx lock poisoned").clone()),
 			shared: std::sync::Arc::clone(&self.shared),
 			is_owner: false,
 		}
@@ -167,7 +168,8 @@ impl NuExecutor {
 
 	/// Submit a job and await the result.
 	///
-	/// On transport failure, internally restarts the worker once and retries.
+	/// On recoverable transport failure, restarts once and retries the same job.
+	/// If payload replay is unsafe (reply dropped), returns transport error.
 	/// If the executor is closed (owner dropped), returns `NuExecError::Closed`.
 	pub async fn run(
 		&self,
@@ -185,11 +187,13 @@ impl NuExecutor {
 			Ok(batch) => Ok(batch),
 			Err(TransportOrEval::Eval(e)) => Err(NuExecError::Eval(e)),
 			Err(TransportOrEval::Transport {
-				decl_id,
-				surface,
-				args,
-				budget,
-				env,
+				payload: Some(RetryPayload {
+					decl_id,
+					surface,
+					args,
+					budget,
+					env,
+				}),
 				reason,
 			}) => {
 				tracing::warn!(reason = %reason, "Nu executor transport failure, attempting restart");
@@ -202,6 +206,11 @@ impl NuExecutor {
 					Err(TransportOrEval::Eval(e)) => Err(NuExecError::Eval(e)),
 					Err(TransportOrEval::Transport { reason, .. }) => Err(NuExecError::Transport(reason)),
 				}
+			}
+			Err(TransportOrEval::Transport { payload: None, reason }) => {
+				// Payload was lost mid-flight (reply channel dropped), so replay is not safe.
+				let _ = self.respawn();
+				Err(NuExecError::Transport(reason))
 			}
 		}
 	}
@@ -217,7 +226,7 @@ impl NuExecutor {
 		let (reply_tx, reply_rx) = oneshot::channel();
 
 		{
-			let tx = self.tx.lock().expect("tx lock poisoned");
+			let tx = self.shared.tx.lock().expect("tx lock poisoned");
 			if let Err(err) = tx.send(Job::Run {
 				decl_id,
 				surface,
@@ -237,11 +246,13 @@ impl NuExecutor {
 						..
 					} => {
 						return Err(TransportOrEval::Transport {
-							decl_id,
-							surface,
-							args,
-							budget,
-							env,
+							payload: Some(RetryPayload {
+								decl_id,
+								surface,
+								args,
+								budget,
+								env,
+							}),
 							reason: "channel send failed (worker dead)".to_string(),
 						});
 					}
@@ -254,11 +265,7 @@ impl NuExecutor {
 			Ok(Ok(batch)) => Ok(batch),
 			Ok(Err(eval_error)) => Err(TransportOrEval::Eval(eval_error)),
 			Err(_) => Err(TransportOrEval::Transport {
-				decl_id,
-				surface,
-				args: vec![], // payload lost when reply dropped
-				budget,
-				env: vec![],
+				payload: None, // payload lost when reply dropped
 				reason: "reply channel dropped (worker died mid-evaluation)".to_string(),
 			}),
 		}
@@ -271,17 +278,19 @@ impl NuExecutor {
 }
 
 /// Internal error type for try_run: distinguishes recoverable transport
-/// failures (with payload for retry) from evaluation errors.
+/// failures (payload retained for retry), non-replayable transport failures,
+/// and evaluation errors.
 enum TransportOrEval {
-	Transport {
-		decl_id: ExportId,
-		surface: NuDecodeSurface,
-		args: Vec<String>,
-		budget: DecodeBudget,
-		env: Vec<(String, Value)>,
-		reason: String,
-	},
+	Transport { payload: Option<RetryPayload>, reason: String },
 	Eval(String),
+}
+
+struct RetryPayload {
+	decl_id: ExportId,
+	surface: NuDecodeSurface,
+	args: Vec<String>,
+	budget: DecodeBudget,
+	env: Vec<(String, Value)>,
 }
 
 const SHUTDOWN_ACK_TIMEOUT: Duration = Duration::from_millis(100);
@@ -295,7 +304,7 @@ impl Drop for NuExecutor {
 		self.shared.closed.store(true, Ordering::SeqCst);
 
 		let (ack_tx, mut ack_rx) = oneshot::channel();
-		let tx = self.tx.lock().expect("tx lock poisoned");
+		let tx = self.shared.tx.lock().expect("tx lock poisoned");
 		if tx.send(Job::Shutdown { ack: ack_tx }).is_err() {
 			return;
 		}

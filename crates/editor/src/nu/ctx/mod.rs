@@ -93,17 +93,6 @@ impl NuCtxEvent {
 		std::mem::discriminant(self) == std::mem::discriminant(other)
 	}
 
-	/// Stable per-variant key for O(K) queue dedup.
-	pub(crate) fn kind_key(&self) -> u8 {
-		match self {
-			Self::ActionPost { .. } => 0,
-			Self::CommandPost { .. } => 1,
-			Self::EditorCommandPost { .. } => 2,
-			Self::ModeChange { .. } => 3,
-			Self::BufferOpen { .. } => 4,
-		}
-	}
-
 	pub(crate) fn type_str(&self) -> &'static str {
 		match self {
 			Self::ActionPost { .. } => "action_post",

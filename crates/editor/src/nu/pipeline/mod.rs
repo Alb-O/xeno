@@ -153,7 +153,8 @@ pub(crate) fn kick_nu_hook_eval(editor: &mut Editor) {
 /// Applies the result of an async Nu hook evaluation.
 ///
 /// Ignores stale results (token mismatch after runtime swap). Transport
-/// errors are final — the executor already performed one internal retry.
+/// errors are final for this hook call: executor retry happens only for
+/// recoverable transport paths.
 pub(crate) fn apply_nu_hook_eval_done(editor: &mut Editor, msg: crate::msg::NuHookEvalDoneMsg) -> crate::msg::Dirty {
 	if !editor.state.nu.complete_hook_eval(msg.token) {
 		return crate::msg::Dirty::NONE;
@@ -166,7 +167,7 @@ pub(crate) fn apply_nu_hook_eval_done(editor: &mut Editor, msg: crate::msg::NuHo
 			crate::msg::Dirty::NONE
 		}
 		Err(error) => {
-			warn!(error = ?error, "Nu hook executor error (retry exhausted)");
+			warn!(error = ?error, "Nu hook executor transport/closed error");
 			crate::msg::Dirty::NONE
 		}
 	}

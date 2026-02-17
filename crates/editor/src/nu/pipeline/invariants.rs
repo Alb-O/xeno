@@ -91,6 +91,43 @@ pub(crate) fn test_stale_completion_keeps_inflight_state() {
 	assert_eq!(state.hook_in_flight_token(), Some(token), "stale completion must not clear active in-flight");
 }
 
+/// Must coalesce only consecutive same-kind hook events.
+///
+/// * Enforced in: `NuCoordinatorState::enqueue_hook`
+/// * Failure symptom: interleaved events are dropped or reordered.
+#[cfg_attr(test, test)]
+pub(crate) fn test_enqueue_hook_coalesces_consecutive_only() {
+	let mut state = NuCoordinatorState::new();
+	state.enqueue_hook(
+		NuCtxEvent::ActionPost {
+			name: "a1".to_string(),
+			result: "ok".to_string(),
+		},
+		64,
+	);
+	state.enqueue_hook(
+		NuCtxEvent::ModeChange {
+			from: "Normal".to_string(),
+			to: "Insert".to_string(),
+		},
+		64,
+	);
+	state.enqueue_hook(
+		NuCtxEvent::ActionPost {
+			name: "a2".to_string(),
+			result: "ok".to_string(),
+		},
+		64,
+	);
+
+	let first = state.pop_queued_hook().expect("first event should exist");
+	assert!(matches!(first.event, NuCtxEvent::ActionPost { ref name, .. } if name == "a1"));
+	let second = state.pop_queued_hook().expect("second event should exist");
+	assert!(matches!(second.event, NuCtxEvent::ModeChange { .. }));
+	let third = state.pop_queued_hook().expect("third event should exist");
+	assert!(matches!(third.event, NuCtxEvent::ActionPost { ref name, .. } if name == "a2"));
+}
+
 /// Must not clear the active schedule when handling a stale schedule token.
 ///
 /// * Enforced in: `NuCoordinatorState::apply_schedule_fired`

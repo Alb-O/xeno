@@ -198,11 +198,11 @@ impl NuCoordinatorState {
 	}
 
 	pub(crate) fn enqueue_hook(&mut self, event: NuCtxEvent, max_pending: usize) -> bool {
-		let key = event.kind_key();
-
-		// If this kind is already queued, replace in place (preserves ordering).
-		if let Some(pos) = self.hook_queue.iter().position(|q| q.event.kind_key() == key) {
-			self.hook_queue[pos].event = event;
+		// Coalesce only consecutive same-kind events; preserve interleaved ordering.
+		if let Some(back) = self.hook_queue.back_mut()
+			&& back.event.same_kind(&event)
+		{
+			back.event = event;
 			return false;
 		}
 
@@ -372,7 +372,7 @@ mod tests {
 	fn make_runtime(script: &str) -> NuRuntime {
 		let temp = tempfile::tempdir().expect("temp dir should exist");
 		std::fs::write(temp.path().join("xeno.nu"), script).expect("write should succeed");
-		let path = temp.into_path();
+		let path = temp.path().to_path_buf();
 		NuRuntime::load(&path).expect("runtime should load")
 	}
 
@@ -413,26 +413,26 @@ mod tests {
 	}
 
 	#[test]
-	fn enqueue_replaces_existing_kind_preserves_order() {
+	fn enqueue_replaces_consecutive_same_kind() {
 		let mut state = NuCoordinatorState::new();
 		let a1 = NuCtxEvent::ActionPost {
 			name: "a1".into(),
+			result: "ok".into(),
+		};
+		let a2 = NuCtxEvent::ActionPost {
+			name: "a2".into(),
 			result: "ok".into(),
 		};
 		let b1 = NuCtxEvent::ModeChange {
 			from: "Normal".into(),
 			to: "Insert".into(),
 		};
-		let a2 = NuCtxEvent::ActionPost {
-			name: "a2".into(),
-			result: "ok".into(),
-		};
 
 		state.enqueue_hook(a1, 64);
-		state.enqueue_hook(b1, 64);
 		state.enqueue_hook(a2, 64);
+		state.enqueue_hook(b1, 64);
 
-		// Queue should be [A2, B1] — A replaced in place at position 0.
+		// Queue should be [A2, B1] — consecutive A was coalesced.
 		assert_eq!(state.hook_queue_len(), 2);
 		let first = state.pop_queued_hook().unwrap();
 		assert!(matches!(first.event, NuCtxEvent::ActionPost { ref name, .. } if name == "a2"));
@@ -441,31 +441,36 @@ mod tests {
 	}
 
 	#[test]
-	fn enqueue_bounded_by_kind_count() {
+	fn enqueue_interleaved_same_kind_preserves_both_events() {
 		let mut state = NuCoordinatorState::new();
-		// Enqueue alternating kinds many times — queue should never exceed kind count.
-		for i in 0..100 {
-			state.enqueue_hook(
-				NuCtxEvent::ActionPost {
-					name: format!("a{i}"),
-					result: "ok".into(),
-				},
-				64,
-			);
-			state.enqueue_hook(
-				NuCtxEvent::ModeChange {
-					from: format!("m{i}"),
-					to: "Insert".into(),
-				},
-				64,
-			);
-		}
-		// Only 2 kinds were ever enqueued.
-		assert_eq!(state.hook_queue_len(), 2);
-		// Latest values win.
+		state.enqueue_hook(
+			NuCtxEvent::ActionPost {
+				name: "a1".into(),
+				result: "ok".into(),
+			},
+			64,
+		);
+		state.enqueue_hook(
+			NuCtxEvent::ModeChange {
+				from: "Normal".into(),
+				to: "Insert".into(),
+			},
+			64,
+		);
+		state.enqueue_hook(
+			NuCtxEvent::ActionPost {
+				name: "a2".into(),
+				result: "ok".into(),
+			},
+			64,
+		);
+
+		assert_eq!(state.hook_queue_len(), 3);
 		let first = state.pop_queued_hook().unwrap();
-		assert!(matches!(first.event, NuCtxEvent::ActionPost { ref name, .. } if name == "a99"));
+		assert!(matches!(first.event, NuCtxEvent::ActionPost { ref name, .. } if name == "a1"));
 		let second = state.pop_queued_hook().unwrap();
-		assert!(matches!(second.event, NuCtxEvent::ModeChange { ref from, .. } if from == "m99"));
+		assert!(matches!(second.event, NuCtxEvent::ModeChange { .. }));
+		let third = state.pop_queued_hook().unwrap();
+		assert!(matches!(third.event, NuCtxEvent::ActionPost { ref name, .. } if name == "a2"));
 	}
 }

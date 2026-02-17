@@ -149,7 +149,7 @@ Exceeding any limit produces a descriptive error with the decode path (e.g. `ret
 
 ### Execution model
 
-Macros and hooks run on a dedicated persistent worker thread (not the tokio blocking pool). Jobs are processed sequentially. If the worker panics, it exits cleanly and is auto-restarted on the next call with a single retry.
+Macros and hooks run on a dedicated persistent worker thread (not the tokio blocking pool). Jobs are processed sequentially. If submit fails because the worker died, the executor respawns and retries once. If the worker dies mid-evaluation (reply channel drops), that in-flight call returns a transport error (not replayed), and the executor respawns for subsequent calls.
 
 ## Shared schema
 

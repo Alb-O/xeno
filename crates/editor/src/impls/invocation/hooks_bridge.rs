@@ -55,7 +55,8 @@ impl Editor {
 	/// Applies the result of an async Nu hook evaluation.
 	///
 	/// Ignores stale results (token mismatch after runtime swap).
-	/// On executor death, restarts the executor and retries once.
+	/// Executor transport failures are handled internally (single retry only
+	/// when payload replay is safe).
 	pub(crate) fn apply_nu_hook_eval_done(&mut self, msg: crate::msg::NuHookEvalDoneMsg) -> crate::msg::Dirty {
 		crate::nu::pipeline::apply_nu_hook_eval_done(self, msg)
 	}
