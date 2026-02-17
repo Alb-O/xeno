@@ -1,91 +1,98 @@
-use std::sync::{Arc, mpsc};
+use std::sync::Arc;
 use std::time::Duration;
 
+use tokio::time::{sleep, timeout};
+
 use super::FsService;
-use crate::filesystem::{FileRow, IndexKind, IndexMsg, IndexUpdate, ProgressSnapshot, PumpBudget, SearchMsg, SearchRow};
+use crate::filesystem::{FileRow, FilesystemOptions, IndexKind, IndexMsg, IndexUpdate, ProgressSnapshot};
 
-fn budget() -> PumpBudget {
-	PumpBudget {
-		max_index_msgs: 32,
-		max_search_msgs: 8,
-		max_time: Duration::from_millis(10),
-	}
+async fn wait_until<F>(name: &str, mut condition: F)
+where
+	F: FnMut() -> bool,
+{
+	timeout(Duration::from_secs(2), async move {
+		loop {
+			if condition() {
+				return;
+			}
+			sleep(Duration::from_millis(10)).await;
+		}
+	})
+	.await
+	.unwrap_or_else(|_| panic!("timed out waiting for {name}"));
 }
 
-#[test]
-fn pump_applies_current_generation_index_updates() {
-	let (tx, rx) = mpsc::channel();
+#[tokio::test]
+async fn ensure_index_with_same_spec_does_not_restart() {
 	let mut service = FsService::new();
-	service.set_index_receiver(rx);
+	let root = tempfile::tempdir().expect("must create tempdir");
 
-	let files: Arc<[FileRow]> = vec![FileRow::new(Arc::<str>::from("src/main.rs"))].into();
-	tx.send(IndexMsg::Update(IndexUpdate {
-		generation: service.generation(),
-		kind: IndexKind::Live,
-		reset: false,
-		files,
-		progress: ProgressSnapshot {
-			indexed_files: 1,
-			total_files: Some(2),
-			complete: false,
-		},
-		cached_data: None,
-	}))
-	.unwrap();
-
-	assert!(service.pump(budget()));
-	assert_eq!(service.data().files.len(), 1);
-	assert_eq!(service.progress().indexed_files, 1);
+	assert!(service.ensure_index(root.path().to_path_buf(), FilesystemOptions::default()));
+	wait_until("generation start", || service.generation() > 0).await;
+	assert!(!service.ensure_index(root.path().to_path_buf(), FilesystemOptions::default()));
 }
 
-#[test]
-fn pump_ignores_stale_generation_messages() {
-	let (tx, rx) = mpsc::channel();
+#[tokio::test]
+async fn query_ids_are_monotonic_per_generation() {
 	let mut service = FsService::new();
-	service.set_index_receiver(rx);
-	let stale_generation = service.generation();
-	service.begin_new_generation();
+	let root_a = tempfile::tempdir().expect("must create tempdir");
+	service.ensure_index(root_a.path().to_path_buf(), FilesystemOptions::default());
+	wait_until("generation one", || service.generation() > 0).await;
 
-	tx.send(IndexMsg::Update(IndexUpdate {
-		generation: stale_generation,
+	let first = service.query("main", 20).expect("query id");
+	let second = service.query("lib", 20).expect("query id");
+	assert!(second > first);
+
+	let old_generation = service.generation();
+	let root_b = tempfile::tempdir().expect("must create tempdir");
+	service.ensure_index(root_b.path().to_path_buf(), FilesystemOptions::default());
+	wait_until("generation two", || service.generation() > old_generation).await;
+
+	let next = service.query("src", 20).expect("query id");
+	assert_eq!(next, 1);
+}
+
+#[tokio::test]
+async fn pump_reports_actor_pushed_state_changes() {
+	let mut service = FsService::new();
+	let root = tempfile::tempdir().expect("must create tempdir");
+	let file = root.path().join("main.rs");
+	std::fs::write(&file, "fn main() {}\n").expect("must create file");
+
+	service.ensure_index(root.path().to_path_buf(), FilesystemOptions::default());
+	wait_until("pump changed", || {
+		service.pump(crate::filesystem::PumpBudget {
+			max_index_msgs: 32,
+			max_search_msgs: 8,
+			max_time: Duration::from_millis(4),
+		})
+	})
+	.await;
+}
+
+#[tokio::test]
+async fn stop_index_advances_generation_and_blocks_queries() {
+	let mut service = FsService::new();
+	let root = tempfile::tempdir().expect("must create tempdir");
+	service.ensure_index(root.path().to_path_buf(), FilesystemOptions::default());
+	wait_until("generation start", || service.generation() > 0).await;
+	let generation = service.generation();
+
+	service.inject_index_msg(IndexMsg::Update(IndexUpdate {
+		generation,
 		kind: IndexKind::Live,
 		reset: false,
-		files: vec![FileRow::new(Arc::<str>::from("src/lib.rs"))].into(),
+		files: vec![FileRow::new(Arc::<str>::from("src/main.rs"))].into(),
 		progress: ProgressSnapshot {
 			indexed_files: 1,
 			total_files: Some(1),
 			complete: false,
 		},
 		cached_data: None,
-	}))
-	.unwrap();
+	}));
+	wait_until("data update", || !service.data().files.is_empty()).await;
 
-	assert!(!service.pump(budget()));
-	assert!(service.data().files.is_empty());
-}
-
-#[test]
-fn pump_applies_current_generation_search_results() {
-	let (tx, rx) = mpsc::channel();
-	let mut service = FsService::new();
-	service.set_search_receiver(rx);
-
-	tx.send(SearchMsg::Result {
-		generation: service.generation(),
-		id: 7,
-		query: "main".to_string(),
-		rows: vec![SearchRow {
-			path: Arc::<str>::from("src/main.rs"),
-			score: 42,
-			match_indices: Some(vec![0, 1]),
-		}]
-		.into(),
-		scanned: 100,
-		elapsed_ms: 3,
-	})
-	.unwrap();
-
-	assert!(service.pump(budget()));
-	assert_eq!(service.result_query(), "main");
-	assert_eq!(service.results().len(), 1);
+	service.stop_index();
+	wait_until("generation advance after stop", || service.generation() > generation).await;
+	assert!(service.query("main", 20).is_none());
 }

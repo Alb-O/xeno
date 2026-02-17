@@ -41,6 +41,7 @@ impl PartialOrd for RankedMatch {
 	}
 }
 
+#[allow(dead_code)]
 pub fn spawn_search_worker(
 	runtime: &xeno_worker::WorkerRuntime,
 	generation: u64,
@@ -58,6 +59,7 @@ pub fn spawn_search_worker(
 	(command_tx, result_rx, latest_query_id)
 }
 
+#[allow(dead_code)]
 fn worker_loop(generation: u64, mut data: SearchData, command_rx: Receiver<SearchCmd>, result_tx: SyncSender<SearchMsg>, latest_query_id: Arc<AtomicU64>) {
 	while let Ok(command) = command_rx.recv() {
 		match command {
@@ -68,7 +70,7 @@ fn worker_loop(generation: u64, mut data: SearchData, command_rx: Receiver<Searc
 				if command_generation != generation {
 					continue;
 				}
-				apply_delta(&mut data, delta);
+				apply_search_delta(&mut data, delta);
 			}
 			SearchCmd::Query {
 				generation: command_generation,
@@ -83,7 +85,7 @@ fn worker_loop(generation: u64, mut data: SearchData, command_rx: Receiver<Searc
 					continue;
 				}
 
-				let Some(result) = run_query(generation, id, &query, limit, &data, latest_query_id.as_ref()) else {
+				let Some(result) = run_search_query(generation, id, &query, limit, &data, latest_query_id.as_ref()) else {
 					continue;
 				};
 				if should_abort(id, latest_query_id.as_ref()) {
@@ -107,7 +109,7 @@ fn worker_loop(generation: u64, mut data: SearchData, command_rx: Receiver<Searc
 	}
 }
 
-fn apply_delta(data: &mut SearchData, delta: IndexDelta) {
+pub(crate) fn apply_search_delta(data: &mut SearchData, delta: IndexDelta) {
 	match delta {
 		IndexDelta::Reset => data.files.clear(),
 		IndexDelta::Replace(next) => *data = next,
@@ -115,7 +117,7 @@ fn apply_delta(data: &mut SearchData, delta: IndexDelta) {
 	}
 }
 
-fn run_query(generation: u64, id: u64, query: &str, limit: usize, data: &SearchData, latest_query_id: &AtomicU64) -> Option<SearchMsg> {
+pub(crate) fn run_search_query(generation: u64, id: u64, query: &str, limit: usize, data: &SearchData, latest_query_id: &AtomicU64) -> Option<SearchMsg> {
 	let start = Instant::now();
 	if limit == 0 {
 		return Some(SearchMsg::Result {

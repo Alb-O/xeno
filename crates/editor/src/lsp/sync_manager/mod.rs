@@ -1,22 +1,16 @@
-//! Unified LSP sync manager with owned pending state.
+//! Actor-owned LSP sync manager.
 //!
-//! [`LspSyncManager`] owns all pending changes per document and tracks:
-//! * Pending incremental change batches
-//! * Full-sync escalation and initial open state
-//! * Debounce scheduling and retry timing
-//! * Single in-flight sends with write timeout
-//!
-//! # Error Handling
-//!
-//! * Queue full / server not ready: retryable, payload retained
-//! * Other errors: escalate to full sync, set retry delay
+//! [`LspSyncManager`] is a non-blocking command handle over a supervised
+//! `lsp.sync` actor. Actor state is authoritative; the handle exposes
+//! eventually-consistent counters and tick deltas for editor telemetry.
 
 mod sync_state;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
+use parking_lot::RwLock;
 use ropey::Rope;
 pub use sync_state::*;
 use tokio::sync::{mpsc, oneshot};
@@ -33,18 +27,6 @@ enum SendWork {
 	Incremental { changes: Vec<LspDocumentChange> },
 }
 
-struct SendTaskInput {
-	completion_tx: mpsc::UnboundedSender<FlushComplete>,
-	sync: DocumentSync,
-	metrics: Arc<EditorMetrics>,
-	doc_id: DocumentId,
-	generation: u64,
-	path: PathBuf,
-	language: String,
-	work: SendWork,
-	done_tx: Option<oneshot::Sender<()>>,
-}
-
 impl SendWork {
 	fn was_full(&self) -> bool {
 		matches!(self, Self::Full { .. })
@@ -55,38 +37,87 @@ impl SendWork {
 	}
 }
 
-/// Unified LSP sync manager owning all pending changes per document.
-pub struct LspSyncManager {
-	docs: HashMap<DocumentId, DocSyncState>,
-	completion_rx: mpsc::UnboundedReceiver<FlushComplete>,
-	completion_tx: mpsc::UnboundedSender<FlushComplete>,
+struct SendTaskInput {
+	command_tx: mpsc::UnboundedSender<LspSyncCmd>,
+	sync: DocumentSync,
+	metrics: Arc<EditorMetrics>,
+	doc_id: DocumentId,
+	generation: u64,
+	path: PathBuf,
+	language: String,
+	work: SendWork,
+	done_tx: Option<oneshot::Sender<()>>,
 	worker_runtime: xeno_worker::WorkerRuntime,
 }
 
-impl Default for LspSyncManager {
-	fn default() -> Self {
-		Self::new(xeno_worker::WorkerRuntime::new())
-	}
+enum LspSyncCmd {
+	EnsureTracked {
+		doc_id: DocumentId,
+		config: LspDocumentConfig,
+		version: u64,
+	},
+	ResetTracked {
+		doc_id: DocumentId,
+		config: LspDocumentConfig,
+		version: u64,
+	},
+	Close {
+		doc_id: DocumentId,
+	},
+	Edit {
+		doc_id: DocumentId,
+		prev_version: u64,
+		new_version: u64,
+		changes: Vec<LspDocumentChange>,
+		bytes: usize,
+	},
+	EscalateFull {
+		doc_id: DocumentId,
+	},
+	Tick {
+		now: Instant,
+		sync: DocumentSync,
+		metrics: Arc<EditorMetrics>,
+		full_snapshots: HashMap<DocumentId, (Rope, u64)>,
+	},
+	FlushNow {
+		now: Instant,
+		doc_id: DocumentId,
+		sync: DocumentSync,
+		metrics: Arc<EditorMetrics>,
+		snapshot: Option<(Rope, u64)>,
+		done_tx: Option<oneshot::Sender<()>>,
+	},
+	SendComplete(FlushComplete),
 }
 
-impl std::fmt::Debug for LspSyncManager {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		f.debug_struct("LspSyncManager").field("docs", &self.docs.len()).finish()
-	}
+#[allow(dead_code)]
+#[derive(Debug, Clone)]
+pub enum LspSyncEvent {
+	FlushCompleted { doc_id: DocumentId, result: FlushResult, was_full: bool },
+	RetryScheduled { doc_id: DocumentId },
+	EscalatedFull { doc_id: DocumentId },
+	WriteTimeout { doc_id: DocumentId },
 }
 
-impl LspSyncManager {
-	pub fn new(worker_runtime: xeno_worker::WorkerRuntime) -> Self {
-		let (completion_tx, completion_rx) = mpsc::unbounded_channel();
-		Self {
-			docs: HashMap::new(),
-			completion_rx,
-			completion_tx,
-			worker_runtime,
-		}
-	}
+#[derive(Clone, Default)]
+struct LspSyncShared {
+	tracked_docs: HashSet<DocumentId>,
+	due_full_docs: HashSet<DocumentId>,
+	pending_count: usize,
+	in_flight_count: usize,
+	pending_tick_stats: FlushStats,
+}
 
-	pub fn ensure_tracked(&mut self, doc_id: DocumentId, config: LspDocumentConfig, version: u64) {
+struct LspSyncActor {
+	docs: HashMap<DocumentId, DocSyncState>,
+	command_tx: mpsc::UnboundedSender<LspSyncCmd>,
+	worker_runtime: xeno_worker::WorkerRuntime,
+	shared: Arc<RwLock<LspSyncShared>>,
+}
+
+impl LspSyncActor {
+	fn ensure_tracked(&mut self, doc_id: DocumentId, config: LspDocumentConfig, version: u64) {
 		if let Some(state) = self.docs.get_mut(&doc_id) {
 			state.config = config;
 			state.editor_version = state.editor_version.max(version);
@@ -102,7 +133,7 @@ impl LspSyncManager {
 		self.docs.insert(doc_id, DocSyncState::new(config, version));
 	}
 
-	pub fn reset_tracked(&mut self, doc_id: DocumentId, config: LspDocumentConfig, version: u64) {
+	fn reset_tracked(&mut self, doc_id: DocumentId, config: LspDocumentConfig, version: u64) {
 		let generation = self.docs.get(&doc_id).map(|state| state.generation.wrapping_add(1)).unwrap_or(0);
 		debug!(
 			doc_id = doc_id.0,
@@ -115,13 +146,12 @@ impl LspSyncManager {
 		self.docs.insert(doc_id, state);
 	}
 
-	pub fn on_doc_close(&mut self, doc_id: DocumentId) {
+	fn on_doc_close(&mut self, doc_id: DocumentId) {
 		debug!(doc_id = doc_id.0, "lsp.sync_manager.doc_close");
 		self.docs.remove(&doc_id);
 	}
 
-	/// Records edits for later sync. Untracked documents are silently ignored.
-	pub fn on_doc_edit(&mut self, doc_id: DocumentId, prev_version: u64, new_version: u64, changes: Vec<LspDocumentChange>, bytes: usize) {
+	fn on_doc_edit(&mut self, doc_id: DocumentId, prev_version: u64, new_version: u64, changes: Vec<LspDocumentChange>, bytes: usize) {
 		if let Some(state) = self.docs.get_mut(&doc_id) {
 			tracing::trace!(
 				doc_id = doc_id.0,
@@ -135,16 +165,61 @@ impl LspSyncManager {
 		}
 	}
 
-	pub fn escalate_full(&mut self, doc_id: DocumentId) {
+	fn escalate_full(&mut self, doc_id: DocumentId, ctx: &mut xeno_worker::ActorContext<LspSyncEvent>) {
 		if let Some(state) = self.docs.get_mut(&doc_id) {
 			debug!(doc_id = doc_id.0, "lsp.sync_manager.escalate_full");
 			state.escalate_full();
+			ctx.emit(LspSyncEvent::EscalatedFull { doc_id });
 		}
 	}
 
-	fn spawn_send_task(runtime: xeno_worker::WorkerRuntime, input: SendTaskInput) {
+	fn check_write_timeouts(&mut self, now: Instant, ctx: &mut xeno_worker::ActorContext<LspSyncEvent>) {
+		for (&doc_id, state) in &mut self.docs {
+			if state.check_write_timeout(now, LSP_WRITE_TIMEOUT) {
+				ctx.emit(LspSyncEvent::WriteTimeout { doc_id });
+			}
+		}
+	}
+
+	fn check_write_timeouts_inner(&mut self, now: Instant) {
+		for state in self.docs.values_mut() {
+			state.check_write_timeout(now, LSP_WRITE_TIMEOUT);
+		}
+	}
+
+	fn sync_shared_counts(&self, now: Instant) {
+		let tracked_docs: HashSet<DocumentId> = self.docs.keys().copied().collect();
+		let due_full_docs: HashSet<DocumentId> = self
+			.docs
+			.iter()
+			.filter(|(_, state)| state.is_due(now, LSP_DEBOUNCE) && (state.needs_full || !state.config.supports_incremental))
+			.map(|(&doc_id, _)| doc_id)
+			.take(LSP_MAX_DOCS_PER_TICK)
+			.collect();
+		let pending_count = self
+			.docs
+			.values()
+			.filter(|s| s.phase == SyncPhase::Debouncing || !s.pending_changes.is_empty())
+			.count();
+		let in_flight_count = self.docs.values().filter(|s| s.phase == SyncPhase::InFlight).count();
+		let mut shared = self.shared.write();
+		shared.tracked_docs = tracked_docs;
+		shared.due_full_docs = due_full_docs;
+		shared.pending_count = pending_count;
+		shared.in_flight_count = in_flight_count;
+	}
+
+	fn add_tick_stats(&self, stats: FlushStats) {
+		let mut shared = self.shared.write();
+		shared.pending_tick_stats.flushed_docs = shared.pending_tick_stats.flushed_docs.saturating_add(stats.flushed_docs);
+		shared.pending_tick_stats.full_syncs = shared.pending_tick_stats.full_syncs.saturating_add(stats.full_syncs);
+		shared.pending_tick_stats.incremental_syncs = shared.pending_tick_stats.incremental_syncs.saturating_add(stats.incremental_syncs);
+		shared.pending_tick_stats.snapshot_bytes = shared.pending_tick_stats.snapshot_bytes.saturating_add(stats.snapshot_bytes);
+	}
+
+	fn spawn_send_task(input: SendTaskInput) {
 		let SendTaskInput {
-			completion_tx,
+			command_tx,
 			sync,
 			metrics,
 			doc_id,
@@ -153,15 +228,21 @@ impl LspSyncManager {
 			language,
 			work,
 			done_tx,
+			worker_runtime,
 		} = input;
-		runtime.spawn(xeno_worker::TaskClass::Background, async move {
+
+		let task_runtime = worker_runtime.clone();
+		task_runtime.spawn(xeno_worker::TaskClass::Background, async move {
 			let mode = work.mode();
 			let was_full = work.was_full();
 			let start = Instant::now();
 
 			let send_result = match work {
 				SendWork::Full { content, snapshot_bytes } => {
-					let snapshot = match runtime.spawn_blocking(xeno_worker::TaskClass::CpuBlocking, move || content.to_string()).await {
+					let snapshot = match worker_runtime
+						.spawn_blocking(xeno_worker::TaskClass::CpuBlocking, move || content.to_string())
+						.await
+					{
 						Ok(snapshot) => snapshot,
 						Err(e) => {
 							metrics.inc_send_error();
@@ -171,12 +252,12 @@ impl LspSyncManager {
 								error = %e,
 								"lsp.sync_manager.snapshot_join_failed"
 							);
-							let _ = completion_tx.send(FlushComplete {
+							let _ = command_tx.send(LspSyncCmd::SendComplete(FlushComplete {
 								doc_id,
 								generation,
 								result: FlushResult::Failed,
 								was_full,
-							});
+							}));
 							if let Some(done_tx) = done_tx {
 								let _ = done_tx.send(());
 							}
@@ -249,50 +330,59 @@ impl LspSyncManager {
 				}
 			};
 
-			let _ = completion_tx.send(FlushComplete {
+			let _ = command_tx.send(LspSyncCmd::SendComplete(FlushComplete {
 				doc_id,
 				generation,
 				result: flush_result,
 				was_full,
-			});
+			}));
 			if let Some(done_tx) = done_tx {
 				let _ = done_tx.send(());
 			}
 		});
 	}
 
-	/// Flushes one tracked document immediately, bypassing debounce.
-	///
-	/// Returns a receiver that resolves when the write barrier (if any) completes.
-	pub fn flush_now(
+	fn flush_now(
 		&mut self,
 		now: Instant,
 		doc_id: DocumentId,
 		sync: &DocumentSync,
 		metrics: &Arc<EditorMetrics>,
 		snapshot: Option<(Rope, u64)>,
-	) -> Option<tokio::sync::oneshot::Receiver<()>> {
-		self.poll_completions();
-		for state in self.docs.values_mut() {
-			state.check_write_timeout(now, LSP_WRITE_TIMEOUT);
-		}
-
-		let state = self.docs.get_mut(&doc_id)?;
+		done_tx: Option<oneshot::Sender<()>>,
+	) {
+		self.check_write_timeouts_inner(now);
+		let Some(state) = self.docs.get_mut(&doc_id) else {
+			if let Some(done_tx) = done_tx {
+				let _ = done_tx.send(());
+			}
+			return;
+		};
 		if state.phase == SyncPhase::InFlight || state.retry_after.is_some_and(|t| now < t) {
-			return None;
+			if let Some(done_tx) = done_tx {
+				let _ = done_tx.send(());
+			}
+			return;
 		}
 		if state.pending_changes.is_empty() && !state.needs_full {
-			return None;
+			if let Some(done_tx) = done_tx {
+				let _ = done_tx.send(());
+			}
+			return;
 		}
 
 		let path = state.config.path.clone();
 		let language = state.config.language.clone();
 		let generation = state.generation;
 		let use_full = state.needs_full || !state.config.supports_incremental;
-		let (done_tx, done_rx) = tokio::sync::oneshot::channel();
 
 		let work = if use_full {
-			let (content, _snapshot_version) = snapshot?;
+			let Some((content, _snapshot_version)) = snapshot else {
+				if let Some(done_tx) = done_tx {
+					let _ = done_tx.send(());
+				}
+				return;
+			};
 			let snapshot_bytes = content.len_bytes() as u64;
 			let _ = state.take_for_send(true);
 			SendWork::Full { content, snapshot_bytes }
@@ -307,77 +397,26 @@ impl LspSyncManager {
 			SendWork::Incremental { changes }
 		};
 
-		Self::spawn_send_task(
-			self.worker_runtime.clone(),
-			SendTaskInput {
-				completion_tx: self.completion_tx.clone(),
-				sync: sync.clone(),
-				metrics: metrics.clone(),
-				doc_id,
-				generation,
-				path,
-				language,
-				work,
-				done_tx: Some(done_tx),
-			},
-		);
+		Self::spawn_send_task(SendTaskInput {
+			command_tx: self.command_tx.clone(),
+			sync: sync.clone(),
+			metrics: metrics.clone(),
+			doc_id,
+			generation,
+			path,
+			language,
+			work,
+			done_tx,
+			worker_runtime: self.worker_runtime.clone(),
+		});
 
 		if let Some(state) = self.docs.get_mut(&doc_id) {
 			state.retry_after = None;
 		}
-
-		Some(done_rx)
 	}
 
-	#[cfg(test)]
-	fn is_tracked(&self, doc_id: &DocumentId) -> bool {
-		self.docs.contains_key(doc_id)
-	}
-
-	#[cfg(test)]
-	fn doc_count(&self) -> usize {
-		self.docs.len()
-	}
-
-	pub fn pending_count(&self) -> usize {
-		self.docs
-			.values()
-			.filter(|s| s.phase == SyncPhase::Debouncing || !s.pending_changes.is_empty())
-			.count()
-	}
-
-	pub fn in_flight_count(&self) -> usize {
-		self.docs.values().filter(|s| s.phase == SyncPhase::InFlight).count()
-	}
-
-	fn poll_completions(&mut self) {
-		while let Ok(complete) = self.completion_rx.try_recv() {
-			if let Some(state) = self.docs.get_mut(&complete.doc_id) {
-				if state.generation != complete.generation {
-					tracing::debug!(
-						doc_id = complete.doc_id.0,
-						complete_generation = complete.generation,
-						current_generation = state.generation,
-						"lsp.sync_manager.drop_stale_completion"
-					);
-					continue;
-				}
-				state.mark_complete(complete.result, complete.was_full);
-			}
-		}
-	}
-
-	/// Flushes documents that are due for sync.
-	pub fn tick<F>(&mut self, now: Instant, sync: &DocumentSync, metrics: &Arc<EditorMetrics>, snapshot_provider: F) -> FlushStats
-	where
-		F: Fn(DocumentId) -> Option<(Rope, u64)>,
-	{
-		self.poll_completions();
-
-		for state in self.docs.values_mut() {
-			state.check_write_timeout(now, LSP_WRITE_TIMEOUT);
-		}
-
+	fn tick(&mut self, now: Instant, sync: &DocumentSync, metrics: &Arc<EditorMetrics>, full_snapshots: HashMap<DocumentId, (Rope, u64)>) -> FlushStats {
+		self.check_write_timeouts_inner(now);
 		let mut stats = FlushStats::default();
 
 		let due_docs: Vec<_> = self
@@ -404,7 +443,7 @@ impl LspSyncManager {
 			let editor_version = state.editor_version;
 
 			let work = if use_full {
-				let Some((content, snapshot_version)) = snapshot_provider(doc_id) else {
+				let Some((content, snapshot_version)) = full_snapshots.get(&doc_id).cloned() else {
 					warn!(doc_id = doc_id.0, "lsp.sync_manager.no_snapshot");
 					continue;
 				};
@@ -450,20 +489,18 @@ impl LspSyncManager {
 				SendWork::Incremental { changes }
 			};
 
-			Self::spawn_send_task(
-				self.worker_runtime.clone(),
-				SendTaskInput {
-					completion_tx: self.completion_tx.clone(),
-					sync: sync.clone(),
-					metrics: metrics.clone(),
-					doc_id,
-					generation,
-					path,
-					language,
-					work,
-					done_tx: None,
-				},
-			);
+			Self::spawn_send_task(SendTaskInput {
+				command_tx: self.command_tx.clone(),
+				sync: sync.clone(),
+				metrics: metrics.clone(),
+				doc_id,
+				generation,
+				path,
+				language,
+				work,
+				done_tx: None,
+				worker_runtime: self.worker_runtime.clone(),
+			});
 
 			if let Some(state) = self.docs.get_mut(&doc_id) {
 				state.retry_after = None;
@@ -473,6 +510,259 @@ impl LspSyncManager {
 		}
 
 		stats
+	}
+}
+
+#[async_trait::async_trait]
+impl xeno_worker::WorkerActor for LspSyncActor {
+	type Cmd = LspSyncCmd;
+	type Evt = LspSyncEvent;
+
+	async fn handle(&mut self, cmd: Self::Cmd, ctx: &mut xeno_worker::ActorContext<Self::Evt>) -> Result<xeno_worker::ActorFlow, String> {
+		let mut snapshot_now = Instant::now();
+		match cmd {
+			LspSyncCmd::EnsureTracked { doc_id, config, version } => self.ensure_tracked(doc_id, config, version),
+			LspSyncCmd::ResetTracked { doc_id, config, version } => self.reset_tracked(doc_id, config, version),
+			LspSyncCmd::Close { doc_id } => self.on_doc_close(doc_id),
+			LspSyncCmd::Edit {
+				doc_id,
+				prev_version,
+				new_version,
+				changes,
+				bytes,
+			} => self.on_doc_edit(doc_id, prev_version, new_version, changes, bytes),
+			LspSyncCmd::EscalateFull { doc_id } => self.escalate_full(doc_id, ctx),
+			LspSyncCmd::Tick {
+				now,
+				sync,
+				metrics,
+				full_snapshots,
+			} => {
+				snapshot_now = now;
+				self.check_write_timeouts(now, ctx);
+				let stats = self.tick(now, &sync, &metrics, full_snapshots);
+				self.add_tick_stats(stats);
+			}
+			LspSyncCmd::FlushNow {
+				now,
+				doc_id,
+				sync,
+				metrics,
+				snapshot,
+				done_tx,
+			} => {
+				snapshot_now = now;
+				self.check_write_timeouts(now, ctx);
+				self.flush_now(now, doc_id, &sync, &metrics, snapshot, done_tx);
+			}
+			LspSyncCmd::SendComplete(complete) => {
+				if let Some(state) = self.docs.get_mut(&complete.doc_id) {
+					if state.generation != complete.generation {
+						tracing::debug!(
+							doc_id = complete.doc_id.0,
+							complete_generation = complete.generation,
+							current_generation = state.generation,
+							"lsp.sync_manager.drop_stale_completion"
+						);
+					} else {
+						let was_failed = complete.result == FlushResult::Failed;
+						let was_retry = complete.result == FlushResult::Retryable;
+						state.mark_complete(complete.result, complete.was_full);
+						if was_failed {
+							ctx.emit(LspSyncEvent::EscalatedFull { doc_id: complete.doc_id });
+						}
+						if was_retry {
+							ctx.emit(LspSyncEvent::RetryScheduled { doc_id: complete.doc_id });
+						}
+						ctx.emit(LspSyncEvent::FlushCompleted {
+							doc_id: complete.doc_id,
+							result: complete.result,
+							was_full: complete.was_full,
+						});
+					}
+				}
+			}
+		}
+
+		self.sync_shared_counts(snapshot_now);
+		Ok(xeno_worker::ActorFlow::Continue)
+	}
+}
+
+/// Actor-backed LSP sync manager command handle.
+pub struct LspSyncManager {
+	command_tx: mpsc::UnboundedSender<LspSyncCmd>,
+	shared: Arc<RwLock<LspSyncShared>>,
+	_actor: Arc<xeno_worker::ActorHandle<LspSyncCmd, LspSyncEvent>>,
+	_dispatch_task: tokio::task::JoinHandle<()>,
+}
+
+impl Default for LspSyncManager {
+	fn default() -> Self {
+		Self::new(xeno_worker::WorkerRuntime::new())
+	}
+}
+
+impl std::fmt::Debug for LspSyncManager {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		f.debug_struct("LspSyncManager")
+			.field("tracked_docs", &self.shared.read().tracked_docs.len())
+			.finish()
+	}
+}
+
+impl LspSyncManager {
+	pub fn new(worker_runtime: xeno_worker::WorkerRuntime) -> Self {
+		let shared = Arc::new(RwLock::new(LspSyncShared::default()));
+		let (command_tx, mut command_rx) = mpsc::unbounded_channel::<LspSyncCmd>();
+		let actor = Arc::new(
+			worker_runtime.actor(
+				xeno_worker::ActorSpec::new("lsp.sync", xeno_worker::TaskClass::Background, {
+					let worker_runtime = worker_runtime.clone();
+					let command_tx = command_tx.clone();
+					let shared = Arc::clone(&shared);
+					move || LspSyncActor {
+						docs: HashMap::new(),
+						command_tx: command_tx.clone(),
+						worker_runtime: worker_runtime.clone(),
+						shared: Arc::clone(&shared),
+					}
+				})
+				.supervisor(xeno_worker::SupervisorSpec {
+					restart: xeno_worker::RestartPolicy::OnFailure {
+						max_restarts: 3,
+						backoff: Duration::from_millis(50),
+					},
+					event_buffer: 64,
+				}),
+			),
+		);
+
+		let actor_for_dispatch = Arc::clone(&actor);
+		let dispatch_task = worker_runtime.spawn(xeno_worker::TaskClass::Background, async move {
+			while let Some(cmd) = command_rx.recv().await {
+				if actor_for_dispatch.send(cmd).await.is_err() {
+					break;
+				}
+			}
+		});
+
+		Self {
+			command_tx,
+			shared,
+			_actor: actor,
+			_dispatch_task: dispatch_task,
+		}
+	}
+
+	fn send(&self, cmd: LspSyncCmd) {
+		let _ = self.command_tx.send(cmd);
+	}
+
+	pub fn ensure_tracked(&mut self, doc_id: DocumentId, config: LspDocumentConfig, version: u64) {
+		self.send(LspSyncCmd::EnsureTracked { doc_id, config, version });
+	}
+
+	pub fn reset_tracked(&mut self, doc_id: DocumentId, config: LspDocumentConfig, version: u64) {
+		self.send(LspSyncCmd::ResetTracked { doc_id, config, version });
+	}
+
+	pub fn on_doc_close(&mut self, doc_id: DocumentId) {
+		self.send(LspSyncCmd::Close { doc_id });
+	}
+
+	/// Records edits for later sync. Untracked documents are silently ignored.
+	pub fn on_doc_edit(&mut self, doc_id: DocumentId, prev_version: u64, new_version: u64, changes: Vec<LspDocumentChange>, bytes: usize) {
+		self.send(LspSyncCmd::Edit {
+			doc_id,
+			prev_version,
+			new_version,
+			changes,
+			bytes,
+		});
+	}
+
+	pub fn escalate_full(&mut self, doc_id: DocumentId) {
+		self.send(LspSyncCmd::EscalateFull { doc_id });
+	}
+
+	/// Flushes one tracked document immediately, bypassing debounce.
+	///
+	/// Returns a receiver that resolves when the write barrier (if any) completes.
+	pub fn flush_now(
+		&mut self,
+		now: Instant,
+		doc_id: DocumentId,
+		sync: &DocumentSync,
+		metrics: &Arc<EditorMetrics>,
+		snapshot: Option<(Rope, u64)>,
+	) -> Option<tokio::sync::oneshot::Receiver<()>> {
+		let (done_tx, done_rx) = tokio::sync::oneshot::channel();
+		self.send(LspSyncCmd::FlushNow {
+			now,
+			doc_id,
+			sync: sync.clone(),
+			metrics: metrics.clone(),
+			snapshot,
+			done_tx: Some(done_tx),
+		});
+		Some(done_rx)
+	}
+
+	pub fn pending_count(&self) -> usize {
+		self.shared.read().pending_count
+	}
+
+	pub fn in_flight_count(&self) -> usize {
+		self.shared.read().in_flight_count
+	}
+
+	/// Flushes documents that are due for sync.
+	///
+	/// Returns stats accumulated from previously completed actor ticks.
+	pub fn tick<F>(&mut self, now: Instant, sync: &DocumentSync, metrics: &Arc<EditorMetrics>, snapshot_provider: F) -> FlushStats
+	where
+		F: Fn(DocumentId) -> Option<(Rope, u64)>,
+	{
+		let stats = {
+			let mut shared = self.shared.write();
+			let stats = shared.pending_tick_stats;
+			shared.pending_tick_stats = FlushStats::default();
+			stats
+		};
+
+		let due_full_docs: Vec<DocumentId> = self.shared.read().due_full_docs.iter().copied().collect();
+		let doc_count = due_full_docs.len().max(1);
+		let mut full_snapshots = HashMap::with_capacity(doc_count);
+		for doc_id in due_full_docs {
+			if let Some(snapshot) = snapshot_provider(doc_id) {
+				full_snapshots.insert(doc_id, snapshot);
+			}
+		}
+
+		self.send(LspSyncCmd::Tick {
+			now,
+			sync: sync.clone(),
+			metrics: metrics.clone(),
+			full_snapshots,
+		});
+
+		stats
+	}
+
+	#[allow(dead_code)]
+	fn has_tracked_doc(&self, doc_id: &DocumentId) -> bool {
+		self.shared.read().tracked_docs.contains(doc_id)
+	}
+
+	#[cfg(test)]
+	fn is_tracked(&self, doc_id: &DocumentId) -> bool {
+		self.has_tracked_doc(doc_id)
+	}
+
+	#[cfg(test)]
+	fn doc_count(&self) -> usize {
+		self.shared.read().tracked_docs.len()
 	}
 }
 

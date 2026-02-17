@@ -13,6 +13,7 @@
 //! * [`crate::registry::Registry`] maps `(language, workspace_root)` to active server slots and singleflights startup.
 //! * `LspRuntime` is the only transport-event subscriber. It forwards events into one supervised router actor that processes them sequentially.
 //! * `LspSession` is a high-level API for editor integration (configuration, diagnostics polling, sync access).
+//! * Editor-side sync orchestration (`xeno-editor::lsp::sync_manager`) is actorized and command-driven; this module remains the authoritative transport/router boundary.
 //!
 //! # Key types
 //!
@@ -53,6 +54,7 @@
 //! * Editor constructs `LspSystem`, then constructs `(LspSession, LspRuntime)`.
 //! * `LspRuntime::start` subscribes to the transport event stream and begins routing.
 //! * Buffer open/change calls flow through [`crate::sync::DocumentSync`], which acquires servers via [`crate::registry::Registry::acquire`].
+//! * Editor sync actors issue outbound document-change commands through [`crate::sync::DocumentSync::send_change`] without requiring transport event-drain polling for completion progress.
 //! * Transport emits [`crate::client::transport::TransportEvent`] values; runtime routes them:
 //!   * Generation filter drops stale-instance events.
 //!   * Diagnostics update [`crate::document::DocumentStateManager`].

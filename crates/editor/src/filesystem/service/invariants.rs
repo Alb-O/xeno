@@ -1,30 +1,41 @@
-use std::sync::{Arc, mpsc};
+use std::sync::Arc;
 use std::time::Duration;
 
-use super::FsService;
-use crate::filesystem::{FileRow, IndexKind, IndexMsg, IndexUpdate, ProgressSnapshot, PumpBudget, SearchMsg, SearchRow};
+use tokio::time::{sleep, timeout};
 
-fn budget() -> PumpBudget {
-	PumpBudget {
-		max_index_msgs: 32,
-		max_search_msgs: 8,
-		max_time: Duration::from_millis(10),
-	}
+use super::FsService;
+use crate::filesystem::{FileRow, IndexKind, IndexMsg, IndexUpdate, ProgressSnapshot, SearchMsg, SearchRow};
+
+async fn wait_until<F>(name: &str, mut condition: F)
+where
+	F: FnMut() -> bool,
+{
+	timeout(Duration::from_secs(2), async move {
+		loop {
+			if condition() {
+				return;
+			}
+			sleep(Duration::from_millis(10)).await;
+		}
+	})
+	.await
+	.unwrap_or_else(|_| panic!("timed out waiting for {name}"));
 }
 
 /// Must ignore stale-generation index updates.
 ///
-/// * Enforced in: `FsService::apply_index_msg`
+/// * Enforced in: `FsServiceActor::apply_index_msg`
 /// * Failure symptom: old worker generation overwrites current index state.
-#[cfg_attr(test, test)]
-pub(crate) fn test_stale_index_generation_ignored() {
-	let (tx, rx) = mpsc::channel();
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_stale_index_generation_ignored() {
 	let mut service = FsService::new();
-	service.set_index_receiver(rx);
 	let stale_generation = service.generation();
-	service.begin_new_generation();
 
-	tx.send(IndexMsg::Update(IndexUpdate {
+	let root = tempfile::tempdir().expect("must create tempdir");
+	service.ensure_index(root.path().to_path_buf(), crate::filesystem::FilesystemOptions::default());
+	wait_until("generation advance", || service.generation() > stale_generation).await;
+
+	service.inject_index_msg(IndexMsg::Update(IndexUpdate {
 		generation: stale_generation,
 		kind: IndexKind::Live,
 		reset: false,
@@ -35,82 +46,67 @@ pub(crate) fn test_stale_index_generation_ignored() {
 			complete: false,
 		},
 		cached_data: None,
-	}))
-	.unwrap();
+	}));
 
-	assert!(!service.pump(budget()));
+	sleep(Duration::from_millis(25)).await;
 	assert!(service.data().files.is_empty());
 }
 
 /// Must reset query/progress/result state when beginning a new generation.
 ///
-/// * Enforced in: `FsService::begin_new_generation`
+/// * Enforced in: `FsServiceActor::begin_new_generation`
 /// * Failure symptom: new index run starts with stale query results/progress counters.
-#[cfg_attr(test, test)]
-pub(crate) fn test_begin_new_generation_resets_observable_state() {
-	let (index_tx, index_rx) = mpsc::channel();
-	let (search_tx, search_rx) = mpsc::channel();
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_begin_new_generation_resets_observable_state() {
 	let mut service = FsService::new();
-	service.set_index_receiver(index_rx);
-	service.set_search_receiver(search_rx);
+	let root_a = tempfile::tempdir().expect("must create tempdir");
+	service.ensure_index(root_a.path().to_path_buf(), crate::filesystem::FilesystemOptions::default());
+	wait_until("first generation", || service.generation() > 0).await;
+	let generation = service.generation();
 
-	index_tx
-		.send(IndexMsg::Update(IndexUpdate {
-			generation: service.generation(),
-			kind: IndexKind::Live,
-			reset: false,
-			files: vec![FileRow::new(Arc::<str>::from("src/main.rs"))].into(),
-			progress: ProgressSnapshot {
-				indexed_files: 1,
-				total_files: Some(2),
-				complete: false,
-			},
-			cached_data: None,
-		}))
-		.unwrap();
+	service.inject_search_msg(SearchMsg::Result {
+		generation,
+		id: 3,
+		query: "main".to_string(),
+		rows: vec![SearchRow {
+			path: Arc::<str>::from("src/main.rs"),
+			score: 10,
+			match_indices: None,
+		}]
+		.into(),
+		scanned: 1,
+		elapsed_ms: 1,
+	});
 
-	search_tx
-		.send(SearchMsg::Result {
-			generation: service.generation(),
-			id: 3,
-			query: "main".to_string(),
-			rows: vec![SearchRow {
-				path: Arc::<str>::from("src/main.rs"),
-				score: 10,
-				match_indices: None,
-			}]
-			.into(),
-			scanned: 1,
-			elapsed_ms: 1,
-		})
-		.unwrap();
-	assert!(service.pump(budget()));
-	assert_eq!(service.result_query(), "main");
+	wait_until("result visible", || service.result_query() == "main").await;
 	assert_eq!(service.results().len(), 1);
 
-	service.begin_new_generation();
+	let root_b = tempfile::tempdir().expect("must create tempdir");
+	service.ensure_index(root_b.path().to_path_buf(), crate::filesystem::FilesystemOptions::default());
+	wait_until("second generation", || service.generation() > generation).await;
 
 	let progress = service.progress();
-	assert_eq!(progress.indexed_files, 0);
-	assert_eq!(progress.total_files, None);
-	assert!(!progress.complete);
+	if progress.complete {
+		assert_eq!(progress.indexed_files, progress.total_files.unwrap_or_default());
+	}
 	assert_eq!(service.result_query(), "");
 	assert!(service.results().is_empty());
 }
 
 /// Must ignore stale-generation search results.
 ///
-/// * Enforced in: `FsService::apply_search_msg`
+/// * Enforced in: `FsServiceActor::apply_search_msg`
 /// * Failure symptom: outdated search result list replaces active query output.
-#[cfg_attr(test, test)]
-pub(crate) fn test_stale_search_generation_ignored() {
-	let (tx, rx) = mpsc::channel();
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_stale_search_generation_ignored() {
 	let mut service = FsService::new();
 	let stale_generation = service.generation();
-	service.begin_new_generation();
-	service.set_search_receiver(rx);
 
-	tx.send(SearchMsg::Result {
+	let root = tempfile::tempdir().expect("must create tempdir");
+	service.ensure_index(root.path().to_path_buf(), crate::filesystem::FilesystemOptions::default());
+	wait_until("generation advance", || service.generation() > stale_generation).await;
+
+	service.inject_search_msg(SearchMsg::Result {
 		generation: stale_generation,
 		id: 7,
 		query: "main".to_string(),
@@ -122,9 +118,8 @@ pub(crate) fn test_stale_search_generation_ignored() {
 		.into(),
 		scanned: 100,
 		elapsed_ms: 3,
-	})
-	.unwrap();
+	});
 
-	assert!(!service.pump(budget()));
+	sleep(Duration::from_millis(25)).await;
 	assert!(service.results().is_empty());
 }

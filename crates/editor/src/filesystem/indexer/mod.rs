@@ -7,7 +7,7 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::sync::mpsc::{self, Receiver, SyncSender};
+use std::sync::mpsc::{self, Receiver};
 use std::time::{Duration, Instant};
 
 use ignore::{DirEntry, Error as IgnoreError, WalkBuilder, WalkState};
@@ -17,6 +17,7 @@ use super::types::{FileRow, IndexKind, IndexMsg, IndexUpdate, ProgressSnapshot};
 const DISPATCH_INTERVAL: Duration = Duration::from_millis(120);
 const MIN_BATCH_SIZE: usize = 32;
 const MAX_BATCH_SIZE: usize = 1_024;
+pub(crate) type IndexEmit = Arc<dyn Fn(IndexMsg) -> bool + Send + Sync + 'static>;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FilesystemOptions {
@@ -67,18 +68,24 @@ impl FilesystemOptions {
 	}
 }
 
+#[allow(dead_code)]
 pub fn spawn_filesystem_index(runtime: &xeno_worker::WorkerRuntime, generation: u64, root: PathBuf, options: FilesystemOptions) -> Receiver<IndexMsg> {
 	let (update_tx, update_rx) = mpsc::sync_channel(options.update_channel_capacity.max(1));
 	let runtime = runtime.clone();
+	let emit: IndexEmit = Arc::new(move |msg: IndexMsg| update_tx.send(msg).is_ok());
 
 	runtime.clone().spawn_thread(xeno_worker::TaskClass::IoBlocking, move || {
-		run_indexer(runtime, generation, root, options, update_tx)
+		run_indexer(runtime, generation, root, options, emit)
 	});
 
 	update_rx
 }
 
-fn run_indexer(runtime: xeno_worker::WorkerRuntime, generation: u64, root: PathBuf, options: FilesystemOptions, update_tx: SyncSender<IndexMsg>) {
+pub(crate) fn run_filesystem_index(runtime: xeno_worker::WorkerRuntime, generation: u64, root: PathBuf, options: FilesystemOptions, emit: IndexEmit) {
+	run_indexer(runtime, generation, root, options, emit);
+}
+
+fn run_indexer(runtime: xeno_worker::WorkerRuntime, generation: u64, root: PathBuf, options: FilesystemOptions, emit: IndexEmit) {
 	let start = Instant::now();
 	tracing::info!(generation, root = %root.display(), threads = options.thread_count(), "fs.index.start");
 
@@ -95,33 +102,32 @@ fn run_indexer(runtime: xeno_worker::WorkerRuntime, generation: u64, root: PathB
 		cached_data: None,
 	});
 
-	if update_tx.send(reset_msg).is_err() {
+	if !emit(reset_msg) {
 		return;
 	}
 
 	let (file_tx, file_rx) = mpsc::sync_channel::<FileRow>(options.file_channel_capacity.max(1));
-	let aggregator_tx = update_tx.clone();
-	let aggregator = runtime.spawn_thread(xeno_worker::TaskClass::Background, move || aggregate_files(generation, file_rx, aggregator_tx));
-	let walk_error_tx = update_tx.clone();
+	let aggregator_emit = Arc::clone(&emit);
+	let aggregator = runtime.spawn_thread(xeno_worker::TaskClass::Background, move || {
+		aggregate_files(generation, file_rx, aggregator_emit)
+	});
+	let walk_error_emit = Arc::clone(&emit);
 
 	let extension_filter = options.extension_filter().map(Arc::new);
 	let walk_root = Arc::new(root.clone());
 	build_walk(&root, &options).build_parallel().run(|| {
 		let sender = file_tx.clone();
-		let error_tx = walk_error_tx.clone();
+		let error_emit = Arc::clone(&walk_error_emit);
 		let root = Arc::clone(&walk_root);
 		let extension_filter = extension_filter.clone();
 		Box::new(move |entry: Result<DirEntry, IgnoreError>| {
 			let entry = match entry {
 				Ok(entry) => entry,
 				Err(err) => {
-					if error_tx
-						.send(IndexMsg::Error {
-							generation,
-							message: Arc::<str>::from(err.to_string()),
-						})
-						.is_err()
-					{
+					if !error_emit(IndexMsg::Error {
+						generation,
+						message: Arc::<str>::from(err.to_string()),
+					}) {
 						return WalkState::Quit;
 					}
 					return WalkState::Continue;
@@ -158,7 +164,7 @@ fn run_indexer(runtime: xeno_worker::WorkerRuntime, generation: u64, root: PathB
 	let indexed_files = aggregator.join().unwrap_or_default();
 	let elapsed_ms = start.elapsed().as_millis() as u64;
 
-	let _ = update_tx.send(IndexMsg::Complete {
+	let _ = emit(IndexMsg::Complete {
 		generation,
 		indexed_files,
 		elapsed_ms,
@@ -167,7 +173,7 @@ fn run_indexer(runtime: xeno_worker::WorkerRuntime, generation: u64, root: PathB
 	tracing::debug!(generation, indexed_files, elapsed_ms, "fs.index.complete");
 }
 
-fn aggregate_files(generation: u64, file_rx: Receiver<FileRow>, update_tx: SyncSender<IndexMsg>) -> usize {
+fn aggregate_files(generation: u64, file_rx: Receiver<FileRow>, emit: IndexEmit) -> usize {
 	let mut pending_files = Vec::new();
 	let mut indexed_files = 0usize;
 	let mut last_dispatch = Instant::now();
@@ -178,18 +184,18 @@ fn aggregate_files(generation: u64, file_rx: Receiver<FileRow>, update_tx: SyncS
 
 		let flush_size = batch_size_for(indexed_files);
 		if pending_files.len() >= flush_size || last_dispatch.elapsed() >= DISPATCH_INTERVAL {
-			if !flush_update(generation, indexed_files, false, &mut pending_files, &update_tx) {
+			if !flush_update(generation, indexed_files, false, &mut pending_files, emit.as_ref()) {
 				return indexed_files;
 			}
 			last_dispatch = Instant::now();
 		}
 	}
 
-	let _ = flush_update(generation, indexed_files, true, &mut pending_files, &update_tx);
+	let _ = flush_update(generation, indexed_files, true, &mut pending_files, emit.as_ref());
 	indexed_files
 }
 
-fn flush_update(generation: u64, indexed_files: usize, complete: bool, pending_files: &mut Vec<FileRow>, update_tx: &SyncSender<IndexMsg>) -> bool {
+fn flush_update(generation: u64, indexed_files: usize, complete: bool, pending_files: &mut Vec<FileRow>, emit: &dyn Fn(IndexMsg) -> bool) -> bool {
 	if pending_files.is_empty() && !complete {
 		return true;
 	}
@@ -208,7 +214,7 @@ fn flush_update(generation: u64, indexed_files: usize, complete: bool, pending_f
 		cached_data: None,
 	});
 
-	if update_tx.send(msg).is_err() {
+	if !emit(msg) {
 		return false;
 	}
 

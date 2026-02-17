@@ -55,11 +55,23 @@ pub enum IndexDelta {
 	Append(Arc<[FileRow]>),
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub enum SearchCmd {
-	Query { generation: u64, id: u64, query: String, limit: usize },
-	Update { generation: u64, delta: IndexDelta },
-	Shutdown { generation: u64 },
+	Query {
+		generation: u64,
+		id: u64,
+		query: String,
+		limit: usize,
+	},
+	Update {
+		generation: u64,
+		delta: IndexDelta,
+	},
+	#[allow(dead_code)]
+	Shutdown {
+		generation: u64,
+	},
 }
 
 #[derive(Debug, Clone)]

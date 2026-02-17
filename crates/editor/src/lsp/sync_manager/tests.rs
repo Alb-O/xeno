@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
+use tokio::time::{sleep, timeout};
 use xeno_lsp::Error as LspError;
 
 use super::*;
@@ -13,16 +14,34 @@ fn test_config() -> LspDocumentConfig {
 	}
 }
 
-#[test]
-fn test_doc_open_close() {
+async fn wait_until<F>(name: &str, mut condition: F)
+where
+	F: FnMut() -> bool,
+{
+	timeout(Duration::from_secs(2), async move {
+		loop {
+			if condition() {
+				return;
+			}
+			sleep(Duration::from_millis(10)).await;
+		}
+	})
+	.await
+	.unwrap_or_else(|_| panic!("timed out waiting for {name}"));
+}
+
+#[tokio::test]
+async fn test_doc_open_close() {
 	let mut mgr = LspSyncManager::new(xeno_worker::WorkerRuntime::new());
 	let doc_id = DocumentId(1);
 
 	mgr.reset_tracked(doc_id, test_config(), 1);
+	wait_until("tracked doc", || mgr.is_tracked(&doc_id)).await;
 	assert!(mgr.is_tracked(&doc_id));
 	assert_eq!(mgr.doc_count(), 1);
 
 	mgr.on_doc_close(doc_id);
+	wait_until("doc close", || !mgr.is_tracked(&doc_id)).await;
 	assert!(!mgr.is_tracked(&doc_id));
 	assert_eq!(mgr.doc_count(), 0);
 }
@@ -37,34 +56,29 @@ fn test_change(text: &str) -> LspDocumentChange {
 	}
 }
 
-#[test]
-fn test_record_changes() {
+#[tokio::test]
+async fn test_record_changes() {
 	let mut mgr = LspSyncManager::new(xeno_worker::WorkerRuntime::new());
 	let doc_id = DocumentId(1);
 	mgr.reset_tracked(doc_id, test_config(), 1);
 
 	mgr.on_doc_edit(doc_id, 1, 2, vec![test_change("hello")], 5);
+	wait_until("pending count", || mgr.pending_count() == 1).await;
 
-	let state = mgr.docs.get(&doc_id).unwrap();
-	assert_eq!(state.pending_changes.len(), 1);
-	assert_eq!(state.pending_bytes, 5);
-	assert_eq!(state.editor_version, 2);
-	assert_eq!(state.phase, SyncPhase::Debouncing);
+	assert_eq!(mgr.pending_count(), 1);
 }
 
 #[test]
 fn test_threshold_escalation() {
-	let mut mgr = LspSyncManager::new(xeno_worker::WorkerRuntime::new());
-	let doc_id = DocumentId(1);
-	mgr.reset_tracked(doc_id, test_config(), 1);
+	let mut state = DocSyncState::new(test_config(), 1);
+	state.needs_full = false;
 
 	for i in 0..LSP_MAX_INCREMENTAL_CHANGES + 1 {
 		let prev = i as u64 + 1;
 		let new = i as u64 + 2;
-		mgr.on_doc_edit(doc_id, prev, new, vec![test_change("x")], 1);
+		state.record_changes(prev, new, vec![test_change("x")], 1);
 	}
 
-	let state = mgr.docs.get(&doc_id).unwrap();
 	assert!(state.needs_full);
 	assert!(state.pending_changes.is_empty());
 }

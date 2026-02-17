@@ -1,64 +1,73 @@
-//! Filesystem indexing/search service coordinator.
+//! Filesystem indexing/search service actor coordinator.
 //! Anchor ID: XENO_ANCHOR_FILESYSTEM_SERVICE
 //!
 //! # Purpose
 //!
-//! * Owns filesystem index/search worker channel lifecycle and generation tracking.
-//! * Merges index updates into local snapshots and forwards deltas to search workers.
+//! * Owns filesystem service/index/search actor topology and generation tracking.
+//! * Merges index updates into local snapshots and forwards deltas to search actors.
 //! * Exposes query, progress, and result surfaces to overlay controllers.
 //!
 //! # Mental model
 //!
-//! * `FsService` is a generation-scoped router:
+//! * `FsService` is a generation-scoped command handle:
 //!   * generation increments on each re-index request.
 //!   * stale worker messages are ignored by generation mismatch.
-//! * Index and search workers are decoupled:
-//!   * index worker discovers files and emits updates.
-//!   * search worker evaluates query results against indexed data.
-//! * `pump()` is the only ingestion path for worker outputs.
+//! * Actor graph:
+//!   * `fs.service` owns authoritative state.
+//!   * `fs.indexer` executes indexing workflow and emits typed updates.
+//!   * `fs.search` owns corpus updates and query execution directly.
+//! * Worker outputs are pushed into `fs.service` as typed events.
+//! * `pump()` is now a compatibility shim that consumes a pushed "changed" flag.
 //!
 //! # Key types
 //!
 //! | Type | Meaning | Constraints | Constructed / mutated in |
 //! |---|---|---|---|
-//! | [`FsService`] | Coordinator state and worker endpoints | Must advance generations atomically and ignore stale messages | this module |
+//! | [`FsService`] | Handle + observable snapshot cache | Must enqueue commands and expose latest actor state | this module |
+//! | `FsServiceActor` | Authoritative state machine | Must apply generation filtering and publish snapshots | `core.rs` |
+//! | [`FsServiceCmd`] | Service actor command protocol | Must separate editor commands from child worker events | `core.rs` |
+//! | [`FsIndexerCmd`]/[`FsIndexerEvt`] | Index actor protocol | Must forward index outputs to `fs.service` | `core.rs` |
+//! | [`FsSearchCmd`]/[`FsSearchEvt`] | Search actor protocol | Must forward search outputs to `fs.service` | `core.rs` |
 //! | `IndexSpec` | Active index configuration identity | Must restart workers when root/options change | `ensure_index` |
 //! | [`super::types::IndexMsg`] | Index worker output | Must be generation-filtered | `apply_index_msg` |
 //! | [`super::types::SearchMsg`] | Search worker output | Must be generation-filtered | `apply_search_msg` |
-//! | [`super::types::PumpBudget`] | Polling budget | Must bound per-cycle message processing for responsiveness | `pump` |
+//! | [`super::types::PumpBudget`] | Pump compatibility input | Ignored by actorized ingestion path | `pump` |
 //!
 //! # Invariants
 //!
 //! * Must ignore stale index/search messages whose generation differs from active generation.
 //! * Must reset query/result/progress state when beginning a new generation.
 //! * Must publish query IDs monotonically per generation.
-//! * Must forward index deltas to search worker when search worker is active.
-//! * Must stop search/index channels on `stop_index`.
+//! * Must forward index deltas to search actor when search actor is active.
+//! * Must stop search/index actors on `stop_index`.
 //!
 //! # Data flow
 //!
 //! 1. Caller invokes `ensure_index(root, options)`.
-//! 2. Service starts new generation, spawns index and search workers, stores channels.
-//! 3. Runtime calls `pump()` repeatedly with budgets.
-//! 4. `pump()` drains index/search messages and applies generation-filtered updates.
-//! 5. Overlay/query consumers read `progress()`, `results()`, and `result_query()`.
+//! 2. `FsService` enqueues command to `fs.service`.
+//! 3. `fs.service` starts/restarts `fs.indexer` and `fs.search` for the new generation.
+//! 4. Child actors forward worker outputs to `fs.service` as typed events.
+//! 5. `fs.service` applies generation-filtered updates, publishes snapshots, and flips the changed flag.
+//! 6. Overlay/query consumers read `progress()`, `results()`, and `result_query()`.
 //!
 //! # Lifecycle
 //!
 //! * Create with `FsService::new`.
 //! * Call `ensure_index` to initialize worker generation.
-//! * Repeatedly call `query` and `pump` during runtime.
+//! * Call `query` as user input changes.
+//! * Optionally call `pump` for compatibility redraw checks.
 //! * Call `stop_index` to terminate worker channels.
 //!
 //! # Concurrency & ordering
 //!
-//! * Workers run on background threads and communicate via MPSC channels.
-//! * Service state mutation is single-threaded via editor runtime `pump`.
-//! * Ordering is best-effort by receive order within each channel; generation gate ensures stale safety.
+//! * Service/index/search actors process commands sequentially per mailbox.
+//! * Worker bridge threads forward index/search messages into the service command stream.
+//! * Ordering is best-effort by mailbox receive order; generation gate ensures stale safety.
 //!
 //! # Failure modes & recovery
 //!
-//! * Worker disconnect: corresponding receiver is dropped; service continues with remaining state.
+//! * Child actor failure: supervised restart policy respawns actor.
+//! * Worker disconnect: forwarding bridge exits; next generation restart recreates bridge.
 //! * Stale messages: ignored by generation checks.
 //! * Search/index startup replacement: old generation data is cleared and replaced.
 //! * Index worker errors: logged and ignored unless generation matches and state update is needed.
@@ -68,7 +77,7 @@
 //! * Restart index with new root/options:
 //!   1. Call `ensure_index`.
 //!   2. Observe generation bump and cleared result/progress state.
-//!   3. Continue pumping.
+//!   3. Continue reading snapshots (`pump` only for changed-flag compatibility).
 //! * Add new worker message type:
 //!   1. Extend `IndexMsg` or `SearchMsg`.
 //!   2. Handle in `apply_index_msg`/`apply_search_msg` with generation checks.
@@ -76,7 +85,7 @@
 
 mod core;
 
-pub use core::FsService;
+pub use core::{FsIndexerCmd, FsIndexerEvt, FsSearchCmd, FsSearchEvt, FsService, FsServiceCmd, FsServiceEvt};
 
 #[cfg(test)]
 mod invariants;
