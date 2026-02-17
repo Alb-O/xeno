@@ -1,7 +1,7 @@
 //! Domain specification trait for registry types.
 //!
-//! Lives in the `db` module because it wires domain-specific definitions to the
-//! central [`crate::db::builder::RegistryDbBuilder`].
+//! This trait is intentionally minimal. Domain modules provide only the pieces
+//! needed for `RegistryDbBuilder` wiring and optional push-time hooks.
 
 use crate::core::DenseId;
 use crate::core::index::{BuildEntry, RegistryBuilder};
@@ -15,16 +15,6 @@ pub trait DomainSpec {
 	type Entry: RegistryEntry + Send + Sync + 'static;
 	/// The dense ID type used for O(1) table lookups.
 	type Id: DenseId;
-
-	/// Static definition type (built-ins).
-	type StaticDef: 'static;
-	/// Linked definition type (from compiled specs).
-	type LinkedDef;
-
-	/// Converts a static definition to the builder input type.
-	fn static_to_input(def: &'static Self::StaticDef) -> Self::Input;
-	/// Converts a linked definition to the builder input type.
-	fn linked_to_input(def: Self::LinkedDef) -> Self::Input;
 
 	/// human-readable label for the domain (e.g., "actions").
 	const LABEL: &'static str;

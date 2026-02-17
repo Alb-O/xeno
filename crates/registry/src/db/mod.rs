@@ -10,14 +10,14 @@ pub use crate::core::{
 pub mod builder;
 pub mod builtins;
 pub mod domain;
-pub mod domains;
+mod domain_catalog;
 pub mod index;
 #[cfg(feature = "keymap")]
 pub mod keymap_registry;
-pub mod plugin;
 
 use crate::actions::entry::ActionEntry;
 use crate::commands::CommandEntry;
+use crate::db::domain_catalog::with_registry_domains;
 #[cfg(feature = "keymap")]
 use crate::db::keymap_registry::KeymapSnapshotCache;
 use crate::gutter::GutterEntry;
@@ -32,24 +32,27 @@ use crate::statusline::StatuslineEntry;
 use crate::textobj::registry::TextObjectRegistry;
 use crate::themes::theme::ThemeEntry;
 
-pub struct RegistryDb {
-	pub actions: RuntimeRegistry<ActionEntry, ActionId>,
-	pub commands: RuntimeRegistry<CommandEntry, CommandId>,
-	pub motions: RuntimeRegistry<MotionEntry, MotionId>,
-	pub text_objects: TextObjectRegistry,
-	pub options: OptionsRegistry,
-	#[cfg(feature = "commands")]
-	pub snippets: RuntimeRegistry<SnippetEntry, SnippetId>,
-	pub themes: RuntimeRegistry<ThemeEntry, ThemeId>,
-	pub gutters: RuntimeRegistry<GutterEntry, GutterId>,
-	pub statusline: RuntimeRegistry<StatuslineEntry, StatuslineId>,
-	pub hooks: HooksRegistry,
-	pub notifications: RuntimeRegistry<crate::notifications::NotificationEntry, crate::notifications::NotificationId>,
-	pub languages: LanguagesRegistry,
-	pub lsp_servers: LspServersRegistry,
-	#[cfg(feature = "keymap")]
-	pub keymap: KeymapSnapshotCache,
+macro_rules! define_registry_db {
+	(
+		$(
+			$(#[$attr:meta])*
+			{
+				field: $field:ident,
+				marker: $marker:path,
+				runtime_ty: $runtime_ty:ty,
+				init: $init:expr $(,)?
+			}
+		)*
+	) => {
+		pub struct RegistryDb {
+			$( $(#[$attr])* pub $field: $runtime_ty, )*
+			#[cfg(feature = "keymap")]
+			pub keymap: KeymapSnapshotCache,
+		}
+	};
 }
+
+with_registry_domains!(define_registry_db);
 
 static DB: OnceLock<RegistryDb> = OnceLock::new();
 
@@ -61,10 +64,6 @@ pub fn get_db() -> &'static RegistryDb {
 			tracing::error!("Builtin registration failed: {}", e);
 		}
 
-		if let Err(e) = plugin::run_plugins(&mut builder) {
-			tracing::error!("Registry plugins failed: {}", e);
-		}
-
 		let indices = builder.build();
 
 		let actions_reg = RuntimeRegistry::new("actions", indices.actions);
@@ -72,24 +71,27 @@ pub fn get_db() -> &'static RegistryDb {
 		#[cfg(feature = "keymap")]
 		let keymap = KeymapSnapshotCache::new(actions_reg.snapshot());
 
-		RegistryDb {
-			actions: actions_reg,
-			commands: RuntimeRegistry::new("commands", indices.commands),
-			motions: RuntimeRegistry::new("motions", indices.motions),
-			text_objects: TextObjectRegistry::new(indices.text_objects),
-			options: OptionsRegistry::new(indices.options),
-			#[cfg(feature = "commands")]
-			snippets: RuntimeRegistry::new("snippets", indices.snippets),
-			themes: RuntimeRegistry::new("themes", indices.themes),
-			gutters: RuntimeRegistry::new("gutters", indices.gutters),
-			statusline: RuntimeRegistry::new("statusline", indices.statusline),
-			hooks: HooksRegistry::new(indices.hooks),
-			notifications: RuntimeRegistry::new("notifications", indices.notifications),
-			languages: LanguagesRegistry::new(indices.languages),
-			lsp_servers: LspServersRegistry::new(indices.lsp_servers),
-			#[cfg(feature = "keymap")]
-			keymap,
+		macro_rules! init_registry_db {
+			(
+				$(
+					$(#[$attr:meta])*
+					{
+						field: $field:ident,
+						marker: $marker:path,
+						runtime_ty: $runtime_ty:ty,
+						init: $init:expr $(,)?
+					}
+				)*
+			) => {
+				RegistryDb {
+					$( $(#[$attr])* $field: $init, )*
+					#[cfg(feature = "keymap")]
+					keymap,
+				}
+			};
 		}
+
+		with_registry_domains!(init_registry_db, indices, actions_reg)
 	})
 }
 

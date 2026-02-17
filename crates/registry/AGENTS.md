@@ -30,8 +30,8 @@ The registry is a typed database of editor definitions (actions, commands, optio
   * `src/core/index/*`: generic index building, lookup resolution, collision recording, runtime registration
 
 * **DB builder**:
-  * `src/db/domain.rs`: `DomainSpec` trait (domain type plumbing + conversions + hooks)
-  * `src/db/domains.rs`: domain marker types implementing `DomainSpec`
+  * `src/db/domain.rs`: `DomainSpec` trait (domain type plumbing + hooks)
+  * `src/db/domain_catalog.rs`: single source of truth for domain wiring into builder/runtime DB
   * `src/db/builder/mod.rs`: `RegistryDbBuilder` and domain registration wrappers
 
 ### Pipeline (end-to-end)
@@ -217,14 +217,13 @@ The registry maintains a list of collisions for debugging and UI feedback:
 
 ## `DomainSpec` and domain wiring
 
-The `define_domains!` macro is intentionally minimal. All domain plumbing lives in `DomainSpec` implementations.
+Domain plumbing is split between per-domain `DomainSpec` implementations and the shared `db/domain_catalog.rs` wiring table.
 
 ### `DomainSpec` responsibilities
 
 Each domain marker type implements `DomainSpec`:
 
-* associated types: `Input`, `Entry`, `Id`, `StaticDef`, `LinkedDef`
-* conversions: `static_to_input`, `linked_to_input`
+* associated types: `Input`, `Entry`, `Id`
 * `LABEL`: human-readable domain label
 * `builder(db) -> &mut RegistryBuilder<...>`: selects the correct builder field
 * optional `on_push(db, &input)`: domain-specific side effects (e.g. collecting keybindings)
@@ -288,16 +287,16 @@ Run with `--features registry-contracts` if you’re touching collection/build l
 
 ### 4) Wire into `RegistryDbBuilder`
 
-1. Add a domain marker type implementing `DomainSpec` in `src/db/domains.rs`.
-   * include conversions (`static_to_input`, `linked_to_input`)
-   * add `on_push` if you need side tables (e.g. keybindings)
+1. Add a domain marker type implementing `DomainSpec` in the domain module (for example `src/domains/<domain>/mod.rs`).
+   * add `on_push` only if you need side tables (e.g. keybindings)
 
-2. Add one line to the `define_domains!` invocation in `src/db/builder/mod.rs`:
-   * `field` name (builder field)
-   * `stem` (register method prefix)
-   * `domain` marker type
+2. Add one entry in `src/db/domain_catalog.rs`:
+   * `field` name
+   * domain marker type
+   * runtime container type
+   * runtime init expression
 
-That’s it. The macro should not grow knobs.
+That single catalog entry drives both builder field generation and runtime DB assembly.
 
 ### 5) Tests (required)
 

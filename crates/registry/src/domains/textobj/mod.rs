@@ -17,14 +17,6 @@ pub use builtins::register_builtins;
 pub use handler::{TextObjectHandlerReg, TextObjectHandlerStatic};
 pub use registry::{TextObjectRef, TextObjectRegistry};
 
-use crate::error::RegistryError;
-
-pub fn register_plugin(db: &mut crate::db::builder::RegistryDbBuilder) -> Result<(), RegistryError> {
-	register_builtins(db);
-	register_compiled(db);
-	Ok(())
-}
-
 /// Registers compiled text objects from the embedded spec.
 pub fn register_compiled(db: &mut crate::db::builder::RegistryDbBuilder) {
 	let spec = loader::load_text_objects_spec();
@@ -43,17 +35,7 @@ impl crate::db::domain::DomainSpec for TextObjects {
 	type Input = TextObjectInput;
 	type Entry = TextObjectEntry;
 	type Id = crate::core::TextObjectId;
-	type StaticDef = TextObjectDef;
-	type LinkedDef = link::LinkedTextObjectDef;
 	const LABEL: &'static str = "text_objects";
-
-	fn static_to_input(def: &'static Self::StaticDef) -> Self::Input {
-		TextObjectInput::Static(*def)
-	}
-
-	fn linked_to_input(def: Self::LinkedDef) -> Self::Input {
-		TextObjectInput::Linked(def)
-	}
 
 	fn builder(db: &mut crate::db::builder::RegistryDbBuilder) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
 		&mut db.text_objects

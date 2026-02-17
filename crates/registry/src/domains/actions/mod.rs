@@ -79,13 +79,6 @@ pub use builtins::register_builtins;
 
 #[cfg(feature = "minimal")]
 pub use crate::db::ACTIONS;
-use crate::error::RegistryError;
-
-pub fn register_plugin(db: &mut crate::db::builder::RegistryDbBuilder) -> Result<(), RegistryError> {
-	register_builtins(db);
-	register_compiled(db);
-	Ok(())
-}
 
 /// Registers compiled actions and prefixes from the embedded spec.
 pub fn register_compiled(db: &mut crate::db::builder::RegistryDbBuilder) {
@@ -105,17 +98,7 @@ impl crate::db::domain::DomainSpec for Actions {
 	type Input = def::ActionInput;
 	type Entry = entry::ActionEntry;
 	type Id = crate::core::ActionId;
-	type StaticDef = def::ActionDef;
-	type LinkedDef = link::LinkedActionDef;
 	const LABEL: &'static str = "actions";
-
-	fn static_to_input(def: &'static Self::StaticDef) -> Self::Input {
-		def::ActionInput::Static(def.clone())
-	}
-
-	fn linked_to_input(def: Self::LinkedDef) -> Self::Input {
-		def::ActionInput::Linked(def)
-	}
 
 	fn builder(db: &mut crate::db::builder::RegistryDbBuilder) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
 		&mut db.actions

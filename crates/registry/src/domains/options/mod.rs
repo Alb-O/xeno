@@ -21,12 +21,6 @@ pub use resolver::OptionResolver;
 pub use store::OptionStore;
 pub use typed_keys::TypedOptionKey;
 
-pub fn register_plugin(db: &mut crate::db::builder::RegistryDbBuilder) -> Result<(), crate::db::builder::RegistryError> {
-	register_builtins(db);
-	register_compiled(db);
-	Ok(())
-}
-
 /// Registers compiled options from the embedded spec.
 pub fn register_compiled(db: &mut crate::db::builder::RegistryDbBuilder) {
 	let spec = loader::load_options_spec();
@@ -45,17 +39,7 @@ impl crate::db::domain::DomainSpec for Options {
 	type Input = OptionInput;
 	type Entry = OptionEntry;
 	type Id = crate::core::OptionId;
-	type StaticDef = OptionDef;
-	type LinkedDef = link::LinkedOptionDef;
 	const LABEL: &'static str = "options";
-
-	fn static_to_input(def: &'static Self::StaticDef) -> Self::Input {
-		OptionInput::Static(def.clone())
-	}
-
-	fn linked_to_input(def: Self::LinkedDef) -> Self::Input {
-		OptionInput::Linked(def)
-	}
 
 	fn builder(db: &mut crate::db::builder::RegistryDbBuilder) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
 		&mut db.options
