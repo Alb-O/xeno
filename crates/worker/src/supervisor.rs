@@ -167,7 +167,7 @@ where
 	pub mailbox: MailboxSpec,
 	pub supervisor: SupervisorSpec,
 	factory: Arc<dyn Fn() -> A + Send + Sync>,
-	coalesce_key: Option<Arc<dyn Fn(&A::Cmd) -> u64 + Send + Sync>>,
+	coalesce_eq: Option<Arc<dyn Fn(&A::Cmd, &A::Cmd) -> bool + Send + Sync>>,
 }
 
 impl<A> ActorSpec<A>
@@ -182,7 +182,7 @@ where
 			mailbox: MailboxSpec::default(),
 			supervisor: SupervisorSpec::default(),
 			factory: Arc::new(factory),
-			coalesce_key: None,
+			coalesce_eq: None,
 		}
 	}
 
@@ -199,8 +199,11 @@ where
 	}
 
 	/// Enables keyed coalescing mailboxes.
-	pub fn coalesce_by_key(mut self, key_fn: impl Fn(&A::Cmd) -> u64 + Send + Sync + 'static) -> Self {
-		self.coalesce_key = Some(Arc::new(key_fn));
+	pub fn coalesce_by_key<K>(mut self, key_fn: impl Fn(&A::Cmd) -> K + Send + Sync + 'static) -> Self
+	where
+		K: Eq + Send + Sync + 'static,
+	{
+		self.coalesce_eq = Some(Arc::new(move |lhs: &A::Cmd, rhs: &A::Cmd| key_fn(lhs) == key_fn(rhs)));
 		self.mailbox.policy = MailboxPolicy::CoalesceByKey;
 		self
 	}
@@ -343,8 +346,8 @@ pub fn spawn_supervised_actor<A>(spec: ActorSpec<A>) -> ActorHandle<A::Cmd, A::E
 where
 	A: WorkerActor,
 {
-	let mailbox = match spec.coalesce_key {
-		Some(key_fn) => Mailbox::with_coalesce_key(spec.mailbox.capacity, move |cmd: &A::Cmd| key_fn(cmd)),
+	let mailbox = match spec.coalesce_eq {
+		Some(eq_fn) => Mailbox::with_coalesce_eq(spec.mailbox.capacity, move |lhs: &A::Cmd, rhs: &A::Cmd| eq_fn(lhs, rhs)),
 		None => Mailbox::new(spec.mailbox.capacity, spec.mailbox.policy),
 	};
 	let tx = mailbox.sender();

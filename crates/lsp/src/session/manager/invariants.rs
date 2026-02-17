@@ -301,6 +301,31 @@ pub(crate) async fn test_router_event_ordering() {
 	drop(session);
 }
 
+/// Must cancel the event-forwarder and bound runtime shutdown even when the
+/// transport stream remains open and an inline reply is blocked.
+///
+/// * Enforced in: `LspRuntime::shutdown` cancellation + actor graceful timeout
+/// * Failure symptom: editor shutdown hangs indefinitely waiting for router task exit.
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_runtime_shutdown_is_bounded_with_open_stream_and_blocked_reply() {
+	let transport = TestTransport::new();
+	let (_session, runtime, _path, server_id) = make_session_runtime(transport.clone()).await;
+	let reply_gate = Arc::new(Notify::new());
+	transport.set_reply_gate(Some(reply_gate));
+
+	transport.emit(TransportEvent::Message {
+		server: server_id,
+		message: Message::Request(AnyRequest {
+			id: RequestId::Number(11),
+			method: "client/registerCapability".into(),
+			params: json!({}),
+		}),
+	});
+
+	wait_until("blocked reply starts", || transport.reply_started() >= 1).await;
+	timeout(Duration::from_secs(3), runtime.shutdown()).await.expect("shutdown must be bounded");
+}
+
 /// Must remove stopped/crashed servers from registry and clear their progress.
 ///
 /// * Enforced in: `process_status_event`

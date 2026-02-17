@@ -11,7 +11,7 @@
 //! * `LspSystem` (in `xeno-editor`) creates `(LspSession, LspRuntime)` and starts runtime once.
 //! * [`crate::sync::DocumentSync`] owns didOpen/didChange/didSave/didClose policy and document state updates.
 //! * [`crate::registry::Registry`] maps `(language, workspace_root)` to active server slots and singleflights startup.
-//! * `LspRuntime` is the only transport-event subscriber and routes events sequentially.
+//! * `LspRuntime` is the only transport-event subscriber. It forwards events into one supervised router actor that processes them sequentially.
 //! * `LspSession` is a high-level API for editor integration (configuration, diagnostics polling, sync access).
 //!
 //! # Key types
@@ -33,6 +33,7 @@
 //! * Must singleflight `transport.start()` per `(language, root_path)` key.
 //! * Must update registry indices atomically on registry mutation.
 //! * Must process transport events sequentially and reply to requests inline.
+//! * Must cancel router forwarding and bound runtime shutdown when transport streams remain open.
 //! * Must remove stopped/crashed servers and clear their progress.
 //! * Must drop events from stale server generations.
 //! * `LanguageServerId` must be slot + monotonic generation counter.
@@ -68,7 +69,7 @@
 //! # Concurrency & ordering
 //!
 //! * Registry startup ordering: only one leader calls `transport.start()` per `(language, root_path)` key.
-//! * Router ordering: runtime processes events in receive order. Requests are replied inline.
+//! * Router ordering: a single router actor processes events in receive order. Requests are replied inline.
 //! * Document versioning: pending/acked versions are monotonic and mismatch forces full sync.
 //!
 //! # Failure modes & recovery
@@ -77,6 +78,7 @@
 //! * Runtime start without Tokio context: `RuntimeStartError::NoRuntime`.
 //! * Duplicate event subscription: surfaced by transport as protocol error.
 //! * Server crash/stop: runtime removes server metadata and clears progress.
+//! * Shutdown while stream open: runtime cancels event forwarding and bounds actor shutdown with graceful timeout.
 //! * Unsupported server request method: returns `METHOD_NOT_FOUND`.
 //!
 //! # Recipes

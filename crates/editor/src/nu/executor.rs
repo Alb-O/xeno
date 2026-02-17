@@ -99,6 +99,7 @@ pub enum NuExecError {
 
 /// Shared state between owner and client clones.
 pub(crate) struct Shared {
+	_runtime_guard: Option<Arc<tokio::runtime::Runtime>>,
 	handle: Arc<xeno_worker::ActorHandle<Job, ()>>,
 	closed: AtomicBool,
 	#[cfg(test)]
@@ -115,6 +116,15 @@ pub struct NuExecutor {
 }
 
 impl NuExecutor {
+	fn build_worker_runtime() -> tokio::runtime::Runtime {
+		tokio::runtime::Builder::new_multi_thread()
+			.enable_all()
+			.worker_threads(2)
+			.thread_name("xeno-nu-worker")
+			.build()
+			.expect("failed to build Nu worker runtime")
+	}
+
 	/// Spawn a new worker actor for the given runtime.
 	pub fn new(runtime: NuRuntime) -> Self {
 		let actor_runtime = runtime.clone();
@@ -127,15 +137,23 @@ impl NuExecutor {
 		})
 		.supervisor(xeno_worker::SupervisorSpec {
 			restart: xeno_worker::RestartPolicy::OnFailure {
-				max_restarts: usize::MAX,
-				backoff: std::time::Duration::from_millis(1),
+				max_restarts: 8,
+				backoff: std::time::Duration::from_millis(25),
 			},
 			event_buffer: 8,
 		});
 
-		let handle = Arc::new(xeno_worker::spawn_supervised_actor(spec));
+		let (runtime_guard, handle) = if tokio::runtime::Handle::try_current().is_ok() {
+			(None, Arc::new(xeno_worker::spawn_supervised_actor(spec)))
+		} else {
+			let rt = Arc::new(Self::build_worker_runtime());
+			let actor = Arc::new(rt.block_on(async move { xeno_worker::spawn_supervised_actor(spec) }));
+			(Some(rt), actor)
+		};
+
 		Self {
 			shared: Arc::new(Shared {
+				_runtime_guard: runtime_guard,
 				handle,
 				closed: AtomicBool::new(false),
 				#[cfg(test)]

@@ -50,7 +50,7 @@ struct MailboxState<T> {
 struct MailboxInner<T> {
 	capacity: usize,
 	policy: MailboxPolicy,
-	coalesce_key: Option<Arc<dyn Fn(&T) -> u64 + Send + Sync>>,
+	coalesce_eq: Option<Arc<dyn Fn(&T, &T) -> bool + Send + Sync>>,
 	state: Mutex<MailboxState<T>>,
 	notify_recv: Notify,
 	notify_send: Notify,
@@ -95,7 +95,7 @@ impl<T> Mailbox<T> {
 			inner: Arc::new(MailboxInner {
 				capacity,
 				policy,
-				coalesce_key: None,
+				coalesce_eq: None,
 				state: Mutex::new(MailboxState {
 					queue: VecDeque::with_capacity(capacity),
 					closed: false,
@@ -107,13 +107,22 @@ impl<T> Mailbox<T> {
 	}
 
 	/// Creates a bounded mailbox with key-based coalescing.
-	pub fn with_coalesce_key(capacity: usize, key_fn: impl Fn(&T) -> u64 + Send + Sync + 'static) -> Self {
+	pub fn with_coalesce_key<K>(capacity: usize, key_fn: impl Fn(&T) -> K + Send + Sync + 'static) -> Self
+	where
+		K: Eq + Send + Sync + 'static,
+	{
+		let cmp = move |lhs: &T, rhs: &T| key_fn(lhs) == key_fn(rhs);
+		Self::with_coalesce_eq(capacity, cmp)
+	}
+
+	/// Creates a bounded mailbox with direct equality-based coalescing.
+	pub fn with_coalesce_eq(capacity: usize, eq_fn: impl Fn(&T, &T) -> bool + Send + Sync + 'static) -> Self {
 		assert!(capacity > 0, "mailbox capacity must be > 0");
 		Self {
 			inner: Arc::new(MailboxInner {
 				capacity,
 				policy: MailboxPolicy::CoalesceByKey,
-				coalesce_key: Some(Arc::new(key_fn)),
+				coalesce_eq: Some(Arc::new(eq_fn)),
 				state: Mutex::new(MailboxState {
 					queue: VecDeque::with_capacity(capacity),
 					closed: false,
@@ -244,11 +253,10 @@ fn enqueue_with_policy<T>(inner: &MailboxInner<T>, state: &mut MailboxState<T>, 
 			}
 		}
 		MailboxPolicy::CoalesceByKey => {
-			let Some(key_fn) = inner.coalesce_key.as_ref() else {
+			let Some(eq_fn) = inner.coalesce_eq.as_ref() else {
 				return Err(MailboxSendError::MissingCoalesceKey);
 			};
-			let key = key_fn(&msg);
-			if let Some(existing) = state.queue.iter_mut().find(|it| key_fn(it) == key) {
+			if let Some(existing) = state.queue.iter_mut().find(|it| eq_fn(it, &msg)) {
 				*existing = msg;
 				inner.notify_recv.notify_one();
 				return Ok(MailboxSendOutcome::Coalesced);

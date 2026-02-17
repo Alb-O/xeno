@@ -1,45 +1,31 @@
 use std::future::Future;
-use std::sync::OnceLock;
 
 use tokio::task::JoinHandle;
 
 use crate::TaskClass;
 
-fn runtime_handle() -> tokio::runtime::Handle {
-	if let Ok(handle) = tokio::runtime::Handle::try_current() {
-		return handle;
-	}
-
-	static GLOBAL_RT: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
-	let runtime = GLOBAL_RT.get_or_init(|| {
-		tokio::runtime::Builder::new_multi_thread()
-			.enable_all()
-			.worker_threads(2)
-			.thread_name("xeno-worker-global")
-			.build()
-			.expect("failed to build xeno-worker global tokio runtime")
-	});
-	runtime.handle().clone()
-}
-
 /// Spawns an async task with shared worker classification metadata.
+///
+/// Must be called from within an active Tokio runtime context.
 pub fn spawn<F>(class: TaskClass, fut: F) -> JoinHandle<F::Output>
 where
 	F: Future + Send + 'static,
 	F::Output: Send + 'static,
 {
 	tracing::trace!(worker_class = class.as_str(), "worker.spawn");
-	runtime_handle().spawn(fut)
+	tokio::spawn(fut)
 }
 
 /// Spawns blocking work with shared worker classification metadata.
+///
+/// Must be called from within an active Tokio runtime context.
 pub fn spawn_blocking<F, R>(class: TaskClass, f: F) -> JoinHandle<R>
 where
 	F: FnOnce() -> R + Send + 'static,
 	R: Send + 'static,
 {
 	tracing::trace!(worker_class = class.as_str(), "worker.spawn_blocking");
-	runtime_handle().spawn_blocking(f)
+	tokio::task::spawn_blocking(f)
 }
 
 /// Spawns a dedicated OS thread with shared worker classification metadata.
