@@ -24,7 +24,14 @@ fn run_invocations_supports_record_and_list() {
 	let runtime = NuRuntime::load(temp.path()).expect("runtime should load");
 
 	let one = runtime.run_invocations("one", &[]).expect("record return should decode");
-	assert!(matches!(one.as_slice(), [Invocation::EditorCommand { name, .. }] if name == "stats"));
+	assert!(matches!(
+		one.as_slice(),
+		[Invocation::Command(xeno_invocation::CommandInvocation {
+			name,
+			route: xeno_invocation::CommandRoute::Editor,
+			..
+		})] if name == "stats"
+	));
 
 	let many = runtime.run_invocations("many", &[]).expect("list return should decode");
 	assert_eq!(many.len(), 2);
@@ -65,8 +72,18 @@ export def nested_nu [] { xeno call go a b }",
 	));
 
 	let mixed = runtime.run_invocations("mixed", &[]).expect("structured list should decode");
-	assert!(matches!(mixed.first(), Some(Invocation::EditorCommand { name, .. }) if name == "stats"));
-	assert!(matches!(mixed.get(1), Some(Invocation::Command { name, .. }) if name == "help"));
+	assert!(matches!(
+		mixed.first(),
+		Some(Invocation::Command(xeno_invocation::CommandInvocation {
+			name,
+			route: xeno_invocation::CommandRoute::Editor,
+			..
+		})) if name == "stats"
+	));
+	assert!(matches!(
+		mixed.get(1),
+		Some(Invocation::Command(xeno_invocation::CommandInvocation { name, .. })) if name == "help"
+	));
 
 	let nested_nu = runtime.run_invocations("nested_nu", &[]).expect("structured nu invocation should decode");
 	assert!(matches!(nested_nu.as_slice(), [Invocation::Nu { name, args }] if name == "go" && args == &["a".to_string(), "b".to_string()]));
@@ -103,7 +120,14 @@ fn run_allows_use_within_config_root() {
 
 	let runtime = NuRuntime::load(temp.path()).expect("runtime should load");
 	let invocations = runtime.run_invocations("go", &[]).expect("run should succeed");
-	assert!(matches!(invocations.as_slice(), [Invocation::EditorCommand { name, .. }] if name == "stats"));
+	assert!(matches!(
+		invocations.as_slice(),
+		[Invocation::Command(xeno_invocation::CommandInvocation {
+			name,
+			route: xeno_invocation::CommandRoute::Editor,
+			..
+		})] if name == "stats"
+	));
 }
 
 #[test]
@@ -179,5 +203,12 @@ fn load_allows_const_used_by_macro() {
 
 	let runtime = NuRuntime::load(temp.path()).expect("runtime should load");
 	let invocations = runtime.run_invocations("go", &[]).expect("run should succeed");
-	assert!(matches!(invocations.as_slice(), [Invocation::EditorCommand { name, .. }] if name == "stats"));
+	assert!(matches!(
+		invocations.as_slice(),
+		[Invocation::Command(xeno_invocation::CommandInvocation {
+			name,
+			route: xeno_invocation::CommandRoute::Editor,
+			..
+		})] if name == "stats"
+	));
 }

@@ -6,27 +6,27 @@ use crate::nu::NuDecodeSurface;
 use crate::nu::coordinator::errors::exec_error_message;
 use crate::nu::coordinator::runner::{NuExecKind, execute_with_restart};
 use crate::nu::effects::{NuEffectApplyError, NuEffectApplyMode, apply_effect_batch};
-use crate::types::{InvocationPolicy, InvocationResult};
+use crate::types::{Invocation, InvocationOutcome, InvocationTarget};
 
 impl Editor {
-	pub(crate) async fn run_nu_macro_invocation(&mut self, fn_name: String, args: Vec<String>, policy: InvocationPolicy) -> InvocationResult {
+	pub(crate) async fn run_nu_macro_invocation(&mut self, fn_name: String, args: Vec<String>) -> Result<Vec<Invocation>, InvocationOutcome> {
 		if let Err(error) = self.ensure_nu_runtime_loaded().await {
 			self.show_notification(xeno_registry::notifications::keys::command_error(&error));
-			return InvocationResult::CommandError(error);
+			return Err(InvocationOutcome::command_error(InvocationTarget::Nu, error));
 		}
 
 		let Some(runtime) = self.nu_runtime() else {
-			return InvocationResult::CommandError("Nu runtime is not loaded".to_string());
+			return Err(InvocationOutcome::command_error(InvocationTarget::Nu, "Nu runtime is not loaded"));
 		};
 
 		let Some(decl_id) = runtime.find_script_decl(&fn_name) else {
 			let error = format!("Nu runtime error: function '{}' is not defined in xeno.nu", fn_name);
 			self.show_notification(xeno_registry::notifications::keys::command_error(&error));
-			return InvocationResult::CommandError(error);
+			return Err(InvocationOutcome::command_error(InvocationTarget::Nu, error));
 		};
 
 		if self.state.nu.ensure_executor().is_none() {
-			return InvocationResult::CommandError("Nu executor is not available".to_string());
+			return Err(InvocationOutcome::command_error(InvocationTarget::Nu, "Nu executor is not available"));
 		}
 
 		let budget = self
@@ -53,13 +53,13 @@ impl Editor {
 			Err(error) => {
 				let msg = exec_error_message(&error);
 				self.show_notification(xeno_registry::notifications::keys::command_error(&msg));
-				return InvocationResult::CommandError(msg);
+				return Err(InvocationOutcome::command_error(InvocationTarget::Nu, msg));
 			}
 		};
 
 		if effects.effects.is_empty() {
 			debug!(function = %fn_name, "Nu macro produced no invocations");
-			return InvocationResult::Ok;
+			return Ok(Vec::new());
 		}
 
 		let allowed = self.state.config.nu.as_ref().map_or_else(
@@ -77,18 +77,11 @@ impl Editor {
 					NuEffectApplyError::StopPropagationUnsupportedForMacro => "Nu macro produced hook-only stop effect".to_string(),
 				};
 				self.show_notification(xeno_registry::notifications::keys::command_error(&msg));
-				return InvocationResult::CommandError(msg);
+				return Err(InvocationOutcome::command_error(InvocationTarget::Nu, msg));
 			}
 		};
 
-		for invocation in outcome.dispatches {
-			match Box::pin(self.run_invocation(invocation, policy)).await {
-				InvocationResult::Ok => {}
-				other => return other,
-			}
-		}
-
-		InvocationResult::Ok
+		Ok(outcome.dispatches)
 	}
 
 	async fn ensure_nu_runtime_loaded(&mut self) -> Result<(), String> {

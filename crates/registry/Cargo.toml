@@ -102,6 +102,7 @@ actions-handler-coverage = ["actions-builtins"]
 [dependencies]
 arc-swap = { workspace = true }
 bitflags = { workspace = true }
+devicons = { workspace = true, optional = true }
 inventory = { workspace = true, optional = true }
 parking_lot = { workspace = true, optional = true }
 paste = { workspace = true, optional = true }
@@ -113,7 +114,6 @@ serde.workspace = true
 strsim = { workspace = true, optional = true }
 thiserror.workspace = true
 tracing = { workspace = true, optional = true }
-devicons = { workspace = true, optional = true }
 xeno-invocation = { workspace = true }
 xeno-invocation-spec = { workspace = true, optional = true }
 xeno-keymap-core = { workspace = true, optional = true }

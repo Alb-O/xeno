@@ -272,7 +272,14 @@ mod tests {
 			.expect("run should succeed");
 
 		assert_eq!(result.effects.len(), 1);
-		assert!(matches!(result.effects.as_slice(), [NuEffect::Dispatch(crate::types::Invocation::EditorCommand { name, .. })] if name == "stats"));
+		assert!(matches!(
+			result.effects.as_slice(),
+			[NuEffect::Dispatch(crate::types::Invocation::Command(xeno_invocation::CommandInvocation {
+				name,
+				route: xeno_invocation::CommandRoute::Editor,
+				..
+			}))] if name == "stats"
+		));
 	}
 
 	#[test]

@@ -94,10 +94,20 @@ fn config_nu_parses_structured_keys_with_builtins() {
 	let normal = keys.modes.get("normal").expect("normal mode should exist");
 
 	let ctrl_s = normal.get("ctrl+s").expect("ctrl+s binding should exist");
-	assert!(matches!(ctrl_s, crate::Invocation::Command { name, args } if name == "write" && args.is_empty()));
+	assert!(matches!(
+		ctrl_s,
+		crate::Invocation::Command(xeno_invocation::CommandInvocation { name, args, .. }) if name == "write" && args.is_empty()
+	));
 
 	let gr = normal.get("g r").expect("g r binding should exist");
-	assert!(matches!(gr, crate::Invocation::EditorCommand { name, args } if name == "reload_config" && args.is_empty()));
+	assert!(matches!(
+		gr,
+		crate::Invocation::Command(xeno_invocation::CommandInvocation {
+			name,
+			args,
+			route: xeno_invocation::CommandRoute::Editor
+		}) if name == "reload_config" && args.is_empty()
+	));
 }
 
 #[test]
@@ -113,7 +123,10 @@ fn config_nu_accepts_string_key_target() {
 	let keys = config.keys.expect("keys should be present");
 	let bindings = keys.modes.get("normal").expect("normal mode should exist");
 	let inv = bindings.get("ctrl+s").expect("ctrl+s should be bound");
-	assert!(matches!(inv, xeno_invocation::Invocation::Command { name, .. } if name == "write"));
+	assert!(matches!(
+		inv,
+		xeno_invocation::Invocation::Command(xeno_invocation::CommandInvocation { name, .. }) if name == "write"
+	));
 }
 
 #[test]

@@ -2,7 +2,7 @@
 //!
 //! The canonical [`Invocation`] enum lives in `xeno_registry` and is re-exported
 //! here for convenience. Editor-specific dispatch types (`InvocationPolicy`,
-//! `InvocationResult`) remain local.
+//! `InvocationOutcome`) remain local.
 
 use xeno_registry::Capability;
 pub use xeno_registry::Invocation;
@@ -63,32 +63,117 @@ impl InvocationPolicy {
 }
 
 /// Result of an invocation attempt.
-#[derive(Debug)]
-pub enum InvocationResult {
-	/// Invocation executed successfully.
-	Ok,
-	/// Invocation requested application quit.
-	Quit,
-	/// Invocation requested force quit (no prompts).
-	ForceQuit,
-	/// The invocation target was not found.
-	NotFound(String),
-	/// Capability check failed.
-	CapabilityDenied(Capability),
-	/// Buffer is readonly.
-	ReadonlyDenied,
-	/// Command execution failed with error.
-	CommandError(String),
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InvocationTarget {
+	Action,
+	Command,
+	Nu,
 }
 
-impl InvocationResult {
+/// Terminal status of an invocation attempt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InvocationStatus {
+	Ok,
+	Quit,
+	ForceQuit,
+	NotFound,
+	CapabilityDenied,
+	ReadonlyDenied,
+	CommandError,
+}
+
+/// Structured invocation outcome with explicit status and diagnostics payload.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InvocationOutcome {
+	pub status: InvocationStatus,
+	pub target: InvocationTarget,
+	pub detail: Option<String>,
+	pub denied_capability: Option<Capability>,
+}
+
+impl InvocationOutcome {
+	pub const fn ok(target: InvocationTarget) -> Self {
+		Self {
+			status: InvocationStatus::Ok,
+			target,
+			detail: None,
+			denied_capability: None,
+		}
+	}
+
+	pub const fn quit(target: InvocationTarget) -> Self {
+		Self {
+			status: InvocationStatus::Quit,
+			target,
+			detail: None,
+			denied_capability: None,
+		}
+	}
+
+	pub const fn force_quit(target: InvocationTarget) -> Self {
+		Self {
+			status: InvocationStatus::ForceQuit,
+			target,
+			detail: None,
+			denied_capability: None,
+		}
+	}
+
+	pub fn not_found(target: InvocationTarget, detail: impl Into<String>) -> Self {
+		Self {
+			status: InvocationStatus::NotFound,
+			target,
+			detail: Some(detail.into()),
+			denied_capability: None,
+		}
+	}
+
+	pub const fn capability_denied(target: InvocationTarget, capability: Capability) -> Self {
+		Self {
+			status: InvocationStatus::CapabilityDenied,
+			target,
+			detail: None,
+			denied_capability: Some(capability),
+		}
+	}
+
+	pub const fn readonly_denied(target: InvocationTarget) -> Self {
+		Self {
+			status: InvocationStatus::ReadonlyDenied,
+			target,
+			detail: None,
+			denied_capability: None,
+		}
+	}
+
+	pub fn command_error(target: InvocationTarget, detail: impl Into<String>) -> Self {
+		Self {
+			status: InvocationStatus::CommandError,
+			target,
+			detail: Some(detail.into()),
+			denied_capability: None,
+		}
+	}
+
 	/// Returns true if this result indicates a quit request.
 	pub fn is_quit(&self) -> bool {
-		matches!(self, Self::Quit | Self::ForceQuit)
+		matches!(self.status, InvocationStatus::Quit | InvocationStatus::ForceQuit)
 	}
 
 	/// Returns true if this result indicates successful execution.
 	pub fn is_ok(&self) -> bool {
-		matches!(self, Self::Ok)
+		matches!(self.status, InvocationStatus::Ok)
+	}
+
+	pub fn label(&self) -> &'static str {
+		match self.status {
+			InvocationStatus::Ok => "ok",
+			InvocationStatus::Quit => "quit",
+			InvocationStatus::ForceQuit => "force_quit",
+			InvocationStatus::NotFound => "not_found",
+			InvocationStatus::CapabilityDenied => "cap_denied",
+			InvocationStatus::ReadonlyDenied => "readonly",
+			InvocationStatus::CommandError => "error",
+		}
 	}
 }

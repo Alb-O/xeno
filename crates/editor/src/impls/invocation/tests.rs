@@ -10,6 +10,7 @@ use xeno_registry::notifications::Notification;
 use xeno_registry::{Capability, CommandError};
 
 use super::*;
+use crate::types::{InvocationOutcome, InvocationStatus, InvocationTarget};
 
 thread_local! {
 	static ACTION_PRE_COUNT: Cell<usize> = const { Cell::new(0) };
@@ -269,11 +270,24 @@ fn capability_enforcement_blocks_when_enforced() {
 	let notified = Cell::new(false);
 	let logged = Cell::new(false);
 
-	let result = handle_capability_violation(InvocationPolicy::enforcing(), error, |_err| notified.set(true), |_err| logged.set(true));
+	let result = handle_capability_violation(
+		preflight::InvocationKind::Command,
+		InvocationPolicy::enforcing(),
+		error,
+		|_err| notified.set(true),
+		|_err| logged.set(true),
+	);
 
 	assert!(notified.get());
 	assert!(!logged.get());
-	assert!(matches!(result, Some(InvocationResult::CapabilityDenied(Capability::Search))));
+	assert!(matches!(
+		result,
+		Some(InvocationOutcome {
+			status: InvocationStatus::CapabilityDenied,
+			denied_capability: Some(Capability::Search),
+			..
+		})
+	));
 }
 
 #[test]
@@ -285,7 +299,13 @@ fn capability_enforcement_logs_in_log_only_mode() {
 	let notified = Cell::new(false);
 	let logged = Cell::new(false);
 
-	let result = handle_capability_violation(InvocationPolicy::log_only(), error, |_err| notified.set(true), |_err| logged.set(true));
+	let result = handle_capability_violation(
+		preflight::InvocationKind::Command,
+		InvocationPolicy::log_only(),
+		error,
+		|_err| notified.set(true),
+		|_err| logged.set(true),
+	);
 
 	assert!(result.is_none());
 	assert!(!notified.get());
@@ -300,7 +320,7 @@ fn action_hooks_fire_once() {
 
 	let mut editor = Editor::new_scratch();
 	let result = editor.invoke_action("invocation_test_action", 1, false, None, None);
-	assert!(matches!(result, InvocationResult::Ok));
+	assert!(matches!(result.status, InvocationStatus::Ok));
 
 	let pre_count = ACTION_PRE_COUNT.with(|count| count.get());
 	let post_count = ACTION_POST_COUNT.with(|count| count.get());
@@ -317,7 +337,7 @@ fn readonly_enforcement_blocks_edit_actions() {
 
 	let result = editor.run_action_invocation("invocation_edit_action", 1, false, None, None, InvocationPolicy::enforcing());
 
-	assert!(matches!(result, InvocationResult::ReadonlyDenied));
+	assert!(matches!(result.status, InvocationStatus::ReadonlyDenied));
 }
 
 #[test]
@@ -328,7 +348,7 @@ fn readonly_disabled_allows_edit_actions() {
 
 	let result = editor.run_action_invocation("invocation_edit_action", 1, false, None, None, InvocationPolicy::log_only());
 
-	assert!(matches!(result, InvocationResult::Ok));
+	assert!(matches!(result.status, InvocationStatus::Ok));
 }
 
 #[test]
@@ -336,12 +356,18 @@ fn command_error_propagates() {
 	// Test defs registered via inventory::submit!(PluginDef) at DB init time.
 	let mut editor = Editor::new_scratch();
 	let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
-	let result = rt.block_on(editor.run_command_invocation("invocation_test_command_fail", &[], InvocationPolicy::enforcing()));
-
-	assert!(matches!(
-		result,
-		InvocationResult::CommandError(msg) if msg.contains("boom")
+	let result = rt.block_on(editor.run_command_invocation(
+		"invocation_test_command_fail",
+		&[],
+		xeno_invocation::CommandRoute::Auto,
+		InvocationPolicy::enforcing(),
 	));
+
+	assert!(matches!(result.status, InvocationStatus::CommandError));
+	assert!(
+		result.detail.as_deref().is_some_and(|msg| msg.contains("boom")),
+		"expected command error detail to include boom, got: {result:?}"
+	);
 }
 
 #[tokio::test]
@@ -363,12 +389,9 @@ async fn nu_macro_recursion_depth_guard_trips() {
 		)
 		.await;
 
-	match result {
-		InvocationResult::CommandError(msg) => {
-			assert!(msg.to_ascii_lowercase().contains("recursion depth"), "{msg}");
-		}
-		other => panic!("expected command error, got {other:?}"),
-	}
+	assert!(matches!(result.status, InvocationStatus::CommandError));
+	let msg = result.detail.as_deref().unwrap_or_default();
+	assert!(msg.to_ascii_lowercase().contains("recursion depth"), "{msg}");
 }
 
 #[tokio::test]
@@ -394,7 +417,7 @@ async fn nu_macro_ctx_is_injected() {
 		)
 		.await;
 
-	assert!(matches!(result, InvocationResult::Ok));
+	assert!(matches!(result.status, InvocationStatus::Ok));
 }
 
 #[tokio::test]
@@ -417,10 +440,11 @@ async fn nu_macro_stop_effect_is_rejected() {
 		.await;
 
 	assert!(
-		matches!(
-			result,
-			InvocationResult::CommandError(ref msg) if msg.contains("only allowed in hook") || msg.contains("hook-only stop effect")
-		),
+		matches!(result.status, InvocationStatus::CommandError)
+			&& result
+				.detail
+				.as_deref()
+				.is_some_and(|msg| msg.contains("only allowed in hook") || msg.contains("hook-only stop effect")),
 		"expected macro stop rejection, got: {result:?}"
 	);
 }
@@ -457,7 +481,7 @@ async fn nu_macro_capability_denial_is_command_error() {
 		.await;
 
 	assert!(
-		matches!(result, InvocationResult::CommandError(ref msg) if msg.contains("denied by capability policy")),
+		matches!(result.status, InvocationStatus::CommandError) && result.detail.as_deref().is_some_and(|msg| msg.contains("denied by capability policy")),
 		"expected macro capability denial, got: {result:?}"
 	);
 	assert_eq!(
@@ -487,7 +511,7 @@ async fn nu_hook_ctx_is_injected() {
 		.run_invocation(Invocation::action("invocation_test_action"), InvocationPolicy::enforcing())
 		.await;
 	editor.drain_nu_hook_queue(usize::MAX).await;
-	assert!(matches!(result, InvocationResult::Ok));
+	assert!(matches!(result.status, InvocationStatus::Ok));
 
 	let pre_count = ACTION_PRE_COUNT.with(|count| count.get());
 	let post_count = ACTION_POST_COUNT.with(|count| count.get());
@@ -521,7 +545,7 @@ async fn nu_hook_capability_denial_is_non_fatal() {
 		.await;
 	editor.drain_nu_hook_queue(usize::MAX).await;
 
-	assert!(matches!(result, InvocationResult::Ok), "base invocation should remain successful");
+	assert!(matches!(result.status, InvocationStatus::Ok), "base invocation should remain successful");
 	assert_eq!(
 		INVOCATION_TEST_ACTION_COUNT.with(|count| count.get()),
 		1,
@@ -598,7 +622,7 @@ async fn nu_runtime_reload_swaps_executor_and_disables_old_runtime_hooks() {
 		.run_invocation(Invocation::action("invocation_edit_action"), InvocationPolicy::enforcing())
 		.await;
 	editor.drain_nu_hook_queue(usize::MAX).await;
-	assert!(matches!(result_a, InvocationResult::Ok));
+	assert!(matches!(result_a.status, InvocationStatus::Ok));
 	assert_eq!(INVOCATION_TEST_ACTION_COUNT.with(|count| count.get()), 1, "runtime A hook should run once");
 	assert_eq!(
 		INVOCATION_TEST_ACTION_ALT_COUNT.with(|count| count.get()),
@@ -629,7 +653,7 @@ async fn nu_runtime_reload_swaps_executor_and_disables_old_runtime_hooks() {
 		.run_invocation(Invocation::action("invocation_edit_action"), InvocationPolicy::enforcing())
 		.await;
 	editor.drain_nu_hook_queue(usize::MAX).await;
-	assert!(matches!(result_b, InvocationResult::Ok));
+	assert!(matches!(result_b.status, InvocationStatus::Ok));
 	assert_eq!(
 		INVOCATION_TEST_ACTION_COUNT.with(|count| count.get()),
 		1,
@@ -671,7 +695,7 @@ async fn command_post_hook_runs_and_receives_args() {
 
 	// The command itself fails. The hook enqueues and drain runs it, firing
 	// the test action. The original command error result is preserved.
-	assert!(matches!(result, InvocationResult::CommandError(_)));
+	assert!(matches!(result.status, InvocationStatus::CommandError));
 	let pre_count = ACTION_PRE_COUNT.with(|count| count.get());
 	let post_count = ACTION_POST_COUNT.with(|count| count.get());
 	assert_eq!(pre_count, 1, "hook-produced action should fire pre hook");
@@ -704,7 +728,7 @@ async fn editor_command_post_hook_runs() {
 	editor.drain_nu_hook_queue(usize::MAX).await;
 
 	// Hook should have fired the test action.
-	assert!(matches!(result, InvocationResult::Ok));
+	assert!(matches!(result.status, InvocationStatus::Ok));
 	let pre_count = ACTION_PRE_COUNT.with(|count| count.get());
 	let post_count = ACTION_POST_COUNT.with(|count| count.get());
 	assert_eq!(pre_count, 1, "hook-produced action should fire pre hook");
@@ -925,11 +949,14 @@ async fn buffer_open_hook_fires_for_existing_switch() {
 
 #[test]
 fn hook_arg_builders_produce_correct_ordering() {
-	let result = InvocationResult::Ok;
+	let result = InvocationOutcome::ok(InvocationTarget::Action);
 	let args = super::command_post_args("write".to_string(), &result, vec!["file.txt".to_string()]);
 	assert_eq!(args, vec!["write", "ok", "file.txt"]);
 
-	let action_args = super::action_post_args("move_right".to_string(), &InvocationResult::CommandError("boom".to_string()));
+	let action_args = super::action_post_args(
+		"move_right".to_string(),
+		&InvocationOutcome::command_error(InvocationTarget::Action, "boom".to_string()),
+	);
 	assert_eq!(action_args, vec!["move_right", "error"]);
 }
 
@@ -969,7 +996,7 @@ async fn nu_macro_respects_configured_decode_limits() {
 		.await;
 
 	assert!(
-		matches!(result, InvocationResult::CommandError(ref msg) if msg.contains("effect count exceeds")),
+		matches!(result.status, InvocationStatus::CommandError) && result.detail.as_deref().is_some_and(|msg| msg.contains("effect count exceeds")),
 		"expected decode limit error, got: {result:?}"
 	);
 }
@@ -1002,7 +1029,7 @@ async fn nu_stats_reflect_hook_pipeline_state() {
 	assert_eq!(stats.nu.hook_queue_len, 0);
 
 	// Enqueue a hook and check queue length.
-	editor.enqueue_action_post_hook("invocation_test_action".to_string(), &InvocationResult::Ok);
+	editor.enqueue_action_post_hook("invocation_test_action".to_string(), &InvocationOutcome::ok(InvocationTarget::Action));
 	let stats = editor.stats_snapshot();
 	assert_eq!(stats.nu.hook_queue_len, 1, "hook should be enqueued");
 	assert!(stats.nu.hook_in_flight.is_none());

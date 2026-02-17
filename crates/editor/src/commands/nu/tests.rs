@@ -1,5 +1,5 @@
 use super::*;
-use crate::types::Invocation;
+use crate::types::{Invocation, InvocationStatus};
 
 fn write_script(dir: &std::path::Path, source: &str) {
 	std::fs::write(dir.join("xeno.nu"), source).expect("xeno.nu should be writable");
@@ -13,11 +13,17 @@ fn parse_invocation_variants() {
 	));
 	assert!(matches!(
 		crate::nu::parse_invocation_spec("command:help themes").expect("command should parse"),
-		Invocation::Command { .. }
+		Invocation::Command(xeno_invocation::CommandInvocation {
+			route: xeno_invocation::CommandRoute::Auto,
+			..
+		})
 	));
 	assert!(matches!(
 		crate::nu::parse_invocation_spec("editor:stats").expect("editor command should parse"),
-		Invocation::EditorCommand { .. }
+		Invocation::Command(xeno_invocation::CommandInvocation {
+			route: xeno_invocation::CommandRoute::Editor,
+			..
+		})
 	));
 	assert!(matches!(
 		crate::nu::parse_invocation_spec("nu:go").expect("nu command should parse"),
@@ -52,7 +58,7 @@ fn nu_run_dispatches_action() {
 		InvocationPolicy::enforcing(),
 	));
 
-	assert!(matches!(result, InvocationResult::Ok));
+	assert!(matches!(result.status, InvocationStatus::Ok));
 }
 
 #[test]
@@ -104,7 +110,10 @@ fn nu_run_noop_macro_returns_ok() {
 		.expect("runtime should build");
 	let result = rt.block_on(editor.run_invocation(Invocation::nu("noop", vec![]), InvocationPolicy::enforcing()));
 
-	assert!(matches!(result, InvocationResult::Ok), "null-returning macro should be Ok, got: {result:?}");
+	assert!(
+		matches!(result.status, InvocationStatus::Ok),
+		"null-returning macro should be Ok, got: {result:?}"
+	);
 }
 
 #[test]
@@ -128,7 +137,7 @@ fn nu_run_command_injects_expanded_ctx_fields() {
 		.expect("runtime should build");
 	let result = rt.block_on(editor.run_invocation(Invocation::editor_command("nu-run", vec!["go".to_string()]), InvocationPolicy::enforcing()));
 
-	assert!(matches!(result, InvocationResult::Ok));
+	assert!(matches!(result.status, InvocationStatus::Ok));
 	assert_eq!(editor.buffer().cursor, 1, "expanded ctx fields should be available to macro scripts");
 }
 
@@ -147,7 +156,7 @@ fn nu_run_dispatches_editor_command() {
 		.expect("runtime should build");
 	let result = rt.block_on(editor.run_invocation(Invocation::editor_command("nu-run", vec!["go".to_string()]), InvocationPolicy::enforcing()));
 
-	assert!(matches!(result, InvocationResult::Ok));
+	assert!(matches!(result.status, InvocationStatus::Ok));
 }
 
 #[test]
@@ -196,7 +205,7 @@ fn action_post_hook_dispatches_once_with_recursion_guard() {
 	let result = rt.block_on(editor.run_invocation(Invocation::action("move_right"), InvocationPolicy::enforcing()));
 	rt.block_on(editor.drain_nu_hook_queue(usize::MAX));
 
-	assert!(matches!(result, InvocationResult::Ok));
+	assert!(matches!(result.status, InvocationStatus::Ok));
 	assert_eq!(editor.buffer().cursor, 2, "hook should add exactly one extra move_right invocation");
 }
 
@@ -224,7 +233,7 @@ fn action_post_hook_receives_expanded_ctx_fields() {
 	let result = rt.block_on(editor.run_invocation(Invocation::action("move_right"), InvocationPolicy::enforcing()));
 	rt.block_on(editor.drain_nu_hook_queue(usize::MAX));
 
-	assert!(matches!(result, InvocationResult::Ok));
+	assert!(matches!(result.status, InvocationStatus::Ok));
 	assert_eq!(editor.buffer().cursor, 2, "expanded ctx fields should be available to hook scripts");
 }
 
@@ -245,7 +254,7 @@ fn action_post_missing_hook_is_noop() {
 		.expect("runtime should build");
 	let result = rt.block_on(editor.run_invocation(Invocation::action("move_right"), InvocationPolicy::enforcing()));
 
-	assert!(matches!(result, InvocationResult::Ok));
+	assert!(matches!(result.status, InvocationStatus::Ok));
 	assert_eq!(editor.buffer().cursor, 1, "without on_action_post hook only base action should run");
 }
 
@@ -266,7 +275,7 @@ fn nu_run_structured_action_record_executes_count() {
 		.expect("runtime should build");
 	let result = rt.block_on(editor.run_invocation(Invocation::editor_command("nu-run", vec!["go".to_string()]), InvocationPolicy::enforcing()));
 
-	assert!(matches!(result, InvocationResult::Ok));
+	assert!(matches!(result.status, InvocationStatus::Ok));
 	assert_eq!(editor.buffer().cursor, 2, "structured action record should honor count");
 }
 
@@ -288,5 +297,5 @@ fn nu_run_structured_list_of_records_executes() {
 		.expect("runtime should build");
 	let result = rt.block_on(editor.run_invocation(Invocation::editor_command("nu-run", vec!["go".to_string()]), InvocationPolicy::enforcing()));
 
-	assert!(matches!(result, InvocationResult::Ok));
+	assert!(matches!(result.status, InvocationStatus::Ok));
 }

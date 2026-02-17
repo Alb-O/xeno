@@ -377,13 +377,13 @@ async fn insert_snippet_body_choice_cycles_with_multicursor() {
 
 #[tokio::test]
 async fn snippet_command_named_lookup_inserts_and_starts_session() {
-	use crate::types::InvocationResult;
+	use crate::types::InvocationStatus;
 
 	let mut editor = Editor::new_scratch();
 	editor.set_mode(Mode::Insert);
 
 	let result = editor.invoke_command("snippet", vec!["@fori".to_string()]).await;
-	assert!(matches!(result, InvocationResult::Ok));
+	assert!(matches!(result.status, InvocationStatus::Ok));
 	assert_eq!(buffer_text(&editor), "for i in 0..n {\n\t\n}");
 	assert_eq!(primary_text(&editor), "i");
 	assert!(

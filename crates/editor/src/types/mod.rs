@@ -24,7 +24,7 @@ pub use config::Config;
 pub use edit_policy::ApplyEditPolicy;
 pub use frame::{DeferredWorkItem, DeferredWorkQueue, FrameState};
 pub use history::{DocumentHistoryEntry, EditorUndoGroup, ViewSnapshot};
-pub use invocation::{Invocation, InvocationPolicy, InvocationResult};
+pub use invocation::{Invocation, InvocationOutcome, InvocationPolicy, InvocationStatus, InvocationTarget};
 pub use undo_manager::{PreparedEdit, UndoHost, UndoManager};
 pub use viewport::Viewport;
 pub use workspace::{JumpList, JumpLocation, MacroState, Registers, Workspace, Yank};

@@ -10,7 +10,7 @@ use super::super::Editor;
 #[cfg(feature = "lsp")]
 use super::state::FlushHandle;
 use crate::metrics::StatsSnapshot;
-use crate::types::{Invocation, InvocationPolicy, InvocationResult};
+use crate::types::{Invocation, InvocationPolicy, InvocationStatus};
 
 /// Report emitted after draining queued commands from workspace state.
 #[derive(Debug, Clone, Copy, Default)]
@@ -264,30 +264,14 @@ impl Editor {
 		for cmd in commands {
 			report.executed_count += 1;
 			let args: Vec<String> = cmd.args.iter().map(|s| s.to_string()).collect();
-			let invocation = Invocation::EditorCommand {
-				name: cmd.name.to_string(),
-				args: args.clone(),
-			};
+			let invocation = Invocation::command(cmd.name, args);
 
 			let result = self.run_invocation(invocation, policy).await;
-			match result {
-				InvocationResult::NotFound(_) => {
-					let invocation = Invocation::Command {
-						name: cmd.name.to_string(),
-						args,
-					};
-					match self.run_invocation(invocation, policy).await {
-						InvocationResult::NotFound(_) => {
-							self.show_notification(xeno_registry::notifications::keys::unknown_command(cmd.name));
-						}
-						InvocationResult::Quit | InvocationResult::ForceQuit => {
-							report.should_quit = true;
-							return report;
-						}
-						_ => {}
-					}
+			match result.status {
+				InvocationStatus::NotFound => {
+					self.show_notification(xeno_registry::notifications::keys::unknown_command(cmd.name));
 				}
-				InvocationResult::Quit | InvocationResult::ForceQuit => {
+				InvocationStatus::Quit | InvocationStatus::ForceQuit => {
 					report.should_quit = true;
 					return report;
 				}

@@ -92,7 +92,13 @@ fn invocation_override_in_trie() {
 		LookupResult::Match(entry) => {
 			assert!(matches!(
 				&entry.target,
-				BindingTarget::Invocation { inv: Invocation::EditorCommand { name, .. } } if name == "stats"
+				BindingTarget::Invocation {
+					inv: Invocation::Command(xeno_invocation::CommandInvocation {
+						name,
+						route: xeno_invocation::CommandRoute::Editor,
+						..
+					})
+				} if name == "stats"
 			));
 		}
 		_ => panic!("expected a complete keybinding match for invocation override"),
@@ -125,7 +131,9 @@ fn invocation_override_fresh_key() {
 		LookupResult::Match(entry) => {
 			assert!(matches!(
 				&entry.target,
-				BindingTarget::Invocation { inv: Invocation::Command { name, .. } } if name == "write"
+				BindingTarget::Invocation {
+					inv: Invocation::Command(xeno_invocation::CommandInvocation { name, .. })
+				} if name == "write"
 			));
 			assert_eq!(&*entry.short_desc, "write");
 		}
@@ -180,7 +188,10 @@ fn which_key_labels_invocation() {
 	assert!(matches!(
 		&entry.target,
 		BindingTarget::Invocation {
-			inv: Invocation::EditorCommand { .. }
+			inv: Invocation::Command(xeno_invocation::CommandInvocation {
+				route: xeno_invocation::CommandRoute::Editor,
+				..
+			})
 		}
 	));
 }

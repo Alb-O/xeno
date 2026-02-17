@@ -12,6 +12,27 @@ pub mod schema;
 ///
 /// All entry points (keymap, palette, command queue) convert requests into
 /// `Invocation` variants before dispatch via `Editor::run_invocation`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum CommandRoute {
+	/// Resolve command target dynamically (editor command first, registry command second).
+	Auto,
+	/// Resolve only against registry commands.
+	Registry,
+	/// Resolve only against editor-direct commands.
+	Editor,
+}
+
+/// Canonical command invocation payload shared across command routes.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct CommandInvocation {
+	/// Command name.
+	pub name: String,
+	/// Command arguments.
+	pub args: Vec<String>,
+	/// Command route preference.
+	pub route: CommandRoute,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Invocation {
 	/// Execute a named action from the registry.
@@ -38,20 +59,8 @@ pub enum Invocation {
 		/// The character argument (e.g., `f` motion takes a char).
 		char_arg: char,
 	},
-	/// Execute a registry command.
-	Command {
-		/// Command name (looked up via `find_command`).
-		name: String,
-		/// Command arguments.
-		args: Vec<String>,
-	},
-	/// Execute an editor-direct command.
-	EditorCommand {
-		/// Command name (looked up via `find_editor_command`).
-		name: String,
-		/// Command arguments.
-		args: Vec<String>,
-	},
+	/// Execute a command with route-specific resolution policy.
+	Command(CommandInvocation),
 	/// Execute a Nu macro function from the loaded runtime.
 	Nu {
 		/// Exported Nu function name.
@@ -84,12 +93,29 @@ impl Invocation {
 
 	/// Creates a command invocation.
 	pub fn command(name: impl Into<String>, args: Vec<String>) -> Self {
-		Self::Command { name: name.into(), args }
+		Self::Command(CommandInvocation {
+			name: name.into(),
+			args,
+			route: CommandRoute::Auto,
+		})
+	}
+
+	/// Creates a registry command invocation.
+	pub fn registry_command(name: impl Into<String>, args: Vec<String>) -> Self {
+		Self::Command(CommandInvocation {
+			name: name.into(),
+			args,
+			route: CommandRoute::Registry,
+		})
 	}
 
 	/// Creates an editor command invocation.
 	pub fn editor_command(name: impl Into<String>, args: Vec<String>) -> Self {
-		Self::EditorCommand { name: name.into(), args }
+		Self::Command(CommandInvocation {
+			name: name.into(),
+			args,
+			route: CommandRoute::Editor,
+		})
 	}
 
 	/// Creates a Nu macro invocation.
@@ -103,10 +129,18 @@ impl Invocation {
 			Self::Action { name, count, .. } if *count > 1 => format!("action:{name}x{count}"),
 			Self::Action { name, .. } => format!("action:{name}"),
 			Self::ActionWithChar { name, char_arg, .. } => format!("action:{name}('{char_arg}')"),
-			Self::Command { name, args } if args.is_empty() => format!("cmd:{name}"),
-			Self::Command { name, args } => format!("cmd:{name} {}", args.join(" ")),
-			Self::EditorCommand { name, args } if args.is_empty() => format!("editor_cmd:{name}"),
-			Self::EditorCommand { name, args } => format!("editor_cmd:{name} {}", args.join(" ")),
+			Self::Command(CommandInvocation {
+				name,
+				args,
+				route: CommandRoute::Editor,
+			}) if args.is_empty() => format!("editor_cmd:{name}"),
+			Self::Command(CommandInvocation {
+				name,
+				args,
+				route: CommandRoute::Editor,
+			}) => format!("editor_cmd:{name} {}", args.join(" ")),
+			Self::Command(CommandInvocation { name, args, .. }) if args.is_empty() => format!("cmd:{name}"),
+			Self::Command(CommandInvocation { name, args, .. }) => format!("cmd:{name} {}", args.join(" ")),
 			Self::Nu { name, args } if args.is_empty() => format!("nu:{name}"),
 			Self::Nu { name, args } => format!("nu:{name} {}", args.join(" ")),
 		}

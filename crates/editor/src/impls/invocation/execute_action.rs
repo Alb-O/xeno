@@ -5,7 +5,7 @@ use xeno_registry::{HookEventData, RegistryEntry};
 
 use crate::impls::Editor;
 use crate::impls::invocation::preflight::{InvocationSubject, PreflightDecision};
-use crate::types::{InvocationPolicy, InvocationResult};
+use crate::types::{InvocationOutcome, InvocationPolicy, InvocationTarget};
 
 impl Editor {
 	pub(crate) fn run_action_invocation(
@@ -16,10 +16,10 @@ impl Editor {
 		register: Option<char>,
 		char_arg: Option<char>,
 		policy: InvocationPolicy,
-	) -> InvocationResult {
+	) -> InvocationOutcome {
 		let Some(action) = find_action(name) else {
 			self.show_notification(xeno_registry::notifications::keys::unknown_action(name));
-			return InvocationResult::NotFound(format!("action:{name}"));
+			return InvocationOutcome::not_found(InvocationTarget::Action, format!("action:{name}"));
 		};
 
 		let subject = InvocationSubject::action(name, action.required_caps());
@@ -64,9 +64,9 @@ impl Editor {
 		trace!(result = ?result, "Action completed");
 
 		let outcome = if self.apply_action_result(&action_id_str, result, extend) {
-			InvocationResult::Quit
+			InvocationOutcome::quit(InvocationTarget::Action)
 		} else {
-			InvocationResult::Ok
+			InvocationOutcome::ok(InvocationTarget::Action)
 		};
 
 		self.flush_effects();

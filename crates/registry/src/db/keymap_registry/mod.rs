@@ -356,9 +356,9 @@ impl KeymapIndex {
 						registry.add(mode, keys, entry);
 					}
 					_ => {
-						// Command, EditorCommand, Nu — store as Invocation
+						// Command and Nu invocations — store as Invocation
 						let inv_name: Arc<str> = match &inv {
-							Invocation::Command { name, .. } | Invocation::EditorCommand { name, .. } | Invocation::Nu { name, .. } => Arc::from(name.as_str()),
+							Invocation::Command(xeno_invocation::CommandInvocation { name, .. }) | Invocation::Nu { name, .. } => Arc::from(name.as_str()),
 							_ => unreachable!(),
 						};
 

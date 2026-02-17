@@ -1,16 +1,16 @@
 use crate::impls::Editor;
-use crate::types::InvocationResult;
+use crate::types::InvocationOutcome;
 
 /// Maximum Nu hooks drained per pump() cycle.
 pub(crate) const MAX_NU_HOOKS_PER_PUMP: usize = crate::nu::pipeline::MAX_NU_HOOKS_PER_PUMP;
 
 /// Build hook args for action post hooks: `[name, result_label]`.
-pub(crate) fn action_post_args(name: String, result: &InvocationResult) -> Vec<String> {
+pub(crate) fn action_post_args(name: String, result: &InvocationOutcome) -> Vec<String> {
 	crate::nu::pipeline::action_post_args(name, result)
 }
 
 /// Build hook args for command/editor-command post hooks: `[name, result_label, ...original_args]`.
-pub(crate) fn command_post_args(name: String, result: &InvocationResult, args: Vec<String>) -> Vec<String> {
+pub(crate) fn command_post_args(name: String, result: &InvocationOutcome, args: Vec<String>) -> Vec<String> {
 	crate::nu::pipeline::command_post_args(name, result, args)
 }
 
@@ -25,7 +25,7 @@ impl Editor {
 
 	/// Enqueues `on_action_post` hook directly for tests.
 	#[cfg(test)]
-	pub(crate) fn enqueue_action_post_hook(&mut self, name: String, result: &InvocationResult) {
+	pub(crate) fn enqueue_action_post_hook(&mut self, name: String, result: &InvocationOutcome) {
 		crate::nu::pipeline::enqueue_action_post_hook(self, name, result);
 	}
 

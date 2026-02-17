@@ -10,7 +10,7 @@ use std::fmt::Write;
 
 use xeno_nu_data::{Record, Value};
 
-use crate::{Invocation, schema};
+use crate::{CommandInvocation, CommandRoute, Invocation, schema};
 
 const EFFECT_FIELD_TYPE: &str = "type";
 const EFFECT_FIELD_LEVEL: &str = "level";
@@ -175,8 +175,10 @@ impl NuCapability {
 pub fn required_capability_for_effect(effect: &NuEffect) -> NuCapability {
 	match effect {
 		NuEffect::Dispatch(Invocation::Action { .. }) | NuEffect::Dispatch(Invocation::ActionWithChar { .. }) => NuCapability::DispatchAction,
-		NuEffect::Dispatch(Invocation::Command { .. }) => NuCapability::DispatchCommand,
-		NuEffect::Dispatch(Invocation::EditorCommand { .. }) => NuCapability::DispatchEditorCommand,
+		NuEffect::Dispatch(Invocation::Command(CommandInvocation {
+			route: CommandRoute::Editor, ..
+		})) => NuCapability::DispatchEditorCommand,
+		NuEffect::Dispatch(Invocation::Command(_)) => NuCapability::DispatchCommand,
 		NuEffect::Dispatch(Invocation::Nu { .. }) => NuCapability::DispatchMacro,
 		NuEffect::Notify { .. } => NuCapability::Notify,
 		NuEffect::StopPropagation => NuCapability::StopPropagation,
@@ -438,14 +440,16 @@ fn decode_dispatch_invocation(record: &Record, budget: &DecodeBudget, state: &mu
 				Ok(Invocation::Action { name, count, extend, register })
 			}
 		}
-		schema::KIND_COMMAND => Ok(Invocation::Command {
+		schema::KIND_COMMAND => Ok(Invocation::Command(CommandInvocation {
 			name,
 			args: optional_string_list_field(record, schema::ARGS, budget, state)?.unwrap_or_default(),
-		}),
-		schema::KIND_EDITOR => Ok(Invocation::EditorCommand {
+			route: CommandRoute::Auto,
+		})),
+		schema::KIND_EDITOR => Ok(Invocation::Command(CommandInvocation {
 			name,
 			args: optional_string_list_field(record, schema::ARGS, budget, state)?.unwrap_or_default(),
-		}),
+			route: CommandRoute::Editor,
+		})),
 		schema::KIND_NU => Ok(Invocation::Nu {
 			name,
 			args: optional_string_list_field(record, schema::ARGS, budget, state)?.unwrap_or_default(),

@@ -51,7 +51,10 @@ fn decode_envelope_list() {
 	envelope.push("effects", Value::list(vec![dispatch_record(span, "command", "write")], span));
 	let decoded = decode_macro_effects(Value::record(envelope, span)).expect("envelope should decode");
 	assert_eq!(decoded.schema_version, 3);
-	assert!(matches!(decoded.effects[0], NuEffect::Dispatch(Invocation::Command { ref name, .. }) if name == "write"));
+	assert!(matches!(
+		decoded.effects[0],
+		NuEffect::Dispatch(Invocation::Command(crate::CommandInvocation { ref name, .. })) if name == "write"
+	));
 }
 
 #[test]
@@ -72,7 +75,10 @@ fn config_single_dispatch_effect_accepts_record() {
 	record.push("kind", Value::string("command", span));
 	record.push("name", Value::string("write", span));
 	let inv = decode_single_dispatch_effect(&Value::record(record, span), "keys.normal.ctrl+s").expect("should decode");
-	assert!(matches!(inv, Invocation::Command { name, .. } if name == "write"));
+	assert!(matches!(
+		inv,
+		Invocation::Command(crate::CommandInvocation { name, .. }) if name == "write"
+	));
 }
 
 #[test]

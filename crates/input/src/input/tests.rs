@@ -95,7 +95,10 @@ fn invocation_spec_multi_key_pending_then_match() {
 	let result = h.handle_key_with_registry(Key::char('r'), &keymap);
 	match result {
 		super::types::KeyResult::Invocation { ref inv } => {
-			assert!(matches!(inv, xeno_registry::Invocation::EditorCommand { name, .. } if name == "reload_config"));
+			assert!(matches!(
+				inv,
+				xeno_registry::Invocation::Command(cmd) if cmd.name == "reload_config"
+			));
 		}
 		_ => panic!("expected Invocation after 'g r', got {result:?}"),
 	}

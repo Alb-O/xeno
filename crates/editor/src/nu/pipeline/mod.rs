@@ -15,7 +15,7 @@ use crate::nu::coordinator::HookEvalFailureTransition;
 use crate::nu::coordinator::runner::{NuExecKind, execute_with_restart};
 use crate::nu::effects::{NuEffectApplyMode, apply_effect_batch};
 use crate::nu::{NuCapability, NuDecodeSurface};
-use crate::types::{InvocationPolicy, InvocationResult};
+use crate::types::{InvocationOutcome, InvocationPolicy, InvocationStatus};
 
 /// Maximum pending Nu hooks before oldest are dropped.
 const MAX_PENDING_NU_HOOKS: usize = 64;
@@ -30,14 +30,14 @@ pub(crate) struct NuHookInvocationDrainReport {
 }
 
 /// Build hook args for action post hooks: `[name, result_label]`.
-pub(crate) fn action_post_args(name: String, result: &InvocationResult) -> Vec<String> {
-	vec![name, invocation_result_label(result).to_string()]
+pub(crate) fn action_post_args(name: String, result: &InvocationOutcome) -> Vec<String> {
+	vec![name, result.label().to_string()]
 }
 
 /// Build hook args for command/editor-command post hooks:
 /// `[name, result_label, ...original_args]`.
-pub(crate) fn command_post_args(name: String, result: &InvocationResult, args: Vec<String>) -> Vec<String> {
-	let mut hook_args = vec![name, invocation_result_label(result).to_string()];
+pub(crate) fn command_post_args(name: String, result: &InvocationOutcome, args: Vec<String>) -> Vec<String> {
+	let mut hook_args = vec![name, result.label().to_string()];
 	hook_args.extend(args);
 	hook_args
 }
@@ -73,7 +73,7 @@ pub(crate) fn enqueue_nu_hook(editor: &mut Editor, hook: crate::nu::NuHook, args
 }
 
 #[cfg(test)]
-pub(crate) fn enqueue_action_post_hook(editor: &mut Editor, name: String, result: &InvocationResult) {
+pub(crate) fn enqueue_action_post_hook(editor: &mut Editor, name: String, result: &InvocationOutcome) {
 	if !result.is_quit() {
 		enqueue_nu_hook(editor, crate::nu::NuHook::ActionPost, action_post_args(name, result));
 	}
@@ -194,24 +194,27 @@ pub(crate) async fn drain_nu_hook_invocations_report(editor: &mut Editor, max: u
 		};
 		report.drained_count += 1;
 
-		let result = Box::pin(editor.run_invocation(invocation, InvocationPolicy::enforcing())).await;
+		let result = editor.run_invocation(invocation, InvocationPolicy::enforcing()).await;
 
-		match result {
-			InvocationResult::Ok => {}
-			InvocationResult::Quit | InvocationResult::ForceQuit => {
+		match result.status {
+			InvocationStatus::Ok => {}
+			InvocationStatus::Quit | InvocationStatus::ForceQuit => {
 				report.should_quit = true;
 				break;
 			}
-			InvocationResult::NotFound(target) => {
+			InvocationStatus::NotFound => {
+				let target = result.detail.as_deref().unwrap_or("unknown");
 				warn!(target = %target, "Nu hook invocation not found");
 			}
-			InvocationResult::CapabilityDenied(cap) => {
+			InvocationStatus::CapabilityDenied => {
+				let cap = result.denied_capability;
 				warn!(capability = ?cap, "Nu hook invocation denied by capability");
 			}
-			InvocationResult::ReadonlyDenied => {
+			InvocationStatus::ReadonlyDenied => {
 				warn!("Nu hook invocation denied by readonly mode");
 			}
-			InvocationResult::CommandError(error) => {
+			InvocationStatus::CommandError => {
+				let error = result.detail.as_deref().unwrap_or("unknown");
 				warn!(error = %error, "Nu hook invocation failed");
 			}
 		}
@@ -253,7 +256,10 @@ pub(crate) async fn drain_nu_hook_queue(editor: &mut Editor, max: usize) -> bool
 		};
 
 		match run_single_nu_hook_sync(editor, queued.hook, queued.args).await {
-			Some(InvocationResult::Quit) | Some(InvocationResult::ForceQuit) => {
+			Some(InvocationOutcome {
+				status: InvocationStatus::Quit | InvocationStatus::ForceQuit,
+				..
+			}) => {
 				editor.state.nu.dec_hook_depth();
 				return true;
 			}
@@ -267,7 +273,7 @@ pub(crate) async fn drain_nu_hook_queue(editor: &mut Editor, max: usize) -> bool
 
 /// Synchronous single-hook evaluation for tests.
 #[cfg(test)]
-async fn run_single_nu_hook_sync(editor: &mut Editor, hook: crate::nu::NuHook, args: Vec<String>) -> Option<InvocationResult> {
+async fn run_single_nu_hook_sync(editor: &mut Editor, hook: crate::nu::NuHook, args: Vec<String>) -> Option<InvocationOutcome> {
 	let fn_name = hook.fn_name();
 	let decl_id = editor.state.nu.hook_decl(hook)?;
 	editor.state.nu.ensure_executor()?;
@@ -307,21 +313,24 @@ async fn run_single_nu_hook_sync(editor: &mut Editor, hook: crate::nu::NuHook, a
 	}
 
 	for invocation in outcome.dispatches {
-		let result = Box::pin(editor.run_invocation(invocation, InvocationPolicy::enforcing())).await;
+		let result = editor.run_invocation(invocation, InvocationPolicy::enforcing()).await;
 
-		match result {
-			InvocationResult::Ok => {}
-			InvocationResult::Quit | InvocationResult::ForceQuit => return Some(result),
-			InvocationResult::NotFound(target) => {
+		match result.status {
+			InvocationStatus::Ok => {}
+			InvocationStatus::Quit | InvocationStatus::ForceQuit => return Some(result),
+			InvocationStatus::NotFound => {
+				let target = result.detail.as_deref().unwrap_or("unknown");
 				warn!(hook = fn_name, target = %target, "Nu hook invocation not found");
 			}
-			InvocationResult::CapabilityDenied(cap) => {
+			InvocationStatus::CapabilityDenied => {
+				let cap = result.denied_capability;
 				warn!(hook = fn_name, capability = ?cap, "Nu hook invocation denied by capability");
 			}
-			InvocationResult::ReadonlyDenied => {
+			InvocationStatus::ReadonlyDenied => {
 				warn!(hook = fn_name, "Nu hook invocation denied by readonly mode");
 			}
-			InvocationResult::CommandError(error) => {
+			InvocationStatus::CommandError => {
+				let error = result.detail.as_deref().unwrap_or("unknown");
 				warn!(hook = fn_name, error = %error, "Nu hook invocation failed");
 			}
 		}
@@ -337,18 +346,6 @@ fn hook_allowed_capabilities(editor: &Editor) -> std::collections::HashSet<NuCap
 		.nu
 		.as_ref()
 		.map_or_else(|| xeno_registry::config::NuConfig::default().hook_capabilities(), |cfg| cfg.hook_capabilities())
-}
-
-fn invocation_result_label(result: &InvocationResult) -> &'static str {
-	match result {
-		InvocationResult::Ok => "ok",
-		InvocationResult::Quit => "quit",
-		InvocationResult::ForceQuit => "force_quit",
-		InvocationResult::NotFound(_) => "not_found",
-		InvocationResult::CapabilityDenied(_) => "cap_denied",
-		InvocationResult::ReadonlyDenied => "readonly",
-		InvocationResult::CommandError(_) => "error",
-	}
 }
 
 #[cfg(test)]

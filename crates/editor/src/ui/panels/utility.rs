@@ -76,8 +76,8 @@ impl UtilityPanel {
 						let description = cont.value.map_or_else(String::new, |entry| match &entry.target {
 							xeno_registry::BindingTarget::Invocation { inv } => {
 								let prefix = match inv {
-									xeno_registry::Invocation::Command { .. } => ":",
-									xeno_registry::Invocation::EditorCommand { .. } => "@",
+									xeno_registry::Invocation::Command(cmd) if cmd.route == xeno_invocation::CommandRoute::Editor => "@",
+									xeno_registry::Invocation::Command(_) => ":",
 									xeno_registry::Invocation::Nu { .. } => "~",
 									_ => "",
 								};

@@ -74,13 +74,13 @@ fn encode_effect(effect: NuEffect, span: xeno_nu_protocol::Span) -> Value {
 					}
 					rec.push(schema::CHAR, Value::string(char_arg.to_string(), span));
 				}
-				xeno_invocation::Invocation::Command { name, args } => {
-					rec.push(schema::KIND, Value::string(schema::KIND_COMMAND, span));
-					rec.push(schema::NAME, Value::string(name, span));
-					rec.push(schema::ARGS, Value::list(args.into_iter().map(|arg| Value::string(arg, span)).collect(), span));
-				}
-				xeno_invocation::Invocation::EditorCommand { name, args } => {
-					rec.push(schema::KIND, Value::string(schema::KIND_EDITOR, span));
+				xeno_invocation::Invocation::Command(xeno_invocation::CommandInvocation { name, args, route }) => {
+					let kind = if route == xeno_invocation::CommandRoute::Editor {
+						schema::KIND_EDITOR
+					} else {
+						schema::KIND_COMMAND
+					};
+					rec.push(schema::KIND, Value::string(kind, span));
 					rec.push(schema::NAME, Value::string(name, span));
 					rec.push(schema::ARGS, Value::list(args.into_iter().map(|arg| Value::string(arg, span)).collect(), span));
 				}

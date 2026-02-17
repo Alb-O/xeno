@@ -33,7 +33,10 @@ keys: {
 
 	let keys = config.keys.expect("keys should be parsed");
 	let binding = keys.modes.get("normal").and_then(|m| m.get("ctrl+s")).expect("binding should exist");
-	assert!(matches!(binding, crate::invocation::Invocation::Command { name, .. } if name == "write"));
+	assert!(matches!(
+		binding,
+		crate::invocation::Invocation::Command(xeno_invocation::CommandInvocation { name, .. }) if name == "write"
+	));
 }
 
 #[test]
@@ -163,7 +166,10 @@ fn parse_keys_string_spec_command() {
 	let keys = config.keys.expect("keys should be present");
 	let bindings = keys.modes.get("normal").expect("normal mode should exist");
 	let inv = bindings.get("ctrl+s").expect("ctrl+s should be bound");
-	assert!(matches!(inv, xeno_invocation::Invocation::Command { name, args } if name == "write" && args.is_empty()));
+	assert!(matches!(
+		inv,
+		xeno_invocation::Invocation::Command(xeno_invocation::CommandInvocation { name, args, .. }) if name == "write" && args.is_empty()
+	));
 }
 
 #[test]
@@ -173,7 +179,10 @@ fn parse_keys_string_spec_with_quoted_args() {
 	let keys = config.keys.expect("keys should be present");
 	let bindings = keys.modes.get("normal").expect("normal mode should exist");
 	let inv = bindings.get("ctrl+o").expect("ctrl+o should be bound");
-	assert!(matches!(inv, xeno_invocation::Invocation::Command { name, args } if name == "open" && args == &["my file.txt"]));
+	assert!(matches!(
+		inv,
+		xeno_invocation::Invocation::Command(xeno_invocation::CommandInvocation { name, args, .. }) if name == "open" && args == &["my file.txt"]
+	));
 }
 
 #[test]
