@@ -2,9 +2,10 @@ use xeno_invocation::CommandRoute;
 use xeno_registry::RegistryEntry;
 use xeno_registry::commands::{CommandContext, find_command};
 
-use crate::commands::{CommandOutcome, EditorCommandContext, find_editor_command};
+use crate::commands::{EditorCommandContext, find_editor_command};
 use crate::impls::Editor;
-use crate::impls::invocation::preflight::{InvocationSubject, PreflightDecision};
+use crate::impls::invocation::kernel::InvocationKernel;
+use crate::impls::invocation::policy_gate::InvocationGateInput;
 use crate::types::{InvocationOutcome, InvocationPolicy, InvocationTarget};
 
 enum ResolvedCommandTarget {
@@ -81,14 +82,15 @@ impl Editor {
 		command_def: xeno_registry::commands::CommandRef,
 		policy: InvocationPolicy,
 	) -> InvocationOutcome {
-		let subject = InvocationSubject::command(name, command_def.required_caps());
-		if let PreflightDecision::Deny(result) = self.preflight_invocation_subject(policy, subject) {
+		let mut kernel = InvocationKernel::new(self, policy);
+		let gate_input = InvocationGateInput::command(name, command_def.required_caps());
+		if let Some(result) = kernel.deny_if_policy_blocks(gate_input) {
 			return result;
 		}
 
 		let args_refs: Vec<&str> = args.iter().map(|arg| arg.as_str()).collect();
 		let outcome = {
-			let mut caps = self.caps();
+			let mut caps = kernel.editor().caps();
 			let mut ctx = CommandContext {
 				editor: &mut caps,
 				args: &args_refs,
@@ -100,19 +102,8 @@ impl Editor {
 			(command_def.handler)(&mut ctx).await
 		};
 
-		let result = match outcome {
-			Ok(CommandOutcome::Ok) => InvocationOutcome::ok(InvocationTarget::Command),
-			Ok(CommandOutcome::Quit) => InvocationOutcome::quit(InvocationTarget::Command),
-			Ok(CommandOutcome::ForceQuit) => InvocationOutcome::force_quit(InvocationTarget::Command),
-			Err(error) => {
-				let error = error.to_string();
-				self.show_notification(xeno_registry::notifications::keys::command_error(&error));
-				InvocationOutcome::command_error(InvocationTarget::Command, error)
-			}
-		};
-
-		self.flush_effects();
-		result
+		let result = kernel.map_command_result(InvocationTarget::Command, outcome);
+		kernel.flush_effects_and_return(result)
 	}
 
 	async fn execute_editor_command(
@@ -122,32 +113,26 @@ impl Editor {
 		editor_cmd: &'static crate::commands::EditorCommandDef,
 		policy: InvocationPolicy,
 	) -> InvocationOutcome {
-		let subject = InvocationSubject::editor_command(name, editor_cmd.required_caps);
-		if let PreflightDecision::Deny(result) = self.preflight_invocation_subject(policy, subject) {
+		let mut kernel = InvocationKernel::new(self, policy);
+		let gate_input = InvocationGateInput::editor_command(name, editor_cmd.required_caps);
+		if let Some(result) = kernel.deny_if_policy_blocks(gate_input) {
 			return result;
 		}
 
 		let args_refs: Vec<&str> = args.iter().map(|arg| arg.as_str()).collect();
-		let mut ctx = EditorCommandContext {
-			editor: self,
-			args: &args_refs,
-			count: 1,
-			register: None,
-			user_data: editor_cmd.user_data,
+		let outcome = {
+			let mut ctx = EditorCommandContext {
+				editor: kernel.editor(),
+				args: &args_refs,
+				count: 1,
+				register: None,
+				user_data: editor_cmd.user_data,
+			};
+
+			(editor_cmd.handler)(&mut ctx).await
 		};
 
-		let result = match (editor_cmd.handler)(&mut ctx).await {
-			Ok(CommandOutcome::Ok) => InvocationOutcome::ok(InvocationTarget::Command),
-			Ok(CommandOutcome::Quit) => InvocationOutcome::quit(InvocationTarget::Command),
-			Ok(CommandOutcome::ForceQuit) => InvocationOutcome::force_quit(InvocationTarget::Command),
-			Err(error) => {
-				let error = error.to_string();
-				self.show_notification(xeno_registry::notifications::keys::command_error(&error));
-				InvocationOutcome::command_error(InvocationTarget::Command, error)
-			}
-		};
-
-		self.flush_effects();
-		result
+		let result = kernel.map_command_result(InvocationTarget::Command, outcome);
+		kernel.flush_effects_and_return(result)
 	}
 }

@@ -11,7 +11,7 @@
 //!
 //! * `Invocation` is input intent (`Action`, `Command(CommandInvocation)`, `Nu`).
 //! * `run_invocation` is the canonical dispatcher and must be the first stop for user-triggered execution.
-//! * Dispatch is staged as resolve -> preflight policy gates -> execute -> effect flush -> deferred post hooks.
+//! * Dispatch is staged as resolve -> policy gate -> execute -> effect flush -> deferred post hooks.
 //! * `run_invocation` drains an internal queue iteratively, so Nu-generated follow-up dispatches do not recurse futures.
 //! * Nu post hooks are queued only for non-quit outcomes, then drained later from runtime `pump()`.
 //!
@@ -25,8 +25,10 @@
 //! | [`engine::InvocationEngine`] | Queue-driven invocation orchestrator | Must execute frames in FIFO-with-front-insert order and short-circuit on terminal outcomes | `Editor::run_invocation` |
 //! | [`engine::InvocationFrame`] | Per-step invocation envelope (`invocation`, `nu_depth`, `origin`) | Nu follow-up frames must increase `nu_depth` and preserve deterministic order | `engine::InvocationEngine::run` |
 //! | [`engine::InvocationStepOutcome`] | Normalized per-step result envelope | Must carry post-hook emission data and follow-up frames explicitly | `engine::InvocationEngine::run_frame` |
-//! | [`preflight::InvocationSubject`] | Shared preflight envelope for targets | Must carry required caps and mutability intent before execution | action/command executors |
-//! | [`preflight::PreflightDecision`] | Policy gate result | `Deny` must return without running target handlers | `Editor::preflight_invocation_subject` |
+//! | [`policy_gate::InvocationGateInput`] | Shared policy envelope for targets | Must carry required caps and mutability intent before execution | action/command executors |
+//! | [`policy_gate::GateResult`] | Policy gate result | `Deny` must return without running target handlers | `Editor::gate_invocation` |
+//! | [`kernel::InvocationKernel`] | Shared invocation executor boundary | Must centralize policy/flush/error shaping to avoid branch drift | action/command/Nu executors |
+//! | [`crate::types::invocation::adapters`] | Consumer translation helpers | Must keep Nu consumers aligned on outcome mapping and logging | `commands::nu`, `nu::pipeline` |
 //! | [`crate::impls::Editor`] | Runtime owner of invocation execution | Must flush queued effects after each command/action execution branch | `run_*_invocation` methods |
 //! | [`crate::nu::NuHook`] | Deferred hook kind | Must enqueue only when execution does not request quit | `run_invocation` |
 //!
@@ -34,7 +36,7 @@
 //!
 //! * Must gate capability violations through `InvocationPolicy` before handler execution.
 //! * Must gate readonly edits when policy enforces readonly and target requires edit capability.
-//! * Action and command execution must pass through the shared preflight gate.
+//! * Action and command execution must pass through the shared policy gate.
 //! * Command auto-route resolution must prefer editor commands before registry commands.
 //! * Must enqueue Nu post hooks only for non-quit invocation outcomes.
 //! * Must cap Nu macro recursion depth to prevent unbounded self-recursion.
@@ -43,13 +45,13 @@
 //! # Data flow
 //!
 //! 1. Caller builds an [`crate::types::Invocation`] and calls `run_invocation`.
-//! 2. Dispatcher resolves target definition and constructs shared preflight subject metadata.
-//! 3. Preflight enforces capability/readonly policy and either denies or proceeds.
+//! 2. Dispatcher resolves target definition and constructs shared policy gate metadata.
+//! 3. Policy gate enforces capability/readonly checks and either denies or proceeds.
 //! 4. Handler executes and returns typed outcome/effects.
 //! 5. Effects are flushed and transformed into editor mutations and overlay/layer events.
 //! 6. Engine converts step outcomes into explicit post-hook emissions and follow-up frames.
 //! 7. Nu macro outcomes enqueue follow-up invocations into the local invocation queue as `origin=NuMacro` frames.
-//! 7. Non-quit outcomes enqueue Nu post hooks, later drained by runtime `pump()`.
+//! 8. Non-quit outcomes enqueue Nu post hooks, later drained by runtime `pump()`.
 //!
 //! # Lifecycle
 //!
@@ -81,7 +83,7 @@
 //!   3. Decide post-hook contract (if any) and add tests.
 //! * Add a new enforcement rule:
 //!   1. Add gate before handler call.
-//!   2. Route violations through the shared `preflight` policy helpers.
+//!   2. Route violations through the shared `policy_gate` helpers.
 //!   3. Add invariant proof in `invariants.rs`.
 
 mod dispatch;
@@ -90,13 +92,14 @@ mod execute_action;
 mod execute_command;
 mod execute_nu;
 mod hooks_bridge;
-mod preflight;
+mod kernel;
+mod policy_gate;
 
 pub(crate) use hooks_bridge::MAX_NU_HOOKS_PER_PUMP;
 #[cfg(test)]
 pub(crate) use hooks_bridge::{action_post_args, command_post_args};
 #[cfg(test)]
-pub(crate) use preflight::handle_capability_violation;
+pub(crate) use policy_gate::handle_capability_violation;
 #[cfg(test)]
 use xeno_registry::actions::EditorContext;
 

@@ -15,7 +15,7 @@ use crate::nu::coordinator::HookEvalFailureTransition;
 use crate::nu::coordinator::runner::{NuExecKind, execute_with_restart};
 use crate::nu::effects::{NuEffectApplyMode, apply_effect_batch};
 use crate::nu::{NuCapability, NuDecodeSurface};
-use crate::types::{InvocationOutcome, InvocationPolicy, InvocationStatus};
+use crate::types::{InvocationOutcome, InvocationPolicy, PipelineDisposition, PipelineLogContext, classify_for_nu_pipeline, log_pipeline_non_ok};
 
 /// Maximum pending Nu hooks before oldest are dropped.
 const MAX_PENDING_NU_HOOKS: usize = 64;
@@ -195,29 +195,11 @@ pub(crate) async fn drain_nu_hook_invocations_report(editor: &mut Editor, max: u
 		report.drained_count += 1;
 
 		let result = editor.run_invocation(invocation, InvocationPolicy::enforcing()).await;
-
-		match result.status {
-			InvocationStatus::Ok => {}
-			InvocationStatus::Quit | InvocationStatus::ForceQuit => {
-				report.should_quit = true;
-				break;
-			}
-			InvocationStatus::NotFound => {
-				let target = result.detail_text().unwrap_or("unknown");
-				warn!(target = %target, "Nu hook invocation not found");
-			}
-			InvocationStatus::CapabilityDenied => {
-				let cap = result.denied_capability();
-				warn!(capability = ?cap, "Nu hook invocation denied by capability");
-			}
-			InvocationStatus::ReadonlyDenied => {
-				warn!("Nu hook invocation denied by readonly mode");
-			}
-			InvocationStatus::CommandError => {
-				let error = result.detail_text().unwrap_or("unknown");
-				warn!(error = %error, "Nu hook invocation failed");
-			}
+		if matches!(classify_for_nu_pipeline(&result), PipelineDisposition::ShouldQuit) {
+			report.should_quit = true;
+			break;
 		}
+		log_pipeline_non_ok(&result, PipelineLogContext::HookDrain);
 	}
 
 	editor.state.nu.dec_hook_depth();
@@ -255,15 +237,11 @@ pub(crate) async fn drain_nu_hook_queue(editor: &mut Editor, max: usize) -> bool
 			break;
 		};
 
-		match run_single_nu_hook_sync(editor, queued.hook, queued.args).await {
-			Some(InvocationOutcome {
-				status: InvocationStatus::Quit | InvocationStatus::ForceQuit,
-				..
-			}) => {
-				editor.state.nu.dec_hook_depth();
-				return true;
-			}
-			_ => {}
+		if let Some(result) = run_single_nu_hook_sync(editor, queued.hook, queued.args).await
+			&& matches!(classify_for_nu_pipeline(&result), PipelineDisposition::ShouldQuit)
+		{
+			editor.state.nu.dec_hook_depth();
+			return true;
 		}
 	}
 
@@ -314,26 +292,10 @@ async fn run_single_nu_hook_sync(editor: &mut Editor, hook: crate::nu::NuHook, a
 
 	for invocation in outcome.dispatches {
 		let result = editor.run_invocation(invocation, InvocationPolicy::enforcing()).await;
-
-		match result.status {
-			InvocationStatus::Ok => {}
-			InvocationStatus::Quit | InvocationStatus::ForceQuit => return Some(result),
-			InvocationStatus::NotFound => {
-				let target = result.detail_text().unwrap_or("unknown");
-				warn!(hook = fn_name, target = %target, "Nu hook invocation not found");
-			}
-			InvocationStatus::CapabilityDenied => {
-				let cap = result.denied_capability();
-				warn!(hook = fn_name, capability = ?cap, "Nu hook invocation denied by capability");
-			}
-			InvocationStatus::ReadonlyDenied => {
-				warn!(hook = fn_name, "Nu hook invocation denied by readonly mode");
-			}
-			InvocationStatus::CommandError => {
-				let error = result.detail_text().unwrap_or("unknown");
-				warn!(hook = fn_name, error = %error, "Nu hook invocation failed");
-			}
+		if matches!(classify_for_nu_pipeline(&result), PipelineDisposition::ShouldQuit) {
+			return Some(result);
 		}
+		log_pipeline_non_ok(&result, PipelineLogContext::HookSync { hook: fn_name });
 	}
 
 	None

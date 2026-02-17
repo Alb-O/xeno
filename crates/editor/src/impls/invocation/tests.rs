@@ -271,7 +271,7 @@ fn capability_enforcement_blocks_when_enforced() {
 	let logged = Cell::new(false);
 
 	let result = handle_capability_violation(
-		preflight::InvocationKind::Command,
+		policy_gate::InvocationKind::Command,
 		InvocationPolicy::enforcing(),
 		error,
 		|_err| notified.set(true),
@@ -300,7 +300,7 @@ fn capability_enforcement_logs_in_log_only_mode() {
 	let logged = Cell::new(false);
 
 	let result = handle_capability_violation(
-		preflight::InvocationKind::Command,
+		policy_gate::InvocationKind::Command,
 		InvocationPolicy::log_only(),
 		error,
 		|_err| notified.set(true),

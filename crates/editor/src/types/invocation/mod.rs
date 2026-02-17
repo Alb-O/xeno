@@ -7,6 +7,8 @@
 use xeno_registry::Capability;
 pub use xeno_registry::Invocation;
 
+pub(crate) mod adapters;
+
 /// Policy for capability enforcement during invocation dispatch.
 ///
 /// Controls whether violations block execution or just log warnings.

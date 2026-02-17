@@ -2,31 +2,34 @@ use tracing::debug;
 use xeno_nu_data::Value;
 
 use crate::impls::Editor;
+use crate::impls::invocation::kernel::InvocationKernel;
 use crate::nu::NuDecodeSurface;
 use crate::nu::coordinator::errors::exec_error_message;
 use crate::nu::coordinator::runner::{NuExecKind, execute_with_restart};
 use crate::nu::effects::{NuEffectApplyError, NuEffectApplyMode, apply_effect_batch};
-use crate::types::{Invocation, InvocationOutcome, InvocationTarget};
+use crate::types::{Invocation, InvocationOutcome, InvocationPolicy, InvocationTarget};
 
 impl Editor {
 	pub(crate) async fn run_nu_macro_invocation(&mut self, fn_name: String, args: Vec<String>) -> Result<Vec<Invocation>, InvocationOutcome> {
 		if let Err(error) = self.ensure_nu_runtime_loaded().await {
-			self.show_notification(xeno_registry::notifications::keys::command_error(&error));
-			return Err(InvocationOutcome::command_error(InvocationTarget::Nu, error));
+			let mut kernel = InvocationKernel::new(self, InvocationPolicy::enforcing());
+			return Err(kernel.command_error_with_notification(InvocationTarget::Nu, error));
 		}
 
 		let Some(runtime) = self.nu_runtime() else {
-			return Err(InvocationOutcome::command_error(InvocationTarget::Nu, "Nu runtime is not loaded"));
+			let kernel = InvocationKernel::new(self, InvocationPolicy::enforcing());
+			return Err(kernel.command_error(InvocationTarget::Nu, "Nu runtime is not loaded"));
 		};
 
 		let Some(decl_id) = runtime.find_script_decl(&fn_name) else {
 			let error = format!("Nu runtime error: function '{}' is not defined in xeno.nu", fn_name);
-			self.show_notification(xeno_registry::notifications::keys::command_error(&error));
-			return Err(InvocationOutcome::command_error(InvocationTarget::Nu, error));
+			let mut kernel = InvocationKernel::new(self, InvocationPolicy::enforcing());
+			return Err(kernel.command_error_with_notification(InvocationTarget::Nu, error));
 		};
 
 		if self.state.nu.ensure_executor().is_none() {
-			return Err(InvocationOutcome::command_error(InvocationTarget::Nu, "Nu executor is not available"));
+			let kernel = InvocationKernel::new(self, InvocationPolicy::enforcing());
+			return Err(kernel.command_error(InvocationTarget::Nu, "Nu executor is not available"));
 		}
 
 		let budget = self
@@ -52,8 +55,8 @@ impl Editor {
 			Ok(effects) => effects,
 			Err(error) => {
 				let msg = exec_error_message(&error);
-				self.show_notification(xeno_registry::notifications::keys::command_error(&msg));
-				return Err(InvocationOutcome::command_error(InvocationTarget::Nu, msg));
+				let mut kernel = InvocationKernel::new(self, InvocationPolicy::enforcing());
+				return Err(kernel.command_error_with_notification(InvocationTarget::Nu, msg));
 			}
 		};
 
@@ -76,8 +79,8 @@ impl Editor {
 					}
 					NuEffectApplyError::StopPropagationUnsupportedForMacro => "Nu macro produced hook-only stop effect".to_string(),
 				};
-				self.show_notification(xeno_registry::notifications::keys::command_error(&msg));
-				return Err(InvocationOutcome::command_error(InvocationTarget::Nu, msg));
+				let mut kernel = InvocationKernel::new(self, InvocationPolicy::enforcing());
+				return Err(kernel.command_error_with_notification(InvocationTarget::Nu, msg));
 			}
 		};
 

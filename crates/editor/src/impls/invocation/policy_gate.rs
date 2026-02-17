@@ -1,9 +1,10 @@
-use tracing::warn;
 use xeno_registry::actions::EditorContext;
 use xeno_registry::{Capability, CapabilitySet, CommandError};
 
 use crate::impls::Editor;
-use crate::types::{InvocationOutcome, InvocationPolicy, InvocationTarget};
+#[cfg(test)]
+use crate::types::InvocationOutcome;
+use crate::types::{InvocationPolicy, InvocationTarget};
 
 /// Canonical invocation target kind used for shared policy handling.
 #[derive(Debug, Clone, Copy)]
@@ -13,7 +14,7 @@ pub(crate) enum InvocationKind {
 }
 
 impl InvocationKind {
-	const fn target(self) -> InvocationTarget {
+	pub(crate) const fn target(self) -> InvocationTarget {
 		match self {
 			Self::Action => InvocationTarget::Action,
 			Self::Command => InvocationTarget::Command,
@@ -23,26 +24,26 @@ impl InvocationKind {
 
 /// Encodes how required capabilities are represented by an invocation target.
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum CapabilityRequirement<'a> {
+pub(crate) enum RequiredCaps<'a> {
 	Set(CapabilitySet),
 	List(&'a [Capability]),
 }
 
-/// Shared preflight envelope used before executing invocation handlers.
+/// Shared policy gate envelope used before executing invocation handlers.
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct InvocationSubject<'a> {
+pub(crate) struct InvocationGateInput<'a> {
 	pub(crate) kind: InvocationKind,
 	pub(crate) name: &'a str,
-	pub(crate) required_caps: CapabilityRequirement<'a>,
+	pub(crate) required_caps: RequiredCaps<'a>,
 	pub(crate) mutates_buffer: bool,
 }
 
-impl<'a> InvocationSubject<'a> {
+impl<'a> InvocationGateInput<'a> {
 	pub(crate) fn action(name: &'a str, required_caps: CapabilitySet) -> Self {
 		Self {
 			kind: InvocationKind::Action,
 			name,
-			required_caps: CapabilityRequirement::Set(required_caps),
+			required_caps: RequiredCaps::Set(required_caps),
 			mutates_buffer: requires_edit_capability_set(required_caps),
 		}
 	}
@@ -51,7 +52,7 @@ impl<'a> InvocationSubject<'a> {
 		Self {
 			kind: InvocationKind::Command,
 			name,
-			required_caps: CapabilityRequirement::Set(required_caps),
+			required_caps: RequiredCaps::Set(required_caps),
 			mutates_buffer: requires_edit_capability_set(required_caps),
 		}
 	}
@@ -60,51 +61,54 @@ impl<'a> InvocationSubject<'a> {
 		Self {
 			kind: InvocationKind::Command,
 			name,
-			required_caps: CapabilityRequirement::List(required_caps),
+			required_caps: RequiredCaps::List(required_caps),
 			mutates_buffer: requires_edit_capability(required_caps),
 		}
 	}
 }
 
-/// Result of policy preflight for invocation execution.
+/// Result of policy gate checks for invocation execution.
 #[derive(Debug)]
-pub(crate) enum PreflightDecision {
+pub(crate) enum GateResult {
 	Proceed,
-	Deny(InvocationOutcome),
+	Deny(GateFailure),
+}
+
+/// Pure gate failure details emitted by policy checks.
+#[derive(Debug)]
+pub(crate) enum GateFailure {
+	Capability(CommandError),
+	Readonly,
 }
 
 impl Editor {
-	/// Runs shared capability and readonly policy checks before invoking handlers.
-	pub(crate) fn preflight_invocation_subject(&mut self, policy: InvocationPolicy, subject: InvocationSubject<'_>) -> PreflightDecision {
-		if let Some(error) = capability_check_error(self, subject.required_caps)
-			&& let Some(result) = handle_capability_violation(
-				subject.kind,
-				policy,
-				error,
-				|err| notify_capability_denied(self, subject.kind, err),
-				|err| {
-					warn!(
-						kind = ?subject.kind,
-						name = subject.name,
-						error = %err,
-						"Capability check failed (log-only mode)"
-					);
-				},
-			) {
-			return PreflightDecision::Deny(result);
+	/// Runs shared capability and readonly checks before invoking handlers.
+	///
+	/// Returns a pure gate decision plus optional log-only capability error
+	/// metadata for caller-controlled logging.
+	pub(crate) fn gate_invocation(&mut self, policy: InvocationPolicy, input: InvocationGateInput<'_>) -> (GateResult, Option<CommandError>) {
+		if let Some(error) = capability_gate_error(self, input.required_caps) {
+			match decide_capability_violation(policy, error) {
+				CapabilityDecision::Deny(error) => {
+					return (GateResult::Deny(GateFailure::Capability(error)), None);
+				}
+				CapabilityDecision::ProceedLogOnly(error) => {
+					return (GateResult::Proceed, Some(error));
+				}
+			}
 		}
 
-		if policy.enforce_readonly && subject.mutates_buffer && self.buffer().is_readonly() {
-			return PreflightDecision::Deny(notify_readonly_denied(self, subject.kind));
+		if policy.enforce_readonly && input.mutates_buffer && self.buffer().is_readonly() {
+			return (GateResult::Deny(GateFailure::Readonly), None);
 		}
 
-		PreflightDecision::Proceed
+		(GateResult::Proceed, None)
 	}
 }
 
-fn capability_check_error(editor: &mut Editor, requirement: CapabilityRequirement<'_>) -> Option<CommandError> {
+fn capability_gate_error(editor: &mut Editor, requirement: RequiredCaps<'_>) -> Option<CommandError> {
 	match requirement {
-		CapabilityRequirement::Set(required_caps) => {
+		RequiredCaps::Set(required_caps) => {
 			if required_caps.is_empty() {
 				return None;
 			}
@@ -112,7 +116,7 @@ fn capability_check_error(editor: &mut Editor, requirement: CapabilityRequiremen
 			let mut e_ctx = EditorContext::new(&mut caps);
 			e_ctx.check_capability_set(required_caps).err()
 		}
-		CapabilityRequirement::List(required_caps) => {
+		RequiredCaps::List(required_caps) => {
 			if required_caps.is_empty() {
 				return None;
 			}
@@ -123,21 +127,6 @@ fn capability_check_error(editor: &mut Editor, requirement: CapabilityRequiremen
 	}
 }
 
-fn notify_capability_denied(editor: &mut Editor, kind: InvocationKind, error: &CommandError) {
-	match kind {
-		InvocationKind::Action => editor.show_notification(xeno_registry::notifications::keys::action_error(error)),
-		InvocationKind::Command => {
-			let error = error.to_string();
-			editor.show_notification(xeno_registry::notifications::keys::command_error(&error));
-		}
-	}
-}
-
-fn notify_readonly_denied(editor: &mut Editor, kind: InvocationKind) -> InvocationOutcome {
-	editor.show_notification(xeno_registry::notifications::keys::BUFFER_READONLY.into());
-	InvocationOutcome::readonly_denied(kind.target())
-}
-
 fn requires_edit_capability_set(caps: CapabilitySet) -> bool {
 	caps.contains(CapabilitySet::EDIT)
 }
@@ -146,13 +135,28 @@ fn requires_edit_capability(caps: &[Capability]) -> bool {
 	caps.iter().any(|cap| matches!(cap, Capability::Edit))
 }
 
-fn capability_error_result(kind: InvocationKind, error: &CommandError) -> InvocationOutcome {
+#[cfg(test)]
+fn capability_error_outcome(kind: InvocationKind, error: &CommandError) -> InvocationOutcome {
 	match error {
 		CommandError::MissingCapability(cap) => InvocationOutcome::capability_denied(kind.target(), *cap),
 		_ => InvocationOutcome::command_error(kind.target(), error.to_string()),
 	}
 }
 
+enum CapabilityDecision {
+	Deny(CommandError),
+	ProceedLogOnly(CommandError),
+}
+
+fn decide_capability_violation(policy: InvocationPolicy, error: CommandError) -> CapabilityDecision {
+	if policy.enforce_caps {
+		CapabilityDecision::Deny(error)
+	} else {
+		CapabilityDecision::ProceedLogOnly(error)
+	}
+}
+
+#[cfg(test)]
 pub(crate) fn handle_capability_violation(
 	kind: InvocationKind,
 	policy: InvocationPolicy,
@@ -162,7 +166,7 @@ pub(crate) fn handle_capability_violation(
 ) -> Option<InvocationOutcome> {
 	if policy.enforce_caps {
 		on_enforce(&error);
-		Some(capability_error_result(kind, &error))
+		Some(capability_error_outcome(kind, &error))
 	} else {
 		on_log(&error);
 		None
