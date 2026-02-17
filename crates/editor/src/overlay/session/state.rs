@@ -1,5 +1,23 @@
 use super::*;
 
+/// Semantic identity payload for virtual overlay buffers.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VirtualBufferIdentity {
+	pub kind: xeno_buffer_display::VirtualBufferKind,
+	pub title_hint: Option<String>,
+}
+
+impl VirtualBufferIdentity {
+	pub fn new(kind: xeno_buffer_display::VirtualBufferKind) -> Self {
+		Self { kind, title_hint: None }
+	}
+
+	pub fn with_title_hint(mut self, title_hint: impl Into<String>) -> Self {
+		self.title_hint = Some(title_hint.into());
+		self
+	}
+}
+
 /// Renderable pane metadata for a modal overlay session.
 pub struct OverlayPane {
 	pub role: WindowRole,
@@ -10,6 +28,7 @@ pub struct OverlayPane {
 	pub gutter: GutterSelector,
 	pub dismiss_on_blur: bool,
 	pub sticky: bool,
+	pub virtual_identity: VirtualBufferIdentity,
 }
 
 /// Data-only pane target consumed by frontend overlay renderers.
@@ -137,6 +156,11 @@ impl OverlaySession {
 	/// Returns the resolved pane rect for a role when present.
 	pub fn pane_rect(&self, role: WindowRole) -> Option<Rect> {
 		self.panes.iter().find(|pane| pane.role == role).map(|pane| pane.rect)
+	}
+
+	/// Returns virtual identity metadata for a session pane buffer.
+	pub fn virtual_identity_for_buffer(&self, view: ViewId) -> Option<&VirtualBufferIdentity> {
+		self.panes.iter().find(|pane| pane.buffer == view).map(|pane| &pane.virtual_identity)
 	}
 
 	/// Returns the current text content of the primary input buffer.

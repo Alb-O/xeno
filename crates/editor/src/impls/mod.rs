@@ -678,7 +678,7 @@ impl Editor {
 	#[inline]
 	pub fn overlay_kind(&self) -> Option<crate::overlay::OverlayControllerKind> {
 		let active = self.state.overlay_system.interaction().active()?;
-		Some(crate::overlay::OverlayControllerKind::from_name(active.controller.name()))
+		Some(active.controller.kind())
 	}
 
 	/// Returns a data-only pane plan for the active modal overlay session.

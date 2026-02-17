@@ -15,9 +15,9 @@ fn key_tab() -> Key {
 
 fn completion_item(insert_text: &str, detail: &str, right: &str) -> CompletionItem {
 	let file_kind = if right == "dir" {
-		xeno_file_display::FileKind::Directory
+		xeno_buffer_display::FileKind::Directory
 	} else {
-		xeno_file_display::FileKind::File
+		xeno_buffer_display::FileKind::File
 	};
 	CompletionItem {
 		label: insert_text.to_string(),

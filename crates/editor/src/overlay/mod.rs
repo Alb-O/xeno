@@ -190,6 +190,8 @@ pub enum OverlayControllerKind {
 	CommandPalette,
 	FilePicker,
 	Search,
+	Rename,
+	WorkspaceSearch,
 	Other(&'static str),
 }
 
@@ -199,7 +201,31 @@ impl OverlayControllerKind {
 			"CommandPalette" => Self::CommandPalette,
 			"FilePicker" => Self::FilePicker,
 			"Search" => Self::Search,
+			"Rename" => Self::Rename,
+			"WorkspaceSearch" => Self::WorkspaceSearch,
 			other => Self::Other(other),
+		}
+	}
+
+	pub fn default_title(self) -> &'static str {
+		match self {
+			Self::CommandPalette => "Command Palette",
+			Self::FilePicker => "File Picker",
+			Self::Search => "Search",
+			Self::Rename => "Rename",
+			Self::WorkspaceSearch => "Workspace Search",
+			Self::Other(other) => other,
+		}
+	}
+
+	pub fn virtual_buffer_kind(self) -> xeno_buffer_display::VirtualBufferKind {
+		match self {
+			Self::CommandPalette => xeno_buffer_display::VirtualBufferKind::CommandPalette,
+			Self::FilePicker => xeno_buffer_display::VirtualBufferKind::FilePicker,
+			Self::Search => xeno_buffer_display::VirtualBufferKind::Search,
+			Self::Rename => xeno_buffer_display::VirtualBufferKind::Rename,
+			Self::WorkspaceSearch => xeno_buffer_display::VirtualBufferKind::WorkspaceSearch,
+			Self::Other(other) => xeno_buffer_display::VirtualBufferKind::OverlayCustom(other.to_string()),
 		}
 	}
 }
@@ -261,6 +287,16 @@ pub trait OverlayContext {
 pub trait OverlayController: Send + Sync {
 	/// Stable identifier for the controller kind.
 	fn name(&self) -> &'static str;
+
+	/// Stable semantic kind for frontend/runtime policy decisions.
+	fn kind(&self) -> OverlayControllerKind {
+		OverlayControllerKind::Other(self.name())
+	}
+
+	/// Human-readable identity title for virtual-buffer presentation fallbacks.
+	fn identity_title(&self) -> &'static str {
+		self.kind().default_title()
+	}
 
 	/// Defines the initial UI configuration for the session.
 	fn ui_spec(&self, ctx: &dyn OverlayContext) -> OverlayUiSpec;
@@ -465,7 +501,7 @@ impl OverlayManager {
 		}
 
 		let spec = controller.ui_spec(ed);
-		let desired_height = if controller.name() == "CommandPalette" || spec.windows.is_empty() {
+		let desired_height = if matches!(controller.kind(), OverlayControllerKind::CommandPalette) || spec.windows.is_empty() {
 			1
 		} else {
 			10
@@ -536,11 +572,11 @@ impl OverlayManager {
 	}
 
 	/// Triggers a controller refresh by replaying current input text.
-	pub fn refresh_if(&mut self, ed: &mut crate::Editor, name: &'static str) {
+	pub fn refresh_if_kind(&mut self, ed: &mut crate::Editor, kind: OverlayControllerKind) {
 		let Some(active) = self.active.as_mut() else {
 			return;
 		};
-		if active.controller.name() != name {
+		if active.controller.kind() != kind {
 			return;
 		}
 

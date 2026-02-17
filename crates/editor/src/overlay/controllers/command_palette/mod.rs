@@ -669,9 +669,9 @@ impl CommandPaletteOverlay {
 
 			let insert_text = if is_dir { format!("{label}/") } else { label.clone() };
 			let file_kind = if is_dir {
-				xeno_file_display::FileKind::Directory
+				xeno_buffer_display::FileKind::Directory
 			} else {
-				xeno_file_display::FileKind::File
+				xeno_buffer_display::FileKind::File
 			};
 			let file_meta = CompletionFileMeta::new(dir_path.join(&label), file_kind);
 
@@ -1047,6 +1047,10 @@ impl CommandPaletteOverlay {
 impl OverlayController for CommandPaletteOverlay {
 	fn name(&self) -> &'static str {
 		"CommandPalette"
+	}
+
+	fn kind(&self) -> crate::overlay::OverlayControllerKind {
+		crate::overlay::OverlayControllerKind::CommandPalette
 	}
 
 	fn ui_spec(&self, _ctx: &dyn OverlayContext) -> OverlayUiSpec {

@@ -64,6 +64,8 @@ pub enum SegmentPosition {
 pub struct StatuslineContext<'a> {
 	pub mode_name: &'a str,
 	pub path: Option<&'a str>,
+	pub file_icon: &'a str,
+	pub file_label: &'a str,
 	pub modified: bool,
 	pub readonly: bool,
 	pub line: usize,

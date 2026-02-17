@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use xeno_primitives::Mode;
 
 use super::CloseReason;
-use super::session::{OverlayPane, OverlaySession};
+use super::session::{OverlayPane, OverlaySession, VirtualBufferIdentity};
 use crate::buffer::ViewId;
 use crate::geometry::Rect;
 use crate::impls::{Editor, FocusReason, FocusTarget};
@@ -16,6 +16,32 @@ use crate::ui::ids::UTILITY_PANEL_ID;
 pub struct OverlayHost;
 
 impl OverlayHost {
+	fn pane_virtual_identity(
+		controller_kind: super::OverlayControllerKind,
+		controller_title: &str,
+		overlay_title: Option<&str>,
+		role: super::WindowRole,
+	) -> VirtualBufferIdentity {
+		match role {
+			super::WindowRole::Input => VirtualBufferIdentity::new(controller_kind.virtual_buffer_kind()),
+			super::WindowRole::List => {
+				let mut identity = VirtualBufferIdentity::new(xeno_buffer_display::VirtualBufferKind::OverlayList);
+				if let Some(title) = overlay_title {
+					identity = identity.with_title_hint(title.to_string());
+				}
+				identity
+			}
+			super::WindowRole::Preview => {
+				let mut identity = VirtualBufferIdentity::new(xeno_buffer_display::VirtualBufferKind::OverlayPreview);
+				if let Some(title) = overlay_title {
+					identity = identity.with_title_hint(title.to_string());
+				}
+				identity
+			}
+			super::WindowRole::Custom(_) => VirtualBufferIdentity::new(xeno_buffer_display::VirtualBufferKind::OverlayCustom(controller_title.to_string())),
+		}
+	}
+
 	fn overlay_container_rect(ed: &Editor, width: u16, height: u16) -> Rect {
 		let main_area = Rect::new(0, 0, width, height.saturating_sub(1));
 		let layout = ed.state.ui.compute_layout(main_area);
@@ -115,6 +141,9 @@ impl OverlayHost {
 		if spec.style.title.is_none() {
 			spec.style.title = spec.title.clone();
 		}
+		let controller_kind = controller.kind();
+		let controller_title = controller.identity_title();
+		let overlay_title = spec.title.clone().unwrap_or_else(|| controller_title.to_string());
 		let (w, h) = (ed.state.viewport.width?, ed.state.viewport.height?);
 		let screen = Self::overlay_container_rect(ed, w, h);
 
@@ -152,6 +181,7 @@ impl OverlayHost {
 			gutter: spec.gutter,
 			dismiss_on_blur: true,
 			sticky: true,
+			virtual_identity: Self::pane_virtual_identity(controller_kind, controller_title, Some(overlay_title.as_str()), super::WindowRole::Input),
 		});
 
 		// 3. Resolve & Allocate Auxiliary Windows
@@ -186,6 +216,7 @@ impl OverlayHost {
 				gutter: win_spec.gutter,
 				dismiss_on_blur: win_spec.dismiss_on_blur,
 				sticky: win_spec.sticky,
+				virtual_identity: Self::pane_virtual_identity(controller_kind, controller_title, Some(overlay_title.as_str()), win_spec.role),
 			});
 		}
 

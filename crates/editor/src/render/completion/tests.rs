@@ -75,7 +75,7 @@ fn completion_render_plan_includes_file_presentation_payload() {
 		kind: CompletionKind::File,
 		match_indices: None,
 		right: Some(String::from("file")),
-		file: Some(CompletionFileMeta::new("somefile.unknown_xeno_ext", xeno_file_display::FileKind::File)),
+		file: Some(CompletionFileMeta::new("somefile.unknown_xeno_ext", xeno_buffer_display::FileKind::File)),
 	}];
 	state.selected_idx = Some(0);
 

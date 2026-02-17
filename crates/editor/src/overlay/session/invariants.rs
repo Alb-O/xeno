@@ -318,6 +318,46 @@ pub(crate) fn test_modal_ui_keeps_single_base_window() {
 	assert_eq!(editor.state.windows.windows().count(), 1);
 }
 
+/// Must assign virtual-buffer identity metadata for every allocated session pane.
+///
+/// * Enforced in: `OverlayHost::setup_session`
+/// * Failure symptom: Overlay panes render as anonymous scratch/no-name buffers on statusline and titles.
+#[cfg_attr(test, test)]
+pub(crate) fn test_overlay_session_panes_receive_virtual_identity() {
+	let mut editor = crate::Editor::new_scratch();
+	editor.handle_window_resize(120, 40);
+
+	assert!(editor.open_command_palette());
+	let active = editor.state.overlay_system.interaction().active().expect("overlay should be active");
+	let input = active
+		.session
+		.panes
+		.iter()
+		.find(|pane| pane.role == WindowRole::Input)
+		.expect("input pane should exist");
+
+	assert_eq!(
+		input.virtual_identity.kind,
+		xeno_buffer_display::VirtualBufferKind::CommandPalette,
+		"command palette input pane should carry command palette virtual identity"
+	);
+}
+
+/// Must resolve focused overlay buffers through virtual identity presentation.
+///
+/// * Enforced in: `Editor::buffer_presentation`
+/// * Failure symptom: Focused overlay buffers regress to scratch/no-name labels despite active overlay metadata.
+#[cfg_attr(test, test)]
+pub(crate) fn test_overlay_buffer_presentation_uses_virtual_identity() {
+	let mut editor = crate::Editor::new_scratch();
+	editor.handle_window_resize(120, 40);
+	assert!(editor.open_command_palette());
+
+	let presentation = editor.buffer_presentation(editor.focused_view());
+	assert_eq!(presentation.label(), "[Command Palette]");
+	assert_eq!(presentation.icon(), xeno_buffer_display::COMMAND_PALETTE_ICON);
+}
+
 fn key_down() -> Key {
 	Key {
 		code: KeyCode::Down,

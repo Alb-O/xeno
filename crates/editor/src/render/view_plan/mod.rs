@@ -23,16 +23,9 @@ pub(crate) struct BufferViewRenderPlan {
 }
 
 impl Editor {
-	/// Returns the title string for the focused document (path or `"[scratch]"`).
+	/// Returns the title string for the focused document.
 	pub fn focused_document_title(&self) -> String {
-		self.get_buffer(self.focused_view())
-			.and_then(|buffer| {
-				buffer
-					.path()
-					.as_ref()
-					.map(|path| xeno_file_display::format_file_label(path, None, xeno_file_display::FileDisplayContext::default()))
-			})
-			.unwrap_or_else(|| String::from("[scratch]"))
+		self.buffer_presentation(self.focused_view()).label().to_string()
 	}
 
 	/// Renders a single view into data-only gutter and text lines.

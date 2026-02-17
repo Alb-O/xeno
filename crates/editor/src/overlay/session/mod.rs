@@ -18,6 +18,7 @@
 //! |---|---|---|---|
 //! | [`crate::overlay::spec::OverlayUiSpec`] | Declarative UI configuration | Static geometry resolve | Controller (`ui_spec`) |
 //! | [`crate::overlay::session::OverlaySession`] | Active session resources | Must be torn down | `OverlayHost::setup_session` |
+//! | [`crate::overlay::session::VirtualBufferIdentity`] | Semantic identity for session panes | Must be assigned for every allocated pane | `OverlayHost::setup_session` |
 //! | [`crate::overlay::session::PreviewCapture`] | Versioned state snapshot | Version-aware restore | `OverlaySession::capture_view` |
 //! | [`crate::overlay::LayerEvent`] | Payloaded UI events | Broadcast to all layers | `Editor::notify_overlay_event` |
 //! | [`crate::overlay::OverlayContext`] | Capability interface for overlays | Must be used instead of direct editor access | `OverlayManager::{open,commit,close}` |
@@ -29,11 +30,12 @@
 //! * Must clamp resolved overlay areas to screen bounds.
 //! * Must clear LSP UI when a modal overlay opens.
 //! * Must route non-overlay module access through `OverlaySystem` accessors.
+//! * Must assign virtual-buffer identity metadata for every session pane.
 //!
 //! # Data flow
 //!
 //! 1. Trigger: Editor calls `interaction.open(controller)`.
-//! 2. Allocation: [`crate::overlay::host::OverlayHost`] resolves spec, creates scratch buffers/panes, and focuses input.
+//! 2. Allocation: [`crate::overlay::host::OverlayHost`] resolves spec, creates scratch buffers/panes, assigns pane virtual identity metadata, and focuses input.
 //! 3. Events: Editor emits [`crate::overlay::LayerEvent`] (CursorMoved, etc.) via `notify_overlay_event`.
 //! 4. Update: Input changes in `session.input` call `controller.on_input_changed` with an [`crate::overlay::OverlayContext`].
 //! 5. Restoration: On cancel/blur, `session.restore_all` reverts previews (version-aware) via the context.
@@ -57,6 +59,7 @@
 //! * Missing anchor: [`crate::overlay::spec::RectPolicy::Below`] returns `None` if the target role is missing; host skips that window.
 //! * Stale restore: `restore_all` skips buffers with version mismatches to protect user edits.
 //! * Focus loss: `CloseReason::Blur` triggers automatic cancellation if `dismiss_on_blur` is set in spec.
+//! * Unknown controller identity: host falls back to generic overlay virtual identity with controller-name labeling.
 //!
 //! # Recipes
 //!

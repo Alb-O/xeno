@@ -91,7 +91,7 @@ impl FilePickerOverlay {
 						kind: CompletionKind::File,
 						match_indices: None,
 						right: Some("file".into()),
-						file: Some(CompletionFileMeta::new(path_text, xeno_file_display::FileKind::File)),
+						file: Some(CompletionFileMeta::new(path_text, xeno_buffer_display::FileKind::File)),
 					}
 				})
 				.collect();
@@ -115,7 +115,7 @@ impl FilePickerOverlay {
 					kind: CompletionKind::File,
 					match_indices: row.match_indices.clone(),
 					right: Some("file".into()),
-					file: Some(CompletionFileMeta::new(path_text, xeno_file_display::FileKind::File)),
+					file: Some(CompletionFileMeta::new(path_text, xeno_buffer_display::FileKind::File)),
 				}
 			})
 			.collect()
@@ -235,9 +235,9 @@ impl FilePickerOverlay {
 			let suffix = if is_dir { "/" } else { "" };
 			let insert_text = format!("{dir_part}{name}{suffix}");
 			let file_kind = if is_dir {
-				xeno_file_display::FileKind::Directory
+				xeno_buffer_display::FileKind::Directory
 			} else {
-				xeno_file_display::FileKind::File
+				xeno_buffer_display::FileKind::File
 			};
 			let file_meta = CompletionFileMeta::new(dir_path.join(&name), file_kind);
 
@@ -282,7 +282,7 @@ impl FilePickerOverlay {
 	}
 
 	fn is_directory_item(item: &CompletionItem) -> bool {
-		item.file.as_ref().is_some_and(|meta| meta.kind() == xeno_file_display::FileKind::Directory)
+		item.file.as_ref().is_some_and(|meta| meta.kind() == xeno_buffer_display::FileKind::Directory)
 	}
 
 	fn update_completion_state(&mut self, ctx: &mut dyn OverlayContext, query: &str, mode: PickerQueryMode) {
@@ -517,6 +517,10 @@ impl FilePickerOverlay {
 impl OverlayController for FilePickerOverlay {
 	fn name(&self) -> &'static str {
 		"FilePicker"
+	}
+
+	fn kind(&self) -> crate::overlay::OverlayControllerKind {
+		crate::overlay::OverlayControllerKind::FilePicker
 	}
 
 	fn ui_spec(&self, _ctx: &dyn OverlayContext) -> OverlayUiSpec {
