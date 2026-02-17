@@ -6,9 +6,9 @@ use xeno_keymap_core::parser::Node;
 use xeno_primitives::key::{Key, KeyCode, MouseButton, MouseEvent};
 use xeno_registry::actions::BindingMode;
 use xeno_registry::keymaps::KeymapBehavior;
-use xeno_registry::{KeymapIndex, LookupResult, get_keymap_registry};
+use xeno_registry::{KeymapSnapshot, LookupOutcome, get_keymap_snapshot};
 
-use super::types::{KeyResult, Mode};
+use super::types::{KeyDispatch, KeyResult, Mode};
 
 /// Modal input state machine that resolves key sequences against the keymap registry.
 ///
@@ -97,9 +97,9 @@ impl InputHandler {
 	}
 
 	/// Consumes state and produces the appropriate [`KeyResult`] for a binding entry.
-	pub(crate) fn consume_binding(&mut self, entry: &xeno_registry::BindingEntry) -> KeyResult {
-		match &entry.target {
-			xeno_registry::BindingTarget::Action { id, count, extend, register } => {
+	pub(crate) fn consume_binding(&mut self, entry: &xeno_registry::CompiledBinding) -> KeyResult {
+		match entry.target() {
+			xeno_registry::CompiledBindingTarget::Action { count, extend, register, .. } => {
 				// Multiply prefix count with binding count; OR extends; prefix register wins
 				let prefix_count = (self.count as usize).max(1);
 				let binding_count = (*count).max(1);
@@ -107,17 +107,19 @@ impl InputHandler {
 				let final_extend = self.extend || *extend;
 				let final_register = self.register.or(*register);
 				self.reset_params();
-				KeyResult::ActionById {
-					id: *id,
-					count: final_count,
-					extend: final_extend,
-					register: final_register,
-				}
+				KeyResult::Dispatch(KeyDispatch {
+					invocation: xeno_registry::Invocation::Action {
+						name: entry.name().to_string(),
+						count: final_count,
+						extend: final_extend,
+						register: final_register,
+					},
+				})
 			}
-			xeno_registry::BindingTarget::Invocation { inv } => {
+			xeno_registry::CompiledBindingTarget::Invocation { inv } => {
 				let inv = inv.clone();
 				self.reset_params();
-				KeyResult::Invocation { inv }
+				KeyResult::Dispatch(KeyDispatch { invocation: inv })
 			}
 		}
 	}
@@ -147,12 +149,12 @@ impl InputHandler {
 
 	/// Dispatches a key through the current mode's handler with default behavior.
 	pub fn handle_key(&mut self, key: Key) -> KeyResult {
-		let registry = get_keymap_registry();
+		let registry = get_keymap_snapshot();
 		self.handle_key_with_registry(key, &registry, KeymapBehavior::default())
 	}
 
 	/// Dispatches a key using an explicit keymap registry and behavior flags.
-	pub fn handle_key_with_registry(&mut self, key: Key, registry: &KeymapIndex, behavior: KeymapBehavior) -> KeyResult {
+	pub fn handle_key_with_registry(&mut self, key: Key, registry: &KeymapSnapshot, behavior: KeymapBehavior) -> KeyResult {
 		match &self.mode {
 			Mode::Normal => self.handle_mode_key(key, BindingMode::Normal, registry, behavior),
 			Mode::Insert => self.handle_insert_key(key, registry),
@@ -170,7 +172,7 @@ impl InputHandler {
 	///   for lookup (Vim: Shift+n → "N"). Fallback tries lowercase with `extend = true`.
 	///   When disabled, Shift is kept as a modifier (emacs semantics).
 	/// * `normal_digit_prefix_count`: Bare digits accumulate a count prefix in Normal mode.
-	fn handle_mode_key(&mut self, key: Key, binding_mode: BindingMode, registry: &KeymapIndex, behavior: KeymapBehavior) -> KeyResult {
+	fn handle_mode_key(&mut self, key: Key, binding_mode: BindingMode, registry: &KeymapSnapshot, behavior: KeymapBehavior) -> KeyResult {
 		if behavior.normal_digit_prefix_count
 			&& binding_mode == BindingMode::Normal
 			&& let Some(digit) = key.as_digit()
@@ -194,11 +196,11 @@ impl InputHandler {
 			return KeyResult::Consumed;
 		}
 
-		let lookup_with = |k: Key, seq: &mut Vec<Node>| -> Option<LookupResult> {
+		let lookup_with = |k: Key, seq: &mut Vec<Node>| -> Option<LookupOutcome> {
 			let node = k.to_keymap().ok()?;
 			seq.push(node);
 			let res = registry.lookup(binding_mode, seq);
-			if matches!(res, LookupResult::None) {
+			if matches!(res, LookupOutcome::None) {
 				seq.pop();
 				None
 			} else {
@@ -239,29 +241,29 @@ impl InputHandler {
 			None => {
 				if let Some(fallback) = extend_fallback {
 					self.extend = true;
-					lookup_with(fallback, &mut self.key_sequence).unwrap_or(LookupResult::None)
+					lookup_with(fallback, &mut self.key_sequence).unwrap_or(LookupOutcome::None)
 				} else {
-					LookupResult::None
+					LookupOutcome::None
 				}
 			}
 		};
 
 		match lookup_result {
-			LookupResult::Match(entry) => {
+			LookupOutcome::Match(entry) => {
 				if binding_mode != BindingMode::Normal {
 					self.mode = Mode::Normal;
 				}
 				self.consume_binding(entry)
 			}
-			LookupResult::Pending { sticky } => {
+			LookupOutcome::Pending { sticky } => {
 				if let Some(entry) = sticky {
-					debug!(action = &*entry.name, keys = self.key_sequence.len(), "Pending with sticky action");
+					debug!(action = entry.name(), keys = self.key_sequence.len(), "Pending with sticky action");
 				}
 				KeyResult::Pending {
 					keys_so_far: self.key_sequence.len(),
 				}
 			}
-			LookupResult::None => {
+			LookupOutcome::None => {
 				if binding_mode != BindingMode::Normal {
 					self.mode = Mode::Normal;
 				}

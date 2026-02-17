@@ -19,7 +19,7 @@ pub mod plugin;
 use crate::actions::entry::ActionEntry;
 use crate::commands::CommandEntry;
 #[cfg(feature = "keymap")]
-use crate::db::keymap_registry::KeymapRegistry;
+use crate::db::keymap_registry::KeymapSnapshotCache;
 use crate::gutter::GutterEntry;
 use crate::hooks::registry::HooksRegistry;
 use crate::languages::LanguagesRegistry;
@@ -48,7 +48,7 @@ pub struct RegistryDb {
 	pub languages: LanguagesRegistry,
 	pub lsp_servers: LspServersRegistry,
 	#[cfg(feature = "keymap")]
-	pub keymap: KeymapRegistry,
+	pub keymap: KeymapSnapshotCache,
 }
 
 static DB: OnceLock<RegistryDb> = OnceLock::new();
@@ -70,7 +70,7 @@ pub fn get_db() -> &'static RegistryDb {
 		let actions_reg = RuntimeRegistry::new("actions", indices.actions);
 
 		#[cfg(feature = "keymap")]
-		let keymap = KeymapRegistry::new(actions_reg.snapshot());
+		let keymap = KeymapSnapshotCache::new(actions_reg.snapshot());
 
 		RegistryDb {
 			actions: actions_reg,

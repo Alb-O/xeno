@@ -1,21 +1,18 @@
 pub use xeno_primitives::Mode;
 use xeno_primitives::key::ScrollDirection;
-use xeno_registry::ActionId;
+
+/// Canonical dispatch payload emitted by keymap resolution.
+#[derive(Debug, Clone)]
+pub struct KeyDispatch {
+	/// Invocation to execute through editor invocation dispatch.
+	pub invocation: xeno_registry::Invocation,
+}
 
 /// Result of processing a key.
 #[derive(Debug, Clone)]
 pub enum KeyResult {
-	/// An action to execute using typed ActionId (preferred).
-	ActionById {
-		/// The action identifier to execute.
-		id: ActionId,
-		/// Repeat count for the action.
-		count: usize,
-		/// Whether to extend selection instead of moving cursor.
-		extend: bool,
-		/// Register for yank/paste operations.
-		register: Option<char>,
-	},
+	/// A canonical invocation to execute.
+	Dispatch(KeyDispatch),
 	/// Waiting for more keys to complete a sequence.
 	///
 	/// The UI should display a "which-key" style indicator showing
@@ -24,30 +21,12 @@ pub enum KeyResult {
 		/// Number of keys accumulated so far.
 		keys_so_far: usize,
 	},
-	/// An action with a character argument using typed ActionId.
-	ActionByIdWithChar {
-		/// The action identifier to execute.
-		id: ActionId,
-		/// Repeat count for the action.
-		count: usize,
-		/// Whether to extend selection instead of moving cursor.
-		extend: bool,
-		/// Register for yank/paste operations.
-		register: Option<char>,
-		/// Character argument for the action (e.g., find char target).
-		char_arg: char,
-	},
 	/// Mode changed (to show in status).
 	ModeChange(Mode),
 	/// Key was consumed but no action needed.
 	Consumed,
 	/// Key was not handled.
 	Unhandled,
-	/// A structured invocation from a key override (e.g., command, editor command, nu macro).
-	Invocation {
-		/// The invocation to dispatch.
-		inv: xeno_registry::Invocation,
-	},
 	/// Insert a character (in insert mode).
 	InsertChar(char),
 	/// Request to quit.

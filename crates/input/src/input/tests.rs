@@ -70,7 +70,7 @@ fn invocation_spec_multi_key_pending_then_match() {
 	use std::collections::HashMap;
 
 	use xeno_registry::config::UnresolvedKeys;
-	use xeno_registry::db::keymap_registry::KeymapIndex;
+	use xeno_registry::db::keymap_registry::KeymapSnapshot;
 	use xeno_registry::keymaps::KeymapBehavior;
 
 	let actions = xeno_registry::db::ACTIONS.snapshot();
@@ -81,7 +81,7 @@ fn invocation_spec_multi_key_pending_then_match() {
 	let mut modes = HashMap::new();
 	modes.insert("normal".to_string(), normal);
 	let overrides = UnresolvedKeys { modes };
-	let keymap = KeymapIndex::build_with_overrides(&actions, Some(&overrides));
+	let keymap = KeymapSnapshot::build_with_overrides(&actions, Some(&overrides));
 
 	let mut h = InputHandler::new();
 
@@ -95,9 +95,9 @@ fn invocation_spec_multi_key_pending_then_match() {
 	// Second key 'r' should produce Invocation
 	let result = h.handle_key_with_registry(Key::char('r'), &keymap, KeymapBehavior::default());
 	match result {
-		super::types::KeyResult::Invocation { ref inv } => {
+		super::types::KeyResult::Dispatch(super::types::KeyDispatch { ref invocation }) => {
 			assert!(matches!(
-				inv,
+				invocation,
 				xeno_registry::Invocation::Command(cmd) if cmd.name == "reload_config"
 			));
 		}
@@ -111,12 +111,12 @@ fn invocation_spec_multi_key_pending_then_match() {
 
 #[test]
 fn insert_multikey_prefix_dispatches() {
-	use xeno_registry::db::keymap_registry::KeymapIndex;
+	use xeno_registry::db::keymap_registry::KeymapSnapshot;
 	use xeno_registry::keymaps;
 
 	let actions = xeno_registry::db::ACTIONS.snapshot();
 	let preset = keymaps::preset("emacs").expect("emacs preset must load");
-	let keymap = KeymapIndex::build_with_preset(&actions, Some(&preset), None);
+	let keymap = KeymapSnapshot::build_with_preset(&actions, Some(&preset), None);
 
 	let mut h = InputHandler::new();
 	h.set_mode(super::types::Mode::Insert);
@@ -131,10 +131,10 @@ fn insert_multikey_prefix_dispatches() {
 	// ctrl-s should complete the C-x C-s binding → command:write
 	let result = h.handle_key_with_registry(Key::ctrl('s'), &keymap, preset.behavior);
 	match result {
-		super::types::KeyResult::Invocation { ref inv } => {
+		super::types::KeyResult::Dispatch(super::types::KeyDispatch { ref invocation }) => {
 			assert!(
-				matches!(inv, xeno_registry::Invocation::Command(cmd) if cmd.name == "write"),
-				"expected command:write, got {inv:?}"
+				matches!(invocation, xeno_registry::Invocation::Command(cmd) if cmd.name == "write"),
+				"expected command:write, got {invocation:?}"
 			);
 		}
 		_ => panic!("expected Invocation after ctrl-x ctrl-s, got {result:?}"),
@@ -145,12 +145,12 @@ fn insert_multikey_prefix_dispatches() {
 
 #[test]
 fn insert_text_char_does_not_enter_pending() {
-	use xeno_registry::db::keymap_registry::KeymapIndex;
+	use xeno_registry::db::keymap_registry::KeymapSnapshot;
 	use xeno_registry::keymaps;
 
 	let actions = xeno_registry::db::ACTIONS.snapshot();
 	let preset = keymaps::preset("emacs").expect("emacs preset must load");
-	let keymap = KeymapIndex::build_with_preset(&actions, Some(&preset), None);
+	let keymap = KeymapSnapshot::build_with_preset(&actions, Some(&preset), None);
 
 	let mut h = InputHandler::new();
 	h.set_mode(super::types::Mode::Insert);

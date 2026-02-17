@@ -1,54 +1,8 @@
-use xeno_input::input::KeyResult;
 use xeno_primitives::Selection;
 
 use crate::Editor;
-use crate::types::Invocation;
-
-pub(crate) enum KeyInvocation {
-	Invocation(Invocation),
-	InvalidActionId(String),
-}
 
 impl Editor {
-	/// Converts keymap action/invocation results into canonical invocations.
-	pub(crate) fn key_invocation_from_result(&self, result: &KeyResult) -> Option<KeyInvocation> {
-		match result {
-			KeyResult::ActionById { id, count, extend, register } => {
-				if let Some(action) = xeno_registry::ACTIONS.get_by_id(*id) {
-					Some(KeyInvocation::Invocation(Invocation::Action {
-						name: action.name_str().to_string(),
-						count: *count,
-						extend: *extend,
-						register: *register,
-					}))
-				} else {
-					Some(KeyInvocation::InvalidActionId(id.to_string()))
-				}
-			}
-			KeyResult::ActionByIdWithChar {
-				id,
-				count,
-				extend,
-				register,
-				char_arg,
-			} => {
-				if let Some(action) = xeno_registry::ACTIONS.get_by_id(*id) {
-					Some(KeyInvocation::Invocation(Invocation::ActionWithChar {
-						name: action.name_str().to_string(),
-						count: *count,
-						extend: *extend,
-						register: *register,
-						char_arg: *char_arg,
-					}))
-				} else {
-					Some(KeyInvocation::InvalidActionId(id.to_string()))
-				}
-			}
-			KeyResult::Invocation { inv } => Some(KeyInvocation::Invocation(inv.clone())),
-			_ => None,
-		}
-	}
-
 	/// Updates LSP completion and signature help state after a key event.
 	#[cfg(feature = "lsp")]
 	pub(super) fn update_lsp_completion_state(

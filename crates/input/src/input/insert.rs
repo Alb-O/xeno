@@ -3,7 +3,7 @@
 use xeno_keymap_core::ToKeyMap;
 use xeno_primitives::key::{Key, KeyCode, Modifiers};
 use xeno_registry::actions::BindingMode;
-use xeno_registry::{KeymapIndex, LookupResult};
+use xeno_registry::{KeymapSnapshot, LookupOutcome};
 
 use super::InputHandler;
 use super::types::{KeyResult, Mode};
@@ -15,7 +15,7 @@ impl InputHandler {
 	/// immediately without keymap lookup. All other keys (Ctrl/Alt combos,
 	/// function keys, Backspace, Delete, Escape) enter the multi-key sequence
 	/// mechanism for Insert-mode bindings.
-	pub(crate) fn handle_insert_key(&mut self, key: Key, registry: &KeymapIndex) -> KeyResult {
+	pub(crate) fn handle_insert_key(&mut self, key: Key, registry: &KeymapSnapshot) -> KeyResult {
 		// Escape always exits to Normal.
 		if key.is_escape() {
 			self.mode = Mode::Normal;
@@ -53,11 +53,11 @@ impl InputHandler {
 		let result = registry.lookup(BindingMode::Insert, &self.key_sequence);
 
 		match result {
-			LookupResult::Match(entry) => self.consume_binding(entry),
-			LookupResult::Pending { .. } => KeyResult::Pending {
+			LookupOutcome::Match(entry) => self.consume_binding(entry),
+			LookupOutcome::Pending { .. } => KeyResult::Pending {
 				keys_so_far: self.key_sequence.len(),
 			},
-			LookupResult::None => {
+			LookupOutcome::None => {
 				// Unknown prefix — clear pending and consume (don't insert garbage).
 				self.key_sequence.clear();
 				KeyResult::Consumed

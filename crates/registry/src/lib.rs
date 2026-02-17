@@ -191,7 +191,7 @@ pub use db::index::{
 };
 #[cfg(feature = "keymap")]
 pub use db::keymap_registry::{
-	BindingEntry, BindingTarget, KeymapBuildProblem, KeymapIndex, KeymapProblemKind, KeymapRegistry, LookupResult, get_keymap_registry,
+	CompiledBinding, CompiledBindingTarget, KeymapBuildProblem, KeymapRegistry, KeymapSnapshot, KeymapSnapshotCache, LookupOutcome, get_keymap_snapshot,
 };
 #[cfg(feature = "minimal")]
 pub use db::{ACTIONS, COMMANDS, GUTTERS, HOOKS, LANGUAGES, LSP_SERVERS, MOTIONS, NOTIFICATIONS, OPTIONS, STATUSLINE_SEGMENTS, TEXT_OBJECTS, THEMES};

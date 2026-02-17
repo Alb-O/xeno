@@ -63,7 +63,7 @@ use parking_lot::Mutex;
 use xeno_language::LanguageLoader;
 use xeno_registry::actions::ActionEntry;
 use xeno_registry::core::index::Snapshot;
-use xeno_registry::db::keymap_registry::KeymapIndex;
+use xeno_registry::db::keymap_registry::KeymapSnapshot;
 use xeno_registry::hooks::{HookContext, WindowKind, emit as emit_hook, emit_sync_with as emit_hook_sync_with};
 use xeno_registry::options::OPTIONS;
 use xeno_registry::themes::THEMES;
@@ -141,7 +141,7 @@ pub(crate) struct EffectiveKeymapCache {
 	pub(crate) snap: Arc<Snapshot<ActionEntry, ActionId>>,
 	pub(crate) overrides_hash: u64,
 	pub(crate) preset_ptr: usize,
-	pub(crate) index: Arc<KeymapIndex>,
+	pub(crate) index: Arc<KeymapSnapshot>,
 }
 
 pub(crate) struct EditorState {
@@ -663,7 +663,7 @@ impl Editor {
 	}
 
 	/// Returns the effective keymap for the current actions snapshot, preset, and overrides.
-	pub fn effective_keymap(&self) -> Arc<KeymapIndex> {
+	pub fn effective_keymap(&self) -> Arc<KeymapSnapshot> {
 		let snap = xeno_registry::db::ACTIONS.snapshot();
 		let overrides_hash = hash_unresolved_keys(self.state.key_overrides.as_ref());
 		let preset_ptr = Arc::as_ptr(&self.state.keymap_preset) as usize;
@@ -679,7 +679,7 @@ impl Editor {
 			}
 		}
 
-		let index = Arc::new(KeymapIndex::build_with_preset(
+		let index = Arc::new(KeymapSnapshot::build_with_preset(
 			&snap,
 			Some(&self.state.keymap_preset),
 			self.state.key_overrides.as_ref(),

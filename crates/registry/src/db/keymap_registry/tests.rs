@@ -1,6 +1,13 @@
 use std::collections::HashMap;
 
+use xeno_keymap_core::parser::parse_seq;
+
 use super::*;
+use crate::actions::{ActionEntry, BindingMode};
+use crate::config::UnresolvedKeys;
+use crate::core::index::Snapshot;
+use crate::core::{ActionId, DenseId, RegistryEntry};
+use crate::invocation::Invocation;
 
 fn mode_name(mode: BindingMode) -> &'static str {
 	match mode {
@@ -31,10 +38,10 @@ fn sample_binding(actions: &Snapshot<ActionEntry, ActionId>) -> Option<(BindingM
 	None
 }
 
-fn lookup_action_id(index: &KeymapIndex, mode: BindingMode, key_seq: &str) -> ActionId {
+fn lookup_action_id(index: &KeymapSnapshot, mode: BindingMode, key_seq: &str) -> ActionId {
 	let keys = parse_seq(key_seq).expect("binding key sequence should parse");
 	match index.lookup(mode, &keys) {
-		LookupResult::Match(entry) => entry.action_id().expect("expected action binding"),
+		LookupOutcome::Match(entry) => entry.action_id().expect("expected action binding"),
 		_ => panic!("expected a complete keybinding match"),
 	}
 }
@@ -50,7 +57,7 @@ fn override_wins_over_base_binding() {
 	modes.insert(mode_name(mode).to_string(), mode_overrides);
 	let overrides = UnresolvedKeys { modes };
 
-	let index = KeymapIndex::build_with_overrides(&actions, Some(&overrides));
+	let index = KeymapSnapshot::build_with_overrides(&actions, Some(&overrides));
 	let resolved = lookup_action_id(&index, mode, &key_seq);
 	assert_eq!(resolved, target_id);
 }
@@ -66,7 +73,7 @@ fn invalid_override_action_keeps_base_binding() {
 	modes.insert(mode_name(mode).to_string(), mode_overrides);
 	let overrides = UnresolvedKeys { modes };
 
-	let index = KeymapIndex::build_with_overrides(&actions, Some(&overrides));
+	let index = KeymapSnapshot::build_with_overrides(&actions, Some(&overrides));
 	let resolved = lookup_action_id(&index, mode, &key_seq);
 	assert_eq!(resolved, base_id);
 }
@@ -86,13 +93,13 @@ fn invocation_override_in_trie() {
 	modes.insert(mode_name(mode).to_string(), mode_overrides);
 	let overrides = UnresolvedKeys { modes };
 
-	let index = KeymapIndex::build_with_overrides(&actions, Some(&overrides));
+	let index = KeymapSnapshot::build_with_overrides(&actions, Some(&overrides));
 	let keys = parse_seq(&key_seq).expect("key sequence should parse");
 	match index.lookup(mode, &keys) {
-		LookupResult::Match(entry) => {
+		LookupOutcome::Match(entry) => {
 			assert!(matches!(
-				&entry.target,
-				BindingTarget::Invocation {
+				entry.target(),
+				CompiledBindingTarget::Invocation {
 					inv: Invocation::Command(xeno_invocation::CommandInvocation {
 						name,
 						route: xeno_invocation::CommandRoute::Editor,
@@ -125,17 +132,17 @@ fn invocation_override_fresh_key() {
 	modes.insert("normal".to_string(), mode_overrides);
 	let overrides = UnresolvedKeys { modes };
 
-	let index = KeymapIndex::build_with_overrides(&actions, Some(&overrides));
+	let index = KeymapSnapshot::build_with_overrides(&actions, Some(&overrides));
 	let keys = parse_seq("ctrl-f12").expect("key sequence should parse");
 	match index.lookup(BindingMode::Normal, &keys) {
-		LookupResult::Match(entry) => {
+		LookupOutcome::Match(entry) => {
 			assert!(matches!(
-				&entry.target,
-				BindingTarget::Invocation {
+				entry.target(),
+				CompiledBindingTarget::Invocation {
 					inv: Invocation::Command(xeno_invocation::CommandInvocation { name, .. })
 				} if name == "write"
 			));
-			assert_eq!(&*entry.short_desc, "write");
+			assert_eq!(entry.short_desc(), "write");
 		}
 		_ => panic!("expected invocation match for fresh key"),
 	}
@@ -151,15 +158,15 @@ fn invocation_override_nu_target() {
 	modes.insert("normal".to_string(), mode_overrides);
 	let overrides = UnresolvedKeys { modes };
 
-	let index = KeymapIndex::build_with_overrides(&actions, Some(&overrides));
+	let index = KeymapSnapshot::build_with_overrides(&actions, Some(&overrides));
 	let keys = parse_seq("ctrl-f11").expect("key sequence should parse");
 	match index.lookup(BindingMode::Normal, &keys) {
-		LookupResult::Match(entry) => {
+		LookupOutcome::Match(entry) => {
 			assert!(matches!(
-				&entry.target,
-				BindingTarget::Invocation { inv: Invocation::Nu { name, args } } if name == "go" && args == &["fast".to_string()]
+				entry.target(),
+				CompiledBindingTarget::Invocation { inv: Invocation::Nu { name, args } } if name == "go" && args == &["fast".to_string()]
 			));
-			assert_eq!(&*entry.short_desc, "go");
+			assert_eq!(entry.short_desc(), "go");
 		}
 		_ => panic!("expected nu invocation match for fresh key"),
 	}
@@ -175,7 +182,7 @@ fn which_key_labels_invocation() {
 	modes.insert("normal".to_string(), normal);
 	let overrides = UnresolvedKeys { modes };
 
-	let index = KeymapIndex::build_with_overrides(&actions, Some(&overrides));
+	let index = KeymapSnapshot::build_with_overrides(&actions, Some(&overrides));
 	let g_key = parse_seq("g").expect("should parse");
 	let continuations = index.continuations_with_kind(BindingMode::Normal, &g_key);
 
@@ -184,10 +191,10 @@ fn which_key_labels_invocation() {
 		.find(|c| c.key.to_string() == "r")
 		.expect("should have 'r' continuation under 'g'");
 	let entry = r_cont.value.expect("leaf should have a binding entry");
-	assert_eq!(&*entry.short_desc, "reload_config");
+	assert_eq!(entry.short_desc(), "reload_config");
 	assert!(matches!(
-		&entry.target,
-		BindingTarget::Invocation {
+		entry.target(),
+		CompiledBindingTarget::Invocation {
 			inv: Invocation::Command(xeno_invocation::CommandInvocation {
 				route: xeno_invocation::CommandRoute::Editor,
 				..
@@ -209,7 +216,7 @@ fn invalid_override_produces_problem() {
 	modes.insert(mode_name(mode).to_string(), mode_overrides);
 	let overrides = UnresolvedKeys { modes };
 
-	let index = KeymapIndex::build_with_overrides(&actions, Some(&overrides));
+	let index = KeymapSnapshot::build_with_overrides(&actions, Some(&overrides));
 
 	// Base binding should remain for the bad action target
 	let resolved = lookup_action_id(&index, mode, &key_seq);
@@ -227,10 +234,10 @@ fn unbind_removes_base_binding() {
 	let (mode, key_seq, _base_id, _, _) = sample_binding(&actions).expect("registry should contain at least one binding");
 
 	// Verify binding exists in base
-	let base_index = KeymapIndex::build(&actions);
+	let base_index = KeymapSnapshot::build(&actions);
 	let keys = parse_seq(&key_seq).expect("key sequence should parse");
 	assert!(
-		matches!(base_index.lookup(mode, &keys), LookupResult::Match(_)),
+		matches!(base_index.lookup(mode, &keys), LookupOutcome::Match(_)),
 		"base binding should exist before unbind"
 	);
 
@@ -241,8 +248,8 @@ fn unbind_removes_base_binding() {
 	modes.insert(mode_name(mode).to_string(), mode_overrides);
 	let overrides = UnresolvedKeys { modes };
 
-	let index = KeymapIndex::build_with_overrides(&actions, Some(&overrides));
-	assert!(matches!(index.lookup(mode, &keys), LookupResult::None), "unbound key should produce no match");
+	let index = KeymapSnapshot::build_with_overrides(&actions, Some(&overrides));
+	assert!(matches!(index.lookup(mode, &keys), LookupOutcome::None), "unbound key should produce no match");
 }
 
 #[test]
@@ -262,19 +269,19 @@ fn preset_emacs_loads() {
 
 	// Build should succeed
 	let actions = crate::db::ACTIONS.snapshot();
-	let index = KeymapIndex::build_with_preset(&actions, Some(&preset), None);
+	let index = KeymapSnapshot::build_with_preset(&actions, Some(&preset), None);
 
 	// ctrl-x ctrl-s should resolve
 	let keys = parse_seq("ctrl-x ctrl-s").expect("ctrl-x ctrl-s should parse");
 	assert!(
-		matches!(index.lookup(BindingMode::Insert, &keys), LookupResult::Match(_)),
+		matches!(index.lookup(BindingMode::Insert, &keys), LookupOutcome::Match(_)),
 		"emacs C-x C-s should resolve to a binding"
 	);
 
 	// ctrl-x alone should be Pending
 	let prefix = parse_seq("ctrl-x").expect("ctrl-x should parse");
 	assert!(
-		matches!(index.lookup(BindingMode::Insert, &prefix), LookupResult::Pending { .. }),
+		matches!(index.lookup(BindingMode::Insert, &prefix), LookupOutcome::Pending { .. }),
 		"emacs ctrl-x should be Pending"
 	);
 }
