@@ -82,6 +82,10 @@ impl OverlayController for SearchOverlay {
 		"Search"
 	}
 
+	fn kind(&self) -> crate::overlay::OverlayControllerKind {
+		crate::overlay::OverlayControllerKind::Search
+	}
+
 	fn ui_spec(&self, _ctx: &dyn OverlayContext) -> OverlayUiSpec {
 		OverlayUiSpec {
 			title: Some(if self.reverse { "Search (reverse)".into() } else { "Search".into() }),

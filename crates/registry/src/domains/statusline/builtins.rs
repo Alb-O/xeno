@@ -22,12 +22,9 @@ segment_handler!(count, |ctx| {
 });
 
 segment_handler!(file, |ctx| {
-	let path = ctx.path.unwrap_or("[No Name]");
-	let file = xeno_file_display::FileItem::new(std::path::Path::new(path));
-	let presentation = xeno_file_display::present_file(file, xeno_file_display::FileDisplayContext::default());
 	let modified = if ctx.modified { " [+]" } else { "" };
 	Some(RenderedSegment {
-		text: format!(" {} {}{} ", presentation.icon(), path, modified),
+		text: format!(" {} {}{} ", ctx.file_icon, ctx.file_label, modified),
 		style: SegmentStyle::Normal,
 	})
 });

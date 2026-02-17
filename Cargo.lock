@@ -6291,7 +6291,6 @@ dependencies = [
  "strsim",
  "thiserror 2.0.18",
  "tracing",
- "xeno-file-display",
  "xeno-invocation",
  "xeno-invocation-spec",
  "xeno-keymap-core",

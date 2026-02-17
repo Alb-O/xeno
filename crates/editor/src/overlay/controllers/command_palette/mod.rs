@@ -1049,6 +1049,10 @@ impl OverlayController for CommandPaletteOverlay {
 		"CommandPalette"
 	}
 
+	fn kind(&self) -> crate::overlay::OverlayControllerKind {
+		crate::overlay::OverlayControllerKind::CommandPalette
+	}
+
 	fn ui_spec(&self, _ctx: &dyn OverlayContext) -> OverlayUiSpec {
 		OverlayUiSpec {
 			title: None,

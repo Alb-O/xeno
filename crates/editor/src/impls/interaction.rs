@@ -103,7 +103,7 @@ impl Editor {
 
 	pub fn interaction_refresh_file_picker(&mut self) {
 		let mut interaction = self.state.overlay_system.take_interaction();
-		interaction.refresh_if(self, "FilePicker");
+		interaction.refresh_if_kind(self, crate::overlay::OverlayControllerKind::FilePicker);
 		self.state.overlay_system.restore_interaction(interaction);
 	}
 

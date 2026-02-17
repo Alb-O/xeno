@@ -45,6 +45,10 @@ impl OverlayController for WorkspaceSearchOverlay {
 		"WorkspaceSearch"
 	}
 
+	fn kind(&self) -> crate::overlay::OverlayControllerKind {
+		crate::overlay::OverlayControllerKind::WorkspaceSearch
+	}
+
 	fn ui_spec(&self, _ctx: &dyn OverlayContext) -> OverlayUiSpec {
 		let mut buffer_options = std::collections::HashMap::new();
 		buffer_options.insert("cursorline".into(), OptionValue::Bool(false));

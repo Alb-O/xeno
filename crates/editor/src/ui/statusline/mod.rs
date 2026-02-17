@@ -80,6 +80,8 @@ fn overlay_label(editor: &Editor) -> Option<&'static str> {
 		crate::overlay::OverlayControllerKind::CommandPalette => "Cmd",
 		crate::overlay::OverlayControllerKind::Search => "Search",
 		crate::overlay::OverlayControllerKind::FilePicker => "FilePicker",
+		crate::overlay::OverlayControllerKind::Rename => "Rename",
+		crate::overlay::OverlayControllerKind::WorkspaceSearch => "Workspace",
 		crate::overlay::OverlayControllerKind::Other(other) => other,
 	})
 }
@@ -100,6 +102,9 @@ pub fn render_plan(editor: &Editor) -> Vec<StatuslineRenderSegment> {
 
 	let buffer = editor.buffer();
 	let path_str: Option<String> = buffer.path().as_ref().and_then(|p| p.to_str().map(ToOwned::to_owned));
+	let file_presentation = editor.buffer_presentation(editor.focused_view());
+	let file_icon = file_presentation.icon().to_string();
+	let file_label = file_presentation.label().to_string();
 	let file_type_str: Option<String> = buffer.file_type();
 	let modified = buffer.modified();
 	let readonly = buffer.is_readonly();
@@ -114,6 +119,8 @@ pub fn render_plan(editor: &Editor) -> Vec<StatuslineRenderSegment> {
 	let ctx = StatuslineContext {
 		mode_name,
 		path: path_str.as_deref(),
+		file_icon: file_icon.as_str(),
+		file_label: file_label.as_str(),
 		modified,
 		readonly,
 		line,

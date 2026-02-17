@@ -519,6 +519,10 @@ impl OverlayController for FilePickerOverlay {
 		"FilePicker"
 	}
 
+	fn kind(&self) -> crate::overlay::OverlayControllerKind {
+		crate::overlay::OverlayControllerKind::FilePicker
+	}
+
 	fn ui_spec(&self, _ctx: &dyn OverlayContext) -> OverlayUiSpec {
 		OverlayUiSpec {
 			title: Some("File Picker".into()),
