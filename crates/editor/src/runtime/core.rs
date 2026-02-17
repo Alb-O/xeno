@@ -3,10 +3,11 @@ use std::time::Duration;
 use xeno_primitives::{Key, Mode, MouseEvent};
 
 use crate::Editor;
+use crate::input::protocol::InputDispatchCmd;
 use crate::runtime::{DrainPolicy, DrainReport, ExternalEventKind, LoopDirectiveV2, RuntimeEventEnvelope, RuntimeEventSource, SubmitToken};
 
 #[derive(Debug, Clone, Copy)]
-pub struct LoopDirective {
+pub(crate) struct LoopDirective {
 	pub poll_timeout: Option<Duration>,
 	pub needs_redraw: bool,
 	pub cursor_style: CursorStyle,
@@ -39,22 +40,6 @@ pub enum RuntimeEvent {
 }
 
 impl Editor {
-	fn fallback_loop_directive(&self) -> LoopDirective {
-		let needs_redraw = self.frame().needs_redraw;
-		let poll_timeout = if matches!(self.mode(), Mode::Insert) || self.any_panel_open() || needs_redraw {
-			Some(Duration::from_millis(16))
-		} else {
-			Some(Duration::from_millis(50))
-		};
-
-		LoopDirective {
-			poll_timeout,
-			needs_redraw,
-			cursor_style: self.derive_cursor_style(),
-			should_quit: false,
-		}
-	}
-
 	fn to_v2_directive(&self, directive: LoopDirective, cause_seq: Option<u64>, drained_runtime_work: usize) -> LoopDirectiveV2 {
 		LoopDirectiveV2 {
 			poll_timeout: directive.poll_timeout,
@@ -67,36 +52,17 @@ impl Editor {
 		}
 	}
 
-	fn from_v2_directive(directive: LoopDirectiveV2) -> LoopDirective {
-		LoopDirective {
-			poll_timeout: directive.poll_timeout,
-			needs_redraw: directive.needs_redraw,
-			cursor_style: directive.cursor_style,
-			should_quit: directive.should_quit,
-		}
-	}
-
 	async fn apply_frontend_event_envelope(&mut self, envelope: RuntimeEventEnvelope) {
-		match envelope.event {
-			RuntimeEvent::Key(key) => {
-				let _ = self.handle_key(key).await;
-			}
-			RuntimeEvent::Mouse(mouse) => {
-				let _ = self.handle_mouse(mouse).await;
-			}
-			RuntimeEvent::Paste(content) => {
-				self.handle_paste(content);
-			}
-			RuntimeEvent::WindowResized { cols, rows } => {
-				self.handle_window_resize(cols, rows);
-			}
-			RuntimeEvent::FocusIn => {
-				self.handle_focus_in();
-			}
-			RuntimeEvent::FocusOut => {
-				self.handle_focus_out();
-			}
-		}
+		let cmd = match envelope.event {
+			RuntimeEvent::Key(key) => InputDispatchCmd::Key(key),
+			RuntimeEvent::Mouse(mouse) => InputDispatchCmd::Mouse(mouse),
+			RuntimeEvent::Paste(content) => InputDispatchCmd::Paste(content),
+			RuntimeEvent::WindowResized { cols, rows } => InputDispatchCmd::Resize { cols, rows },
+			RuntimeEvent::FocusIn => InputDispatchCmd::FocusIn,
+			RuntimeEvent::FocusOut => InputDispatchCmd::FocusOut,
+		};
+		let events = self.dispatch_input_cmd(cmd).await;
+		self.apply_input_dispatch_events(events).await;
 	}
 
 	fn apply_external_event(&mut self, kind: ExternalEventKind) {
@@ -200,25 +166,6 @@ impl Editor {
 	/// Drains queued runtime events and emits directives until policy limits are reached.
 	pub async fn drain_until_idle(&mut self, policy: DrainPolicy) -> DrainReport {
 		self.drain_until_idle_inner(policy, true).await
-	}
-
-	/// Runs one compatibility maintenance cycle.
-	pub async fn pump(&mut self) -> LoopDirective {
-		let report = self.drain_until_idle_inner(DrainPolicy::for_pump(), false).await;
-		report
-			.last_directive
-			.map(Self::from_v2_directive)
-			.unwrap_or_else(|| self.fallback_loop_directive())
-	}
-
-	/// Handle a single frontend event and then run compatibility maintenance.
-	pub async fn on_event(&mut self, ev: RuntimeEvent) -> LoopDirective {
-		let _ = self.submit_event(ev);
-		let report = self.drain_until_idle_inner(DrainPolicy::for_on_event(), false).await;
-		report
-			.last_directive
-			.map(Self::from_v2_directive)
-			.unwrap_or_else(|| self.fallback_loop_directive())
 	}
 
 	pub(crate) fn derive_cursor_style(&self) -> CursorStyle {

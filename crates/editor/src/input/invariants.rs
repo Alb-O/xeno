@@ -2,6 +2,7 @@ use xeno_primitives::{Key, KeyCode, Modifiers, MouseButton, MouseEvent};
 
 use crate::Editor;
 use crate::impls::FocusTarget;
+use crate::input::protocol::{InputDispatchCmd, InputDispatchEvt, InputLocalEffect};
 
 fn mouse_press(col: u16, row: u16) -> MouseEvent {
 	MouseEvent::Press {
@@ -30,6 +31,32 @@ fn first_separator_cell(editor: &Editor) -> (u16, u16) {
 	let separator_positions = editor.state.layout.separator_positions(&editor.base_window().layout, doc_area);
 	let (_, _, rect) = separator_positions.into_iter().next().expect("layout should expose at least one separator");
 	(rect.x, rect.y)
+}
+
+/// Must produce typed local-effect events for key command envelopes.
+///
+/// * Enforced in: `Editor::dispatch_input_cmd`
+/// * Failure symptom: runtime cannot route key commands through typed input protocol.
+#[tokio::test]
+async fn test_input_dispatch_cmd_key_produces_local_effect_event() {
+	let mut editor = Editor::new_scratch();
+	let events = editor.dispatch_input_cmd(InputDispatchCmd::Key(Key::char('x'))).await;
+	assert!(events.iter().any(|event| matches!(
+		event,
+		InputDispatchEvt::LocalEffectRequested(InputLocalEffect::DispatchKey(key)) if *key == Key::char('x')
+	)));
+	assert!(events.iter().any(|event| matches!(event, InputDispatchEvt::Consumed)));
+}
+
+/// Must let runtime apply deferred overlay commit through typed input events.
+///
+/// * Enforced in: `Editor::apply_input_dispatch_evt`
+/// * Failure symptom: deferred overlay commits emitted by input protocol are dropped.
+#[tokio::test]
+async fn test_input_overlay_commit_event_enqueues_runtime_work() {
+	let mut editor = Editor::new_scratch();
+	editor.apply_input_dispatch_evt(InputDispatchEvt::OverlayCommitDeferred).await;
+	assert!(editor.has_runtime_overlay_commit_work());
 }
 
 /// Must allow active overlay interaction to consume Enter and defer commit.

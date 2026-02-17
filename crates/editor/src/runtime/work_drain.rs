@@ -1,7 +1,8 @@
 //! Drain policy for deferred runtime work queued in runtime work queue.
 
 use crate::Editor;
-use crate::runtime::work_queue::{RuntimeWorkKind, WorkExecutionPolicy};
+use crate::impls::invocation::protocol::{InvocationCmd, InvocationEvt};
+use crate::runtime::work_queue::{RuntimeWorkKind, RuntimeWorkSource};
 use crate::types::{Invocation, InvocationStatus, PipelineDisposition, PipelineLogContext, classify_for_nu_pipeline, log_pipeline_non_ok};
 
 /// Progress metadata for runtime-work drain work.
@@ -29,34 +30,46 @@ impl Editor {
 			match item.kind {
 				RuntimeWorkKind::Invocation(queued) => {
 					report.drained_invocations += 1;
-					match queued.execution {
-						WorkExecutionPolicy::EnforcingNuPipeline => {
-							self.state.nu.inc_hook_depth();
-							let result = self.run_invocation(queued.invocation, queued.execution.invocation_policy()).await;
-							self.state.nu.dec_hook_depth();
+					let invocation = queued.invocation;
+					let source = queued.source;
+					let is_nu_pipeline = matches!(source, RuntimeWorkSource::NuHookDispatch | RuntimeWorkSource::NuScheduledMacro);
+					if is_nu_pipeline {
+						self.state.nu.inc_hook_depth();
+					}
 
-							if matches!(classify_for_nu_pipeline(&result), PipelineDisposition::ShouldQuit) {
-								report.should_quit = true;
-								break;
-							}
-							log_pipeline_non_ok(&result, PipelineLogContext::HookDrain);
+					let cmd = InvocationCmd::Run {
+						invocation: invocation.clone(),
+						policy: queued.execution.invocation_policy(),
+						source,
+						scope: item.scope,
+						seq: item.seq,
+					};
+					let InvocationEvt::Completed(result) = self.run_invocation_cmd(cmd).await;
+
+					if is_nu_pipeline {
+						self.state.nu.dec_hook_depth();
+					}
+
+					if is_nu_pipeline {
+						if matches!(classify_for_nu_pipeline(&result), PipelineDisposition::ShouldQuit) {
+							report.should_quit = true;
+							break;
 						}
-						WorkExecutionPolicy::LogOnlyCommandPath => {
-							let invocation = queued.invocation;
-							let result = self.run_invocation(invocation.clone(), queued.execution.invocation_policy()).await;
-							match result.status {
-								InvocationStatus::NotFound => {
-									if let Invocation::Command(command) = &invocation {
-										self.show_notification(xeno_registry::notifications::keys::unknown_command(&command.name));
-									}
-								}
-								InvocationStatus::Quit | InvocationStatus::ForceQuit => {
-									report.should_quit = true;
-									break;
-								}
-								_ => {}
+						log_pipeline_non_ok(&result, PipelineLogContext::HookDrain);
+						continue;
+					}
+
+					match result.status {
+						InvocationStatus::NotFound => {
+							if let Invocation::Command(command) = &invocation {
+								self.show_notification(xeno_registry::notifications::keys::unknown_command(&command.name));
 							}
 						}
+						InvocationStatus::Quit | InvocationStatus::ForceQuit => {
+							report.should_quit = true;
+							break;
+						}
+						_ => {}
 					}
 				}
 				RuntimeWorkKind::OverlayCommit => {

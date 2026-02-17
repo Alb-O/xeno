@@ -11,7 +11,7 @@ use iced::widget::{column, container, mouse_area, pin, row, rule, scrollable, se
 use iced::{Element, Event, Fill, Font, Pixels, Point, Size, Subscription, Task, event, keyboard, mouse, time, window};
 use xeno_editor::Editor;
 use xeno_editor::render_api::{CompletionRenderPlan, Rect as CoreRect};
-use xeno_editor::runtime::{CursorStyle, LoopDirective, RuntimeEvent};
+use xeno_editor::runtime::{CursorStyle, DrainPolicy, LoopDirectiveV2, RuntimeEvent};
 
 use self::inspector::render_inspector_rows;
 use self::render::{background_style, render_palette_completion_menu, render_render_lines, render_statusline};
@@ -35,7 +35,7 @@ pub(crate) enum Message {
 pub(crate) struct IcedEditorApp {
 	runtime: tokio::runtime::Runtime,
 	editor: Editor,
-	directive: LoopDirective,
+	directive: LoopDirectiveV2,
 	quit_hook_emitted: bool,
 	snapshot: Snapshot,
 	cell_metrics: super::CellMetrics,
@@ -162,7 +162,7 @@ impl IcedEditorApp {
 			layout: LayoutConfig::from_env(),
 		};
 
-		app.directive = app.runtime.block_on(app.editor.pump());
+		app.drive_runtime_idle();
 		app.rebuild_snapshot();
 
 		(app, Task::none())
@@ -171,12 +171,12 @@ impl IcedEditorApp {
 	pub(crate) fn update(&mut self, message: Message) -> Task<Message> {
 		match message {
 			Message::Tick(_now) => {
-				self.directive = self.runtime.block_on(self.editor.pump());
+				self.drive_runtime_idle();
 				self.rebuild_snapshot_if_needed();
 			}
 			Message::ClipboardRead(result) => {
 				if let Ok(content) = result {
-					self.directive = self.runtime.block_on(self.editor.on_event(RuntimeEvent::Paste(content.as_ref().clone())));
+					self.submit_runtime_event(RuntimeEvent::Paste(content.as_ref().clone()));
 					self.rebuild_snapshot_if_needed();
 				}
 			}
@@ -203,7 +203,7 @@ impl IcedEditorApp {
 				} else if let Some(task) = clipboard_paste_task(&event) {
 					return task;
 				} else if let Some(runtime_event) = map_event(event.clone(), self.cell_metrics, &mut self.event_state) {
-					self.directive = self.runtime.block_on(self.editor.on_event(runtime_event));
+					self.submit_runtime_event(runtime_event);
 					self.rebuild_snapshot_if_needed();
 				} else if matches!(event, Event::InputMethod(_)) {
 					self.directive.needs_redraw = true;
@@ -427,14 +427,29 @@ impl IcedEditorApp {
 		}
 
 		self.document_viewport_cells = Some((cols, rows));
-		self.directive = self.runtime.block_on(self.editor.on_event(RuntimeEvent::WindowResized { cols, rows }));
+		self.submit_runtime_event(RuntimeEvent::WindowResized { cols, rows });
 		self.rebuild_snapshot_if_needed();
 	}
 
 	fn forward_document_mouse_event(&mut self, mouse_event: mouse::Event) {
 		if let Some(runtime_event) = map_event(Event::Mouse(mouse_event), self.cell_metrics, &mut self.event_state) {
-			self.directive = self.runtime.block_on(self.editor.on_event(runtime_event));
+			self.submit_runtime_event(runtime_event);
 			self.rebuild_snapshot_if_needed();
+		}
+	}
+
+	fn submit_runtime_event(&mut self, event: RuntimeEvent) {
+		let _ = self.editor.submit_event(event);
+		let _ = self.runtime.block_on(self.editor.drain_until_idle(DrainPolicy::for_on_event()));
+		if let Some(directive) = self.editor.poll_directive() {
+			self.directive = directive;
+		}
+	}
+
+	fn drive_runtime_idle(&mut self) {
+		let _ = self.runtime.block_on(self.editor.drain_until_idle(DrainPolicy::for_pump()));
+		if let Some(directive) = self.editor.poll_directive() {
+			self.directive = directive;
 		}
 	}
 
@@ -526,12 +541,15 @@ fn viewport_rows_for_document_rows(editor: &Editor, document_rows: u16) -> u16 {
 	document_rows.saturating_add(editor.statusline_rows())
 }
 
-fn default_loop_directive() -> LoopDirective {
-	LoopDirective {
+fn default_loop_directive() -> LoopDirectiveV2 {
+	LoopDirectiveV2 {
 		poll_timeout: Some(DEFAULT_POLL_INTERVAL),
 		needs_redraw: true,
 		cursor_style: CursorStyle::Block,
 		should_quit: false,
+		cause_seq: None,
+		drained_runtime_work: 0,
+		pending_events: 0,
 	}
 }
 

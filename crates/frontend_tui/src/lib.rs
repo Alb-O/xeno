@@ -21,7 +21,7 @@ use std::time::{Duration, Instant};
 
 use termina::escape::csi::{Csi, Cursor};
 use termina::{PlatformTerminal, Terminal as _};
-use xeno_editor::runtime::{CursorStyle, RuntimeEvent};
+use xeno_editor::runtime::{CursorStyle, DrainPolicy, LoopDirectiveV2, RuntimeEvent};
 use xeno_editor::{Editor, TerminalConfig};
 use xeno_tui::Terminal;
 
@@ -45,7 +45,11 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 	let mut last_cursor_style: Option<Cursor> = None;
 	let mut notifications = crate::layers::notifications::FrontendNotifications::new();
 	let mut last_notification_tick = Instant::now();
-	let mut dir = editor.pump().await;
+	let mut dir = default_directive();
+	let _ = editor.drain_until_idle(DrainPolicy::for_pump()).await;
+	if let Some(next) = editor.poll_directive() {
+		dir = next;
+	}
 	dir.needs_redraw = true;
 
 	let result: io::Result<()> = async {
@@ -97,7 +101,10 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 			};
 
 			if !has_event {
-				dir = editor.pump().await;
+				let _ = editor.drain_until_idle(DrainPolicy::for_pump()).await;
+				if let Some(next) = editor.poll_directive() {
+					dir = next;
+				}
 				continue;
 			}
 
@@ -107,9 +114,16 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 			}
 
 			if let Some(event) = map_terminal_event(event) {
-				dir = editor.on_event(event).await;
+				let _ = editor.submit_event(event);
+				let _ = editor.drain_until_idle(DrainPolicy::for_on_event()).await;
+				if let Some(next) = editor.poll_directive() {
+					dir = next;
+				}
 			} else {
-				dir = editor.pump().await;
+				let _ = editor.drain_until_idle(DrainPolicy::for_pump()).await;
+				if let Some(next) = editor.poll_directive() {
+					dir = next;
+				}
 			}
 		}
 		Ok(())
@@ -130,6 +144,18 @@ fn to_termina_cursor_style(cs: CursorStyle) -> termina::style::CursorStyle {
 		CursorStyle::Beam => termina::style::CursorStyle::SteadyBar,
 		CursorStyle::Underline => termina::style::CursorStyle::SteadyUnderline,
 		CursorStyle::Hidden => termina::style::CursorStyle::Default,
+	}
+}
+
+fn default_directive() -> LoopDirectiveV2 {
+	LoopDirectiveV2 {
+		poll_timeout: Some(Duration::from_millis(50)),
+		needs_redraw: true,
+		cursor_style: CursorStyle::Block,
+		should_quit: false,
+		cause_seq: None,
+		drained_runtime_work: 0,
+		pending_events: 0,
 	}
 }
 

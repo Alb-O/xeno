@@ -3,6 +3,7 @@ use xeno_invocation::CommandRoute;
 use xeno_registry::actions::{DeferredInvocationKind, DeferredInvocationPolicy, DeferredInvocationRequest, DeferredInvocationScopeHint};
 
 use super::engine::InvocationEngine;
+use super::protocol::{InvocationCmd, InvocationEvt};
 use crate::impls::Editor;
 use crate::runtime::work_queue::{RuntimeWorkSource, WorkExecutionPolicy, WorkScope};
 use crate::types::{Invocation, InvocationOutcome, InvocationPolicy};
@@ -26,6 +27,22 @@ impl Editor {
 		trace!(policy = ?policy, "Running invocation");
 
 		InvocationEngine::new(self, policy).run(invocation).await
+	}
+
+	/// Executes one typed invocation protocol command and returns a typed event.
+	pub(crate) async fn run_invocation_cmd(&mut self, cmd: InvocationCmd) -> InvocationEvt {
+		match cmd {
+			InvocationCmd::Run {
+				invocation,
+				policy,
+				source,
+				scope,
+				seq,
+			} => {
+				trace!(?source, ?scope, seq, invocation = %invocation.describe(), "invocation.protocol.run");
+				InvocationEvt::Completed(self.run_invocation(invocation, policy).await)
+			}
+		}
 	}
 
 	/// Enqueues one runtime invocation item with explicit execution metadata.

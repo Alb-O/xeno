@@ -1,7 +1,8 @@
-//! Unified runtime work queue for deferred execution on the pump.
+//! Unified runtime work queue for deferred execution in runtime drain phases.
 //!
 //! This queue replaces split deferred mechanisms (overlay commit counters,
 //! workspace edit queues, and invocation mailboxes) with one FIFO queue.
+//! Invocation payloads are normalized into `InvocationCmd::Run` during drain.
 
 use std::collections::VecDeque;
 

@@ -18,7 +18,7 @@ pub(crate) fn editor_command_post_event(name: String, result: &InvocationOutcome
 }
 
 impl Editor {
-	/// Enqueues a Nu post-hook for deferred evaluation during pump().
+	/// Enqueues a Nu post-hook for deferred evaluation during runtime drain phases.
 	///
 	/// Coalesces consecutive identical hook types (keeps latest event) and
 	/// drops the oldest entry when the queue exceeds pipeline capacity.
@@ -64,7 +64,7 @@ impl Editor {
 	/// Legacy synchronous drain for tests that need immediate hook evaluation.
 	///
 	/// Evaluates hooks synchronously via the executor (blocks on each one).
-	/// Only used in tests; production code uses kick + poll via pump().
+	/// Only used in tests; production code uses kick + runtime drain phases.
 	#[cfg(test)]
 	pub(crate) async fn drain_nu_hook_queue(&mut self, max: usize) -> bool {
 		crate::nu::pipeline::drain_nu_hook_queue(self, max).await

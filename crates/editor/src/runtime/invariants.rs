@@ -14,6 +14,29 @@ use crate::runtime::work_queue::RuntimeWorkSource;
 use crate::scheduler::{WorkItem, WorkKind};
 use crate::types::Invocation;
 
+async fn drain_for_event(editor: &mut Editor, event: RuntimeEvent) -> crate::runtime::LoopDirectiveV2 {
+	let _ = editor.submit_event(event);
+	let _ = editor.drain_until_idle(DrainPolicy::for_on_event()).await;
+	editor.poll_directive().unwrap_or(placeholder_directive())
+}
+
+async fn drain_for_pump(editor: &mut Editor) -> crate::runtime::LoopDirectiveV2 {
+	let _ = editor.drain_until_idle(DrainPolicy::for_pump()).await;
+	editor.poll_directive().unwrap_or(placeholder_directive())
+}
+
+fn placeholder_directive() -> crate::runtime::LoopDirectiveV2 {
+	crate::runtime::LoopDirectiveV2 {
+		poll_timeout: Some(Duration::from_millis(50)),
+		needs_redraw: false,
+		cursor_style: CursorStyle::Block,
+		should_quit: false,
+		cause_seq: None,
+		drained_runtime_work: 0,
+		pending_events: 0,
+	}
+}
+
 fn runtime_invariant_test_quit_command<'a>(_ctx: &'a mut EditorCommandContext<'a>) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move { Ok(CommandOutcome::Quit) })
 }
@@ -78,25 +101,25 @@ async fn test_drain_until_idle_preserves_cause_sequence() {
 	assert_eq!(directive.pending_events, 0);
 }
 
-/// Must execute one maintenance `pump` after handling each runtime event.
+/// Must execute one maintenance cycle after one submitted event under on-event policy.
 ///
-/// * Enforced in: `Editor::on_event`
+/// * Enforced in: `Editor::submit_event`, `Editor::drain_until_idle`
 /// * Failure symptom: input handlers mutate state without advancing deferred work.
 #[tokio::test]
-async fn test_on_event_implies_single_pump_cycle() {
+async fn test_submit_event_on_event_policy_implies_single_maintenance_cycle() {
 	let mut editor = Editor::new_scratch();
-	let _ = editor.pump().await;
+	let _ = drain_for_pump(&mut editor).await;
 
-	let directive = editor.on_event(RuntimeEvent::Key(Key::char('i'))).await;
+	let directive = drain_for_event(&mut editor, RuntimeEvent::Key(Key::char('i'))).await;
 	assert_eq!(directive.poll_timeout, Some(Duration::from_millis(16)));
 }
 
-/// Must defer overlay commit execution to `pump` via deferred work queue.
+/// Must defer overlay commit execution to runtime drain phases via deferred work queue.
 ///
-/// * Enforced in: `Editor::handle_key_active`, `Editor::pump`
+/// * Enforced in: `Editor::handle_key_active`, `Editor::drain_until_idle`
 /// * Failure symptom: overlay commit runs re-entrantly inside key handling.
 #[tokio::test]
-async fn test_overlay_commit_deferred_until_pump() {
+async fn test_overlay_commit_deferred_until_runtime_drain() {
 	let mut editor = Editor::new_scratch();
 	editor.handle_window_resize(100, 40);
 	assert!(editor.open_command_palette());
@@ -105,7 +128,7 @@ async fn test_overlay_commit_deferred_until_pump() {
 	assert!(editor.has_runtime_overlay_commit_work());
 	assert!(editor.overlay_kind().is_some());
 
-	let _ = editor.pump().await;
+	let _ = drain_for_pump(&mut editor).await;
 	assert!(!editor.has_runtime_overlay_commit_work());
 	assert!(editor.overlay_kind().is_none());
 }
@@ -113,7 +136,7 @@ async fn test_overlay_commit_deferred_until_pump() {
 /// Must route deferred overlay commits and deferred invocations through the shared runtime work queue.
 ///
 /// * Enforced in: `Editor::handle_key_active`, `Editor::enqueue_runtime_invocation`, `runtime::pump::phases`
-/// * Failure symptom: deferred work fragments across multiple queues and pump convergence skips work.
+/// * Failure symptom: deferred work fragments across multiple queues and runtime convergence skips work.
 #[tokio::test]
 async fn test_runtime_work_queue_state_converges_overlay_and_invocations() {
 	RUNTIME_INVARIANT_RECORDS.with(|records| records.borrow_mut().clear());
@@ -132,7 +155,7 @@ async fn test_runtime_work_queue_state_converges_overlay_and_invocations() {
 	assert!(editor.has_runtime_overlay_commit_work());
 	assert_eq!(editor.runtime_work_len(), 2);
 
-	let _ = editor.pump().await;
+	let _ = drain_for_pump(&mut editor).await;
 	assert!(editor.overlay_kind().is_none());
 	assert_eq!(RUNTIME_INVARIANT_RECORDS.with(|records| records.borrow().clone()), vec!["merged".to_string()]);
 }
@@ -140,9 +163,9 @@ async fn test_runtime_work_queue_state_converges_overlay_and_invocations() {
 /// Must drain queued overlay commit items through the runtime work phase.
 ///
 /// * Enforced in: `runtime::work_drain::Editor::drain_runtime_work_report`
-/// * Failure symptom: queued commits remain stuck in queue after pump cycles.
+/// * Failure symptom: queued commits remain stuck in queue after runtime drain cycles.
 #[tokio::test]
-async fn test_pump_drains_overlay_commit_work_items() {
+async fn test_runtime_drain_drains_overlay_commit_work_items() {
 	let mut editor = Editor::new_scratch();
 	editor.handle_window_resize(100, 40);
 	assert!(editor.open_command_palette());
@@ -150,7 +173,7 @@ async fn test_pump_drains_overlay_commit_work_items() {
 	editor.enqueue_runtime_overlay_commit_work();
 	editor.enqueue_runtime_overlay_commit_work();
 
-	let _ = editor.pump().await;
+	let _ = drain_for_pump(&mut editor).await;
 
 	assert!(editor.overlay_kind().is_none());
 	assert!(!editor.has_runtime_overlay_commit_work());
@@ -177,7 +200,7 @@ async fn test_cursor_style_defaults_follow_mode() {
 async fn test_pump_round_phase_order_is_stable() {
 	let mut editor = Editor::new_scratch();
 	let (_directive, report) = editor.pump_with_report().await;
-	assert!(!report.rounds.is_empty(), "pump should execute at least one round");
+	assert!(!report.rounds.is_empty(), "runtime cycle should execute at least one round");
 
 	let expected = vec![
 		PumpPhase::UiTickAndTick,
@@ -191,10 +214,10 @@ async fn test_pump_round_phase_order_is_stable() {
 	assert_eq!(report.rounds[0].phases, expected);
 }
 
-/// Must cap pump maintenance rounds to avoid unbounded single-cycle stall.
+/// Must cap runtime maintenance rounds to avoid unbounded single-cycle stall.
 ///
 /// * Enforced in: `runtime::pump::run_pump_cycle_with_report`
-/// * Failure symptom: one pump call monopolizes the editor thread under backlog.
+/// * Failure symptom: one runtime drain call monopolizes the editor thread under backlog.
 #[tokio::test]
 async fn test_pump_rounds_are_bounded_by_cap() {
 	let mut editor = Editor::new_scratch();
@@ -225,7 +248,7 @@ async fn test_pump_quit_requests_return_immediate_quit_directive() {
 	let mut editor = Editor::new_scratch();
 	editor.enqueue_runtime_command_invocation("runtime_invariant_test_quit_command".to_string(), Vec::new(), RuntimeWorkSource::CommandOps);
 
-	let directive = editor.pump().await;
+	let directive = drain_for_pump(&mut editor).await;
 	assert!(directive.should_quit);
 	assert_eq!(directive.poll_timeout, None);
 
@@ -235,7 +258,7 @@ async fn test_pump_quit_requests_return_immediate_quit_directive() {
 		RuntimeWorkSource::NuHookDispatch,
 	);
 
-	let directive = via_hook.pump().await;
+	let directive = drain_for_pump(&mut via_hook).await;
 	assert!(directive.should_quit);
 	assert_eq!(directive.poll_timeout, None);
 }
@@ -264,7 +287,7 @@ async fn test_runtime_work_queue_preserves_fifo_across_sources() {
 		RuntimeWorkSource::NuScheduledMacro,
 	);
 
-	let _ = editor.pump().await;
+	let _ = drain_for_pump(&mut editor).await;
 	let recorded = RUNTIME_INVARIANT_RECORDS.with(|records| records.borrow().clone());
 	assert_eq!(recorded, vec!["one".to_string(), "two".to_string(), "three".to_string()]);
 }
@@ -321,7 +344,7 @@ async fn test_nu_stop_scope_clear_is_generation_local() {
 		RuntimeWorkSource::NuHookDispatch,
 	);
 
-	let _ = editor.pump().await;
+	let _ = drain_for_pump(&mut editor).await;
 	let recorded = RUNTIME_INVARIANT_RECORDS.with(|records| records.borrow().clone());
 	assert_eq!(recorded, vec!["global".to_string(), "nu-new".to_string()]);
 }

@@ -6,6 +6,7 @@
 //! * Interprets registry action outcomes (`ActionResult`/`ActionEffects`) into editor mutations through capability traits.
 //! * Keeps registry semantics engine-agnostic by operating only on [`EditorContext`], not concrete `Editor`.
 //! * Acts as the policy bridge between effect-oriented actions and editor effect sink/layer notifications.
+//! * Exposes typed effects protocol envelopes (`EffectsCmd`/`EffectsEvt`) for invocation/runtime boundaries.
 //!
 //! # Mental model
 //!
@@ -20,6 +21,8 @@
 //! | [`xeno_registry::actions::ActionEffects`] | Ordered effect list from action handlers | Must be applied in-order by interpreter | action handlers, `apply_effects` |
 //! | [`xeno_registry::actions::editor_ctx::EditorContext`] | Capability façade for editor access | Must remain engine-agnostic and downcast-free | command/action execution paths |
 //! | [`xeno_registry::actions::Effect`] | Effect variant union | Must map to specific apply path (`View`/`Edit`/`Ui`/`App`) | `apply_effects` |
+//! | [`EffectsCmd`] | Typed effects command envelope | Runtime/invocation boundaries must apply effects through this command protocol | invocation action execution paths |
+//! | [`EffectsEvt`] | Typed effects event envelope | Must report whether effect application requested quit | `execute_effects_cmd` |
 //! | [`crate::effects::sink::EffectSink`] | Deferred side-effect queue | Must be the single downstream sink for visual/UI consequences | editor lifecycle flush paths |
 //! | [`crate::capabilities::EditorCaps`] | Editor capability provider | Must be sole trait implementation boundary for registry capabilities | `Editor::caps` |
 //!
@@ -28,13 +31,14 @@
 //! * Must not use RTTI or engine-specific downcasting to reach concrete editor internals.
 //! * Must route all side effects through capability providers and effect sink flush paths.
 //! * Must preserve effect ordering from `ActionEffects`.
+//! * Must apply action effects through `EffectsCmd::Apply` at invocation/runtime boundaries.
 //! * Must handle unknown effect variants as debug assertions plus safe no-op traces.
 //!
 //! # Data flow
 //!
 //! 1. Invocation/command path resolves an action result.
-//! 2. `dispatch_result` enters this interpreter with `EditorContext`.
-//! 3. `apply_effects` iterates ordered effects and delegates to variant handlers.
+//! 2. Invocation emits `EffectsCmd::Apply` and enters this interpreter with `EditorContext`.
+//! 3. `execute_effects_cmd` calls `apply_effects`, iterates ordered effects, and delegates to variant handlers.
 //! 4. Capability methods enqueue downstream UI/layer/overlay side effects.
 //! 5. Editor lifecycle later drains the effect sink via `flush_effects`.
 //!
@@ -69,10 +73,12 @@
 //!
 
 mod core;
+mod protocol;
 
-pub use core::apply_effects;
 pub(crate) use core::register_result_handlers;
+pub use core::{apply_effects, execute_effects_cmd};
 
+pub use protocol::{ActionEffectsEnvelope, EffectsCmd, EffectsEvt};
 pub use xeno_registry::actions::editor_ctx::*;
 
 #[cfg(test)]

@@ -308,8 +308,8 @@ fn capability_enforcement_logs_in_log_only_mode() {
 	assert!(logged.get());
 }
 
-#[test]
-fn action_hooks_fire_once() {
+#[tokio::test]
+async fn action_hooks_fire_once() {
 	// Test defs registered via inventory::submit!(BuiltinsReg) at DB init time.
 	ACTION_PRE_COUNT.with(|count| count.set(0));
 	ACTION_POST_COUNT.with(|count| count.set(0));
@@ -325,8 +325,8 @@ fn action_hooks_fire_once() {
 	assert_eq!(post_count, 1);
 }
 
-#[test]
-fn readonly_enforcement_blocks_edit_actions() {
+#[tokio::test]
+async fn readonly_enforcement_blocks_edit_actions() {
 	// Test defs registered via inventory::submit!(BuiltinsReg) at DB init time.
 	let mut editor = Editor::new_scratch();
 	editor.buffer_mut().set_readonly(true);
@@ -336,8 +336,8 @@ fn readonly_enforcement_blocks_edit_actions() {
 	assert!(matches!(result.status, InvocationStatus::ReadonlyDenied));
 }
 
-#[test]
-fn readonly_disabled_allows_edit_actions() {
+#[tokio::test]
+async fn readonly_disabled_allows_edit_actions() {
 	// Test defs registered via inventory::submit!(BuiltinsReg) at DB init time.
 	let mut editor = Editor::new_scratch();
 	editor.buffer_mut().set_readonly(true);
@@ -347,17 +347,18 @@ fn readonly_disabled_allows_edit_actions() {
 	assert!(matches!(result.status, InvocationStatus::Ok));
 }
 
-#[test]
-fn command_error_propagates() {
+#[tokio::test]
+async fn command_error_propagates() {
 	// Test defs registered via inventory::submit!(BuiltinsReg) at DB init time.
 	let mut editor = Editor::new_scratch();
-	let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
-	let result = rt.block_on(editor.run_command_invocation(
-		"invocation_test_command_fail",
-		&[],
-		xeno_invocation::CommandRoute::Auto,
-		InvocationPolicy::enforcing(),
-	));
+	let result = editor
+		.run_command_invocation(
+			"invocation_test_command_fail",
+			&[],
+			xeno_invocation::CommandRoute::Auto,
+			InvocationPolicy::enforcing(),
+		)
+		.await;
 
 	assert!(matches!(result.status, InvocationStatus::CommandError));
 	assert!(

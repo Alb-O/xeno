@@ -1,25 +1,22 @@
-//! Frontend-agnostic runtime event loop and bounded-convergence pump pipeline.
+//! Frontend-agnostic runtime event loop and bounded-convergence maintenance pipeline.
 //! Anchor ID: XENO_ANCHOR_RUNTIME_LOOP
 //!
 //! # Purpose
 //!
 //! * Defines the frontend/runtime event boundary (`RuntimeEvent`).
 //! * Owns event-driven runtime coordination via `Editor::{submit_event,submit_external_event,drain_until_idle,poll_directive}`.
-//! * Keeps compatibility wrappers `Editor::{on_event,pump}` that drain through the same coordinator.
-//! * Produces `LoopDirectiveV2` (causal metadata) and compatibility `LoopDirective`.
+//! * Produces `LoopDirectiveV2` directives for frontend scheduling and render cadence.
 //!
 //! # Mental model
 //!
 //! * Frontends enqueue events/signals; `drain_until_idle` processes queued work under explicit `DrainPolicy` budgets.
-//! * Each drained directive still runs ordered maintenance phases via bounded pump rounds (`MAX_PUMP_ROUNDS`).
-//! * Compatibility `on_event` and `pump` call into the same coordinator with single-directive policies.
+//! * Each drained directive still runs ordered maintenance phases via bounded rounds (`MAX_PUMP_ROUNDS`).
 //!
 //! # Key types
 //!
 //! | Type | Meaning | Constraints | Constructed / mutated in |
 //! |---|---|---|---|
-//! | [`RuntimeEvent`] | Frontend event payload | Must be translated into editor handlers before `pump` | frontend adapters |
-//! | [`LoopDirective`] | Frontend control output | Must reflect redraw/quit after full cycle | `Editor::pump` |
+//! | [`RuntimeEvent`] | Frontend event payload | Must map to runtime-owned input command envelopes | frontend adapters |
 //! | [`LoopDirectiveV2`] | Event-driven directive with causal metadata | Must preserve cause sequence and pending depth snapshots | `Editor::drain_until_idle` |
 //! | [`DrainPolicy`] | Event-driven drain budget policy | Must bound frontend/external work and directive emission | runtime coordinator APIs |
 //! | [`CursorStyle`] | Editor cursor intent | Must remain mode-consistent unless UI explicitly overrides | `Editor::derive_cursor_style` |
@@ -30,12 +27,13 @@
 //! # Invariants
 //!
 //! * `submit_event` sequence IDs must remain monotonic for queued envelopes.
-//! * `on_event` compatibility path must execute exactly one maintenance directive after one queued event.
-//! * Each pump cycle must execute no more than `pump::MAX_PUMP_ROUNDS` rounds.
+//! * `submit_event` followed by `drain_until_idle(DrainPolicy::for_on_event())` must emit exactly one maintenance directive.
+//! * Frontend runtime events must be translated to `InputDispatchCmd` and consumed via `InputDispatchEvt` in-order.
+//! * Each maintenance cycle must execute no more than `pump::MAX_PUMP_ROUNDS` rounds.
 //! * Each round must preserve phase ordering: tick -> filesystem -> messages -> Nu kick -> scheduler -> runtime work.
-//! * Pump must kick queued Nu hook eval before scheduler drain in each round.
+//! * Maintenance cycle must kick queued Nu hook eval before scheduler drain in each round.
 //! * Deferred runtime work producers must queue through `work_queue::RuntimeWorkQueue`.
-//! * Deferred overlay commit work must be applied during `pump`, not during key handling.
+//! * Deferred overlay commit work must be applied during `drain_until_idle`, not during key handling.
 //! * Deferred invocation/runtime work drain must preserve global FIFO order across work kinds.
 //! * Runtime work drain must remain bounded by `phases::MAX_RUNTIME_WORK_ITEMS_PER_ROUND`.
 //! * Runtime must return immediate quit directive when runtime work drain requests quit.
@@ -47,35 +45,35 @@
 //! 2. Runtime kernel assigns monotonic sequence IDs and queues envelopes.
 //! 3. `drain_until_idle` pops queued envelopes under `DrainPolicy`.
 //! 4. For each drained envelope, runtime routes input/external effects, then executes one bounded maintenance cycle.
-//! 5. Runtime emits `LoopDirectiveV2` (or compatibility `LoopDirective`) for frontend scheduling/rendering.
+//! 5. Runtime emits `LoopDirectiveV2` for frontend scheduling/rendering.
 //!
 //! # Lifecycle
 //!
-//! * Startup: frontends create editor and begin submit/drain/poll loop (or compatibility on_event/pump loop).
+//! * Startup: frontends create editor and begin submit/drain/poll loop.
 //! * Running: repeated drain calls progress deferred state under explicit budgets.
-//! * Shutdown: `LoopDirective::should_quit` terminates frontend loop.
+//! * Shutdown: `LoopDirectiveV2::should_quit` terminates frontend loop.
 //!
 //! # Concurrency & ordering
 //!
-//! * Event handling and pump rounds run on the editor thread.
+//! * Event handling and maintenance rounds run on the editor thread.
 //! * Scheduler completions are drained under per-round budgets to bound latency.
 //! * Nu hook eval scheduling is ordered before scheduler drain to permit same-cycle convergence.
-//! * Overlay commit remains serialized through runtime work queue and executes only in pump.
+//! * Overlay commit remains serialized through runtime work queue and executes only during runtime drain phases.
 //! * Runtime work is drained in FIFO order from a single queue.
 //!
 //! # Failure modes & recovery
 //!
-//! * Filesystem worker lag: bounded filesystem pump budget; redraw requested when new data arrives.
+//! * Filesystem worker lag: bounded filesystem phase budget; redraw requested when new data arrives.
 //! * Nu hook failures: handled in invocation/nu pipeline; runtime stays live.
 //! * Workspace edit apply failures: surfaced as notifications; cycle continues.
-//! * Scheduler backlog: bounded per-round drain plus round cap prevents unbounded pump stalls.
+//! * Scheduler backlog: bounded per-round drain plus round cap prevents unbounded runtime stalls.
 //!
 //! # Recipes
 //!
 //! * Add new runtime event:
 //!   1. Add variant to [`RuntimeEvent`].
-//!   2. Route in `Editor::on_event`.
-//!   3. Extend runtime invariants/tests for one-event-one-pump behavior.
+//!   2. Route in `Editor::apply_frontend_event_envelope`.
+//!   3. Extend runtime invariants/tests for one-event-one-maintenance-cycle behavior.
 //! * Add new runtime work kind:
 //!   1. Extend [`work_queue::RuntimeWorkKind`].
 //!   2. Handle it in `Editor::drain_runtime_work_report`.
@@ -88,7 +86,7 @@ pub(crate) mod pump;
 mod work_drain;
 pub(crate) mod work_queue;
 
-pub use core::{CursorStyle, LoopDirective, RuntimeEvent};
+pub use core::{CursorStyle, RuntimeEvent};
 
 pub use protocol::{
 	DrainPolicy, DrainReport, ExternalEventEnvelope, ExternalEventKind, LoopDirectiveV2, RuntimeEventEnvelope, RuntimeEventSource, SubmitToken,

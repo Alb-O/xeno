@@ -193,7 +193,7 @@ fn apply_hook_effect_batch(editor: &mut Editor, batch: crate::nu::NuEffectBatch)
 /// Legacy synchronous drain for tests that need immediate hook evaluation.
 ///
 /// Evaluates hooks synchronously via the executor (blocks on each one). Only
-/// used in tests; production code uses kick + poll via pump().
+/// used in tests; production code uses kick + runtime drain phases.
 #[cfg(test)]
 pub(crate) async fn drain_nu_hook_queue(editor: &mut Editor, max: usize) -> bool {
 	if !editor.state.nu.has_queued_hooks() {

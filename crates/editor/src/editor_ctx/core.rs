@@ -8,6 +8,17 @@ use xeno_registry::hooks::{HookContext, emit_sync as emit_hook_sync};
 use xeno_registry::notifications::keys;
 use xeno_registry::{HookEventData, result_handler};
 
+use super::{EffectsCmd, EffectsEvt};
+
+/// Executes one typed effects protocol command against an editor context.
+pub fn execute_effects_cmd(cmd: EffectsCmd, ctx: &mut xeno_registry::actions::editor_ctx::EditorContext) -> EffectsEvt {
+	match cmd {
+		EffectsCmd::Apply(envelope) => EffectsEvt::Applied {
+			should_quit: matches!(apply_effects(&envelope.effects, ctx, envelope.extend), HandleOutcome::Quit),
+		},
+	}
+}
+
 /// Applies a set of effects to the editor context.
 ///
 /// Effects are applied in order. Hook emissions are centralized here,

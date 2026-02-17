@@ -44,7 +44,7 @@ async fn pump_drains_deferred_workspace_edits_queue() {
 	editor.enqueue_runtime_workspace_edit_work(empty_edit());
 	assert_eq!(editor.pending_runtime_workspace_edit_work(), 1);
 
-	let _ = editor.pump().await;
+	let _ = editor.drain_until_idle(crate::runtime::DrainPolicy::for_pump()).await;
 
 	assert_eq!(editor.pending_runtime_workspace_edit_work(), 0);
 }

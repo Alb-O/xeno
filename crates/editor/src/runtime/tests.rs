@@ -6,23 +6,52 @@ use xeno_registry::hooks::HookPriority;
 use super::*;
 use crate::scheduler::{WorkItem, WorkKind};
 
+async fn drain_for_event(editor: &mut Editor, event: RuntimeEvent) -> LoopDirectiveV2 {
+	let _ = editor.submit_event(event);
+	let _ = editor.drain_until_idle(DrainPolicy::for_on_event()).await;
+	editor.poll_directive().unwrap_or_default_runtime_directive()
+}
+
+async fn drain_for_pump(editor: &mut Editor) -> LoopDirectiveV2 {
+	let _ = editor.drain_until_idle(DrainPolicy::for_pump()).await;
+	editor.poll_directive().unwrap_or_default_runtime_directive()
+}
+
+trait RuntimeDirectiveFallback {
+	fn unwrap_or_default_runtime_directive(self) -> LoopDirectiveV2;
+}
+
+impl RuntimeDirectiveFallback for Option<LoopDirectiveV2> {
+	fn unwrap_or_default_runtime_directive(self) -> LoopDirectiveV2 {
+		self.unwrap_or(LoopDirectiveV2 {
+			poll_timeout: Some(Duration::from_millis(50)),
+			needs_redraw: false,
+			cursor_style: CursorStyle::Block,
+			should_quit: false,
+			cause_seq: None,
+			drained_runtime_work: 0,
+			pending_events: 0,
+		})
+	}
+}
+
 async fn run_script(editor: &mut Editor, events: impl IntoIterator<Item = RuntimeEvent>) {
 	for event in events {
-		let _ = editor.on_event(event).await;
+		let _ = drain_for_event(editor, event).await;
 	}
 }
 
 #[tokio::test]
-async fn test_on_event_implies_pump() {
+async fn test_submit_drain_implies_single_maintenance_cycle() {
 	let mut editor = Editor::new_scratch();
 
-	// Initial pump to clear startup state
-	let _ = editor.pump().await;
+	// Initial idle drain to clear startup state
+	let _ = drain_for_pump(&mut editor).await;
 
 	// Any event should trigger maintenance
 	let ev = RuntimeEvent::Key(Key::char('i'));
 
-	let dir = editor.on_event(ev).await;
+	let dir = drain_for_event(&mut editor, ev).await;
 
 	// Insert mode should set fast timeout
 	assert_eq!(dir.poll_timeout, Some(Duration::from_millis(16)));
@@ -32,11 +61,11 @@ async fn test_on_event_implies_pump() {
 #[tokio::test]
 async fn test_readonly_paste_requests_redraw() {
 	let mut editor = Editor::new_scratch();
-	let _ = editor.pump().await;
+	let _ = drain_for_pump(&mut editor).await;
 	editor.mark_frame_drawn();
 	editor.buffer_mut().set_readonly(true);
 
-	let dir = editor.on_event(RuntimeEvent::Paste(String::from("x"))).await;
+	let dir = drain_for_event(&mut editor, RuntimeEvent::Paste(String::from("x"))).await;
 
 	assert!(dir.needs_redraw);
 	assert!(!editor.take_notification_render_items().is_empty());
@@ -63,11 +92,11 @@ async fn test_runtime_event_scripts_converge_for_inserted_text() {
 	];
 
 	let mut via_paste = Editor::new_scratch();
-	let _ = via_paste.pump().await;
+	let _ = drain_for_pump(&mut via_paste).await;
 	run_script(&mut via_paste, script_with_paste).await;
 
 	let mut via_keys = Editor::new_scratch();
-	let _ = via_keys.pump().await;
+	let _ = drain_for_pump(&mut via_keys).await;
 	run_script(&mut via_keys, script_with_typed_keys).await;
 
 	let text_via_paste = via_paste.buffer().with_doc(|doc| doc.content().to_string());
@@ -101,11 +130,11 @@ async fn test_runtime_event_scripts_converge_for_multiline_input() {
 	];
 
 	let mut via_paste = Editor::new_scratch();
-	let _ = via_paste.pump().await;
+	let _ = drain_for_pump(&mut via_paste).await;
 	run_script(&mut via_paste, script_with_paste).await;
 
 	let mut via_keys = Editor::new_scratch();
-	let _ = via_keys.pump().await;
+	let _ = drain_for_pump(&mut via_keys).await;
 	run_script(&mut via_keys, script_with_typed_keys).await;
 
 	let text_via_paste = via_paste.buffer().with_doc(|doc| doc.content().to_string());
@@ -122,13 +151,13 @@ async fn test_runtime_event_scripts_converge_for_command_palette_completion() {
 	let mut via_paste = Editor::new_scratch();
 	via_paste.handle_window_resize(120, 30);
 	assert!(via_paste.open_command_palette());
-	let _ = via_paste.pump().await;
+	let _ = drain_for_pump(&mut via_paste).await;
 	run_script(&mut via_paste, vec![RuntimeEvent::Paste(String::from("set"))]).await;
 
 	let mut via_keys = Editor::new_scratch();
 	via_keys.handle_window_resize(120, 30);
 	assert!(via_keys.open_command_palette());
-	let _ = via_keys.pump().await;
+	let _ = drain_for_pump(&mut via_keys).await;
 	run_script(
 		&mut via_keys,
 		vec![
@@ -161,13 +190,13 @@ async fn test_runtime_event_scripts_converge_for_search_overlay_input() {
 	let mut via_paste = Editor::new_scratch();
 	via_paste.handle_window_resize(120, 30);
 	assert!(via_paste.open_search(false));
-	let _ = via_paste.pump().await;
+	let _ = drain_for_pump(&mut via_paste).await;
 	run_script(&mut via_paste, vec![RuntimeEvent::Paste(String::from("needle"))]).await;
 
 	let mut via_keys = Editor::new_scratch();
 	via_keys.handle_window_resize(120, 30);
 	assert!(via_keys.open_search(false));
-	let _ = via_keys.pump().await;
+	let _ = drain_for_pump(&mut via_keys).await;
 	run_script(
 		&mut via_keys,
 		vec![

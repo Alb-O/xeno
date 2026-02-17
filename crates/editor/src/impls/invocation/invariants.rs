@@ -3,10 +3,12 @@ use std::cell::Cell;
 use xeno_registry::{Capability, CommandError};
 
 use super::policy_gate::{GateFailure, GateResult, InvocationGateInput, InvocationKind, RequiredCaps};
+use super::protocol::{InvocationCmd, InvocationEvt};
 use super::{action_post_event, command_post_event, handle_capability_violation};
 use crate::commands::{CommandError as EditorCommandError, CommandOutcome};
 use crate::impls::Editor;
 use crate::nu::ctx::NuCtxEvent;
+use crate::runtime::work_queue::{RuntimeWorkSource, WorkScope};
 use crate::types::{
 	Invocation, InvocationOutcome, InvocationPolicy, InvocationStatus, InvocationTarget, PipelineDisposition, classify_for_nu_pipeline,
 	to_command_outcome_for_nu_run,
@@ -89,8 +91,8 @@ pub(crate) fn test_capability_violation_log_only_continues() {
 ///
 /// * Enforced in: `Editor::gate_invocation`
 /// * Failure symptom: command/action handlers mutate readonly buffers.
-#[cfg_attr(test, test)]
-pub(crate) fn test_preflight_denies_readonly_mutating_subject() {
+#[tokio::test]
+pub(crate) async fn test_preflight_denies_readonly_mutating_subject() {
 	let mut editor = Editor::new_scratch();
 	editor.buffer_mut().set_readonly(true);
 
@@ -109,8 +111,8 @@ pub(crate) fn test_preflight_denies_readonly_mutating_subject() {
 ///
 /// * Enforced in: `Editor::gate_invocation`
 /// * Failure symptom: readonly mode blocks harmless non-edit commands.
-#[cfg_attr(test, test)]
-pub(crate) fn test_preflight_allows_non_mutating_subject_on_readonly_buffer() {
+#[tokio::test]
+pub(crate) async fn test_preflight_allows_non_mutating_subject_on_readonly_buffer() {
 	let mut editor = Editor::new_scratch();
 	editor.buffer_mut().set_readonly(true);
 
@@ -157,6 +159,31 @@ async fn test_auto_route_not_found_reports_canonical_detail() {
 		Some("command:definitely_missing_command"),
 		"not-found detail should remain canonical"
 	);
+}
+
+/// Must execute invocation command envelopes through the canonical invocation engine.
+///
+/// * Enforced in: `Editor::run_invocation_cmd`
+/// * Failure symptom: runtime work drain bypasses invocation policy/queue semantics.
+#[tokio::test]
+async fn test_invocation_cmd_run_returns_completed_event() {
+	let mut editor = Editor::new_scratch();
+	let evt = editor
+		.run_invocation_cmd(InvocationCmd::Run {
+			invocation: Invocation::command("stats", Vec::<String>::new()),
+			policy: InvocationPolicy::enforcing(),
+			source: RuntimeWorkSource::CommandOps,
+			scope: WorkScope::Global,
+			seq: 7,
+		})
+		.await;
+	assert!(matches!(
+		evt,
+		InvocationEvt::Completed(InvocationOutcome {
+			status: InvocationStatus::Ok,
+			..
+		})
+	));
 }
 
 /// Must map Nu invocation outcomes into stable `nu-run` command results.

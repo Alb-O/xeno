@@ -6,6 +6,7 @@ use xeno_input::input::KeyResult;
 use xeno_primitives::{Key, KeyCode, Mode};
 
 use crate::Editor;
+use crate::input::protocol::InputDispatchEvt;
 
 impl Editor {
 	/// Processes a key event, routing to UI or input state machine.
@@ -96,8 +97,14 @@ impl Editor {
 
 		match result {
 			KeyResult::Dispatch(dispatch) => {
-				let inv_result = self.run_invocation(dispatch.invocation, crate::types::InvocationPolicy::enforcing()).await;
-				quit = inv_result.is_quit();
+				let evt = InputDispatchEvt::InvocationRequested {
+					invocation: dispatch.invocation,
+					policy: crate::types::InvocationPolicy::enforcing(),
+				};
+				let InputDispatchEvt::InvocationRequested { invocation, policy } = evt else {
+					unreachable!("dispatch branch must build InvocationRequested")
+				};
+				quit = self.apply_input_invocation_request(invocation, policy).await;
 			}
 			KeyResult::Pending { .. } => {
 				self.state.frame.needs_redraw = true;

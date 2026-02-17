@@ -61,12 +61,12 @@ async fn enter_queues_deferred_commit_and_pump_consumes() {
 	let _ = editor.handle_key(key_enter()).await;
 	assert!(editor.has_runtime_overlay_commit_work());
 
-	let _ = editor.pump().await;
+	let _ = editor.drain_until_idle(crate::runtime::DrainPolicy::for_pump()).await;
 	assert!(!editor.state.overlay_system.interaction().is_open());
 }
 
-#[test]
-fn effective_keymap_applies_overrides_and_invalidates_cache() {
+#[tokio::test]
+async fn effective_keymap_applies_overrides_and_invalidates_cache() {
 	let mut editor = Editor::new_scratch();
 	let actions = xeno_registry::db::ACTIONS.snapshot();
 	let (mode, key_seq, base_id, target_id, target_id_str) = sample_binding(&actions).expect("registry should contain at least one binding");
@@ -85,8 +85,8 @@ fn effective_keymap_applies_overrides_and_invalidates_cache() {
 	assert_eq!(lookup_action_id(&keymap_after, mode, &key_seq), target_id);
 }
 
-#[test]
-fn effective_keymap_continuations_include_override() {
+#[tokio::test]
+async fn effective_keymap_continuations_include_override() {
 	let mut editor = Editor::new_scratch();
 	let actions = xeno_registry::db::ACTIONS.snapshot();
 	let (_mode, _key_seq, _base_id, _target_id, target_id_str) = sample_binding(&actions).expect("registry should contain at least one binding");
@@ -141,8 +141,8 @@ fn effective_keymap_continuations_include_override() {
 	assert!(continuations.contains(&candidate));
 }
 
-#[test]
-fn invalid_override_keeps_base_binding() {
+#[tokio::test]
+async fn invalid_override_keeps_base_binding() {
 	let mut editor = Editor::new_scratch();
 	let actions = xeno_registry::db::ACTIONS.snapshot();
 	let (mode, key_seq, base_id, _target_id, _target_id_str) = sample_binding(&actions).expect("registry should contain at least one binding");
@@ -171,8 +171,8 @@ fn dispatch_key_result_contains_invocation() {
 	));
 }
 
-#[test]
-fn custom_preset_path_loads_and_sets_insert() {
+#[tokio::test]
+async fn custom_preset_path_loads_and_sets_insert() {
 	let dir = tempfile::tempdir().unwrap();
 	let preset_path = dir.path().join("test_custom.nuon");
 	std::fs::write(
@@ -242,8 +242,8 @@ async fn custom_preset_ctrl_x_prefix_dispatches() {
 	);
 }
 
-#[test]
-fn emacs_preset_starts_in_insert() {
+#[tokio::test]
+async fn emacs_preset_starts_in_insert() {
 	let mut editor = Editor::new_scratch();
 	editor.set_keymap_preset("emacs".to_string());
 	assert!(

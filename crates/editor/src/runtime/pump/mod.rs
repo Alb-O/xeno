@@ -6,7 +6,7 @@ use std::time::Duration;
 pub(crate) use report::{MAX_PUMP_ROUNDS, PumpCycleReport, PumpPhase, RoundReport, RoundWorkFlags};
 use xeno_primitives::Mode;
 
-use super::LoopDirective;
+use super::core::LoopDirective;
 use crate::Editor;
 
 /// Runs one bounded-convergence maintenance cycle with a detailed report.

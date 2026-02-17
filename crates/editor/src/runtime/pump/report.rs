@@ -1,4 +1,4 @@
-/// Maximum maintenance rounds executed by a single `pump()` call.
+/// Maximum maintenance rounds executed by a single runtime maintenance cycle.
 pub(crate) const MAX_PUMP_ROUNDS: usize = 3;
 
 /// Ordered runtime maintenance phases executed inside each pump round.
@@ -34,7 +34,7 @@ pub(crate) struct RoundReport {
 	pub(crate) work: RoundWorkFlags,
 }
 
-/// Aggregate report for one pump cycle.
+/// Aggregate report for one runtime maintenance cycle.
 #[derive(Debug, Clone, Default)]
 pub(crate) struct PumpCycleReport {
 	pub(crate) rounds_executed: usize,
