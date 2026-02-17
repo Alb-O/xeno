@@ -30,9 +30,9 @@ pub(crate) async fn run_pump_cycle_with_report(editor: &mut Editor) -> (LoopDire
 		round.phases.push(PumpPhase::UiTickAndTick);
 		phases::phase_ui_tick_and_editor_tick(editor);
 
-		round.phases.push(PumpPhase::FilesystemPump);
-		let fs_outcome = phases::phase_filesystem_pump(editor);
-		round.work.filesystem_changed = fs_outcome.changed;
+		round.phases.push(PumpPhase::FilesystemEvents);
+		let fs_outcome = phases::phase_filesystem_events(editor);
+		round.work.filesystem_events = fs_outcome.drained_events;
 
 		round.phases.push(PumpPhase::DrainMessages);
 		let msg_outcome = phases::phase_drain_messages(editor);

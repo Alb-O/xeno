@@ -3,6 +3,7 @@
 //! [`LspSyncManager`] is a non-blocking command handle over a supervised
 //! `lsp.sync` actor. Actor state is authoritative; the handle exposes
 //! eventually-consistent counters and tick deltas for editor telemetry.
+//! Use [`LspSyncManager::shutdown`] for explicit bounded teardown.
 
 mod sync_state;
 use std::collections::{HashMap, HashSet};
@@ -89,6 +90,8 @@ enum LspSyncCmd {
 		done_tx: Option<oneshot::Sender<()>>,
 	},
 	SendComplete(FlushComplete),
+	#[cfg(test)]
+	CrashForTest,
 }
 
 #[allow(dead_code)]
@@ -98,6 +101,11 @@ pub enum LspSyncEvent {
 	RetryScheduled { doc_id: DocumentId },
 	EscalatedFull { doc_id: DocumentId },
 	WriteTimeout { doc_id: DocumentId },
+}
+
+#[derive(Debug, Clone)]
+pub struct LspSyncShutdownReport {
+	pub actor: xeno_worker::ShutdownReport,
 }
 
 #[derive(Clone, Default)]
@@ -582,6 +590,8 @@ impl xeno_worker::WorkerActor for LspSyncActor {
 					}
 				}
 			}
+			#[cfg(test)]
+			LspSyncCmd::CrashForTest => return Err("lsp.sync crash test hook".to_string()),
 		}
 
 		self.sync_shared_counts(snapshot_now);
@@ -593,8 +603,8 @@ impl xeno_worker::WorkerActor for LspSyncActor {
 pub struct LspSyncManager {
 	command_tx: mpsc::UnboundedSender<LspSyncCmd>,
 	shared: Arc<RwLock<LspSyncShared>>,
-	_actor: Arc<xeno_worker::ActorHandle<LspSyncCmd, LspSyncEvent>>,
-	_dispatch_task: tokio::task::JoinHandle<()>,
+	actor: Arc<xeno_worker::ActorHandle<LspSyncCmd, LspSyncEvent>>,
+	dispatch_task: tokio::task::JoinHandle<()>,
 }
 
 impl Default for LspSyncManager {
@@ -650,8 +660,8 @@ impl LspSyncManager {
 		Self {
 			command_tx,
 			shared,
-			_actor: actor,
-			_dispatch_task: dispatch_task,
+			actor,
+			dispatch_task,
 		}
 	}
 
@@ -763,6 +773,22 @@ impl LspSyncManager {
 	#[cfg(test)]
 	fn doc_count(&self) -> usize {
 		self.shared.read().tracked_docs.len()
+	}
+
+	pub async fn shutdown(&self, mode: xeno_worker::ShutdownMode) -> LspSyncShutdownReport {
+		self.dispatch_task.abort();
+		let actor = self.actor.shutdown(mode).await;
+		LspSyncShutdownReport { actor }
+	}
+
+	#[cfg(test)]
+	fn restart_count(&self) -> usize {
+		self.actor.restart_count()
+	}
+
+	#[cfg(test)]
+	fn crash_for_test(&self) {
+		let _ = self.command_tx.send(LspSyncCmd::CrashForTest);
 	}
 }
 

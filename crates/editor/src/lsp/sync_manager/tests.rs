@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use tokio::time::{sleep, timeout};
 use xeno_lsp::Error as LspError;
+use xeno_worker::ShutdownMode;
 
 use super::*;
 
@@ -66,6 +67,31 @@ async fn test_record_changes() {
 	wait_until("pending count", || mgr.pending_count() == 1).await;
 
 	assert_eq!(mgr.pending_count(), 1);
+}
+
+#[tokio::test]
+async fn test_actor_restarts_after_failure_and_recovers() {
+	let mut mgr = LspSyncManager::new(xeno_worker::WorkerRuntime::new());
+	let before = mgr.restart_count();
+	mgr.crash_for_test();
+	wait_until("lsp.sync restart", || mgr.restart_count() > before).await;
+
+	let doc_id = DocumentId(42);
+	mgr.reset_tracked(doc_id, test_config(), 1);
+	wait_until("tracked after restart", || mgr.is_tracked(&doc_id)).await;
+	assert!(mgr.is_tracked(&doc_id));
+}
+
+#[tokio::test]
+async fn test_shutdown_returns_completed_report() {
+	let mgr = LspSyncManager::new(xeno_worker::WorkerRuntime::new());
+	let report = mgr
+		.shutdown(ShutdownMode::Graceful {
+			timeout: Duration::from_millis(200),
+		})
+		.await;
+	assert!(report.actor.completed);
+	assert!(!report.actor.timed_out);
 }
 
 #[test]

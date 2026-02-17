@@ -67,7 +67,7 @@
 //! * Configuration: editor registers [`crate::registry::LanguageServerConfig`] via [`crate::session::manager::LspSession::configure_server`].
 //! * Startup: first open/change acquires or starts the server in [`crate::registry::Registry`].
 //! * Running: didOpen/didChange/didSave/didClose flow through [`crate::sync::DocumentSync`] (`ensure_open_text`, `send_change`, save/close helpers).
-//! * Shutdown: editor first stops runtime, then stops all servers via [`crate::session::manager::LspSession::shutdown_all`].
+//! * Shutdown: editor first stops editor-side sync actors, then stops runtime, then stops all servers via [`crate::session::manager::LspSession::shutdown_all`].
 //!
 //! # Concurrency & ordering
 //!
@@ -102,7 +102,7 @@
 //!
 //! * Construct `(session, runtime)` with `LspSession::new(transport, worker_runtime)`.
 //! * Call `runtime.start()` from Tokio runtime context.
-//! * During shutdown call `runtime.shutdown().await` then `session.shutdown_all().await`.
+//! * During shutdown call editor sync-manager shutdown, then `runtime.shutdown().await`, then `session.shutdown_all().await`.
 
 use crate::client::transport::{LspTransport, TransportEvent};
 use crate::{DiagnosticsEvent, DiagnosticsEventReceiver, DocumentStateManager, DocumentSync, LanguageServerConfig, Registry};

@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering as AtomicOrdering};
+use std::sync::atomic::{AtomicU64, Ordering as AtomicOrdering};
 use std::time::Duration;
 
 use parking_lot::RwLock;
-use tokio::sync::mpsc;
+use tokio::sync::{broadcast, mpsc};
 
 use crate::filesystem::types::{IndexDelta, IndexMsg, ProgressSnapshot, SearchData, SearchMsg, SearchRow};
 use crate::filesystem::{FilesystemOptions, apply_search_delta, run_filesystem_index, run_search_query};
@@ -45,16 +45,31 @@ impl Default for FsSharedState {
 /// Command protocol for the filesystem service actor.
 #[derive(Debug)]
 pub(crate) enum FsServiceCmd {
-	EnsureIndex { root: PathBuf, options: FilesystemOptions },
-	Query { query: String, limit: usize },
+	EnsureIndex {
+		root: PathBuf,
+		options: FilesystemOptions,
+	},
+	Query {
+		query: String,
+		limit: usize,
+	},
 	Indexer(FsIndexerEvt),
 	Search(FsSearchEvt),
+	#[cfg(test)]
+	CrashForTest,
 }
 
 /// Event protocol emitted by the filesystem service actor.
 #[derive(Debug, Clone)]
 pub(crate) enum FsServiceEvt {
 	SnapshotChanged,
+}
+
+#[derive(Debug, Clone)]
+pub struct FsServiceShutdownReport {
+	pub service: xeno_worker::ShutdownReport,
+	pub indexer: xeno_worker::ShutdownReport,
+	pub search: xeno_worker::ShutdownReport,
 }
 
 /// Command protocol for the indexer worker actor.
@@ -200,7 +215,6 @@ struct FsServiceActor {
 	indexer: Arc<xeno_worker::ActorHandle<FsIndexerCmd, ()>>,
 	search: Arc<xeno_worker::ActorHandle<FsSearchCmd, ()>>,
 	shared: Arc<RwLock<FsSharedState>>,
-	changed: Arc<AtomicBool>,
 }
 
 impl FsServiceActor {
@@ -417,11 +431,12 @@ impl xeno_worker::WorkerActor for FsServiceActor {
 			FsServiceCmd::Search(FsSearchEvt::Message(msg)) => {
 				changed = self.apply_search_msg(msg);
 			}
+			#[cfg(test)]
+			FsServiceCmd::CrashForTest => return Err("fs.service crash test hook".to_string()),
 		}
 
 		if changed {
 			self.sync_shared();
-			self.changed.store(true, AtomicOrdering::Release);
 			ctx.emit(FsServiceEvt::SnapshotChanged);
 		}
 
@@ -432,10 +447,12 @@ impl xeno_worker::WorkerActor for FsServiceActor {
 pub struct FsService {
 	state: Arc<RwLock<FsSharedState>>,
 	query_state: Arc<RwLock<(u64, u64)>>,
-	changed: Arc<AtomicBool>,
 	command_tx: mpsc::UnboundedSender<FsServiceCmd>,
-	_service_actor: Arc<xeno_worker::ActorHandle<FsServiceCmd, FsServiceEvt>>,
-	_dispatch_task: tokio::task::JoinHandle<()>,
+	service_actor: Arc<xeno_worker::ActorHandle<FsServiceCmd, FsServiceEvt>>,
+	indexer_actor: Arc<xeno_worker::ActorHandle<FsIndexerCmd, ()>>,
+	search_actor: Arc<xeno_worker::ActorHandle<FsSearchCmd, ()>>,
+	event_rx: broadcast::Receiver<FsServiceEvt>,
+	dispatch_task: tokio::task::JoinHandle<()>,
 }
 
 impl FsService {
@@ -447,7 +464,6 @@ impl FsService {
 	pub fn new_with_runtime(worker_runtime: xeno_worker::WorkerRuntime) -> Self {
 		let state = Arc::new(RwLock::new(FsSharedState::default()));
 		let query_state = Arc::new(RwLock::new((0, 0)));
-		let changed = Arc::new(AtomicBool::new(false));
 		let (command_tx, mut command_rx) = mpsc::unbounded_channel::<FsServiceCmd>();
 		let (event_tx, mut event_rx) = mpsc::unbounded_channel::<FsServiceCmd>();
 
@@ -500,7 +516,6 @@ impl FsService {
 		let service_actor = Arc::new(
 			worker_runtime.actor(xeno_worker::ActorSpec::new("fs.service", xeno_worker::TaskClass::Interactive, {
 				let state = Arc::clone(&state);
-				let changed = Arc::clone(&changed);
 				let indexer = Arc::clone(&indexer);
 				let search = Arc::clone(&search);
 				move || FsServiceActor {
@@ -516,10 +531,10 @@ impl FsService {
 					indexer: Arc::clone(&indexer),
 					search: Arc::clone(&search),
 					shared: Arc::clone(&state),
-					changed: Arc::clone(&changed),
 				}
 			})),
 		);
+		let service_event_rx = service_actor.subscribe();
 
 		let service_actor_for_dispatch = Arc::clone(&service_actor);
 		let dispatch_task = worker_runtime.spawn(xeno_worker::TaskClass::Interactive, async move {
@@ -555,10 +570,12 @@ impl FsService {
 		Self {
 			state,
 			query_state,
-			changed,
 			command_tx,
-			_service_actor: service_actor,
-			_dispatch_task: dispatch_task,
+			service_actor,
+			indexer_actor: indexer,
+			search_actor: search,
+			event_rx: service_event_rx,
+			dispatch_task,
 		}
 	}
 }
@@ -592,6 +609,11 @@ impl FsService {
 	}
 
 	#[cfg(test)]
+	pub fn service_restart_count(&self) -> usize {
+		self.service_actor.restart_count()
+	}
+
+	#[cfg(test)]
 	pub fn inject_index_msg(&self, msg: IndexMsg) {
 		let _ = self.command_tx.send(FsServiceCmd::Indexer(FsIndexerEvt::Message(msg)));
 	}
@@ -599,6 +621,11 @@ impl FsService {
 	#[cfg(test)]
 	pub fn inject_search_msg(&self, msg: SearchMsg) {
 		let _ = self.command_tx.send(FsServiceCmd::Search(FsSearchEvt::Message(msg)));
+	}
+
+	#[cfg(test)]
+	pub fn crash_for_test(&self) {
+		let _ = self.command_tx.send(FsServiceCmd::CrashForTest);
 	}
 
 	pub fn progress(&self) -> ProgressSnapshot {
@@ -640,8 +667,26 @@ impl FsService {
 		Some(id)
 	}
 
-	/// Compatibility shim for runtime pump: state is now pushed by actors.
-	pub fn pump(&mut self) -> bool {
-		self.changed.swap(false, AtomicOrdering::AcqRel)
+	/// Drains pushed snapshot-change events and returns the number consumed.
+	pub fn drain_events(&mut self) -> usize {
+		let mut drained = 0usize;
+		loop {
+			match self.event_rx.try_recv() {
+				Ok(FsServiceEvt::SnapshotChanged) => drained = drained.saturating_add(1),
+				Err(broadcast::error::TryRecvError::Lagged(_)) => drained = drained.saturating_add(1),
+				Err(broadcast::error::TryRecvError::Empty) | Err(broadcast::error::TryRecvError::Closed) => break,
+			}
+		}
+		drained
+	}
+
+	pub async fn shutdown(&self, mode: xeno_worker::ShutdownMode) -> FsServiceShutdownReport {
+		self.dispatch_task.abort();
+
+		let service = self.service_actor.shutdown(mode).await;
+		let indexer = self.indexer_actor.shutdown(mode).await;
+		let search = self.search_actor.shutdown(mode).await;
+
+		FsServiceShutdownReport { service, indexer, search }
 	}
 }

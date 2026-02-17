@@ -17,7 +17,7 @@
 //!   * `fs.indexer` executes indexing workflow and emits typed updates.
 //!   * `fs.search` owns corpus updates and query execution directly.
 //! * Worker outputs are pushed into `fs.service` as typed events.
-//! * `pump()` is now a compatibility shim that consumes a pushed "changed" flag.
+//! * Consumers drain pushed snapshot events from `FsService` and refresh UI from snapshots.
 //!
 //! # Key types
 //!
@@ -31,7 +31,8 @@
 //! | `IndexSpec` | Active index configuration identity | Must restart workers when root/options change | `ensure_index` |
 //! | [`super::types::IndexMsg`] | Index worker output | Must be generation-filtered | `apply_index_msg` |
 //! | [`super::types::SearchMsg`] | Search worker output | Must be generation-filtered | `apply_search_msg` |
-//! | `changed` flag | Pump compatibility signal | Must be set on actor-published snapshot updates | `pump` |
+//! | `FsServiceEvt::SnapshotChanged` | Snapshot push event stream | Must emit when observable snapshots change | `handle` |
+//! | `core::FsServiceShutdownReport` | Coordinated actor shutdown status | Must report service/index/search stop outcomes | `shutdown` |
 //!
 //! # Invariants
 //!
@@ -39,6 +40,7 @@
 //! * Must reset query/result/progress state when beginning a new generation.
 //! * Must publish query IDs monotonically per generation.
 //! * Must forward index deltas to search actor when search actor is active.
+//! * Must emit `SnapshotChanged` when shared snapshots mutate.
 //!
 //! # Data flow
 //!
@@ -54,7 +56,8 @@
 //! * Create with `FsService::new`.
 //! * Call `ensure_index` to initialize worker generation.
 //! * Call `query` as user input changes.
-//! * Optionally call `pump` for compatibility redraw checks.
+//! * Call `drain_events` to consume push notifications and refresh UI from snapshots.
+//! * Call `shutdown` with explicit mode for bounded teardown.
 //!
 //! # Concurrency & ordering
 //!
@@ -75,7 +78,7 @@
 //! * Restart index with new root/options:
 //!   1. Call `ensure_index`.
 //!   2. Observe generation bump and cleared result/progress state.
-//!   3. Continue reading snapshots (`pump` only for changed-flag compatibility).
+//!   3. Continue reading snapshots and draining push events via `drain_events`.
 //! * Add new worker message type:
 //!   1. Extend `IndexMsg` or `SearchMsg`.
 //!   2. Handle in `apply_index_msg`/`apply_search_msg` with generation checks.

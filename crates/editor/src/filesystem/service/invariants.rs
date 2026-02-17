@@ -122,3 +122,17 @@ pub(crate) async fn test_stale_search_generation_ignored() {
 	sleep(Duration::from_millis(25)).await;
 	assert!(service.results().is_empty());
 }
+
+/// Must emit pushed snapshot events whenever observable state changes.
+///
+/// * Enforced in: `FsServiceActor::handle` change gate + `ctx.emit(FsServiceEvt::SnapshotChanged)`
+/// * Failure symptom: UI does not refresh after indexing/query snapshot updates until unrelated runtime work occurs.
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_snapshot_changes_emit_events() {
+	let mut service = FsService::new();
+	assert_eq!(service.drain_events(), 0);
+
+	let root = tempfile::tempdir().expect("must create tempdir");
+	service.ensure_index(root.path().to_path_buf(), crate::filesystem::FilesystemOptions::default());
+	wait_until("snapshot event", || service.drain_events() > 0).await;
+}

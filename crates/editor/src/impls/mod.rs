@@ -520,6 +520,25 @@ impl Editor {
 		self.state.lsp.shutdown_all().await;
 	}
 
+	/// Shuts down filesystem indexing/search actors with a bounded graceful timeout.
+	pub async fn shutdown_filesystem(&self) {
+		let report = self
+			.state
+			.filesystem
+			.shutdown(xeno_worker::ShutdownMode::Graceful {
+				timeout: std::time::Duration::from_millis(250),
+			})
+			.await;
+		if report.service.timed_out || report.indexer.timed_out || report.search.timed_out {
+			tracing::warn!(
+				service_timed_out = report.service.timed_out,
+				indexer_timed_out = report.indexer.timed_out,
+				search_timed_out = report.search.timed_out,
+				"filesystem shutdown timed out"
+			);
+		}
+	}
+
 	/// Returns the base window.
 	pub fn base_window(&self) -> &BaseWindow {
 		self.state.windows.base_window()

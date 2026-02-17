@@ -4,10 +4,10 @@ use xeno_primitives::Mode;
 
 use crate::Editor;
 
-/// Outcome for filesystem service pump phase.
+/// Outcome for filesystem service event-drain phase.
 #[derive(Debug, Clone, Copy, Default)]
 pub(crate) struct FilesystemPhaseOutcome {
-	pub(crate) changed: bool,
+	pub(crate) drained_events: usize,
 }
 
 /// Outcome for message-drain phase.
@@ -47,14 +47,14 @@ pub(crate) fn phase_ui_tick_and_editor_tick(editor: &mut Editor) {
 	editor.tick();
 }
 
-pub(crate) fn phase_filesystem_pump(editor: &mut Editor) -> FilesystemPhaseOutcome {
-	let changed = editor.state.filesystem.pump();
-	if changed {
+pub(crate) fn phase_filesystem_events(editor: &mut Editor) -> FilesystemPhaseOutcome {
+	let drained_events = editor.state.filesystem.drain_events();
+	if drained_events > 0 {
 		editor.interaction_refresh_file_picker();
 		editor.frame_mut().needs_redraw = true;
 	}
 
-	FilesystemPhaseOutcome { changed }
+	FilesystemPhaseOutcome { drained_events }
 }
 
 pub(crate) fn phase_drain_messages(editor: &mut Editor) -> MessageDrainPhaseOutcome {

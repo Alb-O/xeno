@@ -150,7 +150,7 @@ async fn test_pump_round_phase_order_is_stable() {
 
 	let expected = vec![
 		PumpPhase::UiTickAndTick,
-		PumpPhase::FilesystemPump,
+		PumpPhase::FilesystemEvents,
 		PumpPhase::DrainMessages,
 		PumpPhase::KickNuHookEval,
 		PumpPhase::DrainScheduler,

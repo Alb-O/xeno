@@ -5,7 +5,7 @@ pub(crate) const MAX_PUMP_ROUNDS: usize = 3;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum PumpPhase {
 	UiTickAndTick,
-	FilesystemPump,
+	FilesystemEvents,
 	DrainMessages,
 	KickNuHookEval,
 	DrainScheduler,
@@ -15,7 +15,7 @@ pub(crate) enum PumpPhase {
 /// Per-round progress flags used by bounded-convergence control flow.
 #[derive(Debug, Clone, Copy, Default)]
 pub(crate) struct RoundWorkFlags {
-	pub(crate) filesystem_changed: bool,
+	pub(crate) filesystem_events: usize,
 	pub(crate) drained_messages: usize,
 	pub(crate) scheduler_completions: usize,
 	pub(crate) drained_runtime_work: usize,
@@ -23,7 +23,7 @@ pub(crate) struct RoundWorkFlags {
 
 impl RoundWorkFlags {
 	pub(crate) fn made_progress(self) -> bool {
-		self.filesystem_changed || self.drained_messages > 0 || self.scheduler_completions > 0 || self.drained_runtime_work > 0
+		self.filesystem_events > 0 || self.drained_messages > 0 || self.scheduler_completions > 0 || self.drained_runtime_work > 0
 	}
 }
 
