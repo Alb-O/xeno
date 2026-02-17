@@ -73,23 +73,23 @@ impl UtilityPanel {
 						}
 					}
 					ContinuationKind::Leaf => {
-						let description = cont.value.map_or_else(String::new, |entry| match &entry.target {
-							xeno_registry::BindingTarget::Invocation { inv } => {
+						let description = cont.value.map_or_else(String::new, |entry| match entry.target() {
+							xeno_registry::CompiledBindingTarget::Invocation { inv } => {
 								let prefix = match inv {
 									xeno_registry::Invocation::Command(cmd) if cmd.route == xeno_invocation::CommandRoute::Editor => "@",
 									xeno_registry::Invocation::Command(_) => ":",
 									xeno_registry::Invocation::Nu { .. } => "~",
 									_ => "",
 								};
-								format!("{prefix}{}", entry.short_desc)
+								format!("{prefix}{}", entry.short_desc())
 							}
-							xeno_registry::BindingTarget::Action { .. } => {
-								if !entry.short_desc.is_empty() {
-									entry.short_desc.to_string()
-								} else if !entry.description.is_empty() {
-									entry.description.to_string()
+							xeno_registry::CompiledBindingTarget::Action { .. } => {
+								if !entry.short_desc().is_empty() {
+									entry.short_desc().to_string()
+								} else if !entry.description().is_empty() {
+									entry.description().to_string()
 								} else {
-									entry.name.to_string()
+									entry.name().to_string()
 								}
 							}
 						});

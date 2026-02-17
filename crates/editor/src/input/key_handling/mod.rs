@@ -2,7 +2,6 @@
 
 mod ops;
 
-use ops::KeyInvocation;
 use xeno_input::input::KeyResult;
 use xeno_primitives::{Key, KeyCode, Mode};
 
@@ -91,85 +90,72 @@ impl Editor {
 		let result = self.buffer_mut().input.handle_key_with_registry(key, &keymap, behavior);
 
 		let mut quit = false;
-		let mut handled = false;
 		#[cfg(feature = "lsp")]
 		let mut inserted_char = None;
 		#[cfg(feature = "lsp")]
 		let mut mode_change = None;
 
-		if !handled && let Some(key_invocation) = self.key_invocation_from_result(&result) {
-			match key_invocation {
-				KeyInvocation::Invocation(invocation) => {
-					let inv_result = self.run_invocation(invocation, crate::types::InvocationPolicy::enforcing()).await;
-					quit = inv_result.is_quit();
+		match result {
+			KeyResult::Dispatch(dispatch) => {
+				let inv_result = self.run_invocation(dispatch.invocation, crate::types::InvocationPolicy::enforcing()).await;
+				quit = inv_result.is_quit();
+			}
+			KeyResult::Pending { .. } => {
+				self.state.frame.needs_redraw = true;
+			}
+			KeyResult::ModeChange(new_mode) => {
+				let leaving_insert = !matches!(new_mode, Mode::Insert);
+				if new_mode != old_mode {
+					let view = self.focused_view();
+					self.notify_overlay_event(crate::overlay::LayerEvent::ModeChanged { view, mode: new_mode.clone() });
+					emit_hook(&HookContext::new(HookEventData::ModeChange {
+						old_mode: old_mode.clone(),
+						new_mode: new_mode.clone(),
+					}))
+					.await;
+
+					self.enqueue_mode_change_hook(&old_mode, &new_mode);
 				}
-				KeyInvocation::InvalidActionId(action_id) => {
-					self.show_notification(xeno_registry::notifications::keys::unknown_action(&action_id));
+				if leaving_insert {
+					self.cancel_snippet_session();
+					self.buffer_mut().clear_undo_group();
+				}
+				#[cfg(feature = "lsp")]
+				{
+					mode_change = Some(new_mode);
 				}
 			}
-			handled = true;
-		}
-
-		if !handled {
-			match result {
-				KeyResult::Pending { .. } => {
-					self.state.frame.needs_redraw = true;
+			KeyResult::InsertChar(c) => {
+				if !self.guard_readonly() {
+					return false;
 				}
-				KeyResult::ModeChange(new_mode) => {
-					let leaving_insert = !matches!(new_mode, Mode::Insert);
-					if new_mode != old_mode {
-						let view = self.focused_view();
-						self.notify_overlay_event(crate::overlay::LayerEvent::ModeChanged { view, mode: new_mode.clone() });
-						emit_hook(&HookContext::new(HookEventData::ModeChange {
-							old_mode: old_mode.clone(),
-							new_mode: new_mode.clone(),
-						}))
-						.await;
-
-						self.enqueue_mode_change_hook(&old_mode, &new_mode);
-					}
-					if leaving_insert {
-						self.cancel_snippet_session();
-						self.buffer_mut().clear_undo_group();
-					}
-					#[cfg(feature = "lsp")]
-					{
-						mode_change = Some(new_mode);
-					}
+				let text = c.to_string();
+				if !self.snippet_replace_mode_insert(&text) {
+					self.insert_text(&text);
 				}
-				KeyResult::InsertChar(c) => {
-					if !self.guard_readonly() {
-						return false;
-					}
-					let text = c.to_string();
-					if !self.snippet_replace_mode_insert(&text) {
-						self.insert_text(&text);
-					}
-					#[cfg(feature = "lsp")]
-					{
-						inserted_char = Some(c);
-					}
+				#[cfg(feature = "lsp")]
+				{
+					inserted_char = Some(c);
 				}
-				KeyResult::Consumed | KeyResult::Unhandled => {}
-				KeyResult::Quit => {
-					quit = true;
-				}
-				KeyResult::MouseClick { row, col, extend } => {
-					let view_area = self.focused_view_area();
-					let local_row = row.saturating_sub(view_area.y);
-					let local_col = col.saturating_sub(view_area.x);
-					self.handle_mouse_click_local(local_row, local_col, extend);
-				}
-				KeyResult::MouseDrag { row, col } => {
-					let view_area = self.focused_view_area();
-					let local_row = row.saturating_sub(view_area.y);
-					let local_col = col.saturating_sub(view_area.x);
-					self.handle_mouse_drag_local(local_row, local_col);
-				}
-				KeyResult::MouseScroll { direction, count } => {
-					self.handle_mouse_scroll(direction, count);
-				}
-				_ => unreachable!(),
+			}
+			KeyResult::Consumed | KeyResult::Unhandled => {}
+			KeyResult::Quit => {
+				quit = true;
+			}
+			KeyResult::MouseClick { row, col, extend } => {
+				let view_area = self.focused_view_area();
+				let local_row = row.saturating_sub(view_area.y);
+				let local_col = col.saturating_sub(view_area.x);
+				self.handle_mouse_click_local(local_row, local_col, extend);
+			}
+			KeyResult::MouseDrag { row, col } => {
+				let view_area = self.focused_view_area();
+				let local_row = row.saturating_sub(view_area.y);
+				let local_col = col.saturating_sub(view_area.x);
+				self.handle_mouse_drag_local(local_row, local_col);
+			}
+			KeyResult::MouseScroll { direction, count } => {
+				self.handle_mouse_scroll(direction, count);
 			}
 		}
 

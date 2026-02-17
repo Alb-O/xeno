@@ -1,9 +1,8 @@
 use xeno_primitives::key::{Key, KeyCode};
 use xeno_primitives::{ObjectSelectionKind, PendingKind};
-use xeno_registry::resolve_action_id;
 
 use super::InputHandler;
-use super::types::{KeyResult, Mode};
+use super::types::{KeyDispatch, KeyResult, Mode};
 
 impl InputHandler {
 	/// Handles key input for pending actions (character find, text objects, etc.).
@@ -35,14 +34,15 @@ impl InputHandler {
 				let extend = self.extend;
 				let register = self.register;
 				self.reset_params();
-				let id = resolve_action_id(action_name).unwrap_or_else(|| panic!("{action_name} action not registered"));
-				KeyResult::ActionByIdWithChar {
-					id,
-					count,
-					extend,
-					register,
-					char_arg: ch,
-				}
+				KeyResult::Dispatch(KeyDispatch {
+					invocation: xeno_registry::Invocation::ActionWithChar {
+						name: action_name.to_string(),
+						count,
+						extend,
+						register,
+						char_arg: ch,
+					},
+				})
 			}
 			KeyCode::Esc => {
 				self.mode = Mode::Normal;

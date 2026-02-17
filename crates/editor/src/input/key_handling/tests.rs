@@ -7,9 +7,8 @@ use xeno_primitives::{Key, KeyCode};
 use xeno_registry::actions::{ActionEntry, BindingMode};
 use xeno_registry::config::UnresolvedKeys;
 use xeno_registry::core::index::Snapshot;
-use xeno_registry::{ActionId, DenseId, LookupResult, RegistryEntry};
+use xeno_registry::{ActionId, DenseId, LookupOutcome, RegistryEntry};
 
-use super::ops::KeyInvocation;
 use crate::Editor;
 
 fn key_enter() -> Key {
@@ -45,10 +44,10 @@ fn sample_binding(actions: &Snapshot<ActionEntry, ActionId>) -> Option<(BindingM
 	None
 }
 
-fn lookup_action_id(index: &xeno_registry::KeymapIndex, mode: BindingMode, key_seq: &str) -> ActionId {
+fn lookup_action_id(index: &xeno_registry::KeymapSnapshot, mode: BindingMode, key_seq: &str) -> ActionId {
 	let keys = parse_seq(key_seq).expect("key sequence should parse");
 	match index.lookup(mode, &keys) {
-		LookupResult::Match(entry) => entry.action_id().expect("expected action binding"),
+		LookupOutcome::Match(entry) => entry.action_id().expect("expected action binding"),
 		_ => panic!("expected a complete keybinding match"),
 	}
 }
@@ -159,50 +158,16 @@ fn invalid_override_keeps_base_binding() {
 }
 
 #[test]
-fn action_by_id_key_result_normalizes_to_invocation() {
-	let editor = Editor::new_scratch();
-	let actions = xeno_registry::db::ACTIONS.snapshot();
-	let action_id = ActionId::from_u32(actions.table.iter().enumerate().next().expect("registry should contain actions").0 as u32);
-	let action_name = xeno_registry::ACTIONS
-		.get_by_id(action_id)
-		.expect("action id should exist")
-		.name_str()
-		.to_string();
+fn dispatch_key_result_contains_invocation() {
+	let result = KeyResult::Dispatch(xeno_input::input::types::KeyDispatch {
+		invocation: xeno_registry::Invocation::action("move_left"),
+	});
 
-	let result = KeyResult::ActionById {
-		id: action_id,
-		count: 3,
-		extend: true,
-		register: Some('a'),
-	};
-
-	let mapped = editor.key_invocation_from_result(&result);
 	assert!(matches!(
-		mapped,
-		Some(KeyInvocation::Invocation(xeno_registry::Invocation::Action {
-			name,
-			count: 3,
-			extend: true,
-			register: Some('a'),
-		})) if name == action_name
-	));
-}
-
-#[test]
-fn unknown_action_id_key_result_surfaces_invalid_id() {
-	let editor = Editor::new_scratch();
-	let invalid_id = ActionId::from_u32(u32::MAX);
-	let result = KeyResult::ActionById {
-		id: invalid_id,
-		count: 1,
-		extend: false,
-		register: None,
-	};
-
-	let mapped = editor.key_invocation_from_result(&result);
-	assert!(matches!(
-		mapped,
-		Some(KeyInvocation::InvalidActionId(id)) if id == invalid_id.to_string()
+		result,
+		KeyResult::Dispatch(xeno_input::input::types::KeyDispatch {
+			invocation: xeno_registry::Invocation::Action { name, .. }
+		}) if name == "move_left"
 	));
 }
 
