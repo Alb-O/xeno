@@ -9,12 +9,6 @@ use xeno_primitives::Mode;
 use super::LoopDirective;
 use crate::Editor;
 
-/// Runs a bounded-convergence maintenance cycle and returns frontend loop directives.
-pub(crate) async fn run_pump_cycle(editor: &mut Editor) -> LoopDirective {
-	let (directive, _report) = run_pump_cycle_with_report(editor).await;
-	directive
-}
-
 /// Runs one bounded-convergence maintenance cycle with a detailed report.
 pub(crate) async fn run_pump_cycle_with_report(editor: &mut Editor) -> (LoopDirective, PumpCycleReport) {
 	let mut report = PumpCycleReport::default();

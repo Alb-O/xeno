@@ -79,6 +79,7 @@ use crate::lsp::LspSystem;
 use crate::msg::{MsgReceiver, MsgSender};
 use crate::overlay::{OverlayStore, OverlaySystem};
 use crate::paste::normalize_to_lf;
+use crate::runtime::kernel::RuntimeKernel;
 use crate::runtime::work_queue::RuntimeWorkQueue;
 use crate::scheduler::WorkScheduler;
 use crate::types::{Config, FrameState, UndoManager, Viewport, Workspace};
@@ -177,6 +178,8 @@ pub(crate) struct EditorState {
 	pub(crate) frame: FrameState,
 	/// Runtime-owned deferred work queue drained by runtime pump phases.
 	runtime_work_queue: RuntimeWorkQueue,
+	/// Runtime event coordinator queues and directive buffer.
+	runtime_kernel: RuntimeKernel,
 	/// Shared worker runtime root for editor-owned async/background tasks.
 	pub(crate) worker_runtime: WorkerRuntime,
 
@@ -261,6 +264,16 @@ impl EditorState {
 	#[inline]
 	pub(crate) fn runtime_work_queue_mut(&mut self) -> &mut RuntimeWorkQueue {
 		&mut self.runtime_work_queue
+	}
+
+	#[inline]
+	pub(crate) fn runtime_kernel(&self) -> &RuntimeKernel {
+		&self.runtime_kernel
+	}
+
+	#[inline]
+	pub(crate) fn runtime_kernel_mut(&mut self) -> &mut RuntimeKernel {
+		&mut self.runtime_kernel
 	}
 }
 
@@ -398,6 +411,7 @@ impl Editor {
 				ui: UiManager::new(),
 				frame: FrameState::default(),
 				runtime_work_queue: RuntimeWorkQueue::default(),
+				runtime_kernel: RuntimeKernel::default(),
 				worker_runtime: worker_runtime.clone(),
 				config: Config::new(language_loader),
 				key_overrides: None,

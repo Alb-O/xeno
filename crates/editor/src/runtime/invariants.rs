@@ -2,12 +2,13 @@ use std::cell::RefCell;
 use std::thread_local;
 use std::time::Duration;
 
-use xeno_primitives::{BoxFutureLocal, Key, KeyCode};
+use xeno_primitives::{BoxFutureLocal, Key, KeyCode, Mode};
 use xeno_registry::hooks::HookPriority;
 
 use super::{CursorStyle, RuntimeEvent};
 use crate::Editor;
 use crate::commands::{CommandError, CommandOutcome, EditorCommandContext};
+use crate::runtime::DrainPolicy;
 use crate::runtime::pump::PumpPhase;
 use crate::runtime::work_queue::RuntimeWorkSource;
 use crate::scheduler::{WorkItem, WorkKind};
@@ -46,6 +47,36 @@ crate::editor_command!(
 	},
 	handler: runtime_invariant_record_command
 );
+
+/// Must assign monotonic sequence IDs to submitted runtime event envelopes.
+///
+/// * Enforced in: `runtime::kernel::RuntimeKernel::next_seq`
+/// * Failure symptom: directive causality and queue diagnostics become unstable.
+#[tokio::test]
+async fn test_submit_event_sequence_monotonic() {
+	let mut editor = Editor::new_scratch();
+	let first = editor.submit_event(RuntimeEvent::FocusIn);
+	let second = editor.submit_event(RuntimeEvent::FocusOut);
+	assert!(second.0 > first.0);
+}
+
+/// Must preserve causal linkage from submitted runtime events to emitted directives.
+///
+/// * Enforced in: `Editor::drain_until_idle`
+/// * Failure symptom: frontends cannot attribute redraw/quit directives to triggering events.
+#[tokio::test]
+async fn test_drain_until_idle_preserves_cause_sequence() {
+	let mut editor = Editor::new_scratch();
+	let token = editor.submit_event(RuntimeEvent::Key(Key::char('i')));
+
+	let report = editor.drain_until_idle(DrainPolicy::for_on_event()).await;
+	assert_eq!(report.handled_frontend_events, 1);
+	assert_eq!(editor.mode(), Mode::Insert);
+
+	let directive = editor.poll_directive().expect("directive should be queued");
+	assert_eq!(directive.cause_seq, Some(token.0));
+	assert_eq!(directive.pending_events, 0);
+}
 
 /// Must execute one maintenance `pump` after handling each runtime event.
 ///
@@ -129,8 +160,8 @@ async fn test_pump_drains_overlay_commit_work_items() {
 ///
 /// * Enforced in: `Editor::derive_cursor_style`
 /// * Failure symptom: frontends render incorrect cursor shape for modal state.
-#[cfg_attr(test, test)]
-pub(crate) fn test_cursor_style_defaults_follow_mode() {
+#[tokio::test]
+async fn test_cursor_style_defaults_follow_mode() {
 	let mut editor = Editor::new_scratch();
 	assert_eq!(editor.derive_cursor_style(), CursorStyle::Block);
 
