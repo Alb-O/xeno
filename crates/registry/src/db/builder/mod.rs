@@ -16,8 +16,7 @@ macro_rules! define_domains {
 				field: $field:ident,
 				global: $global:ident,
 				marker: $domain:path,
-				runtime_ty: $runtime_ty:ty,
-				init: $init:expr $(,)?
+				$(,)?
 			}
 		)*
 	) => {

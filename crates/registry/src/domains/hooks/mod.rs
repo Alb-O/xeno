@@ -34,10 +34,15 @@ impl crate::db::domain::DomainSpec for Hooks {
 	type Input = HookInput;
 	type Entry = HookEntry;
 	type Id = crate::core::HookId;
+	type Runtime = HooksRegistry;
 	const LABEL: &'static str = "hooks";
 
 	fn builder(db: &mut crate::db::builder::RegistryDbBuilder) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
 		&mut db.hooks
+	}
+
+	fn into_runtime(index: crate::core::index::RegistryIndex<Self::Entry, Self::Id>) -> Self::Runtime {
+		HooksRegistry::new(index)
 	}
 
 	fn on_push(_db: &mut crate::db::builder::RegistryDbBuilder, _input: &Self::Input) {}

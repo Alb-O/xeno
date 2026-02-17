@@ -31,13 +31,12 @@ macro_rules! define_registry_db {
 				field: $field:ident,
 				global: $global:ident,
 				marker: $marker:path,
-				runtime_ty: $runtime_ty:ty,
-				init: $init:expr $(,)?
+				$(,)?
 			}
 		)*
 	) => {
 		pub struct RegistryDb {
-			$( $(#[$attr])* pub $field: $runtime_ty, )*
+			$( $(#[$attr])* pub $field: <$marker as crate::db::domain::DomainSpec>::Runtime, )*
 			#[cfg(feature = "keymap")]
 			pub keymap: KeymapSnapshotCache,
 		}
@@ -54,12 +53,11 @@ macro_rules! define_registry_globals {
 				field: $field:ident,
 				global: $global:ident,
 				marker: $marker:path,
-				runtime_ty: $runtime_ty:ty,
-				init: $init:expr $(,)?
+				$(,)?
 			}
 		)*
 	) => {
-		$( $(#[$attr])* pub static $global: LazyLock<&'static $runtime_ty> = LazyLock::new(|| &get_db().$field); )*
+		$( $(#[$attr])* pub static $global: LazyLock<&'static <$marker as crate::db::domain::DomainSpec>::Runtime> = LazyLock::new(|| &get_db().$field); )*
 	};
 }
 
@@ -77,10 +75,19 @@ impl RegistryBootstrap {
 	}
 
 	fn from_indices(indices: builder::RegistryIndices) -> RegistryDb {
-		let actions_reg = RuntimeRegistry::new("actions", indices.actions);
+		let actions_reg = <crate::actions::Actions as crate::db::domain::DomainSpec>::into_runtime(indices.actions);
 
 		#[cfg(feature = "keymap")]
 		let keymap = KeymapSnapshotCache::new(actions_reg.snapshot());
+
+		macro_rules! domain_runtime {
+			(actions, $marker:path, $indices:ident, $actions_reg:ident) => {
+				$actions_reg
+			};
+			($field:ident, $marker:path, $indices:ident, $actions_reg:ident) => {
+				<$marker as crate::db::domain::DomainSpec>::into_runtime($indices.$field)
+			};
+		}
 
 		macro_rules! init_registry_db {
 			(
@@ -90,20 +97,19 @@ impl RegistryBootstrap {
 						field: $field:ident,
 						global: $global:ident,
 						marker: $marker:path,
-						runtime_ty: $runtime_ty:ty,
-						init: $init:expr $(,)?
+						$(,)?
 					}
 				)*
 			) => {
 				RegistryDb {
-					$( $(#[$attr])* $field: $init, )*
+					$( $(#[$attr])* $field: domain_runtime!($field, $marker, indices, actions_reg), )*
 					#[cfg(feature = "keymap")]
 					keymap,
 				}
 			};
 		}
 
-		with_registry_domains!(init_registry_db, indices, actions_reg)
+		with_registry_domains!(init_registry_db)
 	}
 }
 
