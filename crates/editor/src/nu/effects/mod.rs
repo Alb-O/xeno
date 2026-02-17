@@ -522,9 +522,7 @@ mod tests {
 
 		// The invocation should now be in the deferred invocation mailbox.
 		let inv = editor
-			.state
-			.invocation_mailbox
-			.pop_front()
+			.pop_runtime_deferred_invocation()
 			.expect("scheduled invocation should be enqueued")
 			.invocation;
 		assert!(matches!(inv, Invocation::Nu { ref name, ref args } if name == "my-macro" && args == &["arg1"]));
@@ -582,12 +580,7 @@ mod tests {
 		tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 		editor.drain_messages();
 
-		let inv = editor
-			.state
-			.invocation_mailbox
-			.pop_front()
-			.expect("current schedule should still fire")
-			.invocation;
+		let inv = editor.pop_runtime_deferred_invocation().expect("current schedule should still fire").invocation;
 		assert!(matches!(inv, Invocation::Nu { ref name, ref args } if name == "current" && args == &["arg"]));
 	}
 

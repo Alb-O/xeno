@@ -78,8 +78,9 @@ use crate::lsp::LspSystem;
 use crate::msg::{MsgReceiver, MsgSender};
 use crate::overlay::{OverlayStore, OverlaySystem};
 use crate::paste::normalize_to_lf;
+use crate::runtime::deferred::RuntimeDeferredState;
 use crate::scheduler::WorkScheduler;
-use crate::types::{Config, FrameState, InvocationMailbox, UndoManager, Viewport, Workspace};
+use crate::types::{Config, FrameState, UndoManager, Viewport, Workspace};
 use crate::ui::{PanelRenderTarget, UiManager};
 use crate::view_manager::ViewManager;
 use crate::window::{BaseWindow, WindowManager};
@@ -173,8 +174,8 @@ pub(crate) struct EditorState {
 
 	/// Per-frame runtime state (redraw flags, dirty buffers, etc.).
 	pub(crate) frame: FrameState,
-	/// Deferred invocation mailbox drained by runtime pump phases.
-	pub(crate) invocation_mailbox: InvocationMailbox,
+	/// Runtime-owned deferred state drained by runtime pump phases.
+	runtime_deferred: RuntimeDeferredState,
 
 	/// Editor configuration (theme, languages, options).
 	pub(crate) config: Config,
@@ -246,6 +247,18 @@ pub(crate) struct EditorState {
 
 pub struct Editor {
 	pub(crate) state: EditorState,
+}
+
+impl EditorState {
+	#[inline]
+	pub(crate) fn runtime_deferred(&self) -> &RuntimeDeferredState {
+		&self.runtime_deferred
+	}
+
+	#[inline]
+	pub(crate) fn runtime_deferred_mut(&mut self) -> &mut RuntimeDeferredState {
+		&mut self.runtime_deferred
+	}
 }
 
 /// Data-only frame planning output for frontend compositors.
@@ -380,7 +393,7 @@ impl Editor {
 				viewport: Viewport::default(),
 				ui: UiManager::new(),
 				frame: FrameState::default(),
-				invocation_mailbox: InvocationMailbox::default(),
+				runtime_deferred: RuntimeDeferredState::default(),
 				config: Config::new(language_loader),
 				key_overrides: None,
 				keymap_preset_spec: xeno_registry::keymaps::DEFAULT_PRESET.to_string(),

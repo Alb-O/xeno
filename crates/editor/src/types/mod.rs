@@ -2,8 +2,7 @@
 //!
 //! Grouped structs for editor state management:
 //! * [`crate::types::FrameState`] - Per-frame runtime state (hot fields)
-//! * [`crate::types::DeferredWorkQueue`] - Deferred runtime work backlog for pump convergence
-//! * [`crate::types::InvocationMailbox`] - Deferred invocation mailbox for runtime pump convergence
+//! * [`crate::runtime::mailbox::InvocationMailbox`] - Deferred invocation mailbox primitive for runtime convergence
 //! * [`crate::types::Viewport`] - Terminal dimensions
 //! * [`crate::types::Workspace`] - Session state (registers, jumps, macros)
 //! * [`crate::types::Config`] - Editor configuration (theme, languages, options)
@@ -17,19 +16,21 @@ mod edit_policy;
 mod frame;
 mod history;
 mod invocation;
-mod invocation_mailbox;
 mod undo_manager;
 mod viewport;
 mod workspace;
 
 pub use config::Config;
 pub use edit_policy::ApplyEditPolicy;
-pub use frame::{DeferredWorkItem, DeferredWorkQueue, FrameState};
+pub use frame::FrameState;
 pub use history::{DocumentHistoryEntry, EditorUndoGroup, ViewSnapshot};
 pub(crate) use invocation::adapters::{PipelineDisposition, PipelineLogContext, classify_for_nu_pipeline, log_pipeline_non_ok, to_command_outcome_for_nu_run};
 pub use invocation::{Invocation, InvocationDetail, InvocationOutcome, InvocationPolicy, InvocationStatus, InvocationTarget};
-pub use invocation_mailbox::{DeferredInvocation, DeferredInvocationExecutionPolicy, DeferredInvocationScope, DeferredInvocationSource, InvocationMailbox};
 pub use undo_manager::{PreparedEdit, UndoHost, UndoManager};
 pub use viewport::Viewport;
 pub use workspace::{JumpList, JumpLocation, MacroState, NuState, Registers, Workspace, Yank};
 pub use xeno_primitives::range::CharIdx;
+
+pub use crate::runtime::mailbox::{
+	DeferredInvocation, DeferredInvocationExecutionPolicy, DeferredInvocationScope, DeferredInvocationSource, InvocationMailbox,
+};

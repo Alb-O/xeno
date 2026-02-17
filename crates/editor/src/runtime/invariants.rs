@@ -11,7 +11,7 @@ use crate::commands::{CommandError, CommandOutcome, EditorCommandContext};
 use crate::runtime::mailbox::DeferredInvocationSource;
 use crate::runtime::pump::PumpPhase;
 use crate::scheduler::{WorkItem, WorkKind};
-use crate::types::{DeferredWorkItem, Invocation};
+use crate::types::Invocation;
 
 fn runtime_invariant_test_quit_command<'a>(_ctx: &'a mut EditorCommandContext<'a>) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move { Ok(CommandOutcome::Quit) })
@@ -71,12 +71,39 @@ async fn test_overlay_commit_deferred_until_pump() {
 	assert!(editor.open_command_palette());
 
 	let _ = editor.handle_key(Key::new(KeyCode::Enter)).await;
-	assert!(editor.frame().deferred_work.has_overlay_commit());
+	assert!(editor.has_overlay_commit_deferred());
 	assert!(editor.overlay_kind().is_some());
 
 	let _ = editor.pump().await;
-	assert!(!editor.frame().deferred_work.has_overlay_commit());
+	assert!(!editor.has_overlay_commit_deferred());
 	assert!(editor.overlay_kind().is_none());
+}
+
+/// Must route deferred overlay commits and deferred invocations through the shared runtime-deferred state.
+///
+/// * Enforced in: `Editor::handle_key_active`, `Editor::enqueue_deferred_invocation`, `runtime::pump::phases`
+/// * Failure symptom: deferred work fragments across multiple queues and pump convergence skips work.
+#[tokio::test]
+async fn test_runtime_deferred_state_converges_overlay_and_invocations() {
+	RUNTIME_INVARIANT_RECORDS.with(|records| records.borrow_mut().clear());
+
+	let mut editor = Editor::new_scratch();
+	editor.handle_window_resize(100, 40);
+	assert!(editor.open_command_palette());
+
+	let _ = editor.handle_key(Key::new(KeyCode::Enter)).await;
+	editor.enqueue_deferred_command(
+		"runtime_invariant_record_command".to_string(),
+		vec!["merged".to_string()],
+		DeferredInvocationSource::Overlay,
+	);
+
+	assert!(editor.has_overlay_commit_deferred());
+	assert_eq!(editor.runtime_deferred_invocation_len(), 1);
+
+	let _ = editor.pump().await;
+	assert!(editor.overlay_kind().is_none());
+	assert_eq!(RUNTIME_INVARIANT_RECORDS.with(|records| records.borrow().clone()), vec!["merged".to_string()]);
 }
 
 /// Must apply at most one deferred overlay commit per pump cycle.
@@ -89,13 +116,13 @@ async fn test_pump_applies_at_most_one_overlay_commit_per_cycle() {
 	editor.handle_window_resize(100, 40);
 	assert!(editor.open_command_palette());
 
-	editor.frame_mut().deferred_work.push(DeferredWorkItem::OverlayCommit);
-	editor.frame_mut().deferred_work.push(DeferredWorkItem::OverlayCommit);
+	editor.request_overlay_commit_deferred();
+	editor.request_overlay_commit_deferred();
 
 	let _ = editor.pump().await;
 
 	assert!(editor.overlay_kind().is_none());
-	assert!(editor.frame().deferred_work.has_overlay_commit());
+	assert!(editor.has_overlay_commit_deferred());
 }
 
 /// Must default cursor style to Beam in insert mode and Block otherwise.
@@ -190,7 +217,7 @@ async fn test_pump_quit_requests_return_immediate_quit_directive() {
 
 /// Must preserve global FIFO order when draining deferred invocations from mixed sources.
 ///
-/// * Enforced in: `Editor::drain_deferred_invocations_report`
+/// * Enforced in: `Editor::drain_runtime_deferred_invocations_report`
 /// * Failure symptom: deferred commands execute out-of-order across queue sources.
 #[tokio::test]
 async fn test_deferred_invocation_mailbox_preserves_fifo_across_sources() {
@@ -238,7 +265,7 @@ async fn test_deferred_invocation_drain_is_bounded_per_round() {
 	assert!(!report.rounds.is_empty());
 	assert!(report.rounds.iter().all(|round| round.work.drained_deferred_invocations <= 32));
 	assert_eq!(report.rounds[0].work.drained_deferred_invocations, 32);
-	assert_eq!(editor.state.invocation_mailbox.len(), 4);
+	assert_eq!(editor.runtime_deferred_invocation_len(), 4);
 	assert!(report.reached_round_cap);
 }
 

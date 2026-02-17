@@ -10,7 +10,7 @@ use xeno_registry::notifications::Notification;
 use xeno_registry::options::{OptionScope, find};
 
 use crate::capabilities::provider::EditorCaps;
-use crate::types::DeferredInvocationSource;
+use crate::runtime::mailbox::DeferredInvocationSource;
 
 impl CommandEditorOps for EditorCaps<'_> {
 	fn emit(&mut self, notification: Notification) {

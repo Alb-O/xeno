@@ -74,7 +74,7 @@ pub(crate) fn phase_filesystem_pump(editor: &mut Editor) -> FilesystemPhaseOutco
 }
 
 pub(crate) async fn phase_overlay_commit_if_pending(editor: &mut Editor, allow_commit: bool) -> OverlayCommitPhaseOutcome {
-	if !allow_commit || !editor.state.frame.deferred_work.take_overlay_commit() {
+	if !allow_commit || !editor.take_overlay_commit_deferred_once() {
 		return OverlayCommitPhaseOutcome::default();
 	}
 
@@ -96,7 +96,7 @@ pub(crate) fn phase_drain_messages(editor: &mut Editor) -> MessageDrainPhaseOutc
 pub(crate) async fn phase_apply_workspace_edits(editor: &mut Editor) -> WorkspaceEditsPhaseOutcome {
 	#[cfg(feature = "lsp")]
 	{
-		let edits = editor.state.frame.deferred_work.take_workspace_edits();
+		let edits = editor.take_workspace_edits_deferred();
 		if !edits.is_empty() {
 			let applied_count = edits.len();
 			for edit in edits {
@@ -137,7 +137,7 @@ pub(crate) async fn phase_drain_scheduler(editor: &mut Editor) -> SchedulerDrain
 }
 
 pub(crate) async fn phase_drain_deferred_invocations(editor: &mut Editor, max: usize) -> DeferredInvocationsPhaseOutcome {
-	let report = editor.drain_deferred_invocations_report(max).await;
+	let report = editor.drain_runtime_deferred_invocations_report(max).await;
 	DeferredInvocationsPhaseOutcome {
 		drained_count: report.drained_count,
 		should_quit: report.should_quit,

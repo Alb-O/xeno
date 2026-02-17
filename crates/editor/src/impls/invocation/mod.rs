@@ -32,7 +32,7 @@
 //! | [`crate::types::invocation::adapters`] | Consumer translation helpers | Must keep Nu consumers aligned on outcome mapping and logging | `commands::nu`, `nu::pipeline` |
 //! | [`crate::impls::Editor`] | Runtime owner of invocation execution | Must flush queued effects after each command/action execution branch | `run_*_invocation` methods |
 //! | [`crate::nu::NuHook`] | Deferred hook kind | Must enqueue only when execution does not request quit | `run_invocation` |
-//! | [`crate::types::InvocationMailbox`] | Runtime deferred invocation mailbox | Must preserve FIFO sequence and source metadata for policy routing | queue producers and `Editor::drain_deferred_invocations_report` |
+//! | [`crate::runtime::mailbox::InvocationMailbox`] | Runtime deferred invocation mailbox | Must preserve FIFO sequence and source metadata for policy routing | queue producers and `Editor::drain_runtime_deferred_invocations_report` |
 //!
 //! # Invariants
 //!

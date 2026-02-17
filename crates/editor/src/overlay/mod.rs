@@ -350,7 +350,7 @@ impl OverlayContext for crate::Editor {
 	}
 
 	fn defer_command(&mut self, name: String, args: Vec<String>) {
-		self.enqueue_deferred_command(name, args, crate::types::DeferredInvocationSource::Overlay);
+		self.enqueue_deferred_command(name, args, crate::runtime::mailbox::DeferredInvocationSource::Overlay);
 	}
 
 	fn finalize_buffer_removal(&mut self, view: ViewId) {

@@ -18,12 +18,12 @@ pub fn test_commit_close_enqueues_deferred_overlay_commit() {
 	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(100, 40);
 	assert!(editor.open_command_palette());
-	assert!(!editor.frame().deferred_work.has_overlay_commit());
+	assert!(!editor.has_overlay_commit_deferred());
 
 	let result = editor.handle_overlay_request(OverlayRequest::CloseModal {
 		reason: OverlayCloseReason::Commit,
 	});
 	assert!(result.is_ok());
 	assert!(editor.state.overlay_system.interaction().is_open());
-	assert!(editor.frame().deferred_work.has_overlay_commit());
+	assert!(editor.has_overlay_commit_deferred());
 }

@@ -426,7 +426,7 @@ fn palette_input_text(editor: &crate::Editor) -> String {
 
 fn drain_queued_commands(editor: &mut crate::Editor) -> Vec<(String, Vec<String>)> {
 	let mut commands = Vec::new();
-	while let Some(deferred) = editor.state.invocation_mailbox.pop_front() {
+	while let Some(deferred) = editor.pop_runtime_deferred_invocation() {
 		if let crate::types::Invocation::Command(command) = deferred.invocation {
 			commands.push((command.name, command.args));
 		}
@@ -613,10 +613,7 @@ pub(crate) fn test_palette_enter_promotes_required_arg_command_completion() {
 
 	assert_eq!(palette_input_text(&editor), "theme ");
 	assert!(editor.state.overlay_system.interaction().is_open(), "enter completion should keep palette open");
-	assert!(
-		!editor.frame().deferred_work.has_overlay_commit(),
-		"enter completion should not schedule commit"
-	);
+	assert!(!editor.has_overlay_commit_deferred(), "enter completion should not schedule commit");
 	assert!(drain_queued_commands(&mut editor).is_empty(), "enter completion should not queue commands");
 }
 
@@ -635,10 +632,7 @@ pub(crate) fn test_palette_enter_promotes_exact_required_arg_command_completion(
 
 	assert_eq!(palette_input_text(&editor), "theme ");
 	assert!(editor.state.overlay_system.interaction().is_open(), "enter completion should keep palette open");
-	assert!(
-		!editor.frame().deferred_work.has_overlay_commit(),
-		"enter completion should not schedule commit"
-	);
+	assert!(!editor.has_overlay_commit_deferred(), "enter completion should not schedule commit");
 	assert!(drain_queued_commands(&mut editor).is_empty(), "enter completion should not queue commands");
 }
 
