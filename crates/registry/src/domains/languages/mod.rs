@@ -11,11 +11,6 @@ pub mod types;
 pub use registry::LanguagesRegistry;
 pub use types::{LanguageEntry, LanguageInput};
 
-pub fn register_plugin(db: &mut crate::db::builder::RegistryDbBuilder) -> Result<(), crate::error::RegistryError> {
-	register_compiled(db);
-	Ok(())
-}
-
 /// Registers compiled languages from the embedded spec.
 pub fn register_compiled(db: &mut crate::db::builder::RegistryDbBuilder) {
 	let spec = loader::load_languages_spec();
@@ -32,17 +27,7 @@ impl crate::db::domain::DomainSpec for Languages {
 	type Input = LanguageInput;
 	type Entry = LanguageEntry;
 	type Id = crate::core::LanguageId;
-	type StaticDef = types::LanguageDef;
-	type LinkedDef = link::LinkedLanguageDef;
 	const LABEL: &'static str = "languages";
-
-	fn static_to_input(def: &'static Self::StaticDef) -> Self::Input {
-		LanguageInput::Static(def.clone())
-	}
-
-	fn linked_to_input(def: Self::LinkedDef) -> Self::Input {
-		LanguageInput::Linked(def)
-	}
 
 	fn builder(db: &mut crate::db::builder::RegistryDbBuilder) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
 		&mut db.languages

@@ -148,25 +148,21 @@ static CMD_TEST_FAIL: xeno_registry::commands::CommandDef = xeno_registry::comma
 	user_data: None,
 };
 
-fn register_invocation_test_plugin(db: &mut xeno_registry::db::builder::RegistryDbBuilder) -> Result<(), xeno_registry::RegistryError> {
-	db.push_domain::<xeno_registry::db::domains::Actions>(xeno_registry::actions::def::ActionInput::Static(ACTION_INVOCATION_TEST.clone()));
-	db.push_domain::<xeno_registry::db::domains::Actions>(xeno_registry::actions::def::ActionInput::Static(ACTION_INVOCATION_TEST_ALT.clone()));
-	db.push_domain::<xeno_registry::db::domains::Actions>(xeno_registry::actions::def::ActionInput::Static(ACTION_INVOCATION_EDIT.clone()));
-	db.push_domain::<xeno_registry::db::domains::Commands>(xeno_registry::commands::def::CommandInput::Static(CMD_TEST_FAIL.clone()));
-	db.push_domain::<xeno_registry::db::domains::Hooks>(xeno_registry::hooks::HookInput::Static(HOOK_ACTION_PRE));
-	db.push_domain::<xeno_registry::db::domains::Hooks>(xeno_registry::hooks::HookInput::Static(HOOK_ACTION_POST));
+fn register_invocation_test_defs(db: &mut xeno_registry::db::builder::RegistryDbBuilder) -> Result<(), xeno_registry::db::builder::RegistryError> {
+	db.push_domain::<xeno_registry::actions::Actions>(xeno_registry::actions::def::ActionInput::Static(ACTION_INVOCATION_TEST.clone()));
+	db.push_domain::<xeno_registry::actions::Actions>(xeno_registry::actions::def::ActionInput::Static(ACTION_INVOCATION_TEST_ALT.clone()));
+	db.push_domain::<xeno_registry::actions::Actions>(xeno_registry::actions::def::ActionInput::Static(ACTION_INVOCATION_EDIT.clone()));
+	db.push_domain::<xeno_registry::commands::Commands>(xeno_registry::commands::def::CommandInput::Static(CMD_TEST_FAIL.clone()));
+	db.push_domain::<xeno_registry::hooks::Hooks>(xeno_registry::hooks::HookInput::Static(HOOK_ACTION_PRE));
+	db.push_domain::<xeno_registry::hooks::Hooks>(xeno_registry::hooks::HookInput::Static(HOOK_ACTION_POST));
 	Ok(())
 }
 
 inventory::submit! {
-	xeno_registry::PluginDef::new(
-		xeno_registry::RegistryMetaStatic::minimal(
-			"invocation-test",
-			"Invocation Test",
-			"Test defs for invocation tests",
-		),
-		register_invocation_test_plugin,
-	)
+	xeno_registry::db::builtins::BuiltinsReg {
+		ordinal: 65000,
+		f: register_invocation_test_defs,
+	}
 }
 
 struct MockEditor {
@@ -314,7 +310,7 @@ fn capability_enforcement_logs_in_log_only_mode() {
 
 #[test]
 fn action_hooks_fire_once() {
-	// Test defs registered via inventory::submit!(PluginDef) at DB init time.
+	// Test defs registered via inventory::submit!(BuiltinsReg) at DB init time.
 	ACTION_PRE_COUNT.with(|count| count.set(0));
 	ACTION_POST_COUNT.with(|count| count.set(0));
 
@@ -331,7 +327,7 @@ fn action_hooks_fire_once() {
 
 #[test]
 fn readonly_enforcement_blocks_edit_actions() {
-	// Test defs registered via inventory::submit!(PluginDef) at DB init time.
+	// Test defs registered via inventory::submit!(BuiltinsReg) at DB init time.
 	let mut editor = Editor::new_scratch();
 	editor.buffer_mut().set_readonly(true);
 
@@ -342,7 +338,7 @@ fn readonly_enforcement_blocks_edit_actions() {
 
 #[test]
 fn readonly_disabled_allows_edit_actions() {
-	// Test defs registered via inventory::submit!(PluginDef) at DB init time.
+	// Test defs registered via inventory::submit!(BuiltinsReg) at DB init time.
 	let mut editor = Editor::new_scratch();
 	editor.buffer_mut().set_readonly(true);
 
@@ -353,7 +349,7 @@ fn readonly_disabled_allows_edit_actions() {
 
 #[test]
 fn command_error_propagates() {
-	// Test defs registered via inventory::submit!(PluginDef) at DB init time.
+	// Test defs registered via inventory::submit!(BuiltinsReg) at DB init time.
 	let mut editor = Editor::new_scratch();
 	let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
 	let result = rt.block_on(editor.run_command_invocation(

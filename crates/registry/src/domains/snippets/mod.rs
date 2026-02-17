@@ -12,11 +12,6 @@ pub use def::{SnippetDef, SnippetInput};
 pub use entry::SnippetEntry;
 pub use link::LinkedSnippetDef;
 
-pub fn register_plugin(db: &mut crate::db::builder::RegistryDbBuilder) -> Result<(), crate::error::RegistryError> {
-	register_compiled(db);
-	Ok(())
-}
-
 /// Registers compiled snippets from the embedded spec.
 pub fn register_compiled(db: &mut crate::db::builder::RegistryDbBuilder) {
 	let spec = loader::load_snippets_spec();
@@ -33,17 +28,7 @@ impl crate::db::domain::DomainSpec for Snippets {
 	type Input = SnippetInput;
 	type Entry = SnippetEntry;
 	type Id = crate::core::SnippetId;
-	type StaticDef = SnippetDef;
-	type LinkedDef = LinkedSnippetDef;
 	const LABEL: &'static str = "snippets";
-
-	fn static_to_input(def: &'static Self::StaticDef) -> Self::Input {
-		SnippetInput::Static(def.clone())
-	}
-
-	fn linked_to_input(def: Self::LinkedDef) -> Self::Input {
-		SnippetInput::Linked(def)
-	}
 
 	fn builder(db: &mut crate::db::builder::RegistryDbBuilder) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
 		&mut db.snippets

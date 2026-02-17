@@ -22,14 +22,6 @@ pub mod spec;
 pub use builtins::register_builtins;
 pub use handler::{MotionHandlerReg, MotionHandlerStatic};
 
-use crate::error::RegistryError;
-
-pub fn register_plugin(db: &mut crate::db::builder::RegistryDbBuilder) -> Result<(), RegistryError> {
-	register_builtins(db);
-	register_compiled(db);
-	Ok(())
-}
-
 /// Registers compiled motions from the embedded spec.
 pub fn register_compiled(db: &mut crate::db::builder::RegistryDbBuilder) {
 	let spec = loader::load_motions_spec();
@@ -48,17 +40,7 @@ impl crate::db::domain::DomainSpec for Motions {
 	type Input = MotionInput;
 	type Entry = MotionEntry;
 	type Id = crate::core::MotionId;
-	type StaticDef = MotionDef;
-	type LinkedDef = link::LinkedMotionDef;
 	const LABEL: &'static str = "motions";
-
-	fn static_to_input(def: &'static Self::StaticDef) -> Self::Input {
-		MotionInput::Static(def.clone())
-	}
-
-	fn linked_to_input(def: Self::LinkedDef) -> Self::Input {
-		MotionInput::Linked(def)
-	}
 
 	fn builder(db: &mut crate::db::builder::RegistryDbBuilder) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
 		&mut db.motions
