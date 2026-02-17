@@ -1,7 +1,9 @@
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 
+use tokio::task::JoinHandle;
 use xeno_nu_api::ExportId;
 
+use crate::msg::MsgSender;
 use crate::nu::executor::NuExecutor;
 use crate::nu::{CachedHookIds, NuHook, NuRuntime};
 use crate::types::Invocation;
@@ -61,6 +63,21 @@ pub(crate) enum HookEvalFailureTransition {
 	RetryExhausted { failed_total: u64 },
 }
 
+/// A scheduled macro awaiting its delay timer.
+pub(crate) struct ScheduledEntry {
+	pub handle: JoinHandle<()>,
+	pub token: u64,
+}
+
+/// Message payload for a fired scheduled macro.
+#[derive(Debug, Clone)]
+pub struct NuScheduleFiredMsg {
+	pub key: String,
+	pub token: u64,
+	pub name: String,
+	pub args: Vec<String>,
+}
+
 /// Unified Nu pipeline state for runtime, executor, and hook/macro lifecycle.
 pub(crate) struct NuCoordinatorState {
 	runtime: Option<NuRuntime>,
@@ -76,6 +93,8 @@ pub(crate) struct NuCoordinatorState {
 	hook_pending_invocations: VecDeque<Invocation>,
 	hook_dropped_total: u64,
 	hook_failed_total: u64,
+	scheduled: HashMap<String, ScheduledEntry>,
+	scheduled_seq: u64,
 }
 
 impl NuCoordinatorState {
@@ -94,6 +113,8 @@ impl NuCoordinatorState {
 			hook_pending_invocations: VecDeque::new(),
 			hook_dropped_total: 0,
 			hook_failed_total: 0,
+			scheduled: HashMap::new(),
+			scheduled_seq: 0,
 		}
 	}
 
@@ -102,6 +123,9 @@ impl NuCoordinatorState {
 		self.hook_queue.clear();
 		self.hook_pending_invocations.clear();
 		self.hook_in_flight = None;
+		for (_, entry) in self.scheduled.drain() {
+			entry.handle.abort();
+		}
 		self.runtime_epoch = self.runtime_epoch.wrapping_add(1);
 		self.hook_eval_seq_next = 0;
 		self.runtime = runtime;
@@ -360,6 +384,51 @@ impl NuCoordinatorState {
 
 	pub(crate) fn hook_failed_total(&self) -> u64 {
 		self.hook_failed_total
+	}
+
+	/// Schedule a macro to fire after `delay_ms`, replacing any previous schedule with the same key.
+	pub(crate) fn schedule_macro(&mut self, key: String, delay_ms: u64, name: String, args: Vec<String>, msg_tx: &MsgSender) {
+		if let Some(existing) = self.scheduled.remove(&key) {
+			existing.handle.abort();
+		}
+		self.scheduled_seq = self.scheduled_seq.wrapping_add(1);
+		let token = self.scheduled_seq;
+		let tx = msg_tx.clone();
+		let fire_key = key.clone();
+		let handle = tokio::spawn(async move {
+			tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+			let _ = tx.send(crate::msg::EditorMsg::NuScheduleFired(NuScheduleFiredMsg {
+				key: fire_key,
+				token,
+				name,
+				args,
+			}));
+		});
+		self.scheduled.insert(key, ScheduledEntry { handle, token });
+	}
+
+	/// Cancel a scheduled macro by key. No-op if key doesn't exist.
+	pub(crate) fn cancel_schedule(&mut self, key: &str) {
+		if let Some(entry) = self.scheduled.remove(key) {
+			entry.handle.abort();
+		}
+	}
+
+	/// Handle a fired scheduled macro. Verifies token, enqueues invocation
+	/// into the hook pending invocations queue for drain in pump phase 9.
+	pub(crate) fn apply_schedule_fired(&mut self, msg: NuScheduleFiredMsg) -> bool {
+		let Some(entry) = self.scheduled.remove(&msg.key) else {
+			return false;
+		};
+		if entry.token != msg.token {
+			return false;
+		}
+		self.hook_pending_invocations.push_back(Invocation::Nu {
+			name: msg.name,
+			args: msg.args,
+		});
+		self.refresh_hook_phase();
+		true
 	}
 
 	fn refresh_hook_phase(&mut self) {

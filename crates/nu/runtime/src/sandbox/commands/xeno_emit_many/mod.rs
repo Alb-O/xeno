@@ -104,6 +104,60 @@ fn encode_effect(effect: NuEffect, span: xeno_nu_protocol::Span) -> Value {
 			rec.push("type", Value::string("stop", span));
 			Value::record(rec, span)
 		}
+		NuEffect::SetClipboard { text } => {
+			let mut rec = Record::new();
+			rec.push("type", Value::string("clipboard", span));
+			rec.push("text", Value::string(text, span));
+			Value::record(rec, span)
+		}
+		NuEffect::StateSet { key, value } => {
+			let mut rec = Record::new();
+			rec.push("type", Value::string("state", span));
+			rec.push("op", Value::string("set", span));
+			rec.push("key", Value::string(key, span));
+			rec.push("value", Value::string(value, span));
+			Value::record(rec, span)
+		}
+		NuEffect::StateUnset { key } => {
+			let mut rec = Record::new();
+			rec.push("type", Value::string("state", span));
+			rec.push("op", Value::string("unset", span));
+			rec.push("key", Value::string(key, span));
+			Value::record(rec, span)
+		}
+		NuEffect::ScheduleSet { key, delay_ms, name, args } => {
+			let mut rec = Record::new();
+			rec.push("type", Value::string("schedule", span));
+			rec.push("op", Value::string("set", span));
+			rec.push("key", Value::string(key, span));
+			rec.push("delay_ms", Value::int(delay_ms as i64, span));
+			rec.push("macro", Value::string(name, span));
+			rec.push("args", Value::list(args.into_iter().map(|a| Value::string(a, span)).collect(), span));
+			Value::record(rec, span)
+		}
+		NuEffect::ScheduleCancel { key } => {
+			let mut rec = Record::new();
+			rec.push("type", Value::string("schedule", span));
+			rec.push("op", Value::string("cancel", span));
+			rec.push("key", Value::string(key, span));
+			Value::record(rec, span)
+		}
+		NuEffect::EditText { op, text } => {
+			let mut rec = Record::new();
+			rec.push("type", Value::string("edit", span));
+			rec.push(
+				"op",
+				Value::string(
+					match op {
+						xeno_invocation::nu::NuTextEditOp::ReplaceSelection => "replace_selection",
+						xeno_invocation::nu::NuTextEditOp::ReplaceLine => "replace_line",
+					},
+					span,
+				),
+			);
+			rec.push("text", Value::string(text, span));
+			Value::record(rec, span)
+		}
 	}
 }
 

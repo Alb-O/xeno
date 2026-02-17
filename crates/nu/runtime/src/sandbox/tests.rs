@@ -764,3 +764,198 @@ fn sandbox_rejects_forbidden_commands() {
 		);
 	}
 }
+
+#[test]
+fn safe_stdlib_str_starts_with_works() {
+	let mut engine_state = create_engine_state(None).expect("engine state");
+	let source = "'hello world' | str starts-with 'hello'";
+	let parsed = parse_and_validate(&mut engine_state, "<test>", source, None).expect("should parse");
+	let value = evaluate_block(&engine_state, parsed.block.as_ref()).expect("should evaluate");
+	assert!(value.as_bool().unwrap());
+}
+
+#[test]
+fn safe_stdlib_str_starts_with_false() {
+	let mut engine_state = create_engine_state(None).expect("engine state");
+	let source = "'hello' | str starts-with 'world'";
+	let parsed = parse_and_validate(&mut engine_state, "<test>", source, None).expect("should parse");
+	let value = evaluate_block(&engine_state, parsed.block.as_ref()).expect("should evaluate");
+	assert!(!value.as_bool().unwrap());
+}
+
+#[test]
+fn safe_stdlib_str_ends_with_works() {
+	let mut engine_state = create_engine_state(None).expect("engine state");
+	let source = "'hello.rs' | str ends-with '.rs'";
+	let parsed = parse_and_validate(&mut engine_state, "<test>", source, None).expect("should parse");
+	let value = evaluate_block(&engine_state, parsed.block.as_ref()).expect("should evaluate");
+	assert!(value.as_bool().unwrap());
+}
+
+#[test]
+fn safe_stdlib_str_upcase_works() {
+	let mut engine_state = create_engine_state(None).expect("engine state");
+	let source = "'hello' | str upcase";
+	let parsed = parse_and_validate(&mut engine_state, "<test>", source, None).expect("should parse");
+	let value = evaluate_block(&engine_state, parsed.block.as_ref()).expect("should evaluate");
+	assert_eq!(value.as_str().unwrap(), "HELLO");
+}
+
+#[test]
+fn safe_stdlib_str_downcase_works() {
+	let mut engine_state = create_engine_state(None).expect("engine state");
+	let source = "'HELLO' | str downcase";
+	let parsed = parse_and_validate(&mut engine_state, "<test>", source, None).expect("should parse");
+	let value = evaluate_block(&engine_state, parsed.block.as_ref()).expect("should evaluate");
+	assert_eq!(value.as_str().unwrap(), "hello");
+}
+
+#[test]
+fn safe_stdlib_str_starts_with_case_insensitive() {
+	let mut engine_state = create_engine_state(None).expect("engine state");
+	let source = "'Hello' | str starts-with --ignore-case 'HELLO'";
+	let parsed = parse_and_validate(&mut engine_state, "<test>", source, None).expect("should parse");
+	let value = evaluate_block(&engine_state, parsed.block.as_ref()).expect("should evaluate");
+	assert!(value.as_bool().unwrap());
+}
+
+#[test]
+fn safe_stdlib_str_commands_in_macro_context() {
+	let mut engine_state = create_engine_state(None).expect("engine state");
+	let source = r#"export def go [] {
+  let s = "Hello"
+  if ($s | str starts-with "H") {
+    xeno effect notify info ($s | str upcase)
+  } else {
+    null
+  }
+}"#;
+	let _parsed =
+		parse_and_validate_with_policy(&mut engine_state, "<test>", source, None, ParsePolicy::ModuleOnly).expect("macro with str commands should parse");
+	let decl_id = find_decl(&engine_state, "go").expect("go should be declared");
+	let result = call_function(&engine_state, decl_id, &[], &[]).expect("should execute");
+	let result = xeno_nu_data::Value::try_from(result).expect("value should convert");
+	let effects = xeno_invocation::nu::decode_macro_effects(result).expect("should decode");
+	assert_eq!(effects.effects.len(), 1);
+	match &effects.effects[0] {
+		xeno_invocation::nu::NuEffect::Notify { level, message } => {
+			assert_eq!(*level, xeno_invocation::nu::NuNotifyLevel::Info);
+			assert_eq!(message, "HELLO");
+		}
+		other => panic!("expected Notify, got: {other:?}"),
+	}
+}
+
+#[test]
+fn safe_stdlib_xeno_effect_clipboard_produces_correct_record() {
+	let mut engine_state = create_engine_state(None).expect("engine state");
+	let source = r#"export def copy-it [] { xeno effect clipboard "hello world" }"#;
+	let _parsed = parse_and_validate_with_policy(&mut engine_state, "<test>", source, None, ParsePolicy::ModuleOnly).expect("clipboard macro should parse");
+	let decl_id = find_decl(&engine_state, "copy-it").expect("copy-it should be declared");
+	let result = call_function(&engine_state, decl_id, &[], &[]).expect("should execute");
+	let result = xeno_nu_data::Value::try_from(result).expect("value should convert");
+	let effects = xeno_invocation::nu::decode_macro_effects(result).expect("should decode");
+	assert_eq!(effects.effects.len(), 1);
+	match &effects.effects[0] {
+		xeno_invocation::nu::NuEffect::SetClipboard { text } => {
+			assert_eq!(text, "hello world");
+		}
+		other => panic!("expected SetClipboard, got: {other:?}"),
+	}
+}
+
+#[test]
+fn safe_stdlib_xeno_effect_clipboard_empty() {
+	let mut engine_state = create_engine_state(None).expect("engine state");
+	let source = r#"export def copy-empty [] { xeno effect clipboard }"#;
+	let _parsed =
+		parse_and_validate_with_policy(&mut engine_state, "<test>", source, None, ParsePolicy::ModuleOnly).expect("clipboard empty macro should parse");
+	let decl_id = find_decl(&engine_state, "copy-empty").expect("copy-empty should be declared");
+	let result = call_function(&engine_state, decl_id, &[], &[]).expect("should execute");
+	let result = xeno_nu_data::Value::try_from(result).expect("value should convert");
+	let effects = xeno_invocation::nu::decode_macro_effects(result).expect("should decode");
+	assert_eq!(effects.effects.len(), 1);
+	match &effects.effects[0] {
+		xeno_invocation::nu::NuEffect::SetClipboard { text } => {
+			assert_eq!(text, "");
+		}
+		other => panic!("expected SetClipboard, got: {other:?}"),
+	}
+}
+
+#[test]
+fn safe_stdlib_xeno_effect_state_set_produces_correct_record() {
+	let mut engine_state = create_engine_state(None).expect("engine state");
+	let source = r#"export def set-it [] { xeno effect state set mykey myvalue }"#;
+	let _parsed = parse_and_validate_with_policy(&mut engine_state, "<test>", source, None, ParsePolicy::ModuleOnly).expect("state set macro should parse");
+	let decl_id = find_decl(&engine_state, "set-it").expect("set-it should be declared");
+	let result = call_function(&engine_state, decl_id, &[], &[]).expect("should execute");
+	let result = xeno_nu_data::Value::try_from(result).expect("value should convert");
+	let effects = xeno_invocation::nu::decode_macro_effects(result).expect("should decode");
+	assert_eq!(effects.effects.len(), 1);
+	match &effects.effects[0] {
+		xeno_invocation::nu::NuEffect::StateSet { key, value } => {
+			assert_eq!(key, "mykey");
+			assert_eq!(value, "myvalue");
+		}
+		other => panic!("expected StateSet, got: {other:?}"),
+	}
+}
+
+#[test]
+fn safe_stdlib_xeno_effect_state_unset_produces_correct_record() {
+	let mut engine_state = create_engine_state(None).expect("engine state");
+	let source = r#"export def unset-it [] { xeno effect state unset mykey }"#;
+	let _parsed = parse_and_validate_with_policy(&mut engine_state, "<test>", source, None, ParsePolicy::ModuleOnly).expect("state unset macro should parse");
+	let decl_id = find_decl(&engine_state, "unset-it").expect("unset-it should be declared");
+	let result = call_function(&engine_state, decl_id, &[], &[]).expect("should execute");
+	let result = xeno_nu_data::Value::try_from(result).expect("value should convert");
+	let effects = xeno_invocation::nu::decode_macro_effects(result).expect("should decode");
+	assert_eq!(effects.effects.len(), 1);
+	match &effects.effects[0] {
+		xeno_invocation::nu::NuEffect::StateUnset { key } => {
+			assert_eq!(key, "mykey");
+		}
+		other => panic!("expected StateUnset, got: {other:?}"),
+	}
+}
+
+#[test]
+fn safe_stdlib_xeno_effect_schedule_set_produces_correct_record() {
+	let mut engine_state = create_engine_state(None).expect("engine state");
+	let source = r#"export def sched-it [] { xeno effect schedule set autosave 750 save-all }"#;
+	let _parsed = parse_and_validate_with_policy(&mut engine_state, "<test>", source, None, ParsePolicy::ModuleOnly).expect("schedule set macro should parse");
+	let decl_id = find_decl(&engine_state, "sched-it").expect("sched-it should be declared");
+	let result = call_function(&engine_state, decl_id, &[], &[]).expect("should execute");
+	let result = xeno_nu_data::Value::try_from(result).expect("value should convert");
+	let effects = xeno_invocation::nu::decode_macro_effects(result).expect("should decode");
+	assert_eq!(effects.effects.len(), 1);
+	match &effects.effects[0] {
+		xeno_invocation::nu::NuEffect::ScheduleSet { key, delay_ms, name, args } => {
+			assert_eq!(key, "autosave");
+			assert_eq!(*delay_ms, 750);
+			assert_eq!(name, "save-all");
+			assert!(args.is_empty());
+		}
+		other => panic!("expected ScheduleSet, got: {other:?}"),
+	}
+}
+
+#[test]
+fn safe_stdlib_xeno_effect_schedule_cancel_produces_correct_record() {
+	let mut engine_state = create_engine_state(None).expect("engine state");
+	let source = r#"export def cancel-it [] { xeno effect schedule cancel autosave }"#;
+	let _parsed =
+		parse_and_validate_with_policy(&mut engine_state, "<test>", source, None, ParsePolicy::ModuleOnly).expect("schedule cancel macro should parse");
+	let decl_id = find_decl(&engine_state, "cancel-it").expect("cancel-it should be declared");
+	let result = call_function(&engine_state, decl_id, &[], &[]).expect("should execute");
+	let result = xeno_nu_data::Value::try_from(result).expect("value should convert");
+	let effects = xeno_invocation::nu::decode_macro_effects(result).expect("should decode");
+	assert_eq!(effects.effects.len(), 1);
+	match &effects.effects[0] {
+		xeno_invocation::nu::NuEffect::ScheduleCancel { key } => {
+			assert_eq!(key, "autosave");
+		}
+		other => panic!("expected ScheduleCancel, got: {other:?}"),
+	}
+}

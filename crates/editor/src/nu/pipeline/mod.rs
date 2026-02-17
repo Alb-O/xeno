@@ -116,7 +116,7 @@ pub(crate) fn kick_nu_hook_eval(editor: &mut Editor) {
 		.nu
 		.as_ref()
 		.map_or_else(crate::nu::DecodeBudget::hook_defaults, |c| c.hook_decode_budget());
-	let nu_ctx = editor.build_nu_ctx("hook", fn_name, &queued.args);
+	let nu_ctx = editor.build_nu_ctx("hook", fn_name, &queued.args, false);
 	let env = vec![("XENO_CTX".to_string(), nu_ctx)];
 
 	let executor_client = editor.state.nu.executor_client().expect("executor should exist");
@@ -262,7 +262,7 @@ async fn run_single_nu_hook_sync(editor: &mut Editor, hook: crate::nu::NuHook, a
 		.nu
 		.as_ref()
 		.map_or_else(crate::nu::DecodeBudget::hook_defaults, |c| c.hook_decode_budget());
-	let nu_ctx = editor.build_nu_ctx("hook", fn_name, &args);
+	let nu_ctx = editor.build_nu_ctx("hook", fn_name, &args, false);
 
 	let effects = match execute_with_restart(
 		&mut editor.state.nu,

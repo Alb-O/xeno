@@ -21,6 +21,20 @@ const EFFECT_FIELD_SCHEMA_VERSION: &str = "schema_version";
 const EFFECT_TYPE_DISPATCH: &str = "dispatch";
 const EFFECT_TYPE_NOTIFY: &str = "notify";
 const EFFECT_TYPE_STOP: &str = "stop";
+const EFFECT_TYPE_EDIT: &str = "edit";
+const EFFECT_TYPE_CLIPBOARD: &str = "clipboard";
+const EFFECT_TYPE_STATE: &str = "state";
+const EFFECT_TYPE_SCHEDULE: &str = "schedule";
+const EFFECT_FIELD_OP: &str = "op";
+const EFFECT_FIELD_TEXT: &str = "text";
+const EFFECT_FIELD_KEY: &str = "key";
+const EFFECT_FIELD_VALUE: &str = "value";
+const EFFECT_FIELD_DELAY_MS: &str = "delay_ms";
+const EFFECT_FIELD_MACRO: &str = "macro";
+const EFFECT_FIELD_ARGS: &str = "args";
+
+/// Maximum delay for scheduled macros (1 hour).
+pub const MAX_SCHEDULE_DELAY_MS: u64 = 3_600_000;
 
 const DEFAULT_SCHEMA_VERSION: i64 = 1;
 
@@ -88,6 +102,25 @@ impl NuNotifyLevel {
 	}
 }
 
+/// Text edit operation for buffer manipulation from Nu.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum NuTextEditOp {
+	/// Replace the active selection (or insert at cursor if point selection).
+	ReplaceSelection,
+	/// Replace the current cursor line content (excluding trailing newline).
+	ReplaceLine,
+}
+
+impl NuTextEditOp {
+	fn parse(s: &str) -> Option<Self> {
+		match s {
+			"replace_selection" => Some(Self::ReplaceSelection),
+			"replace_line" => Some(Self::ReplaceLine),
+			_ => None,
+		}
+	}
+}
+
 /// Typed effect produced by Nu runtime execution.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum NuEffect {
@@ -97,6 +130,23 @@ pub enum NuEffect {
 	Notify { level: NuNotifyLevel, message: String },
 	/// Stop downstream hook processing.
 	StopPropagation,
+	/// Directly edit buffer text.
+	EditText { op: NuTextEditOp, text: String },
+	/// Write text to the clipboard (yank register).
+	SetClipboard { text: String },
+	/// Set a key-value pair in the persistent Nu state store.
+	StateSet { key: String, value: String },
+	/// Remove a key from the persistent Nu state store.
+	StateUnset { key: String },
+	/// Schedule a macro to run after a delay, cancelling any previous schedule with the same key.
+	ScheduleSet {
+		key: String,
+		delay_ms: u64,
+		name: String,
+		args: Vec<String>,
+	},
+	/// Cancel a pending scheduled macro by key.
+	ScheduleCancel { key: String },
 }
 
 /// Decoded batch of effects plus envelope metadata.
@@ -123,7 +173,14 @@ impl NuEffectBatch {
 			.into_iter()
 			.filter_map(|effect| match effect {
 				NuEffect::Dispatch(invocation) => Some(invocation),
-				NuEffect::Notify { .. } | NuEffect::StopPropagation => None,
+				NuEffect::Notify { .. }
+				| NuEffect::StopPropagation
+				| NuEffect::EditText { .. }
+				| NuEffect::SetClipboard { .. }
+				| NuEffect::StateSet { .. }
+				| NuEffect::StateUnset { .. }
+				| NuEffect::ScheduleSet { .. }
+				| NuEffect::ScheduleCancel { .. } => None,
 			})
 			.collect()
 	}
@@ -143,6 +200,10 @@ pub enum NuCapability {
 	Notify,
 	StopPropagation,
 	ReadContext,
+	EditText,
+	SetClipboard,
+	WriteState,
+	ScheduleMacro,
 }
 
 impl NuCapability {
@@ -155,6 +216,10 @@ impl NuCapability {
 			"notify" => Some(Self::Notify),
 			"stop_propagation" => Some(Self::StopPropagation),
 			"read_context" => Some(Self::ReadContext),
+			"edit_text" => Some(Self::EditText),
+			"set_clipboard" => Some(Self::SetClipboard),
+			"write_state" => Some(Self::WriteState),
+			"schedule_macro" => Some(Self::ScheduleMacro),
 			_ => None,
 		}
 	}
@@ -168,6 +233,10 @@ impl NuCapability {
 			Self::Notify => "notify",
 			Self::StopPropagation => "stop_propagation",
 			Self::ReadContext => "read_context",
+			Self::EditText => "edit_text",
+			Self::SetClipboard => "set_clipboard",
+			Self::WriteState => "write_state",
+			Self::ScheduleMacro => "schedule_macro",
 		}
 	}
 }
@@ -182,6 +251,10 @@ pub fn required_capability_for_effect(effect: &NuEffect) -> NuCapability {
 		NuEffect::Dispatch(Invocation::Nu { .. }) => NuCapability::DispatchMacro,
 		NuEffect::Notify { .. } => NuCapability::Notify,
 		NuEffect::StopPropagation => NuCapability::StopPropagation,
+		NuEffect::EditText { .. } => NuCapability::EditText,
+		NuEffect::SetClipboard { .. } => NuCapability::SetClipboard,
+		NuEffect::StateSet { .. } | NuEffect::StateUnset { .. } => NuCapability::WriteState,
+		NuEffect::ScheduleSet { .. } | NuEffect::ScheduleCancel { .. } => NuCapability::ScheduleMacro,
 	}
 }
 
@@ -214,7 +287,14 @@ pub fn decode_single_dispatch_effect(value: &Value, field_path: &str) -> Result<
 			let effect = decode_effect_record(val, &budget, &mut state)?;
 			match effect {
 				NuEffect::Dispatch(invocation) => Ok(invocation),
-				NuEffect::Notify { .. } | NuEffect::StopPropagation => Err(format!("Nu decode error at {field_path}: expected dispatch effect record")),
+				NuEffect::Notify { .. }
+				| NuEffect::StopPropagation
+				| NuEffect::EditText { .. }
+				| NuEffect::SetClipboard { .. }
+				| NuEffect::StateSet { .. }
+				| NuEffect::StateUnset { .. }
+				| NuEffect::ScheduleSet { .. }
+				| NuEffect::ScheduleCancel { .. } => Err(format!("Nu decode error at {field_path}: expected dispatch effect record")),
 			}
 		}
 		other => Err(format!("Nu decode error at {field_path}: expected effect record, got {}", other.get_type())),
@@ -413,6 +493,56 @@ fn decode_effect_record(record: &Record, budget: &DecodeBudget, state: &mut Deco
 			}
 			Ok(NuEffect::StopPropagation)
 		}
+		EFFECT_TYPE_CLIPBOARD => {
+			let text = required_string_field_allow_empty(record, EFFECT_FIELD_TEXT, budget, state)?;
+			Ok(NuEffect::SetClipboard { text })
+		}
+		EFFECT_TYPE_STATE => {
+			let op = required_string_field(record, EFFECT_FIELD_OP, budget, state)?;
+			match op.as_str() {
+				"set" => {
+					let key = required_string_field(record, EFFECT_FIELD_KEY, budget, state)?;
+					let value = required_string_field_allow_empty(record, EFFECT_FIELD_VALUE, budget, state)?;
+					Ok(NuEffect::StateSet { key, value })
+				}
+				"unset" => {
+					let key = required_string_field(record, EFFECT_FIELD_KEY, budget, state)?;
+					Ok(NuEffect::StateUnset { key })
+				}
+				other => Err(state.err(format_args!("unknown state op '{other}'; expected 'set' or 'unset'"))),
+			}
+		}
+		EFFECT_TYPE_SCHEDULE => {
+			let op = required_string_field(record, EFFECT_FIELD_OP, budget, state)?;
+			match op.as_str() {
+				"set" => {
+					let key = required_string_field(record, EFFECT_FIELD_KEY, budget, state)?;
+					let delay_ms = required_u64_field(record, EFFECT_FIELD_DELAY_MS, state)?;
+					if delay_ms > MAX_SCHEDULE_DELAY_MS {
+						return Err(state.err(format_args!("delay_ms exceeds max {MAX_SCHEDULE_DELAY_MS}")));
+					}
+					let name = required_string_field(record, EFFECT_FIELD_MACRO, budget, state)?;
+					let args = optional_string_list_field(record, EFFECT_FIELD_ARGS, budget, state)?.unwrap_or_default();
+					Ok(NuEffect::ScheduleSet { key, delay_ms, name, args })
+				}
+				"cancel" => {
+					let key = required_string_field(record, EFFECT_FIELD_KEY, budget, state)?;
+					Ok(NuEffect::ScheduleCancel { key })
+				}
+				other => Err(state.err(format_args!("unknown schedule op '{other}'; expected 'set' or 'cancel'"))),
+			}
+		}
+		EFFECT_TYPE_EDIT => {
+			let op_raw = required_string_field(record, EFFECT_FIELD_OP, budget, state)?;
+			let Some(op) = NuTextEditOp::parse(&op_raw) else {
+				return Err(state.err(format_args!("unknown edit op '{op_raw}'; expected 'replace_selection' or 'replace_line'")));
+			};
+			let text = required_string_field_allow_empty(record, EFFECT_FIELD_TEXT, budget, state)?;
+			if matches!(op, NuTextEditOp::ReplaceLine) && text.contains(['\n', '\r']) {
+				return Err(state.err("replace_line text must not contain newline characters"));
+			}
+			Ok(NuEffect::EditText { op, text })
+		}
 		other => Err(state.err(format_args!("unknown effect type '{other}'"))),
 	}
 }
@@ -458,6 +588,20 @@ fn decode_dispatch_invocation(record: &Record, budget: &DecodeBudget, state: &mu
 	}
 }
 
+fn required_string_field_allow_empty<'a>(record: &Record, field: &'a str, budget: &DecodeBudget, state: &mut DecodeState<'a>) -> Result<String, String> {
+	state.path.push_field(field);
+	let out = match record.get(field) {
+		Some(Value::String { val, .. }) => {
+			validate_string_limit(state, val, budget)?;
+			Ok(val.clone())
+		}
+		Some(other) => Err(state.err(format_args!("expected string, got {}", other.get_type()))),
+		None => Err(state.err("missing required field")),
+	};
+	state.path.pop();
+	out
+}
+
 fn required_string_field<'a>(record: &Record, field: &'a str, budget: &DecodeBudget, state: &mut DecodeState<'a>) -> Result<String, String> {
 	state.path.push_field(field);
 	let out = match record.get(field) {
@@ -470,6 +614,18 @@ fn required_string_field<'a>(record: &Record, field: &'a str, budget: &DecodeBud
 			}
 		}
 		Some(other) => Err(state.err(format_args!("expected string, got {}", other.get_type()))),
+		None => Err(state.err("missing required field")),
+	};
+	state.path.pop();
+	out
+}
+
+fn required_u64_field<'a>(record: &Record, field: &'a str, state: &mut DecodeState<'a>) -> Result<u64, String> {
+	state.path.push_field(field);
+	let out = match record.get(field) {
+		Some(Value::Int { val, .. }) if *val >= 0 => Ok(*val as u64),
+		Some(Value::Int { .. }) => Err(state.err("must be non-negative")),
+		Some(other) => Err(state.err(format_args!("expected int, got {}", other.get_type()))),
 		None => Err(state.err("missing required field")),
 	};
 	state.path.pop();

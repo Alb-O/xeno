@@ -19,6 +19,14 @@ fn sample_ctx() -> NuCtx {
 			readonly: false,
 			modified: true,
 		},
+		text: NuCtxText {
+			line: Some("hello world".into()),
+			line_truncated: false,
+			selection: Some("lo wo".into()),
+			selection_truncated: false,
+		},
+		event: None,
+		state: vec![],
 	}
 }
 
@@ -27,7 +35,20 @@ fn ctx_has_required_top_level_fields() {
 	let value = sample_ctx().to_value();
 	let record = value.as_record().expect("ctx should be a record");
 
-	let required = ["schema_version", "kind", "function", "args", "mode", "view", "cursor", "selection", "buffer"];
+	let required = [
+		"schema_version",
+		"kind",
+		"function",
+		"args",
+		"mode",
+		"view",
+		"cursor",
+		"selection",
+		"buffer",
+		"text",
+		"event",
+		"state",
+	];
 	for field in required {
 		assert!(record.contains(field), "missing required field: {field}");
 	}
@@ -82,4 +103,195 @@ fn ctx_cursor_has_line_and_col() {
 	assert!(cursor.contains("col"));
 	assert_eq!(cursor.get("line").unwrap().as_int().unwrap(), 10);
 	assert_eq!(cursor.get("col").unwrap().as_int().unwrap(), 5);
+}
+
+#[test]
+fn ctx_text_has_correct_shape_with_content() {
+	let value = sample_ctx().to_value();
+	let record = value.as_record().expect("ctx should be a record");
+	let text = record.get("text").expect("text should exist").as_record().expect("text should be record");
+
+	assert_eq!(text.get("line").unwrap().as_str().unwrap(), "hello world");
+	assert_eq!(text.get("line_truncated").unwrap().as_bool().unwrap(), false);
+	assert_eq!(text.get("selection").unwrap().as_str().unwrap(), "lo wo");
+	assert_eq!(text.get("selection_truncated").unwrap().as_bool().unwrap(), false);
+}
+
+#[test]
+fn ctx_text_empty_has_nothing_fields() {
+	let mut ctx = sample_ctx();
+	ctx.text = NuCtxText::empty();
+
+	let value = ctx.to_value();
+	let record = value.as_record().expect("ctx should be a record");
+	let text = record.get("text").expect("text should exist").as_record().expect("text should be record");
+
+	assert!(text.get("line").unwrap().is_nothing());
+	assert_eq!(text.get("line_truncated").unwrap().as_bool().unwrap(), false);
+	assert!(text.get("selection").unwrap().is_nothing());
+	assert_eq!(text.get("selection_truncated").unwrap().as_bool().unwrap(), false);
+}
+
+#[test]
+fn clamp_utf8_no_truncation() {
+	let (s, trunc) = clamp_utf8("hello", 10);
+	assert_eq!(s, "hello");
+	assert!(!trunc);
+}
+
+#[test]
+fn clamp_utf8_exact_boundary() {
+	let (s, trunc) = clamp_utf8("hello", 5);
+	assert_eq!(s, "hello");
+	assert!(!trunc);
+}
+
+#[test]
+fn clamp_utf8_truncates_ascii() {
+	let (s, trunc) = clamp_utf8("hello world", 5);
+	assert_eq!(s, "hello");
+	assert!(trunc);
+}
+
+#[test]
+fn clamp_utf8_respects_char_boundary() {
+	// "é" is 2 bytes in UTF-8; cutting at byte 1 must back up
+	let (s, trunc) = clamp_utf8("é", 1);
+	assert_eq!(s, "");
+	assert!(trunc);
+}
+
+#[test]
+fn clamp_utf8_multibyte_safe() {
+	// "aé" = 3 bytes; cap at 2 must keep only "a"
+	let (s, trunc) = clamp_utf8("aé", 2);
+	assert_eq!(s, "a");
+	assert!(trunc);
+}
+
+#[test]
+fn rope_slice_clamped_small_fits() {
+	use xeno_primitives::Rope;
+	let rope = Rope::from("hello world");
+	let (s, trunc) = rope_slice_clamped(rope.slice(..), 100);
+	assert_eq!(s, "hello world");
+	assert!(!trunc);
+}
+
+#[test]
+fn rope_slice_clamped_truncates_at_budget() {
+	use xeno_primitives::Rope;
+	let rope = Rope::from("hello world");
+	let (s, trunc) = rope_slice_clamped(rope.slice(..), 5);
+	assert_eq!(s, "hello");
+	assert!(trunc);
+}
+
+#[test]
+fn rope_slice_clamped_large_ascii() {
+	use xeno_primitives::Rope;
+	let big = "x".repeat(100_000);
+	let rope = Rope::from(big.as_str());
+	let (s, trunc) = rope_slice_clamped(rope.slice(..), 64);
+	assert_eq!(s.len(), 64);
+	assert!(trunc);
+}
+
+#[test]
+fn rope_slice_clamped_multibyte_boundary() {
+	use xeno_primitives::Rope;
+	// "aéb" = a(1) + é(2) + b(1) = 4 bytes
+	let rope = Rope::from("aéb");
+	let (s, trunc) = rope_slice_clamped(rope.slice(..), 2);
+	// Can fit "a" (1 byte), "é" starts at byte 1 and needs 2 bytes → only 1 remaining → back up
+	assert_eq!(s, "a");
+	assert!(trunc);
+}
+
+#[test]
+fn rope_slice_clamped_zero_budget() {
+	use xeno_primitives::Rope;
+	let rope = Rope::from("hello");
+	let (s, trunc) = rope_slice_clamped(rope.slice(..), 0);
+	assert_eq!(s, "");
+	assert!(trunc);
+}
+
+#[test]
+fn rope_slice_clamped_empty_slice() {
+	use xeno_primitives::Rope;
+	let rope = Rope::from("");
+	let (s, trunc) = rope_slice_clamped(rope.slice(..), 100);
+	assert_eq!(s, "");
+	assert!(!trunc);
+}
+
+#[test]
+fn ctx_event_null_for_macro() {
+	let ctx = sample_ctx();
+	let value = ctx.to_value();
+	let record = value.as_record().expect("ctx should be a record");
+	assert!(record.get("event").unwrap().is_nothing());
+}
+
+#[test]
+fn ctx_event_action_post_shape() {
+	let mut ctx = sample_ctx();
+	ctx.event = Some(NuCtxEvent::ActionPost {
+		name: "move_right".into(),
+		result: "ok".into(),
+	});
+	let value = ctx.to_value();
+	let record = value.as_record().expect("ctx should be a record");
+	let event = record.get("event").unwrap().as_record().expect("event should be record");
+	assert_eq!(event.get("type").unwrap().as_str().unwrap(), "action_post");
+	let data = event.get("data").unwrap().as_record().expect("data should be record");
+	assert_eq!(data.get("name").unwrap().as_str().unwrap(), "move_right");
+	assert_eq!(data.get("result").unwrap().as_str().unwrap(), "ok");
+}
+
+#[test]
+fn ctx_event_command_post_includes_args() {
+	let mut ctx = sample_ctx();
+	ctx.event = Some(NuCtxEvent::CommandPost {
+		name: "write".into(),
+		result: "ok".into(),
+		args: vec!["--force".into()],
+	});
+	let value = ctx.to_value();
+	let record = value.as_record().expect("ctx should be a record");
+	let event = record.get("event").unwrap().as_record().expect("event should be record");
+	assert_eq!(event.get("type").unwrap().as_str().unwrap(), "command_post");
+	let data = event.get("data").unwrap().as_record().expect("data should be record");
+	assert_eq!(data.get("name").unwrap().as_str().unwrap(), "write");
+	let args = data.get("args").unwrap().as_list().expect("args should be list");
+	assert_eq!(args.len(), 1);
+	assert_eq!(args[0].as_str().unwrap(), "--force");
+}
+
+#[test]
+fn ctx_event_mode_change_shape() {
+	let mut ctx = sample_ctx();
+	ctx.event = Some(NuCtxEvent::ModeChange {
+		from: "Normal".into(),
+		to: "Insert".into(),
+	});
+	let value = ctx.to_value();
+	let record = value.as_record().expect("ctx should be a record");
+	let event = record.get("event").unwrap().as_record().expect("event should be record");
+	assert_eq!(event.get("type").unwrap().as_str().unwrap(), "mode_change");
+	let data = event.get("data").unwrap().as_record().expect("data should be record");
+	assert_eq!(data.get("from").unwrap().as_str().unwrap(), "Normal");
+	assert_eq!(data.get("to").unwrap().as_str().unwrap(), "Insert");
+}
+
+#[test]
+fn ctx_event_from_hook_parses_all_variants() {
+	assert!(NuCtxEvent::from_hook("on_action_post", &["move_right".into(), "ok".into()]).is_some());
+	assert!(NuCtxEvent::from_hook("on_command_post", &["write".into(), "ok".into(), "--force".into()]).is_some());
+	assert!(NuCtxEvent::from_hook("on_editor_command_post", &["reload".into(), "ok".into()]).is_some());
+	assert!(NuCtxEvent::from_hook("on_mode_change", &["Normal".into(), "Insert".into()]).is_some());
+	assert!(NuCtxEvent::from_hook("on_buffer_open", &["/tmp/f.rs".into(), "disk".into()]).is_some());
+	assert!(NuCtxEvent::from_hook("unknown_hook", &["a".into(), "b".into()]).is_none());
+	assert!(NuCtxEvent::from_hook("on_action_post", &["only_one".into()]).is_none());
 }

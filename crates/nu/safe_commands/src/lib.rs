@@ -41,8 +41,12 @@ pub fn register_all(working_set: &mut StateWorkingSet<'_>) {
 	working_set.add_decl(Box::new(filters::Where));
 	working_set.add_decl(Box::new(strings::SplitRow));
 	working_set.add_decl(Box::new(strings::StrContains));
+	working_set.add_decl(Box::new(strings::StrDowncase));
+	working_set.add_decl(Box::new(strings::StrEndsWith));
 	working_set.add_decl(Box::new(strings::StrReplace));
+	working_set.add_decl(Box::new(strings::StrStartsWith));
 	working_set.add_decl(Box::new(strings::StrTrim));
+	working_set.add_decl(Box::new(strings::StrUpcase));
 	working_set.add_decl(Box::new(conversions::IntoBool));
 	working_set.add_decl(Box::new(conversions::IntoInt));
 	working_set.add_decl(Box::new(conversions::IntoString));

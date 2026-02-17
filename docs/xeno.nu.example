@@ -18,8 +18,12 @@ export def on_action_post [name: string, result: string] {
 }
 
 # Runs after every registry command.
+# Uses ctx.event for structured event data (no positional-arg dependence).
 export def on_command_post [name: string, result: string, ...args: string] {
-  null
+  let ctx = (xeno ctx)
+  if ($ctx.event != null) and ($ctx.event.type == "command_post") and ($ctx.event.data.name == "write") {
+    xeno effect notify info "saved!"
+  }
 }
 
 # Runs after every editor command.
@@ -73,4 +77,76 @@ export def show-position [] {
   let pos = $"($ctx.cursor.line):($ctx.cursor.col)"
   let file = if ($ctx.buffer.path == null) { "<scratch>" } else { $ctx.buffer.path }
   null
+}
+
+# Text-aware macro using ctx.text (macro-only, populated with cursor line + selection).
+export def toggle-comment [] {
+  let ctx = (xeno ctx)
+  let line = $ctx.text.line
+  if ($line != null) and ($line | str starts-with "#") {
+    xeno effect dispatch action uncomment_line
+  } else {
+    xeno effect dispatch action comment_line
+  }
+}
+
+# Text edit: upcase the current selection.
+export def upcase-selection [] {
+  let ctx = (xeno ctx)
+  if not $ctx.selection.active { return null }
+  let s = $ctx.text.selection
+  if $s == null { return null }
+  xeno effect edit replace_selection ($s | str upcase)
+}
+
+# Text edit: wrap selection in quotes.
+export def wrap-quotes [] {
+  let ctx = (xeno ctx)
+  if not $ctx.selection.active { return null }
+  let s = $ctx.text.selection
+  if $s == null { return null }
+  xeno effect edit replace_selection $"\"($s)\""
+}
+
+# Clipboard: copy selection uppercased.
+export def copy-upcase-selection [] {
+  let ctx = (xeno ctx)
+  if not $ctx.selection.active { return null }
+  let s = $ctx.text.selection
+  if $s == null { return null }
+  xeno effect clipboard ($s | str upcase)
+}
+
+# Clipboard: copy current file path.
+export def copy-file-path [] {
+  let ctx = (xeno ctx)
+  if $ctx.buffer.path == null { return null }
+  xeno effect clipboard $ctx.buffer.path
+}
+
+# State: toggle a boolean flag with notification.
+export def toggle-foo [] {
+  let ctx = (xeno ctx)
+  let cur = ($ctx.state | where key == "foo" | get 0?.value)
+  let next = if $cur == "1" { "0" } else { "1" }
+  [
+    (xeno effect state set foo $next),
+    (xeno effect notify info $"foo=($next)")
+  ]
+}
+
+# Schedule: debounced autosave (750ms after last edit).
+# Re-scheduling with the same key replaces the previous timer.
+export def debounce-save [] {
+  xeno effect schedule set autosave 750 save-and-format
+}
+
+# Schedule: format after idle (300ms) with args.
+export def format-after-idle [] {
+  xeno effect schedule set fmt 300 format-buffer --quiet
+}
+
+# Schedule: cancel a pending timer.
+export def cancel-autosave [] {
+  xeno effect schedule cancel autosave
 }

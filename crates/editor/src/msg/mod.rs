@@ -72,6 +72,8 @@ pub enum EditorMsg {
 	Overlay(OverlayMsg),
 	/// Async Nu hook evaluation completed.
 	NuHookEvalDone(NuHookEvalDoneMsg),
+	/// A scheduled Nu macro timer fired.
+	NuScheduleFired(crate::nu::coordinator::NuScheduleFiredMsg),
 }
 
 impl EditorMsg {
@@ -83,6 +85,10 @@ impl EditorMsg {
 			Self::Lsp(msg) => msg.apply(editor),
 			Self::Overlay(msg) => msg.apply(editor),
 			Self::NuHookEvalDone(msg) => editor.apply_nu_hook_eval_done(msg),
+			Self::NuScheduleFired(msg) => {
+				editor.state.nu.apply_schedule_fired(msg);
+				Dirty::NONE
+			}
 		}
 	}
 }

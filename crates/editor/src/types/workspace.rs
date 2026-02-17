@@ -1,6 +1,6 @@
 //! Editing session state.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 use xeno_primitives::Key;
 use xeno_primitives::range::CharIdx;
@@ -150,6 +150,46 @@ impl MacroState {
 	}
 }
 
+/// Per-session key-value store for Nu script state persistence.
+///
+/// Bounded FIFO store: when full, oldest entries are evicted on insert.
+/// Keys and values are plain strings capped at the invocation string limit.
+/// Provides ordered iteration for XENO_CTX serialization.
+#[derive(Default)]
+pub struct NuState {
+	entries: VecDeque<(String, String)>,
+}
+
+impl NuState {
+	/// Maximum number of state entries.
+	pub const MAX_ENTRIES: usize = 64;
+
+	/// Set a key-value pair. Updates in-place if key exists, otherwise appends.
+	/// Evicts the oldest entry if at capacity.
+	pub fn set(&mut self, key: String, value: String) {
+		if let Some(pos) = self.entries.iter().position(|(k, _)| k == &key) {
+			self.entries[pos].1 = value;
+			return;
+		}
+		if self.entries.len() >= Self::MAX_ENTRIES {
+			self.entries.pop_front();
+		}
+		self.entries.push_back((key, value));
+	}
+
+	/// Remove a key. No-op if key doesn't exist.
+	pub fn unset(&mut self, key: &str) {
+		if let Some(pos) = self.entries.iter().position(|(k, _)| k == key) {
+			self.entries.remove(pos);
+		}
+	}
+
+	/// Iterate over entries in insertion order.
+	pub fn iter(&self) -> impl Iterator<Item = (&str, &str)> {
+		self.entries.iter().map(|(k, v)| (k.as_str(), v.as_str()))
+	}
+}
+
 /// Editing session state.
 ///
 /// Groups workspace-level state that persists across buffer switches:
@@ -164,4 +204,6 @@ pub struct Workspace {
 	pub macro_state: MacroState,
 	/// Queue for deferred command execution.
 	pub command_queue: CommandQueue,
+	/// Per-session Nu script state store.
+	pub nu_state: NuState,
 }
