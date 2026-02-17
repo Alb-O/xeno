@@ -179,10 +179,10 @@ impl FilePickerOverlay {
 			return dirs::home_dir().unwrap_or_else(|| PathBuf::from("~"));
 		}
 
-		if let Some(rest) = input.strip_prefix("~/").or_else(|| input.strip_prefix("~\\")) {
-			if let Some(home) = dirs::home_dir() {
-				return home.join(rest);
-			}
+		if let Some(rest) = input.strip_prefix("~/").or_else(|| input.strip_prefix("~\\"))
+			&& let Some(home) = dirs::home_dir()
+		{
+			return home.join(rest);
 		}
 
 		PathBuf::from(input)

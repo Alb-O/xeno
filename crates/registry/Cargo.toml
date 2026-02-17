@@ -100,7 +100,6 @@ actions-handler-coverage = ["actions-builtins"]
 [dependencies]
 arc-swap = { workspace = true }
 bitflags = { workspace = true }
-devicons = { workspace = true, optional = true }
 inventory = { workspace = true, optional = true }
 parking_lot = { workspace = true, optional = true }
 paste = { workspace = true, optional = true }

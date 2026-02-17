@@ -7,6 +7,12 @@
 //! Public API: only [`register_all`] is exported. All command implementations,
 //! helpers, and limits are internal. Sandbox caps: `MAX_ITEMS` (10 000),
 //! `MAX_COLUMNS` (128), `MAX_SPLITS` (10 000).
+#![allow(clippy::result_large_err, reason = "ShellError is intentionally rich and shared across Nu command APIs")]
+#![allow(clippy::collapsible_if, reason = "Some command logic keeps nested guards for readability and traceability")]
+#![allow(
+	clippy::redundant_locals,
+	reason = "Local rebinding is used in closures to make ownership and move points explicit"
+)]
 
 mod conversions;
 mod filters;

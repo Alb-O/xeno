@@ -1,4 +1,9 @@
 #![doc = include_str!("../README.md")]
+#![allow(clippy::result_large_err, reason = "ParseError/ShellError are intentionally rich and shared across parser APIs")]
+#![allow(
+	clippy::replace_box,
+	reason = "Parser code occasionally replaces boxed signatures for clarity during staged mutation"
+)]
 mod deparse;
 mod exportable;
 mod flatten;

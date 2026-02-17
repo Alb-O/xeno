@@ -6279,7 +6279,6 @@ version = "0.9.3"
 dependencies = [
  "arc-swap",
  "bitflags 2.11.0",
- "devicons",
  "inventory",
  "parking_lot",
  "paste",

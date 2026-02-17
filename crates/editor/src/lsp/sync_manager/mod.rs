@@ -33,6 +33,18 @@ enum SendWork {
 	Incremental { changes: Vec<LspDocumentChange> },
 }
 
+struct SendTaskInput {
+	completion_tx: mpsc::UnboundedSender<FlushComplete>,
+	sync: DocumentSync,
+	metrics: Arc<EditorMetrics>,
+	doc_id: DocumentId,
+	generation: u64,
+	path: PathBuf,
+	language: String,
+	work: SendWork,
+	done_tx: Option<oneshot::Sender<()>>,
+}
+
 impl SendWork {
 	fn was_full(&self) -> bool {
 		matches!(self, Self::Full { .. })
@@ -128,17 +140,18 @@ impl LspSyncManager {
 		}
 	}
 
-	fn spawn_send_task(
-		completion_tx: mpsc::UnboundedSender<FlushComplete>,
-		sync: DocumentSync,
-		metrics: Arc<EditorMetrics>,
-		doc_id: DocumentId,
-		generation: u64,
-		path: PathBuf,
-		language: String,
-		work: SendWork,
-		done_tx: Option<oneshot::Sender<()>>,
-	) {
+	fn spawn_send_task(input: SendTaskInput) {
+		let SendTaskInput {
+			completion_tx,
+			sync,
+			metrics,
+			doc_id,
+			generation,
+			path,
+			language,
+			work,
+			done_tx,
+		} = input;
 		tokio::spawn(async move {
 			let mode = work.mode();
 			let was_full = work.was_full();
@@ -292,17 +305,17 @@ impl LspSyncManager {
 			SendWork::Incremental { changes }
 		};
 
-		Self::spawn_send_task(
-			self.completion_tx.clone(),
-			sync.clone(),
-			metrics.clone(),
+		Self::spawn_send_task(SendTaskInput {
+			completion_tx: self.completion_tx.clone(),
+			sync: sync.clone(),
+			metrics: metrics.clone(),
 			doc_id,
 			generation,
 			path,
 			language,
 			work,
-			Some(done_tx),
-		);
+			done_tx: Some(done_tx),
+		});
 
 		if let Some(state) = self.docs.get_mut(&doc_id) {
 			state.retry_after = None;
@@ -432,17 +445,17 @@ impl LspSyncManager {
 				SendWork::Incremental { changes }
 			};
 
-			Self::spawn_send_task(
-				self.completion_tx.clone(),
-				sync.clone(),
-				metrics.clone(),
+			Self::spawn_send_task(SendTaskInput {
+				completion_tx: self.completion_tx.clone(),
+				sync: sync.clone(),
+				metrics: metrics.clone(),
 				doc_id,
 				generation,
 				path,
 				language,
 				work,
-				None,
-			);
+				done_tx: None,
+			});
 
 			if let Some(state) = self.docs.get_mut(&doc_id) {
 				state.retry_after = None;

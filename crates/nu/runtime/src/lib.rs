@@ -6,6 +6,7 @@
 //!
 //! The facade wraps vendored Nu internals used for `xeno.nu` and `config.nu`
 //! while enforcing the sandboxed evaluation environment.
+#![allow(clippy::result_large_err, reason = "ShellError is intentionally rich and shared across Nu runtime APIs")]
 
 mod sandbox;
 

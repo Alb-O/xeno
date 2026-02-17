@@ -42,7 +42,7 @@ impl Editor {
 		buffer_id
 	}
 
-	/// Opens a new shared statehronously, scheduling async hooks for later.
+	/// Opens a new shared buffer synchronously, scheduling async hooks for later.
 	///
 	/// Use this in sync contexts like split operations. Async hooks are queued
 	/// in the hook runtime and will execute when the main loop drains them.

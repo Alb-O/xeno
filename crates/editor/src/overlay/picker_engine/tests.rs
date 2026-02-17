@@ -11,19 +11,21 @@ fn parser_tokenize_preserves_quoted_bounds() {
 
 #[test]
 fn decision_selected_item_requires_active_state() {
-	let mut state = CompletionState::default();
-	state.items = vec![CompletionItem {
-		label: "write".to_string(),
-		insert_text: "write".to_string(),
-		detail: None,
-		filter_text: None,
-		kind: CompletionKind::Command,
-		match_indices: None,
-		right: None,
-		file: None,
-	}];
-	state.selected_idx = Some(0);
-	state.selection_intent = SelectionIntent::Manual;
+	let mut state = CompletionState {
+		items: vec![CompletionItem {
+			label: "write".to_string(),
+			insert_text: "write".to_string(),
+			detail: None,
+			filter_text: None,
+			kind: CompletionKind::Command,
+			match_indices: None,
+			right: None,
+			file: None,
+		}],
+		selected_idx: Some(0),
+		selection_intent: SelectionIntent::Manual,
+		..CompletionState::default()
+	};
 
 	assert!(super::decision::selected_completion_item(Some(&state)).is_none());
 	state.active = true;
