@@ -2,8 +2,8 @@
 
 use xeno_keymap_core::ToKeyMap;
 use xeno_primitives::key::{Key, KeyCode, Modifiers};
-use xeno_registry::actions::{BindingMode, keys as actions};
-use xeno_registry::{KeymapIndex, LookupResult, resolve_action_key};
+use xeno_registry::actions::BindingMode;
+use xeno_registry::{KeymapIndex, LookupResult};
 
 use super::InputHandler;
 use super::types::{KeyResult, Mode};
@@ -11,34 +11,66 @@ use super::types::{KeyResult, Mode};
 impl InputHandler {
 	/// Processes a key press in insert mode.
 	///
-	/// Resolution order: escape → direct actions (backspace/delete) → shift
-	/// canonicalization → insert-mode bindings → normal-mode fallback for
-	/// navigation keys → literal character insertion.
+	/// Text characters (unmodified or Shift-only, plus Space/Enter/Tab) insert
+	/// immediately without keymap lookup. All other keys (Ctrl/Alt combos,
+	/// function keys, Backspace, Delete, Escape) enter the multi-key sequence
+	/// mechanism for Insert-mode bindings.
 	pub(crate) fn handle_insert_key(&mut self, key: Key, registry: &KeymapIndex) -> KeyResult {
+		// Escape always exits to Normal.
 		if key.is_escape() {
 			self.mode = Mode::Normal;
 			self.reset_params();
 			return KeyResult::ModeChange(Mode::Normal);
 		}
 
-		let direct_action = if key.is_backspace() {
-			Some(actions::delete_back)
-		} else if key.is_delete() {
-			Some(actions::delete_forward)
-		} else {
-			None
+		// Determine if this is a "text input" key that should insert immediately.
+		let is_text_input = match key.code {
+			KeyCode::Char(_) if key.modifiers.is_empty() || key.modifiers == Modifiers::SHIFT => true,
+			KeyCode::Space | KeyCode::Enter | KeyCode::Tab => self.key_sequence.is_empty(),
+			_ => false,
 		};
-		if let Some(action_key) = direct_action {
-			let id = resolve_action_key(action_key).expect("action not registered");
-			return KeyResult::ActionById {
-				id,
-				count: 1,
-				extend: false,
-				register: None,
+
+		if is_text_input && self.key_sequence.is_empty() {
+			return match key.code {
+				KeyCode::Char(c) => KeyResult::InsertChar(c),
+				KeyCode::Space => KeyResult::InsertChar(' '),
+				KeyCode::Enter => KeyResult::InsertChar('\n'),
+				KeyCode::Tab => KeyResult::InsertChar('\t'),
+				_ => unreachable!(),
 			};
 		}
 
-		let key = if let KeyCode::Char(c) = key.code {
+		// Non-text key (or continuation of a pending sequence): push into the
+		// key_sequence accumulator and look up Insert-mode bindings.
+		let key = self.canonicalize_insert_key(key);
+
+		let node = match key.to_keymap() {
+			Ok(n) => n,
+			Err(_) => return KeyResult::Consumed,
+		};
+
+		self.key_sequence.push(node);
+		let result = registry.lookup(BindingMode::Insert, &self.key_sequence);
+
+		match result {
+			LookupResult::Match(entry) => self.consume_binding(entry),
+			LookupResult::Pending { .. } => KeyResult::Pending {
+				keys_so_far: self.key_sequence.len(),
+			},
+			LookupResult::None => {
+				// Unknown prefix — clear pending and consume (don't insert garbage).
+				self.key_sequence.clear();
+				KeyResult::Consumed
+			}
+		}
+	}
+
+	/// Canonicalizes a key for Insert-mode keymap lookup.
+	///
+	/// Shift+lowercase letter normalizes to the uppercase character.
+	/// Shift on non-char keys is dropped (extend semantics preserved).
+	fn canonicalize_insert_key(&mut self, key: Key) -> Key {
+		if let KeyCode::Char(c) = key.code {
 			if key.modifiers.shift {
 				if c.is_ascii_lowercase() { key.normalize() } else { key.drop_shift() }
 			} else {
@@ -49,26 +81,6 @@ impl InputHandler {
 			key.drop_shift()
 		} else {
 			key
-		};
-
-		if let Ok(node) = key.to_keymap() {
-			if let LookupResult::Match(entry) = registry.lookup(BindingMode::Insert, std::slice::from_ref(&node)) {
-				return self.consume_binding(entry);
-			}
-
-			let is_navigation_key = !matches!(key.code, KeyCode::Char(_)) || key.modifiers.ctrl || key.modifiers.alt;
-
-			if is_navigation_key && let LookupResult::Match(entry) = registry.lookup(BindingMode::Normal, &[node]) {
-				return self.consume_binding(entry);
-			}
-		}
-
-		match key.code {
-			KeyCode::Char(c) if key.modifiers.is_empty() || key.modifiers == Modifiers::SHIFT => KeyResult::InsertChar(c),
-			KeyCode::Space => KeyResult::InsertChar(' '),
-			KeyCode::Enter => KeyResult::InsertChar('\n'),
-			KeyCode::Tab => KeyResult::InsertChar('\t'),
-			_ => KeyResult::Consumed,
 		}
 	}
 }

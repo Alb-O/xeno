@@ -105,12 +105,16 @@ impl Editor {
 	/// behavior consistent across runtimes.
 	pub fn apply_loaded_config(&mut self, mut config: Option<xeno_registry::config::Config>) {
 		let mut key_overrides = None;
+		let mut preset_name = None;
 		let mut global_options = OptionStore::new();
 		let mut language_options = HashMap::<String, OptionStore>::new();
 
 		let mut nu_config = None;
 		if let Some(mut loaded) = config.take() {
-			key_overrides = loaded.keys.take();
+			if let Some(ref mut km) = loaded.keymap {
+				key_overrides = km.keys.take();
+				preset_name = km.preset.take();
+			}
 			nu_config = loaded.nu.take();
 			global_options = loaded.options;
 
@@ -120,6 +124,7 @@ impl Editor {
 		}
 
 		self.set_key_overrides(key_overrides);
+		self.set_keymap_preset(preset_name.unwrap_or_else(|| xeno_registry::keymaps::DEFAULT_PRESET.to_string()));
 		let editor_config = self.config_mut();
 		editor_config.global_options = global_options;
 		editor_config.language_options = language_options;

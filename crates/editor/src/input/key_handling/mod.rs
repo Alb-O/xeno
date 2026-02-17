@@ -87,7 +87,8 @@ impl Editor {
 		}
 		let keymap = self.effective_keymap();
 
-		let result = self.buffer_mut().input.handle_key_with_registry(key, &keymap);
+		let behavior = self.keymap_behavior();
+		let result = self.buffer_mut().input.handle_key_with_registry(key, &keymap, behavior);
 
 		let mut quit = false;
 		let mut handled = false;

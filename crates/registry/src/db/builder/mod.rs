@@ -3,7 +3,6 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use crate::actions::KeyPrefixDef;
 use crate::core::plugin::PluginDef;
 pub use crate::core::{
 	ActionId, Capability, CommandError, CommandId, DuplicatePolicy, GutterId, HookId, KeyKind, LanguageId, MotionId, OptionId, RegistryBuilder, RegistryEntry,
@@ -28,7 +27,6 @@ macro_rules! define_domains {
 				<$domain as crate::db::domain::DomainSpec>::Entry,
 				<$domain as crate::db::domain::DomainSpec>::Id,
 			>, )*
-			pub key_prefixes: Vec<KeyPrefixDef>,
 			pub(crate) plugin_ids: HashSet<&'static str>,
 			pub(crate) plugin_records: Vec<PluginBuildRecord>,
 		}
@@ -38,27 +36,23 @@ macro_rules! define_domains {
 				<$domain as crate::db::domain::DomainSpec>::Entry,
 				<$domain as crate::db::domain::DomainSpec>::Id,
 			>, )*
-			pub key_prefixes: Vec<KeyPrefixDef>,
 		}
 
 		#[derive(Debug, Clone, Copy, Default)]
 		pub struct DomainCounts {
 			$( $(#[$attr])* pub $field: usize, )*
-			pub key_prefixes: usize,
 		}
 
 		impl DomainCounts {
 			fn snapshot(builder: &RegistryDbBuilder) -> Self {
 				Self {
 					$( $(#[$attr])* $field: builder.$field.len(), )*
-					key_prefixes: builder.key_prefixes.len(),
 				}
 			}
 
 			fn diff(after: Self, before: Self) -> Self {
 				Self {
 					$( $(#[$attr])* $field: after.$field.saturating_sub(before.$field), )*
-					key_prefixes: after.key_prefixes.saturating_sub(before.key_prefixes),
 				}
 			}
 		}
@@ -67,7 +61,6 @@ macro_rules! define_domains {
 			pub fn new() -> Self {
 				Self {
 					$( $(#[$attr])* $field: RegistryBuilder::new(<$domain as crate::db::domain::DomainSpec>::LABEL), )*
-					key_prefixes: Vec::new(),
 					plugin_ids: HashSet::new(),
 					plugin_records: Vec::new(),
 				}
@@ -76,7 +69,6 @@ macro_rules! define_domains {
 			pub fn build(self) -> RegistryIndices {
 				RegistryIndices {
 					$( $(#[$attr])* $field: self.$field.build(), )*
-					key_prefixes: self.key_prefixes,
 				}
 			}
 		}
@@ -116,10 +108,6 @@ impl RegistryDbBuilder {
 	pub fn push_domain<D: crate::db::domain::DomainSpec>(&mut self, input: D::Input) {
 		D::on_push(self, &input);
 		D::builder(self).push(Arc::new(input));
-	}
-
-	pub fn register_key_prefixes(&mut self, defs: impl IntoIterator<Item = KeyPrefixDef>) {
-		self.key_prefixes.extend(defs);
 	}
 
 	pub fn plugin_build_records(&self) -> &[PluginBuildRecord] {

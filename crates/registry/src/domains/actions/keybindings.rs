@@ -1,42 +1,8 @@
 //! Keybindings map key sequences to actions in different modes.
 
-use std::sync::{Arc, LazyLock};
+use std::sync::Arc;
 
 use xeno_primitives::Mode;
-
-#[cfg(feature = "minimal")]
-use crate::db::get_db;
-
-/// Key prefixes extracted from the registry database.
-pub static KEY_PREFIXES: LazyLock<&'static [KeyPrefixDef]> = LazyLock::new(current_key_prefixes);
-
-fn current_key_prefixes() -> &'static [KeyPrefixDef] {
-	#[cfg(feature = "minimal")]
-	{
-		get_db().key_prefixes.as_slice()
-	}
-
-	#[cfg(not(feature = "minimal"))]
-	{
-		&[]
-	}
-}
-
-/// Definition of a key sequence prefix with its description.
-#[derive(Debug, Clone)]
-pub struct KeyPrefixDef {
-	/// Mode this prefix is active in.
-	pub mode: BindingMode,
-	/// The prefix key sequence (e.g., `"g"`, `"z"`).
-	pub keys: Arc<str>,
-	/// Human-readable description (e.g., "Goto", "View").
-	pub description: Arc<str>,
-}
-
-/// Finds a prefix definition for the given mode and key sequence.
-pub fn find_prefix(mode: BindingMode, keys: &str) -> Option<&'static KeyPrefixDef> {
-	KEY_PREFIXES.iter().find(|p| p.mode == mode && &*p.keys == keys)
-}
 
 /// Key sequence binding definition.
 #[derive(Clone)]

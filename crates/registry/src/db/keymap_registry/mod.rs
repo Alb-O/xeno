@@ -1,4 +1,15 @@
 //! Unified keymap registry using trie-matching.
+//!
+//! Builds per-mode `Matcher<BindingEntry>` tries from action registry
+//! snapshots and optional user key overrides. The build uses a two-phase
+//! "final map then build matcher" approach:
+//!
+//! 1. Collect base slots from the action snapshot.
+//! 2. Apply override layers (bind/unbind) on top.
+//! 3. Build trie matchers from the resolved final map.
+//!
+//! This design supports unbinding (`None` in overrides removes a base
+//! binding) and produces deterministic, conflict-aware results.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -14,6 +25,7 @@ use crate::config::UnresolvedKeys;
 use crate::core::index::Snapshot;
 use crate::core::{ActionId, DenseId, RegistryEntry};
 use crate::invocation::Invocation;
+use crate::keymaps::KeymapPreset;
 
 /// What a keybinding resolves to.
 #[derive(Debug, Clone)]
@@ -94,8 +106,18 @@ pub struct KeymapBuildProblem {
 pub struct KeymapIndex {
 	/// Per-mode trie matchers for key sequences.
 	matchers: HashMap<BindingMode, Matcher<BindingEntry>>,
+	/// Named prefix descriptions for which-key HUD.
+	prefixes: Vec<PrefixEntry>,
 	conflicts: Vec<KeymapConflict>,
 	problems: Vec<KeymapBuildProblem>,
+}
+
+/// A stored prefix description for which-key display.
+#[derive(Debug, Clone)]
+struct PrefixEntry {
+	mode: BindingMode,
+	keys: Arc<str>,
+	description: Arc<str>,
 }
 
 #[derive(Debug, Clone)]
@@ -106,6 +128,14 @@ pub struct KeymapConflict {
 	pub dropped_target: String,
 	pub kept_priority: i16,
 	pub dropped_priority: i16,
+}
+
+/// Intermediate slot used during the two-phase build.
+struct Slot {
+	entry: BindingEntry,
+	parsed_keys: Vec<Node>,
+	target_desc: String,
+	priority: i16,
 }
 
 impl Default for KeymapIndex {
@@ -119,6 +149,7 @@ impl KeymapIndex {
 	pub fn new() -> Self {
 		Self {
 			matchers: HashMap::new(),
+			prefixes: Vec::new(),
 			conflicts: Vec::new(),
 			problems: Vec::new(),
 		}
@@ -142,262 +173,84 @@ impl KeymapIndex {
 		}
 	}
 
-	/// Build registry index from action snapshot.
+	/// Build registry index from action snapshot using the default preset.
 	pub fn build(actions: &Snapshot<ActionEntry, ActionId>) -> Self {
 		Self::build_with_overrides(actions, None)
 	}
 
 	/// Build registry index from action snapshot with optional key overrides.
+	///
+	/// Uses the default preset as the base layer.
 	pub fn build_with_overrides(actions: &Snapshot<ActionEntry, ActionId>, overrides: Option<&UnresolvedKeys>) -> Self {
-		let mut registry = Self::new();
-		let mut bindings = Vec::new();
+		let preset = crate::keymaps::preset(crate::keymaps::DEFAULT_PRESET);
+		Self::build_with_preset(actions, preset.as_deref(), overrides)
+	}
 
-		// Collect all bindings from all actions in the snapshot
-		for (idx, action_entry) in actions.table.iter().enumerate() {
-			let action_id = ActionId::from_u32(idx as u32);
-			for binding in action_entry.bindings.iter() {
-				bindings.push((action_id, binding.clone()));
-			}
+	/// Build registry index from a preset, action snapshot, and optional key overrides.
+	///
+	/// Three-phase build:
+	/// 1. Populate base slots from the preset's bindings (or fall back to action bindings).
+	/// 2. Apply user key overrides: `Some(inv)` replaces/adds, `None` unbinds.
+	/// 3. Build trie matchers from the resolved final map.
+	pub fn build_with_preset(actions: &Snapshot<ActionEntry, ActionId>, preset: Option<&KeymapPreset>, overrides: Option<&UnresolvedKeys>) -> Self {
+		let mut problems = Vec::new();
+		let mut conflicts = Vec::new();
+		let mut slots: HashMap<(BindingMode, Arc<str>), Slot> = HashMap::new();
+
+		// Phase 1: collect base bindings.
+		if let Some(preset) = preset {
+			apply_preset_layer(actions, preset, &mut slots, &mut problems, &mut conflicts);
+		} else {
+			apply_base_layer(actions, &mut slots, &mut problems, &mut conflicts);
 		}
 
-		// Sort bindings for deterministic matching
-		bindings.sort_by(|a, b| {
-			a.1.mode
-				.cmp(&b.1.mode)
-				.then_with(|| a.1.keys.cmp(&b.1.keys))
-				.then_with(|| a.1.priority.cmp(&b.1.priority))
-				.then_with(|| a.1.action.cmp(&b.1.action))
+		// Phase 1b: add runtime action bindings not covered by the preset.
+		apply_runtime_action_bindings(actions, &mut slots, &mut problems, &mut conflicts);
+
+		// Phase 2: apply overrides.
+		if let Some(overrides) = overrides {
+			apply_override_layer(actions, overrides, &mut slots, &mut problems, &mut conflicts);
+		}
+
+		// Phase 3: build matchers from final slots.
+		let matchers = build_matchers(slots);
+
+		// Collect prefixes from preset.
+		let prefixes = preset.map_or_else(Vec::new, |p| {
+			p.prefixes
+				.iter()
+				.filter_map(|p| {
+					let mode = parse_binding_mode(&p.mode)?;
+					Some(PrefixEntry {
+						mode,
+						keys: Arc::clone(&p.keys),
+						description: Arc::clone(&p.description),
+					})
+				})
+				.collect()
 		});
 
-		let mut seen: HashMap<(BindingMode, Arc<str>), (String, i16)> = HashMap::new();
-
-		for (id, def) in bindings {
-			let action_entry = &actions.table[id.as_u32() as usize];
-			let action_id_str = actions.interner.resolve(action_entry.id()).to_string();
-
-			if let Some((kept_target, kept_priority)) = seen.get(&(def.mode, Arc::clone(&def.keys))).cloned() {
-				registry.conflicts.push(KeymapConflict {
-					mode: def.mode,
-					keys: Arc::clone(&def.keys),
-					kept_target,
-					dropped_target: action_id_str,
-					kept_priority,
-					dropped_priority: def.priority,
-				});
-				continue;
-			}
-
-			let Ok(keys) = parse_seq(&def.keys) else {
-				registry.push_problem(
-					Some(def.mode),
-					&def.keys,
-					&def.action,
-					KeymapProblemKind::InvalidKeySequence,
-					"invalid key sequence",
-				);
-				continue;
-			};
-
-			seen.insert((def.mode, Arc::clone(&def.keys)), (action_id_str.clone(), def.priority));
-
-			let entry = BindingEntry {
-				target: BindingTarget::Action {
-					id,
-					count: 1,
-					extend: false,
-					register: None,
-				},
-				name: Arc::from(actions.interner.resolve(action_entry.name())),
-				description: Arc::from(actions.interner.resolve(action_entry.description())),
-				short_desc: Arc::from(actions.interner.resolve(action_entry.short_desc)),
-				keys: keys.clone(),
-			};
-
-			registry.add(def.mode, keys, entry);
+		if !conflicts.is_empty() {
+			let samples: Vec<_> = conflicts.iter().take(5).collect();
+			tracing::debug!(count = conflicts.len(), ?samples, "Keymap conflicts detected");
 		}
 
-		if let Some(overrides) = overrides {
-			let mut override_entries: Vec<(BindingMode, Arc<str>, Invocation)> = Vec::new();
-			for (mode_name, key_map) in &overrides.modes {
-				let Some(mode) = parse_binding_mode(mode_name) else {
-					continue;
-				};
-				for (key_seq, inv) in key_map {
-					override_entries.push((mode, Arc::from(key_seq.as_str()), inv.clone()));
-				}
-			}
-
-			override_entries.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
-
-			for (mode, key_seq, inv) in override_entries {
-				let target_desc: Arc<str> = Arc::from(inv.describe().as_str());
-				let Ok(keys) = parse_seq(&key_seq) else {
-					registry.push_problem(
-						Some(mode),
-						&key_seq,
-						&target_desc,
-						KeymapProblemKind::InvalidKeySequence,
-						"invalid key sequence",
-					);
-					continue;
-				};
-
-				match &inv {
-					Invocation::Action { name, count, extend, register } => {
-						// Resolve action name against registry
-						let Some(sym) = actions.interner.get(name) else {
-							registry.push_problem(
-								Some(mode),
-								&key_seq,
-								&target_desc,
-								KeymapProblemKind::UnknownActionTarget,
-								"unknown action target",
-							);
-							continue;
-						};
-
-						let Some(action_id) = actions
-							.by_id
-							.get(&sym)
-							.or_else(|| actions.by_name.get(&sym))
-							.or_else(|| actions.by_key.get(&sym))
-							.copied()
-						else {
-							registry.push_problem(
-								Some(mode),
-								&key_seq,
-								&target_desc,
-								KeymapProblemKind::UnknownActionTarget,
-								"unknown action target",
-							);
-							continue;
-						};
-
-						let action_entry = &actions.table[action_id.as_u32() as usize];
-						let action_name_str = actions.interner.resolve(action_entry.name()).to_string();
-						let action_id_str = actions.interner.resolve(action_entry.id()).to_string();
-
-						if let Some((prev_target, prev_priority)) = seen.get(&(mode, Arc::clone(&key_seq))).cloned() {
-							registry.conflicts.push(KeymapConflict {
-								mode,
-								keys: Arc::clone(&key_seq),
-								kept_target: action_id_str.clone(),
-								dropped_target: prev_target,
-								kept_priority: i16::MIN,
-								dropped_priority: prev_priority,
-							});
-						}
-						seen.insert((mode, Arc::clone(&key_seq)), (action_id_str, i16::MIN));
-
-						let entry = BindingEntry {
-							target: BindingTarget::Action {
-								id: action_id,
-								count: *count,
-								extend: *extend,
-								register: *register,
-							},
-							name: Arc::from(action_name_str.as_str()),
-							description: Arc::from(actions.interner.resolve(action_entry.description())),
-							short_desc: Arc::from(actions.interner.resolve(action_entry.short_desc)),
-							keys: keys.clone(),
-						};
-						registry.add(mode, keys, entry);
-					}
-					Invocation::ActionWithChar { name, .. } => {
-						// Validate action exists but store as Invocation (needs char dispatch)
-						if let Some(sym) = actions.interner.get(name) {
-							if actions
-								.by_id
-								.get(&sym)
-								.or_else(|| actions.by_name.get(&sym))
-								.or_else(|| actions.by_key.get(&sym))
-								.is_none()
-							{
-								registry.push_problem(
-									Some(mode),
-									&key_seq,
-									&target_desc,
-									KeymapProblemKind::UnknownActionTarget,
-									"unknown action target",
-								);
-								continue;
-							}
-						} else {
-							registry.push_problem(
-								Some(mode),
-								&key_seq,
-								&target_desc,
-								KeymapProblemKind::UnknownActionTarget,
-								"unknown action target",
-							);
-							continue;
-						}
-
-						if let Some((prev_target, prev_priority)) = seen.get(&(mode, Arc::clone(&key_seq))).cloned() {
-							registry.conflicts.push(KeymapConflict {
-								mode,
-								keys: Arc::clone(&key_seq),
-								kept_target: inv.describe(),
-								dropped_target: prev_target,
-								kept_priority: i16::MIN,
-								dropped_priority: prev_priority,
-							});
-						}
-						seen.insert((mode, Arc::clone(&key_seq)), (inv.describe(), i16::MIN));
-
-						let inv_name = name.clone();
-						let entry = BindingEntry {
-							target: BindingTarget::Invocation { inv },
-							name: Arc::from(inv_name.as_str()),
-							description: Arc::clone(&target_desc),
-							short_desc: Arc::from(inv_name.as_str()),
-							keys: keys.clone(),
-						};
-						registry.add(mode, keys, entry);
-					}
-					_ => {
-						// Command and Nu invocations — store as Invocation
-						let inv_name: Arc<str> = match &inv {
-							Invocation::Command(xeno_invocation::CommandInvocation { name, .. }) | Invocation::Nu { name, .. } => Arc::from(name.as_str()),
-							_ => unreachable!(),
-						};
-
-						if let Some((prev_target, prev_priority)) = seen.get(&(mode, Arc::clone(&key_seq))).cloned() {
-							registry.conflicts.push(KeymapConflict {
-								mode,
-								keys: Arc::clone(&key_seq),
-								kept_target: inv.describe(),
-								dropped_target: prev_target,
-								kept_priority: i16::MIN,
-								dropped_priority: prev_priority,
-							});
-						}
-						seen.insert((mode, Arc::clone(&key_seq)), (inv.describe(), i16::MIN));
-
-						let entry = BindingEntry {
-							target: BindingTarget::Invocation { inv },
-							name: Arc::clone(&inv_name),
-							description: Arc::clone(&target_desc),
-							short_desc: inv_name,
-							keys: keys.clone(),
-						};
-						registry.add(mode, keys, entry);
-					}
-				}
-			}
+		if !problems.is_empty() {
+			let samples: Vec<_> = problems.iter().take(5).collect();
+			warn!(count = problems.len(), ?samples, "Keymap build problems");
 		}
 
-		if !registry.conflicts.is_empty() {
-			let samples: Vec<_> = registry.conflicts.iter().take(5).collect();
-			tracing::debug!(count = registry.conflicts.len(), ?samples, "Keymap conflicts detected");
+		KeymapIndex {
+			matchers,
+			prefixes,
+			conflicts,
+			problems,
 		}
+	}
 
-		if !registry.problems.is_empty() {
-			let samples: Vec<_> = registry.problems.iter().take(5).collect();
-			warn!(count = registry.problems.len(), ?samples, "Keymap build problems");
-		}
-
-		registry
+	/// Returns the description for a named prefix key sequence.
+	pub fn prefix_description(&self, mode: BindingMode, keys: &str) -> Option<&str> {
+		self.prefixes.iter().find(|p| p.mode == mode && &*p.keys == keys).map(|p| &*p.description)
 	}
 
 	/// Returns available continuations at a given key prefix.
@@ -423,17 +276,414 @@ impl KeymapIndex {
 	pub fn problems(&self) -> &[KeymapBuildProblem] {
 		&self.problems
 	}
+}
 
-	fn push_problem(&mut self, mode: Option<BindingMode>, keys: &Arc<str>, target: &Arc<str>, kind: KeymapProblemKind, message: &str) {
-		if self.problems.len() < 50 {
-			self.problems.push(KeymapBuildProblem {
+/// Phase 1 (preset path): populate slots from a keymap preset's bindings.
+///
+/// Each preset binding carries an invocation spec string (e.g., `"action:move_left"`)
+/// resolved against the action snapshot at build time.
+fn apply_preset_layer(
+	actions: &Snapshot<ActionEntry, ActionId>,
+	preset: &KeymapPreset,
+	slots: &mut HashMap<(BindingMode, Arc<str>), Slot>,
+	problems: &mut Vec<KeymapBuildProblem>,
+	conflicts: &mut Vec<KeymapConflict>,
+) {
+	for binding in &preset.bindings {
+		let Some(mode) = parse_binding_mode(&binding.mode) else {
+			continue;
+		};
+
+		let Ok(parsed_spec) = xeno_invocation_spec::parse_spec(&binding.target) else {
+			push_problem(
+				problems,
+				Some(mode),
+				&binding.keys,
+				&Arc::from(binding.target.as_str()),
+				KeymapProblemKind::InvalidKeySequence,
+				"invalid target spec in preset",
+			);
+			continue;
+		};
+
+		let inv = match parsed_spec.kind {
+			xeno_invocation_spec::SpecKind::Action => Invocation::action(&parsed_spec.name),
+			xeno_invocation_spec::SpecKind::Command => Invocation::command(&parsed_spec.name, parsed_spec.args),
+			xeno_invocation_spec::SpecKind::Editor => Invocation::editor_command(&parsed_spec.name, parsed_spec.args),
+			xeno_invocation_spec::SpecKind::Nu => Invocation::nu(&parsed_spec.name, parsed_spec.args),
+		};
+
+		let target_desc: Arc<str> = Arc::from(binding.target.as_str());
+		let Ok(parsed_keys) = parse_seq(&binding.keys) else {
+			push_problem(
+				problems,
+				Some(mode),
+				&binding.keys,
+				&target_desc,
+				KeymapProblemKind::InvalidKeySequence,
+				"invalid key sequence in preset",
+			);
+			continue;
+		};
+
+		let entry = match resolve_override_entry(actions, &inv, &parsed_keys, mode, &binding.keys, &target_desc, problems) {
+			Some(e) => e,
+			None => continue,
+		};
+
+		// Use canonical action ID as target_desc for action bindings (consistent with base layer).
+		let resolved_desc = match &entry.target {
+			BindingTarget::Action { id, .. } => {
+				let ae = &actions.table[id.as_u32() as usize];
+				actions.interner.resolve(ae.id()).to_string()
+			}
+			_ => binding.target.clone(),
+		};
+
+		let slot_key = (mode, Arc::clone(&binding.keys));
+		if let Some(existing) = slots.get(&slot_key) {
+			conflicts.push(KeymapConflict {
 				mode,
-				keys: Arc::clone(keys),
-				target: Arc::clone(target),
-				kind,
-				message: Arc::from(message),
+				keys: Arc::clone(&binding.keys),
+				kept_target: existing.target_desc.clone(),
+				dropped_target: resolved_desc,
+				kept_priority: existing.priority,
+				dropped_priority: 100,
+			});
+			continue;
+		}
+
+		slots.insert(
+			slot_key,
+			Slot {
+				entry,
+				parsed_keys,
+				target_desc: resolved_desc,
+				priority: 100,
+			},
+		);
+	}
+}
+
+/// Adds action bindings from the snapshot that aren't already covered by a
+/// preset (or base layer). Handles runtime-registered actions with bindings
+/// from plugins that aren't part of any preset file.
+fn apply_runtime_action_bindings(
+	actions: &Snapshot<ActionEntry, ActionId>,
+	slots: &mut HashMap<(BindingMode, Arc<str>), Slot>,
+	problems: &mut Vec<KeymapBuildProblem>,
+	_conflicts: &mut Vec<KeymapConflict>,
+) {
+	for (idx, action_entry) in actions.table.iter().enumerate() {
+		let action_id = ActionId::from_u32(idx as u32);
+		let source = action_entry.source();
+
+		// Only consider runtime-registered actions (not from compiled specs).
+		if !matches!(source, crate::core::RegistrySource::Runtime) {
+			continue;
+		}
+
+		for binding in action_entry.bindings.iter() {
+			let slot_key = (binding.mode, Arc::clone(&binding.keys));
+			if slots.contains_key(&slot_key) {
+				continue;
+			}
+
+			let Ok(parsed_keys) = parse_seq(&binding.keys) else {
+				push_problem(
+					problems,
+					Some(binding.mode),
+					&binding.keys,
+					&binding.action,
+					KeymapProblemKind::InvalidKeySequence,
+					"invalid key sequence",
+				);
+				continue;
+			};
+
+			let entry = BindingEntry {
+				target: BindingTarget::Action {
+					id: action_id,
+					count: 1,
+					extend: false,
+					register: None,
+				},
+				name: Arc::from(actions.interner.resolve(action_entry.name())),
+				description: Arc::from(actions.interner.resolve(action_entry.description())),
+				short_desc: Arc::from(actions.interner.resolve(action_entry.short_desc)),
+				keys: parsed_keys.clone(),
+			};
+
+			let action_id_str = actions.interner.resolve(action_entry.id()).to_string();
+			slots.insert(
+				slot_key,
+				Slot {
+					entry,
+					parsed_keys,
+					target_desc: action_id_str,
+					priority: binding.priority,
+				},
+			);
+		}
+	}
+}
+
+/// Phase 1 (legacy path): populate slots from action snapshot bindings.
+fn apply_base_layer(
+	actions: &Snapshot<ActionEntry, ActionId>,
+	slots: &mut HashMap<(BindingMode, Arc<str>), Slot>,
+	problems: &mut Vec<KeymapBuildProblem>,
+	conflicts: &mut Vec<KeymapConflict>,
+) {
+	let mut bindings = Vec::new();
+	for (idx, action_entry) in actions.table.iter().enumerate() {
+		let action_id = ActionId::from_u32(idx as u32);
+		for binding in action_entry.bindings.iter() {
+			bindings.push((action_id, binding.clone()));
+		}
+	}
+
+	// Sort for deterministic first-writer-wins.
+	bindings.sort_by(|a, b| {
+		a.1.mode
+			.cmp(&b.1.mode)
+			.then_with(|| a.1.keys.cmp(&b.1.keys))
+			.then_with(|| a.1.priority.cmp(&b.1.priority))
+			.then_with(|| a.1.action.cmp(&b.1.action))
+	});
+
+	for (id, def) in bindings {
+		let action_entry = &actions.table[id.as_u32() as usize];
+		let action_id_str = actions.interner.resolve(action_entry.id()).to_string();
+		let slot_key = (def.mode, Arc::clone(&def.keys));
+
+		if let Some(existing) = slots.get(&slot_key) {
+			conflicts.push(KeymapConflict {
+				mode: def.mode,
+				keys: Arc::clone(&def.keys),
+				kept_target: existing.target_desc.clone(),
+				dropped_target: action_id_str,
+				kept_priority: existing.priority,
+				dropped_priority: def.priority,
+			});
+			continue;
+		}
+
+		let Ok(parsed_keys) = parse_seq(&def.keys) else {
+			push_problem(
+				problems,
+				Some(def.mode),
+				&def.keys,
+				&def.action,
+				KeymapProblemKind::InvalidKeySequence,
+				"invalid key sequence",
+			);
+			continue;
+		};
+
+		let entry = BindingEntry {
+			target: BindingTarget::Action {
+				id,
+				count: 1,
+				extend: false,
+				register: None,
+			},
+			name: Arc::from(actions.interner.resolve(action_entry.name())),
+			description: Arc::from(actions.interner.resolve(action_entry.description())),
+			short_desc: Arc::from(actions.interner.resolve(action_entry.short_desc)),
+			keys: parsed_keys.clone(),
+		};
+
+		slots.insert(
+			slot_key,
+			Slot {
+				entry,
+				parsed_keys,
+				target_desc: action_id_str,
+				priority: def.priority,
+			},
+		);
+	}
+}
+
+/// Phase 2: apply override layer on top of base slots.
+///
+/// `None` values unbind (remove from final map). `Some` values replace or add.
+fn apply_override_layer(
+	actions: &Snapshot<ActionEntry, ActionId>,
+	overrides: &UnresolvedKeys,
+	slots: &mut HashMap<(BindingMode, Arc<str>), Slot>,
+	problems: &mut Vec<KeymapBuildProblem>,
+	conflicts: &mut Vec<KeymapConflict>,
+) {
+	let mut entries: Vec<(BindingMode, Arc<str>, Option<Invocation>)> = Vec::new();
+	for (mode_name, key_map) in &overrides.modes {
+		let Some(mode) = parse_binding_mode(mode_name) else {
+			continue;
+		};
+		for (key_seq, opt_inv) in key_map {
+			entries.push((mode, Arc::from(key_seq.as_str()), opt_inv.clone()));
+		}
+	}
+
+	// Sort for deterministic processing.
+	entries.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
+
+	for (mode, key_seq, opt_inv) in entries {
+		let slot_key = (mode, Arc::clone(&key_seq));
+
+		// Unbind: remove from final map.
+		let Some(inv) = opt_inv else {
+			slots.remove(&slot_key);
+			continue;
+		};
+
+		let target_desc: Arc<str> = Arc::from(inv.describe().as_str());
+		let Ok(parsed_keys) = parse_seq(&key_seq) else {
+			push_problem(
+				problems,
+				Some(mode),
+				&key_seq,
+				&target_desc,
+				KeymapProblemKind::InvalidKeySequence,
+				"invalid key sequence",
+			);
+			continue;
+		};
+
+		let entry = match resolve_override_entry(actions, &inv, &parsed_keys, mode, &key_seq, &target_desc, problems) {
+			Some(e) => e,
+			None => continue, // problem already recorded
+		};
+
+		// Record conflict if replacing existing slot.
+		if let Some(prev) = slots.get(&slot_key) {
+			conflicts.push(KeymapConflict {
+				mode,
+				keys: Arc::clone(&key_seq),
+				kept_target: inv.describe(),
+				dropped_target: prev.target_desc.clone(),
+				kept_priority: i16::MIN,
+				dropped_priority: prev.priority,
 			});
 		}
+
+		slots.insert(
+			slot_key,
+			Slot {
+				entry,
+				parsed_keys,
+				target_desc: inv.describe(),
+				priority: i16::MIN,
+			},
+		);
+	}
+}
+
+/// Resolve an override invocation into a `BindingEntry`, returning `None` on
+/// validation failure (problem already pushed).
+fn resolve_override_entry(
+	actions: &Snapshot<ActionEntry, ActionId>,
+	inv: &Invocation,
+	parsed_keys: &[Node],
+	mode: BindingMode,
+	key_seq: &Arc<str>,
+	target_desc: &Arc<str>,
+	problems: &mut Vec<KeymapBuildProblem>,
+) -> Option<BindingEntry> {
+	match inv {
+		Invocation::Action { name, count, extend, register } => {
+			let action_id = resolve_action_by_name(actions, name);
+			let Some(action_id) = action_id else {
+				push_problem(
+					problems,
+					Some(mode),
+					key_seq,
+					target_desc,
+					KeymapProblemKind::UnknownActionTarget,
+					"unknown action target",
+				);
+				return None;
+			};
+
+			let action_entry = &actions.table[action_id.as_u32() as usize];
+			Some(BindingEntry {
+				target: BindingTarget::Action {
+					id: action_id,
+					count: *count,
+					extend: *extend,
+					register: *register,
+				},
+				name: Arc::from(actions.interner.resolve(action_entry.name())),
+				description: Arc::from(actions.interner.resolve(action_entry.description())),
+				short_desc: Arc::from(actions.interner.resolve(action_entry.short_desc)),
+				keys: parsed_keys.to_vec(),
+			})
+		}
+		Invocation::ActionWithChar { name, .. } => {
+			if resolve_action_by_name(actions, name).is_none() {
+				push_problem(
+					problems,
+					Some(mode),
+					key_seq,
+					target_desc,
+					KeymapProblemKind::UnknownActionTarget,
+					"unknown action target",
+				);
+				return None;
+			}
+
+			Some(BindingEntry {
+				target: BindingTarget::Invocation { inv: inv.clone() },
+				name: Arc::from(name.as_str()),
+				description: Arc::clone(target_desc),
+				short_desc: Arc::from(name.as_str()),
+				keys: parsed_keys.to_vec(),
+			})
+		}
+		Invocation::Command(xeno_invocation::CommandInvocation { name, .. }) | Invocation::Nu { name, .. } => Some(BindingEntry {
+			target: BindingTarget::Invocation { inv: inv.clone() },
+			name: Arc::from(name.as_str()),
+			description: Arc::clone(target_desc),
+			short_desc: Arc::from(name.as_str()),
+			keys: parsed_keys.to_vec(),
+		}),
+	}
+}
+
+/// Resolve an action name to its `ActionId` using the snapshot's interning tables.
+fn resolve_action_by_name(actions: &Snapshot<ActionEntry, ActionId>, name: &str) -> Option<ActionId> {
+	let sym = actions.interner.get(name)?;
+	actions
+		.by_id
+		.get(&sym)
+		.or_else(|| actions.by_name.get(&sym))
+		.or_else(|| actions.by_key.get(&sym))
+		.copied()
+}
+
+/// Phase 3: build per-mode trie matchers from the final slot map.
+fn build_matchers(slots: HashMap<(BindingMode, Arc<str>), Slot>) -> HashMap<BindingMode, Matcher<BindingEntry>> {
+	// Gather and sort for deterministic trie construction.
+	let mut sorted: Vec<_> = slots.into_iter().collect();
+	sorted.sort_by(|a, b| a.0.0.cmp(&b.0.0).then_with(|| a.0.1.cmp(&b.0.1)));
+
+	let mut matchers: HashMap<BindingMode, Matcher<BindingEntry>> = HashMap::new();
+	for ((mode, _key_str), slot) in sorted {
+		matchers.entry(mode).or_default().add(slot.parsed_keys, slot.entry);
+	}
+	matchers
+}
+
+fn push_problem(problems: &mut Vec<KeymapBuildProblem>, mode: Option<BindingMode>, keys: &Arc<str>, target: &Arc<str>, kind: KeymapProblemKind, message: &str) {
+	if problems.len() < 50 {
+		problems.push(KeymapBuildProblem {
+			mode,
+			keys: Arc::clone(keys),
+			target: Arc::clone(target),
+			kind,
+			message: Arc::from(message),
+		});
 	}
 }
 

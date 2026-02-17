@@ -7,6 +7,7 @@ use std::path::PathBuf;
 
 use smallvec::SmallVec;
 use xeno_language::LanguageLoader;
+use xeno_primitives::Mode;
 
 use crate::buffer::{Buffer, DocumentId, ViewId};
 
@@ -18,6 +19,8 @@ pub struct ViewManager {
 	buffers: HashMap<ViewId, Buffer>,
 	doc_to_views: HashMap<DocumentId, SmallVec<[ViewId; 2]>>,
 	next_buffer_id: u64,
+	/// Initial mode applied to newly created buffers.
+	initial_mode: Mode,
 }
 
 impl ViewManager {
@@ -38,6 +41,7 @@ impl ViewManager {
 			buffers,
 			doc_to_views,
 			next_buffer_id: 2,
+			initial_mode: Mode::Normal,
 		}
 	}
 
@@ -56,6 +60,7 @@ impl ViewManager {
 			buffers,
 			doc_to_views,
 			next_buffer_id: buffer_id.0 + 1,
+			initial_mode: Mode::Normal,
 		}
 	}
 
@@ -65,6 +70,7 @@ impl ViewManager {
 		self.next_buffer_id += 1;
 
 		let mut buffer = Buffer::new(buffer_id, content, path);
+		buffer.input.set_mode(self.initial_mode.clone());
 		buffer.init_syntax(language_loader);
 
 		if let Some(width) = window_width {
@@ -82,7 +88,8 @@ impl ViewManager {
 		let buffer_id = ViewId(self.next_buffer_id);
 		self.next_buffer_id += 1;
 
-		let buffer = Buffer::new(buffer_id, String::new(), None);
+		let mut buffer = Buffer::new(buffer_id, String::new(), None);
+		buffer.input.set_mode(self.initial_mode.clone());
 		let doc_id = buffer.document_id();
 		self.buffers.insert(buffer_id, buffer);
 		self.index_add(doc_id, buffer_id);
@@ -104,12 +111,18 @@ impl ViewManager {
 		let new_id = ViewId(self.next_buffer_id);
 		self.next_buffer_id += 1;
 
-		let new_buffer = source_buffer.clone_for_split(new_id);
+		let mut new_buffer = source_buffer.clone_for_split(new_id);
+		new_buffer.input.set_mode(self.initial_mode.clone());
 		let doc_id = new_buffer.document_id();
 		debug_assert_eq!(doc_id, source_buffer.document_id(), "split buffer must share document");
 		self.buffers.insert(new_id, new_buffer);
 		self.index_add(doc_id, new_id);
 		Some(new_id)
+	}
+
+	/// Sets the initial mode applied to newly created buffers.
+	pub fn set_initial_mode(&mut self, mode: Mode) {
+		self.initial_mode = mode;
 	}
 
 	/// Inserts a buffer into the manager and updates the reverse index.

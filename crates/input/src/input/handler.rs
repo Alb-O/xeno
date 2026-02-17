@@ -5,6 +5,7 @@ use xeno_keymap_core::ToKeyMap;
 use xeno_keymap_core::parser::Node;
 use xeno_primitives::key::{Key, KeyCode, MouseButton, MouseEvent};
 use xeno_registry::actions::BindingMode;
+use xeno_registry::keymaps::KeymapBehavior;
 use xeno_registry::{KeymapIndex, LookupResult, get_keymap_registry};
 
 use super::types::{KeyResult, Mode};
@@ -144,16 +145,16 @@ impl InputHandler {
 		self.key_sequence.clear();
 	}
 
-	/// Dispatches a key through the current mode's handler.
+	/// Dispatches a key through the current mode's handler with default behavior.
 	pub fn handle_key(&mut self, key: Key) -> KeyResult {
 		let registry = get_keymap_registry();
-		self.handle_key_with_registry(key, &registry)
+		self.handle_key_with_registry(key, &registry, KeymapBehavior::default())
 	}
 
-	/// Dispatches a key using an explicit keymap registry.
-	pub fn handle_key_with_registry(&mut self, key: Key, registry: &KeymapIndex) -> KeyResult {
+	/// Dispatches a key using an explicit keymap registry and behavior flags.
+	pub fn handle_key_with_registry(&mut self, key: Key, registry: &KeymapIndex, behavior: KeymapBehavior) -> KeyResult {
 		match &self.mode {
-			Mode::Normal => self.handle_mode_key(key, BindingMode::Normal, registry),
+			Mode::Normal => self.handle_mode_key(key, BindingMode::Normal, registry, behavior),
 			Mode::Insert => self.handle_insert_key(key, registry),
 			Mode::PendingAction(kind) => {
 				let kind = *kind;
@@ -164,12 +165,14 @@ impl InputHandler {
 
 	/// Resolves a key against a binding mode's keymap.
 	///
-	/// Shift+alphabetic keys are canonicalized to uppercase-without-shift
-	/// (Vim semantics: Shift+n looks up "N"). If the uppercase lookup fails,
-	/// the lowercase variant is tried with `extend = true` (Shift extends
-	/// selection). Non-alphabetic Shift keys follow the same extend fallback.
-	fn handle_mode_key(&mut self, key: Key, binding_mode: BindingMode, registry: &KeymapIndex) -> KeyResult {
-		if binding_mode == BindingMode::Normal
+	/// Behavior-flag-dependent logic:
+	/// * `vim_shift_letter_casefold`: Shift+alphabetic canonicalizes to uppercase
+	///   for lookup (Vim: Shift+n → "N"). Fallback tries lowercase with `extend = true`.
+	///   When disabled, Shift is kept as a modifier (emacs semantics).
+	/// * `normal_digit_prefix_count`: Bare digits accumulate a count prefix in Normal mode.
+	fn handle_mode_key(&mut self, key: Key, binding_mode: BindingMode, registry: &KeymapIndex, behavior: KeymapBehavior) -> KeyResult {
+		if behavior.normal_digit_prefix_count
+			&& binding_mode == BindingMode::Normal
 			&& let Some(digit) = key.as_digit()
 			&& (digit != 0 || self.count > 0)
 		{
@@ -206,20 +209,29 @@ impl InputHandler {
 		let mut primary = key;
 		let mut extend_fallback: Option<Key> = None;
 
-		if let KeyCode::Char(c) = key.code {
-			if c.is_ascii_alphabetic() && key.modifiers.shift {
-				let mut k = key.drop_shift();
-				k.code = KeyCode::Char(c.to_ascii_uppercase());
-				primary = k;
+		if behavior.vim_shift_letter_casefold {
+			// Vim semantics: Shift+n → lookup "N", fallback to "n" with extend.
+			if let KeyCode::Char(c) = key.code {
+				if c.is_ascii_alphabetic() && key.modifiers.shift {
+					let mut k = key.drop_shift();
+					k.code = KeyCode::Char(c.to_ascii_uppercase());
+					primary = k;
 
-				let mut fb = key.drop_shift();
-				fb.code = KeyCode::Char(c.to_ascii_lowercase());
-				extend_fallback = Some(fb);
+					let mut fb = key.drop_shift();
+					fb.code = KeyCode::Char(c.to_ascii_lowercase());
+					extend_fallback = Some(fb);
+				} else if key.modifiers.shift {
+					extend_fallback = Some(key.drop_shift());
+				}
 			} else if key.modifiers.shift {
 				extend_fallback = Some(key.drop_shift());
 			}
-		} else if key.modifiers.shift {
-			extend_fallback = Some(key.drop_shift());
+		} else {
+			// Non-casefold: keep Shift as-is for char keys. For non-char keys,
+			// shift-arrow selection extend fallback remains.
+			if !matches!(key.code, KeyCode::Char(_)) && key.modifiers.shift {
+				extend_fallback = Some(key.drop_shift());
+			}
 		}
 
 		let lookup_result = match lookup_with(primary, &mut self.key_sequence) {

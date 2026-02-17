@@ -17,6 +17,7 @@ pub mod commands;
 pub mod grammars;
 pub mod gutters;
 pub mod hooks;
+pub mod keymaps;
 pub mod languages;
 pub mod lsp_servers;
 pub mod motions;

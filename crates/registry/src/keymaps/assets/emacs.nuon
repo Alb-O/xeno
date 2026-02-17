@@ -1,0 +1,69 @@
+# Emacs-style keymap preset.
+#
+# Non-modal editing with Ctrl/Alt chord sequences. Starts in Insert mode.
+# Multi-key prefixes (C-x ...) rely on Insert-mode sequence accumulation.
+{
+  name: emacs
+  initial_mode: insert
+  behavior: {
+    vim_shift_letter_casefold: false
+    normal_digit_prefix_count: false
+  }
+  bindings: [
+    # navigation
+    { mode: insert, keys: ctrl-b, target: "action:move_left" }
+    { mode: insert, keys: left, target: "action:move_left" }
+    { mode: insert, keys: ctrl-f, target: "action:move_right" }
+    { mode: insert, keys: right, target: "action:move_right" }
+    { mode: insert, keys: ctrl-p, target: "action:move_up" }
+    { mode: insert, keys: up, target: "action:move_up" }
+    { mode: insert, keys: ctrl-n, target: "action:move_down" }
+    { mode: insert, keys: down, target: "action:move_down" }
+    { mode: insert, keys: ctrl-a, target: "action:move_line_start" }
+    { mode: insert, keys: home, target: "action:move_line_start" }
+    { mode: insert, keys: ctrl-e, target: "action:move_line_end" }
+    { mode: insert, keys: end, target: "action:move_line_end" }
+    { mode: insert, keys: alt-b, target: "action:prev_word_start" }
+    { mode: insert, keys: ctrl-left, target: "action:prev_word_start" }
+    { mode: insert, keys: alt-f, target: "action:next_word_start" }
+    { mode: insert, keys: ctrl-right, target: "action:next_word_start" }
+
+    # editing
+    { mode: insert, keys: backspace, target: "action:delete_back" }
+    { mode: insert, keys: delete, target: "action:delete_forward" }
+    { mode: insert, keys: ctrl-d, target: "action:delete_forward" }
+    { mode: insert, keys: ctrl-backspace, target: "action:delete_word_back" }
+    { mode: insert, keys: ctrl-delete, target: "action:delete_word_forward" }
+    { mode: insert, keys: enter, target: "action:insert_newline" }
+
+    # cancel / collapse
+    { mode: insert, keys: ctrl-g, target: "action:collapse_selection" }
+
+    # search
+    { mode: insert, keys: ctrl-s, target: "action:search" }
+    { mode: insert, keys: ctrl-r, target: "action:search_reverse" }
+
+    # undo / redo
+    { mode: insert, keys: "ctrl-x u", target: "action:undo" }
+
+    # palette
+    { mode: insert, keys: alt-x, target: "action:open_palette" }
+
+    # C-x prefix commands
+    { mode: insert, keys: "ctrl-x ctrl-s", target: "command:write" }
+    { mode: insert, keys: "ctrl-x ctrl-c", target: "command:quit" }
+
+    # scrolling
+    { mode: insert, keys: pageup, target: "action:scroll_page_up" }
+    { mode: insert, keys: pagedown, target: "action:scroll_page_down" }
+    { mode: insert, keys: ctrl-up, target: "action:prev_paragraph" }
+    { mode: insert, keys: ctrl-down, target: "action:next_paragraph" }
+
+    # mode escape (enter normal for advanced editing)
+    { mode: insert, keys: esc, target: "action:enter_normal" }
+    { mode: normal, keys: i, target: "action:enter_insert" }
+  ]
+  prefixes: [
+    { mode: insert, keys: ctrl-x, description: Emacs }
+  ]
+}

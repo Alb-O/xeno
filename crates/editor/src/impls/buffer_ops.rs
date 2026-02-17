@@ -101,6 +101,7 @@ impl Editor {
 
 		let readonly = path.exists() && !is_writable(&path);
 		let mut buffer = Buffer::new(view, content, Some(path));
+		buffer.input.set_mode(self.state.keymap_initial_mode.clone());
 		buffer.init_syntax(&self.state.config.language_loader);
 		if let Some(width) = self.state.viewport.width {
 			buffer.text_width = width.saturating_sub(buffer.gutter_width()) as usize;

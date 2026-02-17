@@ -171,6 +171,9 @@ xeno_macros::define_events! {
 	},
 }
 
+#[cfg(feature = "keymap")]
+pub mod keymaps;
+
 #[cfg(feature = "minimal")]
 pub mod db;
 

@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn parse_config_supports_options_languages_and_keys() {
+fn parse_config_supports_options_languages_and_keymap() {
 	let input = r#"
 {
 options: {
@@ -11,8 +11,10 @@ options: {
 languages: [
 	{ name: "rust", options: { tab-width: 2, theme: "monokai" } },
 ],
-keys: {
-	normal: { "ctrl+s": "command:write" }
+keymap: {
+	keys: {
+		normal: { "ctrl+s": "command:write" }
+	}
 }
 }
 "#;
@@ -31,8 +33,14 @@ keys: {
 		} if option == "theme"
 	));
 
-	let keys = config.keys.expect("keys should be parsed");
-	let binding = keys.modes.get("normal").and_then(|m| m.get("ctrl+s")).expect("binding should exist");
+	let keys = config.keymap.expect("keymap should be parsed").keys.expect("keys should be parsed");
+	let binding = keys
+		.modes
+		.get("normal")
+		.and_then(|m| m.get("ctrl+s"))
+		.expect("binding should exist")
+		.as_ref()
+		.expect("should not be unbind");
 	assert!(matches!(
 		binding,
 		crate::invocation::Invocation::Command(xeno_invocation::CommandInvocation { name, .. }) if name == "write"
@@ -161,11 +169,11 @@ fn parse_config_nu_rejects_unknown_budget_field() {
 
 #[test]
 fn parse_keys_string_spec_command() {
-	let input = r#"{ keys: { normal: { "ctrl+s": "command:write" } } }"#;
+	let input = r#"{ keymap: { keys: { normal: { "ctrl+s": "command:write" } } } }"#;
 	let config = parse_config_str(input).expect("string spec should parse");
-	let keys = config.keys.expect("keys should be present");
+	let keys = config.keymap.expect("keymap should be parsed").keys.expect("keys should be present");
 	let bindings = keys.modes.get("normal").expect("normal mode should exist");
-	let inv = bindings.get("ctrl+s").expect("ctrl+s should be bound");
+	let inv = bindings.get("ctrl+s").expect("ctrl+s should be bound").as_ref().expect("should not be unbind");
 	assert!(matches!(
 		inv,
 		xeno_invocation::Invocation::Command(xeno_invocation::CommandInvocation { name, args, .. }) if name == "write" && args.is_empty()
@@ -174,11 +182,11 @@ fn parse_keys_string_spec_command() {
 
 #[test]
 fn parse_keys_string_spec_with_quoted_args() {
-	let input = r#"{ keys: { normal: { "ctrl+o": "command:open \"my file.txt\"" } } }"#;
+	let input = r#"{ keymap: { keys: { normal: { "ctrl+o": "command:open \"my file.txt\"" } } } }"#;
 	let config = parse_config_str(input).expect("quoted args should parse");
-	let keys = config.keys.expect("keys should be present");
+	let keys = config.keymap.expect("keymap should be parsed").keys.expect("keys should be present");
 	let bindings = keys.modes.get("normal").expect("normal mode should exist");
-	let inv = bindings.get("ctrl+o").expect("ctrl+o should be bound");
+	let inv = bindings.get("ctrl+o").expect("ctrl+o should be bound").as_ref().expect("should not be unbind");
 	assert!(matches!(
 		inv,
 		xeno_invocation::Invocation::Command(xeno_invocation::CommandInvocation { name, args, .. }) if name == "open" && args == &["my file.txt"]
@@ -187,7 +195,38 @@ fn parse_keys_string_spec_with_quoted_args() {
 
 #[test]
 fn parse_keys_invalid_string_spec_errors() {
-	let input = r#"{ keys: { normal: { "ctrl+x": "bogus:nope" } } }"#;
+	let input = r#"{ keymap: { keys: { normal: { "ctrl+x": "bogus:nope" } } } }"#;
 	let err = parse_config_str(input).expect_err("invalid spec should fail");
 	assert!(matches!(err, super::super::ConfigError::InvalidKeyBinding(msg) if msg.contains("keys.normal.ctrl+x")));
+}
+
+#[test]
+fn parse_keymap_preset() {
+	let input = r#"{ keymap: { preset: "emacs" } }"#;
+	let config = parse_config_str(input).expect("keymap with preset should parse");
+	let keymap = config.keymap.expect("keymap should be present");
+	assert_eq!(keymap.preset.as_deref(), Some("emacs"));
+	assert!(keymap.keys.is_none());
+}
+
+#[test]
+fn parse_keymap_preset_with_keys() {
+	let input = r#"{ keymap: { preset: "vim", keys: { normal: { "g g": "action:move_left" } } } }"#;
+	let config = parse_config_str(input).expect("keymap with preset and keys should parse");
+	let keymap = config.keymap.expect("keymap should be present");
+	assert_eq!(keymap.preset.as_deref(), Some("vim"));
+	let keys = keymap.keys.expect("keys should be present");
+	let normal = keys.modes.get("normal").expect("normal mode should exist");
+	assert!(normal.contains_key("g g"));
+}
+
+#[test]
+fn parse_keymap_null_unbind() {
+	let input = r#"{ keymap: { keys: { normal: { "h": null } } } }"#;
+	let config = parse_config_str(input).expect("null unbind should parse");
+	let keymap = config.keymap.expect("keymap should be present");
+	let keys = keymap.keys.expect("keys should be present");
+	let normal = keys.modes.get("normal").expect("normal mode should exist");
+	let binding = normal.get("h").expect("h should be in overrides");
+	assert!(binding.is_none(), "null should produce None (unbind)");
 }

@@ -43,6 +43,7 @@ impl UtilityPanel {
 
 		let binding_mode = match ed.buffer().input.mode() {
 			xeno_primitives::Mode::Normal => BindingMode::Normal,
+			xeno_primitives::Mode::Insert => BindingMode::Insert,
 			_ => return None,
 		};
 
@@ -55,7 +56,7 @@ impl UtilityPanel {
 		let key_strs: Vec<String> = pending_keys.iter().map(|k| k.to_string()).collect();
 		let root = key_strs.first().cloned().unwrap_or_default();
 		let prefix_key = key_strs.join(" ");
-		let root_description = xeno_registry::actions::find_prefix(binding_mode, &root).map(|prefix| prefix.description.to_string());
+		let root_description = registry.prefix_description(binding_mode, &root).map(str::to_string);
 
 		let entries = continuations
 			.iter()
@@ -64,8 +65,7 @@ impl UtilityPanel {
 				match cont.kind {
 					ContinuationKind::Branch => {
 						let sub_prefix = if prefix_key.is_empty() { key.clone() } else { format!("{prefix_key} {key}") };
-						let description =
-							xeno_registry::actions::find_prefix(binding_mode, &sub_prefix).map_or_else(String::new, |prefix| prefix.description.to_string());
+						let description = registry.prefix_description(binding_mode, &sub_prefix).map_or_else(String::new, str::to_string);
 						UtilityWhichKeyEntry {
 							key,
 							description,

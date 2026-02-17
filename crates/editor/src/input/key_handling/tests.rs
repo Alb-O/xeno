@@ -76,7 +76,7 @@ fn effective_keymap_applies_overrides_and_invalidates_cache() {
 	assert_eq!(lookup_action_id(&keymap_before, mode, &key_seq), base_id);
 
 	let mut mode_overrides = HashMap::new();
-	mode_overrides.insert(key_seq.clone(), xeno_registry::Invocation::action(&target_id_str));
+	mode_overrides.insert(key_seq.clone(), Some(xeno_registry::Invocation::action(&target_id_str)));
 	let mut modes = HashMap::new();
 	modes.insert(mode_name(mode).to_string(), mode_overrides);
 	editor.set_key_overrides(Some(UnresolvedKeys { modes }));
@@ -126,7 +126,7 @@ fn effective_keymap_continuations_include_override() {
 	let full_key = format!("{prefix} {candidate}");
 
 	let mut normal = HashMap::new();
-	normal.insert(full_key, xeno_registry::Invocation::action(&target_id_str));
+	normal.insert(full_key, Some(xeno_registry::Invocation::action(&target_id_str)));
 	let mut modes = HashMap::new();
 	modes.insert("normal".to_string(), normal);
 	editor.set_key_overrides(Some(UnresolvedKeys { modes }));
@@ -149,7 +149,7 @@ fn invalid_override_keeps_base_binding() {
 	let (mode, key_seq, base_id, _target_id, _target_id_str) = sample_binding(&actions).expect("registry should contain at least one binding");
 
 	let mut mode_overrides = HashMap::new();
-	mode_overrides.insert(key_seq.clone(), xeno_registry::Invocation::action("does-not-exist"));
+	mode_overrides.insert(key_seq.clone(), Some(xeno_registry::Invocation::action("does-not-exist")));
 	let mut modes = HashMap::new();
 	modes.insert(mode_name(mode).to_string(), mode_overrides);
 	editor.set_key_overrides(Some(UnresolvedKeys { modes }));
@@ -204,4 +204,111 @@ fn unknown_action_id_key_result_surfaces_invalid_id() {
 		mapped,
 		Some(KeyInvocation::InvalidActionId(id)) if id == invalid_id.to_string()
 	));
+}
+
+#[test]
+fn custom_preset_path_loads_and_sets_insert() {
+	let dir = tempfile::tempdir().unwrap();
+	let preset_path = dir.path().join("test_custom.nuon");
+	std::fs::write(
+		&preset_path,
+		r#"{
+    name: test_custom
+    initial_mode: insert
+    behavior: { vim_shift_letter_casefold: false, normal_digit_prefix_count: false }
+    bindings: [
+        { mode: insert, keys: "ctrl-x ctrl-s", target: "command:write" }
+    ]
+    prefixes: [
+        { mode: insert, keys: ctrl-x, description: "Test prefix" }
+    ]
+}"#,
+	)
+	.unwrap();
+
+	let mut editor = Editor::new_scratch();
+	editor.set_keymap_preset_spec(preset_path.to_str().unwrap().to_string(), Some(dir.path()));
+
+	assert!(
+		matches!(editor.buffer().input.mode(), xeno_primitives::Mode::Insert),
+		"custom preset with initial_mode: insert should start buffer in Insert mode"
+	);
+	assert!(!editor.keymap_behavior().vim_shift_letter_casefold);
+	assert!(!editor.keymap_behavior().normal_digit_prefix_count);
+}
+
+#[tokio::test]
+async fn custom_preset_ctrl_x_prefix_dispatches() {
+	let dir = tempfile::tempdir().unwrap();
+	let preset_path = dir.path().join("test_dispatch.nuon");
+	std::fs::write(
+		&preset_path,
+		r#"{
+    name: test_dispatch
+    initial_mode: insert
+    behavior: { vim_shift_letter_casefold: false, normal_digit_prefix_count: false }
+    bindings: [
+        { mode: insert, keys: "ctrl-x ctrl-s", target: "command:write" }
+    ]
+    prefixes: [
+        { mode: insert, keys: ctrl-x, description: "Test prefix" }
+    ]
+}"#,
+	)
+	.unwrap();
+
+	let mut editor = Editor::new_scratch();
+	editor.handle_window_resize(100, 40);
+	editor.set_keymap_preset_spec(preset_path.to_str().unwrap().to_string(), Some(dir.path()));
+
+	assert!(matches!(editor.buffer().input.mode(), xeno_primitives::Mode::Insert));
+
+	let _ = editor.handle_key(Key::ctrl('x')).await;
+	assert!(
+		editor.buffer().input.pending_key_count() > 0,
+		"ctrl-x should produce pending state in custom preset insert mode"
+	);
+
+	let _ = editor.handle_key(Key::ctrl('s')).await;
+	assert_eq!(
+		editor.buffer().input.pending_key_count(),
+		0,
+		"pending sequence should be cleared after full chord"
+	);
+}
+
+#[test]
+fn emacs_preset_starts_in_insert() {
+	let mut editor = Editor::new_scratch();
+	editor.set_keymap_preset("emacs".to_string());
+	assert!(
+		matches!(editor.buffer().input.mode(), xeno_primitives::Mode::Insert),
+		"emacs preset should start buffer in Insert mode"
+	);
+}
+
+#[tokio::test]
+async fn emacs_ctrl_x_ctrl_s_dispatches_from_fresh_insert() {
+	let mut editor = Editor::new_scratch();
+	editor.handle_window_resize(100, 40);
+	editor.set_keymap_preset("emacs".to_string());
+
+	// Verify we're in Insert mode
+	assert!(matches!(editor.buffer().input.mode(), xeno_primitives::Mode::Insert));
+
+	// Press ctrl-x → should be Pending
+	let _ = editor.handle_key(Key::ctrl('x')).await;
+	assert!(
+		editor.buffer().input.pending_key_count() > 0,
+		"ctrl-x should produce pending state in emacs insert mode"
+	);
+
+	// Press ctrl-s → should dispatch command:write
+	// (the write may fail since there's no file, but it should dispatch)
+	let _ = editor.handle_key(Key::ctrl('s')).await;
+	assert_eq!(
+		editor.buffer().input.pending_key_count(),
+		0,
+		"pending sequence should be cleared after full chord"
+	);
 }

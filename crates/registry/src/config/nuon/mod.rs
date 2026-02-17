@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use xeno_nu_data::{Record, Value};
 
-use super::{Config, ConfigError, ConfigWarning, DecodeBudgetOverrides, LanguageConfig, NuConfig, Result, UnresolvedKeys};
+use super::{Config, ConfigError, ConfigWarning, DecodeBudgetOverrides, KeymapConfig, LanguageConfig, NuConfig, Result, UnresolvedKeys};
 use crate::options::{OptionScope, OptionStore};
 
 /// Parse a NUON string into a [`Config`].
@@ -16,11 +16,11 @@ pub fn parse_config_str(input: &str) -> Result<Config> {
 /// Parse a NUON value into a [`Config`].
 pub fn parse_config_value(value: &Value) -> Result<Config> {
 	let root = expect_record(value, "config")?;
-	validate_allowed_fields(root, &["keys", "options", "languages", "nu"], "config")?;
+	validate_allowed_fields(root, &["keymap", "options", "languages", "nu"], "config")?;
 
 	let mut warnings = Vec::new();
 
-	let keys = root.get("keys").map(parse_keys_value).transpose()?;
+	let keymap = root.get("keymap").map(parse_keymap_value).transpose()?;
 
 	let options = if let Some(value) = root.get("options") {
 		let parsed = parse_options_with_context(value, ParseContext::Global, "options")?;
@@ -59,7 +59,7 @@ pub fn parse_config_value(value: &Value) -> Result<Config> {
 	let nu = root.get("nu").map(parse_nu_config).transpose()?;
 
 	Ok(Config {
-		keys,
+		keymap,
 		nu,
 		options,
 		languages,
@@ -356,6 +356,17 @@ fn option_type_name(ty: crate::options::OptionType) -> &'static str {
 	}
 }
 
+fn parse_keymap_value(value: &Value) -> Result<KeymapConfig> {
+	let record = expect_record(value, "keymap")?;
+	validate_allowed_fields(record, &["preset", "keys"], "keymap")?;
+
+	let preset = record.get("preset").map(|v| expect_string(v, "keymap.preset")).transpose()?.map(str::to_string);
+
+	let keys = record.get("keys").map(parse_keys_value).transpose()?;
+
+	Ok(KeymapConfig { preset, keys })
+}
+
 fn parse_keys_value(value: &Value) -> Result<UnresolvedKeys> {
 	let mut config = UnresolvedKeys::default();
 	let modes = expect_record(value, "keys")?;
@@ -366,7 +377,7 @@ fn parse_keys_value(value: &Value) -> Result<UnresolvedKeys> {
 		let mut bindings = HashMap::new();
 		for (key, binding_value) in binding_record.iter() {
 			let field_path = format!("{mode_field}.{key}");
-			let inv = parse_keybinding_value(binding_value, &field_path)?;
+			let inv = parse_keybinding_value_opt(binding_value, &field_path)?;
 			bindings.insert(key.clone(), inv);
 		}
 		config.modes.insert(mode_name.clone(), bindings);
@@ -375,8 +386,11 @@ fn parse_keys_value(value: &Value) -> Result<UnresolvedKeys> {
 	Ok(config)
 }
 
-/// Parse a single keybinding value: string spec, record, or custom value.
-fn parse_keybinding_value(value: &Value, field_path: &str) -> Result<xeno_invocation::Invocation> {
+/// Parse a single keybinding value: `null` for unbind, string spec, record, or custom value.
+fn parse_keybinding_value_opt(value: &Value, field_path: &str) -> Result<Option<xeno_invocation::Invocation>> {
+	if matches!(value, Value::Nothing { .. }) {
+		return Ok(None);
+	}
 	if let Value::String { val, .. } = value {
 		let parsed = xeno_invocation_spec::parse_spec(val).map_err(|e| ConfigError::InvalidKeyBinding(format!("at {field_path}: {e}")))?;
 		let inv = match parsed.kind {
@@ -385,9 +399,10 @@ fn parse_keybinding_value(value: &Value, field_path: &str) -> Result<xeno_invoca
 			xeno_invocation_spec::SpecKind::Editor => xeno_invocation::Invocation::editor_command(parsed.name, parsed.args),
 			xeno_invocation_spec::SpecKind::Nu => xeno_invocation::Invocation::nu(parsed.name, parsed.args),
 		};
-		return Ok(inv);
+		return Ok(Some(inv));
 	}
-	xeno_invocation::nu::decode_single_dispatch_effect(value, field_path).map_err(ConfigError::InvalidKeyBinding)
+	let inv = xeno_invocation::nu::decode_single_dispatch_effect(value, field_path).map_err(ConfigError::InvalidKeyBinding)?;
+	Ok(Some(inv))
 }
 
 fn parse_variant(s: &str) -> Result<crate::themes::ThemeVariant> {

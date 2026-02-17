@@ -4,7 +4,7 @@ use super::spec::{ActionsSpec, KeyBindingSpec};
 use crate::actions::def::ActionHandler;
 use crate::actions::entry::ActionEntry;
 use crate::actions::handler::ActionHandlerStatic;
-use crate::actions::{BindingMode, KeyBindingDef, KeyPrefixDef};
+use crate::actions::{BindingMode, KeyBindingDef};
 use crate::core::{Capability, LinkedDef, LinkedMetaOwned, LinkedPayload, RegistryMeta, RegistrySource, Symbol};
 
 /// An action definition assembled from spec + Rust handler.
@@ -100,16 +100,4 @@ pub fn link_actions(spec: &ActionsSpec, handlers: impl Iterator<Item = &'static 
 		},
 		"action",
 	)
-}
-
-/// Parses prefix data from the spec into `KeyPrefixDef`s.
-pub fn link_prefixes(spec: &ActionsSpec) -> Vec<KeyPrefixDef> {
-	spec.prefixes
-		.iter()
-		.map(|p| KeyPrefixDef {
-			mode: parse_binding_mode(&p.mode),
-			keys: Arc::from(p.keys.as_str()),
-			description: Arc::from(p.description.as_str()),
-		})
-		.collect()
 }

@@ -140,6 +140,7 @@ fn log_registry_summary_once() {
 pub(crate) struct EffectiveKeymapCache {
 	pub(crate) snap: Arc<Snapshot<ActionEntry, ActionId>>,
 	pub(crate) overrides_hash: u64,
+	pub(crate) preset_ptr: usize,
 	pub(crate) index: Arc<KeymapIndex>,
 }
 
@@ -177,6 +178,14 @@ pub(crate) struct EditorState {
 	pub(crate) config: Config,
 	/// User keybinding overrides loaded from config files.
 	pub(crate) key_overrides: Option<xeno_registry::config::UnresolvedKeys>,
+	/// Active keymap preset spec string (e.g., `"vim"`, `"./my.nuon"`).
+	pub(crate) keymap_preset_spec: String,
+	/// Loaded keymap preset.
+	pub(crate) keymap_preset: xeno_registry::keymaps::KeymapPresetRef,
+	/// Behavioral flags from the active preset, cached for input dispatch.
+	pub(crate) keymap_behavior: xeno_registry::keymaps::KeymapBehavior,
+	/// Initial mode for new buffers / preset changes.
+	pub(crate) keymap_initial_mode: xeno_primitives::Mode,
 	/// Cached effective keymap index for the current actions snapshot and overrides.
 	pub(crate) keymap_cache: Mutex<Option<EffectiveKeymapCache>>,
 	/// Nu runtime/executor lifecycle and hook/macro orchestration state.
@@ -371,6 +380,18 @@ impl Editor {
 				frame: FrameState::default(),
 				config: Config::new(language_loader),
 				key_overrides: None,
+				keymap_preset_spec: xeno_registry::keymaps::DEFAULT_PRESET.to_string(),
+				keymap_preset: xeno_registry::keymaps::preset(xeno_registry::keymaps::DEFAULT_PRESET).unwrap_or_else(|| {
+					std::sync::Arc::new(xeno_registry::keymaps::KeymapPreset {
+						name: std::sync::Arc::from("vim"),
+						initial_mode: xeno_primitives::Mode::Normal,
+						behavior: xeno_registry::keymaps::KeymapBehavior::default(),
+						bindings: Vec::new(),
+						prefixes: Vec::new(),
+					})
+				}),
+				keymap_behavior: xeno_registry::keymaps::KeymapBehavior::default(),
+				keymap_initial_mode: xeno_primitives::Mode::Normal,
 				keymap_cache: Mutex::new(None),
 				nu: crate::nu::coordinator::NuCoordinatorState::new(),
 				notifications: crate::notifications::NotificationCenter::new(),
@@ -571,6 +592,51 @@ impl Editor {
 		self.state.keymap_cache.lock().take();
 	}
 
+	/// Resolves and applies a keymap preset from a spec string.
+	///
+	/// The spec can be a builtin name (e.g., `"vim"`), a file path, or a
+	/// convention name that resolves to `<config_dir>/keymaps/<name>.nuon`.
+	/// On resolution failure, falls back to the default preset and emits a
+	/// notification.
+	pub fn set_keymap_preset(&mut self, spec: String) {
+		let config_dir = crate::paths::get_config_dir();
+		self.set_keymap_preset_spec(spec, config_dir.as_deref());
+	}
+
+	/// Resolves and applies a keymap preset from a spec string with an explicit
+	/// base directory for file resolution.
+	pub fn set_keymap_preset_spec(&mut self, spec: String, base_dir: Option<&std::path::Path>) {
+		match xeno_registry::keymaps::resolve(&spec, base_dir) {
+			Ok(p) => self.apply_preset(p, spec),
+			Err(e) => {
+				tracing::warn!("failed to resolve preset {spec:?}: {e}");
+				let fallback = xeno_registry::keymaps::builtin(xeno_registry::keymaps::DEFAULT_PRESET).expect("default preset must exist");
+				self.apply_preset(fallback, xeno_registry::keymaps::DEFAULT_PRESET.to_string());
+			}
+		}
+	}
+
+	fn apply_preset(&mut self, preset: xeno_registry::keymaps::KeymapPresetRef, spec: String) {
+		self.state.keymap_behavior = preset.behavior;
+		self.state.keymap_initial_mode = preset.initial_mode.clone();
+		self.state.keymap_preset = preset;
+		self.state.keymap_preset_spec = spec;
+		self.state.keymap_cache.lock().take();
+		let initial_mode = self.state.keymap_initial_mode.clone();
+		self.buffer_mut().input.set_mode(initial_mode.clone());
+		self.state.core.buffers.set_initial_mode(initial_mode);
+	}
+
+	/// Returns the behavioral flags from the active keymap preset.
+	pub fn keymap_behavior(&self) -> xeno_registry::keymaps::KeymapBehavior {
+		self.state.keymap_behavior
+	}
+
+	/// Returns the initial mode from the active keymap preset.
+	pub fn keymap_initial_mode(&self) -> xeno_primitives::Mode {
+		self.state.keymap_initial_mode.clone()
+	}
+
 	/// Replaces the loaded Nu runtime used by `:nu-run`.
 	///
 	/// Also creates or destroys the persistent executor thread. Runtime swap
@@ -596,26 +662,33 @@ impl Editor {
 		self.state.nu.ensure_executor()
 	}
 
-	/// Returns the effective keymap for the current actions snapshot and overrides.
+	/// Returns the effective keymap for the current actions snapshot, preset, and overrides.
 	pub fn effective_keymap(&self) -> Arc<KeymapIndex> {
 		let snap = xeno_registry::db::ACTIONS.snapshot();
 		let overrides_hash = hash_unresolved_keys(self.state.key_overrides.as_ref());
+		let preset_ptr = Arc::as_ptr(&self.state.keymap_preset) as usize;
 
 		{
 			let cache = self.state.keymap_cache.lock();
 			if let Some(cache) = cache.as_ref()
 				&& Arc::ptr_eq(&cache.snap, &snap)
 				&& cache.overrides_hash == overrides_hash
+				&& cache.preset_ptr == preset_ptr
 			{
 				return Arc::clone(&cache.index);
 			}
 		}
 
-		let index = Arc::new(KeymapIndex::build_with_overrides(&snap, self.state.key_overrides.as_ref()));
+		let index = Arc::new(KeymapIndex::build_with_preset(
+			&snap,
+			Some(&self.state.keymap_preset),
+			self.state.key_overrides.as_ref(),
+		));
 		let mut cache = self.state.keymap_cache.lock();
 		*cache = Some(EffectiveKeymapCache {
 			snap,
 			overrides_hash,
+			preset_ptr,
 			index: Arc::clone(&index),
 		});
 		index
@@ -882,10 +955,10 @@ fn hash_unresolved_keys(keys: Option<&xeno_registry::config::UnresolvedKeys>) ->
 	for (mode, bindings) in modes {
 		mode.hash(&mut hasher);
 		let mut entries: Vec<_> = bindings.iter().collect();
-		entries.sort_by(|(key_a, action_a), (key_b, action_b)| key_a.cmp(key_b).then_with(|| action_a.cmp(action_b)));
-		for (key, action) in entries {
+		entries.sort_by(|(key_a, opt_a), (key_b, opt_b)| key_a.cmp(key_b).then_with(|| opt_a.cmp(opt_b)));
+		for (key, opt_inv) in entries {
 			key.hash(&mut hasher);
-			action.hash(&mut hasher);
+			opt_inv.hash(&mut hasher);
 		}
 	}
 

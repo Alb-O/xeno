@@ -82,24 +82,30 @@ fn eval_config_rejects_use_parent_dir() {
 #[test]
 fn config_nu_parses_structured_keys_with_builtins() {
 	let input = r#"{
-		keys: {
-			normal: {
-				"ctrl+s": (xeno effect dispatch command write),
-				"g r": (xeno effect dispatch editor reload_config),
+		keymap: {
+			keys: {
+				normal: {
+					"ctrl+s": (xeno effect dispatch command write),
+					"g r": (xeno effect dispatch editor reload_config),
+				}
 			}
 		}
 	}"#;
 	let config = eval_config_str(input, "config.nu").expect("config.nu with built-in keys should evaluate");
-	let keys = config.keys.expect("keys should be parsed");
+	let keys = config.keymap.expect("keymap should be parsed").keys.expect("keys should be parsed");
 	let normal = keys.modes.get("normal").expect("normal mode should exist");
 
-	let ctrl_s = normal.get("ctrl+s").expect("ctrl+s binding should exist");
+	let ctrl_s = normal
+		.get("ctrl+s")
+		.expect("ctrl+s binding should exist")
+		.as_ref()
+		.expect("should not be unbind");
 	assert!(matches!(
 		ctrl_s,
 		crate::Invocation::Command(xeno_invocation::CommandInvocation { name, args, .. }) if name == "write" && args.is_empty()
 	));
 
-	let gr = normal.get("g r").expect("g r binding should exist");
+	let gr = normal.get("g r").expect("g r binding should exist").as_ref().expect("should not be unbind");
 	assert!(matches!(
 		gr,
 		crate::Invocation::Command(xeno_invocation::CommandInvocation {
@@ -113,16 +119,18 @@ fn config_nu_parses_structured_keys_with_builtins() {
 #[test]
 fn config_nu_accepts_string_key_target() {
 	let input = r#"{
-		keys: {
-			normal: {
-				"ctrl+s": "command:write"
+		keymap: {
+			keys: {
+				normal: {
+					"ctrl+s": "command:write"
+				}
 			}
 		}
 	}"#;
 	let config = eval_config_str(input, "config.nu").expect("string key target should be accepted");
-	let keys = config.keys.expect("keys should be present");
+	let keys = config.keymap.expect("keymap should be parsed").keys.expect("keys should be present");
 	let bindings = keys.modes.get("normal").expect("normal mode should exist");
-	let inv = bindings.get("ctrl+s").expect("ctrl+s should be bound");
+	let inv = bindings.get("ctrl+s").expect("ctrl+s should be bound").as_ref().expect("should not be unbind");
 	assert!(matches!(
 		inv,
 		xeno_invocation::Invocation::Command(xeno_invocation::CommandInvocation { name, .. }) if name == "write"
@@ -132,9 +140,11 @@ fn config_nu_accepts_string_key_target() {
 #[test]
 fn config_nu_rejects_missing_kind() {
 	let input = r#"{
-		keys: {
-			normal: {
-				"ctrl+s": { name: "write" }
+		keymap: {
+			keys: {
+				normal: {
+					"ctrl+s": { name: "write" }
+				}
 			}
 		}
 	}"#;

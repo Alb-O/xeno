@@ -71,12 +71,13 @@ fn invocation_spec_multi_key_pending_then_match() {
 
 	use xeno_registry::config::UnresolvedKeys;
 	use xeno_registry::db::keymap_registry::KeymapIndex;
+	use xeno_registry::keymaps::KeymapBehavior;
 
 	let actions = xeno_registry::db::ACTIONS.snapshot();
 
 	// Override "g r" → editor_command reload_config
 	let mut normal = HashMap::new();
-	normal.insert("g r".to_string(), xeno_registry::Invocation::editor_command("reload_config", vec![]));
+	normal.insert("g r".to_string(), Some(xeno_registry::Invocation::editor_command("reload_config", vec![])));
 	let mut modes = HashMap::new();
 	modes.insert("normal".to_string(), normal);
 	let overrides = UnresolvedKeys { modes };
@@ -85,14 +86,14 @@ fn invocation_spec_multi_key_pending_then_match() {
 	let mut h = InputHandler::new();
 
 	// First key 'g' should produce Pending
-	let result = h.handle_key_with_registry(Key::char('g'), &keymap);
+	let result = h.handle_key_with_registry(Key::char('g'), &keymap, KeymapBehavior::default());
 	assert!(
 		matches!(result, super::types::KeyResult::Pending { keys_so_far: 1 }),
 		"expected Pending after 'g', got {result:?}"
 	);
 
 	// Second key 'r' should produce Invocation
-	let result = h.handle_key_with_registry(Key::char('r'), &keymap);
+	let result = h.handle_key_with_registry(Key::char('r'), &keymap, KeymapBehavior::default());
 	match result {
 		super::types::KeyResult::Invocation { ref inv } => {
 			assert!(matches!(
@@ -105,5 +106,60 @@ fn invocation_spec_multi_key_pending_then_match() {
 
 	// State should be reset — count should be back to default
 	assert_eq!(h.effective_count(), 1);
+	assert_eq!(h.pending_key_count(), 0);
+}
+
+#[test]
+fn insert_multikey_prefix_dispatches() {
+	use xeno_registry::db::keymap_registry::KeymapIndex;
+	use xeno_registry::keymaps;
+
+	let actions = xeno_registry::db::ACTIONS.snapshot();
+	let preset = keymaps::preset("emacs").expect("emacs preset must load");
+	let keymap = KeymapIndex::build_with_preset(&actions, Some(&preset), None);
+
+	let mut h = InputHandler::new();
+	h.set_mode(super::types::Mode::Insert);
+
+	// ctrl-x should produce Pending (C-x prefix)
+	let result = h.handle_key_with_registry(Key::ctrl('x'), &keymap, preset.behavior);
+	assert!(
+		matches!(result, super::types::KeyResult::Pending { keys_so_far: 1 }),
+		"expected Pending after ctrl-x, got {result:?}"
+	);
+
+	// ctrl-s should complete the C-x C-s binding → command:write
+	let result = h.handle_key_with_registry(Key::ctrl('s'), &keymap, preset.behavior);
+	match result {
+		super::types::KeyResult::Invocation { ref inv } => {
+			assert!(
+				matches!(inv, xeno_registry::Invocation::Command(cmd) if cmd.name == "write"),
+				"expected command:write, got {inv:?}"
+			);
+		}
+		_ => panic!("expected Invocation after ctrl-x ctrl-s, got {result:?}"),
+	}
+
+	assert_eq!(h.pending_key_count(), 0);
+}
+
+#[test]
+fn insert_text_char_does_not_enter_pending() {
+	use xeno_registry::db::keymap_registry::KeymapIndex;
+	use xeno_registry::keymaps;
+
+	let actions = xeno_registry::db::ACTIONS.snapshot();
+	let preset = keymaps::preset("emacs").expect("emacs preset must load");
+	let keymap = KeymapIndex::build_with_preset(&actions, Some(&preset), None);
+
+	let mut h = InputHandler::new();
+	h.set_mode(super::types::Mode::Insert);
+
+	// Plain 'a' should insert immediately, not enter pending state
+	let result = h.handle_key_with_registry(Key::char('a'), &keymap, preset.behavior);
+	assert!(
+		matches!(result, super::types::KeyResult::InsertChar('a')),
+		"expected InsertChar('a'), got {result:?}"
+	);
 	assert_eq!(h.pending_key_count(), 0);
 }

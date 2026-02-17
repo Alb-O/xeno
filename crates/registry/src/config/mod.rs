@@ -28,10 +28,15 @@ pub struct LanguageConfig {
 }
 
 /// Unresolved keybinding configuration (structured invocations before registry resolution).
+///
+/// Each binding maps a key sequence to either an invocation (`Some`) or an
+/// explicit unbind (`None`). This allows user overlays to remove default
+/// bindings without replacing them.
 #[derive(Debug, Clone, Default)]
 pub struct UnresolvedKeys {
-	/// Bindings per mode. Key: mode name, Value: key sequence -> invocation.
-	pub modes: HashMap<String, HashMap<String, crate::Invocation>>,
+	/// Bindings per mode. Key: mode name, Value: key sequence -> optional invocation.
+	/// `None` means "unbind this key sequence".
+	pub modes: HashMap<String, HashMap<String, Option<crate::Invocation>>>,
 }
 
 impl UnresolvedKeys {
@@ -39,6 +44,34 @@ impl UnresolvedKeys {
 	pub fn merge(&mut self, other: UnresolvedKeys) {
 		for (mode, bindings) in other.modes {
 			self.modes.entry(mode).or_default().extend(bindings);
+		}
+	}
+}
+
+/// Keymap configuration section.
+///
+/// Combines a preset name (e.g., `"vim"`, `"emacs"`) with optional per-mode
+/// key overrides. The preset selects the base binding set; overrides layer on
+/// top with last-writer-wins semantics (`None` = unbind).
+#[derive(Debug, Clone, Default)]
+pub struct KeymapConfig {
+	/// Preset name (e.g., `"vim"`, `"emacs"`). `None` means default (vim).
+	pub preset: Option<String>,
+	/// Per-mode key overrides layered on top of the preset.
+	pub keys: Option<UnresolvedKeys>,
+}
+
+impl KeymapConfig {
+	/// Merge another keymap config, with `other` taking precedence.
+	pub fn merge(&mut self, other: KeymapConfig) {
+		if other.preset.is_some() {
+			self.preset = other.preset;
+		}
+		if let Some(other_keys) = other.keys {
+			match &mut self.keys {
+				Some(keys) => keys.merge(other_keys),
+				None => self.keys = Some(other_keys),
+			}
 		}
 	}
 }
@@ -264,11 +297,11 @@ fn default_hook_capabilities() -> HashSet<xeno_invocation::nu::NuCapability> {
 
 /// Parsed configuration from a config file.
 ///
-/// May contain any combination of keys, options, and language settings.
+/// May contain any combination of keymap, options, and language settings.
 #[derive(Clone, Default)]
 pub struct Config {
-	/// Keybinding overrides (unresolved strings).
-	pub keys: Option<UnresolvedKeys>,
+	/// Keymap configuration (preset + key overrides).
+	pub keymap: Option<KeymapConfig>,
 	/// Nu scripting configuration (decode budgets, capabilities).
 	#[cfg(feature = "config-nuon")]
 	pub nu: Option<NuConfig>,
@@ -285,7 +318,7 @@ impl std::fmt::Debug for Config {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		let mut s = f.debug_struct("Config");
 
-		s.field("keys", &self.keys);
+		s.field("keymap", &self.keymap);
 
 		#[cfg(feature = "config-nuon")]
 		s.field("nu", &self.nu);
@@ -302,10 +335,10 @@ impl Config {
 	///
 	/// Values from `other` override values in `self`.
 	pub fn merge(&mut self, other: Config) {
-		if let Some(other_keys) = other.keys {
-			match &mut self.keys {
-				Some(keys) => keys.merge(other_keys),
-				None => self.keys = Some(other_keys),
+		if let Some(other_keymap) = other.keymap {
+			match &mut self.keymap {
+				Some(keymap) => keymap.merge(other_keymap),
+				None => self.keymap = Some(other_keymap),
 			}
 		}
 

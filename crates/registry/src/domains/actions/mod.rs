@@ -45,7 +45,7 @@ pub type ActionRef = RegistryRef<ActionEntry, ActionId>;
 pub use builtins::{cursor_motion, selection_motion};
 pub use edit_op::{CharMapKind, CursorAdjust, EditOp, EditPlan, PostEffect, PreEffect, SelectionOp, TextTransform};
 pub use effects::{ActionEffects, AppEffect, EditEffect, Effect, MotionKind, MotionRequest, ScrollAmount, UiEffect, ViewEffect};
-pub use keybindings::{BindingMode, KEY_PREFIXES, KeyBindingDef, KeyPrefixDef, find_prefix};
+pub use keybindings::{BindingMode, KeyBindingDef};
 pub use pending::PendingAction;
 pub use result::{
 	ActionResult, RESULT_EFFECTS_HANDLERS, RESULT_EXTENSION_HANDLERS, ResultHandlerRegistry, ScreenPosition, dispatch_result,
@@ -97,8 +97,6 @@ pub fn register_compiled(db: &mut crate::db::builder::RegistryDbBuilder) {
 	for def in linked {
 		db.push_domain::<Actions>(def::ActionInput::Linked(def));
 	}
-
-	db.register_key_prefixes(link::link_prefixes(&spec));
 }
 
 pub struct Actions;

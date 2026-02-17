@@ -45,7 +45,7 @@ fn override_wins_over_base_binding() {
 	let (mode, key_seq, _base_id, target_id, target_name) = sample_binding(&actions).expect("registry should contain at least one binding");
 
 	let mut mode_overrides = HashMap::new();
-	mode_overrides.insert(key_seq.clone(), Invocation::action(&target_name));
+	mode_overrides.insert(key_seq.clone(), Some(Invocation::action(&target_name)));
 	let mut modes = HashMap::new();
 	modes.insert(mode_name(mode).to_string(), mode_overrides);
 	let overrides = UnresolvedKeys { modes };
@@ -61,7 +61,7 @@ fn invalid_override_action_keeps_base_binding() {
 	let (mode, key_seq, base_id, _target_id, _target_name) = sample_binding(&actions).expect("registry should contain at least one binding");
 
 	let mut mode_overrides = HashMap::new();
-	mode_overrides.insert(key_seq.clone(), Invocation::action("does-not-exist"));
+	mode_overrides.insert(key_seq.clone(), Some(Invocation::action("does-not-exist")));
 	let mut modes = HashMap::new();
 	modes.insert(mode_name(mode).to_string(), mode_overrides);
 	let overrides = UnresolvedKeys { modes };
@@ -81,7 +81,7 @@ fn invocation_override_in_trie() {
 	};
 
 	let mut mode_overrides = HashMap::new();
-	mode_overrides.insert(key_seq.clone(), Invocation::editor_command("stats", vec![]));
+	mode_overrides.insert(key_seq.clone(), Some(Invocation::editor_command("stats", vec![])));
 	let mut modes = HashMap::new();
 	modes.insert(mode_name(mode).to_string(), mode_overrides);
 	let overrides = UnresolvedKeys { modes };
@@ -120,7 +120,7 @@ fn invocation_override_fresh_key() {
 	let actions = crate::db::ACTIONS.snapshot();
 
 	let mut mode_overrides = HashMap::new();
-	mode_overrides.insert("ctrl-f12".to_string(), Invocation::command("write", vec![]));
+	mode_overrides.insert("ctrl-f12".to_string(), Some(Invocation::command("write", vec![])));
 	let mut modes = HashMap::new();
 	modes.insert("normal".to_string(), mode_overrides);
 	let overrides = UnresolvedKeys { modes };
@@ -146,7 +146,7 @@ fn invocation_override_nu_target() {
 	let actions = crate::db::ACTIONS.snapshot();
 
 	let mut mode_overrides = HashMap::new();
-	mode_overrides.insert("ctrl-f11".to_string(), Invocation::nu("go", vec!["fast".to_string()]));
+	mode_overrides.insert("ctrl-f11".to_string(), Some(Invocation::nu("go", vec!["fast".to_string()])));
 	let mut modes = HashMap::new();
 	modes.insert("normal".to_string(), mode_overrides);
 	let overrides = UnresolvedKeys { modes };
@@ -170,7 +170,7 @@ fn which_key_labels_invocation() {
 	let actions = crate::db::ACTIONS.snapshot();
 
 	let mut normal = HashMap::new();
-	normal.insert("g r".to_string(), Invocation::editor_command("reload_config", vec![]));
+	normal.insert("g r".to_string(), Some(Invocation::editor_command("reload_config", vec![])));
 	let mut modes = HashMap::new();
 	modes.insert("normal".to_string(), normal);
 	let overrides = UnresolvedKeys { modes };
@@ -204,7 +204,7 @@ fn invalid_override_produces_problem() {
 	let (mode, key_seq, base_id, _, _) = sample_binding(&actions).expect("registry should contain at least one binding");
 
 	let mut mode_overrides = HashMap::new();
-	mode_overrides.insert(key_seq.clone(), Invocation::action("does-not-exist"));
+	mode_overrides.insert(key_seq.clone(), Some(Invocation::action("does-not-exist")));
 	let mut modes = HashMap::new();
 	modes.insert(mode_name(mode).to_string(), mode_overrides);
 	let overrides = UnresolvedKeys { modes };
@@ -219,4 +219,62 @@ fn invalid_override_produces_problem() {
 	assert!(!index.problems().is_empty(), "should have build problems for invalid overrides");
 	let unknown_action = index.problems().iter().find(|p| p.kind == KeymapProblemKind::UnknownActionTarget);
 	assert!(unknown_action.is_some(), "should have UnknownActionTarget problem");
+}
+
+#[test]
+fn unbind_removes_base_binding() {
+	let actions = crate::db::ACTIONS.snapshot();
+	let (mode, key_seq, _base_id, _, _) = sample_binding(&actions).expect("registry should contain at least one binding");
+
+	// Verify binding exists in base
+	let base_index = KeymapIndex::build(&actions);
+	let keys = parse_seq(&key_seq).expect("key sequence should parse");
+	assert!(
+		matches!(base_index.lookup(mode, &keys), LookupResult::Match(_)),
+		"base binding should exist before unbind"
+	);
+
+	// Unbind it
+	let mut mode_overrides = HashMap::new();
+	mode_overrides.insert(key_seq.clone(), None);
+	let mut modes = HashMap::new();
+	modes.insert(mode_name(mode).to_string(), mode_overrides);
+	let overrides = UnresolvedKeys { modes };
+
+	let index = KeymapIndex::build_with_overrides(&actions, Some(&overrides));
+	assert!(matches!(index.lookup(mode, &keys), LookupResult::None), "unbound key should produce no match");
+}
+
+#[test]
+fn preset_emacs_loads() {
+	let preset = crate::keymaps::preset("emacs").expect("emacs preset must load");
+
+	assert_eq!(&*preset.name, "emacs");
+	assert!(matches!(preset.initial_mode, xeno_primitives::Mode::Insert));
+	assert!(!preset.behavior.vim_shift_letter_casefold);
+	assert!(!preset.behavior.normal_digit_prefix_count);
+	assert!(!preset.bindings.is_empty(), "emacs preset should have bindings");
+	assert!(!preset.prefixes.is_empty(), "emacs preset should have prefixes");
+
+	// C-x prefix should be present
+	let has_cx_prefix = preset.prefixes.iter().any(|p| &*p.keys == "ctrl-x");
+	assert!(has_cx_prefix, "emacs preset should have ctrl-x prefix");
+
+	// Build should succeed
+	let actions = crate::db::ACTIONS.snapshot();
+	let index = KeymapIndex::build_with_preset(&actions, Some(&preset), None);
+
+	// ctrl-x ctrl-s should resolve
+	let keys = parse_seq("ctrl-x ctrl-s").expect("ctrl-x ctrl-s should parse");
+	assert!(
+		matches!(index.lookup(BindingMode::Insert, &keys), LookupResult::Match(_)),
+		"emacs C-x C-s should resolve to a binding"
+	);
+
+	// ctrl-x alone should be Pending
+	let prefix = parse_seq("ctrl-x").expect("ctrl-x should parse");
+	assert!(
+		matches!(index.lookup(BindingMode::Insert, &prefix), LookupResult::Pending { .. }),
+		"emacs ctrl-x should be Pending"
+	);
 }

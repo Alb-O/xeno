@@ -1,0 +1,172 @@
+# Vim-style keymap preset.
+#
+# Default keybinding set for modal editing. Each binding maps a mode + key
+# sequence to an invocation spec string.
+{
+  name: vim
+  initial_mode: normal
+  behavior: {
+    vim_shift_letter_casefold: true
+    normal_digit_prefix_count: true
+  }
+  bindings: [
+    # navigation
+    { mode: normal, keys: h, target: "action:move_left" }
+    { mode: normal, keys: left, target: "action:move_left" }
+    { mode: insert, keys: left, target: "action:move_left" }
+    { mode: normal, keys: l, target: "action:move_right" }
+    { mode: normal, keys: right, target: "action:move_right" }
+    { mode: insert, keys: right, target: "action:move_right" }
+    { mode: normal, keys: k, target: "action:move_up" }
+    { mode: normal, keys: up, target: "action:move_up" }
+    { mode: insert, keys: up, target: "action:move_up" }
+    { mode: normal, keys: j, target: "action:move_down" }
+    { mode: normal, keys: down, target: "action:move_down" }
+    { mode: insert, keys: down, target: "action:move_down" }
+    { mode: normal, keys: "0", target: "action:move_line_start" }
+    { mode: normal, keys: home, target: "action:move_line_start" }
+    { mode: normal, keys: "$", target: "action:move_line_end" }
+    { mode: normal, keys: end, target: "action:move_line_end" }
+    { mode: normal, keys: w, target: "action:next_word_start" }
+    { mode: normal, keys: ctrl-right, target: "action:next_word_start" }
+    { mode: insert, keys: ctrl-right, target: "action:next_word_start" }
+    { mode: normal, keys: b, target: "action:prev_word_start" }
+    { mode: normal, keys: ctrl-left, target: "action:prev_word_start" }
+    { mode: insert, keys: ctrl-left, target: "action:prev_word_start" }
+    { mode: normal, keys: e, target: "action:next_word_end" }
+    { mode: normal, keys: W, target: "action:next_long_word_start" }
+    { mode: normal, keys: B, target: "action:prev_long_word_start" }
+    { mode: normal, keys: E, target: "action:next_long_word_end" }
+    { mode: normal, keys: alt-w, target: "action:select_word_forward" }
+    { mode: normal, keys: alt-b, target: "action:select_word_backward" }
+    { mode: normal, keys: alt-e, target: "action:select_word_end" }
+    { mode: normal, keys: "}", target: "action:next_paragraph" }
+    { mode: normal, keys: ctrl-down, target: "action:next_paragraph" }
+    { mode: insert, keys: ctrl-down, target: "action:next_paragraph" }
+    { mode: normal, keys: "{", target: "action:prev_paragraph" }
+    { mode: normal, keys: ctrl-up, target: "action:prev_paragraph" }
+    { mode: insert, keys: ctrl-up, target: "action:prev_paragraph" }
+    { mode: normal, keys: "g g", target: "action:document_start" }
+    { mode: normal, keys: "g e", target: "action:document_end" }
+    { mode: normal, keys: G, target: "action:document_end" }
+    { mode: normal, keys: "g h", target: "action:goto_line_start" }
+    { mode: normal, keys: "g l", target: "action:goto_line_end" }
+    { mode: normal, keys: "g s", target: "action:goto_first_nonwhitespace" }
+    { mode: normal, keys: H, target: "action:move_top_screen" }
+    { mode: normal, keys: M, target: "action:move_middle_screen" }
+    { mode: normal, keys: "] c", target: "action:goto_next_hunk" }
+    { mode: normal, keys: "[ c", target: "action:goto_prev_hunk" }
+
+    # modes
+    { mode: normal, keys: i, target: "action:enter_insert" }
+    { mode: insert, keys: esc, target: "action:enter_normal" }
+
+    # editing
+    { mode: normal, keys: d, target: "action:delete" }
+    { mode: normal, keys: alt-d, target: "action:delete_no_yank" }
+    { mode: normal, keys: delete, target: "action:delete_no_yank" }
+    { mode: normal, keys: c, target: "action:change" }
+    { mode: normal, keys: alt-c, target: "action:change_no_yank" }
+    { mode: normal, keys: y, target: "action:yank" }
+    { mode: normal, keys: p, target: "action:paste_after" }
+    { mode: normal, keys: P, target: "action:paste_before" }
+    { mode: normal, keys: u, target: "action:undo" }
+    { mode: normal, keys: U, target: "action:redo" }
+    { mode: normal, keys: ">", target: "action:indent" }
+    { mode: normal, keys: "<", target: "action:deindent" }
+    { mode: normal, keys: J, target: "action:join_lines" }
+    { mode: normal, keys: backspace, target: "action:delete_back" }
+    { mode: normal, keys: ctrl-backspace, target: "action:delete_word_back" }
+    { mode: insert, keys: ctrl-backspace, target: "action:delete_word_back" }
+    { mode: normal, keys: ctrl-delete, target: "action:delete_word_forward" }
+    { mode: insert, keys: ctrl-delete, target: "action:delete_word_forward" }
+    { mode: normal, keys: alt-p, target: "action:paste_all_after" }
+    { mode: normal, keys: alt-P, target: "action:paste_all_before" }
+    { mode: normal, keys: "`", target: "action:to_lowercase" }
+    { mode: normal, keys: "~", target: "action:to_uppercase" }
+    { mode: normal, keys: "alt-`", target: "action:swap_case" }
+    { mode: normal, keys: o, target: "action:open_below" }
+    { mode: normal, keys: O, target: "action:open_above" }
+    { mode: normal, keys: r, target: "action:replace_char" }
+
+    # insert
+    { mode: normal, keys: I, target: "action:insert_line_start" }
+    { mode: normal, keys: A, target: "action:insert_line_end" }
+    { mode: normal, keys: a, target: "action:insert_after" }
+    { mode: insert, keys: enter, target: "action:insert_newline" }
+    { mode: insert, keys: backspace, target: "action:delete_back" }
+    { mode: insert, keys: delete, target: "action:delete_forward" }
+
+    # scrolling
+    { mode: normal, keys: "z k", target: "action:scroll_up" }
+    { mode: normal, keys: "z j", target: "action:scroll_down" }
+    { mode: normal, keys: ctrl-u, target: "action:scroll_half_page_up" }
+    { mode: normal, keys: ctrl-d, target: "action:scroll_half_page_down" }
+    { mode: normal, keys: pageup, target: "action:scroll_page_up" }
+    { mode: normal, keys: ctrl-b, target: "action:scroll_page_up" }
+    { mode: insert, keys: pageup, target: "action:scroll_page_up" }
+    { mode: normal, keys: pagedown, target: "action:scroll_page_down" }
+    { mode: normal, keys: ctrl-f, target: "action:scroll_page_down" }
+    { mode: insert, keys: pagedown, target: "action:scroll_page_down" }
+
+    # find
+    { mode: normal, keys: f, target: "action:find_char" }
+    { mode: normal, keys: t, target: "action:find_char_to" }
+    { mode: normal, keys: alt-f, target: "action:find_char_reverse" }
+    { mode: normal, keys: alt-t, target: "action:find_char_to_reverse" }
+
+    # search
+    { mode: normal, keys: "/", target: "action:search" }
+    { mode: normal, keys: "?", target: "action:search_reverse" }
+    { mode: normal, keys: n, target: "action:search_next" }
+    { mode: normal, keys: N, target: "action:search_prev" }
+
+    # selection
+    { mode: normal, keys: ";", target: "action:collapse_selection" }
+    { mode: normal, keys: esc, target: "action:collapse_selection" }
+    { mode: normal, keys: "alt-;", target: "action:flip_selection" }
+    { mode: normal, keys: "alt-:", target: "action:ensure_forward" }
+    { mode: normal, keys: x, target: "action:select_line" }
+    { mode: normal, keys: X, target: "action:extend_line" }
+    { mode: normal, keys: "%", target: "action:select_all" }
+    { mode: normal, keys: alt-x, target: "action:expand_to_line" }
+    { mode: normal, keys: "alt-,", target: "action:remove_primary_selection" }
+    { mode: normal, keys: ",", target: "action:remove_selections_except_primary" }
+    { mode: normal, keys: ")", target: "action:rotate_selections_forward" }
+    { mode: normal, keys: "(", target: "action:rotate_selections_backward" }
+    { mode: normal, keys: alt-s, target: "action:split_lines" }
+    { mode: normal, keys: C, target: "action:duplicate_selections_down" }
+    { mode: normal, keys: "+", target: "action:duplicate_selections_down" }
+    { mode: normal, keys: alt-C, target: "action:duplicate_selections_up" }
+    { mode: normal, keys: "alt-+", target: "action:merge_selections" }
+
+    # text objects
+    { mode: normal, keys: alt-i, target: "action:select_object_inner" }
+    { mode: normal, keys: alt-a, target: "action:select_object_around" }
+    { mode: normal, keys: "[", target: "action:select_object_to_start" }
+    { mode: normal, keys: "]", target: "action:select_object_to_end" }
+
+    # misc
+    { mode: normal, keys: ":", target: "action:open_palette" }
+
+    # window
+    { mode: normal, keys: "ctrl-w s h", target: "action:split_horizontal" }
+    { mode: normal, keys: "ctrl-w s v", target: "action:split_vertical" }
+    { mode: normal, keys: "ctrl-w f h", target: "action:focus_left" }
+    { mode: normal, keys: "ctrl-w f j", target: "action:focus_down" }
+    { mode: normal, keys: "ctrl-w f k", target: "action:focus_up" }
+    { mode: normal, keys: "ctrl-w f l", target: "action:focus_right" }
+    { mode: normal, keys: "ctrl-w f n", target: "action:buffer_next" }
+    { mode: normal, keys: "ctrl-w f p", target: "action:buffer_prev" }
+    { mode: normal, keys: "ctrl-w c c", target: "action:close_split" }
+    { mode: normal, keys: "ctrl-w c o", target: "action:close_other_buffers" }
+  ]
+  prefixes: [
+    { mode: normal, keys: ctrl-w, description: Window }
+    { mode: normal, keys: "ctrl-w f", description: Focus }
+    { mode: normal, keys: "ctrl-w s", description: Split }
+    { mode: normal, keys: "ctrl-w c", description: Close }
+    { mode: normal, keys: g, description: Goto }
+    { mode: normal, keys: z, description: View }
+  ]
+}

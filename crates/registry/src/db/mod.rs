@@ -16,7 +16,6 @@ pub mod index;
 pub mod keymap_registry;
 pub mod plugin;
 
-use crate::actions::KeyPrefixDef;
 use crate::actions::entry::ActionEntry;
 use crate::commands::CommandEntry;
 #[cfg(feature = "keymap")]
@@ -48,7 +47,6 @@ pub struct RegistryDb {
 	pub notifications: RuntimeRegistry<crate::notifications::NotificationEntry, crate::notifications::NotificationId>,
 	pub languages: LanguagesRegistry,
 	pub lsp_servers: LspServersRegistry,
-	pub key_prefixes: Vec<KeyPrefixDef>,
 	#[cfg(feature = "keymap")]
 	pub keymap: KeymapRegistry,
 }
@@ -89,7 +87,6 @@ pub fn get_db() -> &'static RegistryDb {
 			notifications: RuntimeRegistry::new("notifications", indices.notifications),
 			languages: LanguagesRegistry::new(indices.languages),
 			lsp_servers: LspServersRegistry::new(indices.lsp_servers),
-			key_prefixes: indices.key_prefixes,
 			#[cfg(feature = "keymap")]
 			keymap,
 		}
