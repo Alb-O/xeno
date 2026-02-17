@@ -19,8 +19,8 @@ pub struct EffectSink {
 	/// Overlay requests (modal open/close, info popup).
 	pub(crate) overlay_requests: SmallVec<[OverlayRequest; 4]>,
 
-	/// Commands to queue for the next tick.
-	pub(crate) queued_commands: Vec<(&'static str, Vec<String>)>,
+	/// Invocations to queue for deferred runtime execution.
+	pub(crate) queued_invocations: Vec<crate::types::Invocation>,
 }
 
 impl EffectSink {
@@ -45,8 +45,13 @@ impl EffectSink {
 	}
 
 	#[inline]
-	pub fn queue_command(&mut self, name: &'static str, args: Vec<String>) {
-		self.queued_commands.push((name, args));
+	pub fn defer_command(&mut self, name: String, args: Vec<String>) {
+		self.queued_invocations.push(crate::types::Invocation::command(name, args));
+	}
+
+	#[inline]
+	pub fn queue_invocation(&mut self, invocation: crate::types::Invocation) {
+		self.queued_invocations.push(invocation);
 	}
 
 	pub fn drain(&mut self) -> DrainedEffects {
@@ -69,7 +74,7 @@ impl EffectSink {
 			notifications: self.notifications.drain(..).collect(),
 			layer_events,
 			overlay_requests: self.overlay_requests.drain(..).collect(),
-			queued_commands: std::mem::take(&mut self.queued_commands),
+			queued_invocations: std::mem::take(&mut self.queued_invocations),
 		}
 	}
 }
@@ -79,7 +84,7 @@ pub struct DrainedEffects {
 	pub notifications: Vec<Notification>,
 	pub layer_events: Vec<LayerEvent>,
 	pub overlay_requests: Vec<OverlayRequest>,
-	pub queued_commands: Vec<(&'static str, Vec<String>)>,
+	pub queued_invocations: Vec<crate::types::Invocation>,
 }
 
 impl DrainedEffects {
@@ -88,6 +93,6 @@ impl DrainedEffects {
 			&& self.notifications.is_empty()
 			&& self.layer_events.is_empty()
 			&& self.overlay_requests.is_empty()
-			&& self.queued_commands.is_empty()
+			&& self.queued_invocations.is_empty()
 	}
 }

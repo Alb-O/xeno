@@ -29,9 +29,9 @@ mod capabilities;
 mod handlers;
 
 pub use capabilities::{
-	CommandQueueAccess, CursorAccess, EditAccess, EditorOps, FileOpsAccess, FocusOps, JumpAccess, MacroAccess, ModeAccess, MotionAccess, MotionDispatchAccess,
-	NotificationAccess, OptionAccess, OverlayAccess, OverlayCloseReason, OverlayRequest, PaletteAccess, SearchAccess, SelectionAccess, SplitError, SplitOps,
-	TextAccess, ThemeAccess, UndoAccess, ViewportAccess,
+	CursorAccess, DeferredInvocationAccess, EditAccess, EditorOps, FileOpsAccess, FocusOps, JumpAccess, MacroAccess, ModeAccess, MotionAccess,
+	MotionDispatchAccess, NotificationAccess, OptionAccess, OverlayAccess, OverlayCloseReason, OverlayRequest, PaletteAccess, SearchAccess, SelectionAccess,
+	SplitError, SplitOps, TextAccess, ThemeAccess, UndoAccess, ViewportAccess,
 };
 pub use handlers::{HandleOutcome, ResultHandler};
 use xeno_primitives::range::CharIdx;
@@ -185,9 +185,9 @@ impl<'a> EditorContext<'a> {
 		self.inner.macro_ops()
 	}
 
-	/// Returns command queue access if the capability is available.
-	pub fn command_queue(&mut self) -> Option<&mut dyn CommandQueueAccess> {
-		self.inner.command_queue()
+	/// Returns deferred invocation access if the capability is available.
+	pub fn deferred_invocations(&mut self) -> Option<&mut dyn DeferredInvocationAccess> {
+		self.inner.deferred_invocations()
 	}
 
 	/// Returns overlay access if the capability is available.
@@ -369,8 +369,8 @@ pub trait EditorCapabilities: CursorAccess + SelectionAccess + ModeAccess + Noti
 		None
 	}
 
-	/// Access to command queue operations (optional).
-	fn command_queue(&mut self) -> Option<&mut dyn CommandQueueAccess> {
+	/// Access to deferred invocation operations (optional).
+	fn deferred_invocations(&mut self) -> Option<&mut dyn DeferredInvocationAccess> {
 		None
 	}
 

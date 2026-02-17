@@ -26,7 +26,7 @@ pub mod editor_ctx;
 pub use context::{ActionArgs, ActionContext};
 pub use def::{ActionDef, ActionHandler};
 pub use editor_ctx::{
-	CommandQueueAccess, CursorAccess, EditAccess, EditorCapabilities, EditorContext, EditorOps, FileOpsAccess, FocusOps, HandleOutcome, JumpAccess,
+	CursorAccess, DeferredInvocationAccess, EditAccess, EditorCapabilities, EditorContext, EditorOps, FileOpsAccess, FocusOps, HandleOutcome, JumpAccess,
 	MacroAccess, ModeAccess, MotionAccess, MotionDispatchAccess, NotificationAccess, OptionAccess, PaletteAccess, ResultHandler, SearchAccess, SelectionAccess,
 	SplitOps, TextAccess, ThemeAccess, UndoAccess, ViewportAccess,
 };

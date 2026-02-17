@@ -47,7 +47,7 @@ impl EditorCapabilities for EditorCaps<'_> {
 		Some(self)
 	}
 
-	fn command_queue(&mut self) -> Option<&mut dyn xeno_registry::actions::CommandQueueAccess> {
+	fn deferred_invocations(&mut self) -> Option<&mut dyn xeno_registry::actions::DeferredInvocationAccess> {
 		Some(self)
 	}
 

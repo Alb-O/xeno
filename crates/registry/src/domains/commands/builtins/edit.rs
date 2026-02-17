@@ -10,7 +10,7 @@ command_handler!(edit, handler: cmd_edit);
 fn cmd_edit<'a>(ctx: &'a mut CommandContext<'a>) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
 		if ctx.args.is_empty() {
-			ctx.editor.queue_command("files", Vec::new());
+			ctx.editor.defer_command("files".to_string(), Vec::new());
 			return Ok(CommandOutcome::Ok);
 		}
 		let path = PathBuf::from(ctx.args[0]);

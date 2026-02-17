@@ -329,19 +329,19 @@ pub trait ViewportAccess {
 	fn viewport_row_to_doc_position(&self, row: usize) -> Option<CharIdx>;
 }
 
-/// Command queue operations (optional).
+/// Deferred invocation operations (optional).
 ///
-/// Allows actions to schedule commands for async execution. When an action
-/// returns [`AppEffect::QueueCommand`], the result handler uses this trait
-/// to queue the command for execution on the next tick.
+/// Allows actions to defer command invocations for async execution. When an action
+/// returns [`AppEffect::DeferCommand`], the result handler uses this trait
+/// to enqueue execution on the runtime pump.
 ///
-/// [`AppEffect::QueueCommand`]: crate::actions::effects::AppEffect::QueueCommand
-pub trait CommandQueueAccess {
-	/// Queues a command for async execution.
+/// [`AppEffect::DeferCommand`]: crate::actions::effects::AppEffect::DeferCommand
+pub trait DeferredInvocationAccess {
+	/// Defers a command invocation for async execution.
 	///
-	/// The command will be executed by the main loop on the next tick,
+	/// The command will be executed by the runtime pump,
 	/// with full async context and editor access.
-	fn queue_command(&mut self, name: &'static str, args: Vec<String>);
+	fn defer_command(&mut self, name: String, args: Vec<String>);
 }
 
 /// Command palette operations.

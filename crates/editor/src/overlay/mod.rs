@@ -247,8 +247,8 @@ pub trait OverlayContext {
 	fn reveal_cursor_in_view(&mut self, view: ViewId);
 	/// Requests a redraw for the next frame.
 	fn request_redraw(&mut self);
-	/// Queues a command by name.
-	fn queue_command(&mut self, name: &'static str, args: Vec<String>);
+	/// Defers a command invocation by name.
+	fn defer_command(&mut self, name: String, args: Vec<String>);
 	/// Returns the async message sender for background results.
 	#[cfg(feature = "lsp")]
 	fn msg_tx(&self) -> crate::msg::MsgSender;
@@ -349,8 +349,8 @@ impl OverlayContext for crate::Editor {
 		self.state.frame.needs_redraw = true;
 	}
 
-	fn queue_command(&mut self, name: &'static str, args: Vec<String>) {
-		self.state.core.workspace.command_queue.push(name, args);
+	fn defer_command(&mut self, name: String, args: Vec<String>) {
+		self.enqueue_deferred_command(name, args, crate::types::DeferredInvocationSource::Overlay);
 	}
 
 	fn finalize_buffer_removal(&mut self, view: ViewId) {

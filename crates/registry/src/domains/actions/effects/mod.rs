@@ -426,10 +426,10 @@ pub enum AppEffect {
 		force: bool,
 	},
 
-	/// Queue a command for async execution.
-	QueueCommand {
+	/// Defer a command invocation for async execution.
+	DeferCommand {
 		/// Command name.
-		name: &'static str,
+		name: String,
 		/// Command arguments.
 		args: Vec<String>,
 	},

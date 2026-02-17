@@ -8,8 +8,8 @@
 //! [`Editor`]: crate::Editor
 
 pub mod command_ops;
-pub mod command_queue;
 pub mod cursor;
+pub mod deferred_invocations;
 pub mod edit;
 pub mod editor_capabilities;
 pub mod file_ops;
