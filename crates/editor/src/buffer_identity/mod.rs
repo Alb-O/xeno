@@ -40,19 +40,19 @@ impl Editor {
 	}
 
 	/// Resolves icon + label presentation for a view buffer.
-	pub fn buffer_presentation(&self, view_id: ViewId) -> xeno_file_display::BufferPresentation {
-		let context = xeno_file_display::BufferDisplayContext::default();
+	pub fn buffer_presentation(&self, view_id: ViewId) -> xeno_buffer_display::BufferPresentation {
+		let context = xeno_buffer_display::BufferDisplayContext::default();
 
 		match self.resolve_buffer_identity(view_id) {
-			ResolvedBufferIdentity::File(path) => xeno_file_display::present_buffer(xeno_file_display::BufferItem::file(path.as_path()), context),
+			ResolvedBufferIdentity::File(path) => xeno_buffer_display::present_buffer(xeno_buffer_display::BufferItem::file(path.as_path()), context),
 			ResolvedBufferIdentity::Virtual(identity) => {
-				let mut item = xeno_file_display::BufferItem::virtual_buffer(identity.kind);
+				let mut item = xeno_buffer_display::BufferItem::virtual_buffer(identity.kind);
 				if let Some(title_hint) = identity.title_hint.as_deref() {
 					item = item.with_label_override(title_hint);
 				}
-				xeno_file_display::present_buffer(item, context)
+				xeno_buffer_display::present_buffer(item, context)
 			}
-			ResolvedBufferIdentity::Scratch => xeno_file_display::present_buffer(xeno_file_display::BufferItem::scratch(), context),
+			ResolvedBufferIdentity::Scratch => xeno_buffer_display::present_buffer(xeno_buffer_display::BufferItem::scratch(), context),
 		}
 	}
 }

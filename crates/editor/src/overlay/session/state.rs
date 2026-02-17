@@ -3,12 +3,12 @@ use super::*;
 /// Semantic identity payload for virtual overlay buffers.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VirtualBufferIdentity {
-	pub kind: xeno_file_display::VirtualBufferKind,
+	pub kind: xeno_buffer_display::VirtualBufferKind,
 	pub title_hint: Option<String>,
 }
 
 impl VirtualBufferIdentity {
-	pub fn new(kind: xeno_file_display::VirtualBufferKind) -> Self {
+	pub fn new(kind: xeno_buffer_display::VirtualBufferKind) -> Self {
 		Self { kind, title_hint: None }
 	}
 

@@ -218,14 +218,14 @@ impl OverlayControllerKind {
 		}
 	}
 
-	pub fn virtual_buffer_kind(self) -> xeno_file_display::VirtualBufferKind {
+	pub fn virtual_buffer_kind(self) -> xeno_buffer_display::VirtualBufferKind {
 		match self {
-			Self::CommandPalette => xeno_file_display::VirtualBufferKind::CommandPalette,
-			Self::FilePicker => xeno_file_display::VirtualBufferKind::FilePicker,
-			Self::Search => xeno_file_display::VirtualBufferKind::Search,
-			Self::Rename => xeno_file_display::VirtualBufferKind::Rename,
-			Self::WorkspaceSearch => xeno_file_display::VirtualBufferKind::WorkspaceSearch,
-			Self::Other(other) => xeno_file_display::VirtualBufferKind::OverlayCustom(other.to_string()),
+			Self::CommandPalette => xeno_buffer_display::VirtualBufferKind::CommandPalette,
+			Self::FilePicker => xeno_buffer_display::VirtualBufferKind::FilePicker,
+			Self::Search => xeno_buffer_display::VirtualBufferKind::Search,
+			Self::Rename => xeno_buffer_display::VirtualBufferKind::Rename,
+			Self::WorkspaceSearch => xeno_buffer_display::VirtualBufferKind::WorkspaceSearch,
+			Self::Other(other) => xeno_buffer_display::VirtualBufferKind::OverlayCustom(other.to_string()),
 		}
 	}
 }

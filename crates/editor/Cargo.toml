@@ -31,7 +31,7 @@ tokio = { workspace = true, features = ["fs", "rt-multi-thread", "time"] }
 tokio-util = { workspace = true, optional = true }
 tracing.workspace = true
 unicode-width.workspace = true
-xeno-file-display.workspace = true
+xeno-buffer-display.workspace = true
 xeno-input.workspace = true
 xeno-invocation = { workspace = true, features = ["nu"] }
 xeno-invocation-spec.workspace = true

@@ -338,7 +338,7 @@ pub(crate) fn test_overlay_session_panes_receive_virtual_identity() {
 
 	assert_eq!(
 		input.virtual_identity.kind,
-		xeno_file_display::VirtualBufferKind::CommandPalette,
+		xeno_buffer_display::VirtualBufferKind::CommandPalette,
 		"command palette input pane should carry command palette virtual identity"
 	);
 }
@@ -355,7 +355,7 @@ pub(crate) fn test_overlay_buffer_presentation_uses_virtual_identity() {
 
 	let presentation = editor.buffer_presentation(editor.focused_view());
 	assert_eq!(presentation.label(), "[Command Palette]");
-	assert_eq!(presentation.icon(), xeno_file_display::COMMAND_PALETTE_ICON);
+	assert_eq!(presentation.icon(), xeno_buffer_display::COMMAND_PALETTE_ICON);
 }
 
 fn key_down() -> Key {

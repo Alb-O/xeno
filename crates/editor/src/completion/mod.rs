@@ -27,11 +27,11 @@ pub enum CompletionKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompletionFileMeta {
 	path: PathBuf,
-	kind: xeno_file_display::FileKind,
+	kind: xeno_buffer_display::FileKind,
 }
 
 impl CompletionFileMeta {
-	pub fn new(path: impl Into<PathBuf>, kind: xeno_file_display::FileKind) -> Self {
+	pub fn new(path: impl Into<PathBuf>, kind: xeno_buffer_display::FileKind) -> Self {
 		Self { path: path.into(), kind }
 	}
 
@@ -39,7 +39,7 @@ impl CompletionFileMeta {
 		&self.path
 	}
 
-	pub fn kind(&self) -> xeno_file_display::FileKind {
+	pub fn kind(&self) -> xeno_buffer_display::FileKind {
 		self.kind
 	}
 }

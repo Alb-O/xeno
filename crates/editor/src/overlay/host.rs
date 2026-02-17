@@ -25,20 +25,20 @@ impl OverlayHost {
 		match role {
 			super::WindowRole::Input => VirtualBufferIdentity::new(controller_kind.virtual_buffer_kind()),
 			super::WindowRole::List => {
-				let mut identity = VirtualBufferIdentity::new(xeno_file_display::VirtualBufferKind::OverlayList);
+				let mut identity = VirtualBufferIdentity::new(xeno_buffer_display::VirtualBufferKind::OverlayList);
 				if let Some(title) = overlay_title {
 					identity = identity.with_title_hint(title.to_string());
 				}
 				identity
 			}
 			super::WindowRole::Preview => {
-				let mut identity = VirtualBufferIdentity::new(xeno_file_display::VirtualBufferKind::OverlayPreview);
+				let mut identity = VirtualBufferIdentity::new(xeno_buffer_display::VirtualBufferKind::OverlayPreview);
 				if let Some(title) = overlay_title {
 					identity = identity.with_title_hint(title.to_string());
 				}
 				identity
 			}
-			super::WindowRole::Custom(_) => VirtualBufferIdentity::new(xeno_file_display::VirtualBufferKind::OverlayCustom(controller_title.to_string())),
+			super::WindowRole::Custom(_) => VirtualBufferIdentity::new(xeno_buffer_display::VirtualBufferKind::OverlayCustom(controller_title.to_string())),
 		}
 	}
 

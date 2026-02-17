@@ -40,10 +40,10 @@ fn command_query_is_exact_alias(query: &str, label: &str) -> bool {
 
 fn completion_file_presentation(item: &CompletionItem) -> Option<FilePresentationRender> {
 	let file_meta = item.file.as_ref()?;
-	let file = xeno_file_display::FileItem::new(file_meta.path())
+	let file = xeno_buffer_display::FileItem::new(file_meta.path())
 		.with_label_override(&item.label)
 		.with_kind(file_meta.kind());
-	let presentation = xeno_file_display::present_file(file, xeno_file_display::FileDisplayContext::default());
+	let presentation = xeno_buffer_display::present_file(file, xeno_buffer_display::FileDisplayContext::default());
 	Some(FilePresentationRender::new(presentation.icon().to_string(), presentation.label().to_string()))
 }
 
