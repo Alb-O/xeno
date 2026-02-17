@@ -1,4 +1,4 @@
-use xeno_invocation::nu::{DecodeBudget, NuEffect};
+use xeno_invocation::nu::{DecodeBudget, EFFECT_SCHEMA_VERSION, NuEffect};
 use xeno_invocation::schema;
 use xeno_nu_data::Value as DataValue;
 use xeno_nu_protocol::engine::{Call, Command, EngineState, Stack};
@@ -7,9 +7,9 @@ use xeno_nu_protocol::{Category, PipelineData, Record, ShellError, Signature, Ty
 use super::err;
 
 #[derive(Clone)]
-pub struct XenoEmitManyCommand;
+pub struct XenoEffectsNormalizeCommand;
 
-impl Command for XenoEmitManyCommand {
+impl Command for XenoEffectsNormalizeCommand {
 	fn name(&self) -> &str {
 		"xeno effects normalize"
 	}
@@ -17,14 +17,16 @@ impl Command for XenoEmitManyCommand {
 	fn signature(&self) -> Signature {
 		Signature::build("xeno effects normalize")
 			.input_output_types(vec![
-				(Type::List(Box::new(Type::Any)), Type::List(Box::new(Type::Any))),
-				(Type::Any, Type::List(Box::new(Type::Any))),
+				(Type::List(Box::new(Type::Any)), Type::Record(Box::new([]))),
+				(Type::Record(Box::new([])), Type::Record(Box::new([]))),
+				(Type::Nothing, Type::Record(Box::new([]))),
+				(Type::Any, Type::Record(Box::new([]))),
 			])
 			.category(Category::Custom("xeno".into()))
 	}
 
 	fn description(&self) -> &str {
-		"Validate and normalize typed effect records. Accepts record, list, or batch envelope."
+		"Validate and normalize typed effect records into an envelope. Accepts record, list, nothing, or envelope."
 	}
 
 	fn run(&self, _engine_state: &EngineState, _stack: &mut Stack, call: &Call, input: PipelineData) -> Result<PipelineData, ShellError> {
@@ -35,11 +37,22 @@ impl Command for XenoEmitManyCommand {
 		let value =
 			DataValue::try_from(value).map_err(|e| err(span, format!("xeno effects normalize: {e}"), "unsupported Nu value type for effect decoding"))?;
 
-		let batch = xeno_invocation::nu::decode_hook_effects_with_budget(value, DecodeBudget::macro_defaults())
+		// Accept any shape (bare record, list, nothing, or envelope) via the lenient decoder
+		// which accepts bare effect records and lists in addition to envelopes.
+		let batch = xeno_invocation::nu::decode_effects_lenient(value, DecodeBudget::macro_defaults())
 			.map_err(|msg| err(span, format!("xeno effects normalize: {msg}"), msg))?;
 
-		let out = batch.effects.into_iter().map(|effect| encode_effect(effect, span)).collect();
-		Ok(PipelineData::Value(Value::list(out, span), None))
+		let effects: Vec<Value> = batch.effects.into_iter().map(|effect| encode_effect(effect, span)).collect();
+		let mut envelope = Record::new();
+		envelope.push("schema_version", Value::int(EFFECT_SCHEMA_VERSION, span));
+		envelope.push("effects", Value::list(effects, span));
+		if !batch.warnings.is_empty() {
+			envelope.push(
+				"warnings",
+				Value::list(batch.warnings.into_iter().map(|w| Value::string(w, span)).collect(), span),
+			);
+		}
+		Ok(PipelineData::Value(Value::record(envelope, span), None))
 	}
 }
 

@@ -6,6 +6,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+xeno-invocation = { workspace = true, features = ["nu"] }
 xeno-nu-engine.workspace = true
 xeno-nu-protocol.workspace = true
 

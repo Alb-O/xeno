@@ -54,6 +54,15 @@ pub(crate) fn apply_effect_batch(
 	mode: NuEffectApplyMode,
 	allowed: &HashSet<NuCapability>,
 ) -> Result<NuEffectApplyOutcome, NuEffectApplyError> {
+	if !batch.warnings.is_empty() {
+		let total = batch.warnings.len();
+		let preview: Vec<&str> = batch.warnings.iter().take(5).map(String::as_str).collect();
+		match mode {
+			NuEffectApplyMode::Hook => tracing::debug!(total, ?preview, "Nu hook batch warnings"),
+			NuEffectApplyMode::Macro => warn!(total, ?preview, "Nu macro batch warnings"),
+		}
+	}
+
 	let mut outcome = NuEffectApplyOutcome::default();
 	let mut did_record_nu_edit = false;
 

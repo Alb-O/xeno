@@ -4,8 +4,9 @@ use tokio::task::JoinHandle;
 use xeno_nu_api::ExportId;
 
 use crate::msg::MsgSender;
+use crate::nu::ctx::NuCtxEvent;
 use crate::nu::executor::NuExecutor;
-use crate::nu::{CachedHookIds, NuHook, NuRuntime};
+use crate::nu::{CachedHookId, NuRuntime};
 use crate::types::Invocation;
 
 /// Stable identity for a Nu evaluation request.
@@ -39,26 +40,13 @@ impl HookPipelinePhase {
 /// A queued Nu post-hook awaiting evaluation.
 #[derive(Debug, Clone)]
 pub(crate) struct QueuedNuHook {
-	pub hook: NuHook,
-	pub args: Vec<String>,
-	pub retries: u8,
+	pub event: NuCtxEvent,
 }
 
 /// Tracks a single in-flight Nu hook evaluation.
 #[derive(Debug)]
 pub(crate) struct InFlightNuHook {
 	pub token: NuEvalToken,
-	pub hook: NuHook,
-	pub args: Vec<String>,
-	pub retries: u8,
-}
-
-/// Result of handling a transport-level hook eval failure.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum HookEvalFailureTransition {
-	Stale,
-	Retried,
-	RetryExhausted { failed_total: u64 },
 }
 
 /// A scheduled macro awaiting its delay timer.
@@ -80,19 +68,18 @@ pub struct NuScheduleFiredMsg {
 pub(crate) struct NuCoordinatorState {
 	runtime: Option<NuRuntime>,
 	executor: Option<NuExecutor>,
-	hook_ids: CachedHookIds,
+	hook_id: CachedHookId,
 	hook_depth: u8,
 	macro_depth: u8,
-	hook_phase: HookPipelinePhase,
 	hook_queue: VecDeque<QueuedNuHook>,
 	hook_in_flight: Option<InFlightNuHook>,
 	runtime_epoch: u64,
 	hook_eval_seq_next: u64,
 	stop_scope_generation: u64,
 	hook_dropped_total: u64,
-	hook_failed_total: u64,
 	scheduled: HashMap<String, ScheduledEntry>,
 	scheduled_seq: u64,
+	macro_decl_cache: HashMap<String, Option<ExportId>>,
 }
 
 impl NuCoordinatorState {
@@ -100,19 +87,18 @@ impl NuCoordinatorState {
 		Self {
 			runtime: None,
 			executor: None,
-			hook_ids: CachedHookIds::default(),
+			hook_id: CachedHookId::default(),
 			hook_depth: 0,
 			macro_depth: 0,
-			hook_phase: HookPipelinePhase::Idle,
 			hook_queue: VecDeque::new(),
 			hook_in_flight: None,
 			runtime_epoch: 0,
 			hook_eval_seq_next: 0,
 			stop_scope_generation: 0,
 			hook_dropped_total: 0,
-			hook_failed_total: 0,
 			scheduled: HashMap::new(),
 			scheduled_seq: 0,
+			macro_decl_cache: HashMap::new(),
 		}
 	}
 
@@ -120,25 +106,21 @@ impl NuCoordinatorState {
 		self.executor = None;
 		self.hook_queue.clear();
 		self.hook_in_flight = None;
+		self.macro_decl_cache.clear();
 		for (_, entry) in self.scheduled.drain() {
 			entry.handle.abort();
 		}
 		self.runtime_epoch = self.runtime_epoch.wrapping_add(1);
 		self.hook_eval_seq_next = 0;
 		self.runtime = runtime;
-		self.hook_ids = self
+		self.hook_id = self
 			.runtime
 			.as_ref()
-			.map(|rt| CachedHookIds {
-				on_action_post: rt.find_script_decl("on_action_post"),
-				on_command_post: rt.find_script_decl("on_command_post"),
-				on_editor_command_post: rt.find_script_decl("on_editor_command_post"),
-				on_mode_change: rt.find_script_decl("on_mode_change"),
-				on_buffer_open: rt.find_script_decl("on_buffer_open"),
+			.map(|rt| CachedHookId {
+				on_hook: rt.find_script_decl("on_hook"),
 			})
 			.unwrap_or_default();
 		self.executor = self.runtime.as_ref().map(|rt| NuExecutor::new(rt.clone()));
-		self.refresh_hook_phase();
 	}
 
 	pub(crate) fn runtime(&self) -> Option<&NuRuntime> {
@@ -154,12 +136,6 @@ impl NuCoordinatorState {
 		self.executor.as_ref()
 	}
 
-	pub(crate) fn restart_executor(&mut self) {
-		if let Some(runtime) = self.runtime.clone() {
-			self.executor = Some(NuExecutor::new(runtime));
-		}
-	}
-
 	pub(crate) fn executor(&self) -> Option<&NuExecutor> {
 		self.executor.as_ref()
 	}
@@ -168,23 +144,33 @@ impl NuCoordinatorState {
 		self.executor.as_ref().map(NuExecutor::client)
 	}
 
-	pub(crate) fn hook_decl(&self, hook: NuHook) -> Option<ExportId> {
-		match hook {
-			NuHook::ActionPost => self.hook_ids.on_action_post,
-			NuHook::CommandPost => self.hook_ids.on_command_post,
-			NuHook::EditorCommandPost => self.hook_ids.on_editor_command_post,
-			NuHook::ModeChange => self.hook_ids.on_mode_change,
-			NuHook::BufferOpen => self.hook_ids.on_buffer_open,
+	/// Resolve a macro function name to its declaration ID, with positive
+	/// and negative caching. Cache is cleared on runtime swap.
+	pub(crate) fn resolve_macro_decl_cached(&mut self, name: &str) -> Option<ExportId> {
+		if let Some(hit) = self.macro_decl_cache.get(name) {
+			return *hit;
 		}
-	}
-
-	pub(crate) fn has_hook_decl(&self, hook: NuHook) -> bool {
-		self.hook_decl(hook).is_some()
+		let resolved = self.runtime.as_ref().and_then(|rt| rt.find_script_decl(name));
+		self.macro_decl_cache.insert(name.to_string(), resolved);
+		resolved
 	}
 
 	#[cfg(test)]
-	pub(crate) fn hook_ids(&self) -> &CachedHookIds {
-		&self.hook_ids
+	pub(crate) fn macro_cache_len(&self) -> usize {
+		self.macro_decl_cache.len()
+	}
+
+	pub(crate) fn on_hook_decl(&self) -> Option<ExportId> {
+		self.hook_id.on_hook
+	}
+
+	pub(crate) fn has_on_hook_decl(&self) -> bool {
+		self.hook_id.on_hook.is_some()
+	}
+
+	#[cfg(test)]
+	pub(crate) fn hook_id(&self) -> &CachedHookId {
+		&self.hook_id
 	}
 
 	pub(crate) fn macro_depth(&self) -> u8 {
@@ -205,24 +191,22 @@ impl NuCoordinatorState {
 
 	pub(crate) fn inc_hook_depth(&mut self) {
 		self.hook_depth = self.hook_depth.saturating_add(1);
-		self.refresh_hook_phase();
 	}
 
 	pub(crate) fn dec_hook_depth(&mut self) {
 		self.hook_depth = self.hook_depth.saturating_sub(1);
-		self.refresh_hook_phase();
 	}
 
-	pub(crate) fn enqueue_hook(&mut self, hook: NuHook, args: Vec<String>, max_pending: usize) -> bool {
-		if let Some(back) = self.hook_queue.back_mut()
-			&& back.hook == hook
-		{
-			back.args = args;
-			back.retries = 0;
-			self.refresh_hook_phase();
+	pub(crate) fn enqueue_hook(&mut self, event: NuCtxEvent, max_pending: usize) -> bool {
+		let key = event.kind_key();
+
+		// If this kind is already queued, replace in place (preserves ordering).
+		if let Some(pos) = self.hook_queue.iter().position(|q| q.event.kind_key() == key) {
+			self.hook_queue[pos].event = event;
 			return false;
 		}
 
+		// New kind — append. Drop oldest if over cap (should rarely happen).
 		let mut dropped = false;
 		if self.hook_queue.len() >= max_pending {
 			self.hook_queue.pop_front();
@@ -230,20 +214,12 @@ impl NuCoordinatorState {
 			dropped = true;
 		}
 
-		self.hook_queue.push_back(QueuedNuHook { hook, args, retries: 0 });
-		self.refresh_hook_phase();
+		self.hook_queue.push_back(QueuedNuHook { event });
 		dropped
 	}
 
 	pub(crate) fn pop_queued_hook(&mut self) -> Option<QueuedNuHook> {
-		let queued = self.hook_queue.pop_front();
-		self.refresh_hook_phase();
-		queued
-	}
-
-	pub(crate) fn push_front_queued_hook(&mut self, hook: QueuedNuHook) {
-		self.hook_queue.push_front(hook);
-		self.refresh_hook_phase();
+		self.hook_queue.pop_front()
 	}
 
 	pub(crate) fn has_queued_hooks(&self) -> bool {
@@ -257,23 +233,13 @@ impl NuCoordinatorState {
 	#[cfg(test)]
 	pub(crate) fn set_hook_in_flight(&mut self, in_flight: InFlightNuHook) {
 		self.hook_in_flight = Some(in_flight);
-		self.refresh_hook_phase();
 	}
 
-	/// Mark a queued hook as in-flight and return owned args for evaluation.
-	///
-	/// Keeps args/retry metadata in in-flight state for failure recovery while
-	/// returning a cloned args payload for the async executor request.
-	pub(crate) fn begin_hook_eval(&mut self, token: NuEvalToken, queued: QueuedNuHook) -> Vec<String> {
-		let args_for_eval = queued.args.clone();
-		self.hook_in_flight = Some(InFlightNuHook {
-			token,
-			hook: queued.hook,
-			args: queued.args,
-			retries: queued.retries,
-		});
-		self.refresh_hook_phase();
-		args_for_eval
+	/// Mark a queued hook as in-flight and return the event for evaluation.
+	pub(crate) fn begin_hook_eval(&mut self, token: NuEvalToken, queued: QueuedNuHook) -> NuCtxEvent {
+		let event_for_eval = queued.event;
+		self.hook_in_flight = Some(InFlightNuHook { token });
+		event_for_eval
 	}
 
 	pub(crate) fn hook_in_flight(&self) -> Option<&InFlightNuHook> {
@@ -281,9 +247,7 @@ impl NuCoordinatorState {
 	}
 
 	pub(crate) fn take_hook_in_flight(&mut self) -> Option<InFlightNuHook> {
-		let in_flight = self.hook_in_flight.take();
-		self.refresh_hook_phase();
-		in_flight
+		self.hook_in_flight.take()
 	}
 
 	pub(crate) fn hook_in_flight_token(&self) -> Option<NuEvalToken> {
@@ -299,33 +263,6 @@ impl NuCoordinatorState {
 		}
 		let _ = self.take_hook_in_flight();
 		true
-	}
-
-	/// Handle hook eval transport failure with built-in single-retry policy.
-	///
-	/// Retry is only scheduled for first-failure in-flight requests.
-	pub(crate) fn complete_hook_eval_transport_failure(&mut self, token: NuEvalToken) -> HookEvalFailureTransition {
-		if self.hook_in_flight_token() != Some(token) {
-			return HookEvalFailureTransition::Stale;
-		}
-
-		let Some(in_flight) = self.take_hook_in_flight() else {
-			return HookEvalFailureTransition::Stale;
-		};
-
-		if in_flight.retries == 0 {
-			self.push_front_queued_hook(QueuedNuHook {
-				hook: in_flight.hook,
-				args: in_flight.args,
-				retries: 1,
-			});
-			return HookEvalFailureTransition::Retried;
-		}
-
-		self.hook_failed_total = self.hook_failed_total.saturating_add(1);
-		HookEvalFailureTransition::RetryExhausted {
-			failed_total: self.hook_failed_total,
-		}
 	}
 
 	pub(crate) fn next_hook_eval_token(&mut self) -> NuEvalToken {
@@ -346,7 +283,13 @@ impl NuCoordinatorState {
 	}
 
 	pub(crate) fn hook_phase(&self) -> HookPipelinePhase {
-		self.hook_phase
+		if self.hook_depth > 0 || self.hook_in_flight.is_some() {
+			HookPipelinePhase::HookInFlight
+		} else if !self.hook_queue.is_empty() {
+			HookPipelinePhase::HookQueued
+		} else {
+			HookPipelinePhase::Idle
+		}
 	}
 
 	/// Returns the current Nu stop-propagation scope generation.
@@ -364,15 +307,10 @@ impl NuCoordinatorState {
 	/// Clear all pending hook work for stop-propagation semantics.
 	pub(crate) fn clear_hook_work_on_stop_propagation(&mut self) {
 		self.hook_queue.clear();
-		self.refresh_hook_phase();
 	}
 
 	pub(crate) fn hook_dropped_total(&self) -> u64 {
 		self.hook_dropped_total
-	}
-
-	pub(crate) fn hook_failed_total(&self) -> u64 {
-		self.hook_failed_total
 	}
 
 	/// Schedule a macro to fire after `delay_ms`, replacing any previous schedule with the same key.
@@ -418,20 +356,116 @@ impl NuCoordinatorState {
 			args: msg.args,
 		})
 	}
-
-	fn refresh_hook_phase(&mut self) {
-		self.hook_phase = if self.hook_depth > 0 || self.hook_in_flight.is_some() {
-			HookPipelinePhase::HookInFlight
-		} else if !self.hook_queue.is_empty() {
-			HookPipelinePhase::HookQueued
-		} else {
-			HookPipelinePhase::Idle
-		};
-	}
 }
 
 impl Default for NuCoordinatorState {
 	fn default() -> Self {
 		Self::new()
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::nu::NuRuntime;
+
+	fn make_runtime(script: &str) -> NuRuntime {
+		let temp = tempfile::tempdir().expect("temp dir should exist");
+		std::fs::write(temp.path().join("xeno.nu"), script).expect("write should succeed");
+		let path = temp.into_path();
+		NuRuntime::load(&path).expect("runtime should load")
+	}
+
+	#[test]
+	fn macro_decl_cache_hits() {
+		let runtime = make_runtime("export def go [] { xeno effect dispatch editor stats }");
+		let mut state = NuCoordinatorState::new();
+		state.set_runtime(Some(runtime));
+
+		let first = state.resolve_macro_decl_cached("go");
+		assert!(first.is_some());
+		let second = state.resolve_macro_decl_cached("go");
+		assert_eq!(first, second);
+		assert_eq!(state.macro_cache_len(), 1);
+	}
+
+	#[test]
+	fn macro_decl_cache_negative() {
+		let runtime = make_runtime("export def go [] { null }");
+		let mut state = NuCoordinatorState::new();
+		state.set_runtime(Some(runtime));
+
+		assert!(state.resolve_macro_decl_cached("missing").is_none());
+		assert!(state.resolve_macro_decl_cached("missing").is_none());
+		assert_eq!(state.macro_cache_len(), 1);
+	}
+
+	#[test]
+	fn set_runtime_clears_macro_cache() {
+		let runtime = make_runtime("export def go [] { null }");
+		let mut state = NuCoordinatorState::new();
+		state.set_runtime(Some(runtime));
+		let _ = state.resolve_macro_decl_cached("go");
+		assert_eq!(state.macro_cache_len(), 1);
+
+		state.set_runtime(None);
+		assert_eq!(state.macro_cache_len(), 0);
+	}
+
+	#[test]
+	fn enqueue_replaces_existing_kind_preserves_order() {
+		let mut state = NuCoordinatorState::new();
+		let a1 = NuCtxEvent::ActionPost {
+			name: "a1".into(),
+			result: "ok".into(),
+		};
+		let b1 = NuCtxEvent::ModeChange {
+			from: "Normal".into(),
+			to: "Insert".into(),
+		};
+		let a2 = NuCtxEvent::ActionPost {
+			name: "a2".into(),
+			result: "ok".into(),
+		};
+
+		state.enqueue_hook(a1, 64);
+		state.enqueue_hook(b1, 64);
+		state.enqueue_hook(a2, 64);
+
+		// Queue should be [A2, B1] — A replaced in place at position 0.
+		assert_eq!(state.hook_queue_len(), 2);
+		let first = state.pop_queued_hook().unwrap();
+		assert!(matches!(first.event, NuCtxEvent::ActionPost { ref name, .. } if name == "a2"));
+		let second = state.pop_queued_hook().unwrap();
+		assert!(matches!(second.event, NuCtxEvent::ModeChange { .. }));
+	}
+
+	#[test]
+	fn enqueue_bounded_by_kind_count() {
+		let mut state = NuCoordinatorState::new();
+		// Enqueue alternating kinds many times — queue should never exceed kind count.
+		for i in 0..100 {
+			state.enqueue_hook(
+				NuCtxEvent::ActionPost {
+					name: format!("a{i}"),
+					result: "ok".into(),
+				},
+				64,
+			);
+			state.enqueue_hook(
+				NuCtxEvent::ModeChange {
+					from: format!("m{i}"),
+					to: "Insert".into(),
+				},
+				64,
+			);
+		}
+		// Only 2 kinds were ever enqueued.
+		assert_eq!(state.hook_queue_len(), 2);
+		// Latest values win.
+		let first = state.pop_queued_hook().unwrap();
+		assert!(matches!(first.event, NuCtxEvent::ActionPost { ref name, .. } if name == "a99"));
+		let second = state.pop_queued_hook().unwrap();
+		assert!(matches!(second.event, NuCtxEvent::ModeChange { ref from, .. } if from == "m99"));
 	}
 }

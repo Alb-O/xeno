@@ -1,12 +1,23 @@
 use crate::sandbox::{ParsePolicy, create_engine_state, evaluate_block, find_decl, parse_and_validate, parse_and_validate_with_policy};
 
+fn unwrap_envelope_effects(value: &xeno_nu_protocol::Value) -> Vec<xeno_nu_protocol::Value> {
+	let envelope = value.as_record().expect("should be envelope record");
+	assert!(envelope.contains("schema_version"), "envelope should have schema_version");
+	envelope
+		.get("effects")
+		.expect("envelope should have effects")
+		.as_list()
+		.expect("effects should be list")
+		.to_vec()
+}
+
 #[test]
 fn xeno_effects_normalize_accepts_single_record() {
 	let mut engine_state = create_engine_state(None).expect("engine state");
 	let source = r#"{type: "dispatch", kind: "action", name: "move_right"} | xeno effects normalize"#;
 	let parsed = parse_and_validate(&mut engine_state, "<test>", source, None).expect("should parse");
 	let value = evaluate_block(&engine_state, parsed.block.as_ref()).expect("should evaluate");
-	let list = value.as_list().expect("should be list");
+	let list = unwrap_envelope_effects(&value);
 	assert_eq!(list.len(), 1);
 	assert_eq!(list[0].as_record().unwrap().get("type").unwrap().as_str().unwrap(), "dispatch");
 }
@@ -17,7 +28,7 @@ fn xeno_effects_normalize_accepts_list_of_records() {
 	let source = r#"[{type: "dispatch", kind: "action", name: "x"}, {type: "dispatch", kind: "command", name: "y", args: ["a"]}] | xeno effects normalize"#;
 	let parsed = parse_and_validate(&mut engine_state, "<test>", source, None).expect("should parse");
 	let value = evaluate_block(&engine_state, parsed.block.as_ref()).expect("should evaluate");
-	let list = value.as_list().expect("should be list");
+	let list = unwrap_envelope_effects(&value);
 	assert_eq!(list.len(), 2);
 }
 
@@ -27,7 +38,7 @@ fn xeno_effects_normalize_normalizes_action_defaults() {
 	let source = r#"{type: "dispatch", kind: "action", name: "x"} | xeno effects normalize"#;
 	let parsed = parse_and_validate(&mut engine_state, "<test>", source, None).expect("should parse");
 	let value = evaluate_block(&engine_state, parsed.block.as_ref()).expect("should evaluate");
-	let list = value.as_list().expect("should be list");
+	let list = unwrap_envelope_effects(&value);
 	let rec = list[0].as_record().unwrap();
 	assert_eq!(rec.get("count").unwrap().as_int().unwrap(), 1);
 	assert!(!rec.get("extend").unwrap().as_bool().unwrap());

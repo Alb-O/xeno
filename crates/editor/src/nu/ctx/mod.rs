@@ -7,7 +7,7 @@
 use xeno_nu_data::{Record, Span, Value};
 
 /// Current schema version. Bump when adding/removing/renaming fields.
-pub const SCHEMA_VERSION: i64 = 4;
+pub const SCHEMA_VERSION: i64 = 6;
 
 /// Max byte length for text snapshots (cursor line, selection text).
 ///
@@ -18,7 +18,6 @@ pub const TEXT_SNAPSHOT_MAX_BYTES: usize = xeno_invocation::schema::DEFAULT_LIMI
 pub struct NuCtx {
 	pub kind: String,
 	pub function: String,
-	pub args: Vec<String>,
 	pub mode: String,
 	pub view: NuCtxView,
 	pub cursor: NuCtxPosition,
@@ -79,6 +78,7 @@ impl NuCtxText {
 /// Populated for hook invocations so scripts can inspect event details
 /// via `$ctx.event.type` and `$ctx.event.data` instead of relying on
 /// positional arguments. Macros receive `null`.
+#[derive(Debug, Clone)]
 pub enum NuCtxEvent {
 	ActionPost { name: String, result: String },
 	CommandPost { name: String, result: String, args: Vec<String> },
@@ -88,38 +88,23 @@ pub enum NuCtxEvent {
 }
 
 impl NuCtxEvent {
-	/// Attempt to construct an event from the hook function name and its args.
-	///
-	/// Returns `None` for unrecognized hooks or insufficient args.
-	pub fn from_hook(function: &str, args: &[String]) -> Option<Self> {
-		match function {
-			"on_action_post" if args.len() >= 2 => Some(Self::ActionPost {
-				name: args[0].clone(),
-				result: args[1].clone(),
-			}),
-			"on_command_post" if args.len() >= 2 => Some(Self::CommandPost {
-				name: args[0].clone(),
-				result: args[1].clone(),
-				args: args[2..].to_vec(),
-			}),
-			"on_editor_command_post" if args.len() >= 2 => Some(Self::EditorCommandPost {
-				name: args[0].clone(),
-				result: args[1].clone(),
-				args: args[2..].to_vec(),
-			}),
-			"on_mode_change" if args.len() >= 2 => Some(Self::ModeChange {
-				from: args[0].clone(),
-				to: args[1].clone(),
-			}),
-			"on_buffer_open" if args.len() >= 2 => Some(Self::BufferOpen {
-				path: args[0].clone(),
-				kind: args[1].clone(),
-			}),
-			_ => None,
+	/// Returns true if two events are the same kind (used for queue coalescing).
+	pub(crate) fn same_kind(&self, other: &Self) -> bool {
+		std::mem::discriminant(self) == std::mem::discriminant(other)
+	}
+
+	/// Stable per-variant key for O(K) queue dedup.
+	pub(crate) fn kind_key(&self) -> u8 {
+		match self {
+			Self::ActionPost { .. } => 0,
+			Self::CommandPost { .. } => 1,
+			Self::EditorCommandPost { .. } => 2,
+			Self::ModeChange { .. } => 3,
+			Self::BufferOpen { .. } => 4,
 		}
 	}
 
-	fn type_str(&self) -> &'static str {
+	pub(crate) fn type_str(&self) -> &'static str {
 		match self {
 			Self::ActionPost { .. } => "action_post",
 			Self::CommandPost { .. } => "command_post",
@@ -248,7 +233,6 @@ impl NuCtx {
 		ctx.push("schema_version", Value::int(SCHEMA_VERSION, s));
 		ctx.push("kind", Value::string(&self.kind, s));
 		ctx.push("function", Value::string(&self.function, s));
-		ctx.push("args", Value::list(self.args.iter().map(|a| Value::string(a, s)).collect(), s));
 		ctx.push("mode", Value::string(&self.mode, s));
 		ctx.push("view", Value::record(view, s));
 		ctx.push("cursor", Value::record(cursor, s));
@@ -263,21 +247,11 @@ impl NuCtx {
 		text.push("selection_truncated", Value::bool(self.text.selection_truncated, s));
 		ctx.push("text", Value::record(text, s));
 		ctx.push("event", self.event.as_ref().map_or_else(|| Value::nothing(s), |e| e.to_value(s)));
-		ctx.push(
-			"state",
-			Value::list(
-				self.state
-					.iter()
-					.map(|(k, v)| {
-						let mut entry = Record::new();
-						entry.push("key", Value::string(k, s));
-						entry.push("value", Value::string(v, s));
-						Value::record(entry, s)
-					})
-					.collect(),
-				s,
-			),
-		);
+		let mut state = Record::with_capacity(self.state.len());
+		for (k, v) in &self.state {
+			state.push(k.clone(), Value::string(v, s));
+		}
+		ctx.push("state", Value::record(state, s));
 
 		Value::record(ctx, s)
 	}

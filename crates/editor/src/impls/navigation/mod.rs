@@ -152,7 +152,7 @@ impl Editor {
 				.await;
 			}
 
-			// Nu on_buffer_open hook — fires for both new and existing buffers.
+			// Nu on_hook (buffer_open event) — fires for both new and existing buffers.
 			let kind = if is_existing { "existing" } else { "disk" };
 			self.enqueue_buffer_open_hook(&target_path, kind);
 

@@ -4,21 +4,21 @@
 //! `NuRuntime` and processes jobs sequentially. This eliminates tokio blocking
 //! pool scheduling overhead on the hot path (every action with a post-hook).
 //!
-//! Caller tracing spans are propagated into the worker thread so that logs
-//! emitted during Nu evaluation appear nested under the originating
-//! `nu.hook` / `nu.macro` span.
+//! The executor self-heals: on transport failure (worker died or channel
+//! closed), `run()` performs one internal restart and retries the job. If the
+//! retry also fails, `NuExecError::Transport` is returned.
 //!
-//! Shutdown is explicit and deterministic: dropping `NuExecutor` sends a
-//! `Shutdown` job and waits briefly for an ack so runtime swaps do not leave
-//! stale workers alive. If the worker panics during evaluation, it sends an
-//! error reply and exits; the editor-side retry logic recreates the executor
-//! and retries once using the payload returned in [`NuExecError::Shutdown`].
+//! Shutdown is explicit and deterministic: dropping the owning `NuExecutor`
+//! sets a closed flag and sends a `Shutdown` job. Once closed, no restarts
+//! are allowed — stale client clones from previous runtime epochs get
+//! `NuExecError::Closed`.
 
 use std::panic::AssertUnwindSafe;
 #[cfg(test)]
 use std::sync::Arc;
 #[cfg(test)]
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -46,23 +46,23 @@ enum Job {
 	},
 }
 
-/// Executor error distinguishing transport failures (payload recoverable)
-/// from Nu evaluation errors.
+/// Executor error after internal retry has been exhausted.
 #[derive(Debug)]
 pub enum NuExecError {
-	/// Channel send failed — receiver is gone. Payload returned for retry.
-	Shutdown {
-		decl_id: ExportId,
-		surface: NuDecodeSurface,
-		args: Vec<String>,
-		budget: DecodeBudget,
-		env: Vec<(String, Value)>,
-	},
-	/// Job was enqueued but the reply channel was dropped (worker died
-	/// mid-evaluation). Payload is lost.
-	ReplyDropped,
+	/// Owner dropped or runtime was swapped; no restart allowed.
+	Closed,
+	/// Transport failure persisted after one internal restart.
+	Transport(String),
 	/// Nu evaluated and returned an error string.
 	Eval(String),
+}
+
+/// Shared state between owner and client clones.
+pub(crate) struct Shared {
+	runtime: NuRuntime,
+	closed: AtomicBool,
+	#[cfg(test)]
+	pub(crate) shutdown_acks: AtomicUsize,
 }
 
 /// Handle to a persistent Nu evaluation thread.
@@ -73,21 +73,37 @@ pub enum NuExecError {
 /// Supports owner/client semantics: the original `NuExecutor` is the owner
 /// and sends a `Shutdown` job on drop. Clones are clients that share the
 /// same channel but do not trigger shutdown when dropped.
+///
+/// Self-heals on transport failure: if the worker dies, `run()` respawns
+/// it once and retries. After the owner is dropped (`closed=true`), no
+/// restarts are allowed.
 pub struct NuExecutor {
-	tx: std::sync::mpsc::Sender<Job>,
-	/// Only the owner sends `Shutdown` on drop.
+	tx: std::sync::Mutex<std::sync::mpsc::Sender<Job>>,
+	shared: std::sync::Arc<Shared>,
 	is_owner: bool,
-	#[cfg(test)]
-	shutdown_acks: Arc<AtomicUsize>,
 }
 
 impl NuExecutor {
 	/// Spawn a new worker thread for the given runtime.
 	pub fn new(runtime: NuRuntime) -> Self {
 		let (tx, rx) = std::sync::mpsc::channel::<Job>();
-		#[cfg(test)]
-		let shutdown_acks = Arc::new(AtomicUsize::new(0));
+		let rt = runtime.clone();
 
+		Self::spawn_worker(rt, rx);
+
+		Self {
+			tx: std::sync::Mutex::new(tx),
+			shared: std::sync::Arc::new(Shared {
+				runtime,
+				closed: AtomicBool::new(false),
+				#[cfg(test)]
+				shutdown_acks: AtomicUsize::new(0),
+			}),
+			is_owner: true,
+		}
+	}
+
+	fn spawn_worker(runtime: NuRuntime, rx: std::sync::mpsc::Receiver<Job>) {
 		thread::Builder::new()
 			.name("nu-executor".into())
 			.spawn(move || {
@@ -123,13 +139,17 @@ impl NuExecutor {
 				}
 			})
 			.expect("failed to spawn nu-executor thread");
+	}
 
-		Self {
-			tx,
-			is_owner: true,
-			#[cfg(test)]
-			shutdown_acks,
+	/// Respawn the worker thread. Returns false if closed.
+	fn respawn(&self) -> bool {
+		if self.shared.closed.load(Ordering::SeqCst) {
+			return false;
 		}
+		let (new_tx, rx) = std::sync::mpsc::channel::<Job>();
+		Self::spawn_worker(self.shared.runtime.clone(), rx);
+		*self.tx.lock().expect("tx lock poisoned") = new_tx;
+		true
 	}
 
 	/// Creates a non-owning client clone that shares the worker channel.
@@ -139,20 +159,16 @@ impl NuExecutor {
 	/// hook evaluation.
 	pub fn client(&self) -> Self {
 		Self {
-			tx: self.tx.clone(),
+			tx: std::sync::Mutex::new(self.tx.lock().expect("tx lock poisoned").clone()),
+			shared: std::sync::Arc::clone(&self.shared),
 			is_owner: false,
-			#[cfg(test)]
-			shutdown_acks: Arc::clone(&self.shutdown_acks),
 		}
 	}
 
 	/// Submit a job and await the result.
 	///
-	/// Captures the current tracing span and propagates it into the worker
-	/// thread so that logs appear under the caller's span hierarchy.
-	///
-	/// On transport failure ([`NuExecError::Shutdown`]), the original payload
-	/// is returned so the caller can retry without cloning.
+	/// On transport failure, internally restarts the worker once and retries.
+	/// If the executor is closed (owner dropped), returns `NuExecError::Closed`.
 	pub async fn run(
 		&self,
 		decl_id: ExportId,
@@ -161,58 +177,111 @@ impl NuExecutor {
 		budget: DecodeBudget,
 		env: Vec<(String, Value)>,
 	) -> Result<NuEffectBatch, NuExecError> {
+		if self.shared.closed.load(Ordering::SeqCst) {
+			return Err(NuExecError::Closed);
+		}
+
+		match self.try_run(decl_id, surface, args, budget, env).await {
+			Ok(batch) => Ok(batch),
+			Err(TransportOrEval::Eval(e)) => Err(NuExecError::Eval(e)),
+			Err(TransportOrEval::Transport {
+				decl_id,
+				surface,
+				args,
+				budget,
+				env,
+				reason,
+			}) => {
+				tracing::warn!(reason = %reason, "Nu executor transport failure, attempting restart");
+				if !self.respawn() {
+					return Err(NuExecError::Closed);
+				}
+				// Retry once after restart.
+				match self.try_run(decl_id, surface, args, budget, env).await {
+					Ok(batch) => Ok(batch),
+					Err(TransportOrEval::Eval(e)) => Err(NuExecError::Eval(e)),
+					Err(TransportOrEval::Transport { reason, .. }) => Err(NuExecError::Transport(reason)),
+				}
+			}
+		}
+	}
+
+	async fn try_run(
+		&self,
+		decl_id: ExportId,
+		surface: NuDecodeSurface,
+		args: Vec<String>,
+		budget: DecodeBudget,
+		env: Vec<(String, Value)>,
+	) -> Result<NuEffectBatch, TransportOrEval> {
 		let (reply_tx, reply_rx) = oneshot::channel();
 
-		if let Err(err) = self.tx.send(Job::Run {
-			decl_id,
-			surface,
-			args,
-			budget,
-			env,
-			span: tracing::Span::current(),
-			reply: reply_tx,
-		}) {
-			match err.0 {
-				Job::Run {
-					decl_id,
-					surface,
-					args,
-					budget,
-					env,
-					..
-				} => {
-					return Err(NuExecError::Shutdown {
+		{
+			let tx = self.tx.lock().expect("tx lock poisoned");
+			if let Err(err) = tx.send(Job::Run {
+				decl_id,
+				surface,
+				args,
+				budget,
+				env,
+				span: tracing::Span::current(),
+				reply: reply_tx,
+			}) {
+				match err.0 {
+					Job::Run {
 						decl_id,
 						surface,
 						args,
 						budget,
 						env,
-					});
+						..
+					} => {
+						return Err(TransportOrEval::Transport {
+							decl_id,
+							surface,
+							args,
+							budget,
+							env,
+							reason: "channel send failed (worker dead)".to_string(),
+						});
+					}
+					Job::Shutdown { .. } => unreachable!("shutdown jobs are only sent from Drop"),
 				}
-				Job::Shutdown { .. } => unreachable!("shutdown jobs are only sent from Drop"),
 			}
 		}
 
 		match reply_rx.await {
-			Ok(Ok(invocations)) => Ok(invocations),
-			Ok(Err(eval_error)) => Err(NuExecError::Eval(eval_error)),
-			Err(_) => Err(NuExecError::ReplyDropped),
+			Ok(Ok(batch)) => Ok(batch),
+			Ok(Err(eval_error)) => Err(TransportOrEval::Eval(eval_error)),
+			Err(_) => Err(TransportOrEval::Transport {
+				decl_id,
+				surface,
+				args: vec![], // payload lost when reply dropped
+				budget,
+				env: vec![],
+				reason: "reply channel dropped (worker died mid-evaluation)".to_string(),
+			}),
 		}
 	}
 
 	#[cfg(test)]
-	fn from_sender(tx: std::sync::mpsc::Sender<Job>) -> Self {
-		Self {
-			tx,
-			is_owner: true,
-			shutdown_acks: Arc::new(AtomicUsize::new(0)),
-		}
+	pub(crate) fn shutdown_acks_for_tests(&self) -> std::sync::Arc<Shared> {
+		std::sync::Arc::clone(&self.shared)
 	}
+}
 
-	#[cfg(test)]
-	pub(crate) fn shutdown_acks_for_tests(&self) -> Arc<AtomicUsize> {
-		Arc::clone(&self.shutdown_acks)
-	}
+/// Internal error type for try_run: distinguishes recoverable transport
+/// failures (with payload for retry) from evaluation errors.
+enum TransportOrEval {
+	Transport {
+		decl_id: ExportId,
+		surface: NuDecodeSurface,
+		args: Vec<String>,
+		budget: DecodeBudget,
+		env: Vec<(String, Value)>,
+		reason: String,
+	},
+	Eval(String),
 }
 
 const SHUTDOWN_ACK_TIMEOUT: Duration = Duration::from_millis(100);
@@ -223,17 +292,21 @@ impl Drop for NuExecutor {
 			return;
 		}
 
+		self.shared.closed.store(true, Ordering::SeqCst);
+
 		let (ack_tx, mut ack_rx) = oneshot::channel();
-		if self.tx.send(Job::Shutdown { ack: ack_tx }).is_err() {
+		let tx = self.tx.lock().expect("tx lock poisoned");
+		if tx.send(Job::Shutdown { ack: ack_tx }).is_err() {
 			return;
 		}
+		drop(tx);
 
 		let deadline = Instant::now() + SHUTDOWN_ACK_TIMEOUT;
 		loop {
 			match ack_rx.try_recv() {
 				Ok(()) => {
 					#[cfg(test)]
-					self.shutdown_acks.fetch_add(1, Ordering::SeqCst);
+					self.shared.shutdown_acks.fetch_add(1, Ordering::SeqCst);
 					return;
 				}
 				Err(TryRecvError::Empty) => {
@@ -262,7 +335,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn executor_runs_effects() {
-		let runtime = make_runtime("export def go [] { xeno effect dispatch editor stats }");
+		let runtime = make_runtime("export def go [] { xeno effect dispatch editor stats | xeno effects normalize }");
 		let decl_id = runtime.find_script_decl("go").expect("go should exist");
 		let executor = NuExecutor::new(runtime);
 
@@ -284,57 +357,47 @@ mod tests {
 
 	#[test]
 	fn executor_shutdown_on_drop() {
-		let runtime = make_runtime("export def go [] { xeno effect dispatch editor stats }");
+		let runtime = make_runtime("export def go [] { xeno effect dispatch editor stats | xeno effects normalize }");
 		let executor = NuExecutor::new(runtime);
-		let shutdown_acks = executor.shutdown_acks_for_tests();
+		let shared = Arc::clone(&executor.shared);
 
 		drop(executor);
 
-		assert_eq!(shutdown_acks.load(Ordering::SeqCst), 1, "drop should receive shutdown ack");
+		assert_eq!(shared.shutdown_acks.load(Ordering::SeqCst), 1, "drop should receive shutdown ack");
+		assert!(shared.closed.load(Ordering::SeqCst), "closed flag should be set");
 	}
 
 	#[tokio::test]
-	async fn shutdown_returns_payload() {
-		let (tx, rx) = std::sync::mpsc::channel::<Job>();
-		drop(rx); // no receiver — immediate send failure
+	async fn closed_executor_returns_closed_error() {
+		let runtime = make_runtime("export def go [] { xeno effect dispatch editor stats | xeno effects normalize }");
+		let decl_id = runtime.find_script_decl("go").expect("go should exist");
+		let executor = NuExecutor::new(runtime);
+		let client = executor.client();
 
-		let executor = NuExecutor::from_sender(tx);
-		let args = vec!["a".to_string(), "b".to_string()];
-		let env = vec![("KEY".to_string(), Value::test_string("val"))];
+		drop(executor); // closes
 
-		let result = executor
-			.run(ExportId::from_raw(42), NuDecodeSurface::Macro, args, DecodeBudget::macro_defaults(), env)
+		let result = client
+			.run(decl_id, NuDecodeSurface::Macro, vec![], DecodeBudget::macro_defaults(), vec![])
 			.await;
 
-		match result {
-			Err(NuExecError::Shutdown {
-				decl_id, surface, args, env, ..
-			}) => {
-				assert_eq!(decl_id, ExportId::from_raw(42));
-				assert_eq!(surface, NuDecodeSurface::Macro);
-				assert_eq!(args, vec!["a".to_string(), "b".to_string()]);
-				assert_eq!(env.len(), 1);
-				assert_eq!(env[0].0, "KEY");
-			}
-			other => panic!("expected Shutdown, got {:?}", other.is_ok()),
-		}
+		assert!(matches!(result, Err(NuExecError::Closed)));
 	}
 
 	#[test]
 	fn client_clone_does_not_send_shutdown() {
-		let runtime = make_runtime("export def go [] { xeno effect dispatch editor stats }");
+		let runtime = make_runtime("export def go [] { xeno effect dispatch editor stats | xeno effects normalize }");
 		let executor = NuExecutor::new(runtime);
-		let shutdown_acks = executor.shutdown_acks_for_tests();
+		let shared = Arc::clone(&executor.shared);
 
 		let client = executor.client();
 		drop(client);
 
 		// Client drop must not send shutdown.
-		assert_eq!(shutdown_acks.load(Ordering::SeqCst), 0, "client drop should not send shutdown");
+		assert_eq!(shared.shutdown_acks.load(Ordering::SeqCst), 0, "client drop should not send shutdown");
 
 		// Owner drop sends shutdown.
 		drop(executor);
-		assert_eq!(shutdown_acks.load(Ordering::SeqCst), 1, "owner drop should send shutdown");
+		assert_eq!(shared.shutdown_acks.load(Ordering::SeqCst), 1, "owner drop should send shutdown");
 	}
 
 	/// Compile-time proof that `tracing::Span` is `Send`.

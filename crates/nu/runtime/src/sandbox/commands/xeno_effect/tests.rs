@@ -1,12 +1,22 @@
 use crate::sandbox::{ParsePolicy, create_engine_state, evaluate_block, find_decl, parse_and_validate, parse_and_validate_with_policy};
 
+/// Unwrap the envelope to get the single effect record inside.
+fn unwrap_envelope(value: xeno_nu_protocol::Value) -> xeno_nu_protocol::Value {
+	let rec = value.as_record().expect("should be envelope record");
+	assert_eq!(rec.get("schema_version").unwrap().as_int().unwrap(), xeno_invocation::nu::EFFECT_SCHEMA_VERSION);
+	let effects = rec.get("effects").unwrap().as_list().unwrap();
+	assert_eq!(effects.len(), 1, "envelope should contain exactly one effect");
+	effects[0].clone()
+}
+
 #[test]
 fn xeno_effect_dispatch_action_works() {
 	let mut engine_state = create_engine_state(None).expect("engine state");
 	let source = r#"xeno effect dispatch action move_right --count 3 --extend"#;
 	let parsed = parse_and_validate(&mut engine_state, "<test>", source, None).expect("should parse");
 	let value = evaluate_block(&engine_state, parsed.block.as_ref()).expect("should evaluate");
-	let rec = value.as_record().expect("should be record");
+	let effect = unwrap_envelope(value);
+	let rec = effect.as_record().expect("should be record");
 	assert_eq!(rec.get("type").unwrap().as_str().unwrap(), "dispatch");
 	assert_eq!(rec.get("kind").unwrap().as_str().unwrap(), "action");
 	assert_eq!(rec.get("name").unwrap().as_str().unwrap(), "move_right");
@@ -20,7 +30,8 @@ fn xeno_effect_dispatch_command_works() {
 	let source = r#"xeno effect dispatch command write foo.txt"#;
 	let parsed = parse_and_validate(&mut engine_state, "<test>", source, None).expect("should parse");
 	let value = evaluate_block(&engine_state, parsed.block.as_ref()).expect("should evaluate");
-	let rec = value.as_record().expect("should be record");
+	let effect = unwrap_envelope(value);
+	let rec = effect.as_record().expect("should be record");
 	assert_eq!(rec.get("type").unwrap().as_str().unwrap(), "dispatch");
 	assert_eq!(rec.get("kind").unwrap().as_str().unwrap(), "command");
 	assert_eq!(rec.get("name").unwrap().as_str().unwrap(), "write");
@@ -50,6 +61,7 @@ fn xeno_effect_dispatch_rejects_bad_register_len() {
 #[test]
 fn xeno_effect_dispatch_round_trips_through_decoder() {
 	let mut engine_state = create_engine_state(None).expect("engine state");
+	// xeno effect now returns envelope directly — no need for normalize.
 	let source = r#"xeno effect dispatch action move_right --count 2 --char x"#;
 	let parsed = parse_and_validate(&mut engine_state, "<test>", source, None).expect("should parse");
 	let value = evaluate_block(&engine_state, parsed.block.as_ref()).expect("should evaluate");
@@ -72,7 +84,8 @@ fn xeno_effect_notify_works() {
 	let source = r#"xeno effect notify warn "boom""#;
 	let parsed = parse_and_validate(&mut engine_state, "<test>", source, None).expect("should parse");
 	let value = evaluate_block(&engine_state, parsed.block.as_ref()).expect("should evaluate");
-	let rec = value.as_record().expect("should be record");
+	let effect = unwrap_envelope(value);
+	let rec = effect.as_record().expect("should be record");
 	assert_eq!(rec.get("type").unwrap().as_str().unwrap(), "notify");
 	assert_eq!(rec.get("level").unwrap().as_str().unwrap(), "warn");
 	assert_eq!(rec.get("message").unwrap().as_str().unwrap(), "boom");
@@ -104,4 +117,15 @@ fn module_only_rejects_shadowing_xeno_effect() {
 fn create_engine_state_registers_xeno_effect_command() {
 	let engine_state = create_engine_state(None).expect("engine state should be created");
 	assert!(find_decl(&engine_state, "xeno effect").is_some(), "xeno effect command should be registered");
+}
+
+#[test]
+fn multi_effect_list_of_envelopes_normalizes() {
+	let mut engine_state = create_engine_state(None).expect("engine state");
+	let source = r#"[(xeno effect dispatch editor stats) (xeno effect notify info hi)] | xeno effects normalize"#;
+	let parsed = parse_and_validate(&mut engine_state, "<test>", source, None).expect("should parse");
+	let value = evaluate_block(&engine_state, parsed.block.as_ref()).expect("should evaluate");
+	let value = xeno_nu_data::Value::try_from(value).expect("value should convert");
+	let effects = xeno_invocation::nu::decode_macro_effects(value).expect("should decode");
+	assert_eq!(effects.effects.len(), 2);
 }

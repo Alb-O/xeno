@@ -369,7 +369,7 @@ fn command_error_propagates() {
 #[tokio::test]
 async fn nu_macro_recursion_depth_guard_trips() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
-	std::fs::write(temp.path().join("xeno.nu"), "export def recur [] { xeno call recur }").expect("xeno.nu should be writable");
+	std::fs::write(temp.path().join("xeno.nu"), "export def recur [] { xeno call recur | xeno effects normalize }").expect("xeno.nu should be writable");
 
 	let runtime = crate::nu::NuRuntime::load(temp.path()).expect("runtime should load");
 	let mut editor = Editor::new_scratch();
@@ -395,7 +395,7 @@ async fn nu_macro_ctx_is_injected() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
 	std::fs::write(
 		temp.path().join("xeno.nu"),
-		"export def go [] { let ctx = (xeno ctx); if $ctx.kind == \"macro\" { (xeno effect dispatch action invocation_test_action) } else { (xeno effect dispatch action does-not-exist) } }",
+		"export def go [] { let ctx = (xeno ctx); if $ctx.kind == \"macro\" { (xeno effect dispatch action invocation_test_action) } else { (xeno effect dispatch action does-not-exist) } | xeno effects normalize }",
 	)
 	.expect("xeno.nu should be writable");
 
@@ -419,7 +419,7 @@ async fn nu_macro_ctx_is_injected() {
 #[tokio::test]
 async fn nu_macro_stop_effect_is_rejected() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
-	std::fs::write(temp.path().join("xeno.nu"), "export def go [] { xeno effect stop }").expect("xeno.nu should be writable");
+	std::fs::write(temp.path().join("xeno.nu"), "export def go [] { xeno effect stop | xeno effects normalize }").expect("xeno.nu should be writable");
 
 	let runtime = crate::nu::NuRuntime::load(temp.path()).expect("runtime should load");
 	let mut editor = Editor::new_scratch();
@@ -451,7 +451,7 @@ async fn nu_macro_capability_denial_is_command_error() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
 	std::fs::write(
 		temp.path().join("xeno.nu"),
-		"export def go [] { xeno effect dispatch action invocation_test_action }",
+		"export def go [] { xeno effect dispatch action invocation_test_action | xeno effects normalize }",
 	)
 	.expect("xeno.nu should be writable");
 
@@ -494,7 +494,7 @@ async fn nu_hook_ctx_is_injected() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
 	std::fs::write(
 		temp.path().join("xeno.nu"),
-		"export def on_action_post [name result] { if $env.XENO_CTX.kind == \"hook\" { (xeno effect dispatch action invocation_test_action) } else { (xeno effect dispatch action does-not-exist) } }",
+		"export def on_hook [] { if $env.XENO_CTX.kind == \"hook\" { (xeno effect dispatch action invocation_test_action) } else { (xeno effect dispatch action does-not-exist) } | xeno effects normalize }",
 	)
 	.expect("xeno.nu should be writable");
 
@@ -521,7 +521,7 @@ async fn nu_hook_capability_denial_is_non_fatal() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
 	std::fs::write(
 		temp.path().join("xeno.nu"),
-		"export def on_action_post [name result] { xeno effect dispatch action invocation_test_action }",
+		"export def on_hook [] { xeno effect dispatch action invocation_test_action | xeno effects normalize }",
 	)
 	.expect("xeno.nu should be writable");
 
@@ -555,8 +555,15 @@ async fn nu_hook_stop_propagation_clears_queued_work() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
 	std::fs::write(
 		temp.path().join("xeno.nu"),
-		"export def on_action_post [name result] { xeno effect stop }\n\
-export def on_command_post [name result ...args] { xeno effect dispatch action invocation_test_action }",
+		"export def on_hook [] {\n\
+  let evt = $env.XENO_CTX.event\n\
+  if $evt.type == \"action_post\" {\n\
+    return (xeno effect stop | xeno effects normalize)\n\
+  }\n\
+  if $evt.type == \"command_post\" {\n\
+    return (xeno effect dispatch action invocation_test_action | xeno effects normalize)\n\
+  }\n\
+}",
 	)
 	.expect("xeno.nu should be writable");
 
@@ -588,10 +595,11 @@ async fn nu_runtime_reload_swaps_executor_and_disables_old_runtime_hooks() {
 	let temp_a = tempfile::tempdir().expect("temp dir should exist");
 	std::fs::write(
 		temp_a.path().join("xeno.nu"),
-		"export def on_action_post [name result] {\n\
-			if $name == \"invocation_edit_action\" and $result == \"ok\" {\n\
+		"export def on_hook [] {\n\
+			let evt = $env.XENO_CTX.event\n\
+			if $evt.type == \"action_post\" and $evt.data.name == \"invocation_edit_action\" and $evt.data.result == \"ok\" {\n\
 				(xeno effect dispatch action invocation_test_action)\n\
-			}\n\
+			} | xeno effects normalize\n\
 		}",
 	)
 	.expect("xeno.nu should be writable");
@@ -599,10 +607,11 @@ async fn nu_runtime_reload_swaps_executor_and_disables_old_runtime_hooks() {
 	let temp_b = tempfile::tempdir().expect("temp dir should exist");
 	std::fs::write(
 		temp_b.path().join("xeno.nu"),
-		"export def on_action_post [name result] {\n\
-			if $name == \"invocation_edit_action\" and $result == \"ok\" {\n\
+		"export def on_hook [] {\n\
+			let evt = $env.XENO_CTX.event\n\
+			if $evt.type == \"action_post\" and $evt.data.name == \"invocation_edit_action\" and $evt.data.result == \"ok\" {\n\
 				(xeno effect dispatch action invocation_test_action_alt)\n\
-			}\n\
+			} | xeno effects normalize\n\
 		}",
 	)
 	.expect("xeno.nu should be writable");
@@ -625,21 +634,21 @@ async fn nu_runtime_reload_swaps_executor_and_disables_old_runtime_hooks() {
 		"runtime B hook should not run yet"
 	);
 
-	let old_shutdown_acks = editor
+	let old_shared = editor
 		.state
 		.nu
 		.executor()
 		.expect("executor should exist after first Nu hook execution")
 		.shutdown_acks_for_tests();
 	assert_eq!(
-		old_shutdown_acks.load(std::sync::atomic::Ordering::SeqCst),
+		old_shared.shutdown_acks.load(std::sync::atomic::Ordering::SeqCst),
 		0,
 		"old executor should not be acked before swap"
 	);
 
 	editor.set_nu_runtime(Some(runtime_b));
 	assert_eq!(
-		old_shutdown_acks.load(std::sync::atomic::Ordering::SeqCst),
+		old_shared.shutdown_acks.load(std::sync::atomic::Ordering::SeqCst),
 		1,
 		"old executor should ack shutdown during runtime swap"
 	);
@@ -669,11 +678,12 @@ async fn command_post_hook_runs_and_receives_args() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
 	std::fs::write(
 		temp.path().join("xeno.nu"),
-		// Hook fires invocation_test_action only when it receives the expected args.
-		"export def on_command_post [name result ...args] {\n\
-			if $name == \"invocation_test_command_fail\" and $result == \"error\" {\n\
+		// Hook fires invocation_test_action only when it receives the expected event data.
+		"export def on_hook [] {\n\
+			let evt = $env.XENO_CTX.event\n\
+			if $evt.type == \"command_post\" and $evt.data.name == \"invocation_test_command_fail\" and $evt.data.result == \"error\" {\n\
 				(xeno effect dispatch action invocation_test_action)\n\
-			}\n\
+			} | xeno effects normalize\n\
 		}",
 	)
 	.expect("xeno.nu should be writable");
@@ -705,10 +715,11 @@ async fn editor_command_post_hook_runs() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
 	std::fs::write(
 		temp.path().join("xeno.nu"),
-		"export def on_editor_command_post [name result ...args] {\n\
-			if $name == \"stats\" and $result == \"ok\" {\n\
+		"export def on_hook [] {\n\
+			let evt = $env.XENO_CTX.event\n\
+			if $evt.type == \"editor_command_post\" and $evt.data.name == \"stats\" and $evt.data.result == \"ok\" {\n\
 				(xeno effect dispatch action invocation_test_action)\n\
-			}\n\
+			} | xeno effects normalize\n\
 		}",
 	)
 	.expect("xeno.nu should be writable");
@@ -738,10 +749,11 @@ async fn mode_change_hook_runs_on_transition() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
 	std::fs::write(
 		temp.path().join("xeno.nu"),
-		"export def on_mode_change [from to] {\n\
-			if $from == \"Normal\" and $to == \"Insert\" {\n\
+		"export def on_hook [] {\n\
+			let evt = $env.XENO_CTX.event\n\
+			if $evt.type == \"mode_change\" and $evt.data.from == \"Normal\" and $evt.data.to == \"Insert\" {\n\
 				(xeno effect dispatch action invocation_test_action)\n\
-			}\n\
+			} | xeno effects normalize\n\
 		}",
 	)
 	.expect("xeno.nu should be writable");
@@ -750,7 +762,7 @@ async fn mode_change_hook_runs_on_transition() {
 	let mut editor = Editor::new_scratch();
 	editor.set_nu_runtime(Some(runtime));
 
-	assert!(editor.state.nu.hook_ids().on_mode_change.is_some(), "decl ID should be cached");
+	assert!(editor.state.nu.hook_id().on_hook.is_some(), "decl ID should be cached");
 
 	editor.enqueue_mode_change_hook(&xeno_primitives::Mode::Normal, &xeno_primitives::Mode::Insert);
 	let quit = editor.drain_nu_hook_queue(usize::MAX).await;
@@ -769,10 +781,11 @@ async fn mode_change_hook_does_not_run_for_non_matching_transition() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
 	std::fs::write(
 		temp.path().join("xeno.nu"),
-		"export def on_mode_change [from to] {\n\
-			if $from == \"Normal\" and $to == \"Insert\" {\n\
+		"export def on_hook [] {\n\
+			let evt = $env.XENO_CTX.event\n\
+			if $evt.type == \"mode_change\" and $evt.data.from == \"Normal\" and $evt.data.to == \"Insert\" {\n\
 				(xeno effect dispatch action invocation_test_action)\n\
-			}\n\
+			} | xeno effects normalize\n\
 		}",
 	)
 	.expect("xeno.nu should be writable");
@@ -797,10 +810,11 @@ async fn mode_change_hook_fires_on_insert_key() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
 	std::fs::write(
 		temp.path().join("xeno.nu"),
-		"export def on_mode_change [from to] {\n\
-			if $from == \"Normal\" and $to == \"Insert\" and $env.XENO_CTX.mode == \"Insert\" {\n\
+		"export def on_hook [] {\n\
+			let evt = $env.XENO_CTX.event\n\
+			if $evt.type == \"mode_change\" and $evt.data.from == \"Normal\" and $evt.data.to == \"Insert\" and $env.XENO_CTX.mode == \"Insert\" {\n\
 				(xeno effect dispatch action invocation_test_action)\n\
-			}\n\
+			} | xeno effects normalize\n\
 		}",
 	)
 	.expect("xeno.nu should be writable");
@@ -832,8 +846,10 @@ async fn mode_change_hook_does_not_fire_when_mode_unchanged() {
 	std::fs::write(
 		temp.path().join("xeno.nu"),
 		// Unconditional — fires for any mode change, so if guard fails we catch it.
-		"export def on_mode_change [from to] {\n\
-			(xeno effect dispatch action invocation_test_action)\n\
+		"export def on_hook [] {\n\
+			if $env.XENO_CTX.event.type == \"mode_change\" {\n\
+				(xeno effect dispatch action invocation_test_action)\n\
+			} | xeno effects normalize\n\
 		}",
 	)
 	.expect("xeno.nu should be writable");
@@ -864,10 +880,11 @@ async fn buffer_open_hook_fires_on_disk_open() {
 	std::fs::write(
 		nu_dir.path().join("xeno.nu"),
 		r#"export def "str ends-with" [suffix: string] { $in ends-with $suffix }
-export def on_buffer_open [path kind] {
-  if ($path | str ends-with "test.txt") and $kind == "disk" {
+export def on_hook [] {
+  let evt = $env.XENO_CTX.event
+  if $evt.type == "buffer_open" and ($evt.data.path | str ends-with "test.txt") and $evt.data.kind == "disk" {
     (xeno effect dispatch action invocation_test_action)
-  }
+  } | xeno effects normalize
 }"#,
 	)
 	.expect("xeno.nu should be writable");
@@ -876,7 +893,7 @@ export def on_buffer_open [path kind] {
 	let mut editor = Editor::new_scratch();
 	editor.set_nu_runtime(Some(runtime));
 
-	assert!(editor.state.nu.hook_ids().on_buffer_open.is_some(), "decl ID should be cached");
+	assert!(editor.state.nu.hook_id().on_hook.is_some(), "decl ID should be cached");
 
 	let location = crate::impls::navigation::Location {
 		path: file_path,
@@ -887,7 +904,7 @@ export def on_buffer_open [path kind] {
 	editor.drain_nu_hook_queue(usize::MAX).await;
 
 	let count = INVOCATION_TEST_ACTION_COUNT.with(|c| c.get());
-	assert_eq!(count, 1, "on_buffer_open hook should fire exactly once for disk open");
+	assert_eq!(count, 1, "on_hook (buffer_open) should fire exactly once for disk open");
 }
 
 #[tokio::test]
@@ -903,10 +920,11 @@ async fn buffer_open_hook_fires_for_existing_switch() {
 	let nu_dir = tempfile::tempdir().expect("nu temp dir");
 	std::fs::write(
 		nu_dir.path().join("xeno.nu"),
-		r#"export def on_buffer_open [path kind] {
-  if $kind == "existing" {
+		r#"export def on_hook [] {
+  let evt = $env.XENO_CTX.event
+  if $evt.type == "buffer_open" and $evt.data.kind == "existing" {
     (xeno effect dispatch action invocation_test_action)
-  }
+  } | xeno effects normalize
 }"#,
 	)
 	.expect("xeno.nu should be writable");
@@ -943,16 +961,25 @@ async fn buffer_open_hook_fires_for_existing_switch() {
 }
 
 #[test]
-fn hook_arg_builders_produce_correct_ordering() {
-	let result = InvocationOutcome::ok(InvocationTarget::Action);
-	let args = super::command_post_args("write".to_string(), &result, vec!["file.txt".to_string()]);
-	assert_eq!(args, vec!["write", "ok", "file.txt"]);
+fn hook_event_builders_produce_correct_shape() {
+	use crate::nu::ctx::NuCtxEvent;
 
-	let action_args = super::action_post_args(
+	let result = InvocationOutcome::ok(InvocationTarget::Action);
+	let event = super::command_post_event("write".to_string(), &result, vec!["file.txt".to_string()]);
+	assert!(matches!(
+		event,
+		NuCtxEvent::CommandPost { name, result, args }
+			if name == "write" && result == "ok" && args == vec!["file.txt".to_string()]
+	));
+
+	let action_event = super::action_post_event(
 		"move_right".to_string(),
 		&InvocationOutcome::command_error(InvocationTarget::Action, "boom".to_string()),
 	);
-	assert_eq!(action_args, vec!["move_right", "error"]);
+	assert!(matches!(
+		action_event,
+		NuCtxEvent::ActionPost { name, result } if name == "move_right" && result == "error"
+	));
 }
 
 #[tokio::test]
@@ -961,7 +988,7 @@ async fn nu_macro_respects_configured_decode_limits() {
 	std::fs::write(
 		temp.path().join("xeno.nu"),
 		// Returns 2 effects — should exceed max_effects=1
-		"export def go [] { [(xeno effect dispatch action invocation_test_action), (xeno effect dispatch action invocation_test_action)] }",
+		"export def go [] { [(xeno effect dispatch action invocation_test_action), (xeno effect dispatch action invocation_test_action)] | xeno effects normalize }",
 	)
 	.expect("xeno.nu should be writable");
 
@@ -1001,7 +1028,7 @@ async fn nu_stats_reflect_hook_pipeline_state() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
 	std::fs::write(
 		temp.path().join("xeno.nu"),
-		"export def on_action_post [name result] { xeno effect dispatch action invocation_test_action }",
+		"export def on_hook [] { xeno effect dispatch action invocation_test_action | xeno effects normalize }",
 	)
 	.expect("xeno.nu should be writable");
 
@@ -1034,5 +1061,4 @@ async fn nu_stats_reflect_hook_pipeline_state() {
 	let stats = editor.stats_snapshot();
 	assert_eq!(stats.nu.hook_queue_len, 0);
 	assert_eq!(stats.nu.hook_dropped_total, 0);
-	assert_eq!(stats.nu.hook_failed_total, 0);
 }

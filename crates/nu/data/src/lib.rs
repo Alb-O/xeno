@@ -7,6 +7,8 @@
 
 use std::fmt;
 
+use indexmap::IndexMap;
+
 /// Span attached to a value for diagnostics.
 #[derive(Clone, Copy, Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Span {
@@ -31,10 +33,15 @@ impl Span {
 	}
 }
 
-/// Insertion-ordered record used by [`Value::Record`].
+/// Insertion-ordered, key-unique record used by [`Value::Record`].
+///
+/// Backed by [`IndexMap`] to guarantee O(1) lookup while preserving
+/// insertion order. Duplicate keys are rejected at construction
+/// boundaries ([`TryFrom<xeno_nu_protocol::Record>`]) and treated as
+/// a programming error on [`push`](Record::push).
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Record {
-	inner: Vec<(String, Value)>,
+	inner: IndexMap<String, Value>,
 }
 
 impl Record {
@@ -44,7 +51,7 @@ impl Record {
 
 	pub fn with_capacity(capacity: usize) -> Self {
 		Self {
-			inner: Vec::with_capacity(capacity),
+			inner: IndexMap::with_capacity(capacity),
 		}
 	}
 
@@ -56,25 +63,28 @@ impl Record {
 		self.inner.len()
 	}
 
+	/// Inserts a key-value pair. Panics if `key` already exists (programming
+	/// error — all Xeno record construction uses known-unique keys).
 	pub fn push<K>(&mut self, key: K, value: Value)
 	where
 		K: Into<String>,
 	{
-		self.inner.push((key.into(), value));
+		let key = key.into();
+		if let Some(_old) = self.inner.insert(key.clone(), value) {
+			panic!("Record::push: duplicate key '{key}'");
+		}
 	}
 
 	pub fn contains(&self, key: impl AsRef<str>) -> bool {
-		self.get(key).is_some()
+		self.inner.contains_key(key.as_ref())
 	}
 
 	pub fn get(&self, key: impl AsRef<str>) -> Option<&Value> {
-		let key = key.as_ref();
-		self.inner.iter().rfind(|(k, _)| k == key).map(|(_, v)| v)
+		self.inner.get(key.as_ref())
 	}
 
 	pub fn get_mut(&mut self, key: impl AsRef<str>) -> Option<&mut Value> {
-		let key = key.as_ref();
-		self.inner.iter_mut().rfind(|(k, _)| k == key).map(|(_, v)| v)
+		self.inner.get_mut(key.as_ref())
 	}
 
 	pub fn iter(&self) -> RecordIter<'_> {
@@ -83,14 +93,14 @@ impl Record {
 }
 
 pub struct RecordIter<'a> {
-	inner: std::slice::Iter<'a, (String, Value)>,
+	inner: indexmap::map::Iter<'a, String, Value>,
 }
 
 impl<'a> Iterator for RecordIter<'a> {
 	type Item = (&'a String, &'a Value);
 
 	fn next(&mut self) -> Option<Self::Item> {
-		self.inner.next().map(|(key, value)| (key, value))
+		self.inner.next()
 	}
 }
 
@@ -301,21 +311,17 @@ impl std::error::Error for ValueTypeError {}
 
 /// Conversion error between Xeno data values and vendored Nu values.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ConversionError {
-	message: String,
-}
-
-impl ConversionError {
-	fn unsupported(ty: impl Into<String>) -> Self {
-		Self {
-			message: format!("unsupported Nu value type: {}", ty.into()),
-		}
-	}
+pub enum ConversionError {
+	UnsupportedType(String),
+	DuplicateKey(String),
 }
 
 impl fmt::Display for ConversionError {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		f.write_str(&self.message)
+		match self {
+			Self::UnsupportedType(ty) => write!(f, "unsupported Nu value type: {ty}"),
+			Self::DuplicateKey(key) => write!(f, "duplicate record key: '{key}'"),
+		}
 	}
 }
 
@@ -342,7 +348,10 @@ impl TryFrom<xeno_nu_protocol::Record> for Record {
 	fn try_from(record: xeno_nu_protocol::Record) -> Result<Self, Self::Error> {
 		let mut out = Self::with_capacity(record.len());
 		for (key, value) in record.iter() {
-			out.push(key.clone(), Value::try_from(value.clone())?);
+			if out.inner.contains_key(key) {
+				return Err(ConversionError::DuplicateKey(key.clone()));
+			}
+			out.inner.insert(key.clone(), Value::try_from(value.clone())?);
 		}
 		Ok(out)
 	}
@@ -367,19 +376,13 @@ impl TryFrom<xeno_nu_protocol::Value> for Value {
 			xeno_nu_protocol::Value::Int { val, internal_span, .. } => Ok(Self::int(val, internal_span.into())),
 			xeno_nu_protocol::Value::Float { val, internal_span, .. } => Ok(Self::float(val, internal_span.into())),
 			xeno_nu_protocol::Value::String { val, internal_span, .. } => Ok(Self::string(val, internal_span.into())),
-			xeno_nu_protocol::Value::Record { val, internal_span, .. } => {
-				let mut out = Record::with_capacity(val.len());
-				for (key, item) in val.iter() {
-					out.push(key.clone(), Self::try_from(item.clone())?);
-				}
-				Ok(Self::record(out, internal_span.into()))
-			}
+			xeno_nu_protocol::Value::Record { val, internal_span, .. } => Ok(Self::record(Record::try_from(val.into_owned())?, internal_span.into())),
 			xeno_nu_protocol::Value::List { vals, internal_span, .. } => {
 				let vals = vals.into_iter().map(Self::try_from).collect::<Result<Vec<_>, _>>()?;
 				Ok(Self::list(vals, internal_span.into()))
 			}
 			xeno_nu_protocol::Value::Nothing { internal_span, .. } => Ok(Self::nothing(internal_span.into())),
-			other => Err(ConversionError::unsupported(other.get_type().to_string())),
+			other => Err(ConversionError::UnsupportedType(other.get_type().to_string())),
 		}
 	}
 }

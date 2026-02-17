@@ -15,36 +15,10 @@ use xeno_nu_data::Value;
 
 use crate::types::Invocation;
 
-/// Cached function IDs for hook functions, populated once when the runtime is set.
+/// Cached function ID for the unified `on_hook` export, populated once when the runtime is set.
 #[derive(Clone, Debug, Default)]
-pub(crate) struct CachedHookIds {
-	pub on_action_post: Option<ExportId>,
-	pub on_command_post: Option<ExportId>,
-	pub on_editor_command_post: Option<ExportId>,
-	pub on_mode_change: Option<ExportId>,
-	pub on_buffer_open: Option<ExportId>,
-}
-
-/// Hook function identifiers used to select a cached function ID.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum NuHook {
-	ActionPost,
-	CommandPost,
-	EditorCommandPost,
-	ModeChange,
-	BufferOpen,
-}
-
-impl NuHook {
-	pub const fn fn_name(self) -> &'static str {
-		match self {
-			Self::ActionPost => "on_action_post",
-			Self::CommandPost => "on_command_post",
-			Self::EditorCommandPost => "on_editor_command_post",
-			Self::ModeChange => "on_mode_change",
-			Self::BufferOpen => "on_buffer_open",
-		}
-	}
+pub(crate) struct CachedHookId {
+	pub on_hook: Option<ExportId>,
 }
 
 const SLOW_CALL_THRESHOLD: Duration = Duration::from_millis(5);

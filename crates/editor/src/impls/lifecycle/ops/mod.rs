@@ -259,10 +259,9 @@ impl Editor {
 				.state
 				.nu
 				.hook_in_flight()
-				.map(|i| (i.token.runtime_epoch, i.token.seq, i.hook.fn_name().to_string())),
+				.map(|i| (i.token.runtime_epoch, i.token.seq, "on_hook".to_string())),
 			runtime_work_queue_len: self.runtime_work_len(),
 			hook_dropped_total: self.state.nu.hook_dropped_total(),
-			hook_failed_total: self.state.nu.hook_failed_total(),
 			runtime_epoch: self.state.nu.runtime_epoch(),
 			hook_eval_seq_next: self.state.nu.hook_eval_seq_next(),
 			macro_depth: self.state.nu.macro_depth(),

@@ -68,7 +68,7 @@ const MAX_LOG_STRING: usize = 200;
 const MAX_LOG_LIST: usize = 50;
 const MAX_LOG_RECORD: usize = 50;
 const MAX_LOG_NODES: usize = 200;
-const MAX_LOG_OUT_BYTES: usize = 4096;
+const MAX_LOG_OUT_BYTES: usize = xeno_invocation::nu::DEFAULT_CALL_LIMITS.max_env_string_len;
 
 fn trunc_utf8(s: &str, max_bytes: usize) -> (&str, bool) {
 	if s.len() <= max_bytes {

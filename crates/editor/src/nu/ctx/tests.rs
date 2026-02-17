@@ -4,7 +4,6 @@ fn sample_ctx() -> NuCtx {
 	NuCtx {
 		kind: "macro".into(),
 		function: "test_fn".into(),
-		args: vec!["a".into(), "b".into()],
 		mode: "Normal".into(),
 		view: NuCtxView { id: 42 },
 		cursor: NuCtxPosition { line: 10, col: 5 },
@@ -39,7 +38,6 @@ fn ctx_has_required_top_level_fields() {
 		"schema_version",
 		"kind",
 		"function",
-		"args",
 		"mode",
 		"view",
 		"cursor",
@@ -286,12 +284,28 @@ fn ctx_event_mode_change_shape() {
 }
 
 #[test]
-fn ctx_event_from_hook_parses_all_variants() {
-	assert!(NuCtxEvent::from_hook("on_action_post", &["move_right".into(), "ok".into()]).is_some());
-	assert!(NuCtxEvent::from_hook("on_command_post", &["write".into(), "ok".into(), "--force".into()]).is_some());
-	assert!(NuCtxEvent::from_hook("on_editor_command_post", &["reload".into(), "ok".into()]).is_some());
-	assert!(NuCtxEvent::from_hook("on_mode_change", &["Normal".into(), "Insert".into()]).is_some());
-	assert!(NuCtxEvent::from_hook("on_buffer_open", &["/tmp/f.rs".into(), "disk".into()]).is_some());
-	assert!(NuCtxEvent::from_hook("unknown_hook", &["a".into(), "b".into()]).is_none());
-	assert!(NuCtxEvent::from_hook("on_action_post", &["only_one".into()]).is_none());
+fn ctx_no_args_field() {
+	let value = sample_ctx().to_value();
+	let record = value.as_record().expect("ctx should be a record");
+	assert!(!record.contains("args"), "args field should not exist in ctx schema v6");
+}
+
+#[test]
+fn ctx_state_is_record_map() {
+	let mut ctx = sample_ctx();
+	ctx.state = vec![("debounce".into(), "123".into()), ("last_path".into(), "/tmp/a".into())];
+	let value = ctx.to_value();
+	let record = value.as_record().expect("ctx should be a record");
+	let state = record.get("state").expect("state should exist").as_record().expect("state should be record");
+	assert_eq!(state.len(), 2);
+	assert_eq!(state.get("debounce").unwrap().as_str().unwrap(), "123");
+	assert_eq!(state.get("last_path").unwrap().as_str().unwrap(), "/tmp/a");
+}
+
+#[test]
+fn ctx_state_empty_is_empty_record() {
+	let value = sample_ctx().to_value();
+	let record = value.as_record().expect("ctx should be a record");
+	let state = record.get("state").expect("state should exist").as_record().expect("state should be record");
+	assert!(state.is_empty());
 }

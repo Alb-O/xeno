@@ -1,4 +1,4 @@
-use xeno_invocation::nu::NuNotifyLevel;
+use xeno_invocation::nu::{EFFECT_SCHEMA_VERSION, NuNotifyLevel};
 use xeno_invocation::schema;
 use xeno_nu_data::Record as DataRecord;
 use xeno_nu_engine::CallExt;
@@ -8,9 +8,9 @@ use xeno_nu_protocol::{Category, PipelineData, Record, ShellError, Signature, Sy
 use super::{err, err_help};
 
 #[derive(Clone)]
-pub struct XenoEmitCommand;
+pub struct XenoEffectCommand;
 
-impl Command for XenoEmitCommand {
+impl Command for XenoEffectCommand {
 	fn name(&self) -> &str {
 		"xeno effect"
 	}
@@ -62,7 +62,10 @@ impl Command for XenoEmitCommand {
 			}
 		};
 
-		Ok(PipelineData::Value(effect, None))
+		let mut envelope = Record::new();
+		envelope.push("schema_version", Value::int(EFFECT_SCHEMA_VERSION, span));
+		envelope.push("effects", Value::list(vec![effect], span));
+		Ok(PipelineData::Value(Value::record(envelope, span), None))
 	}
 }
 

@@ -17,9 +17,10 @@
 //!
 //! # Call input caps
 //!
-//! Function calls are subject to hard limits to prevent resource exhaustion:
-//! * Max 64 positional arguments, each ≤ 4096 bytes
-//! * Env values traversed recursively; max 5000 nodes, strings ≤ 4096 bytes
+//! Function calls are subject to hard limits from
+//! [`xeno_invocation::nu::DEFAULT_CALL_LIMITS`] to prevent resource exhaustion.
+//! Limits are derived from [`xeno_invocation::schema::DEFAULT_LIMITS`] where
+//! applicable (args, string lengths).
 //!
 //! # Recursion limit
 //!
@@ -33,8 +34,9 @@
 //! `length`, `prepend`, `reduce`, `reject`, `select`, `sort` (`--nulls-first`),
 //! `sort-by` (simple columns, `--nulls-first`), `update`, `upsert`, `where`
 //!
-//! Strings: `split row` (literal-only), `str contains`, `str replace`
-//! (literal-only), `str trim`
+//! Strings: `split row` (literal-only), `str contains`, `str downcase`,
+//! `str ends-with`, `str replace` (literal-only), `str starts-with`,
+//! `str trim`, `str upcase`
 //!
 //! Conversions: `into int`, `into bool`, `into string` (simple column mode
 //! supported)
@@ -77,11 +79,7 @@ use xeno_nu_protocol::{DeclId, PipelineData, Span, Type, Value};
 
 const XENO_NU_RECURSION_LIMIT: i64 = 64;
 
-/// Hard limits for function call inputs (args + env values).
-const MAX_CALL_ARGS: usize = 64;
-const MAX_CALL_ARG_LEN: usize = 4096;
-const MAX_ENV_NODES: usize = 5_000;
-const MAX_ENV_STRING_LEN: usize = 4096;
+use xeno_invocation::nu::DEFAULT_CALL_LIMITS;
 
 /// Creates a minimal Nu engine state suitable for sandboxed evaluation.
 pub(crate) fn create_engine_state(config_root: Option<&Path>) -> Result<EngineState, String> {
@@ -206,21 +204,17 @@ pub(crate) fn parse_and_validate_with_policy(
 	Ok(ParseResult { block, script_decl_ids })
 }
 
-const RESERVED_COMMAND_NAMES: &[&str] = &[
-	"xeno call",
-	"xeno assert",
-	"xeno ctx",
-	"xeno effect",
-	"xeno effects normalize",
-	"xeno is-effect",
-	"xeno log",
-];
+fn is_reserved_xeno_name(name: &str) -> bool {
+	name == "xeno" || name.starts_with("xeno ")
+}
 
 fn check_reserved_names(working_set: &StateWorkingSet<'_>, script_decl_ids: &[DeclId]) -> Result<(), String> {
 	for &decl_id in script_decl_ids {
 		let name = working_set.get_decl(decl_id).name();
-		if RESERVED_COMMAND_NAMES.contains(&name) {
-			return Err(format!("Nu script error: '{name}' is a reserved Xeno built-in command; rename your definition"));
+		if is_reserved_xeno_name(name) {
+			return Err(format!(
+				"Nu script error: '{name}' is in the reserved 'xeno' command namespace; rename your definition"
+			));
 		}
 	}
 	Ok(())
@@ -322,12 +316,16 @@ pub(crate) fn find_decl(engine_state: &EngineState, name: &str) -> Option<DeclId
 // ---------------------------------------------------------------------------
 
 fn validate_call_args(args: &[String]) -> Result<(), String> {
-	if args.len() > MAX_CALL_ARGS {
-		return Err(format!("Nu call error: {} args exceeds limit of {MAX_CALL_ARGS}", args.len()));
+	if args.len() > DEFAULT_CALL_LIMITS.max_args {
+		return Err(format!("Nu call error: {} args exceeds limit of {}", args.len(), DEFAULT_CALL_LIMITS.max_args));
 	}
 	for (i, arg) in args.iter().enumerate() {
-		if arg.len() > MAX_CALL_ARG_LEN {
-			return Err(format!("Nu call error: arg[{i}] length {} exceeds limit of {MAX_CALL_ARG_LEN}", arg.len()));
+		if arg.len() > DEFAULT_CALL_LIMITS.max_arg_len {
+			return Err(format!(
+				"Nu call error: arg[{i}] length {} exceeds limit of {}",
+				arg.len(),
+				DEFAULT_CALL_LIMITS.max_arg_len
+			));
 		}
 	}
 	Ok(())
@@ -336,8 +334,11 @@ fn validate_call_args(args: &[String]) -> Result<(), String> {
 fn validate_call_env_borrowed(env: &[(&str, Value)]) -> Result<(), String> {
 	let mut nodes = 0usize;
 	for (key, value) in env {
-		if key.len() > MAX_ENV_STRING_LEN {
-			return Err(format!("Nu call error: env key '{key}' length exceeds limit of {MAX_ENV_STRING_LEN}"));
+		if key.len() > DEFAULT_CALL_LIMITS.max_env_string_len {
+			return Err(format!(
+				"Nu call error: env key '{key}' length exceeds limit of {}",
+				DEFAULT_CALL_LIMITS.max_env_string_len
+			));
 		}
 		count_value_nodes(value, &mut nodes)?;
 	}
@@ -347,8 +348,11 @@ fn validate_call_env_borrowed(env: &[(&str, Value)]) -> Result<(), String> {
 fn validate_call_env_owned(env: &[(String, Value)]) -> Result<(), String> {
 	let mut nodes = 0usize;
 	for (key, value) in env {
-		if key.len() > MAX_ENV_STRING_LEN {
-			return Err(format!("Nu call error: env key '{key}' length exceeds limit of {MAX_ENV_STRING_LEN}"));
+		if key.len() > DEFAULT_CALL_LIMITS.max_env_string_len {
+			return Err(format!(
+				"Nu call error: env key '{key}' length exceeds limit of {}",
+				DEFAULT_CALL_LIMITS.max_env_string_len
+			));
 		}
 		count_value_nodes(value, &mut nodes)?;
 	}
@@ -357,13 +361,20 @@ fn validate_call_env_owned(env: &[(String, Value)]) -> Result<(), String> {
 
 fn count_value_nodes(value: &Value, nodes: &mut usize) -> Result<(), String> {
 	*nodes += 1;
-	if *nodes > MAX_ENV_NODES {
-		return Err(format!("Nu call error: env value traversal exceeds {MAX_ENV_NODES} nodes"));
+	if *nodes > DEFAULT_CALL_LIMITS.max_env_nodes {
+		return Err(format!(
+			"Nu call error: env value traversal exceeds {} nodes",
+			DEFAULT_CALL_LIMITS.max_env_nodes
+		));
 	}
 	match value {
 		Value::String { val, .. } => {
-			if val.len() > MAX_ENV_STRING_LEN {
-				return Err(format!("Nu call error: env string length {} exceeds limit of {MAX_ENV_STRING_LEN}", val.len()));
+			if val.len() > DEFAULT_CALL_LIMITS.max_env_string_len {
+				return Err(format!(
+					"Nu call error: env string length {} exceeds limit of {}",
+					val.len(),
+					DEFAULT_CALL_LIMITS.max_env_string_len
+				));
 			}
 		}
 		Value::List { vals, .. } => {
@@ -373,8 +384,11 @@ fn count_value_nodes(value: &Value, nodes: &mut usize) -> Result<(), String> {
 		}
 		Value::Record { val, .. } => {
 			for (k, v) in val.iter() {
-				if k.len() > MAX_ENV_STRING_LEN {
-					return Err(format!("Nu call error: env record key '{k}' length exceeds limit of {MAX_ENV_STRING_LEN}"));
+				if k.len() > DEFAULT_CALL_LIMITS.max_env_string_len {
+					return Err(format!(
+						"Nu call error: env record key '{k}' length exceeds limit of {}",
+						DEFAULT_CALL_LIMITS.max_env_string_len
+					));
 				}
 				count_value_nodes(v, nodes)?;
 			}

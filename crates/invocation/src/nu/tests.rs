@@ -10,6 +10,18 @@ fn dispatch_record(span: Span, kind: &str, name: &str) -> Value {
 	Value::record(r, span)
 }
 
+/// Wrap one or more effect records in an envelope for the decoder.
+fn envelope(span: Span, effects: Vec<Value>) -> Value {
+	let mut r = Record::new();
+	r.push("schema_version", Value::int(1, span));
+	r.push("effects", Value::list(effects, span));
+	Value::record(r, span)
+}
+
+fn envelope1(span: Span, effect: Value) -> Value {
+	envelope(span, vec![effect])
+}
+
 #[test]
 fn macro_decode_allows_nothing_return() {
 	let decoded = decode_macro_effects(Value::nothing(Span::unknown())).expect("nothing should decode");
@@ -17,9 +29,9 @@ fn macro_decode_allows_nothing_return() {
 }
 
 #[test]
-fn macro_decode_accepts_dispatch_record() {
+fn macro_decode_accepts_dispatch_envelope() {
 	let span = Span::unknown();
-	let decoded = decode_macro_effects(dispatch_record(span, "action", "move_right")).expect("dispatch should decode");
+	let decoded = decode_macro_effects(envelope1(span, dispatch_record(span, "action", "move_right"))).expect("dispatch should decode");
 	assert_eq!(decoded.schema_version, 1);
 	assert_eq!(decoded.effects.len(), 1);
 	assert!(matches!(decoded.effects[0], NuEffect::Dispatch(Invocation::Action { ref name, .. }) if name == "move_right"));
@@ -30,7 +42,7 @@ fn macro_decode_rejects_stop_effect() {
 	let span = Span::unknown();
 	let mut r = Record::new();
 	r.push("type", Value::string("stop", span));
-	let err = decode_macro_effects(Value::record(r, span)).expect_err("macro stop should fail");
+	let err = decode_macro_effects(envelope1(span, Value::record(r, span))).expect_err("macro stop should fail");
 	assert!(err.contains("only allowed in hook"), "got: {err}");
 }
 
@@ -39,18 +51,32 @@ fn hook_decode_accepts_stop_effect() {
 	let span = Span::unknown();
 	let mut r = Record::new();
 	r.push("type", Value::string("stop", span));
-	let decoded = decode_hook_effects(Value::record(r, span)).expect("hook stop should decode");
+	let decoded = decode_hook_effects(envelope1(span, Value::record(r, span))).expect("hook stop should decode");
 	assert!(decoded.has_stop_propagation());
+}
+
+#[test]
+fn decode_rejects_bare_effect_record() {
+	let span = Span::unknown();
+	let err = decode_macro_effects(dispatch_record(span, "action", "move_right")).expect_err("bare record should fail");
+	assert!(err.contains("xeno effects normalize"), "got: {err}");
+}
+
+#[test]
+fn decode_rejects_bare_list() {
+	let span = Span::unknown();
+	let err = decode_macro_effects(Value::list(vec![dispatch_record(span, "action", "move_right")], span)).expect_err("bare list should fail");
+	assert!(err.contains("xeno effects normalize"), "got: {err}");
 }
 
 #[test]
 fn decode_envelope_list() {
 	let span = Span::unknown();
 	let mut envelope = Record::new();
-	envelope.push("schema_version", Value::int(3, span));
+	envelope.push("schema_version", Value::int(EFFECT_SCHEMA_VERSION, span));
 	envelope.push("effects", Value::list(vec![dispatch_record(span, "command", "write")], span));
 	let decoded = decode_macro_effects(Value::record(envelope, span)).expect("envelope should decode");
-	assert_eq!(decoded.schema_version, 3);
+	assert_eq!(decoded.schema_version, EFFECT_SCHEMA_VERSION);
 	assert!(matches!(
 		decoded.effects[0],
 		NuEffect::Dispatch(Invocation::Command(crate::CommandInvocation { ref name, .. })) if name == "write"
@@ -63,7 +89,18 @@ fn decode_rejects_legacy_invocation_record() {
 	let mut legacy = Record::new();
 	legacy.push("kind", Value::string("action", span));
 	legacy.push("name", Value::string("move_right", span));
+	// Now rejected as bare record (no envelope)
 	let err = decode_macro_effects(Value::record(legacy, span)).expect_err("legacy record should fail");
+	assert!(err.contains("bare effect records"), "got: {err}");
+}
+
+#[test]
+fn decode_rejects_legacy_invocation_in_envelope() {
+	let span = Span::unknown();
+	let mut legacy = Record::new();
+	legacy.push("kind", Value::string("action", span));
+	legacy.push("name", Value::string("move_right", span));
+	let err = decode_macro_effects(envelope1(span, Value::record(legacy, span))).expect_err("legacy in envelope should fail");
 	assert!(err.contains("legacy invocation records"), "got: {err}");
 }
 
@@ -136,7 +173,7 @@ fn edit_record(span: Span, op: &str, text: &str) -> Value {
 #[test]
 fn decode_edit_replace_selection() {
 	let span = Span::unknown();
-	let decoded = decode_macro_effects(edit_record(span, "replace_selection", "HELLO")).expect("should decode");
+	let decoded = decode_macro_effects(envelope1(span, edit_record(span, "replace_selection", "HELLO"))).expect("should decode");
 	assert_eq!(decoded.effects.len(), 1);
 	assert!(matches!(
 		&decoded.effects[0],
@@ -147,7 +184,7 @@ fn decode_edit_replace_selection() {
 #[test]
 fn decode_edit_replace_line() {
 	let span = Span::unknown();
-	let decoded = decode_macro_effects(edit_record(span, "replace_line", "new content")).expect("should decode");
+	let decoded = decode_macro_effects(envelope1(span, edit_record(span, "replace_line", "new content"))).expect("should decode");
 	assert_eq!(decoded.effects.len(), 1);
 	assert!(matches!(
 		&decoded.effects[0],
@@ -158,14 +195,14 @@ fn decode_edit_replace_line() {
 #[test]
 fn decode_edit_replace_line_rejects_newline() {
 	let span = Span::unknown();
-	let err = decode_macro_effects(edit_record(span, "replace_line", "line1\nline2")).expect_err("newline should fail");
+	let err = decode_macro_effects(envelope1(span, edit_record(span, "replace_line", "line1\nline2"))).expect_err("newline should fail");
 	assert!(err.contains("newline"), "got: {err}");
 }
 
 #[test]
 fn decode_edit_replace_selection_allows_empty_text() {
 	let span = Span::unknown();
-	let decoded = decode_macro_effects(edit_record(span, "replace_selection", "")).expect("empty text should decode");
+	let decoded = decode_macro_effects(envelope1(span, edit_record(span, "replace_selection", ""))).expect("empty text should decode");
 	assert!(matches!(
 		&decoded.effects[0],
 		NuEffect::EditText { op: NuTextEditOp::ReplaceSelection, text } if text.is_empty()
@@ -175,7 +212,7 @@ fn decode_edit_replace_selection_allows_empty_text() {
 #[test]
 fn decode_edit_unknown_op_errors() {
 	let span = Span::unknown();
-	let err = decode_macro_effects(edit_record(span, "unknown_op", "text")).expect_err("unknown op should fail");
+	let err = decode_macro_effects(envelope1(span, edit_record(span, "unknown_op", "text"))).expect_err("unknown op should fail");
 	assert!(err.contains("unknown edit op"), "got: {err}");
 }
 
@@ -200,7 +237,7 @@ fn clipboard_record(span: Span, text: &str) -> Value {
 #[test]
 fn decode_clipboard_ok() {
 	let span = Span::unknown();
-	let decoded = decode_macro_effects(clipboard_record(span, "copied text")).expect("should decode");
+	let decoded = decode_macro_effects(envelope1(span, clipboard_record(span, "copied text"))).expect("should decode");
 	assert_eq!(decoded.effects.len(), 1);
 	assert!(matches!(
 		&decoded.effects[0],
@@ -211,7 +248,7 @@ fn decode_clipboard_ok() {
 #[test]
 fn decode_clipboard_empty_ok() {
 	let span = Span::unknown();
-	let decoded = decode_macro_effects(clipboard_record(span, "")).expect("empty clipboard should decode");
+	let decoded = decode_macro_effects(envelope1(span, clipboard_record(span, ""))).expect("empty clipboard should decode");
 	assert_eq!(decoded.effects.len(), 1);
 	assert!(matches!(
 		&decoded.effects[0],
@@ -247,7 +284,7 @@ fn state_unset_record(span: Span, key: &str) -> Value {
 #[test]
 fn decode_state_set_ok() {
 	let span = Span::unknown();
-	let decoded = decode_macro_effects(state_set_record(span, "foo", "bar")).expect("should decode");
+	let decoded = decode_macro_effects(envelope1(span, state_set_record(span, "foo", "bar"))).expect("should decode");
 	assert_eq!(decoded.effects.len(), 1);
 	assert!(matches!(
 		&decoded.effects[0],
@@ -258,7 +295,7 @@ fn decode_state_set_ok() {
 #[test]
 fn decode_state_set_empty_value_ok() {
 	let span = Span::unknown();
-	let decoded = decode_macro_effects(state_set_record(span, "foo", "")).expect("empty value should decode");
+	let decoded = decode_macro_effects(envelope1(span, state_set_record(span, "foo", ""))).expect("empty value should decode");
 	assert!(matches!(
 		&decoded.effects[0],
 		NuEffect::StateSet { key, value } if key == "foo" && value.is_empty()
@@ -268,7 +305,7 @@ fn decode_state_set_empty_value_ok() {
 #[test]
 fn decode_state_unset_ok() {
 	let span = Span::unknown();
-	let decoded = decode_macro_effects(state_unset_record(span, "foo")).expect("should decode");
+	let decoded = decode_macro_effects(envelope1(span, state_unset_record(span, "foo"))).expect("should decode");
 	assert_eq!(decoded.effects.len(), 1);
 	assert!(matches!(
 		&decoded.effects[0],
@@ -283,7 +320,7 @@ fn decode_state_bad_op_errors() {
 	r.push("type", Value::string("state", span));
 	r.push("op", Value::string("delete", span));
 	r.push("key", Value::string("foo", span));
-	let err = decode_macro_effects(Value::record(r, span)).expect_err("bad op should fail");
+	let err = decode_macro_effects(envelope1(span, Value::record(r, span))).expect_err("bad op should fail");
 	assert!(err.contains("unknown state op"), "got: {err}");
 }
 
@@ -295,7 +332,7 @@ fn decode_state_empty_key_errors() {
 	r.push("op", Value::string("set", span));
 	r.push("key", Value::string("", span));
 	r.push("value", Value::string("bar", span));
-	let err = decode_macro_effects(Value::record(r, span)).expect_err("empty key should fail");
+	let err = decode_macro_effects(envelope1(span, Value::record(r, span))).expect_err("empty key should fail");
 	assert!(err.contains("must not be empty"), "got: {err}");
 }
 
@@ -336,7 +373,7 @@ fn schedule_cancel_record(span: Span, key: &str) -> Value {
 #[test]
 fn decode_schedule_set_ok() {
 	let span = Span::unknown();
-	let decoded = decode_macro_effects(schedule_set_record(span, "autosave", 750, "save-all", vec![])).expect("should decode");
+	let decoded = decode_macro_effects(envelope1(span, schedule_set_record(span, "autosave", 750, "save-all", vec![]))).expect("should decode");
 	assert_eq!(decoded.effects.len(), 1);
 	assert!(matches!(
 		&decoded.effects[0],
@@ -348,7 +385,7 @@ fn decode_schedule_set_ok() {
 #[test]
 fn decode_schedule_set_with_args() {
 	let span = Span::unknown();
-	let decoded = decode_macro_effects(schedule_set_record(span, "fmt", 300, "format-buffer", vec!["--quiet"])).expect("should decode");
+	let decoded = decode_macro_effects(envelope1(span, schedule_set_record(span, "fmt", 300, "format-buffer", vec!["--quiet"]))).expect("should decode");
 	assert!(matches!(
 		&decoded.effects[0],
 		NuEffect::ScheduleSet { key, name, args, .. }
@@ -359,7 +396,7 @@ fn decode_schedule_set_with_args() {
 #[test]
 fn decode_schedule_cancel_ok() {
 	let span = Span::unknown();
-	let decoded = decode_macro_effects(schedule_cancel_record(span, "autosave")).expect("should decode");
+	let decoded = decode_macro_effects(envelope1(span, schedule_cancel_record(span, "autosave"))).expect("should decode");
 	assert_eq!(decoded.effects.len(), 1);
 	assert!(matches!(
 		&decoded.effects[0],
@@ -376,7 +413,7 @@ fn decode_schedule_bad_delay_errors() {
 	r.push("key", Value::string("k", span));
 	r.push("delay_ms", Value::int(3_600_001, span));
 	r.push("macro", Value::string("m", span));
-	let err = decode_macro_effects(Value::record(r, span)).expect_err("excessive delay should fail");
+	let err = decode_macro_effects(envelope1(span, Value::record(r, span))).expect_err("excessive delay should fail");
 	assert!(err.contains("exceeds max"), "got: {err}");
 }
 
@@ -387,7 +424,7 @@ fn decode_schedule_bad_op_errors() {
 	r.push("type", Value::string("schedule", span));
 	r.push("op", Value::string("pause", span));
 	r.push("key", Value::string("k", span));
-	let err = decode_macro_effects(Value::record(r, span)).expect_err("bad op should fail");
+	let err = decode_macro_effects(envelope1(span, Value::record(r, span))).expect_err("bad op should fail");
 	assert!(err.contains("unknown schedule op"), "got: {err}");
 }
 
@@ -400,8 +437,20 @@ fn decode_schedule_empty_key_errors() {
 	r.push("key", Value::string("", span));
 	r.push("delay_ms", Value::int(100, span));
 	r.push("macro", Value::string("m", span));
-	let err = decode_macro_effects(Value::record(r, span)).expect_err("empty key should fail");
+	let err = decode_macro_effects(envelope1(span, Value::record(r, span))).expect_err("empty key should fail");
 	assert!(err.contains("must not be empty"), "got: {err}");
+}
+
+#[test]
+fn decode_envelope_with_warnings() {
+	let span = Span::unknown();
+	let mut r = Record::new();
+	r.push("schema_version", Value::int(1, span));
+	r.push("effects", Value::list(vec![dispatch_record(span, "action", "move_right")], span));
+	r.push("warnings", Value::list(vec![Value::string("heads up", span)], span));
+	let decoded = decode_macro_effects(Value::record(r, span)).expect("should decode");
+	assert_eq!(decoded.effects.len(), 1);
+	assert_eq!(decoded.warnings, vec!["heads up"]);
 }
 
 #[test]
@@ -419,4 +468,74 @@ fn capability_for_schedule_macro() {
 		required_capability_for_effect(&NuEffect::ScheduleCancel { key: "k".into() }),
 		NuCapability::ScheduleMacro
 	);
+}
+
+#[test]
+fn decode_rejects_future_schema_version() {
+	let span = Span::unknown();
+	let mut r = Record::new();
+	r.push("schema_version", Value::int(EFFECT_SCHEMA_VERSION + 1, span));
+	r.push("effects", Value::list(vec![], span));
+	let err = decode_macro_effects(Value::record(r, span)).expect_err("future schema should fail");
+	assert!(err.contains("unsupported schema_version"), "got: {err}");
+}
+
+#[test]
+fn decode_rejects_negative_schema_version() {
+	let span = Span::unknown();
+	let mut r = Record::new();
+	r.push("schema_version", Value::int(0, span));
+	r.push("effects", Value::list(vec![], span));
+	let err = decode_macro_effects(Value::record(r, span)).expect_err("zero schema should fail");
+	assert!(err.contains("must be >= 1"), "got: {err}");
+}
+
+#[test]
+fn decode_envelope_warnings_capped() {
+	let span = Span::unknown();
+	let budget = DecodeBudget {
+		max_effects: 2,
+		..DecodeBudget::macro_defaults()
+	};
+	let mut r = Record::new();
+	r.push("schema_version", Value::int(1, span));
+	r.push("effects", Value::list(vec![], span));
+	r.push(
+		"warnings",
+		Value::list(vec![Value::string("a", span), Value::string("b", span), Value::string("c", span)], span),
+	);
+	let decoded = decode_macro_effects_with_budget(Value::record(r, span), budget).expect("should decode");
+	assert_eq!(decoded.warnings.len(), 2, "warnings should be capped at max_effects");
+}
+
+#[test]
+fn call_limits_align_with_schema_defaults() {
+	assert_eq!(DEFAULT_CALL_LIMITS.max_args, schema::DEFAULT_LIMITS.max_args);
+	assert_eq!(DEFAULT_CALL_LIMITS.max_arg_len, schema::DEFAULT_LIMITS.max_string_len);
+	assert_eq!(DEFAULT_CALL_LIMITS.max_env_string_len, schema::DEFAULT_LIMITS.max_string_len);
+}
+
+#[test]
+fn lenient_decode_flattens_list_of_envelopes() {
+	let span = Span::unknown();
+	let mut stop = Record::new();
+	stop.push("type", Value::string("stop", span));
+	let stop_val = Value::record(stop, span);
+	let env1 = envelope(span, vec![dispatch_record(span, "action", "move_right")]);
+	let env2 = envelope(span, vec![stop_val.clone()]);
+	let list = Value::list(vec![env1, env2], span);
+	let batch = decode_effects_lenient(list, DecodeBudget::macro_defaults()).expect("should decode");
+	assert_eq!(batch.effects.len(), 2);
+}
+
+#[test]
+fn lenient_decode_flattens_nested_lists() {
+	let span = Span::unknown();
+	let mut stop = Record::new();
+	stop.push("type", Value::string("stop", span));
+	let stop_val = Value::record(stop, span);
+	let inner = Value::list(vec![stop_val], span);
+	let outer = Value::list(vec![inner, dispatch_record(span, "action", "move_right")], span);
+	let batch = decode_effects_lenient(outer, DecodeBudget::macro_defaults()).expect("should decode");
+	assert_eq!(batch.effects.len(), 2);
 }

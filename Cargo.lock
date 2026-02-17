@@ -6117,6 +6117,7 @@ dependencies = [
 name = "xeno-nu-data"
 version = "0.9.3"
 dependencies = [
+ "indexmap",
  "xeno-nu-protocol",
 ]
 
@@ -6239,6 +6240,7 @@ dependencies = [
 name = "xeno-nu-safe-commands"
 version = "0.9.3"
 dependencies = [
+ "xeno-invocation",
  "xeno-nu-engine",
  "xeno-nu-protocol",
 ]

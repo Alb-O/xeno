@@ -177,7 +177,6 @@ Optional Nu runtime policy overrides:
   * `dispatch_macro`
   * `notify`
   * `stop_propagation`
-  * `read_context`
 
 ### `options`
 

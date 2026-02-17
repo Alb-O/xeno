@@ -5,7 +5,6 @@ use crate::impls::Editor;
 use crate::impls::invocation::kernel::InvocationKernel;
 use crate::nu::NuDecodeSurface;
 use crate::nu::coordinator::errors::exec_error_message;
-use crate::nu::coordinator::runner::{NuExecKind, execute_with_restart};
 use crate::nu::effects::{NuEffectApplyError, NuEffectApplyMode, apply_effect_batch};
 use crate::types::{Invocation, InvocationOutcome, InvocationPolicy, InvocationTarget};
 
@@ -16,21 +15,17 @@ impl Editor {
 			return Err(kernel.command_error_with_notification(InvocationTarget::Nu, error));
 		}
 
-		let Some(runtime) = self.nu_runtime() else {
-			let kernel = InvocationKernel::new(self, InvocationPolicy::enforcing());
-			return Err(kernel.command_error(InvocationTarget::Nu, "Nu runtime is not loaded"));
-		};
-
-		let Some(decl_id) = runtime.find_script_decl(&fn_name) else {
+		let Some(decl_id) = self.state.nu.resolve_macro_decl_cached(&fn_name) else {
 			let error = format!("Nu runtime error: function '{}' is not defined in xeno.nu", fn_name);
 			let mut kernel = InvocationKernel::new(self, InvocationPolicy::enforcing());
 			return Err(kernel.command_error_with_notification(InvocationTarget::Nu, error));
 		};
 
-		if self.state.nu.ensure_executor().is_none() {
+		let Some(executor) = self.state.nu.ensure_executor() else {
 			let kernel = InvocationKernel::new(self, InvocationPolicy::enforcing());
 			return Err(kernel.command_error(InvocationTarget::Nu, "Nu executor is not available"));
-		}
+		};
+		let executor_client = executor.client();
 
 		let budget = self
 			.state
@@ -38,20 +33,10 @@ impl Editor {
 			.nu
 			.as_ref()
 			.map_or_else(crate::nu::DecodeBudget::macro_defaults, |config| config.macro_decode_budget());
-		let nu_ctx = self.build_nu_ctx("macro", &fn_name, &args, true);
+		let nu_ctx = self.build_nu_ctx("macro", &fn_name, true);
+		let env = vec![("XENO_CTX".to_string(), nu_ctx)];
 
-		let effects = match execute_with_restart(
-			&mut self.state.nu,
-			NuExecKind::Macro,
-			&fn_name,
-			decl_id,
-			args,
-			NuDecodeSurface::Macro,
-			budget,
-			nu_ctx,
-		)
-		.await
-		{
+		let effects = match executor_client.run(decl_id, NuDecodeSurface::Macro, args, budget, env).await {
 			Ok(effects) => effects,
 			Err(error) => {
 				let msg = exec_error_message(&error);
@@ -106,16 +91,24 @@ impl Editor {
 		}
 	}
 
-	/// Build the `$env.XENO_CTX` value for a Nu invocation.
+	/// Build the `$env.XENO_CTX` value for a Nu macro invocation.
 	///
-	/// When `include_text` is true (macro surface), the `text` record is
-	/// populated with the current cursor line and selection content, each
-	/// clamped to [`NuCtxText`]'s byte budget. Hooks pass `false` to skip
-	/// the extraction cost.
-	pub(crate) fn build_nu_ctx(&self, kind: &str, function: &str, args: &[String], include_text: bool) -> Value {
-		use crate::nu::ctx::{
-			NuCtx, NuCtxBuffer, NuCtxEvent, NuCtxPosition, NuCtxSelection, NuCtxText, NuCtxView, TEXT_SNAPSHOT_MAX_BYTES, rope_slice_clamped,
-		};
+	/// Populates the `text` record with the current cursor line and selection
+	/// content, each clamped to the byte budget. Event is always `None`.
+	pub(crate) fn build_nu_ctx(&self, kind: &str, function: &str, include_text: bool) -> Value {
+		self.build_nu_ctx_inner(kind, function, include_text, None)
+	}
+
+	/// Build the `$env.XENO_CTX` value for a hook invocation.
+	///
+	/// Skips text extraction (hooks don't get buffer text snapshots).
+	/// Injects the event record so scripts can dispatch via `$env.XENO_CTX.event.type`.
+	pub(crate) fn build_nu_hook_ctx(&self, event: &crate::nu::ctx::NuCtxEvent) -> Value {
+		self.build_nu_ctx_inner("hook", "on_hook", false, Some(event.clone()))
+	}
+
+	fn build_nu_ctx_inner(&self, kind: &str, function: &str, include_text: bool, event: Option<crate::nu::ctx::NuCtxEvent>) -> Value {
+		use crate::nu::ctx::{NuCtx, NuCtxBuffer, NuCtxPosition, NuCtxSelection, NuCtxText, NuCtxView, TEXT_SNAPSHOT_MAX_BYTES, rope_slice_clamped};
 
 		let buffer = self.buffer();
 		let view_id = self.focused_view().0;
@@ -171,7 +164,6 @@ impl Editor {
 		NuCtx {
 			kind: kind.to_string(),
 			function: function.to_string(),
-			args: args.to_vec(),
 			mode: format!("{:?}", self.mode()),
 			view: NuCtxView { id: view_id },
 			cursor: NuCtxPosition {
@@ -196,7 +188,7 @@ impl Editor {
 				modified: buffer.modified(),
 			},
 			text: text_snapshot,
-			event: if kind == "hook" { NuCtxEvent::from_hook(function, args) } else { None },
+			event,
 			state: state_snapshot,
 		}
 		.to_value()

@@ -31,7 +31,7 @@
 //! | [`kernel::InvocationKernel`] | Shared invocation executor boundary | Must centralize policy/flush/error shaping to avoid branch drift | action/command/Nu executors |
 //! | [`crate::types::invocation::adapters`] | Consumer translation helpers | Must keep Nu consumers aligned on outcome mapping and logging | `commands::nu`, `nu::pipeline` |
 //! | [`crate::impls::Editor`] | Runtime owner of invocation execution | Must flush queued effects after each command/action execution branch | `run_*_invocation` methods |
-//! | [`crate::nu::NuHook`] | Deferred hook kind | Must enqueue only when execution does not request quit | `run_invocation` |
+//! | [`crate::nu::ctx::NuCtxEvent`] | Deferred hook event payload | Must enqueue only when execution does not request quit | `run_invocation` |
 //! | [`crate::runtime::work_queue::RuntimeWorkQueue`] | Runtime deferred work queue | Must preserve FIFO sequence and source metadata for policy routing | queue producers and `Editor::drain_runtime_work_report` |
 //!
 //! # Invariants
@@ -101,7 +101,7 @@ mod kernel;
 mod policy_gate;
 
 #[cfg(test)]
-pub(crate) use hooks_bridge::{action_post_args, command_post_args};
+pub(crate) use hooks_bridge::{action_post_event, command_post_event};
 #[cfg(test)]
 pub(crate) use policy_gate::handle_capability_violation;
 #[cfg(test)]

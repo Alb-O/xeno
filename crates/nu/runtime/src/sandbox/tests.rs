@@ -828,7 +828,7 @@ fn safe_stdlib_str_commands_in_macro_context() {
     xeno effect notify info ($s | str upcase)
   } else {
     null
-  }
+  } | xeno effects normalize
 }"#;
 	let _parsed =
 		parse_and_validate_with_policy(&mut engine_state, "<test>", source, None, ParsePolicy::ModuleOnly).expect("macro with str commands should parse");
@@ -849,7 +849,7 @@ fn safe_stdlib_str_commands_in_macro_context() {
 #[test]
 fn safe_stdlib_xeno_effect_clipboard_produces_correct_record() {
 	let mut engine_state = create_engine_state(None).expect("engine state");
-	let source = r#"export def copy-it [] { xeno effect clipboard "hello world" }"#;
+	let source = r#"export def copy-it [] { xeno effect clipboard "hello world" | xeno effects normalize }"#;
 	let _parsed = parse_and_validate_with_policy(&mut engine_state, "<test>", source, None, ParsePolicy::ModuleOnly).expect("clipboard macro should parse");
 	let decl_id = find_decl(&engine_state, "copy-it").expect("copy-it should be declared");
 	let result = call_function(&engine_state, decl_id, &[], &[]).expect("should execute");
@@ -867,7 +867,7 @@ fn safe_stdlib_xeno_effect_clipboard_produces_correct_record() {
 #[test]
 fn safe_stdlib_xeno_effect_clipboard_empty() {
 	let mut engine_state = create_engine_state(None).expect("engine state");
-	let source = r#"export def copy-empty [] { xeno effect clipboard }"#;
+	let source = r#"export def copy-empty [] { xeno effect clipboard | xeno effects normalize }"#;
 	let _parsed =
 		parse_and_validate_with_policy(&mut engine_state, "<test>", source, None, ParsePolicy::ModuleOnly).expect("clipboard empty macro should parse");
 	let decl_id = find_decl(&engine_state, "copy-empty").expect("copy-empty should be declared");
@@ -886,7 +886,7 @@ fn safe_stdlib_xeno_effect_clipboard_empty() {
 #[test]
 fn safe_stdlib_xeno_effect_state_set_produces_correct_record() {
 	let mut engine_state = create_engine_state(None).expect("engine state");
-	let source = r#"export def set-it [] { xeno effect state set mykey myvalue }"#;
+	let source = r#"export def set-it [] { xeno effect state set mykey myvalue | xeno effects normalize }"#;
 	let _parsed = parse_and_validate_with_policy(&mut engine_state, "<test>", source, None, ParsePolicy::ModuleOnly).expect("state set macro should parse");
 	let decl_id = find_decl(&engine_state, "set-it").expect("set-it should be declared");
 	let result = call_function(&engine_state, decl_id, &[], &[]).expect("should execute");
@@ -905,7 +905,7 @@ fn safe_stdlib_xeno_effect_state_set_produces_correct_record() {
 #[test]
 fn safe_stdlib_xeno_effect_state_unset_produces_correct_record() {
 	let mut engine_state = create_engine_state(None).expect("engine state");
-	let source = r#"export def unset-it [] { xeno effect state unset mykey }"#;
+	let source = r#"export def unset-it [] { xeno effect state unset mykey | xeno effects normalize }"#;
 	let _parsed = parse_and_validate_with_policy(&mut engine_state, "<test>", source, None, ParsePolicy::ModuleOnly).expect("state unset macro should parse");
 	let decl_id = find_decl(&engine_state, "unset-it").expect("unset-it should be declared");
 	let result = call_function(&engine_state, decl_id, &[], &[]).expect("should execute");
@@ -923,7 +923,7 @@ fn safe_stdlib_xeno_effect_state_unset_produces_correct_record() {
 #[test]
 fn safe_stdlib_xeno_effect_schedule_set_produces_correct_record() {
 	let mut engine_state = create_engine_state(None).expect("engine state");
-	let source = r#"export def sched-it [] { xeno effect schedule set autosave 750 save-all }"#;
+	let source = r#"export def sched-it [] { xeno effect schedule set autosave 750 save-all | xeno effects normalize }"#;
 	let _parsed = parse_and_validate_with_policy(&mut engine_state, "<test>", source, None, ParsePolicy::ModuleOnly).expect("schedule set macro should parse");
 	let decl_id = find_decl(&engine_state, "sched-it").expect("sched-it should be declared");
 	let result = call_function(&engine_state, decl_id, &[], &[]).expect("should execute");
@@ -944,7 +944,7 @@ fn safe_stdlib_xeno_effect_schedule_set_produces_correct_record() {
 #[test]
 fn safe_stdlib_xeno_effect_schedule_cancel_produces_correct_record() {
 	let mut engine_state = create_engine_state(None).expect("engine state");
-	let source = r#"export def cancel-it [] { xeno effect schedule cancel autosave }"#;
+	let source = r#"export def cancel-it [] { xeno effect schedule cancel autosave | xeno effects normalize }"#;
 	let _parsed =
 		parse_and_validate_with_policy(&mut engine_state, "<test>", source, None, ParsePolicy::ModuleOnly).expect("schedule cancel macro should parse");
 	let decl_id = find_decl(&engine_state, "cancel-it").expect("cancel-it should be declared");
@@ -958,4 +958,26 @@ fn safe_stdlib_xeno_effect_schedule_cancel_produces_correct_record() {
 		}
 		other => panic!("expected ScheduleCancel, got: {other:?}"),
 	}
+}
+
+#[test]
+fn module_only_rejects_xeno_namespace_shadowing() {
+	let mut engine_state = create_engine_state(None).expect("engine state");
+	let err = parse_and_validate_with_policy(
+		&mut engine_state,
+		"<test>",
+		r#"export def "xeno foo" [] { null }"#,
+		None,
+		ParsePolicy::ModuleOnly,
+	)
+	.expect_err("xeno namespace shadowing should be rejected");
+	assert!(err.contains("reserved") && err.contains("xeno"), "got: {err}");
+}
+
+#[test]
+fn module_only_rejects_xeno_bare() {
+	let mut engine_state = create_engine_state(None).expect("engine state");
+	let err = parse_and_validate_with_policy(&mut engine_state, "<test>", "export def xeno [] { null }", None, ParsePolicy::ModuleOnly)
+		.expect_err("bare xeno shadowing should be rejected");
+	assert!(err.contains("reserved") && err.contains("xeno"), "got: {err}");
 }

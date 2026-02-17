@@ -1,5 +1,5 @@
-use crate::nu::NuHook;
-use crate::nu::coordinator::{HookEvalFailureTransition, HookPipelinePhase, InFlightNuHook, NuCoordinatorState, QueuedNuHook};
+use crate::nu::coordinator::{HookPipelinePhase, InFlightNuHook, NuCoordinatorState};
+use crate::nu::ctx::NuCtxEvent;
 
 /// Must invalidate in-flight hook identity when runtime generation changes.
 ///
@@ -9,12 +9,7 @@ use crate::nu::coordinator::{HookEvalFailureTransition, HookPipelinePhase, InFli
 pub(crate) fn test_runtime_swap_invalidates_inflight_token() {
 	let mut state = NuCoordinatorState::new();
 	let token = state.next_hook_eval_token();
-	state.set_hook_in_flight(InFlightNuHook {
-		token,
-		hook: NuHook::ActionPost,
-		args: vec!["name".to_string(), "ok".to_string()],
-		retries: 0,
-	});
+	state.set_hook_in_flight(InFlightNuHook { token });
 
 	state.set_runtime(None);
 
@@ -32,16 +27,17 @@ pub(crate) fn test_hook_phase_tracks_pipeline_lifecycle() {
 	let mut state = NuCoordinatorState::new();
 	assert_eq!(state.hook_phase(), HookPipelinePhase::Idle);
 
-	state.enqueue_hook(NuHook::ActionPost, vec!["a".to_string(), "ok".to_string()], 64);
+	state.enqueue_hook(
+		NuCtxEvent::ActionPost {
+			name: "a".to_string(),
+			result: "ok".to_string(),
+		},
+		64,
+	);
 	assert_eq!(state.hook_phase(), HookPipelinePhase::HookQueued);
 
 	let token = state.next_hook_eval_token();
-	state.set_hook_in_flight(InFlightNuHook {
-		token,
-		hook: NuHook::ActionPost,
-		args: vec!["a".to_string(), "ok".to_string()],
-		retries: 0,
-	});
+	state.set_hook_in_flight(InFlightNuHook { token });
 	assert_eq!(state.hook_phase(), HookPipelinePhase::HookInFlight);
 
 	state.inc_hook_depth();
@@ -55,37 +51,6 @@ pub(crate) fn test_hook_phase_tracks_pipeline_lifecycle() {
 	assert_eq!(state.hook_phase(), HookPipelinePhase::Idle);
 }
 
-/// Must retry at most once for a failed in-flight hook.
-///
-/// * Enforced in: `NuCoordinatorState::complete_hook_eval_transport_failure`
-/// * Failure symptom: failed hook loops forever and starves the scheduler.
-#[cfg_attr(test, test)]
-pub(crate) fn test_retry_payload_tracks_single_retry() {
-	let mut state = NuCoordinatorState::new();
-	let token = state.next_hook_eval_token();
-	let args_for_eval = state.begin_hook_eval(
-		token,
-		QueuedNuHook {
-			hook: NuHook::CommandPost,
-			args: vec!["write".to_string(), "ok".to_string()],
-			retries: 0,
-		},
-	);
-	assert_eq!(args_for_eval, vec!["write".to_string(), "ok".to_string()]);
-	assert_eq!(state.complete_hook_eval_transport_failure(token), HookEvalFailureTransition::Retried);
-
-	let retried = state.pop_queued_hook().expect("retry hook should be queued");
-	assert_eq!(retried.retries, 1, "first transport failure should schedule single retry");
-
-	let token2 = state.next_hook_eval_token();
-	state.begin_hook_eval(token2, retried);
-	assert_eq!(
-		state.complete_hook_eval_transport_failure(token2),
-		HookEvalFailureTransition::RetryExhausted { failed_total: 1 }
-	);
-	assert_eq!(state.hook_failed_total(), 1, "second transport failure should increment failed total");
-}
-
 /// Must drop queued hook work when stop-propagation is requested.
 ///
 /// * Enforced in: `NuCoordinatorState::clear_hook_work_on_stop_propagation`
@@ -93,7 +58,13 @@ pub(crate) fn test_retry_payload_tracks_single_retry() {
 #[cfg_attr(test, test)]
 pub(crate) fn test_stop_propagation_clears_queued_hooks() {
 	let mut state = NuCoordinatorState::new();
-	state.enqueue_hook(NuHook::ActionPost, vec!["a".to_string(), "ok".to_string()], 64);
+	state.enqueue_hook(
+		NuCtxEvent::ActionPost {
+			name: "a".to_string(),
+			result: "ok".to_string(),
+		},
+		64,
+	);
 
 	state.clear_hook_work_on_stop_propagation();
 
@@ -109,12 +80,7 @@ pub(crate) fn test_stop_propagation_clears_queued_hooks() {
 pub(crate) fn test_stale_completion_keeps_inflight_state() {
 	let mut state = NuCoordinatorState::new();
 	let token = state.next_hook_eval_token();
-	state.set_hook_in_flight(InFlightNuHook {
-		token,
-		hook: NuHook::ActionPost,
-		args: vec!["name".to_string(), "ok".to_string()],
-		retries: 0,
-	});
+	state.set_hook_in_flight(InFlightNuHook { token });
 
 	let stale = crate::nu::coordinator::NuEvalToken {
 		runtime_epoch: token.runtime_epoch.wrapping_add(1),

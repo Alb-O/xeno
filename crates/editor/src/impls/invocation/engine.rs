@@ -3,7 +3,7 @@ use std::collections::VecDeque;
 use tracing::trace;
 use xeno_invocation::{CommandInvocation, CommandRoute};
 
-use super::hooks_bridge::{action_post_args, command_post_args};
+use super::hooks_bridge::{action_post_event, command_post_event, editor_command_post_event};
 use crate::impls::Editor;
 use crate::types::{Invocation, InvocationOutcome, InvocationPolicy, InvocationStatus, InvocationTarget};
 
@@ -43,7 +43,7 @@ impl InvocationFrame {
 #[derive(Debug)]
 enum InvocationPostHook {
 	Action { name: String },
-	Command { name: String, args: Vec<String>, hook: crate::nu::NuHook },
+	Command { name: String, args: Vec<String>, is_editor: bool },
 }
 
 #[derive(Debug)]
@@ -104,10 +104,15 @@ impl<'a> InvocationEngine<'a> {
 
 		match hook {
 			InvocationPostHook::Action { name } => {
-				self.editor.enqueue_nu_hook(crate::nu::NuHook::ActionPost, action_post_args(name, outcome));
+				self.editor.enqueue_nu_hook(action_post_event(name, outcome));
 			}
-			InvocationPostHook::Command { name, args, hook } => {
-				self.editor.enqueue_nu_hook(hook, command_post_args(name, outcome, args));
+			InvocationPostHook::Command { name, args, is_editor } => {
+				let event = if is_editor {
+					editor_command_post_event(name, outcome, args)
+				} else {
+					command_post_event(name, outcome, args)
+				};
+				self.editor.enqueue_nu_hook(event);
 			}
 		}
 	}
@@ -138,15 +143,14 @@ impl<'a> InvocationEngine<'a> {
 			}
 			Invocation::Command(CommandInvocation { name, args, route }) => {
 				let (outcome, resolved_route) = self.editor.run_command_invocation_with_resolved_route(&name, &args, route, self.policy).await;
-				let hook = if resolved_route == CommandRoute::Editor {
-					crate::nu::NuHook::EditorCommandPost
-				} else {
-					crate::nu::NuHook::CommandPost
-				};
 				InvocationStepOutcome {
 					outcome,
 					follow_ups: Vec::new(),
-					post_hook: Some(InvocationPostHook::Command { name, args, hook }),
+					post_hook: Some(InvocationPostHook::Command {
+						name,
+						args,
+						is_editor: resolved_route == CommandRoute::Editor,
+					}),
 				}
 			}
 			Invocation::Nu { name, args } => {

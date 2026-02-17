@@ -17,6 +17,7 @@ const EFFECT_FIELD_LEVEL: &str = "level";
 const EFFECT_FIELD_MESSAGE: &str = "message";
 const EFFECT_FIELD_EFFECTS: &str = "effects";
 const EFFECT_FIELD_SCHEMA_VERSION: &str = "schema_version";
+const EFFECT_FIELD_WARNINGS: &str = "warnings";
 
 const EFFECT_TYPE_DISPATCH: &str = "dispatch";
 const EFFECT_TYPE_NOTIFY: &str = "notify";
@@ -36,7 +37,41 @@ const EFFECT_FIELD_ARGS: &str = "args";
 /// Maximum delay for scheduled macros (1 hour).
 pub const MAX_SCHEDULE_DELAY_MS: u64 = 3_600_000;
 
-const DEFAULT_SCHEMA_VERSION: i64 = 1;
+/// Canonical effect schema version supported by this host.
+pub const EFFECT_SCHEMA_VERSION: i64 = 1;
+
+/// Hard limits for Nu function call inputs (args + env values).
+///
+/// These are the canonical source for sandbox call validation in
+/// `xeno-nu-runtime`. Derived from [`schema::DEFAULT_LIMITS`] where applicable.
+#[derive(Debug, Clone, Copy)]
+pub struct NuCallLimits {
+	/// Max positional arguments per function call.
+	pub max_args: usize,
+	/// Max byte length per argument string.
+	pub max_arg_len: usize,
+	/// Max Value nodes traversed in env validation.
+	pub max_env_nodes: usize,
+	/// Max byte length per env string (keys + leaf values).
+	pub max_env_string_len: usize,
+}
+
+/// Default call limits, aligned with [`schema::DEFAULT_LIMITS`].
+pub const DEFAULT_CALL_LIMITS: NuCallLimits = NuCallLimits {
+	max_args: schema::DEFAULT_LIMITS.max_args,
+	max_arg_len: schema::DEFAULT_LIMITS.max_string_len,
+	max_env_nodes: 5_000,
+	max_env_string_len: schema::DEFAULT_LIMITS.max_string_len,
+};
+
+/// Maximum Value nodes visited during macro effect decode.
+pub const DEFAULT_MACRO_MAX_NODES: usize = 50_000;
+
+/// Maximum Value nodes visited during hook effect decode.
+pub const DEFAULT_HOOK_MAX_NODES: usize = 5_000;
+
+/// Maximum effects returned by a single hook evaluation.
+pub const DEFAULT_HOOK_MAX_EFFECTS: usize = 32;
 
 /// Safety budgets for decoding Nu macro/hook return values.
 #[derive(Debug, Clone, Copy)]
@@ -56,14 +91,14 @@ impl DecodeBudget {
 			max_string_len: schema::DEFAULT_LIMITS.max_string_len,
 			max_args: schema::DEFAULT_LIMITS.max_args,
 			max_action_count: schema::DEFAULT_LIMITS.max_action_count,
-			max_nodes: 50_000,
+			max_nodes: DEFAULT_MACRO_MAX_NODES,
 		}
 	}
 
 	pub const fn hook_defaults() -> Self {
 		Self {
-			max_effects: 32,
-			max_nodes: 5_000,
+			max_effects: DEFAULT_HOOK_MAX_EFFECTS,
+			max_nodes: DEFAULT_HOOK_MAX_NODES,
 			..Self::macro_defaults()
 		}
 	}
@@ -160,7 +195,7 @@ pub struct NuEffectBatch {
 impl Default for NuEffectBatch {
 	fn default() -> Self {
 		Self {
-			schema_version: DEFAULT_SCHEMA_VERSION,
+			schema_version: EFFECT_SCHEMA_VERSION,
 			effects: Vec::new(),
 			warnings: Vec::new(),
 		}
@@ -199,7 +234,6 @@ pub enum NuCapability {
 	DispatchMacro,
 	Notify,
 	StopPropagation,
-	ReadContext,
 	EditText,
 	SetClipboard,
 	WriteState,
@@ -215,7 +249,6 @@ impl NuCapability {
 			"dispatch_macro" => Some(Self::DispatchMacro),
 			"notify" => Some(Self::Notify),
 			"stop_propagation" => Some(Self::StopPropagation),
-			"read_context" => Some(Self::ReadContext),
 			"edit_text" => Some(Self::EditText),
 			"set_clipboard" => Some(Self::SetClipboard),
 			"write_state" => Some(Self::WriteState),
@@ -232,7 +265,6 @@ impl NuCapability {
 			Self::DispatchMacro => "dispatch_macro",
 			Self::Notify => "notify",
 			Self::StopPropagation => "stop_propagation",
-			Self::ReadContext => "read_context",
 			Self::EditText => "edit_text",
 			Self::SetClipboard => "set_clipboard",
 			Self::WriteState => "write_state",
@@ -277,6 +309,9 @@ pub fn decode_hook_effects(value: Value) -> Result<NuEffectBatch, String> {
 }
 
 /// Decode a single dispatch effect into an [`Invocation`].
+///
+/// Accepts either a bare effect record or an envelope containing exactly
+/// one dispatch effect (as produced by `xeno effect dispatch ...`).
 pub fn decode_single_dispatch_effect(value: &Value, field_path: &str) -> Result<Invocation, String> {
 	match value {
 		Value::Record { val, .. } => {
@@ -284,6 +319,22 @@ pub fn decode_single_dispatch_effect(value: &Value, field_path: &str) -> Result<
 			let mut state = DecodeState::new(DecodeSurface::Macro);
 			state.path.segments.clear();
 			state.path.segments.push(PathSeg::RootLabel(field_path));
+
+			// Check if this is an envelope record.
+			if val.contains(EFFECT_FIELD_EFFECTS) {
+				decode_envelope_record(val, &budget, &mut state)?;
+				if state.batch.effects.len() != 1 {
+					return Err(format!(
+						"Nu decode error at {field_path}: expected exactly one dispatch effect, got {}",
+						state.batch.effects.len()
+					));
+				}
+				match state.batch.effects.remove(0) {
+					NuEffect::Dispatch(invocation) => return Ok(invocation),
+					_ => return Err(format!("Nu decode error at {field_path}: expected dispatch effect record")),
+				}
+			}
+
 			let effect = decode_effect_record(val, &budget, &mut state)?;
 			match effect {
 				NuEffect::Dispatch(invocation) => Ok(invocation),
@@ -399,55 +450,118 @@ fn decode_effects_with_budget(value: Value, budget: DecodeBudget, surface: Decod
 	Ok(state.batch)
 }
 
-fn decode_runtime_value(value: Value, budget: &DecodeBudget, state: &mut DecodeState<'_>) -> Result<(), String> {
+/// Lenient decoder for the `xeno effects normalize` command.
+///
+/// Accepts bare effect records, lists of effect records, nothing, or
+/// already-wrapped envelopes. This is the entry point the normalize command
+/// uses to accept any shape and re-encode it into an envelope.
+pub fn decode_effects_lenient(value: Value, budget: DecodeBudget) -> Result<NuEffectBatch, String> {
+	let mut state = DecodeState::new(DecodeSurface::Hook);
+	decode_lenient_value(value, &budget, &mut state)?;
+	Ok(state.batch)
+}
+
+fn decode_lenient_value(value: Value, budget: &DecodeBudget, state: &mut DecodeState<'_>) -> Result<(), String> {
 	state.visit_node(budget)?;
 	match value {
 		Value::Nothing { .. } => Ok(()),
-		Value::Record { ref val, .. } => decode_root_record_or_effect(val, budget, state),
+		Value::Record { ref val, .. } => {
+			if val.contains(EFFECT_FIELD_EFFECTS) {
+				// Already an envelope — decode strictly.
+				decode_envelope_record(val, budget, state)
+			} else {
+				// Bare effect record — decode as single effect.
+				let effect = decode_effect_record(val, budget, state)?;
+				state.push_effect(effect, budget)?;
+				Ok(())
+			}
+		}
 		Value::List { vals, .. } => decode_effect_list(vals, budget, state),
 		Value::String { .. } => {
 			Err(state.err("string returns are not supported; return typed effects via built-ins: xeno effect, xeno effects normalize, xeno call"))
 		}
-		other => Err(state.err(format_args!("expected effect record/list/nothing, got {}", other.get_type()))),
+		other => Err(state.err(format_args!("expected effect record, list, or nothing, got {}", other.get_type()))),
 	}
 }
 
-fn decode_root_record_or_effect(record: &Record, budget: &DecodeBudget, state: &mut DecodeState<'_>) -> Result<(), String> {
-	if record.contains(EFFECT_FIELD_EFFECTS) {
-		state.path.push_field(EFFECT_FIELD_SCHEMA_VERSION);
-		let schema_version = match record.get(EFFECT_FIELD_SCHEMA_VERSION) {
-			None => DEFAULT_SCHEMA_VERSION,
-			Some(Value::Int { val, .. }) => *val,
-			Some(other) => {
-				let err = state.err(format_args!("expected int, got {}", other.get_type()));
-				state.path.pop();
-				return Err(err);
-			}
-		};
-		state.path.pop();
-		state.batch.schema_version = schema_version.max(1);
-
-		state.path.push_field(EFFECT_FIELD_EFFECTS);
-		let effects = match record.get(EFFECT_FIELD_EFFECTS) {
-			Some(Value::List { vals, .. }) => vals.clone(),
-			Some(other) => {
-				let err = state.err(format_args!("expected list<record>, got {}", other.get_type()));
-				state.path.pop();
-				return Err(err);
-			}
-			None => {
-				let err = state.err("missing required field");
-				state.path.pop();
-				return Err(err);
-			}
-		};
-		let result = decode_effect_list(effects, budget, state);
-		state.path.pop();
-		result
-	} else {
-		let effect = decode_effect_record(record, budget, state)?;
-		state.push_effect(effect, budget)
+fn decode_runtime_value(value: Value, budget: &DecodeBudget, state: &mut DecodeState<'_>) -> Result<(), String> {
+	state.visit_node(budget)?;
+	match value {
+		Value::Nothing { .. } => Ok(()),
+		Value::Record { ref val, .. } => decode_envelope_record(val, budget, state),
+		Value::List { .. } => Err(state.err("bare list returns are no longer accepted; pipe through `xeno effects normalize`")),
+		Value::String { .. } => {
+			Err(state.err("string returns are not supported; return typed effects via built-ins: xeno effect, xeno effects normalize, xeno call"))
+		}
+		other => Err(state.err(format_args!("expected envelope record or nothing, got {}", other.get_type()))),
 	}
+}
+
+fn decode_envelope_record(record: &Record, budget: &DecodeBudget, state: &mut DecodeState<'_>) -> Result<(), String> {
+	if !record.contains(EFFECT_FIELD_EFFECTS) {
+		return Err(state.err("bare effect records are no longer accepted; pipe through `xeno effects normalize`"));
+	}
+
+	state.path.push_field(EFFECT_FIELD_SCHEMA_VERSION);
+	let schema_version = match record.get(EFFECT_FIELD_SCHEMA_VERSION) {
+		None => EFFECT_SCHEMA_VERSION,
+		Some(Value::Int { val, .. }) => *val,
+		Some(other) => {
+			let err = state.err(format_args!("expected int, got {}", other.get_type()));
+			state.path.pop();
+			return Err(err);
+		}
+	};
+	state.path.pop();
+
+	if schema_version < 1 {
+		return Err(state.err(format_args!("schema_version must be >= 1, got {schema_version}")));
+	}
+	if schema_version > EFFECT_SCHEMA_VERSION {
+		return Err(state.err(format_args!(
+			"unsupported schema_version {schema_version} (host supports {EFFECT_SCHEMA_VERSION})"
+		)));
+	}
+	state.batch.schema_version = schema_version;
+
+	state.path.push_field(EFFECT_FIELD_EFFECTS);
+	let effects = match record.get(EFFECT_FIELD_EFFECTS) {
+		Some(Value::List { vals, .. }) => vals.clone(),
+		Some(other) => {
+			let err = state.err(format_args!("expected list<record>, got {}", other.get_type()));
+			state.path.pop();
+			return Err(err);
+		}
+		None => {
+			let err = state.err("missing required field");
+			state.path.pop();
+			return Err(err);
+		}
+	};
+	let result = decode_effect_list(effects, budget, state);
+	state.path.pop();
+
+	// Decode warnings if present.
+	if record.contains(EFFECT_FIELD_WARNINGS) {
+		state.path.push_field(EFFECT_FIELD_WARNINGS);
+		if let Some(Value::List { vals, .. }) = record.get(EFFECT_FIELD_WARNINGS) {
+			for (idx, val) in vals.iter().enumerate() {
+				if state.batch.warnings.len() >= budget.max_effects {
+					break;
+				}
+				state.path.push_index(idx);
+				if let Value::String { val, .. } = val {
+					if val.len() <= budget.max_string_len {
+						state.batch.warnings.push(val.clone());
+					}
+				}
+				state.path.pop();
+			}
+		}
+		state.path.pop();
+	}
+
+	result
 }
 
 fn decode_effect_list(values: Vec<Value>, budget: &DecodeBudget, state: &mut DecodeState<'_>) -> Result<(), String> {
@@ -457,11 +571,20 @@ fn decode_effect_list(values: Vec<Value>, budget: &DecodeBudget, state: &mut Dec
 		match item {
 			Value::Nothing { .. } => {}
 			Value::Record { ref val, .. } => {
-				let effect = decode_effect_record(val, budget, state)?;
-				state.push_effect(effect, budget)?;
+				if val.contains(EFFECT_FIELD_EFFECTS) {
+					// Envelope inside list — flatten.
+					decode_envelope_record(val, budget, state)?;
+				} else {
+					let effect = decode_effect_record(val, budget, state)?;
+					state.push_effect(effect, budget)?;
+				}
+			}
+			Value::List { vals, .. } => {
+				// Nested list — recurse.
+				decode_effect_list(vals, budget, state)?;
 			}
 			other => {
-				let err = state.err(format_args!("expected effect record or nothing, got {}", other.get_type()));
+				let err = state.err(format_args!("expected effect record, envelope, list, or nothing, got {}", other.get_type()));
 				state.path.pop();
 				return Err(err);
 			}

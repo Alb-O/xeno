@@ -43,24 +43,13 @@ pub fn channel() -> (MsgSender, MsgReceiver) {
 	mpsc::unbounded_channel()
 }
 
-/// Structured error for Nu hook evaluation failures.
-#[derive(Debug)]
-pub enum NuHookEvalError {
-	/// Nu evaluated and returned an error string.
-	Eval(String),
-	/// Executor channel closed (worker died or was swapped).
-	ExecutorShutdown,
-	/// Worker died mid-evaluation (reply channel dropped).
-	ReplyDropped,
-}
-
 /// Result of a completed async Nu hook evaluation.
 #[derive(Debug)]
 pub struct NuHookEvalDoneMsg {
 	/// Matches the eval token assigned when the hook job is scheduled.
 	pub token: crate::nu::coordinator::NuEvalToken,
-	/// Produced effects or a structured error.
-	pub result: Result<crate::nu::NuEffectBatch, NuHookEvalError>,
+	/// Produced effects or executor error (already retried internally).
+	pub result: Result<crate::nu::NuEffectBatch, crate::nu::executor::NuExecError>,
 }
 
 /// Top-level message enum dispatched to editor state.

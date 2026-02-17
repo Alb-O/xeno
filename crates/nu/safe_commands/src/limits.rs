@@ -1,10 +1,14 @@
 use xeno_nu_protocol::{PipelineData, ShellError, Span, Value};
 
 /// Maximum items processed through list/table/stream iteration commands.
-pub(crate) const MAX_ITEMS: usize = 10_000;
+///
+/// Aligned with [`xeno_invocation::schema::DEFAULT_LIMITS::max_action_count`].
+pub(crate) const MAX_ITEMS: usize = xeno_invocation::schema::DEFAULT_LIMITS.max_action_count;
 
 /// Maximum segments produced by `split row`.
-pub(crate) const MAX_SPLITS: usize = 10_000;
+///
+/// Aligned with [`xeno_invocation::schema::DEFAULT_LIMITS::max_action_count`].
+pub(crate) const MAX_SPLITS: usize = xeno_invocation::schema::DEFAULT_LIMITS.max_action_count;
 
 /// Maximum column paths for projection/selection commands.
 pub(crate) const MAX_COLUMNS: usize = 128;

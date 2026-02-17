@@ -3,37 +3,41 @@ use std::cell::Cell;
 use xeno_registry::{Capability, CommandError};
 
 use super::policy_gate::{GateFailure, GateResult, InvocationGateInput, InvocationKind, RequiredCaps};
-use super::{action_post_args, command_post_args, handle_capability_violation};
+use super::{action_post_event, command_post_event, handle_capability_violation};
 use crate::commands::{CommandError as EditorCommandError, CommandOutcome};
 use crate::impls::Editor;
+use crate::nu::ctx::NuCtxEvent;
 use crate::types::{
 	Invocation, InvocationOutcome, InvocationPolicy, InvocationStatus, InvocationTarget, PipelineDisposition, classify_for_nu_pipeline,
 	to_command_outcome_for_nu_run,
 };
 
-/// Must emit action post-hook args as `[name, result_label]`.
+/// Must emit action post-hook event with name and result label.
 ///
-/// * Enforced in: `action_post_args`, `Editor::run_invocation`
-/// * Failure symptom: Nu `on_action_post` receives malformed arguments.
+/// * Enforced in: `action_post_event`, `Editor::run_invocation`
+/// * Failure symptom: Nu `on_hook` receives malformed action_post event.
 #[cfg_attr(test, test)]
-pub(crate) fn test_action_post_args_shape() {
-	let args = action_post_args("move_left".to_string(), &InvocationOutcome::ok(InvocationTarget::Action));
-	assert_eq!(args, vec!["move_left".to_string(), "ok".to_string()]);
+pub(crate) fn test_action_post_event_shape() {
+	let event = action_post_event("move_left".to_string(), &InvocationOutcome::ok(InvocationTarget::Action));
+	assert!(matches!(event, NuCtxEvent::ActionPost { name, result } if name == "move_left" && result == "ok"));
 }
 
-/// Must emit command/editor-command post-hook args as
-/// `[name, result_label, ...original_args]`.
+/// Must emit command post-hook event with name, result label, and original args.
 ///
-/// * Enforced in: `command_post_args`, `Editor::run_invocation`
+/// * Enforced in: `command_post_event`, `Editor::run_invocation`
 /// * Failure symptom: Nu command post-hooks lose the original argument tail.
 #[cfg_attr(test, test)]
-pub(crate) fn test_command_post_args_prefix_and_tail() {
-	let args = command_post_args(
+pub(crate) fn test_command_post_event_shape() {
+	let event = command_post_event(
 		"write".to_string(),
 		&InvocationOutcome::command_error(InvocationTarget::Command, "boom".to_string()),
 		vec!["a".to_string(), "b".to_string()],
 	);
-	assert_eq!(args, vec!["write".to_string(), "error".to_string(), "a".to_string(), "b".to_string()]);
+	assert!(matches!(
+		event,
+		NuCtxEvent::CommandPost { name, result, args }
+			if name == "write" && result == "error" && args == vec!["a".to_string(), "b".to_string()]
+	));
 }
 
 /// Must return an invocation error when capability checks fail in enforcing mode.

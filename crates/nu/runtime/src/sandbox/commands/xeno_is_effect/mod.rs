@@ -6,9 +6,9 @@ use xeno_nu_protocol::{Category, PipelineData, ShellError, Signature, Type, Valu
 use super::err;
 
 #[derive(Clone)]
-pub struct XenoIsInvocationCommand;
+pub struct XenoIsEffectCommand;
 
-impl Command for XenoIsInvocationCommand {
+impl Command for XenoIsEffectCommand {
 	fn name(&self) -> &str {
 		"xeno is-effect"
 	}
@@ -30,7 +30,7 @@ impl Command for XenoIsInvocationCommand {
 			.map_err(|e| err(span, format!("xeno is-effect: {e}"), "failed to collect input"))?;
 		let value = DataValue::try_from(value).map_err(|e| err(span, format!("xeno is-effect: {e}"), "unsupported Nu value type for effect decoding"))?;
 
-		let is_effect = xeno_invocation::nu::decode_hook_effects_with_budget(
+		let is_effect = xeno_invocation::nu::decode_effects_lenient(
 			value,
 			DecodeBudget {
 				max_effects: 1,

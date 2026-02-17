@@ -1,37 +1,43 @@
 use crate::impls::Editor;
+use crate::nu::ctx::NuCtxEvent;
 use crate::types::InvocationOutcome;
 
-/// Build hook args for action post hooks: `[name, result_label]`.
-pub(crate) fn action_post_args(name: String, result: &InvocationOutcome) -> Vec<String> {
-	crate::nu::pipeline::action_post_args(name, result)
+/// Build a hook event for action post hooks.
+pub(crate) fn action_post_event(name: String, result: &InvocationOutcome) -> NuCtxEvent {
+	crate::nu::pipeline::action_post_event(name, result)
 }
 
-/// Build hook args for command/editor-command post hooks: `[name, result_label, ...original_args]`.
-pub(crate) fn command_post_args(name: String, result: &InvocationOutcome, args: Vec<String>) -> Vec<String> {
-	crate::nu::pipeline::command_post_args(name, result, args)
+/// Build a hook event for command/editor-command post hooks.
+pub(crate) fn command_post_event(name: String, result: &InvocationOutcome, args: Vec<String>) -> NuCtxEvent {
+	crate::nu::pipeline::command_post_event(name, result, args)
+}
+
+/// Build an editor-command post hook event.
+pub(crate) fn editor_command_post_event(name: String, result: &InvocationOutcome, args: Vec<String>) -> NuCtxEvent {
+	crate::nu::pipeline::editor_command_post_event(name, result, args)
 }
 
 impl Editor {
 	/// Enqueues a Nu post-hook for deferred evaluation during pump().
 	///
-	/// Coalesces consecutive identical hook types (keeps latest args) and
+	/// Coalesces consecutive identical hook types (keeps latest event) and
 	/// drops the oldest entry when the queue exceeds pipeline capacity.
-	pub(super) fn enqueue_nu_hook(&mut self, hook: crate::nu::NuHook, args: Vec<String>) {
-		crate::nu::pipeline::enqueue_nu_hook(self, hook, args);
+	pub(super) fn enqueue_nu_hook(&mut self, event: NuCtxEvent) {
+		crate::nu::pipeline::enqueue_nu_hook(self, event);
 	}
 
-	/// Enqueues `on_action_post` hook directly for tests.
+	/// Enqueues `on_hook` with action_post event directly for tests.
 	#[cfg(test)]
 	pub(crate) fn enqueue_action_post_hook(&mut self, name: String, result: &InvocationOutcome) {
 		crate::nu::pipeline::enqueue_action_post_hook(self, name, result);
 	}
 
-	/// Enqueues `on_mode_change` hook after a mode transition.
+	/// Enqueues `on_hook` with mode_change event after a mode transition.
 	pub(crate) fn enqueue_mode_change_hook(&mut self, old: &xeno_primitives::Mode, new: &xeno_primitives::Mode) {
 		crate::nu::pipeline::enqueue_mode_change_hook(self, old, new);
 	}
 
-	/// Enqueues `on_buffer_open` hook after a buffer is focused via navigation.
+	/// Enqueues `on_hook` with buffer_open event after a buffer is focused via navigation.
 	pub(crate) fn enqueue_buffer_open_hook(&mut self, path: &std::path::Path, kind: &str) {
 		crate::nu::pipeline::enqueue_buffer_open_hook(self, path, kind);
 	}
