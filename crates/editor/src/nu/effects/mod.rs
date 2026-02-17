@@ -520,9 +520,13 @@ mod tests {
 		tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 		editor.drain_messages();
 
-		// The invocation should now be in pending
-		assert!(editor.state.nu.has_pending_hook_invocations());
-		let inv = editor.state.nu.pop_pending_hook_invocation().unwrap();
+		// The invocation should now be in the deferred invocation mailbox.
+		let inv = editor
+			.state
+			.invocation_mailbox
+			.pop_front()
+			.expect("scheduled invocation should be enqueued")
+			.invocation;
 		assert!(matches!(inv, Invocation::Nu { ref name, ref args } if name == "my-macro" && args == &["arg1"]));
 	}
 
@@ -538,8 +542,7 @@ mod tests {
 			name: "m".to_string(),
 			args: vec![],
 		});
-		assert!(!fired);
-		assert!(!state.has_pending_hook_invocations());
+		assert!(fired.is_none());
 	}
 
 	#[tokio::test]
@@ -574,13 +577,17 @@ mod tests {
 			name: "stale".to_string(),
 			args: vec![],
 		});
-		assert!(!fired);
+		assert!(fired.is_none());
 
 		tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 		editor.drain_messages();
 
-		assert!(editor.state.nu.has_pending_hook_invocations());
-		let inv = editor.state.nu.pop_pending_hook_invocation().expect("current schedule should still fire");
+		let inv = editor
+			.state
+			.invocation_mailbox
+			.pop_front()
+			.expect("current schedule should still fire")
+			.invocation;
 		assert!(matches!(inv, Invocation::Nu { ref name, ref args } if name == "current" && args == &["arg"]));
 	}
 

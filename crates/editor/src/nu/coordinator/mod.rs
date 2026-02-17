@@ -7,7 +7,7 @@
 //! * hook queue state
 //! * in-flight async evaluations
 //! * per-runtime generation tokens for stale-result protection
-//! * pending invocation drain state
+//! * schedule token validation for deferred invocation enqueue
 
 pub(crate) mod errors;
 pub(crate) mod runner;

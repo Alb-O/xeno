@@ -424,8 +424,14 @@ fn palette_input_text(editor: &crate::Editor) -> String {
 		.to_string()
 }
 
-fn drain_queued_commands(editor: &mut crate::Editor) -> Vec<crate::command_queue::QueuedCommand> {
-	editor.state.core.workspace.command_queue.drain().collect()
+fn drain_queued_commands(editor: &mut crate::Editor) -> Vec<(String, Vec<String>)> {
+	let mut commands = Vec::new();
+	while let Some(deferred) = editor.state.invocation_mailbox.pop_front() {
+		if let crate::types::Invocation::Command(command) = deferred.invocation {
+			commands.push((command.name, command.args));
+		}
+	}
+	commands
 }
 
 /// Must preserve manual selection intent while the user stays in one token context.
@@ -675,8 +681,8 @@ pub(crate) fn test_palette_commit_theme_with_selected_completion_supplies_argume
 
 	let commands = drain_queued_commands(&mut editor);
 	assert_eq!(commands.len(), 1);
-	assert_eq!(commands[0].name, "theme");
-	assert_eq!(commands[0].args, vec![theme_name]);
+	assert_eq!(commands[0].0, "theme");
+	assert_eq!(commands[0].1, vec![theme_name]);
 }
 
 /// Must rank recently used commands first for empty command query completion.
@@ -748,7 +754,7 @@ pub(crate) fn test_palette_commit_prefers_typed_resolved_command() {
 
 	let commands = drain_queued_commands(&mut editor);
 	assert_eq!(commands.len(), 1);
-	assert_eq!(commands[0].name, "write");
+	assert_eq!(commands[0].0, "write");
 }
 
 /// Must fall back to selected command completion when typed command is unresolved.
@@ -783,7 +789,7 @@ pub(crate) fn test_palette_commit_falls_back_to_selected_command_when_unresolved
 
 	let commands = drain_queued_commands(&mut editor);
 	assert_eq!(commands.len(), 1);
-	assert_eq!(commands[0].name, "write");
+	assert_eq!(commands[0].0, "write");
 	let notifications = editor.take_notification_render_items();
 	assert!(notifications.is_empty(), "fallback completion should avoid unknown-command notifications");
 }
@@ -806,8 +812,8 @@ pub(crate) fn test_palette_commit_preserves_quoted_argument() {
 
 	let commands = drain_queued_commands(&mut editor);
 	assert_eq!(commands.len(), 1);
-	assert_eq!(commands[0].name, "edit");
-	assert_eq!(commands[0].args, vec!["my file.rs".to_string()]);
+	assert_eq!(commands[0].0, "edit");
+	assert_eq!(commands[0].1, vec!["my file.rs".to_string()]);
 }
 
 /// Must preserve quoted snippet-body arguments on command commit.
@@ -828,8 +834,8 @@ pub(crate) fn test_palette_commit_preserves_quoted_snippet_body_argument() {
 
 	let commands = drain_queued_commands(&mut editor);
 	assert_eq!(commands.len(), 1);
-	assert_eq!(commands[0].name, "snippet");
-	assert_eq!(commands[0].args, vec!["${1:x} ${2:y}".to_string()]);
+	assert_eq!(commands[0].0, "snippet");
+	assert_eq!(commands[0].1, vec!["${1:x} ${2:y}".to_string()]);
 }
 
 /// Must provide snippet-name completions only for `@`-prefixed snippet query token.

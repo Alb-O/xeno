@@ -1,6 +1,5 @@
 use crate::nu::NuHook;
 use crate::nu::coordinator::{HookEvalFailureTransition, HookPipelinePhase, InFlightNuHook, NuCoordinatorState, QueuedNuHook};
-use crate::types::Invocation;
 
 /// Must invalidate in-flight hook identity when runtime generation changes.
 ///
@@ -24,9 +23,9 @@ pub(crate) fn test_runtime_swap_invalidates_inflight_token() {
 	assert_eq!(state.hook_eval_seq_next(), 0);
 }
 
-/// Must reflect queue/in-flight/drain lifecycle in the observable hook phase.
+/// Must reflect queue/in-flight lifecycle in the observable hook phase.
 ///
-/// * Enforced in: `NuCoordinatorState::{enqueue_hook,set_hook_in_flight,extend_pending_hook_invocations,pop_pending_hook_invocation}`
+/// * Enforced in: `NuCoordinatorState::{enqueue_hook,set_hook_in_flight,inc_hook_depth,dec_hook_depth,take_hook_in_flight,pop_queued_hook}`
 /// * Failure symptom: pipeline debugging and invariants lose ordering signal.
 #[cfg_attr(test, test)]
 pub(crate) fn test_hook_phase_tracks_pipeline_lifecycle() {
@@ -45,11 +44,13 @@ pub(crate) fn test_hook_phase_tracks_pipeline_lifecycle() {
 	});
 	assert_eq!(state.hook_phase(), HookPipelinePhase::HookInFlight);
 
-	state.extend_pending_hook_invocations(vec![Invocation::command("write", Vec::<String>::new())]);
-	assert_eq!(state.hook_phase(), HookPipelinePhase::DrainingHookInvocations);
+	state.inc_hook_depth();
+	assert_eq!(state.hook_phase(), HookPipelinePhase::HookInFlight);
+	state.dec_hook_depth();
+	assert_eq!(state.hook_phase(), HookPipelinePhase::HookInFlight);
 
-	let _ = state.pop_pending_hook_invocation();
 	let _ = state.take_hook_in_flight();
+	assert_eq!(state.hook_phase(), HookPipelinePhase::HookQueued);
 	let _ = state.pop_queued_hook();
 	assert_eq!(state.hook_phase(), HookPipelinePhase::Idle);
 }
@@ -85,20 +86,18 @@ pub(crate) fn test_retry_payload_tracks_single_retry() {
 	assert_eq!(state.hook_failed_total(), 1, "second transport failure should increment failed total");
 }
 
-/// Must drop queued and pending hook work when stop-propagation is requested.
+/// Must drop queued hook work when stop-propagation is requested.
 ///
 /// * Enforced in: `NuCoordinatorState::clear_hook_work_on_stop_propagation`
 /// * Failure symptom: stopped hooks still dispatch queued invocations.
 #[cfg_attr(test, test)]
-pub(crate) fn test_stop_propagation_clears_queued_and_pending() {
+pub(crate) fn test_stop_propagation_clears_queued_hooks() {
 	let mut state = NuCoordinatorState::new();
 	state.enqueue_hook(NuHook::ActionPost, vec!["a".to_string(), "ok".to_string()], 64);
-	state.extend_pending_hook_invocations(vec![Invocation::action("move_right")]);
 
 	state.clear_hook_work_on_stop_propagation();
 
 	assert!(!state.has_queued_hooks(), "stop propagation should clear queued hooks");
-	assert!(!state.has_pending_hook_invocations(), "stop propagation should clear pending hook invocations");
 	assert_eq!(state.hook_phase(), HookPipelinePhase::Idle);
 }
 
@@ -146,7 +145,7 @@ pub(crate) async fn test_stale_schedule_token_preserves_active_schedule() {
 		name: "stale".to_string(),
 		args: Vec::new(),
 	});
-	assert!(!stale, "stale token should be ignored");
+	assert!(stale.is_none(), "stale token should be ignored");
 
 	let current = state.apply_schedule_fired(NuScheduleFiredMsg {
 		key: "debounce".to_string(),
@@ -154,10 +153,9 @@ pub(crate) async fn test_stale_schedule_token_preserves_active_schedule() {
 		name: "current".to_string(),
 		args: vec!["arg".to_string()],
 	});
-	assert!(current, "active token should remain valid after stale message");
 	assert!(matches!(
-		state.pop_pending_hook_invocation(),
-		Some(Invocation::Nu { name, args }) if name == "current" && args == vec!["arg".to_string()]
+		current,
+		Some(crate::types::Invocation::Nu { name, args }) if name == "current" && args == vec!["arg".to_string()]
 	));
 
 	// Ensure spawned schedule tasks are cancelled in test teardown.

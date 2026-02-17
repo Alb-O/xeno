@@ -15,19 +15,13 @@ use crate::nu::coordinator::HookEvalFailureTransition;
 use crate::nu::coordinator::runner::{NuExecKind, execute_with_restart};
 use crate::nu::effects::{NuEffectApplyMode, apply_effect_batch};
 use crate::nu::{NuCapability, NuDecodeSurface};
-use crate::types::{InvocationOutcome, InvocationPolicy, PipelineDisposition, PipelineLogContext, classify_for_nu_pipeline, log_pipeline_non_ok};
+use crate::runtime::mailbox::DeferredInvocationSource;
+use crate::types::InvocationOutcome;
+#[cfg(test)]
+use crate::types::{InvocationPolicy, PipelineDisposition, PipelineLogContext, classify_for_nu_pipeline, log_pipeline_non_ok};
 
 /// Maximum pending Nu hooks before oldest are dropped.
 const MAX_PENDING_NU_HOOKS: usize = 64;
-/// Maximum Nu hooks drained per pump() cycle.
-pub(crate) const MAX_NU_HOOKS_PER_PUMP: usize = 2;
-
-/// Report emitted after draining pending Nu hook-generated invocations.
-#[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct NuHookInvocationDrainReport {
-	pub(crate) drained_count: usize,
-	pub(crate) should_quit: bool,
-}
 
 /// Build hook args for action post hooks: `[name, result_label]`.
 pub(crate) fn action_post_args(name: String, result: &InvocationOutcome) -> Vec<String> {
@@ -176,44 +170,18 @@ pub(crate) fn apply_nu_hook_eval_done(editor: &mut Editor, msg: crate::msg::NuHo
 	}
 }
 
-/// Drains pending Nu hook invocations and reports progress metadata.
-///
-/// Called from pump() after message drain. Executes invocations produced by
-/// completed hook evaluations.
-pub(crate) async fn drain_nu_hook_invocations_report(editor: &mut Editor, max: usize) -> NuHookInvocationDrainReport {
-	if !editor.state.nu.has_pending_hook_invocations() {
-		return NuHookInvocationDrainReport::default();
-	}
-
-	let mut report = NuHookInvocationDrainReport::default();
-	editor.state.nu.inc_hook_depth();
-
-	for _ in 0..max {
-		let Some(invocation) = editor.state.nu.pop_pending_hook_invocation() else {
-			break;
-		};
-		report.drained_count += 1;
-
-		let result = editor.run_invocation(invocation, InvocationPolicy::enforcing()).await;
-		if matches!(classify_for_nu_pipeline(&result), PipelineDisposition::ShouldQuit) {
-			report.should_quit = true;
-			break;
-		}
-		log_pipeline_non_ok(&result, PipelineLogContext::HookDrain);
-	}
-
-	editor.state.nu.dec_hook_depth();
-	report
-}
-
 fn apply_hook_effect_batch(editor: &mut Editor, batch: crate::nu::NuEffectBatch) -> crate::msg::Dirty {
 	let allowed = hook_allowed_capabilities(editor);
 	let outcome = apply_effect_batch(editor, batch, NuEffectApplyMode::Hook, &allowed).expect("hook mode effect apply should not fail");
 
 	if outcome.stop_requested {
+		let scope_generation = editor.state.nu.advance_stop_scope_generation();
 		editor.state.nu.clear_hook_work_on_stop_propagation();
-	} else if !outcome.dispatches.is_empty() {
-		editor.state.nu.extend_pending_hook_invocations(outcome.dispatches);
+		editor.clear_deferred_nu_scope(scope_generation);
+	} else {
+		for invocation in outcome.dispatches {
+			editor.enqueue_nu_deferred_invocation(invocation, DeferredInvocationSource::NuHookDispatch);
+		}
 	}
 
 	outcome.dirty

@@ -21,6 +21,7 @@
 //! | [`LoopDirective`] | Frontend control output | Must reflect redraw/quit after full cycle | `Editor::pump` |
 //! | [`CursorStyle`] | Editor cursor intent | Must remain mode-consistent unless UI explicitly overrides | `Editor::derive_cursor_style` |
 //! | [`crate::types::DeferredWorkQueue`] | Deferred runtime work backlog | Overlay commits/workspace edits must execute only during pump phases | input/effects/message producers and `pump::phases` |
+//! | [`crate::types::InvocationMailbox`] | Deferred invocation mailbox | Must preserve FIFO execution order across producers and drain under per-round cap | effects/overlay/commands/Nu message paths and `pump::phases` |
 //! | [`pump::PumpCycleReport`] | Internal round/phase progress report | Must preserve phase order and cap tracking for invariants/tests | `pump::run_pump_cycle_with_report` |
 //! | [`pump::RoundWorkFlags`] | Per-round progress summary | Must drive bounded-convergence continuation policy | `pump::run_pump_cycle_with_report` |
 //!
@@ -28,10 +29,12 @@
 //!
 //! * `on_event` must execute exactly one maintenance `pump` after applying each event.
 //! * Each pump cycle must execute no more than `pump::MAX_PUMP_ROUNDS` rounds.
-//! * Each round must preserve phase ordering: tick -> filesystem -> overlay commit -> messages -> workspace edits -> Nu kick -> scheduler -> commands -> hook invocations.
+//! * Each round must preserve phase ordering: tick -> filesystem -> overlay commit -> messages -> workspace edits -> Nu kick -> scheduler -> deferred invocations.
 //! * Pump must kick queued Nu hook eval before scheduler drain in each round.
 //! * Deferred overlay commit work must be applied during `pump`, not during key handling.
-//! * Runtime must return immediate quit directive when command or hook drain requests quit.
+//! * Deferred invocation drain must preserve mailbox FIFO order across sources.
+//! * Deferred invocation drain must remain bounded by `phases::MAX_DEFERRED_INVOCATIONS_PER_ROUND`.
+//! * Runtime must return immediate quit directive when deferred invocation drain requests quit.
 //! * Cursor style must default to insert beam vs non-insert block when UI has no override.
 //!
 //! # Data flow
@@ -39,7 +42,7 @@
 //! 1. Frontend submits one `RuntimeEvent`.
 //! 2. `on_event` routes key/mouse/paste/resize/focus handlers.
 //! 3. `pump` executes one or more ordered maintenance rounds (up to cap).
-//! 4. Deferred messages and deferred-work queue items (overlay commits/workspace edits) converge in-cycle when budget permits.
+//! 4. Deferred messages, deferred-work queue items (overlay commits/workspace edits), and mailboxed invocations converge in-cycle when budget permits.
 //! 5. Runtime emits `LoopDirective` for frontend scheduling and rendering.
 //!
 //! # Lifecycle
@@ -54,6 +57,7 @@
 //! * Scheduler completions are drained under per-round budgets to bound latency.
 //! * Nu hook eval scheduling is ordered before scheduler drain to permit same-cycle convergence.
 //! * Overlay commit remains serialized through the deferred-work queue and executes only in pump.
+//! * Deferred invocations are drained in FIFO order from a single mailbox.
 //!
 //! # Failure modes & recovery
 //!
@@ -74,6 +78,7 @@
 //!   3. Update invariants/tests for order and continuation policy.
 
 mod core;
+pub(crate) mod mailbox;
 pub(crate) mod pump;
 
 pub use core::{CursorStyle, LoopDirective, RuntimeEvent};

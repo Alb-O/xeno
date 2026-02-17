@@ -79,7 +79,7 @@ use crate::msg::{MsgReceiver, MsgSender};
 use crate::overlay::{OverlayStore, OverlaySystem};
 use crate::paste::normalize_to_lf;
 use crate::scheduler::WorkScheduler;
-use crate::types::{Config, FrameState, UndoManager, Viewport, Workspace};
+use crate::types::{Config, FrameState, InvocationMailbox, UndoManager, Viewport, Workspace};
 use crate::ui::{PanelRenderTarget, UiManager};
 use crate::view_manager::ViewManager;
 use crate::window::{BaseWindow, WindowManager};
@@ -173,6 +173,8 @@ pub(crate) struct EditorState {
 
 	/// Per-frame runtime state (redraw flags, dirty buffers, etc.).
 	pub(crate) frame: FrameState,
+	/// Deferred invocation mailbox drained by runtime pump phases.
+	pub(crate) invocation_mailbox: InvocationMailbox,
 
 	/// Editor configuration (theme, languages, options).
 	pub(crate) config: Config,
@@ -378,6 +380,7 @@ impl Editor {
 				viewport: Viewport::default(),
 				ui: UiManager::new(),
 				frame: FrameState::default(),
+				invocation_mailbox: InvocationMailbox::default(),
 				config: Config::new(language_loader),
 				key_overrides: None,
 				keymap_preset_spec: xeno_registry::keymaps::DEFAULT_PRESET.to_string(),

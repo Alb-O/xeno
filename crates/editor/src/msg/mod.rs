@@ -86,7 +86,9 @@ impl EditorMsg {
 			Self::Overlay(msg) => msg.apply(editor),
 			Self::NuHookEvalDone(msg) => editor.apply_nu_hook_eval_done(msg),
 			Self::NuScheduleFired(msg) => {
-				editor.state.nu.apply_schedule_fired(msg);
+				if let Some(invocation) = editor.state.nu.apply_schedule_fired(msg) {
+					editor.enqueue_nu_deferred_invocation(invocation, crate::runtime::mailbox::DeferredInvocationSource::NuScheduledMacro);
+				}
 				Dirty::NONE
 			}
 		}

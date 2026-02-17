@@ -24,7 +24,6 @@ pub(crate) enum HookPipelinePhase {
 	Idle,
 	HookQueued,
 	HookInFlight,
-	DrainingHookInvocations,
 }
 
 impl HookPipelinePhase {
@@ -33,7 +32,6 @@ impl HookPipelinePhase {
 			Self::Idle => "idle",
 			Self::HookQueued => "queued",
 			Self::HookInFlight => "in_flight",
-			Self::DrainingHookInvocations => "draining",
 		}
 	}
 }
@@ -90,7 +88,7 @@ pub(crate) struct NuCoordinatorState {
 	hook_in_flight: Option<InFlightNuHook>,
 	runtime_epoch: u64,
 	hook_eval_seq_next: u64,
-	hook_pending_invocations: VecDeque<Invocation>,
+	stop_scope_generation: u64,
 	hook_dropped_total: u64,
 	hook_failed_total: u64,
 	scheduled: HashMap<String, ScheduledEntry>,
@@ -110,7 +108,7 @@ impl NuCoordinatorState {
 			hook_in_flight: None,
 			runtime_epoch: 0,
 			hook_eval_seq_next: 0,
-			hook_pending_invocations: VecDeque::new(),
+			stop_scope_generation: 0,
 			hook_dropped_total: 0,
 			hook_failed_total: 0,
 			scheduled: HashMap::new(),
@@ -121,7 +119,6 @@ impl NuCoordinatorState {
 	pub(crate) fn set_runtime(&mut self, runtime: Option<NuRuntime>) {
 		self.executor = None;
 		self.hook_queue.clear();
-		self.hook_pending_invocations.clear();
 		self.hook_in_flight = None;
 		for (_, entry) in self.scheduled.drain() {
 			entry.handle.abort();
@@ -352,30 +349,22 @@ impl NuCoordinatorState {
 		self.hook_phase
 	}
 
-	pub(crate) fn extend_pending_hook_invocations(&mut self, invocations: Vec<Invocation>) {
-		self.hook_pending_invocations.extend(invocations);
-		self.refresh_hook_phase();
+	/// Returns the current Nu stop-propagation scope generation.
+	pub(crate) fn current_stop_scope_generation(&self) -> u64 {
+		self.stop_scope_generation
 	}
 
-	pub(crate) fn pop_pending_hook_invocation(&mut self) -> Option<Invocation> {
-		let invocation = self.hook_pending_invocations.pop_front();
-		self.refresh_hook_phase();
-		invocation
-	}
-
-	pub(crate) fn has_pending_hook_invocations(&self) -> bool {
-		!self.hook_pending_invocations.is_empty()
+	/// Advances stop-propagation scope generation and returns the prior value.
+	pub(crate) fn advance_stop_scope_generation(&mut self) -> u64 {
+		let previous = self.stop_scope_generation;
+		self.stop_scope_generation = self.stop_scope_generation.wrapping_add(1);
+		previous
 	}
 
 	/// Clear all pending hook work for stop-propagation semantics.
 	pub(crate) fn clear_hook_work_on_stop_propagation(&mut self) {
 		self.hook_queue.clear();
-		self.hook_pending_invocations.clear();
 		self.refresh_hook_phase();
-	}
-
-	pub(crate) fn pending_hook_invocations_len(&self) -> usize {
-		self.hook_pending_invocations.len()
 	}
 
 	pub(crate) fn hook_dropped_total(&self) -> u64 {
@@ -415,27 +404,23 @@ impl NuCoordinatorState {
 	}
 
 	/// Handle a fired scheduled macro. Verifies token, enqueues invocation
-	/// into the hook pending invocations queue for drain in pump phase 9.
-	pub(crate) fn apply_schedule_fired(&mut self, msg: NuScheduleFiredMsg) -> bool {
+	/// into the runtime deferred invocation mailbox.
+	pub(crate) fn apply_schedule_fired(&mut self, msg: NuScheduleFiredMsg) -> Option<Invocation> {
 		let Some(entry) = self.scheduled.get(&msg.key) else {
-			return false;
+			return None;
 		};
 		if entry.token != msg.token {
-			return false;
+			return None;
 		}
 		let _ = self.scheduled.remove(&msg.key);
-		self.hook_pending_invocations.push_back(Invocation::Nu {
+		Some(Invocation::Nu {
 			name: msg.name,
 			args: msg.args,
-		});
-		self.refresh_hook_phase();
-		true
+		})
 	}
 
 	fn refresh_hook_phase(&mut self) {
-		self.hook_phase = if self.hook_depth > 0 || !self.hook_pending_invocations.is_empty() {
-			HookPipelinePhase::DrainingHookInvocations
-		} else if self.hook_in_flight.is_some() {
+		self.hook_phase = if self.hook_depth > 0 || self.hook_in_flight.is_some() {
 			HookPipelinePhase::HookInFlight
 		} else if !self.hook_queue.is_empty() {
 			HookPipelinePhase::HookQueued

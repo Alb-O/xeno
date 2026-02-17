@@ -13,6 +13,7 @@ use xeno_registry::actions::editor_ctx::OverlayRequest;
 use xeno_registry::commands::CommandError;
 
 use crate::effects::sink::DrainedEffects;
+use crate::runtime::mailbox::{DeferredInvocationExecutionPolicy, DeferredInvocationScope, DeferredInvocationSource};
 use crate::types::DeferredWorkItem;
 
 impl crate::Editor {
@@ -71,8 +72,13 @@ impl crate::Editor {
 			}
 		}
 
-		for (name, args) in eff.queued_commands {
-			self.state.core.workspace.command_queue.push(name, args);
+		for invocation in eff.queued_invocations {
+			self.enqueue_deferred_invocation(
+				invocation,
+				DeferredInvocationSource::ActionEffect,
+				DeferredInvocationExecutionPolicy::LogOnlyCommandPath,
+				DeferredInvocationScope::Global,
+			);
 		}
 
 		if needs_redraw {

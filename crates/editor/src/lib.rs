@@ -25,8 +25,6 @@ pub mod bootstrap;
 pub mod buffer;
 mod buffer_identity;
 pub mod capabilities;
-/// Command queue for deferred execution.
-pub mod command_queue;
 /// Editor-direct commands that need full [`Editor`] access.
 pub mod commands;
 /// Completion types and sources for command palette.

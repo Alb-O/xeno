@@ -6,7 +6,6 @@ use xeno_primitives::Key;
 use xeno_primitives::range::CharIdx;
 
 use crate::buffer::ViewId;
-use crate::command_queue::CommandQueue;
 
 /// Represents yanked content, preserving individual selection fragments.
 #[derive(Debug, Clone, Default)]
@@ -193,7 +192,7 @@ impl NuState {
 /// Editing session state.
 ///
 /// Groups workspace-level state that persists across buffer switches:
-/// registers, jump list, macros, and queued commands.
+/// registers, jump list, macros, and Nu script state.
 #[derive(Default)]
 pub struct Workspace {
 	/// Named registers (yank buffer, etc.).
@@ -202,8 +201,6 @@ pub struct Workspace {
 	pub jump_list: JumpList,
 	/// Macro recording and playback state.
 	pub macro_state: MacroState,
-	/// Queue for deferred command execution.
-	pub command_queue: CommandQueue,
 	/// Per-session Nu script state store.
 	pub nu_state: NuState,
 }

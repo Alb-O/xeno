@@ -55,20 +55,10 @@ pub(crate) async fn run_pump_cycle_with_report(editor: &mut Editor) -> (LoopDire
 		let scheduler_outcome = phases::phase_drain_scheduler(editor).await;
 		round.work.scheduler_completions = scheduler_outcome.completed;
 
-		round.phases.push(PumpPhase::DrainCommandQueue);
-		let commands_outcome = phases::phase_drain_command_queue(editor).await;
-		round.work.executed_commands = commands_outcome.executed_count;
-		if commands_outcome.should_quit || editor.take_quit_request() {
-			should_quit = true;
-			report.should_quit = true;
-			report.rounds.push(round);
-			break;
-		}
-
-		round.phases.push(PumpPhase::DrainNuHookInvocations);
-		let nu_outcome = phases::phase_drain_nu_hook_invocations(editor, crate::impls::invocation::MAX_NU_HOOKS_PER_PUMP).await;
-		round.work.drained_nu_hook_invocations = nu_outcome.drained_count;
-		if nu_outcome.should_quit {
+		round.phases.push(PumpPhase::DrainDeferredInvocations);
+		let deferred_outcome = phases::phase_drain_deferred_invocations(editor, phases::MAX_DEFERRED_INVOCATIONS_PER_ROUND).await;
+		round.work.drained_deferred_invocations = deferred_outcome.drained_count;
+		if deferred_outcome.should_quit || editor.take_quit_request() {
 			should_quit = true;
 			report.should_quit = true;
 			report.rounds.push(round);

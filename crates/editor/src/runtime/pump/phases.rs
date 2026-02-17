@@ -34,19 +34,15 @@ pub(crate) struct SchedulerDrainPhaseOutcome {
 	pub(crate) completed: usize,
 }
 
-/// Outcome for queued-command drain phase.
+/// Outcome for deferred invocation drain phase.
 #[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct CommandQueuePhaseOutcome {
-	pub(crate) executed_count: usize,
-	pub(crate) should_quit: bool,
-}
-
-/// Outcome for hook-produced invocation drain phase.
-#[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct NuHookDrainPhaseOutcome {
+pub(crate) struct DeferredInvocationsPhaseOutcome {
 	pub(crate) drained_count: usize,
 	pub(crate) should_quit: bool,
 }
+
+/// Maximum deferred invocations drained per round.
+pub(crate) const MAX_DEFERRED_INVOCATIONS_PER_ROUND: usize = 32;
 
 /// Runtime policy constants.
 const DRAIN_BUDGET_FAST: crate::scheduler::DrainBudget = crate::scheduler::DrainBudget {
@@ -140,17 +136,9 @@ pub(crate) async fn phase_drain_scheduler(editor: &mut Editor) -> SchedulerDrain
 	}
 }
 
-pub(crate) async fn phase_drain_command_queue(editor: &mut Editor) -> CommandQueuePhaseOutcome {
-	let report = editor.drain_command_queue_report().await;
-	CommandQueuePhaseOutcome {
-		executed_count: report.executed_count,
-		should_quit: report.should_quit,
-	}
-}
-
-pub(crate) async fn phase_drain_nu_hook_invocations(editor: &mut Editor, max: usize) -> NuHookDrainPhaseOutcome {
-	let report = editor.drain_nu_hook_invocations_report(max).await;
-	NuHookDrainPhaseOutcome {
+pub(crate) async fn phase_drain_deferred_invocations(editor: &mut Editor, max: usize) -> DeferredInvocationsPhaseOutcome {
+	let report = editor.drain_deferred_invocations_report(max).await;
+	DeferredInvocationsPhaseOutcome {
 		drained_count: report.drained_count,
 		should_quit: report.should_quit,
 	}

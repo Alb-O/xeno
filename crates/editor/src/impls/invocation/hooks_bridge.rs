@@ -1,9 +1,6 @@
 use crate::impls::Editor;
 use crate::types::InvocationOutcome;
 
-/// Maximum Nu hooks drained per pump() cycle.
-pub(crate) const MAX_NU_HOOKS_PER_PUMP: usize = crate::nu::pipeline::MAX_NU_HOOKS_PER_PUMP;
-
 /// Build hook args for action post hooks: `[name, result_label]`.
 pub(crate) fn action_post_args(name: String, result: &InvocationOutcome) -> Vec<String> {
 	crate::nu::pipeline::action_post_args(name, result)
@@ -55,11 +52,6 @@ impl Editor {
 	/// On executor death, restarts the executor and retries once.
 	pub(crate) fn apply_nu_hook_eval_done(&mut self, msg: crate::msg::NuHookEvalDoneMsg) -> crate::msg::Dirty {
 		crate::nu::pipeline::apply_nu_hook_eval_done(self, msg)
-	}
-
-	/// Drains pending Nu hook invocations and reports progress metadata.
-	pub(crate) async fn drain_nu_hook_invocations_report(&mut self, max: usize) -> crate::nu::pipeline::NuHookInvocationDrainReport {
-		crate::nu::pipeline::drain_nu_hook_invocations_report(self, max).await
 	}
 
 	/// Legacy synchronous drain for tests that need immediate hook evaluation.

@@ -11,8 +11,7 @@ pub(crate) enum PumpPhase {
 	ApplyWorkspaceEdits,
 	KickNuHookEval,
 	DrainScheduler,
-	DrainCommandQueue,
-	DrainNuHookInvocations,
+	DrainDeferredInvocations,
 }
 
 /// Per-round progress flags used by bounded-convergence control flow.
@@ -23,8 +22,7 @@ pub(crate) struct RoundWorkFlags {
 	pub(crate) drained_messages: usize,
 	pub(crate) applied_workspace_edits: usize,
 	pub(crate) scheduler_completions: usize,
-	pub(crate) executed_commands: usize,
-	pub(crate) drained_nu_hook_invocations: usize,
+	pub(crate) drained_deferred_invocations: usize,
 }
 
 impl RoundWorkFlags {
@@ -34,8 +32,7 @@ impl RoundWorkFlags {
 			|| self.drained_messages > 0
 			|| self.applied_workspace_edits > 0
 			|| self.scheduler_completions > 0
-			|| self.executed_commands > 0
-			|| self.drained_nu_hook_invocations > 0
+			|| self.drained_deferred_invocations > 0
 	}
 }
 
