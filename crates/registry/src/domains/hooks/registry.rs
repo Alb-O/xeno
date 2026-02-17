@@ -1,7 +1,3 @@
-use std::sync::Arc;
-
-use rustc_hash::FxHashMap as HashMap;
-
 use crate::HookEvent;
 use crate::core::index::RegistryRef;
 use crate::core::{DenseId, HookId, RegistryIndex, RuntimeRegistry};
@@ -12,20 +8,12 @@ pub type HooksRef = RegistryRef<HookEntry, HookId>;
 
 pub struct HooksRegistry {
 	pub(super) inner: RuntimeRegistry<HookEntry, HookId>,
-	pub(super) by_event: Arc<HashMap<HookEvent, Vec<HookId>>>,
 }
 
 impl HooksRegistry {
 	pub fn new(builtins: RegistryIndex<HookEntry, HookId>) -> Self {
-		let mut event_map: HashMap<HookEvent, Vec<HookId>> = HashMap::default();
-		for (idx, entry) in builtins.items().iter().enumerate() {
-			let id: HookId = DenseId::from_u32(idx as u32);
-			event_map.entry(entry.event).or_default().push(id);
-		}
-
 		Self {
 			inner: RuntimeRegistry::new("hooks", builtins),
-			by_event: Arc::new(event_map),
 		}
 	}
 
@@ -43,11 +31,14 @@ impl HooksRegistry {
 
 	pub fn for_event(&self, event: HookEvent) -> Vec<HooksRef> {
 		let snap = self.inner.snapshot();
-		let ids = self.by_event.get(&event).map(|v| v.as_slice()).unwrap_or(&[]);
-
-		let mut refs = Vec::with_capacity(ids.len());
-		for &id in ids {
-			refs.push(RegistryRef { snap: snap.clone(), id });
+		let mut refs = Vec::new();
+		for (idx, entry) in snap.table.iter().enumerate() {
+			if entry.event == event {
+				refs.push(RegistryRef {
+					snap: snap.clone(),
+					id: HookId::from_u32(idx as u32),
+				});
+			}
 		}
 		refs
 	}
@@ -60,8 +51,47 @@ impl HooksRegistry {
 		self.inner.is_empty()
 	}
 
-	/// Runtime registration stub (not yet fully implemented).
-	pub fn register(&self, _def: &'static HookDef) -> bool {
-		false
+	pub fn register(&self, def: &'static HookDef) -> bool {
+		self.inner.register(def).is_ok()
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::core::index::RegistryBuilder;
+	use crate::core::{RegistryMetaStatic, RegistrySource};
+	use crate::hooks::{HookAction, HookContext, HookHandler, HookInput, HookMutability, HookPriority, HookResult};
+
+	fn test_hook(_ctx: &HookContext) -> HookAction {
+		HookAction::Done(HookResult::Continue)
+	}
+
+	static RUNTIME_HOOK: HookDef = HookDef {
+		meta: RegistryMetaStatic {
+			id: "registry::hooks::runtime_test",
+			name: "runtime_test",
+			keys: &[],
+			description: "runtime hook test",
+			priority: 0,
+			source: RegistrySource::Runtime,
+			required_caps: &[],
+			flags: 0,
+		},
+		event: crate::HookEvent::EditorTick,
+		mutability: HookMutability::Immutable,
+		execution_priority: HookPriority::Interactive,
+		handler: HookHandler::Immutable(test_hook),
+	};
+
+	#[test]
+	fn runtime_registration_is_visible_in_event_lookup() {
+		let builder: RegistryBuilder<HookInput, HookEntry, HookId> = RegistryBuilder::new("hooks-test");
+		let registry = HooksRegistry::new(builder.build());
+		assert!(registry.register(&RUNTIME_HOOK));
+
+		let hooks = registry.for_event(crate::HookEvent::EditorTick);
+		assert_eq!(hooks.len(), 1);
+		assert_eq!(hooks[0].id_str(), RUNTIME_HOOK.meta.id);
 	}
 }

@@ -1,51 +1,21 @@
 use std::path::Path;
-
-use rustc_hash::FxHashMap;
+use std::sync::Arc;
 
 pub use super::queries;
-use crate::core::{DenseId, LanguageId, RegistryIndex, RegistryRef, RuntimeRegistry, Symbol};
+use crate::core::index::Snapshot;
+use crate::core::{DenseId, LanguageId, RegistryIndex, RegistryRef, RuntimeRegistry};
 use crate::languages::LanguageEntry;
 
 pub type LanguageRef = RegistryRef<LanguageEntry, LanguageId>;
 
 pub struct LanguagesRegistry {
 	pub(super) inner: RuntimeRegistry<LanguageEntry, LanguageId>,
-	pub(super) by_extension: FxHashMap<Symbol, LanguageId>,
-	pub(super) by_filename: FxHashMap<Symbol, LanguageId>,
-	pub(super) by_shebang: FxHashMap<Symbol, LanguageId>,
-	pub(super) globs: Vec<(Symbol, LanguageId)>,
 }
 
 impl LanguagesRegistry {
 	pub fn new(builtins: RegistryIndex<LanguageEntry, LanguageId>) -> Self {
-		let mut by_extension = FxHashMap::default();
-		let mut by_filename = FxHashMap::default();
-		let mut by_shebang = FxHashMap::default();
-		let mut globs = Vec::new();
-
-		for (i, entry) in builtins.table.iter().enumerate() {
-			let id = LanguageId::from_u32(i as u32);
-
-			for &ext in entry.extensions.iter() {
-				by_extension.entry(ext).or_insert(id);
-			}
-			for &name in entry.filenames.iter() {
-				by_filename.entry(name).or_insert(id);
-			}
-			for &shebang in entry.shebangs.iter() {
-				by_shebang.entry(shebang).or_insert(id);
-			}
-			for &glob in entry.globs.iter() {
-				globs.push((glob, id));
-			}
-		}
-
 		Self {
 			inner: RuntimeRegistry::new("languages", builtins),
-			by_extension,
-			by_filename,
-			by_shebang,
-			globs,
 		}
 	}
 
@@ -60,27 +30,31 @@ impl LanguagesRegistry {
 	pub fn language_for_extension(&self, ext: &str) -> Option<LanguageRef> {
 		let snap = self.inner.snapshot();
 		let sym = snap.interner.get(ext)?;
-		let id = self.by_extension.get(&sym)?;
-		Some(RegistryRef { snap, id: *id })
+		best_match(&snap, |entry| entry.extensions.contains(&sym))
 	}
 
 	pub fn language_for_filename(&self, filename: &str) -> Option<LanguageRef> {
 		let snap = self.inner.snapshot();
 		let sym = snap.interner.get(filename)?;
-		let id = self.by_filename.get(&sym)?;
-		Some(RegistryRef { snap, id: *id })
+		best_match(&snap, |entry| entry.filenames.contains(&sym))
 	}
 
 	pub fn language_for_shebang(&self, interpreter: &str) -> Option<LanguageRef> {
 		let snap = self.inner.snapshot();
 		let sym = snap.interner.get(interpreter)?;
-		let id = self.by_shebang.get(&sym)?;
-		Some(RegistryRef { snap, id: *id })
+		best_match(&snap, |entry| entry.shebangs.contains(&sym))
 	}
 
 	pub fn globs(&self) -> Vec<(String, LanguageId)> {
 		let snap = self.inner.snapshot();
-		self.globs.iter().map(|(sym, id)| (snap.interner.resolve(*sym).to_string(), *id)).collect()
+		let mut out = Vec::new();
+		for (idx, entry) in snap.table.iter().enumerate() {
+			let id = LanguageId::from_u32(idx as u32);
+			for &sym in entry.globs.iter() {
+				out.push((snap.interner.resolve(sym).to_string(), id));
+			}
+		}
+		out
 	}
 
 	pub fn resolve_path(&self, path: &Path) -> Option<LanguageRef> {
@@ -99,14 +73,13 @@ impl LanguagesRegistry {
 
 		let snap = self.inner.snapshot();
 		let path_str = path.to_string_lossy();
-		for (pattern_sym, id) in &self.globs {
-			let pattern = snap.interner.resolve(*pattern_sym);
-			if glob_matches(pattern, &path_str, filename) {
-				return Some(RegistryRef { snap: snap.clone(), id: *id });
-			}
-		}
 
-		None
+		best_match(&snap, |entry| {
+			entry.globs.iter().any(|&pattern_sym| {
+				let pattern = snap.interner.resolve(pattern_sym);
+				glob_matches(pattern, &path_str, filename)
+			})
+		})
 	}
 
 	pub fn all(&self) -> Vec<LanguageRef> {
@@ -128,6 +101,30 @@ impl LanguagesRegistry {
 	pub fn is_empty(&self) -> bool {
 		self.inner.is_empty()
 	}
+}
+
+fn best_match(snap: &Arc<Snapshot<LanguageEntry, LanguageId>>, matches: impl Fn(&LanguageEntry) -> bool) -> Option<LanguageRef> {
+	let mut winner: Option<(LanguageId, crate::core::Party)> = None;
+
+	for (idx, entry) in snap.table.iter().enumerate() {
+		if !matches(entry) {
+			continue;
+		}
+
+		let id = LanguageId::from_u32(idx as u32);
+		let party = snap.parties[idx];
+
+		match winner {
+			None => winner = Some((id, party)),
+			Some((_, best_party)) => {
+				if crate::core::index::precedence::party_wins(&party, &best_party) {
+					winner = Some((id, party));
+				}
+			}
+		}
+	}
+
+	winner.map(|(id, _)| RegistryRef { snap: snap.clone(), id })
 }
 
 fn glob_matches(pattern: &str, path: &str, filename: Option<&str>) -> bool {
@@ -178,4 +175,75 @@ fn glob_match_simple(pattern: &str, text: &str) -> bool {
 	}
 
 	t.next().is_none()
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::core::index::RegistryBuilder;
+	use crate::core::{RegistryMetaStatic, RegistrySource};
+	use crate::languages::types::LanguageDef;
+	use crate::languages::{LanguageEntry, LanguageInput};
+
+	static BUILTIN_LANG: LanguageDef = LanguageDef {
+		meta: RegistryMetaStatic {
+			id: "registry::languages::builtin",
+			name: "builtin",
+			keys: &[],
+			description: "builtin language",
+			priority: 0,
+			source: RegistrySource::Builtin,
+			required_caps: &[],
+			flags: 0,
+		},
+		scope: None,
+		grammar_name: None,
+		injection_regex: None,
+		auto_format: false,
+		extensions: &["rs"],
+		filenames: &[],
+		globs: &[],
+		shebangs: &[],
+		comment_tokens: &[],
+		block_comment: None,
+		lsp_servers: &[],
+		roots: &[],
+	};
+
+	static RUNTIME_LANG: LanguageDef = LanguageDef {
+		meta: RegistryMetaStatic {
+			id: "registry::languages::runtime",
+			name: "runtime",
+			keys: &[],
+			description: "runtime language",
+			priority: 0,
+			source: RegistrySource::Runtime,
+			required_caps: &[],
+			flags: 0,
+		},
+		scope: None,
+		grammar_name: None,
+		injection_regex: None,
+		auto_format: false,
+		extensions: &["rs"],
+		filenames: &[],
+		globs: &[],
+		shebangs: &[],
+		comment_tokens: &[],
+		block_comment: None,
+		lsp_servers: &[],
+		roots: &[],
+	};
+
+	#[test]
+	fn extension_lookup_prefers_runtime_source_on_tie() {
+		let mut builder: RegistryBuilder<LanguageInput, LanguageEntry, LanguageId> = RegistryBuilder::new("languages-test");
+		builder.push(std::sync::Arc::new(LanguageInput::Static(BUILTIN_LANG.clone())));
+
+		let registry = LanguagesRegistry::new(builder.build());
+		registry.inner.register(&RUNTIME_LANG).expect("runtime language registration should succeed");
+
+		let resolved = registry.language_for_extension("rs").expect("extension should resolve");
+		assert_eq!(resolved.id_str(), RUNTIME_LANG.meta.id);
+	}
 }

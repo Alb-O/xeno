@@ -40,10 +40,15 @@ impl crate::db::domain::DomainSpec for Commands {
 	type Input = def::CommandInput;
 	type Entry = entry::CommandEntry;
 	type Id = crate::core::CommandId;
+	type Runtime = crate::core::RuntimeRegistry<entry::CommandEntry, crate::core::CommandId>;
 	const LABEL: &'static str = "commands";
 
 	fn builder(db: &mut crate::db::builder::RegistryDbBuilder) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
 		&mut db.commands
+	}
+
+	fn into_runtime(index: crate::core::index::RegistryIndex<Self::Entry, Self::Id>) -> Self::Runtime {
+		crate::core::RuntimeRegistry::new(Self::LABEL, index)
 	}
 }
 

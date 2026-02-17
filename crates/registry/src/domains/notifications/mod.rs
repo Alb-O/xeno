@@ -40,10 +40,15 @@ impl crate::db::domain::DomainSpec for Notifications {
 	type Input = NotificationInput;
 	type Entry = NotificationEntry;
 	type Id = crate::core::NotificationId;
+	type Runtime = crate::core::RuntimeRegistry<NotificationEntry, crate::core::NotificationId>;
 	const LABEL: &'static str = "notifications";
 
 	fn builder(db: &mut crate::db::builder::RegistryDbBuilder) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
 		&mut db.notifications
+	}
+
+	fn into_runtime(index: crate::core::index::RegistryIndex<Self::Entry, Self::Id>) -> Self::Runtime {
+		crate::core::RuntimeRegistry::new(Self::LABEL, index)
 	}
 }
 

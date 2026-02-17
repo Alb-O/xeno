@@ -35,10 +35,15 @@ impl crate::db::domain::DomainSpec for TextObjects {
 	type Input = TextObjectInput;
 	type Entry = TextObjectEntry;
 	type Id = crate::core::TextObjectId;
+	type Runtime = TextObjectRegistry;
 	const LABEL: &'static str = "text_objects";
 
 	fn builder(db: &mut crate::db::builder::RegistryDbBuilder) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
 		&mut db.text_objects
+	}
+
+	fn into_runtime(index: crate::core::index::RegistryIndex<Self::Entry, Self::Id>) -> Self::Runtime {
+		TextObjectRegistry::new(index)
 	}
 }
 

@@ -1,36 +1,19 @@
-use std::sync::Arc;
-
-use rustc_hash::FxHashMap as HashMap;
-
-use crate::core::TextObjectId;
 use crate::core::index::{RegistryIndex, RegistryRef};
+use crate::core::{DenseId, RuntimeRegistry, TextObjectId};
 
 /// Guard object that keeps a text-object snapshot alive while providing access to a definition.
 pub type TextObjectRef = RegistryRef<crate::textobj::TextObjectEntry, TextObjectId>;
 
-use crate::core::RuntimeRegistry;
 use crate::textobj::TextObjectEntry;
 
 pub struct TextObjectRegistry {
 	pub(super) inner: RuntimeRegistry<TextObjectEntry, TextObjectId>,
-	pub(super) by_trigger: Arc<HashMap<char, TextObjectId>>,
 }
 
 impl TextObjectRegistry {
 	pub fn new(builtins: RegistryIndex<TextObjectEntry, TextObjectId>) -> Self {
-		let mut trigger_map = HashMap::default();
-		// Build trigger map from builtins
-		for (idx, entry) in builtins.items().iter().enumerate() {
-			let id = crate::core::DenseId::from_u32(idx as u32);
-			trigger_map.insert(entry.trigger, id);
-			for &alt in &*entry.alt_triggers {
-				trigger_map.insert(alt, id);
-			}
-		}
-
 		Self {
 			inner: RuntimeRegistry::new("text_objects", builtins),
-			by_trigger: Arc::new(trigger_map),
 		}
 	}
 
@@ -39,13 +22,28 @@ impl TextObjectRegistry {
 	}
 
 	pub fn by_trigger(&self, trigger: char) -> Option<TextObjectRef> {
-		let id = *self.by_trigger.get(&trigger)?;
-		// We assume IDs are stable and the map is in sync with the inner registry.
-		// For static builtins this is true.
-		// For runtime extensions, we would need to update by_trigger.
-		// This wrapper implementation is incomplete for runtime registration of new triggers.
-		// But for reading, it works.
-		self.inner.get_by_id(id) // Requires get_by_id on RuntimeRegistry (added in previous step)
+		let snap = self.inner.snapshot();
+		let mut winner: Option<(TextObjectId, crate::core::Party)> = None;
+
+		for (idx, entry) in snap.table.iter().enumerate() {
+			if entry.trigger != trigger && !entry.alt_triggers.contains(&trigger) {
+				continue;
+			}
+
+			let id = TextObjectId::from_u32(idx as u32);
+			let party = snap.parties[idx];
+
+			match winner {
+				None => winner = Some((id, party)),
+				Some((_, best_party)) => {
+					if crate::core::index::precedence::party_wins(&party, &best_party) {
+						winner = Some((id, party));
+					}
+				}
+			}
+		}
+
+		winner.map(|(id, _)| RegistryRef { snap, id })
 	}
 
 	pub fn all(&self) -> Vec<TextObjectRef> {
@@ -62,5 +60,70 @@ impl TextObjectRegistry {
 
 	pub fn is_empty(&self) -> bool {
 		self.inner.is_empty()
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::core::index::RegistryBuilder;
+	use crate::core::{RegistryMetaStatic, RegistrySource};
+	use crate::textobj::{TextObjectDef, TextObjectEntry, TextObjectInput};
+
+	fn test_inner(_text: ropey::RopeSlice, _pos: usize) -> Option<xeno_primitives::Range> {
+		None
+	}
+
+	fn test_around(_text: ropey::RopeSlice, _pos: usize) -> Option<xeno_primitives::Range> {
+		None
+	}
+
+	static BUILTIN_TEXT_OBJECT: TextObjectDef = TextObjectDef {
+		meta: RegistryMetaStatic {
+			id: "registry::textobj::builtin",
+			name: "builtin",
+			keys: &[],
+			description: "builtin text object",
+			priority: 0,
+			source: RegistrySource::Builtin,
+			required_caps: &[],
+			flags: 0,
+		},
+		trigger: 'x',
+		alt_triggers: &[],
+		inner: test_inner,
+		around: test_around,
+	};
+
+	static RUNTIME_TEXT_OBJECT: TextObjectDef = TextObjectDef {
+		meta: RegistryMetaStatic {
+			id: "registry::textobj::runtime",
+			name: "runtime",
+			keys: &[],
+			description: "runtime text object",
+			priority: 0,
+			source: RegistrySource::Runtime,
+			required_caps: &[],
+			flags: 0,
+		},
+		trigger: 'x',
+		alt_triggers: &[],
+		inner: test_inner,
+		around: test_around,
+	};
+
+	#[test]
+	fn by_trigger_prefers_runtime_source_on_tie() {
+		let mut builder: RegistryBuilder<TextObjectInput, TextObjectEntry, TextObjectId> = RegistryBuilder::new("textobj-test");
+		builder.push(std::sync::Arc::new(TextObjectInput::Static(BUILTIN_TEXT_OBJECT)));
+
+		let registry = TextObjectRegistry::new(builder.build());
+		registry
+			.inner
+			.register(&RUNTIME_TEXT_OBJECT)
+			.expect("runtime text object registration should succeed");
+
+		let resolved = registry.by_trigger('x').expect("trigger should resolve");
+		assert_eq!(resolved.id_str(), RUNTIME_TEXT_OBJECT.meta.id);
 	}
 }
