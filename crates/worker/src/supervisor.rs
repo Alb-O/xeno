@@ -7,9 +7,9 @@ use tokio::sync::{Mutex, broadcast};
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
-use crate::TaskClass;
 use crate::mailbox::{Mailbox, MailboxPolicy, MailboxReceiver, MailboxSendError, MailboxSendOutcome, MailboxSender};
 use crate::token::{GenerationClock, GenerationToken};
+use crate::{TaskClass, spawn};
 
 /// Continuation directive from one actor command handling step.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -369,7 +369,7 @@ where
 	let task_restart = spec.supervisor.restart.clone();
 	let generation = GenerationClock::new();
 
-	let supervisor_task = tokio::spawn(async move {
+	let supervisor_task = spawn::spawn(task_class, async move {
 		let mut restart_count = 0usize;
 		loop {
 			if task_cancel.is_cancelled() {
@@ -385,7 +385,7 @@ where
 			let child_rx = rx.clone();
 			let child_events = task_events.clone();
 
-			let child = tokio::spawn(run_actor_instance(actor, child_rx, child_events, token));
+			let child = spawn::spawn(task_class, run_actor_instance(actor, child_rx, child_events, token));
 			let reason = match child.await {
 				Ok(reason) => reason,
 				Err(err) if err.is_panic() => ActorExitReason::Panicked,

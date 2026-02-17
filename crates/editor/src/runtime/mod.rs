@@ -37,6 +37,7 @@
 //! * Deferred invocation/runtime work drain must preserve global FIFO order across work kinds.
 //! * Runtime work drain must remain bounded by `phases::MAX_RUNTIME_WORK_ITEMS_PER_ROUND`.
 //! * Runtime must return immediate quit directive when runtime work drain requests quit.
+//! * Editor/runtime construction must not require an already-active Tokio runtime.
 //! * Cursor style must default to insert beam vs non-insert block when UI has no override.
 //!
 //! # Data flow

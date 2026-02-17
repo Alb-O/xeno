@@ -17,6 +17,7 @@ mod join_set;
 mod mailbox;
 mod registry;
 mod runtime;
+mod spawn;
 mod supervisor;
 mod token;
 
