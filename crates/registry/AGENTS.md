@@ -32,7 +32,8 @@ The registry is a typed database of editor definitions (actions, commands, optio
 * **DB builder**:
   * `src/db/domain.rs`: `DomainSpec` trait (domain type plumbing + hooks)
   * `src/db/domain_catalog.rs`: single source of truth for domain wiring into builder/runtime DB
-  * `src/db/builder/mod.rs`: `RegistryDbBuilder` and domain registration wrappers
+  * `src/db/builder/mod.rs`: `RegistryDbBuilder` generated from domain catalog
+  * `src/db/mod.rs`: `RegistryDb` fields and global accessors generated from domain catalog
 
 ### Pipeline (end-to-end)
 
