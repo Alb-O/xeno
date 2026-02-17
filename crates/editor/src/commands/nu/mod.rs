@@ -65,16 +65,16 @@ fn cmd_nu_run<'a>(ctx: &'a mut EditorCommandContext<'a>) -> BoxFutureLocal<'a, R
 			InvocationStatus::Quit => Ok(CommandOutcome::Quit),
 			InvocationStatus::ForceQuit => Ok(CommandOutcome::ForceQuit),
 			InvocationStatus::NotFound => {
-				let target = outcome.detail.as_deref().unwrap_or("unknown");
+				let target = outcome.detail_text().unwrap_or("unknown");
 				Err(CommandError::Failed(format!("nu-run invocation not found: {target} ({describe})")))
 			}
 			InvocationStatus::CapabilityDenied => {
-				let cap = outcome.denied_capability;
+				let cap = outcome.denied_capability();
 				Err(CommandError::Failed(format!("nu-run invocation denied by capability {cap:?} ({describe})")))
 			}
 			InvocationStatus::ReadonlyDenied => Err(CommandError::Failed(format!("nu-run invocation blocked by readonly mode ({describe})"))),
 			InvocationStatus::CommandError => {
-				let error = outcome.detail.as_deref().unwrap_or("unknown");
+				let error = outcome.detail_text().unwrap_or("unknown");
 				Err(CommandError::Failed(format!("nu-run invocation failed: {error} ({describe})")))
 			}
 		}

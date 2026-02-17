@@ -82,13 +82,20 @@ pub enum InvocationStatus {
 	CommandError,
 }
 
+/// Structured detail payload for invocation outcomes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InvocationDetail {
+	NotFoundTarget(String),
+	Message(String),
+	Capability(Capability),
+}
+
 /// Structured invocation outcome with explicit status and diagnostics payload.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InvocationOutcome {
 	pub status: InvocationStatus,
 	pub target: InvocationTarget,
-	pub detail: Option<String>,
-	pub denied_capability: Option<Capability>,
+	pub detail: Option<InvocationDetail>,
 }
 
 impl InvocationOutcome {
@@ -97,7 +104,6 @@ impl InvocationOutcome {
 			status: InvocationStatus::Ok,
 			target,
 			detail: None,
-			denied_capability: None,
 		}
 	}
 
@@ -106,7 +112,6 @@ impl InvocationOutcome {
 			status: InvocationStatus::Quit,
 			target,
 			detail: None,
-			denied_capability: None,
 		}
 	}
 
@@ -115,7 +120,6 @@ impl InvocationOutcome {
 			status: InvocationStatus::ForceQuit,
 			target,
 			detail: None,
-			denied_capability: None,
 		}
 	}
 
@@ -123,8 +127,7 @@ impl InvocationOutcome {
 		Self {
 			status: InvocationStatus::NotFound,
 			target,
-			detail: Some(detail.into()),
-			denied_capability: None,
+			detail: Some(InvocationDetail::NotFoundTarget(detail.into())),
 		}
 	}
 
@@ -132,8 +135,7 @@ impl InvocationOutcome {
 		Self {
 			status: InvocationStatus::CapabilityDenied,
 			target,
-			detail: None,
-			denied_capability: Some(capability),
+			detail: Some(InvocationDetail::Capability(capability)),
 		}
 	}
 
@@ -142,7 +144,6 @@ impl InvocationOutcome {
 			status: InvocationStatus::ReadonlyDenied,
 			target,
 			detail: None,
-			denied_capability: None,
 		}
 	}
 
@@ -150,8 +151,7 @@ impl InvocationOutcome {
 		Self {
 			status: InvocationStatus::CommandError,
 			target,
-			detail: Some(detail.into()),
-			denied_capability: None,
+			detail: Some(InvocationDetail::Message(detail.into())),
 		}
 	}
 
@@ -163,6 +163,20 @@ impl InvocationOutcome {
 	/// Returns true if this result indicates successful execution.
 	pub fn is_ok(&self) -> bool {
 		matches!(self.status, InvocationStatus::Ok)
+	}
+
+	pub fn detail_text(&self) -> Option<&str> {
+		match &self.detail {
+			Some(InvocationDetail::NotFoundTarget(text) | InvocationDetail::Message(text)) => Some(text.as_str()),
+			Some(InvocationDetail::Capability(_)) | None => None,
+		}
+	}
+
+	pub const fn denied_capability(&self) -> Option<Capability> {
+		match self.detail {
+			Some(InvocationDetail::Capability(capability)) => Some(capability),
+			Some(InvocationDetail::NotFoundTarget(_) | InvocationDetail::Message(_)) | None => None,
+		}
 	}
 
 	pub fn label(&self) -> &'static str {

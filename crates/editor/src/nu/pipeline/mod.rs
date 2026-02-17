@@ -203,18 +203,18 @@ pub(crate) async fn drain_nu_hook_invocations_report(editor: &mut Editor, max: u
 				break;
 			}
 			InvocationStatus::NotFound => {
-				let target = result.detail.as_deref().unwrap_or("unknown");
+				let target = result.detail_text().unwrap_or("unknown");
 				warn!(target = %target, "Nu hook invocation not found");
 			}
 			InvocationStatus::CapabilityDenied => {
-				let cap = result.denied_capability;
+				let cap = result.denied_capability();
 				warn!(capability = ?cap, "Nu hook invocation denied by capability");
 			}
 			InvocationStatus::ReadonlyDenied => {
 				warn!("Nu hook invocation denied by readonly mode");
 			}
 			InvocationStatus::CommandError => {
-				let error = result.detail.as_deref().unwrap_or("unknown");
+				let error = result.detail_text().unwrap_or("unknown");
 				warn!(error = %error, "Nu hook invocation failed");
 			}
 		}
@@ -319,18 +319,18 @@ async fn run_single_nu_hook_sync(editor: &mut Editor, hook: crate::nu::NuHook, a
 			InvocationStatus::Ok => {}
 			InvocationStatus::Quit | InvocationStatus::ForceQuit => return Some(result),
 			InvocationStatus::NotFound => {
-				let target = result.detail.as_deref().unwrap_or("unknown");
+				let target = result.detail_text().unwrap_or("unknown");
 				warn!(hook = fn_name, target = %target, "Nu hook invocation not found");
 			}
 			InvocationStatus::CapabilityDenied => {
-				let cap = result.denied_capability;
+				let cap = result.denied_capability();
 				warn!(hook = fn_name, capability = ?cap, "Nu hook invocation denied by capability");
 			}
 			InvocationStatus::ReadonlyDenied => {
 				warn!(hook = fn_name, "Nu hook invocation denied by readonly mode");
 			}
 			InvocationStatus::CommandError => {
-				let error = result.detail.as_deref().unwrap_or("unknown");
+				let error = result.detail_text().unwrap_or("unknown");
 				warn!(hook = fn_name, error = %error, "Nu hook invocation failed");
 			}
 		}

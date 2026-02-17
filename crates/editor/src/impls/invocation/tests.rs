@@ -281,13 +281,13 @@ fn capability_enforcement_blocks_when_enforced() {
 	assert!(notified.get());
 	assert!(!logged.get());
 	assert!(matches!(
-		result,
+		&result,
 		Some(InvocationOutcome {
 			status: InvocationStatus::CapabilityDenied,
-			denied_capability: Some(Capability::Search),
 			..
 		})
 	));
+	assert_eq!(result.and_then(|outcome| outcome.denied_capability()), Some(Capability::Search));
 }
 
 #[test]
@@ -365,7 +365,7 @@ fn command_error_propagates() {
 
 	assert!(matches!(result.status, InvocationStatus::CommandError));
 	assert!(
-		result.detail.as_deref().is_some_and(|msg| msg.contains("boom")),
+		result.detail_text().is_some_and(|msg| msg.contains("boom")),
 		"expected command error detail to include boom, got: {result:?}"
 	);
 }
@@ -390,7 +390,7 @@ async fn nu_macro_recursion_depth_guard_trips() {
 		.await;
 
 	assert!(matches!(result.status, InvocationStatus::CommandError));
-	let msg = result.detail.as_deref().unwrap_or_default();
+	let msg = result.detail_text().unwrap_or_default();
 	assert!(msg.to_ascii_lowercase().contains("recursion depth"), "{msg}");
 }
 
@@ -442,8 +442,7 @@ async fn nu_macro_stop_effect_is_rejected() {
 	assert!(
 		matches!(result.status, InvocationStatus::CommandError)
 			&& result
-				.detail
-				.as_deref()
+				.detail_text()
 				.is_some_and(|msg| msg.contains("only allowed in hook") || msg.contains("hook-only stop effect")),
 		"expected macro stop rejection, got: {result:?}"
 	);
@@ -481,7 +480,7 @@ async fn nu_macro_capability_denial_is_command_error() {
 		.await;
 
 	assert!(
-		matches!(result.status, InvocationStatus::CommandError) && result.detail.as_deref().is_some_and(|msg| msg.contains("denied by capability policy")),
+		matches!(result.status, InvocationStatus::CommandError) && result.detail_text().is_some_and(|msg| msg.contains("denied by capability policy")),
 		"expected macro capability denial, got: {result:?}"
 	);
 	assert_eq!(
@@ -996,7 +995,7 @@ async fn nu_macro_respects_configured_decode_limits() {
 		.await;
 
 	assert!(
-		matches!(result.status, InvocationStatus::CommandError) && result.detail.as_deref().is_some_and(|msg| msg.contains("effect count exceeds")),
+		matches!(result.status, InvocationStatus::CommandError) && result.detail_text().is_some_and(|msg| msg.contains("effect count exceeds")),
 		"expected decode limit error, got: {result:?}"
 	);
 }

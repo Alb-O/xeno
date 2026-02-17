@@ -7,6 +7,52 @@ use crate::impls::Editor;
 use crate::impls::invocation::preflight::{InvocationSubject, PreflightDecision};
 use crate::types::{InvocationOutcome, InvocationPolicy, InvocationTarget};
 
+enum ResolvedCommandTarget {
+	Editor(&'static crate::commands::EditorCommandDef),
+	Registry(xeno_registry::commands::CommandRef),
+	Missing,
+}
+
+struct CommandResolution {
+	resolved_route: CommandRoute,
+	target: ResolvedCommandTarget,
+}
+
+fn resolve_command_target(name: &str, route: CommandRoute) -> CommandResolution {
+	match route {
+		CommandRoute::Editor => CommandResolution {
+			resolved_route: CommandRoute::Editor,
+			target: find_editor_command(name)
+				.map(ResolvedCommandTarget::Editor)
+				.unwrap_or(ResolvedCommandTarget::Missing),
+		},
+		CommandRoute::Registry => CommandResolution {
+			resolved_route: CommandRoute::Registry,
+			target: find_command(name)
+				.map(ResolvedCommandTarget::Registry)
+				.unwrap_or(ResolvedCommandTarget::Missing),
+		},
+		CommandRoute::Auto => {
+			if let Some(editor_cmd) = find_editor_command(name) {
+				return CommandResolution {
+					resolved_route: CommandRoute::Editor,
+					target: ResolvedCommandTarget::Editor(editor_cmd),
+				};
+			}
+			if let Some(command_def) = find_command(name) {
+				return CommandResolution {
+					resolved_route: CommandRoute::Registry,
+					target: ResolvedCommandTarget::Registry(command_def),
+				};
+			}
+			CommandResolution {
+				resolved_route: CommandRoute::Auto,
+				target: ResolvedCommandTarget::Missing,
+			}
+		}
+	}
+}
+
 impl Editor {
 	pub(crate) async fn run_command_invocation(&mut self, name: &str, args: &[String], route: CommandRoute, policy: InvocationPolicy) -> InvocationOutcome {
 		self.run_command_invocation_with_resolved_route(name, args, route, policy).await.0
@@ -19,38 +65,13 @@ impl Editor {
 		route: CommandRoute,
 		policy: InvocationPolicy,
 	) -> (InvocationOutcome, CommandRoute) {
-		match route {
-			CommandRoute::Editor => {
-				let Some(editor_cmd) = find_editor_command(name) else {
-					return (
-						InvocationOutcome::not_found(InvocationTarget::Command, format!("command:{name}")),
-						CommandRoute::Editor,
-					);
-				};
-				(self.execute_editor_command(name, args, editor_cmd, policy).await, CommandRoute::Editor)
-			}
-			CommandRoute::Registry => {
-				let Some(command_def) = find_command(name) else {
-					return (
-						InvocationOutcome::not_found(InvocationTarget::Command, format!("command:{name}")),
-						CommandRoute::Registry,
-					);
-				};
-				(self.execute_registry_command(name, args, command_def, policy).await, CommandRoute::Registry)
-			}
-			CommandRoute::Auto => {
-				if let Some(editor_cmd) = find_editor_command(name) {
-					return (self.execute_editor_command(name, args, editor_cmd, policy).await, CommandRoute::Editor);
-				}
-				if let Some(command_def) = find_command(name) {
-					return (self.execute_registry_command(name, args, command_def, policy).await, CommandRoute::Registry);
-				}
-				(
-					InvocationOutcome::not_found(InvocationTarget::Command, format!("command:{name}")),
-					CommandRoute::Auto,
-				)
-			}
-		}
+		let CommandResolution { resolved_route, target } = resolve_command_target(name, route);
+		let outcome = match target {
+			ResolvedCommandTarget::Editor(editor_cmd) => self.execute_editor_command(name, args, editor_cmd, policy).await,
+			ResolvedCommandTarget::Registry(command_def) => self.execute_registry_command(name, args, command_def, policy).await,
+			ResolvedCommandTarget::Missing => InvocationOutcome::not_found(InvocationTarget::Command, format!("command:{name}")),
+		};
+		(outcome, resolved_route)
 	}
 
 	async fn execute_registry_command(

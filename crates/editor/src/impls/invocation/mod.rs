@@ -22,6 +22,9 @@
 //! | [`crate::types::Invocation`] | User/script invocation request | Must be dispatched only through `run_invocation` | key handling, command paths, Nu pipelines |
 //! | [`crate::types::InvocationPolicy`] | Enforcement policy toggles | Enforcing mode must block capability/readonly violations | `InvocationPolicy::enforcing` |
 //! | [`crate::types::InvocationOutcome`] | Canonical execution outcome | Must preserve quit/force-quit/error propagation with stable status labels | branch handlers in this module |
+//! | [`engine::InvocationEngine`] | Queue-driven invocation orchestrator | Must execute frames in FIFO-with-front-insert order and short-circuit on terminal outcomes | `Editor::run_invocation` |
+//! | [`engine::InvocationFrame`] | Per-step invocation envelope (`invocation`, `nu_depth`, `origin`) | Nu follow-up frames must increase `nu_depth` and preserve deterministic order | `engine::InvocationEngine::run` |
+//! | [`engine::InvocationStepOutcome`] | Normalized per-step result envelope | Must carry post-hook emission data and follow-up frames explicitly | `engine::InvocationEngine::run_frame` |
 //! | [`preflight::InvocationSubject`] | Shared preflight envelope for targets | Must carry required caps and mutability intent before execution | action/command executors |
 //! | [`preflight::PreflightDecision`] | Policy gate result | `Deny` must return without running target handlers | `Editor::preflight_invocation_subject` |
 //! | [`crate::impls::Editor`] | Runtime owner of invocation execution | Must flush queued effects after each command/action execution branch | `run_*_invocation` methods |
@@ -44,7 +47,8 @@
 //! 3. Preflight enforces capability/readonly policy and either denies or proceeds.
 //! 4. Handler executes and returns typed outcome/effects.
 //! 5. Effects are flushed and transformed into editor mutations and overlay/layer events.
-//! 6. Nu macro outcomes may enqueue follow-up invocations into the local invocation queue.
+//! 6. Engine converts step outcomes into explicit post-hook emissions and follow-up frames.
+//! 7. Nu macro outcomes enqueue follow-up invocations into the local invocation queue as `origin=NuMacro` frames.
 //! 7. Non-quit outcomes enqueue Nu post hooks, later drained by runtime `pump()`.
 //!
 //! # Lifecycle
@@ -81,6 +85,7 @@
 //!   3. Add invariant proof in `invariants.rs`.
 
 mod dispatch;
+mod engine;
 mod execute_action;
 mod execute_command;
 mod execute_nu;

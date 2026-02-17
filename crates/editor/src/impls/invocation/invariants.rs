@@ -46,13 +46,13 @@ pub(crate) fn test_capability_violation_enforcing_returns_error() {
 		|_| panic!("log-only branch must not run in enforcing mode"),
 	);
 	assert!(matches!(
-		result,
+		&result,
 		Some(InvocationOutcome {
 			status: InvocationStatus::CapabilityDenied,
-			denied_capability: Some(Capability::Edit),
 			..
 		})
 	));
+	assert_eq!(result.and_then(|outcome| outcome.denied_capability()), Some(Capability::Edit));
 }
 
 /// Must continue execution in log-only mode while still reporting the violation.
@@ -151,7 +151,7 @@ async fn test_auto_route_not_found_reports_canonical_detail() {
 		.await;
 	assert!(matches!(outcome.status, InvocationStatus::NotFound));
 	assert_eq!(
-		outcome.detail.as_deref(),
+		outcome.detail_text(),
 		Some("command:definitely_missing_command"),
 		"not-found detail should remain canonical"
 	);
