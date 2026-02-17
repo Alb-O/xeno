@@ -106,7 +106,7 @@ pub(crate) enum FsSearchEvt {
 
 struct FsIndexerActor {
 	worker_runtime: xeno_worker::WorkerRuntime,
-	event_tx: mpsc::UnboundedSender<FsServiceCmd>,
+	command_tx: mpsc::UnboundedSender<FsServiceCmd>,
 }
 
 #[async_trait::async_trait]
@@ -117,7 +117,7 @@ impl xeno_worker::WorkerActor for FsIndexerActor {
 	async fn handle(&mut self, cmd: Self::Cmd, _ctx: &mut xeno_worker::ActorContext<Self::Evt>) -> Result<xeno_worker::ActorFlow, String> {
 		match cmd {
 			FsIndexerCmd::Start { generation, root, options } => {
-				let event_tx = self.event_tx.clone();
+				let command_tx = self.command_tx.clone();
 				let runtime = self.worker_runtime.clone();
 				self.worker_runtime.spawn_thread(xeno_worker::TaskClass::IoBlocking, move || {
 					run_filesystem_index(
@@ -125,7 +125,7 @@ impl xeno_worker::WorkerActor for FsIndexerActor {
 						generation,
 						root,
 						options,
-						Arc::new(move |msg| event_tx.send(FsServiceCmd::Indexer(FsIndexerEvt::Message(msg))).is_ok()),
+						Arc::new(move |msg| command_tx.send(FsServiceCmd::Indexer(FsIndexerEvt::Message(msg))).is_ok()),
 					);
 				});
 			}
@@ -137,7 +137,7 @@ impl xeno_worker::WorkerActor for FsIndexerActor {
 
 struct FsSearchActor {
 	worker_runtime: xeno_worker::WorkerRuntime,
-	event_tx: mpsc::UnboundedSender<FsServiceCmd>,
+	command_tx: mpsc::UnboundedSender<FsServiceCmd>,
 	data: SearchData,
 	generation: Option<u64>,
 	latest_query_id: Option<Arc<AtomicU64>>,
@@ -180,7 +180,7 @@ impl xeno_worker::WorkerActor for FsSearchActor {
 					latest_query_id.store(id, AtomicOrdering::Release);
 					let latest_query_id = Arc::clone(latest_query_id);
 					let data = self.data.clone();
-					let event_tx = self.event_tx.clone();
+					let command_tx = self.command_tx.clone();
 					let runtime = self.worker_runtime.clone();
 					self.worker_runtime.spawn(xeno_worker::TaskClass::Background, async move {
 						let result = runtime
@@ -191,7 +191,7 @@ impl xeno_worker::WorkerActor for FsSearchActor {
 							.ok()
 							.flatten();
 						if let Some(msg) = result {
-							let _ = event_tx.send(FsServiceCmd::Search(FsSearchEvt::Message(msg)));
+							let _ = command_tx.send(FsServiceCmd::Search(FsSearchEvt::Message(msg)));
 						}
 					});
 				}
@@ -446,7 +446,6 @@ impl xeno_worker::WorkerActor for FsServiceActor {
 
 pub struct FsService {
 	state: Arc<RwLock<FsSharedState>>,
-	query_state: Arc<RwLock<(u64, u64)>>,
 	command_tx: mpsc::UnboundedSender<FsServiceCmd>,
 	service_actor: Arc<xeno_worker::ActorHandle<FsServiceCmd, FsServiceEvt>>,
 	indexer_actor: Arc<xeno_worker::ActorHandle<FsIndexerCmd, ()>>,
@@ -463,18 +462,16 @@ impl FsService {
 
 	pub fn new_with_runtime(worker_runtime: xeno_worker::WorkerRuntime) -> Self {
 		let state = Arc::new(RwLock::new(FsSharedState::default()));
-		let query_state = Arc::new(RwLock::new((0, 0)));
 		let (command_tx, mut command_rx) = mpsc::unbounded_channel::<FsServiceCmd>();
-		let (event_tx, mut event_rx) = mpsc::unbounded_channel::<FsServiceCmd>();
 
 		let indexer = Arc::new(
 			worker_runtime.actor(
 				xeno_worker::ActorSpec::new("fs.indexer", xeno_worker::TaskClass::IoBlocking, {
 					let worker_runtime = worker_runtime.clone();
-					let service_tx = event_tx.clone();
+					let service_tx = command_tx.clone();
 					move || FsIndexerActor {
 						worker_runtime: worker_runtime.clone(),
-						event_tx: service_tx.clone(),
+						command_tx: service_tx.clone(),
 					}
 				})
 				.supervisor(xeno_worker::SupervisorSpec {
@@ -491,10 +488,10 @@ impl FsService {
 			worker_runtime.actor(
 				xeno_worker::ActorSpec::new("fs.search", xeno_worker::TaskClass::CpuBlocking, {
 					let worker_runtime = worker_runtime.clone();
-					let service_tx = event_tx.clone();
+					let service_tx = command_tx.clone();
 					move || FsSearchActor {
 						worker_runtime: worker_runtime.clone(),
-						event_tx: service_tx.clone(),
+						command_tx: service_tx.clone(),
 						data: SearchData::default(),
 						generation: None,
 						latest_query_id: None,
@@ -538,38 +535,15 @@ impl FsService {
 
 		let service_actor_for_dispatch = Arc::clone(&service_actor);
 		let dispatch_task = worker_runtime.spawn(xeno_worker::TaskClass::Interactive, async move {
-			let mut command_open = true;
-			let mut event_open = true;
-			while command_open || event_open {
-				tokio::select! {
-					biased;
-					maybe_cmd = command_rx.recv(), if command_open => {
-						match maybe_cmd {
-							Some(cmd) => {
-								if service_actor_for_dispatch.send(cmd).await.is_err() {
-									break;
-								}
-							}
-							None => command_open = false,
-						}
-					}
-					maybe_evt = event_rx.recv(), if event_open => {
-						match maybe_evt {
-							Some(evt) => {
-								if service_actor_for_dispatch.send(evt).await.is_err() {
-									break;
-								}
-							}
-							None => event_open = false,
-						}
-					}
+			while let Some(cmd) = command_rx.recv().await {
+				if service_actor_for_dispatch.send(cmd).await.is_err() {
+					break;
 				}
 			}
 		});
 
 		Self {
 			state,
-			query_state,
 			command_tx,
 			service_actor,
 			indexer_actor: indexer,
@@ -644,27 +618,15 @@ impl FsService {
 		Arc::clone(&self.state.read().results)
 	}
 
-	pub fn query(&mut self, query: impl Into<String>, limit: usize) -> Option<u64> {
-		let generation = {
+	pub fn query(&mut self, query: impl Into<String>, limit: usize) -> bool {
+		{
 			let shared = self.state.read();
 			if !shared.search_active {
-				return None;
+				return false;
 			}
-			shared.generation
-		};
+		}
 
-		let id = {
-			let mut query_state = self.query_state.write();
-			if query_state.0 != generation {
-				*query_state = (generation, 0);
-			}
-			query_state.1 = query_state.1.wrapping_add(1);
-			query_state.1
-		};
-
-		let _ = self.command_tx.send(FsServiceCmd::Query { query: query.into(), limit });
-
-		Some(id)
+		self.command_tx.send(FsServiceCmd::Query { query: query.into(), limit }).is_ok()
 	}
 
 	/// Drains pushed snapshot-change events and returns the number consumed.

@@ -3,10 +3,9 @@
 mod ops;
 
 use xeno_input::input::KeyResult;
-use xeno_primitives::{Key, KeyCode, Mode};
+use xeno_primitives::{Key, Mode};
 
 use crate::Editor;
-use crate::input::protocol::InputDispatchEvt;
 
 impl Editor {
 	/// Processes a key event, routing to UI or input state machine.
@@ -64,12 +63,6 @@ impl Editor {
 			return false;
 		}
 
-		if self.state.overlay_system.interaction().is_open() && key.code == KeyCode::Enter {
-			self.enqueue_runtime_overlay_commit_work();
-			self.state.frame.needs_redraw = true;
-			return false;
-		}
-
 		#[cfg(feature = "lsp")]
 		if self.handle_lsp_menu_key(&key).await {
 			return false;
@@ -97,14 +90,9 @@ impl Editor {
 
 		match result {
 			KeyResult::Dispatch(dispatch) => {
-				let evt = InputDispatchEvt::InvocationRequested {
-					invocation: dispatch.invocation,
-					policy: crate::types::InvocationPolicy::enforcing(),
-				};
-				let InputDispatchEvt::InvocationRequested { invocation, policy } = evt else {
-					unreachable!("dispatch branch must build InvocationRequested")
-				};
-				quit = self.apply_input_invocation_request(invocation, policy).await;
+				quit = self
+					.apply_input_invocation_request(dispatch.invocation, crate::types::InvocationPolicy::enforcing())
+					.await;
 			}
 			KeyResult::Pending { .. } => {
 				self.state.frame.needs_redraw = true;

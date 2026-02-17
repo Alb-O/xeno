@@ -136,3 +136,18 @@ pub(crate) async fn test_snapshot_changes_emit_events() {
 	service.ensure_index(root.path().to_path_buf(), crate::filesystem::FilesystemOptions::default());
 	wait_until("snapshot event", || service.drain_events() > 0).await;
 }
+
+/// Must expose query submission as enqueue-success status without handle-owned query IDs.
+///
+/// * Enforced in: `FsService::query`
+/// * Failure symptom: handle mirrors actor query IDs and diverges from actor-owned sequencing.
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_query_api_returns_enqueue_success_only() {
+	let mut service = FsService::new();
+	assert!(!service.query("main", 20));
+
+	let root = tempfile::tempdir().expect("must create tempdir");
+	service.ensure_index(root.path().to_path_buf(), crate::filesystem::FilesystemOptions::default());
+	wait_until("generation advance", || service.generation() > 0).await;
+	assert!(service.query("main", 20));
+}

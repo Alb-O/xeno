@@ -116,7 +116,7 @@ async fn test_submit_event_on_event_policy_implies_single_maintenance_cycle() {
 
 /// Must defer overlay commit execution to runtime drain phases via deferred work queue.
 ///
-/// * Enforced in: `Editor::handle_key_active`, `Editor::drain_until_idle`
+/// * Enforced in: `Editor::apply_runtime_event_input`, `Editor::drain_until_idle`
 /// * Failure symptom: overlay commit runs re-entrantly inside key handling.
 #[tokio::test]
 async fn test_overlay_commit_deferred_until_runtime_drain() {
@@ -124,7 +124,7 @@ async fn test_overlay_commit_deferred_until_runtime_drain() {
 	editor.handle_window_resize(100, 40);
 	assert!(editor.open_command_palette());
 
-	let _ = editor.handle_key(Key::new(KeyCode::Enter)).await;
+	let _ = editor.apply_runtime_event_input(RuntimeEvent::Key(Key::new(KeyCode::Enter))).await;
 	assert!(editor.has_runtime_overlay_commit_work());
 	assert!(editor.overlay_kind().is_some());
 
@@ -135,7 +135,7 @@ async fn test_overlay_commit_deferred_until_runtime_drain() {
 
 /// Must route deferred overlay commits and deferred invocations through the shared runtime work queue.
 ///
-/// * Enforced in: `Editor::handle_key_active`, `Editor::enqueue_runtime_invocation`, `runtime::pump::phases`
+/// * Enforced in: `Editor::apply_runtime_event_input`, `Editor::enqueue_runtime_invocation`, `runtime::pump::phases`
 /// * Failure symptom: deferred work fragments across multiple queues and runtime convergence skips work.
 #[tokio::test]
 async fn test_runtime_work_queue_state_converges_overlay_and_invocations() {
@@ -145,7 +145,7 @@ async fn test_runtime_work_queue_state_converges_overlay_and_invocations() {
 	editor.handle_window_resize(100, 40);
 	assert!(editor.open_command_palette());
 
-	let _ = editor.handle_key(Key::new(KeyCode::Enter)).await;
+	let _ = editor.apply_runtime_event_input(RuntimeEvent::Key(Key::new(KeyCode::Enter))).await;
 	editor.enqueue_runtime_command_invocation(
 		"runtime_invariant_record_command".to_string(),
 		vec!["merged".to_string()],

@@ -15,7 +15,6 @@
 //! * `run_invocation` drains an internal queue iteratively, so Nu-generated follow-up dispatches do not recurse futures.
 //! * Deferred follow-up invocations from effects/overlays/Nu schedule into the runtime work queue and are drained by runtime `drain_until_idle`.
 //! * Nu post hooks are queued only for non-quit outcomes, then evaluated asynchronously and may enqueue deferred work dispatches.
-//! * Invocation protocol envelopes (`InvocationCmd`/`InvocationEvt`) carry explicit run commands and outcomes across runtime boundaries.
 //!
 //! # Key types
 //!
@@ -30,8 +29,6 @@
 //! | [`policy_gate::InvocationGateInput`] | Shared policy envelope for targets | Must carry required caps and mutability intent before execution | action/command executors |
 //! | [`policy_gate::GateResult`] | Policy gate result | `Deny` must return without running target handlers | `Editor::gate_invocation` |
 //! | [`kernel::InvocationKernel`] | Shared invocation executor boundary | Must centralize policy/flush/error shaping to avoid branch drift | action/command/Nu executors |
-//! | [`protocol::InvocationCmd`] | Typed invocation command envelope | Must include policy, source, scope, and sequence metadata | runtime work queue producers |
-//! | [`protocol::InvocationEvt`] | Typed invocation event envelope | Must report completion and deferred follow-up intents | `Editor::run_invocation_cmd` |
 //! | [`crate::types::invocation::adapters`] | Consumer translation helpers | Must keep Nu consumers aligned on outcome mapping and logging | `commands::nu`, `nu::pipeline` |
 //! | [`crate::impls::Editor`] | Runtime owner of invocation execution | Must flush queued effects after each command/action execution branch | `run_*_invocation` methods |
 //! | [`crate::nu::ctx::NuCtxEvent`] | Deferred hook event payload | Must enqueue only when execution does not request quit | `run_invocation` |
@@ -47,7 +44,7 @@
 //! * Must cap Nu macro recursion depth to prevent unbounded self-recursion.
 //! * Must flush queued effects after action/command execution branches.
 //! * Deferred invocation drain must enforce source-aware policy (Nu sources enforcing, non-Nu sources log-only).
-//! * Runtime invocation work must execute through `InvocationCmd::Run` protocol envelopes.
+//! * Runtime invocation work must execute through `run_invocation` with source/scope/sequence metadata preserved in drain logging.
 //!
 //! # Data flow
 //!
@@ -103,7 +100,6 @@ mod execute_nu;
 mod hooks_bridge;
 mod kernel;
 mod policy_gate;
-pub(crate) mod protocol;
 
 #[cfg(test)]
 pub(crate) use hooks_bridge::{action_post_event, command_post_event};

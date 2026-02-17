@@ -3,8 +3,7 @@ use std::time::Duration;
 use xeno_primitives::{Key, Mode, MouseEvent};
 
 use crate::Editor;
-use crate::input::protocol::InputDispatchCmd;
-use crate::runtime::{DrainPolicy, DrainReport, ExternalEventKind, LoopDirectiveV2, RuntimeEventEnvelope, RuntimeEventSource, SubmitToken};
+use crate::runtime::{DrainPolicy, DrainReport, LoopDirectiveV2, RuntimeEventEnvelope, SubmitToken};
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct LoopDirective {
@@ -53,23 +52,7 @@ impl Editor {
 	}
 
 	async fn apply_frontend_event_envelope(&mut self, envelope: RuntimeEventEnvelope) {
-		let cmd = match envelope.event {
-			RuntimeEvent::Key(key) => InputDispatchCmd::Key(key),
-			RuntimeEvent::Mouse(mouse) => InputDispatchCmd::Mouse(mouse),
-			RuntimeEvent::Paste(content) => InputDispatchCmd::Paste(content),
-			RuntimeEvent::WindowResized { cols, rows } => InputDispatchCmd::Resize { cols, rows },
-			RuntimeEvent::FocusIn => InputDispatchCmd::FocusIn,
-			RuntimeEvent::FocusOut => InputDispatchCmd::FocusOut,
-		};
-		let events = self.dispatch_input_cmd(cmd).await;
-		self.apply_input_dispatch_events(events).await;
-	}
-
-	fn apply_external_event(&mut self, kind: ExternalEventKind) {
-		match kind {
-			ExternalEventKind::QuitRequested => self.request_quit(),
-			ExternalEventKind::Wake | ExternalEventKind::FilesystemChanged | ExternalEventKind::SchedulerCompleted | ExternalEventKind::RuntimeWorkQueued => {}
-		}
+		let _ = self.apply_runtime_event_input(envelope.event).await;
 	}
 
 	async fn drain_until_idle_inner(&mut self, policy: DrainPolicy, publish_directives: bool) -> DrainReport {
@@ -81,7 +64,6 @@ impl Editor {
 		}
 
 		let mut remaining_frontend = policy.max_frontend_events;
-		let mut remaining_external = policy.max_external_events;
 		let mut idle_maintenance_ran = false;
 
 		for _ in 0..policy.max_directives {
@@ -95,16 +77,6 @@ impl Editor {
 					cause_seq = Some(env.seq);
 					consumed_event = true;
 					self.apply_frontend_event_envelope(env).await;
-				}
-			}
-
-			if !consumed_event && remaining_external > 0 {
-				if let Some(env) = self.state.runtime_kernel_mut().pop_external() {
-					remaining_external = remaining_external.saturating_sub(1);
-					report.handled_external_events = report.handled_external_events.saturating_add(1);
-					cause_seq = Some(env.seq);
-					consumed_event = true;
-					self.apply_external_event(env.kind);
 				}
 			}
 
@@ -131,9 +103,7 @@ impl Editor {
 			}
 		}
 
-		if report.directives_emitted >= policy.max_directives
-			&& (self.state.runtime_kernel().pending_event_count() > 0 || remaining_frontend > 0 || remaining_external > 0)
-		{
+		if report.directives_emitted >= policy.max_directives && self.state.runtime_kernel().pending_event_count() > 0 {
 			report.reached_budget_cap = true;
 		}
 
@@ -141,21 +111,11 @@ impl Editor {
 	}
 
 	/// Submits one frontend runtime event into the runtime kernel queue.
-	pub fn submit_event_with_source(&mut self, event: RuntimeEvent, source: RuntimeEventSource) -> SubmitToken {
+	pub fn submit_event(&mut self, event: RuntimeEvent) -> SubmitToken {
 		if let Some(rec) = &mut self.state.recorder {
 			rec.record(&event);
 		}
-		SubmitToken(self.state.runtime_kernel_mut().enqueue_frontend(event, source))
-	}
-
-	/// Submits one frontend runtime event into the runtime kernel queue.
-	pub fn submit_event(&mut self, event: RuntimeEvent) -> SubmitToken {
-		self.submit_event_with_source(event, RuntimeEventSource::Frontend)
-	}
-
-	/// Submits one external runtime signal into the runtime kernel queue.
-	pub fn submit_external_event(&mut self, kind: ExternalEventKind) -> SubmitToken {
-		SubmitToken(self.state.runtime_kernel_mut().enqueue_external(kind))
+		SubmitToken(self.state.runtime_kernel_mut().enqueue_frontend(event))
 	}
 
 	/// Returns the next pending runtime loop directive.

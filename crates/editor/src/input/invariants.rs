@@ -2,7 +2,7 @@ use xeno_primitives::{Key, KeyCode, Modifiers, MouseButton, MouseEvent};
 
 use crate::Editor;
 use crate::impls::FocusTarget;
-use crate::input::protocol::{InputDispatchCmd, InputDispatchEvt, InputLocalEffect};
+use crate::runtime::RuntimeEvent;
 
 fn mouse_press(col: u16, row: u16) -> MouseEvent {
 	MouseEvent::Press {
@@ -33,35 +33,34 @@ fn first_separator_cell(editor: &Editor) -> (u16, u16) {
 	(rect.x, rect.y)
 }
 
-/// Must produce typed local-effect events for key command envelopes.
+/// Must apply runtime key events directly without protocol-envelope translation.
 ///
-/// * Enforced in: `Editor::dispatch_input_cmd`
-/// * Failure symptom: runtime cannot route key commands through typed input protocol.
+/// * Enforced in: `Editor::apply_runtime_event_input`
+/// * Failure symptom: runtime input handling depends on synthetic command/event envelopes.
 #[tokio::test]
-async fn test_input_dispatch_cmd_key_produces_local_effect_event() {
+async fn test_runtime_key_event_applies_without_protocol_envelopes() {
 	let mut editor = Editor::new_scratch();
-	let events = editor.dispatch_input_cmd(InputDispatchCmd::Key(Key::char('x'))).await;
-	assert!(events.iter().any(|event| matches!(
-		event,
-		InputDispatchEvt::LocalEffectRequested(InputLocalEffect::DispatchKey(key)) if *key == Key::char('x')
-	)));
-	assert!(events.iter().any(|event| matches!(event, InputDispatchEvt::Consumed)));
+	let should_quit = editor.apply_runtime_event_input(RuntimeEvent::Key(Key::char('x'))).await;
+	assert!(!should_quit);
 }
 
-/// Must let runtime apply deferred overlay commit through typed input events.
+/// Must defer overlay commit from runtime Enter events when an interaction overlay is active.
 ///
-/// * Enforced in: `Editor::apply_input_dispatch_evt`
-/// * Failure symptom: deferred overlay commits emitted by input protocol are dropped.
+/// * Enforced in: `Editor::apply_runtime_event_input`
+/// * Failure symptom: overlay Enter commits run re-entrantly inside key dispatch.
 #[tokio::test]
-async fn test_input_overlay_commit_event_enqueues_runtime_work() {
+async fn test_runtime_overlay_enter_event_enqueues_runtime_work() {
 	let mut editor = Editor::new_scratch();
-	editor.apply_input_dispatch_evt(InputDispatchEvt::OverlayCommitDeferred).await;
+	editor.handle_window_resize(100, 40);
+	assert!(editor.open_command_palette());
+	let should_quit = editor.apply_runtime_event_input(RuntimeEvent::Key(Key::new(KeyCode::Enter))).await;
+	assert!(!should_quit);
 	assert!(editor.has_runtime_overlay_commit_work());
 }
 
 /// Must allow active overlay interaction to consume Enter and defer commit.
 ///
-/// * Enforced in: `Editor::handle_key_active`
+/// * Enforced in: `Editor::apply_runtime_event_input`
 /// * Failure symptom: modal commit executes re-entrantly in key handling.
 #[tokio::test]
 async fn test_overlay_enter_queues_deferred_commit() {
@@ -69,7 +68,7 @@ async fn test_overlay_enter_queues_deferred_commit() {
 	editor.handle_window_resize(100, 40);
 	assert!(editor.open_command_palette());
 
-	let _ = editor.handle_key(Key::new(KeyCode::Enter)).await;
+	let _ = editor.apply_runtime_event_input(RuntimeEvent::Key(Key::new(KeyCode::Enter))).await;
 	assert!(editor.has_runtime_overlay_commit_work());
 	assert!(editor.overlay_kind().is_some());
 }

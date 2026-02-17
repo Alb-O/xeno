@@ -354,8 +354,9 @@ impl FilePickerOverlay {
 			.unwrap_or(true);
 
 		if query_changed || (indexing_progressed && throttle_ready) {
-			let _ = ctx.filesystem_mut().query(query.to_string(), FILE_PICKER_LIMIT);
-			self.last_query_sent = Some(now);
+			if ctx.filesystem_mut().query(query.to_string(), FILE_PICKER_LIMIT) {
+				self.last_query_sent = Some(now);
+			}
 		}
 	}
 

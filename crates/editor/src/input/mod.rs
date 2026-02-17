@@ -6,7 +6,7 @@
 //! * Integrates `xeno-input` modal key state with editor subsystems.
 //! * Routes key and mouse events across UI panels, overlay interactions/layers, split layouts, and document buffers.
 //! * Preserves deterministic ordering so modal overlays and focused panels can intercept input before base editing.
-//! * Produces typed input envelopes (`InputDispatchCmd`/`InputDispatchEvt`) for runtime-owned event coordination.
+//! * Applies runtime frontend events directly on the editor thread without in-thread protocol envelopes.
 //!
 //! # Mental model
 //!
@@ -27,8 +27,7 @@
 //! | [`xeno_primitives::Key`] | Keyboard input event | Must pass through interception cascade before base dispatch | `Editor::handle_key` |
 //! | [`xeno_primitives::MouseEvent`] | Mouse input event | Must resolve hit region before applying selection/drag behavior | `Editor::handle_mouse` |
 //! | [`xeno_input::input::KeyResult`] | Modal state-machine result | Must map to invocation/edit/mode transitions exactly once | `handle_key_active` |
-//! | [`protocol::InputDispatchCmd`] | Runtime-owned input command envelope | Must be transformed into typed dispatch events before execution | `Editor::dispatch_input_cmd` |
-//! | [`protocol::InputDispatchEvt`] | Input dispatch event envelope | Must be consumed in-order by runtime coordinator | `Editor::apply_input_dispatch_evt` |
+//! | [`crate::runtime::RuntimeEvent`] | Runtime frontend event payload | Must map to one deterministic direct input application path | `Editor::apply_runtime_event_input` |
 //! | [`crate::overlay::OverlaySystem`] | Modal + passive overlay state | Overlay handlers must run before base editing paths | key/mouse handling modules |
 //! | [`crate::layout::manager::LayoutManager`] | Split/layout interaction state | Separator drags and view-local selection must use layout geometry | mouse handling module |
 //!
@@ -37,7 +36,7 @@
 //! * Must allow active overlay interaction/layers to consume input before base keymap dispatch.
 //! * Must defer overlay commit execution via runtime work queue drain phases.
 //! * Must route keymap-produced action/command invocations through `Editor::run_invocation`.
-//! * Must emit and apply `InputDispatchEvt` envelopes in-order for each `InputDispatchCmd`.
+//! * Must apply runtime frontend events deterministically through direct editor-thread calls.
 //! * Must confine drag-selection updates to the origin view during active text-selection drags.
 //! * Must cancel or ignore stale separator drag paths after structural layout changes.
 //! * Mouse/panel focus transitions must synchronize editor focus after UI handling.
@@ -82,12 +81,11 @@
 
 mod key_handling;
 mod mouse_handling;
-pub(crate) mod protocol;
 
-use protocol::{InputDispatchCmd, InputDispatchEvt, InputLocalEffect, LayoutActionRequest};
 use xeno_primitives::KeyCode;
 
 use crate::Editor;
+use crate::runtime::RuntimeEvent;
 use crate::types::{Invocation, InvocationPolicy};
 
 impl Editor {
@@ -100,103 +98,44 @@ impl Editor {
 		false
 	}
 
-	/// Produces typed input events from one runtime-owned input command envelope.
-	pub(crate) async fn dispatch_input_cmd(&mut self, cmd: InputDispatchCmd) -> Vec<InputDispatchEvt> {
-		match cmd {
-			InputDispatchCmd::Key(key) => {
-				if self.state.overlay_system.interaction().is_open() && key.code == KeyCode::Enter {
-					vec![
-						InputDispatchEvt::OverlayCommitDeferred,
-						InputDispatchEvt::LayoutActionRequested(LayoutActionRequest::InteractionBufferEdited),
-						InputDispatchEvt::Consumed,
-					]
-				} else {
-					vec![
-						InputDispatchEvt::LocalEffectRequested(InputLocalEffect::DispatchKey(key)),
-						InputDispatchEvt::Consumed,
-					]
-				}
-			}
-			InputDispatchCmd::Mouse(mouse) => vec![
-				InputDispatchEvt::LocalEffectRequested(InputLocalEffect::DispatchMouse(mouse)),
-				InputDispatchEvt::Consumed,
-			],
-			InputDispatchCmd::Paste(content) => vec![
-				InputDispatchEvt::LocalEffectRequested(InputLocalEffect::ApplyPaste(content)),
-				InputDispatchEvt::Consumed,
-			],
-			InputDispatchCmd::Resize { cols, rows } => vec![
-				InputDispatchEvt::LocalEffectRequested(InputLocalEffect::ApplyResize { cols, rows }),
-				InputDispatchEvt::Consumed,
-			],
-			InputDispatchCmd::FocusIn => vec![
-				InputDispatchEvt::LocalEffectRequested(InputLocalEffect::ApplyFocusIn),
-				InputDispatchEvt::FocusSyncRequested,
-				InputDispatchEvt::Consumed,
-			],
-			InputDispatchCmd::FocusOut => vec![
-				InputDispatchEvt::LocalEffectRequested(InputLocalEffect::ApplyFocusOut),
-				InputDispatchEvt::FocusSyncRequested,
-				InputDispatchEvt::Unhandled,
-			],
-		}
-	}
-
-	/// Applies one typed input dispatch event emitted by [`Self::dispatch_input_cmd`].
-	pub(crate) async fn apply_input_dispatch_evt(&mut self, event: InputDispatchEvt) -> bool {
+	/// Applies one runtime frontend event through direct editor-thread input handling.
+	pub(crate) async fn apply_runtime_event_input(&mut self, event: RuntimeEvent) -> bool {
 		match event {
-			InputDispatchEvt::InvocationRequested { invocation, policy } => {
-				if self.apply_input_invocation_request(invocation, policy).await {
+			RuntimeEvent::Key(key) => {
+				if self.state.overlay_system.interaction().is_open() && key.code == KeyCode::Enter {
+					self.enqueue_runtime_overlay_commit_work();
+					self.state.frame.needs_redraw = true;
+					self.interaction_on_buffer_edited();
+					return false;
+				}
+				if self.handle_key(key).await {
+					self.request_quit();
 					return true;
 				}
 			}
-			InputDispatchEvt::LocalEffectRequested(effect) => match effect {
-				InputLocalEffect::DispatchKey(key) => {
-					if self.handle_key(key).await {
-						self.request_quit();
-						return true;
-					}
+			RuntimeEvent::Mouse(mouse) => {
+				if self.handle_mouse(mouse).await {
+					self.request_quit();
+					return true;
 				}
-				InputLocalEffect::DispatchMouse(mouse) => {
-					if self.handle_mouse(mouse).await {
-						self.request_quit();
-						return true;
-					}
-				}
-				InputLocalEffect::ApplyPaste(content) => {
-					self.handle_paste(content);
-				}
-				InputLocalEffect::ApplyResize { cols, rows } => {
-					self.handle_window_resize(cols, rows);
-				}
-				InputLocalEffect::ApplyFocusIn => {
-					self.handle_focus_in();
-				}
-				InputLocalEffect::ApplyFocusOut => {
-					self.handle_focus_out();
-				}
-			},
-			InputDispatchEvt::OverlayCommitDeferred => {
-				self.enqueue_runtime_overlay_commit_work();
-				self.state.frame.needs_redraw = true;
 			}
-			InputDispatchEvt::LayoutActionRequested(LayoutActionRequest::InteractionBufferEdited) => {
-				self.interaction_on_buffer_edited();
+			RuntimeEvent::Paste(content) => {
+				self.handle_paste(content);
 			}
-			InputDispatchEvt::FocusSyncRequested => {
+			RuntimeEvent::WindowResized { cols, rows } => {
+				self.handle_window_resize(cols, rows);
+			}
+			RuntimeEvent::FocusIn => {
+				self.handle_focus_in();
 				self.sync_focus_from_ui();
 			}
-			InputDispatchEvt::Consumed | InputDispatchEvt::Unhandled => {}
+			RuntimeEvent::FocusOut => {
+				self.handle_focus_out();
+				self.sync_focus_from_ui();
+			}
 		}
 
 		false
-	}
-
-	/// Applies a sequence of typed input events in-order.
-	pub(crate) async fn apply_input_dispatch_events(&mut self, events: Vec<InputDispatchEvt>) {
-		for event in events {
-			let _ = self.apply_input_dispatch_evt(event).await;
-		}
 	}
 }
 

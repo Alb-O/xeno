@@ -1,10 +1,10 @@
 use xeno_primitives::range::CharIdx;
 use xeno_primitives::{Mode, Selection};
-use xeno_registry::actions::editor_ctx::{CursorAccess, EditorCapabilities, ModeAccess, NotificationAccess, SelectionAccess};
+use xeno_registry::actions::editor_ctx::{CursorAccess, EditorCapabilities, HandleOutcome, ModeAccess, NotificationAccess, SelectionAccess};
 use xeno_registry::actions::{ActionEffects, AppEffect, ViewEffect};
 use xeno_registry::notifications::Notification;
 
-use super::{ActionEffectsEnvelope, EffectsCmd, EffectsEvt, execute_effects_cmd};
+use super::apply_effects;
 
 struct MockEditor {
 	cursor: CharIdx,
@@ -80,36 +80,32 @@ impl EditorCapabilities for MockEditor {}
 
 /// Must keep effects interpreter capability-honest and editor-agnostic.
 ///
-/// * Enforced in: `editor_ctx::execute_effects_cmd`, `editor_ctx::apply_effects`
+/// * Enforced in: `editor_ctx::apply_effects`
 /// * Failure symptom: registry effects require concrete `Editor` downcasts.
 #[cfg_attr(test, test)]
 pub fn test_honesty_rule() {
 	let mut editor = MockEditor::new();
 	let mut ctx = xeno_registry::actions::editor_ctx::EditorContext::new(&mut editor);
-	let cmd = EffectsCmd::Apply(ActionEffectsEnvelope {
-		effects: ActionEffects::cursor(CharIdx::from(4usize)),
-		extend: false,
-	});
-	let evt = execute_effects_cmd(cmd, &mut ctx);
-	assert_eq!(evt, EffectsEvt::Applied { should_quit: false });
+	let outcome = apply_effects(&ActionEffects::cursor(CharIdx::from(4usize)), &mut ctx, false);
+	assert_eq!(outcome, HandleOutcome::Handled);
 	assert_eq!(editor.cursor, CharIdx::from(4usize));
 }
 
-/// Must route action effects through `EffectsCmd::Apply` and preserve outcome semantics.
+/// Must route action effects through `apply_effects` and preserve outcome semantics.
 ///
-/// * Enforced in: `editor_ctx::execute_effects_cmd`
-/// * Failure symptom: quit effects are lost or interpreted outside the protocol boundary.
+/// * Enforced in: `editor_ctx::apply_effects`
+/// * Failure symptom: quit effects are lost or interpreted outside the interpreter boundary.
 #[cfg_attr(test, test)]
 pub fn test_single_path_side_effects() {
 	let mut editor = MockEditor::new();
 	let mut ctx = xeno_registry::actions::editor_ctx::EditorContext::new(&mut editor);
-	let cmd = EffectsCmd::Apply(ActionEffectsEnvelope {
-		effects: ActionEffects::new()
+	let outcome = apply_effects(
+		&ActionEffects::new()
 			.with(ViewEffect::SetCursor(CharIdx::from(9usize)))
 			.with(AppEffect::Quit { force: false }),
-		extend: false,
-	});
-	let evt = execute_effects_cmd(cmd, &mut ctx);
-	assert_eq!(evt, EffectsEvt::Applied { should_quit: true });
+		&mut ctx,
+		false,
+	);
+	assert_eq!(outcome, HandleOutcome::Quit);
 	assert_eq!(editor.cursor, CharIdx::from(9usize));
 }

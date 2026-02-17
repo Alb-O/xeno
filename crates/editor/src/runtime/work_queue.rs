@@ -2,7 +2,7 @@
 //!
 //! This queue replaces split deferred mechanisms (overlay commit counters,
 //! workspace edit queues, and invocation mailboxes) with one FIFO queue.
-//! Invocation payloads are normalized into `InvocationCmd::Run` during drain.
+//! Invocation payloads are executed directly through `run_invocation` during drain.
 
 use std::collections::VecDeque;
 

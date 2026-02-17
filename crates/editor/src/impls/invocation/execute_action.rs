@@ -1,9 +1,10 @@
 use tracing::{trace, trace_span};
+use xeno_registry::actions::editor_ctx::HandleOutcome;
 use xeno_registry::actions::{ActionArgs, ActionContext, ActionResult, find_action};
 use xeno_registry::hooks::{HookContext, emit_sync_with as emit_hook_sync_with};
 use xeno_registry::{HookEventData, RegistryEntry};
 
-use crate::editor_ctx::{ActionEffectsEnvelope, EffectsCmd, execute_effects_cmd};
+use crate::editor_ctx::apply_effects;
 use crate::impls::Editor;
 use crate::impls::invocation::kernel::InvocationKernel;
 use crate::impls::invocation::policy_gate::InvocationGateInput;
@@ -82,7 +83,7 @@ impl Editor {
 			let mut ctx = xeno_registry::actions::EditorContext::new(&mut caps);
 			let result_variant = result.variant_name();
 			let ActionResult::Effects(effects) = result;
-			let should_quit = execute_effects_cmd(EffectsCmd::Apply(ActionEffectsEnvelope { effects, extend }), &mut ctx).should_quit();
+			let should_quit = matches!(apply_effects(&effects, &mut ctx, extend), HandleOutcome::Quit);
 			(should_quit, result_variant)
 		};
 

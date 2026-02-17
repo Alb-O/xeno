@@ -33,23 +33,23 @@ async fn ensure_index_with_same_spec_does_not_restart() {
 }
 
 #[tokio::test]
-async fn query_ids_are_monotonic_per_generation() {
+async fn query_reports_enqueue_success_when_generation_is_active() {
 	let mut service = FsService::new();
+	assert!(!service.query("main", 20));
+
 	let root_a = tempfile::tempdir().expect("must create tempdir");
 	service.ensure_index(root_a.path().to_path_buf(), FilesystemOptions::default());
 	wait_until("generation one", || service.generation() > 0).await;
 
-	let first = service.query("main", 20).expect("query id");
-	let second = service.query("lib", 20).expect("query id");
-	assert!(second > first);
+	assert!(service.query("main", 20));
+	assert!(service.query("lib", 20));
 
 	let old_generation = service.generation();
 	let root_b = tempfile::tempdir().expect("must create tempdir");
 	service.ensure_index(root_b.path().to_path_buf(), FilesystemOptions::default());
 	wait_until("generation two", || service.generation() > old_generation).await;
 
-	let next = service.query("src", 20).expect("query id");
-	assert_eq!(next, 1);
+	assert!(service.query("src", 20));
 }
 
 #[tokio::test]

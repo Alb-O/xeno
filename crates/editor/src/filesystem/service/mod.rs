@@ -25,7 +25,7 @@
 //! |---|---|---|---|
 //! | [`FsService`] | Handle + observable snapshot cache | Must enqueue commands and expose latest actor state | this module |
 //! | `FsServiceActor` | Authoritative state machine | Must apply generation filtering and publish snapshots | `core.rs` |
-//! | `FsServiceCmd` | Service actor command protocol | Must separate editor commands from child worker events | `core.rs` |
+//! | `FsServiceCmd` | Service actor command protocol | Must multiplex editor commands and child worker events through one ingress queue | `core.rs` |
 //! | `FsIndexerCmd`/`FsIndexerEvt` | Index actor protocol | Must forward index outputs to `fs.service` | `core.rs` |
 //! | `FsSearchCmd`/`FsSearchEvt` | Search actor protocol | Must forward search outputs to `fs.service` | `core.rs` |
 //! | `IndexSpec` | Active index configuration identity | Must restart workers when root/options change | `ensure_index` |
@@ -38,7 +38,7 @@
 //!
 //! * Must ignore stale index/search messages whose generation differs from active generation.
 //! * Must reset query/result/progress state when beginning a new generation.
-//! * Must publish query IDs monotonically per generation.
+//! * Must keep query ID sequencing actor-owned and internal to `FsServiceActor`.
 //! * Must forward index deltas to search actor when search actor is active.
 //! * Must emit `SnapshotChanged` when shared snapshots mutate.
 //!
@@ -62,13 +62,13 @@
 //! # Concurrency & ordering
 //!
 //! * Service/index/search actors process commands sequentially per mailbox.
-//! * Worker events are forwarded into the service command stream via actor-owned event channels.
+//! * Worker events and handle commands share one ingress queue into the service actor.
 //! * Ordering is best-effort by mailbox receive order; generation gate ensures stale safety.
 //!
 //! # Failure modes & recovery
 //!
 //! * Child actor failure: supervised restart policy respawns actor.
-//! * Event channel disconnect: dispatcher exits and service stops accepting updates.
+//! * Command channel disconnect: dispatcher exits and service stops accepting updates.
 //! * Stale messages: ignored by generation checks.
 //! * Search/index startup replacement: old generation data is cleared and replaced.
 //! * Index worker errors: logged and ignored unless generation matches and state update is needed.

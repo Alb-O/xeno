@@ -3,12 +3,10 @@ use std::cell::Cell;
 use xeno_registry::{Capability, CommandError};
 
 use super::policy_gate::{GateFailure, GateResult, InvocationGateInput, InvocationKind, RequiredCaps};
-use super::protocol::{InvocationCmd, InvocationEvt};
 use super::{action_post_event, command_post_event, handle_capability_violation};
 use crate::commands::{CommandError as EditorCommandError, CommandOutcome};
 use crate::impls::Editor;
 use crate::nu::ctx::NuCtxEvent;
-use crate::runtime::work_queue::{RuntimeWorkSource, WorkScope};
 use crate::types::{
 	Invocation, InvocationOutcome, InvocationPolicy, InvocationStatus, InvocationTarget, PipelineDisposition, classify_for_nu_pipeline,
 	to_command_outcome_for_nu_run,
@@ -161,29 +159,17 @@ async fn test_auto_route_not_found_reports_canonical_detail() {
 	);
 }
 
-/// Must execute invocation command envelopes through the canonical invocation engine.
+/// Must execute invocations through the canonical invocation engine with explicit policy.
 ///
-/// * Enforced in: `Editor::run_invocation_cmd`
+/// * Enforced in: `Editor::run_invocation`
 /// * Failure symptom: runtime work drain bypasses invocation policy/queue semantics.
 #[tokio::test]
-async fn test_invocation_cmd_run_returns_completed_event() {
+async fn test_run_invocation_enforcing_returns_ok_for_known_command() {
 	let mut editor = Editor::new_scratch();
-	let evt = editor
-		.run_invocation_cmd(InvocationCmd::Run {
-			invocation: Invocation::command("stats", Vec::<String>::new()),
-			policy: InvocationPolicy::enforcing(),
-			source: RuntimeWorkSource::CommandOps,
-			scope: WorkScope::Global,
-			seq: 7,
-		})
+	let outcome = editor
+		.run_invocation(Invocation::command("stats", Vec::<String>::new()), InvocationPolicy::enforcing())
 		.await;
-	assert!(matches!(
-		evt,
-		InvocationEvt::Completed(InvocationOutcome {
-			status: InvocationStatus::Ok,
-			..
-		})
-	));
+	assert!(matches!(outcome.status, InvocationStatus::Ok));
 }
 
 /// Must map Nu invocation outcomes into stable `nu-run` command results.

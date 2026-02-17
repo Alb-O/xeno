@@ -10,6 +10,7 @@ use xeno_registry::core::index::Snapshot;
 use xeno_registry::{ActionId, DenseId, LookupOutcome, RegistryEntry};
 
 use crate::Editor;
+use crate::runtime::RuntimeEvent;
 
 fn key_enter() -> Key {
 	Key::new(KeyCode::Enter)
@@ -58,7 +59,7 @@ async fn enter_queues_deferred_commit_and_pump_consumes() {
 	editor.handle_window_resize(100, 40);
 	assert!(editor.open_command_palette());
 
-	let _ = editor.handle_key(key_enter()).await;
+	let _ = editor.apply_runtime_event_input(RuntimeEvent::Key(key_enter())).await;
 	assert!(editor.has_runtime_overlay_commit_work());
 
 	let _ = editor.drain_until_idle(crate::runtime::DrainPolicy::for_pump()).await;

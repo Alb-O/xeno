@@ -1,7 +1,6 @@
 //! Drain policy for deferred runtime work queued in runtime work queue.
 
 use crate::Editor;
-use crate::impls::invocation::protocol::{InvocationCmd, InvocationEvt};
 use crate::runtime::work_queue::{RuntimeWorkKind, RuntimeWorkSource};
 use crate::types::{Invocation, InvocationStatus, PipelineDisposition, PipelineLogContext, classify_for_nu_pipeline, log_pipeline_non_ok};
 
@@ -37,14 +36,16 @@ impl Editor {
 						self.state.nu.inc_hook_depth();
 					}
 
-					let cmd = InvocationCmd::Run {
-						invocation: invocation.clone(),
-						policy: queued.execution.invocation_policy(),
-						source,
-						scope: item.scope,
-						seq: item.seq,
-					};
-					let InvocationEvt::Completed(result) = self.run_invocation_cmd(cmd).await;
+					let policy = queued.execution.invocation_policy();
+					tracing::trace!(
+						?source,
+						?policy,
+						scope = ?item.scope,
+						seq = item.seq,
+						invocation = %invocation.describe(),
+						"invocation.runtime_work.run",
+					);
+					let result = self.run_invocation(invocation.clone(), policy).await;
 
 					if is_nu_pipeline {
 						self.state.nu.dec_hook_depth();
