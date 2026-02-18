@@ -590,4 +590,5 @@ fn find_root_path(file_path: &Path, root_markers: &[String]) -> PathBuf {
 }
 
 #[cfg(test)]
+#[allow(clippy::disallowed_methods)]
 mod tests;

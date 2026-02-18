@@ -164,6 +164,10 @@ xeno-worker = { path = "crates/worker" }
 [workspace.lints.rust]
 unused_crate_dependencies = "warn"
 
+[workspace.lints.clippy]
+disallowed_methods = "deny"
+await_holding_lock = "deny"
+
 [profile.dev]
 opt-level = 1
 

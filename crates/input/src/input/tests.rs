@@ -163,3 +163,37 @@ fn insert_text_char_does_not_enter_pending() {
 	);
 	assert_eq!(h.pending_key_count(), 0);
 }
+
+#[test]
+fn action_count_overflow_clamped_to_max() {
+	use std::sync::Arc;
+
+	use xeno_registry::{ActionId, CompiledBinding, CompiledBindingTarget, MAX_ACTION_COUNT};
+
+	let binding = CompiledBinding::new(
+		CompiledBindingTarget::Action {
+			id: ActionId(0),
+			count: usize::MAX,
+			extend: false,
+			register: None,
+		},
+		Arc::from("test_action"),
+		Arc::from(""),
+		Arc::from(""),
+		Vec::new(),
+	);
+
+	let mut h = InputHandler::new();
+	h.count = u32::MAX;
+
+	let result = h.consume_binding(&binding);
+	match result {
+		super::types::KeyResult::Dispatch(super::types::KeyDispatch { invocation }) => match invocation {
+			xeno_registry::Invocation::Action { count, .. } => {
+				assert!(count <= MAX_ACTION_COUNT, "count {count} exceeds MAX_ACTION_COUNT {MAX_ACTION_COUNT}");
+			}
+			other => panic!("expected Action invocation, got {other:?}"),
+		},
+		other => panic!("expected Dispatch, got {other:?}"),
+	}
+}

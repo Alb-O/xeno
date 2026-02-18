@@ -120,6 +120,7 @@ impl<'a> InvocationEngine<'a> {
 	async fn run_frame(&mut self, frame: InvocationFrame) -> InvocationStepOutcome {
 		match frame.invocation {
 			Invocation::Action { name, count, extend, register } => {
+				let count = count.min(xeno_registry::MAX_ACTION_COUNT);
 				let outcome = self.editor.run_action_invocation(&name, count, extend, register, None, self.policy);
 				InvocationStepOutcome {
 					outcome,
@@ -134,6 +135,7 @@ impl<'a> InvocationEngine<'a> {
 				register,
 				char_arg,
 			} => {
+				let count = count.min(xeno_registry::MAX_ACTION_COUNT);
 				let outcome = self.editor.run_action_invocation(&name, count, extend, register, Some(char_arg), self.policy);
 				InvocationStepOutcome {
 					outcome,

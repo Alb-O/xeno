@@ -11,3 +11,16 @@ allow-dbg-in-tests = true
 allow-print-in-tests = true
 allow-expect-in-tests = true
 allow-unwrap-in-tests = true
+
+# Spawn discipline: all spawns must go through xeno_worker wrappers.
+disallowed-methods = [
+    { path = "tokio::spawn", reason = "use xeno_worker::spawn::spawn or WorkerRuntime::spawn" },
+    { path = "tokio::task::spawn", reason = "use xeno_worker::spawn::spawn or WorkerRuntime::spawn" },
+    { path = "tokio::task::spawn_blocking", reason = "use xeno_worker::spawn::spawn_blocking or WorkerRuntime::spawn_blocking" },
+    { path = "tokio::runtime::Handle::spawn", reason = "use xeno_worker::spawn::spawn or WorkerRuntime::spawn" },
+    { path = "tokio::runtime::Handle::spawn_blocking", reason = "use xeno_worker::spawn::spawn_blocking or WorkerRuntime::spawn_blocking" },
+    { path = "std::thread::spawn", reason = "use xeno_worker::spawn::spawn_thread" },
+    { path = "std::thread::Builder::spawn", reason = "use xeno_worker::spawn::spawn_named_thread" },
+    { path = "tokio::task::JoinSet::spawn", reason = "use WorkerJoinSet::spawn (reactor-safe)" },
+    { path = "tokio::task::JoinSet::spawn_on", reason = "use WorkerJoinSet::spawn (reactor-safe)" },
+]

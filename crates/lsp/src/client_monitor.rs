@@ -62,9 +62,8 @@ impl<S: LspService> Service<AnyRequest> for ClientProcessMonitor<S> {
 			match waitpid_any::WaitHandle::open(pid) {
 				Ok(mut handle) => {
 					let client = self.client.clone();
-					let spawn_ret = std::thread::Builder::new()
-						.name("client-process-monitor".into())
-						.spawn(move || match handle.wait() {
+					let spawn_ret =
+						xeno_worker::spawn::spawn_named_thread(xeno_worker::TaskClass::Background, "client-process-monitor", move || match handle.wait() {
 							Ok(()) => {
 								let _: Result<_, _> = client.emit(ClientProcessExited);
 							}

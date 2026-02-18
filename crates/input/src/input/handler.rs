@@ -100,10 +100,12 @@ impl InputHandler {
 	pub(crate) fn consume_binding(&mut self, entry: &xeno_registry::CompiledBinding) -> KeyResult {
 		match entry.target() {
 			xeno_registry::CompiledBindingTarget::Action { count, extend, register, .. } => {
-				// Multiply prefix count with binding count; OR extends; prefix register wins
-				let prefix_count = (self.count as usize).max(1);
+				// Multiply prefix count with binding count; OR extends; prefix register wins.
+				// Clamp to MAX_ACTION_COUNT to prevent overflow and DoS via huge counts.
+				let max = xeno_registry::MAX_ACTION_COUNT;
+				let prefix_count = (self.count as usize).max(1).min(max);
 				let binding_count = (*count).max(1);
-				let final_count = prefix_count * binding_count;
+				let final_count = prefix_count.saturating_mul(binding_count).min(max);
 				let final_extend = self.extend || *extend;
 				let final_register = self.register.or(*register);
 				self.reset_params();

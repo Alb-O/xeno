@@ -1063,3 +1063,31 @@ async fn nu_stats_reflect_hook_pipeline_state() {
 	assert_eq!(stats.nu.hook_queue_len, 0);
 	assert_eq!(stats.nu.hook_dropped_total, 0);
 }
+
+#[tokio::test]
+async fn action_count_usize_max_clamped_at_engine_boundary() {
+	INVOCATION_TEST_ACTION_COUNT.with(|c| c.set(0));
+
+	let mut editor = Editor::new_scratch();
+	let result = editor
+		.run_invocation(
+			Invocation::Action {
+				name: "invocation_test_action".to_string(),
+				count: usize::MAX,
+				extend: false,
+				register: None,
+			},
+			InvocationPolicy::enforcing(),
+		)
+		.await;
+
+	assert!(
+		matches!(result.status, InvocationStatus::Ok),
+		"action with clamped usize::MAX count should succeed, got: {result:?}"
+	);
+	assert_eq!(
+		INVOCATION_TEST_ACTION_COUNT.with(|c| c.get()),
+		1,
+		"action handler should be invoked exactly once with clamped count"
+	);
+}

@@ -112,6 +112,7 @@ mod core;
 pub use core::{LspRuntime, LspSession, RuntimeStartError};
 
 #[cfg(test)]
+#[allow(clippy::disallowed_methods)]
 mod invariants;
 
 #[cfg(test)]

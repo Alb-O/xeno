@@ -245,12 +245,12 @@ pub fn run_log_viewer(socket_path: &Path) -> io::Result<()> {
 
 	let (tx, rx): (mpsc::Sender<LogMessage>, Receiver<LogMessage>) = mpsc::channel();
 
-	let _listener_handle = thread::spawn(move || {
+	let _listener_handle = xeno_worker::spawn::spawn_thread(xeno_worker::TaskClass::Background, move || {
 		for stream in listener.incoming() {
 			match stream {
 				Ok(mut stream) => {
 					let tx = tx.clone();
-					thread::spawn(move || {
+					xeno_worker::spawn::spawn_thread(xeno_worker::TaskClass::Background, move || {
 						let mut len_buf = [0u8; 4];
 						loop {
 							if stream.read_exact(&mut len_buf).is_err() {

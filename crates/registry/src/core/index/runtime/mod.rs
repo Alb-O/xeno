@@ -80,4 +80,5 @@ mod state;
 pub use state::{RegisterError, RuntimeEntry, RuntimeRegistry};
 
 #[cfg(test)]
+#[allow(clippy::disallowed_methods)]
 mod invariants;

@@ -226,3 +226,6 @@ pub use xeno_macros::derive_option;
 
 pub use crate::core::*;
 pub use crate::invocation::Invocation;
+
+/// Maximum action repeat count. Enforced at both input handling and execution boundaries.
+pub const MAX_ACTION_COUNT: usize = xeno_invocation::schema::DEFAULT_LIMITS.max_action_count;
