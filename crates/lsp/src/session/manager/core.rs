@@ -126,11 +126,7 @@ impl LspRuntime {
 		cancel.cancel();
 
 		if let Some(actor) = router_actor {
-			let _ = actor
-				.shutdown(xeno_worker::ShutdownMode::Graceful {
-					timeout: Duration::from_secs(2),
-				})
-				.await;
+			let _ = actor.shutdown_graceful_or_force(Duration::from_secs(2)).await;
 		}
 		if let Some(task) = task {
 			let _ = task.await;

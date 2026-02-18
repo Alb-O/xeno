@@ -52,6 +52,9 @@ impl RestartPolicy {
 				if is_failure && restart_count < *max_restarts { Some(*backoff) } else { None }
 			}
 			Self::Always { max_restarts, backoff } => {
+				if matches!(reason, ActorExitReason::MailboxClosed) {
+					return None;
+				}
 				if max_restarts.is_some_and(|max| restart_count >= max) {
 					None
 				} else {
@@ -215,6 +218,111 @@ struct ActorState {
 	last_exit: Mutex<Option<ActorExitReason>>,
 }
 
+/// Join coordination state machine for the supervisor task.
+///
+/// Prevents concurrent shutdown callers from racing: only one caller
+/// becomes the "leader" that awaits the join handle, all others wait
+/// on the notify until the leader transitions to `Done`.
+enum JoinState {
+	/// Supervisor task is still owned; first caller to `shutdown` takes it.
+	Handle(JoinHandle<()>),
+	/// A caller is currently awaiting the join handle.
+	Joining,
+	/// Supervisor task has completed.
+	Done,
+}
+
+struct SupervisorJoinCtrl {
+	state: Mutex<JoinState>,
+	done: tokio::sync::Notify,
+}
+
+impl SupervisorJoinCtrl {
+	fn new(handle: JoinHandle<()>) -> Self {
+		Self {
+			state: Mutex::new(JoinState::Handle(handle)),
+			done: tokio::sync::Notify::new(),
+		}
+	}
+
+	/// Joins the supervisor task, blocking until done. Multiple callers are safe.
+	async fn join_forever(&self) {
+		loop {
+			let maybe_handle = {
+				let mut st = self.state.lock().await;
+				match &*st {
+					JoinState::Done => return,
+					JoinState::Joining => {
+						// Create Notified while lock is held to avoid lost-wakeup race:
+						// leader could notify_waiters() between our drop(st) and .await.
+						let notified = self.done.notified();
+						drop(st);
+						notified.await;
+						continue;
+					}
+					JoinState::Handle(_) => {
+						// Take the handle — we're the leader.
+						let JoinState::Handle(h) = std::mem::replace(&mut *st, JoinState::Joining) else {
+							unreachable!()
+						};
+						Some(h)
+					}
+				}
+			};
+			if let Some(h) = maybe_handle {
+				let _ = h.await;
+				*self.state.lock().await = JoinState::Done;
+				self.done.notify_waiters();
+				return;
+			}
+		}
+	}
+
+	/// Joins with a deadline. Returns `true` if completed, `false` if timed out.
+	async fn join_with_timeout(&self, timeout: Duration) -> bool {
+		let deadline = tokio::time::Instant::now() + timeout;
+		loop {
+			let maybe_handle = {
+				let mut st = self.state.lock().await;
+				match &*st {
+					JoinState::Done => return true,
+					JoinState::Joining => {
+						// Create Notified while lock is held to avoid lost-wakeup race.
+						let notified = self.done.notified();
+						drop(st);
+						tokio::select! {
+							_ = notified => continue,
+							_ = tokio::time::sleep_until(deadline) => return false,
+						}
+					}
+					JoinState::Handle(_) => {
+						let JoinState::Handle(h) = std::mem::replace(&mut *st, JoinState::Joining) else {
+							unreachable!()
+						};
+						Some(h)
+					}
+				}
+			};
+			if let Some(mut h) = maybe_handle {
+				tokio::select! {
+					res = &mut h => {
+						let _ = res;
+						*self.state.lock().await = JoinState::Done;
+						self.done.notify_waiters();
+						return true;
+					}
+					_ = tokio::time::sleep_until(deadline) => {
+						// Put the handle back — we couldn't finish in time.
+						*self.state.lock().await = JoinState::Handle(h);
+						self.done.notify_waiters();
+						return false;
+					}
+				}
+			}
+		}
+	}
+}
+
 /// Handle for one supervised actor.
 pub struct ActorHandle<Cmd, Evt>
 where
@@ -227,7 +335,7 @@ where
 	events: broadcast::Sender<Evt>,
 	cancel: CancellationToken,
 	state: Arc<ActorState>,
-	supervisor_task: Arc<Mutex<Option<JoinHandle<()>>>>,
+	join_ctrl: Arc<SupervisorJoinCtrl>,
 }
 
 impl<Cmd, Evt> Drop for ActorHandle<Cmd, Evt>
@@ -281,9 +389,14 @@ where
 		self.tx.try_send(cmd).await
 	}
 
-	/// Requests cancellation.
+	/// Requests cancellation and closes the mailbox.
+	///
+	/// After cancel, the supervisor loop will exit and no restarts occur.
+	/// Closing the mailbox eagerly ensures that subsequent `send()` calls
+	/// fail fast instead of blocking on backpressure into a dead actor.
 	pub fn cancel(&self) {
 		self.cancel.cancel();
+		self.tx.close_now();
 	}
 
 	/// Returns last exit reason observed by supervisor.
@@ -297,10 +410,7 @@ where
 			ShutdownMode::Immediate => {
 				self.cancel.cancel();
 				self.tx.close().await;
-				let mut task = self.supervisor_task.lock().await;
-				if let Some(handle) = task.take() {
-					let _ = handle.await;
-				}
+				self.join_ctrl.join_forever().await;
 				ShutdownReport {
 					completed: true,
 					timed_out: false,
@@ -309,35 +419,27 @@ where
 			}
 			ShutdownMode::Graceful { timeout } => {
 				self.tx.close().await;
-				let maybe_handle = {
-					let mut task = self.supervisor_task.lock().await;
-					task.take()
-				};
-				let Some(handle) = maybe_handle else {
-					return ShutdownReport {
-						completed: true,
-						timed_out: false,
-						last_exit: self.last_exit().await,
-					};
-				};
-
-				match tokio::time::timeout(timeout, handle).await {
-					Ok(_) => ShutdownReport {
-						completed: true,
-						timed_out: false,
-						last_exit: self.last_exit().await,
-					},
-					Err(_) => {
-						self.cancel.cancel();
-						ShutdownReport {
-							completed: false,
-							timed_out: true,
-							last_exit: self.last_exit().await,
-						}
-					}
+				let completed = self.join_ctrl.join_with_timeout(timeout).await;
+				if !completed {
+					self.cancel.cancel();
+				}
+				ShutdownReport {
+					completed,
+					timed_out: !completed,
+					last_exit: self.last_exit().await,
 				}
 			}
 		}
+	}
+
+	/// Two-phase shutdown: tries graceful first, forces immediate on timeout.
+	pub async fn shutdown_graceful_or_force(&self, timeout: Duration) -> ShutdownReport {
+		let report = self.shutdown(ShutdownMode::Graceful { timeout }).await;
+		if report.timed_out {
+			tracing::warn!(actor = %self.name, "graceful shutdown timed out; forcing immediate");
+			return self.shutdown(ShutdownMode::Immediate).await;
+		}
+		report
 	}
 }
 
@@ -433,7 +535,7 @@ where
 		events,
 		cancel,
 		state,
-		supervisor_task: Arc::new(Mutex::new(Some(supervisor_task))),
+		join_ctrl: Arc::new(SupervisorJoinCtrl::new(supervisor_task)),
 	}
 }
 
@@ -442,39 +544,55 @@ where
 	A: WorkerActor,
 {
 	let mut ctx = ActorContext::new(events, token.clone());
-	if let Err(err) = actor.on_start(&mut ctx).await {
-		return ActorExitReason::StartupFailed(err);
-	}
 
-	loop {
-		tokio::select! {
-			_ = token.cancelled() => {
-				actor.on_stop(&mut ctx).await;
-				return ActorExitReason::Cancelled;
-			}
-			msg = rx.recv() => {
-				let Some(cmd) = msg else {
-					actor.on_stop(&mut ctx).await;
-					return ActorExitReason::MailboxClosed;
-				};
-
-				match actor.handle(cmd, &mut ctx).await {
-					Ok(ActorFlow::Continue) => {}
-					Ok(ActorFlow::Stop) => {
-						actor.on_stop(&mut ctx).await;
-						return ActorExitReason::Stopped;
-					}
-					Err(err) => {
-						actor.on_stop(&mut ctx).await;
-						return ActorExitReason::HandlerFailed(err);
-					}
-				}
+	// Cancel-aware startup: preempt on_start if token fires mid-await.
+	let started = tokio::select! {
+		biased;
+		_ = token.cancelled() => false,
+		res = actor.on_start(&mut ctx) => {
+			match res {
+				Ok(()) => true,
+				Err(err) => return ActorExitReason::StartupFailed(err),
 			}
 		}
+	};
+	if !started {
+		return ActorExitReason::Cancelled;
 	}
+
+	let reason = loop {
+		// Cancel-aware recv: preempt if token fires while waiting for mail.
+		let cmd = tokio::select! {
+			biased;
+			_ = token.cancelled() => break ActorExitReason::Cancelled,
+			msg = rx.recv() => {
+				let Some(cmd) = msg else {
+					break ActorExitReason::MailboxClosed;
+				};
+				cmd
+			}
+		};
+
+		// Cancel-aware handle: preempt long-running handlers.
+		let flow = tokio::select! {
+			biased;
+			_ = token.cancelled() => break ActorExitReason::Cancelled,
+			res = actor.handle(cmd, &mut ctx) => res,
+		};
+
+		match flow {
+			Ok(ActorFlow::Continue) => {}
+			Ok(ActorFlow::Stop) => break ActorExitReason::Stopped,
+			Err(err) => break ActorExitReason::HandlerFailed(err),
+		}
+	};
+
+	actor.on_stop(&mut ctx).await;
+	reason
 }
 
 #[cfg(test)]
+#[allow(clippy::disallowed_methods)]
 mod tests {
 	use std::sync::Arc;
 	use std::sync::atomic::{AtomicUsize, Ordering};
@@ -557,5 +675,250 @@ mod tests {
 		let _ = handle.shutdown(ShutdownMode::Immediate).await;
 
 		assert!(starts.load(Ordering::SeqCst) >= 2, "actor should restart after failure");
+	}
+
+	struct SlowActor;
+
+	#[async_trait]
+	impl WorkerActor for SlowActor {
+		type Cmd = ();
+		type Evt = &'static str;
+
+		async fn handle(&mut self, _cmd: Self::Cmd, ctx: &mut ActorContext<Self::Evt>) -> Result<ActorFlow, String> {
+			ctx.emit("entered");
+			tokio::time::sleep(Duration::from_secs(60)).await;
+			Ok(ActorFlow::Continue)
+		}
+	}
+
+	#[tokio::test]
+	async fn immediate_shutdown_preempts_slow_handler() {
+		let handle = spawn_supervised_actor(ActorSpec::new("slow", TaskClass::Background, || SlowActor).supervisor(SupervisorSpec {
+			restart: RestartPolicy::Never,
+			event_buffer: 8,
+		}));
+		let mut events = handle.subscribe();
+
+		let _ = handle.send(()).await;
+		// Wait until handle() is entered (event emitted before the long sleep).
+		let got = tokio::time::timeout(Duration::from_secs(2), events.recv()).await;
+		assert_eq!(got.ok().and_then(|r| r.ok()), Some("entered"), "actor should enter handle()");
+
+		// Immediate shutdown must complete quickly despite the 60s sleep.
+		let report = tokio::time::timeout(Duration::from_millis(500), handle.shutdown(ShutdownMode::Immediate))
+			.await
+			.expect("shutdown should not hang");
+		assert!(report.completed);
+		assert_eq!(report.last_exit, Some(ActorExitReason::Cancelled));
+	}
+
+	struct SlowStopActor {
+		stopped: Arc<std::sync::atomic::AtomicBool>,
+	}
+
+	#[async_trait]
+	impl WorkerActor for SlowStopActor {
+		type Cmd = ();
+		type Evt = &'static str;
+
+		async fn handle(&mut self, _cmd: Self::Cmd, ctx: &mut ActorContext<Self::Evt>) -> Result<ActorFlow, String> {
+			ctx.emit("entered");
+			tokio::time::sleep(Duration::from_secs(60)).await;
+			Ok(ActorFlow::Continue)
+		}
+
+		async fn on_stop(&mut self, _ctx: &mut ActorContext<Self::Evt>) {
+			tokio::time::sleep(Duration::from_millis(200)).await;
+			self.stopped.store(true, Ordering::SeqCst);
+		}
+	}
+
+	#[tokio::test]
+	async fn graceful_timeout_retains_handle_for_immediate_followup() {
+		let stopped = Arc::new(std::sync::atomic::AtomicBool::new(false));
+		let stopped_clone = Arc::clone(&stopped);
+		let handle = spawn_supervised_actor(
+			ActorSpec::new("slow-stop", TaskClass::Background, move || SlowStopActor {
+				stopped: Arc::clone(&stopped_clone),
+			})
+			.supervisor(SupervisorSpec {
+				restart: RestartPolicy::Never,
+				event_buffer: 8,
+			}),
+		);
+		let mut events = handle.subscribe();
+
+		let _ = handle.send(()).await;
+		let got = tokio::time::timeout(Duration::from_secs(2), events.recv()).await;
+		assert_eq!(got.ok().and_then(|r| r.ok()), Some("entered"));
+
+		// Graceful with very short timeout — will time out while handle() sleeps.
+		let report = handle
+			.shutdown(ShutdownMode::Graceful {
+				timeout: Duration::from_millis(10),
+			})
+			.await;
+		assert!(report.timed_out);
+		assert!(!report.completed);
+		// on_stop hasn't run yet (cancel just fired, actor still tearing down).
+		assert!(!stopped.load(Ordering::SeqCst));
+
+		// Follow-up Immediate must join the supervisor and wait for on_stop to finish.
+		let report = tokio::time::timeout(Duration::from_secs(2), handle.shutdown(ShutdownMode::Immediate))
+			.await
+			.expect("immediate after graceful should not hang");
+		assert!(report.completed);
+		assert!(stopped.load(Ordering::SeqCst), "on_stop should have completed");
+	}
+
+	#[derive(Default)]
+	struct NoopActor;
+
+	#[async_trait]
+	impl WorkerActor for NoopActor {
+		type Cmd = ();
+		type Evt = ();
+
+		async fn handle(&mut self, _cmd: Self::Cmd, _ctx: &mut ActorContext<Self::Evt>) -> Result<ActorFlow, String> {
+			Ok(ActorFlow::Continue)
+		}
+	}
+
+	#[tokio::test]
+	async fn graceful_shutdown_terminates_with_restart_always() {
+		let handle = spawn_supervised_actor(
+			ActorSpec::new("always-restart", TaskClass::Background, NoopActor::default).supervisor(SupervisorSpec {
+				restart: RestartPolicy::Always {
+					max_restarts: None,
+					backoff: Duration::from_millis(1),
+				},
+				event_buffer: 8,
+			}),
+		);
+
+		// Don't send anything — just graceful-shutdown immediately.
+		let report = handle
+			.shutdown(ShutdownMode::Graceful {
+				timeout: Duration::from_millis(200),
+			})
+			.await;
+		assert!(report.completed, "graceful shutdown should complete, not spin on MailboxClosed restarts");
+		assert!(!report.timed_out);
+	}
+
+	#[tokio::test]
+	async fn shutdown_graceful_or_force_completes_with_slow_stop() {
+		let stopped = Arc::new(std::sync::atomic::AtomicBool::new(false));
+		let stopped_clone = Arc::clone(&stopped);
+		let handle = spawn_supervised_actor(
+			ActorSpec::new("force-test", TaskClass::Background, move || SlowStopActor {
+				stopped: Arc::clone(&stopped_clone),
+			})
+			.supervisor(SupervisorSpec {
+				restart: RestartPolicy::Never,
+				event_buffer: 8,
+			}),
+		);
+		let mut events = handle.subscribe();
+
+		let _ = handle.send(()).await;
+		let got = tokio::time::timeout(Duration::from_secs(2), events.recv()).await;
+		assert_eq!(got.ok().and_then(|r| r.ok()), Some("entered"));
+
+		// Graceful with tiny timeout will time out (handler sleeps 60s),
+		// then force immediate which cancels the handler + runs on_stop.
+		let report = tokio::time::timeout(Duration::from_secs(2), handle.shutdown_graceful_or_force(Duration::from_millis(10)))
+			.await
+			.expect("shutdown_graceful_or_force should not hang");
+		assert!(report.completed);
+		assert!(stopped.load(Ordering::SeqCst), "on_stop should have completed via forced immediate");
+	}
+
+	#[tokio::test]
+	async fn cancel_closes_mailbox_and_send_fails_fast() {
+		let handle = spawn_supervised_actor(
+			ActorSpec::new("cancel-close", TaskClass::Background, CountingActor::default).mailbox(MailboxSpec {
+				capacity: 1,
+				policy: MailboxPolicy::Backpressure,
+			}),
+		);
+
+		handle.cancel();
+
+		// send() must fail fast (not block on backpressure) since mailbox is closed.
+		let result = tokio::time::timeout(Duration::from_millis(50), handle.send(1)).await;
+		assert!(result.is_ok(), "send should not block after cancel");
+		assert!(result.unwrap().is_err(), "send should return error on closed mailbox");
+
+		let report = handle.shutdown(ShutdownMode::Immediate).await;
+		assert!(report.completed);
+	}
+
+	struct ConcurrentStopActor {
+		started_stop: Arc<std::sync::atomic::AtomicBool>,
+		done_stop: Arc<std::sync::atomic::AtomicBool>,
+	}
+
+	#[async_trait]
+	impl WorkerActor for ConcurrentStopActor {
+		type Cmd = ();
+		type Evt = &'static str;
+
+		async fn handle(&mut self, _cmd: Self::Cmd, ctx: &mut ActorContext<Self::Evt>) -> Result<ActorFlow, String> {
+			ctx.emit("entered");
+			tokio::time::sleep(Duration::from_secs(60)).await;
+			Ok(ActorFlow::Continue)
+		}
+
+		async fn on_stop(&mut self, _ctx: &mut ActorContext<Self::Evt>) {
+			self.started_stop.store(true, Ordering::SeqCst);
+			tokio::time::sleep(Duration::from_millis(200)).await;
+			self.done_stop.store(true, Ordering::SeqCst);
+		}
+	}
+
+	#[tokio::test]
+	async fn concurrent_shutdown_waits_for_in_progress_join() {
+		let started_stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
+		let done_stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
+		let ss = Arc::clone(&started_stop);
+		let ds = Arc::clone(&done_stop);
+		let handle = Arc::new(spawn_supervised_actor(
+			ActorSpec::new("concurrent-shutdown", TaskClass::Background, move || ConcurrentStopActor {
+				started_stop: Arc::clone(&ss),
+				done_stop: Arc::clone(&ds),
+			})
+			.supervisor(SupervisorSpec {
+				restart: RestartPolicy::Never,
+				event_buffer: 8,
+			}),
+		));
+		let mut events = handle.subscribe();
+
+		let _ = handle.send(()).await;
+		let got = tokio::time::timeout(Duration::from_secs(2), events.recv()).await;
+		assert_eq!(got.ok().and_then(|r| r.ok()), Some("entered"));
+
+		// Caller A starts Immediate shutdown.
+		let handle_a = Arc::clone(&handle);
+		let task_a = tokio::spawn(async move { handle_a.shutdown(ShutdownMode::Immediate).await });
+
+		// Wait until on_stop has started (proves A is the leader, joining).
+		while !started_stop.load(Ordering::SeqCst) {
+			tokio::task::yield_now().await;
+		}
+		// on_stop started but not done yet.
+		assert!(!done_stop.load(Ordering::SeqCst));
+
+		// Caller B also calls Immediate shutdown concurrently.
+		let report_b = tokio::time::timeout(Duration::from_secs(2), handle.shutdown(ShutdownMode::Immediate))
+			.await
+			.expect("concurrent shutdown B should not hang");
+		// B must wait until on_stop finishes (not return early).
+		assert!(report_b.completed);
+		assert!(done_stop.load(Ordering::SeqCst), "concurrent caller must see on_stop completed");
+
+		let report_a = task_a.await.unwrap();
+		assert!(report_a.completed);
 	}
 }

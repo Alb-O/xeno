@@ -18,11 +18,14 @@ fn fallback_runtime() -> &'static Runtime {
 	})
 }
 
-fn current_or_fallback_handle() -> Handle {
+pub(crate) fn current_or_fallback_handle() -> Handle {
 	Handle::try_current().unwrap_or_else(|_| fallback_runtime().handle().clone())
 }
 
 /// Spawns an async task with shared worker classification metadata.
+///
+/// This is the only sanctioned entry point for `tokio::spawn` in the workspace.
+#[allow(clippy::disallowed_methods)]
 pub fn spawn<F>(class: TaskClass, fut: F) -> JoinHandle<F::Output>
 where
 	F: Future + Send + 'static,
@@ -33,6 +36,9 @@ where
 }
 
 /// Spawns blocking work with shared worker classification metadata.
+///
+/// This is the only sanctioned entry point for `tokio::task::spawn_blocking` in the workspace.
+#[allow(clippy::disallowed_methods)]
 pub fn spawn_blocking<F, R>(class: TaskClass, f: F) -> JoinHandle<R>
 where
 	F: FnOnce() -> R + Send + 'static,
@@ -43,6 +49,9 @@ where
 }
 
 /// Spawns a dedicated OS thread with shared worker classification metadata.
+///
+/// This is the only sanctioned entry point for `std::thread::spawn` in the workspace.
+#[allow(clippy::disallowed_methods)]
 pub fn spawn_thread<F, R>(class: TaskClass, f: F) -> std::thread::JoinHandle<R>
 where
 	F: FnOnce() -> R + Send + 'static,
@@ -53,6 +62,9 @@ where
 }
 
 /// Spawns a dedicated named OS thread with shared worker classification metadata.
+///
+/// This is the only sanctioned entry point for `std::thread::Builder::spawn` in the workspace.
+#[allow(clippy::disallowed_methods)]
 pub fn spawn_named_thread<F, R>(class: TaskClass, name: impl Into<String>, f: F) -> std::io::Result<std::thread::JoinHandle<R>>
 where
 	F: FnOnce() -> R + Send + 'static,

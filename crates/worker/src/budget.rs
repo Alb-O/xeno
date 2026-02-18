@@ -28,8 +28,12 @@ impl Default for DrainBudget {
 /// Drain report from one bounded convergence pass.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct DrainReport {
-	/// Number of completed tasks drained.
+	/// Number of completed tasks drained (includes panicked/cancelled).
 	pub completed: u64,
+	/// Number of tasks that panicked during execution.
+	pub panicked: u64,
+	/// Number of tasks that were cancelled/aborted.
+	pub cancelled: u64,
 	/// Pending interactive work after drain.
 	pub pending_interactive: usize,
 	/// Pending background work after drain.

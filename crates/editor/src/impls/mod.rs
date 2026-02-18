@@ -536,20 +536,16 @@ impl Editor {
 
 	/// Shuts down filesystem indexing/search actors with a bounded graceful timeout.
 	pub async fn shutdown_filesystem(&self) {
-		let report = self
-			.state
-			.filesystem
-			.shutdown(xeno_worker::ShutdownMode::Graceful {
-				timeout: std::time::Duration::from_millis(250),
-			})
-			.await;
+		let timeout = std::time::Duration::from_millis(250);
+		let report = self.state.filesystem.shutdown(xeno_worker::ShutdownMode::Graceful { timeout }).await;
 		if report.service.timed_out || report.indexer.timed_out || report.search.timed_out {
 			tracing::warn!(
 				service_timed_out = report.service.timed_out,
 				indexer_timed_out = report.indexer.timed_out,
 				search_timed_out = report.search.timed_out,
-				"filesystem shutdown timed out"
+				"filesystem graceful shutdown timed out; forcing immediate"
 			);
+			let _ = self.state.filesystem.shutdown(xeno_worker::ShutdownMode::Immediate).await;
 		}
 	}
 

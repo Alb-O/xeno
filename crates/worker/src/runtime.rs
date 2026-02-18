@@ -1,7 +1,8 @@
 use std::future::Future;
+use std::sync::Arc;
 use std::time::Instant;
 
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, Notify};
 
 use crate::budget::{DrainBudget, DrainReport};
 use crate::join_set::WorkerJoinSet;
@@ -9,11 +10,35 @@ use crate::registry::WorkerRegistry;
 use crate::supervisor::{ActorHandle, ActorSpec, WorkerActor, spawn_supervised_actor};
 use crate::{TaskClass, spawn};
 
+/// Drop guard that signals a [`Notify`] on completion regardless of exit path
+/// (normal return, panic unwind, or future cancellation/abort).
+struct NotifyOnDrop(Arc<Notify>);
+
+impl Drop for NotifyOnDrop {
+	fn drop(&mut self) {
+		self.0.notify_one();
+	}
+}
+
+fn classify_join_result<T>(class: &str, result: &Result<T, tokio::task::JoinError>, panicked: &mut u64, cancelled: &mut u64) {
+	if let Err(err) = result {
+		if err.is_panic() {
+			*panicked = panicked.wrapping_add(1);
+			tracing::warn!(class, "worker.drain: task panicked");
+		} else if err.is_cancelled() {
+			*cancelled = cancelled.wrapping_add(1);
+			tracing::warn!(class, "worker.drain: task cancelled");
+		}
+	}
+}
+
 /// Unified runtime entrypoint for worker task execution and actor supervision.
 #[derive(Debug, Clone)]
 pub struct WorkerRuntime {
-	interactive: std::sync::Arc<Mutex<WorkerJoinSet<()>>>,
-	background: std::sync::Arc<Mutex<WorkerJoinSet<()>>>,
+	interactive: Arc<Mutex<WorkerJoinSet<()>>>,
+	background: Arc<Mutex<WorkerJoinSet<()>>>,
+	interactive_notify: Arc<Notify>,
+	background_notify: Arc<Notify>,
 	registry: WorkerRegistry,
 }
 
@@ -27,8 +52,10 @@ impl WorkerRuntime {
 	/// Creates a runtime with empty managed queues.
 	pub fn new() -> Self {
 		Self {
-			interactive: std::sync::Arc::new(Mutex::new(WorkerJoinSet::new(TaskClass::Interactive))),
-			background: std::sync::Arc::new(Mutex::new(WorkerJoinSet::new(TaskClass::Background))),
+			interactive: Arc::new(Mutex::new(WorkerJoinSet::new(TaskClass::Interactive))),
+			background: Arc::new(Mutex::new(WorkerJoinSet::new(TaskClass::Background))),
+			interactive_notify: Arc::new(Notify::new()),
+			background_notify: Arc::new(Notify::new()),
 			registry: WorkerRegistry::new(),
 		}
 	}
@@ -75,13 +102,24 @@ impl WorkerRuntime {
 		F: Future<Output = ()> + Send + 'static,
 	{
 		if class == TaskClass::Interactive {
-			self.interactive.lock().await.spawn(fut);
+			let notify = Arc::clone(&self.interactive_notify);
+			self.interactive.lock().await.spawn(async move {
+				let _guard = NotifyOnDrop(notify);
+				fut.await;
+			});
 		} else {
-			self.background.lock().await.spawn(fut);
+			let notify = Arc::clone(&self.background_notify);
+			self.background.lock().await.spawn(async move {
+				let _guard = NotifyOnDrop(notify);
+				fut.await;
+			});
 		}
 	}
 
 	/// Drains managed runtime work under one budget.
+	///
+	/// Never holds a join-set mutex across an await point, so concurrent
+	/// `submit()` calls are never blocked by an in-progress drain.
 	pub async fn drain(&self, budget: DrainBudget) -> DrainReport {
 		if budget.max_completions == 0 {
 			let i = self.interactive.lock().await.len();
@@ -93,50 +131,68 @@ impl WorkerRuntime {
 			};
 		}
 
-		let start = Instant::now();
-		let deadline = start + budget.duration;
+		let deadline = Instant::now() + budget.duration;
 		let mut completed = 0u64;
+		let mut panicked = 0u64;
+		let mut cancelled = 0u64;
 
 		loop {
 			if completed as usize >= budget.max_completions || Instant::now() >= deadline {
 				break;
 			}
 
-			let did_work = {
+			// Fast-path: pop all ready completions without blocking.
+			let mut progressed = false;
+			let pending_i;
+			{
 				let mut interactive = self.interactive.lock().await;
-				if interactive.is_empty() {
-					false
-				} else {
-					match tokio::time::timeout(deadline.saturating_duration_since(Instant::now()), interactive.join_next()).await {
-						Ok(Some(_)) => {
+				while (completed as usize) < budget.max_completions {
+					match interactive.try_join_next() {
+						Some(result) => {
 							completed = completed.wrapping_add(1);
-							true
+							progressed = true;
+							classify_join_result("interactive", &result, &mut panicked, &mut cancelled);
 						}
-						_ => false,
+						None => break,
 					}
 				}
-			};
-			if did_work {
+				pending_i = interactive.len();
+			}
+			let pending_b;
+			{
+				let mut background = self.background.lock().await;
+				while (completed as usize) < budget.max_completions {
+					match background.try_join_next() {
+						Some(result) => {
+							completed = completed.wrapping_add(1);
+							progressed = true;
+							classify_join_result("background", &result, &mut panicked, &mut cancelled);
+						}
+						None => break,
+					}
+				}
+				pending_b = background.len();
+			}
+
+			if progressed {
 				continue;
 			}
 
-			let did_bg = {
-				let mut background = self.background.lock().await;
-				if background.is_empty() {
-					false
-				} else {
-					match tokio::time::timeout(deadline.saturating_duration_since(Instant::now()), background.join_next()).await {
-						Ok(Some(_)) => {
-							completed = completed.wrapping_add(1);
-							true
-						}
-						_ => false,
-					}
-				}
-			};
-
-			if !did_bg {
+			// Both queues empty: nothing to wait for.
+			if pending_i == 0 && pending_b == 0 {
 				break;
+			}
+
+			// No ready completions: wait for a notification or deadline.
+			let remaining = deadline.saturating_duration_since(Instant::now());
+			if remaining.is_zero() {
+				break;
+			}
+			tokio::select! {
+				biased;
+				_ = self.interactive_notify.notified() => {}
+				_ = self.background_notify.notified() => {}
+				_ = tokio::time::sleep(remaining) => { break; }
 			}
 		}
 
@@ -144,6 +200,8 @@ impl WorkerRuntime {
 		let pending_background = self.background.lock().await.len();
 		DrainReport {
 			completed,
+			panicked,
+			cancelled,
 			pending_interactive,
 			pending_background,
 			budget_exhausted: completed as usize >= budget.max_completions || Instant::now() >= deadline,
@@ -165,6 +223,7 @@ impl WorkerRuntime {
 }
 
 #[cfg(test)]
+#[allow(clippy::disallowed_methods)]
 mod tests {
 	use std::time::Duration;
 
@@ -185,5 +244,87 @@ mod tests {
 			.await;
 		assert_eq!(report.completed, 3);
 		assert_eq!(report.pending_interactive, 2);
+	}
+
+	#[tokio::test]
+	async fn submit_not_blocked_by_drain() {
+		let rt = WorkerRuntime::new();
+		let gate = std::sync::Arc::new(tokio::sync::Notify::new());
+		let gate_clone = std::sync::Arc::clone(&gate);
+
+		// Submit a long-running task that blocks until we signal it.
+		rt.submit(TaskClass::Interactive, async move {
+			gate_clone.notified().await;
+		})
+		.await;
+
+		// Start drain in the background — it will wait for the long task.
+		let rt2 = rt.clone();
+		let drain_handle = tokio::spawn(async move {
+			rt2.drain(DrainBudget {
+				duration: Duration::from_millis(500),
+				max_completions: 10,
+			})
+			.await
+		});
+
+		// Yield to let drain start waiting.
+		tokio::time::sleep(Duration::from_millis(10)).await;
+
+		// submit() must complete quickly even though drain is in progress.
+		let submit_ok = tokio::time::timeout(Duration::from_millis(50), rt.submit(TaskClass::Interactive, async {})).await;
+		assert!(submit_ok.is_ok(), "submit() should not be blocked by drain()");
+
+		// Release the gate so drain can finish.
+		gate.notify_one();
+		let _ = drain_handle.await;
+	}
+
+	#[tokio::test]
+	async fn drain_returns_immediately_when_empty() {
+		let rt = WorkerRuntime::new();
+		let report = tokio::time::timeout(
+			Duration::from_millis(50),
+			rt.drain(DrainBudget {
+				duration: Duration::from_secs(5),
+				max_completions: 1,
+			}),
+		)
+		.await
+		.expect("drain() should return immediately when no tasks are pending");
+		assert_eq!(report.completed, 0);
+		assert_eq!(report.pending_interactive, 0);
+		assert_eq!(report.pending_background, 0);
+		assert!(!report.budget_exhausted);
+	}
+
+	#[tokio::test]
+	async fn drain_wakes_on_panicking_task_completion() {
+		let rt = WorkerRuntime::new();
+		let gate = Arc::new(tokio::sync::Notify::new());
+		let gate2 = Arc::clone(&gate);
+
+		rt.submit(TaskClass::Interactive, async move {
+			gate2.notified().await;
+			panic!("boom");
+		})
+		.await;
+
+		let rt2 = rt.clone();
+		let drain_task = tokio::spawn(async move {
+			rt2.drain(DrainBudget {
+				duration: Duration::from_millis(200),
+				max_completions: 1,
+			})
+			.await
+		});
+
+		tokio::task::yield_now().await;
+		gate.notify_one();
+
+		let report = drain_task.await.unwrap();
+		assert_eq!(report.completed, 1, "drain should count panicked task as completed");
+		assert_eq!(report.panicked, 1, "drain should report the panic");
+		assert_eq!(report.cancelled, 0);
 	}
 }
