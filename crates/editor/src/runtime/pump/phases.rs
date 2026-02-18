@@ -20,6 +20,7 @@ pub(crate) struct MessageDrainPhaseOutcome {
 #[derive(Debug, Clone, Copy, Default)]
 pub(crate) struct SchedulerDrainPhaseOutcome {
 	pub(crate) completed: usize,
+	pub(crate) panicked: u64,
 }
 
 /// Outcome for runtime work drain phase.
@@ -81,9 +82,23 @@ pub(crate) async fn phase_drain_scheduler(editor: &mut Editor) -> SchedulerDrain
 
 	let drain_stats = editor.work_scheduler_mut().drain_budget(drain_budget).await;
 	editor.metrics().record_hook_tick(drain_stats.completed, drain_stats.pending);
+	editor
+		.metrics()
+		.record_worker_drain(drain_stats.completed, drain_stats.panicked, drain_stats.cancelled);
+
+	if drain_stats.panicked > 0 {
+		use xeno_registry::notifications::{AutoDismiss, Level, Notification};
+		let message = if let Some(sample) = &drain_stats.panic_sample {
+			format!("worker tasks panicked: {} (first: {}) (see logs)", drain_stats.panicked, sample)
+		} else {
+			format!("worker tasks panicked: {} (see logs)", drain_stats.panicked)
+		};
+		editor.show_notification(Notification::new("xeno-editor::worker_task_panic", Level::Error, AutoDismiss::DEFAULT, message));
+	}
 
 	SchedulerDrainPhaseOutcome {
 		completed: drain_stats.completed as usize,
+		panicked: drain_stats.panicked,
 	}
 }
 

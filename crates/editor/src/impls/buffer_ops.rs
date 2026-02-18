@@ -243,6 +243,8 @@ impl Editor {
 			return;
 		}
 
+		self.state.work_scheduler.cancel_doc(doc_id.0);
+
 		#[cfg(feature = "lsp")]
 		self.state.lsp.sync_manager_mut().on_doc_close(doc_id);
 

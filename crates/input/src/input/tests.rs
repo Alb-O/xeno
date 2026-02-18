@@ -166,22 +166,9 @@ fn insert_text_char_does_not_enter_pending() {
 
 #[test]
 fn action_count_overflow_clamped_to_max() {
-	use std::sync::Arc;
+	use xeno_registry::MAX_ACTION_COUNT;
 
-	use xeno_registry::{ActionId, CompiledBinding, CompiledBindingTarget, MAX_ACTION_COUNT};
-
-	let binding = CompiledBinding::new(
-		CompiledBindingTarget::Action {
-			id: ActionId(0),
-			count: usize::MAX,
-			extend: false,
-			register: None,
-		},
-		Arc::from("test_action"),
-		Arc::from(""),
-		Arc::from(""),
-		Vec::new(),
-	);
+	let binding = xeno_registry::test_support::action_binding("test_action", usize::MAX, false, None);
 
 	let mut h = InputHandler::new();
 	h.count = u32::MAX;

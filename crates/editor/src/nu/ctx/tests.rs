@@ -110,9 +110,9 @@ fn ctx_text_has_correct_shape_with_content() {
 	let text = record.get("text").expect("text should exist").as_record().expect("text should be record");
 
 	assert_eq!(text.get("line").unwrap().as_str().unwrap(), "hello world");
-	assert_eq!(text.get("line_truncated").unwrap().as_bool().unwrap(), false);
+	assert!(!text.get("line_truncated").unwrap().as_bool().unwrap());
 	assert_eq!(text.get("selection").unwrap().as_str().unwrap(), "lo wo");
-	assert_eq!(text.get("selection_truncated").unwrap().as_bool().unwrap(), false);
+	assert!(!text.get("selection_truncated").unwrap().as_bool().unwrap());
 }
 
 #[test]
@@ -125,9 +125,9 @@ fn ctx_text_empty_has_nothing_fields() {
 	let text = record.get("text").expect("text should exist").as_record().expect("text should be record");
 
 	assert!(text.get("line").unwrap().is_nothing());
-	assert_eq!(text.get("line_truncated").unwrap().as_bool().unwrap(), false);
+	assert!(!text.get("line_truncated").unwrap().as_bool().unwrap());
 	assert!(text.get("selection").unwrap().is_nothing());
-	assert_eq!(text.get("selection_truncated").unwrap().as_bool().unwrap(), false);
+	assert!(!text.get("selection_truncated").unwrap().as_bool().unwrap());
 }
 
 #[test]

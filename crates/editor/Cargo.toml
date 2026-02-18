@@ -8,7 +8,7 @@ license.workspace = true
 [features]
 default = ["tui"]
 tui = ["xeno-primitives/tui-style", "xeno-primitives/terminal-input"]
-lsp = ["dep:xeno-lsp", "dep:thiserror", "dep:tokio-util"]
+lsp = ["dep:xeno-lsp", "dep:thiserror"]
 [dependencies]
 anyhow.workspace = true
 async-trait.workspace = true
@@ -29,7 +29,7 @@ serde_json.workspace = true
 smallvec.workspace = true
 thiserror = { workspace = true, optional = true }
 tokio = { workspace = true, features = ["fs", "rt-multi-thread", "time"] }
-tokio-util = { workspace = true, optional = true }
+tokio-util.workspace = true
 tracing.workspace = true
 unicode-width.workspace = true
 xeno-buffer-display.workspace = true

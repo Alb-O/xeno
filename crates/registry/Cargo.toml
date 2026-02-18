@@ -91,6 +91,9 @@ config-nuon = [
 ]
 config-nu = ["config-nuon"]
 
+# Test helpers for downstream crate tests
+test-support = ["keymap"]
+
 # Contract enforcement
 registry-contracts = []
 

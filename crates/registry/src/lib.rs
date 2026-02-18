@@ -12,6 +12,10 @@ pub mod invocation;
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_support;
+
 // Types re-exported at crate root for `define_events!` macro expansion.
 // The macro generates public types (`HookEventData`, `OwnedHookContext`) whose fields
 // reference these, so they must be `pub use`.

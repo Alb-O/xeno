@@ -13,5 +13,8 @@ xeno-keymap-core.workspace = true
 xeno-primitives.workspace = true
 xeno-registry.workspace = true
 
+[dev-dependencies]
+xeno-registry = { workspace = true, features = ["test-support"] }
+
 [lints]
 workspace = true

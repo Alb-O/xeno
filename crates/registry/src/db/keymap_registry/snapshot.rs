@@ -34,7 +34,7 @@ pub struct CompiledBinding {
 }
 
 impl CompiledBinding {
-	pub fn new(target: CompiledBindingTarget, name: Arc<str>, description: Arc<str>, short_desc: Arc<str>, keys: Vec<Node>) -> Self {
+	pub(crate) fn new(target: CompiledBindingTarget, name: Arc<str>, description: Arc<str>, short_desc: Arc<str>, keys: Vec<Node>) -> Self {
 		Self {
 			target,
 			name,

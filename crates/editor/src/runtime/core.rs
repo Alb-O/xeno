@@ -70,15 +70,14 @@ impl Editor {
 			let mut cause_seq = None;
 			let mut consumed_event = false;
 
-			if remaining_frontend > 0 {
-				if let Some(env) = self.state.runtime_kernel_mut().pop_frontend() {
+			if remaining_frontend > 0
+				&& let Some(env) = self.state.runtime_kernel_mut().pop_frontend() {
 					remaining_frontend = remaining_frontend.saturating_sub(1);
 					report.handled_frontend_events = report.handled_frontend_events.saturating_add(1);
 					cause_seq = Some(env.seq);
 					consumed_event = true;
 					self.apply_frontend_event_envelope(env).await;
 				}
-			}
 
 			if !consumed_event {
 				if !policy.run_idle_maintenance || idle_maintenance_ran {

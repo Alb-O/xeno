@@ -25,6 +25,12 @@ pub struct EditorMetrics {
 	pub lsp_coalesced: AtomicU64,
 	/// Total bytes snapshotted for full document syncs.
 	pub lsp_snapshot_bytes: AtomicU64,
+	/// Total scheduler tasks completed.
+	pub worker_drained_completed: AtomicU64,
+	/// Total scheduler tasks that panicked.
+	pub worker_drained_panicked: AtomicU64,
+	/// Total scheduler tasks that were cancelled.
+	pub worker_drained_cancelled: AtomicU64,
 	/// Full syncs scheduled in the last tick.
 	pub lsp_full_sync_tick: AtomicU64,
 	/// Incremental syncs scheduled in the last tick.
@@ -62,6 +68,18 @@ impl EditorMetrics {
 	/// Adds to the snapshot bytes counter.
 	pub fn add_snapshot_bytes(&self, bytes: u64) {
 		self.lsp_snapshot_bytes.fetch_add(bytes, Ordering::Relaxed);
+	}
+
+	/// Records worker drain stats from a scheduler drain cycle.
+	pub fn record_worker_drain(&self, completed: u64, panicked: u64, cancelled: u64) {
+		self.worker_drained_completed.fetch_add(completed, Ordering::Relaxed);
+		self.worker_drained_panicked.fetch_add(panicked, Ordering::Relaxed);
+		self.worker_drained_cancelled.fetch_add(cancelled, Ordering::Relaxed);
+	}
+
+	/// Returns total panicked worker tasks.
+	pub fn worker_panicked_total(&self) -> u64 {
+		self.worker_drained_panicked.load(Ordering::Relaxed)
 	}
 
 	/// Records per-tick hook drain stats.
