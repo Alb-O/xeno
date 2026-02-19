@@ -14,43 +14,51 @@ fn load_rejects_external_calls() {
 }
 
 #[test]
-fn run_invocations_supports_record_and_list() {
+fn run_effects_supports_record_and_list() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
 	write_script(
 		temp.path(),
-		"export def one [] { xeno effect dispatch editor stats | xeno effects normalize }\nexport def many [] { [(xeno effect dispatch editor stats), (xeno effect dispatch command help)] | xeno effects normalize }",
+		"export def one [] { xeno effect dispatch editor stats }\nexport def many [] { [(xeno effect dispatch editor stats), (xeno effect dispatch command help)] }",
 	);
 
 	let runtime = NuRuntime::load(temp.path()).expect("runtime should load");
 
-	let one = runtime.run_invocations("one", &[]).expect("record return should decode");
+	let one = runtime
+		.run_macro_effects_with_budget_and_env("one", &[], DecodeBudget::macro_defaults(), &[])
+		.expect("record return should decode");
+	assert_eq!(one.effects.len(), 1);
 	assert!(matches!(
-		one.as_slice(),
-		[Invocation::Command(xeno_invocation::CommandInvocation {
+		one.effects.as_slice(),
+		[NuEffect::Dispatch(Invocation::Command(xeno_invocation::CommandInvocation {
 			name,
 			route: xeno_invocation::CommandRoute::Editor,
 			..
-		})] if name == "stats"
+		}))] if name == "stats"
 	));
 
-	let many = runtime.run_invocations("many", &[]).expect("list return should decode");
-	assert_eq!(many.len(), 2);
+	let many = runtime
+		.run_macro_effects_with_budget_and_env("many", &[], DecodeBudget::macro_defaults(), &[])
+		.expect("list return should decode");
+	assert_eq!(many.effects.len(), 2);
 }
 
 #[test]
-fn run_invocations_supports_structured_records() {
+fn run_effects_supports_structured_records() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
 	write_script(
 		temp.path(),
-		"export def action_rec [] { xeno effect dispatch action move_right --count 2 --extend --register a | xeno effects normalize }\n\
-export def action_char [] { xeno effect dispatch action find_char --char x | xeno effects normalize }\n\
-export def mixed [] { [ (xeno effect dispatch editor stats), (xeno effect dispatch command help themes) ] | xeno effects normalize }\n\
-export def nested_nu [] { xeno call go a b | xeno effects normalize }",
+		"export def action_rec [] { xeno effect dispatch action move_right --count 2 --extend --register a }\n\
+export def action_char [] { xeno effect dispatch action find_char --char x }\n\
+export def mixed [] { [ (xeno effect dispatch editor stats), (xeno effect dispatch command help themes) ] }\n\
+export def nested_nu [] { xeno call go a b }",
 	);
 
 	let runtime = NuRuntime::load(temp.path()).expect("runtime should load");
 
-	let action = runtime.run_invocations("action_rec", &[]).expect("structured action should decode");
+	let action = runtime
+		.run_macro_effects_with_budget_and_env("action_rec", &[], DecodeBudget::macro_defaults(), &[])
+		.expect("structured action should decode")
+		.into_dispatches();
 	assert!(matches!(
 		action.as_slice(),
 		[Invocation::Action {
@@ -61,7 +69,10 @@ export def nested_nu [] { xeno call go a b | xeno effects normalize }",
 		}] if name == "move_right"
 	));
 
-	let action_char = runtime.run_invocations("action_char", &[]).expect("structured action-with-char should decode");
+	let action_char = runtime
+		.run_macro_effects_with_budget_and_env("action_char", &[], DecodeBudget::macro_defaults(), &[])
+		.expect("structured action-with-char should decode")
+		.into_dispatches();
 	assert!(matches!(
 		action_char.as_slice(),
 		[Invocation::ActionWithChar {
@@ -71,7 +82,10 @@ export def nested_nu [] { xeno call go a b | xeno effects normalize }",
 		}] if name == "find_char"
 	));
 
-	let mixed = runtime.run_invocations("mixed", &[]).expect("structured list should decode");
+	let mixed = runtime
+		.run_macro_effects_with_budget_and_env("mixed", &[], DecodeBudget::macro_defaults(), &[])
+		.expect("structured list should decode")
+		.into_dispatches();
 	assert!(matches!(
 		mixed.first(),
 		Some(Invocation::Command(xeno_invocation::CommandInvocation {
@@ -85,29 +99,33 @@ export def nested_nu [] { xeno call go a b | xeno effects normalize }",
 		Some(Invocation::Command(xeno_invocation::CommandInvocation { name, .. })) if name == "help"
 	));
 
-	let nested_nu = runtime.run_invocations("nested_nu", &[]).expect("structured nu invocation should decode");
+	let nested_nu = runtime
+		.run_macro_effects_with_budget_and_env("nested_nu", &[], DecodeBudget::macro_defaults(), &[])
+		.expect("structured nu invocation should decode")
+		.into_dispatches();
 	assert!(matches!(nested_nu.as_slice(), [Invocation::Nu { name, args }] if name == "go" && args == &["a".to_string(), "b".to_string()]));
 }
 
 #[test]
-fn decode_limits_cap_invocation_count() {
+fn decode_limits_cap_effect_count() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
 	write_script(
 		temp.path(),
-		"export def many [] { [(xeno effect dispatch editor stats), (xeno effect dispatch editor stats)] | xeno effects normalize }",
+		"export def many [] { [(xeno effect dispatch editor stats), (xeno effect dispatch editor stats)] }",
 	);
 
 	let runtime = NuRuntime::load(temp.path()).expect("runtime should load");
 	let err = runtime
-		.run_invocations_with_limits(
+		.run_macro_effects_with_budget_and_env(
 			"many",
 			&[],
 			DecodeBudget {
 				max_effects: 1,
 				..DecodeBudget::macro_defaults()
 			},
+			&[],
 		)
-		.expect_err("decode limits should reject too many invocations");
+		.expect_err("decode limits should reject too many effects");
 
 	assert!(err.contains("effect count"), "{err}");
 }
@@ -115,17 +133,16 @@ fn decode_limits_cap_invocation_count() {
 #[test]
 fn run_allows_use_within_config_root() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
-	std::fs::write(
-		temp.path().join("mod.nu"),
-		"export def mk [] { xeno effect dispatch editor stats | xeno effects normalize }",
-	)
-	.expect("module should be writable");
+	std::fs::write(temp.path().join("mod.nu"), "export def mk [] { xeno effect dispatch editor stats }").expect("module should be writable");
 	write_script(temp.path(), "use mod.nu *\nexport def go [] { mk }");
 
 	let runtime = NuRuntime::load(temp.path()).expect("runtime should load");
-	let invocations = runtime.run_invocations("go", &[]).expect("run should succeed");
+	let dispatches = runtime
+		.run_macro_effects_with_budget_and_env("go", &[], DecodeBudget::macro_defaults(), &[])
+		.expect("run should succeed")
+		.into_dispatches();
 	assert!(matches!(
-		invocations.as_slice(),
+		dispatches.as_slice(),
 		[Invocation::Command(xeno_invocation::CommandInvocation {
 			name,
 			route: xeno_invocation::CommandRoute::Editor,
@@ -135,22 +152,9 @@ fn run_allows_use_within_config_root() {
 }
 
 #[test]
-fn try_run_returns_none_for_missing_function() {
-	let temp = tempfile::tempdir().expect("temp dir should exist");
-	write_script(
-		temp.path(),
-		"export def known [] { xeno effect dispatch editor stats | xeno effects normalize }",
-	);
-
-	let runtime = NuRuntime::load(temp.path()).expect("runtime should load");
-	let missing = runtime.try_run_invocations("missing", &[]).expect("missing function should be non-fatal");
-	assert!(missing.is_none());
-}
-
-#[test]
 fn find_script_decl_rejects_builtins() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
-	write_script(temp.path(), "export def go [] { xeno effect dispatch editor stats | xeno effects normalize }");
+	write_script(temp.path(), "export def go [] { xeno effect dispatch editor stats }");
 
 	let runtime = NuRuntime::load(temp.path()).expect("runtime should load");
 	assert!(runtime.find_script_decl("go").is_some());
@@ -161,7 +165,7 @@ fn find_script_decl_rejects_builtins() {
 #[test]
 fn run_rejects_builtin_decls() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
-	write_script(temp.path(), "export def go [] { xeno effect dispatch editor stats | xeno effects normalize }");
+	write_script(temp.path(), "export def go [] { xeno effect dispatch editor stats }");
 
 	let runtime = NuRuntime::load(temp.path()).expect("runtime should load");
 
@@ -175,13 +179,15 @@ fn run_rejects_builtin_decls() {
 }
 
 #[test]
-fn nothing_return_decodes_to_empty_invocations() {
+fn nothing_return_decodes_to_empty_effects() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
 	write_script(temp.path(), "export def noop [] { null }");
 
 	let runtime = NuRuntime::load(temp.path()).expect("runtime should load");
-	let result = runtime.run_invocations("noop", &[]).expect("nothing return should decode");
-	assert!(result.is_empty());
+	let result = runtime
+		.run_macro_effects_with_budget_and_env("noop", &[], DecodeBudget::macro_defaults(), &[])
+		.expect("nothing return should decode");
+	assert!(result.effects.is_empty());
 }
 
 #[test]
@@ -206,15 +212,15 @@ fn load_rejects_export_extern_top_level() {
 #[test]
 fn load_allows_const_used_by_macro() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
-	write_script(
-		temp.path(),
-		"const CMD = \"stats\"\nexport def go [] { xeno effect dispatch editor $CMD | xeno effects normalize }",
-	);
+	write_script(temp.path(), "const CMD = \"stats\"\nexport def go [] { xeno effect dispatch editor $CMD }");
 
 	let runtime = NuRuntime::load(temp.path()).expect("runtime should load");
-	let invocations = runtime.run_invocations("go", &[]).expect("run should succeed");
+	let dispatches = runtime
+		.run_macro_effects_with_budget_and_env("go", &[], DecodeBudget::macro_defaults(), &[])
+		.expect("run should succeed")
+		.into_dispatches();
 	assert!(matches!(
-		invocations.as_slice(),
+		dispatches.as_slice(),
 		[Invocation::Command(xeno_invocation::CommandInvocation {
 			name,
 			route: xeno_invocation::CommandRoute::Editor,

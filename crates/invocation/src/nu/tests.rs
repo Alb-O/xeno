@@ -56,17 +56,28 @@ fn hook_decode_accepts_stop_effect() {
 }
 
 #[test]
-fn decode_rejects_bare_effect_record() {
+fn macro_decode_accepts_bare_effect_record() {
 	let span = Span::unknown();
-	let err = decode_macro_effects(dispatch_record(span, "action", "move_right")).expect_err("bare record should fail");
-	assert!(err.contains("xeno effects normalize"), "got: {err}");
+	let decoded = decode_macro_effects(dispatch_record(span, "action", "move_right")).expect("bare record should decode");
+	assert_eq!(decoded.effects.len(), 1);
+	assert!(matches!(decoded.effects[0], NuEffect::Dispatch(Invocation::Action { ref name, .. }) if name == "move_right"));
 }
 
 #[test]
-fn decode_rejects_bare_list() {
+fn macro_decode_accepts_bare_list() {
 	let span = Span::unknown();
-	let err = decode_macro_effects(Value::list(vec![dispatch_record(span, "action", "move_right")], span)).expect_err("bare list should fail");
-	assert!(err.contains("xeno effects normalize"), "got: {err}");
+	let decoded = decode_macro_effects(Value::list(vec![dispatch_record(span, "action", "move_right")], span)).expect("bare list should decode");
+	assert_eq!(decoded.effects.len(), 1);
+	assert!(matches!(decoded.effects[0], NuEffect::Dispatch(Invocation::Action { ref name, .. }) if name == "move_right"));
+}
+
+#[test]
+fn macro_decode_bare_record_rejects_stop() {
+	let span = Span::unknown();
+	let mut r = Record::new();
+	r.push("type", Value::string("stop", span));
+	let err = decode_macro_effects(Value::record(r, span)).expect_err("bare stop on macro surface should fail");
+	assert!(err.contains("only allowed in hook"), "got: {err}");
 }
 
 #[test]
@@ -89,9 +100,8 @@ fn decode_rejects_legacy_invocation_record() {
 	let mut legacy = Record::new();
 	legacy.push("kind", Value::string("action", span));
 	legacy.push("name", Value::string("move_right", span));
-	// Now rejected as bare record (no envelope)
 	let err = decode_macro_effects(Value::record(legacy, span)).expect_err("legacy record should fail");
-	assert!(err.contains("bare effect records"), "got: {err}");
+	assert!(err.contains("legacy invocation records"), "got: {err}");
 }
 
 #[test]
@@ -524,7 +534,7 @@ fn lenient_decode_flattens_list_of_envelopes() {
 	let env1 = envelope(span, vec![dispatch_record(span, "action", "move_right")]);
 	let env2 = envelope(span, vec![stop_val.clone()]);
 	let list = Value::list(vec![env1, env2], span);
-	let batch = decode_effects_lenient(list, DecodeBudget::macro_defaults()).expect("should decode");
+	let batch = decode_effects_lenient(list, DecodeBudget::macro_defaults(), DecodeSurface::Hook).expect("should decode");
 	assert_eq!(batch.effects.len(), 2);
 }
 
@@ -536,6 +546,6 @@ fn lenient_decode_flattens_nested_lists() {
 	let stop_val = Value::record(stop, span);
 	let inner = Value::list(vec![stop_val], span);
 	let outer = Value::list(vec![inner, dispatch_record(span, "action", "move_right")], span);
-	let batch = decode_effects_lenient(outer, DecodeBudget::macro_defaults()).expect("should decode");
+	let batch = decode_effects_lenient(outer, DecodeBudget::macro_defaults(), DecodeSurface::Hook).expect("should decode");
 	assert_eq!(batch.effects.len(), 2);
 }

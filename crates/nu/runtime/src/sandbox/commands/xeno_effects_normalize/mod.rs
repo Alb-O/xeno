@@ -39,7 +39,7 @@ impl Command for XenoEffectsNormalizeCommand {
 
 		// Accept any shape (bare record, list, nothing, or envelope) via the lenient decoder
 		// which accepts bare effect records and lists in addition to envelopes.
-		let batch = xeno_invocation::nu::decode_effects_lenient(value, DecodeBudget::macro_defaults())
+		let batch = xeno_invocation::nu::decode_effects_lenient(value, DecodeBudget::macro_defaults(), xeno_invocation::nu::DecodeSurface::Hook)
 			.map_err(|msg| err(span, format!("xeno effects normalize: {msg}"), msg))?;
 
 		let effects: Vec<Value> = batch.effects.into_iter().map(|effect| encode_effect(effect, span)).collect();

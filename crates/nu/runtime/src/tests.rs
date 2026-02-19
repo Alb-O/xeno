@@ -64,3 +64,43 @@ fn eval_source_rejects_oversized_source() {
 	let err = NuProgram::compile_config_script("config.nu", &big, None).expect_err("oversized eval source should be rejected");
 	assert!(matches!(err, CompileError::Parse(_)));
 }
+
+#[test]
+fn resolve_export_rejects_private_defs() {
+	let temp = tempfile::tempdir().expect("temp dir");
+	write_script(temp.path(), "def hidden [] { 1 }\nexport def visible [] { hidden }");
+
+	let program = NuProgram::compile_macro_from_dir(temp.path()).expect("should compile");
+	assert!(program.resolve_export("visible").is_some(), "exported def should resolve");
+	assert!(program.resolve_export("hidden").is_none(), "private def must not resolve");
+}
+
+#[test]
+fn checked_decl_id_rejects_forged_export_id() {
+	let temp = tempfile::tempdir().expect("temp dir");
+	write_script(temp.path(), "def hidden [] { 1 }\nexport def visible [] { hidden }");
+
+	let program = NuProgram::compile_macro_from_dir(temp.path()).expect("should compile");
+
+	// Find hidden's raw DeclId by looking at script_decls minus export_decls.
+	let hidden_id = program
+		.script_decls
+		.iter()
+		.find(|id| !program.export_decls.contains(id))
+		.expect("hidden decl should exist in script_decls");
+
+	let forged = ExportId::from_raw(hidden_id.get());
+	let err = program.call_export(forged, &[], &[]).expect_err("forged ExportId should fail");
+	assert!(matches!(err, ExecError::InvalidExportId(_)));
+}
+
+#[test]
+fn exports_returns_only_exported_names() {
+	let temp = tempfile::tempdir().expect("temp dir");
+	write_script(temp.path(), "def hidden [] { 1 }\nexport def alpha [] { 2 }\nexport def beta [] { 3 }");
+
+	let program = NuProgram::compile_macro_from_dir(temp.path()).expect("should compile");
+	let exports = program.exports();
+	let names: Vec<&str> = exports.iter().map(|(n, _)| n.as_str()).collect();
+	assert_eq!(names, vec!["alpha", "beta"], "exports should be sorted and contain only exported defs");
+}

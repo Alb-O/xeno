@@ -146,7 +146,12 @@ fn create_xeno_lang_context() -> Result<EngineState, String> {
 #[derive(Debug)]
 pub(crate) struct ParseResult {
 	pub block: Arc<Block>,
+	/// All decls added by the script (test-only, for verifying export vs non-export).
+	#[cfg(test)]
 	pub script_decl_ids: Vec<DeclId>,
+	/// Decl IDs of explicitly exported definitions (`export def`).
+	/// Empty for `Script` policy (config scripts have no exports).
+	pub export_decl_ids: Vec<DeclId>,
 }
 
 /// Controls what top-level constructs are allowed in a parsed script.
@@ -187,9 +192,12 @@ pub(crate) fn parse_and_validate_with_policy(
 
 	ensure_sandboxed(&working_set, block.as_ref(), config_root)?;
 
-	if policy == ParsePolicy::ModuleOnly {
+	let export_names = if policy == ParsePolicy::ModuleOnly {
 		ensure_module_only(&working_set, block.as_ref())?;
-	}
+		collect_export_names(&working_set, block.as_ref())
+	} else {
+		Vec::new()
+	};
 
 	let added_decls = working_set.delta.num_decls();
 	let script_decl_ids: Vec<DeclId> = (0..added_decls).map(|i| DeclId::new(base_decls + i)).collect();
@@ -201,7 +209,15 @@ pub(crate) fn parse_and_validate_with_policy(
 	let delta = working_set.render();
 	engine_state.merge_delta(delta).map_err(|error| format!("Nu merge error: {error}"))?;
 
-	Ok(ParseResult { block, script_decl_ids })
+	// Resolve export names to DeclIds after merge (names are now in engine state).
+	let export_decl_ids = export_names.iter().filter_map(|name| find_decl(engine_state, name)).collect();
+
+	Ok(ParseResult {
+		block,
+		#[cfg(test)]
+		script_decl_ids,
+		export_decl_ids,
+	})
 }
 
 fn is_reserved_xeno_name(name: &str) -> bool {
@@ -248,6 +264,36 @@ fn ensure_module_only(working_set: &StateWorkingSet<'_>, block: &Block) -> Resul
 		}
 	}
 	Ok(())
+}
+
+/// Collect names of explicitly exported definitions from the AST.
+///
+/// Walks top-level calls and extracts the function name from `export def`
+/// calls (first positional argument). Must be called after `ensure_module_only`
+/// has validated the block structure.
+fn collect_export_names(working_set: &StateWorkingSet<'_>, block: &Block) -> Vec<String> {
+	let mut names = Vec::new();
+	for pipeline in &block.pipelines {
+		for element in &pipeline.elements {
+			let call = match &element.expr.expr {
+				Expr::Call(call) => call,
+				Expr::AttributeBlock(ab) => match &ab.item.expr {
+					Expr::Call(call) => call,
+					_ => continue,
+				},
+				_ => continue,
+			};
+			let decl_name = working_set.get_decl(call.decl_id).name();
+			if decl_name == "export def" {
+				if let Some(name_expr) = call.positional_nth(0) {
+					if let Some(name) = name_expr.as_string() {
+						names.push(name);
+					}
+				}
+			}
+		}
+	}
+	names
 }
 
 /// Evaluates a parsed block and returns the resulting value.

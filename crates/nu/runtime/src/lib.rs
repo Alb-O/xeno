@@ -10,7 +10,7 @@
 
 mod sandbox;
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -115,7 +115,13 @@ pub struct NuProgram {
 	config_dir: Option<PathBuf>,
 	script_path: PathBuf,
 	engine_state: Arc<EngineState>,
+	/// All decls added by the script (test-only, for verifying export vs non-export).
+	#[cfg(test)]
 	script_decls: Arc<HashSet<DeclId>>,
+	/// Only explicitly exported decls (`export def`). Used for resolve/call gating.
+	export_decls: Arc<HashSet<DeclId>>,
+	/// Export name → DeclId lookup for `resolve_export`.
+	export_names: Arc<HashMap<String, DeclId>>,
 	root_block: Option<Arc<Block>>,
 }
 
@@ -173,12 +179,25 @@ impl NuProgram {
 
 		let root_block = (policy == ProgramPolicy::ConfigScript).then_some(parsed.block.clone());
 
+		let export_decl_set: HashSet<DeclId> = parsed.export_decl_ids.iter().copied().collect();
+		let export_name_map: HashMap<String, DeclId> = parsed
+			.export_decl_ids
+			.iter()
+			.filter_map(|&id| {
+				let name = engine_state.get_decl(id).name().to_string();
+				Some((name, id))
+			})
+			.collect();
+
 		Ok(Self {
 			policy,
 			config_dir: config_dir.map(Path::to_path_buf),
 			script_path: script_path.to_path_buf(),
 			engine_state: Arc::new(engine_state),
+			#[cfg(test)]
 			script_decls: Arc::new(parsed.script_decl_ids.into_iter().collect()),
+			export_decls: Arc::new(export_decl_set),
+			export_names: Arc::new(export_name_map),
 			root_block,
 		})
 	}
@@ -194,9 +213,11 @@ impl NuProgram {
 	}
 
 	/// Resolve an export declaration by name.
+	///
+	/// Only returns explicitly exported definitions (`export def`).
+	/// Private helpers (`def`) are not resolvable.
 	pub fn resolve_export(&self, name: &str) -> Option<ExportId> {
-		let decl_id = sandbox::find_decl(&self.engine_state, name)?;
-		self.script_decls.contains(&decl_id).then_some(ExportId::from_decl_id(decl_id))
+		self.export_names.get(name).map(|&id| ExportId::from_decl_id(id))
 	}
 
 	/// Call a pre-resolved export.
@@ -234,9 +255,16 @@ impl NuProgram {
 		Value::try_from(value).map_err(|error| ExecError::Runtime(format!("Nu runtime error: {error}")))
 	}
 
+	/// Returns all exported definitions, sorted by name.
+	pub fn exports(&self) -> Vec<(String, ExportId)> {
+		let mut out: Vec<_> = self.export_names.iter().map(|(name, &id)| (name.clone(), ExportId::from_decl_id(id))).collect();
+		out.sort_by(|a, b| a.0.cmp(&b.0));
+		out
+	}
+
 	fn checked_decl_id(&self, export: ExportId) -> Result<DeclId, ExecError> {
 		let decl_id = export.to_decl_id();
-		if !self.script_decls.contains(&decl_id) {
+		if !self.export_decls.contains(&decl_id) {
 			return Err(ExecError::InvalidExportId(export.raw()));
 		}
 		Ok(decl_id)

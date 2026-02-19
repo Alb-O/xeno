@@ -246,7 +246,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn executor_runs_effects() {
-		let runtime = make_runtime("export def go [] { xeno effect dispatch editor stats | xeno effects normalize }");
+		let runtime = make_runtime("export def go [] { xeno effect dispatch editor stats }");
 		let decl_id = runtime.find_script_decl("go").expect("go should exist");
 		let executor = NuExecutor::new(runtime);
 
@@ -268,7 +268,7 @@ mod tests {
 
 	#[test]
 	fn executor_shutdown_on_drop() {
-		let runtime = make_runtime("export def go [] { xeno effect dispatch editor stats | xeno effects normalize }");
+		let runtime = make_runtime("export def go [] { xeno effect dispatch editor stats }");
 		let executor = NuExecutor::new(runtime);
 		let shared = Arc::clone(&executor.shared);
 
@@ -280,7 +280,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn closed_executor_returns_closed_error() {
-		let runtime = make_runtime("export def go [] { xeno effect dispatch editor stats | xeno effects normalize }");
+		let runtime = make_runtime("export def go [] { xeno effect dispatch editor stats }");
 		let decl_id = runtime.find_script_decl("go").expect("go should exist");
 		let executor = NuExecutor::new(runtime);
 		let client = executor.client();
@@ -296,7 +296,7 @@ mod tests {
 
 	#[test]
 	fn client_clone_does_not_send_shutdown() {
-		let runtime = make_runtime("export def go [] { xeno effect dispatch editor stats | xeno effects normalize }");
+		let runtime = make_runtime("export def go [] { xeno effect dispatch editor stats }");
 		let executor = NuExecutor::new(runtime);
 		let shared = Arc::clone(&executor.shared);
 

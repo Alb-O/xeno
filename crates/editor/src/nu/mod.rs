@@ -68,11 +68,6 @@ impl NuRuntime {
 		self.run_internal(fn_name, args, &[]).map_err(map_run_error)
 	}
 
-	/// Run a function and decode its return value into structured invocations.
-	pub fn run_invocations(&self, fn_name: &str, args: &[String]) -> Result<Vec<Invocation>, String> {
-		self.run_invocations_with_limits(fn_name, args, DecodeBudget::macro_defaults())
-	}
-
 	/// Run a macro function and decode its return value into typed effects.
 	pub fn run_macro_effects_with_budget_and_env(
 		&self,
@@ -83,48 +78,6 @@ impl NuRuntime {
 	) -> Result<NuEffectBatch, String> {
 		let value = self.run_internal(fn_name, args, env).map_err(map_run_error)?;
 		xeno_invocation::nu::decode_macro_effects_with_budget(value, budget)
-	}
-
-	/// Run a function and decode its return value into structured invocations with explicit decode limits.
-	pub fn run_invocations_with_limits(&self, fn_name: &str, args: &[String], limits: DecodeBudget) -> Result<Vec<Invocation>, String> {
-		self.run_invocations_with_limits_and_env(fn_name, args, limits, &[])
-	}
-
-	/// Run a function and decode its return value into structured invocations with explicit decode limits and env vars.
-	pub fn run_invocations_with_limits_and_env(
-		&self,
-		fn_name: &str,
-		args: &[String],
-		limits: DecodeBudget,
-		env: &[(&str, Value)],
-	) -> Result<Vec<Invocation>, String> {
-		let effects = self.run_macro_effects_with_budget_and_env(fn_name, args, limits, env)?;
-		Ok(effects.into_dispatches())
-	}
-
-	/// Run a function and decode structured invocations, returning `None` when the function is absent.
-	pub fn try_run_invocations(&self, fn_name: &str, args: &[String]) -> Result<Option<Vec<Invocation>>, String> {
-		self.try_run_invocations_with_limits(fn_name, args, DecodeBudget::macro_defaults())
-	}
-
-	/// Run a function and decode structured invocations with explicit limits, returning `None` when the function is absent.
-	pub fn try_run_invocations_with_limits(&self, fn_name: &str, args: &[String], limits: DecodeBudget) -> Result<Option<Vec<Invocation>>, String> {
-		self.try_run_invocations_with_limits_and_env(fn_name, args, limits, &[])
-	}
-
-	/// Run a function and decode structured invocations with explicit limits and env vars, returning `None` when the function is absent.
-	pub fn try_run_invocations_with_limits_and_env(
-		&self,
-		fn_name: &str,
-		args: &[String],
-		limits: DecodeBudget,
-		env: &[(&str, Value)],
-	) -> Result<Option<Vec<Invocation>>, String> {
-		match self.run_internal(fn_name, args, env) {
-			Ok(value) => xeno_invocation::nu::decode_macro_effects_with_budget(value, limits).map(|batch| Some(batch.into_dispatches())),
-			Err(NuRunError::MissingFunction(_)) => Ok(None),
-			Err(NuRunError::Other(error)) => Err(error),
-		}
 	}
 
 	/// Look up a script-defined declaration by name. Returns `None` for

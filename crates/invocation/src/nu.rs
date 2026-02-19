@@ -1,8 +1,8 @@
 /// Nu interop for typed effect decoding.
 ///
-/// Runtime decode surfaces:
-/// * Macro execution: `Nothing`, effect `Record`, effect `List`, or batch envelope.
-/// * Hook execution: same as macro, but `stop` effects are allowed.
+/// All runtime decode surfaces accept: `Nothing`, bare effect `Record`,
+/// effect `List` (potentially nested), or batch envelope `Record`.
+/// The `stop` effect is only allowed on the [`DecodeSurface::Hook`] surface.
 ///
 /// Config decode surface:
 /// * keybinding custom values decode through [`decode_single_dispatch_effect`].
@@ -353,7 +353,7 @@ pub fn decode_single_dispatch_effect(value: &Value, field_path: &str) -> Result<
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum DecodeSurface {
+pub enum DecodeSurface {
 	Macro,
 	Hook,
 }
@@ -446,17 +446,17 @@ impl<'a> DecodeState<'a> {
 
 fn decode_effects_with_budget(value: Value, budget: DecodeBudget, surface: DecodeSurface) -> Result<NuEffectBatch, String> {
 	let mut state = DecodeState::new(surface);
-	decode_runtime_value(value, &budget, &mut state)?;
+	decode_lenient_value(value, &budget, &mut state)?;
 	Ok(state.batch)
 }
 
 /// Lenient decoder for the `xeno effects normalize` command.
 ///
 /// Accepts bare effect records, lists of effect records, nothing, or
-/// already-wrapped envelopes. This is the entry point the normalize command
-/// uses to accept any shape and re-encode it into an envelope.
-pub fn decode_effects_lenient(value: Value, budget: DecodeBudget) -> Result<NuEffectBatch, String> {
-	let mut state = DecodeState::new(DecodeSurface::Hook);
+/// already-wrapped envelopes. Surface-aware: macro surface still rejects
+/// `stop` effects.
+pub fn decode_effects_lenient(value: Value, budget: DecodeBudget, surface: DecodeSurface) -> Result<NuEffectBatch, String> {
+	let mut state = DecodeState::new(surface);
 	decode_lenient_value(value, &budget, &mut state)?;
 	Ok(state.batch)
 }
@@ -484,22 +484,9 @@ fn decode_lenient_value(value: Value, budget: &DecodeBudget, state: &mut DecodeS
 	}
 }
 
-fn decode_runtime_value(value: Value, budget: &DecodeBudget, state: &mut DecodeState<'_>) -> Result<(), String> {
-	state.visit_node(budget)?;
-	match value {
-		Value::Nothing { .. } => Ok(()),
-		Value::Record { ref val, .. } => decode_envelope_record(val, budget, state),
-		Value::List { .. } => Err(state.err("bare list returns are no longer accepted; pipe through `xeno effects normalize`")),
-		Value::String { .. } => {
-			Err(state.err("string returns are not supported; return typed effects via built-ins: xeno effect, xeno effects normalize, xeno call"))
-		}
-		other => Err(state.err(format_args!("expected envelope record or nothing, got {}", other.get_type()))),
-	}
-}
-
 fn decode_envelope_record(record: &Record, budget: &DecodeBudget, state: &mut DecodeState<'_>) -> Result<(), String> {
 	if !record.contains(EFFECT_FIELD_EFFECTS) {
-		return Err(state.err("bare effect records are no longer accepted; pipe through `xeno effects normalize`"));
+		return Err(state.err("expected envelope record with 'effects' field"));
 	}
 
 	state.path.push_field(EFFECT_FIELD_SCHEMA_VERSION);

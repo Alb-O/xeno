@@ -36,6 +36,7 @@ impl Command for XenoIsEffectCommand {
 				max_effects: 1,
 				..DecodeBudget::macro_defaults()
 			},
+			xeno_invocation::nu::DecodeSurface::Hook,
 		)
 		.map(|batch| batch.effects.len() == 1)
 		.unwrap_or(false);
