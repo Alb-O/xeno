@@ -55,10 +55,6 @@ fn resolve_command_target(name: &str, route: CommandRoute) -> CommandResolution 
 }
 
 impl Editor {
-	pub(crate) async fn run_command_invocation(&mut self, name: &str, args: &[String], route: CommandRoute, policy: InvocationPolicy) -> InvocationOutcome {
-		self.run_command_invocation_with_resolved_route(name, args, route, policy).await.0
-	}
-
 	pub(crate) async fn run_command_invocation_with_resolved_route(
 		&mut self,
 		name: &str,

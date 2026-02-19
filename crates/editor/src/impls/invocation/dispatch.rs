@@ -1,5 +1,4 @@
 use tracing::{trace, trace_span};
-use xeno_invocation::CommandRoute;
 use xeno_registry::actions::{DeferredInvocationKind, DeferredInvocationPolicy, DeferredInvocationRequest, DeferredInvocationScopeHint};
 
 use super::engine::InvocationEngine;
@@ -15,20 +14,33 @@ pub(crate) fn run_invocation_call_count() -> usize {
 	RUN_INVOCATION_CALLS.load(std::sync::atomic::Ordering::SeqCst)
 }
 
-#[cfg(test)]
-pub(crate) fn reset_run_invocation_call_count() {
-	RUN_INVOCATION_CALLS.store(0, std::sync::atomic::Ordering::SeqCst);
-}
-
 impl Editor {
-	/// Executes a named action with enforcement defaults.
-	pub fn invoke_action(&mut self, name: &str, count: usize, extend: bool, register: Option<char>, char_arg: Option<char>) -> InvocationOutcome {
-		self.run_action_invocation(name, count, extend, register, char_arg, InvocationPolicy::enforcing())
+	/// Test-only convenience: run an action through the canonical engine with enforcing defaults.
+	#[cfg(test)]
+	pub(crate) async fn invoke_action(&mut self, name: &str, count: usize, extend: bool, register: Option<char>, char_arg: Option<char>) -> InvocationOutcome {
+		let invocation = if let Some(ch) = char_arg {
+			Invocation::ActionWithChar {
+				name: name.to_string(),
+				count,
+				extend,
+				register,
+				char_arg: ch,
+			}
+		} else {
+			Invocation::Action {
+				name: name.to_string(),
+				count,
+				extend,
+				register,
+			}
+		};
+		self.run_invocation(invocation, InvocationPolicy::enforcing()).await
 	}
 
-	/// Executes a command invocation with enforcement defaults.
-	pub async fn invoke_command(&mut self, name: &str, args: Vec<String>) -> InvocationOutcome {
-		self.run_command_invocation(name, &args, CommandRoute::Auto, InvocationPolicy::enforcing())
+	/// Test-only convenience: run a command through the canonical engine with enforcing defaults.
+	#[cfg(test)]
+	pub(crate) async fn invoke_command(&mut self, name: &str, args: Vec<String>) -> InvocationOutcome {
+		self.run_invocation(Invocation::command(name.to_string(), args), InvocationPolicy::enforcing())
 			.await
 	}
 

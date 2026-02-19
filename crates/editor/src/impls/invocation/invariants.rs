@@ -127,7 +127,7 @@ pub(crate) async fn test_preflight_allows_non_mutating_subject_on_readonly_buffe
 
 /// Must resolve auto-routed command invocations to editor commands before registry commands.
 ///
-/// * Enforced in: `Editor::run_command_invocation`
+/// * Enforced in: `Editor::run_command_invocation_with_resolved_route`
 /// * Failure symptom: editor commands shadowed by registry commands fail to execute.
 #[tokio::test]
 async fn test_auto_route_prefers_editor_commands() {
@@ -140,7 +140,7 @@ async fn test_auto_route_prefers_editor_commands() {
 
 /// Must emit canonical not-found detail for unresolved auto-routed commands.
 ///
-/// * Enforced in: `Editor::run_command_invocation`
+/// * Enforced in: `Editor::run_command_invocation_with_resolved_route`
 /// * Failure symptom: callers cannot display consistent unknown-command diagnostics.
 #[tokio::test]
 async fn test_auto_route_not_found_reports_canonical_detail() {
