@@ -121,16 +121,33 @@ async fn workspace_edit_none_version_skips_check() {
 }
 
 #[tokio::test]
-async fn workspace_edit_untracked_doc_skips_version_check() {
+async fn workspace_edit_versioned_untracked_doc_is_rejected() {
 	let mut editor = crate::Editor::new_scratch();
 
-	// URI not registered in LSP state at all.
+	// URI not registered in LSP state at all, but edit carries a version.
 	let uri: Uri = "file:///tmp/untracked.rs".parse().unwrap();
 	let edit = versioned_workspace_edit(uri, Some(42));
+	let err = editor.apply_workspace_edit(edit).await.unwrap_err();
+
+	assert!(
+		matches!(err, ApplyError::UntrackedVersionedDocument { version: 42, .. }),
+		"expected UntrackedVersionedDocument, got: {err:?}"
+	);
+}
+
+#[tokio::test]
+async fn workspace_edit_unversioned_untracked_doc_skips_check() {
+	let mut editor = crate::Editor::new_scratch();
+
+	// URI not registered, but edit has no version — no version check.
+	let uri: Uri = "file:///tmp/untracked_unversioned.rs".parse().unwrap();
+	let edit = versioned_workspace_edit(uri, None);
 	let result = editor.apply_workspace_edit(edit).await;
 
 	match result {
-		Err(ApplyError::VersionMismatch { .. }) => panic!("should skip check for untracked docs"),
+		Err(ApplyError::VersionMismatch { .. } | ApplyError::UntrackedVersionedDocument { .. }) => {
+			panic!("should skip version check for unversioned edits")
+		}
 		_ => {}
 	}
 }

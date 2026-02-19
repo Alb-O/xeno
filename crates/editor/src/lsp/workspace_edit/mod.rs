@@ -74,6 +74,11 @@ pub enum ApplyError {
 	/// is rejected to prevent stale edits from corrupting buffer state.
 	#[error("LSP edit arrived stale; ignoring (document changed). uri={uri} expected={expected} actual={actual}")]
 	VersionMismatch { uri: String, expected: i32, actual: i32 },
+	/// A `TextDocumentEdit` carries a version but the document isn't
+	/// tracked by the LSP state manager. Rejected because the server
+	/// expects version-consistent state that the client can't verify.
+	#[error("LSP edit for unknown document ignored. uri={uri} version={version}")]
+	UntrackedVersionedDocument { uri: String, version: i32 },
 }
 
 impl Editor {
@@ -165,19 +170,27 @@ impl Editor {
 	/// Collects edits from a [`TextDocumentEdit`] into the per-URI map.
 	///
 	/// If the edit carries a version (`Some(v)`), validates that it matches
-	/// the client's tracked version for the document. On mismatch the
-	/// entire workspace edit is rejected (all-or-nothing).
+	/// the client's tracked version for the document. Rejects the entire
+	/// workspace edit (all-or-nothing) on version mismatch or when the
+	/// document isn't tracked but the server expects version consistency.
 	fn collect_text_document_edit(&self, edit: TextDocumentEdit, per_uri: &mut HashMap<String, (Uri, Vec<TextEdit>)>) -> Result<(), ApplyError> {
 		let uri = edit.text_document.uri;
 		if let Some(expected) = edit.text_document.version {
-			if let Some(actual) = self.state.lsp.documents().get_version(&uri) {
-				if actual != expected {
+			match self.state.lsp.documents().get_version(&uri) {
+				Some(actual) if actual != expected => {
 					return Err(ApplyError::VersionMismatch {
 						uri: uri.to_string(),
 						expected,
 						actual,
 					});
 				}
+				None => {
+					return Err(ApplyError::UntrackedVersionedDocument {
+						uri: uri.to_string(),
+						version: expected,
+					});
+				}
+				_ => {}
 			}
 		}
 		let key = uri.to_string();
