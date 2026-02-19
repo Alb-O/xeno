@@ -241,6 +241,11 @@ pub(crate) struct EditorState {
 	/// Monotonic token counter for file load requests.
 	pub(crate) file_load_token_next: u64,
 
+	/// Token for the latest theme load request (latest-wins gating).
+	pub(crate) pending_theme_load_token: Option<u64>,
+	/// Monotonic token counter for theme load requests.
+	pub(crate) theme_load_token_next: u64,
+
 	/// Deferred cursor position to apply after file loads (line, column).
 	pub(crate) deferred_goto: Option<(usize, usize)>,
 
@@ -458,6 +463,8 @@ impl Editor {
 				msg_rx,
 				pending_file_loads: PendingFileLoads::default(),
 				file_load_token_next: 0,
+				pending_theme_load_token: None,
+				theme_load_token_next: 0,
 				deferred_goto: None,
 				lsp_catalog_ready: false,
 				render_cache: crate::render::cache::RenderCache::new(),

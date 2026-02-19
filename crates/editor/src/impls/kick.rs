@@ -12,21 +12,24 @@ use crate::msg::{EditorMsg, IoMsg, MsgSender, ThemeMsg};
 use crate::paste::normalize_to_lf;
 
 impl Editor {
-	/// Spawns a background task to load and register themes.
+	/// Spawns a background task to load themes from disk.
 	///
-	/// Seeds embedded themes into the data directory, then loads from
-	/// embedded, data, and config directories. Later sources override earlier
-	/// by ID: config > data > embedded. Sends [`crate::msg::ThemeMsg::ThemesReady`] when
-	/// complete.
-	pub fn kick_theme_load(&self) {
+	/// Collects and deduplicates themes from data and config directories.
+	/// Registration is deferred to the editor thread via [`ThemeMsg::ThemesReady`]
+	/// to avoid races when multiple loads overlap.
+	pub fn kick_theme_load(&mut self) {
+		let token = self.state.theme_load_token_next;
+		self.state.theme_load_token_next += 1;
+		self.state.pending_theme_load_token = Some(token);
+
 		let tx = self.msg_tx();
 		let config_themes_dir = crate::paths::get_config_dir().map(|d| d.join("themes"));
 		let data_themes_dir = crate::paths::get_data_dir().map(|d| d.join("themes"));
 		let runtime = self.state.worker_runtime.clone();
 
 		runtime.clone().spawn(xeno_worker::TaskClass::Background, async move {
-			let errors = load_themes_blocking(runtime.clone(), config_themes_dir, data_themes_dir).await;
-			send(&tx, ThemeMsg::ThemesReady { errors });
+			let (themes, errors) = load_themes_blocking(runtime.clone(), config_themes_dir, data_themes_dir).await;
+			send(&tx, ThemeMsg::ThemesReady { token, themes, errors });
 		});
 	}
 
@@ -136,20 +139,19 @@ impl Editor {
 	pub fn kick_lsp_catalog_load(&self) {}
 }
 
-/// Loads and registers all themes in a single batch.
+/// Loads and deduplicates all themes from disk without registering them.
 ///
 /// Override order (later entries shadow earlier by ID):
-/// 1. Embedded themes from the binary
-/// 2. Data-directory themes (`~/.local/share/xeno/themes/`)
-/// 3. Config-directory themes (`~/.config/xeno/themes/`)
+/// 1. Data-directory themes (`~/.local/share/xeno/themes/`)
+/// 2. Config-directory themes (`~/.config/xeno/themes/`)
 ///
-/// Embedded themes are seeded into the data directory before loading so users
-/// can discover and customize them on disk.
+/// Returns the deduped theme list and any parse errors. Registration happens
+/// on the editor thread after token validation.
 async fn load_themes_blocking(
 	runtime: xeno_worker::WorkerRuntime,
 	config_themes_dir: Option<PathBuf>,
 	data_themes_dir: Option<PathBuf>,
-) -> Vec<(String, String)> {
+) -> (Vec<xeno_registry::themes::LinkedThemeDef>, Vec<(String, String)>) {
 	runtime
 		.spawn_blocking(xeno_worker::TaskClass::IoBlocking, move || {
 			let mut errors = Vec::new();
@@ -169,12 +171,10 @@ async fn load_themes_blocking(
 				deduped.insert(theme.meta.id.clone(), theme);
 			}
 
-			xeno_registry::themes::register_runtime_themes(deduped.into_values().collect());
-
-			errors
+			(deduped.into_values().collect(), errors)
 		})
 		.await
-		.unwrap_or_default()
+		.unwrap_or_else(|_| (Vec::new(), Vec::new()))
 }
 
 /// Loads themes from `dir` into the accumulator vectors, logging on failure.
