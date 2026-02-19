@@ -115,7 +115,11 @@ impl Editor {
 			}
 		};
 		for id in temp_buffers {
-			self.close_headless_buffer(id);
+			if result.is_ok() {
+				self.save_and_close_temp_buffer(id);
+			} else {
+				self.close_headless_buffer(id);
+			}
 		}
 		result
 	}
@@ -372,6 +376,34 @@ impl Editor {
 
 		self.state.frame.dirty_buffers.insert(buffer_id);
 		Ok(tx)
+	}
+
+	/// Saves a temporary buffer's content to disk, then closes it.
+	///
+	/// Only writes if the buffer is modified (i.e., edits were applied).
+	/// Skipped for buffers without a path. Uses synchronous write since
+	/// this runs in the editor's single-threaded context during workspace
+	/// edit cleanup.
+	fn save_and_close_temp_buffer(&mut self, buffer_id: ViewId) {
+		let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
+			return;
+		};
+		if buffer.modified() {
+			if let Some(path) = buffer.path().map(|p| p.to_path_buf()) {
+				let content = buffer.with_doc(|doc| {
+					let rope = doc.content();
+					let mut bytes = Vec::with_capacity(rope.len_bytes());
+					for chunk in rope.chunks() {
+						bytes.extend_from_slice(chunk.as_bytes());
+					}
+					bytes
+				});
+				if let Err(e) = std::fs::write(&path, &content) {
+					tracing::error!(path = %path.display(), error = %e, "Failed to save workspace edit to disk");
+				}
+			}
+		}
+		self.close_headless_buffer(buffer_id);
 	}
 
 	fn close_headless_buffer(&mut self, buffer_id: ViewId) {

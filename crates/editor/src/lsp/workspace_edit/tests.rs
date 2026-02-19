@@ -508,3 +508,91 @@ async fn workspace_edit_does_not_close_preexisting_buffers() {
 
 	let _ = std::fs::remove_file(path);
 }
+
+// --- Disk persistence tests ---
+
+#[tokio::test]
+async fn workspace_edit_temp_buffer_persists_to_disk_on_success() {
+	let mut editor = crate::Editor::new_scratch();
+	let path = create_temp_file("persist_success.rs", "old content\n");
+
+	assert!(editor.state.core.buffers.find_by_path(&path).is_none());
+
+	let uri = xeno_lsp::uri_from_path(&path).unwrap();
+	let edit = WorkspaceEdit {
+		changes: None,
+		document_changes: Some(DocumentChanges::Edits(vec![TextDocumentEdit {
+			text_document: OptionalVersionedTextDocumentIdentifier { uri, version: None },
+			edits: vec![OneOf::Left(TextEdit {
+				range: lsp_types::Range {
+					start: lsp_types::Position { line: 0, character: 0 },
+					end: lsp_types::Position { line: 0, character: 11 },
+				},
+				new_text: "new content".into(),
+			})],
+		}])),
+		change_annotations: None,
+	};
+	editor.apply_workspace_edit(edit).await.unwrap();
+
+	// Buffer should be closed (temp).
+	assert!(editor.state.core.buffers.find_by_path(&path).is_none());
+
+	// Disk should have the new content.
+	let disk = std::fs::read_to_string(&path).unwrap();
+	assert_eq!(disk, "new content\n", "workspace edit must be written to disk for temp buffers");
+
+	let _ = std::fs::remove_file(path);
+}
+
+#[tokio::test]
+async fn workspace_edit_temp_buffer_does_not_write_on_error() {
+	let mut editor = crate::Editor::new_scratch();
+
+	// Two files: A gets a valid edit, B has OOB range → error.
+	let path_a = create_temp_file("no_write_a.rs", "keep_a\n");
+	let path_b = create_temp_file("no_write_b.rs", "keep_b\n");
+
+	let uri_a = xeno_lsp::uri_from_path(&path_a).unwrap();
+	let uri_b = xeno_lsp::uri_from_path(&path_b).unwrap();
+	let edit = WorkspaceEdit {
+		changes: None,
+		document_changes: Some(DocumentChanges::Edits(vec![
+			TextDocumentEdit {
+				text_document: OptionalVersionedTextDocumentIdentifier { uri: uri_a, version: None },
+				edits: vec![OneOf::Left(TextEdit {
+					range: lsp_types::Range::default(),
+					new_text: "MUTATED_A".into(),
+				})],
+			},
+			TextDocumentEdit {
+				text_document: OptionalVersionedTextDocumentIdentifier { uri: uri_b, version: None },
+				edits: vec![OneOf::Left(TextEdit {
+					range: lsp_types::Range {
+						start: lsp_types::Position { line: 99, character: 0 },
+						end: lsp_types::Position { line: 99, character: 5 },
+					},
+					new_text: "NOPE".into(),
+				})],
+			},
+		])),
+		change_annotations: None,
+	};
+	let err = editor.apply_workspace_edit(edit).await.unwrap_err();
+	assert!(matches!(err, ApplyError::RangeConversionFailed(_)));
+
+	// No disk writes should have occurred.
+	assert_eq!(
+		std::fs::read_to_string(&path_a).unwrap(),
+		"keep_a\n",
+		"file A must be unchanged on disk after error"
+	);
+	assert_eq!(
+		std::fs::read_to_string(&path_b).unwrap(),
+		"keep_b\n",
+		"file B must be unchanged on disk after error"
+	);
+
+	let _ = std::fs::remove_file(path_a);
+	let _ = std::fs::remove_file(path_b);
+}
