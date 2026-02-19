@@ -1,8 +1,9 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::thread_local;
 use std::time::Duration;
 
 use xeno_primitives::{BoxFutureLocal, Key, KeyCode, Mode};
+use xeno_registry::actions::{ActionEffects, ActionResult};
 use xeno_registry::hooks::HookPriority;
 
 use super::{CursorStyle, RuntimeEvent};
@@ -10,7 +11,7 @@ use crate::Editor;
 use crate::commands::{CommandError, CommandOutcome, EditorCommandContext};
 use crate::runtime::DrainPolicy;
 use crate::runtime::pump::PumpPhase;
-use crate::runtime::work_queue::RuntimeWorkSource;
+use crate::runtime::work_queue::{RuntimeWorkSource, WorkExecutionPolicy, WorkScope};
 use crate::scheduler::{WorkItem, WorkKind};
 use crate::types::Invocation;
 
@@ -43,6 +44,40 @@ fn runtime_invariant_test_quit_command<'a>(_ctx: &'a mut EditorCommandContext<'a
 
 thread_local! {
 	static RUNTIME_INVARIANT_RECORDS: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+	static RUNTIME_EDIT_ACTION_COUNT: Cell<usize> = const { Cell::new(0) };
+}
+
+fn handler_runtime_edit_action(_ctx: &xeno_registry::actions::ActionContext) -> ActionResult {
+	RUNTIME_EDIT_ACTION_COUNT.with(|c| c.set(c.get() + 1));
+	ActionResult::Effects(ActionEffects::ok())
+}
+
+static ACTION_RUNTIME_EDIT: xeno_registry::actions::ActionDef = xeno_registry::actions::ActionDef {
+	meta: xeno_registry::RegistryMetaStatic {
+		id: "xeno-editor::runtime_invariant_edit_action",
+		name: "runtime_invariant_edit_action",
+		keys: &[],
+		description: "Runtime invariant test action requiring Edit capability",
+		priority: 0,
+		source: xeno_registry::RegistrySource::Crate("xeno-editor"),
+		required_caps: &[xeno_registry::Capability::Edit],
+		flags: 0,
+	},
+	short_desc: "Runtime invariant edit action",
+	handler: handler_runtime_edit_action,
+	bindings: &[],
+};
+
+fn register_runtime_invariant_action_defs(db: &mut xeno_registry::db::builder::RegistryDbBuilder) -> Result<(), xeno_registry::db::builder::RegistryError> {
+	db.push_domain::<xeno_registry::actions::Actions>(xeno_registry::actions::def::ActionInput::Static(ACTION_RUNTIME_EDIT.clone()));
+	Ok(())
+}
+
+inventory::submit! {
+	xeno_registry::db::builtins::BuiltinsReg {
+		ordinal: 65001,
+		f: register_runtime_invariant_action_defs,
+	}
 }
 
 fn runtime_invariant_record_command<'a>(ctx: &'a mut EditorCommandContext<'a>) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
@@ -356,4 +391,43 @@ async fn test_nu_stop_scope_clear_is_generation_local() {
 	let _ = drain_for_pump(&mut editor).await;
 	let recorded = RUNTIME_INVARIANT_RECORDS.with(|records| records.borrow().clone());
 	assert_eq!(recorded, vec!["global".to_string(), "nu-new".to_string()]);
+}
+
+/// Must apply execution policy from work queue item during drain so enforcing
+/// items are gated and log-only items pass through.
+///
+/// * Enforced in: `runtime::work_drain::Editor::drain_runtime_work_report`
+/// * Failure symptom: deferred Nu pipeline work bypasses capability/readonly checks.
+#[tokio::test]
+async fn test_runtime_work_execution_policy_gates_enforcement() {
+	RUNTIME_EDIT_ACTION_COUNT.with(|c| c.set(0));
+
+	let mut editor = Editor::new_scratch();
+	editor.buffer_mut().set_readonly(true);
+
+	// LogOnlyCommandPath → log-only policy → readonly not enforced → action runs.
+	editor.enqueue_runtime_invocation(
+		Invocation::action("runtime_invariant_edit_action"),
+		RuntimeWorkSource::ActionEffect,
+		WorkExecutionPolicy::LogOnlyCommandPath,
+		WorkScope::Global,
+	);
+
+	// EnforcingNuPipeline → enforcing policy → readonly enforced → action denied.
+	editor.enqueue_runtime_invocation(
+		Invocation::action("runtime_invariant_edit_action"),
+		RuntimeWorkSource::NuHookDispatch,
+		WorkExecutionPolicy::EnforcingNuPipeline,
+		WorkScope::Global,
+	);
+
+	assert_eq!(editor.runtime_work_len(), 2);
+	let report = editor.drain_runtime_work_report(usize::MAX).await;
+	assert_eq!(report.drained_invocations, 2, "both items should be drained");
+
+	assert_eq!(
+		RUNTIME_EDIT_ACTION_COUNT.with(|c| c.get()),
+		1,
+		"only the log-only item should execute the handler; enforcing item should be denied by readonly gate"
+	);
 }
