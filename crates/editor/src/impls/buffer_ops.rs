@@ -162,7 +162,7 @@ impl Editor {
 	pub fn kick_lsp_init_for_open_buffers(&mut self) {
 		use std::collections::HashSet;
 
-		let loading = self.state.loading_file.as_ref().map(|path| crate::paths::fast_abs(path));
+		let loading: std::collections::HashSet<PathBuf> = self.state.pending_file_loads.keys().map(|p| crate::paths::fast_abs(p)).collect();
 
 		let mut seen_docs = HashSet::new();
 		for buffer_id in self.state.core.buffers.buffer_ids().collect::<Vec<_>>() {
@@ -175,8 +175,7 @@ impl Editor {
 			let Some(path) = buffer.path() else {
 				continue;
 			};
-			let abs_path = crate::paths::fast_abs(&path);
-			if loading.as_ref().is_some_and(|p| p == &abs_path) {
+			if loading.contains(&crate::paths::fast_abs(&path)) {
 				continue;
 			}
 			self.maybe_track_lsp_for_buffer(buffer_id, false);

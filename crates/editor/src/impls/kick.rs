@@ -32,8 +32,10 @@ impl Editor {
 
 	/// Spawns a background task to load a file.
 	///
+	/// The `token` is a monotonic ID carried through to the completion message
+	/// so that stale loads (superseded by a newer request) can be detected.
 	/// Sends [`crate::msg::IoMsg::FileLoaded`] or [`crate::msg::IoMsg::LoadFailed`] on completion.
-	pub fn kick_file_load(&self, path: PathBuf) {
+	pub fn kick_file_load(&self, path: PathBuf, token: u64) {
 		let tx = self.msg_tx();
 		let runtime = self.state.worker_runtime.clone();
 		runtime.clone().spawn(xeno_worker::TaskClass::IoBlocking, async move {
@@ -50,7 +52,7 @@ impl Editor {
 
 					match built {
 						Ok((rope, readonly)) => {
-							send(&tx, IoMsg::FileLoaded { path, rope, readonly });
+							send(&tx, IoMsg::FileLoaded { path, rope, readonly, token });
 						}
 						Err(e) => {
 							send(
@@ -58,13 +60,14 @@ impl Editor {
 								IoMsg::LoadFailed {
 									path,
 									error: std::io::Error::other(e.to_string()),
+									token,
 								},
 							);
 						}
 					}
 				}
 				Err(error) => {
-					send(&tx, IoMsg::LoadFailed { path, error });
+					send(&tx, IoMsg::LoadFailed { path, error, token });
 				}
 			}
 		});

@@ -147,6 +147,13 @@ pub(crate) struct EffectiveKeymapCache {
 	pub(crate) index: Arc<KeymapSnapshot>,
 }
 
+/// Tracks pending background file loads for latest-wins token gating.
+///
+/// Keyed by path so multiple files can load concurrently without silently
+/// dropping earlier completions. Each value is the monotonic token for the
+/// latest load request for that path.
+pub(crate) type PendingFileLoads = std::collections::HashMap<PathBuf, u64>;
+
 pub(crate) struct EditorState {
 	/// Core editing state: buffers, workspace, undo history.
 	///
@@ -229,8 +236,10 @@ pub(crate) struct EditorState {
 	/// Message receiver for main loop drain.
 	pub(crate) msg_rx: MsgReceiver,
 
-	/// Path of file currently being loaded in background, if any.
-	pub(crate) loading_file: Option<PathBuf>,
+	/// Pending background file loads, keyed by path, with latest-wins tokens.
+	pub(crate) pending_file_loads: PendingFileLoads,
+	/// Monotonic token counter for file load requests.
+	pub(crate) file_load_token_next: u64,
 
 	/// Deferred cursor position to apply after file loads (line, column).
 	pub(crate) deferred_goto: Option<(usize, usize)>,
@@ -316,8 +325,10 @@ impl Editor {
 	/// [`kick_file_load`]: Self::kick_file_load
 	pub fn new_with_path(path: PathBuf) -> Self {
 		let mut editor = Self::from_content(String::new(), Some(path.clone()));
-		editor.state.loading_file = Some(path.clone());
-		editor.kick_file_load(path);
+		let token = editor.state.file_load_token_next;
+		editor.state.file_load_token_next += 1;
+		editor.state.pending_file_loads.insert(path.clone(), token);
+		editor.kick_file_load(path, token);
 		editor
 	}
 
@@ -445,7 +456,8 @@ impl Editor {
 				metrics: std::sync::Arc::new(crate::metrics::EditorMetrics::new()),
 				msg_tx,
 				msg_rx,
-				loading_file: None,
+				pending_file_loads: PendingFileLoads::default(),
+				file_load_token_next: 0,
 				deferred_goto: None,
 				lsp_catalog_ready: false,
 				render_cache: crate::render::cache::RenderCache::new(),
