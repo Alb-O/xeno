@@ -7,7 +7,7 @@
 use xeno_nu_data::{Record, Span, Value};
 
 /// Current schema version. Bump when adding/removing/renaming fields.
-pub const SCHEMA_VERSION: i64 = 6;
+pub const SCHEMA_VERSION: i64 = 7;
 
 /// Max byte length for text snapshots (cursor line, selection text).
 ///
@@ -39,8 +39,19 @@ pub struct NuCtxPosition {
 
 pub struct NuCtxSelection {
 	pub active: bool,
+	/// Index of the primary range in `ranges`.
+	pub primary: usize,
+	/// Primary range min position (backward compat).
 	pub start: NuCtxPosition,
+	/// Primary range max position (backward compat).
 	pub end: NuCtxPosition,
+	/// All selection ranges with anchor/head direction preserved.
+	pub ranges: Vec<NuCtxRange>,
+}
+
+pub struct NuCtxRange {
+	pub anchor: NuCtxPosition,
+	pub head: NuCtxPosition,
 }
 
 pub struct NuCtxBuffer {
@@ -206,8 +217,21 @@ impl NuCtx {
 
 		let mut selection = Record::new();
 		selection.push("active", Value::bool(self.selection.active, s));
+		selection.push("primary", int(self.selection.primary));
 		selection.push("start", pos_record(&self.selection.start));
 		selection.push("end", pos_record(&self.selection.end));
+		let ranges: Vec<Value> = self
+			.selection
+			.ranges
+			.iter()
+			.map(|r| {
+				let mut rec = Record::new();
+				rec.push("anchor", pos_record(&r.anchor));
+				rec.push("head", pos_record(&r.head));
+				Value::record(rec, s)
+			})
+			.collect();
+		selection.push("ranges", Value::list(ranges, s));
 
 		let mut buffer = Record::new();
 		buffer.push("path", self.buffer.path.as_ref().map_or_else(|| Value::nothing(s), |p| Value::string(p, s)));

@@ -7,6 +7,7 @@ mod xeno_effect;
 mod xeno_effects_normalize;
 mod xeno_is_effect;
 mod xeno_log;
+mod xeno_selection_get;
 
 use xeno_nu_protocol::engine::StateWorkingSet;
 use xeno_nu_protocol::{ShellError, Span};
@@ -40,4 +41,5 @@ pub fn register_all(working_set: &mut StateWorkingSet<'_>) {
 	working_set.add_decl(Box::new(xeno_effect::XenoEffectCommand));
 	working_set.add_decl(Box::new(xeno_effects_normalize::XenoEffectsNormalizeCommand));
 	working_set.add_decl(Box::new(xeno_is_effect::XenoIsEffectCommand));
+	working_set.add_decl(Box::new(xeno_selection_get::XenoSelectionGetCommand));
 }

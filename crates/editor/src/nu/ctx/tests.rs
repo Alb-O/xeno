@@ -9,8 +9,13 @@ fn sample_ctx() -> NuCtx {
 		cursor: NuCtxPosition { line: 10, col: 5 },
 		selection: NuCtxSelection {
 			active: true,
+			primary: 0,
 			start: NuCtxPosition { line: 10, col: 3 },
 			end: NuCtxPosition { line: 10, col: 8 },
+			ranges: vec![NuCtxRange {
+				anchor: NuCtxPosition { line: 10, col: 3 },
+				head: NuCtxPosition { line: 10, col: 8 },
+			}],
 		},
 		buffer: NuCtxBuffer {
 			path: Some("/tmp/test.rs".into()),
@@ -84,12 +89,59 @@ fn ctx_selection_has_correct_shape() {
 		.expect("selection should be record");
 
 	assert!(selection.contains("active"));
+	assert!(selection.contains("primary"));
 	assert!(selection.contains("start"));
 	assert!(selection.contains("end"));
+	assert!(selection.contains("ranges"));
 
 	let start = selection.get("start").expect("start should exist").as_record().expect("start should be record");
 	assert!(start.contains("line"));
 	assert!(start.contains("col"));
+
+	let ranges = selection.get("ranges").expect("ranges should exist").as_list().expect("ranges should be list");
+	assert_eq!(ranges.len(), 1);
+	let r0 = ranges[0].as_record().expect("range should be record");
+	assert!(r0.contains("anchor"));
+	assert!(r0.contains("head"));
+}
+
+#[test]
+fn ctx_selection_multi_range() {
+	let mut ctx = sample_ctx();
+	ctx.selection = NuCtxSelection {
+		active: true,
+		primary: 1,
+		start: NuCtxPosition { line: 5, col: 0 },
+		end: NuCtxPosition { line: 5, col: 10 },
+		ranges: vec![
+			NuCtxRange {
+				anchor: NuCtxPosition { line: 2, col: 3 },
+				head: NuCtxPosition { line: 2, col: 7 },
+			},
+			NuCtxRange {
+				anchor: NuCtxPosition { line: 5, col: 10 },
+				head: NuCtxPosition { line: 5, col: 0 },
+			},
+		],
+	};
+
+	let value = ctx.to_value();
+	let record = value.as_record().expect("ctx should be a record");
+	let selection = record.get("selection").unwrap().as_record().unwrap();
+
+	assert_eq!(selection.get("primary").unwrap().as_int().unwrap(), 1);
+	let ranges = selection.get("ranges").unwrap().as_list().unwrap();
+	assert_eq!(ranges.len(), 2);
+
+	let r0 = ranges[0].as_record().unwrap();
+	let anchor0 = r0.get("anchor").unwrap().as_record().unwrap();
+	assert_eq!(anchor0.get("line").unwrap().as_int().unwrap(), 2);
+	assert_eq!(anchor0.get("col").unwrap().as_int().unwrap(), 3);
+
+	let r1 = ranges[1].as_record().unwrap();
+	let head1 = r1.get("head").unwrap().as_record().unwrap();
+	assert_eq!(head1.get("line").unwrap().as_int().unwrap(), 5);
+	assert_eq!(head1.get("col").unwrap().as_int().unwrap(), 0);
 }
 
 #[test]
@@ -287,7 +339,7 @@ fn ctx_event_mode_change_shape() {
 fn ctx_no_args_field() {
 	let value = sample_ctx().to_value();
 	let record = value.as_record().expect("ctx should be a record");
-	assert!(!record.contains("args"), "args field should not exist in ctx schema v6");
+	assert!(!record.contains("args"), "args field should not exist in ctx schema v7");
 }
 
 #[test]

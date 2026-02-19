@@ -111,15 +111,18 @@ impl Editor {
 	}
 
 	fn build_nu_ctx_inner(&self, kind: &str, function: &str, include_text: bool, event: Option<crate::nu::ctx::NuCtxEvent>) -> Value {
-		use crate::nu::ctx::{NuCtx, NuCtxBuffer, NuCtxPosition, NuCtxSelection, NuCtxText, NuCtxView, TEXT_SNAPSHOT_MAX_BYTES, rope_slice_clamped};
+		use crate::nu::ctx::{
+			NuCtx, NuCtxBuffer, NuCtxPosition, NuCtxRange, NuCtxSelection, NuCtxText, NuCtxView, TEXT_SNAPSHOT_MAX_BYTES, rope_slice_clamped,
+		};
 
 		let buffer = self.buffer();
 		let view_id = self.focused_view().0;
 		let primary_selection = buffer.selection.primary();
+		let primary_index = buffer.selection.primary_index();
 		let cursor_char = buffer.cursor;
 		let sel_active = !primary_selection.is_point();
 
-		let (cursor_line, cursor_col, sel_start_line, sel_start_col, sel_end_line, sel_end_col, text_snapshot) = buffer.with_doc(|doc| {
+		let (cursor_line, cursor_col, sel_start_line, sel_start_col, sel_end_line, sel_end_col, ctx_ranges, text_snapshot) = buffer.with_doc(|doc| {
 			let text = doc.content();
 			let to_line_col = |idx: usize| {
 				let clamped = idx.min(text.len_chars());
@@ -132,10 +135,23 @@ impl Editor {
 			let (ssl, ssc) = to_line_col(primary_selection.min());
 			let (sel, sec) = to_line_col(primary_selection.max());
 
+			let ranges: Vec<NuCtxRange> = buffer
+				.selection
+				.ranges()
+				.iter()
+				.map(|r| {
+					let (al, ac) = to_line_col(r.anchor);
+					let (hl, hc) = to_line_col(r.head);
+					NuCtxRange {
+						anchor: NuCtxPosition { line: al, col: ac },
+						head: NuCtxPosition { line: hl, col: hc },
+					}
+				})
+				.collect();
+
 			let snapshot = if include_text {
 				let line_slice = text.line(cl);
 				let (mut line_str, line_trunc) = rope_slice_clamped(line_slice, TEXT_SNAPSHOT_MAX_BYTES);
-				// Strip trailing line endings (not part of line content).
 				let trimmed_len = line_str.trim_end_matches('\n').trim_end_matches('\r').len();
 				line_str.truncate(trimmed_len);
 
@@ -159,7 +175,7 @@ impl Editor {
 				NuCtxText::empty()
 			};
 
-			(cl, cc, ssl, ssc, sel, sec, snapshot)
+			(cl, cc, ssl, ssc, sel, sec, ranges, snapshot)
 		});
 
 		let state_snapshot: Vec<(String, String)> = self.state.core.workspace.nu_state.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
@@ -175,6 +191,7 @@ impl Editor {
 			},
 			selection: NuCtxSelection {
 				active: sel_active,
+				primary: primary_index,
 				start: NuCtxPosition {
 					line: sel_start_line,
 					col: sel_start_col,
@@ -183,6 +200,7 @@ impl Editor {
 					line: sel_end_line,
 					col: sel_end_col,
 				},
+				ranges: ctx_ranges,
 			},
 			buffer: NuCtxBuffer {
 				path: buffer.path().map(|path| path.to_string_lossy().to_string()),
