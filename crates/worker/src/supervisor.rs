@@ -473,16 +473,24 @@ where
 
 	let supervisor_task = spawn::spawn(task_class, async move {
 		let mut restart_count = 0usize;
+		// Per-generation cancel token, cancelled before each restart to kill
+		// any lingering child tasks from the previous generation.
+		let mut gen_cancel = CancellationToken::new();
 		loop {
 			if task_cancel.is_cancelled() {
+				gen_cancel.cancel();
 				let mut last = task_state.last_exit.lock().await;
 				*last = Some(ActorExitReason::Cancelled);
 				break;
 			}
 
+			// Cancel the previous generation's token to kill zombie child tasks.
+			gen_cancel.cancel();
+			gen_cancel = task_cancel.child_token();
+
 			let gen_id = generation.next();
 			task_state.generation.store(gen_id, Ordering::Release);
-			let token = GenerationToken::new(gen_id, task_cancel.child_token());
+			let token = GenerationToken::new(gen_id, gen_cancel.child_token());
 			let actor = (task_factory)();
 			let child_rx = rx.clone();
 			let child_events = task_events.clone();
@@ -920,5 +928,314 @@ mod tests {
 
 		let report_a = task_a.await.unwrap();
 		assert!(report_a.completed);
+	}
+
+	// ── Restart + cancellation invariant tests ──
+
+	/// Actor that tracks generation token cancellation across restarts.
+	///
+	/// On start, spawns a background task scoped to the generation token.
+	/// Each tick increments `active_tickers`. On cancel, decrements it.
+	/// If the supervisor properly cancels old generations on restart,
+	/// `active_tickers` should never exceed 1.
+	struct ZombieDetectorActor {
+		active_tickers: Arc<AtomicUsize>,
+		peak_tickers: Arc<AtomicUsize>,
+		starts: Arc<AtomicUsize>,
+		fail_first_n: Arc<AtomicUsize>,
+	}
+
+	#[async_trait]
+	impl WorkerActor for ZombieDetectorActor {
+		type Cmd = ();
+		type Evt = ();
+
+		async fn on_start(&mut self, ctx: &mut ActorContext<Self::Evt>) -> Result<(), String> {
+			let generation_id = ctx.generation();
+			let count = self.starts.fetch_add(1, Ordering::SeqCst) + 1;
+			let remaining_failures = self.fail_first_n.load(Ordering::SeqCst);
+
+			// Spawn a background "ticker" scoped to this generation's token.
+			let active = Arc::clone(&self.active_tickers);
+			let peak = Arc::clone(&self.peak_tickers);
+			let token = ctx.token.child();
+			tokio::spawn(async move {
+				let cur = active.fetch_add(1, Ordering::SeqCst) + 1;
+				// Track peak concurrent tickers.
+				peak.fetch_max(cur, Ordering::SeqCst);
+
+				// Keep ticking until cancelled.
+				loop {
+					tokio::select! {
+						biased;
+						_ = token.cancelled() => break,
+						_ = tokio::time::sleep(Duration::from_millis(1)) => {}
+					}
+				}
+				active.fetch_sub(1, Ordering::SeqCst);
+				let _ = generation_id;
+			});
+
+			if count <= remaining_failures {
+				Err(format!("deliberate startup failure #{count}"))
+			} else {
+				Ok(())
+			}
+		}
+
+		async fn handle(&mut self, _cmd: Self::Cmd, _ctx: &mut ActorContext<Self::Evt>) -> Result<ActorFlow, String> {
+			Ok(ActorFlow::Continue)
+		}
+	}
+
+	#[tokio::test]
+	async fn no_zombie_tickers_across_restarts() {
+		let active_tickers = Arc::new(AtomicUsize::new(0));
+		let peak_tickers = Arc::new(AtomicUsize::new(0));
+		let starts = Arc::new(AtomicUsize::new(0));
+		let fail_first_n = Arc::new(AtomicUsize::new(3)); // fail first 3 starts
+
+		let at = Arc::clone(&active_tickers);
+		let pt = Arc::clone(&peak_tickers);
+		let st = Arc::clone(&starts);
+		let ff = Arc::clone(&fail_first_n);
+
+		let handle = spawn_supervised_actor(
+			ActorSpec::new("zombie-detector", TaskClass::Background, move || ZombieDetectorActor {
+				active_tickers: Arc::clone(&at),
+				peak_tickers: Arc::clone(&pt),
+				starts: Arc::clone(&st),
+				fail_first_n: Arc::clone(&ff),
+			})
+			.supervisor(SupervisorSpec {
+				restart: RestartPolicy::OnFailure {
+					max_restarts: 5,
+					backoff: Duration::from_millis(1),
+				},
+				event_buffer: 8,
+			}),
+		);
+
+		// Wait for restarts to settle (3 failures + 1 success = 4 starts).
+		tokio::time::sleep(Duration::from_millis(100)).await;
+		assert_eq!(starts.load(Ordering::SeqCst), 4, "should start 4 times (3 failures + 1 success)");
+
+		// After settling, exactly one ticker should be active.
+		assert_eq!(active_tickers.load(Ordering::SeqCst), 1, "exactly one ticker should be active after restarts");
+
+		// Shutdown and verify all tickers stop.
+		handle.cancel();
+		let report = handle.shutdown(ShutdownMode::Immediate).await;
+		assert!(report.completed);
+
+		// Give ticker tasks a moment to observe cancellation.
+		tokio::time::sleep(Duration::from_millis(20)).await;
+		assert_eq!(active_tickers.load(Ordering::SeqCst), 0, "all tickers should stop after shutdown");
+
+		// Peak should reflect zombie accumulation if cancellation is broken.
+		// With correct per-generation cancellation, peak should be 1.
+		// With broken cancellation (all share parent token), peak could be up to 4.
+		let peak = peak_tickers.load(Ordering::SeqCst);
+		assert_eq!(peak, 1, "peak concurrent tickers should be 1 (no zombies); got {peak}");
+	}
+
+	#[tokio::test]
+	async fn shutdown_during_backoff_completes_promptly() {
+		let starts = Arc::new(AtomicUsize::new(0));
+		let starts_clone = Arc::clone(&starts);
+
+		let handle = spawn_supervised_actor(
+			ActorSpec::new("backoff-shutdown", TaskClass::Background, move || {
+				let s = Arc::clone(&starts_clone);
+				s.fetch_add(1, Ordering::SeqCst);
+				CountingActor::default()
+			})
+			.supervisor(SupervisorSpec {
+				restart: RestartPolicy::Always {
+					max_restarts: None,
+					backoff: Duration::from_secs(60), // very long backoff
+				},
+				event_buffer: 8,
+			}),
+		);
+
+		// Trigger a stop (actor returns Stop on cmd=99).
+		let _ = handle.send(99).await;
+		tokio::time::sleep(Duration::from_millis(20)).await;
+
+		// Actor stopped, supervisor is now in 60s backoff sleep.
+		let starts_before = starts.load(Ordering::SeqCst);
+		assert_eq!(starts_before, 1, "only one start so far");
+
+		// Shutdown must complete promptly despite the 60s backoff.
+		let report = tokio::time::timeout(Duration::from_millis(500), handle.shutdown(ShutdownMode::Immediate))
+			.await
+			.expect("shutdown should not hang during backoff");
+		assert!(report.completed);
+
+		// No additional restart should have occurred.
+		assert_eq!(starts.load(Ordering::SeqCst), 1, "no restart after shutdown during backoff");
+	}
+
+	#[tokio::test]
+	async fn panic_path_triggers_restart_same_as_error() {
+		let starts = Arc::new(AtomicUsize::new(0));
+
+		struct PanicOnStartActor {
+			starts: Arc<AtomicUsize>,
+		}
+
+		#[async_trait]
+		impl WorkerActor for PanicOnStartActor {
+			type Cmd = ();
+			type Evt = ();
+
+			async fn on_start(&mut self, _ctx: &mut ActorContext<Self::Evt>) -> Result<(), String> {
+				self.starts.fetch_add(1, Ordering::SeqCst);
+				panic!("deliberate startup panic");
+			}
+
+			async fn handle(&mut self, _cmd: Self::Cmd, _ctx: &mut ActorContext<Self::Evt>) -> Result<ActorFlow, String> {
+				unreachable!();
+			}
+		}
+
+		let starts_clone = Arc::clone(&starts);
+		let handle = spawn_supervised_actor(
+			ActorSpec::new("panic-restart", TaskClass::Background, move || PanicOnStartActor {
+				starts: Arc::clone(&starts_clone),
+			})
+			.supervisor(SupervisorSpec {
+				restart: RestartPolicy::OnFailure {
+					max_restarts: 2,
+					backoff: Duration::from_millis(1),
+				},
+				event_buffer: 8,
+			}),
+		);
+
+		tokio::time::sleep(Duration::from_millis(100)).await;
+
+		// Should have started 3 times (initial + 2 restarts).
+		let total_starts = starts.load(Ordering::SeqCst);
+		assert_eq!(total_starts, 3, "panic should trigger same restart logic as error");
+
+		// Final exit should be Panicked.
+		let last_exit = handle.last_exit().await;
+		assert_eq!(last_exit, Some(ActorExitReason::Panicked));
+
+		handle.cancel();
+		let report = handle.shutdown(ShutdownMode::Immediate).await;
+		assert!(report.completed);
+	}
+
+	#[tokio::test]
+	async fn max_restarts_honored_then_stops() {
+		let starts = Arc::new(AtomicUsize::new(0));
+
+		struct AlwaysFailActor {
+			starts: Arc<AtomicUsize>,
+		}
+
+		#[async_trait]
+		impl WorkerActor for AlwaysFailActor {
+			type Cmd = ();
+			type Evt = ();
+
+			async fn on_start(&mut self, _ctx: &mut ActorContext<Self::Evt>) -> Result<(), String> {
+				let count = self.starts.fetch_add(1, Ordering::SeqCst) + 1;
+				Err(format!("fail #{count}"))
+			}
+
+			async fn handle(&mut self, _cmd: Self::Cmd, _ctx: &mut ActorContext<Self::Evt>) -> Result<ActorFlow, String> {
+				unreachable!("on_start always fails");
+			}
+		}
+
+		let starts_clone = Arc::clone(&starts);
+		let handle = spawn_supervised_actor(
+			ActorSpec::new("max-restarts", TaskClass::Background, move || AlwaysFailActor {
+				starts: Arc::clone(&starts_clone),
+			})
+			.supervisor(SupervisorSpec {
+				restart: RestartPolicy::OnFailure {
+					max_restarts: 3,
+					backoff: Duration::from_millis(1),
+				},
+				event_buffer: 8,
+			}),
+		);
+
+		// Wait for all restarts to exhaust.
+		tokio::time::sleep(Duration::from_millis(100)).await;
+
+		// initial (1) + 3 restarts = 4 total starts.
+		let total = starts.load(Ordering::SeqCst);
+		assert_eq!(total, 4, "should start exactly 1 + max_restarts times");
+
+		let last_exit = handle.last_exit().await;
+		assert!(
+			matches!(last_exit, Some(ActorExitReason::StartupFailed(_))),
+			"final exit should be StartupFailed, got {last_exit:?}"
+		);
+
+		// Supervisor should have already exited (no more restarts).
+		let report = tokio::time::timeout(Duration::from_millis(100), handle.shutdown(ShutdownMode::Immediate))
+			.await
+			.expect("shutdown should complete quickly when supervisor already exited");
+		assert!(report.completed);
+	}
+
+	#[tokio::test]
+	async fn generation_advances_on_each_restart() {
+		let generations = Arc::new(Mutex::new(Vec::<u64>::new()));
+
+		struct GenTrackingActor {
+			generations: Arc<Mutex<Vec<u64>>>,
+		}
+
+		#[async_trait]
+		impl WorkerActor for GenTrackingActor {
+			type Cmd = ();
+			type Evt = ();
+
+			async fn on_start(&mut self, ctx: &mut ActorContext<Self::Evt>) -> Result<(), String> {
+				self.generations.lock().await.push(ctx.generation());
+				Err("fail".to_string())
+			}
+
+			async fn handle(&mut self, _cmd: Self::Cmd, _ctx: &mut ActorContext<Self::Evt>) -> Result<ActorFlow, String> {
+				unreachable!();
+			}
+		}
+
+		let gens = Arc::clone(&generations);
+		let handle = spawn_supervised_actor(
+			ActorSpec::new("gen-tracking", TaskClass::Background, move || GenTrackingActor {
+				generations: Arc::clone(&gens),
+			})
+			.supervisor(SupervisorSpec {
+				restart: RestartPolicy::OnFailure {
+					max_restarts: 3,
+					backoff: Duration::from_millis(1),
+				},
+				event_buffer: 8,
+			}),
+		);
+
+		tokio::time::sleep(Duration::from_millis(100)).await;
+		handle.cancel();
+		let _ = handle.shutdown(ShutdownMode::Immediate).await;
+
+		let gens = generations.lock().await;
+		assert_eq!(gens.len(), 4, "4 starts = 4 generations");
+
+		// Generations must be strictly monotonically increasing.
+		for window in gens.windows(2) {
+			assert!(window[1] > window[0], "generations must be strictly increasing: {gens:?}");
+		}
+
+		// Handle's generation() should match the last one.
+		assert_eq!(handle.generation(), *gens.last().unwrap());
 	}
 }

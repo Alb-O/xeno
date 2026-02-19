@@ -551,9 +551,10 @@ fn decode_envelope_record(record: &Record, budget: &DecodeBudget, state: &mut De
 				}
 				state.path.push_index(idx);
 				if let Value::String { val, .. } = val
-					&& val.len() <= budget.max_string_len {
-						state.batch.warnings.push(val.clone());
-					}
+					&& val.len() <= budget.max_string_len
+				{
+					state.batch.warnings.push(val.clone());
+				}
 				state.path.pop();
 			}
 		}

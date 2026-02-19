@@ -479,4 +479,162 @@ mod tests {
 		let third = state.pop_queued_hook().unwrap();
 		assert!(matches!(third.event, NuCtxEvent::ActionPost { ref name, .. } if name == "a2"));
 	}
+
+	#[test]
+	fn enqueue_overflow_evicts_oldest_event() {
+		let mut state = NuCoordinatorState::new();
+		let cap = 3;
+
+		state.enqueue_hook(
+			NuCtxEvent::ActionPost {
+				name: "a1".into(),
+				result: "ok".into(),
+			},
+			cap,
+		);
+		state.enqueue_hook(
+			NuCtxEvent::ModeChange {
+				from: "N".into(),
+				to: "I".into(),
+			},
+			cap,
+		);
+		state.enqueue_hook(
+			NuCtxEvent::CommandPost {
+				name: "c1".into(),
+				result: "ok".into(),
+				args: vec![],
+			},
+			cap,
+		);
+		assert_eq!(state.hook_queue_len(), 3);
+
+		// Overflow: evicts oldest (a1).
+		let dropped = state.enqueue_hook(
+			NuCtxEvent::ActionPost {
+				name: "d1".into(),
+				result: "ok".into(),
+			},
+			cap,
+		);
+		assert!(dropped, "should report drop");
+		assert_eq!(state.hook_dropped_total(), 1);
+		assert_eq!(state.hook_queue_len(), 3);
+
+		let first = state.pop_queued_hook().unwrap();
+		assert!(matches!(first.event, NuCtxEvent::ModeChange { .. }));
+		let second = state.pop_queued_hook().unwrap();
+		assert!(matches!(second.event, NuCtxEvent::CommandPost { ref name, .. } if name == "c1"));
+		let third = state.pop_queued_hook().unwrap();
+		assert!(matches!(third.event, NuCtxEvent::ActionPost { ref name, .. } if name == "d1"));
+	}
+
+	#[test]
+	fn enqueue_tail_coalesce_avoids_eviction_when_full() {
+		let mut state = NuCoordinatorState::new();
+		let cap = 3;
+
+		state.enqueue_hook(
+			NuCtxEvent::ActionPost {
+				name: "a1".into(),
+				result: "ok".into(),
+			},
+			cap,
+		);
+		state.enqueue_hook(
+			NuCtxEvent::ModeChange {
+				from: "N".into(),
+				to: "I".into(),
+			},
+			cap,
+		);
+		state.enqueue_hook(
+			NuCtxEvent::CommandPost {
+				name: "c1".into(),
+				result: "ok".into(),
+				args: vec![],
+			},
+			cap,
+		);
+		assert_eq!(state.hook_queue_len(), 3);
+
+		// Same kind as tail (CommandPost) → coalesce, no eviction.
+		let dropped = state.enqueue_hook(
+			NuCtxEvent::CommandPost {
+				name: "c2".into(),
+				result: "err".into(),
+				args: vec![],
+			},
+			cap,
+		);
+		assert!(!dropped, "tail coalesce should not drop");
+		assert_eq!(state.hook_dropped_total(), 0);
+		assert_eq!(state.hook_queue_len(), 3);
+
+		let first = state.pop_queued_hook().unwrap();
+		assert!(matches!(first.event, NuCtxEvent::ActionPost { ref name, .. } if name == "a1"));
+		let second = state.pop_queued_hook().unwrap();
+		assert!(matches!(second.event, NuCtxEvent::ModeChange { .. }));
+		let third = state.pop_queued_hook().unwrap();
+		assert!(matches!(third.event, NuCtxEvent::CommandPost { ref name, .. } if name == "c2"));
+	}
+
+	#[test]
+	fn enqueue_same_kind_not_consecutive_does_not_coalesce() {
+		let mut state = NuCoordinatorState::new();
+		let cap = 3;
+
+		// [A1, B1, A2] — A is not consecutive (B separates them).
+		state.enqueue_hook(
+			NuCtxEvent::ActionPost {
+				name: "a1".into(),
+				result: "ok".into(),
+			},
+			cap,
+		);
+		state.enqueue_hook(
+			NuCtxEvent::ModeChange {
+				from: "N".into(),
+				to: "I".into(),
+			},
+			cap,
+		);
+		state.enqueue_hook(
+			NuCtxEvent::ActionPost {
+				name: "a2".into(),
+				result: "ok".into(),
+			},
+			cap,
+		);
+		assert_eq!(state.hook_queue_len(), 3);
+
+		// A3 is same kind as tail (ActionPost) → coalesce tail → [A1, B1, A3]
+		state.enqueue_hook(
+			NuCtxEvent::ActionPost {
+				name: "a3".into(),
+				result: "ok".into(),
+			},
+			cap,
+		);
+		assert_eq!(state.hook_queue_len(), 3);
+
+		// Now push C1 (new kind, queue full) → evict A1 → [B1, A3, C1]
+		let dropped = state.enqueue_hook(
+			NuCtxEvent::CommandPost {
+				name: "c1".into(),
+				result: "ok".into(),
+				args: vec![],
+			},
+			cap,
+		);
+		assert!(dropped);
+		assert_eq!(state.hook_queue_len(), 3);
+
+		let first = state.pop_queued_hook().unwrap();
+		assert!(matches!(first.event, NuCtxEvent::ModeChange { .. }));
+		let second = state.pop_queued_hook().unwrap();
+		assert!(matches!(second.event, NuCtxEvent::ActionPost { ref name, .. } if name == "a3"));
+		let third = state.pop_queued_hook().unwrap();
+		assert!(matches!(third.event, NuCtxEvent::CommandPost { ref name, .. } if name == "c1"));
+	}
 }

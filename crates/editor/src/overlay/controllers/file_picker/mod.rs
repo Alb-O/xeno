@@ -353,10 +353,9 @@ impl FilePickerOverlay {
 			.map(|at| now.saturating_duration_since(at) >= QUERY_REFRESH_INTERVAL)
 			.unwrap_or(true);
 
-		if (query_changed || (indexing_progressed && throttle_ready))
-			&& ctx.filesystem_mut().query(query.to_string(), FILE_PICKER_LIMIT) {
-				self.last_query_sent = Some(now);
-			}
+		if (query_changed || (indexing_progressed && throttle_ready)) && ctx.filesystem_mut().query(query.to_string(), FILE_PICKER_LIMIT) {
+			self.last_query_sent = Some(now);
+		}
 	}
 
 	fn set_input_text(&mut self, ctx: &mut dyn OverlayContext, session: &OverlaySession, input: &str) {

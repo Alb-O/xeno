@@ -63,14 +63,15 @@ impl WorkScheduler {
 
 		// Check cancelled-docs LRU — short-circuit without spawning or creating tokens.
 		if let Some(doc_id) = item.doc_id
-			&& self.cancelled_docs.contains(&doc_id) {
-				tracing::trace!(
-					doc_id,
-					kind = ?item.kind,
-					"work.schedule: skipped (doc cancelled)"
-				);
-				return;
-			}
+			&& self.cancelled_docs.contains(&doc_id)
+		{
+			tracing::trace!(
+				doc_id,
+				kind = ?item.kind,
+				"work.schedule: skipped (doc cancelled)"
+			);
+			return;
+		}
 
 		// Background backlog check — before creating tokens or guards.
 		if item.priority == HookPriority::Background && self.background.len() >= BACKGROUND_DROP_THRESHOLD {
