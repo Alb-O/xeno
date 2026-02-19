@@ -36,7 +36,12 @@ impl Editor {
 		let nu_ctx = self.build_nu_ctx("macro", &fn_name, true);
 		let env = vec![("XENO_CTX".to_string(), nu_ctx)];
 
-		let effects = match executor_client.run(decl_id, NuDecodeSurface::Macro, args, budget, env).await {
+		let host = self.build_nu_host_snapshot();
+
+		let effects = match executor_client
+			.run(decl_id, NuDecodeSurface::Macro, args, budget, env, Some(Box::new(host)))
+			.await
+		{
 			Ok(effects) => effects,
 			Err(error) => {
 				let msg = exec_error_message(&error);
@@ -70,6 +75,22 @@ impl Editor {
 		};
 
 		Ok(outcome.dispatches)
+	}
+
+	pub(crate) fn build_nu_host_snapshot(&self) -> crate::nu::host::NuHostSnapshot {
+		let buffer = self.buffer();
+		let (rope, line_count) = buffer.with_doc(|doc| {
+			let content = doc.content();
+			(content.clone(), content.len_lines())
+		});
+		let meta = xeno_nu_api::BufferMeta {
+			path: buffer.path().map(|p| p.to_string_lossy().to_string()),
+			file_type: buffer.file_type(),
+			readonly: buffer.is_readonly(),
+			modified: buffer.modified(),
+			line_count,
+		};
+		crate::nu::host::NuHostSnapshot::new(meta, rope)
 	}
 
 	async fn ensure_nu_runtime_loaded(&mut self) -> Result<(), String> {

@@ -4,6 +4,7 @@ pub(crate) mod coordinator;
 pub(crate) mod ctx;
 pub(crate) mod effects;
 pub(crate) mod executor;
+pub(crate) mod host;
 pub(crate) mod pipeline;
 
 use std::path::{Path, PathBuf};
@@ -108,9 +109,10 @@ impl NuRuntime {
 		args: Vec<String>,
 		budget: DecodeBudget,
 		env: Vec<(String, Value)>,
+		host: Option<&(dyn xeno_nu_api::XenoNuHost + 'static)>,
 	) -> Result<NuEffectBatch, String> {
 		let start = Instant::now();
-		let value = self.program.call_export_owned(decl_id, args, env).map_err(|error| error.to_string())?;
+		let value = self.program.call_export_owned(decl_id, args, env, host).map_err(|error| error.to_string())?;
 		let elapsed = start.elapsed();
 		if elapsed > SLOW_CALL_THRESHOLD {
 			tracing::debug!(elapsed_ms = elapsed.as_millis() as u64, "slow Nu call");
@@ -120,7 +122,7 @@ impl NuRuntime {
 
 	fn call_by_decl_id(&self, decl_id: ExportId, args: &[String], env: &[(&str, Value)]) -> Result<Value, String> {
 		let start = Instant::now();
-		let value = self.program.call_export(decl_id, args, env).map_err(|error| error.to_string())?;
+		let value = self.program.call_export(decl_id, args, env, None).map_err(|error| error.to_string())?;
 		let elapsed = start.elapsed();
 		if elapsed > SLOW_CALL_THRESHOLD {
 			tracing::debug!(elapsed_ms = elapsed.as_millis() as u64, "slow Nu call");
@@ -138,7 +140,7 @@ impl NuRuntime {
 
 		let value = self
 			.program
-			.call_export(decl_id, args, env)
+			.call_export(decl_id, args, env, None)
 			.map_err(|error| NuRunError::Other(error.to_string()))?;
 
 		let elapsed = start.elapsed();

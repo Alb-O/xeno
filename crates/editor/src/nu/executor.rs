@@ -24,6 +24,7 @@ enum Job {
 		args: Vec<String>,
 		budget: DecodeBudget,
 		env: Vec<(String, Value)>,
+		host: Option<Box<dyn xeno_nu_api::XenoNuHost + Send>>,
 		span: tracing::Span,
 		reply: oneshot::Sender<Result<NuEffectBatch, JobError>>,
 	},
@@ -52,13 +53,17 @@ impl xeno_worker::WorkerActor for NuActor {
 				args,
 				budget,
 				env,
+				host,
 				span,
 				reply,
 			} => {
 				let runtime = self.runtime.clone();
 				let result = xeno_worker::spawn::spawn_blocking(xeno_worker::TaskClass::CpuBlocking, move || {
 					let _guard = span.enter();
-					std::panic::catch_unwind(AssertUnwindSafe(|| runtime.run_effects_by_decl_id_owned(decl_id, surface, args, budget, env)))
+					let host_ref = host.as_ref().map(|h| h.as_ref() as &(dyn xeno_nu_api::XenoNuHost + 'static));
+					std::panic::catch_unwind(AssertUnwindSafe(|| {
+						runtime.run_effects_by_decl_id_owned(decl_id, surface, args, budget, env, host_ref)
+					}))
 				})
 				.await;
 
@@ -179,6 +184,7 @@ impl NuExecutor {
 		args: Vec<String>,
 		budget: DecodeBudget,
 		env: Vec<(String, Value)>,
+		host: Option<Box<dyn xeno_nu_api::XenoNuHost + Send>>,
 	) -> Result<NuEffectBatch, NuExecError> {
 		if self.shared.closed.load(Ordering::SeqCst) {
 			return Err(NuExecError::Closed);
@@ -194,6 +200,7 @@ impl NuExecutor {
 				args,
 				budget,
 				env,
+				host,
 				span: tracing::Span::current(),
 				reply: reply_tx,
 			})
@@ -251,7 +258,7 @@ mod tests {
 		let executor = NuExecutor::new(runtime);
 
 		let result = executor
-			.run(decl_id, NuDecodeSurface::Macro, vec![], DecodeBudget::macro_defaults(), vec![])
+			.run(decl_id, NuDecodeSurface::Macro, vec![], DecodeBudget::macro_defaults(), vec![], None)
 			.await
 			.expect("run should succeed");
 
@@ -288,7 +295,7 @@ mod tests {
 		drop(executor); // closes
 
 		let result = client
-			.run(decl_id, NuDecodeSurface::Macro, vec![], DecodeBudget::macro_defaults(), vec![])
+			.run(decl_id, NuDecodeSurface::Macro, vec![], DecodeBudget::macro_defaults(), vec![], None)
 			.await;
 
 		assert!(matches!(result, Err(NuExecError::Closed)));

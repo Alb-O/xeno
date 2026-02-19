@@ -132,6 +132,7 @@ pub(crate) fn kick_nu_hook_eval(editor: &mut Editor) {
 		.map_or_else(crate::nu::DecodeBudget::hook_defaults, |c| c.hook_decode_budget());
 	let nu_ctx = editor.build_nu_hook_ctx(&queued.event);
 	let env = vec![("XENO_CTX".to_string(), nu_ctx)];
+	let host = editor.build_nu_host_snapshot();
 
 	let executor_client = editor.state.nu.executor_client().expect("executor should exist");
 	let msg_tx = editor.state.msg_tx.clone();
@@ -141,7 +142,9 @@ pub(crate) fn kick_nu_hook_eval(editor: &mut Editor) {
 
 	editor.state.work_scheduler.schedule(crate::scheduler::WorkItem {
 		future: Box::pin(async move {
-			let result = executor_client.run(decl_id, NuDecodeSurface::Hook, vec![], budget, env).await;
+			let result = executor_client
+				.run(decl_id, NuDecodeSurface::Hook, vec![], budget, env, Some(Box::new(host)))
+				.await;
 			let _ = msg_tx.send(crate::msg::EditorMsg::NuHookEvalDone(crate::msg::NuHookEvalDoneMsg { token, result }));
 		}),
 		kind: crate::scheduler::WorkKind::NuHook,
@@ -235,8 +238,12 @@ async fn run_single_nu_hook_sync(editor: &mut Editor, event: NuCtxEvent) -> Opti
 		.map_or_else(crate::nu::DecodeBudget::hook_defaults, |c| c.hook_decode_budget());
 	let nu_ctx = editor.build_nu_hook_ctx(&event);
 	let env = vec![("XENO_CTX".to_string(), nu_ctx)];
+	let host = editor.build_nu_host_snapshot();
 
-	let effects = match executor_client.run(decl_id, NuDecodeSurface::Hook, vec![], budget, env).await {
+	let effects = match executor_client
+		.run(decl_id, NuDecodeSurface::Hook, vec![], budget, env, Some(Box::new(host)))
+		.await
+	{
 		Ok(effects) => effects,
 		Err(error) => {
 			warn!(error = ?error, "Nu hook failed");
