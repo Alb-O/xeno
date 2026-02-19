@@ -48,6 +48,8 @@ mod impls;
 pub(crate) mod info_popup;
 /// Editor key/mouse dispatch (input state machine lives in `xeno-input`).
 mod input;
+/// Atomic file writing utilities.
+pub(crate) mod io;
 /// Split layout management.
 pub mod layout;
 mod lsp;

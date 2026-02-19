@@ -82,6 +82,16 @@ pub enum ApplyError {
 	/// expects version-consistent state that the client can't verify.
 	#[error("LSP edit for unknown document ignored. uri={uri} version={version}")]
 	UntrackedVersionedDocument { uri: String, version: i32 },
+	/// A temporary buffer's content could not be written to disk after a
+	/// successful workspace edit. The buffer is kept alive so edits are
+	/// not silently lost.
+	#[error("failed to write workspace edit to disk: {path} — {error}")]
+	IoWriteFailed { path: String, error: String },
+	/// Multiple temp buffers resolve to the same canonical path with
+	/// differing content. Indicates a malformed workspace edit or
+	/// symlink/case-folding collision.
+	#[error("conflicting temp buffer writes to same target: {path}")]
+	ConflictingTempSave { path: String },
 }
 
 impl Editor {
@@ -89,11 +99,15 @@ impl Editor {
 	///
 	/// Temporary buffers opened during planning are always cleaned up,
 	/// even if the edit fails partway through — no leaked buffer state.
+	/// On success, temp buffer persistence uses two-phase commit: first
+	/// all modified temps are atomically saved to disk, then (only if
+	/// every save succeeds) all are closed. If any save fails, none are
+	/// closed — the user can recover via the open buffer.
 	///
 	/// # Errors
 	///
-	/// Returns [`ApplyError`] if any part of the edit plan is invalid or if
-	/// application to a buffer fails.
+	/// Returns [`ApplyError`] if any part of the edit plan is invalid, if
+	/// application to a buffer fails, or if a temp buffer cannot be saved.
 	pub async fn apply_workspace_edit(&mut self, edit: WorkspaceEdit) -> Result<(), ApplyError> {
 		let (plan_result, temp_buffers) = self.plan_workspace_edit(edit).await;
 		let result = match plan_result {
@@ -114,10 +128,10 @@ impl Editor {
 				apply_result
 			}
 		};
-		for id in temp_buffers {
-			if result.is_ok() {
-				self.save_and_close_temp_buffer(id);
-			} else {
+		if result.is_ok() {
+			self.save_temp_buffers_atomic(&temp_buffers).await?;
+		} else {
+			for id in temp_buffers {
 				self.close_headless_buffer(id);
 			}
 		}
@@ -378,32 +392,72 @@ impl Editor {
 		Ok(tx)
 	}
 
-	/// Saves a temporary buffer's content to disk, then closes it.
+	/// Two-phase atomic persistence for temporary workspace edit buffers.
 	///
-	/// Only writes if the buffer is modified (i.e., edits were applied).
-	/// Skipped for buffers without a path. Uses synchronous write since
-	/// this runs in the editor's single-threaded context during workspace
-	/// edit cleanup.
-	fn save_and_close_temp_buffer(&mut self, buffer_id: ViewId) {
-		let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
-			return;
-		};
-		if buffer.modified() {
-			if let Some(path) = buffer.path().map(|p| p.to_path_buf()) {
-				let content = buffer.with_doc(|doc| {
-					let rope = doc.content();
-					let mut bytes = Vec::with_capacity(rope.len_bytes());
-					for chunk in rope.chunks() {
-						bytes.extend_from_slice(chunk.as_bytes());
-					}
-					bytes
-				});
-				if let Err(e) = std::fs::write(&path, &content) {
-					tracing::error!(path = %path.display(), error = %e, "Failed to save workspace edit to disk");
+	/// Phase 1: collect content from all modified temp buffers and write
+	/// each to disk using [`crate::io::write_atomic`] (temp-file + rename,
+	/// crash-safe). If any write fails, none of the buffers are closed so
+	/// the user can recover via the still-open buffer.
+	///
+	/// Phase 2 (only on full success): close all temp buffers.
+	async fn save_temp_buffers_atomic(&mut self, temps: &[ViewId]) -> Result<(), ApplyError> {
+		use std::collections::BTreeMap;
+		use std::path::PathBuf;
+
+		// Phase 1: collect save plans, canonicalize paths, and deduplicate.
+		// BTreeMap gives deterministic (lexicographic) write order.
+		let mut plans: BTreeMap<PathBuf, Vec<u8>> = BTreeMap::new();
+		for &id in temps {
+			let Some(buffer) = self.state.core.buffers.get_buffer(id) else {
+				continue;
+			};
+			if !buffer.modified() {
+				continue;
+			}
+			let Some(raw_path) = buffer.path().map(|p| p.to_path_buf()) else {
+				continue;
+			};
+			let canonical = std::fs::canonicalize(&raw_path).unwrap_or(raw_path);
+			let bytes = crate::io::serialize_buffer(buffer);
+			if let Some(existing) = plans.get(&canonical) {
+				if existing != &bytes {
+					return Err(ApplyError::ConflictingTempSave {
+						path: canonical.display().to_string(),
+					});
 				}
+				// Identical bytes — deduplicate (skip).
+				continue;
+			}
+			plans.insert(canonical, bytes);
+		}
+
+		// Write all plans in deterministic order.
+		for (path, bytes) in &plans {
+			let write_path = path.clone();
+			let write_bytes = bytes.clone();
+			let result = self
+				.state
+				.worker_runtime
+				.spawn_blocking(xeno_worker::TaskClass::IoBlocking, move || crate::io::write_atomic(&write_path, &write_bytes))
+				.await;
+			let write_result = match result {
+				Ok(r) => r,
+				Err(e) => Err(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())),
+			};
+			if let Err(e) = write_result {
+				tracing::error!(path = %path.display(), error = %e, "Failed to atomically save workspace edit to disk");
+				return Err(ApplyError::IoWriteFailed {
+					path: path.display().to_string(),
+					error: e.to_string(),
+				});
 			}
 		}
-		self.close_headless_buffer(buffer_id);
+
+		// Phase 2: all saves succeeded — close all temp buffers.
+		for &id in temps {
+			self.close_headless_buffer(id);
+		}
+		Ok(())
 	}
 
 	fn close_headless_buffer(&mut self, buffer_id: ViewId) {

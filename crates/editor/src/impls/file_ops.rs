@@ -20,6 +20,10 @@ impl Editor {
 	}
 
 	/// Saves the current buffer to its file path.
+	///
+	/// Delegates the atomic write to [`crate::io::save_buffer_to_disk`],
+	/// wrapping it with hooks, LSP notifications, and post-save state
+	/// updates (modified flag, user notification).
 	pub fn save(&mut self) -> BoxFutureLocal<'_, Result<(), CommandError>> {
 		Box::pin(async move {
 			let path_owned = match &self.buffer().path() {
@@ -29,7 +33,7 @@ impl Editor {
 				}
 			};
 
-			// Snapshot content once to minimize lock hold time and avoid double cloning.
+			// Snapshot content for hooks before save.
 			let rope = self.buffer().with_doc(|doc| doc.content().clone());
 
 			emit_hook(&HookContext::new(HookEventData::BufferWritePre {
@@ -43,22 +47,22 @@ impl Editor {
 				warn!(error = %e, "LSP will_save notification failed");
 			}
 
-			// Encode content without holding the document lock.
-			let content = {
-				let mut content = Vec::with_capacity(rope.len_bytes());
-				for chunk in rope.chunks() {
-					content.extend_from_slice(chunk.as_bytes());
-				}
-				content
-			};
-
 			if let Some(parent) = path_owned.parent()
 				&& !parent.as_os_str().is_empty()
 			{
 				tokio::fs::create_dir_all(parent).await.map_err(|e| CommandError::Io(e.to_string()))?;
 			}
 
-			tokio::fs::write(&path_owned, &content).await.map_err(|e| CommandError::Io(e.to_string()))?;
+			let buffer_id = self.focused_view();
+			let buffer = self
+				.state
+				.core
+				.buffers
+				.get_buffer(buffer_id)
+				.ok_or_else(|| CommandError::Io("buffer not found".to_string()))?;
+			crate::io::save_buffer_to_disk(buffer, &self.state.worker_runtime)
+				.await
+				.map_err(|e| CommandError::Io(e.to_string()))?;
 
 			let _ = self.buffer_mut().set_modified(false);
 			self.show_notification(xeno_registry::notifications::keys::file_saved(&path_owned));
@@ -272,5 +276,65 @@ mod tests {
 		let buf_a = editor.state.core.buffers.get_buffer(view_a).unwrap();
 		assert_eq!(buf_a.with_doc(|doc| doc.content().to_string()), "content A");
 		assert!(!editor.state.pending_file_loads.contains_key(&path_a), "A pending should be cleared");
+	}
+
+	#[cfg(unix)]
+	#[tokio::test]
+	async fn save_preserves_file_permissions() {
+		use std::os::unix::fs::PermissionsExt;
+
+		use xeno_primitives::{SyntaxPolicy, Transaction, UndoPolicy};
+
+		use crate::buffer::ApplyPolicy;
+
+		let dir = std::env::temp_dir().join("xeno_test_save_perms");
+		std::fs::create_dir_all(&dir).unwrap();
+		let path = dir.join("perms_test.rs");
+		std::fs::write(&path, "original\n").unwrap();
+		std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o640)).unwrap();
+
+		let mut editor = Editor::new_scratch();
+		let view_id = editor.open_file(path.clone()).await.unwrap();
+
+		// Edit the buffer to make it modified.
+		{
+			let buffer = editor.state.core.buffers.get_buffer_mut(view_id).unwrap();
+			let tx = buffer.with_doc(|doc| {
+				Transaction::change(
+					doc.content().slice(..),
+					vec![xeno_primitives::transaction::Change {
+						start: 0,
+						end: 8,
+						replacement: Some("modified".into()),
+					}],
+				)
+			});
+			buffer.apply(
+				&tx,
+				ApplyPolicy {
+					undo: UndoPolicy::Record,
+					syntax: SyntaxPolicy::IncrementalOrDirty,
+				},
+			);
+		}
+		assert!(editor.state.core.buffers.get_buffer(view_id).unwrap().modified());
+
+		// Switch focus to the buffer and save.
+		let base_window = editor.state.windows.base_id();
+		editor.state.focus = crate::impls::focus::FocusTarget::Buffer {
+			window: base_window,
+			buffer: view_id,
+		};
+		editor.save().await.unwrap();
+
+		// Disk content updated.
+		assert_eq!(std::fs::read_to_string(&path).unwrap(), "modified\n");
+
+		// Permissions preserved.
+		let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+		assert_eq!(mode, 0o640, "save must preserve original file permissions");
+
+		let _ = std::fs::remove_file(path);
+		let _ = std::fs::remove_dir(dir);
 	}
 }
