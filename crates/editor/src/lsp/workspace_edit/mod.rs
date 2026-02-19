@@ -69,6 +69,11 @@ pub enum ApplyError {
 	/// The target buffer is read-only or blocked by synchronization.
 	#[error("read-only buffer for {0}")]
 	ReadOnly(String),
+	/// A `TextDocumentEdit` carries a version that doesn't match the
+	/// client's tracked version for that URI. The entire workspace edit
+	/// is rejected to prevent stale edits from corrupting buffer state.
+	#[error("LSP edit arrived stale; ignoring (document changed). uri={uri} expected={expected} actual={actual}")]
+	VersionMismatch { uri: String, expected: i32, actual: i32 },
 }
 
 impl Editor {
@@ -157,8 +162,24 @@ impl Editor {
 		Ok(WorkspaceEditPlan { per_buffer })
 	}
 
+	/// Collects edits from a [`TextDocumentEdit`] into the per-URI map.
+	///
+	/// If the edit carries a version (`Some(v)`), validates that it matches
+	/// the client's tracked version for the document. On mismatch the
+	/// entire workspace edit is rejected (all-or-nothing).
 	fn collect_text_document_edit(&self, edit: TextDocumentEdit, per_uri: &mut HashMap<String, (Uri, Vec<TextEdit>)>) -> Result<(), ApplyError> {
 		let uri = edit.text_document.uri;
+		if let Some(expected) = edit.text_document.version {
+			if let Some(actual) = self.state.lsp.documents().get_version(&uri) {
+				if actual != expected {
+					return Err(ApplyError::VersionMismatch {
+						uri: uri.to_string(),
+						expected,
+						actual,
+					});
+				}
+			}
+		}
 		let key = uri.to_string();
 		let edits = normalize_text_document_edits(edit.edits);
 		per_uri.entry(key).or_insert_with(|| (uri, Vec::new())).1.extend(edits);
