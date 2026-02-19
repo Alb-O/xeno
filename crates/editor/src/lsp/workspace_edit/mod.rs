@@ -37,6 +37,9 @@ pub struct BufferEditPlan {
 	/// Set of non-overlapping text edits.
 	pub edits: Vec<PlannedTextEdit>,
 	/// Whether the buffer was opened specifically for this edit.
+	/// Tracked separately in [`apply_workspace_edit`] for cleanup; retained
+	/// here for diagnostics.
+	#[allow(dead_code)]
 	pub opened_temporarily: bool,
 }
 
@@ -84,29 +87,53 @@ pub enum ApplyError {
 impl Editor {
 	/// Atomically applies a workspace edit across multiple buffers.
 	///
+	/// Temporary buffers opened during planning are always cleaned up,
+	/// even if the edit fails partway through — no leaked buffer state.
+	///
 	/// # Errors
 	///
 	/// Returns [`ApplyError`] if any part of the edit plan is invalid or if
 	/// application to a buffer fails.
 	pub async fn apply_workspace_edit(&mut self, edit: WorkspaceEdit) -> Result<(), ApplyError> {
-		let plan = self.plan_workspace_edit(edit).await?;
-		if plan.per_buffer.is_empty() {
-			return Ok(());
+		let (plan_result, temp_buffers) = self.plan_workspace_edit(edit).await;
+		let result = match plan_result {
+			Err(e) => Err(e),
+			Ok(plan) if plan.per_buffer.is_empty() => Ok(()),
+			Ok(plan) => {
+				self.begin_workspace_edit_group(&plan);
+				let mut apply_result = Ok(());
+				for buffer_plan in &plan.per_buffer {
+					if let Err(e) = self.apply_buffer_edit_plan(buffer_plan) {
+						apply_result = Err(e);
+						break;
+					}
+				}
+				if apply_result.is_ok() {
+					self.flush_lsp_sync_now(&plan.affected_buffer_ids());
+				}
+				apply_result
+			}
+		};
+		for id in temp_buffers {
+			self.close_headless_buffer(id);
 		}
-
-		self.begin_workspace_edit_group(&plan);
-
-		for buffer_plan in &plan.per_buffer {
-			let _ = self.apply_buffer_edit_plan(buffer_plan)?;
-		}
-
-		self.flush_lsp_sync_now(&plan.affected_buffer_ids());
-		self.close_temporary_buffers(&plan);
-		Ok(())
+		result
 	}
 
 	/// Validates and converts a [`WorkspaceEdit`] into an executable plan.
-	async fn plan_workspace_edit(&mut self, edit: WorkspaceEdit) -> Result<WorkspaceEditPlan, ApplyError> {
+	///
+	/// Returns `(plan_result, temp_buffer_ids)`. The caller must always
+	/// close the temp buffers, even if planning fails, to avoid leaking
+	/// buffers opened during URI resolution.
+	async fn plan_workspace_edit(&mut self, edit: WorkspaceEdit) -> (Result<WorkspaceEditPlan, ApplyError>, Vec<ViewId>) {
+		let mut temp_buffers = Vec::new();
+		match self.plan_workspace_edit_inner(edit, &mut temp_buffers).await {
+			Ok(plan) => (Ok(plan), temp_buffers),
+			Err(e) => (Err(e), temp_buffers),
+		}
+	}
+
+	async fn plan_workspace_edit_inner(&mut self, edit: WorkspaceEdit, temp_buffers: &mut Vec<ViewId>) -> Result<WorkspaceEditPlan, ApplyError> {
 		let mut per_uri: HashMap<String, (Uri, Vec<TextEdit>)> = HashMap::new();
 		if let Some(changes) = edit.changes {
 			for (uri, edits) in changes {
@@ -140,6 +167,9 @@ impl Editor {
 		let mut per_buffer = Vec::new();
 		for (_uri_string, (uri, edits)) in per_uri {
 			let (buffer_id, opened_temporarily) = self.resolve_uri_to_buffer(&uri).await?;
+			if opened_temporarily {
+				temp_buffers.push(buffer_id);
+			}
 			let buffer = self
 				.state
 				.core
@@ -342,13 +372,6 @@ impl Editor {
 
 		self.state.frame.dirty_buffers.insert(buffer_id);
 		Ok(tx)
-	}
-
-	fn close_temporary_buffers(&mut self, plan: &WorkspaceEditPlan) {
-		let buffer_ids: Vec<_> = plan.per_buffer.iter().filter(|p| p.opened_temporarily).map(|p| p.buffer_id).collect();
-		for buffer_id in buffer_ids {
-			self.close_headless_buffer(buffer_id);
-		}
 	}
 
 	fn close_headless_buffer(&mut self, buffer_id: ViewId) {
