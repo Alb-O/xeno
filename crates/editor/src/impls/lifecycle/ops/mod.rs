@@ -264,7 +264,6 @@ impl Editor {
 			hook_dropped_total: self.state.nu.hook_dropped_total(),
 			runtime_epoch: self.state.nu.runtime_epoch(),
 			hook_eval_seq_next: self.state.nu.hook_eval_seq_next(),
-			macro_depth: self.state.nu.macro_depth(),
 		};
 
 		StatsSnapshot {

@@ -7,6 +7,19 @@ use crate::impls::Editor;
 use crate::runtime::work_queue::{RuntimeWorkSource, WorkExecutionPolicy, WorkScope};
 use crate::types::{Invocation, InvocationOutcome, InvocationPolicy};
 
+#[cfg(test)]
+static RUN_INVOCATION_CALLS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+#[cfg(test)]
+pub(crate) fn run_invocation_call_count() -> usize {
+	RUN_INVOCATION_CALLS.load(std::sync::atomic::Ordering::SeqCst)
+}
+
+#[cfg(test)]
+pub(crate) fn reset_run_invocation_call_count() {
+	RUN_INVOCATION_CALLS.store(0, std::sync::atomic::Ordering::SeqCst);
+}
+
 impl Editor {
 	/// Executes a named action with enforcement defaults.
 	pub fn invoke_action(&mut self, name: &str, count: usize, extend: bool, register: Option<char>, char_arg: Option<char>) -> InvocationOutcome {
@@ -21,6 +34,9 @@ impl Editor {
 
 	/// Executes an invocation through the canonical queue-driven engine.
 	pub async fn run_invocation(&mut self, invocation: Invocation, policy: InvocationPolicy) -> InvocationOutcome {
+		#[cfg(test)]
+		RUN_INVOCATION_CALLS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+
 		let span = trace_span!("run_invocation", invocation = %invocation.describe());
 		let _guard = span.enter();
 		trace!(policy = ?policy, "Running invocation");

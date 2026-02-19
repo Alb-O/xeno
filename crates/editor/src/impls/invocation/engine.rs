@@ -164,9 +164,7 @@ impl<'a> InvocationEngine<'a> {
 					};
 				}
 
-				self.editor.state.nu.inc_macro_depth();
 				let result = self.editor.run_nu_macro_invocation(name, args).await;
-				self.editor.state.nu.dec_macro_depth();
 
 				match result {
 					Ok(follow_ups) => InvocationStepOutcome {

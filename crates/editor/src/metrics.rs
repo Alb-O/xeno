@@ -159,7 +159,6 @@ pub struct NuStats {
 	pub hook_dropped_total: u64,
 	pub runtime_epoch: u64,
 	pub hook_eval_seq_next: u64,
-	pub macro_depth: u8,
 }
 
 /// Snapshot of current editor statistics for display.
@@ -226,7 +225,6 @@ impl StatsSnapshot {
 			nu_hook_dropped = self.nu.hook_dropped_total,
 			nu_epoch = self.nu.runtime_epoch,
 			nu_eval_seq_next = self.nu.hook_eval_seq_next,
-			nu_macro_depth = self.nu.macro_depth,
 			"editor.stats"
 		);
 	}

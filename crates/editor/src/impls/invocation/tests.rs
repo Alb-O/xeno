@@ -1137,6 +1137,57 @@ async fn nu_stats_reflect_hook_pipeline_state() {
 }
 
 #[tokio::test]
+async fn all_entry_points_route_through_run_invocation() {
+	use super::dispatch::{reset_run_invocation_call_count, run_invocation_call_count};
+
+	INVOCATION_TEST_ACTION_COUNT.with(|c| c.set(0));
+	reset_run_invocation_call_count();
+
+	let temp = tempfile::tempdir().expect("temp dir should exist");
+	std::fs::write(
+		temp.path().join("xeno.nu"),
+		"export def on_hook [] { xeno effect dispatch action invocation_test_action | xeno effects normalize }",
+	)
+	.expect("xeno.nu should be writable");
+
+	let runtime = crate::nu::NuRuntime::load(temp.path()).expect("runtime should load");
+	let mut editor = Editor::new_scratch();
+	editor.set_nu_runtime(Some(runtime));
+
+	// Entry point 1: direct run_invocation (action).
+	let r = editor
+		.run_invocation(Invocation::action("invocation_test_action"), InvocationPolicy::enforcing())
+		.await;
+	assert!(matches!(r.status, InvocationStatus::Ok));
+	assert_eq!(run_invocation_call_count(), 1, "direct run_invocation should count");
+
+	// Entry point 2: key dispatch (press 'l' — a motion, routes through run_invocation).
+	let quit = editor.handle_key(Key::new(KeyCode::Char('l'))).await;
+	assert!(!quit);
+	assert_eq!(run_invocation_call_count(), 2, "key dispatch should route through run_invocation");
+
+	// Entry point 3: hook-produced dispatch (drain queued hooks).
+	// The action from entry point 1 fired a post-hook that dispatched invocation_test_action.
+	// drain_nu_hook_queue runs the hook which calls run_invocation for each dispatch.
+	editor.drain_nu_hook_queue(usize::MAX).await;
+	let count_after_drain = run_invocation_call_count();
+	assert!(
+		count_after_drain > 2,
+		"hook drain should route dispatches through run_invocation, got {count_after_drain}"
+	);
+
+	// Entry point 4: runtime work queue (enqueue + drain via run_invocation).
+	let pre = run_invocation_call_count();
+	editor.enqueue_runtime_command_invocation(
+		"invocation_test_command_fail".to_string(),
+		vec![],
+		crate::runtime::work_queue::RuntimeWorkSource::NuHookDispatch,
+	);
+	editor.drain_runtime_work_report(usize::MAX).await;
+	assert!(run_invocation_call_count() > pre, "runtime work drain should route through run_invocation");
+}
+
+#[tokio::test]
 async fn action_count_usize_max_clamped_at_engine_boundary() {
 	INVOCATION_TEST_ACTION_COUNT.with(|c| c.set(0));
 

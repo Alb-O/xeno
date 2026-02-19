@@ -71,7 +71,6 @@ pub(crate) struct NuCoordinatorState {
 	executor: Option<NuExecutor>,
 	hook_id: CachedHookId,
 	hook_depth: u8,
-	macro_depth: u8,
 	hook_queue: VecDeque<QueuedNuHook>,
 	hook_in_flight: Option<InFlightNuHook>,
 	runtime_epoch: u64,
@@ -95,7 +94,6 @@ impl NuCoordinatorState {
 			executor: None,
 			hook_id: CachedHookId::default(),
 			hook_depth: 0,
-			macro_depth: 0,
 			hook_queue: VecDeque::new(),
 			hook_in_flight: None,
 			runtime_epoch: 0,
@@ -177,18 +175,6 @@ impl NuCoordinatorState {
 	#[cfg(test)]
 	pub(crate) fn hook_id(&self) -> &CachedHookId {
 		&self.hook_id
-	}
-
-	pub(crate) fn macro_depth(&self) -> u8 {
-		self.macro_depth
-	}
-
-	pub(crate) fn inc_macro_depth(&mut self) {
-		self.macro_depth = self.macro_depth.saturating_add(1);
-	}
-
-	pub(crate) fn dec_macro_depth(&mut self) {
-		self.macro_depth = self.macro_depth.saturating_sub(1);
 	}
 
 	pub(crate) fn in_hook_drain(&self) -> bool {

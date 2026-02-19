@@ -63,7 +63,6 @@ fn cmd_stats<'a>(ctx: &'a mut EditorCommandContext<'a>) -> BoxFutureLocal<'a, Re
 ## Nu
 - Runtime: loaded={} executor={} script={}
 - Hooks: phase={} queued={} in_flight={} runtime_work_queue={} dropped={} epoch={} next_seq={}
-- Macros: depth={}
 
 ## Work Scheduler
 - Pending (current/tick): {} / {}
@@ -88,7 +87,6 @@ fn cmd_stats<'a>(ctx: &'a mut EditorCommandContext<'a>) -> BoxFutureLocal<'a, Re
 			stats.nu.hook_dropped_total,
 			stats.nu.runtime_epoch,
 			stats.nu.hook_eval_seq_next,
-			stats.nu.macro_depth,
 			stats.hooks_pending,
 			stats.hooks_pending_tick,
 			stats.hooks_scheduled,
