@@ -114,10 +114,6 @@ impl LspSystem {
 		self.inner.session.sync()
 	}
 
-	pub(crate) fn sync_clone(&self) -> xeno_lsp::DocumentSync {
-		self.inner.session.sync().clone()
-	}
-
 	pub(crate) fn registry(&self) -> &xeno_lsp::Registry {
 		self.inner.session.registry()
 	}

@@ -252,6 +252,13 @@ pub(crate) struct EditorState {
 	#[cfg(feature = "lsp")]
 	pub(crate) lsp_catalog_load_token_next: u64,
 
+	/// Token for the in-flight rename request (latest-wins gating).
+	#[cfg(feature = "lsp")]
+	pub(crate) pending_rename_token: Option<u64>,
+	/// Monotonic token counter for rename requests.
+	#[cfg(feature = "lsp")]
+	pub(crate) rename_request_token_next: u64,
+
 	/// Deferred cursor position to apply after file loads (line, column).
 	pub(crate) deferred_goto: Option<(usize, usize)>,
 
@@ -474,6 +481,10 @@ impl Editor {
 				pending_lsp_catalog_load_token: None,
 				#[cfg(feature = "lsp")]
 				lsp_catalog_load_token_next: 0,
+				#[cfg(feature = "lsp")]
+				pending_rename_token: None,
+				#[cfg(feature = "lsp")]
+				rename_request_token_next: 0,
 				deferred_goto: None,
 				lsp_catalog_ready: false,
 				render_cache: crate::render::cache::RenderCache::new(),

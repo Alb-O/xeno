@@ -284,6 +284,19 @@ pub trait OverlayContext {
 		&'a mut self,
 		edit: xeno_lsp::lsp_types::WorkspaceEdit,
 	) -> Pin<Box<dyn Future<Output = Result<(), crate::lsp::workspace_edit::ApplyError>> + 'a>>;
+
+	/// Generates a monotonic token for rename requests and records it as pending.
+	///
+	/// Used by rename controllers to correlate async responses. The returned
+	/// token is stored so that stale completions can be detected on apply.
+	#[cfg(feature = "lsp")]
+	fn mint_rename_token(&mut self) -> u64;
+
+	/// Clears the pending rename token, invalidating any in-flight result.
+	///
+	/// Called when the rename overlay is dismissed without committing.
+	#[cfg(feature = "lsp")]
+	fn clear_pending_rename_token(&mut self);
 }
 
 /// Behavioral logic for a modal interaction session.
@@ -413,6 +426,19 @@ impl OverlayContext for crate::Editor {
 		edit: xeno_lsp::lsp_types::WorkspaceEdit,
 	) -> Pin<Box<dyn Future<Output = Result<(), crate::lsp::workspace_edit::ApplyError>> + 'a>> {
 		Box::pin(self.apply_workspace_edit(edit))
+	}
+
+	#[cfg(feature = "lsp")]
+	fn mint_rename_token(&mut self) -> u64 {
+		let token = self.state.rename_request_token_next;
+		self.state.rename_request_token_next += 1;
+		self.state.pending_rename_token = Some(token);
+		token
+	}
+
+	#[cfg(feature = "lsp")]
+	fn clear_pending_rename_token(&mut self) {
+		self.state.pending_rename_token = None;
 	}
 }
 

@@ -92,15 +92,11 @@ impl OverlayController for RenameOverlay {
 				return Box::pin(async {});
 			};
 
+			let token = ctx.mint_rename_token();
 			let tx = ctx.msg_tx();
 			ctx.worker_runtime().spawn(xeno_worker::TaskClass::Background, async move {
-				let msg = match client.rename(uri, pos, new_name).await {
-					Ok(Some(edit)) => OverlayMsg::ApplyWorkspaceEdit(edit),
-					Ok(None) => OverlayMsg::Notify(keys::info("Rename not supported for this buffer")),
-					Err(err) => OverlayMsg::Notify(keys::error(err.to_string())),
-				};
-
-				let _ = tx.send(msg.into());
+				let result = client.rename(uri, pos, new_name).await.map_err(|e| e.to_string());
+				let _ = tx.send(OverlayMsg::RenameDone { token, result }.into());
 			});
 
 			Box::pin(async {})
@@ -113,5 +109,12 @@ impl OverlayController for RenameOverlay {
 		}
 	}
 
-	fn on_close(&mut self, _ctx: &mut dyn OverlayContext, _session: &mut OverlaySession, _reason: CloseReason) {}
+	fn on_close(&mut self, _ctx: &mut dyn OverlayContext, _session: &mut OverlaySession, _reason: CloseReason) {
+		// On cancel/blur/forced close, invalidate the pending rename token so any
+		// in-flight result is silently dropped when it arrives.
+		#[cfg(feature = "lsp")]
+		if _reason != CloseReason::Commit {
+			_ctx.clear_pending_rename_token();
+		}
+	}
 }
