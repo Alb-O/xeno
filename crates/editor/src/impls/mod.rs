@@ -246,6 +246,12 @@ pub(crate) struct EditorState {
 	/// Monotonic token counter for theme load requests.
 	pub(crate) theme_load_token_next: u64,
 
+	/// Token for the latest LSP catalog load request (latest-wins gating).
+	pub(crate) pending_lsp_catalog_load_token: Option<u64>,
+	/// Monotonic token counter for LSP catalog load requests.
+	#[cfg(feature = "lsp")]
+	pub(crate) lsp_catalog_load_token_next: u64,
+
 	/// Deferred cursor position to apply after file loads (line, column).
 	pub(crate) deferred_goto: Option<(usize, usize)>,
 
@@ -465,6 +471,9 @@ impl Editor {
 				file_load_token_next: 0,
 				pending_theme_load_token: None,
 				theme_load_token_next: 0,
+				pending_lsp_catalog_load_token: None,
+				#[cfg(feature = "lsp")]
+				lsp_catalog_load_token_next: 0,
 				deferred_goto: None,
 				lsp_catalog_ready: false,
 				render_cache: crate::render::cache::RenderCache::new(),

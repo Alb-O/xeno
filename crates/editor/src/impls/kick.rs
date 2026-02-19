@@ -78,12 +78,16 @@ impl Editor {
 
 	/// Spawns a background task to load LSP server configurations.
 	///
-	/// Parses `lsp_servers.nuon` and `languages.nuon`, registers server configs with the
-	/// registry. Server availability is tested at spawn time rather than upfront.
-	/// Sends [`LspMsg::CatalogReady`] when complete.
+	/// Parses `lsp_servers.nuon` and `languages.nuon` in a blocking task and
+	/// builds a list of `(language, config)` pairs. Registration is deferred
+	/// to the editor thread via [`LspMsg::CatalogReady`] to avoid races when
+	/// multiple loads overlap.
 	#[cfg(feature = "lsp")]
-	pub fn kick_lsp_catalog_load(&self) {
-		let sync = self.state.lsp.sync_clone();
+	pub fn kick_lsp_catalog_load(&mut self) {
+		let token = self.state.lsp_catalog_load_token_next;
+		self.state.lsp_catalog_load_token_next += 1;
+		self.state.pending_lsp_catalog_load_token = Some(token);
+
 		let tx = self.msg_tx();
 		let runtime = self.state.worker_runtime.clone();
 
@@ -100,24 +104,25 @@ impl Editor {
 				Ok(Ok(pair)) => pair,
 				Ok(Err(error)) => {
 					tracing::warn!(error = %error, "Failed to load LSP configs");
-					send(&tx, LspMsg::CatalogReady);
+					send(&tx, LspMsg::CatalogReady { token, configs: vec![] });
 					return;
 				}
 				Err(error) => {
 					tracing::warn!(error = %error, "Failed to join LSP catalog loader");
-					send(&tx, LspMsg::CatalogReady);
+					send(&tx, LspMsg::CatalogReady { token, configs: vec![] });
 					return;
 				}
 			};
 
 			let server_map: std::collections::HashMap<_, _> = server_defs.iter().map(|s| (s.name.as_str(), s)).collect();
+			let mut configs = Vec::new();
 
 			for (language, info) in &lang_mapping {
 				let Some(server_def) = info.servers.iter().find_map(|name| server_map.get(name.as_str())) else {
 					continue;
 				};
 
-				sync.registry().register(
+				configs.push((
 					language.clone(),
 					xeno_lsp::LanguageServerConfig {
 						command: server_def.command.clone(),
@@ -127,16 +132,16 @@ impl Editor {
 						config: server_def.config.clone(),
 						..Default::default()
 					},
-				);
+				));
 			}
 
-			tracing::debug!(languages = lang_mapping.len(), "LSP catalog loaded");
-			send(&tx, LspMsg::CatalogReady);
+			tracing::debug!(languages = configs.len(), "LSP catalog loaded");
+			send(&tx, LspMsg::CatalogReady { token, configs });
 		});
 	}
 
 	#[cfg(not(feature = "lsp"))]
-	pub fn kick_lsp_catalog_load(&self) {}
+	pub fn kick_lsp_catalog_load(&mut self) {}
 }
 
 /// Loads and deduplicates all themes from disk without registering them.
