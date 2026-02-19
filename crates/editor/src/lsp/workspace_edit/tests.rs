@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use xeno_lsp::lsp_types;
 use xeno_lsp::lsp_types::OptionalVersionedTextDocumentIdentifier;
@@ -150,4 +150,92 @@ async fn workspace_edit_unversioned_untracked_doc_skips_check() {
 		}
 		_ => {}
 	}
+}
+
+/// Helper: build a multi-doc `WorkspaceEdit` with `TextDocumentEdit` entries.
+fn multi_doc_workspace_edit(entries: Vec<(Uri, Option<i32>, &str)>) -> WorkspaceEdit {
+	let edits = entries
+		.into_iter()
+		.map(|(uri, version, new_text)| TextDocumentEdit {
+			text_document: OptionalVersionedTextDocumentIdentifier { uri, version },
+			edits: vec![OneOf::Left(TextEdit {
+				range: lsp_types::Range::default(),
+				new_text: new_text.into(),
+			})],
+		})
+		.collect();
+	WorkspaceEdit {
+		changes: None,
+		document_changes: Some(DocumentChanges::Edits(edits)),
+		change_annotations: None,
+	}
+}
+
+/// Creates a temp file with given content, opens it in the editor, and
+/// registers the path in LSP state at the given version. Returns the
+/// (path, uri, view_id).
+async fn open_temp_doc(editor: &mut crate::Editor, name: &str, content: &str, version: i32) -> (PathBuf, Uri, ViewId) {
+	let dir = std::env::temp_dir().join("xeno_test_workspace_edit");
+	std::fs::create_dir_all(&dir).unwrap();
+	let path = dir.join(name);
+	std::fs::write(&path, content).unwrap();
+
+	let view_id = editor.open_file(path.clone()).await.unwrap();
+	let uri = register_doc_at_version(editor, &path, version as usize);
+	(path, uri, view_id)
+}
+
+fn buffer_text(editor: &crate::Editor, view_id: ViewId) -> String {
+	editor.state.core.buffers.get_buffer(view_id).unwrap().with_doc(|doc| doc.content().to_string())
+}
+
+#[tokio::test]
+async fn workspace_edit_multi_doc_mismatch_does_not_partially_apply() {
+	let mut editor = crate::Editor::new_scratch();
+
+	// Doc A: version matches. Doc B: version mismatch.
+	// Doc B appears second in the edit list so Doc A's edits are collected
+	// before the version check on Doc B rejects the entire edit.
+	let (path_a, uri_a, view_a) = open_temp_doc(&mut editor, "atomic_a.rs", "original_a\n", 3).await;
+	let (path_b, uri_b, _view_b) = open_temp_doc(&mut editor, "atomic_b.rs", "original_b\n", 5).await;
+
+	let edit = multi_doc_workspace_edit(vec![
+		(uri_a.clone(), Some(3), "MUTATED_A"),
+		(uri_b.clone(), Some(1), "MUTATED_B"), // stale version
+	]);
+	let err = editor.apply_workspace_edit(edit).await.unwrap_err();
+
+	assert!(matches!(err, ApplyError::VersionMismatch { .. }), "expected VersionMismatch, got: {err:?}");
+	assert_eq!(buffer_text(&editor, view_a), "original_a\n", "Doc A must be unchanged after rejected edit");
+
+	// Cleanup.
+	let _ = std::fs::remove_file(path_a);
+	let _ = std::fs::remove_file(path_b);
+}
+
+#[tokio::test]
+async fn workspace_edit_multi_doc_untracked_does_not_partially_apply() {
+	let mut editor = crate::Editor::new_scratch();
+
+	// Doc A: tracked + version matches. Doc B: versioned but untracked.
+	let (path_a, uri_a, view_a) = open_temp_doc(&mut editor, "atomic_tracked.rs", "original_tracked\n", 2).await;
+	let uri_b: Uri = "file:///tmp/xeno_test_not_tracked.rs".parse().unwrap();
+
+	let edit = multi_doc_workspace_edit(vec![
+		(uri_a.clone(), Some(2), "MUTATED_TRACKED"),
+		(uri_b, Some(99), "MUTATED_UNTRACKED"), // not in LSP state
+	]);
+	let err = editor.apply_workspace_edit(edit).await.unwrap_err();
+
+	assert!(
+		matches!(err, ApplyError::UntrackedVersionedDocument { .. }),
+		"expected UntrackedVersionedDocument, got: {err:?}"
+	);
+	assert_eq!(
+		buffer_text(&editor, view_a),
+		"original_tracked\n",
+		"Doc A must be unchanged after rejected edit"
+	);
+
+	let _ = std::fs::remove_file(path_a);
 }
