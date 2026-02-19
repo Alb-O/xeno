@@ -364,8 +364,15 @@ impl Editor {
 }
 
 /// Converts an LSP [`TextEdit`] into a character-offset based [`PlannedTextEdit`].
+///
+/// Returns `None` if position conversion fails (OOB line) or the resulting
+/// character range is reversed (`start > end`), which indicates the server
+/// sent an invalid range.
 pub(crate) fn convert_text_edit(rope: &xeno_primitives::Rope, encoding: OffsetEncoding, edit: &TextEdit) -> Option<PlannedTextEdit> {
 	let (start, end) = lsp_range_to_char_range(rope, edit.range, encoding)?;
+	if start > end {
+		return None;
+	}
 	Some(PlannedTextEdit {
 		range: start..end,
 		replacement: edit.new_text.clone(),
