@@ -5,7 +5,7 @@
 
 use std::collections::VecDeque;
 use std::path::Path;
-use std::sync::atomic::{AtomicI32, Ordering};
+use std::sync::atomic::{AtomicI32, AtomicU64, Ordering};
 
 use lsp_types::{Diagnostic, DiagnosticSeverity, Uri};
 use parking_lot::RwLock;
@@ -35,6 +35,11 @@ pub struct DocumentState {
 	language_id: RwLock<Option<String>>,
 	/// Sync state for tracking pending sends and mismatches.
 	sync_state: RwLock<SyncState>,
+	/// Session generation, assigned by [`DocumentStateManager`] on each
+	/// [`mark_opened`](Self::mark_opened) call. Barriers capture this value
+	/// at creation time and validate it on completion so that stale barriers
+	/// from a previous open session are silently ignored.
+	generation: AtomicU64,
 }
 
 impl DocumentState {
@@ -50,6 +55,7 @@ impl DocumentState {
 			diagnostics: RwLock::new(Vec::new()),
 			language_id: RwLock::new(None),
 			sync_state: RwLock::new(SyncState::default()),
+			generation: AtomicU64::new(0),
 		})
 	}
 
@@ -62,6 +68,7 @@ impl DocumentState {
 			diagnostics: RwLock::new(Vec::new()),
 			language_id: RwLock::new(None),
 			sync_state: RwLock::new(SyncState::default()),
+			generation: AtomicU64::new(0),
 		}
 	}
 
@@ -93,12 +100,22 @@ impl DocumentState {
 	}
 
 	/// Marks the document as opened and resets sync state.
-	pub fn mark_opened(&self, version: i32) {
+	///
+	/// `generation` is a globally unique session ID assigned by the
+	/// [`DocumentStateManager`] so that barriers from a previous open
+	/// session can be detected and ignored on completion.
+	pub fn mark_opened(&self, version: i32, generation: u64) {
 		*self.opened.write() = true;
+		self.generation.store(generation, Ordering::Relaxed);
 		let mut sync = self.sync_state.write();
 		sync.pending_versions.clear();
 		sync.acked_version = version;
 		sync.force_full_sync = false;
+	}
+
+	/// Returns the current session generation.
+	pub fn generation(&self) -> u64 {
+		self.generation.load(Ordering::Relaxed)
 	}
 
 	/// Get the language ID.

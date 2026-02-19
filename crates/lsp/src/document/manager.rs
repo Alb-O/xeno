@@ -28,6 +28,11 @@ pub struct DocumentStateManager {
 	event_sender: Option<DiagnosticsEventSender>,
 	/// Global version counter for tracking any diagnostic change.
 	diagnostics_version: AtomicU64,
+	/// Monotonic counter for document open-session generations. Each
+	/// [`mark_opened`](Self::mark_opened) call bumps this and assigns
+	/// the new value to the document, ensuring barriers from a previous
+	/// session are distinguishable even after close+reopen.
+	doc_generation: AtomicU64,
 	/// Active progress operations keyed by (server_id, token).
 	progress: RwLock<HashMap<(LanguageServerId, String), ProgressItem>>,
 }
@@ -38,6 +43,7 @@ impl std::fmt::Debug for DocumentStateManager {
 			.field("documents", &self.documents)
 			.field("has_event_sender", &self.event_sender.is_some())
 			.field("diagnostics_version", &self.diagnostics_version)
+			.field("doc_generation", &self.doc_generation)
 			.field("progress_count", &self.progress.read().len())
 			.finish()
 	}
@@ -69,6 +75,7 @@ impl DocumentStateManager {
 			documents: RwLock::new(HashMap::new()),
 			event_sender: None,
 			diagnostics_version: AtomicU64::new(0),
+			doc_generation: AtomicU64::new(0),
 			progress: RwLock::new(HashMap::new()),
 		}
 	}
@@ -82,6 +89,7 @@ impl DocumentStateManager {
 			documents: RwLock::new(HashMap::new()),
 			event_sender: Some(sender),
 			diagnostics_version: AtomicU64::new(0),
+			doc_generation: AtomicU64::new(0),
 			progress: RwLock::new(HashMap::new()),
 		};
 		(manager, receiver)
@@ -242,12 +250,24 @@ impl DocumentStateManager {
 	}
 
 	/// Mark a document as opened and reset sync state.
+	///
+	/// Assigns a new globally unique generation so barriers from previous
+	/// sessions are invalidated.
 	pub fn mark_opened(&self, uri: &Uri, version: i32) {
+		let generation = self.doc_generation.fetch_add(1, Ordering::Relaxed) + 1;
 		let key = self.uri_key(uri);
 		let docs = self.documents.read();
 		if let Some(state) = docs.get(&key) {
-			state.mark_opened(version);
+			state.mark_opened(version, generation);
 		}
+	}
+
+	/// Returns the current session generation for a document, or `None` if
+	/// the document is not registered.
+	pub fn doc_generation(&self, uri: &Uri) -> Option<u64> {
+		let key = self.uri_key(uri);
+		let docs = self.documents.read();
+		docs.get(&key).map(|s| s.generation())
 	}
 
 	/// Mark a document as requiring a full sync.

@@ -362,23 +362,42 @@ impl DocumentSync {
 		}
 	}
 
+	/// Wraps a write barrier with version ack/force-full-sync semantics.
+	///
+	/// Captures the document's current session generation at creation time.
+	/// When the barrier resolves, the generation is re-checked: if the
+	/// document was closed and reopened (or removed entirely) in the
+	/// meantime, the barrier result is silently discarded to prevent stale
+	/// version acks from corrupting a new session's sync state.
 	fn wrap_barrier(&self, uri: Uri, version: i32, barrier: oneshot::Receiver<crate::Result<()>>) -> oneshot::Receiver<()> {
 		let (tx, rx) = oneshot::channel();
 		let documents = self.documents.clone();
+		let gen_at_start = documents.doc_generation(&uri).unwrap_or(0);
 		self.worker_runtime.spawn(xeno_worker::TaskClass::Background, async move {
+			if documents.doc_generation(&uri) != Some(gen_at_start) {
+				tracing::debug!(uri = uri.as_str(), version, gen_at_start, "Barrier stale before await (doc generation changed)");
+				let _ = tx.send(());
+				return;
+			}
 			match barrier.await {
 				Ok(Ok(())) => {
-					if !documents.ack_change(&uri, version) {
+					if documents.doc_generation(&uri) != Some(gen_at_start) {
+						tracing::debug!(uri = uri.as_str(), version, gen_at_start, "Ignoring stale barrier ack (doc generation changed)");
+					} else if !documents.ack_change(&uri, version) {
 						tracing::warn!(uri = uri.as_str(), version, "LSP barrier ack mismatch");
 					}
 				}
 				Ok(Err(e)) => {
 					tracing::error!(uri = uri.as_str(), version, error = %e, "LSP write barrier failed");
-					documents.mark_force_full_sync(&uri);
+					if documents.doc_generation(&uri) == Some(gen_at_start) {
+						documents.mark_force_full_sync(&uri);
+					}
 				}
 				Err(_) => {
 					tracing::error!(uri = uri.as_str(), version, "LSP barrier sender dropped");
-					documents.mark_force_full_sync(&uri);
+					if documents.doc_generation(&uri) == Some(gen_at_start) {
+						documents.mark_force_full_sync(&uri);
+					}
 				}
 			}
 			let _ = tx.send(());
