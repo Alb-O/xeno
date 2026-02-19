@@ -199,10 +199,15 @@ impl Editor {
 		Ok(())
 	}
 
+	/// Resolves a URI to an existing buffer or opens the file.
+	///
+	/// Returns `(view_id, opened_temporarily)`. If the buffer is already
+	/// open, returns its existing view_id without closing/reopening —
+	/// workspace edits must not invalidate existing buffer identities.
 	async fn resolve_uri_to_buffer(&mut self, uri: &Uri) -> Result<(ViewId, bool), ApplyError> {
 		let path = xeno_lsp::path_from_uri(uri).ok_or_else(|| ApplyError::InvalidUri(uri.to_string()))?;
 		if let Some(buffer_id) = self.state.core.buffers.find_by_path(&path) {
-			self.finalize_buffer_removal(buffer_id);
+			return Ok((buffer_id, false));
 		}
 
 		let buffer_id = self.open_file(path.clone()).await.map_err(|_| ApplyError::BufferNotFound(uri.to_string()))?;

@@ -291,7 +291,7 @@ fn convert_text_edit_oob_character_clamps() {
 #[tokio::test]
 async fn workspace_edit_invalid_range_rejected_no_panic() {
 	let mut editor = crate::Editor::new_scratch();
-	let (path, uri, _view_id) = open_temp_doc(&mut editor, "range_invalid.rs", "hello\nworld\n", 0).await;
+	let (path, uri, view_id) = open_temp_doc(&mut editor, "range_invalid.rs", "hello\nworld\n", 0).await;
 
 	// OOB line in the edit range.
 	let edit = WorkspaceEdit {
@@ -314,9 +314,65 @@ async fn workspace_edit_invalid_range_rejected_no_panic() {
 		"expected RangeConversionFailed, got: {err:?}"
 	);
 
-	// resolve_uri_to_buffer reopens the buffer, so look it up by path.
-	let current_view = editor.state.core.buffers.find_by_path(&path).expect("buffer should still exist");
-	assert_eq!(buffer_text(&editor, current_view), "hello\nworld\n", "buffer must be unchanged");
+	// Original view_id must still be valid and content unchanged.
+	assert_eq!(buffer_text(&editor, view_id), "hello\nworld\n", "buffer must be unchanged");
+
+	let _ = std::fs::remove_file(path);
+}
+
+#[tokio::test]
+async fn workspace_edit_error_does_not_reopen_existing_buffer() {
+	let mut editor = crate::Editor::new_scratch();
+	let (path, _uri, view_id) = open_temp_doc(&mut editor, "identity_error.rs", "original\n", 3).await;
+	let uri = register_doc_at_version(&editor, &path, 3);
+
+	// Version mismatch → error, but the buffer should not be closed/reopened.
+	let edit = versioned_workspace_edit(uri, Some(0));
+	let err = editor.apply_workspace_edit(edit).await.unwrap_err();
+	assert!(matches!(err, ApplyError::VersionMismatch { .. }));
+
+	// Same view_id must still be valid.
+	assert_eq!(buffer_text(&editor, view_id), "original\n", "buffer identity must be preserved");
+	assert_eq!(
+		editor.state.core.buffers.find_by_path(&path),
+		Some(view_id),
+		"view_id for path must be the same as before"
+	);
+
+	let _ = std::fs::remove_file(path);
+}
+
+#[tokio::test]
+async fn workspace_edit_success_does_not_reopen_existing_buffer() {
+	let mut editor = crate::Editor::new_scratch();
+	let (path, _uri, view_id) = open_temp_doc(&mut editor, "identity_success.rs", "old\n", 0).await;
+
+	// Unversioned edit targeting the same buffer → should succeed without
+	// closing/reopening the buffer.
+	let uri: Uri = xeno_lsp::uri_from_path(&path).unwrap();
+	let edit = WorkspaceEdit {
+		changes: None,
+		document_changes: Some(DocumentChanges::Edits(vec![TextDocumentEdit {
+			text_document: OptionalVersionedTextDocumentIdentifier { uri, version: None },
+			edits: vec![OneOf::Left(TextEdit {
+				range: lsp_types::Range {
+					start: lsp_types::Position { line: 0, character: 0 },
+					end: lsp_types::Position { line: 0, character: 3 },
+				},
+				new_text: "new".into(),
+			})],
+		}])),
+		change_annotations: None,
+	};
+	editor.apply_workspace_edit(edit).await.unwrap();
+
+	// Same view_id, text changed.
+	assert_eq!(
+		editor.state.core.buffers.find_by_path(&path),
+		Some(view_id),
+		"view_id must be preserved on successful edit"
+	);
+	assert_eq!(buffer_text(&editor, view_id), "new\n", "text should be updated in-place");
 
 	let _ = std::fs::remove_file(path);
 }
