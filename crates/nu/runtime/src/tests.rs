@@ -14,7 +14,7 @@ fn runtime_load_resolve_and_call() {
 	let runtime = NuProgram::compile_macro_from_dir(temp.path()).expect("runtime should load");
 	let function = runtime.resolve_export("go").expect("go should resolve");
 
-	let value = runtime.call_export(function, &[], &[]).expect("call should succeed");
+	let value = runtime.call_export(function, &[], &[], None).expect("call should succeed");
 	assert_eq!(value.as_int().expect("value should be int"), 42);
 }
 
@@ -85,7 +85,7 @@ fn checked_decl_id_rejects_forged_export_id() {
 	// Forge an ExportId with a raw value that is definitely not in the export set.
 	// Use 999999 which is far beyond any real DeclId.
 	let forged = ExportId::from_raw(999999);
-	let err = program.call_export(forged, &[], &[]).expect_err("forged ExportId should fail");
+	let err = program.call_export(forged, &[], &[], None).expect_err("forged ExportId should fail");
 	assert!(matches!(err, ExecError::InvalidExportId(_)));
 }
 
@@ -150,7 +150,7 @@ fn call_at_max_args_succeeds() {
 	use xeno_invocation::nu::DEFAULT_CALL_LIMITS;
 	let (program, export) = varargs_program();
 	let args: Vec<String> = (0..DEFAULT_CALL_LIMITS.max_args).map(|i| i.to_string()).collect();
-	program.call_export(export, &args, &[]).expect("max_args should succeed");
+	program.call_export(export, &args, &[], None).expect("max_args should succeed");
 }
 
 #[test]
@@ -158,7 +158,7 @@ fn call_over_max_args_rejected() {
 	use xeno_invocation::nu::DEFAULT_CALL_LIMITS;
 	let (program, export) = varargs_program();
 	let args: Vec<String> = (0..DEFAULT_CALL_LIMITS.max_args + 1).map(|i| i.to_string()).collect();
-	let err = program.call_export(export, &args, &[]).expect_err("over max_args should be rejected");
+	let err = program.call_export(export, &args, &[], None).expect_err("over max_args should be rejected");
 	assert!(matches!(err, ExecError::CallValidation(CallValidationError::ArgsTooMany { .. })), "got: {err}");
 }
 
@@ -167,7 +167,7 @@ fn call_oversize_arg_rejected() {
 	use xeno_invocation::nu::DEFAULT_CALL_LIMITS;
 	let (program, export) = varargs_program();
 	let big_arg = "x".repeat(DEFAULT_CALL_LIMITS.max_arg_len + 1);
-	let err = program.call_export(export, &[big_arg], &[]).expect_err("oversize arg should be rejected");
+	let err = program.call_export(export, &[big_arg], &[], None).expect_err("oversize arg should be rejected");
 	assert!(matches!(err, ExecError::CallValidation(CallValidationError::ArgTooLong { .. })), "got: {err}");
 }
 
@@ -180,7 +180,7 @@ fn call_oversize_env_key_rejected() {
 		internal_span: xeno_nu_data::Span::unknown(),
 	};
 	let env = [(big_key.as_str(), nothing)];
-	let err = program.call_export(export, &[], &env).expect_err("oversize env key should be rejected");
+	let err = program.call_export(export, &[], &env, None).expect_err("oversize env key should be rejected");
 	assert!(
 		matches!(err, ExecError::CallValidation(CallValidationError::EnvKeyTooLong { .. })),
 		"got: {err}"
@@ -195,7 +195,7 @@ fn call_over_max_env_vars_rejected() {
 		internal_span: xeno_nu_data::Span::unknown(),
 	};
 	let env: Vec<(&str, xeno_nu_data::Value)> = (0..DEFAULT_CALL_LIMITS.max_env_vars + 1).map(|_| ("k", nothing.clone())).collect();
-	let err = program.call_export(export, &[], &env).expect_err("over max_env_vars should be rejected");
+	let err = program.call_export(export, &[], &env, None).expect_err("over max_env_vars should be rejected");
 	assert!(matches!(err, ExecError::CallValidation(CallValidationError::EnvTooMany { .. })), "got: {err}");
 }
 
@@ -212,9 +212,102 @@ fn call_oversize_env_nodes_rejected() {
 		internal_span: xeno_nu_data::Span::unknown(),
 	};
 	let env = [("data", big_val)];
-	let err = program.call_export(export, &[], &env).expect_err("oversize env nodes should be rejected");
+	let err = program.call_export(export, &[], &env, None).expect_err("oversize env nodes should be rejected");
 	assert!(
 		matches!(err, ExecError::CallValidation(CallValidationError::EnvValueTooComplex { .. })),
 		"got: {err}"
 	);
+}
+
+// --- Step 8.2: Host access tests ---
+
+use crate::host::{BufferMeta, HostError, LineColRange, TextChunk, XenoNuHost};
+
+struct MockHost;
+
+impl XenoNuHost for MockHost {
+	fn buffer_get(&self, _id: Option<i64>) -> Result<BufferMeta, HostError> {
+		Ok(BufferMeta {
+			path: Some("/tmp/test.rs".into()),
+			file_type: Some("rust".into()),
+			readonly: false,
+			modified: true,
+			line_count: 42,
+		})
+	}
+
+	fn buffer_text(&self, _id: Option<i64>, range: Option<LineColRange>, max_bytes: usize) -> Result<TextChunk, HostError> {
+		let full = "hello world\nsecond line\nthird line";
+		let text = if let Some(r) = range {
+			let lines: Vec<&str> = full.lines().collect();
+			lines
+				.get(r.start_line..=r.end_line.min(lines.len().saturating_sub(1)))
+				.map(|s| s.join("\n"))
+				.unwrap_or_default()
+		} else {
+			full.to_string()
+		};
+		let truncated = text.len() > max_bytes;
+		let text = if truncated {
+			// UTF-8 safe truncation: find the last valid char boundary at or before max_bytes
+			let mut end = max_bytes;
+			while end > 0 && !text.is_char_boundary(end) {
+				end -= 1;
+			}
+			text[..end].to_string()
+		} else {
+			text
+		};
+		Ok(TextChunk { text, truncated })
+	}
+}
+
+#[test]
+fn host_buffer_get_returns_meta() {
+	let temp = tempfile::tempdir().expect("temp dir");
+	write_script(temp.path(), "export def test_meta [] { xeno buffer get }");
+	let program = NuProgram::compile_macro_from_dir(temp.path()).expect("should compile");
+	let export = program.resolve_export("test_meta").expect("should resolve");
+	let host = MockHost;
+	let value = program.call_export(export, &[], &[], Some(&host)).expect("call should succeed");
+	let record = value.as_record().expect("should be record");
+	assert_eq!(record.get("path").unwrap().as_str().unwrap(), "/tmp/test.rs");
+	assert_eq!(record.get("file_type").unwrap().as_str().unwrap(), "rust");
+	assert_eq!(record.get("line_count").unwrap().as_int().unwrap(), 42);
+	assert!(record.get("modified").unwrap().as_bool().unwrap());
+}
+
+#[test]
+fn host_buffer_text_full() {
+	let temp = tempfile::tempdir().expect("temp dir");
+	write_script(temp.path(), "export def test_text [] { xeno buffer text }");
+	let program = NuProgram::compile_macro_from_dir(temp.path()).expect("should compile");
+	let export = program.resolve_export("test_text").expect("should resolve");
+	let host = MockHost;
+	let value = program.call_export(export, &[], &[], Some(&host)).expect("call should succeed");
+	let record = value.as_record().expect("should be record");
+	assert_eq!(record.get("text").unwrap().as_str().unwrap(), "hello world\nsecond line\nthird line");
+	assert!(!record.get("truncated").unwrap().as_bool().unwrap());
+}
+
+#[test]
+fn host_buffer_text_ranged() {
+	let temp = tempfile::tempdir().expect("temp dir");
+	write_script(temp.path(), "export def test_text_range [] { xeno buffer text --start-line 1 --end-line 1 }");
+	let program = NuProgram::compile_macro_from_dir(temp.path()).expect("should compile");
+	let export = program.resolve_export("test_text_range").expect("should resolve");
+	let host = MockHost;
+	let value = program.call_export(export, &[], &[], Some(&host)).expect("call should succeed");
+	let record = value.as_record().expect("should be record");
+	assert_eq!(record.get("text").unwrap().as_str().unwrap(), "second line");
+}
+
+#[test]
+fn host_buffer_get_without_host_errors() {
+	let temp = tempfile::tempdir().expect("temp dir");
+	write_script(temp.path(), "export def test_no_host [] { xeno buffer get }");
+	let program = NuProgram::compile_macro_from_dir(temp.path()).expect("should compile");
+	let export = program.resolve_export("test_no_host").expect("should resolve");
+	let err = program.call_export(export, &[], &[], None).expect_err("should fail without host");
+	assert!(matches!(err, ExecError::Runtime(_)));
 }

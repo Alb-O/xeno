@@ -7,6 +7,7 @@ use std::error::Error;
 use std::fmt;
 
 pub use xeno_nu_data::{NuRecord, NuSpan, NuType, NuValue, Record, Span, Value};
+pub use xeno_nu_runtime::host::{BufferMeta, HostError, LineColRange, TextChunk, XenoNuHost};
 pub use xeno_nu_runtime::{CallValidationError, CompileError, ExecError, ExportId, NuProgram, ProgramPolicy};
 
 /// Error emitted while parsing NUON source.

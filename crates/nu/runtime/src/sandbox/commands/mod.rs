@@ -1,6 +1,8 @@
 //! Native Nu command declarations for typed effect constructors and builtins.
 
 mod xeno_assert;
+mod xeno_buffer_get;
+mod xeno_buffer_text;
 mod xeno_call;
 mod xeno_ctx;
 mod xeno_effect;
@@ -34,6 +36,8 @@ pub(super) fn err_help(span: Span, error: impl Into<String>, msg: impl Into<Stri
 
 /// Register all xeno invocation commands into a working set.
 pub fn register_all(working_set: &mut StateWorkingSet<'_>) {
+	working_set.add_decl(Box::new(xeno_buffer_get::XenoBufferGetCommand));
+	working_set.add_decl(Box::new(xeno_buffer_text::XenoBufferTextCommand));
 	working_set.add_decl(Box::new(xeno_call::XenoCallCommand));
 	working_set.add_decl(Box::new(xeno_ctx::XenoCtxCommand));
 	working_set.add_decl(Box::new(xeno_log::XenoLogCommand));

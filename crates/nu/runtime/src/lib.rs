@@ -8,6 +8,7 @@
 //! while enforcing the sandboxed evaluation environment.
 #![allow(clippy::result_large_err, reason = "ShellError is intentionally rich and shared across Nu runtime APIs")]
 
+pub mod host;
 mod sandbox;
 
 use std::collections::{HashMap, HashSet};
@@ -246,27 +247,53 @@ impl NuProgram {
 	}
 
 	/// Call a pre-resolved export.
-	pub fn call_export(&self, export: ExportId, args: &[String], env: &[(&str, Value)]) -> Result<Value, ExecError> {
+	pub fn call_export(
+		&self,
+		export: ExportId,
+		args: &[String],
+		env: &[(&str, Value)],
+		host: Option<&(dyn host::XenoNuHost + 'static)>,
+	) -> Result<Value, ExecError> {
 		let decl_id = self.checked_decl_id(export)?;
 		let env = env.iter().map(|(key, value)| (*key, ProtocolValue::from(value.clone()))).collect::<Vec<_>>();
-		let value = sandbox::call_function(&self.engine_state, decl_id, args, &env).map_err(map_sandbox_err)?;
+		let do_call = || sandbox::call_function(&self.engine_state, decl_id, args, &env).map_err(map_sandbox_err);
+		let value = match host {
+			Some(h) => host::with_host_installed(h, do_call)?,
+			None => do_call()?,
+		};
 		Value::try_from(value).map_err(|error| ExecError::Runtime(format!("Nu runtime error: {error}")))
 	}
 
 	/// Call a pre-resolved export with owned args/env.
-	pub fn call_export_owned(&self, export: ExportId, args: Vec<String>, env: Vec<(String, Value)>) -> Result<Value, ExecError> {
+	pub fn call_export_owned(
+		&self,
+		export: ExportId,
+		args: Vec<String>,
+		env: Vec<(String, Value)>,
+		host: Option<&(dyn host::XenoNuHost + 'static)>,
+	) -> Result<Value, ExecError> {
 		let decl_id = self.checked_decl_id(export)?;
 		let env = env.into_iter().map(|(key, value)| (key, ProtocolValue::from(value))).collect::<Vec<_>>();
-		let value = sandbox::call_function_owned(&self.engine_state, decl_id, args, env).map_err(map_sandbox_err)?;
+		let do_call = || sandbox::call_function_owned(&self.engine_state, decl_id, args, env).map_err(map_sandbox_err);
+		let value = match host {
+			Some(h) => host::with_host_installed(h, do_call)?,
+			None => do_call()?,
+		};
 		Value::try_from(value).map_err(|error| ExecError::Runtime(format!("Nu runtime error: {error}")))
 	}
 
 	/// Resolve and call an export by name.
-	pub fn call_export_name(&self, name: &str, args: &[String], env: &[(&str, Value)]) -> Result<Value, ExecError> {
+	pub fn call_export_name(
+		&self,
+		name: &str,
+		args: &[String],
+		env: &[(&str, Value)],
+		host: Option<&(dyn host::XenoNuHost + 'static)>,
+	) -> Result<Value, ExecError> {
 		let export = self
 			.resolve_export(name)
 			.ok_or_else(|| ExecError::MissingExport(format!("Nu runtime error: function '{name}' is not defined in xeno.nu")))?;
-		self.call_export(export, args, env)
+		self.call_export(export, args, env, host)
 	}
 
 	/// Execute the script root block (config policy programs only).
