@@ -247,7 +247,7 @@ mod tests {
 	#[tokio::test]
 	async fn executor_runs_effects() {
 		let runtime = make_runtime("export def go [] { xeno effect dispatch editor stats }");
-		let decl_id = runtime.find_script_decl("go").expect("go should exist");
+		let decl_id = runtime.find_export("go").expect("go should exist");
 		let executor = NuExecutor::new(runtime);
 
 		let result = executor
@@ -281,7 +281,7 @@ mod tests {
 	#[tokio::test]
 	async fn closed_executor_returns_closed_error() {
 		let runtime = make_runtime("export def go [] { xeno effect dispatch editor stats }");
-		let decl_id = runtime.find_script_decl("go").expect("go should exist");
+		let decl_id = runtime.find_export("go").expect("go should exist");
 		let executor = NuExecutor::new(runtime);
 		let client = executor.client();
 

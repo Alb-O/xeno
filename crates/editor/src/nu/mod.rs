@@ -80,9 +80,9 @@ impl NuRuntime {
 		xeno_invocation::nu::decode_macro_effects_with_budget(value, budget)
 	}
 
-	/// Look up a script-defined declaration by name. Returns `None` for
-	/// missing functions and builtins.
-	pub fn find_script_decl(&self, name: &str) -> Option<ExportId> {
+	/// Resolve an exported declaration by name. Returns `None` for
+	/// missing exports and builtins.
+	pub fn find_export(&self, name: &str) -> Option<ExportId> {
 		self.program.resolve_export(name)
 	}
 

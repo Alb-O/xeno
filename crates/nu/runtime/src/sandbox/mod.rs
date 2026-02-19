@@ -77,7 +77,22 @@ use xeno_nu_protocol::debugger::WithoutDebug;
 use xeno_nu_protocol::engine::{EngineState, Stack, StateWorkingSet};
 use xeno_nu_protocol::{DeclId, PipelineData, Span, Type, Value};
 
+use crate::CallValidationError;
+
 const XENO_NU_RECURSION_LIMIT: i64 = 64;
+
+/// Error from sandbox call execution: either input validation or Nu engine.
+#[derive(Debug)]
+pub(crate) enum SandboxCallError {
+	Validation(CallValidationError),
+	Runtime(String),
+}
+
+impl From<CallValidationError> for SandboxCallError {
+	fn from(e: CallValidationError) -> Self {
+		Self::Validation(e)
+	}
+}
 
 use xeno_invocation::nu::DEFAULT_CALL_LIMITS;
 
@@ -146,10 +161,7 @@ fn create_xeno_lang_context() -> Result<EngineState, String> {
 #[derive(Debug)]
 pub(crate) struct ParseResult {
 	pub block: Arc<Block>,
-	/// All decls added by the script (test-only, for verifying export vs non-export).
-	#[cfg(test)]
-	pub script_decl_ids: Vec<DeclId>,
-	/// Decl IDs of explicitly exported definitions (`export def`).
+	/// Decl IDs of exported definitions (from module export table).
 	/// Empty for `Script` policy (config scripts have no exports).
 	pub export_decl_ids: Vec<DeclId>,
 }
@@ -159,8 +171,9 @@ pub(crate) struct ParseResult {
 pub enum ParsePolicy {
 	/// Allow any expression at top level (used by `config.nu`).
 	Script,
-	/// Only declarations, imports, constants, and modules at top level (used by `xeno.nu`).
-	ModuleOnly,
+	/// Wraps source as `module __xeno__ { <source> }; use __xeno__ *` to
+	/// enforce module-only constructs and extract proper exports. Used by `xeno.nu`.
+	ModuleWrapped,
 }
 
 /// Parses Nu source with default Script policy.
@@ -178,46 +191,63 @@ pub(crate) fn parse_and_validate_with_policy(
 	config_root: Option<&Path>,
 	policy: ParsePolicy,
 ) -> Result<ParseResult, String> {
-	let mut working_set = StateWorkingSet::new(engine_state);
-	let base_decls = working_set.permanent_state.num_decls();
+	let (block, export_decl_ids) = if policy == ParsePolicy::ModuleWrapped {
+		// Parse as a module to get proper export semantics: wrap source in
+		// `module __xeno__ { <source> }; use __xeno__ *` so that only `export def`
+		// and re-exports via `export use` are visible at top level.
+		let wrapped = format!("module __xeno__ {{\n{source}\n}}\nuse __xeno__ *");
+		let mut working_set = StateWorkingSet::new(engine_state);
+		let base_decls = working_set.permanent_state.num_decls();
 
-	let block = xeno_nu_parser::parse(&mut working_set, Some(fname), source.as_bytes(), false);
+		let block = xeno_nu_parser::parse(&mut working_set, Some(fname), wrapped.as_bytes(), false);
 
-	if let Some(error) = working_set.parse_errors.first() {
-		return Err(format!("Nu parse error: {error}"));
-	}
-	if let Some(error) = working_set.compile_errors.first() {
-		return Err(format!("Nu compile error: {error}"));
-	}
+		if let Some(error) = working_set.parse_errors.first() {
+			return Err(format!("Nu parse error: {error}"));
+		}
+		if let Some(error) = working_set.compile_errors.first() {
+			return Err(format!("Nu compile error: {error}"));
+		}
 
-	ensure_sandboxed(&working_set, block.as_ref(), config_root)?;
+		ensure_sandboxed(&working_set, block.as_ref(), config_root)?;
 
-	let export_names = if policy == ParsePolicy::ModuleOnly {
-		ensure_module_only(&working_set, block.as_ref())?;
-		collect_export_names(&working_set, block.as_ref())
+		let added_decls = working_set.delta.num_decls();
+		let script_decl_ids: Vec<DeclId> = (0..added_decls).map(|i| DeclId::new(base_decls + i)).collect();
+		check_reserved_names(&working_set, &script_decl_ids)?;
+
+		// Find the __xeno__ module and extract its export table.
+		let module_id = working_set.find_module(b"__xeno__");
+		let export_decl_ids = if let Some(module_id) = module_id {
+			let module = working_set.get_module(module_id);
+			module.decls.values().copied().collect()
+		} else {
+			Vec::new()
+		};
+
+		let delta = working_set.render();
+		engine_state.merge_delta(delta).map_err(|error| format!("Nu merge error: {error}"))?;
+
+		(block, export_decl_ids)
 	} else {
-		Vec::new()
+		// Script policy: parse as standalone, no exports.
+		let mut working_set = StateWorkingSet::new(engine_state);
+		let block = xeno_nu_parser::parse(&mut working_set, Some(fname), source.as_bytes(), false);
+
+		if let Some(error) = working_set.parse_errors.first() {
+			return Err(format!("Nu parse error: {error}"));
+		}
+		if let Some(error) = working_set.compile_errors.first() {
+			return Err(format!("Nu compile error: {error}"));
+		}
+
+		ensure_sandboxed(&working_set, block.as_ref(), config_root)?;
+
+		let delta = working_set.render();
+		engine_state.merge_delta(delta).map_err(|error| format!("Nu merge error: {error}"))?;
+
+		(block, Vec::new())
 	};
 
-	let added_decls = working_set.delta.num_decls();
-	let script_decl_ids: Vec<DeclId> = (0..added_decls).map(|i| DeclId::new(base_decls + i)).collect();
-
-	if policy == ParsePolicy::ModuleOnly {
-		check_reserved_names(&working_set, &script_decl_ids)?;
-	}
-
-	let delta = working_set.render();
-	engine_state.merge_delta(delta).map_err(|error| format!("Nu merge error: {error}"))?;
-
-	// Resolve export names to DeclIds after merge (names are now in engine state).
-	let export_decl_ids = export_names.iter().filter_map(|name| find_decl(engine_state, name)).collect();
-
-	Ok(ParseResult {
-		block,
-		#[cfg(test)]
-		script_decl_ids,
-		export_decl_ids,
-	})
+	Ok(ParseResult { block, export_decl_ids })
 }
 
 fn is_reserved_xeno_name(name: &str) -> bool {
@@ -236,66 +266,6 @@ fn check_reserved_names(working_set: &StateWorkingSet<'_>, script_decl_ids: &[De
 	Ok(())
 }
 
-const MODULE_ONLY_ALLOWED_DECLS: &[&str] = &["export def", "def", "export use", "use", "export const", "const", "export module", "module"];
-
-fn ensure_module_only(working_set: &StateWorkingSet<'_>, block: &Block) -> Result<(), String> {
-	for pipeline in &block.pipelines {
-		for element in &pipeline.elements {
-			if element.redirection.is_some() {
-				return Err("module-only script: top-level redirections are not allowed".to_string());
-			}
-			match &element.expr.expr {
-				Expr::Call(call) => {
-					let decl_name = working_set.get_decl(call.decl_id).name();
-					if !MODULE_ONLY_ALLOWED_DECLS.contains(&decl_name) {
-						return Err(format!(
-							"module-only script: top-level '{decl_name}' is not allowed; only def/use/const/module are permitted"
-						));
-					}
-				}
-				Expr::Nothing => {}
-				other => {
-					return Err(format!(
-						"module-only script: top-level expressions are not allowed; only def/use/const/module are permitted (found {:?})",
-						std::mem::discriminant(other)
-					));
-				}
-			}
-		}
-	}
-	Ok(())
-}
-
-/// Collect names of explicitly exported definitions from the AST.
-///
-/// Walks top-level calls and extracts the function name from `export def`
-/// calls (first positional argument). Must be called after `ensure_module_only`
-/// has validated the block structure.
-fn collect_export_names(working_set: &StateWorkingSet<'_>, block: &Block) -> Vec<String> {
-	let mut names = Vec::new();
-	for pipeline in &block.pipelines {
-		for element in &pipeline.elements {
-			let call = match &element.expr.expr {
-				Expr::Call(call) => call,
-				Expr::AttributeBlock(ab) => match &ab.item.expr {
-					Expr::Call(call) => call,
-					_ => continue,
-				},
-				_ => continue,
-			};
-			let decl_name = working_set.get_decl(call.decl_id).name();
-			if decl_name == "export def" {
-				if let Some(name_expr) = call.positional_nth(0) {
-					if let Some(name) = name_expr.as_string() {
-						names.push(name);
-					}
-				}
-			}
-		}
-	}
-	names
-}
-
 /// Evaluates a parsed block and returns the resulting value.
 pub(crate) fn evaluate_block(engine_state: &EngineState, block: &Block) -> Result<Value, String> {
 	let mut stack = Stack::new();
@@ -305,7 +275,7 @@ pub(crate) fn evaluate_block(engine_state: &EngineState, block: &Block) -> Resul
 }
 
 /// Calls an already-registered function by declaration ID.
-pub(crate) fn call_function(engine_state: &EngineState, decl_id: DeclId, args: &[String], env: &[(&str, Value)]) -> Result<Value, String> {
+pub(crate) fn call_function(engine_state: &EngineState, decl_id: DeclId, args: &[String], env: &[(&str, Value)]) -> Result<Value, SandboxCallError> {
 	validate_call_args(args)?;
 	validate_call_env_borrowed(env)?;
 
@@ -321,12 +291,19 @@ pub(crate) fn call_function(engine_state: &EngineState, decl_id: DeclId, args: &
 	}
 
 	let result = xeno_nu_engine::eval_call::<WithoutDebug>(engine_state, &mut stack, &call, PipelineData::empty())
-		.map_err(|error| format!("Nu runtime error: {error}"))?;
-	result.into_value(span).map_err(|error| format!("Nu runtime error: {error}"))
+		.map_err(|error| SandboxCallError::Runtime(format!("Nu runtime error: {error}")))?;
+	result
+		.into_value(span)
+		.map_err(|error| SandboxCallError::Runtime(format!("Nu runtime error: {error}")))
 }
 
 /// Like [`call_function`] but consumes owned args and env.
-pub(crate) fn call_function_owned(engine_state: &EngineState, decl_id: DeclId, args: Vec<String>, env: Vec<(String, Value)>) -> Result<Value, String> {
+pub(crate) fn call_function_owned(
+	engine_state: &EngineState,
+	decl_id: DeclId,
+	args: Vec<String>,
+	env: Vec<(String, Value)>,
+) -> Result<Value, SandboxCallError> {
 	validate_call_args(&args)?;
 	validate_call_env_owned(&env)?;
 
@@ -342,8 +319,10 @@ pub(crate) fn call_function_owned(engine_state: &EngineState, decl_id: DeclId, a
 	}
 
 	let result = xeno_nu_engine::eval_call::<WithoutDebug>(engine_state, &mut stack, &call, PipelineData::empty())
-		.map_err(|error| format!("Nu runtime error: {error}"))?;
-	result.into_value(span).map_err(|error| format!("Nu runtime error: {error}"))
+		.map_err(|error| SandboxCallError::Runtime(format!("Nu runtime error: {error}")))?;
+	result
+		.into_value(span)
+		.map_err(|error| SandboxCallError::Runtime(format!("Nu runtime error: {error}")))
 }
 
 fn resolve_decl_call(decl_id: DeclId, span: Span) -> xeno_nu_protocol::ast::Call {
@@ -353,6 +332,7 @@ fn resolve_decl_call(decl_id: DeclId, span: Span) -> xeno_nu_protocol::ast::Call
 }
 
 /// Looks up a declaration by name in the engine state.
+#[cfg(test)]
 pub(crate) fn find_decl(engine_state: &EngineState, name: &str) -> Option<DeclId> {
 	engine_state.find_decl(name.as_bytes(), &[])
 }
@@ -361,66 +341,80 @@ pub(crate) fn find_decl(engine_state: &EngineState, name: &str) -> Option<DeclId
 // Input validation for function calls
 // ---------------------------------------------------------------------------
 
-fn validate_call_args(args: &[String]) -> Result<(), String> {
+fn validate_call_args(args: &[String]) -> Result<(), CallValidationError> {
 	if args.len() > DEFAULT_CALL_LIMITS.max_args {
-		return Err(format!("Nu call error: {} args exceeds limit of {}", args.len(), DEFAULT_CALL_LIMITS.max_args));
+		return Err(CallValidationError::ArgsTooMany {
+			len: args.len(),
+			max: DEFAULT_CALL_LIMITS.max_args,
+		});
 	}
-	for (i, arg) in args.iter().enumerate() {
+	for (idx, arg) in args.iter().enumerate() {
 		if arg.len() > DEFAULT_CALL_LIMITS.max_arg_len {
-			return Err(format!(
-				"Nu call error: arg[{i}] length {} exceeds limit of {}",
-				arg.len(),
-				DEFAULT_CALL_LIMITS.max_arg_len
-			));
+			return Err(CallValidationError::ArgTooLong {
+				idx,
+				len: arg.len(),
+				max: DEFAULT_CALL_LIMITS.max_arg_len,
+			});
 		}
 	}
 	Ok(())
 }
 
-fn validate_call_env_borrowed(env: &[(&str, Value)]) -> Result<(), String> {
+fn validate_call_env_borrowed(env: &[(&str, Value)]) -> Result<(), CallValidationError> {
+	if env.len() > DEFAULT_CALL_LIMITS.max_env_vars {
+		return Err(CallValidationError::EnvTooMany {
+			len: env.len(),
+			max: DEFAULT_CALL_LIMITS.max_env_vars,
+		});
+	}
 	let mut nodes = 0usize;
 	for (key, value) in env {
 		if key.len() > DEFAULT_CALL_LIMITS.max_env_string_len {
-			return Err(format!(
-				"Nu call error: env key '{key}' length exceeds limit of {}",
-				DEFAULT_CALL_LIMITS.max_env_string_len
-			));
+			return Err(CallValidationError::EnvKeyTooLong {
+				len: key.len(),
+				max: DEFAULT_CALL_LIMITS.max_env_string_len,
+			});
 		}
 		count_value_nodes(value, &mut nodes)?;
 	}
 	Ok(())
 }
 
-fn validate_call_env_owned(env: &[(String, Value)]) -> Result<(), String> {
+fn validate_call_env_owned(env: &[(String, Value)]) -> Result<(), CallValidationError> {
+	if env.len() > DEFAULT_CALL_LIMITS.max_env_vars {
+		return Err(CallValidationError::EnvTooMany {
+			len: env.len(),
+			max: DEFAULT_CALL_LIMITS.max_env_vars,
+		});
+	}
 	let mut nodes = 0usize;
 	for (key, value) in env {
 		if key.len() > DEFAULT_CALL_LIMITS.max_env_string_len {
-			return Err(format!(
-				"Nu call error: env key '{key}' length exceeds limit of {}",
-				DEFAULT_CALL_LIMITS.max_env_string_len
-			));
+			return Err(CallValidationError::EnvKeyTooLong {
+				len: key.len(),
+				max: DEFAULT_CALL_LIMITS.max_env_string_len,
+			});
 		}
 		count_value_nodes(value, &mut nodes)?;
 	}
 	Ok(())
 }
 
-fn count_value_nodes(value: &Value, nodes: &mut usize) -> Result<(), String> {
+fn count_value_nodes(value: &Value, nodes: &mut usize) -> Result<(), CallValidationError> {
 	*nodes += 1;
 	if *nodes > DEFAULT_CALL_LIMITS.max_env_nodes {
-		return Err(format!(
-			"Nu call error: env value traversal exceeds {} nodes",
-			DEFAULT_CALL_LIMITS.max_env_nodes
-		));
+		return Err(CallValidationError::EnvValueTooComplex {
+			nodes: *nodes,
+			max: DEFAULT_CALL_LIMITS.max_env_nodes,
+		});
 	}
 	match value {
 		Value::String { val, .. } => {
 			if val.len() > DEFAULT_CALL_LIMITS.max_env_string_len {
-				return Err(format!(
-					"Nu call error: env string length {} exceeds limit of {}",
-					val.len(),
-					DEFAULT_CALL_LIMITS.max_env_string_len
-				));
+				return Err(CallValidationError::EnvStringTooLong {
+					len: val.len(),
+					max: DEFAULT_CALL_LIMITS.max_env_string_len,
+				});
 			}
 		}
 		Value::List { vals, .. } => {
@@ -431,10 +425,10 @@ fn count_value_nodes(value: &Value, nodes: &mut usize) -> Result<(), String> {
 		Value::Record { val, .. } => {
 			for (k, v) in val.iter() {
 				if k.len() > DEFAULT_CALL_LIMITS.max_env_string_len {
-					return Err(format!(
-						"Nu call error: env record key '{k}' length exceeds limit of {}",
-						DEFAULT_CALL_LIMITS.max_env_string_len
-					));
+					return Err(CallValidationError::EnvKeyTooLong {
+						len: k.len(),
+						max: DEFAULT_CALL_LIMITS.max_env_string_len,
+					});
 				}
 				count_value_nodes(v, nodes)?;
 			}

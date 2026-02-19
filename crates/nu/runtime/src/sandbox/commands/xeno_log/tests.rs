@@ -17,7 +17,7 @@ fn module_only_rejects_shadowing_xeno_log() {
 		"<test>",
 		r#"export def "xeno log" [] { null }"#,
 		None,
-		ParsePolicy::ModuleOnly,
+		ParsePolicy::ModuleWrapped,
 	)
 	.expect_err("shadowing 'xeno log' should be rejected");
 	assert!(err.contains("reserved") && err.contains("xeno log"), "got: {err}");

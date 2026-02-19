@@ -82,14 +82,9 @@ fn checked_decl_id_rejects_forged_export_id() {
 
 	let program = NuProgram::compile_macro_from_dir(temp.path()).expect("should compile");
 
-	// Find hidden's raw DeclId by looking at script_decls minus export_decls.
-	let hidden_id = program
-		.script_decls
-		.iter()
-		.find(|id| !program.export_decls.contains(id))
-		.expect("hidden decl should exist in script_decls");
-
-	let forged = ExportId::from_raw(hidden_id.get());
+	// Forge an ExportId with a raw value that is definitely not in the export set.
+	// Use 999999 which is far beyond any real DeclId.
+	let forged = ExportId::from_raw(999999);
 	let err = program.call_export(forged, &[], &[]).expect_err("forged ExportId should fail");
 	assert!(matches!(err, ExecError::InvalidExportId(_)));
 }
@@ -103,4 +98,123 @@ fn exports_returns_only_exported_names() {
 	let exports = program.exports();
 	let names: Vec<&str> = exports.iter().map(|(n, _)| n.as_str()).collect();
 	assert_eq!(names, vec!["alpha", "beta"], "exports should be sorted and contain only exported defs");
+}
+
+#[test]
+fn module_export_use_explicit() {
+	let temp = tempfile::tempdir().expect("temp dir");
+	write_script(temp.path(), "module foo { export def bar [] { 1 } }\nexport use foo bar");
+
+	let program = NuProgram::compile_macro_from_dir(temp.path()).expect("should compile");
+	assert!(program.resolve_export("bar").is_some(), "re-exported bar should resolve");
+	let exports = program.exports();
+	let names: Vec<&str> = exports.iter().map(|(n, _)| n.as_str()).collect();
+	assert_eq!(names, vec!["bar"]);
+}
+
+#[test]
+fn module_export_use_star() {
+	let temp = tempfile::tempdir().expect("temp dir");
+	write_script(temp.path(), "module foo { export def a [] { 1 }; export def b [] { 2 } }\nexport use foo *");
+
+	let program = NuProgram::compile_macro_from_dir(temp.path()).expect("should compile");
+	let exports = program.exports();
+	let names: Vec<&str> = exports.iter().map(|(n, _)| n.as_str()).collect();
+	assert_eq!(names, vec!["a", "b"]);
+}
+
+#[test]
+fn module_private_not_exported() {
+	let temp = tempfile::tempdir().expect("temp dir");
+	write_script(temp.path(), "module foo { export def public [] { 1 }; def private [] { 2 } }\nexport use foo *");
+
+	let program = NuProgram::compile_macro_from_dir(temp.path()).expect("should compile");
+	assert!(program.resolve_export("public").is_some());
+	assert!(program.resolve_export("private").is_none(), "private def inside module must not be exported");
+}
+
+// --- Step 6: Call input validation tests (at NuProgram API level) ---
+
+fn varargs_program() -> (NuProgram, ExportId) {
+	let temp = tempfile::tempdir().expect("temp dir");
+	write_script(temp.path(), "export def accept [...args] { $args | length }");
+	let program = NuProgram::compile_macro_from_dir(temp.path()).expect("should compile");
+	let export = program.resolve_export("accept").expect("accept should resolve");
+	// Leak tempdir so path stays valid for program's lifetime
+	std::mem::forget(temp);
+	(program, export)
+}
+
+#[test]
+fn call_at_max_args_succeeds() {
+	use xeno_invocation::nu::DEFAULT_CALL_LIMITS;
+	let (program, export) = varargs_program();
+	let args: Vec<String> = (0..DEFAULT_CALL_LIMITS.max_args).map(|i| i.to_string()).collect();
+	program.call_export(export, &args, &[]).expect("max_args should succeed");
+}
+
+#[test]
+fn call_over_max_args_rejected() {
+	use xeno_invocation::nu::DEFAULT_CALL_LIMITS;
+	let (program, export) = varargs_program();
+	let args: Vec<String> = (0..DEFAULT_CALL_LIMITS.max_args + 1).map(|i| i.to_string()).collect();
+	let err = program.call_export(export, &args, &[]).expect_err("over max_args should be rejected");
+	assert!(matches!(err, ExecError::CallValidation(CallValidationError::ArgsTooMany { .. })), "got: {err}");
+}
+
+#[test]
+fn call_oversize_arg_rejected() {
+	use xeno_invocation::nu::DEFAULT_CALL_LIMITS;
+	let (program, export) = varargs_program();
+	let big_arg = "x".repeat(DEFAULT_CALL_LIMITS.max_arg_len + 1);
+	let err = program.call_export(export, &[big_arg], &[]).expect_err("oversize arg should be rejected");
+	assert!(matches!(err, ExecError::CallValidation(CallValidationError::ArgTooLong { .. })), "got: {err}");
+}
+
+#[test]
+fn call_oversize_env_key_rejected() {
+	use xeno_invocation::nu::DEFAULT_CALL_LIMITS;
+	let (program, export) = varargs_program();
+	let big_key = "K".repeat(DEFAULT_CALL_LIMITS.max_env_string_len + 1);
+	let nothing = xeno_nu_data::Value::Nothing {
+		internal_span: xeno_nu_data::Span::unknown(),
+	};
+	let env = [(big_key.as_str(), nothing)];
+	let err = program.call_export(export, &[], &env).expect_err("oversize env key should be rejected");
+	assert!(
+		matches!(err, ExecError::CallValidation(CallValidationError::EnvKeyTooLong { .. })),
+		"got: {err}"
+	);
+}
+
+#[test]
+fn call_over_max_env_vars_rejected() {
+	use xeno_invocation::nu::DEFAULT_CALL_LIMITS;
+	let (program, export) = varargs_program();
+	let nothing = xeno_nu_data::Value::Nothing {
+		internal_span: xeno_nu_data::Span::unknown(),
+	};
+	let env: Vec<(&str, xeno_nu_data::Value)> = (0..DEFAULT_CALL_LIMITS.max_env_vars + 1).map(|_| ("k", nothing.clone())).collect();
+	let err = program.call_export(export, &[], &env).expect_err("over max_env_vars should be rejected");
+	assert!(matches!(err, ExecError::CallValidation(CallValidationError::EnvTooMany { .. })), "got: {err}");
+}
+
+#[test]
+fn call_oversize_env_nodes_rejected() {
+	use xeno_invocation::nu::DEFAULT_CALL_LIMITS;
+	let (program, export) = varargs_program();
+	let nothing = xeno_nu_data::Value::Nothing {
+		internal_span: xeno_nu_data::Span::unknown(),
+	};
+	let items: Vec<xeno_nu_data::Value> = (0..DEFAULT_CALL_LIMITS.max_env_nodes + 1).map(|_| nothing.clone()).collect();
+	let big_val = xeno_nu_data::Value::List {
+		vals: items,
+		internal_span: xeno_nu_data::Span::unknown(),
+	};
+	let env = [("data", big_val)];
+	let err = program.call_export(export, &[], &env).expect_err("oversize env nodes should be rejected");
+	assert!(
+		matches!(err, ExecError::CallValidation(CallValidationError::EnvValueTooComplex { .. })),
+		"got: {err}"
+	);
 }

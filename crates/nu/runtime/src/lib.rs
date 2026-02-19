@@ -57,8 +57,9 @@ impl fmt::Debug for ExportId {
 /// Compilation policy describing allowed top-level constructs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProgramPolicy {
-	/// Module-only scripts used for `xeno.nu` (defs/imports/consts/modules).
-	MacroModule,
+	/// Source is wrapped as `module __xeno__ { <source> }; use __xeno__ *`
+	/// so only `export def` and re-exports are visible. Used for `xeno.nu`.
+	ModuleWrapped,
 	/// General scripts used for `config.nu` evaluation.
 	ConfigScript,
 }
@@ -66,7 +67,7 @@ pub enum ProgramPolicy {
 impl ProgramPolicy {
 	fn parse_policy(self) -> sandbox::ParsePolicy {
 		match self {
-			Self::MacroModule => sandbox::ParsePolicy::ModuleOnly,
+			Self::ModuleWrapped => sandbox::ParsePolicy::ModuleWrapped,
 			Self::ConfigScript => sandbox::ParsePolicy::Script,
 		}
 	}
@@ -89,11 +90,39 @@ impl fmt::Display for CompileError {
 
 impl Error for CompileError {}
 
+/// Structured call validation failure.
+///
+/// Returned when inputs to a Nu function call exceed configured limits
+/// (from [`xeno_invocation::nu::DEFAULT_CALL_LIMITS`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CallValidationError {
+	ArgsTooMany { len: usize, max: usize },
+	ArgTooLong { idx: usize, len: usize, max: usize },
+	EnvTooMany { len: usize, max: usize },
+	EnvKeyTooLong { len: usize, max: usize },
+	EnvValueTooComplex { nodes: usize, max: usize },
+	EnvStringTooLong { len: usize, max: usize },
+}
+
+impl fmt::Display for CallValidationError {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self {
+			Self::ArgsTooMany { len, max } => write!(f, "Nu call error: {len} args exceeds limit of {max}"),
+			Self::ArgTooLong { idx, len, max } => write!(f, "Nu call error: arg[{idx}] length {len} exceeds limit of {max}"),
+			Self::EnvTooMany { len, max } => write!(f, "Nu call error: {len} env vars exceeds limit of {max}"),
+			Self::EnvKeyTooLong { len, max } => write!(f, "Nu call error: env key length {len} exceeds limit of {max}"),
+			Self::EnvValueTooComplex { nodes, max } => write!(f, "Nu call error: env value traversal ({nodes} nodes) exceeds limit of {max}"),
+			Self::EnvStringTooLong { len, max } => write!(f, "Nu call error: env string length {len} exceeds limit of {max}"),
+		}
+	}
+}
+
 /// Error emitted while executing a compiled [`NuProgram`].
 #[derive(Debug, Clone)]
 pub enum ExecError {
 	MissingExport(String),
 	InvalidExportId(usize),
+	CallValidation(CallValidationError),
 	Runtime(String),
 }
 
@@ -102,6 +131,7 @@ impl fmt::Display for ExecError {
 		match self {
 			Self::MissingExport(message) | Self::Runtime(message) => f.write_str(message),
 			Self::InvalidExportId(raw) => write!(f, "Nu runtime error: export id {raw} is not defined in compiled program"),
+			Self::CallValidation(err) => write!(f, "{err}"),
 		}
 	}
 }
@@ -115,9 +145,6 @@ pub struct NuProgram {
 	config_dir: Option<PathBuf>,
 	script_path: PathBuf,
 	engine_state: Arc<EngineState>,
-	/// All decls added by the script (test-only, for verifying export vs non-export).
-	#[cfg(test)]
-	script_decls: Arc<HashSet<DeclId>>,
 	/// Only explicitly exported decls (`export def`). Used for resolve/call gating.
 	export_decls: Arc<HashSet<DeclId>>,
 	/// Export name → DeclId lookup for `resolve_export`.
@@ -147,12 +174,12 @@ impl NuProgram {
 		let script_src =
 			std::fs::read_to_string(&script_path).map_err(|error| CompileError::Io(format!("failed to read {}: {error}", script_path.display())))?;
 
-		Self::compile_source(config_dir, &script_path, &script_src, ProgramPolicy::MacroModule)
+		Self::compile_source(config_dir, &script_path, &script_src, ProgramPolicy::ModuleWrapped)
 	}
 
 	/// Compile a macro module source blob as if it were `xeno.nu`.
 	pub fn compile_macro_source(config_dir: &Path, script_path: &Path, script_src: &str) -> Result<Self, CompileError> {
-		Self::compile_source(config_dir, script_path, script_src, ProgramPolicy::MacroModule)
+		Self::compile_source(config_dir, script_path, script_src, ProgramPolicy::ModuleWrapped)
 	}
 
 	/// Compile a config script with script policy.
@@ -183,9 +210,9 @@ impl NuProgram {
 		let export_name_map: HashMap<String, DeclId> = parsed
 			.export_decl_ids
 			.iter()
-			.filter_map(|&id| {
+			.map(|&id| {
 				let name = engine_state.get_decl(id).name().to_string();
-				Some((name, id))
+				(name, id)
 			})
 			.collect();
 
@@ -194,8 +221,6 @@ impl NuProgram {
 			config_dir: config_dir.map(Path::to_path_buf),
 			script_path: script_path.to_path_buf(),
 			engine_state: Arc::new(engine_state),
-			#[cfg(test)]
-			script_decls: Arc::new(parsed.script_decl_ids.into_iter().collect()),
 			export_decls: Arc::new(export_decl_set),
 			export_names: Arc::new(export_name_map),
 			root_block,
@@ -224,7 +249,7 @@ impl NuProgram {
 	pub fn call_export(&self, export: ExportId, args: &[String], env: &[(&str, Value)]) -> Result<Value, ExecError> {
 		let decl_id = self.checked_decl_id(export)?;
 		let env = env.iter().map(|(key, value)| (*key, ProtocolValue::from(value.clone()))).collect::<Vec<_>>();
-		let value = sandbox::call_function(&self.engine_state, decl_id, args, &env).map_err(ExecError::Runtime)?;
+		let value = sandbox::call_function(&self.engine_state, decl_id, args, &env).map_err(map_sandbox_err)?;
 		Value::try_from(value).map_err(|error| ExecError::Runtime(format!("Nu runtime error: {error}")))
 	}
 
@@ -232,7 +257,7 @@ impl NuProgram {
 	pub fn call_export_owned(&self, export: ExportId, args: Vec<String>, env: Vec<(String, Value)>) -> Result<Value, ExecError> {
 		let decl_id = self.checked_decl_id(export)?;
 		let env = env.into_iter().map(|(key, value)| (key, ProtocolValue::from(value))).collect::<Vec<_>>();
-		let value = sandbox::call_function_owned(&self.engine_state, decl_id, args, env).map_err(ExecError::Runtime)?;
+		let value = sandbox::call_function_owned(&self.engine_state, decl_id, args, env).map_err(map_sandbox_err)?;
 		Value::try_from(value).map_err(|error| ExecError::Runtime(format!("Nu runtime error: {error}")))
 	}
 
@@ -268,6 +293,13 @@ impl NuProgram {
 			return Err(ExecError::InvalidExportId(export.raw()));
 		}
 		Ok(decl_id)
+	}
+}
+
+fn map_sandbox_err(err: sandbox::SandboxCallError) -> ExecError {
+	match err {
+		sandbox::SandboxCallError::Validation(v) => ExecError::CallValidation(v),
+		sandbox::SandboxCallError::Runtime(msg) => ExecError::Runtime(msg),
 	}
 }
 

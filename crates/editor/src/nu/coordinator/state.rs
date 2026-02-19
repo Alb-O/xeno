@@ -121,7 +121,7 @@ impl NuCoordinatorState {
 			.runtime
 			.as_ref()
 			.map(|rt| CachedHookId {
-				on_hook: rt.find_script_decl("on_hook"),
+				on_hook: rt.find_export("on_hook"),
 			})
 			.unwrap_or_default();
 		self.executor = self.runtime.as_ref().map(|rt| NuExecutor::new(rt.clone()));
@@ -154,7 +154,7 @@ impl NuCoordinatorState {
 		if let Some(hit) = self.macro_decl_cache.get(name) {
 			return *hit;
 		}
-		let resolved = self.runtime.as_ref().and_then(|rt| rt.find_script_decl(name));
+		let resolved = self.runtime.as_ref().and_then(|rt| rt.find_export(name));
 		self.macro_decl_cache.insert(name.to_string(), resolved);
 		resolved
 	}

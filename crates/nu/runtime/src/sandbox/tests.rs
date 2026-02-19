@@ -8,7 +8,6 @@ fn call_function_with_args_and_env() {
 	let _ = evaluate_block(&engine_state, parsed.block.as_ref()).expect("should evaluate");
 
 	let decl_id = find_decl(&engine_state, "greet").expect("greet should be registered");
-	assert!(parsed.script_decl_ids.contains(&decl_id), "greet should be in script_decl_ids");
 	let ctx_val = Value::string("ctx-value", Span::unknown());
 	let result = call_function(&engine_state, decl_id, &["world".to_string()], &[("XENO_CTX", ctx_val)]).expect("call should succeed");
 	assert_eq!(result.as_str().unwrap(), "hello world ctx-value");
@@ -32,18 +31,15 @@ fn call_function_does_not_mutate_engine_state() {
 }
 
 #[test]
-fn script_decl_ids_excludes_builtins() {
+fn find_decl_finds_script_defs_but_not_arbitrary_builtins() {
 	let mut engine_state = create_engine_state(None).expect("engine state");
 	let source = "export def my-func [] { 42 }";
-	let parsed = parse_and_validate(&mut engine_state, "<test>", source, None).expect("should parse");
+	let _parsed = parse_and_validate(&mut engine_state, "<test>", source, None).expect("should parse");
 
-	// "if" is a builtin — it should not be in script_decl_ids
-	let if_decl = find_decl(&engine_state, "if").expect("if should exist");
-	assert!(!parsed.script_decl_ids.contains(&if_decl), "builtins must not appear in script_decl_ids");
-
-	// "my-func" should be in script_decl_ids
-	let my_func = find_decl(&engine_state, "my-func").expect("my-func should exist");
-	assert!(parsed.script_decl_ids.contains(&my_func), "script defs must appear in script_decl_ids");
+	// Script def is findable.
+	assert!(find_decl(&engine_state, "my-func").is_some(), "script def should be findable");
+	// Builtins are also findable via find_decl (export gating happens at NuProgram level).
+	assert!(find_decl(&engine_state, "if").is_some(), "builtins should be findable via find_decl");
 }
 
 #[test]
@@ -69,7 +65,7 @@ fn recursive_function_hits_recursion_limit() {
 fn module_only_accepts_export_def() {
 	let mut engine_state = create_engine_state(None).expect("engine state");
 	let source = "export def go [] { 1 }";
-	parse_and_validate_with_policy(&mut engine_state, "<test>", source, None, ParsePolicy::ModuleOnly).expect("export def should be allowed");
+	parse_and_validate_with_policy(&mut engine_state, "<test>", source, None, ParsePolicy::ModuleWrapped).expect("export def should be allowed");
 }
 
 #[test]
@@ -78,31 +74,94 @@ fn module_only_accepts_use_and_const() {
 	std::fs::write(temp.path().join("helper.nu"), "export def x [] { 1 }").unwrap();
 	let mut engine_state = create_engine_state(Some(temp.path())).expect("engine state");
 	let source = "const A = 42\nuse helper.nu *\nexport def go [] { x }";
-	parse_and_validate_with_policy(&mut engine_state, "<test>", source, Some(temp.path()), ParsePolicy::ModuleOnly)
+	parse_and_validate_with_policy(&mut engine_state, "<test>", source, Some(temp.path()), ParsePolicy::ModuleWrapped)
 		.expect("const + use + export def should be allowed");
 }
 
 #[test]
 fn module_only_rejects_expression() {
 	let mut engine_state = create_engine_state(None).expect("engine state");
-	let err = parse_and_validate_with_policy(&mut engine_state, "<test>", "42", None, ParsePolicy::ModuleOnly).expect_err("bare expression should be rejected");
-	assert!(err.contains("module-only"), "{err}");
+	let err =
+		parse_and_validate_with_policy(&mut engine_state, "<test>", "42", None, ParsePolicy::ModuleWrapped).expect_err("bare expression should be rejected");
+	assert!(err.contains("module-only") || err.contains("keyword") || err.contains("parse error"), "{err}");
 }
 
 #[test]
 fn module_only_rejects_let() {
 	let mut engine_state = create_engine_state(None).expect("engine state");
-	let err = parse_and_validate_with_policy(&mut engine_state, "<test>", "let x = 1", None, ParsePolicy::ModuleOnly)
+	let err = parse_and_validate_with_policy(&mut engine_state, "<test>", "let x = 1", None, ParsePolicy::ModuleWrapped)
 		.expect_err("let should be rejected in module-only");
-	assert!(err.contains("module-only") && err.contains("let"), "{err}");
+	assert!(err.contains("module-only") || err.contains("keyword") || err.contains("parse error"), "{err}");
 }
 
 #[test]
 fn module_only_rejects_mut() {
 	let mut engine_state = create_engine_state(None).expect("engine state");
-	let err = parse_and_validate_with_policy(&mut engine_state, "<test>", "mut x = 1", None, ParsePolicy::ModuleOnly)
+	let err = parse_and_validate_with_policy(&mut engine_state, "<test>", "mut x = 1", None, ParsePolicy::ModuleWrapped)
 		.expect_err("mut should be rejected in module-only");
-	assert!(err.contains("module-only") && err.contains("mut"), "{err}");
+	assert!(err.contains("module-only") || err.contains("keyword") || err.contains("parse error"), "{err}");
+}
+
+// --- Step 5: ModuleWrapped import-time execution hardening ---
+
+#[test]
+fn module_only_rejects_top_level_pipeline() {
+	let mut engine_state = create_engine_state(None).expect("engine state");
+	let err = parse_and_validate_with_policy(
+		&mut engine_state,
+		"<test>",
+		"xeno effect dispatch editor stats",
+		None,
+		ParsePolicy::ModuleWrapped,
+	)
+	.expect_err("top-level pipeline inside module should be rejected");
+	assert!(err.contains("keyword") || err.contains("parse error") || err.contains("module-only"), "{err}");
+}
+
+#[test]
+fn module_only_rejects_export_env() {
+	let mut engine_state = create_engine_state(None).expect("engine state");
+	let err = parse_and_validate_with_policy(&mut engine_state, "<test>", "export-env { }", None, ParsePolicy::ModuleWrapped)
+		.expect_err("export-env should be rejected in module-only");
+	assert!(
+		err.contains("keyword") || err.contains("parse error") || err.contains("not allowed") || err.contains("Unknown"),
+		"{err}"
+	);
+}
+
+#[test]
+fn module_only_rejects_source_env() {
+	let mut engine_state = create_engine_state(None).expect("engine state");
+	let err = parse_and_validate_with_policy(&mut engine_state, "<test>", "source-env foo.nu", None, ParsePolicy::ModuleWrapped)
+		.expect_err("source-env should be rejected in module-only");
+	assert!(
+		err.contains("keyword") || err.contains("parse error") || err.contains("source") || err.contains("Unknown"),
+		"{err}"
+	);
+}
+
+#[test]
+fn module_only_rejects_overlay_use() {
+	let mut engine_state = create_engine_state(None).expect("engine state");
+	let err = parse_and_validate_with_policy(&mut engine_state, "<test>", "overlay use foo", None, ParsePolicy::ModuleWrapped)
+		.expect_err("overlay use should be rejected in module-only");
+	assert!(
+		err.contains("keyword") || err.contains("parse error") || err.contains("overlay") || err.contains("Unknown"),
+		"{err}"
+	);
+}
+
+#[test]
+fn module_only_allows_valid_constructs() {
+	let mut engine_state = create_engine_state(None).expect("engine state");
+	let source = "\
+export def go [] { 42 }
+def helper [] { 1 }
+const X = 10
+module inner { export def a [] { 2 } }
+export use inner a";
+	parse_and_validate_with_policy(&mut engine_state, "<test>", source, None, ParsePolicy::ModuleWrapped)
+		.expect("export def, def, const, module, export use should all be allowed");
 }
 
 #[test]
@@ -116,8 +175,8 @@ fn docs_xeno_nu_example_parses_under_module_only() {
 	let example_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../docs/xeno.nu.example");
 	let source = std::fs::read_to_string(&example_path).expect("docs/xeno.nu.example should exist");
 	let mut engine_state = create_engine_state(None).expect("engine state");
-	parse_and_validate_with_policy(&mut engine_state, "docs/xeno.nu.example", &source, None, ParsePolicy::ModuleOnly)
-		.expect("docs example should parse under ModuleOnly policy");
+	parse_and_validate_with_policy(&mut engine_state, "docs/xeno.nu.example", &source, None, ParsePolicy::ModuleWrapped)
+		.expect("docs example should parse under ModuleWrapped policy");
 }
 
 #[test]
@@ -148,7 +207,7 @@ fn call_rejects_too_many_args() {
 
 	let args: Vec<String> = (0..100).map(|i| format!("arg{i}")).collect();
 	let err = call_function(&engine_state, decl_id, &args, &[]).expect_err("too many args should be rejected");
-	assert!(err.contains("exceeds limit"), "got: {err}");
+	assert!(matches!(err, SandboxCallError::Validation(crate::CallValidationError::ArgsTooMany { .. })));
 }
 
 #[test]
@@ -160,7 +219,7 @@ fn call_rejects_overlong_arg() {
 	let decl_id = find_decl(&engine_state, "echo-it").expect("echo-it should exist");
 
 	let err = call_function(&engine_state, decl_id, &["x".repeat(5000)], &[]).expect_err("overlong arg should be rejected");
-	assert!(err.contains("exceeds limit"), "got: {err}");
+	assert!(matches!(err, SandboxCallError::Validation(crate::CallValidationError::ArgTooLong { .. })));
 }
 
 #[test]
@@ -173,7 +232,7 @@ fn call_rejects_oversized_env_value() {
 
 	let big = Value::string("x".repeat(5000), Span::unknown());
 	let err = call_function(&engine_state, decl_id, &[], &[("XENO_CTX", big)]).expect_err("oversized env should be rejected");
-	assert!(err.contains("exceeds limit"), "got: {err}");
+	assert!(matches!(err, SandboxCallError::Validation(crate::CallValidationError::EnvStringTooLong { .. })));
 }
 
 // ---------------------------------------------------------------------------
@@ -831,7 +890,7 @@ fn safe_stdlib_str_commands_in_macro_context() {
   } | xeno effects normalize
 }"#;
 	let _parsed =
-		parse_and_validate_with_policy(&mut engine_state, "<test>", source, None, ParsePolicy::ModuleOnly).expect("macro with str commands should parse");
+		parse_and_validate_with_policy(&mut engine_state, "<test>", source, None, ParsePolicy::ModuleWrapped).expect("macro with str commands should parse");
 	let decl_id = find_decl(&engine_state, "go").expect("go should be declared");
 	let result = call_function(&engine_state, decl_id, &[], &[]).expect("should execute");
 	let result = xeno_nu_data::Value::try_from(result).expect("value should convert");
@@ -850,7 +909,7 @@ fn safe_stdlib_str_commands_in_macro_context() {
 fn safe_stdlib_xeno_effect_clipboard_produces_correct_record() {
 	let mut engine_state = create_engine_state(None).expect("engine state");
 	let source = r#"export def copy-it [] { xeno effect clipboard "hello world" | xeno effects normalize }"#;
-	let _parsed = parse_and_validate_with_policy(&mut engine_state, "<test>", source, None, ParsePolicy::ModuleOnly).expect("clipboard macro should parse");
+	let _parsed = parse_and_validate_with_policy(&mut engine_state, "<test>", source, None, ParsePolicy::ModuleWrapped).expect("clipboard macro should parse");
 	let decl_id = find_decl(&engine_state, "copy-it").expect("copy-it should be declared");
 	let result = call_function(&engine_state, decl_id, &[], &[]).expect("should execute");
 	let result = xeno_nu_data::Value::try_from(result).expect("value should convert");
@@ -869,7 +928,7 @@ fn safe_stdlib_xeno_effect_clipboard_empty() {
 	let mut engine_state = create_engine_state(None).expect("engine state");
 	let source = r#"export def copy-empty [] { xeno effect clipboard | xeno effects normalize }"#;
 	let _parsed =
-		parse_and_validate_with_policy(&mut engine_state, "<test>", source, None, ParsePolicy::ModuleOnly).expect("clipboard empty macro should parse");
+		parse_and_validate_with_policy(&mut engine_state, "<test>", source, None, ParsePolicy::ModuleWrapped).expect("clipboard empty macro should parse");
 	let decl_id = find_decl(&engine_state, "copy-empty").expect("copy-empty should be declared");
 	let result = call_function(&engine_state, decl_id, &[], &[]).expect("should execute");
 	let result = xeno_nu_data::Value::try_from(result).expect("value should convert");
@@ -887,7 +946,7 @@ fn safe_stdlib_xeno_effect_clipboard_empty() {
 fn safe_stdlib_xeno_effect_state_set_produces_correct_record() {
 	let mut engine_state = create_engine_state(None).expect("engine state");
 	let source = r#"export def set-it [] { xeno effect state set mykey myvalue | xeno effects normalize }"#;
-	let _parsed = parse_and_validate_with_policy(&mut engine_state, "<test>", source, None, ParsePolicy::ModuleOnly).expect("state set macro should parse");
+	let _parsed = parse_and_validate_with_policy(&mut engine_state, "<test>", source, None, ParsePolicy::ModuleWrapped).expect("state set macro should parse");
 	let decl_id = find_decl(&engine_state, "set-it").expect("set-it should be declared");
 	let result = call_function(&engine_state, decl_id, &[], &[]).expect("should execute");
 	let result = xeno_nu_data::Value::try_from(result).expect("value should convert");
@@ -906,7 +965,8 @@ fn safe_stdlib_xeno_effect_state_set_produces_correct_record() {
 fn safe_stdlib_xeno_effect_state_unset_produces_correct_record() {
 	let mut engine_state = create_engine_state(None).expect("engine state");
 	let source = r#"export def unset-it [] { xeno effect state unset mykey | xeno effects normalize }"#;
-	let _parsed = parse_and_validate_with_policy(&mut engine_state, "<test>", source, None, ParsePolicy::ModuleOnly).expect("state unset macro should parse");
+	let _parsed =
+		parse_and_validate_with_policy(&mut engine_state, "<test>", source, None, ParsePolicy::ModuleWrapped).expect("state unset macro should parse");
 	let decl_id = find_decl(&engine_state, "unset-it").expect("unset-it should be declared");
 	let result = call_function(&engine_state, decl_id, &[], &[]).expect("should execute");
 	let result = xeno_nu_data::Value::try_from(result).expect("value should convert");
@@ -924,7 +984,8 @@ fn safe_stdlib_xeno_effect_state_unset_produces_correct_record() {
 fn safe_stdlib_xeno_effect_schedule_set_produces_correct_record() {
 	let mut engine_state = create_engine_state(None).expect("engine state");
 	let source = r#"export def sched-it [] { xeno effect schedule set autosave 750 save-all | xeno effects normalize }"#;
-	let _parsed = parse_and_validate_with_policy(&mut engine_state, "<test>", source, None, ParsePolicy::ModuleOnly).expect("schedule set macro should parse");
+	let _parsed =
+		parse_and_validate_with_policy(&mut engine_state, "<test>", source, None, ParsePolicy::ModuleWrapped).expect("schedule set macro should parse");
 	let decl_id = find_decl(&engine_state, "sched-it").expect("sched-it should be declared");
 	let result = call_function(&engine_state, decl_id, &[], &[]).expect("should execute");
 	let result = xeno_nu_data::Value::try_from(result).expect("value should convert");
@@ -946,7 +1007,7 @@ fn safe_stdlib_xeno_effect_schedule_cancel_produces_correct_record() {
 	let mut engine_state = create_engine_state(None).expect("engine state");
 	let source = r#"export def cancel-it [] { xeno effect schedule cancel autosave | xeno effects normalize }"#;
 	let _parsed =
-		parse_and_validate_with_policy(&mut engine_state, "<test>", source, None, ParsePolicy::ModuleOnly).expect("schedule cancel macro should parse");
+		parse_and_validate_with_policy(&mut engine_state, "<test>", source, None, ParsePolicy::ModuleWrapped).expect("schedule cancel macro should parse");
 	let decl_id = find_decl(&engine_state, "cancel-it").expect("cancel-it should be declared");
 	let result = call_function(&engine_state, decl_id, &[], &[]).expect("should execute");
 	let result = xeno_nu_data::Value::try_from(result).expect("value should convert");
@@ -968,7 +1029,7 @@ fn module_only_rejects_xeno_namespace_shadowing() {
 		"<test>",
 		r#"export def "xeno foo" [] { null }"#,
 		None,
-		ParsePolicy::ModuleOnly,
+		ParsePolicy::ModuleWrapped,
 	)
 	.expect_err("xeno namespace shadowing should be rejected");
 	assert!(err.contains("reserved") && err.contains("xeno"), "got: {err}");
@@ -977,7 +1038,7 @@ fn module_only_rejects_xeno_namespace_shadowing() {
 #[test]
 fn module_only_rejects_xeno_bare() {
 	let mut engine_state = create_engine_state(None).expect("engine state");
-	let err = parse_and_validate_with_policy(&mut engine_state, "<test>", "export def xeno [] { null }", None, ParsePolicy::ModuleOnly)
+	let err = parse_and_validate_with_policy(&mut engine_state, "<test>", "export def xeno [] { null }", None, ParsePolicy::ModuleWrapped)
 		.expect_err("bare xeno shadowing should be rejected");
 	assert!(err.contains("reserved") && err.contains("xeno"), "got: {err}");
 }

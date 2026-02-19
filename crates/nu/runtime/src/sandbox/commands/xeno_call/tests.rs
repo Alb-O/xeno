@@ -8,7 +8,7 @@ fn module_only_rejects_shadowing_xeno_call() {
 		"<test>",
 		"export def \"xeno call\" [] { null }",
 		None,
-		ParsePolicy::ModuleOnly,
+		ParsePolicy::ModuleWrapped,
 	)
 	.expect_err("shadowing 'xeno call' should be rejected");
 	assert!(err.contains("reserved") && err.contains("xeno call"), "got: {err}");

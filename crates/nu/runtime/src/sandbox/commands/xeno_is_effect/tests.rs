@@ -22,7 +22,7 @@ fn xeno_is_effect_false_for_non_record() {
 fn module_only_rejects_shadowing_xeno_is_effect() {
 	let mut engine_state = create_engine_state(None).expect("engine state");
 	let source = r#"export def "xeno is-effect" [] { null }"#;
-	let err = parse_and_validate_with_policy(&mut engine_state, "<test>", source, None, ParsePolicy::ModuleOnly)
+	let err = parse_and_validate_with_policy(&mut engine_state, "<test>", source, None, ParsePolicy::ModuleWrapped)
 		.expect_err("shadowing 'xeno is-effect' should be rejected");
 	assert!(err.contains("reserved") && err.contains("xeno is-effect"), "got: {err}");
 }

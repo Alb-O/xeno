@@ -54,6 +54,8 @@ pub struct NuCallLimits {
 	pub max_env_nodes: usize,
 	/// Max byte length per env string (keys + leaf values).
 	pub max_env_string_len: usize,
+	/// Max number of env vars passed to a call.
+	pub max_env_vars: usize,
 }
 
 /// Default call limits, aligned with [`schema::DEFAULT_LIMITS`].
@@ -62,6 +64,7 @@ pub const DEFAULT_CALL_LIMITS: NuCallLimits = NuCallLimits {
 	max_arg_len: schema::DEFAULT_LIMITS.max_string_len,
 	max_env_nodes: 5_000,
 	max_env_string_len: schema::DEFAULT_LIMITS.max_string_len,
+	max_env_vars: 64,
 };
 
 /// Maximum Value nodes visited during macro effect decode.

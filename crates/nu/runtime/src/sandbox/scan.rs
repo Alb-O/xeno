@@ -257,26 +257,37 @@ fn is_use_decl(decl_name: &str) -> bool {
 const MAX_MODULE_FILES: usize = 256;
 
 fn validate_resolved_module_paths(working_set: &StateWorkingSet<'_>, config_root: Option<&Path>) -> Result<(), String> {
-	let config_root = config_root.ok_or_else(|| "use requires a real config directory path".to_string())?;
-	let root_canon = std::fs::canonicalize(config_root).map_err(|e| format!("failed to resolve config directory root: {e}"))?;
-
 	let file_count = working_set.files().count();
 	if file_count > MAX_MODULE_FILES {
 		return Err(format!("module import graph exceeds {MAX_MODULE_FILES} files ({file_count} resolved)"));
 	}
 
-	for file in working_set.files() {
-		let name = file.name.as_ref();
-		if is_virtual_filename(name) {
-			continue;
-		}
+	// Collect real (non-virtual, existing) file paths that need confinement checks.
+	let real_files: Vec<&str> = working_set
+		.files()
+		.filter_map(|file| {
+			let name = file.name.as_ref();
+			if is_virtual_filename(name) {
+				return None;
+			}
+			let path = Path::new(name);
+			if !path.exists() {
+				return None;
+			}
+			Some(name)
+		})
+		.collect();
 
-		let path = Path::new(name);
-		if !path.exists() {
-			continue;
-		}
+	// If no real files were resolved (e.g. only inline modules), no confinement needed.
+	if real_files.is_empty() {
+		return Ok(());
+	}
 
-		let candidate_canon = std::fs::canonicalize(path).map_err(|e| format!("failed to resolve module path '{name}': {e}"))?;
+	let config_root = config_root.ok_or_else(|| "use requires a real config directory path".to_string())?;
+	let root_canon = std::fs::canonicalize(config_root).map_err(|e| format!("failed to resolve config directory root: {e}"))?;
+
+	for name in real_files {
+		let candidate_canon = std::fs::canonicalize(Path::new(name)).map_err(|e| format!("failed to resolve module path '{name}': {e}"))?;
 		if !candidate_canon.starts_with(&root_canon) {
 			return Err("module path resolves outside the config directory root".to_string());
 		}

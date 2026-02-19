@@ -68,7 +68,7 @@ fn xeno_effects_normalize_round_trips_through_decoder() {
 fn module_only_rejects_shadowing_xeno_effects_normalize() {
 	let mut engine_state = create_engine_state(None).expect("engine state");
 	let source = r#"export def "xeno effects normalize" [] { null }"#;
-	let err = parse_and_validate_with_policy(&mut engine_state, "<test>", source, None, ParsePolicy::ModuleOnly)
+	let err = parse_and_validate_with_policy(&mut engine_state, "<test>", source, None, ParsePolicy::ModuleWrapped)
 		.expect_err("shadowing 'xeno effects normalize' should be rejected");
 	assert!(err.contains("reserved") && err.contains("xeno effects normalize"), "got: {err}");
 }

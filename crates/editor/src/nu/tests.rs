@@ -152,14 +152,14 @@ fn run_allows_use_within_config_root() {
 }
 
 #[test]
-fn find_script_decl_rejects_builtins() {
+fn find_export_rejects_builtins() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
 	write_script(temp.path(), "export def go [] { xeno effect dispatch editor stats }");
 
 	let runtime = NuRuntime::load(temp.path()).expect("runtime should load");
-	assert!(runtime.find_script_decl("go").is_some());
-	assert!(runtime.find_script_decl("if").is_none());
-	assert!(runtime.find_script_decl("nonexistent").is_none());
+	assert!(runtime.find_export("go").is_some());
+	assert!(runtime.find_export("if").is_none());
+	assert!(runtime.find_export("nonexistent").is_none());
 }
 
 #[test]
@@ -195,7 +195,10 @@ fn load_rejects_top_level_statement() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
 	write_script(temp.path(), "42");
 	let err = NuRuntime::load(temp.path()).expect_err("top-level expression should be rejected");
-	assert!(err.contains("top-level") || err.contains("module-only"), "{err}");
+	assert!(
+		err.contains("top-level") || err.contains("module-only") || err.contains("keyword") || err.contains("parse error"),
+		"{err}"
+	);
 }
 
 #[test]
