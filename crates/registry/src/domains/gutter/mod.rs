@@ -7,14 +7,22 @@ use ropey::RopeSlice;
 pub use crate::themes::Color;
 pub use crate::themes::theme::ThemeDef as Theme;
 
+#[path = "compile/builtins.rs"]
 pub mod builtins;
+#[path = "exec/handler.rs"]
 pub mod handler;
+#[path = "compile/link.rs"]
 pub mod link;
+#[path = "compile/loader.rs"]
 pub mod loader;
+#[path = "exec/macros.rs"]
 mod macros;
+#[path = "contract/spec.rs"]
 pub mod spec;
+mod domain;
 
 pub use builtins::register_builtins;
+pub use domain::Gutters;
 pub use handler::{GutterHandlerReg, GutterHandlerStatic};
 
 /// Registers compiled gutters from the embedded spec.
@@ -26,24 +34,6 @@ pub fn register_compiled(db: &mut crate::db::builder::RegistryDbBuilder) {
 
 	for def in linked {
 		db.push_domain::<Gutters>(GutterInput::Linked(def));
-	}
-}
-
-pub struct Gutters;
-
-impl crate::db::domain::DomainSpec for Gutters {
-	type Input = GutterInput;
-	type Entry = GutterEntry;
-	type Id = crate::core::GutterId;
-	type Runtime = crate::core::RuntimeRegistry<GutterEntry, crate::core::GutterId>;
-	const LABEL: &'static str = "gutters";
-
-	fn builder(db: &mut crate::db::builder::RegistryDbBuilder) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
-		&mut db.gutters
-	}
-
-	fn into_runtime(index: crate::core::index::RegistryIndex<Self::Entry, Self::Id>) -> Self::Runtime {
-		crate::core::RuntimeRegistry::new(Self::LABEL, index)
 	}
 }
 

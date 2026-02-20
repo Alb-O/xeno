@@ -24,22 +24,23 @@ The registry is a typed database of editor definitions (actions, commands, optio
   * runtime `Entry` types and `Input` types ingested by the builder
 
 * **Shared substrate**:
-  * `crates/registry_spec`: shared pure-data spec structs (serde models).
+  * `src/schema/*`: shared pure-data spec structs (serde models) owned by `xeno-registry`.
+  * `build_support/*`: build-time NUON compilers and blob emitters owned by `xeno-registry`.
   * `src/defs/loader.rs`: blob header/validation + postcard decode
   * `src/defs/link.rs`: shared linking utilities (e.g. `link_by_name`)
   * `src/core/index/*`: generic index building, lookup resolution, collision recording, runtime registration
 
 * **DB builder**:
   * `src/db/domain.rs`: `DomainSpec` trait (domain type plumbing + hooks)
-  * `src/db/domain_catalog.rs`: single source of truth for domain wiring into builder/runtime DB
+  * `src/domains/catalog.rs`: single source of truth for domain wiring into builder/runtime DB
   * `src/db/builder/mod.rs`: `RegistryDbBuilder` generated from domain catalog
-  * `src/db/mod.rs`: `RegistryDb` fields and global accessors generated from domain catalog
+  * `src/db/mod.rs`: `RegistryCatalog` fields and global accessors generated from domain catalog
 
 ### Pipeline (end-to-end)
 
 **Build time**
 1. Authoring input: domain metadata authored as NUON under `crates/registry/src/domains/<domain>/assets/`.
-2. Compilation: `crates/registry/build.rs` dispatches to `xeno_registry_spec::<domain>::compile::build` in `crates/registry_spec/src/<domain>/compile.rs`.
+2. Compilation: `crates/registry/build.rs` dispatches to `build_support::<domain>::build` in `crates/registry/build_support/<domain>.rs`.
 3. Serialization: specs are serialized with `postcard` and written as `<domain>.bin` using the shared blob wrapper.
 4. Embedding: `.bin` files are embedded into the final binary (`include_bytes!(concat!(env!("OUT_DIR"), ...))`).
 
@@ -218,7 +219,7 @@ The registry maintains a list of collisions for debugging and UI feedback:
 
 ## `DomainSpec` and domain wiring
 
-Domain plumbing is split between per-domain `DomainSpec` implementations and the shared `db/domain_catalog.rs` wiring table.
+Domain plumbing is split between per-domain `DomainSpec` implementations and the shared `domains/catalog.rs` wiring table.
 
 ### `DomainSpec` responsibilities
 
@@ -272,15 +273,15 @@ Run with `--features registry-contracts` if you’re touching collection/build l
 ### 3) Add the compiled spec pipeline (format-neutral)
 
 **Spec definition**:
-* Add domain spec structs to `crates/registry_spec/src/<domain>/mod.rs`.
-* Re-export them in `src/domains/<domain>/spec.rs`.
+* Add domain spec structs to `src/schema/<domain>.rs`.
+* Re-export them in `src/domains/<domain>/contract/spec.rs`.
 
 **Runtime (domain module)**:
 * `loader.rs`: decode embedded blob using `defs::loader`
 * `link.rs`: domain-specific linking/validation/parsing
   * handler-driven domains should use `defs::link::link_by_name`
 
-**Build time (`crates/registry/build.rs` + `crates/registry_spec/src/<domain>/compile.rs`)**:
+**Build time (`crates/registry/build.rs` + `crates/registry/build_support/<domain>.rs`)**:
 - parse authoring format (NUON)
 - emit the same `Spec` structs
 - serialize via `postcard` using the shared blob wrapper
@@ -291,7 +292,7 @@ Run with `--features registry-contracts` if you’re touching collection/build l
 1. Add a domain marker type implementing `DomainSpec` in the domain module (for example `src/domains/<domain>/mod.rs`).
    * add `on_push` only if you need side tables (e.g. keybindings)
 
-2. Add one entry in `src/db/domain_catalog.rs`:
+2. Add one entry in `src/domains/catalog.rs`:
    * `field` name
    * domain marker type
    * runtime container type

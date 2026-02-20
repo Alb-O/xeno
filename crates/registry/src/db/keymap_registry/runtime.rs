@@ -50,9 +50,6 @@ impl KeymapSnapshotCache {
 	}
 }
 
-/// Backward-compatible alias while call sites migrate from old naming.
-pub type KeymapRegistry = KeymapSnapshotCache;
-
 /// Returns the keymap snapshot for the immutable actions registry catalog.
 pub fn get_keymap_snapshot() -> Arc<KeymapSnapshot> {
 	let db = crate::db::get_catalog();

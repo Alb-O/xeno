@@ -5,17 +5,26 @@ use std::sync::Arc;
 use ropey::RopeSlice;
 use xeno_primitives::Range;
 
+#[path = "compile/builtins/mod.rs"]
 pub mod builtins;
+#[path = "exec/handler.rs"]
 pub mod handler;
+#[path = "compile/link.rs"]
 pub mod link;
+#[path = "compile/loader.rs"]
 pub mod loader;
+#[path = "exec/macros.rs"]
 mod macros;
-pub mod registry;
+#[path = "runtime/query.rs"]
+pub mod query;
+#[path = "contract/spec.rs"]
 pub mod spec;
+mod domain;
 
 pub use builtins::register_builtins;
+pub use domain::TextObjects;
 pub use handler::{TextObjectHandlerReg, TextObjectHandlerStatic};
-pub use registry::{TextObjectRef, TextObjectRegistry};
+pub use query::{TextObjectRef, TextObjectRegistry};
 
 /// Registers compiled text objects from the embedded spec.
 pub fn register_compiled(db: &mut crate::db::builder::RegistryDbBuilder) {
@@ -26,24 +35,6 @@ pub fn register_compiled(db: &mut crate::db::builder::RegistryDbBuilder) {
 
 	for def in linked {
 		db.push_domain::<TextObjects>(TextObjectInput::Linked(def));
-	}
-}
-
-pub struct TextObjects;
-
-impl crate::db::domain::DomainSpec for TextObjects {
-	type Input = TextObjectInput;
-	type Entry = TextObjectEntry;
-	type Id = crate::core::TextObjectId;
-	type Runtime = TextObjectRegistry;
-	const LABEL: &'static str = "text_objects";
-
-	fn builder(db: &mut crate::db::builder::RegistryDbBuilder) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
-		&mut db.text_objects
-	}
-
-	fn into_runtime(index: crate::core::index::RegistryIndex<Self::Entry, Self::Id>) -> Self::Runtime {
-		TextObjectRegistry::new(index)
 	}
 }
 

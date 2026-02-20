@@ -7,17 +7,27 @@ use xeno_primitives::BoxFutureLocal;
 
 use crate::notifications::Notification;
 
+#[path = "compile/builtins/mod.rs"]
 pub mod builtins;
+#[path = "contract/def.rs"]
 pub mod def;
+#[path = "contract/entry.rs"]
 pub mod entry;
+#[path = "exec/handler.rs"]
 pub mod handler;
+#[path = "compile/link.rs"]
 pub mod link;
+#[path = "compile/loader.rs"]
 pub mod loader;
+#[path = "exec/macros.rs"]
 mod macros;
+#[path = "contract/spec.rs"]
 pub mod spec;
+mod domain;
 
 pub use builtins::register_builtins;
 pub use def::{CommandDef, CommandHandler, CommandInput};
+pub use domain::Commands;
 pub use entry::CommandEntry;
 pub use handler::{CommandHandlerReg, CommandHandlerStatic};
 pub use spec::{CommandPaletteSpec, PaletteArgKind, PaletteArgSpec, PaletteCommitPolicy};
@@ -31,24 +41,6 @@ pub fn register_compiled(db: &mut crate::db::builder::RegistryDbBuilder) {
 
 	for def in linked {
 		db.push_domain::<Commands>(def::CommandInput::Linked(def));
-	}
-}
-
-pub struct Commands;
-
-impl crate::db::domain::DomainSpec for Commands {
-	type Input = def::CommandInput;
-	type Entry = entry::CommandEntry;
-	type Id = crate::core::CommandId;
-	type Runtime = crate::core::RuntimeRegistry<entry::CommandEntry, crate::core::CommandId>;
-	const LABEL: &'static str = "commands";
-
-	fn builder(db: &mut crate::db::builder::RegistryDbBuilder) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
-		&mut db.commands
-	}
-
-	fn into_runtime(index: crate::core::index::RegistryIndex<Self::Entry, Self::Id>) -> Self::Runtime {
-		crate::core::RuntimeRegistry::new(Self::LABEL, index)
 	}
 }
 

@@ -1,14 +1,23 @@
 //! Languages domain registration and runtime entry construction.
 
+#[path = "compile/builtins.rs"]
 pub mod builtins;
+#[path = "compile/link.rs"]
 pub mod link;
+#[path = "compile/loader.rs"]
 pub mod loader;
-pub mod queries;
-pub mod registry;
+#[path = "runtime/view.rs"]
+pub mod view;
+#[path = "runtime/query.rs"]
+pub mod query;
+#[path = "contract/spec.rs"]
 pub mod spec;
+#[path = "contract/types.rs"]
 pub mod types;
+mod domain;
 
-pub use registry::LanguagesRegistry;
+pub use domain::Languages;
+pub use query::LanguagesRegistry;
 pub use types::{LanguageEntry, LanguageInput};
 
 /// Registers compiled languages from the embedded spec.
@@ -18,23 +27,5 @@ pub fn register_compiled(db: &mut crate::db::builder::RegistryDbBuilder) {
 
 	for def in linked {
 		db.push_domain::<Languages>(LanguageInput::Linked(def));
-	}
-}
-
-pub struct Languages;
-
-impl crate::db::domain::DomainSpec for Languages {
-	type Input = LanguageInput;
-	type Entry = LanguageEntry;
-	type Id = crate::core::LanguageId;
-	type Runtime = LanguagesRegistry;
-	const LABEL: &'static str = "languages";
-
-	fn builder(db: &mut crate::db::builder::RegistryDbBuilder) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
-		&mut db.languages
-	}
-
-	fn into_runtime(index: crate::core::index::RegistryIndex<Self::Entry, Self::Id>) -> Self::Runtime {
-		LanguagesRegistry::new(index)
 	}
 }

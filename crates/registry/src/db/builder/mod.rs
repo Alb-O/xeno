@@ -51,7 +51,7 @@ macro_rules! define_domains {
 	}
 }
 
-crate::db::domain_catalog::with_registry_domains!(define_domains);
+crate::domains::catalog::with_registry_domains!(define_domains);
 
 impl Default for RegistryDbBuilder {
 	fn default() -> Self {

@@ -6305,17 +6305,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "xeno-registry-spec"
-version = "0.9.3"
-dependencies = [
- "postcard",
- "serde",
- "walkdir",
- "xeno-nu-api",
- "xeno-nu-data",
-]
-
-[[package]]
 name = "xeno-rpc"
 version = "0.9.3"
 dependencies = [

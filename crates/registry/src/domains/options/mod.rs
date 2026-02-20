@@ -1,22 +1,36 @@
 //! Options registry
 
+#[path = "compile/builtins.rs"]
 pub mod builtins;
+#[path = "contract/def.rs"]
 pub mod def;
+#[path = "contract/entry.rs"]
 pub mod entry;
+#[path = "compile/link.rs"]
 pub mod link;
+#[path = "compile/loader.rs"]
 pub mod loader;
+#[path = "runtime/parse.rs"]
 pub mod parse;
-pub mod registry;
+#[path = "runtime/query.rs"]
+pub mod query;
+#[path = "runtime/resolver/mod.rs"]
 mod resolver;
+#[path = "contract/spec.rs"]
 pub mod spec;
+#[path = "runtime/store/mod.rs"]
 mod store;
+#[path = "runtime/typed_keys.rs"]
 pub mod typed_keys;
+#[path = "runtime/validators/mod.rs"]
 pub mod validators;
+mod domain;
 
 pub use builtins::register_builtins;
 pub use def::{OptionDef, OptionInput, OptionScope, OptionValidator};
+pub use domain::Options;
 pub use entry::OptionEntry;
-pub use registry::{OptionsRef, OptionsRegistry};
+pub use query::{OptionsRef, OptionsRegistry};
 pub use resolver::OptionResolver;
 pub use store::OptionStore;
 pub use typed_keys::TypedOptionKey;
@@ -33,39 +47,12 @@ pub fn register_compiled(db: &mut crate::db::builder::RegistryDbBuilder) {
 	}
 }
 
-pub struct Options;
-
-impl crate::db::domain::DomainSpec for Options {
-	type Input = OptionInput;
-	type Entry = OptionEntry;
-	type Id = crate::core::OptionId;
-	type Runtime = OptionsRegistry;
-	const LABEL: &'static str = "options";
-
-	fn builder(db: &mut crate::db::builder::RegistryDbBuilder) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
-		&mut db.options
-	}
-
-	fn into_runtime(index: crate::core::index::RegistryIndex<Self::Entry, Self::Id>) -> Self::Runtime {
-		crate::core::RuntimeRegistry::new(Self::LABEL, index)
-	}
-
-	fn on_push(_db: &mut crate::db::builder::RegistryDbBuilder, input: &Self::Input) {
-		if let OptionInput::Static(def) = input {
-			crate::db::builder::validate_option_def(def);
-		}
-	}
-}
-
 /// Typed handles for built-in options.
 pub mod option_keys {
 	pub use crate::options::builtins::{CURSORLINE, DEFAULT_THEME_ID, SCROLL_LINES, SCROLL_MARGIN, TAB_WIDTH, THEME};
 }
 
-// Re-export for backward compatibility in tests
-pub use option_keys as keys;
-
-// Re-exports for convenience and compatibility
+// Re-exports for convenience.
 pub use crate::core::{FromOptionValue, OptionDefault, OptionId, OptionType, OptionValue, RegistryMetaStatic, RegistrySource};
 
 /// Untyped handle to an option definition (canonical ID string or resolved reference).

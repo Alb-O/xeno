@@ -112,7 +112,7 @@ impl Editor {
 	/// Synchronizes the viewport visibility logic with the render pipeline by
 	/// using the same gutter layout and text width calculation.
 	pub fn reveal_cursor_in_view(&mut self, buffer_id: ViewId) {
-		use xeno_registry::options::keys as opt_keys;
+		use xeno_registry::options::option_keys as opt_keys;
 		let tab_width = self.resolve_typed_option(buffer_id, opt_keys::TAB_WIDTH) as usize;
 		let scroll_margin = self.resolve_typed_option(buffer_id, opt_keys::SCROLL_MARGIN) as usize;
 		let area = self.view_area(buffer_id);

@@ -2,7 +2,7 @@
 //!
 //! Provides convenient methods for accessing buffers. Delegates to [`ViewManager`].
 
-use xeno_registry::options::keys;
+use xeno_registry::options::option_keys as keys;
 
 use super::{Editor, FocusTarget};
 use crate::buffer::{Buffer, ViewId};

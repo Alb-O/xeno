@@ -10,7 +10,7 @@ use xeno_primitives::range::Direction as MoveDir;
 use xeno_primitives::selection::Selection;
 use xeno_registry::HookEventData;
 use xeno_registry::hooks::{HookContext, emit as emit_hook, emit_sync_with as emit_hook_sync_with};
-use xeno_registry::options::keys;
+use xeno_registry::options::option_keys as keys;
 
 use super::Editor;
 use crate::buffer::ViewId;

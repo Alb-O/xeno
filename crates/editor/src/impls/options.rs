@@ -42,7 +42,7 @@ impl Editor {
 	/// # Example
 	///
 	/// ```ignore
-	/// use xeno_registry::options::keys;
+	/// use xeno_registry::options::option_keys;
 	///
 	/// let value = editor.resolve_option(buffer_id, keys::TAB_WIDTH.untyped());
 	/// ```
@@ -69,7 +69,7 @@ impl Editor {
 	/// # Example
 	///
 	/// ```ignore
-	/// use xeno_registry::options::keys;
+	/// use xeno_registry::options::option_keys;
 	///
 	/// let width: i64 = editor.resolve_typed_option(buffer_id, keys::TAB_WIDTH);
 	/// ```
@@ -91,7 +91,7 @@ impl Editor {
 	/// # Example
 	///
 	/// ```ignore
-	/// use xeno_registry::options::keys;
+	/// use xeno_registry::options::option_keys;
 	///
 	/// let width: i64 = editor.option(keys::TAB_WIDTH);
 	/// ```

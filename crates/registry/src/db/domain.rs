@@ -15,7 +15,7 @@ pub trait DomainSpec {
 	type Entry: RegistryEntry + Send + Sync + 'static;
 	/// The dense ID type used for O(1) table lookups.
 	type Id: DenseId;
-	/// The runtime container type exposed from [`crate::db::RegistryDb`].
+	/// The runtime container type exposed from [`crate::db::RegistryCatalog`].
 	type Runtime: Send + Sync + 'static;
 
 	/// human-readable label for the domain (e.g., "actions").

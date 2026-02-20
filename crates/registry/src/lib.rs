@@ -1,5 +1,9 @@
 #![recursion_limit = "8192"]
 //! Registry-first organization extensions.
+//!
+//! The registry crate owns both:
+//! * runtime domain packages under `src/domains/*`
+//! * serialized schema contracts under `src/schema/*`
 
 // Allow generated code to refer to this crate as `xeno_registry`
 extern crate self as xeno_registry;
@@ -196,7 +200,7 @@ pub use db::index::{
 };
 #[cfg(feature = "keymap")]
 pub use db::keymap_registry::{
-	CompiledBinding, CompiledBindingTarget, KeymapBuildProblem, KeymapRegistry, KeymapSnapshot, KeymapSnapshotCache, LookupOutcome, get_keymap_snapshot,
+	CompiledBinding, CompiledBindingTarget, KeymapBuildProblem, KeymapSnapshot, KeymapSnapshotCache, LookupOutcome, get_keymap_snapshot,
 };
 #[cfg(feature = "minimal")]
 pub use db::CATALOG;

@@ -8,7 +8,7 @@ use std::pin::Pin;
 use xeno_primitives::{Key, KeyCode, Selection};
 use xeno_registry::commands::{COMMANDS, PaletteArgKind, PaletteCommitPolicy};
 use xeno_registry::notifications::keys;
-use xeno_registry::options::{OPTIONS, OptionType, OptionValue, keys as opt_keys};
+use xeno_registry::options::{OPTIONS, OptionType, OptionValue, option_keys as opt_keys};
 use xeno_registry::snippets::SNIPPETS;
 use xeno_registry::themes::{THEMES, ThemeVariant};
 

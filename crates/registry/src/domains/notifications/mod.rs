@@ -8,18 +8,28 @@ use std::time::Duration;
 pub use crate::core::{RegistryMetadata, RegistrySource};
 
 #[macro_use]
+#[path = "exec/macros.rs"]
 mod macros;
 
+#[path = "compile/builtins.rs"]
 pub mod builtins;
+#[path = "contract/def.rs"]
 pub mod def;
+#[path = "contract/entry.rs"]
 pub mod entry;
+#[path = "runtime/keys/mod.rs"]
 pub mod keys;
+#[path = "compile/link.rs"]
 pub mod link;
+#[path = "compile/loader.rs"]
 pub mod loader;
+#[path = "contract/spec.rs"]
 pub mod spec;
+mod domain;
 
 pub use builtins::register_builtins;
 pub use def::{LinkedNotificationDef, NotificationDef, NotificationInput};
+pub use domain::Notifications;
 pub use entry::NotificationEntry;
 
 pub use crate::core::NotificationId;
@@ -31,24 +41,6 @@ pub fn register_compiled(db: &mut crate::db::builder::RegistryDbBuilder) {
 
 	for def in linked {
 		db.push_domain::<Notifications>(NotificationInput::Linked(def));
-	}
-}
-
-pub struct Notifications;
-
-impl crate::db::domain::DomainSpec for Notifications {
-	type Input = NotificationInput;
-	type Entry = NotificationEntry;
-	type Id = crate::core::NotificationId;
-	type Runtime = crate::core::RuntimeRegistry<NotificationEntry, crate::core::NotificationId>;
-	const LABEL: &'static str = "notifications";
-
-	fn builder(db: &mut crate::db::builder::RegistryDbBuilder) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
-		&mut db.notifications
-	}
-
-	fn into_runtime(index: crate::core::index::RegistryIndex<Self::Entry, Self::Id>) -> Self::Runtime {
-		crate::core::RuntimeRegistry::new(Self::LABEL, index)
 	}
 }
 
@@ -143,7 +135,7 @@ impl Notification {
 
 	/// Resolves this notification against the provided registry.
 	/// Returns true if resolved successfully.
-	pub fn resolve(&mut self, db: &crate::db::RegistryDb) -> bool {
+	pub fn resolve(&mut self, db: &crate::db::RegistryCatalog) -> bool {
 		if let Some(entry) = db.notifications_reg().get(&self.id) {
 			self.level = Some(entry.level);
 			self.auto_dismiss = Some(entry.auto_dismiss);

@@ -2,19 +2,31 @@
 
 pub use crate::core::{HookId, RegistryBuilder, RegistryEntry, RegistryIndex, RegistryRef, RuntimeRegistry};
 
+#[path = "compile/builtins.rs"]
 pub mod builtins;
+#[path = "exec/context.rs"]
 mod context;
+#[path = "exec/emit.rs"]
 mod emit;
+#[path = "exec/handler.rs"]
 pub mod handler;
+#[path = "compile/link.rs"]
 pub mod link;
+#[path = "compile/loader.rs"]
 pub mod loader;
+#[path = "exec/macros.rs"]
 mod macros;
-pub mod registry;
+#[path = "runtime/query.rs"]
+pub mod query;
+#[path = "contract/spec.rs"]
 pub mod spec;
+#[path = "contract/types.rs"]
 mod types;
+mod domain;
 
 pub use builtins::register_builtins;
-pub use registry::HooksRegistry;
+pub use domain::Hooks;
+pub use query::HooksRegistry;
 
 /// Registers compiled hooks from the embedded spec.
 pub fn register_compiled(db: &mut crate::db::builder::RegistryDbBuilder) {
@@ -26,26 +38,6 @@ pub fn register_compiled(db: &mut crate::db::builder::RegistryDbBuilder) {
 	for def in linked {
 		db.push_domain::<Hooks>(HookInput::Linked(def));
 	}
-}
-
-pub struct Hooks;
-
-impl crate::db::domain::DomainSpec for Hooks {
-	type Input = HookInput;
-	type Entry = HookEntry;
-	type Id = crate::core::HookId;
-	type Runtime = HooksRegistry;
-	const LABEL: &'static str = "hooks";
-
-	fn builder(db: &mut crate::db::builder::RegistryDbBuilder) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
-		&mut db.hooks
-	}
-
-	fn into_runtime(index: crate::core::index::RegistryIndex<Self::Entry, Self::Id>) -> Self::Runtime {
-		HooksRegistry::new(index)
-	}
-
-	fn on_push(_db: &mut crate::db::builder::RegistryDbBuilder, _input: &Self::Input) {}
 }
 
 pub use context::{Bool, HookContext, MutableHookContext, OptionViewId, SplitDirection, Str, ViewId, WindowId, WindowKind};

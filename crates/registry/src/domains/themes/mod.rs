@@ -2,13 +2,20 @@
 
 pub use xeno_primitives::{Color, Mode, Modifier, Style};
 
+#[path = "runtime/syntax/mod.rs"]
 pub mod syntax;
+#[path = "runtime/theme/mod.rs"]
 pub mod theme;
 
+#[path = "compile/link.rs"]
 pub mod link;
+#[path = "compile/loader.rs"]
 pub mod loader;
+#[path = "contract/spec.rs"]
 pub mod spec;
+mod domain;
 
+pub use domain::Themes;
 pub use syntax::{SyntaxStyle, SyntaxStyles};
 pub use theme::{LinkedThemeDef, ThemeDef as Theme, *};
 
@@ -19,24 +26,6 @@ pub fn register_compiled(db: &mut crate::db::builder::RegistryDbBuilder) {
 
 	for def in linked {
 		db.push_domain::<Themes>(ThemeInput::Linked(def));
-	}
-}
-
-pub struct Themes;
-
-impl crate::db::domain::DomainSpec for Themes {
-	type Input = ThemeInput;
-	type Entry = ThemeEntry;
-	type Id = crate::core::ThemeId;
-	type Runtime = crate::core::RuntimeRegistry<ThemeEntry, crate::core::ThemeId>;
-	const LABEL: &'static str = "themes";
-
-	fn builder(db: &mut crate::db::builder::RegistryDbBuilder) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
-		&mut db.themes
-	}
-
-	fn into_runtime(index: crate::core::index::RegistryIndex<Self::Entry, Self::Id>) -> Self::Runtime {
-		crate::core::RuntimeRegistry::new(Self::LABEL, index)
 	}
 }
 

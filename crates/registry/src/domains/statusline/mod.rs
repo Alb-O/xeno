@@ -1,17 +1,25 @@
 //! Statusline segment registry.
 
+#[path = "compile/builtins.rs"]
 pub mod builtins;
+#[path = "exec/handler.rs"]
 pub mod handler;
+#[path = "compile/link.rs"]
 pub mod link;
+#[path = "compile/loader.rs"]
 pub mod loader;
+#[path = "exec/macros.rs"]
 mod macros;
+#[path = "contract/spec.rs"]
 pub mod spec;
+mod domain;
 
 use crate::core::index::{BuildCtx, BuildEntry, RegistryMetaRef, StrListRef};
 pub use crate::core::{
 	CapabilitySet, FrozenInterner, RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta, RegistryMetaStatic, RegistryMetadata, RegistryRef,
 	RegistrySource, RuntimeRegistry, StatuslineId, Symbol, SymbolList,
 };
+pub use domain::Statusline;
 pub use crate::segment_handler;
 
 /// Registers compiled statusline segments from the embedded spec.
@@ -23,24 +31,6 @@ pub fn register_compiled(db: &mut crate::db::builder::RegistryDbBuilder) {
 
 	for def in linked {
 		db.push_domain::<Statusline>(StatuslineInput::Linked(def));
-	}
-}
-
-pub struct Statusline;
-
-impl crate::db::domain::DomainSpec for Statusline {
-	type Input = StatuslineInput;
-	type Entry = StatuslineEntry;
-	type Id = crate::core::StatuslineId;
-	type Runtime = crate::core::RuntimeRegistry<StatuslineEntry, crate::core::StatuslineId>;
-	const LABEL: &'static str = "statusline";
-
-	fn builder(db: &mut crate::db::builder::RegistryDbBuilder) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
-		&mut db.statusline
-	}
-
-	fn into_runtime(index: crate::core::index::RegistryIndex<Self::Entry, Self::Id>) -> Self::Runtime {
-		crate::core::RuntimeRegistry::new(Self::LABEL, index)
 	}
 }
 

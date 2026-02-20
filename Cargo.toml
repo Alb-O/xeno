@@ -19,7 +19,6 @@ members = [
     "crates/nu/safe_commands",
     "crates/primitives",
     "crates/registry",
-    "crates/registry_spec",
     "crates/rpc",
     "crates/syntax",
     "crates/term",
@@ -154,7 +153,6 @@ xeno-nu-runtime = { path = "crates/nu/runtime" }
 xeno-nu-safe-commands = { path = "crates/nu/safe_commands" }
 xeno-primitives = { path = "crates/primitives" }
 xeno-registry = { path = "crates/registry" }
-xeno-registry-spec = { path = "crates/registry_spec" }
 xeno-rpc = { path = "crates/rpc" }
 xeno-syntax = { path = "crates/syntax" }
 xeno-tree-house = { path = "crates/tree_house", default-features = false }

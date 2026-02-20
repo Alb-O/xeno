@@ -1,6 +1,6 @@
 //! Registry catalog construction and global accessor surfaces.
 //!
-//! Domain wiring is generated from `domain_catalog`, so builder fields, runtime
+//! Domain wiring is generated from `domains::catalog`, so builder fields, runtime
 //! fields, and global accessors stay in sync.
 
 use std::hash::{Hash, Hasher};
@@ -14,13 +14,12 @@ pub use crate::core::{
 pub mod builder;
 pub mod builtins;
 pub mod domain;
-mod domain_catalog;
 pub mod index;
 #[cfg(feature = "keymap")]
 pub mod keymap_registry;
 
 use crate::actions::entry::ActionEntry;
-use crate::db::domain_catalog::with_registry_domains;
+use crate::domains::catalog::with_registry_domains;
 #[cfg(feature = "keymap")]
 use crate::db::keymap_registry::KeymapSnapshotCache;
 
@@ -60,9 +59,6 @@ macro_rules! define_registry_catalog {
 }
 
 with_registry_domains!(define_registry_catalog);
-
-/// Backward-compatible alias while consumers migrate to `RegistryCatalog` naming.
-pub type RegistryDb = RegistryCatalog;
 
 #[derive(Debug, thiserror::Error)]
 pub enum CatalogLoadError {
@@ -151,26 +147,8 @@ impl RegistryCatalog {
 	}
 
 	fn validate_cross_domain_references(&self) -> Result<(), CatalogLoadError> {
-		let mut missing = Vec::new();
-
-		for language in self.languages.snapshot_guard().iter_refs() {
-			for &server_sym in language.lsp_servers.iter() {
-				let server = language.resolve(server_sym);
-				if self.lsp_servers.get(server).is_none() {
-					missing.push(format!(
-						"language '{}' references unknown lsp server '{}'",
-						language.id_str(),
-						server
-					));
-				}
-			}
-		}
-
-		if missing.is_empty() {
-			return Ok(());
-		}
-
-		Err(CatalogLoadError::InvalidCrossDomainReferences(missing))
+		crate::domains::relations::language_lsp::validate_language_lsp_references(&self.languages, &self.lsp_servers)
+			.map_err(CatalogLoadError::InvalidCrossDomainReferences)
 	}
 }
 
@@ -256,11 +234,6 @@ pub static CATALOG: LazyLock<&'static RegistryCatalog> = LazyLock::new(get_catal
 
 pub fn get_catalog() -> &'static RegistryCatalog {
 	CATALOG_CELL.get_or_init(|| RegistryCatalog::load().unwrap_or_else(|error| panic!("failed to load registry catalog: {error}")))
-}
-
-/// Backward-compatible accessor for existing call sites.
-pub fn get_db() -> &'static RegistryCatalog {
-	get_catalog()
 }
 
 with_registry_domains!(define_registry_globals);

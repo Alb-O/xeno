@@ -1,14 +1,21 @@
 //! LSP server domain registration and runtime entry construction.
 
+#[path = "compile/builtins.rs"]
 pub mod builtins;
+#[path = "contract/entry.rs"]
 pub mod entry;
+#[path = "compile/loader.rs"]
 pub mod loader;
-pub mod registry;
+#[path = "runtime/query.rs"]
+pub mod query;
+#[path = "contract/spec.rs"]
 pub mod spec;
+mod domain;
 
 pub use builtins::register_builtins;
+pub use domain::LspServers;
 pub use entry::{LspServerEntry, LspServerInput};
-pub use registry::LspServersRegistry;
+pub use query::LspServersRegistry;
 
 /// Registers compiled LSP servers from the embedded spec.
 pub fn register_compiled(db: &mut crate::db::builder::RegistryDbBuilder) {
@@ -17,23 +24,5 @@ pub fn register_compiled(db: &mut crate::db::builder::RegistryDbBuilder) {
 
 	for def in linked {
 		db.push_domain::<LspServers>(LspServerInput::Linked(def));
-	}
-}
-
-pub struct LspServers;
-
-impl crate::db::domain::DomainSpec for LspServers {
-	type Input = LspServerInput;
-	type Entry = LspServerEntry;
-	type Id = crate::core::symbol::LspServerId;
-	type Runtime = LspServersRegistry;
-	const LABEL: &'static str = "lsp_servers";
-
-	fn builder(db: &mut crate::db::builder::RegistryDbBuilder) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
-		&mut db.lsp_servers
-	}
-
-	fn into_runtime(index: crate::core::index::RegistryIndex<Self::Entry, Self::Id>) -> Self::Runtime {
-		crate::core::RuntimeRegistry::new(Self::LABEL, index)
 	}
 }

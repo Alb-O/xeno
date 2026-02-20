@@ -10,7 +10,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use xeno_registry::db::LANGUAGES;
-use xeno_registry::languages::registry::LanguageRef;
+use xeno_registry::languages::query::LanguageRef;
 pub use xeno_tree_house::Language as LanguageId;
 use xeno_tree_house::{InjectionLanguageMarker, Language, LanguageConfig as TreeHouseConfig};
 

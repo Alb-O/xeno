@@ -1,7 +1,7 @@
 #[test]
 fn test_queries_from_registry() {
 	let rust = xeno_registry::LANGUAGES.get("rust").expect("rust language should exist");
-	let highlights = xeno_registry::languages::queries::get_query_text(&rust, "highlights");
+	let highlights = xeno_registry::languages::view::get_query_text(&rust, "highlights");
 	assert!(highlights.is_some(), "Should have rust highlights.scm");
 }
 

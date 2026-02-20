@@ -7,23 +7,40 @@ pub use crate::core::{
 	Capability, CommandError, RegistryBuilder, RegistryEntry, RegistryMeta, RegistryMetaStatic, RegistryMetadata, RegistryRef, RegistrySource, RuntimeRegistry,
 };
 
+#[path = "compile/builtins/mod.rs"]
 pub mod builtins;
+#[path = "exec/context.rs"]
 mod context;
+#[path = "contract/def.rs"]
 pub mod def;
+#[path = "exec/edit_op/mod.rs"]
 pub mod edit_op;
+#[path = "exec/effects/mod.rs"]
 mod effects;
+#[path = "contract/entry.rs"]
 pub mod entry;
+#[path = "exec/handler.rs"]
 pub mod handler;
+#[path = "exec/keybindings.rs"]
 mod keybindings;
+#[path = "compile/link.rs"]
 pub mod link;
+#[path = "compile/loader.rs"]
 pub mod loader;
+#[path = "exec/macros.rs"]
 mod macros;
+#[path = "exec/pending.rs"]
 mod pending;
+#[path = "exec/result.rs"]
 mod result;
+#[path = "contract/spec.rs"]
 pub mod spec;
 
+#[path = "exec/editor_ctx/mod.rs"]
 pub mod editor_ctx;
+mod domain;
 pub use context::{ActionArgs, ActionContext};
+pub use domain::Actions;
 pub use def::{ActionDef, ActionHandler};
 pub use editor_ctx::{
 	CursorAccess, DeferredInvocationAccess, EditAccess, EditorCapabilities, EditorContext, EditorOps, FileOpsAccess, FocusOps, HandleOutcome, JumpAccess,
@@ -93,26 +110,6 @@ pub fn register_compiled(db: &mut crate::db::builder::RegistryDbBuilder) {
 	for def in linked {
 		db.push_domain::<Actions>(def::ActionInput::Linked(def));
 	}
-}
-
-pub struct Actions;
-
-impl crate::db::domain::DomainSpec for Actions {
-	type Input = def::ActionInput;
-	type Entry = entry::ActionEntry;
-	type Id = crate::core::ActionId;
-	type Runtime = crate::core::RuntimeRegistry<entry::ActionEntry, crate::core::ActionId>;
-	const LABEL: &'static str = "actions";
-
-	fn builder(db: &mut crate::db::builder::RegistryDbBuilder) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
-		&mut db.actions
-	}
-
-	fn into_runtime(index: crate::core::index::RegistryIndex<Self::Entry, Self::Id>) -> Self::Runtime {
-		crate::core::RuntimeRegistry::new(Self::LABEL, index)
-	}
-
-	fn on_push(_db: &mut crate::db::builder::RegistryDbBuilder, _input: &Self::Input) {}
 }
 
 /// Finds an action by name, key, or id.

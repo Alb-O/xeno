@@ -10,16 +10,25 @@ pub use crate::core::{
 };
 
 #[macro_use]
+#[path = "exec/macros.rs"]
 pub(crate) mod macros;
 
+#[path = "compile/builtins.rs"]
 pub mod builtins;
+#[path = "exec/handler.rs"]
 pub mod handler;
+#[path = "compile/link.rs"]
 pub mod link;
+#[path = "compile/loader.rs"]
 pub mod loader;
+#[path = "exec/movement/mod.rs"]
 pub mod movement;
+#[path = "contract/spec.rs"]
 pub mod spec;
+mod domain;
 
 pub use builtins::register_builtins;
+pub use domain::Motions;
 pub use handler::{MotionHandlerReg, MotionHandlerStatic};
 
 /// Registers compiled motions from the embedded spec.
@@ -31,24 +40,6 @@ pub fn register_compiled(db: &mut crate::db::builder::RegistryDbBuilder) {
 
 	for def in linked {
 		db.push_domain::<Motions>(MotionInput::Linked(def));
-	}
-}
-
-pub struct Motions;
-
-impl crate::db::domain::DomainSpec for Motions {
-	type Input = MotionInput;
-	type Entry = MotionEntry;
-	type Id = crate::core::MotionId;
-	type Runtime = crate::core::RuntimeRegistry<MotionEntry, crate::core::MotionId>;
-	const LABEL: &'static str = "motions";
-
-	fn builder(db: &mut crate::db::builder::RegistryDbBuilder) -> &mut crate::core::index::RegistryBuilder<Self::Input, Self::Entry, Self::Id> {
-		&mut db.motions
-	}
-
-	fn into_runtime(index: crate::core::index::RegistryIndex<Self::Entry, Self::Id>) -> Self::Runtime {
-		crate::core::RuntimeRegistry::new(Self::LABEL, index)
 	}
 }
 

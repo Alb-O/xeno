@@ -21,7 +21,7 @@ pub fn read_query(lang: &str, filename: &str) -> String {
 
 	xeno_tree_house::read_query(lang, |query_lang| {
 		if let Some(lang_ref) = xeno_registry::LANGUAGES.get(query_lang)
-			&& let Some(content) = xeno_registry::languages::queries::get_query_text(&lang_ref, query_type)
+			&& let Some(content) = xeno_registry::languages::view::get_query_text(&lang_ref, query_type)
 		{
 			return content.to_string();
 		}

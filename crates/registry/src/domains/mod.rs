@@ -1,4 +1,17 @@
-//! Registry domain modules grouped behind feature flags.
+//! Registry domain packages grouped behind feature flags.
+//!
+//! Each domain follows a colocated package layout:
+//! * `contract/*`: schema-facing contracts and entry/input definitions
+//! * `compile/*`: embedded blob loaders and spec→linked-def wiring
+//! * `runtime/*`: typed runtime views and query helpers
+//! * `exec/*`: handler/effects/controller surfaces for executable domains
+
+#[cfg(feature = "minimal")]
+pub mod catalog;
+#[cfg(feature = "minimal")]
+pub mod relations;
+#[cfg(feature = "minimal")]
+pub mod shared;
 
 #[cfg(feature = "actions")]
 pub mod actions;

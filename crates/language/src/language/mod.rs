@@ -1,7 +1,7 @@
 //! Language metadata wrapper and syntax-config derivation helpers.
 
 use tracing::warn;
-use xeno_registry::languages::registry::LanguageRef;
+use xeno_registry::languages::query::LanguageRef;
 use xeno_registry::themes::SyntaxStyles;
 use xeno_tree_house::LanguageConfig as TreeHouseConfig;
 

@@ -13,7 +13,7 @@ impl Editor {
 	/// This sets the persisted preference used by `resolve_configured_theme`
 	/// once theme catalogs are available.
 	pub fn set_configured_theme_name(&mut self, theme_name: impl Into<String>) {
-		use xeno_registry::options::{OptionValue, keys};
+		use xeno_registry::options::{OptionValue, option_keys as keys};
 
 		let option_ref = xeno_registry::db::OPTIONS
 			.get_key(&keys::THEME.untyped())
@@ -26,7 +26,7 @@ impl Editor {
 	/// Called by [`crate::msg::ThemeMsg::ThemesReady`] after background theme loading completes.
 	/// Falls back to current theme if resolution fails.
 	pub(crate) fn resolve_configured_theme(&mut self) {
-		use xeno_registry::options::keys;
+		use xeno_registry::options::option_keys as keys;
 		let theme_id = self
 			.state
 			.config
