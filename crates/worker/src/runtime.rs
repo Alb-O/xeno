@@ -141,6 +141,18 @@ impl WorkerRuntime {
 				break;
 			}
 
+			// Register notification futures *before* scanning joinsets to
+			// avoid a lost-wakeup: if a task completes between releasing the
+			// joinset lock and awaiting the notify, the pre-registered future
+			// will still fire.
+			let i_notified = self.interactive_notify.notified();
+			let b_notified = self.background_notify.notified();
+			tokio::pin!(i_notified);
+			tokio::pin!(b_notified);
+			// Enable the futures so they capture notifications from this point.
+			i_notified.as_mut().enable();
+			b_notified.as_mut().enable();
+
 			// Fast-path: pop all ready completions without blocking.
 			let mut progressed = false;
 			let pending_i;
@@ -183,15 +195,15 @@ impl WorkerRuntime {
 				break;
 			}
 
-			// No ready completions: wait for a notification or deadline.
+			// No ready completions: wait for a pre-registered notification or deadline.
 			let remaining = deadline.saturating_duration_since(Instant::now());
 			if remaining.is_zero() {
 				break;
 			}
 			tokio::select! {
 				biased;
-				_ = self.interactive_notify.notified() => {}
-				_ = self.background_notify.notified() => {}
+				_ = i_notified => {}
+				_ = b_notified => {}
 				_ = tokio::time::sleep(remaining) => { break; }
 			}
 		}

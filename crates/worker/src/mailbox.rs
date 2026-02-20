@@ -3,18 +3,12 @@ use std::sync::Arc;
 
 use tokio::sync::{Mutex, Notify};
 
-/// Backpressure policy for a bounded actor mailbox.
+/// Internal mode tag for mailbox behavior.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MailboxPolicy {
+enum MailboxMode {
 	/// Wait for capacity when full.
 	Backpressure,
-	/// Drop the newest message when full.
-	DropNewest,
-	/// Drop the oldest queued message when full.
-	DropOldest,
-	/// Keep only the latest message.
-	LatestWins,
-	/// Replace an existing queued message with the same key.
+	/// Replace an existing queued message with the same key, or evict oldest.
 	CoalesceByKey,
 }
 
@@ -23,11 +17,9 @@ pub enum MailboxPolicy {
 pub enum MailboxSendOutcome {
 	/// Message was enqueued without replacement.
 	Enqueued,
-	/// Message was dropped because policy is drop-newest and queue was full.
-	DroppedNewest,
-	/// Oldest queued message was replaced.
+	/// Oldest queued message was evicted to make room.
 	ReplacedOldest,
-	/// Existing keyed queued message was replaced.
+	/// Existing keyed queued message was replaced in-place.
 	Coalesced,
 }
 
@@ -36,10 +28,8 @@ pub enum MailboxSendOutcome {
 pub enum MailboxSendError {
 	/// Mailbox is closed.
 	Closed,
-	/// Queue is full and non-blocking send was used.
+	/// Queue is full and non-blocking send was used (backpressure mode).
 	Full,
-	/// `CoalesceByKey` requires a key extractor.
-	MissingCoalesceKey,
 }
 
 struct MailboxState<T> {
@@ -51,7 +41,7 @@ type CoalesceEqFn<T> = dyn Fn(&T, &T) -> bool + Send + Sync;
 
 struct MailboxInner<T> {
 	capacity: usize,
-	policy: MailboxPolicy,
+	mode: MailboxMode,
 	coalesce_eq: Option<Arc<CoalesceEqFn<T>>>,
 	state: Mutex<MailboxState<T>>,
 	notify_recv: Notify,
@@ -90,13 +80,13 @@ impl<T> Clone for MailboxReceiver<T> {
 }
 
 impl<T> Mailbox<T> {
-	/// Creates a bounded mailbox with one of the built-in policies.
-	pub fn new(capacity: usize, policy: MailboxPolicy) -> Self {
+	/// Creates a bounded mailbox with backpressure (senders wait when full).
+	pub fn backpressure(capacity: usize) -> Self {
 		assert!(capacity > 0, "mailbox capacity must be > 0");
 		Self {
 			inner: Arc::new(MailboxInner {
 				capacity,
-				policy,
+				mode: MailboxMode::Backpressure,
 				coalesce_eq: None,
 				state: Mutex::new(MailboxState {
 					queue: VecDeque::with_capacity(capacity),
@@ -109,21 +99,24 @@ impl<T> Mailbox<T> {
 	}
 
 	/// Creates a bounded mailbox with key-based coalescing.
-	pub fn with_coalesce_key<K>(capacity: usize, key_fn: impl Fn(&T) -> K + Send + Sync + 'static) -> Self
+	///
+	/// Messages with matching keys replace the existing entry in-place.
+	/// When full and no key match exists, the oldest entry is evicted.
+	pub fn coalesce_by_key<K>(capacity: usize, key_fn: impl Fn(&T) -> K + Send + Sync + 'static) -> Self
 	where
 		K: Eq + Send + Sync + 'static,
 	{
 		let cmp = move |lhs: &T, rhs: &T| key_fn(lhs) == key_fn(rhs);
-		Self::with_coalesce_eq(capacity, cmp)
+		Self::coalesce_by_eq(capacity, cmp)
 	}
 
 	/// Creates a bounded mailbox with direct equality-based coalescing.
-	pub fn with_coalesce_eq(capacity: usize, eq_fn: impl Fn(&T, &T) -> bool + Send + Sync + 'static) -> Self {
+	pub fn coalesce_by_eq(capacity: usize, eq_fn: impl Fn(&T, &T) -> bool + Send + Sync + 'static) -> Self {
 		assert!(capacity > 0, "mailbox capacity must be > 0");
 		Self {
 			inner: Arc::new(MailboxInner {
 				capacity,
-				policy: MailboxPolicy::CoalesceByKey,
+				mode: MailboxMode::CoalesceByKey,
 				coalesce_eq: Some(Arc::new(eq_fn)),
 				state: Mutex::new(MailboxState {
 					queue: VecDeque::with_capacity(capacity),
@@ -149,10 +142,6 @@ impl<T> Mailbox<T> {
 		}
 	}
 
-	/// Returns mailbox policy.
-	pub fn policy(&self) -> MailboxPolicy {
-		self.inner.policy
-	}
 }
 
 impl<T> MailboxSender<T> {
@@ -178,7 +167,7 @@ impl<T> MailboxSender<T> {
 	/// Non-blocking enqueue.
 	pub async fn try_send(&self, msg: T) -> Result<MailboxSendOutcome, MailboxSendError> {
 		let mut state = self.inner.state.lock().await;
-		enqueue_with_policy(&self.inner, &mut state, msg)
+		enqueue_non_blocking(&self.inner, &mut state, msg)
 	}
 
 	/// Enqueue honoring policy (`Backpressure` waits for capacity).
@@ -187,7 +176,7 @@ impl<T> MailboxSender<T> {
 	/// available, guaranteeing no silent drops. All other policies enqueue
 	/// immediately according to their overflow semantics.
 	pub async fn send(&self, msg: T) -> Result<MailboxSendOutcome, MailboxSendError> {
-		if self.inner.policy == MailboxPolicy::Backpressure {
+		if self.inner.mode == MailboxMode::Backpressure {
 			loop {
 				// Register the notification future *before* checking capacity
 				// to avoid lost-wakeup between drop(lock) and await.
@@ -208,7 +197,7 @@ impl<T> MailboxSender<T> {
 		}
 
 		let mut state = self.inner.state.lock().await;
-		enqueue_with_policy(&self.inner, &mut state, msg)
+		enqueue_non_blocking(&self.inner, &mut state, msg)
 	}
 
 	/// Returns current queue length.
@@ -256,31 +245,21 @@ impl<T> MailboxReceiver<T> {
 	}
 }
 
-/// Non-blocking enqueue for all policies.
+/// Non-blocking enqueue.
 ///
 /// `Backpressure` returns `Full` when at capacity (the blocking wait lives
 /// in `MailboxSender::send` which enqueues under the lock directly).
-fn enqueue_with_policy<T>(inner: &MailboxInner<T>, state: &mut MailboxState<T>, msg: T) -> Result<MailboxSendOutcome, MailboxSendError> {
+/// `CoalesceByKey` replaces in-place or evicts oldest; never returns `Full`.
+fn enqueue_non_blocking<T>(inner: &MailboxInner<T>, state: &mut MailboxState<T>, msg: T) -> Result<MailboxSendOutcome, MailboxSendError> {
 	if state.closed {
 		return Err(MailboxSendError::Closed);
 	}
 
-	match inner.policy {
-		MailboxPolicy::LatestWins => {
-			let had_items = !state.queue.is_empty();
-			state.queue.clear();
-			state.queue.push_back(msg);
-			inner.notify_recv.notify_one();
-			if had_items {
-				Ok(MailboxSendOutcome::Coalesced)
-			} else {
-				Ok(MailboxSendOutcome::Enqueued)
-			}
-		}
-		MailboxPolicy::CoalesceByKey => {
-			let Some(eq_fn) = inner.coalesce_eq.as_ref() else {
-				return Err(MailboxSendError::MissingCoalesceKey);
-			};
+	match inner.mode {
+		MailboxMode::CoalesceByKey => {
+			// SAFETY: coalesce_eq is always Some when mode is CoalesceByKey
+			// (enforced by constructors).
+			let eq_fn = inner.coalesce_eq.as_ref().expect("coalesce_eq must be set for CoalesceByKey mode");
 			if let Some(existing) = state.queue.iter_mut().find(|it| eq_fn(it, &msg)) {
 				*existing = msg;
 				inner.notify_recv.notify_one();
@@ -298,7 +277,7 @@ fn enqueue_with_policy<T>(inner: &MailboxInner<T>, state: &mut MailboxState<T>, 
 				Ok(MailboxSendOutcome::Enqueued)
 			}
 		}
-		MailboxPolicy::Backpressure => {
+		MailboxMode::Backpressure => {
 			if state.queue.len() < inner.capacity {
 				state.queue.push_back(msg);
 				inner.notify_recv.notify_one();
@@ -306,26 +285,6 @@ fn enqueue_with_policy<T>(inner: &MailboxInner<T>, state: &mut MailboxState<T>, 
 			} else {
 				Err(MailboxSendError::Full)
 			}
-		}
-		MailboxPolicy::DropNewest => {
-			if state.queue.len() < inner.capacity {
-				state.queue.push_back(msg);
-				inner.notify_recv.notify_one();
-				Ok(MailboxSendOutcome::Enqueued)
-			} else {
-				Ok(MailboxSendOutcome::DroppedNewest)
-			}
-		}
-		MailboxPolicy::DropOldest => {
-			if state.queue.len() < inner.capacity {
-				state.queue.push_back(msg);
-				inner.notify_recv.notify_one();
-				return Ok(MailboxSendOutcome::Enqueued);
-			}
-			let _ = state.queue.pop_front();
-			state.queue.push_back(msg);
-			inner.notify_recv.notify_one();
-			Ok(MailboxSendOutcome::ReplacedOldest)
 		}
 	}
 }
@@ -337,22 +296,20 @@ mod tests {
 
 	use super::*;
 
-	// ── A. Golden behavior tests (capacity=3, push A B C D E) ──
+	// ── Backpressure golden tests ──
 
 	#[tokio::test]
 	async fn backpressure_try_send_returns_full_when_at_capacity() {
-		let mailbox = Mailbox::new(3, MailboxPolicy::Backpressure);
+		let mailbox = Mailbox::backpressure(3);
 		let tx = mailbox.sender();
 		let rx = mailbox.receiver();
 
 		assert_eq!(tx.try_send(1u32).await, Ok(MailboxSendOutcome::Enqueued));
 		assert_eq!(tx.try_send(2).await, Ok(MailboxSendOutcome::Enqueued));
 		assert_eq!(tx.try_send(3).await, Ok(MailboxSendOutcome::Enqueued));
-		// Queue full — try_send must fail with Full.
 		assert_eq!(tx.try_send(4).await, Err(MailboxSendError::Full));
 		assert_eq!(tx.try_send(5).await, Err(MailboxSendError::Full));
 
-		// Drain order: FIFO, only the first 3.
 		tx.close().await;
 		assert_eq!(rx.recv().await, Some(1));
 		assert_eq!(rx.recv().await, Some(2));
@@ -362,24 +319,19 @@ mod tests {
 
 	#[tokio::test]
 	async fn backpressure_send_blocks_until_capacity_freed() {
-		let mailbox = Mailbox::new(2, MailboxPolicy::Backpressure);
+		let mailbox = Mailbox::backpressure(2);
 		let tx = mailbox.sender();
 		let rx = mailbox.receiver();
 
 		let _ = tx.send(1u32).await;
 		let _ = tx.send(2).await;
 
-		// send(3) should block because queue is full.
 		let tx2 = tx.clone();
 		let send_task = crate::spawn::spawn(crate::TaskClass::Background, async move { tx2.send(3).await });
 
-		// Give send_task a moment to park on the notify.
 		tokio::time::sleep(Duration::from_millis(10)).await;
-
-		// Pop one item to free capacity.
 		assert_eq!(rx.recv().await, Some(1));
 
-		// send(3) should now complete.
 		let result = tokio::time::timeout(Duration::from_millis(100), send_task)
 			.await
 			.expect("send should unblock after pop")
@@ -392,71 +344,6 @@ mod tests {
 		assert_eq!(rx.recv().await, None);
 	}
 
-	#[tokio::test]
-	async fn drop_newest_rejects_incoming_when_full() {
-		let mailbox = Mailbox::new(3, MailboxPolicy::DropNewest);
-		let tx = mailbox.sender();
-		let rx = mailbox.receiver();
-
-		assert_eq!(tx.send(1u32).await, Ok(MailboxSendOutcome::Enqueued));
-		assert_eq!(tx.send(2).await, Ok(MailboxSendOutcome::Enqueued));
-		assert_eq!(tx.send(3).await, Ok(MailboxSendOutcome::Enqueued));
-		// Full: incoming items are dropped.
-		assert_eq!(tx.send(4).await, Ok(MailboxSendOutcome::DroppedNewest));
-		assert_eq!(tx.send(5).await, Ok(MailboxSendOutcome::DroppedNewest));
-
-		tx.close().await;
-		assert_eq!(rx.recv().await, Some(1));
-		assert_eq!(rx.recv().await, Some(2));
-		assert_eq!(rx.recv().await, Some(3));
-		assert_eq!(rx.recv().await, None);
-	}
-
-	#[tokio::test]
-	async fn drop_oldest_evicts_head_when_full() {
-		let mailbox = Mailbox::new(3, MailboxPolicy::DropOldest);
-		let tx = mailbox.sender();
-		let rx = mailbox.receiver();
-
-		assert_eq!(tx.send(1u32).await, Ok(MailboxSendOutcome::Enqueued));
-		assert_eq!(tx.send(2).await, Ok(MailboxSendOutcome::Enqueued));
-		assert_eq!(tx.send(3).await, Ok(MailboxSendOutcome::Enqueued));
-		// Full: evicts oldest (1), then oldest (2).
-		assert_eq!(tx.send(4).await, Ok(MailboxSendOutcome::ReplacedOldest));
-		assert_eq!(tx.send(5).await, Ok(MailboxSendOutcome::ReplacedOldest));
-
-		tx.close().await;
-		assert_eq!(rx.recv().await, Some(3));
-		assert_eq!(rx.recv().await, Some(4));
-		assert_eq!(rx.recv().await, Some(5));
-		assert_eq!(rx.recv().await, None);
-	}
-
-	#[tokio::test]
-	async fn latest_wins_keeps_only_the_last_sent() {
-		let mailbox = Mailbox::new(8, MailboxPolicy::LatestWins);
-		let tx = mailbox.sender();
-		let rx = mailbox.receiver();
-
-		assert_eq!(tx.send(1u32).await, Ok(MailboxSendOutcome::Enqueued));
-		assert_eq!(tx.send(2).await, Ok(MailboxSendOutcome::Coalesced));
-		assert_eq!(tx.send(3).await, Ok(MailboxSendOutcome::Coalesced));
-		assert_eq!(tx.send(4).await, Ok(MailboxSendOutcome::Coalesced));
-		assert_eq!(tx.send(5).await, Ok(MailboxSendOutcome::Coalesced));
-
-		tx.close().await;
-		assert_eq!(rx.recv().await, Some(5));
-		assert_eq!(rx.recv().await, None);
-	}
-
-	#[tokio::test]
-	async fn latest_wins_first_send_to_empty_returns_enqueued() {
-		let mailbox = Mailbox::new(4, MailboxPolicy::LatestWins);
-		let tx = mailbox.sender();
-
-		assert_eq!(tx.send(42u32).await, Ok(MailboxSendOutcome::Enqueued));
-	}
-
 	// ── CoalesceByKey golden tests ──
 
 	#[derive(Clone, Debug, PartialEq, Eq)]
@@ -467,14 +354,13 @@ mod tests {
 
 	#[tokio::test]
 	async fn coalesce_replaces_in_place_preserving_order() {
-		let mailbox = Mailbox::with_coalesce_key(4, |m: &Msg| m.key);
+		let mailbox = Mailbox::coalesce_by_key(4, |m: &Msg| m.key);
 		let tx = mailbox.sender();
 		let rx = mailbox.receiver();
 
 		let _ = tx.send(Msg { key: 1, value: 10 }).await;
 		let _ = tx.send(Msg { key: 2, value: 20 }).await;
 		let _ = tx.send(Msg { key: 3, value: 30 }).await;
-		// Replace key=1 in-place (position 0). Order must be [1,2,3] not [2,3,1].
 		let outcome = tx.send(Msg { key: 1, value: 99 }).await;
 		assert_eq!(outcome, Ok(MailboxSendOutcome::Coalesced));
 
@@ -487,14 +373,13 @@ mod tests {
 
 	#[tokio::test]
 	async fn coalesce_evicts_oldest_when_full_and_no_match() {
-		let mailbox = Mailbox::with_coalesce_key(3, |m: &Msg| m.key);
+		let mailbox = Mailbox::coalesce_by_key(3, |m: &Msg| m.key);
 		let tx = mailbox.sender();
 		let rx = mailbox.receiver();
 
 		let _ = tx.send(Msg { key: 1, value: 10 }).await;
 		let _ = tx.send(Msg { key: 2, value: 20 }).await;
 		let _ = tx.send(Msg { key: 3, value: 30 }).await;
-		// Full, new key=4 → evicts oldest (key=1).
 		let outcome = tx.send(Msg { key: 4, value: 40 }).await;
 		assert_eq!(outcome, Ok(MailboxSendOutcome::ReplacedOldest));
 
@@ -507,14 +392,13 @@ mod tests {
 
 	#[tokio::test]
 	async fn coalesce_replaces_even_when_full() {
-		let mailbox = Mailbox::with_coalesce_key(3, |m: &Msg| m.key);
+		let mailbox = Mailbox::coalesce_by_key(3, |m: &Msg| m.key);
 		let tx = mailbox.sender();
 		let rx = mailbox.receiver();
 
 		let _ = tx.send(Msg { key: 1, value: 10 }).await;
 		let _ = tx.send(Msg { key: 2, value: 20 }).await;
 		let _ = tx.send(Msg { key: 3, value: 30 }).await;
-		// Full but key=2 exists → replace in-place, no eviction.
 		let outcome = tx.send(Msg { key: 2, value: 99 }).await;
 		assert_eq!(outcome, Ok(MailboxSendOutcome::Coalesced));
 
@@ -525,20 +409,11 @@ mod tests {
 		assert_eq!(rx.recv().await, None);
 	}
 
-	#[tokio::test]
-	async fn coalesce_without_key_fn_returns_error() {
-		// CoalesceByKey policy created via `new` (no key fn) must error.
-		let mailbox = Mailbox::new(4, MailboxPolicy::CoalesceByKey);
-		let tx = mailbox.sender();
-
-		assert_eq!(tx.send(1u32).await, Err(MailboxSendError::MissingCoalesceKey));
-	}
-
 	// ── Closed mailbox tests ──
 
 	#[tokio::test]
 	async fn send_on_closed_mailbox_returns_closed() {
-		let mailbox = Mailbox::new(4, MailboxPolicy::Backpressure);
+		let mailbox = Mailbox::backpressure(4);
 		let tx = mailbox.sender();
 		tx.close().await;
 
@@ -548,7 +423,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn recv_drains_then_returns_none_on_close() {
-		let mailbox = Mailbox::new(4, MailboxPolicy::DropNewest);
+		let mailbox = Mailbox::backpressure(4);
 		let tx = mailbox.sender();
 		let rx = mailbox.receiver();
 
@@ -559,35 +434,14 @@ mod tests {
 		assert_eq!(rx.recv().await, Some(10));
 		assert_eq!(rx.recv().await, Some(20));
 		assert_eq!(rx.recv().await, None);
-		// Repeated recv after drain still returns None.
 		assert_eq!(rx.recv().await, None);
 	}
 
 	// ── Interleaved push/pop tests ──
 
 	#[tokio::test]
-	async fn drop_oldest_interleaved_push_pop() {
-		let mailbox = Mailbox::new(2, MailboxPolicy::DropOldest);
-		let tx = mailbox.sender();
-		let rx = mailbox.receiver();
-
-		let _ = tx.send(1u32).await;
-		let _ = tx.send(2).await;
-		assert_eq!(rx.recv().await, Some(1));
-
-		// Queue: [2]. Push 3,4 — at push(4) queue is [2,3], evicts 2.
-		let _ = tx.send(3).await;
-		let _ = tx.send(4).await;
-
-		tx.close().await;
-		assert_eq!(rx.recv().await, Some(3));
-		assert_eq!(rx.recv().await, Some(4));
-		assert_eq!(rx.recv().await, None);
-	}
-
-	#[tokio::test]
 	async fn coalesce_interleaved_push_pop_preserves_order() {
-		let mailbox = Mailbox::with_coalesce_key(3, |m: &Msg| m.key);
+		let mailbox = Mailbox::coalesce_by_key(3, |m: &Msg| m.key);
 		let tx = mailbox.sender();
 		let rx = mailbox.receiver();
 
@@ -595,7 +449,6 @@ mod tests {
 		let _ = tx.send(Msg { key: 2, value: 20 }).await;
 		assert_eq!(rx.recv().await, Some(Msg { key: 1, value: 10 }));
 
-		// Queue: [key=2]. Push key=2 again (coalesce), then key=3.
 		let outcome = tx.send(Msg { key: 2, value: 99 }).await;
 		assert_eq!(outcome, Ok(MailboxSendOutcome::Coalesced));
 		let _ = tx.send(Msg { key: 3, value: 30 }).await;
@@ -606,9 +459,8 @@ mod tests {
 		assert_eq!(rx.recv().await, None);
 	}
 
-	// ── B. Invariant stress tests (deterministic xorshift) ──
+	// ── Stress tests (deterministic xorshift) ──
 
-	/// Deterministic pseudo-random number generator for reproducible stress tests.
 	struct Xorshift64(u64);
 
 	impl Xorshift64 {
@@ -630,61 +482,26 @@ mod tests {
 		}
 	}
 
-	/// Reference model for a bounded queue with a given policy.
-	struct QueueModel {
+	/// Reference model for backpressure bounded queue.
+	struct BackpressureModel {
 		capacity: usize,
-		policy: MailboxPolicy,
 		queue: std::collections::VecDeque<u32>,
 	}
 
-	impl QueueModel {
-		fn new(capacity: usize, policy: MailboxPolicy) -> Self {
+	impl BackpressureModel {
+		fn new(capacity: usize) -> Self {
 			Self {
 				capacity,
-				policy,
 				queue: std::collections::VecDeque::with_capacity(capacity),
 			}
 		}
 
 		fn push(&mut self, val: u32) -> Result<MailboxSendOutcome, MailboxSendError> {
-			match self.policy {
-				MailboxPolicy::Backpressure => {
-					if self.queue.len() < self.capacity {
-						self.queue.push_back(val);
-						Ok(MailboxSendOutcome::Enqueued)
-					} else {
-						Err(MailboxSendError::Full)
-					}
-				}
-				MailboxPolicy::DropNewest => {
-					if self.queue.len() < self.capacity {
-						self.queue.push_back(val);
-						Ok(MailboxSendOutcome::Enqueued)
-					} else {
-						Ok(MailboxSendOutcome::DroppedNewest)
-					}
-				}
-				MailboxPolicy::DropOldest => {
-					if self.queue.len() < self.capacity {
-						self.queue.push_back(val);
-						Ok(MailboxSendOutcome::Enqueued)
-					} else {
-						let _ = self.queue.pop_front();
-						self.queue.push_back(val);
-						Ok(MailboxSendOutcome::ReplacedOldest)
-					}
-				}
-				MailboxPolicy::LatestWins => {
-					let had_items = !self.queue.is_empty();
-					self.queue.clear();
-					self.queue.push_back(val);
-					if had_items {
-						Ok(MailboxSendOutcome::Coalesced)
-					} else {
-						Ok(MailboxSendOutcome::Enqueued)
-					}
-				}
-				MailboxPolicy::CoalesceByKey => unreachable!("use keyed model"),
+			if self.queue.len() < self.capacity {
+				self.queue.push_back(val);
+				Ok(MailboxSendOutcome::Enqueued)
+			} else {
+				Err(MailboxSendError::Full)
 			}
 		}
 
@@ -712,7 +529,6 @@ mod tests {
 		}
 
 		fn push(&mut self, key: u64, value: u32) -> Result<MailboxSendOutcome, MailboxSendError> {
-			// Replace in-place if key exists.
 			if let Some(existing) = self.queue.iter_mut().find(|(k, _)| *k == key) {
 				existing.1 = value;
 				return Ok(MailboxSendOutcome::Coalesced);
@@ -736,7 +552,6 @@ mod tests {
 		}
 	}
 
-	/// Collects all items from a mailbox receiver (mailbox must be closed first).
 	async fn drain_all<T>(rx: &MailboxReceiver<T>) -> Vec<T> {
 		let mut items = Vec::new();
 		while let Some(item) = rx.recv().await {
@@ -749,113 +564,16 @@ mod tests {
 	async fn stress_backpressure_matches_model() {
 		const OPS: usize = 5_000;
 		let capacity = 4;
-		let mailbox = Mailbox::new(capacity, MailboxPolicy::Backpressure);
+		let mailbox = Mailbox::backpressure(capacity);
 		let tx = mailbox.sender();
 		let rx = mailbox.receiver();
-		let mut model = QueueModel::new(capacity, MailboxPolicy::Backpressure);
+		let mut model = BackpressureModel::new(capacity);
 		let mut rng = Xorshift64::new(0xDEAD_BEEF);
 
 		for i in 0..OPS {
-			// 60% push, 40% pop.
 			if rng.next_usize(10) < 6 {
 				let val = i as u32;
 				let real = tx.try_send(val).await;
-				let expected = model.push(val);
-				assert_eq!(real, expected, "op {i}: push({val})");
-			} else {
-				let real = tokio::time::timeout(Duration::from_millis(1), rx.recv()).await;
-				let expected = model.pop();
-				match (real, expected) {
-					(Ok(r), e) => assert_eq!(r, e, "op {i}: pop"),
-					(Err(_), None) => {} // Both empty, recv timed out.
-					(Err(_), Some(v)) => panic!("op {i}: model has {v} but recv timed out"),
-				}
-			}
-		}
-
-		tx.close().await;
-		let remaining = drain_all(&rx).await;
-		assert_eq!(remaining, model.contents(), "final drain mismatch");
-	}
-
-	#[tokio::test]
-	async fn stress_drop_newest_matches_model() {
-		const OPS: usize = 10_000;
-		let capacity = 4;
-		let mailbox = Mailbox::new(capacity, MailboxPolicy::DropNewest);
-		let tx = mailbox.sender();
-		let rx = mailbox.receiver();
-		let mut model = QueueModel::new(capacity, MailboxPolicy::DropNewest);
-		let mut rng = Xorshift64::new(0xCAFE_BABE);
-
-		for i in 0..OPS {
-			if rng.next_usize(10) < 6 {
-				let val = i as u32;
-				let real = tx.send(val).await;
-				let expected = model.push(val);
-				assert_eq!(real, expected, "op {i}: push({val})");
-			} else {
-				let real = tokio::time::timeout(Duration::from_millis(1), rx.recv()).await;
-				let expected = model.pop();
-				match (real, expected) {
-					(Ok(r), e) => assert_eq!(r, e, "op {i}: pop"),
-					(Err(_), None) => {}
-					(Err(_), Some(v)) => panic!("op {i}: model has {v} but recv timed out"),
-				}
-			}
-		}
-
-		tx.close().await;
-		let remaining = drain_all(&rx).await;
-		assert_eq!(remaining, model.contents(), "final drain mismatch");
-	}
-
-	#[tokio::test]
-	async fn stress_drop_oldest_matches_model() {
-		const OPS: usize = 10_000;
-		let capacity = 4;
-		let mailbox = Mailbox::new(capacity, MailboxPolicy::DropOldest);
-		let tx = mailbox.sender();
-		let rx = mailbox.receiver();
-		let mut model = QueueModel::new(capacity, MailboxPolicy::DropOldest);
-		let mut rng = Xorshift64::new(0x1234_5678);
-
-		for i in 0..OPS {
-			if rng.next_usize(10) < 6 {
-				let val = i as u32;
-				let real = tx.send(val).await;
-				let expected = model.push(val);
-				assert_eq!(real, expected, "op {i}: push({val})");
-			} else {
-				let real = tokio::time::timeout(Duration::from_millis(1), rx.recv()).await;
-				let expected = model.pop();
-				match (real, expected) {
-					(Ok(r), e) => assert_eq!(r, e, "op {i}: pop"),
-					(Err(_), None) => {}
-					(Err(_), Some(v)) => panic!("op {i}: model has {v} but recv timed out"),
-				}
-			}
-		}
-
-		tx.close().await;
-		let remaining = drain_all(&rx).await;
-		assert_eq!(remaining, model.contents(), "final drain mismatch");
-	}
-
-	#[tokio::test]
-	async fn stress_latest_wins_matches_model() {
-		const OPS: usize = 10_000;
-		let capacity = 4;
-		let mailbox = Mailbox::new(capacity, MailboxPolicy::LatestWins);
-		let tx = mailbox.sender();
-		let rx = mailbox.receiver();
-		let mut model = QueueModel::new(capacity, MailboxPolicy::LatestWins);
-		let mut rng = Xorshift64::new(0xABCD_EF01);
-
-		for i in 0..OPS {
-			if rng.next_usize(10) < 6 {
-				let val = i as u32;
-				let real = tx.send(val).await;
 				let expected = model.push(val);
 				assert_eq!(real, expected, "op {i}: push({val})");
 			} else {
@@ -878,12 +596,11 @@ mod tests {
 	async fn stress_coalesce_by_key_matches_model() {
 		const OPS: usize = 10_000;
 		let capacity = 4;
-		let mailbox = Mailbox::with_coalesce_key(capacity, |m: &Msg| m.key);
+		let mailbox = Mailbox::coalesce_by_key(capacity, |m: &Msg| m.key);
 		let tx = mailbox.sender();
 		let rx = mailbox.receiver();
 		let mut model = KeyedQueueModel::new(capacity);
 		let mut rng = Xorshift64::new(0xFEED_FACE);
-		// Use a small key space to force frequent coalescing.
 		let key_space = 6u64;
 
 		for i in 0..OPS {
@@ -917,11 +634,10 @@ mod tests {
 
 	#[tokio::test]
 	async fn empty_mailbox_recv_blocks_until_send() {
-		let mailbox = Mailbox::new(4, MailboxPolicy::Backpressure);
+		let mailbox = Mailbox::backpressure(4);
 		let tx = mailbox.sender();
 		let rx = mailbox.receiver();
 
-		// recv on empty should block, not return None.
 		let recv_timeout = tokio::time::timeout(Duration::from_millis(20), rx.recv()).await;
 		assert!(recv_timeout.is_err(), "recv on empty should block");
 
@@ -931,7 +647,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn len_tracks_queue_depth() {
-		let mailbox = Mailbox::new(4, MailboxPolicy::DropNewest);
+		let mailbox = Mailbox::backpressure(4);
 		let tx = mailbox.sender();
 		let rx = mailbox.receiver();
 
@@ -949,14 +665,13 @@ mod tests {
 
 	#[tokio::test]
 	async fn close_now_is_best_effort() {
-		let mailbox = Mailbox::new(4, MailboxPolicy::Backpressure);
+		let mailbox = Mailbox::backpressure(4);
 		let tx = mailbox.sender();
 		let rx = mailbox.receiver();
 
 		let _ = tx.send(1u32).await;
 		tx.close_now();
 
-		// After close_now, remaining items drain then None.
 		assert_eq!(rx.recv().await, Some(1));
 		assert_eq!(rx.recv().await, None);
 	}
@@ -969,7 +684,7 @@ mod tests {
 		const ITEMS_PER_SENDER: usize = 200;
 		let total = SENDERS * ITEMS_PER_SENDER;
 
-		let mailbox = Mailbox::new(2, MailboxPolicy::Backpressure);
+		let mailbox = Mailbox::backpressure(2);
 		let tx = mailbox.sender();
 		let rx = mailbox.receiver();
 
@@ -980,7 +695,6 @@ mod tests {
 			let tx = tx.clone();
 			let barrier = Arc::clone(&barrier);
 			handles.push(crate::spawn::spawn(crate::TaskClass::Background, async move {
-				// All senders stampede at once.
 				barrier.wait().await;
 				for seq in 0..ITEMS_PER_SENDER {
 					let val = (sender_id * ITEMS_PER_SENDER + seq) as u32;
@@ -990,7 +704,6 @@ mod tests {
 			}));
 		}
 
-		// Drain receiver until we have all items.
 		let receiver = crate::spawn::spawn(crate::TaskClass::Background, async move {
 			let mut received = Vec::with_capacity(total);
 			for _ in 0..total {
@@ -1008,7 +721,6 @@ mod tests {
 		let received = receiver.await.unwrap();
 		assert_eq!(received.len(), total, "must receive exactly N*M items");
 
-		// Verify every value was delivered exactly once.
 		let mut sorted = received;
 		sorted.sort();
 		let expected: Vec<u32> = (0..total as u32).collect();
@@ -1017,20 +729,16 @@ mod tests {
 
 	#[tokio::test]
 	async fn backpressure_send_returns_closed_when_closed_while_waiting() {
-		let mailbox = Mailbox::new(1, MailboxPolicy::Backpressure);
+		let mailbox = Mailbox::backpressure(1);
 		let tx = mailbox.sender();
 		let _rx = mailbox.receiver();
 
-		// Fill the single slot.
 		let _ = tx.send(1u32).await;
 
-		// send(2) will block because queue is full.
 		let tx2 = tx.clone();
 		let send_task = crate::spawn::spawn(crate::TaskClass::Background, async move { tx2.send(2).await });
 
 		tokio::time::sleep(Duration::from_millis(10)).await;
-
-		// Close the mailbox while sender is blocked.
 		tx.close().await;
 
 		let result = tokio::time::timeout(Duration::from_millis(100), send_task)

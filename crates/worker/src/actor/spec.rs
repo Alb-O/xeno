@@ -1,6 +1,5 @@
 //! Actor spec and lifecycle type surface.
 
-pub use crate::mailbox::MailboxPolicy as ActorMailboxMode;
 pub use crate::supervisor::{
 	ActorContext, ActorExitReason, ActorFlow, ActorSpec, RestartPolicy as ActorRestartPolicy, ShutdownMode as ActorShutdownMode,
 	ShutdownReport as ActorShutdownReport, SupervisorSpec as ActorLifecyclePolicy, WorkerActor as Actor,

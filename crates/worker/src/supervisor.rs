@@ -7,7 +7,7 @@ use tokio::sync::{Mutex, broadcast};
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
-use crate::mailbox::{Mailbox, MailboxPolicy, MailboxReceiver, MailboxSendError, MailboxSendOutcome, MailboxSender};
+use crate::mailbox::{Mailbox, MailboxReceiver, MailboxSendError, MailboxSendOutcome, MailboxSender};
 use crate::token::{GenerationClock, GenerationToken};
 use crate::{TaskClass, spawn};
 
@@ -65,19 +65,18 @@ impl RestartPolicy {
 	}
 }
 
-/// Mailbox configuration for supervised actors.
+/// Mailbox sizing configuration for supervised actors.
+///
+/// The mailbox mode (backpressure vs coalesce) is determined by whether
+/// `coalesce_by_key` is called on the `ActorSpec` builder.
 #[derive(Debug, Clone)]
 pub struct MailboxSpec {
 	pub capacity: usize,
-	pub policy: MailboxPolicy,
 }
 
 impl Default for MailboxSpec {
 	fn default() -> Self {
-		Self {
-			capacity: 128,
-			policy: MailboxPolicy::Backpressure,
-		}
+		Self { capacity: 128 }
 	}
 }
 
@@ -209,7 +208,6 @@ where
 		K: Eq + Send + Sync + 'static,
 	{
 		self.coalesce_eq = Some(Arc::new(move |lhs: &A::Cmd, rhs: &A::Cmd| key_fn(lhs) == key_fn(rhs)));
-		self.mailbox.policy = MailboxPolicy::CoalesceByKey;
 		self
 	}
 }
@@ -451,8 +449,8 @@ where
 	A: WorkerActor,
 {
 	let mailbox = match spec.coalesce_eq {
-		Some(eq_fn) => Mailbox::with_coalesce_eq(spec.mailbox.capacity, move |lhs: &A::Cmd, rhs: &A::Cmd| eq_fn(lhs, rhs)),
-		None => Mailbox::new(spec.mailbox.capacity, spec.mailbox.policy),
+		Some(eq_fn) => Mailbox::coalesce_by_eq(spec.mailbox.capacity, move |lhs: &A::Cmd, rhs: &A::Cmd| eq_fn(lhs, rhs)),
+		None => Mailbox::backpressure(spec.mailbox.capacity),
 	};
 	let tx = mailbox.sender();
 	let rx = mailbox.receiver();
@@ -847,10 +845,7 @@ mod tests {
 	#[tokio::test]
 	async fn cancel_closes_mailbox_and_send_fails_fast() {
 		let handle = spawn_supervised_actor(
-			ActorSpec::new("cancel-close", TaskClass::Background, CountingActor::default).mailbox(MailboxSpec {
-				capacity: 1,
-				policy: MailboxPolicy::Backpressure,
-			}),
+			ActorSpec::new("cancel-close", TaskClass::Background, CountingActor::default).mailbox(MailboxSpec { capacity: 1 }),
 		);
 
 		handle.cancel();

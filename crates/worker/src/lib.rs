@@ -23,7 +23,7 @@ mod supervisor;
 mod token;
 
 pub use actor::{
-	Actor, ActorCommandIngress, ActorCommandPort, ActorContext, ActorExitReason, ActorFlow, ActorHandle, ActorLifecyclePolicy, ActorMailbox, ActorMailboxMode,
+	Actor, ActorCommandIngress, ActorCommandPort, ActorContext, ActorExitReason, ActorFlow, ActorHandle, ActorLifecyclePolicy, ActorMailbox,
 	ActorMailboxPolicy, ActorMailboxReceiver, ActorMailboxSendError, ActorMailboxSendOutcome, ActorMailboxSender, ActorRestartPolicy, ActorRuntime,
 	ActorShutdownMode, ActorShutdownReport, ActorSpec,
 };
