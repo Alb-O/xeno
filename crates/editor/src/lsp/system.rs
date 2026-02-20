@@ -75,6 +75,32 @@ impl LspSystem {
 		}
 	}
 
+	#[cfg(test)]
+	pub fn with_transport(worker_runtime: WorkerRuntime, transport: std::sync::Arc<dyn xeno_lsp::client::LspTransport>) -> Self {
+		let (ui_tx, ui_rx) = tokio::sync::mpsc::unbounded_channel();
+		let (apply_edit_tx, apply_edit_rx) = tokio::sync::mpsc::unbounded_channel();
+
+		let (mut session, runtime) = LspSession::new(transport, worker_runtime.clone());
+		session.sync_mut().set_apply_edit_sender(apply_edit_tx);
+		if let Err(err) = runtime.start() {
+			tracing::error!(error = ?err, "failed to start LSP runtime");
+		}
+
+		Self {
+			inner: RealLspSystem {
+				session,
+				runtime,
+				sync_manager: crate::lsp::sync_manager::LspSyncManager::new(worker_runtime.clone()),
+				completion: xeno_lsp::CompletionController::new(worker_runtime),
+				signature_gen: 0,
+				signature_cancel: None,
+				ui_tx,
+				ui_rx,
+				apply_edit_rx,
+			},
+		}
+	}
+
 	pub fn handle(&self) -> LspHandle {
 		LspHandle {
 			sync: self.inner.session.sync().clone(),

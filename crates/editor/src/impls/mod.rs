@@ -417,6 +417,26 @@ impl Editor {
 		Self::from_content(String::new(), None)
 	}
 
+	#[cfg(all(test, feature = "lsp"))]
+	pub fn new_scratch_with_transport(transport: std::sync::Arc<dyn xeno_lsp::client::LspTransport>) -> Self {
+		crate::editor_ctx::register_result_handlers();
+		log_registry_summary_once();
+
+		let (msg_tx, msg_rx) = crate::msg::channel();
+		let worker_runtime = WorkerRuntime::new();
+		let (core, work_scheduler, language_loader) = Self::bootstrap_core(String::new(), None);
+		let runtime = Self::bootstrap_runtime();
+		let mut integration = Self::bootstrap_integrations(&worker_runtime, work_scheduler);
+		integration.lsp = LspSystem::with_transport(worker_runtime.clone(), transport);
+		let ui = Self::bootstrap_ui();
+		let config = Self::bootstrap_config(language_loader);
+		let async_state = Self::bootstrap_async(worker_runtime, msg_tx, msg_rx);
+		let telemetry = Self::bootstrap_telemetry();
+		let state = Self::assemble_editor_state(core, runtime, integration, ui, config, async_state, telemetry);
+
+		Self { state }
+	}
+
 	/// Creates an editor from the given content and optional file path.
 	pub fn from_content(content: String, path: Option<PathBuf>) -> Self {
 		crate::editor_ctx::register_result_handlers();

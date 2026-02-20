@@ -741,6 +741,10 @@ impl Editor {
 				}
 				_ => {}
 			}
+
+			// Update sync manager's tracked config to reflect the new path/language.
+			// Without this, didChange notifications would reference the old URI.
+			self.maybe_track_lsp_for_buffer(buf_id, true);
 		}
 
 		Ok(())
@@ -939,6 +943,9 @@ impl Editor {
 							}
 							_ => {}
 						}
+
+						// Update sync manager's tracked config to reflect the restored path.
+						self.maybe_track_lsp_for_buffer(buf_id, true);
 					}
 				}
 				ResourceRollbackEntry::Deleted { path, bytes } => {

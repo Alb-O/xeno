@@ -1050,3 +1050,264 @@ async fn resource_op_rollback_rename_on_failure() {
 
 	let _ = std::fs::remove_dir_all(dir);
 }
+
+// --- Rename + didChange URI tracking ---
+
+/// Transport that records notification method + URI for LSP identity assertions.
+struct UriRecordingTransport {
+	notifications: std::sync::Mutex<Vec<(String, String)>>,
+	next_slot: std::sync::atomic::AtomicU32,
+}
+
+impl UriRecordingTransport {
+	fn new() -> Self {
+		Self {
+			notifications: std::sync::Mutex::new(Vec::new()),
+			next_slot: std::sync::atomic::AtomicU32::new(1),
+		}
+	}
+
+	fn recorded(&self) -> Vec<(String, String)> {
+		self.notifications.lock().unwrap().clone()
+	}
+
+	fn clear_recordings(&self) {
+		self.notifications.lock().unwrap().clear();
+	}
+}
+
+#[async_trait::async_trait]
+impl xeno_lsp::client::LspTransport for UriRecordingTransport {
+	fn subscribe_events(
+		&self,
+	) -> xeno_lsp::Result<tokio::sync::mpsc::UnboundedReceiver<xeno_lsp::client::transport::TransportEvent>> {
+		let (_, rx) = tokio::sync::mpsc::unbounded_channel();
+		Ok(rx)
+	}
+
+	async fn start(
+		&self,
+		_cfg: xeno_lsp::client::ServerConfig,
+	) -> xeno_lsp::Result<xeno_lsp::client::transport::StartedServer> {
+		let slot = self.next_slot.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+		Ok(xeno_lsp::client::transport::StartedServer {
+			id: xeno_lsp::client::LanguageServerId::new(slot, 0),
+		})
+	}
+
+	async fn notify(
+		&self,
+		_server: xeno_lsp::client::LanguageServerId,
+		notif: xeno_lsp::AnyNotification,
+	) -> xeno_lsp::Result<()> {
+		let uri = notif
+			.params
+			.get("textDocument")
+			.and_then(|td| td.get("uri"))
+			.and_then(|u| u.as_str())
+			.unwrap_or("")
+			.to_string();
+		self.notifications.lock().unwrap().push((notif.method.clone(), uri));
+		Ok(())
+	}
+
+	async fn notify_with_barrier(
+		&self,
+		server: xeno_lsp::client::LanguageServerId,
+		notif: xeno_lsp::AnyNotification,
+	) -> xeno_lsp::Result<tokio::sync::oneshot::Receiver<xeno_lsp::Result<()>>> {
+		self.notify(server, notif).await?;
+		let (tx, rx) = tokio::sync::oneshot::channel();
+		let _ = tx.send(Ok(()));
+		Ok(rx)
+	}
+
+	async fn request(
+		&self,
+		_server: xeno_lsp::client::LanguageServerId,
+		_req: xeno_lsp::AnyRequest,
+		_timeout: Option<std::time::Duration>,
+	) -> xeno_lsp::Result<xeno_lsp::AnyResponse> {
+		Ok(xeno_lsp::AnyResponse::new_ok(
+			xeno_lsp::RequestId::Number(1),
+			serde_json::to_value(xeno_lsp::lsp_types::InitializeResult {
+				capabilities: xeno_lsp::lsp_types::ServerCapabilities::default(),
+				server_info: None,
+			})
+			.unwrap(),
+		))
+	}
+
+	async fn reply(
+		&self,
+		_server: xeno_lsp::client::LanguageServerId,
+		_id: xeno_lsp::RequestId,
+		_resp: Result<xeno_lsp::JsonValue, xeno_lsp::ResponseError>,
+	) -> xeno_lsp::Result<()> {
+		Ok(())
+	}
+
+	async fn stop(&self, _server: xeno_lsp::client::LanguageServerId) -> xeno_lsp::Result<()> {
+		Ok(())
+	}
+}
+
+/// After `apply_resource_rename`, the sync manager's tracked config must
+/// reflect the new path. Without `maybe_track_lsp_for_buffer(buf_id, true)`
+/// after rename, `didChange` would reference the old URI.
+#[tokio::test]
+async fn resource_op_rename_updates_sync_manager_tracked_path() {
+	let dir = make_temp_dir("rename_sync");
+	let old_path = dir.join("rename_old.rs");
+	let new_path = dir.join("rename_new.rs");
+	std::fs::write(&old_path, "fn main() {}\n").unwrap();
+
+	let transport = std::sync::Arc::new(UriRecordingTransport::new());
+	let mut editor = crate::Editor::new_scratch_with_transport(transport.clone());
+
+	// Configure a language server for rust so LSP tracking works.
+	editor.state.integration.lsp.configure_server(
+		"rust",
+		crate::lsp::api::LanguageServerConfig {
+			command: "rust-analyzer".into(),
+			args: vec![],
+			env: vec![],
+			root_markers: vec![],
+			timeout_secs: 30,
+			enable_snippets: false,
+			initialization_options: None,
+			settings: None,
+		},
+	);
+	editor.state.config.lsp_catalog_ready = true;
+
+	// Open the file in the editor.
+	let buf_id = editor.open_file(old_path.clone()).await.unwrap();
+
+	// Open the document in LSP directly (simulates what init_lsp_for_open_buffers does).
+	let sync = editor.state.integration.lsp.sync().clone();
+	let text = editor
+		.state
+		.core
+		.editor
+		.buffers
+		.get_buffer(buf_id)
+		.unwrap()
+		.with_doc(|doc| doc.content().clone());
+	sync.open_document(&old_path, "rust", &text).await.unwrap();
+
+	// Wait for server initialization.
+	let client = editor.state.integration.lsp.registry().get("rust", &old_path).expect("client must exist");
+	for _ in 0..200 {
+		if client.is_initialized() {
+			break;
+		}
+		tokio::task::yield_now().await;
+	}
+	assert!(client.is_initialized(), "server must be initialized");
+
+	// Track in sync manager and do initial full flush to clear needs_full.
+	editor.maybe_track_lsp_for_buffer(buf_id, false);
+	let doc_id = editor.state.core.editor.buffers.get_buffer(buf_id).unwrap().document_id();
+	let metrics = std::sync::Arc::new(crate::metrics::EditorMetrics::default());
+	{
+		let snapshot = editor
+			.state
+			.core
+			.editor
+			.buffers
+			.get_buffer(buf_id)
+			.map(|b| b.with_doc(|doc| (doc.content().clone(), doc.version())));
+		let done_rx = editor.state.integration.lsp.sync_manager_mut().flush_now(
+			std::time::Instant::now(),
+			doc_id,
+			&sync,
+			&metrics,
+			snapshot,
+		);
+		if let Some(rx) = done_rx {
+			let _ = tokio::time::timeout(std::time::Duration::from_secs(5), rx).await;
+		}
+	}
+
+	// Rename via the real apply_resource_rename path (uses xeno_lsp::uri_from_path
+	// to avoid URI roundtrip mismatches).
+	let old_uri = xeno_lsp::uri_from_path(&old_path).unwrap();
+	let new_uri = xeno_lsp::uri_from_path(&new_path).unwrap();
+	let edit = rename_file_edit(old_uri, new_uri, None);
+	editor.apply_workspace_edit(edit).await.unwrap();
+
+	// Clear recordings to isolate post-rename didChange.
+	transport.clear_recordings();
+
+	// Apply a local edit.
+	{
+		let buffer = editor.state.core.editor.buffers.get_buffer_mut(buf_id).unwrap();
+		let before = buffer.with_doc(|doc| doc.content().clone());
+		let tx = xeno_primitives::Transaction::change(
+			before.slice(..),
+			vec![xeno_primitives::transaction::Change {
+				start: 0,
+				end: 0,
+				replacement: Some("// comment\n".into()),
+			}],
+		);
+		let result = buffer.apply(
+			&tx,
+			crate::buffer::ApplyPolicy {
+				undo: xeno_primitives::UndoPolicy::Record,
+				syntax: xeno_primitives::SyntaxPolicy::IncrementalOrDirty,
+			},
+		);
+		editor.state.integration.lsp.on_local_edit(
+			editor.state.core.editor.buffers.get_buffer(buf_id).unwrap(),
+			Some(before),
+			&tx,
+			&result,
+		);
+	}
+
+	// Flush with full snapshot (reset_tracked sets needs_full=true).
+	let snapshot = editor
+		.state
+		.core
+		.editor
+		.buffers
+		.get_buffer(buf_id)
+		.map(|b| b.with_doc(|doc| (doc.content().clone(), doc.version())));
+	let done_rx = editor.state.integration.lsp.sync_manager_mut().flush_now(
+		std::time::Instant::now(),
+		doc_id,
+		&sync,
+		&metrics,
+		snapshot,
+	);
+	if let Some(rx) = done_rx {
+		let result = tokio::time::timeout(std::time::Duration::from_secs(5), rx).await;
+		assert!(result.is_ok(), "flush must complete within timeout");
+	}
+
+	// Wait for in-flight to drain.
+	for _ in 0..200 {
+		if editor.state.integration.lsp.sync_manager().in_flight_count() == 0 {
+			break;
+		}
+		tokio::task::yield_now().await;
+	}
+	assert_eq!(editor.state.integration.lsp.sync_manager().in_flight_count(), 0, "in-flight must drain");
+
+	let recs = transport.recorded();
+	let did_changes: Vec<_> = recs.iter().filter(|(m, _)| m == "textDocument/didChange").collect();
+
+	assert!(!did_changes.is_empty(), "expected didChange after rename+edit");
+	assert!(
+		did_changes.iter().all(|(_, u)| u.contains("rename_new.rs")),
+		"all didChange must reference new URI; got: {did_changes:?}",
+	);
+	assert!(
+		did_changes.iter().all(|(_, u)| !u.contains("rename_old.rs")),
+		"no didChange must reference old URI; got: {did_changes:?}",
+	);
+
+	let _ = std::fs::remove_dir_all(dir);
+}
