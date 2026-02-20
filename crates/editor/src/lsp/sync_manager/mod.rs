@@ -14,7 +14,7 @@ use std::time::{Duration, Instant};
 use parking_lot::RwLock;
 use ropey::Rope;
 pub use sync_state::*;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::oneshot;
 use tracing::{debug, warn};
 use xeno_lsp::{BarrierMode, ChangePayload, ChangeRequest, DocumentSync};
 use xeno_primitives::{DocumentId, LspDocumentChange};
@@ -39,7 +39,7 @@ impl SendWork {
 }
 
 struct SendTaskInput {
-	command_tx: mpsc::UnboundedSender<LspSyncCmd>,
+	command_port: xeno_worker::ActorCommandPort<LspSyncCmd>,
 	sync: DocumentSync,
 	metrics: Arc<EditorMetrics>,
 	doc_id: DocumentId,
@@ -49,6 +49,13 @@ struct SendTaskInput {
 	work: SendWork,
 	done_tx: Option<oneshot::Sender<()>>,
 	worker_runtime: xeno_worker::WorkerRuntime,
+}
+
+struct SendDispatch {
+	generation: u64,
+	path: PathBuf,
+	language: String,
+	work: SendWork,
 }
 
 enum LspSyncCmd {
@@ -105,7 +112,7 @@ pub enum LspSyncEvent {
 
 #[derive(Debug, Clone)]
 pub struct LspSyncShutdownReport {
-	pub actor: xeno_worker::ShutdownReport,
+	pub actor: xeno_worker::ActorShutdownReport,
 }
 
 #[derive(Clone, Default)]
@@ -119,7 +126,7 @@ struct LspSyncShared {
 
 struct LspSyncActor {
 	docs: HashMap<DocumentId, DocSyncState>,
-	command_tx: mpsc::UnboundedSender<LspSyncCmd>,
+	command_port: Arc<std::sync::OnceLock<xeno_worker::ActorCommandPort<LspSyncCmd>>>,
 	worker_runtime: xeno_worker::WorkerRuntime,
 	shared: Arc<RwLock<LspSyncShared>>,
 }
@@ -225,9 +232,13 @@ impl LspSyncActor {
 		shared.pending_tick_stats.snapshot_bytes = shared.pending_tick_stats.snapshot_bytes.saturating_add(stats.snapshot_bytes);
 	}
 
+	fn command_port(&self) -> Option<xeno_worker::ActorCommandPort<LspSyncCmd>> {
+		self.command_port.get().cloned()
+	}
+
 	fn spawn_send_task(input: SendTaskInput) {
 		let SendTaskInput {
-			command_tx,
+			command_port,
 			sync,
 			metrics,
 			doc_id,
@@ -260,7 +271,7 @@ impl LspSyncActor {
 								error = %e,
 								"lsp.sync_manager.snapshot_join_failed"
 							);
-							let _ = command_tx.send(LspSyncCmd::SendComplete(FlushComplete {
+							let _ = command_port.send(LspSyncCmd::SendComplete(FlushComplete {
 								doc_id,
 								generation,
 								result: FlushResult::Failed,
@@ -338,7 +349,7 @@ impl LspSyncActor {
 				}
 			};
 
-			let _ = command_tx.send(LspSyncCmd::SendComplete(FlushComplete {
+			let _ = command_port.send(LspSyncCmd::SendComplete(FlushComplete {
 				doc_id,
 				generation,
 				result: flush_result,
@@ -348,6 +359,75 @@ impl LspSyncActor {
 				let _ = done_tx.send(());
 			}
 		});
+	}
+
+	fn take_send_dispatch(
+		state: &mut DocSyncState,
+		doc_id: DocumentId,
+		snapshot: Option<(Rope, u64)>,
+		metrics: &Arc<EditorMetrics>,
+		stats: Option<&mut FlushStats>,
+	) -> Option<SendDispatch> {
+		let path = state.config.path.clone();
+		let language = state.config.language.clone();
+		let generation = state.generation;
+		let use_full = state.needs_full || !state.config.supports_incremental;
+		let editor_version = state.editor_version;
+
+		let work = if use_full {
+			let Some((content, snapshot_version)) = snapshot else {
+				warn!(doc_id = doc_id.0, "lsp.sync_manager.no_snapshot");
+				return None;
+			};
+			let _ = state.take_for_send(true);
+			let snapshot_bytes = content.len_bytes() as u64;
+			if let Some(stats) = stats {
+				stats.full_syncs = stats.full_syncs.saturating_add(1);
+				stats.snapshot_bytes = stats.snapshot_bytes.saturating_add(snapshot_bytes);
+			}
+
+			debug!(
+				doc_id = doc_id.0,
+				path = ?path,
+				mode = "full",
+				snapshot_version,
+				editor_version,
+				"lsp.sync_manager.flush_start"
+			);
+
+			SendWork::Full { content, snapshot_bytes }
+		} else {
+			let (raw_changes, _) = state.take_for_send(false);
+			let raw_count = raw_changes.len();
+			let changes = coalesce_changes(raw_changes);
+			let coalesced = raw_count.saturating_sub(changes.len());
+			if coalesced > 0 {
+				metrics.add_coalesced(coalesced as u64);
+			}
+			if let Some(stats) = stats {
+				stats.incremental_syncs = stats.incremental_syncs.saturating_add(1);
+			}
+
+			debug!(
+				doc_id = doc_id.0,
+				path = ?path,
+				mode = "incremental",
+				raw_count,
+				change_count = changes.len(),
+				coalesced,
+				editor_version,
+				"lsp.sync_manager.flush_start"
+			);
+
+			SendWork::Incremental { changes }
+		};
+
+		Some(SendDispatch {
+			generation,
+			path,
+			language,
+			work,
+		})
 	}
 
 	fn flush_now(
@@ -360,6 +440,12 @@ impl LspSyncActor {
 		done_tx: Option<oneshot::Sender<()>>,
 	) {
 		self.check_write_timeouts_inner(now);
+		let Some(command_port) = self.command_port() else {
+			if let Some(done_tx) = done_tx {
+				let _ = done_tx.send(());
+			}
+			return;
+		};
 		let Some(state) = self.docs.get_mut(&doc_id) else {
 			if let Some(done_tx) = done_tx {
 				let _ = done_tx.send(());
@@ -378,42 +464,22 @@ impl LspSyncActor {
 			}
 			return;
 		}
-
-		let path = state.config.path.clone();
-		let language = state.config.language.clone();
-		let generation = state.generation;
-		let use_full = state.needs_full || !state.config.supports_incremental;
-
-		let work = if use_full {
-			let Some((content, _snapshot_version)) = snapshot else {
-				if let Some(done_tx) = done_tx {
-					let _ = done_tx.send(());
-				}
-				return;
-			};
-			let snapshot_bytes = content.len_bytes() as u64;
-			let _ = state.take_for_send(true);
-			SendWork::Full { content, snapshot_bytes }
-		} else {
-			let (raw_changes, _) = state.take_for_send(false);
-			let raw_count = raw_changes.len();
-			let changes = coalesce_changes(raw_changes);
-			let coalesced = raw_count.saturating_sub(changes.len());
-			if coalesced > 0 {
-				metrics.add_coalesced(coalesced as u64);
+		let Some(dispatch) = Self::take_send_dispatch(state, doc_id, snapshot, metrics, None) else {
+			if let Some(done_tx) = done_tx {
+				let _ = done_tx.send(());
 			}
-			SendWork::Incremental { changes }
+			return;
 		};
 
 		Self::spawn_send_task(SendTaskInput {
-			command_tx: self.command_tx.clone(),
+			command_port,
 			sync: sync.clone(),
 			metrics: metrics.clone(),
 			doc_id,
-			generation,
-			path,
-			language,
-			work,
+			generation: dispatch.generation,
+			path: dispatch.path,
+			language: dispatch.language,
+			work: dispatch.work,
 			done_tx,
 			worker_runtime: self.worker_runtime.clone(),
 		});
@@ -426,6 +492,9 @@ impl LspSyncActor {
 	fn tick(&mut self, now: Instant, sync: &DocumentSync, metrics: &Arc<EditorMetrics>, full_snapshots: HashMap<DocumentId, (Rope, u64)>) -> FlushStats {
 		self.check_write_timeouts_inner(now);
 		let mut stats = FlushStats::default();
+		let Some(command_port) = self.command_port() else {
+			return stats;
+		};
 
 		let due_docs: Vec<_> = self
 			.docs
@@ -444,68 +513,20 @@ impl LspSyncActor {
 				continue;
 			};
 
-			let path = state.config.path.clone();
-			let language = state.config.language.clone();
-			let generation = state.generation;
-			let use_full = state.needs_full || !state.config.supports_incremental;
-			let editor_version = state.editor_version;
-
-			let work = if use_full {
-				let Some((content, snapshot_version)) = full_snapshots.get(&doc_id).cloned() else {
-					warn!(doc_id = doc_id.0, "lsp.sync_manager.no_snapshot");
-					continue;
-				};
-
-				let _ = state.take_for_send(true);
-				let snapshot_bytes = content.len_bytes() as u64;
-				stats.full_syncs += 1;
-				stats.snapshot_bytes += snapshot_bytes;
-
-				debug!(
-					doc_id = doc_id.0,
-					path = ?path,
-					mode = "full",
-					snapshot_version,
-					editor_version,
-					"lsp.sync_manager.flush_start"
-				);
-
-				SendWork::Full { content, snapshot_bytes }
-			} else {
-				let (raw_changes, _) = state.take_for_send(false);
-				let raw_count = raw_changes.len();
-				let changes = coalesce_changes(raw_changes);
-				let coalesced = raw_count.saturating_sub(changes.len());
-
-				if coalesced > 0 {
-					metrics.add_coalesced(coalesced as u64);
-				}
-
-				stats.incremental_syncs += 1;
-
-				debug!(
-					doc_id = doc_id.0,
-					path = ?path,
-					mode = "incremental",
-					raw_count,
-					change_count = changes.len(),
-					coalesced,
-					editor_version,
-					"lsp.sync_manager.flush_start"
-				);
-
-				SendWork::Incremental { changes }
+			let snapshot = full_snapshots.get(&doc_id).cloned();
+			let Some(dispatch) = Self::take_send_dispatch(state, doc_id, snapshot, metrics, Some(&mut stats)) else {
+				continue;
 			};
 
 			Self::spawn_send_task(SendTaskInput {
-				command_tx: self.command_tx.clone(),
+				command_port: command_port.clone(),
 				sync: sync.clone(),
 				metrics: metrics.clone(),
 				doc_id,
-				generation,
-				path,
-				language,
-				work,
+				generation: dispatch.generation,
+				path: dispatch.path,
+				language: dispatch.language,
+				work: dispatch.work,
 				done_tx: None,
 				worker_runtime: self.worker_runtime.clone(),
 			});
@@ -522,7 +543,7 @@ impl LspSyncActor {
 }
 
 #[async_trait::async_trait]
-impl xeno_worker::WorkerActor for LspSyncActor {
+impl xeno_worker::Actor for LspSyncActor {
 	type Cmd = LspSyncCmd;
 	type Evt = LspSyncEvent;
 
@@ -601,10 +622,9 @@ impl xeno_worker::WorkerActor for LspSyncActor {
 
 /// Actor-backed LSP sync manager command handle.
 pub struct LspSyncManager {
-	command_tx: mpsc::UnboundedSender<LspSyncCmd>,
 	shared: Arc<RwLock<LspSyncShared>>,
 	actor: Arc<xeno_worker::ActorHandle<LspSyncCmd, LspSyncEvent>>,
-	dispatch_task: tokio::task::JoinHandle<()>,
+	ingress: xeno_worker::ActorCommandIngress<LspSyncCmd, LspSyncEvent>,
 }
 
 impl Default for LspSyncManager {
@@ -624,22 +644,22 @@ impl std::fmt::Debug for LspSyncManager {
 impl LspSyncManager {
 	pub fn new(worker_runtime: xeno_worker::WorkerRuntime) -> Self {
 		let shared = Arc::new(RwLock::new(LspSyncShared::default()));
-		let (command_tx, mut command_rx) = mpsc::unbounded_channel::<LspSyncCmd>();
+		let command_port = Arc::new(std::sync::OnceLock::<xeno_worker::ActorCommandPort<LspSyncCmd>>::new());
 		let actor = Arc::new(
-			worker_runtime.actor(
+			worker_runtime.spawn_actor(
 				xeno_worker::ActorSpec::new("lsp.sync", xeno_worker::TaskClass::Background, {
 					let worker_runtime = worker_runtime.clone();
-					let command_tx = command_tx.clone();
+					let command_port = Arc::clone(&command_port);
 					let shared = Arc::clone(&shared);
 					move || LspSyncActor {
 						docs: HashMap::new(),
-						command_tx: command_tx.clone(),
+						command_port: Arc::clone(&command_port),
 						worker_runtime: worker_runtime.clone(),
 						shared: Arc::clone(&shared),
 					}
 				})
-				.supervisor(xeno_worker::SupervisorSpec {
-					restart: xeno_worker::RestartPolicy::OnFailure {
+				.supervisor(xeno_worker::ActorLifecyclePolicy {
+					restart: xeno_worker::ActorRestartPolicy::OnFailure {
 						max_restarts: 3,
 						backoff: Duration::from_millis(50),
 					},
@@ -647,26 +667,14 @@ impl LspSyncManager {
 				}),
 			),
 		);
+		let ingress = xeno_worker::ActorCommandIngress::new(&worker_runtime, xeno_worker::TaskClass::Background, Arc::clone(&actor));
+		let _ = command_port.set(ingress.port());
 
-		let actor_for_dispatch = Arc::clone(&actor);
-		let dispatch_task = worker_runtime.spawn(xeno_worker::TaskClass::Background, async move {
-			while let Some(cmd) = command_rx.recv().await {
-				if actor_for_dispatch.send(cmd).await.is_err() {
-					break;
-				}
-			}
-		});
-
-		Self {
-			command_tx,
-			shared,
-			actor,
-			dispatch_task,
-		}
+		Self { shared, actor, ingress }
 	}
 
 	fn send(&self, cmd: LspSyncCmd) {
-		let _ = self.command_tx.send(cmd);
+		let _ = self.ingress.send(cmd);
 	}
 
 	pub fn ensure_tracked(&mut self, doc_id: DocumentId, config: LspDocumentConfig, version: u64) {
@@ -775,9 +783,8 @@ impl LspSyncManager {
 		self.shared.read().tracked_docs.len()
 	}
 
-	pub async fn shutdown(&self, mode: xeno_worker::ShutdownMode) -> LspSyncShutdownReport {
-		self.dispatch_task.abort();
-		let actor = self.actor.shutdown(mode).await;
+	pub async fn shutdown(&self, mode: xeno_worker::ActorShutdownMode) -> LspSyncShutdownReport {
+		let actor = self.ingress.shutdown(mode).await;
 		LspSyncShutdownReport { actor }
 	}
 
@@ -788,7 +795,7 @@ impl LspSyncManager {
 
 	#[cfg(test)]
 	fn crash_for_test(&self) {
-		let _ = self.command_tx.send(LspSyncCmd::CrashForTest);
+		let _ = self.ingress.send(LspSyncCmd::CrashForTest);
 	}
 }
 

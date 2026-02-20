@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicU64, Ordering as AtomicOrdering};
 use std::time::Duration;
 
 use parking_lot::RwLock;
-use tokio::sync::{broadcast, mpsc};
+use tokio::sync::broadcast;
 
 use crate::filesystem::types::{IndexDelta, IndexMsg, ProgressSnapshot, SearchData, SearchMsg, SearchRow};
 use crate::filesystem::{FilesystemOptions, apply_search_delta, run_filesystem_index, run_search_query};
@@ -67,9 +67,9 @@ pub(crate) enum FsServiceEvt {
 
 #[derive(Debug, Clone)]
 pub struct FsServiceShutdownReport {
-	pub service: xeno_worker::ShutdownReport,
-	pub indexer: xeno_worker::ShutdownReport,
-	pub search: xeno_worker::ShutdownReport,
+	pub service: xeno_worker::ActorShutdownReport,
+	pub indexer: xeno_worker::ActorShutdownReport,
+	pub search: xeno_worker::ActorShutdownReport,
 }
 
 /// Command protocol for the indexer worker actor.
@@ -106,18 +106,18 @@ pub(crate) enum FsSearchEvt {
 
 struct FsIndexerActor {
 	worker_runtime: xeno_worker::WorkerRuntime,
-	command_tx: mpsc::UnboundedSender<FsServiceCmd>,
+	command_port: Arc<std::sync::OnceLock<xeno_worker::ActorCommandPort<FsServiceCmd>>>,
 }
 
 #[async_trait::async_trait]
-impl xeno_worker::WorkerActor for FsIndexerActor {
+impl xeno_worker::Actor for FsIndexerActor {
 	type Cmd = FsIndexerCmd;
 	type Evt = ();
 
 	async fn handle(&mut self, cmd: Self::Cmd, _ctx: &mut xeno_worker::ActorContext<Self::Evt>) -> Result<xeno_worker::ActorFlow, String> {
 		match cmd {
 			FsIndexerCmd::Start { generation, root, options } => {
-				let command_tx = self.command_tx.clone();
+				let command_port = Arc::clone(&self.command_port);
 				let runtime = self.worker_runtime.clone();
 				self.worker_runtime.spawn_thread(xeno_worker::TaskClass::IoBlocking, move || {
 					run_filesystem_index(
@@ -125,7 +125,11 @@ impl xeno_worker::WorkerActor for FsIndexerActor {
 						generation,
 						root,
 						options,
-						Arc::new(move |msg| command_tx.send(FsServiceCmd::Indexer(FsIndexerEvt::Message(msg))).is_ok()),
+						Arc::new(move |msg| {
+							command_port
+								.get()
+								.is_some_and(|port| port.send(FsServiceCmd::Indexer(FsIndexerEvt::Message(msg))).is_ok())
+						}),
 					);
 				});
 			}
@@ -137,7 +141,7 @@ impl xeno_worker::WorkerActor for FsIndexerActor {
 
 struct FsSearchActor {
 	worker_runtime: xeno_worker::WorkerRuntime,
-	command_tx: mpsc::UnboundedSender<FsServiceCmd>,
+	command_port: Arc<std::sync::OnceLock<xeno_worker::ActorCommandPort<FsServiceCmd>>>,
 	data: SearchData,
 	generation: Option<u64>,
 	latest_query_id: Option<Arc<AtomicU64>>,
@@ -152,7 +156,7 @@ impl FsSearchActor {
 }
 
 #[async_trait::async_trait]
-impl xeno_worker::WorkerActor for FsSearchActor {
+impl xeno_worker::Actor for FsSearchActor {
 	type Cmd = FsSearchCmd;
 	type Evt = ();
 
@@ -180,7 +184,7 @@ impl xeno_worker::WorkerActor for FsSearchActor {
 					latest_query_id.store(id, AtomicOrdering::Release);
 					let latest_query_id = Arc::clone(latest_query_id);
 					let data = self.data.clone();
-					let command_tx = self.command_tx.clone();
+					let command_port = Arc::clone(&self.command_port);
 					let runtime = self.worker_runtime.clone();
 					self.worker_runtime.spawn(xeno_worker::TaskClass::Background, async move {
 						let result = runtime
@@ -190,8 +194,10 @@ impl xeno_worker::WorkerActor for FsSearchActor {
 							.await
 							.ok()
 							.flatten();
-						if let Some(msg) = result {
-							let _ = command_tx.send(FsServiceCmd::Search(FsSearchEvt::Message(msg)));
+						if let Some(msg) = result
+							&& let Some(port) = command_port.get()
+						{
+							let _ = port.send(FsServiceCmd::Search(FsSearchEvt::Message(msg)));
 						}
 					});
 				}
@@ -364,7 +370,7 @@ impl FsServiceActor {
 }
 
 #[async_trait::async_trait]
-impl xeno_worker::WorkerActor for FsServiceActor {
+impl xeno_worker::Actor for FsServiceActor {
 	type Cmd = FsServiceCmd;
 	type Evt = FsServiceEvt;
 
@@ -446,12 +452,11 @@ impl xeno_worker::WorkerActor for FsServiceActor {
 
 pub struct FsService {
 	state: Arc<RwLock<FsSharedState>>,
-	command_tx: mpsc::UnboundedSender<FsServiceCmd>,
-	service_actor: Arc<xeno_worker::ActorHandle<FsServiceCmd, FsServiceEvt>>,
+	command_port: xeno_worker::ActorCommandPort<FsServiceCmd>,
+	service_ingress: xeno_worker::ActorCommandIngress<FsServiceCmd, FsServiceEvt>,
 	indexer_actor: Arc<xeno_worker::ActorHandle<FsIndexerCmd, ()>>,
 	search_actor: Arc<xeno_worker::ActorHandle<FsSearchCmd, ()>>,
 	event_rx: broadcast::Receiver<FsServiceEvt>,
-	dispatch_task: tokio::task::JoinHandle<()>,
 }
 
 impl FsService {
@@ -462,20 +467,20 @@ impl FsService {
 
 	pub fn new_with_runtime(worker_runtime: xeno_worker::WorkerRuntime) -> Self {
 		let state = Arc::new(RwLock::new(FsSharedState::default()));
-		let (command_tx, mut command_rx) = mpsc::unbounded_channel::<FsServiceCmd>();
+		let service_command_port = Arc::new(std::sync::OnceLock::<xeno_worker::ActorCommandPort<FsServiceCmd>>::new());
 
 		let indexer = Arc::new(
-			worker_runtime.actor(
+			worker_runtime.spawn_actor(
 				xeno_worker::ActorSpec::new("fs.indexer", xeno_worker::TaskClass::IoBlocking, {
 					let worker_runtime = worker_runtime.clone();
-					let service_tx = command_tx.clone();
+					let service_command_port = Arc::clone(&service_command_port);
 					move || FsIndexerActor {
 						worker_runtime: worker_runtime.clone(),
-						command_tx: service_tx.clone(),
+						command_port: Arc::clone(&service_command_port),
 					}
 				})
-				.supervisor(xeno_worker::SupervisorSpec {
-					restart: xeno_worker::RestartPolicy::OnFailure {
+				.supervisor(xeno_worker::ActorLifecyclePolicy {
+					restart: xeno_worker::ActorRestartPolicy::OnFailure {
 						max_restarts: 3,
 						backoff: Duration::from_millis(50),
 					},
@@ -485,21 +490,21 @@ impl FsService {
 		);
 
 		let search = Arc::new(
-			worker_runtime.actor(
+			worker_runtime.spawn_actor(
 				xeno_worker::ActorSpec::new("fs.search", xeno_worker::TaskClass::CpuBlocking, {
 					let worker_runtime = worker_runtime.clone();
-					let service_tx = command_tx.clone();
+					let service_command_port = Arc::clone(&service_command_port);
 					move || FsSearchActor {
 						worker_runtime: worker_runtime.clone(),
-						command_tx: service_tx.clone(),
+						command_port: Arc::clone(&service_command_port),
 						data: SearchData::default(),
 						generation: None,
 						latest_query_id: None,
 					}
 				})
-				.mailbox(xeno_worker::MailboxSpec {
+				.mailbox(xeno_worker::ActorMailboxPolicy {
 					capacity: 128,
-					policy: xeno_worker::MailboxPolicy::CoalesceByKey,
+					policy: xeno_worker::ActorMailboxMode::CoalesceByKey,
 				})
 				.coalesce_by_key(|cmd: &FsSearchCmd| match cmd {
 					FsSearchCmd::RunQuery { generation, id, .. } => format!("q:{generation}:{id}"),
@@ -511,7 +516,7 @@ impl FsService {
 		);
 
 		let service_actor = Arc::new(
-			worker_runtime.actor(xeno_worker::ActorSpec::new("fs.service", xeno_worker::TaskClass::Interactive, {
+			worker_runtime.spawn_actor(xeno_worker::ActorSpec::new("fs.service", xeno_worker::TaskClass::Interactive, {
 				let state = Arc::clone(&state);
 				let indexer = Arc::clone(&indexer);
 				let search = Arc::clone(&search);
@@ -531,25 +536,18 @@ impl FsService {
 				}
 			})),
 		);
-		let service_event_rx = service_actor.subscribe();
-
-		let service_actor_for_dispatch = Arc::clone(&service_actor);
-		let dispatch_task = worker_runtime.spawn(xeno_worker::TaskClass::Interactive, async move {
-			while let Some(cmd) = command_rx.recv().await {
-				if service_actor_for_dispatch.send(cmd).await.is_err() {
-					break;
-				}
-			}
-		});
+		let service_ingress = xeno_worker::ActorCommandIngress::new(&worker_runtime, xeno_worker::TaskClass::Interactive, Arc::clone(&service_actor));
+		let command_port = service_ingress.port();
+		let _ = service_command_port.set(command_port.clone());
+		let service_event_rx = service_ingress.subscribe();
 
 		Self {
 			state,
-			command_tx,
-			service_actor,
+			command_port,
+			service_ingress,
 			indexer_actor: indexer,
 			search_actor: search,
 			event_rx: service_event_rx,
-			dispatch_task,
 		}
 	}
 }
@@ -569,7 +567,7 @@ impl FsService {
 				return false;
 			}
 		}
-		self.command_tx
+		self.command_port
 			.send(FsServiceCmd::EnsureIndex {
 				root: requested.root,
 				options: requested.options,
@@ -584,22 +582,22 @@ impl FsService {
 
 	#[cfg(test)]
 	pub fn service_restart_count(&self) -> usize {
-		self.service_actor.restart_count()
+		self.service_ingress.actor().restart_count()
 	}
 
 	#[cfg(test)]
 	pub fn inject_index_msg(&self, msg: IndexMsg) {
-		let _ = self.command_tx.send(FsServiceCmd::Indexer(FsIndexerEvt::Message(msg)));
+		let _ = self.command_port.send(FsServiceCmd::Indexer(FsIndexerEvt::Message(msg)));
 	}
 
 	#[cfg(test)]
 	pub fn inject_search_msg(&self, msg: SearchMsg) {
-		let _ = self.command_tx.send(FsServiceCmd::Search(FsSearchEvt::Message(msg)));
+		let _ = self.command_port.send(FsServiceCmd::Search(FsSearchEvt::Message(msg)));
 	}
 
 	#[cfg(test)]
 	pub fn crash_for_test(&self) {
-		let _ = self.command_tx.send(FsServiceCmd::CrashForTest);
+		let _ = self.command_port.send(FsServiceCmd::CrashForTest);
 	}
 
 	pub fn progress(&self) -> ProgressSnapshot {
@@ -626,7 +624,7 @@ impl FsService {
 			}
 		}
 
-		self.command_tx.send(FsServiceCmd::Query { query: query.into(), limit }).is_ok()
+		self.command_port.send(FsServiceCmd::Query { query: query.into(), limit }).is_ok()
 	}
 
 	/// Drains pushed snapshot-change events and returns the number consumed.
@@ -642,10 +640,8 @@ impl FsService {
 		drained
 	}
 
-	pub async fn shutdown(&self, mode: xeno_worker::ShutdownMode) -> FsServiceShutdownReport {
-		self.dispatch_task.abort();
-
-		let service = self.service_actor.shutdown(mode).await;
+	pub async fn shutdown(&self, mode: xeno_worker::ActorShutdownMode) -> FsServiceShutdownReport {
+		let service = self.service_ingress.shutdown(mode).await;
 		let indexer = self.indexer_actor.shutdown(mode).await;
 		let search = self.search_actor.shutdown(mode).await;
 

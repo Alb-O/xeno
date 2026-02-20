@@ -16,7 +16,8 @@
 //!   * `fs.service` owns authoritative state.
 //!   * `fs.indexer` executes indexing workflow and emits typed updates.
 //!   * `fs.search` owns corpus updates and query execution directly.
-//! * Worker outputs are pushed into `fs.service` as typed events.
+//! * Worker outputs and UI commands are funneled through a shared
+//!   framework-managed actor ingress queue.
 //! * Consumers drain pushed snapshot events from `FsService` and refresh UI from snapshots.
 //!
 //! # Key types
@@ -45,7 +46,7 @@
 //! # Data flow
 //!
 //! 1. Caller invokes `ensure_index(root, options)`.
-//! 2. `FsService` enqueues command to `fs.service`.
+//! 2. `FsService` enqueues command through `ActorCommandIngress`.
 //! 3. `fs.service` starts/restarts `fs.indexer` and `fs.search` for the new generation.
 //! 4. Child actors forward worker outputs to `fs.service` as typed events.
 //! 5. `fs.service` applies generation-filtered updates, publishes snapshots, and flips the changed flag.
@@ -68,7 +69,7 @@
 //! # Failure modes & recovery
 //!
 //! * Child actor failure: supervised restart policy respawns actor.
-//! * Command channel disconnect: dispatcher exits and service stops accepting updates.
+//! * Actor ingress stopped: enqueue attempts fail and service stops accepting updates.
 //! * Stale messages: ignored by generation checks.
 //! * Search/index startup replacement: old generation data is cleared and replaced.
 //! * Index worker errors: logged and ignored unless generation matches and state update is needed.

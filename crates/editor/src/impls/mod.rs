@@ -61,11 +61,11 @@ pub use focus::{FocusReason, FocusTarget, PanelId};
 pub use navigation::Location;
 use parking_lot::Mutex;
 use xeno_language::LanguageLoader;
+use xeno_registry::HookEventData;
 use xeno_registry::db::keymap_registry::KeymapSnapshot;
 use xeno_registry::hooks::{HookContext, WindowKind, emit as emit_hook, emit_sync_with as emit_hook_sync_with};
 use xeno_registry::options::OPTIONS;
 use xeno_registry::themes::THEMES;
-use xeno_registry::HookEventData;
 use xeno_worker::WorkerRuntime;
 
 use crate::buffer::{Buffer, Layout, ViewId};
@@ -588,7 +588,7 @@ impl Editor {
 	/// Shuts down filesystem indexing/search actors with a bounded graceful timeout.
 	pub async fn shutdown_filesystem(&self) {
 		let timeout = std::time::Duration::from_millis(250);
-		let report = self.state.filesystem.shutdown(xeno_worker::ShutdownMode::Graceful { timeout }).await;
+		let report = self.state.filesystem.shutdown(xeno_worker::ActorShutdownMode::Graceful { timeout }).await;
 		if report.service.timed_out || report.indexer.timed_out || report.search.timed_out {
 			tracing::warn!(
 				service_timed_out = report.service.timed_out,
@@ -596,7 +596,7 @@ impl Editor {
 				search_timed_out = report.search.timed_out,
 				"filesystem graceful shutdown timed out; forcing immediate"
 			);
-			let _ = self.state.filesystem.shutdown(xeno_worker::ShutdownMode::Immediate).await;
+			let _ = self.state.filesystem.shutdown(xeno_worker::ActorShutdownMode::Immediate).await;
 		}
 	}
 

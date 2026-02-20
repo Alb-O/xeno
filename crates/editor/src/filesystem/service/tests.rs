@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use tokio::time::{sleep, timeout};
-use xeno_worker::ShutdownMode;
+use xeno_worker::ActorShutdownMode;
 
 use super::FsService;
 use crate::filesystem::FilesystemOptions;
@@ -105,7 +105,7 @@ async fn rapid_query_burst_applies_latest_result_under_backpressure() {
 async fn shutdown_returns_completed_reports() {
 	let service = FsService::new();
 	let report = service
-		.shutdown(ShutdownMode::Graceful {
+		.shutdown(ActorShutdownMode::Graceful {
 			timeout: Duration::from_millis(200),
 		})
 		.await;

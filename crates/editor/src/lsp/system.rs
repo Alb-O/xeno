@@ -206,10 +206,10 @@ impl LspSystem {
 
 	pub async fn shutdown_all(&self) {
 		let timeout = std::time::Duration::from_millis(250);
-		let report = self.inner.sync_manager.shutdown(xeno_worker::ShutdownMode::Graceful { timeout }).await;
+		let report = self.inner.sync_manager.shutdown(xeno_worker::ActorShutdownMode::Graceful { timeout }).await;
 		if report.actor.timed_out {
 			tracing::warn!("lsp sync-manager graceful shutdown timed out; forcing immediate");
-			let _ = self.inner.sync_manager.shutdown(xeno_worker::ShutdownMode::Immediate).await;
+			let _ = self.inner.sync_manager.shutdown(xeno_worker::ActorShutdownMode::Immediate).await;
 		}
 		self.inner.runtime.shutdown().await;
 		self.inner.session.shutdown_all().await;

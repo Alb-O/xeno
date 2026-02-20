@@ -4,10 +4,10 @@ use std::time::Instant;
 
 use tokio::sync::{Mutex, Notify};
 
+use crate::actor::{Actor, ActorHandle, ActorRuntime, ActorSpec};
 use crate::budget::{DrainBudget, DrainReport};
 use crate::join_set::WorkerJoinSet;
 use crate::registry::WorkerRegistry;
-use crate::supervisor::{ActorHandle, ActorSpec, WorkerActor, spawn_supervised_actor};
 use crate::{TaskClass, spawn};
 
 /// Drop guard that signals a [`Notify`] on completion regardless of exit path
@@ -209,11 +209,11 @@ impl WorkerRuntime {
 	}
 
 	/// Spawns one supervised actor.
-	pub fn actor<A>(&self, spec: ActorSpec<A>) -> ActorHandle<A::Cmd, A::Evt>
+	pub fn spawn_actor<A>(&self, spec: ActorSpec<A>) -> ActorHandle<A::Cmd, A::Evt>
 	where
-		A: WorkerActor,
+		A: Actor,
 	{
-		spawn_supervised_actor(spec)
+		ActorRuntime::spawn(spec)
 	}
 
 	/// Returns the shared worker registry.

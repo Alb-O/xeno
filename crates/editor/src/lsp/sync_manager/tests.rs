@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use tokio::time::{sleep, timeout};
 use xeno_lsp::Error as LspError;
-use xeno_worker::ShutdownMode;
+use xeno_worker::ActorShutdownMode;
 
 use super::*;
 
@@ -86,7 +86,7 @@ async fn test_actor_restarts_after_failure_and_recovers() {
 async fn test_shutdown_returns_completed_report() {
 	let mgr = LspSyncManager::new(xeno_worker::WorkerRuntime::new());
 	let report = mgr
-		.shutdown(ShutdownMode::Graceful {
+		.shutdown(ActorShutdownMode::Graceful {
 			timeout: Duration::from_millis(200),
 		})
 		.await;

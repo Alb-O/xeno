@@ -41,7 +41,7 @@ struct NuActor {
 }
 
 #[async_trait::async_trait]
-impl xeno_worker::WorkerActor for NuActor {
+impl xeno_worker::Actor for NuActor {
 	type Cmd = Job;
 	type Evt = ();
 
@@ -136,12 +136,12 @@ impl NuExecutor {
 		let spec = xeno_worker::ActorSpec::new("nu.executor", xeno_worker::TaskClass::CpuBlocking, move || NuActor {
 			runtime: actor_runtime.clone(),
 		})
-		.mailbox(xeno_worker::MailboxSpec {
+		.mailbox(xeno_worker::ActorMailboxPolicy {
 			capacity: 256,
-			policy: xeno_worker::MailboxPolicy::Backpressure,
+			policy: xeno_worker::ActorMailboxMode::Backpressure,
 		})
-		.supervisor(xeno_worker::SupervisorSpec {
-			restart: xeno_worker::RestartPolicy::OnFailure {
+		.supervisor(xeno_worker::ActorLifecyclePolicy {
+			restart: xeno_worker::ActorRestartPolicy::OnFailure {
 				max_restarts: 8,
 				backoff: std::time::Duration::from_millis(25),
 			},
@@ -149,10 +149,10 @@ impl NuExecutor {
 		});
 
 		let (runtime_guard, handle) = if tokio::runtime::Handle::try_current().is_ok() {
-			(None, Arc::new(xeno_worker::spawn_supervised_actor(spec)))
+			(None, Arc::new(xeno_worker::ActorRuntime::spawn(spec)))
 		} else {
 			let rt = Arc::new(Self::build_worker_runtime());
-			let actor = Arc::new(rt.block_on(async move { xeno_worker::spawn_supervised_actor(spec) }));
+			let actor = Arc::new(rt.block_on(async move { xeno_worker::ActorRuntime::spawn(spec) }));
 			(Some(rt), actor)
 		};
 
