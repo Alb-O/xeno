@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Duration;
 
 use tokio::time::{sleep, timeout};
@@ -317,4 +318,268 @@ fn test_after_full_recovery_incremental_resumes() {
 	let (changes, _bytes) = state.take_for_send(false);
 	assert_eq!(changes.len(), 1, "should send the incremental change");
 	assert!(!state.needs_full);
+}
+
+/// Recorded notification for e2e transport tests.
+#[derive(Debug, Clone)]
+struct RecordedNotification {
+	method: String,
+	/// `Some(true)` = full-text (no range), `Some(false)` = incremental, `None` = non-didChange.
+	is_full_change: Option<bool>,
+}
+
+/// Transport that handles initialize + records notifications with fail injection.
+struct E2eTransport {
+	notifications: std::sync::Mutex<Vec<RecordedNotification>>,
+	next_slot: std::sync::atomic::AtomicU32,
+	fail_methods: std::sync::Mutex<std::collections::HashSet<String>>,
+}
+
+impl E2eTransport {
+	fn new() -> Self {
+		Self {
+			notifications: std::sync::Mutex::new(Vec::new()),
+			next_slot: std::sync::atomic::AtomicU32::new(1),
+			fail_methods: std::sync::Mutex::new(std::collections::HashSet::new()),
+		}
+	}
+
+	fn set_fail_method(&self, method: &str) {
+		self.fail_methods.lock().unwrap().insert(method.to_string());
+	}
+
+	fn clear_fail_method(&self, method: &str) {
+		self.fail_methods.lock().unwrap().remove(method);
+	}
+
+	fn recorded(&self) -> Vec<RecordedNotification> {
+		self.notifications.lock().unwrap().clone()
+	}
+
+	fn clear_recordings(&self) {
+		self.notifications.lock().unwrap().clear();
+	}
+}
+
+#[async_trait::async_trait]
+impl xeno_lsp::client::LspTransport for E2eTransport {
+	fn subscribe_events(
+		&self,
+	) -> xeno_lsp::Result<tokio::sync::mpsc::UnboundedReceiver<xeno_lsp::client::transport::TransportEvent>> {
+		let (_, rx) = tokio::sync::mpsc::unbounded_channel();
+		Ok(rx)
+	}
+
+	async fn start(
+		&self,
+		_cfg: xeno_lsp::client::ServerConfig,
+	) -> xeno_lsp::Result<xeno_lsp::client::transport::StartedServer> {
+		let slot = self.next_slot.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+		Ok(xeno_lsp::client::transport::StartedServer {
+			id: xeno_lsp::client::LanguageServerId::new(slot, 0),
+		})
+	}
+
+	async fn notify(
+		&self,
+		_server: xeno_lsp::client::LanguageServerId,
+		notif: xeno_lsp::AnyNotification,
+	) -> xeno_lsp::Result<()> {
+		let is_full_change = if notif.method == "textDocument/didChange" {
+			notif
+				.params
+				.get("contentChanges")
+				.and_then(|cc| cc.as_array())
+				.and_then(|arr| arr.first())
+				.map(|first| first.get("range").is_none())
+		} else {
+			None
+		};
+		self.notifications.lock().unwrap().push(RecordedNotification {
+			method: notif.method.clone(),
+			is_full_change,
+		});
+		if self.fail_methods.lock().unwrap().contains(&notif.method) {
+			return Err(xeno_lsp::Error::Protocol(format!("injected failure for {}", notif.method)));
+		}
+		Ok(())
+	}
+
+	async fn notify_with_barrier(
+		&self,
+		server: xeno_lsp::client::LanguageServerId,
+		notif: xeno_lsp::AnyNotification,
+	) -> xeno_lsp::Result<tokio::sync::oneshot::Receiver<xeno_lsp::Result<()>>> {
+		self.notify(server, notif).await?;
+		let (tx, rx) = tokio::sync::oneshot::channel();
+		let _ = tx.send(Ok(()));
+		Ok(rx)
+	}
+
+	async fn request(
+		&self,
+		_server: xeno_lsp::client::LanguageServerId,
+		_req: xeno_lsp::AnyRequest,
+		_timeout: Option<Duration>,
+	) -> xeno_lsp::Result<xeno_lsp::AnyResponse> {
+		Ok(xeno_lsp::AnyResponse::new_ok(
+			xeno_lsp::RequestId::Number(1),
+			serde_json::to_value(xeno_lsp::lsp_types::InitializeResult {
+				capabilities: xeno_lsp::lsp_types::ServerCapabilities::default(),
+				server_info: None,
+			})
+			.unwrap(),
+		))
+	}
+
+	async fn reply(
+		&self,
+		_server: xeno_lsp::client::LanguageServerId,
+		_id: xeno_lsp::RequestId,
+		_resp: Result<xeno_lsp::JsonValue, xeno_lsp::ResponseError>,
+	) -> xeno_lsp::Result<()> {
+		Ok(())
+	}
+
+	async fn stop(&self, _server: xeno_lsp::client::LanguageServerId) -> xeno_lsp::Result<()> {
+		Ok(())
+	}
+}
+
+#[tokio::test]
+async fn test_e2e_failed_incremental_triggers_full_then_incremental_resumes() {
+	let worker_runtime = xeno_worker::WorkerRuntime::new();
+	let transport = Arc::new(E2eTransport::new());
+	let (sync, registry, _documents, _receiver) =
+		xeno_lsp::DocumentSync::create(transport.clone(), worker_runtime.clone());
+	let metrics = Arc::new(crate::metrics::EditorMetrics::new());
+
+	// Register a language server so acquire() succeeds.
+	registry.register(
+		"rust",
+		xeno_lsp::LanguageServerConfig {
+			command: "rust-analyzer".into(),
+			..Default::default()
+		},
+	);
+
+	let path = PathBuf::from("/e2e_recovery.rs");
+	let doc_id = DocumentId(1);
+
+	// Open doc through DocumentSync to trigger server initialization.
+	sync.open_document(&path, "rust", &ropey::Rope::from("fn main() {}"))
+		.await
+		.unwrap();
+
+	// Wait for initialization.
+	let client = registry.get("rust", &path).unwrap();
+	for _ in 0..200 {
+		if client.is_initialized() {
+			break;
+		}
+		tokio::task::yield_now().await;
+	}
+	assert!(client.is_initialized(), "server must be initialized");
+
+	// Set up sync manager tracking.
+	let mut mgr = LspSyncManager::new(worker_runtime);
+	let config = LspDocumentConfig {
+		path: path.clone(),
+		language: "rust".to_string(),
+		supports_incremental: true,
+	};
+	mgr.reset_tracked(doc_id, config, 1);
+	wait_until("tracked", || mgr.is_tracked(&doc_id)).await;
+
+	// DocSyncState starts with needs_full=true. Do an initial full sync to clear it.
+	let initial_snapshot = ropey::Rope::from("fn main() {}");
+	let initial_bytes = initial_snapshot.len_bytes() as u64;
+	let done_rx = mgr
+		.flush_now(Instant::now(), doc_id, &sync, &metrics, Some((initial_snapshot, initial_bytes)))
+		.unwrap();
+	timeout(Duration::from_secs(5), done_rx)
+		.await
+		.expect("initial flush timed out")
+		.expect("initial flush oneshot dropped");
+	wait_until("initial flush done", || mgr.in_flight_count() == 0).await;
+	transport.clear_recordings();
+
+	// Record an incremental edit.
+	mgr.on_doc_edit(doc_id, 1, 2, vec![test_change("a")], 1);
+	wait_until("pending", || mgr.pending_count() == 1).await;
+
+	// Make didChange fail.
+	transport.set_fail_method("textDocument/didChange");
+
+	// Flush — incremental send will fail, SendComplete(Failed) escalates to full.
+	let done_rx = mgr.flush_now(Instant::now(), doc_id, &sync, &metrics, None).unwrap();
+	timeout(Duration::from_secs(5), done_rx)
+		.await
+		.expect("failing flush timed out")
+		.expect("failing flush oneshot dropped");
+	wait_until("failing flush processed", || mgr.in_flight_count() == 0).await;
+
+	// Assert: the failed attempt was incremental.
+	let recs = transport.recorded();
+	let did_changes: Vec<_> = recs.iter().filter(|r| r.method == "textDocument/didChange").collect();
+	assert!(!did_changes.is_empty(), "expected incremental didChange attempt");
+	assert_eq!(
+		did_changes[0].is_full_change,
+		Some(false),
+		"first attempt must be incremental before failure escalation"
+	);
+
+	// Clear fail + recordings. Prepare recovery.
+	transport.clear_fail_method("textDocument/didChange");
+	transport.clear_recordings();
+
+	// Record another edit and flush with a full snapshot.
+	// Use a future `now` to bypass retry_after.
+	mgr.on_doc_edit(doc_id, 2, 3, vec![test_change("b")], 1);
+	wait_until("pending after escalation", || mgr.pending_count() >= 1).await;
+
+	let snapshot = ropey::Rope::from("fn main() { recovered }");
+	let snapshot_bytes = snapshot.len_bytes() as u64;
+	let far_future = Instant::now() + Duration::from_secs(10);
+	let done_rx = mgr
+		.flush_now(far_future, doc_id, &sync, &metrics, Some((snapshot, snapshot_bytes)))
+		.unwrap();
+	timeout(Duration::from_secs(5), done_rx)
+		.await
+		.expect("recovery flush timed out")
+		.expect("recovery flush oneshot dropped");
+	wait_until("recovery flush done", || mgr.in_flight_count() == 0).await;
+
+	// Assert: the recovery didChange was full-text.
+	let recs = transport.recorded();
+	let did_changes: Vec<_> = recs.iter().filter(|r| r.method == "textDocument/didChange").collect();
+	assert!(!did_changes.is_empty(), "expected full-text didChange; got: {:?}", recs);
+	assert_eq!(
+		did_changes[0].is_full_change,
+		Some(true),
+		"recovery didChange must be full-text"
+	);
+
+	// Clear and flush another incremental edit.
+	transport.clear_recordings();
+	mgr.on_doc_edit(doc_id, 3, 4, vec![test_change("c")], 1);
+	wait_until("pending incremental", || mgr.pending_count() >= 1).await;
+
+	let far_future = Instant::now() + Duration::from_secs(10);
+	let done_rx = mgr.flush_now(far_future, doc_id, &sync, &metrics, None).unwrap();
+	timeout(Duration::from_secs(5), done_rx)
+		.await
+		.expect("incremental flush timed out")
+		.expect("incremental flush oneshot dropped");
+	wait_until("incremental flush done", || mgr.in_flight_count() == 0).await;
+
+	// Assert: the didChange was incremental (recovery complete, normal mode).
+	let recs = transport.recorded();
+	let did_changes: Vec<_> = recs.iter().filter(|r| r.method == "textDocument/didChange").collect();
+	assert!(!did_changes.is_empty(), "expected incremental didChange; got: {:?}", recs);
+	assert_eq!(
+		did_changes[0].is_full_change,
+		Some(false),
+		"post-recovery didChange must be incremental"
+	);
 }
