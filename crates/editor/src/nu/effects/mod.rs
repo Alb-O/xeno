@@ -239,8 +239,8 @@ mod tests {
 		}
 	}
 
-	#[test]
-	fn hook_mode_capability_denial_is_non_fatal() {
+	#[tokio::test(flavor = "current_thread")]
+	async fn hook_mode_capability_denial_is_non_fatal() {
 		let mut editor = Editor::new_scratch();
 		let batch = batch(vec![NuEffect::Dispatch(Invocation::action("move_right"))]);
 
@@ -251,8 +251,8 @@ mod tests {
 		assert!(!outcome.stop_requested);
 	}
 
-	#[test]
-	fn macro_mode_capability_denial_is_error() {
+	#[tokio::test(flavor = "current_thread")]
+	async fn macro_mode_capability_denial_is_error() {
 		let mut editor = Editor::new_scratch();
 		let batch = batch(vec![NuEffect::Dispatch(Invocation::action("move_right"))]);
 
@@ -265,8 +265,8 @@ mod tests {
 		));
 	}
 
-	#[test]
-	fn macro_mode_capability_denial_is_atomic() {
+	#[tokio::test(flavor = "current_thread")]
+	async fn macro_mode_capability_denial_is_atomic() {
 		let mut editor = Editor::new_scratch();
 		let allowed = HashSet::from([NuCapability::WriteState]);
 		let batch = batch(vec![
@@ -287,8 +287,8 @@ mod tests {
 		assert!(editor.state.core.editor.workspace.nu_state.iter().next().is_none());
 	}
 
-	#[test]
-	fn stop_propagation_is_hook_only() {
+	#[tokio::test(flavor = "current_thread")]
+	async fn stop_propagation_is_hook_only() {
 		let mut editor = Editor::new_scratch();
 		let mut allowed = HashSet::new();
 		allowed.insert(NuCapability::StopPropagation);
@@ -303,8 +303,8 @@ mod tests {
 		assert!(matches!(macro_err, NuEffectApplyError::StopPropagationUnsupportedForMacro));
 	}
 
-	#[test]
-	fn notify_levels_map_to_editor_notifications() {
+	#[tokio::test(flavor = "current_thread")]
+	async fn notify_levels_map_to_editor_notifications() {
 		let mut editor = Editor::new_scratch();
 		let allowed = HashSet::from([NuCapability::Notify]);
 		let batch = batch(vec![
@@ -347,8 +347,8 @@ mod tests {
 		assert_eq!(&*pending[4].id, "xeno-registry::success");
 	}
 
-	#[test]
-	fn edit_text_replace_selection_modifies_buffer() {
+	#[tokio::test(flavor = "current_thread")]
+	async fn edit_text_replace_selection_modifies_buffer() {
 		let mut editor = Editor::new_scratch();
 		editor.buffer_mut().reset_content("hello world");
 		// Select "world" (chars 6..11)
@@ -366,8 +366,8 @@ mod tests {
 		assert_eq!(text, "hello WORLD");
 	}
 
-	#[test]
-	fn edit_text_replace_line_modifies_buffer() {
+	#[tokio::test(flavor = "current_thread")]
+	async fn edit_text_replace_line_modifies_buffer() {
 		let mut editor = Editor::new_scratch();
 		editor.buffer_mut().reset_content("line one\nline two\n");
 		// Cursor on line 1 (second line)
@@ -385,8 +385,8 @@ mod tests {
 		assert_eq!(text, "line one\nLINE TWO\n");
 	}
 
-	#[test]
-	fn edit_text_replace_selection_deletes_on_empty_text() {
+	#[tokio::test(flavor = "current_thread")]
+	async fn edit_text_replace_selection_deletes_on_empty_text() {
 		let mut editor = Editor::new_scratch();
 		editor.buffer_mut().reset_content("hello world");
 		editor.buffer_mut().set_selection(xeno_primitives::Selection::single(5, 11));
@@ -402,8 +402,8 @@ mod tests {
 		assert_eq!(text, "hello");
 	}
 
-	#[test]
-	fn clipboard_set_populates_yank_register() {
+	#[tokio::test(flavor = "current_thread")]
+	async fn clipboard_set_populates_yank_register() {
 		let mut editor = Editor::new_scratch();
 		let allowed = HashSet::from([NuCapability::SetClipboard]);
 		let b = batch(vec![NuEffect::SetClipboard { text: "COPIED".to_string() }]);
@@ -415,8 +415,8 @@ mod tests {
 		assert_eq!(yank.total_chars, 6);
 	}
 
-	#[test]
-	fn clipboard_set_denied_without_capability() {
+	#[tokio::test(flavor = "current_thread")]
+	async fn clipboard_set_denied_without_capability() {
 		let mut editor = Editor::new_scratch();
 		let b = batch(vec![NuEffect::SetClipboard { text: "X".to_string() }]);
 		let err = apply_effect_batch(&mut editor, b, NuEffectApplyMode::Macro, &HashSet::new()).expect_err("should deny");
@@ -428,8 +428,8 @@ mod tests {
 		));
 	}
 
-	#[test]
-	fn clipboard_hook_denied_drops_silently() {
+	#[tokio::test(flavor = "current_thread")]
+	async fn clipboard_hook_denied_drops_silently() {
 		let mut editor = Editor::new_scratch();
 		let b = batch(vec![NuEffect::SetClipboard { text: "X".to_string() }]);
 		let outcome = apply_effect_batch(&mut editor, b, NuEffectApplyMode::Hook, &HashSet::new()).expect("hook denial should be non-fatal");
@@ -437,8 +437,8 @@ mod tests {
 		assert_eq!(outcome.dirty, Dirty::NONE);
 	}
 
-	#[test]
-	fn state_set_populates_store() {
+	#[tokio::test(flavor = "current_thread")]
+	async fn state_set_populates_store() {
 		let mut editor = Editor::new_scratch();
 		let allowed = HashSet::from([NuCapability::WriteState]);
 		let b = batch(vec![NuEffect::StateSet {
@@ -451,8 +451,8 @@ mod tests {
 		assert_eq!(entries, vec![("foo", "bar")]);
 	}
 
-	#[test]
-	fn state_unset_removes_key() {
+	#[tokio::test(flavor = "current_thread")]
+	async fn state_unset_removes_key() {
 		let mut editor = Editor::new_scratch();
 		editor.state.core.editor.workspace.nu_state.set("foo".to_string(), "bar".to_string());
 		let allowed = HashSet::from([NuCapability::WriteState]);
@@ -601,8 +601,8 @@ mod tests {
 		assert!(matches!(inv, Invocation::Nu { ref name, ref args } if name == "current" && args == &["arg"]));
 	}
 
-	#[test]
-	fn edit_text_denied_without_capability() {
+	#[tokio::test(flavor = "current_thread")]
+	async fn edit_text_denied_without_capability() {
 		let mut editor = Editor::new_scratch();
 		editor.buffer_mut().reset_content("hello");
 

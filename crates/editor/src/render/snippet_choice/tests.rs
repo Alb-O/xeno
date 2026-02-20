@@ -1,7 +1,7 @@
 use super::*;
 
-#[test]
-fn snippet_choice_render_plan_marks_selected_item() {
+#[tokio::test(flavor = "current_thread")]
+async fn snippet_choice_render_plan_marks_selected_item() {
 	let mut editor = Editor::new_scratch();
 	editor.handle_window_resize(80, 24);
 	let buffer_id = editor.focused_view();
@@ -21,8 +21,8 @@ fn snippet_choice_render_plan_marks_selected_item() {
 	assert_eq!(plan.max_option_width, "alpha".width());
 }
 
-#[test]
-fn snippet_choice_render_plan_is_hidden_while_modal_overlay_is_open() {
+#[tokio::test(flavor = "current_thread")]
+async fn snippet_choice_render_plan_is_hidden_while_modal_overlay_is_open() {
 	let mut editor = Editor::new_scratch();
 	editor.handle_window_resize(80, 24);
 	let buffer_id = editor.focused_view();

@@ -1,7 +1,7 @@
 use super::*;
 
-#[test]
-fn buffer_view_render_plan_renders_for_focused_view_area() {
+#[tokio::test(flavor = "current_thread")]
+async fn buffer_view_render_plan_renders_for_focused_view_area() {
 	let mut editor = Editor::new_scratch();
 	editor.handle_window_resize(80, 24);
 	let view = editor.focused_view();
@@ -11,8 +11,8 @@ fn buffer_view_render_plan_renders_for_focused_view_area() {
 	assert!(!plan.text.is_empty());
 }
 
-#[test]
-fn buffer_view_render_plan_returns_none_for_missing_view() {
+#[tokio::test(flavor = "current_thread")]
+async fn buffer_view_render_plan_returns_none_for_missing_view() {
 	let mut editor = Editor::new_scratch();
 	editor.handle_window_resize(80, 24);
 
@@ -20,8 +20,8 @@ fn buffer_view_render_plan_returns_none_for_missing_view() {
 	assert!(editor.buffer_view_render_plan(ViewId(u64::MAX), area, true, false).is_none());
 }
 
-#[test]
-fn buffer_view_render_plan_gutter_width_fits_area() {
+#[tokio::test(flavor = "current_thread")]
+async fn buffer_view_render_plan_gutter_width_fits_area() {
 	let mut editor = Editor::new_scratch();
 	editor.handle_window_resize(40, 10);
 	let view = editor.focused_view();
@@ -31,8 +31,8 @@ fn buffer_view_render_plan_gutter_width_fits_area() {
 	assert!(plan.gutter_width <= area.width);
 }
 
-#[test]
-fn buffer_view_render_plan_with_gutter_renders_with_requested_policy() {
+#[tokio::test(flavor = "current_thread")]
+async fn buffer_view_render_plan_with_gutter_renders_with_requested_policy() {
 	let mut editor = Editor::new_scratch();
 	editor.handle_window_resize(40, 10);
 	let view = editor.focused_view();
@@ -44,8 +44,8 @@ fn buffer_view_render_plan_with_gutter_renders_with_requested_policy() {
 	assert!(plan.gutter_width <= area.width);
 }
 
-#[test]
-fn document_view_plans_returns_plans_after_resize() {
+#[tokio::test(flavor = "current_thread")]
+async fn document_view_plans_returns_plans_after_resize() {
 	let mut editor = Editor::new_scratch();
 	editor.handle_window_resize(80, 24);
 	let doc_area = editor.doc_area();
@@ -55,8 +55,8 @@ fn document_view_plans_returns_plans_after_resize() {
 	assert!(!plans[0].text.is_empty(), "view plan should have rendered text");
 }
 
-#[test]
-fn separator_render_targets_empty_for_single_view() {
+#[tokio::test(flavor = "current_thread")]
+async fn separator_render_targets_empty_for_single_view() {
 	let mut editor = Editor::new_scratch();
 	editor.handle_window_resize(80, 24);
 	let doc_area = editor.doc_area();
@@ -65,8 +65,8 @@ fn separator_render_targets_empty_for_single_view() {
 	assert!(targets.is_empty(), "single view should have no separators");
 }
 
-#[test]
-fn buffer_view_render_plan_sets_rects_consistently() {
+#[tokio::test(flavor = "current_thread")]
+async fn buffer_view_render_plan_sets_rects_consistently() {
 	let mut editor = Editor::new_scratch();
 	editor.handle_window_resize(80, 24);
 	let view = editor.focused_view();
@@ -87,8 +87,8 @@ fn buffer_view_render_plan_sets_rects_consistently() {
 	assert_eq!(plan.text_rect.height, area.height);
 }
 
-#[test]
-fn buffer_view_render_plan_text_rect_never_overflows() {
+#[tokio::test(flavor = "current_thread")]
+async fn buffer_view_render_plan_text_rect_never_overflows() {
 	let mut editor = Editor::new_scratch();
 	editor.handle_window_resize(3, 3);
 	let view = editor.focused_view();

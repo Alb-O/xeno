@@ -2,8 +2,8 @@ use super::EditorSnippetResolver;
 use crate::Editor;
 use crate::snippet::SnippetVarResolver;
 
-#[test]
-fn current_time_variables_have_expected_shapes_and_ranges() {
+#[tokio::test(flavor = "current_thread")]
+async fn current_time_variables_have_expected_shapes_and_ranges() {
 	let editor = Editor::new_scratch();
 	let resolver = EditorSnippetResolver::new(&editor, editor.focused_view());
 

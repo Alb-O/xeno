@@ -16,8 +16,8 @@ fn assert_convergence(editor: &mut Editor) {
 	assert_eq!(tui, iced, "TUI and Iced digests diverge");
 }
 
-#[test]
-fn baseline_after_resize() {
+#[tokio::test(flavor = "current_thread")]
+async fn baseline_after_resize() {
 	let mut editor = make_editor(80, 24);
 	assert_convergence(&mut editor);
 
@@ -29,8 +29,8 @@ fn baseline_after_resize() {
 	assert!(digest.status.rows > 0);
 }
 
-#[test]
-fn info_popup_center_converges() {
+#[tokio::test(flavor = "current_thread")]
+async fn info_popup_center_converges() {
 	let mut editor = make_editor(80, 24);
 	editor.open_info_popup("Hello popup".to_string(), None, PopupAnchor::Center);
 	assert_convergence(&mut editor);
@@ -40,15 +40,15 @@ fn info_popup_center_converges() {
 	assert_eq!(digest.popups.len(), 1);
 }
 
-#[test]
-fn info_popup_point_converges() {
+#[tokio::test(flavor = "current_thread")]
+async fn info_popup_point_converges() {
 	let mut editor = make_editor(80, 24);
 	editor.open_info_popup("Point popup".to_string(), None, PopupAnchor::Point { x: 10, y: 5 });
 	assert_convergence(&mut editor);
 }
 
-#[test]
-fn info_popup_close_returns_to_baseline() {
+#[tokio::test(flavor = "current_thread")]
+async fn info_popup_close_returns_to_baseline() {
 	let mut editor = make_editor(80, 24);
 
 	let bounds = editor.doc_area();
@@ -67,8 +67,8 @@ fn info_popup_close_returns_to_baseline() {
 	assert_eq!(baseline.popups, after_close.popups);
 }
 
-#[test]
-fn multiple_popups_converge() {
+#[tokio::test(flavor = "current_thread")]
+async fn multiple_popups_converge() {
 	let mut editor = make_editor(80, 24);
 	editor.open_info_popup("First".to_string(), None, PopupAnchor::Center);
 	editor.open_info_popup("Second".to_string(), None, PopupAnchor::Point { x: 5, y: 3 });
@@ -79,8 +79,8 @@ fn multiple_popups_converge() {
 	assert_eq!(digest.popups.len(), 2);
 }
 
-#[test]
-fn command_palette_overlay_converges() {
+#[tokio::test(flavor = "current_thread")]
+async fn command_palette_overlay_converges() {
 	let mut editor = make_editor(80, 24);
 	editor.open_command_palette();
 	assert_convergence(&mut editor);
@@ -90,8 +90,8 @@ fn command_palette_overlay_converges() {
 	assert!(!digest.panes.is_empty(), "command palette should produce overlay panes");
 }
 
-#[test]
-fn info_popup_window_anchor_converges() {
+#[tokio::test(flavor = "current_thread")]
+async fn info_popup_window_anchor_converges() {
 	let mut editor = make_editor(80, 24);
 	let wid = editor.state.core.windows.base_id();
 	editor.open_info_popup("Window popup".to_string(), None, PopupAnchor::Window(wid));

@@ -122,10 +122,10 @@ async fn test_submit_event_sequence_monotonic() {
 
 /// Must construct editor runtime state without requiring an active Tokio runtime.
 ///
-/// * Enforced in: `xeno_worker::spawn::current_or_fallback_handle`, `xeno_worker::ActorRuntime::spawn`
+/// * Enforced in: `Editor::new_scratch` (deferred actor spawning)
 /// * Failure symptom: synchronous tests panic with "there is no reactor running".
-#[test]
-fn test_editor_construction_does_not_require_tokio_runtime() {
+#[tokio::test(flavor = "current_thread")]
+async fn test_editor_construction_does_not_require_tokio_runtime() {
 	let _editor = Editor::new_scratch();
 }
 

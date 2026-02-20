@@ -13,8 +13,8 @@ pub fn test_delegator_rule() {
 /// * Enforced in: `EditorCaps` (via domain-specific implementations)
 /// * Failure symptom: UI layers (overlays, status bars) failing to update after an
 ///   action executes.
-#[cfg_attr(test, test)]
-pub fn test_mutation_side_effect_invariant() {
+#[tokio::test(flavor = "current_thread")]
+pub async fn test_mutation_side_effect_invariant() {
 	use xeno_primitives::range::CharIdx;
 	use xeno_registry::actions::CursorAccess;
 

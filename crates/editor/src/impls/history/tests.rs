@@ -59,8 +59,8 @@ fn get_scroll(editor: &Editor, buffer_id: ViewId) -> (usize, usize) {
 	(buffer.scroll_line, buffer.scroll_segment)
 }
 
-#[test]
-fn undo_restores_cursor_position() {
+#[tokio::test(flavor = "current_thread")]
+async fn undo_restores_cursor_position() {
 	let mut editor = test_editor("hello world");
 	set_cursor(&mut editor, 5);
 
@@ -74,8 +74,8 @@ fn undo_restores_cursor_position() {
 	assert_eq!(cursor, 5, "undo should restore cursor to pre-edit position");
 }
 
-#[test]
-fn undo_without_history_requests_redraw_for_notification() {
+#[tokio::test(flavor = "current_thread")]
+async fn undo_without_history_requests_redraw_for_notification() {
 	let mut editor = test_editor("hello");
 	editor.state.core.frame.needs_redraw = false;
 
@@ -85,8 +85,8 @@ fn undo_without_history_requests_redraw_for_notification() {
 	assert!(!editor.take_notification_render_items().is_empty());
 }
 
-#[test]
-fn undo_restores_scroll_position() {
+#[tokio::test(flavor = "current_thread")]
+async fn undo_restores_scroll_position() {
 	let mut editor = test_editor("line1\nline2\nline3\nline4\nline5");
 	set_scroll(&mut editor, 2, 0);
 
@@ -99,8 +99,8 @@ fn undo_restores_scroll_position() {
 	assert_eq!(scroll_segment, 0, "undo should restore scroll_segment");
 }
 
-#[test]
-fn undo_restores_view_state_for_multiple_buffers_same_document() {
+#[tokio::test(flavor = "current_thread")]
+async fn undo_restores_view_state_for_multiple_buffers_same_document() {
 	let mut editor = test_editor("shared document content");
 
 	let buffer1_id = editor.focused_view();
@@ -132,8 +132,8 @@ fn undo_restores_view_state_for_multiple_buffers_same_document() {
 	assert_eq!(get_scroll(&editor, buffer2_id), (1, 0), "buffer2 scroll should be restored");
 }
 
-#[test]
-fn redo_restores_view_state() {
+#[tokio::test(flavor = "current_thread")]
+async fn redo_restores_view_state() {
 	let mut editor = test_editor("hello world");
 	set_cursor(&mut editor, 5);
 	set_scroll(&mut editor, 0, 0);
@@ -157,8 +157,8 @@ fn redo_restores_view_state() {
 	);
 }
 
-#[test]
-fn redo_stack_clears_on_new_edit() {
+#[tokio::test(flavor = "current_thread")]
+async fn redo_stack_clears_on_new_edit() {
 	let mut editor = test_editor("hello");
 
 	apply_test_edit(&mut editor, " world", 5);
@@ -175,8 +175,8 @@ fn redo_stack_clears_on_new_edit() {
 	assert!(!editor.state.core.editor.undo_manager.can_redo(), "new edit should clear redo stack");
 }
 
-#[test]
-fn merged_edit_clears_redo_stack() {
+#[tokio::test(flavor = "current_thread")]
+async fn merged_edit_clears_redo_stack() {
 	let mut editor = test_editor("hello");
 
 	apply_test_edit(&mut editor, " world", 5);
@@ -208,8 +208,8 @@ fn merged_edit_clears_redo_stack() {
 	);
 }
 
-#[test]
-fn merge_with_current_group_creates_single_undo_group_for_consecutive_inserts() {
+#[tokio::test(flavor = "current_thread")]
+async fn merge_with_current_group_creates_single_undo_group_for_consecutive_inserts() {
 	let mut editor = test_editor("hello");
 
 	let buffer_id = editor.focused_view();
@@ -273,8 +273,8 @@ fn merge_with_current_group_creates_single_undo_group_for_consecutive_inserts() 
 	assert_eq!(content, "hello", "single undo should revert both merged edits");
 }
 
-#[test]
-fn record_policy_breaks_merge_group() {
+#[tokio::test(flavor = "current_thread")]
+async fn record_policy_breaks_merge_group() {
 	let mut editor = test_editor("hello");
 	let buffer_id = editor.focused_view();
 
@@ -315,8 +315,8 @@ fn record_policy_breaks_merge_group() {
 	assert_eq!(editor.state.core.editor.undo_manager.undo_len(), 2, "Record policy should create new group");
 }
 
-#[test]
-fn sibling_selection_sync_after_apply() {
+#[tokio::test(flavor = "current_thread")]
+async fn sibling_selection_sync_after_apply() {
 	let mut editor = test_editor("abcd");
 	let buffer1_id = editor.focused_view();
 	let buffer2_id = editor
@@ -351,6 +351,8 @@ fn sibling_selection_sync_after_apply() {
 proptest! {
 	#[test]
 fn undo_redo_roundtrip(ops in prop::collection::vec((0usize..100, "[a-z]{1,3}"), 1..20)) {
+		let _rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+		let _guard = _rt.enter();
 		let mut editor = test_editor("");
 		let buffer_id = editor.focused_view();
 		let steps = ops.len();
@@ -403,6 +405,8 @@ fn undo_redo_roundtrip(ops in prop::collection::vec((0usize..100, "[a-z]{1,3}"),
 
 	#[test]
 	fn insert_group_boundaries(ops in prop::collection::vec(any::<bool>(), 1..40)) {
+		let _rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+		let _guard = _rt.enter();
 		let mut editor = test_editor("");
 		let buffer_id = editor.focused_view();
 		let mut expected_groups = 0;
@@ -445,8 +449,8 @@ fn undo_redo_roundtrip(ops in prop::collection::vec((0usize..100, "[a-z]{1,3}"),
 	}
 }
 
-#[test]
-fn terminal_paste_normalizes_line_endings() {
+#[tokio::test(flavor = "current_thread")]
+async fn terminal_paste_normalizes_line_endings() {
 	let mut editor = test_editor("");
 	editor.handle_paste("x\r\ny\rz".to_string());
 
@@ -465,8 +469,8 @@ fn terminal_paste_normalizes_line_endings() {
 	assert!(!content.contains('\r'));
 }
 
-#[test]
-fn terminal_paste_is_its_own_undo_step() {
+#[tokio::test(flavor = "current_thread")]
+async fn terminal_paste_is_its_own_undo_step() {
 	let mut editor = test_editor("");
 	editor.set_mode(Mode::Insert);
 	editor.insert_text("A");

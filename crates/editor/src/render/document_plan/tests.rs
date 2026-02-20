@@ -45,8 +45,8 @@ fn open_unknown_overlay(editor: &mut Editor) -> bool {
 	opened
 }
 
-#[test]
-fn focused_document_render_plan_renders_lines_after_resize() {
+#[tokio::test(flavor = "current_thread")]
+async fn focused_document_render_plan_renders_lines_after_resize() {
 	let mut editor = Editor::new_scratch();
 	editor.handle_window_resize(80, 24);
 
@@ -54,8 +54,8 @@ fn focused_document_render_plan_renders_lines_after_resize() {
 	assert!(!plan.lines.is_empty());
 }
 
-#[test]
-fn focused_document_render_plan_uses_scratch_title_without_path() {
+#[tokio::test(flavor = "current_thread")]
+async fn focused_document_render_plan_uses_scratch_title_without_path() {
 	let mut editor = Editor::new_scratch();
 	editor.handle_window_resize(80, 24);
 
@@ -63,8 +63,8 @@ fn focused_document_render_plan_uses_scratch_title_without_path() {
 	assert_eq!(plan.title, "[scratch]");
 }
 
-#[test]
-fn focused_document_render_plan_uses_path_title_for_file_buffers() {
+#[tokio::test(flavor = "current_thread")]
+async fn focused_document_render_plan_uses_path_title_for_file_buffers() {
 	let file = tempfile::NamedTempFile::new().expect("temp file");
 	std::fs::write(file.path(), "alpha\n").expect("write file");
 
@@ -77,8 +77,8 @@ fn focused_document_render_plan_uses_path_title_for_file_buffers() {
 	assert_eq!(plan.title, file.path().display().to_string());
 }
 
-#[test]
-fn focused_document_render_plan_uses_virtual_title_for_command_palette() {
+#[tokio::test(flavor = "current_thread")]
+async fn focused_document_render_plan_uses_virtual_title_for_command_palette() {
 	let mut editor = Editor::new_scratch();
 	editor.handle_window_resize(80, 24);
 	assert!(editor.open_command_palette());
@@ -87,8 +87,8 @@ fn focused_document_render_plan_uses_virtual_title_for_command_palette() {
 	assert_eq!(plan.title, "[Command Palette]");
 }
 
-#[test]
-fn focused_document_render_plan_uses_generic_virtual_title_for_unknown_overlay() {
+#[tokio::test(flavor = "current_thread")]
+async fn focused_document_render_plan_uses_generic_virtual_title_for_unknown_overlay() {
 	let mut editor = Editor::new_scratch();
 	editor.handle_window_resize(80, 24);
 	assert!(open_unknown_overlay(&mut editor));
@@ -97,8 +97,8 @@ fn focused_document_render_plan_uses_generic_virtual_title_for_unknown_overlay()
 	assert_eq!(plan.title, "[Overlay: UnknownOverlay]");
 }
 
-#[test]
-fn focused_document_render_plan_returns_placeholder_for_tiny_viewport() {
+#[tokio::test(flavor = "current_thread")]
+async fn focused_document_render_plan_returns_placeholder_for_tiny_viewport() {
 	let mut editor = Editor::new_scratch();
 	editor.handle_window_resize(1, 1);
 

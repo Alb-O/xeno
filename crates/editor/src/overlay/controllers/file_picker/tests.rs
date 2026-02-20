@@ -119,8 +119,8 @@ fn build_path_items_uses_directory_suffix_and_hidden_filtering() {
 	);
 }
 
-#[test]
-fn tab_applies_selected_item_without_committing_picker() {
+#[tokio::test(flavor = "current_thread")]
+async fn tab_applies_selected_item_without_committing_picker() {
 	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(120, 40);
 	assert!(editor.open_file_picker());
@@ -168,8 +168,8 @@ fn tab_applies_selected_item_without_committing_picker() {
 	assert!(editor.state.ui.overlay_system.interaction().is_open(), "picker should stay open after Tab");
 }
 
-#[test]
-fn tab_with_no_completion_does_not_insert_literal_tab() {
+#[tokio::test(flavor = "current_thread")]
+async fn tab_with_no_completion_does_not_insert_literal_tab() {
 	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(120, 40);
 	assert!(editor.open_file_picker());
@@ -212,8 +212,8 @@ fn tab_with_no_completion_does_not_insert_literal_tab() {
 	assert_eq!(text, "");
 }
 
-#[test]
-fn tab_cycles_to_next_completion_when_input_matches_active_selection() {
+#[tokio::test(flavor = "current_thread")]
+async fn tab_cycles_to_next_completion_when_input_matches_active_selection() {
 	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(120, 40);
 	assert!(editor.open_file_picker());

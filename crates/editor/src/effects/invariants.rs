@@ -11,8 +11,8 @@ pub fn test_single_path_side_effects() {
 ///
 /// * Enforced in: `Editor::handle_overlay_request`
 /// * Failure symptom: commit closes execute re-entrantly during synchronous effect flush.
-#[cfg_attr(test, test)]
-pub fn test_commit_close_enqueues_deferred_overlay_commit() {
+#[tokio::test(flavor = "current_thread")]
+pub async fn test_commit_close_enqueues_deferred_overlay_commit() {
 	use xeno_registry::actions::editor_ctx::{OverlayCloseReason, OverlayRequest};
 
 	let mut editor = crate::Editor::new_scratch();

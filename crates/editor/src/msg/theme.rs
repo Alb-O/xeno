@@ -69,8 +69,8 @@ mod tests {
 
 	/// Verifies that a stale theme load token produces `Dirty::NONE` and does
 	/// not clear the pending token (so the correct load can still land).
-	#[test]
-	fn theme_load_stale_token_does_not_register() {
+	#[tokio::test(flavor = "current_thread")]
+	async fn theme_load_stale_token_does_not_register() {
 		let mut editor = Editor::new_scratch();
 
 		// Simulate two sequential kick_theme_load calls: tokens 0 then 1.
@@ -95,8 +95,8 @@ mod tests {
 
 	/// Verifies that the latest token wins even when completions arrive in
 	/// reversed order (stale first, then current).
-	#[test]
-	fn theme_load_latest_wins_even_if_completion_order_reversed() {
+	#[tokio::test(flavor = "current_thread")]
+	async fn theme_load_latest_wins_even_if_completion_order_reversed() {
 		let mut editor = Editor::new_scratch();
 		editor.state.async_state.pending_theme_load_token = Some(5);
 

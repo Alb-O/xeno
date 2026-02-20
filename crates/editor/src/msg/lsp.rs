@@ -94,8 +94,8 @@ impl LspMsg {
 mod tests {
 	use super::*;
 
-	#[test]
-	fn lsp_catalog_stale_token_does_not_register() {
+	#[tokio::test(flavor = "current_thread")]
+	async fn lsp_catalog_stale_token_does_not_register() {
 		let mut editor = Editor::new_scratch();
 		editor.state.async_state.pending_lsp_catalog_load_token = Some(2);
 
@@ -118,8 +118,8 @@ mod tests {
 		assert_eq!(editor.state.async_state.pending_lsp_catalog_load_token, Some(2), "pending token should remain");
 	}
 
-	#[test]
-	fn lsp_catalog_latest_wins_even_if_completion_order_reversed() {
+	#[tokio::test(flavor = "current_thread")]
+	async fn lsp_catalog_latest_wins_even_if_completion_order_reversed() {
 		let mut editor = Editor::new_scratch();
 		editor.state.async_state.pending_lsp_catalog_load_token = Some(5);
 

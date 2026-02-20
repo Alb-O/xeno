@@ -1,8 +1,8 @@
 use super::*;
 use crate::impls::Editor;
 
-#[test]
-fn test_set_focus_normalizes_invalid_buffer() {
+#[tokio::test(flavor = "current_thread")]
+async fn test_set_focus_normalizes_invalid_buffer() {
 	let mut editor = Editor::new_scratch();
 	let buffer1 = editor.focused_view();
 	let base_id = editor.state.core.windows.base_id();
@@ -52,8 +52,8 @@ fn test_set_focus_normalizes_invalid_buffer() {
 	assert!(editor.state.core.editor.buffers.get_buffer(editor.focused_view()).is_some());
 }
 
-#[test]
-fn test_set_focus_creates_scratch_when_no_buffers() {
+#[tokio::test(flavor = "current_thread")]
+async fn test_set_focus_creates_scratch_when_no_buffers() {
 	let mut editor = Editor::new_scratch();
 	let buffer1 = editor.focused_view();
 

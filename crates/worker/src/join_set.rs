@@ -54,8 +54,7 @@ where
 	}
 	/// Spawns one task into the set.
 	///
-	/// Reactor-safe: uses `current_or_fallback_handle()` so spawning works
-	/// even when called from a thread without an active tokio runtime.
+	/// Panics if called outside a tokio runtime context.
 	#[allow(clippy::disallowed_methods)]
 	pub fn spawn<F>(&mut self, fut: F)
 	where
@@ -63,7 +62,7 @@ where
 	{
 		self.spawned_total = self.spawned_total.wrapping_add(1);
 		tracing::trace!(worker_class = self.class.as_str(), pending = self.inner.len(), "worker.join_set.spawn");
-		let handle = crate::spawn::current_or_fallback_handle();
+		let handle = crate::spawn::current_handle();
 		let _guard = handle.enter();
 		self.inner.spawn(fut);
 	}
@@ -84,29 +83,5 @@ where
 			self.completed_total = self.completed_total.wrapping_add(1);
 		}
 		res
-	}
-}
-
-#[cfg(test)]
-#[allow(clippy::disallowed_methods)]
-mod tests {
-	use super::*;
-
-	#[tokio::test]
-	async fn spawn_works_from_thread_without_reactor() {
-		let (tx, rx) = std::sync::mpsc::channel();
-
-		// Spawn from a plain OS thread (no tokio runtime).
-		std::thread::spawn(move || {
-			let mut js = WorkerJoinSet::new(TaskClass::Background);
-			js.spawn(async { 42 });
-			tx.send(js).unwrap();
-		})
-		.join()
-		.unwrap();
-
-		let mut js = rx.recv().unwrap();
-		let result = js.join_next().await.expect("should have one result").expect("should not panic");
-		assert_eq!(result, 42);
 	}
 }

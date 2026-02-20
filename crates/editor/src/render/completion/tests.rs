@@ -14,8 +14,8 @@ fn item(label: &str, kind: CompletionKind) -> CompletionItem {
 	}
 }
 
-#[test]
-fn completion_render_plan_keeps_selected_item_visible_with_limit() {
+#[tokio::test(flavor = "current_thread")]
+async fn completion_render_plan_keeps_selected_item_visible_with_limit() {
 	let mut editor = Editor::new_scratch();
 
 	let state = editor.overlays_mut().get_or_default::<CompletionState>();
@@ -39,8 +39,8 @@ fn completion_render_plan_keeps_selected_item_visible_with_limit() {
 	assert!(plan.items[1].selected);
 }
 
-#[test]
-fn completion_render_plan_applies_width_column_policy() {
+#[tokio::test(flavor = "current_thread")]
+async fn completion_render_plan_applies_width_column_policy() {
 	let mut editor = Editor::new_scratch();
 
 	let state = editor.overlays_mut().get_or_default::<CompletionState>();
@@ -61,8 +61,8 @@ fn completion_render_plan_applies_width_column_policy() {
 	assert!(wide.show_right);
 }
 
-#[test]
-fn completion_render_plan_includes_file_presentation_payload() {
+#[tokio::test(flavor = "current_thread")]
+async fn completion_render_plan_includes_file_presentation_payload() {
 	let mut editor = Editor::new_scratch();
 
 	let state = editor.overlays_mut().get_or_default::<CompletionState>();
@@ -108,8 +108,8 @@ fn overlay_menu_rect_returns_none_for_zero_width_or_rows() {
 	assert_eq!(overlay_menu_rect_above_input(0, Rect::new(10, 5, 20, 1), 0), None);
 }
 
-#[test]
-fn overlay_completion_menu_target_uses_utility_panel_bounds() {
+#[tokio::test(flavor = "current_thread")]
+async fn overlay_completion_menu_target_uses_utility_panel_bounds() {
 	let mut editor = Editor::new_scratch();
 	editor.handle_window_resize(80, 24);
 	assert!(editor.open_command_palette());

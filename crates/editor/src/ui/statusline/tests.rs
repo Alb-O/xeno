@@ -51,8 +51,8 @@ fn statusline_rows_is_one() {
 	assert_eq!(STATUSLINE_ROWS, 1);
 }
 
-#[test]
-fn statusline_plan_does_not_include_overlay_tag_without_modal_overlay() {
+#[tokio::test(flavor = "current_thread")]
+async fn statusline_plan_does_not_include_overlay_tag_without_modal_overlay() {
 	let mut editor = Editor::new_scratch();
 	editor.handle_window_resize(120, 30);
 
@@ -60,8 +60,8 @@ fn statusline_plan_does_not_include_overlay_tag_without_modal_overlay() {
 	assert!(!plan.iter().any(|segment| segment.text == " [Cmd]"));
 }
 
-#[test]
-fn statusline_plan_includes_dim_command_palette_tag_when_space_allows() {
+#[tokio::test(flavor = "current_thread")]
+async fn statusline_plan_includes_dim_command_palette_tag_when_space_allows() {
 	let mut editor = Editor::new_scratch();
 	editor.handle_window_resize(200, 40);
 	assert!(editor.open_command_palette());
@@ -74,8 +74,8 @@ fn statusline_plan_includes_dim_command_palette_tag_when_space_allows() {
 	assert_eq!(tag.style, StatuslineRenderStyle::Dim);
 }
 
-#[test]
-fn segment_style_maps_inverted_to_swapped_ui_colors() {
+#[tokio::test(flavor = "current_thread")]
+async fn segment_style_maps_inverted_to_swapped_ui_colors() {
 	let editor = Editor::new_scratch();
 	let colors = &editor.config().theme.colors;
 
@@ -84,8 +84,8 @@ fn segment_style_maps_inverted_to_swapped_ui_colors() {
 	assert_eq!(style.bg, Some(colors.ui.fg));
 }
 
-#[test]
-fn segment_style_uses_theme_mode_style_for_mode_segments() {
+#[tokio::test(flavor = "current_thread")]
+async fn segment_style_uses_theme_mode_style_for_mode_segments() {
 	let editor = Editor::new_scratch();
 	let expected = editor.config().theme.colors.mode_style(&editor.mode());
 
@@ -93,8 +93,8 @@ fn segment_style_uses_theme_mode_style_for_mode_segments() {
 	assert_eq!(style, expected);
 }
 
-#[test]
-fn statusline_file_segment_prefixes_icon_before_path_text() {
+#[tokio::test(flavor = "current_thread")]
+async fn statusline_file_segment_prefixes_icon_before_path_text() {
 	let mut editor = Editor::new_scratch();
 	let _ = editor.buffer_mut().set_path(Some(PathBuf::from("Cargo.toml")), None);
 
@@ -110,8 +110,8 @@ fn statusline_file_segment_prefixes_icon_before_path_text() {
 	);
 }
 
-#[test]
-fn statusline_file_segment_uses_generic_icon_for_unknown_filetypes() {
+#[tokio::test(flavor = "current_thread")]
+async fn statusline_file_segment_uses_generic_icon_for_unknown_filetypes() {
 	let mut editor = Editor::new_scratch();
 	let _ = editor.buffer_mut().set_path(Some(PathBuf::from("scratch.unknown_ext_xeno")), None);
 
@@ -131,8 +131,8 @@ fn statusline_file_segment_uses_generic_icon_for_unknown_filetypes() {
 	);
 }
 
-#[test]
-fn statusline_command_palette_buffer_uses_named_icon_and_label() {
+#[tokio::test(flavor = "current_thread")]
+async fn statusline_command_palette_buffer_uses_named_icon_and_label() {
 	let mut editor = Editor::new_scratch();
 	editor.handle_window_resize(200, 40);
 	assert!(editor.open_command_palette());
@@ -150,8 +150,8 @@ fn statusline_command_palette_buffer_uses_named_icon_and_label() {
 	);
 }
 
-#[test]
-fn statusline_file_picker_buffer_uses_named_icon_and_label() {
+#[tokio::test(flavor = "current_thread")]
+async fn statusline_file_picker_buffer_uses_named_icon_and_label() {
 	let mut editor = Editor::new_scratch();
 	editor.handle_window_resize(200, 40);
 	assert!(editor.open_file_picker());
@@ -165,8 +165,8 @@ fn statusline_file_picker_buffer_uses_named_icon_and_label() {
 	assert!(file_segment.text.contains("󰈙"), "file picker should use file picker icon");
 }
 
-#[test]
-fn statusline_search_buffer_uses_named_icon_and_label() {
+#[tokio::test(flavor = "current_thread")]
+async fn statusline_search_buffer_uses_named_icon_and_label() {
 	let mut editor = Editor::new_scratch();
 	editor.handle_window_resize(200, 40);
 	assert!(editor.open_search(false));
@@ -180,8 +180,8 @@ fn statusline_search_buffer_uses_named_icon_and_label() {
 	assert!(file_segment.text.contains("󰍉"), "search should use search icon");
 }
 
-#[test]
-fn statusline_unknown_overlay_buffer_uses_generic_virtual_fallback_identity() {
+#[tokio::test(flavor = "current_thread")]
+async fn statusline_unknown_overlay_buffer_uses_generic_virtual_fallback_identity() {
 	let mut editor = Editor::new_scratch();
 	editor.handle_window_resize(200, 40);
 	assert!(open_unknown_overlay(&mut editor));

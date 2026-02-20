@@ -76,8 +76,8 @@ pub(crate) fn test_overlay_system_accessors_round_trip() {
 ///
 /// * Enforced in: `OverlaySession::restore_all`
 /// * Failure symptom: Stale cursor/selection state is restored over user's edits.
-#[cfg_attr(test, test)]
-pub(crate) fn test_versioned_restore() {
+#[tokio::test(flavor = "current_thread")]
+pub(crate) async fn test_versioned_restore() {
 	let mut editor = crate::Editor::new_scratch();
 	let view = editor.focused_view();
 
@@ -115,8 +115,8 @@ pub(crate) fn test_versioned_restore() {
 ///
 /// * Enforced in: `OverlayManager::open`
 /// * Failure symptom: Two modal overlays fight for focus and input.
-#[cfg_attr(test, test)]
-pub(crate) fn test_exclusive_modal() {
+#[tokio::test(flavor = "current_thread")]
+pub(crate) async fn test_exclusive_modal() {
 	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(100, 40);
 
@@ -163,8 +163,8 @@ pub(crate) fn test_rect_policy_clamps_to_screen() {
 ///
 /// * Enforced in: `OverlaySession::teardown`
 /// * Failure symptom: Scratch buffers leak after overlays close.
-#[cfg_attr(test, test)]
-pub(crate) fn test_session_teardown_finalizes_buffers() {
+#[tokio::test(flavor = "current_thread")]
+pub(crate) async fn test_session_teardown_finalizes_buffers() {
 	let mut editor = crate::Editor::new_scratch();
 	let b1 = editor.state.core.editor.buffers.create_scratch();
 	let b2 = editor.state.core.editor.buffers.create_scratch();
@@ -192,8 +192,8 @@ pub(crate) fn test_session_teardown_finalizes_buffers() {
 ///
 /// * Enforced in: `OverlayManager::on_viewport_changed`
 /// * Failure symptom: Open modals render with stale geometry after terminal resize.
-#[cfg_attr(test, test)]
-pub(crate) fn test_modal_reflow_on_resize() {
+#[tokio::test(flavor = "current_thread")]
+pub(crate) async fn test_modal_reflow_on_resize() {
 	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(100, 40);
 	assert!(editor.open_command_palette());
@@ -229,8 +229,8 @@ pub(crate) fn test_modal_reflow_on_resize() {
 ///
 /// * Enforced in: `OverlayHost::reflow_session`
 /// * Failure symptom: Auxiliary overlays keep stale geometry after resize.
-#[cfg_attr(test, test)]
-pub(crate) fn test_modal_reflow_clears_unresolved_aux_panes() {
+#[tokio::test(flavor = "current_thread")]
+pub(crate) async fn test_modal_reflow_clears_unresolved_aux_panes() {
 	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(100, 40);
 
@@ -282,8 +282,8 @@ pub(crate) fn test_modal_reflow_clears_unresolved_aux_panes() {
 ///
 /// * Enforced in: `OverlayHost::cleanup_session`
 /// * Failure symptom: Focus remains on stale overlay target after forced close.
-#[cfg_attr(test, test)]
-pub(crate) fn test_forced_close_restores_origin_focus() {
+#[tokio::test(flavor = "current_thread")]
+pub(crate) async fn test_forced_close_restores_origin_focus() {
 	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(100, 40);
 	assert!(editor.open_command_palette());
@@ -308,8 +308,8 @@ pub(crate) fn test_forced_close_restores_origin_focus() {
 ///
 /// * Enforced in: `OverlayHost::setup_session`
 /// * Failure symptom: Overlay UI mutates window manager state unexpectedly.
-#[cfg_attr(test, test)]
-pub(crate) fn test_modal_ui_keeps_single_base_window() {
+#[tokio::test(flavor = "current_thread")]
+pub(crate) async fn test_modal_ui_keeps_single_base_window() {
 	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(100, 40);
 
@@ -325,8 +325,8 @@ pub(crate) fn test_modal_ui_keeps_single_base_window() {
 ///
 /// * Enforced in: `OverlayHost::setup_session`
 /// * Failure symptom: Overlay panes render as anonymous scratch/no-name buffers on statusline and titles.
-#[cfg_attr(test, test)]
-pub(crate) fn test_overlay_session_panes_receive_virtual_identity() {
+#[tokio::test(flavor = "current_thread")]
+pub(crate) async fn test_overlay_session_panes_receive_virtual_identity() {
 	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(120, 40);
 
@@ -350,8 +350,8 @@ pub(crate) fn test_overlay_session_panes_receive_virtual_identity() {
 ///
 /// * Enforced in: `Editor::buffer_presentation`
 /// * Failure symptom: Focused overlay buffers regress to scratch/no-name labels despite active overlay metadata.
-#[cfg_attr(test, test)]
-pub(crate) fn test_overlay_buffer_presentation_uses_virtual_identity() {
+#[tokio::test(flavor = "current_thread")]
+pub(crate) async fn test_overlay_buffer_presentation_uses_virtual_identity() {
 	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(120, 40);
 	assert!(editor.open_command_palette());
@@ -451,8 +451,8 @@ fn drain_queued_commands(editor: &mut crate::Editor) -> Vec<(String, Vec<String>
 ///
 /// * Enforced in: `crate::overlay::controllers::command_palette::CommandPaletteOverlay::update_completion_state`
 /// * Failure symptom: Arrow-key selection snaps back to auto-selected items mid-typing.
-#[cfg_attr(test, test)]
-pub(crate) fn test_palette_manual_selection_persists_within_token() {
+#[tokio::test(flavor = "current_thread")]
+pub(crate) async fn test_palette_manual_selection_persists_within_token() {
 	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(120, 40);
 	assert!(editor.open_command_palette());
@@ -492,8 +492,8 @@ pub(crate) fn test_palette_manual_selection_persists_within_token() {
 ///
 /// * Enforced in: `crate::overlay::controllers::command_palette::CommandPaletteOverlay::update_completion_state`
 /// * Failure symptom: Selection from command token bleeds into argument-token completions.
-#[cfg_attr(test, test)]
-pub(crate) fn test_palette_token_transition_resets_selection_intent() {
+#[tokio::test(flavor = "current_thread")]
+pub(crate) async fn test_palette_token_transition_resets_selection_intent() {
 	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(120, 40);
 	assert!(editor.open_command_palette());
@@ -518,8 +518,8 @@ pub(crate) fn test_palette_token_transition_resets_selection_intent() {
 ///
 /// * Enforced in: `crate::overlay::controllers::command_palette::CommandPaletteOverlay::accept_tab_completion`
 /// * Failure symptom: Tab completion rewrites to wrong directory or drops prefix segments.
-#[cfg_attr(test, test)]
-pub(crate) fn test_palette_tab_preserves_path_prefix() {
+#[tokio::test(flavor = "current_thread")]
+pub(crate) async fn test_palette_tab_preserves_path_prefix() {
 	let tmp = tempfile::tempdir().expect("temp dir");
 	let src_dir = tmp.path().join("src");
 	std::fs::create_dir_all(&src_dir).expect("create src dir");
@@ -542,8 +542,8 @@ pub(crate) fn test_palette_tab_preserves_path_prefix() {
 ///
 /// * Enforced in: `crate::overlay::controllers::command_palette::CommandPaletteOverlay::accept_tab_completion`
 /// * Failure symptom: Quote balancing breaks and cursor lands outside intended token.
-#[cfg_attr(test, test)]
-pub(crate) fn test_palette_tab_after_closing_quote_preserves_quote() {
+#[tokio::test(flavor = "current_thread")]
+pub(crate) async fn test_palette_tab_after_closing_quote_preserves_quote() {
 	let tmp = tempfile::tempdir().expect("temp dir");
 	let spaced_dir = tmp.path().join("My Folder");
 	std::fs::create_dir_all(&spaced_dir).expect("create spaced dir");
@@ -566,8 +566,8 @@ pub(crate) fn test_palette_tab_after_closing_quote_preserves_quote() {
 ///
 /// * Enforced in: `crate::overlay::controllers::command_palette::CommandPaletteOverlay::should_append_space_after_completion`
 /// * Failure symptom: Tab completion dismisses command list for terminal commands like `quit`.
-#[cfg_attr(test, test)]
-pub(crate) fn test_palette_tab_terminal_command_does_not_append_space() {
+#[tokio::test(flavor = "current_thread")]
+pub(crate) async fn test_palette_tab_terminal_command_does_not_append_space() {
 	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(120, 40);
 	assert!(editor.open_command_palette());
@@ -583,8 +583,8 @@ pub(crate) fn test_palette_tab_terminal_command_does_not_append_space() {
 ///
 /// * Enforced in: `crate::overlay::controllers::command_palette::CommandPaletteOverlay::should_append_space_after_completion`
 /// * Failure symptom: Tab completion does not transition into argument completion for commands like `theme`.
-#[cfg_attr(test, test)]
-pub(crate) fn test_palette_tab_argument_command_appends_space() {
+#[tokio::test(flavor = "current_thread")]
+pub(crate) async fn test_palette_tab_argument_command_appends_space() {
 	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(120, 40);
 	assert!(editor.open_command_palette());
@@ -600,8 +600,8 @@ pub(crate) fn test_palette_tab_argument_command_appends_space() {
 ///
 /// * Enforced in: `crate::overlay::controllers::command_palette::CommandPaletteOverlay::enter_commit_decision`, `crate::overlay::controllers::command_palette::CommandPaletteOverlay::handle_picker_action`
 /// * Failure symptom: Enter closes palette and emits missing-argument command error instead of applying completion text.
-#[cfg_attr(test, test)]
-pub(crate) fn test_palette_enter_promotes_required_arg_command_completion() {
+#[tokio::test(flavor = "current_thread")]
+pub(crate) async fn test_palette_enter_promotes_required_arg_command_completion() {
 	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(120, 40);
 	assert!(editor.open_command_palette());
@@ -637,8 +637,8 @@ pub(crate) fn test_palette_enter_promotes_required_arg_command_completion() {
 ///
 /// * Enforced in: `crate::overlay::controllers::command_palette::CommandPaletteOverlay::should_promote_enter_to_tab_completion`, `crate::overlay::controllers::command_palette::CommandPaletteOverlay::enter_commit_decision`
 /// * Failure symptom: Enter commits `theme` without args and triggers required-argument errors instead of transitioning to argument completion.
-#[cfg_attr(test, test)]
-pub(crate) fn test_palette_enter_promotes_exact_required_arg_command_completion() {
+#[tokio::test(flavor = "current_thread")]
+pub(crate) async fn test_palette_enter_promotes_exact_required_arg_command_completion() {
 	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(120, 40);
 	assert!(editor.open_command_palette());
@@ -659,8 +659,8 @@ pub(crate) fn test_palette_enter_promotes_exact_required_arg_command_completion(
 ///
 /// * Enforced in: `crate::overlay::controllers::command_palette::CommandPaletteOverlay::should_apply_selected_argument_on_commit`, `crate::overlay::controllers::command_palette::CommandPaletteOverlay::on_commit`
 /// * Failure symptom: Committing palette with selected theme runs `theme` without args and raises missing-argument errors.
-#[cfg_attr(test, test)]
-pub(crate) fn test_palette_commit_theme_with_selected_completion_supplies_argument() {
+#[tokio::test(flavor = "current_thread")]
+pub(crate) async fn test_palette_commit_theme_with_selected_completion_supplies_argument() {
 	let theme_name = xeno_registry::themes::THEMES
 		.snapshot_guard()
 		.iter_refs()
@@ -702,8 +702,8 @@ pub(crate) fn test_palette_commit_theme_with_selected_completion_supplies_argume
 ///
 /// * Enforced in: `crate::overlay::controllers::command_palette::CommandPaletteOverlay::build_command_items`, `crate::overlay::OverlayContext::record_command_usage`
 /// * Failure symptom: Command palette ignores recency and shows low-signal default ordering.
-#[cfg_attr(test, test)]
-pub(crate) fn test_palette_usage_recency_orders_empty_query() {
+#[tokio::test(flavor = "current_thread")]
+pub(crate) async fn test_palette_usage_recency_orders_empty_query() {
 	let cmd_name = xeno_registry::commands::COMMANDS
 		.snapshot_guard()
 		.iter_refs()
@@ -739,8 +739,8 @@ pub(crate) fn test_palette_usage_recency_orders_empty_query() {
 ///
 /// * Enforced in: `crate::overlay::controllers::command_palette::CommandPaletteOverlay::resolve_command_name_for_commit`
 /// * Failure symptom: Enter executes a different command than the exact text the user entered.
-#[cfg_attr(test, test)]
-pub(crate) fn test_palette_commit_prefers_typed_resolved_command() {
+#[tokio::test(flavor = "current_thread")]
+pub(crate) async fn test_palette_commit_prefers_typed_resolved_command() {
 	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(120, 40);
 	assert!(editor.open_command_palette());
@@ -774,8 +774,8 @@ pub(crate) fn test_palette_commit_prefers_typed_resolved_command() {
 ///
 /// * Enforced in: `crate::overlay::controllers::command_palette::CommandPaletteOverlay::resolve_command_name_for_commit`
 /// * Failure symptom: Enter on incomplete command emits unknown-command error instead of accepting active completion.
-#[cfg_attr(test, test)]
-pub(crate) fn test_palette_commit_falls_back_to_selected_command_when_unresolved() {
+#[tokio::test(flavor = "current_thread")]
+pub(crate) async fn test_palette_commit_falls_back_to_selected_command_when_unresolved() {
 	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(120, 40);
 	assert!(editor.open_command_palette());
@@ -811,8 +811,8 @@ pub(crate) fn test_palette_commit_falls_back_to_selected_command_when_unresolved
 ///
 /// * Enforced in: `crate::overlay::controllers::command_palette::CommandPaletteOverlay::tokenize`, `crate::overlay::controllers::command_palette::CommandPaletteOverlay::on_commit`
 /// * Failure symptom: Quoted filenames are split into multiple args.
-#[cfg_attr(test, test)]
-pub(crate) fn test_palette_commit_preserves_quoted_argument() {
+#[tokio::test(flavor = "current_thread")]
+pub(crate) async fn test_palette_commit_preserves_quoted_argument() {
 	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(120, 40);
 	assert!(editor.open_command_palette());
@@ -833,8 +833,8 @@ pub(crate) fn test_palette_commit_preserves_quoted_argument() {
 ///
 /// * Enforced in: `crate::overlay::controllers::command_palette::CommandPaletteOverlay::tokenize`, `crate::overlay::controllers::command_palette::CommandPaletteOverlay::on_commit`
 /// * Failure symptom: Snippet placeholders are truncated or split across args.
-#[cfg_attr(test, test)]
-pub(crate) fn test_palette_commit_preserves_quoted_snippet_body_argument() {
+#[tokio::test(flavor = "current_thread")]
+pub(crate) async fn test_palette_commit_preserves_quoted_snippet_body_argument() {
 	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(120, 40);
 	assert!(editor.open_command_palette());
@@ -855,8 +855,8 @@ pub(crate) fn test_palette_commit_preserves_quoted_snippet_body_argument() {
 ///
 /// * Enforced in: `crate::overlay::controllers::command_palette::CommandPaletteOverlay::build_items_for_token`, `crate::overlay::controllers::command_palette::CommandPaletteOverlay::build_snippet_items`
 /// * Failure symptom: Snippet command cannot discover named registry snippets.
-#[cfg_attr(test, test)]
-pub(crate) fn test_palette_snippet_name_completion_with_at_query() {
+#[tokio::test(flavor = "current_thread")]
+pub(crate) async fn test_palette_snippet_name_completion_with_at_query() {
 	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(120, 40);
 	assert!(editor.open_command_palette());
@@ -882,8 +882,8 @@ pub(crate) fn test_palette_snippet_name_completion_with_at_query() {
 ///
 /// * Enforced in: `crate::overlay::controllers::command_palette::CommandPaletteOverlay::build_items_for_token`
 /// * Failure symptom: Inline snippet editing is polluted by irrelevant snippet-name entries.
-#[cfg_attr(test, test)]
-pub(crate) fn test_palette_snippet_inline_body_has_no_name_completions() {
+#[tokio::test(flavor = "current_thread")]
+pub(crate) async fn test_palette_snippet_inline_body_has_no_name_completions() {
 	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(120, 40);
 	assert!(editor.open_command_palette());
@@ -903,8 +903,8 @@ pub(crate) fn test_palette_snippet_inline_body_has_no_name_completions() {
 ///
 /// * Enforced in: `crate::overlay::controllers::command_palette::CommandPaletteOverlay::update_completion_state`, `crate::overlay::controllers::command_palette::CommandPaletteOverlay::accept_tab_completion`
 /// * Failure symptom: Empty-match tab inserts stale completion text.
-#[cfg_attr(test, test)]
-pub(crate) fn test_palette_no_matches_hides_results_and_tab_noops() {
+#[tokio::test(flavor = "current_thread")]
+pub(crate) async fn test_palette_no_matches_hides_results_and_tab_noops() {
 	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(120, 40);
 	assert!(editor.open_command_palette());

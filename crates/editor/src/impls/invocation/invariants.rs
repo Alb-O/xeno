@@ -197,8 +197,8 @@ async fn test_keymap_dispatch_routes_through_run_invocation() {
 ///
 /// * Enforced in: `Editor::enqueue_runtime_invocation_request`
 /// * Failure symptom: runtime drain applies wrong policy/scope for deferred invocations.
-#[cfg_attr(test, test)]
-fn test_deferred_invocation_queue_preserves_source_policy_and_scope() {
+#[tokio::test(flavor = "current_thread")]
+async fn test_deferred_invocation_queue_preserves_source_policy_and_scope() {
 	let mut editor = Editor::new_scratch();
 	let current_nu_scope = editor.state.integration.nu.current_stop_scope_generation();
 

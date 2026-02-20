@@ -1,7 +1,7 @@
 use super::Editor;
 
-#[test]
-fn ensure_syntax_for_buffers_clamps_stale_scroll_line_after_large_delete() {
+#[tokio::test(flavor = "current_thread")]
+async fn ensure_syntax_for_buffers_clamps_stale_scroll_line_after_large_delete() {
 	let mut editor = Editor::new_scratch();
 
 	let mut large = String::new();

@@ -1,30 +1,22 @@
 use std::future::Future;
-use std::sync::OnceLock;
 
-use tokio::runtime::{Builder, Handle, Runtime};
+use tokio::runtime::Handle;
 use tokio::task::JoinHandle;
 
 use crate::TaskClass;
 
-fn fallback_runtime() -> &'static Runtime {
-	static FALLBACK_RUNTIME: OnceLock<Runtime> = OnceLock::new();
-	FALLBACK_RUNTIME.get_or_init(|| {
-		Builder::new_multi_thread()
-			.worker_threads(2)
-			.thread_name("xeno-worker-fallback")
-			.enable_all()
-			.build()
-			.expect("worker fallback runtime must initialize")
-	})
-}
-
-pub(crate) fn current_or_fallback_handle() -> Handle {
-	Handle::try_current().unwrap_or_else(|_| fallback_runtime().handle().clone())
+/// Returns the current tokio runtime handle.
+///
+/// Panics if called from outside a tokio runtime context. All worker spawning
+/// must occur within an active runtime — there is no silent fallback.
+pub(crate) fn current_handle() -> Handle {
+	Handle::current()
 }
 
 /// Spawns an async task with shared worker classification metadata.
 ///
 /// This is the only sanctioned entry point for `tokio::spawn` in the workspace.
+/// Panics if called outside a tokio runtime context.
 #[allow(clippy::disallowed_methods)]
 pub fn spawn<F>(class: TaskClass, fut: F) -> JoinHandle<F::Output>
 where
@@ -32,12 +24,13 @@ where
 	F::Output: Send + 'static,
 {
 	tracing::trace!(worker_class = class.as_str(), "worker.spawn");
-	current_or_fallback_handle().spawn(fut)
+	current_handle().spawn(fut)
 }
 
 /// Spawns blocking work with shared worker classification metadata.
 ///
 /// This is the only sanctioned entry point for `tokio::task::spawn_blocking` in the workspace.
+/// Panics if called outside a tokio runtime context.
 #[allow(clippy::disallowed_methods)]
 pub fn spawn_blocking<F, R>(class: TaskClass, f: F) -> JoinHandle<R>
 where
@@ -45,7 +38,7 @@ where
 	R: Send + 'static,
 {
 	tracing::trace!(worker_class = class.as_str(), "worker.spawn_blocking");
-	current_or_fallback_handle().spawn_blocking(f)
+	current_handle().spawn_blocking(f)
 }
 
 /// Spawns a dedicated OS thread with shared worker classification metadata.

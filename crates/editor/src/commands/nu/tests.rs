@@ -31,8 +31,8 @@ fn parse_invocation_variants() {
 	));
 }
 
-#[test]
-fn nu_run_dispatches_action() {
+#[tokio::test(flavor = "current_thread")]
+async fn nu_run_dispatches_action() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
 	write_script(
 		temp.path(),
@@ -52,20 +52,18 @@ fn nu_run_dispatches_action() {
 			.expect("registry should include at least one action")
 	};
 
-	let rt = tokio::runtime::Builder::new_current_thread()
-		.enable_all()
-		.build()
-		.expect("runtime should build");
-	let result = rt.block_on(editor.run_invocation(
-		Invocation::editor_command("nu-run", vec!["go".to_string(), action_name]),
-		InvocationPolicy::enforcing(),
-	));
+	let result = editor
+		.run_invocation(
+			Invocation::editor_command("nu-run", vec!["go".to_string(), action_name]),
+			InvocationPolicy::enforcing(),
+		)
+		.await;
 
 	assert!(matches!(result.status, InvocationStatus::Ok));
 }
 
-#[test]
-fn nu_run_command_injects_ctx() {
+#[tokio::test(flavor = "current_thread")]
+async fn nu_run_command_injects_ctx() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
 	write_script(
 		temp.path(),
@@ -76,30 +74,25 @@ fn nu_run_command_injects_ctx() {
 	let mut editor = Editor::from_content("abcd".to_string(), None);
 	editor.set_nu_runtime(Some(runtime));
 
-	let rt = tokio::runtime::Builder::new_current_thread()
-		.enable_all()
-		.build()
-		.expect("runtime should build");
 	let args = ["go"];
-	let outcome = rt
-		.block_on(async {
-			let mut ctx = EditorCommandContext {
-				editor: &mut editor,
-				args: &args,
-				count: 1,
-				register: None,
-				user_data: None,
-			};
-			cmd_nu_run(&mut ctx).await
-		})
-		.expect("nu-run should succeed");
+	let outcome = {
+		let mut ctx = EditorCommandContext {
+			editor: &mut editor,
+			args: &args,
+			count: 1,
+			register: None,
+			user_data: None,
+		};
+		cmd_nu_run(&mut ctx).await
+	}
+	.expect("nu-run should succeed");
 
 	assert!(matches!(outcome, CommandOutcome::Ok));
 	assert_eq!(editor.buffer().cursor, 1, "ctx-aware macro should dispatch move_right");
 }
 
-#[test]
-fn nu_run_noop_macro_returns_ok() {
+#[tokio::test(flavor = "current_thread")]
+async fn nu_run_noop_macro_returns_ok() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
 	write_script(temp.path(), "export def noop [] { null }");
 
@@ -107,11 +100,9 @@ fn nu_run_noop_macro_returns_ok() {
 	let mut editor = Editor::new_scratch();
 	editor.set_nu_runtime(Some(runtime));
 
-	let rt = tokio::runtime::Builder::new_current_thread()
-		.enable_all()
-		.build()
-		.expect("runtime should build");
-	let result = rt.block_on(editor.run_invocation(Invocation::nu("noop", vec![]), InvocationPolicy::enforcing()));
+	let result = editor
+		.run_invocation(Invocation::nu("noop", vec![]), InvocationPolicy::enforcing())
+		.await;
 
 	assert!(
 		matches!(result.status, InvocationStatus::Ok),
@@ -119,8 +110,8 @@ fn nu_run_noop_macro_returns_ok() {
 	);
 }
 
-#[test]
-fn nu_run_command_injects_expanded_ctx_fields() {
+#[tokio::test(flavor = "current_thread")]
+async fn nu_run_command_injects_expanded_ctx_fields() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
 	write_script(
 		temp.path(),
@@ -134,18 +125,19 @@ fn nu_run_command_injects_expanded_ctx_fields() {
 	let mut editor = Editor::from_content("abcd".to_string(), None);
 	editor.set_nu_runtime(Some(runtime));
 
-	let rt = tokio::runtime::Builder::new_current_thread()
-		.enable_all()
-		.build()
-		.expect("runtime should build");
-	let result = rt.block_on(editor.run_invocation(Invocation::editor_command("nu-run", vec!["go".to_string()]), InvocationPolicy::enforcing()));
+	let result = editor
+		.run_invocation(
+			Invocation::editor_command("nu-run", vec!["go".to_string()]),
+			InvocationPolicy::enforcing(),
+		)
+		.await;
 
 	assert!(matches!(result.status, InvocationStatus::Ok));
 	assert_eq!(editor.buffer().cursor, 1, "expanded ctx fields should be available to macro scripts");
 }
 
-#[test]
-fn nu_run_dispatches_editor_command() {
+#[tokio::test(flavor = "current_thread")]
+async fn nu_run_dispatches_editor_command() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
 	write_script(temp.path(), "export def go [] { xeno effect dispatch editor stats | xeno effects normalize }");
 
@@ -153,17 +145,18 @@ fn nu_run_dispatches_editor_command() {
 	let mut editor = Editor::new_scratch();
 	editor.set_nu_runtime(Some(runtime));
 
-	let rt = tokio::runtime::Builder::new_current_thread()
-		.enable_all()
-		.build()
-		.expect("runtime should build");
-	let result = rt.block_on(editor.run_invocation(Invocation::editor_command("nu-run", vec!["go".to_string()]), InvocationPolicy::enforcing()));
+	let result = editor
+		.run_invocation(
+			Invocation::editor_command("nu-run", vec!["go".to_string()]),
+			InvocationPolicy::enforcing(),
+		)
+		.await;
 
 	assert!(matches!(result.status, InvocationStatus::Ok));
 }
 
-#[test]
-fn nu_reload_rejects_external_script_and_keeps_existing_runtime() {
+#[tokio::test(flavor = "current_thread")]
+async fn nu_reload_rejects_external_script_and_keeps_existing_runtime() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
 	write_script(temp.path(), "export def ok [] { xeno effect dispatch editor stats | xeno effects normalize }");
 
@@ -174,12 +167,8 @@ fn nu_reload_rejects_external_script_and_keeps_existing_runtime() {
 
 	write_script(temp.path(), "^echo hi");
 
-	let rt = tokio::runtime::Builder::new_current_thread()
-		.enable_all()
-		.build()
-		.expect("runtime should build");
-	let err = rt
-		.block_on(reload_runtime_from_dir(&mut editor, temp.path().to_path_buf()))
+	let err = reload_runtime_from_dir(&mut editor, temp.path().to_path_buf())
+		.await
 		.expect_err("external scripts should be rejected");
 
 	assert!(matches!(err, CommandError::Failed(_)));
@@ -187,8 +176,8 @@ fn nu_reload_rejects_external_script_and_keeps_existing_runtime() {
 	assert_eq!(kept_runtime.script_path(), initial_script);
 }
 
-#[test]
-fn action_post_hook_dispatches_once_with_recursion_guard() {
+#[tokio::test(flavor = "current_thread")]
+async fn action_post_hook_dispatches_once_with_recursion_guard() {
 	assert!(xeno_registry::find_action("move_right").is_some(), "expected move_right action to exist");
 
 	let temp = tempfile::tempdir().expect("temp dir should exist");
@@ -201,19 +190,17 @@ fn action_post_hook_dispatches_once_with_recursion_guard() {
 	let mut editor = Editor::from_content("abcd".to_string(), None);
 	editor.set_nu_runtime(Some(runtime));
 
-	let rt = tokio::runtime::Builder::new_current_thread()
-		.enable_all()
-		.build()
-		.expect("runtime should build");
-	let result = rt.block_on(editor.run_invocation(Invocation::action("move_right"), InvocationPolicy::enforcing()));
-	rt.block_on(editor.drain_nu_hook_queue(usize::MAX));
+	let result = editor
+		.run_invocation(Invocation::action("move_right"), InvocationPolicy::enforcing())
+		.await;
+	editor.drain_nu_hook_queue(usize::MAX).await;
 
 	assert!(matches!(result.status, InvocationStatus::Ok));
 	assert_eq!(editor.buffer().cursor, 2, "hook should add exactly one extra move_right invocation");
 }
 
-#[test]
-fn action_post_hook_receives_expanded_ctx_fields() {
+#[tokio::test(flavor = "current_thread")]
+async fn action_post_hook_receives_expanded_ctx_fields() {
 	assert!(xeno_registry::find_action("move_right").is_some(), "expected move_right action to exist");
 
 	let temp = tempfile::tempdir().expect("temp dir should exist");
@@ -230,19 +217,17 @@ fn action_post_hook_receives_expanded_ctx_fields() {
 	let mut editor = Editor::from_content("abcd".to_string(), None);
 	editor.set_nu_runtime(Some(runtime));
 
-	let rt = tokio::runtime::Builder::new_current_thread()
-		.enable_all()
-		.build()
-		.expect("runtime should build");
-	let result = rt.block_on(editor.run_invocation(Invocation::action("move_right"), InvocationPolicy::enforcing()));
-	rt.block_on(editor.drain_nu_hook_queue(usize::MAX));
+	let result = editor
+		.run_invocation(Invocation::action("move_right"), InvocationPolicy::enforcing())
+		.await;
+	editor.drain_nu_hook_queue(usize::MAX).await;
 
 	assert!(matches!(result.status, InvocationStatus::Ok));
 	assert_eq!(editor.buffer().cursor, 2, "expanded ctx fields should be available to hook scripts");
 }
 
-#[test]
-fn action_post_missing_hook_is_noop() {
+#[tokio::test(flavor = "current_thread")]
+async fn action_post_missing_hook_is_noop() {
 	assert!(xeno_registry::find_action("move_right").is_some(), "expected move_right action to exist");
 
 	let temp = tempfile::tempdir().expect("temp dir should exist");
@@ -252,18 +237,16 @@ fn action_post_missing_hook_is_noop() {
 	let mut editor = Editor::from_content("abcd".to_string(), None);
 	editor.set_nu_runtime(Some(runtime));
 
-	let rt = tokio::runtime::Builder::new_current_thread()
-		.enable_all()
-		.build()
-		.expect("runtime should build");
-	let result = rt.block_on(editor.run_invocation(Invocation::action("move_right"), InvocationPolicy::enforcing()));
+	let result = editor
+		.run_invocation(Invocation::action("move_right"), InvocationPolicy::enforcing())
+		.await;
 
 	assert!(matches!(result.status, InvocationStatus::Ok));
 	assert_eq!(editor.buffer().cursor, 1, "without on_hook export only base action should run");
 }
 
-#[test]
-fn nu_run_structured_action_record_executes_count() {
+#[tokio::test(flavor = "current_thread")]
+async fn nu_run_structured_action_record_executes_count() {
 	assert!(xeno_registry::find_action("move_right").is_some(), "expected move_right action to exist");
 
 	let temp = tempfile::tempdir().expect("temp dir should exist");
@@ -276,18 +259,19 @@ fn nu_run_structured_action_record_executes_count() {
 	let mut editor = Editor::from_content("abcd".to_string(), None);
 	editor.set_nu_runtime(Some(runtime));
 
-	let rt = tokio::runtime::Builder::new_current_thread()
-		.enable_all()
-		.build()
-		.expect("runtime should build");
-	let result = rt.block_on(editor.run_invocation(Invocation::editor_command("nu-run", vec!["go".to_string()]), InvocationPolicy::enforcing()));
+	let result = editor
+		.run_invocation(
+			Invocation::editor_command("nu-run", vec!["go".to_string()]),
+			InvocationPolicy::enforcing(),
+		)
+		.await;
 
 	assert!(matches!(result.status, InvocationStatus::Ok));
 	assert_eq!(editor.buffer().cursor, 2, "structured action record should honor count");
 }
 
-#[test]
-fn nu_run_structured_list_of_records_executes() {
+#[tokio::test(flavor = "current_thread")]
+async fn nu_run_structured_list_of_records_executes() {
 	let temp = tempfile::tempdir().expect("temp dir should exist");
 	write_script(
 		temp.path(),
@@ -298,11 +282,12 @@ fn nu_run_structured_list_of_records_executes() {
 	let mut editor = Editor::new_scratch();
 	editor.set_nu_runtime(Some(runtime));
 
-	let rt = tokio::runtime::Builder::new_current_thread()
-		.enable_all()
-		.build()
-		.expect("runtime should build");
-	let result = rt.block_on(editor.run_invocation(Invocation::editor_command("nu-run", vec!["go".to_string()]), InvocationPolicy::enforcing()));
+	let result = editor
+		.run_invocation(
+			Invocation::editor_command("nu-run", vec!["go".to_string()]),
+			InvocationPolicy::enforcing(),
+		)
+		.await;
 
 	assert!(matches!(result.status, InvocationStatus::Ok));
 }

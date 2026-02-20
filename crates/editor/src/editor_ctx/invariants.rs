@@ -181,8 +181,8 @@ pub fn test_multi_effect_sequences_apply_in_strict_order() {
 ///
 /// * Enforced in: `EditorCaps` capability impls, `Editor::flush_effects`
 /// * Failure symptom: notifications/runtime invocations appear before explicit sink flush.
-#[cfg_attr(test, test)]
-pub fn test_side_effects_route_through_capability_provider_and_sink_path() {
+#[tokio::test(flavor = "current_thread")]
+pub async fn test_side_effects_route_through_capability_provider_and_sink_path() {
 	let mut editor = Editor::new_scratch();
 	let effects = ActionEffects::new()
 		.with(UiEffect::Notify(keys::info("editor-ctx-sink-route")))
@@ -220,8 +220,8 @@ pub fn test_side_effects_route_through_capability_provider_and_sink_path() {
 ///
 /// * Enforced in: `Editor::apply_action_result`, `editor_ctx::apply_effects`, `Editor::flush_effects`
 /// * Failure symptom: invocation boundary bypasses interpreter or leaks side effects pre-flush.
-#[cfg_attr(test, test)]
-pub fn test_action_result_effects_enter_apply_effects_and_defer_until_sink_flush() {
+#[tokio::test(flavor = "current_thread")]
+pub async fn test_action_result_effects_enter_apply_effects_and_defer_until_sink_flush() {
 	let mut editor = Editor::new_scratch();
 	let effects = ActionEffects::new()
 		.with(ViewEffect::SetCursor(CharIdx::from(12usize)))
