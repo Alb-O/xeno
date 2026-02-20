@@ -9,11 +9,11 @@ impl OverlayAccess for EditorCaps<'_> {
 		self.ed.validate_overlay_request(&req)?;
 
 		// Single-path dispatch via sink
-		self.ed.state.effects.overlay_request(req);
+		self.ed.state.runtime.effects.overlay_request(req);
 		Ok(())
 	}
 
 	fn overlay_modal_is_open(&self) -> bool {
-		self.ed.state.overlay_system.interaction().is_open()
+		self.ed.state.ui.overlay_system.interaction().is_open()
 	}
 }

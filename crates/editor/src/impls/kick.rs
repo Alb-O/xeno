@@ -18,14 +18,14 @@ impl Editor {
 	/// Registration is deferred to the editor thread via [`ThemeMsg::ThemesReady`]
 	/// to avoid races when multiple loads overlap.
 	pub fn kick_theme_load(&mut self) {
-		let token = self.state.theme_load_token_next;
-		self.state.theme_load_token_next += 1;
-		self.state.pending_theme_load_token = Some(token);
+		let token = self.state.async_state.theme_load_token_next;
+		self.state.async_state.theme_load_token_next += 1;
+		self.state.async_state.pending_theme_load_token = Some(token);
 
 		let tx = self.msg_tx();
 		let config_themes_dir = crate::paths::get_config_dir().map(|d| d.join("themes"));
 		let data_themes_dir = crate::paths::get_data_dir().map(|d| d.join("themes"));
-		let runtime = self.state.worker_runtime.clone();
+		let runtime = self.state.async_state.worker_runtime.clone();
 
 		runtime.clone().spawn(xeno_worker::TaskClass::Background, async move {
 			let (themes, errors) = load_themes_blocking(runtime.clone(), config_themes_dir, data_themes_dir).await;
@@ -40,7 +40,7 @@ impl Editor {
 	/// Sends [`crate::msg::IoMsg::FileLoaded`] or [`crate::msg::IoMsg::LoadFailed`] on completion.
 	pub fn kick_file_load(&self, path: PathBuf, token: u64) {
 		let tx = self.msg_tx();
-		let runtime = self.state.worker_runtime.clone();
+		let runtime = self.state.async_state.worker_runtime.clone();
 		runtime.clone().spawn(xeno_worker::TaskClass::IoBlocking, async move {
 			match tokio::fs::read_to_string(&path).await {
 				Ok(content) => {
@@ -84,12 +84,12 @@ impl Editor {
 	/// multiple loads overlap.
 	#[cfg(feature = "lsp")]
 	pub fn kick_lsp_catalog_load(&mut self) {
-		let token = self.state.lsp_catalog_load_token_next;
-		self.state.lsp_catalog_load_token_next += 1;
-		self.state.pending_lsp_catalog_load_token = Some(token);
+		let token = self.state.async_state.lsp_catalog_load_token_next;
+		self.state.async_state.lsp_catalog_load_token_next += 1;
+		self.state.async_state.pending_lsp_catalog_load_token = Some(token);
 
 		let tx = self.msg_tx();
-		let runtime = self.state.worker_runtime.clone();
+		let runtime = self.state.async_state.worker_runtime.clone();
 
 		runtime.clone().spawn(xeno_worker::TaskClass::Background, async move {
 			let parsed = runtime

@@ -4,11 +4,11 @@ use crate::capabilities::provider::EditorCaps;
 
 impl MacroAccess for EditorCaps<'_> {
 	fn record(&mut self) {
-		self.ed.state.core.workspace.macro_state.start_recording('q');
+		self.ed.state.core.editor.workspace.macro_state.start_recording('q');
 	}
 
 	fn stop_recording(&mut self) {
-		self.ed.state.core.workspace.macro_state.stop_recording();
+		self.ed.state.core.editor.workspace.macro_state.stop_recording();
 	}
 
 	fn play(&mut self) {
@@ -16,6 +16,6 @@ impl MacroAccess for EditorCaps<'_> {
 	}
 
 	fn is_recording(&self) -> bool {
-		self.ed.state.core.workspace.macro_state.is_recording()
+		self.ed.state.core.editor.workspace.macro_state.is_recording()
 	}
 }

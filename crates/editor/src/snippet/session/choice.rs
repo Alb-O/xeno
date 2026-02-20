@@ -40,7 +40,7 @@ impl Editor {
 		overlay.tabstop_idx = tabstop_idx;
 		overlay.options = options;
 		overlay.selected = selected;
-		self.state.frame.needs_redraw = true;
+		self.state.core.frame.needs_redraw = true;
 		true
 	}
 
@@ -113,7 +113,7 @@ impl Editor {
 			return self.snippet_apply_choice_value(&value);
 		}
 
-		self.state.frame.needs_redraw = true;
+		self.state.core.frame.needs_redraw = true;
 		true
 	}
 

@@ -30,7 +30,7 @@ pub enum LspUiEvent {
 
 impl Editor {
 	pub(crate) fn drain_lsp_ui_events(&mut self) {
-		while let Some(event) = self.state.lsp.try_recv_ui_event() {
+		while let Some(event) = self.state.integration.lsp.try_recv_ui_event() {
 			self.handle_lsp_ui_event(event);
 		}
 	}
@@ -42,7 +42,7 @@ impl Editor {
 	/// after `replace_start` (allowing continued typing without dismissing the menu).
 	/// Stale results from cancelled requests are silently discarded.
 	fn handle_lsp_ui_event(&mut self, event: LspUiEvent) {
-		if self.state.overlay_system.interaction().is_open() {
+		if self.state.ui.overlay_system.interaction().is_open() {
 			return;
 		}
 
@@ -53,10 +53,10 @@ impl Editor {
 				replace_start,
 				response,
 			} => {
-				if generation != self.state.lsp.completion_generation() {
+				if generation != self.state.integration.lsp.completion_generation() {
 					return;
 				}
-				let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
+				let Some(buffer) = self.state.core.editor.buffers.get_buffer(buffer_id) else {
 					return;
 				};
 				if buffer.cursor < replace_start {
@@ -96,7 +96,7 @@ impl Editor {
 				let menu_state = self.overlays_mut().get_or_default::<LspMenuState>();
 				menu_state.set(LspMenuKind::Completion { buffer_id, items });
 
-				self.state.frame.needs_redraw = true;
+				self.state.core.frame.needs_redraw = true;
 			}
 			LspUiEvent::SignatureHelp {
 				generation,
@@ -106,10 +106,10 @@ impl Editor {
 				contents,
 				anchor,
 			} => {
-				if generation != self.state.lsp.signature_help_generation() {
+				if generation != self.state.integration.lsp.signature_help_generation() {
 					return;
 				}
-				let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
+				let Some(buffer) = self.state.core.editor.buffers.get_buffer(buffer_id) else {
 					return;
 				};
 				if buffer.version() != doc_version || buffer.cursor != cursor {
@@ -144,7 +144,7 @@ impl Editor {
 			menu_state.clear();
 		}
 
-		self.state.frame.needs_redraw = true;
+		self.state.core.frame.needs_redraw = true;
 	}
 }
 

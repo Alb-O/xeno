@@ -84,10 +84,10 @@ impl Editor {
 
 	fn goto_diagnostic(&mut self, direction: NavDirection) {
 		let buffer_id = self.focused_view();
-		let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
+		let Some(buffer) = self.state.core.editor.buffers.get_buffer(buffer_id) else {
 			return;
 		};
-		let diagnostics = self.state.lsp.get_diagnostics(buffer);
+		let diagnostics = self.state.integration.lsp.get_diagnostics(buffer);
 		if diagnostics.is_empty() {
 			self.notify(keys::info("No diagnostics"));
 			return;
@@ -127,11 +127,11 @@ impl Editor {
 				.unwrap_or_else(|| *positions.last().unwrap()),
 		};
 
-		let Some(buffer) = self.state.core.buffers.get_buffer_mut(buffer_id) else {
+		let Some(buffer) = self.state.core.editor.buffers.get_buffer_mut(buffer_id) else {
 			return;
 		};
 		buffer.set_cursor_and_selection(next_pos, Selection::point(next_pos));
 		buffer.establish_goal_column();
-		self.state.frame.needs_redraw = true;
+		self.state.core.frame.needs_redraw = true;
 	}
 }

@@ -275,7 +275,7 @@ impl Editor {
 			(active_ranges, session.span.clone())
 		};
 
-		let Some(buffer) = self.state.core.buffers.get_buffer(view) else {
+		let Some(buffer) = self.state.core.editor.buffers.get_buffer(view) else {
 			self.cancel_snippet_session();
 			return false;
 		};
@@ -391,7 +391,7 @@ impl Editor {
 			AdvanceResult::End => {
 				self.cancel_snippet_session();
 				self.buffer_mut().clear_undo_group();
-				self.state.frame.needs_redraw = true;
+				self.state.core.frame.needs_redraw = true;
 				true
 			}
 			AdvanceResult::Moved | AdvanceResult::Stayed => {
@@ -528,7 +528,7 @@ impl Editor {
 		let Some(selection) = selection_from_points(points) else {
 			return false;
 		};
-		if let Some(buffer) = self.state.core.buffers.get_buffer_mut(buffer_id) {
+		if let Some(buffer) = self.state.core.editor.buffers.get_buffer_mut(buffer_id) {
 			let cursor = selection.primary().head;
 			buffer.set_cursor_and_selection(cursor, selection);
 		}
@@ -824,13 +824,13 @@ impl Editor {
 
 		let selection = Selection::new(to_selection_range(primary), ranges.into_iter().skip(1).map(to_selection_range));
 
-		let Some(buffer) = self.state.core.buffers.get_buffer_mut(buffer_id) else {
+		let Some(buffer) = self.state.core.editor.buffers.get_buffer_mut(buffer_id) else {
 			self.cancel_snippet_session();
 			return false;
 		};
 		let cursor = selection.primary().head;
 		buffer.set_cursor_and_selection(cursor, selection);
-		self.state.frame.needs_redraw = true;
+		self.state.core.frame.needs_redraw = true;
 		true
 	}
 }

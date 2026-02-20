@@ -143,7 +143,7 @@ mod tests {
 			use xeno_primitives::{SyntaxPolicy, Transaction, UndoPolicy};
 
 			use crate::buffer::ApplyPolicy;
-			let buffer = editor.state.core.buffers.get_buffer_mut(view_id).unwrap();
+			let buffer = editor.state.core.editor.buffers.get_buffer_mut(view_id).unwrap();
 			let tx = buffer.with_doc(|doc| {
 				Transaction::change(
 					doc.content().slice(..),
@@ -162,10 +162,10 @@ mod tests {
 				},
 			);
 		}
-		assert!(editor.state.core.buffers.get_buffer(view_id).unwrap().modified());
+		assert!(editor.state.core.editor.buffers.get_buffer(view_id).unwrap().modified());
 
-		let buffer = editor.state.core.buffers.get_buffer(view_id).unwrap();
-		let saved_path = save_buffer_to_disk(buffer, &editor.state.worker_runtime).await.unwrap();
+		let buffer = editor.state.core.editor.buffers.get_buffer(view_id).unwrap();
+		let saved_path = save_buffer_to_disk(buffer, &editor.state.async_state.worker_runtime).await.unwrap();
 		assert_eq!(saved_path, path);
 		assert_eq!(std::fs::read_to_string(&path).unwrap(), "new\n");
 	}
@@ -178,10 +178,10 @@ mod tests {
 
 		let mut editor = crate::Editor::new_scratch();
 		let view_id = editor.open_file(path.clone()).await.unwrap();
-		editor.state.core.buffers.get_buffer_mut(view_id).unwrap().set_readonly(true);
+		editor.state.core.editor.buffers.get_buffer_mut(view_id).unwrap().set_readonly(true);
 
-		let buffer = editor.state.core.buffers.get_buffer(view_id).unwrap();
-		let err = save_buffer_to_disk(buffer, &editor.state.worker_runtime).await.unwrap_err();
+		let buffer = editor.state.core.editor.buffers.get_buffer(view_id).unwrap();
+		let err = save_buffer_to_disk(buffer, &editor.state.async_state.worker_runtime).await.unwrap_err();
 		assert!(matches!(err, SaveError::ReadOnly(_)), "expected ReadOnly, got: {err}");
 		assert_eq!(std::fs::read_to_string(&path).unwrap(), "locked\n", "disk must be unchanged");
 	}

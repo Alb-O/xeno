@@ -20,22 +20,22 @@ impl Editor {
 	}
 
 	fn apply_separator_drag_route(&mut self, context: &MouseRouteContext, drag_state: DragState) -> bool {
-		if self.state.layout.cancel_if_stale() {
-			self.state.frame.needs_redraw = true;
+		if self.state.core.layout.cancel_if_stale() {
+			self.state.core.frame.needs_redraw = true;
 			return false;
 		}
 
-		let base_layout = &mut self.state.windows.base_window_mut().layout;
+		let base_layout = &mut self.state.core.windows.base_window_mut().layout;
 		self.state
-			.layout
+			.core.layout
 			.resize_separator(base_layout, context.doc_area, &drag_state.id, context.mouse_x, context.mouse_y);
-		self.state.frame.needs_redraw = true;
+		self.state.core.frame.needs_redraw = true;
 		false
 	}
 
 	fn apply_separator_release_route(&mut self) -> bool {
-		self.state.layout.end_drag();
-		self.state.frame.needs_redraw = true;
+		self.state.core.layout.end_drag();
+		self.state.core.frame.needs_redraw = true;
 		false
 	}
 
@@ -47,7 +47,7 @@ impl Editor {
 
 		let tab_width = self.tab_width_for(origin_view);
 		let scroll_lines = self.scroll_lines_for(origin_view);
-		if let Some(buffer) = self.state.core.buffers.get_buffer_mut(origin_view) {
+		if let Some(buffer) = self.state.core.editor.buffers.get_buffer_mut(origin_view) {
 			if let MouseEvent::Scroll { direction, .. } = context.mouse
 				&& matches!(direction, xeno_primitives::ScrollDirection::Up | xeno_primitives::ScrollDirection::Down)
 			{
@@ -68,7 +68,7 @@ impl Editor {
 				buffer.sync_cursor_to_selection();
 			}
 		}
-		self.state.frame.needs_redraw = true;
+		self.state.core.frame.needs_redraw = true;
 		false
 	}
 
@@ -93,18 +93,18 @@ impl Editor {
 
 		let result = self.buffer_mut().input.handle_mouse(context.mouse);
 		let quit = self.apply_mouse_key_result(result, local_row, local_col, Some((overlay_hit.buffer, overlay_hit.inner)));
-		self.state.frame.needs_redraw = true;
+		self.state.core.frame.needs_redraw = true;
 		quit
 	}
 
 	fn apply_document_route(&mut self, context: &MouseRouteContext, separator_hit: Option<SeparatorHit>, view_hit: Option<ViewHit>) -> bool {
 		self.maybe_clear_text_selection_origin_on_release(context);
 
-		self.state.layout.update_mouse_velocity(context.mouse_x, context.mouse_y);
-		let is_fast_mouse = self.state.layout.is_mouse_fast();
+		self.state.core.layout.update_mouse_velocity(context.mouse_x, context.mouse_y);
+		let is_fast_mouse = self.state.core.layout.is_mouse_fast();
 
 		let current_separator = separator_hit.as_ref().map(|hit| (hit.direction, hit.rect));
-		self.state.layout.separator_under_mouse = current_separator;
+		self.state.core.layout.separator_under_mouse = current_separator;
 
 		if self.apply_separator_hover_and_drag_effects(context.mouse, separator_hit.as_ref(), current_separator, is_fast_mouse) {
 			return false;
@@ -127,8 +127,8 @@ impl Editor {
 
 	fn maybe_clear_text_selection_origin_on_release(&mut self, context: &MouseRouteContext) {
 		if context.text_selection_origin.is_some() && matches!(context.mouse, MouseEvent::Release { .. }) {
-			self.state.layout.text_selection_origin = None;
-			self.state.frame.needs_redraw = true;
+			self.state.core.layout.text_selection_origin = None;
+			self.state.core.frame.needs_redraw = true;
 		}
 	}
 
@@ -141,52 +141,52 @@ impl Editor {
 	) -> bool {
 		match mouse {
 			MouseEvent::Move { .. } => {
-				let old_hover = self.state.layout.hovered_separator;
+				let old_hover = self.state.core.layout.hovered_separator;
 
 				// Hover activation: sticky once active, velocity-gated for new hovers
-				self.state.layout.hovered_separator = match (old_hover, current_separator) {
+				self.state.core.layout.hovered_separator = match (old_hover, current_separator) {
 					(Some(old), Some(new)) if old == new => Some(old),
 					(_, Some(sep)) if !is_fast_mouse => Some(sep),
 					(_, Some(_)) => {
-						self.state.frame.needs_redraw = true;
+						self.state.core.frame.needs_redraw = true;
 						None
 					}
 					(_, None) => None,
 				};
 
-				if old_hover != self.state.layout.hovered_separator {
-					self.state.layout.update_hover_animation(old_hover, self.state.layout.hovered_separator);
-					self.state.frame.needs_redraw = true;
+				if old_hover != self.state.core.layout.hovered_separator {
+					self.state.core.layout.update_hover_animation(old_hover, self.state.core.layout.hovered_separator);
+					self.state.core.frame.needs_redraw = true;
 				}
 
-				self.state.layout.hovered_separator.is_some()
+				self.state.core.layout.hovered_separator.is_some()
 			}
 			MouseEvent::Press { .. } => {
 				if let Some(hit) = separator_hit {
-					self.state.layout.start_drag(hit);
-					self.state.frame.needs_redraw = true;
+					self.state.core.layout.start_drag(hit);
+					self.state.core.frame.needs_redraw = true;
 					return true;
 				}
-				if self.state.layout.hovered_separator.is_some() {
-					let old_hover = self.state.layout.hovered_separator.take();
-					self.state.layout.update_hover_animation(old_hover, None);
-					self.state.frame.needs_redraw = true;
+				if self.state.core.layout.hovered_separator.is_some() {
+					let old_hover = self.state.core.layout.hovered_separator.take();
+					self.state.core.layout.update_hover_animation(old_hover, None);
+					self.state.core.frame.needs_redraw = true;
 				}
 				false
 			}
 			MouseEvent::Drag { .. } => {
-				if self.state.layout.hovered_separator.is_some() {
-					let old_hover = self.state.layout.hovered_separator.take();
-					self.state.layout.update_hover_animation(old_hover, None);
-					self.state.frame.needs_redraw = true;
+				if self.state.core.layout.hovered_separator.is_some() {
+					let old_hover = self.state.core.layout.hovered_separator.take();
+					self.state.core.layout.update_hover_animation(old_hover, None);
+					self.state.core.frame.needs_redraw = true;
 				}
 				false
 			}
 			_ => {
-				if separator_hit.is_none() && self.state.layout.hovered_separator.is_some() {
-					let old_hover = self.state.layout.hovered_separator.take();
-					self.state.layout.update_hover_animation(old_hover, None);
-					self.state.frame.needs_redraw = true;
+				if separator_hit.is_none() && self.state.core.layout.hovered_separator.is_some() {
+					let old_hover = self.state.core.layout.hovered_separator.take();
+					self.state.core.layout.update_hover_animation(old_hover, None);
+					self.state.core.frame.needs_redraw = true;
 				}
 				false
 			}
@@ -194,7 +194,7 @@ impl Editor {
 	}
 
 	fn focus_view_for_mouse_event(&mut self, mouse: MouseEvent, view_hit: ViewHit) -> bool {
-		let needs_focus = match &self.state.focus {
+		let needs_focus = match &self.state.core.focus {
 			FocusTarget::Buffer { window, buffer } => *window != view_hit.window || *buffer != view_hit.view,
 			FocusTarget::Overlay { .. } => true,
 			FocusTarget::Panel(_) => true,
@@ -205,7 +205,7 @@ impl Editor {
 
 		let focus_reason = match mouse {
 			MouseEvent::Press { .. } => FocusReason::Click,
-			_ if view_hit.window == self.state.windows.base_id() => FocusReason::Hover,
+			_ if view_hit.window == self.state.core.windows.base_id() => FocusReason::Hover,
 			_ => FocusReason::Programmatic,
 		};
 		self.set_focus(

@@ -200,7 +200,7 @@ async fn test_keymap_dispatch_routes_through_run_invocation() {
 #[cfg_attr(test, test)]
 fn test_deferred_invocation_queue_preserves_source_policy_and_scope() {
 	let mut editor = Editor::new_scratch();
-	let current_nu_scope = editor.state.nu.current_stop_scope_generation();
+	let current_nu_scope = editor.state.integration.nu.current_stop_scope_generation();
 
 	editor.enqueue_runtime_invocation_request(
 		DeferredInvocationRequest::command("stats".to_string(), Vec::new()),

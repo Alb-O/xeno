@@ -35,7 +35,7 @@ impl Editor {
 
 	/// Returns virtual identity metadata for an overlay pane buffer.
 	pub fn virtual_buffer_identity(&self, view_id: ViewId) -> Option<crate::overlay::VirtualBufferIdentity> {
-		let active = self.state.overlay_system.interaction().active()?;
+		let active = self.state.ui.overlay_system.interaction().active()?;
 		active.session.virtual_identity_for_buffer(view_id).cloned()
 	}
 

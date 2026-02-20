@@ -24,6 +24,6 @@ pub fn test_commit_close_enqueues_deferred_overlay_commit() {
 		reason: OverlayCloseReason::Commit,
 	});
 	assert!(result.is_ok());
-	assert!(editor.state.overlay_system.interaction().is_open());
+	assert!(editor.state.ui.overlay_system.interaction().is_open());
 	assert!(editor.has_runtime_overlay_commit_work());
 }

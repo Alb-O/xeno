@@ -268,17 +268,17 @@ impl Editor {
 	/// The popup is positioned relative to the anchor point. Content is displayed
 	/// in a read-only buffer with syntax highlighting based on the optional file type.
 	pub fn open_info_popup(&mut self, content: String, file_type: Option<&str>, anchor: PopupAnchor) -> Option<InfoPopupId> {
-		self.state.viewport.doc_area?;
+		self.state.core.viewport.doc_area?;
 		let (content_width, content_height) = measure_content(content.as_str());
 
-		let buffer_id = self.state.core.buffers.create_scratch();
+		let buffer_id = self.state.core.editor.buffers.create_scratch();
 		{
-			let buffer = self.state.core.buffers.get_buffer_mut(buffer_id).expect("just created");
+			let buffer = self.state.core.editor.buffers.get_buffer_mut(buffer_id).expect("just created");
 			buffer.reset_content(content.as_str());
 			if let Some(ft) = file_type {
-				buffer.with_doc_mut(|doc| doc.init_syntax_for_language(ft, &self.state.config.language_loader));
+				buffer.with_doc_mut(|doc| doc.init_syntax_for_language(ft, &self.state.config.config.language_loader));
 			}
-			self.state.syntax_manager.reset_syntax(buffer.document_id());
+			self.state.integration.syntax_manager.reset_syntax(buffer.document_id());
 			buffer.set_readonly_override(Some(true));
 		}
 
@@ -292,7 +292,7 @@ impl Editor {
 			content_height,
 		});
 
-		self.state.frame.needs_redraw = true;
+		self.state.core.frame.needs_redraw = true;
 		Some(popup_id)
 	}
 
@@ -302,7 +302,7 @@ impl Editor {
 			return;
 		};
 		self.finalize_buffer_removal(popup.buffer_id);
-		self.state.frame.needs_redraw = true;
+		self.state.core.frame.needs_redraw = true;
 	}
 
 	/// Closes all open info popups.
@@ -324,7 +324,7 @@ impl Editor {
 			return false;
 		};
 
-		let Some(buffer) = self.state.core.buffers.get_buffer_mut(buffer_id) else {
+		let Some(buffer) = self.state.core.editor.buffers.get_buffer_mut(buffer_id) else {
 			return false;
 		};
 
@@ -334,13 +334,13 @@ impl Editor {
 		if let Some(ft) = file_type {
 			let current_ft = buffer.file_type();
 			if current_ft.as_deref() != Some(ft) {
-				buffer.with_doc_mut(|doc| doc.init_syntax_for_language(ft, &self.state.config.language_loader));
+				buffer.with_doc_mut(|doc| doc.init_syntax_for_language(ft, &self.state.config.config.language_loader));
 			}
 		}
 
-		self.state.syntax_manager.reset_syntax(buffer.document_id());
+		self.state.integration.syntax_manager.reset_syntax(buffer.document_id());
 		buffer.set_readonly_override(Some(true));
-		self.state.frame.needs_redraw = true;
+		self.state.core.frame.needs_redraw = true;
 		true
 	}
 
@@ -383,6 +383,7 @@ impl Editor {
 			InfoPopupRenderAnchor::Window(wid) => {
 				// Use the focused view area of the target window, intersected with bounds.
 				self.state
+					.core
 					.windows
 					.get(wid)
 					.map(|window| {

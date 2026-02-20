@@ -198,12 +198,12 @@ pub fn test_side_effects_route_through_capability_provider_and_sink_path() {
 		assert_eq!(outcome, HandleOutcome::Handled);
 	}
 
-	assert!(editor.state.notifications.take_pending().is_empty());
+	assert!(editor.state.ui.notifications.take_pending().is_empty());
 	assert_eq!(editor.runtime_work_len(), 0);
 
 	editor.flush_effects();
 
-	let notifications = editor.state.notifications.take_pending();
+	let notifications = editor.state.ui.notifications.take_pending();
 	assert_eq!(notifications.len(), 1);
 	assert_eq!(notifications[0].id, keys::info("editor-ctx-sink-route").id);
 
@@ -236,12 +236,12 @@ pub fn test_action_result_effects_enter_apply_effects_and_defer_until_sink_flush
 	assert!(!should_quit);
 	assert_eq!(editor.buffer().cursor, CharIdx::from(12usize));
 	assert_eq!(editor.mode(), Mode::Insert);
-	assert!(editor.state.notifications.take_pending().is_empty());
+	assert!(editor.state.ui.notifications.take_pending().is_empty());
 	assert_eq!(editor.runtime_work_len(), 0);
 
 	editor.flush_effects();
 
-	let notifications = editor.state.notifications.take_pending();
+	let notifications = editor.state.ui.notifications.take_pending();
 	assert_eq!(notifications.len(), 1);
 	assert_eq!(notifications[0].id, keys::info("editor-ctx-apply-effects").id);
 

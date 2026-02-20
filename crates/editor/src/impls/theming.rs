@@ -18,7 +18,7 @@ impl Editor {
 		let option_ref = xeno_registry::db::OPTIONS
 			.get_key(&keys::THEME.untyped())
 			.expect("theme option missing from registry");
-		self.state.config.global_options.set(option_ref, OptionValue::String(theme_name.into()));
+		self.state.config.config.global_options.set(option_ref, OptionValue::String(theme_name.into()));
 	}
 
 	/// Resolves and applies the configured theme after themes are registered.
@@ -50,14 +50,14 @@ impl Editor {
 		if let Some(theme_ref) = xeno_registry::themes::get_theme(theme_name) {
 			// Leak the name for RegistryMetaStatic since themes are rarely changed
 			let name: &'static str = Box::leak(theme_name.to_string().into_boxed_str());
-			self.state.config.theme = xeno_registry::themes::Theme {
+			self.state.config.config.theme = xeno_registry::themes::Theme {
 				meta: xeno_registry::RegistryMetaStatic::minimal(name, name, ""),
 				variant: theme_ref.variant,
 				colors: theme_ref.colors,
 			};
 			// Increment theme epoch to invalidate highlight cache
-			let new_epoch = self.state.render_cache.theme_epoch.wrapping_add(1);
-			self.state.render_cache.set_theme_epoch(new_epoch);
+			let new_epoch = self.state.ui.render_cache.theme_epoch.wrapping_add(1);
+			self.state.ui.render_cache.set_theme_epoch(new_epoch);
 			Ok(())
 		} else {
 			let mut err = format!("Theme not found: {}", theme_name);
@@ -92,16 +92,16 @@ impl Editor {
 				content.len_bytes() as u32
 			};
 
-			let Some(selection) = self.state.syntax_manager.syntax_for_viewport(doc_id, doc_version, start_byte..end_byte) else {
+			let Some(selection) = self.state.integration.syntax_manager.syntax_for_viewport(doc_id, doc_version, start_byte..end_byte) else {
 				return Vec::new();
 			};
 
 			let highlight_styles =
-				xeno_language::highlight::HighlightStyles::new(SyntaxStyles::scope_names(), |scope| self.state.config.theme.colors.syntax.resolve(scope));
+				xeno_language::highlight::HighlightStyles::new(SyntaxStyles::scope_names(), |scope| self.state.config.config.theme.colors.syntax.resolve(scope));
 
 			let highlighter = selection
 				.syntax
-				.highlighter(content.slice(..), &self.state.config.language_loader, start_byte..end_byte);
+				.highlighter(content.slice(..), &self.state.config.config.language_loader, start_byte..end_byte);
 
 			highlighter
 				.map(|span| {

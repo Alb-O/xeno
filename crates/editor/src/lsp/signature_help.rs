@@ -23,7 +23,7 @@ impl Editor {
 			if buffer.mode() != xeno_primitives::Mode::Insert {
 				return;
 			}
-			let Some((client, uri, position)) = self.state.lsp.prepare_position_request(buffer).ok().flatten() else {
+			let Some((client, uri, position)) = self.state.integration.lsp.prepare_position_request(buffer).ok().flatten() else {
 				return;
 			};
 
@@ -31,15 +31,15 @@ impl Editor {
 		};
 
 		self.cancel_signature_help();
-		let generation = self.state.lsp.bump_signature_help_generation();
+		let generation = self.state.integration.lsp.bump_signature_help_generation();
 
 		let cancel = CancellationToken::new();
-		self.state.lsp.set_signature_help_cancel(cancel.clone());
+		self.state.integration.lsp.set_signature_help_cancel(cancel.clone());
 
 		let anchor = signature_help_anchor(self, buffer_id);
-		let ui_tx = self.state.lsp.ui_tx();
+		let ui_tx = self.state.integration.lsp.ui_tx();
 
-		self.state.worker_runtime.spawn(xeno_worker::TaskClass::Background, async move {
+		self.state.async_state.worker_runtime.spawn(xeno_worker::TaskClass::Background, async move {
 			let help = tokio::select! {
 				_ = cancel.cancelled() => return,
 				result = client.signature_help(uri, position) => result,
@@ -71,7 +71,7 @@ impl Editor {
 	}
 
 	pub(crate) fn cancel_signature_help(&mut self) {
-		if let Some(cancel) = self.state.lsp.take_signature_help_cancel() {
+		if let Some(cancel) = self.state.integration.lsp.take_signature_help_cancel() {
 			cancel.cancel();
 		}
 	}

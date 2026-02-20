@@ -55,11 +55,11 @@ impl OverlayMsg {
 			}
 			#[cfg(feature = "lsp")]
 			Self::RenameDone { token, result } => {
-				if editor.state.pending_rename_token != Some(token) {
+				if editor.state.async_state.pending_rename_token != Some(token) {
 					tracing::debug!(token, "Ignoring stale rename result");
 					return Dirty::NONE;
 				}
-				editor.state.pending_rename_token = None;
+				editor.state.async_state.pending_rename_token = None;
 
 				match result {
 					Ok(Some(edit)) => {

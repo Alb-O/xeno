@@ -75,7 +75,7 @@ impl EditorMsg {
 			Self::Overlay(msg) => msg.apply(editor),
 			Self::NuHookEvalDone(msg) => editor.apply_nu_hook_eval_done(msg),
 			Self::NuScheduleFired(msg) => {
-				if let Some(invocation) = editor.state.nu.apply_schedule_fired(msg) {
+				if let Some(invocation) = editor.state.integration.nu.apply_schedule_fired(msg) {
 					editor.enqueue_runtime_nu_invocation(invocation, crate::runtime::work_queue::RuntimeWorkSource::NuScheduledMacro);
 				}
 				Dirty::NONE

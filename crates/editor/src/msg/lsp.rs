@@ -57,29 +57,29 @@ impl LspMsg {
 		match self {
 			#[cfg(feature = "lsp")]
 			Self::CatalogReady { token, configs } => {
-				if editor.state.pending_lsp_catalog_load_token != Some(token) {
+				if editor.state.async_state.pending_lsp_catalog_load_token != Some(token) {
 					tracing::debug!(token, "Ignoring stale LSP catalog load");
 					return Dirty::NONE;
 				}
-				editor.state.pending_lsp_catalog_load_token = None;
+				editor.state.async_state.pending_lsp_catalog_load_token = None;
 
 				for (language, config) in configs {
-					editor.state.lsp.registry().register(language, config);
+					editor.state.integration.lsp.registry().register(language, config);
 				}
 
 				tracing::debug!("LSP catalog ready, initializing for open buffers");
-				editor.state.lsp_catalog_ready = true;
+				editor.state.config.lsp_catalog_ready = true;
 				editor.kick_lsp_init_for_open_buffers();
 				Dirty::NONE
 			}
 			#[cfg(not(feature = "lsp"))]
 			Self::CatalogReady { token } => {
-				if editor.state.pending_lsp_catalog_load_token != Some(token) {
+				if editor.state.async_state.pending_lsp_catalog_load_token != Some(token) {
 					tracing::debug!(token, "Ignoring stale LSP catalog load");
 					return Dirty::NONE;
 				}
-				editor.state.pending_lsp_catalog_load_token = None;
-				editor.state.lsp_catalog_ready = true;
+				editor.state.async_state.pending_lsp_catalog_load_token = None;
+				editor.state.config.lsp_catalog_ready = true;
 				Dirty::NONE
 			}
 			Self::ServerFailed { language, error } => {
@@ -97,7 +97,7 @@ mod tests {
 	#[test]
 	fn lsp_catalog_stale_token_does_not_register() {
 		let mut editor = Editor::new_scratch();
-		editor.state.pending_lsp_catalog_load_token = Some(2);
+		editor.state.async_state.pending_lsp_catalog_load_token = Some(2);
 
 		// Stale load (token=1) arrives — should be ignored.
 		let stale = LspMsg::CatalogReady {
@@ -114,14 +114,14 @@ mod tests {
 		let dirty = stale.apply(&mut editor);
 
 		assert_eq!(dirty, Dirty::NONE, "stale token should produce Dirty::NONE");
-		assert!(!editor.state.lsp_catalog_ready, "catalog should not be marked ready from stale load");
-		assert_eq!(editor.state.pending_lsp_catalog_load_token, Some(2), "pending token should remain");
+		assert!(!editor.state.config.lsp_catalog_ready, "catalog should not be marked ready from stale load");
+		assert_eq!(editor.state.async_state.pending_lsp_catalog_load_token, Some(2), "pending token should remain");
 	}
 
 	#[test]
 	fn lsp_catalog_latest_wins_even_if_completion_order_reversed() {
 		let mut editor = Editor::new_scratch();
-		editor.state.pending_lsp_catalog_load_token = Some(5);
+		editor.state.async_state.pending_lsp_catalog_load_token = Some(5);
 
 		// Stale load (token=3) → ignored.
 		let stale = LspMsg::CatalogReady {
@@ -131,7 +131,7 @@ mod tests {
 		};
 		let dirty = stale.apply(&mut editor);
 		assert_eq!(dirty, Dirty::NONE);
-		assert_eq!(editor.state.pending_lsp_catalog_load_token, Some(5));
+		assert_eq!(editor.state.async_state.pending_lsp_catalog_load_token, Some(5));
 
 		// Current load (token=5) → accepted.
 		let current = LspMsg::CatalogReady {
@@ -141,7 +141,7 @@ mod tests {
 		};
 		let dirty = current.apply(&mut editor);
 		assert_eq!(dirty, Dirty::NONE);
-		assert!(editor.state.lsp_catalog_ready, "catalog should be marked ready");
-		assert_eq!(editor.state.pending_lsp_catalog_load_token, None);
+		assert!(editor.state.config.lsp_catalog_ready, "catalog should be marked ready");
+		assert_eq!(editor.state.async_state.pending_lsp_catalog_load_token, None);
 	}
 }

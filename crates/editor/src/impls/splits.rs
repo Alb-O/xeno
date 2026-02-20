@@ -15,9 +15,9 @@ impl Editor {
 	///
 	/// The caller is responsible for ensuring the split will succeed before calling this.
 	fn allocate_split_buffer(&mut self) -> ViewId {
-		let new_id = ViewId(self.state.core.buffers.next_buffer_id());
+		let new_id = ViewId(self.state.core.editor.buffers.next_buffer_id());
 		let new_buffer = self.buffer().clone_for_split(new_id);
-		self.state.core.buffers.insert_buffer(new_id, new_buffer);
+		self.state.core.editor.buffers.insert_buffer(new_id, new_buffer);
 		new_id
 	}
 
@@ -34,14 +34,14 @@ impl Editor {
 	pub fn split_horizontal_with_clone(&mut self) -> Result<(), SplitError> {
 		let current_view = self.focused_view();
 		let doc_area = self.doc_area();
-		let base_layout = &self.state.windows.base_window().layout;
+		let base_layout = &self.state.core.windows.base_window().layout;
 
-		let (_layer, _view_area) = self.state.layout.can_split_horizontal(base_layout, current_view, doc_area)?;
+		let (_layer, _view_area) = self.state.core.layout.can_split_horizontal(base_layout, current_view, doc_area)?;
 
 		let new_id = self.allocate_split_buffer();
 
-		let base_layout = &mut self.state.windows.base_window_mut().layout;
-		let layout = &mut self.state.layout;
+		let base_layout = &mut self.state.core.windows.base_window_mut().layout;
+		let layout = &mut self.state.core.layout;
 		layout.split_horizontal(base_layout, current_view, new_id, doc_area);
 
 		self.focus_buffer(new_id);
@@ -50,7 +50,7 @@ impl Editor {
 				view_id: new_id,
 				direction: SplitDirection::Horizontal,
 			}),
-			&mut self.state.work_scheduler,
+			&mut self.state.integration.work_scheduler,
 		);
 
 		Ok(())
@@ -69,14 +69,14 @@ impl Editor {
 	pub fn split_vertical_with_clone(&mut self) -> Result<(), SplitError> {
 		let current_view = self.focused_view();
 		let doc_area = self.doc_area();
-		let base_layout = &self.state.windows.base_window().layout;
+		let base_layout = &self.state.core.windows.base_window().layout;
 
-		let (_layer, _view_area) = self.state.layout.can_split_vertical(base_layout, current_view, doc_area)?;
+		let (_layer, _view_area) = self.state.core.layout.can_split_vertical(base_layout, current_view, doc_area)?;
 
 		let new_id = self.allocate_split_buffer();
 
-		let base_layout = &mut self.state.windows.base_window_mut().layout;
-		let layout = &mut self.state.layout;
+		let base_layout = &mut self.state.core.windows.base_window_mut().layout;
+		let layout = &mut self.state.core.layout;
 		layout.split_vertical(base_layout, current_view, new_id, doc_area);
 
 		self.focus_buffer(new_id);
@@ -85,7 +85,7 @@ impl Editor {
 				view_id: new_id,
 				direction: SplitDirection::Vertical,
 			}),
-			&mut self.state.work_scheduler,
+			&mut self.state.integration.work_scheduler,
 		);
 
 		Ok(())
@@ -100,8 +100,8 @@ impl Editor {
 	pub fn split_horizontal(&mut self, new_buffer_id: ViewId) {
 		let current_view = self.focused_view();
 		let doc_area = self.doc_area();
-		let base_layout = &mut self.state.windows.base_window_mut().layout;
-		let layout = &mut self.state.layout;
+		let base_layout = &mut self.state.core.windows.base_window_mut().layout;
+		let layout = &mut self.state.core.layout;
 		layout.split_horizontal(base_layout, current_view, new_buffer_id, doc_area);
 		self.focus_buffer(new_buffer_id);
 		emit_hook_sync_with(
@@ -109,7 +109,7 @@ impl Editor {
 				view_id: new_buffer_id,
 				direction: SplitDirection::Horizontal,
 			}),
-			&mut self.state.work_scheduler,
+			&mut self.state.integration.work_scheduler,
 		);
 	}
 
@@ -122,8 +122,8 @@ impl Editor {
 	pub fn split_vertical(&mut self, new_buffer_id: ViewId) {
 		let current_view = self.focused_view();
 		let doc_area = self.doc_area();
-		let base_layout = &mut self.state.windows.base_window_mut().layout;
-		let layout = &mut self.state.layout;
+		let base_layout = &mut self.state.core.windows.base_window_mut().layout;
+		let layout = &mut self.state.core.layout;
 		layout.split_vertical(base_layout, current_view, new_buffer_id, doc_area);
 		self.focus_buffer(new_buffer_id);
 		emit_hook_sync_with(
@@ -131,19 +131,19 @@ impl Editor {
 				view_id: new_buffer_id,
 				direction: SplitDirection::Vertical,
 			}),
-			&mut self.state.work_scheduler,
+			&mut self.state.integration.work_scheduler,
 		);
 	}
 
 	/// Requests the editor to quit after the current event loop iteration.
 	pub fn request_quit(&mut self) {
-		self.state.frame.pending_quit = true;
+		self.state.core.frame.pending_quit = true;
 	}
 
 	/// Consumes and returns the pending quit request, if any.
 	pub fn take_quit_request(&mut self) -> bool {
-		if self.state.frame.pending_quit {
-			self.state.frame.pending_quit = false;
+		if self.state.core.frame.pending_quit {
+			self.state.core.frame.pending_quit = false;
 			true
 		} else {
 			false
@@ -161,9 +161,9 @@ impl Editor {
 	/// 5. Clean up the buffer store.
 	pub fn close_view(&mut self, view: ViewId) -> bool {
 		let doc_area = self.doc_area();
-		let base_layout = &self.state.windows.base_window().layout;
+		let base_layout = &self.state.core.windows.base_window().layout;
 
-		let layer = match self.state.layout.layer_of_view(base_layout, view) {
+		let layer = match self.state.core.layout.layer_of_view(base_layout, view) {
 			Some(id) => id,
 			None => return false,
 		};
@@ -175,8 +175,8 @@ impl Editor {
 		let focused_view = self.focused_view();
 		let was_focused = focused_view == view;
 
-		let base_layout = &mut self.state.windows.base_window_mut().layout;
-		let layout = &mut self.state.layout;
+		let base_layout = &mut self.state.core.windows.base_window_mut().layout;
+		let layout = &mut self.state.core.layout;
 		let new_focus = match layout.remove_view(base_layout, view, doc_area) {
 			Some(focus) => focus,
 			None => return false,
@@ -187,7 +187,7 @@ impl Editor {
 			self.focus_buffer(new_focus);
 		}
 
-		if let Some(buffer) = self.state.core.buffers.get_buffer(view) {
+		if let Some(buffer) = self.state.core.editor.buffers.get_buffer(view) {
 			let scratch_path = PathBuf::from("[scratch]");
 			let path = buffer.path().unwrap_or_else(|| scratch_path.clone());
 			let file_type = buffer.file_type();
@@ -196,7 +196,7 @@ impl Editor {
 					path: &path,
 					file_type: file_type.as_deref(),
 				}),
-				&mut self.state.work_scheduler,
+				&mut self.state.integration.work_scheduler,
 			);
 
 			#[cfg(feature = "lsp")]
@@ -205,7 +205,7 @@ impl Editor {
 				let path = buffer.path().map(|p| p.to_path_buf());
 				let language = buffer.file_type().map(|s| s.to_string());
 				if let (Some(path), Some(language)) = (path, language) {
-					self.state.worker_runtime.spawn(xeno_worker::TaskClass::Background, async move {
+					self.state.async_state.worker_runtime.spawn(xeno_worker::TaskClass::Background, async move {
 						if let Err(e) = lsp.on_buffer_close(path, language).await {
 							tracing::warn!(error = %e, "LSP buffer close failed");
 						}
@@ -214,12 +214,12 @@ impl Editor {
 			}
 		}
 
-		emit_hook_sync_with(&HookContext::new(HookEventData::SplitClosed { view_id: view }), &mut self.state.work_scheduler);
+		emit_hook_sync_with(&HookContext::new(HookEventData::SplitClosed { view_id: view }), &mut self.state.integration.work_scheduler);
 
 		self.finalize_buffer_removal(view);
 		self.repair_invariants();
 
-		self.state.frame.needs_redraw = true;
+		self.state.core.frame.needs_redraw = true;
 		true
 	}
 

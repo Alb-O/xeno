@@ -45,36 +45,46 @@ impl Editor {
 	pub fn undo(&mut self) {
 		let focused_view = self.focused_view();
 
-		let core = &mut self.state.core;
+		let state = &mut self.state;
+		let core = &mut state.core;
+		let editor = &mut core.editor;
+		let frame = &mut core.frame;
+		let integration = &mut state.integration;
+		let ui = &mut state.ui;
 		let mut host = EditorUndoHost {
-			buffers: &mut core.buffers,
+			buffers: &mut editor.buffers,
 			focused_view,
-			config: &self.state.config,
-			frame: &mut self.state.frame,
-			notifications: &mut self.state.notifications,
-			syntax_manager: &mut self.state.syntax_manager,
+			config: &state.config.config,
+			frame,
+			notifications: &mut ui.notifications,
+			syntax_manager: &mut integration.syntax_manager,
 			#[cfg(feature = "lsp")]
-			lsp: &mut self.state.lsp,
+			lsp: &mut integration.lsp,
 		};
-		core.undo_manager.undo(&mut host);
+		editor.undo_manager.undo(&mut host);
 	}
 
 	/// Redoes the last undone change, restoring view state for all affected buffers.
 	pub fn redo(&mut self) {
 		let focused_view = self.focused_view();
 
-		let core = &mut self.state.core;
+		let state = &mut self.state;
+		let core = &mut state.core;
+		let editor = &mut core.editor;
+		let frame = &mut core.frame;
+		let integration = &mut state.integration;
+		let ui = &mut state.ui;
 		let mut host = EditorUndoHost {
-			buffers: &mut core.buffers,
+			buffers: &mut editor.buffers,
 			focused_view,
-			config: &self.state.config,
-			frame: &mut self.state.frame,
-			notifications: &mut self.state.notifications,
-			syntax_manager: &mut self.state.syntax_manager,
+			config: &state.config.config,
+			frame,
+			notifications: &mut ui.notifications,
+			syntax_manager: &mut integration.syntax_manager,
 			#[cfg(feature = "lsp")]
-			lsp: &mut self.state.lsp,
+			lsp: &mut integration.lsp,
 		};
-		core.undo_manager.redo(&mut host);
+		editor.undo_manager.redo(&mut host);
 	}
 }
 

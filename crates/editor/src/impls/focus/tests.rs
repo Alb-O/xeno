@@ -5,15 +5,15 @@ use crate::impls::Editor;
 fn test_set_focus_normalizes_invalid_buffer() {
 	let mut editor = Editor::new_scratch();
 	let buffer1 = editor.focused_view();
-	let base_id = editor.state.windows.base_id();
+	let base_id = editor.state.core.windows.base_id();
 
 	// Create a second buffer (it won't be in layout)
-	let buffer2 = editor.state.core.buffers.create_scratch();
+	let buffer2 = editor.state.core.editor.buffers.create_scratch();
 
 	// Manually set focus to buffer2 to simulate stale focus
 	// (In real code, this shouldn't happen due to normalization,
 	// but we're testing the repair mechanism)
-	editor.state.focus = FocusTarget::Buffer {
+	editor.state.core.focus = FocusTarget::Buffer {
 		window: base_id,
 		buffer: buffer2,
 	};
@@ -37,19 +37,19 @@ fn test_set_focus_normalizes_invalid_buffer() {
 	// Should have changed focus (normalized to valid buffer)
 	assert!(result, "set_focus should return true when focus changes");
 
-	// Check state.focus directly
+	// Check state.core.focus directly
 	assert_eq!(
-		editor.state.focus,
+		editor.state.core.focus,
 		FocusTarget::Buffer {
 			window: base_id,
 			buffer: buffer1
 		},
-		"state.focus should be normalized to buffer1"
+		"state.core.focus should be normalized to buffer1"
 	);
 
 	// Then check focused_view()
 	assert_eq!(editor.focused_view(), buffer1, "focused_view() should return buffer1");
-	assert!(editor.state.core.buffers.get_buffer(editor.focused_view()).is_some());
+	assert!(editor.state.core.editor.buffers.get_buffer(editor.focused_view()).is_some());
 }
 
 #[test]
@@ -63,7 +63,7 @@ fn test_set_focus_creates_scratch_when_no_buffers() {
 	// Try to focus invalid buffer - should create scratch
 	let result = editor.set_focus(
 		FocusTarget::Buffer {
-			window: editor.state.windows.base_id(),
+			window: editor.state.core.windows.base_id(),
 			buffer: buffer1,
 		},
 		FocusReason::Programmatic,
@@ -73,5 +73,5 @@ fn test_set_focus_creates_scratch_when_no_buffers() {
 	assert!(result);
 	let new_focus = editor.focused_view();
 	assert!(new_focus != buffer1);
-	assert!(editor.state.core.buffers.get_buffer(new_focus).is_some());
+	assert!(editor.state.core.editor.buffers.get_buffer(new_focus).is_some());
 }

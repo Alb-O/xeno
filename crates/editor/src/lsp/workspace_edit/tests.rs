@@ -46,7 +46,7 @@ fn convert_text_edit_utf16() {
 /// Helper: register a document in editor's LSP state and bump its version
 /// `n` times. Returns the URI.
 fn register_doc_at_version(editor: &crate::Editor, path: &Path, version_bumps: usize) -> Uri {
-	let documents = editor.state.lsp.documents();
+	let documents = editor.state.integration.lsp.documents();
 	let uri = documents.register(path, Some("rust")).unwrap();
 	for _ in 0..version_bumps {
 		documents.increment_version(&uri);
@@ -186,7 +186,7 @@ async fn open_temp_doc(editor: &mut crate::Editor, name: &str, content: &str, ve
 }
 
 fn buffer_text(editor: &crate::Editor, view_id: ViewId) -> String {
-	editor.state.core.buffers.get_buffer(view_id).unwrap().with_doc(|doc| doc.content().to_string())
+	editor.state.core.editor.buffers.get_buffer(view_id).unwrap().with_doc(|doc| doc.content().to_string())
 }
 
 #[tokio::test]
@@ -334,7 +334,7 @@ async fn workspace_edit_error_does_not_reopen_existing_buffer() {
 	// Same view_id must still be valid.
 	assert_eq!(buffer_text(&editor, view_id), "original\n", "buffer identity must be preserved");
 	assert_eq!(
-		editor.state.core.buffers.find_by_path(&path),
+		editor.state.core.editor.buffers.find_by_path(&path),
 		Some(view_id),
 		"view_id for path must be the same as before"
 	);
@@ -368,7 +368,7 @@ async fn workspace_edit_success_does_not_reopen_existing_buffer() {
 
 	// Same view_id, text changed.
 	assert_eq!(
-		editor.state.core.buffers.find_by_path(&path),
+		editor.state.core.editor.buffers.find_by_path(&path),
 		Some(view_id),
 		"view_id must be preserved on successful edit"
 	);
@@ -394,7 +394,7 @@ async fn workspace_edit_temporary_buffers_closed_on_success() {
 	let path = create_temp_file("temp_success.rs", "old\n");
 
 	// Buffer not opened yet — workspace edit will open it temporarily.
-	assert!(editor.state.core.buffers.find_by_path(&path).is_none());
+	assert!(editor.state.core.editor.buffers.find_by_path(&path).is_none());
 
 	let uri = xeno_lsp::uri_from_path(&path).unwrap();
 	let edit = WorkspaceEdit {
@@ -415,7 +415,7 @@ async fn workspace_edit_temporary_buffers_closed_on_success() {
 
 	// Temporary buffer should be closed after successful apply.
 	assert!(
-		editor.state.core.buffers.find_by_path(&path).is_none(),
+		editor.state.core.editor.buffers.find_by_path(&path).is_none(),
 		"temporary buffer should be closed after successful workspace edit"
 	);
 
@@ -430,8 +430,8 @@ async fn workspace_edit_temporary_buffers_closed_on_error() {
 	let path_a = create_temp_file("temp_err_a.rs", "aaa\n");
 	let path_b = create_temp_file("temp_err_b.rs", "bbb\n");
 
-	assert!(editor.state.core.buffers.find_by_path(&path_a).is_none());
-	assert!(editor.state.core.buffers.find_by_path(&path_b).is_none());
+	assert!(editor.state.core.editor.buffers.find_by_path(&path_a).is_none());
+	assert!(editor.state.core.editor.buffers.find_by_path(&path_b).is_none());
 
 	let uri_a = xeno_lsp::uri_from_path(&path_a).unwrap();
 	let uri_b = xeno_lsp::uri_from_path(&path_b).unwrap();
@@ -463,11 +463,11 @@ async fn workspace_edit_temporary_buffers_closed_on_error() {
 
 	// Both temp buffers should be cleaned up despite the error.
 	assert!(
-		editor.state.core.buffers.find_by_path(&path_a).is_none(),
+		editor.state.core.editor.buffers.find_by_path(&path_a).is_none(),
 		"temp buffer A should be closed after error"
 	);
 	assert!(
-		editor.state.core.buffers.find_by_path(&path_b).is_none(),
+		editor.state.core.editor.buffers.find_by_path(&path_b).is_none(),
 		"temp buffer B should be closed after error"
 	);
 
@@ -500,7 +500,7 @@ async fn workspace_edit_does_not_close_preexisting_buffers() {
 
 	// Pre-existing buffer must remain open with the same identity.
 	assert_eq!(
-		editor.state.core.buffers.find_by_path(&path),
+		editor.state.core.editor.buffers.find_by_path(&path),
 		Some(view_id),
 		"pre-existing buffer must not be closed"
 	);
@@ -516,7 +516,7 @@ async fn workspace_edit_temp_buffer_persists_to_disk_on_success() {
 	let mut editor = crate::Editor::new_scratch();
 	let path = create_temp_file("persist_success.rs", "old content\n");
 
-	assert!(editor.state.core.buffers.find_by_path(&path).is_none());
+	assert!(editor.state.core.editor.buffers.find_by_path(&path).is_none());
 
 	let uri = xeno_lsp::uri_from_path(&path).unwrap();
 	let edit = WorkspaceEdit {
@@ -536,7 +536,7 @@ async fn workspace_edit_temp_buffer_persists_to_disk_on_success() {
 	editor.apply_workspace_edit(edit).await.unwrap();
 
 	// Buffer should be closed (temp).
-	assert!(editor.state.core.buffers.find_by_path(&path).is_none());
+	assert!(editor.state.core.editor.buffers.find_by_path(&path).is_none());
 
 	// Disk should have the new content.
 	let disk = std::fs::read_to_string(&path).unwrap();
@@ -605,8 +605,8 @@ async fn workspace_edit_temp_save_success_closes_all_temps() {
 	let path_a = create_temp_file("multi_save_a.rs", "aaa\n");
 	let path_b = create_temp_file("multi_save_b.rs", "bbb\n");
 
-	assert!(editor.state.core.buffers.find_by_path(&path_a).is_none());
-	assert!(editor.state.core.buffers.find_by_path(&path_b).is_none());
+	assert!(editor.state.core.editor.buffers.find_by_path(&path_a).is_none());
+	assert!(editor.state.core.editor.buffers.find_by_path(&path_b).is_none());
 
 	let uri_a = xeno_lsp::uri_from_path(&path_a).unwrap();
 	let uri_b = xeno_lsp::uri_from_path(&path_b).unwrap();
@@ -639,8 +639,8 @@ async fn workspace_edit_temp_save_success_closes_all_temps() {
 	editor.apply_workspace_edit(edit).await.unwrap();
 
 	// Both temp buffers should be closed.
-	assert!(editor.state.core.buffers.find_by_path(&path_a).is_none(), "temp A should be closed");
-	assert!(editor.state.core.buffers.find_by_path(&path_b).is_none(), "temp B should be closed");
+	assert!(editor.state.core.editor.buffers.find_by_path(&path_a).is_none(), "temp A should be closed");
+	assert!(editor.state.core.editor.buffers.find_by_path(&path_b).is_none(), "temp B should be closed");
 
 	// Both files should have new content on disk.
 	assert_eq!(std::fs::read_to_string(&path_a).unwrap(), "AAA\n", "file A must be updated on disk");
@@ -669,8 +669,8 @@ async fn workspace_edit_temp_save_failure_keeps_all_temps_alive() {
 	std::fs::write(&path_a, "aaa\n").unwrap();
 	std::fs::write(&path_b, "bbb\n").unwrap();
 
-	assert!(editor.state.core.buffers.find_by_path(&path_a).is_none());
-	assert!(editor.state.core.buffers.find_by_path(&path_b).is_none());
+	assert!(editor.state.core.editor.buffers.find_by_path(&path_a).is_none());
+	assert!(editor.state.core.editor.buffers.find_by_path(&path_b).is_none());
 
 	// Make dir_b read-only so atomic write (temp file creation) fails for B.
 	std::fs::set_permissions(&dir_b, std::fs::Permissions::from_mode(0o555)).unwrap();
@@ -708,11 +708,11 @@ async fn workspace_edit_temp_save_failure_keeps_all_temps_alive() {
 
 	// Two-phase semantics: since one save failed, NEITHER buffer is closed.
 	assert!(
-		editor.state.core.buffers.find_by_path(&path_a).is_some(),
+		editor.state.core.editor.buffers.find_by_path(&path_a).is_some(),
 		"temp A must remain open (two-phase: no partial close)"
 	);
 	assert!(
-		editor.state.core.buffers.find_by_path(&path_b).is_some(),
+		editor.state.core.editor.buffers.find_by_path(&path_b).is_some(),
 		"temp B must remain open (save failed)"
 	);
 
@@ -757,7 +757,7 @@ async fn workspace_edit_temp_save_dedupes_same_target_path() {
 			syntax: SyntaxPolicy::IncrementalOrDirty,
 		};
 		for view_id in [view_real, view_link] {
-			let buffer = editor.state.core.buffers.get_buffer_mut(view_id).unwrap();
+			let buffer = editor.state.core.editor.buffers.get_buffer_mut(view_id).unwrap();
 			let tx = buffer.with_doc(|doc| {
 				Transaction::change(
 					doc.content().slice(..),

@@ -15,8 +15,8 @@ use crate::impls::{Editor, FocusTarget};
 impl Editor {
 	/// Processes a mouse event, returning true if the event triggered a quit.
 	pub async fn handle_mouse(&mut self, mouse: MouseEvent) -> bool {
-		let width = self.state.viewport.width.unwrap_or(80);
-		let height = self.state.viewport.height.unwrap_or(24);
+		let width = self.state.core.viewport.width.unwrap_or(80);
+		let height = self.state.core.viewport.height.unwrap_or(24);
 
 		// Main area excludes status line (1 row)
 		let main_height = height.saturating_sub(1);
@@ -27,7 +27,7 @@ impl Editor {
 			height: main_height,
 		};
 
-		let mut ui = std::mem::take(&mut self.state.ui);
+		let mut ui = std::mem::take(&mut self.state.ui.ui);
 		let dock_layout = ui.compute_layout(main_area);
 
 		let hit_is_panel = dock_layout.panel_areas.values().any(|area| {
@@ -37,7 +37,7 @@ impl Editor {
 				&& mouse.row() < area.y.saturating_add(area.height)
 		});
 
-		let hit_active_overlay = self.state.overlay_system.interaction().active().is_some_and(|active| {
+		let hit_active_overlay = self.state.ui.overlay_system.interaction().active().is_some_and(|active| {
 			active.session.panes.iter().any(|pane| {
 				mouse.col() >= pane.rect.x
 					&& mouse.col() < pane.rect.x.saturating_add(pane.rect.width)
@@ -49,9 +49,9 @@ impl Editor {
 		if hit_is_panel && !hit_active_overlay {
 			if ui.handle_mouse(self, mouse, &dock_layout) {
 				if ui.take_wants_redraw() {
-					self.state.frame.needs_redraw = true;
+					self.state.core.frame.needs_redraw = true;
 				}
-				self.state.ui = ui;
+				self.state.ui.ui = ui;
 				self.sync_focus_from_ui();
 				self.interaction_on_buffer_edited();
 				return false;
@@ -60,9 +60,9 @@ impl Editor {
 			ui.apply_requests(vec![crate::ui::UiRequest::Focus(crate::ui::UiFocus::editor())]);
 		}
 		if ui.take_wants_redraw() {
-			self.state.frame.needs_redraw = true;
+			self.state.core.frame.needs_redraw = true;
 		}
-		self.state.ui = ui;
+		self.state.ui.ui = ui;
 		self.sync_focus_from_ui();
 
 		// Get the document area (excluding panels/docks)
@@ -100,7 +100,7 @@ impl Editor {
 	) -> bool {
 		match result {
 			KeyResult::MouseClick { extend, .. } => {
-				self.state.layout.text_selection_origin = selection_origin;
+				self.state.core.layout.text_selection_origin = selection_origin;
 				self.handle_mouse_click_local(local_row, local_col, extend);
 				false
 			}
@@ -122,11 +122,11 @@ impl Editor {
 	/// and then finds the focused view's rectangle within that area.
 	pub(crate) fn focused_view_area(&self) -> crate::geometry::Rect {
 		let doc_area = self.doc_area();
-		if let FocusTarget::Overlay { buffer } = &self.state.focus {
+		if let FocusTarget::Overlay { buffer } = &self.state.core.focus {
 			return self.view_area(*buffer);
 		}
 		let focused = self.focused_view();
-		for (view, area) in self.state.layout.compute_view_areas(&self.base_window().layout, doc_area) {
+		for (view, area) in self.state.core.layout.compute_view_areas(&self.base_window().layout, doc_area) {
 			if view == focused {
 				return area;
 			}
@@ -136,8 +136,8 @@ impl Editor {
 
 	/// Computes the document area based on current window dimensions.
 	pub fn doc_area(&self) -> crate::geometry::Rect {
-		let width = self.state.viewport.width.unwrap_or(80);
-		let height = self.state.viewport.height.unwrap_or(24);
+		let width = self.state.core.viewport.width.unwrap_or(80);
+		let height = self.state.core.viewport.height.unwrap_or(24);
 		// Exclude status line (1 row)
 		let main_height = height.saturating_sub(1);
 		let main_area = crate::geometry::Rect {
@@ -146,7 +146,7 @@ impl Editor {
 			width,
 			height: main_height,
 		};
-		self.state.ui.compute_layout(main_area).doc_area
+		self.state.ui.ui.compute_layout(main_area).doc_area
 	}
 }
 

@@ -13,7 +13,7 @@ impl SearchAccess for EditorCaps<'_> {
 		};
 		if found {
 			self.ed.snippet_session_on_cursor_moved(view);
-			self.ed.state.effects.push_layer_event(LayerEvent::CursorMoved { view });
+			self.ed.state.runtime.effects.push_layer_event(LayerEvent::CursorMoved { view });
 		}
 		found
 	}
@@ -23,7 +23,7 @@ impl SearchAccess for EditorCaps<'_> {
 		let found = self.ed.do_search_repeat(flip, add_selection, extend);
 		if found {
 			self.ed.snippet_session_on_cursor_moved(view);
-			self.ed.state.effects.push_layer_event(LayerEvent::CursorMoved { view });
+			self.ed.state.runtime.effects.push_layer_event(LayerEvent::CursorMoved { view });
 		}
 		found
 	}
@@ -33,7 +33,7 @@ impl SearchAccess for EditorCaps<'_> {
 		let found = self.ed.do_use_selection_as_search();
 		if found {
 			self.ed.snippet_session_on_cursor_moved(view);
-			self.ed.state.effects.push_layer_event(LayerEvent::CursorMoved { view });
+			self.ed.state.runtime.effects.push_layer_event(LayerEvent::CursorMoved { view });
 		}
 		found
 	}

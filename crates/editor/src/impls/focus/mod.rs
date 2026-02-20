@@ -69,8 +69,8 @@ impl Editor {
 	///
 	/// For BaseWindow: checks if view is in the layout tree.
 	fn window_contains_view(&self, window_id: WindowId, view: ViewId) -> bool {
-		match self.state.windows.get(window_id) {
-			Some(Window::Base(base)) => self.state.layout.contains_view(&base.layout, view),
+		match self.state.core.windows.get(window_id) {
+			Some(Window::Base(base)) => self.state.core.layout.contains_view(&base.layout, view),
 			None => false,
 		}
 	}
@@ -82,10 +82,10 @@ impl Editor {
 	fn first_live_buffer_in_layout(&self) -> Option<ViewId> {
 		let base_layout = &self.base_window().layout;
 		self.state
-			.layout
+			.core.layout
 			.views(base_layout)
 			.into_iter()
-			.find(|&view| self.state.core.buffers.get_buffer(view).is_some())
+			.find(|&view| self.state.core.editor.buffers.get_buffer(view).is_some())
 	}
 
 	/// Unified focus transition API. Normalizes target, updates state, emits hooks.
@@ -103,8 +103,8 @@ impl Editor {
 		let effective = match normalized {
 			Some(target) => target,
 			None => {
-				let scratch_id = self.state.core.buffers.create_scratch();
-				let base_id = self.state.windows.base_id();
+				let scratch_id = self.state.core.editor.buffers.create_scratch();
+				let base_id = self.state.core.windows.base_id();
 				self.base_window_mut().focused_buffer = scratch_id;
 				FocusTarget::Buffer {
 					window: base_id,
@@ -113,44 +113,44 @@ impl Editor {
 			}
 		};
 
-		if effective == self.state.focus {
+		if effective == self.state.core.focus {
 			return false;
 		}
 
-		let old_focus = self.state.focus.clone();
+		let old_focus = self.state.core.focus.clone();
 		let old_view = self.focused_view();
 
 		let is_explicit = matches!(reason, FocusReason::Click | FocusReason::Keybinding);
 		if !is_explicit
 			&& !did_normalize
 			&& let FocusTarget::Buffer { buffer, .. } = &effective
-			&& self.state.frame.sticky_views.contains(&old_view)
+			&& self.state.core.frame.sticky_views.contains(&old_view)
 			&& *buffer != old_view
 		{
 			return false;
 		}
 
-		self.state.focus = effective.clone();
+		self.state.core.focus = effective.clone();
 		self.notify_overlay_event(crate::overlay::LayerEvent::FocusChanged {
 			from: old_focus.clone(),
 			to: effective.clone(),
 		});
 
 		if let FocusTarget::Buffer { window, buffer } = &effective
-			&& *window == self.state.windows.base_id()
+			&& *window == self.state.core.windows.base_id()
 		{
 			self.base_window_mut().focused_buffer = *buffer;
 		}
 
-		self.state.focus_epoch.increment();
+		self.state.core.focus_epoch.increment();
 
-		self.state.frame.needs_redraw = true;
+		self.state.core.frame.needs_redraw = true;
 
 		if is_explicit
 			&& let FocusTarget::Buffer { buffer, .. } = &effective
 			&& *buffer != old_view
 		{
-			self.state.frame.sticky_views.remove(&old_view);
+			self.state.core.frame.sticky_views.remove(&old_view);
 		}
 
 		let new_view = self.focused_view();
@@ -160,19 +160,19 @@ impl Editor {
 					view_id: new_view,
 					prev_view_id: Some(old_view),
 				}),
-				&mut self.state.work_scheduler,
+				&mut self.state.integration.work_scheduler,
 			);
 		}
 
 		let old_focus_for_blur = old_focus.clone();
 		self.handle_window_focus_change(old_focus, &effective);
 
-		let overlay_was_open = self.state.overlay_system.interaction().is_open();
+		let overlay_was_open = self.state.ui.overlay_system.interaction().is_open();
 		let leaving_overlay = matches!(old_focus_for_blur, FocusTarget::Overlay { .. }) && !matches!(effective, FocusTarget::Overlay { .. });
 		if overlay_was_open && leaving_overlay && !matches!(reason, FocusReason::Hover) {
-			let mut interaction = self.state.overlay_system.take_interaction();
+			let mut interaction = self.state.ui.overlay_system.take_interaction();
 			interaction.close(self, crate::overlay::CloseReason::Blur);
-			self.state.overlay_system.restore_interaction(interaction);
+			self.state.ui.overlay_system.restore_interaction(interaction);
 		}
 
 		true
@@ -192,11 +192,11 @@ impl Editor {
 	fn normalize_target(&self, target: FocusTarget) -> Option<FocusTarget> {
 		match target {
 			FocusTarget::Buffer { window, buffer } => {
-				if self.state.windows.get(window).is_none() {
+				if self.state.core.windows.get(window).is_none() {
 					return self.fallback_buffer_focus();
 				}
 
-				if self.state.core.buffers.get_buffer(buffer).is_none() {
+				if self.state.core.editor.buffers.get_buffer(buffer).is_none() {
 					return self.fallback_buffer_focus();
 				}
 
@@ -207,14 +207,14 @@ impl Editor {
 				Some(FocusTarget::Buffer { window, buffer })
 			}
 			FocusTarget::Overlay { buffer } => {
-				if self.state.core.buffers.get_buffer(buffer).is_some() {
+				if self.state.core.editor.buffers.get_buffer(buffer).is_some() {
 					Some(FocusTarget::Overlay { buffer })
 				} else {
 					self.fallback_buffer_focus()
 				}
 			}
 			FocusTarget::Panel(ref panel_id) => {
-				if self.state.ui.has_panel(panel_id) {
+				if self.state.ui.ui.has_panel(panel_id) {
 					Some(target)
 				} else {
 					self.fallback_buffer_focus()
@@ -232,10 +232,10 @@ impl Editor {
 	///
 	/// If None is returned, the caller should create a scratch buffer.
 	fn fallback_buffer_focus(&self) -> Option<FocusTarget> {
-		let base_id = self.state.windows.base_id();
+		let base_id = self.state.core.windows.base_id();
 		let base_focused = self.base_window().focused_buffer;
 
-		if self.state.core.buffers.get_buffer(base_focused).is_some() && self.window_contains_view(base_id, base_focused) {
+		if self.state.core.editor.buffers.get_buffer(base_focused).is_some() && self.window_contains_view(base_id, base_focused) {
 			return Some(FocusTarget::Buffer {
 				window: base_id,
 				buffer: base_focused,
@@ -246,7 +246,7 @@ impl Editor {
 			return Some(FocusTarget::Buffer { window: base_id, buffer });
 		}
 
-		if let Some(buffer) = self.state.core.buffers.buffer_ids().next() {
+		if let Some(buffer) = self.state.core.editor.buffers.buffer_ids().next() {
 			return Some(FocusTarget::Buffer { window: base_id, buffer });
 		}
 
@@ -258,7 +258,7 @@ impl Editor {
 	/// Returns true if the view exists and was focused.
 	/// Explicit focus can override sticky focus and will close dockables.
 	pub fn focus_view(&mut self, view: ViewId) -> bool {
-		let window_id = self.state.windows.base_id();
+		let window_id = self.state.core.windows.base_id();
 		let target = FocusTarget::Buffer {
 			window: window_id,
 			buffer: view,
@@ -271,7 +271,7 @@ impl Editor {
 	/// Returns true if the view exists and was focused.
 	/// Respects sticky focus - won't steal focus from sticky views.
 	pub fn focus_view_implicit(&mut self, view: ViewId) -> bool {
-		let window_id = self.state.windows.base_id();
+		let window_id = self.state.core.windows.base_id();
 		let target = FocusTarget::Buffer {
 			window: window_id,
 			buffer: view,
@@ -288,27 +288,27 @@ impl Editor {
 
 	/// Focuses the next view in the layout.
 	pub fn focus_next_view(&mut self) {
-		let next = self.state.layout.next_view(&self.base_window().layout, self.focused_view());
+		let next = self.state.core.layout.next_view(&self.base_window().layout, self.focused_view());
 		self.focus_view(next);
 	}
 
 	/// Focuses the previous view in the layout.
 	pub fn focus_prev_view(&mut self) {
-		let prev = self.state.layout.prev_view(&self.base_window().layout, self.focused_view());
+		let prev = self.state.core.layout.prev_view(&self.base_window().layout, self.focused_view());
 		self.focus_view(prev);
 	}
 
 	/// Focuses the next text buffer in the layout.
 	pub fn focus_next_buffer(&mut self) {
 		let current_id = self.focused_view();
-		let next_id = self.state.layout.next_buffer(&self.base_window().layout, current_id);
+		let next_id = self.state.core.layout.next_buffer(&self.base_window().layout, current_id);
 		self.focus_buffer(next_id);
 	}
 
 	/// Focuses the previous text buffer in the layout.
 	pub fn focus_prev_buffer(&mut self) {
 		let current_id = self.focused_view();
-		let prev_id = self.state.layout.prev_buffer(&self.base_window().layout, current_id);
+		let prev_id = self.state.core.layout.prev_buffer(&self.base_window().layout, current_id);
 		self.focus_buffer(prev_id);
 	}
 
@@ -318,19 +318,19 @@ impl Editor {
 		let current = self.focused_view();
 		let hint = self.cursor_screen_pos(direction, area);
 
-		if let Some(target) = self.state.layout.view_in_direction(&self.base_window().layout, area, current, direction, hint) {
+		if let Some(target) = self.state.core.layout.view_in_direction(&self.base_window().layout, area, current, direction, hint) {
 			self.focus_view(target);
 		}
 	}
 
 	pub(crate) fn sync_focus_from_ui(&mut self) {
-		if let Some(panel_id) = self.state.ui.focused_panel_id() {
+		if let Some(panel_id) = self.state.ui.ui.focused_panel_id() {
 			let target = FocusTarget::Panel(panel_id.to_string());
 			self.set_focus(target, FocusReason::Programmatic);
-		} else if matches!(self.state.focus, FocusTarget::Panel(_)) {
+		} else if matches!(self.state.core.focus, FocusTarget::Panel(_)) {
 			let buffer = self.base_window().focused_buffer;
 			let target = FocusTarget::Buffer {
-				window: self.state.windows.base_id(),
+				window: self.state.core.windows.base_id(),
 				buffer,
 			};
 			self.set_focus(target, FocusReason::Programmatic);
@@ -342,7 +342,7 @@ impl Editor {
 		let buffer = self.buffer();
 		let view_rect = self
 			.state
-			.layout
+			.core.layout
 			.compute_view_areas(&self.base_window().layout, area)
 			.into_iter()
 			.find(|(v, _)| *v == self.focused_view())
@@ -378,7 +378,7 @@ impl Editor {
 	///
 	/// Call this after structural changes (split closed, window removed, etc.).
 	pub(crate) fn repair_invariants(&mut self) {
-		let current = self.state.focus.clone();
+		let current = self.state.core.focus.clone();
 
 		let effective = match self.normalize_target(current.clone()) {
 			Some(t) => t,
@@ -394,12 +394,12 @@ impl Editor {
 		}
 
 		if let FocusTarget::Buffer { window, buffer } = effective
-			&& window == self.state.windows.base_id()
+			&& window == self.state.core.windows.base_id()
 		{
 			let win = self.base_window_mut();
 			if win.focused_buffer != buffer {
 				win.focused_buffer = buffer;
-				self.state.focus_epoch.increment();
+				self.state.core.focus_epoch.increment();
 			}
 		}
 	}
@@ -410,13 +410,13 @@ impl Editor {
 	/// safely resolve the view later, handling cases where the view was closed
 	/// or repurposed.
 	pub fn lease_focused_view(&self) -> Option<ViewLease> {
-		if let FocusTarget::Buffer { buffer, .. } | FocusTarget::Overlay { buffer } = self.state.focus
-			&& let Some(buf) = self.state.core.buffers.get_buffer(buffer)
+		if let FocusTarget::Buffer { buffer, .. } | FocusTarget::Overlay { buffer } = self.state.core.focus
+			&& let Some(buf) = self.state.core.editor.buffers.get_buffer(buffer)
 		{
 			return Some(ViewLease {
 				preferred_view: buffer,
 				doc: buf.document_id(),
-				epoch: self.state.focus_epoch,
+				epoch: self.state.core.focus_epoch,
 			});
 		}
 		None
@@ -427,13 +427,13 @@ impl Editor {
 	/// Returns `Some(view_id)` if the original view still exists and points to the
 	/// same document, or if another view for the same document exists.
 	pub fn resolve_lease(&self, lease: &ViewLease) -> Option<ViewId> {
-		if let Some(buf) = self.state.core.buffers.get_buffer(lease.preferred_view)
+		if let Some(buf) = self.state.core.editor.buffers.get_buffer(lease.preferred_view)
 			&& buf.document_id() == lease.doc
 		{
 			return Some(lease.preferred_view);
 		}
 
-		self.state.core.buffers.any_buffer_for_doc(lease.doc)
+		self.state.core.editor.buffers.any_buffer_for_doc(lease.doc)
 	}
 
 	/// Asserts internal invariants are maintained.
@@ -441,27 +441,27 @@ impl Editor {
 	/// Use this in tests and debug builds to catch corruption early.
 	#[cfg(any(test, debug_assertions))]
 	pub fn debug_assert_invariants(&self) {
-		match &self.state.focus {
+		match &self.state.core.focus {
 			FocusTarget::Buffer { window, buffer } => {
-				assert!(self.state.windows.get(*window).is_some(), "focused window must exist");
-				assert!(self.state.core.buffers.get_buffer(*buffer).is_some(), "focused buffer must exist");
-				if *window == self.state.windows.base_id() {
+				assert!(self.state.core.windows.get(*window).is_some(), "focused window must exist");
+				assert!(self.state.core.editor.buffers.get_buffer(*buffer).is_some(), "focused buffer must exist");
+				if *window == self.state.core.windows.base_id() {
 					assert!(self.window_contains_view(*window, *buffer), "focused buffer must be in window layout");
 				}
 			}
 			FocusTarget::Overlay { buffer } => {
-				assert!(self.state.core.buffers.get_buffer(*buffer).is_some(), "focused overlay buffer must exist");
+				assert!(self.state.core.editor.buffers.get_buffer(*buffer).is_some(), "focused overlay buffer must exist");
 			}
 			FocusTarget::Panel(_) => {}
 		}
 
 		let base_focused = self.base_window().focused_buffer;
 		assert!(
-			self.state.core.buffers.get_buffer(base_focused).is_some(),
+			self.state.core.editor.buffers.get_buffer(base_focused).is_some(),
 			"base window return buffer must exist"
 		);
 
-		assert!(self.state.core.buffers.buffer_count() > 0, "must have at least one buffer");
+		assert!(self.state.core.editor.buffers.buffer_count() > 0, "must have at least one buffer");
 	}
 
 	pub(crate) fn handle_window_focus_change(&mut self, old_focus: FocusTarget, new_focus: &FocusTarget) {
@@ -483,7 +483,7 @@ impl Editor {
 						window_id: window.into(),
 						focused: false,
 					}),
-					&mut self.state.work_scheduler,
+					&mut self.state.integration.work_scheduler,
 				);
 			}
 			if let Some(window) = new_window {
@@ -492,7 +492,7 @@ impl Editor {
 						window_id: window.into(),
 						focused: true,
 					}),
-					&mut self.state.work_scheduler,
+					&mut self.state.integration.work_scheduler,
 				);
 			}
 		}

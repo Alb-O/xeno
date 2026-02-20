@@ -63,9 +63,9 @@ impl Editor {
 	/// every frame. The cache is keyed by (DocumentId, diagnostics_epoch).
 	pub fn render_ctx(&mut self) -> RenderCtx {
 		RenderCtx {
-			theme: self.state.config.theme,
-			viewport: self.state.viewport,
-			layout: LayoutSnapshot::new(&self.state.layout, &self.base_window().layout, self.state.viewport),
+			theme: self.state.config.config.theme,
+			viewport: self.state.core.viewport,
+			layout: LayoutSnapshot::new(&self.state.core.layout, &self.base_window().layout, self.state.core.viewport),
 			lsp: self.lsp_render_snapshot(),
 		}
 	}
@@ -82,13 +82,13 @@ impl Editor {
 		use crate::lsp::diagnostics::{build_diagnostic_line_map, build_diagnostic_range_map};
 
 		let mut snapshot = LspRenderSnapshot::default();
-		let epoch = self.state.lsp.diagnostics_version();
+		let epoch = self.state.integration.lsp.diagnostics_version();
 
-		for buffer in self.state.core.buffers.buffers() {
+		for buffer in self.state.core.editor.buffers.buffers() {
 			let doc_id = buffer.document_id();
 
-			let entry = self.state.render_cache.diagnostics.get_or_build(doc_id, epoch, || {
-				let diagnostics = self.state.lsp.get_diagnostics(buffer);
+			let entry = self.state.ui.render_cache.diagnostics.get_or_build(doc_id, epoch, || {
+				let diagnostics = self.state.integration.lsp.get_diagnostics(buffer);
 				(build_diagnostic_line_map(&diagnostics), build_diagnostic_range_map(&diagnostics))
 			});
 

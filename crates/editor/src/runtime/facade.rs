@@ -84,7 +84,7 @@ impl<'a> RuntimePorts<'a> {
 
 impl RuntimeFilesystemPort for RuntimePorts<'_> {
 	fn drain_filesystem_events(&mut self) -> usize {
-		self.editor.state.filesystem.drain_events()
+		self.editor.state.integration.filesystem.drain_events()
 	}
 
 	fn refresh_file_picker(&mut self) {

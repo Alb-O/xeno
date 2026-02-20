@@ -21,6 +21,6 @@ impl ModeAccess for EditorCaps<'_> {
 		}
 		let view = self.ed.focused_view();
 		self.ed.buffer_mut().input.set_mode(mode.clone());
-		self.ed.state.effects.push_layer_event(LayerEvent::ModeChanged { view, mode });
+		self.ed.state.runtime.effects.push_layer_event(LayerEvent::ModeChanged { view, mode });
 	}
 }

@@ -5,7 +5,7 @@ use crate::info_popup::PopupAnchor;
 fn make_editor(cols: u16, rows: u16) -> Editor {
 	let mut editor = Editor::new_scratch();
 	editor.handle_window_resize(cols, rows);
-	editor.state.viewport.doc_area = Some(editor.doc_area());
+	editor.state.core.viewport.doc_area = Some(editor.doc_area());
 	editor
 }
 
@@ -93,7 +93,7 @@ fn command_palette_overlay_converges() {
 #[test]
 fn info_popup_window_anchor_converges() {
 	let mut editor = make_editor(80, 24);
-	let wid = editor.state.windows.base_id();
+	let wid = editor.state.core.windows.base_id();
 	editor.open_info_popup("Window popup".to_string(), None, PopupAnchor::Window(wid));
 	assert_convergence(&mut editor);
 

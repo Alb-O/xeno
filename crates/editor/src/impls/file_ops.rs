@@ -43,7 +43,7 @@ impl Editor {
 			.await;
 
 			#[cfg(feature = "lsp")]
-			if let Err(e) = self.state.lsp.on_buffer_will_save(self.buffer()).await {
+			if let Err(e) = self.state.integration.lsp.on_buffer_will_save(self.buffer()).await {
 				warn!(error = %e, "LSP will_save notification failed");
 			}
 
@@ -60,7 +60,7 @@ impl Editor {
 				.buffers
 				.get_buffer(buffer_id)
 				.ok_or_else(|| CommandError::Io("buffer not found".to_string()))?;
-			crate::io::save_buffer_to_disk(buffer, &self.state.worker_runtime)
+			crate::io::save_buffer_to_disk(buffer, &self.state.async_state.worker_runtime)
 				.await
 				.map_err(|e| CommandError::Io(e.to_string()))?;
 
@@ -68,7 +68,7 @@ impl Editor {
 			self.show_notification(xeno_registry::notifications::keys::file_saved(&path_owned));
 
 			#[cfg(feature = "lsp")]
-			if let Err(e) = self.state.lsp.on_buffer_did_save(self.buffer(), true).await {
+			if let Err(e) = self.state.integration.lsp.on_buffer_did_save(self.buffer(), true).await {
 				warn!(error = %e, "LSP did_save notification failed");
 			}
 
@@ -80,7 +80,7 @@ impl Editor {
 
 	/// Saves the current buffer to a new file path.
 	pub fn save_as(&mut self, path: PathBuf) -> BoxFutureLocal<'_, Result<(), CommandError>> {
-		let loader_arc = self.state.config.language_loader.clone();
+		let loader_arc = self.state.config.config.language_loader.clone();
 		let _ = self.buffer_mut().set_path(Some(path), Some(&loader_arc));
 		self.save()
 	}
@@ -93,20 +93,20 @@ impl Editor {
 	/// kicked, preserving user edits.
 	pub(crate) fn apply_loaded_file(&mut self, path: PathBuf, rope: Rope, readonly: bool, token: u64) {
 		// Stale token check: only apply if this token matches the pending load for this path.
-		let is_current = self.state.pending_file_loads.get(&path) == Some(&token);
+		let is_current = self.state.async_state.pending_file_loads.get(&path) == Some(&token);
 		if !is_current {
 			tracing::debug!(path = %path.display(), token, "Ignoring stale file load");
 			return;
 		}
 
-		self.state.pending_file_loads.remove(&path);
+		self.state.async_state.pending_file_loads.remove(&path);
 
-		let Some(buffer_id) = self.state.core.buffers.find_by_path(&path) else {
+		let Some(buffer_id) = self.state.core.editor.buffers.find_by_path(&path) else {
 			tracing::warn!(path = %path.display(), "No buffer found for loaded file");
 			return;
 		};
 
-		let Some(buffer) = self.state.core.buffers.get_buffer_mut(buffer_id) else {
+		let Some(buffer) = self.state.core.editor.buffers.get_buffer_mut(buffer_id) else {
 			return;
 		};
 
@@ -123,7 +123,7 @@ impl Editor {
 		tracing::debug!(path = %path.display(), len = rope.len_bytes(), "File loaded");
 
 		buffer.reset_content(rope.clone());
-		self.state.syntax_manager.reset_syntax(buffer.document_id());
+		self.state.integration.syntax_manager.reset_syntax(buffer.document_id());
 		if readonly {
 			buffer.set_readonly(true);
 		}
@@ -141,18 +141,18 @@ impl Editor {
 				text: rope.slice(..),
 				file_type: file_type.as_deref(),
 			}),
-			&mut self.state.work_scheduler,
+			&mut self.state.integration.work_scheduler,
 		);
 
-		if let Some((line, column)) = self.state.deferred_goto.take() {
+		if let Some((line, column)) = self.state.async_state.deferred_goto.take() {
 			self.goto_line_col(line, column);
 		}
 	}
 
 	/// Notifies the user of a file load error and clears loading state.
 	pub(crate) fn notify_load_error(&mut self, path: &Path, error: &io::Error, token: u64) {
-		if self.state.pending_file_loads.get(path) == Some(&token) {
-			self.state.pending_file_loads.remove(path);
+		if self.state.async_state.pending_file_loads.get(path) == Some(&token) {
+			self.state.async_state.pending_file_loads.remove(path);
 		}
 		self.show_notification(xeno_registry::notifications::keys::error(format!(
 			"Failed to load {}: {}",
@@ -163,12 +163,12 @@ impl Editor {
 
 	/// Returns true if the given path has a pending background load.
 	pub fn is_loading_file(&self, path: &Path) -> bool {
-		self.state.pending_file_loads.contains_key(path)
+		self.state.async_state.pending_file_loads.contains_key(path)
 	}
 
 	/// Returns true if any file is currently being loaded in the background.
 	pub fn has_pending_file_loads(&self) -> bool {
-		!self.state.pending_file_loads.is_empty()
+		!self.state.async_state.pending_file_loads.is_empty()
 	}
 }
 
@@ -189,19 +189,19 @@ mod tests {
 		let view_id = editor.open_file(path.clone()).await.expect("open file");
 
 		// Simulate pending load with token=2 (the "current" request).
-		editor.state.pending_file_loads.insert(path.clone(), 2);
+		editor.state.async_state.pending_file_loads.insert(path.clone(), 2);
 
 		// Apply a stale load (token=1) — should be ignored.
 		let stale_rope = Rope::from_str("stale content");
 		editor.apply_loaded_file(path.clone(), stale_rope, false, 1);
 
-		let buf = editor.state.core.buffers.get_buffer(view_id).unwrap();
+		let buf = editor.state.core.editor.buffers.get_buffer(view_id).unwrap();
 		let content = buf.with_doc(|doc| doc.content().to_string());
 		assert_ne!(content, "stale content", "stale token should not overwrite buffer");
 
 		// Pending load should still be active (not cleared by the stale token).
 		assert!(
-			editor.state.pending_file_loads.contains_key(&path),
+			editor.state.async_state.pending_file_loads.contains_key(&path),
 			"pending load should remain for the current token"
 		);
 
@@ -209,10 +209,10 @@ mod tests {
 		let current_rope = Rope::from_str("current content");
 		editor.apply_loaded_file(path.clone(), current_rope, false, 2);
 
-		let buf = editor.state.core.buffers.get_buffer(view_id).unwrap();
+		let buf = editor.state.core.editor.buffers.get_buffer(view_id).unwrap();
 		let content = buf.with_doc(|doc| doc.content().to_string());
 		assert_eq!(content, "current content", "current token should replace buffer content");
-		assert!(!editor.state.pending_file_loads.contains_key(&path), "pending load should be cleared");
+		assert!(!editor.state.async_state.pending_file_loads.contains_key(&path), "pending load should be cleared");
 	}
 
 	#[tokio::test]
@@ -224,23 +224,23 @@ mod tests {
 		let view_id = editor.open_file(path.clone()).await.expect("open file");
 
 		// Simulate pending load with token=1.
-		editor.state.pending_file_loads.insert(path.clone(), 1);
+		editor.state.async_state.pending_file_loads.insert(path.clone(), 1);
 
 		// Simulate user editing the buffer: mark the file buffer as modified.
-		editor.state.core.buffers.get_buffer_mut(view_id).unwrap().set_modified(true);
+		editor.state.core.editor.buffers.get_buffer_mut(view_id).unwrap().set_modified(true);
 
 		// Apply the load (correct token, but buffer is modified).
 		let loaded_rope = Rope::from_str("disk content");
 		editor.apply_loaded_file(path.clone(), loaded_rope, false, 1);
 
-		let buf = editor.state.core.buffers.get_buffer(view_id).unwrap();
+		let buf = editor.state.core.editor.buffers.get_buffer(view_id).unwrap();
 		assert!(buf.modified(), "buffer should remain modified");
 		let content = buf.with_doc(|doc| doc.content().to_string());
 		assert_ne!(content, "disk content", "loaded content should not overwrite modified buffer");
 
 		// Pending load should be cleared (token matched, even though content was rejected).
 		assert!(
-			!editor.state.pending_file_loads.contains_key(&path),
+			!editor.state.async_state.pending_file_loads.contains_key(&path),
 			"pending load should be cleared even on rejection"
 		);
 	}
@@ -256,26 +256,26 @@ mod tests {
 		let view_b = editor.open_file(path_b.clone()).await.expect("open b");
 
 		// Simulate two concurrent pending loads with different tokens.
-		editor.state.pending_file_loads.insert(path_a.clone(), 10);
-		editor.state.pending_file_loads.insert(path_b.clone(), 20);
+		editor.state.async_state.pending_file_loads.insert(path_a.clone(), 10);
+		editor.state.async_state.pending_file_loads.insert(path_b.clone(), 20);
 
 		// Apply B first (out of order).
 		let rope_b = Rope::from_str("content B");
 		editor.apply_loaded_file(path_b.clone(), rope_b, false, 20);
 
 		// B should be populated, A should still be pending.
-		let buf_b = editor.state.core.buffers.get_buffer(view_b).unwrap();
+		let buf_b = editor.state.core.editor.buffers.get_buffer(view_b).unwrap();
 		assert_eq!(buf_b.with_doc(|doc| doc.content().to_string()), "content B");
-		assert!(!editor.state.pending_file_loads.contains_key(&path_b), "B pending should be cleared");
-		assert!(editor.state.pending_file_loads.contains_key(&path_a), "A pending should remain");
+		assert!(!editor.state.async_state.pending_file_loads.contains_key(&path_b), "B pending should be cleared");
+		assert!(editor.state.async_state.pending_file_loads.contains_key(&path_a), "A pending should remain");
 
 		// Now apply A.
 		let rope_a = Rope::from_str("content A");
 		editor.apply_loaded_file(path_a.clone(), rope_a, false, 10);
 
-		let buf_a = editor.state.core.buffers.get_buffer(view_a).unwrap();
+		let buf_a = editor.state.core.editor.buffers.get_buffer(view_a).unwrap();
 		assert_eq!(buf_a.with_doc(|doc| doc.content().to_string()), "content A");
-		assert!(!editor.state.pending_file_loads.contains_key(&path_a), "A pending should be cleared");
+		assert!(!editor.state.async_state.pending_file_loads.contains_key(&path_a), "A pending should be cleared");
 	}
 
 	#[cfg(unix)]
@@ -298,7 +298,7 @@ mod tests {
 
 		// Edit the buffer to make it modified.
 		{
-			let buffer = editor.state.core.buffers.get_buffer_mut(view_id).unwrap();
+			let buffer = editor.state.core.editor.buffers.get_buffer_mut(view_id).unwrap();
 			let tx = buffer.with_doc(|doc| {
 				Transaction::change(
 					doc.content().slice(..),
@@ -317,11 +317,11 @@ mod tests {
 				},
 			);
 		}
-		assert!(editor.state.core.buffers.get_buffer(view_id).unwrap().modified());
+		assert!(editor.state.core.editor.buffers.get_buffer(view_id).unwrap().modified());
 
 		// Switch focus to the buffer and save.
-		let base_window = editor.state.windows.base_id();
-		editor.state.focus = crate::impls::focus::FocusTarget::Buffer {
+		let base_window = editor.state.core.windows.base_id();
+		editor.state.core.focus = crate::impls::focus::FocusTarget::Buffer {
 			window: base_window,
 			buffer: view_id,
 		};

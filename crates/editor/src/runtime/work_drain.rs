@@ -45,7 +45,7 @@ impl Editor {
 					let source = queued.source;
 					let is_nu_pipeline = matches!(source, RuntimeWorkSource::NuHookDispatch | RuntimeWorkSource::NuScheduledMacro);
 					if is_nu_pipeline {
-						self.state.nu.inc_hook_depth();
+						self.state.integration.nu.inc_hook_depth();
 					}
 
 					let policy = queued.execution.invocation_policy();
@@ -65,7 +65,7 @@ impl Editor {
 					self.metrics().record_runtime_work_drained_total(item.kind_tag, Some(source));
 
 					if is_nu_pipeline {
-						self.state.nu.dec_hook_depth();
+						self.state.integration.nu.dec_hook_depth();
 					}
 
 					if is_nu_pipeline {

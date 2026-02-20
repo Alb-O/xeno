@@ -46,14 +46,14 @@ impl ThemeMsg {
 				themes: _themes,
 				errors,
 			} => {
-				if editor.state.pending_theme_load_token != Some(token) {
+				if editor.state.async_state.pending_theme_load_token != Some(token) {
 					tracing::debug!(token, "Ignoring stale theme load");
 					return Dirty::NONE;
 				}
-				editor.state.pending_theme_load_token = None;
+				editor.state.async_state.pending_theme_load_token = None;
 
 				editor.resolve_configured_theme();
-				crate::bootstrap::cache_theme(&editor.state.config.theme);
+				crate::bootstrap::cache_theme(&editor.state.config.config.theme);
 				for (filename, error) in errors {
 					editor.notify(xeno_registry::notifications::keys::error(format!("{filename}: {error}")));
 				}
@@ -75,7 +75,7 @@ mod tests {
 
 		// Simulate two sequential kick_theme_load calls: tokens 0 then 1.
 		// Only token 1 is "current".
-		editor.state.pending_theme_load_token = Some(1);
+		editor.state.async_state.pending_theme_load_token = Some(1);
 
 		// Stale load (token=0) completes first.
 		let stale = ThemeMsg::ThemesReady {
@@ -87,7 +87,7 @@ mod tests {
 
 		assert_eq!(dirty, Dirty::NONE, "stale token should produce Dirty::NONE");
 		assert_eq!(
-			editor.state.pending_theme_load_token,
+			editor.state.async_state.pending_theme_load_token,
 			Some(1),
 			"pending token should remain for the current load"
 		);
@@ -98,7 +98,7 @@ mod tests {
 	#[test]
 	fn theme_load_latest_wins_even_if_completion_order_reversed() {
 		let mut editor = Editor::new_scratch();
-		editor.state.pending_theme_load_token = Some(5);
+		editor.state.async_state.pending_theme_load_token = Some(5);
 
 		// Stale load (token=3) arrives first → ignored.
 		let stale = ThemeMsg::ThemesReady {
@@ -108,7 +108,7 @@ mod tests {
 		};
 		let dirty = stale.apply(&mut editor);
 		assert_eq!(dirty, Dirty::NONE);
-		assert_eq!(editor.state.pending_theme_load_token, Some(5));
+		assert_eq!(editor.state.async_state.pending_theme_load_token, Some(5));
 
 		// Current load (token=5) arrives → accepted.
 		let current = ThemeMsg::ThemesReady {
@@ -118,6 +118,6 @@ mod tests {
 		};
 		let dirty = current.apply(&mut editor);
 		assert_eq!(dirty, Dirty::FULL, "current token should produce Dirty::FULL");
-		assert_eq!(editor.state.pending_theme_load_token, None, "pending token should be cleared after apply");
+		assert_eq!(editor.state.async_state.pending_theme_load_token, None, "pending token should be cleared after apply");
 	}
 }

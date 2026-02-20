@@ -25,22 +25,22 @@ impl crate::Editor {
 	///
 	/// * Must route all UI consequences through `EffectSink` and `flush_effects`.
 	pub fn flush_effects(&mut self) {
-		if self.state.flush_depth > 0 {
-			self.state.frame.needs_redraw = true;
+		if self.state.runtime.flush_depth > 0 {
+			self.state.core.frame.needs_redraw = true;
 			return;
 		}
 
-		self.state.flush_depth += 1;
+		self.state.runtime.flush_depth += 1;
 
 		loop {
-			let drained = self.state.effects.drain();
+			let drained = self.state.runtime.effects.drain();
 			if drained.is_empty() {
 				break;
 			}
 			self.apply_drained_effects(drained);
 		}
 
-		self.state.flush_depth -= 1;
+		self.state.runtime.flush_depth -= 1;
 	}
 
 	fn apply_drained_effects(&mut self, eff: DrainedEffects) {
@@ -57,11 +57,11 @@ impl crate::Editor {
 
 		if !eff.layer_events.is_empty() {
 			needs_redraw = true;
-			let mut layers = std::mem::take(self.state.overlay_system.layers_mut());
+			let mut layers = std::mem::take(self.state.ui.overlay_system.layers_mut());
 			for e in eff.layer_events {
 				layers.notify_event(self, e);
 			}
-			*self.state.overlay_system.layers_mut() = layers;
+			*self.state.ui.overlay_system.layers_mut() = layers;
 		}
 
 		if !eff.notifications.is_empty() {
@@ -76,7 +76,7 @@ impl crate::Editor {
 		}
 
 		if needs_redraw {
-			self.state.frame.needs_redraw = true;
+			self.state.core.frame.needs_redraw = true;
 		}
 	}
 
@@ -138,9 +138,9 @@ impl crate::Editor {
 							OverlayCloseReason::Forced => CloseReason::Forced,
 							OverlayCloseReason::Commit => unreachable!(),
 						};
-						let mut interaction = self.state.overlay_system.take_interaction();
+						let mut interaction = self.state.ui.overlay_system.take_interaction();
 						interaction.close(self, reason);
-						self.state.overlay_system.restore_interaction(interaction);
+						self.state.ui.overlay_system.restore_interaction(interaction);
 					}
 				}
 				Ok(())

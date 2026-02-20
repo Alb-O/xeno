@@ -43,8 +43,8 @@ impl Editor {
 			doc_area,
 			mouse_x,
 			mouse_y,
-			active_drag: self.state.layout.drag_state().cloned(),
-			text_selection_origin: self.state.layout.text_selection_origin,
+			active_drag: self.state.core.layout.drag_state().cloned(),
+			text_selection_origin: self.state.core.layout.text_selection_origin,
 			overlay_hit: self.overlay_hit(mouse_x, mouse_y),
 			separator_hit: self.separator_hit(doc_area, mouse_x, mouse_y),
 			view_hit: self.view_hit(doc_area, mouse_x, mouse_y),
@@ -52,7 +52,7 @@ impl Editor {
 	}
 
 	fn overlay_hit(&self, mouse_x: u16, mouse_y: u16) -> Option<OverlayHit> {
-		self.state.overlay_system.interaction().active().and_then(|active| {
+		self.state.ui.overlay_system.interaction().active().and_then(|active| {
 			active
 				.session
 				.panes
@@ -73,18 +73,18 @@ impl Editor {
 
 	fn separator_hit(&self, doc_area: Rect, mouse_x: u16, mouse_y: u16) -> Option<SeparatorHit> {
 		let base_layout = &self.base_window().layout;
-		self.state.layout.separator_hit_at_position(base_layout, doc_area, mouse_x, mouse_y)
+		self.state.core.layout.separator_hit_at_position(base_layout, doc_area, mouse_x, mouse_y)
 	}
 
 	fn view_hit(&self, doc_area: Rect, mouse_x: u16, mouse_y: u16) -> Option<ViewHit> {
 		let base_layout = &self.base_window().layout;
 		self.state
-			.layout
+			.core.layout
 			.view_at_position(base_layout, doc_area, mouse_x, mouse_y)
 			.map(|(view, area)| ViewHit {
 				view,
 				area,
-				window: self.state.windows.base_id(),
+				window: self.state.core.windows.base_id(),
 			})
 	}
 }

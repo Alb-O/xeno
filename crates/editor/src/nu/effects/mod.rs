@@ -115,16 +115,16 @@ pub(crate) fn apply_effect_batch(
 				outcome.dirty |= Dirty::FULL;
 			}
 			NuEffect::StateSet { key, value } => {
-				editor.state.core.workspace.nu_state.set(key, value);
+				editor.state.core.editor.workspace.nu_state.set(key, value);
 			}
 			NuEffect::StateUnset { key } => {
-				editor.state.core.workspace.nu_state.unset(&key);
+				editor.state.core.editor.workspace.nu_state.unset(&key);
 			}
 			NuEffect::ScheduleSet { key, delay_ms, name, args } => {
-				editor.state.nu.schedule_macro(key, delay_ms, name, args, &editor.state.msg_tx);
+				editor.state.integration.nu.schedule_macro(key, delay_ms, name, args, &editor.state.async_state.msg_tx);
 			}
 			NuEffect::ScheduleCancel { key } => {
-				editor.state.nu.cancel_schedule(&key);
+				editor.state.integration.nu.cancel_schedule(&key);
 			}
 			NuEffect::EditText { op, text } => {
 				if editor.buffer().is_readonly() {
@@ -149,7 +149,7 @@ pub(crate) fn apply_effect_batch(
 /// Write text to the yank register (clipboard).
 fn apply_clipboard_set(editor: &mut Editor, text: String) {
 	let total_chars = text.chars().count();
-	editor.state.core.workspace.registers.yank = crate::types::Yank {
+	editor.state.core.editor.workspace.registers.yank = crate::types::Yank {
 		parts: vec![text],
 		total_chars,
 	};
@@ -158,7 +158,7 @@ fn apply_clipboard_set(editor: &mut Editor, text: String) {
 /// Apply a text edit effect to the focused buffer.
 fn apply_text_edit(editor: &mut Editor, op: NuTextEditOp, text: String, undo_policy: UndoPolicy) {
 	let buffer_id: ViewId = editor.focused_view();
-	let buffer = editor.state.core.buffers.get_buffer_mut(buffer_id).expect("focused buffer must exist");
+	let buffer = editor.state.core.editor.buffers.get_buffer_mut(buffer_id).expect("focused buffer must exist");
 
 	let (tx, new_selection) = buffer.with_doc(|doc| {
 		let rope = doc.content();
@@ -280,7 +280,7 @@ mod tests {
 				capability: NuCapability::DispatchAction
 			}
 		));
-		assert!(editor.state.core.workspace.nu_state.iter().next().is_none());
+		assert!(editor.state.core.editor.workspace.nu_state.iter().next().is_none());
 	}
 
 	#[test]
@@ -329,7 +329,7 @@ mod tests {
 		let outcome = apply_effect_batch(&mut editor, batch, NuEffectApplyMode::Macro, &allowed).expect("notify effects should succeed");
 		assert_eq!(outcome.dirty, Dirty::FULL);
 
-		let pending = editor.state.notifications.take_pending();
+		let pending = editor.state.ui.notifications.take_pending();
 		assert_eq!(pending.len(), 5);
 		assert_eq!(pending[0].message, "d");
 		assert_eq!(&*pending[0].id, "xeno-registry::debug");
@@ -406,7 +406,7 @@ mod tests {
 		let outcome = apply_effect_batch(&mut editor, b, NuEffectApplyMode::Macro, &allowed).expect("clipboard should succeed");
 		assert_eq!(outcome.dirty, Dirty::FULL);
 
-		let yank = &editor.state.core.workspace.registers.yank;
+		let yank = &editor.state.core.editor.workspace.registers.yank;
 		assert_eq!(yank.parts, vec!["COPIED"]);
 		assert_eq!(yank.total_chars, 6);
 	}
@@ -429,7 +429,7 @@ mod tests {
 		let mut editor = Editor::new_scratch();
 		let b = batch(vec![NuEffect::SetClipboard { text: "X".to_string() }]);
 		let outcome = apply_effect_batch(&mut editor, b, NuEffectApplyMode::Hook, &HashSet::new()).expect("hook denial should be non-fatal");
-		assert!(editor.state.core.workspace.registers.yank.is_empty());
+		assert!(editor.state.core.editor.workspace.registers.yank.is_empty());
 		assert_eq!(outcome.dirty, Dirty::NONE);
 	}
 
@@ -443,19 +443,19 @@ mod tests {
 		}]);
 		apply_effect_batch(&mut editor, b, NuEffectApplyMode::Macro, &allowed).expect("state set should succeed");
 
-		let entries: Vec<_> = editor.state.core.workspace.nu_state.iter().collect();
+		let entries: Vec<_> = editor.state.core.editor.workspace.nu_state.iter().collect();
 		assert_eq!(entries, vec![("foo", "bar")]);
 	}
 
 	#[test]
 	fn state_unset_removes_key() {
 		let mut editor = Editor::new_scratch();
-		editor.state.core.workspace.nu_state.set("foo".to_string(), "bar".to_string());
+		editor.state.core.editor.workspace.nu_state.set("foo".to_string(), "bar".to_string());
 		let allowed = HashSet::from([NuCapability::WriteState]);
 		let b = batch(vec![NuEffect::StateUnset { key: "foo".to_string() }]);
 		apply_effect_batch(&mut editor, b, NuEffectApplyMode::Macro, &allowed).expect("state unset should succeed");
 
-		let entries: Vec<_> = editor.state.core.workspace.nu_state.iter().collect();
+		let entries: Vec<_> = editor.state.core.editor.workspace.nu_state.iter().collect();
 		assert!(entries.is_empty());
 	}
 
@@ -578,7 +578,7 @@ mod tests {
 		apply_effect_batch(&mut editor, current, NuEffectApplyMode::Macro, &allowed).expect("reschedule should succeed");
 
 		// Stale fire for token 1 should not remove the active token 2 schedule.
-		let fired = editor.state.nu.apply_schedule_fired(NuScheduleFiredMsg {
+		let fired = editor.state.integration.nu.apply_schedule_fired(NuScheduleFiredMsg {
 			key: "debounce".to_string(),
 			token: 1,
 			name: "stale".to_string(),

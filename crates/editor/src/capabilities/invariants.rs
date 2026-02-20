@@ -26,6 +26,6 @@ pub fn test_mutation_side_effect_invariant() {
 		caps.set_cursor(CharIdx::from(10usize));
 	}
 
-	let drained = ed.state.effects.drain();
+	let drained = ed.state.runtime.effects.drain();
 	assert!(!drained.layer_events.is_empty(), "Mutation must enqueue a layer event");
 }

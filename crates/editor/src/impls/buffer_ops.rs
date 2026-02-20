@@ -17,15 +17,16 @@ impl Editor {
 	/// This async version awaits all hooks including async ones (e.g., LSP).
 	/// For sync contexts like split operations, use [`open_buffer_sync`](Self::open_buffer_sync).
 	pub async fn open_buffer(&mut self, content: String, path: Option<PathBuf>) -> ViewId {
+		let viewport_width = self.state.core.viewport.width;
 		let buffer_id = self
 			.state
 			.core
 			.buffers
-			.create_buffer(content, path.clone(), &self.state.config.language_loader, self.state.viewport.width);
+			.create_buffer(content, path.clone(), &self.state.config.config.language_loader, viewport_width);
 
 		let scratch_path = PathBuf::from("[scratch]");
 		let hook_path = path.as_ref().unwrap_or(&scratch_path);
-		let buffer = self.state.core.buffers.get_buffer_mut(buffer_id).unwrap();
+		let buffer = self.state.core.editor.buffers.get_buffer_mut(buffer_id).unwrap();
 
 		let text_slice = buffer.with_doc(|doc| doc.content().clone());
 		let file_type = buffer.file_type();
@@ -47,15 +48,16 @@ impl Editor {
 	/// Use this in sync contexts like split operations. Async hooks are queued
 	/// in the hook runtime and will execute when the main loop drains them.
 	pub fn open_buffer_sync(&mut self, content: String, path: Option<PathBuf>) -> ViewId {
+		let viewport_width = self.state.core.viewport.width;
 		let buffer_id = self
 			.state
 			.core
 			.buffers
-			.create_buffer(content, path.clone(), &self.state.config.language_loader, self.state.viewport.width);
+			.create_buffer(content, path.clone(), &self.state.config.config.language_loader, viewport_width);
 
 		let scratch_path = PathBuf::from("[scratch]");
 		let hook_path = path.as_ref().unwrap_or(&scratch_path);
-		let buffer = self.state.core.buffers.get_buffer_mut(buffer_id).unwrap();
+		let buffer = self.state.core.editor.buffers.get_buffer_mut(buffer_id).unwrap();
 
 		let text = buffer.with_doc(|doc| doc.content().clone());
 		emit_hook_sync_with(
@@ -64,7 +66,7 @@ impl Editor {
 				text: text.slice(..),
 				file_type: buffer.file_type().as_deref(),
 			}),
-			&mut self.state.work_scheduler,
+			&mut self.state.integration.work_scheduler,
 		);
 
 		buffer_id
@@ -84,7 +86,7 @@ impl Editor {
 		let readonly = path.exists() && !is_writable(&path);
 		let buffer_id = self.open_buffer(content, Some(path)).await;
 
-		if readonly && let Some(buffer) = self.state.core.buffers.get_buffer_mut(buffer_id) {
+		if readonly && let Some(buffer) = self.state.core.editor.buffers.get_buffer_mut(buffer_id) {
 			buffer.set_readonly(true);
 		}
 
@@ -101,9 +103,9 @@ impl Editor {
 
 		let readonly = path.exists() && !is_writable(&path);
 		let mut buffer = Buffer::new(view, content, Some(path));
-		buffer.input.set_mode(self.state.keymap_initial_mode.clone());
-		buffer.init_syntax(&self.state.config.language_loader);
-		if let Some(width) = self.state.viewport.width {
+		buffer.input.set_mode(self.state.config.keymap_initial_mode.clone());
+		buffer.init_syntax(&self.state.config.config.language_loader);
+		if let Some(width) = self.state.core.viewport.width {
 			buffer.text_width = width.saturating_sub(buffer.gutter_width()) as usize;
 		}
 		if readonly {
@@ -119,7 +121,7 @@ impl Editor {
 	/// but have independent cursor/selection/scroll state.
 	pub fn clone_buffer_for_split(&mut self) -> ViewId {
 		let focused = self.focused_view();
-		self.state.core.buffers.clone_buffer_for_split(focused).expect("focused buffer must exist")
+		self.state.core.editor.buffers.clone_buffer_for_split(focused).expect("focused buffer must exist")
 	}
 
 	/// Initializes LSP for all currently open buffers.
@@ -130,8 +132,8 @@ impl Editor {
 	#[cfg(feature = "lsp")]
 	pub async fn init_lsp_for_open_buffers(&mut self) -> anyhow::Result<()> {
 		let mut seen_docs = std::collections::HashSet::new();
-		for buffer_id in self.state.core.buffers.buffer_ids().collect::<Vec<_>>() {
-			let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
+		for buffer_id in self.state.core.editor.buffers.buffer_ids().collect::<Vec<_>>() {
+			let Some(buffer) = self.state.core.editor.buffers.get_buffer(buffer_id) else {
 				continue;
 			};
 			if buffer.path().is_none() {
@@ -162,11 +164,11 @@ impl Editor {
 	pub fn kick_lsp_init_for_open_buffers(&mut self) {
 		use std::collections::HashSet;
 
-		let loading: std::collections::HashSet<PathBuf> = self.state.pending_file_loads.keys().map(|p| crate::paths::fast_abs(p)).collect();
+		let loading: std::collections::HashSet<PathBuf> = self.state.async_state.pending_file_loads.keys().map(|p| crate::paths::fast_abs(p)).collect();
 
 		let mut seen_docs = HashSet::new();
-		for buffer_id in self.state.core.buffers.buffer_ids().collect::<Vec<_>>() {
-			let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
+		for buffer_id in self.state.core.editor.buffers.buffer_ids().collect::<Vec<_>>() {
+			let Some(buffer) = self.state.core.editor.buffers.get_buffer(buffer_id) else {
 				continue;
 			};
 			if !seen_docs.insert(buffer.document_id()) {
@@ -187,11 +189,11 @@ impl Editor {
 
 	#[cfg(feature = "lsp")]
 	pub(crate) fn maybe_track_lsp_for_buffer(&mut self, buffer_id: ViewId, reset: bool) {
-		if !self.state.lsp_catalog_ready {
+		if !self.state.config.lsp_catalog_ready {
 			return;
 		}
 
-		let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
+		let Some(buffer) = self.state.core.editor.buffers.get_buffer(buffer_id) else {
 			return;
 		};
 		let Some(path) = buffer.path() else {
@@ -200,13 +202,13 @@ impl Editor {
 		let Some(language) = buffer.file_type() else {
 			return;
 		};
-		if self.state.lsp.registry().get_config(&language).is_none() {
+		if self.state.integration.lsp.registry().get_config(&language).is_none() {
 			return;
 		}
 
 		let doc_id = buffer.document_id();
 		let version = buffer.with_doc(|doc| doc.version());
-		let supports_incremental = self.state.lsp.incremental_encoding_for_buffer(buffer).is_some();
+		let supports_incremental = self.state.integration.lsp.incremental_encoding_for_buffer(buffer).is_some();
 		let config = crate::lsp::sync_manager::LspDocumentConfig {
 			path: crate::paths::fast_abs(&path),
 			language,
@@ -214,9 +216,9 @@ impl Editor {
 		};
 
 		if reset {
-			self.state.lsp.sync_manager_mut().reset_tracked(doc_id, config, version);
+			self.state.integration.lsp.sync_manager_mut().reset_tracked(doc_id, config, version);
 		} else {
-			self.state.lsp.sync_manager_mut().ensure_tracked(doc_id, config, version);
+			self.state.integration.lsp.sync_manager_mut().ensure_tracked(doc_id, config, version);
 		}
 	}
 
@@ -230,7 +232,7 @@ impl Editor {
 	///
 	/// [`RenderCache`]: crate::render::cache::RenderCache
 	pub(crate) fn finalize_buffer_removal(&mut self, id: ViewId) {
-		let removed = self.state.core.buffers.remove_buffer_raw(id);
+		let removed = self.state.core.editor.buffers.remove_buffer_raw(id);
 		if let Some(buffer) = removed {
 			self.finalize_document_if_orphaned(buffer.document_id());
 		}
@@ -238,16 +240,16 @@ impl Editor {
 
 	/// Runs document-level cleanup when no views remain for a document.
 	pub(crate) fn finalize_document_if_orphaned(&mut self, doc_id: DocumentId) {
-		if self.state.core.buffers.any_buffer_for_doc(doc_id).is_some() {
+		if self.state.core.editor.buffers.any_buffer_for_doc(doc_id).is_some() {
 			return;
 		}
 
-		self.state.work_scheduler.cancel_doc(doc_id.0);
+		self.state.integration.work_scheduler.cancel_doc(doc_id.0);
 
 		#[cfg(feature = "lsp")]
-		self.state.lsp.sync_manager_mut().on_doc_close(doc_id);
+		self.state.integration.lsp.sync_manager_mut().on_doc_close(doc_id);
 
-		self.state.syntax_manager.on_document_close(doc_id);
-		self.state.render_cache.invalidate_document(doc_id);
+		self.state.integration.syntax_manager.on_document_close(doc_id);
+		self.state.ui.render_cache.invalidate_document(doc_id);
 	}
 }

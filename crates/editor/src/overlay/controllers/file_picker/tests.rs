@@ -127,14 +127,14 @@ fn tab_applies_selected_item_without_committing_picker() {
 
 	let input_view = editor
 		.state
-		.overlay_system
+		.ui.overlay_system
 		.interaction()
 		.active()
 		.map(|active| active.session.input)
 		.expect("file picker input should exist");
 
 	{
-		let input = editor.state.core.buffers.get_buffer_mut(input_view).expect("picker input buffer should exist");
+		let input = editor.state.core.editor.buffers.get_buffer_mut(input_view).expect("picker input buffer should exist");
 		input.reset_content("");
 		input.set_cursor_and_selection(0, Selection::point(0));
 	}
@@ -158,7 +158,7 @@ fn tab_applies_selected_item_without_committing_picker() {
 		.to_string();
 	assert_eq!(text, "src/main.rs");
 	assert!(editor.runtime_work_is_empty(), "tab completion should not commit queued commands");
-	assert!(editor.state.overlay_system.interaction().is_open(), "picker should stay open after Tab");
+	assert!(editor.state.ui.overlay_system.interaction().is_open(), "picker should stay open after Tab");
 }
 
 #[test]
@@ -169,14 +169,14 @@ fn tab_with_no_completion_does_not_insert_literal_tab() {
 
 	let input_view = editor
 		.state
-		.overlay_system
+		.ui.overlay_system
 		.interaction()
 		.active()
 		.map(|active| active.session.input)
 		.expect("file picker input should exist");
 
 	{
-		let input = editor.state.core.buffers.get_buffer_mut(input_view).expect("picker input buffer should exist");
+		let input = editor.state.core.editor.buffers.get_buffer_mut(input_view).expect("picker input buffer should exist");
 		input.reset_content("");
 		input.set_cursor_and_selection(0, Selection::point(0));
 	}
@@ -206,14 +206,14 @@ fn tab_cycles_to_next_completion_when_input_matches_active_selection() {
 
 	let input_view = editor
 		.state
-		.overlay_system
+		.ui.overlay_system
 		.interaction()
 		.active()
 		.map(|active| active.session.input)
 		.expect("file picker input should exist");
 
 	{
-		let input = editor.state.core.buffers.get_buffer_mut(input_view).expect("picker input buffer should exist");
+		let input = editor.state.core.editor.buffers.get_buffer_mut(input_view).expect("picker input buffer should exist");
 		input.reset_content("src/main.rs");
 		input.set_cursor_and_selection(11, Selection::point(11));
 	}

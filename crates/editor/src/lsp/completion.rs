@@ -51,7 +51,7 @@ impl Editor {
 			return;
 		}
 
-		let Some((client, uri, position)) = self.state.lsp.prepare_position_request(buffer).ok().flatten() else {
+		let Some((client, uri, position)) = self.state.integration.lsp.prepare_position_request(buffer).ok().flatten() else {
 			return;
 		};
 
@@ -76,7 +76,7 @@ impl Editor {
 			trigger_character: trigger_char.map(|c| c.to_string()),
 		};
 
-		self.state.lsp.trigger_completion(request);
+		self.state.integration.lsp.trigger_completion(request);
 	}
 
 	/// Refilters the active completion menu with the current query.
@@ -91,7 +91,7 @@ impl Editor {
 		let buffer_id = *buffer_id;
 		let items = items.clone();
 
-		let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
+		let Some(buffer) = self.state.core.editor.buffers.get_buffer(buffer_id) else {
 			return;
 		};
 
@@ -123,17 +123,17 @@ impl Editor {
 		completions.scroll_offset = 0;
 		completions.query = query;
 
-		self.state.frame.needs_redraw = true;
+		self.state.core.frame.needs_redraw = true;
 	}
 
 	pub(crate) async fn apply_completion_item(&mut self, buffer_id: ViewId, item: CompletionItem) {
 		let resolver = EditorSnippetResolver::new(self, buffer_id);
 		let (encoding, selection, cursor, rope, readonly) = {
-			let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
+			let Some(buffer) = self.state.core.editor.buffers.get_buffer(buffer_id) else {
 				return;
 			};
 			(
-				self.state.lsp.offset_encoding_for_buffer(buffer),
+				self.state.integration.lsp.offset_encoding_for_buffer(buffer),
 				buffer.selection.primary(),
 				buffer.cursor,
 				buffer.with_doc(|doc| doc.content().clone()),
@@ -223,7 +223,7 @@ impl Editor {
 		}
 
 		let new_cursor = mapped_start.saturating_add(insert_text.chars().count());
-		if let Some(buffer) = self.state.core.buffers.get_buffer_mut(buffer_id) {
+		if let Some(buffer) = self.state.core.editor.buffers.get_buffer_mut(buffer_id) {
 			buffer.set_cursor_and_selection(new_cursor, Selection::point(new_cursor));
 		}
 		if let Some(command) = command {

@@ -82,7 +82,7 @@ pub(crate) fn test_versioned_restore() {
 	let view = editor.focused_view();
 
 	{
-		let buffer = editor.state.core.buffers.get_buffer_mut(view).expect("focused buffer must exist");
+		let buffer = editor.state.core.editor.buffers.get_buffer_mut(view).expect("focused buffer must exist");
 		buffer.set_cursor_and_selection(0, Selection::single(0, 0));
 	}
 
@@ -99,14 +99,14 @@ pub(crate) fn test_versioned_restore() {
 	session.capture_view(&editor, view);
 
 	{
-		let buffer = editor.state.core.buffers.get_buffer_mut(view).expect("focused buffer must exist");
+		let buffer = editor.state.core.editor.buffers.get_buffer_mut(view).expect("focused buffer must exist");
 		buffer.reset_content("changed");
 		buffer.set_cursor_and_selection(3, Selection::single(3, 3));
 	}
 
 	session.restore_all(&mut editor);
 
-	let buffer = editor.state.core.buffers.get_buffer(view).expect("focused buffer must exist");
+	let buffer = editor.state.core.editor.buffers.get_buffer(view).expect("focused buffer must exist");
 	assert_eq!(buffer.cursor, 3);
 	assert_eq!(buffer.selection, Selection::single(3, 3));
 }
@@ -121,7 +121,7 @@ pub(crate) fn test_exclusive_modal() {
 	editor.handle_window_resize(100, 40);
 
 	assert!(editor.open_command_palette());
-	assert!(editor.state.overlay_system.interaction().is_open());
+	assert!(editor.state.ui.overlay_system.interaction().is_open());
 	assert!(!editor.open_command_palette());
 }
 
@@ -166,8 +166,8 @@ pub(crate) fn test_rect_policy_clamps_to_screen() {
 #[cfg_attr(test, test)]
 pub(crate) fn test_session_teardown_finalizes_buffers() {
 	let mut editor = crate::Editor::new_scratch();
-	let b1 = editor.state.core.buffers.create_scratch();
-	let b2 = editor.state.core.buffers.create_scratch();
+	let b1 = editor.state.core.editor.buffers.create_scratch();
+	let b2 = editor.state.core.editor.buffers.create_scratch();
 	let view = editor.focused_view();
 
 	let mut session = OverlaySession {
@@ -184,8 +184,8 @@ pub(crate) fn test_session_teardown_finalizes_buffers() {
 	session.teardown(&mut editor);
 
 	assert!(session.buffers.is_empty());
-	assert!(editor.state.core.buffers.get_buffer(b1).is_none());
-	assert!(editor.state.core.buffers.get_buffer(b2).is_none());
+	assert!(editor.state.core.editor.buffers.get_buffer(b1).is_none());
+	assert!(editor.state.core.editor.buffers.get_buffer(b2).is_none());
 }
 
 /// Must reflow modal overlay panes on viewport resize.
@@ -200,7 +200,7 @@ pub(crate) fn test_modal_reflow_on_resize() {
 
 	let before = editor
 		.state
-		.overlay_system
+		.ui.overlay_system
 		.interaction()
 		.active()
 		.and_then(|active| active.session.panes.first())
@@ -211,7 +211,7 @@ pub(crate) fn test_modal_reflow_on_resize() {
 
 	let after = editor
 		.state
-		.overlay_system
+		.ui.overlay_system
 		.interaction()
 		.active()
 		.and_then(|active| active.session.panes.first())
@@ -232,11 +232,11 @@ pub(crate) fn test_modal_reflow_clears_unresolved_aux_panes() {
 	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(100, 40);
 
-	let mut interaction = editor.state.overlay_system.take_interaction();
+	let mut interaction = editor.state.ui.overlay_system.take_interaction();
 	assert!(interaction.open(&mut editor, Box::new(ReflowTestOverlay)));
-	editor.state.overlay_system.restore_interaction(interaction);
+	editor.state.ui.overlay_system.restore_interaction(interaction);
 
-	let active = editor.state.overlay_system.interaction().active().expect("overlay should be open");
+	let active = editor.state.ui.overlay_system.interaction().active().expect("overlay should be open");
 	let input_rect = active
 		.session
 		.panes
@@ -256,7 +256,7 @@ pub(crate) fn test_modal_reflow_clears_unresolved_aux_panes() {
 
 	editor.handle_window_resize(100, 2);
 
-	let active = editor.state.overlay_system.interaction().active().expect("overlay should remain open");
+	let active = editor.state.ui.overlay_system.interaction().active().expect("overlay should remain open");
 	let input_rect = active
 		.session
 		.panes
@@ -288,15 +288,15 @@ pub(crate) fn test_forced_close_restores_origin_focus() {
 
 	let origin_focus = editor
 		.state
-		.overlay_system
+		.ui.overlay_system
 		.interaction()
 		.active()
 		.map(|active| active.session.origin_focus.clone())
 		.expect("overlay should be open");
 
-	let mut interaction = editor.state.overlay_system.take_interaction();
+	let mut interaction = editor.state.ui.overlay_system.take_interaction();
 	interaction.close(&mut editor, CloseReason::Forced);
-	editor.state.overlay_system.restore_interaction(interaction);
+	editor.state.ui.overlay_system.restore_interaction(interaction);
 
 	assert_eq!(*editor.focus(), origin_focus);
 }
@@ -310,12 +310,12 @@ pub(crate) fn test_modal_ui_keeps_single_base_window() {
 	let mut editor = crate::Editor::new_scratch();
 	editor.handle_window_resize(100, 40);
 
-	assert_eq!(editor.state.windows.windows().count(), 1);
+	assert_eq!(editor.state.core.windows.windows().count(), 1);
 	assert!(editor.open_command_palette());
-	assert_eq!(editor.state.windows.windows().count(), 1);
+	assert_eq!(editor.state.core.windows.windows().count(), 1);
 
 	editor.interaction_cancel();
-	assert_eq!(editor.state.windows.windows().count(), 1);
+	assert_eq!(editor.state.core.windows.windows().count(), 1);
 }
 
 /// Must assign virtual-buffer identity metadata for every allocated session pane.
@@ -328,7 +328,7 @@ pub(crate) fn test_overlay_session_panes_receive_virtual_identity() {
 	editor.handle_window_resize(120, 40);
 
 	assert!(editor.open_command_palette());
-	let active = editor.state.overlay_system.interaction().active().expect("overlay should be active");
+	let active = editor.state.ui.overlay_system.interaction().active().expect("overlay should be active");
 	let input = active
 		.session
 		.panes
@@ -380,15 +380,15 @@ fn key_enter() -> Key {
 }
 
 fn with_interaction(editor: &mut crate::Editor, f: impl FnOnce(&mut crate::overlay::OverlayManager, &mut crate::Editor)) {
-	let mut interaction = editor.state.overlay_system.take_interaction();
+	let mut interaction = editor.state.ui.overlay_system.take_interaction();
 	f(&mut interaction, editor);
-	editor.state.overlay_system.restore_interaction(interaction);
+	editor.state.ui.overlay_system.restore_interaction(interaction);
 }
 
 fn palette_input_view(editor: &crate::Editor) -> crate::ViewId {
 	editor
 		.state
-		.overlay_system
+		.ui.overlay_system
 		.interaction()
 		.active()
 		.map(|active| active.session.input)
@@ -397,7 +397,7 @@ fn palette_input_view(editor: &crate::Editor) -> crate::ViewId {
 
 fn palette_set_input(editor: &mut crate::Editor, text: &str, cursor: usize) {
 	let input = palette_input_view(editor);
-	let buffer = editor.state.core.buffers.get_buffer_mut(input).expect("palette input buffer should exist");
+	let buffer = editor.state.core.editor.buffers.get_buffer_mut(input).expect("palette input buffer should exist");
 	buffer.reset_content(text);
 	buffer.set_cursor_and_selection(cursor, Selection::point(cursor));
 	with_interaction(editor, |interaction, ed| {
@@ -615,7 +615,7 @@ pub(crate) fn test_palette_enter_promotes_required_arg_command_completion() {
 	let _ = futures::executor::block_on(editor.handle_key(key_enter()));
 
 	assert_eq!(palette_input_text(&editor), "theme ");
-	assert!(editor.state.overlay_system.interaction().is_open(), "enter completion should keep palette open");
+	assert!(editor.state.ui.overlay_system.interaction().is_open(), "enter completion should keep palette open");
 	assert!(!editor.has_runtime_overlay_commit_work(), "enter completion should not schedule commit");
 	assert!(drain_queued_commands(&mut editor).is_empty(), "enter completion should not queue commands");
 }
@@ -634,7 +634,7 @@ pub(crate) fn test_palette_enter_promotes_exact_required_arg_command_completion(
 	let _ = futures::executor::block_on(editor.handle_key(key_enter()));
 
 	assert_eq!(palette_input_text(&editor), "theme ");
-	assert!(editor.state.overlay_system.interaction().is_open(), "enter completion should keep palette open");
+	assert!(editor.state.ui.overlay_system.interaction().is_open(), "enter completion should keep palette open");
 	assert!(!editor.has_runtime_overlay_commit_work(), "enter completion should not schedule commit");
 	assert!(drain_queued_commands(&mut editor).is_empty(), "enter completion should not queue commands");
 }

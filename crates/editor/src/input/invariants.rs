@@ -28,7 +28,7 @@ fn mouse_release(col: u16, row: u16) -> MouseEvent {
 
 fn first_separator_cell(editor: &Editor) -> (u16, u16) {
 	let doc_area = editor.doc_area();
-	let separator_positions = editor.state.layout.separator_positions(&editor.base_window().layout, doc_area);
+	let separator_positions = editor.state.core.layout.separator_positions(&editor.base_window().layout, doc_area);
 	let (_, _, rect) = separator_positions.into_iter().next().expect("layout should expose at least one separator");
 	(rect.x, rect.y)
 }
@@ -116,16 +116,16 @@ async fn test_active_drag_precedes_selection_release_route() {
 
 	let (sep_x, sep_y) = first_separator_cell(&editor);
 	let _ = editor.handle_mouse(mouse_press(sep_x, sep_y)).await;
-	assert!(editor.state.layout.drag_state().is_some());
+	assert!(editor.state.core.layout.drag_state().is_some());
 
 	let origin_view = editor.focused_view();
 	let origin_area = editor.view_area(origin_view);
-	editor.state.layout.text_selection_origin = Some((origin_view, origin_area));
+	editor.state.core.layout.text_selection_origin = Some((origin_view, origin_area));
 
 	let _ = editor.handle_mouse(mouse_release(sep_x, sep_y)).await;
 
-	assert!(editor.state.layout.drag_state().is_none());
-	assert_eq!(editor.state.layout.text_selection_origin.map(|(view, _)| view), Some(origin_view));
+	assert!(editor.state.core.layout.drag_state().is_none());
+	assert_eq!(editor.state.core.layout.text_selection_origin.map(|(view, _)| view), Some(origin_view));
 }
 
 /// Must route overlay hits before separator/view routing.
@@ -141,7 +141,7 @@ async fn test_overlay_hit_precedes_separator_and_view_routing() {
 
 	let pane = editor
 		.state
-		.overlay_system
+		.ui.overlay_system
 		.interaction()
 		.active()
 		.and_then(|active| active.session.panes.first())
@@ -149,7 +149,7 @@ async fn test_overlay_hit_precedes_separator_and_view_routing() {
 
 	let _ = editor.handle_mouse(mouse_press(pane.rect.x, pane.rect.y)).await;
 
-	assert!(editor.state.overlay_system.interaction().is_open());
+	assert!(editor.state.ui.overlay_system.interaction().is_open());
 	assert!(matches!(editor.focus(), FocusTarget::Overlay { .. }));
 }
 
@@ -164,7 +164,7 @@ async fn test_text_selection_drag_stays_in_origin_view() {
 	editor.split_vertical_with_clone().expect("split should succeed");
 
 	let doc_area = editor.doc_area();
-	let mut view_areas = editor.state.layout.compute_view_areas(&editor.base_window().layout, doc_area);
+	let mut view_areas = editor.state.core.layout.compute_view_areas(&editor.base_window().layout, doc_area);
 	view_areas.sort_by_key(|(_, area)| area.x);
 	let (left_view, left_area) = view_areas.first().copied().expect("left view should exist");
 	let (_right_view, right_area) = view_areas.get(1).copied().expect("right view should exist");
@@ -173,13 +173,13 @@ async fn test_text_selection_drag_stays_in_origin_view() {
 	let press_x = left_area.x.saturating_add(1);
 	let press_y = left_area.y.saturating_add(1);
 	let _ = editor.handle_mouse(mouse_press(press_x, press_y)).await;
-	assert_eq!(editor.state.layout.text_selection_origin.map(|(view, _)| view), Some(left_view));
+	assert_eq!(editor.state.core.layout.text_selection_origin.map(|(view, _)| view), Some(left_view));
 
 	let drag_x = right_area.x.saturating_add(1);
 	let drag_y = right_area.y.saturating_add(1);
 	let _ = editor.handle_mouse(mouse_drag(drag_x, drag_y)).await;
 
-	assert_eq!(editor.state.layout.text_selection_origin.map(|(view, _)| view), Some(left_view));
+	assert_eq!(editor.state.core.layout.text_selection_origin.map(|(view, _)| view), Some(left_view));
 	assert!(matches!(
 		editor.focus(),
 		FocusTarget::Buffer {
@@ -201,7 +201,7 @@ async fn test_stale_drag_cancels_before_resize() {
 
 	let (sep_x, sep_y) = first_separator_cell(&editor);
 	let _ = editor.handle_mouse(mouse_press(sep_x, sep_y)).await;
-	assert!(editor.state.layout.drag_state().is_some());
+	assert!(editor.state.core.layout.drag_state().is_some());
 
 	editor
 		.split_horizontal_with_clone()
@@ -209,5 +209,5 @@ async fn test_stale_drag_cancels_before_resize() {
 
 	let _ = editor.handle_mouse(mouse_drag(sep_x, sep_y)).await;
 
-	assert!(editor.state.layout.drag_state().is_none());
+	assert!(editor.state.core.layout.drag_state().is_none());
 }

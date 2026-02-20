@@ -153,44 +153,77 @@ pub(crate) struct EffectiveKeymapCache {
 /// latest load request for that path.
 pub(crate) type PendingFileLoads = std::collections::HashMap<PathBuf, u64>;
 
-pub(crate) struct EditorState {
+pub(crate) struct CoreStateBundle {
 	/// Core editing state: buffers, workspace, undo history.
-	///
-	/// Contains essential state for text editing operations. UI, layout,
-	/// and presentation concerns are kept separate in other Editor fields.
-	pub(crate) core: EditorCore,
-
+	pub(crate) editor: EditorCore,
 	/// Window management (base).
 	pub(crate) windows: WindowManager,
-
 	/// Current keyboard focus target.
 	pub(crate) focus: focus::FocusTarget,
-
 	/// Focus epoch - incremented on every focus or structural change.
-	///
-	/// Used by async tasks to detect stale view references.
 	pub(crate) focus_epoch: focus::FocusEpoch,
-
 	/// Layout and split management.
 	pub(crate) layout: LayoutManager,
-
 	/// Terminal viewport dimensions.
 	pub(crate) viewport: Viewport,
-
-	/// UI manager (panels, dock, etc.).
-	pub(crate) ui: UiManager,
-
 	/// Per-frame runtime state (redraw flags, dirty buffers, etc.).
 	pub(crate) frame: FrameState,
+}
+
+impl std::ops::Deref for CoreStateBundle {
+	type Target = EditorCore;
+
+	fn deref(&self) -> &Self::Target {
+		&self.editor
+	}
+}
+
+impl std::ops::DerefMut for CoreStateBundle {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+		&mut self.editor
+	}
+}
+
+pub(crate) struct RuntimeStateBundle {
 	/// Runtime-owned deferred work queue drained by runtime pump phases.
 	runtime_work_queue: RuntimeWorkQueue,
 	/// Runtime event coordinator queues and directive buffer.
 	runtime_kernel: RuntimeKernel,
 	/// Active runtime cause propagated while draining one causal chain.
 	runtime_active_cause_id: Option<RuntimeCauseId>,
-	/// Shared worker runtime root for editor-owned async/background tasks.
-	pub(crate) worker_runtime: WorkerRuntime,
+	/// Unified side-effect routing and sink.
+	pub(crate) effects: crate::effects::sink::EffectSink,
+	/// Recursion depth for side-effect flushing.
+	pub(crate) flush_depth: usize,
+	/// Session recorder for replay-based integration testing.
+	pub(crate) recorder: Option<crate::runtime::recorder::EventRecorder>,
+}
 
+pub(crate) struct IntegrationStateBundle {
+	/// Nu runtime/executor lifecycle and hook/macro orchestration state.
+	pub(crate) nu: crate::nu::coordinator::NuCoordinatorState,
+	/// LSP system (real or no-op depending on feature flags).
+	pub(crate) lsp: LspSystem,
+	/// Background syntax loading manager.
+	pub(crate) syntax_manager: xeno_syntax::SyntaxManager,
+	/// Unified async work scheduler (hooks, LSP, indexing, watchers).
+	pub(crate) work_scheduler: WorkScheduler,
+	/// Background filesystem indexing and picker state.
+	pub(crate) filesystem: crate::filesystem::FsService,
+}
+
+pub(crate) struct UiStateBundle {
+	/// UI manager (panels, dock, etc.).
+	pub(crate) ui: UiManager,
+	/// Unified overlay system for modal interactions and passive layers.
+	pub(crate) overlay_system: OverlaySystem,
+	/// Notification system.
+	pub(crate) notifications: crate::notifications::NotificationCenter,
+	/// Render cache for efficient viewport rendering.
+	pub(crate) render_cache: crate::render::cache::RenderCache,
+}
+
+pub(crate) struct ConfigStateBundle {
 	/// Editor configuration (theme, languages, options).
 	pub(crate) config: Config,
 	/// User keybinding overrides loaded from config files.
@@ -205,78 +238,69 @@ pub(crate) struct EditorState {
 	pub(crate) keymap_initial_mode: xeno_primitives::Mode,
 	/// Cached effective keymap index for the current catalog version and overrides.
 	pub(crate) keymap_cache: Mutex<Option<EffectiveKeymapCache>>,
-	/// Nu runtime/executor lifecycle and hook/macro orchestration state.
-	pub(crate) nu: crate::nu::coordinator::NuCoordinatorState,
+	/// Whether the asynchronous LSP catalog load has been applied.
+	pub(crate) lsp_catalog_ready: bool,
+}
 
-	/// Notification system.
-	pub(crate) notifications: crate::notifications::NotificationCenter,
+impl std::ops::Deref for ConfigStateBundle {
+	type Target = Config;
 
-	/// LSP system (real or no-op depending on feature flags).
-	pub(crate) lsp: LspSystem,
+	fn deref(&self) -> &Self::Target {
+		&self.config
+	}
+}
 
-	/// Background syntax loading manager.
-	pub(crate) syntax_manager: xeno_syntax::SyntaxManager,
+impl std::ops::DerefMut for ConfigStateBundle {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+		&mut self.config
+	}
+}
 
-	/// Unified async work scheduler (hooks, LSP, indexing, watchers).
-	pub(crate) work_scheduler: WorkScheduler,
-
-	/// Unified overlay system for modal interactions and passive layers.
-	pub(crate) overlay_system: OverlaySystem,
-
-	/// Unified side-effect routing and sink.
-	pub(crate) effects: crate::effects::sink::EffectSink,
-
-	/// Recursion depth for side-effect flushing.
-	pub(crate) flush_depth: usize,
-
-	/// Runtime metrics for observability.
-	pub(crate) metrics: std::sync::Arc<crate::metrics::EditorMetrics>,
-
+pub(crate) struct AsyncStateBundle {
+	/// Shared worker runtime root for editor-owned async/background tasks.
+	pub(crate) worker_runtime: WorkerRuntime,
 	/// Message sender for background tasks.
 	pub(crate) msg_tx: MsgSender,
 	/// Message receiver for main loop drain.
 	pub(crate) msg_rx: MsgReceiver,
-
 	/// Pending background file loads, keyed by path, with latest-wins tokens.
 	pub(crate) pending_file_loads: PendingFileLoads,
 	/// Monotonic token counter for file load requests.
 	pub(crate) file_load_token_next: u64,
-
 	/// Token for the latest theme load request (latest-wins gating).
 	pub(crate) pending_theme_load_token: Option<u64>,
 	/// Monotonic token counter for theme load requests.
 	pub(crate) theme_load_token_next: u64,
-
 	/// Token for the latest LSP catalog load request (latest-wins gating).
 	pub(crate) pending_lsp_catalog_load_token: Option<u64>,
 	/// Monotonic token counter for LSP catalog load requests.
 	#[cfg(feature = "lsp")]
 	pub(crate) lsp_catalog_load_token_next: u64,
-
 	/// Token for the in-flight rename request (latest-wins gating).
 	#[cfg(feature = "lsp")]
 	pub(crate) pending_rename_token: Option<u64>,
 	/// Monotonic token counter for rename requests.
 	#[cfg(feature = "lsp")]
 	pub(crate) rename_request_token_next: u64,
-
 	/// Deferred cursor position to apply after file loads (line, column).
 	pub(crate) deferred_goto: Option<(usize, usize)>,
+}
 
-	/// Whether the asynchronous LSP catalog load has been applied.
-	pub(crate) lsp_catalog_ready: bool,
-
-	/// Render cache for efficient viewport rendering.
-	pub(crate) render_cache: crate::render::cache::RenderCache,
-
+pub(crate) struct TelemetryStateBundle {
+	/// Runtime metrics for observability.
+	pub(crate) metrics: std::sync::Arc<crate::metrics::EditorMetrics>,
 	/// Command usage tracking for command palette ranking.
 	pub(crate) command_usage: crate::completion::CommandPaletteUsage,
+}
 
-	/// Background filesystem indexing and picker state.
-	pub(crate) filesystem: crate::filesystem::FsService,
-
-	/// Session recorder for replay-based integration testing.
-	pub(crate) recorder: Option<crate::runtime::recorder::EventRecorder>,
+pub(crate) struct EditorState {
+	pub(crate) core: CoreStateBundle,
+	pub(crate) runtime: RuntimeStateBundle,
+	pub(crate) integration: IntegrationStateBundle,
+	pub(crate) ui: UiStateBundle,
+	pub(crate) config: ConfigStateBundle,
+	pub(crate) async_state: AsyncStateBundle,
+	pub(crate) telemetry: TelemetryStateBundle,
 }
 
 pub struct Editor {
@@ -286,32 +310,32 @@ pub struct Editor {
 impl EditorState {
 	#[inline]
 	pub(crate) fn runtime_work_queue(&self) -> &RuntimeWorkQueue {
-		&self.runtime_work_queue
+		&self.runtime.runtime_work_queue
 	}
 
 	#[inline]
 	pub(crate) fn runtime_work_queue_mut(&mut self) -> &mut RuntimeWorkQueue {
-		&mut self.runtime_work_queue
+		&mut self.runtime.runtime_work_queue
 	}
 
 	#[inline]
 	pub(crate) fn runtime_kernel(&self) -> &RuntimeKernel {
-		&self.runtime_kernel
+		&self.runtime.runtime_kernel
 	}
 
 	#[inline]
 	pub(crate) fn runtime_kernel_mut(&mut self) -> &mut RuntimeKernel {
-		&mut self.runtime_kernel
+		&mut self.runtime.runtime_kernel
 	}
 
 	#[inline]
 	pub(crate) fn runtime_active_cause_id(&self) -> Option<RuntimeCauseId> {
-		self.runtime_active_cause_id
+		self.runtime.runtime_active_cause_id
 	}
 
 	#[inline]
 	pub(crate) fn set_runtime_active_cause_id(&mut self, cause_id: Option<RuntimeCauseId>) {
-		self.runtime_active_cause_id = cause_id;
+		self.runtime.runtime_active_cause_id = cause_id;
 	}
 }
 
@@ -354,16 +378,16 @@ impl Editor {
 	/// [`kick_file_load`]: Self::kick_file_load
 	pub fn new_with_path(path: PathBuf) -> Self {
 		let mut editor = Self::from_content(String::new(), Some(path.clone()));
-		let token = editor.state.file_load_token_next;
-		editor.state.file_load_token_next += 1;
-		editor.state.pending_file_loads.insert(path.clone(), token);
+		let token = editor.state.async_state.file_load_token_next;
+		editor.state.async_state.file_load_token_next += 1;
+		editor.state.async_state.pending_file_loads.insert(path.clone(), token);
 		editor.kick_file_load(path, token);
 		editor
 	}
 
 	/// Sets a deferred goto position to apply after file finishes loading.
 	pub fn set_deferred_goto(&mut self, line: usize, column: usize) {
-		self.state.deferred_goto = Some((line, column));
+		self.state.async_state.deferred_goto = Some((line, column));
 	}
 
 	/// Creates a new editor by loading content from the given file path.
@@ -399,13 +423,24 @@ impl Editor {
 		log_registry_summary_once();
 
 		let (msg_tx, msg_rx) = crate::msg::channel();
+		let worker_runtime = WorkerRuntime::new();
+		let (core, work_scheduler, language_loader) = Self::bootstrap_core(content, path);
+		let runtime = Self::bootstrap_runtime();
+		let integration = Self::bootstrap_integrations(&worker_runtime, work_scheduler);
+		let ui = Self::bootstrap_ui();
+		let config = Self::bootstrap_config(language_loader);
+		let async_state = Self::bootstrap_async(worker_runtime, msg_tx, msg_rx);
+		let telemetry = Self::bootstrap_telemetry();
+		let state = Self::assemble_editor_state(core, runtime, integration, ui, config, async_state, telemetry);
 
-		// Initialize language loader from embedded languages.nuon
+		Self { state }
+	}
+
+	fn bootstrap_core(content: String, path: Option<PathBuf>) -> (CoreStateBundle, WorkScheduler, LanguageLoader) {
 		let language_loader = LanguageLoader::from_embedded();
 
-		// Create buffer manager with initial buffer
 		let view_manager = ViewManager::new(content, path.clone(), &language_loader);
-		let buffer_id = ViewId(1); // Known initial ID
+		let buffer_id = ViewId(1);
 		let window_manager = WindowManager::new(Layout::text(buffer_id), buffer_id);
 		let focus = focus::FocusTarget::Buffer {
 			window: window_manager.base_id(),
@@ -426,7 +461,6 @@ impl Editor {
 		let hook_path = path.as_ref().unwrap_or(&scratch_path);
 		let buffer = view_manager.get_buffer(buffer_id).expect("initial buffer exists");
 		let content = buffer.with_doc(|doc| doc.content().clone());
-
 		emit_hook_sync_with(
 			&HookContext::new(HookEventData::BufferOpen {
 				path: hook_path,
@@ -436,94 +470,140 @@ impl Editor {
 			&mut work_scheduler,
 		);
 
-		// Create EditorCore with buffers, workspace, and undo manager
-		let core = EditorCore::new(view_manager, Workspace::default(), UndoManager::new());
-		let worker_runtime = WorkerRuntime::new();
+		let core = CoreStateBundle {
+			editor: EditorCore::new(view_manager, Workspace::default(), UndoManager::new()),
+			windows: window_manager,
+			focus,
+			focus_epoch: focus::FocusEpoch::initial(),
+			layout: LayoutManager::new(),
+			viewport: Viewport::default(),
+			frame: FrameState::default(),
+		};
 
-		Self {
-			state: EditorState {
-				core,
-				windows: window_manager,
-				focus,
-				focus_epoch: focus::FocusEpoch::initial(),
-				layout: LayoutManager::new(),
-				viewport: Viewport::default(),
-				ui: UiManager::new(),
-				frame: FrameState::default(),
-				runtime_work_queue: RuntimeWorkQueue::default(),
-				runtime_kernel: RuntimeKernel::default(),
-				runtime_active_cause_id: None,
-				worker_runtime: worker_runtime.clone(),
-				config: Config::new(language_loader),
-				key_overrides: None,
-				keymap_preset_spec: xeno_registry::keymaps::DEFAULT_PRESET.to_string(),
-				keymap_preset: xeno_registry::keymaps::preset(xeno_registry::keymaps::DEFAULT_PRESET).unwrap_or_else(|| {
-					std::sync::Arc::new(xeno_registry::keymaps::KeymapPreset {
-						name: std::sync::Arc::from("vim"),
-						initial_mode: xeno_primitives::Mode::Normal,
-						behavior: xeno_registry::keymaps::KeymapBehavior::default(),
-						bindings: Vec::new(),
-						prefixes: Vec::new(),
-					})
-				}),
-				keymap_behavior: xeno_registry::keymaps::KeymapBehavior::default(),
-				keymap_initial_mode: xeno_primitives::Mode::Normal,
-				keymap_cache: Mutex::new(None),
-				nu: crate::nu::coordinator::NuCoordinatorState::new_with_runtime(worker_runtime.clone()),
-				notifications: crate::notifications::NotificationCenter::new(),
-				lsp: LspSystem::new(worker_runtime.clone()),
-				syntax_manager: xeno_syntax::SyntaxManager::new_with_runtime(
-					xeno_syntax::SyntaxManagerCfg {
-						max_concurrency: 2,
-						..Default::default()
-					},
-					worker_runtime.clone(),
-				),
-				work_scheduler,
-				overlay_system: OverlaySystem::default(),
-				effects: crate::effects::sink::EffectSink::default(),
-				flush_depth: 0,
-				metrics: std::sync::Arc::new(crate::metrics::EditorMetrics::new()),
-				msg_tx,
-				msg_rx,
-				pending_file_loads: PendingFileLoads::default(),
-				file_load_token_next: 0,
-				pending_theme_load_token: None,
-				theme_load_token_next: 0,
-				pending_lsp_catalog_load_token: None,
-				#[cfg(feature = "lsp")]
-				lsp_catalog_load_token_next: 0,
-				#[cfg(feature = "lsp")]
-				pending_rename_token: None,
-				#[cfg(feature = "lsp")]
-				rename_request_token_next: 0,
-				deferred_goto: None,
-				lsp_catalog_ready: false,
-				render_cache: crate::render::cache::RenderCache::new(),
-				command_usage: crate::completion::CommandPaletteUsage::default(),
-				filesystem: crate::filesystem::FsService::new_with_runtime(worker_runtime),
-				recorder: crate::runtime::recorder::EventRecorder::from_env(),
-			},
+		(core, work_scheduler, language_loader)
+	}
+
+	fn bootstrap_runtime() -> RuntimeStateBundle {
+		RuntimeStateBundle {
+			runtime_work_queue: RuntimeWorkQueue::default(),
+			runtime_kernel: RuntimeKernel::default(),
+			runtime_active_cause_id: None,
+			effects: crate::effects::sink::EffectSink::default(),
+			flush_depth: 0,
+			recorder: crate::runtime::recorder::EventRecorder::from_env(),
+		}
+	}
+
+	fn bootstrap_integrations(worker_runtime: &WorkerRuntime, work_scheduler: WorkScheduler) -> IntegrationStateBundle {
+		IntegrationStateBundle {
+			nu: crate::nu::coordinator::NuCoordinatorState::new_with_runtime(worker_runtime.clone()),
+			lsp: LspSystem::new(worker_runtime.clone()),
+			syntax_manager: xeno_syntax::SyntaxManager::new_with_runtime(
+				xeno_syntax::SyntaxManagerCfg {
+					max_concurrency: 2,
+					..Default::default()
+				},
+				worker_runtime.clone(),
+			),
+			work_scheduler,
+			filesystem: crate::filesystem::FsService::new_with_runtime(worker_runtime.clone()),
+		}
+	}
+
+	fn bootstrap_ui() -> UiStateBundle {
+		UiStateBundle {
+			ui: UiManager::new(),
+			overlay_system: OverlaySystem::default(),
+			notifications: crate::notifications::NotificationCenter::new(),
+			render_cache: crate::render::cache::RenderCache::new(),
+		}
+	}
+
+	fn bootstrap_config(language_loader: LanguageLoader) -> ConfigStateBundle {
+		ConfigStateBundle {
+			config: Config::new(language_loader),
+			key_overrides: None,
+			keymap_preset_spec: xeno_registry::keymaps::DEFAULT_PRESET.to_string(),
+			keymap_preset: xeno_registry::keymaps::preset(xeno_registry::keymaps::DEFAULT_PRESET).unwrap_or_else(|| {
+				std::sync::Arc::new(xeno_registry::keymaps::KeymapPreset {
+					name: std::sync::Arc::from("vim"),
+					initial_mode: xeno_primitives::Mode::Normal,
+					behavior: xeno_registry::keymaps::KeymapBehavior::default(),
+					bindings: Vec::new(),
+					prefixes: Vec::new(),
+				})
+			}),
+			keymap_behavior: xeno_registry::keymaps::KeymapBehavior::default(),
+			keymap_initial_mode: xeno_primitives::Mode::Normal,
+			keymap_cache: Mutex::new(None),
+			lsp_catalog_ready: false,
+		}
+	}
+
+	fn bootstrap_async(worker_runtime: WorkerRuntime, msg_tx: MsgSender, msg_rx: MsgReceiver) -> AsyncStateBundle {
+		AsyncStateBundle {
+			worker_runtime,
+			msg_tx,
+			msg_rx,
+			pending_file_loads: PendingFileLoads::default(),
+			file_load_token_next: 0,
+			pending_theme_load_token: None,
+			theme_load_token_next: 0,
+			pending_lsp_catalog_load_token: None,
+			#[cfg(feature = "lsp")]
+			lsp_catalog_load_token_next: 0,
+			#[cfg(feature = "lsp")]
+			pending_rename_token: None,
+			#[cfg(feature = "lsp")]
+			rename_request_token_next: 0,
+			deferred_goto: None,
+		}
+	}
+
+	fn bootstrap_telemetry() -> TelemetryStateBundle {
+		TelemetryStateBundle {
+			metrics: std::sync::Arc::new(crate::metrics::EditorMetrics::new()),
+			command_usage: crate::completion::CommandPaletteUsage::default(),
+		}
+	}
+
+	fn assemble_editor_state(
+		core: CoreStateBundle,
+		runtime: RuntimeStateBundle,
+		integration: IntegrationStateBundle,
+		ui: UiStateBundle,
+		config: ConfigStateBundle,
+		async_state: AsyncStateBundle,
+		telemetry: TelemetryStateBundle,
+	) -> EditorState {
+		EditorState {
+			core,
+			runtime,
+			integration,
+			ui,
+			config,
+			async_state,
+			telemetry,
 		}
 	}
 
 	/// Configure a language server.
 	pub fn configure_language_server(&mut self, _language: impl Into<String>, _config: crate::lsp::api::LanguageServerConfig) {
 		#[cfg(feature = "lsp")]
-		self.state.lsp.configure_server(_language, _config);
+		self.state.integration.lsp.configure_server(_language, _config);
 	}
 
 	/// Removes a language server configuration.
 	pub fn remove_language_server(&mut self, _language: &str) {
 		#[cfg(feature = "lsp")]
-		self.state.lsp.remove_server(_language);
+		self.state.integration.lsp.remove_server(_language);
 	}
 
 	/// Returns total error count across all buffers.
 	pub fn total_error_count(&self) -> usize {
 		#[cfg(feature = "lsp")]
 		{
-			self.state.lsp.total_error_count()
+			self.state.integration.lsp.total_error_count()
 		}
 		#[cfg(not(feature = "lsp"))]
 		{
@@ -535,7 +615,7 @@ impl Editor {
 	pub fn total_warning_count(&self) -> usize {
 		#[cfg(feature = "lsp")]
 		{
-			self.state.lsp.total_warning_count()
+			self.state.integration.lsp.total_warning_count()
 		}
 		#[cfg(not(feature = "lsp"))]
 		{
@@ -547,7 +627,7 @@ impl Editor {
 	pub fn error_count(&self, _buffer: &Buffer) -> usize {
 		#[cfg(feature = "lsp")]
 		{
-			self.state.lsp.error_count(_buffer)
+			self.state.integration.lsp.error_count(_buffer)
 		}
 		#[cfg(not(feature = "lsp"))]
 		{
@@ -559,7 +639,7 @@ impl Editor {
 	pub fn warning_count(&self, _buffer: &Buffer) -> usize {
 		#[cfg(feature = "lsp")]
 		{
-			self.state.lsp.warning_count(_buffer)
+			self.state.integration.lsp.warning_count(_buffer)
 		}
 		#[cfg(not(feature = "lsp"))]
 		{
@@ -571,7 +651,7 @@ impl Editor {
 	pub fn get_diagnostics(&self, _buffer: &Buffer) -> Vec<crate::lsp::api::Diagnostic> {
 		#[cfg(feature = "lsp")]
 		{
-			self.state.lsp.get_diagnostics(_buffer)
+			self.state.integration.lsp.get_diagnostics(_buffer)
 		}
 		#[cfg(not(feature = "lsp"))]
 		{
@@ -582,13 +662,13 @@ impl Editor {
 	/// Shuts down all language servers.
 	pub async fn shutdown_lsp(&self) {
 		#[cfg(feature = "lsp")]
-		self.state.lsp.shutdown_all().await;
+		self.state.integration.lsp.shutdown_all().await;
 	}
 
 	/// Shuts down filesystem indexing/search actors with a bounded graceful timeout.
 	pub async fn shutdown_filesystem(&self) {
 		let timeout = std::time::Duration::from_millis(250);
-		let report = self.state.filesystem.shutdown(xeno_worker::ActorShutdownMode::Graceful { timeout }).await;
+		let report = self.state.integration.filesystem.shutdown(xeno_worker::ActorShutdownMode::Graceful { timeout }).await;
 		if report.service.timed_out || report.indexer.timed_out || report.search.timed_out {
 			tracing::warn!(
 				service_timed_out = report.service.timed_out,
@@ -596,18 +676,18 @@ impl Editor {
 				search_timed_out = report.search.timed_out,
 				"filesystem graceful shutdown timed out; forcing immediate"
 			);
-			let _ = self.state.filesystem.shutdown(xeno_worker::ActorShutdownMode::Immediate).await;
+			let _ = self.state.integration.filesystem.shutdown(xeno_worker::ActorShutdownMode::Immediate).await;
 		}
 	}
 
 	/// Returns the base window.
 	pub fn base_window(&self) -> &BaseWindow {
-		self.state.windows.base_window()
+		self.state.core.windows.base_window()
 	}
 
 	/// Returns the base window mutably.
 	pub fn base_window_mut(&mut self) -> &mut BaseWindow {
-		self.state.windows.base_window_mut()
+		self.state.core.windows.base_window_mut()
 	}
 
 	#[inline]
@@ -622,78 +702,78 @@ impl Editor {
 
 	#[inline]
 	pub fn windows(&self) -> &WindowManager {
-		&self.state.windows
+		&self.state.core.windows
 	}
 
 	#[inline]
 	pub fn windows_mut(&mut self) -> &mut WindowManager {
-		&mut self.state.windows
+		&mut self.state.core.windows
 	}
 
 	#[inline]
 	pub fn focus(&self) -> &FocusTarget {
-		&self.state.focus
+		&self.state.core.focus
 	}
 
 	#[inline]
 	pub fn focus_mut(&mut self) -> &mut FocusTarget {
-		&mut self.state.focus
+		&mut self.state.core.focus
 	}
 
 	#[inline]
 	pub fn layout(&self) -> &LayoutManager {
-		&self.state.layout
+		&self.state.core.layout
 	}
 
 	#[inline]
 	pub fn layout_mut(&mut self) -> &mut LayoutManager {
-		&mut self.state.layout
+		&mut self.state.core.layout
 	}
 
 	#[inline]
 	pub fn viewport(&self) -> &Viewport {
-		&self.state.viewport
+		&self.state.core.viewport
 	}
 
 	#[inline]
 	pub fn viewport_mut(&mut self) -> &mut Viewport {
-		&mut self.state.viewport
+		&mut self.state.core.viewport
 	}
 
 	#[inline]
 	pub fn ui(&self) -> &UiManager {
-		&self.state.ui
+		&self.state.ui.ui
 	}
 
 	#[inline]
 	pub fn ui_mut(&mut self) -> &mut UiManager {
-		&mut self.state.ui
+		&mut self.state.ui.ui
 	}
 
 	#[inline]
 	pub fn frame(&self) -> &FrameState {
-		&self.state.frame
+		&self.state.core.frame
 	}
 
 	#[inline]
 	pub fn frame_mut(&mut self) -> &mut FrameState {
-		&mut self.state.frame
+		&mut self.state.core.frame
 	}
 
 	#[inline]
 	pub fn config(&self) -> &Config {
-		&self.state.config
+		&self.state.config.config
 	}
 
 	#[inline]
 	pub fn config_mut(&mut self) -> &mut Config {
-		&mut self.state.config
+		&mut self.state.config.config
 	}
 
 	/// Sets keybinding overrides and invalidates the effective keymap cache.
 	pub fn set_key_overrides(&mut self, keys: Option<xeno_registry::config::UnresolvedKeys>) {
-		self.state.key_overrides = keys;
-		self.state.keymap_cache.lock().take();
+		self.state.config.key_overrides = keys;
+		self.state.config.keymap_cache.lock().take();
 	}
 
 	/// Resolves and applies a keymap preset from a spec string.
@@ -721,24 +801,24 @@ impl Editor {
 	}
 
 	fn apply_preset(&mut self, preset: xeno_registry::keymaps::KeymapPresetRef, spec: String) {
-		self.state.keymap_behavior = preset.behavior;
-		self.state.keymap_initial_mode = preset.initial_mode.clone();
-		self.state.keymap_preset = preset;
-		self.state.keymap_preset_spec = spec;
-		self.state.keymap_cache.lock().take();
-		let initial_mode = self.state.keymap_initial_mode.clone();
+		self.state.config.keymap_behavior = preset.behavior;
+		self.state.config.keymap_initial_mode = preset.initial_mode.clone();
+		self.state.config.keymap_preset = preset;
+		self.state.config.keymap_preset_spec = spec;
+		self.state.config.keymap_cache.lock().take();
+		let initial_mode = self.state.config.keymap_initial_mode.clone();
 		self.buffer_mut().input.set_mode(initial_mode.clone());
-		self.state.core.buffers.set_initial_mode(initial_mode);
+		self.state.core.editor.buffers.set_initial_mode(initial_mode);
 	}
 
 	/// Returns the behavioral flags from the active keymap preset.
 	pub fn keymap_behavior(&self) -> xeno_registry::keymaps::KeymapBehavior {
-		self.state.keymap_behavior
+		self.state.config.keymap_behavior
 	}
 
 	/// Returns the initial mode from the active keymap preset.
 	pub fn keymap_initial_mode(&self) -> xeno_primitives::Mode {
-		self.state.keymap_initial_mode.clone()
+		self.state.config.keymap_initial_mode.clone()
 	}
 
 	/// Replaces the loaded Nu runtime used by `:nu-run`.
@@ -752,29 +832,29 @@ impl Editor {
 	/// This prevents a mixed state where cached IDs belong to a new runtime
 	/// while jobs are still executing on an old worker.
 	pub fn set_nu_runtime(&mut self, runtime: Option<crate::nu::NuRuntime>) {
-		self.state.nu.set_runtime(runtime);
+		self.state.integration.nu.set_runtime(runtime);
 	}
 
 	/// Returns the currently loaded Nu runtime, if any.
 	pub fn nu_runtime(&self) -> Option<&crate::nu::NuRuntime> {
-		self.state.nu.runtime()
+		self.state.integration.nu.runtime()
 	}
 
 	/// Returns the Nu executor, creating one from the current runtime if the
 	/// executor is missing (e.g. after a worker thread panic or first access).
 	pub fn ensure_nu_executor(&mut self) -> Option<&crate::nu::executor::NuExecutor> {
-		self.state.nu.ensure_executor()
+		self.state.integration.nu.ensure_executor()
 	}
 
 	/// Returns the effective keymap for the current catalog version, preset, and overrides.
 	pub fn effective_keymap(&self) -> Arc<KeymapSnapshot> {
 		let catalog_version = xeno_registry::CATALOG.version_hash();
 		let snap = xeno_registry::db::ACTIONS.snapshot();
-		let overrides_hash = hash_unresolved_keys(self.state.key_overrides.as_ref());
-		let preset_ptr = Arc::as_ptr(&self.state.keymap_preset) as usize;
+		let overrides_hash = hash_unresolved_keys(self.state.config.key_overrides.as_ref());
+		let preset_ptr = Arc::as_ptr(&self.state.config.keymap_preset) as usize;
 
 		{
-			let cache = self.state.keymap_cache.lock();
+			let cache = self.state.config.keymap_cache.lock();
 			if let Some(cache) = cache.as_ref()
 				&& cache.catalog_version == catalog_version
 				&& cache.overrides_hash == overrides_hash
@@ -786,10 +866,10 @@ impl Editor {
 
 		let index = Arc::new(KeymapSnapshot::build_with_preset(
 			&snap,
-			Some(&self.state.keymap_preset),
-			self.state.key_overrides.as_ref(),
+			Some(&self.state.config.keymap_preset),
+			self.state.config.key_overrides.as_ref(),
 		));
-		let mut cache = self.state.keymap_cache.lock();
+		let mut cache = self.state.config.keymap_cache.lock();
 		*cache = Some(EffectiveKeymapCache {
 			catalog_version,
 			overrides_hash,
@@ -801,40 +881,40 @@ impl Editor {
 
 	#[inline]
 	pub fn take_notification_render_items(&mut self) -> Vec<crate::notifications::NotificationRenderItem> {
-		self.state.notifications.take_pending_render_items()
+		self.state.ui.notifications.take_pending_render_items()
 	}
 
 	#[inline]
 	pub fn notifications_clear_epoch(&self) -> u64 {
-		self.state.notifications.clear_epoch()
+		self.state.ui.notifications.clear_epoch()
 	}
 
 	#[inline]
 	#[cfg_attr(not(feature = "lsp"), allow(dead_code))]
 	pub(crate) fn lsp(&self) -> &LspSystem {
-		&self.state.lsp
+		&self.state.integration.lsp
 	}
 
 	#[inline]
 	#[allow(dead_code)]
 	pub(crate) fn lsp_mut(&mut self) -> &mut LspSystem {
-		&mut self.state.lsp
+		&mut self.state.integration.lsp
 	}
 
 	#[inline]
 	#[cfg(feature = "lsp")]
 	pub(crate) fn lsp_handle(&self) -> LspHandle {
-		self.state.lsp.handle()
+		self.state.integration.lsp.handle()
 	}
 
 	#[inline]
 	pub(crate) fn work_scheduler_mut(&mut self) -> &mut WorkScheduler {
-		&mut self.state.work_scheduler
+		&mut self.state.integration.work_scheduler
 	}
 
 	/// Emits the editor-start lifecycle hook on the work scheduler.
 	pub fn emit_editor_start_hook(&mut self) {
-		emit_hook_sync_with(&HookContext::new(HookEventData::EditorStart), &mut self.state.work_scheduler);
+		emit_hook_sync_with(&HookContext::new(HookEventData::EditorStart), &mut self.state.integration.work_scheduler);
 	}
 
 	/// Emits the editor-quit lifecycle hook asynchronously.
@@ -844,18 +924,18 @@ impl Editor {
 
 	#[inline]
 	pub(crate) fn overlays(&self) -> &OverlayStore {
-		self.state.overlay_system.store()
+		self.state.ui.overlay_system.store()
 	}
 
 	#[inline]
 	pub(crate) fn overlays_mut(&mut self) -> &mut OverlayStore {
-		self.state.overlay_system.store_mut()
+		self.state.ui.overlay_system.store_mut()
 	}
 
 	/// Returns the active modal controller kind for frontend policy.
 	#[inline]
 	pub fn overlay_kind(&self) -> Option<crate::overlay::OverlayControllerKind> {
-		let active = self.state.overlay_system.interaction().active()?;
+		let active = self.state.ui.overlay_system.interaction().active()?;
 		Some(active.controller.kind())
 	}
 
@@ -863,7 +943,7 @@ impl Editor {
 	#[inline]
 	pub fn overlay_pane_render_plan(&self) -> Vec<crate::overlay::OverlayPaneRenderTarget> {
 		self.state
-			.overlay_system
+			.ui.overlay_system
 			.interaction()
 			.active()
 			.map_or_else(Vec::new, |active| active.session.pane_render_plan())
@@ -872,7 +952,7 @@ impl Editor {
 	/// Returns the active modal pane rect for a role when available.
 	#[inline]
 	pub fn overlay_pane_rect(&self, role: crate::overlay::WindowRole) -> Option<crate::geometry::Rect> {
-		let active = self.state.overlay_system.interaction().active()?;
+		let active = self.state.ui.overlay_system.interaction().active()?;
 		active.session.pane_rect(role)
 	}
 
@@ -905,7 +985,7 @@ impl Editor {
 	/// Clears the per-frame redraw flag after a frontend completes drawing.
 	#[inline]
 	pub fn mark_frame_drawn(&mut self) {
-		self.state.frame.needs_redraw = false;
+		self.state.core.frame.needs_redraw = false;
 	}
 
 	/// Prepares a frontend frame using a backend-neutral viewport.
@@ -914,44 +994,44 @@ impl Editor {
 	/// frontend compositor code (viewport sync, UI dock planning, and separator
 	/// hover animation activation).
 	pub fn begin_frontend_frame(&mut self, viewport: Rect) -> FrontendFramePlan {
-		self.state.frame.needs_redraw = false;
+		self.state.core.frame.needs_redraw = false;
 		self.ensure_syntax_for_buffers();
-		self.state.viewport.width = Some(viewport.width);
-		self.state.viewport.height = Some(viewport.height);
+		self.state.core.viewport.width = Some(viewport.width);
+		self.state.core.viewport.height = Some(viewport.height);
 
 		let status_rows = self.statusline_rows().min(viewport.height);
 		let main_rows = viewport.height.saturating_sub(status_rows);
 		let main_area = Rect::new(viewport.x, viewport.y, viewport.width, main_rows);
 		let status_area = Rect::new(viewport.x, viewport.y.saturating_add(main_rows), viewport.width, status_rows);
 
-		let mut ui = std::mem::take(&mut self.state.ui);
+		let mut ui = std::mem::take(&mut self.state.ui.ui);
 		ui.sync_utility_for_modal_overlay(self.utility_overlay_height_hint());
 		ui.sync_utility_for_whichkey(self.whichkey_desired_height());
 		let dock_layout = ui.compute_layout(main_area);
 		let panel_render_plan = ui.panel_render_plan(&dock_layout);
 		let doc_area = dock_layout.doc_area;
-		self.state.viewport.doc_area = Some(doc_area);
+		self.state.core.viewport.doc_area = Some(doc_area);
 
 		let activate_separator_hover = {
-			let layout = &self.state.layout;
+			let layout = &self.state.core.layout;
 			layout.hovered_separator.is_none() && layout.separator_under_mouse.is_some() && !layout.is_mouse_fast()
 		};
 		if activate_separator_hover {
-			let layout = &mut self.state.layout;
+			let layout = &mut self.state.core.layout;
 			let old_hover = layout.hovered_separator.take();
 			layout.hovered_separator = layout.separator_under_mouse;
 			if old_hover != layout.hovered_separator {
 				layout.update_hover_animation(old_hover, layout.hovered_separator);
-				self.state.frame.needs_redraw = true;
+				self.state.core.frame.needs_redraw = true;
 			}
 		}
-		if self.state.layout.animation_needs_redraw() {
-			self.state.frame.needs_redraw = true;
+		if self.state.core.layout.animation_needs_redraw() {
+			self.state.core.frame.needs_redraw = true;
 		}
 		if ui.take_wants_redraw() {
-			self.state.frame.needs_redraw = true;
+			self.state.core.frame.needs_redraw = true;
 		}
-		self.state.ui = ui;
+		self.state.ui.ui = ui;
 
 		FrontendFramePlan {
 			main_area,
@@ -984,38 +1064,38 @@ impl Editor {
 
 	#[inline]
 	pub fn syntax_manager(&self) -> &xeno_syntax::SyntaxManager {
-		&self.state.syntax_manager
+		&self.state.integration.syntax_manager
 	}
 
 	#[inline]
 	pub fn syntax_manager_mut(&mut self) -> &mut xeno_syntax::SyntaxManager {
-		&mut self.state.syntax_manager
+		&mut self.state.integration.syntax_manager
 	}
 
 	#[inline]
 	pub fn render_cache(&self) -> &crate::render::cache::RenderCache {
-		&self.state.render_cache
+		&self.state.ui.render_cache
 	}
 
 	#[inline]
 	pub fn render_cache_mut(&mut self) -> &mut crate::render::cache::RenderCache {
-		&mut self.state.render_cache
+		&mut self.state.ui.render_cache
 	}
 
 	#[inline]
 	pub fn metrics(&self) -> &std::sync::Arc<crate::metrics::EditorMetrics> {
-		&self.state.metrics
+		&self.state.telemetry.metrics
 	}
 
 	#[inline]
 	pub fn metrics_mut(&mut self) -> &mut std::sync::Arc<crate::metrics::EditorMetrics> {
-		&mut self.state.metrics
+		&mut self.state.telemetry.metrics
 	}
 
 	/// Returns a cloneable message sender for background tasks.
 	#[inline]
 	pub fn msg_tx(&self) -> MsgSender {
-		self.state.msg_tx.clone()
+		self.state.async_state.msg_tx.clone()
 	}
 
 	/// Drains pending messages, applying them to editor state.
@@ -1031,7 +1111,7 @@ impl Editor {
 			dirty: crate::msg::Dirty::NONE,
 			drained_count: 0,
 		};
-		while let Ok(msg) = self.state.msg_rx.try_recv() {
+		while let Ok(msg) = self.state.async_state.msg_rx.try_recv() {
 			report.drained_count += 1;
 			report.dirty |= msg.apply(self);
 		}

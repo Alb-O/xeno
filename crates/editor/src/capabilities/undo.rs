@@ -12,10 +12,10 @@ impl UndoAccess for EditorCaps<'_> {
 	}
 
 	fn can_undo(&self) -> bool {
-		self.ed.state.core.undo_manager.can_undo()
+		self.ed.state.core.editor.undo_manager.can_undo()
 	}
 
 	fn can_redo(&self) -> bool {
-		self.ed.state.core.undo_manager.can_redo()
+		self.ed.state.core.editor.undo_manager.can_redo()
 	}
 }

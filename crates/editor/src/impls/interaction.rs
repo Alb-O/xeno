@@ -5,71 +5,72 @@ use crate::overlay::{CloseReason, controllers};
 impl Editor {
 	pub fn interaction_on_buffer_edited(&mut self) {
 		let view_id = self.focused_view();
-		let mut interaction = self.state.overlay_system.take_interaction();
+		let mut interaction = self.state.ui.overlay_system.take_interaction();
 		interaction.on_buffer_edited(self, view_id);
-		self.state.overlay_system.restore_interaction(interaction);
+		self.state.ui.overlay_system.restore_interaction(interaction);
 		self.flush_effects();
 	}
 
 	pub async fn interaction_commit(&mut self) {
-		let mut interaction = self.state.overlay_system.take_interaction();
+		let mut interaction = self.state.ui.overlay_system.take_interaction();
 		interaction.commit(self).await;
-		self.state.overlay_system.restore_interaction(interaction);
+		self.state.ui.overlay_system.restore_interaction(interaction);
 		self.flush_effects();
 	}
 
 	pub fn interaction_cancel(&mut self) {
-		let mut interaction = self.state.overlay_system.take_interaction();
+		let mut interaction = self.state.ui.overlay_system.take_interaction();
 		interaction.close(self, CloseReason::Cancel);
-		self.state.overlay_system.restore_interaction(interaction);
+		self.state.ui.overlay_system.restore_interaction(interaction);
 		self.flush_effects();
 	}
 
 	pub fn open_search(&mut self, reverse: bool) -> bool {
 		let ctl = controllers::SearchOverlay::new(self.focused_view(), reverse);
-		let mut interaction = self.state.overlay_system.take_interaction();
+		let mut interaction = self.state.ui.overlay_system.take_interaction();
 		let result = interaction.open(self, Box::new(ctl));
-		self.state.overlay_system.restore_interaction(interaction);
+		self.state.ui.overlay_system.restore_interaction(interaction);
 		self.flush_effects();
 		result
 	}
 
 	pub fn open_command_palette(&mut self) -> bool {
 		let ctl = controllers::CommandPaletteOverlay::new();
-		let mut interaction = self.state.overlay_system.take_interaction();
+		let mut interaction = self.state.ui.overlay_system.take_interaction();
 		let result = interaction.open(self, Box::new(ctl));
-		self.state.overlay_system.restore_interaction(interaction);
+		self.state.ui.overlay_system.restore_interaction(interaction);
 		self.flush_effects();
 		result
 	}
 
 	pub fn open_file_picker(&mut self) -> bool {
 		let ctl = controllers::FilePickerOverlay::new(None);
-		let mut interaction = self.state.overlay_system.take_interaction();
+		let mut interaction = self.state.ui.overlay_system.take_interaction();
 		let result = interaction.open(self, Box::new(ctl));
-		self.state.overlay_system.restore_interaction(interaction);
+		self.state.ui.overlay_system.restore_interaction(interaction);
 		self.flush_effects();
 		result
 	}
 
 	pub fn open_workspace_search(&mut self) -> bool {
 		let ctl = controllers::WorkspaceSearchOverlay::new();
-		let mut interaction = self.state.overlay_system.take_interaction();
+		let mut interaction = self.state.ui.overlay_system.take_interaction();
 		let result = interaction.open(self, Box::new(ctl));
-		self.state.overlay_system.restore_interaction(interaction);
+		self.state.ui.overlay_system.restore_interaction(interaction);
 		self.flush_effects();
 		result
 	}
 
 	pub fn open_rename(&mut self) -> bool {
 		let buffer_id = self.focused_view();
-		let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
+		let Some(buffer) = self.state.core.editor.buffers.get_buffer(buffer_id) else {
 			return false;
 		};
 
 		#[cfg(feature = "lsp")]
 		let rename_supported = self
 			.state
+			.integration
 			.lsp
 			.prepare_position_request(buffer)
 			.ok()
@@ -88,23 +89,23 @@ impl Editor {
 		let word = word_at_cursor(buffer);
 
 		let ctl = controllers::RenameOverlay::new(buffer_id, cursor, word);
-		let mut interaction = self.state.overlay_system.take_interaction();
+		let mut interaction = self.state.ui.overlay_system.take_interaction();
 		let result = interaction.open(self, Box::new(ctl));
-		self.state.overlay_system.restore_interaction(interaction);
+		self.state.ui.overlay_system.restore_interaction(interaction);
 		self.flush_effects();
 		result
 	}
 
 	/// Broadcasts an event to all passive overlay layers.
 	pub fn notify_overlay_event(&mut self, event: crate::overlay::LayerEvent) {
-		self.state.effects.push_layer_event(event);
+		self.state.runtime.effects.push_layer_event(event);
 		self.flush_effects();
 	}
 
 	pub fn interaction_refresh_file_picker(&mut self) {
-		let mut interaction = self.state.overlay_system.take_interaction();
+		let mut interaction = self.state.ui.overlay_system.take_interaction();
 		interaction.refresh_if_kind(self, crate::overlay::OverlayControllerKind::FilePicker);
-		self.state.overlay_system.restore_interaction(interaction);
+		self.state.ui.overlay_system.restore_interaction(interaction);
 	}
 
 	/// Ensures the cursor is visible in the specified view, scrolling if necessary.
@@ -117,7 +118,7 @@ impl Editor {
 		let scroll_margin = self.resolve_typed_option(buffer_id, opt_keys::SCROLL_MARGIN) as usize;
 		let area = self.view_area(buffer_id);
 
-		if let Some(buffer) = self.state.core.buffers.get_buffer_mut(buffer_id) {
+		if let Some(buffer) = self.state.core.editor.buffers.get_buffer_mut(buffer_id) {
 			let total_lines = buffer.with_doc(|doc| doc.content().len_lines());
 			let is_diff_file = buffer.file_type().is_some_and(|ft| ft == "diff");
 			let gutter = crate::window::GutterSelector::Registry;
@@ -131,7 +132,7 @@ impl Editor {
 			let text_width = area.width.saturating_sub(gutter_layout.total_width) as usize;
 
 			crate::render::ensure_buffer_cursor_visible(buffer, area, text_width, tab_width, scroll_margin);
-			self.state.effects.request_redraw();
+			self.state.runtime.effects.request_redraw();
 		}
 		self.flush_effects();
 	}

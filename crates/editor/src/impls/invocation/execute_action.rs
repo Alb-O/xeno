@@ -36,7 +36,7 @@ impl Editor {
 
 		emit_hook_sync_with(
 			&HookContext::new(HookEventData::ActionPre { action_id: &action_id_str }),
-			&mut kernel.editor().state.work_scheduler,
+			&mut kernel.editor().state.integration.work_scheduler,
 		);
 
 		let span = trace_span!(
@@ -89,7 +89,7 @@ impl Editor {
 
 		emit_hook_sync_with(
 			&HookContext::new(HookEventData::ActionPost { action_id, result_variant }),
-			&mut self.state.work_scheduler,
+			&mut self.state.integration.work_scheduler,
 		);
 		should_quit
 	}

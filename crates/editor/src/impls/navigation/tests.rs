@@ -26,7 +26,7 @@ async fn goto_location_reuses_existing_document_without_new_view() {
 
 	let mut editor = Editor::new_scratch();
 	let existing_view = editor.open_file(b_path.clone()).await.expect("open hidden file view");
-	let existing_doc = editor.state.core.buffers.get_buffer(existing_view).expect("existing view buffer").document_id();
+	let existing_doc = editor.state.core.editor.buffers.get_buffer(existing_view).expect("existing view buffer").document_id();
 
 	let focused = editor.focused_view();
 	assert_ne!(focused, existing_view);

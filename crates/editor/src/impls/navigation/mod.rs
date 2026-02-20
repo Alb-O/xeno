@@ -68,7 +68,7 @@ impl Editor {
 		let scroll_lines = (self.option(keys::SCROLL_LINES) as usize).max(1);
 		let tab_width = self.tab_width();
 		self.buffer_mut().handle_mouse_scroll(direction, count * scroll_lines, tab_width);
-		self.state.frame.needs_redraw = true;
+		self.state.core.frame.needs_redraw = true;
 	}
 
 	/// Navigates to a specific location (file, line, column).
@@ -99,7 +99,7 @@ impl Editor {
 			.unwrap_or(false);
 
 		if !already_focused_path {
-			if let Some(old) = self.state.core.buffers.get_buffer(focused_view) {
+			if let Some(old) = self.state.core.editor.buffers.get_buffer(focused_view) {
 				let scratch_path = PathBuf::from("[scratch]");
 				let path = old.path().unwrap_or_else(|| scratch_path.clone());
 				let file_type = old.file_type();
@@ -108,11 +108,11 @@ impl Editor {
 						path: &path,
 						file_type: file_type.as_deref(),
 					}),
-					&mut self.state.work_scheduler,
+					&mut self.state.integration.work_scheduler,
 				);
 			}
 
-			let existing_view = self.state.core.buffers.buffer_ids().collect::<Vec<_>>().into_iter().find(|id| {
+			let existing_view = self.state.core.editor.buffers.buffer_ids().collect::<Vec<_>>().into_iter().find(|id| {
 				self.state
 					.core
 					.buffers
@@ -123,7 +123,7 @@ impl Editor {
 
 			let is_existing = existing_view.is_some();
 			let replacement = if let Some(source_view) = existing_view {
-				let source = self.state.core.buffers.get_buffer(source_view).expect("existing source buffer must be present");
+				let source = self.state.core.editor.buffers.get_buffer(source_view).expect("existing source buffer must be present");
 				source.clone_for_split(focused_view)
 			} else {
 				self.load_file_buffer_for_view(focused_view, target_path.clone()).await?
@@ -139,7 +139,7 @@ impl Editor {
 			self.finalize_document_if_orphaned(replaced.document_id());
 
 			if !is_existing
-				&& let Some(buffer) = self.state.core.buffers.get_buffer(focused_view)
+				&& let Some(buffer) = self.state.core.editor.buffers.get_buffer(focused_view)
 				&& let Some(path) = buffer.path()
 			{
 				let text = buffer.with_doc(|doc| doc.content().clone());
@@ -159,12 +159,12 @@ impl Editor {
 			#[cfg(feature = "lsp")]
 			self.maybe_track_lsp_for_buffer(focused_view, false);
 
-			self.state.focus_epoch.increment();
-			self.state.frame.needs_redraw = true;
+			self.state.core.focus_epoch.increment();
+			self.state.core.frame.needs_redraw = true;
 		}
 
 		self.goto_line_col(location.line, location.column);
-		self.state.frame.needs_redraw = true;
+		self.state.core.frame.needs_redraw = true;
 
 		Ok(focused_view)
 	}

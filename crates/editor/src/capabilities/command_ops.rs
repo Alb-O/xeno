@@ -47,7 +47,7 @@ impl CommandEditorOps for EditorCaps<'_> {
 
 	fn set_option(&mut self, key: &str, value: &str) -> Result<(), CommandError> {
 		let opt_value = super::parse_option_value(key, value)?;
-		let _ = self.ed.state.config.global_options.set_by_key(&xeno_registry::db::OPTIONS, key, opt_value);
+		let _ = self.ed.state.config.config.global_options.set_by_key(&xeno_registry::db::OPTIONS, key, opt_value);
 
 		if let Some(def) = find(key) {
 			let resolved_key = def.name_str();
@@ -56,7 +56,7 @@ impl CommandEditorOps for EditorCaps<'_> {
 					key: resolved_key,
 					scope: "global",
 				}),
-				&mut self.ed.state.work_scheduler,
+				&mut self.ed.state.integration.work_scheduler,
 			);
 		}
 		Ok(())
@@ -87,13 +87,13 @@ impl CommandEditorOps for EditorCaps<'_> {
 				key: resolved_key,
 				scope: "buffer",
 			}),
-			&mut self.ed.state.work_scheduler,
+			&mut self.ed.state.integration.work_scheduler,
 		);
 		Ok(())
 	}
 
 	fn open_info_popup(&mut self, content: &str, _file_type: Option<&str>) {
-		self.ed.state.effects.overlay_request(OverlayRequest::ShowInfoPopup {
+		self.ed.state.runtime.effects.overlay_request(OverlayRequest::ShowInfoPopup {
 			title: None,
 			body: content.to_string(),
 		});

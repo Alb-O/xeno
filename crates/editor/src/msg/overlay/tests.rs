@@ -56,7 +56,7 @@ fn rename_stale_token_is_ignored() {
 
 	let mut editor = Editor::new_scratch();
 	// Simulate: first rename submitted with token=1, then a second with token=2.
-	editor.state.pending_rename_token = Some(2);
+	editor.state.async_state.pending_rename_token = Some(2);
 
 	// Stale result (token=1) arrives first — should be ignored.
 	let stale = OverlayMsg::RenameDone {
@@ -71,7 +71,7 @@ fn rename_stale_token_is_ignored() {
 		0,
 		"stale rename should not enqueue workspace edit"
 	);
-	assert_eq!(editor.state.pending_rename_token, Some(2), "pending token should remain");
+	assert_eq!(editor.state.async_state.pending_rename_token, Some(2), "pending token should remain");
 }
 
 #[cfg(feature = "lsp")]
@@ -81,7 +81,7 @@ fn rename_result_ignored_after_overlay_close() {
 
 	let mut editor = Editor::new_scratch();
 	// Simulate: rename submitted with token=1, then overlay closed (token cleared).
-	editor.state.pending_rename_token = None;
+	editor.state.async_state.pending_rename_token = None;
 
 	let result = OverlayMsg::RenameDone {
 		token: 1,
@@ -99,7 +99,7 @@ fn rename_current_token_applies_workspace_edit() {
 	use crate::msg::Dirty;
 
 	let mut editor = Editor::new_scratch();
-	editor.state.pending_rename_token = Some(3);
+	editor.state.async_state.pending_rename_token = Some(3);
 
 	let result = OverlayMsg::RenameDone {
 		token: 3,
@@ -109,5 +109,5 @@ fn rename_current_token_applies_workspace_edit() {
 
 	assert_eq!(dirty, Dirty::REDRAW, "current rename token should produce Dirty::REDRAW");
 	assert_eq!(editor.pending_runtime_workspace_edit_work(), 1, "workspace edit should be enqueued");
-	assert_eq!(editor.state.pending_rename_token, None, "pending token should be cleared");
+	assert_eq!(editor.state.async_state.pending_rename_token, None, "pending token should be cleared");
 }

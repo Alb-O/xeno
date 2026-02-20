@@ -69,19 +69,19 @@ pub(crate) fn buffer_open_event(path: &std::path::Path, kind: &str) -> NuCtxEven
 
 pub(crate) fn enqueue_nu_hook(editor: &mut Editor, event: NuCtxEvent) {
 	// Don't enqueue during hook drain (prevents recursive hook chains).
-	if editor.state.nu.in_hook_drain() {
+	if editor.state.integration.nu.in_hook_drain() {
 		return;
 	}
 
 	// Skip if the hook function isn't defined.
-	if !editor.state.nu.has_on_hook_decl() {
+	if !editor.state.integration.nu.has_on_hook_decl() {
 		return;
 	}
 
-	if editor.state.nu.enqueue_hook(event, MAX_PENDING_NU_HOOKS) {
+	if editor.state.integration.nu.enqueue_hook(event, MAX_PENDING_NU_HOOKS) {
 		trace!(
-			queue_len = editor.state.nu.hook_queue_len(),
-			dropped_total = editor.state.nu.hook_dropped_total(),
+			queue_len = editor.state.integration.nu.hook_queue_len(),
+			dropped_total = editor.state.integration.nu.hook_dropped_total(),
 			"nu_hook.drop_oldest"
 		);
 	}
@@ -108,19 +108,19 @@ pub(crate) fn enqueue_buffer_open_hook(editor: &mut Editor, path: &std::path::Pa
 /// preserves the single-threaded NuExecutor contract). Every job uses an
 /// epoch-scoped token for stale-result protection after runtime swaps.
 pub(crate) fn kick_nu_hook_eval(editor: &mut Editor) {
-	if editor.state.nu.hook_in_flight().is_some() || !editor.state.nu.has_queued_hooks() {
+	if editor.state.integration.nu.hook_in_flight().is_some() || !editor.state.integration.nu.has_queued_hooks() {
 		return;
 	}
 
-	let Some(queued) = editor.state.nu.pop_queued_hook() else {
+	let Some(queued) = editor.state.integration.nu.pop_queued_hook() else {
 		return;
 	};
 
-	let Some(decl_id) = editor.state.nu.on_hook_decl() else {
+	let Some(decl_id) = editor.state.integration.nu.on_hook_decl() else {
 		return;
 	};
 
-	if editor.state.nu.ensure_executor().is_none() {
+	if editor.state.integration.nu.ensure_executor().is_none() {
 		return;
 	}
 
@@ -134,13 +134,13 @@ pub(crate) fn kick_nu_hook_eval(editor: &mut Editor) {
 	let env = vec![("XENO_CTX".to_string(), nu_ctx)];
 	let host = editor.build_nu_host_snapshot();
 
-	let executor_client = editor.state.nu.executor_client().expect("executor should exist");
-	let msg_tx = editor.state.msg_tx.clone();
+	let executor_client = editor.state.integration.nu.executor_client().expect("executor should exist");
+	let msg_tx = editor.state.async_state.msg_tx.clone();
 
-	let token = editor.state.nu.next_hook_eval_token();
-	let _event = editor.state.nu.begin_hook_eval(token, queued);
+	let token = editor.state.integration.nu.next_hook_eval_token();
+	let _event = editor.state.integration.nu.begin_hook_eval(token, queued);
 
-	editor.state.work_scheduler.schedule(crate::scheduler::WorkItem {
+	editor.state.integration.work_scheduler.schedule(crate::scheduler::WorkItem {
 		future: Box::pin(async move {
 			let result = executor_client
 				.run(decl_id, NuDecodeSurface::Hook, vec![], budget, env, Some(Box::new(host)))
@@ -159,7 +159,7 @@ pub(crate) fn kick_nu_hook_eval(editor: &mut Editor) {
 /// errors are final for this hook call: executor retry happens only for
 /// recoverable transport paths.
 pub(crate) fn apply_nu_hook_eval_done(editor: &mut Editor, msg: crate::msg::NuHookEvalDoneMsg) -> crate::msg::Dirty {
-	if !editor.state.nu.complete_hook_eval(msg.token) {
+	if !editor.state.integration.nu.complete_hook_eval(msg.token) {
 		return crate::msg::Dirty::NONE;
 	}
 
@@ -181,8 +181,8 @@ fn apply_hook_effect_batch(editor: &mut Editor, batch: crate::nu::NuEffectBatch)
 	let outcome = apply_effect_batch(editor, batch, NuEffectApplyMode::Hook, &allowed).expect("hook mode effect apply should not fail");
 
 	if outcome.stop_requested {
-		let scope_generation = editor.state.nu.advance_stop_scope_generation();
-		editor.state.nu.clear_hook_work_on_stop_propagation();
+		let scope_generation = editor.state.integration.nu.advance_stop_scope_generation();
+		editor.state.integration.nu.clear_hook_work_on_stop_propagation();
 		editor.clear_runtime_nu_scope(scope_generation);
 	} else {
 		for invocation in outcome.dispatches {
@@ -199,35 +199,35 @@ fn apply_hook_effect_batch(editor: &mut Editor, batch: crate::nu::NuEffectBatch)
 /// used in tests; production code uses kick + runtime drain phases.
 #[cfg(test)]
 pub(crate) async fn drain_nu_hook_queue(editor: &mut Editor, max: usize) -> bool {
-	if !editor.state.nu.has_queued_hooks() {
+	if !editor.state.integration.nu.has_queued_hooks() {
 		return false;
 	}
 
-	let to_drain = max.min(editor.state.nu.hook_queue_len());
-	editor.state.nu.inc_hook_depth();
+	let to_drain = max.min(editor.state.integration.nu.hook_queue_len());
+	editor.state.integration.nu.inc_hook_depth();
 
 	for _ in 0..to_drain {
-		let Some(queued) = editor.state.nu.pop_queued_hook() else {
+		let Some(queued) = editor.state.integration.nu.pop_queued_hook() else {
 			break;
 		};
 
 		if let Some(result) = run_single_nu_hook_sync(editor, queued.event).await
 			&& matches!(classify_for_nu_pipeline(&result), PipelineDisposition::ShouldQuit)
 		{
-			editor.state.nu.dec_hook_depth();
+			editor.state.integration.nu.dec_hook_depth();
 			return true;
 		}
 	}
 
-	editor.state.nu.dec_hook_depth();
+	editor.state.integration.nu.dec_hook_depth();
 	false
 }
 
 /// Synchronous single-hook evaluation for tests.
 #[cfg(test)]
 async fn run_single_nu_hook_sync(editor: &mut Editor, event: NuCtxEvent) -> Option<InvocationOutcome> {
-	let decl_id = editor.state.nu.on_hook_decl()?;
-	let executor = editor.state.nu.ensure_executor()?;
+	let decl_id = editor.state.integration.nu.on_hook_decl()?;
+	let executor = editor.state.integration.nu.ensure_executor()?;
 	let executor_client = executor.client();
 
 	let budget = editor
@@ -254,7 +254,7 @@ async fn run_single_nu_hook_sync(editor: &mut Editor, event: NuCtxEvent) -> Opti
 	let allowed = hook_allowed_capabilities(editor);
 	let outcome = apply_effect_batch(editor, effects, NuEffectApplyMode::Hook, &allowed).expect("hook mode effect apply should not fail");
 	if outcome.stop_requested {
-		editor.state.nu.clear_hook_work_on_stop_propagation();
+		editor.state.integration.nu.clear_hook_work_on_stop_propagation();
 		return None;
 	}
 

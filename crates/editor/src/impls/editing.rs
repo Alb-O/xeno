@@ -35,19 +35,24 @@ impl Editor {
 	/// 3. Notifies overlays.
 	pub(crate) fn apply_edit(&mut self, buffer_id: ViewId, tx: &Transaction, new_selection: Option<Selection>, undo: UndoPolicy, origin: EditOrigin) -> bool {
 		let focused_view = self.focused_view();
-		let core = &mut self.state.core;
+		let state = &mut self.state;
+		let core = &mut state.core;
+		let editor = &mut core.editor;
+		let frame = &mut core.frame;
+		let integration = &mut state.integration;
+		let ui = &mut state.ui;
 		let mut host = EditorUndoHost {
-			buffers: &mut core.buffers,
+			buffers: &mut editor.buffers,
 			focused_view,
-			config: &self.state.config,
-			frame: &mut self.state.frame,
-			notifications: &mut self.state.notifications,
-			syntax_manager: &mut self.state.syntax_manager,
+			config: &state.config.config,
+			frame,
+			notifications: &mut ui.notifications,
+			syntax_manager: &mut integration.syntax_manager,
 			#[cfg(feature = "lsp")]
-			lsp: &mut self.state.lsp,
+			lsp: &mut integration.lsp,
 		};
 
-		let res = core.undo_manager.with_edit(&mut host, buffer_id, origin, |host: &mut EditorUndoHost| {
+		let res = editor.undo_manager.with_edit(&mut host, buffer_id, origin, |host: &mut EditorUndoHost| {
 			host.apply_transaction_inner(buffer_id, tx, new_selection, undo)
 		});
 
@@ -96,7 +101,7 @@ impl Editor {
 		};
 
 		let (tx, new_selection) = {
-			let buffer = self.state.core.buffers.get_buffer_mut(buffer_id).expect("focused buffer must exist");
+			let buffer = self.state.core.editor.buffers.get_buffer_mut(buffer_id).expect("focused buffer must exist");
 			buffer.prepare_insert(text)
 		};
 
@@ -120,7 +125,7 @@ impl Editor {
 		}
 
 		let (tx, new_selection) = {
-			let buffer = self.state.core.buffers.get_buffer_mut(buffer_id).expect("focused buffer must exist");
+			let buffer = self.state.core.editor.buffers.get_buffer_mut(buffer_id).expect("focused buffer must exist");
 			buffer.prepare_insert(text)
 		};
 
@@ -135,14 +140,14 @@ impl Editor {
 	pub fn yank_selection(&mut self) {
 		if let Some(yank) = self.buffer_mut().yank_selection() {
 			let count = yank.total_chars;
-			self.state.core.workspace.registers.yank = yank;
+			self.state.core.editor.workspace.registers.yank = yank;
 			self.notify(keys::yanked_chars(count));
 		}
 	}
 
 	/// Pastes the yank register content after the cursor.
 	pub fn paste_after(&mut self) {
-		if self.state.core.workspace.registers.yank.is_empty() {
+		if self.state.core.editor.workspace.registers.yank.is_empty() {
 			return;
 		}
 
@@ -151,10 +156,10 @@ impl Editor {
 		}
 
 		let buffer_id = self.focused_view();
-		let yank = self.state.core.workspace.registers.yank.joined();
+		let yank = self.state.core.editor.workspace.registers.yank.joined();
 
 		let Some((tx, new_selection)) = ({
-			let buffer = self.state.core.buffers.get_buffer_mut(buffer_id).expect("focused buffer must exist");
+			let buffer = self.state.core.editor.buffers.get_buffer_mut(buffer_id).expect("focused buffer must exist");
 			buffer.prepare_paste_after(&yank)
 		}) else {
 			return;
@@ -169,7 +174,7 @@ impl Editor {
 
 	/// Pastes the yank register content before the cursor.
 	pub fn paste_before(&mut self) {
-		if self.state.core.workspace.registers.yank.is_empty() {
+		if self.state.core.editor.workspace.registers.yank.is_empty() {
 			return;
 		}
 
@@ -178,10 +183,10 @@ impl Editor {
 		}
 
 		let buffer_id = self.focused_view();
-		let yank = self.state.core.workspace.registers.yank.joined();
+		let yank = self.state.core.editor.workspace.registers.yank.joined();
 
 		let Some((tx, new_selection)) = ({
-			let buffer = self.state.core.buffers.get_buffer_mut(buffer_id).expect("focused buffer must exist");
+			let buffer = self.state.core.editor.buffers.get_buffer_mut(buffer_id).expect("focused buffer must exist");
 			buffer.prepare_paste_before(&yank)
 		}) else {
 			return;
@@ -203,7 +208,7 @@ impl Editor {
 		let buffer_id = self.focused_view();
 
 		let Some((tx, new_selection)) = ({
-			let buffer = self.state.core.buffers.get_buffer_mut(buffer_id).expect("focused buffer must exist");
+			let buffer = self.state.core.editor.buffers.get_buffer_mut(buffer_id).expect("focused buffer must exist");
 			buffer.prepare_delete_selection()
 		}) else {
 			return;
@@ -219,7 +224,7 @@ impl Editor {
 	/// Triggers a full syntax reparse of the focused buffer.
 	pub fn reparse_syntax(&mut self) {
 		let buffer_id = self.focused_view();
-		let buffer = self.state.core.buffers.get_buffer(buffer_id).expect("focused buffer must exist");
-		self.state.syntax_manager.reset_syntax(buffer.document_id());
+		let buffer = self.state.core.editor.buffers.get_buffer(buffer_id).expect("focused buffer must exist");
+		self.state.integration.syntax_manager.reset_syntax(buffer.document_id());
 	}
 }

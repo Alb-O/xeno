@@ -39,9 +39,9 @@ impl OverlayController for UnknownOverlay {
 }
 
 fn open_unknown_overlay(editor: &mut Editor) -> bool {
-	let mut interaction = editor.state.overlay_system.take_interaction();
+	let mut interaction = editor.state.ui.overlay_system.take_interaction();
 	let opened = interaction.open(editor, Box::new(UnknownOverlay));
-	editor.state.overlay_system.restore_interaction(interaction);
+	editor.state.ui.overlay_system.restore_interaction(interaction);
 	opened
 }
 

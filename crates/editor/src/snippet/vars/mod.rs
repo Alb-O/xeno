@@ -29,7 +29,7 @@ impl<'a> EditorSnippetResolver<'a> {
 	}
 
 	fn buffer(&self) -> Option<&Buffer> {
-		self.ed.state.core.buffers.get_buffer(self.buffer_id)
+		self.ed.state.core.editor.buffers.get_buffer(self.buffer_id)
 	}
 }
 

@@ -24,10 +24,10 @@ use crate::render_api::CompletionKind;
 impl Editor {
 	pub(crate) async fn open_code_action_menu(&mut self) -> bool {
 		let buffer_id = self.focused_view();
-		let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
+		let Some(buffer) = self.state.core.editor.buffers.get_buffer(buffer_id) else {
 			return false;
 		};
-		let Some((client, uri, _)) = self.state.lsp.prepare_position_request(buffer).ok().flatten() else {
+		let Some((client, uri, _)) = self.state.integration.lsp.prepare_position_request(buffer).ok().flatten() else {
 			return false;
 		};
 
@@ -44,7 +44,7 @@ impl Editor {
 			self.notify(keys::error("Invalid range for code actions"));
 			return false;
 		};
-		let diagnostics = buffer.with_doc(|doc| diagnostics_for_range(&self.state.lsp.get_diagnostics(buffer), doc.content(), start..end));
+		let diagnostics = buffer.with_doc(|doc| diagnostics_for_range(&self.state.integration.lsp.get_diagnostics(buffer), doc.content(), start..end));
 		let lsp_diagnostics: Vec<xeno_lsp::lsp_types::Diagnostic> = diagnostics
 			.into_iter()
 			.map(|d| xeno_lsp::lsp_types::Diagnostic {
@@ -111,7 +111,7 @@ impl Editor {
 		let menu_state = self.overlays_mut().get_or_default::<LspMenuState>();
 		menu_state.set(LspMenuKind::CodeAction { buffer_id, actions });
 
-		self.state.frame.needs_redraw = true;
+		self.state.core.frame.needs_redraw = true;
 		true
 	}
 
@@ -140,10 +140,10 @@ impl Editor {
 	}
 
 	pub(crate) async fn execute_lsp_command(&mut self, buffer_id: ViewId, command: String, arguments: Option<Vec<serde_json::Value>>) {
-		let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
+		let Some(buffer) = self.state.core.editor.buffers.get_buffer(buffer_id) else {
 			return;
 		};
-		let Some((client, _, _)) = self.state.lsp.prepare_position_request(buffer).ok().flatten() else {
+		let Some((client, _, _)) = self.state.integration.lsp.prepare_position_request(buffer).ok().flatten() else {
 			self.notify(keys::error("LSP client unavailable for command"));
 			return;
 		};

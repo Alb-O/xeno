@@ -54,11 +54,11 @@ impl Editor {
 
 	/// Resolves an option for a specific buffer using a resolved reference.
 	pub fn resolve_option_ref(&self, buffer_id: ViewId, opt: &xeno_registry::options::OptionsRef) -> OptionValue {
-		let buffer = self.state.core.buffers.get_buffer(buffer_id).expect("buffer must exist");
+		let buffer = self.state.core.editor.buffers.get_buffer(buffer_id).expect("buffer must exist");
 
-		let language_store = buffer.file_type().and_then(|ft| self.state.config.language_options.get(&ft));
+		let language_store = buffer.file_type().and_then(|ft| self.state.config.config.language_options.get(&ft));
 
-		Self::resolve_with_stores(&buffer.local_options, language_store, &self.state.config.global_options, opt)
+		Self::resolve_with_stores(&buffer.local_options, language_store, &self.state.config.config.global_options, opt)
 	}
 
 	/// Resolves a typed option for a specific buffer.

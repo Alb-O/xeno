@@ -11,22 +11,22 @@ impl Editor {
 	/// Processes a key event, routing to UI or input state machine.
 	pub async fn handle_key(&mut self, key: Key) -> bool {
 		// UI global bindings (panels, focus, etc.)
-		if self.state.ui.handle_global_key(&key) {
-			if self.state.ui.take_wants_redraw() {
-				self.state.frame.needs_redraw = true;
+		if self.state.ui.ui.handle_global_key(&key) {
+			if self.state.ui.ui.take_wants_redraw() {
+				self.state.core.frame.needs_redraw = true;
 			}
 			self.sync_focus_from_ui();
 			self.interaction_on_buffer_edited();
 			return false;
 		}
 
-		if self.state.ui.focused_panel_id().is_some() {
-			let mut ui = std::mem::take(&mut self.state.ui);
+		if self.state.ui.ui.focused_panel_id().is_some() {
+			let mut ui = std::mem::take(&mut self.state.ui.ui);
 			let _ = ui.handle_focused_key(self, key);
 			if ui.take_wants_redraw() {
-				self.state.frame.needs_redraw = true;
+				self.state.core.frame.needs_redraw = true;
 			}
-			self.state.ui = ui;
+			self.state.ui.ui = ui;
 			self.sync_focus_from_ui();
 			self.interaction_on_buffer_edited();
 			return false;
@@ -50,15 +50,15 @@ impl Editor {
 		#[cfg(feature = "lsp")]
 		let old_version = self.buffer().version();
 
-		let mut interaction = self.state.overlay_system.take_interaction();
+		let mut interaction = self.state.ui.overlay_system.take_interaction();
 		let handled = interaction.handle_key(self, key);
-		self.state.overlay_system.restore_interaction(interaction);
+		self.state.ui.overlay_system.restore_interaction(interaction);
 		if handled {
 			return false;
 		}
-		let mut layers = std::mem::take(self.state.overlay_system.layers_mut());
+		let mut layers = std::mem::take(self.state.ui.overlay_system.layers_mut());
 		let handled = layers.handle_key(self, key);
-		*self.state.overlay_system.layers_mut() = layers;
+		*self.state.ui.overlay_system.layers_mut() = layers;
 		if handled {
 			return false;
 		}
@@ -95,7 +95,7 @@ impl Editor {
 					.await;
 			}
 			KeyResult::Pending { .. } => {
-				self.state.frame.needs_redraw = true;
+				self.state.core.frame.needs_redraw = true;
 			}
 			KeyResult::ModeChange(new_mode) => {
 				let leaving_insert = !matches!(new_mode, Mode::Insert);

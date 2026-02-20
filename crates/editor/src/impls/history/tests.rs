@@ -17,7 +17,7 @@ fn apply_test_edit(editor: &mut Editor, text: &str, at: usize) -> bool {
 	let tx = {
 		let buffer = {
 			let focused = editor.focused_view();
-			editor.state.core.buffers.get_buffer(focused).expect("focused buffer exists")
+			editor.state.core.editor.buffers.get_buffer(focused).expect("focused buffer exists")
 		};
 		let rope = buffer.with_doc(|doc| doc.content().clone());
 		Transaction::change(
@@ -35,7 +35,7 @@ fn apply_test_edit(editor: &mut Editor, text: &str, at: usize) -> bool {
 fn set_cursor(editor: &mut Editor, pos: usize) {
 	let buffer = {
 		let focused = editor.focused_view();
-		editor.state.core.buffers.get_buffer_mut(focused).expect("focused buffer exists")
+		editor.state.core.editor.buffers.get_buffer_mut(focused).expect("focused buffer exists")
 	};
 	buffer.cursor = CharIdx::from(pos);
 	buffer.selection = Selection::point(CharIdx::from(pos));
@@ -44,18 +44,18 @@ fn set_cursor(editor: &mut Editor, pos: usize) {
 fn set_scroll(editor: &mut Editor, line: usize, segment: usize) {
 	let buffer = {
 		let focused = editor.focused_view();
-		editor.state.core.buffers.get_buffer_mut(focused).expect("focused buffer exists")
+		editor.state.core.editor.buffers.get_buffer_mut(focused).expect("focused buffer exists")
 	};
 	buffer.scroll_line = line;
 	buffer.scroll_segment = segment;
 }
 
 fn get_cursor(editor: &Editor, buffer_id: ViewId) -> usize {
-	editor.state.core.buffers.get_buffer(buffer_id).unwrap().cursor
+	editor.state.core.editor.buffers.get_buffer(buffer_id).unwrap().cursor
 }
 
 fn get_scroll(editor: &Editor, buffer_id: ViewId) -> (usize, usize) {
-	let buffer = editor.state.core.buffers.get_buffer(buffer_id).unwrap();
+	let buffer = editor.state.core.editor.buffers.get_buffer(buffer_id).unwrap();
 	(buffer.scroll_line, buffer.scroll_segment)
 }
 
@@ -66,7 +66,7 @@ fn undo_restores_cursor_position() {
 
 	apply_test_edit(&mut editor, " there", 5);
 
-	assert_eq!(editor.state.core.undo_manager.undo_len(), 1);
+	assert_eq!(editor.state.core.editor.undo_manager.undo_len(), 1);
 
 	editor.undo();
 
@@ -77,11 +77,11 @@ fn undo_restores_cursor_position() {
 #[test]
 fn undo_without_history_requests_redraw_for_notification() {
 	let mut editor = test_editor("hello");
-	editor.state.frame.needs_redraw = false;
+	editor.state.core.frame.needs_redraw = false;
 
 	editor.undo();
 
-	assert!(editor.state.frame.needs_redraw);
+	assert!(editor.state.core.frame.needs_redraw);
 	assert!(!editor.take_notification_render_items().is_empty());
 }
 
@@ -108,7 +108,7 @@ fn undo_restores_view_state_for_multiple_buffers_same_document() {
 	set_scroll(&mut editor, 0, 0);
 
 	let focused = editor.focused_view();
-	let buffer2_id = editor.state.core.buffers.clone_buffer_for_split(focused).expect("focused buffer exists");
+	let buffer2_id = editor.state.core.editor.buffers.clone_buffer_for_split(focused).expect("focused buffer exists");
 
 	// Must add buffer to layout before focusing, otherwise focus normalization will reject it
 	editor.split_horizontal(buffer2_id);
@@ -118,8 +118,8 @@ fn undo_restores_view_state_for_multiple_buffers_same_document() {
 
 	apply_test_edit(&mut editor, "X", 0);
 
-	assert_eq!(editor.state.core.undo_manager.undo_len(), 1);
-	let group = editor.state.core.undo_manager.last_undo_group().expect("should have undo group");
+	assert_eq!(editor.state.core.editor.undo_manager.undo_len(), 1);
+	let group = editor.state.core.editor.undo_manager.last_undo_group().expect("should have undo group");
 	assert_eq!(group.view_snapshots.len(), 2, "undo group should have snapshots for both buffers");
 	assert!(group.view_snapshots.contains_key(&buffer1_id));
 	assert!(group.view_snapshots.contains_key(&buffer2_id));
@@ -162,13 +162,13 @@ fn redo_stack_clears_on_new_edit() {
 	let mut editor = test_editor("hello");
 
 	apply_test_edit(&mut editor, " world", 5);
-	assert_eq!(editor.state.core.undo_manager.undo_len(), 1);
+	assert_eq!(editor.state.core.editor.undo_manager.undo_len(), 1);
 
 	editor.undo();
-	assert_eq!(editor.state.core.undo_manager.redo_len(), 1, "redo stack should have one entry after undo");
+	assert_eq!(editor.state.core.editor.undo_manager.redo_len(), 1, "redo stack should have one entry after undo");
 
 	apply_test_edit(&mut editor, "!", 5);
-	assert!(!editor.state.core.undo_manager.can_redo(), "new edit should clear redo stack");
+	assert!(!editor.state.core.editor.undo_manager.can_redo(), "new edit should clear redo stack");
 }
 
 #[test]
@@ -177,13 +177,13 @@ fn merged_edit_clears_redo_stack() {
 
 	apply_test_edit(&mut editor, " world", 5);
 	editor.undo();
-	assert_eq!(editor.state.core.undo_manager.redo_len(), 1);
+	assert_eq!(editor.state.core.editor.undo_manager.redo_len(), 1);
 
 	let buffer_id = editor.focused_view();
 	let tx = {
 		let buffer = {
 			let focused = editor.focused_view();
-			editor.state.core.buffers.get_buffer(focused).expect("focused buffer exists")
+			editor.state.core.editor.buffers.get_buffer(focused).expect("focused buffer exists")
 		};
 		let rope = buffer.with_doc(|doc| doc.content().clone());
 		Transaction::change(
@@ -198,7 +198,7 @@ fn merged_edit_clears_redo_stack() {
 	editor.apply_edit(buffer_id, &tx, None, UndoPolicy::MergeWithCurrentGroup, EditOrigin::Internal("test"));
 
 	assert_eq!(
-		editor.state.core.undo_manager.redo_len(),
+		editor.state.core.editor.undo_manager.redo_len(),
 		0,
 		"any applied edit must clear redo stack regardless of undo policy"
 	);
@@ -212,7 +212,7 @@ fn merge_with_current_group_creates_single_undo_group_for_consecutive_inserts() 
 	let tx1 = {
 		let buffer = {
 			let focused = editor.focused_view();
-			editor.state.core.buffers.get_buffer(focused).expect("focused buffer exists")
+			editor.state.core.editor.buffers.get_buffer(focused).expect("focused buffer exists")
 		};
 		let rope = buffer.with_doc(|doc| doc.content().clone());
 		Transaction::change(
@@ -226,12 +226,12 @@ fn merge_with_current_group_creates_single_undo_group_for_consecutive_inserts() 
 	};
 	editor.apply_edit(buffer_id, &tx1, None, UndoPolicy::MergeWithCurrentGroup, EditOrigin::Internal("insert"));
 
-	assert_eq!(editor.state.core.undo_manager.undo_len(), 1, "first MergeWithCurrentGroup should create group");
+	assert_eq!(editor.state.core.editor.undo_manager.undo_len(), 1, "first MergeWithCurrentGroup should create group");
 
 	let tx2 = {
 		let buffer = {
 			let focused = editor.focused_view();
-			editor.state.core.buffers.get_buffer(focused).expect("focused buffer exists")
+			editor.state.core.editor.buffers.get_buffer(focused).expect("focused buffer exists")
 		};
 		let rope = buffer.with_doc(|doc| doc.content().clone());
 		Transaction::change(
@@ -246,7 +246,7 @@ fn merge_with_current_group_creates_single_undo_group_for_consecutive_inserts() 
 	editor.apply_edit(buffer_id, &tx2, None, UndoPolicy::MergeWithCurrentGroup, EditOrigin::Internal("insert"));
 
 	assert_eq!(
-		editor.state.core.undo_manager.undo_len(),
+		editor.state.core.editor.undo_manager.undo_len(),
 		1,
 		"consecutive MergeWithCurrentGroup should NOT create new group"
 	);
@@ -273,7 +273,7 @@ fn record_policy_breaks_merge_group() {
 	let tx1 = {
 		let buffer = {
 			let focused = editor.focused_view();
-			editor.state.core.buffers.get_buffer(focused).expect("focused buffer exists")
+			editor.state.core.editor.buffers.get_buffer(focused).expect("focused buffer exists")
 		};
 		let rope = buffer.with_doc(|doc| doc.content().clone());
 		Transaction::change(
@@ -290,7 +290,7 @@ fn record_policy_breaks_merge_group() {
 	let tx2 = {
 		let buffer = {
 			let focused = editor.focused_view();
-			editor.state.core.buffers.get_buffer(focused).expect("focused buffer exists")
+			editor.state.core.editor.buffers.get_buffer(focused).expect("focused buffer exists")
 		};
 		let rope = buffer.with_doc(|doc| doc.content().clone());
 		Transaction::change(
@@ -304,24 +304,24 @@ fn record_policy_breaks_merge_group() {
 	};
 	editor.apply_edit(buffer_id, &tx2, None, UndoPolicy::Record, EditOrigin::Internal("edit"));
 
-	assert_eq!(editor.state.core.undo_manager.undo_len(), 2, "Record policy should create new group");
+	assert_eq!(editor.state.core.editor.undo_manager.undo_len(), 2, "Record policy should create new group");
 }
 
 #[test]
 fn sibling_selection_sync_after_apply() {
 	let mut editor = test_editor("abcd");
 	let buffer1_id = editor.focused_view();
-	let buffer2_id = editor.state.core.buffers.clone_buffer_for_split(buffer1_id).expect("focused buffer exists");
+	let buffer2_id = editor.state.core.editor.buffers.clone_buffer_for_split(buffer1_id).expect("focused buffer exists");
 
 	let original_selection = {
-		let buffer = editor.state.core.buffers.get_buffer_mut(buffer2_id).expect("split buffer exists");
+		let buffer = editor.state.core.editor.buffers.get_buffer_mut(buffer2_id).expect("split buffer exists");
 		let selection = Selection::single(1, 3);
 		buffer.set_cursor_and_selection(3, selection.clone());
 		selection
 	};
 
 	let (tx, new_selection) = {
-		let buffer = editor.state.core.buffers.get_buffer_mut(buffer1_id).expect("buffer exists");
+		let buffer = editor.state.core.editor.buffers.get_buffer_mut(buffer1_id).expect("buffer exists");
 		buffer.set_cursor_and_selection(0, Selection::single(0, 0));
 		buffer.prepare_insert("Z")
 	};
@@ -330,7 +330,7 @@ fn sibling_selection_sync_after_apply() {
 	assert!(applied);
 
 	let expected = tx.map_selection(&original_selection);
-	let buffer2 = editor.state.core.buffers.get_buffer(buffer2_id).expect("split buffer exists");
+	let buffer2 = editor.state.core.editor.buffers.get_buffer(buffer2_id).expect("split buffer exists");
 	assert_eq!(buffer2.selection, expected);
 }
 
@@ -427,7 +427,7 @@ fn undo_redo_roundtrip(ops in prop::collection::vec((0usize..100, "[a-z]{1,3}"),
 			prop_assert!(applied);
 		}
 
-		prop_assert_eq!(editor.state.core.undo_manager.undo_len(), expected_groups);
+		prop_assert_eq!(editor.state.core.editor.undo_manager.undo_len(), expected_groups);
 	}
 }
 

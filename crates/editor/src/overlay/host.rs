@@ -44,7 +44,7 @@ impl OverlayHost {
 
 	fn overlay_container_rect(ed: &Editor, width: u16, height: u16) -> Rect {
 		let main_area = Rect::new(0, 0, width, height.saturating_sub(1));
-		let layout = ed.state.ui.compute_layout(main_area);
+		let layout = ed.state.ui.ui.compute_layout(main_area);
 
 		layout
 			.panel_areas
@@ -59,7 +59,7 @@ impl OverlayHost {
 		if spec.style.title.is_none() {
 			spec.style.title = spec.title.clone();
 		}
-		let (w, h) = match (ed.state.viewport.width, ed.state.viewport.height) {
+		let (w, h) = match (ed.state.core.viewport.width, ed.state.core.viewport.height) {
 			(Some(w), Some(h)) => (w, h),
 			_ => return false,
 		};
@@ -116,7 +116,7 @@ impl OverlayHost {
 
 	/// Allocates a new scratch buffer for overlay input or display.
 	pub fn create_input_buffer(ed: &mut Editor) -> ViewId {
-		ed.state.core.buffers.create_scratch()
+		ed.state.core.editor.buffers.create_scratch()
 	}
 
 	/// Configures a new interaction session based on a controller's UI specification.
@@ -144,7 +144,7 @@ impl OverlayHost {
 		let controller_kind = controller.kind();
 		let controller_title = controller.identity_title();
 		let overlay_title = spec.title.clone().unwrap_or_else(|| controller_title.to_string());
-		let (w, h) = (ed.state.viewport.width?, ed.state.viewport.height?);
+		let (w, h) = (ed.state.core.viewport.width?, ed.state.core.viewport.height?);
 		let screen = Self::overlay_container_rect(ed, w, h);
 
 		let mut roles = std::collections::HashMap::new();
@@ -153,7 +153,7 @@ impl OverlayHost {
 		let input_rect = spec.rect.resolve_opt(screen, &roles)?;
 		roles.insert(super::WindowRole::Input, input_rect);
 
-		let origin_focus = ed.state.focus.clone();
+		let origin_focus = ed.state.core.focus.clone();
 		let origin_view = ed.focused_view();
 		let origin_mode = ed.focused_buffer().input.mode();
 
@@ -198,10 +198,10 @@ impl OverlayHost {
 			};
 			roles.insert(win_spec.role, rect);
 
-			let buffer_id = ed.state.core.buffers.create_scratch();
+			let buffer_id = ed.state.core.editor.buffers.create_scratch();
 			session.buffers.push(buffer_id);
 
-			if let Some(buffer) = ed.state.core.buffers.get_buffer_mut(buffer_id) {
+			if let Some(buffer) = ed.state.core.editor.buffers.get_buffer_mut(buffer_id) {
 				for (k, v) in win_spec.buffer_options {
 					let _ = buffer.local_options.set_by_key(&xeno_registry::db::OPTIONS, &k, v);
 				}
@@ -221,7 +221,7 @@ impl OverlayHost {
 		}
 
 		ed.set_focus(FocusTarget::Overlay { buffer: input_buffer }, FocusReason::Programmatic);
-		ed.state.core.buffers.get_buffer_mut(input_buffer).unwrap().input.set_mode(Mode::Insert);
+		ed.state.core.editor.buffers.get_buffer_mut(input_buffer).unwrap().input.set_mode(Mode::Insert);
 
 		Some(session)
 	}
@@ -244,12 +244,12 @@ impl OverlayHost {
 
 		// Restore original state
 		if reason != CloseReason::Blur {
-			ed.state.focus = session.origin_focus;
+			ed.state.core.focus = session.origin_focus;
 		}
-		if let Some(buffer) = ed.state.core.buffers.get_buffer_mut(session.origin_view) {
+		if let Some(buffer) = ed.state.core.editor.buffers.get_buffer_mut(session.origin_view) {
 			buffer.input.set_mode(session.origin_mode);
 		}
 
-		ed.state.frame.needs_redraw = true;
+		ed.state.core.frame.needs_redraw = true;
 	}
 }

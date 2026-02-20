@@ -23,10 +23,10 @@ impl Editor {
 
 	/// Returns the currently focused window.
 	pub fn focused_window(&self) -> &Window {
-		match &self.state.focus {
-			FocusTarget::Buffer { window, .. } => self.state.windows.get(*window).expect("focused window must exist"),
-			FocusTarget::Overlay { .. } => self.state.windows.get(self.state.windows.base_id()).expect("base window must exist"),
-			FocusTarget::Panel(_) => self.state.windows.get(self.state.windows.base_id()).expect("base window must exist"),
+		match &self.state.core.focus {
+			FocusTarget::Buffer { window, .. } => self.state.core.windows.get(*window).expect("focused window must exist"),
+			FocusTarget::Overlay { .. } => self.state.core.windows.get(self.state.core.windows.base_id()).expect("base window must exist"),
+			FocusTarget::Panel(_) => self.state.core.windows.get(self.state.core.windows.base_id()).expect("base window must exist"),
 		}
 	}
 
@@ -34,19 +34,19 @@ impl Editor {
 	#[inline]
 	pub fn focused_buffer(&self) -> &Buffer {
 		let buffer_id = self.focused_view();
-		self.state.core.buffers.get_buffer(buffer_id).expect("focused buffer must exist")
+		self.state.core.editor.buffers.get_buffer(buffer_id).expect("focused buffer must exist")
 	}
 
 	/// Returns a mutable reference to the currently focused text buffer.
 	#[inline]
 	pub fn focused_buffer_mut(&mut self) -> &mut Buffer {
 		let buffer_id = self.focused_view();
-		self.state.core.buffers.get_buffer_mut(buffer_id).expect("focused buffer must exist")
+		self.state.core.editor.buffers.get_buffer_mut(buffer_id).expect("focused buffer must exist")
 	}
 
 	/// Returns the currently focused view (buffer ID).
 	pub fn focused_view(&self) -> ViewId {
-		match &self.state.focus {
+		match &self.state.core.focus {
 			FocusTarget::Buffer { buffer, .. } => *buffer,
 			FocusTarget::Overlay { buffer } => *buffer,
 			FocusTarget::Panel(_) => self.base_window().focused_buffer,
@@ -55,7 +55,7 @@ impl Editor {
 
 	/// Returns true if the focused view is a text buffer.
 	pub fn is_text_focused(&self) -> bool {
-		matches!(self.state.focus, FocusTarget::Buffer { .. })
+		matches!(self.state.core.focus, FocusTarget::Buffer { .. })
 	}
 
 	/// Returns the ID of the focused text buffer.
@@ -65,22 +65,22 @@ impl Editor {
 
 	/// Returns all text buffer IDs.
 	pub fn buffer_ids(&self) -> Vec<ViewId> {
-		self.state.core.buffers.buffer_ids().collect()
+		self.state.core.editor.buffers.buffer_ids().collect()
 	}
 
 	/// Returns a reference to a specific buffer by ID.
 	pub fn get_buffer(&self, id: ViewId) -> Option<&Buffer> {
-		self.state.core.buffers.get_buffer(id)
+		self.state.core.editor.buffers.get_buffer(id)
 	}
 
 	/// Returns a mutable reference to a specific buffer by ID.
 	pub fn get_buffer_mut(&mut self, id: ViewId) -> Option<&mut Buffer> {
-		self.state.core.buffers.get_buffer_mut(id)
+		self.state.core.editor.buffers.get_buffer_mut(id)
 	}
 
 	/// Returns the number of open text buffers.
 	pub fn buffer_count(&self) -> usize {
-		self.state.core.buffers.buffer_count()
+		self.state.core.editor.buffers.buffer_count()
 	}
 
 	/// Returns the tab width for a specific buffer.
@@ -134,16 +134,16 @@ impl Editor {
 
 	/// Returns the screen area of a specific view.
 	pub fn view_area(&self, view_id: ViewId) -> crate::geometry::Rect {
-		if let Some(active) = self.state.overlay_system.interaction().active()
+		if let Some(active) = self.state.ui.overlay_system.interaction().active()
 			&& let Some(pane) = active.session.panes.iter().find(|pane| pane.buffer == view_id)
 		{
 			return pane.content_rect;
 		}
 
-		for (_, window) in self.state.windows.windows() {
+		for (_, window) in self.state.core.windows.windows() {
 			if window.buffer() == view_id && matches!(window, Window::Base(_)) {
 				let doc_area = self.doc_area();
-				for (v, area) in self.state.layout.compute_view_areas(&self.base_window().layout, doc_area) {
+				for (v, area) in self.state.core.layout.compute_view_areas(&self.base_window().layout, doc_area) {
 					if v == view_id {
 						return area;
 					}

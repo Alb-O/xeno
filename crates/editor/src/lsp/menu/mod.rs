@@ -37,7 +37,7 @@ impl Editor {
 
 		match key.code {
 			KeyCode::Esc => {
-				self.state.lsp.cancel_completion();
+				self.state.integration.lsp.cancel_completion();
 				if self.overlays().get::<CompletionState>().is_some_and(|s| s.active) {
 					self.overlays_mut().get_or_default::<CompletionState>().suppressed = true;
 				}
@@ -65,7 +65,7 @@ impl Editor {
 				let selected_idx = state.and_then(|completion| completion.selected_idx);
 				if let Some(idx) = selected_idx {
 					let raw_idx = lsp_completion_raw_index(state, idx);
-					self.state.lsp.cancel_completion();
+					self.state.integration.lsp.cancel_completion();
 					self.clear_lsp_menu();
 					match menu_kind {
 						LspMenuKind::Completion { buffer_id, items } => {
@@ -85,7 +85,7 @@ impl Editor {
 						state.selected_idx = Some(0);
 						state.selection_intent = SelectionIntent::Manual;
 						state.ensure_selected_visible();
-						self.state.frame.needs_redraw = true;
+						self.state.core.frame.needs_redraw = true;
 					}
 				}
 				return true;
@@ -94,7 +94,7 @@ impl Editor {
 				let state = self.overlays().get::<CompletionState>();
 				let idx = state.and_then(|s| s.selected_idx).or_else(|| state.filter(|s| !s.items.is_empty()).map(|_| 0));
 				let raw_idx = idx.map(|display_idx| lsp_completion_raw_index(state, display_idx));
-				self.state.lsp.cancel_completion();
+				self.state.integration.lsp.cancel_completion();
 				self.clear_lsp_menu();
 				if let Some(idx) = idx {
 					match menu_kind {
@@ -135,7 +135,7 @@ impl Editor {
 		state.selected_idx = Some(next as usize);
 		state.selection_intent = SelectionIntent::Manual;
 		state.ensure_selected_visible();
-		self.state.frame.needs_redraw = true;
+		self.state.core.frame.needs_redraw = true;
 	}
 
 	fn page_lsp_menu_selection(&mut self, direction: isize) {
@@ -156,7 +156,7 @@ impl Editor {
 		state.selected_idx = Some(next as usize);
 		state.selection_intent = SelectionIntent::Manual;
 		state.ensure_selected_visible();
-		self.state.frame.needs_redraw = true;
+		self.state.core.frame.needs_redraw = true;
 	}
 }
 

@@ -22,6 +22,6 @@ impl CursorAccess for EditorCaps<'_> {
 		let view = self.ed.focused_view();
 		self.ed.buffer_mut().set_cursor(pos);
 		self.ed.snippet_session_on_cursor_moved(view);
-		self.ed.state.effects.push_layer_event(LayerEvent::CursorMoved { view });
+		self.ed.state.runtime.effects.push_layer_event(LayerEvent::CursorMoved { view });
 	}
 }

@@ -623,7 +623,6 @@ impl xeno_worker::Actor for LspSyncActor {
 /// Actor-backed LSP sync manager command handle.
 pub struct LspSyncManager {
 	shared: Arc<RwLock<LspSyncShared>>,
-	actor: Arc<xeno_worker::ActorHandle<LspSyncCmd, LspSyncEvent>>,
 	ingress: xeno_worker::ActorCommandIngress<LspSyncCmd, LspSyncEvent>,
 }
 
@@ -670,7 +669,7 @@ impl LspSyncManager {
 		let ingress = xeno_worker::ActorCommandIngress::new(&worker_runtime, xeno_worker::TaskClass::Background, Arc::clone(&actor));
 		let _ = command_port.set(ingress.port());
 
-		Self { shared, actor, ingress }
+		Self { shared, ingress }
 	}
 
 	fn send(&self, cmd: LspSyncCmd) {
@@ -790,7 +789,7 @@ impl LspSyncManager {
 
 	#[cfg(test)]
 	fn restart_count(&self) -> usize {
-		self.actor.restart_count()
+		self.ingress.actor().restart_count()
 	}
 
 	#[cfg(test)]

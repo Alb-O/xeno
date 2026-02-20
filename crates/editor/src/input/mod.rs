@@ -103,9 +103,9 @@ impl Editor {
 	pub(crate) async fn apply_runtime_event_input(&mut self, event: RuntimeEvent) -> bool {
 		match event {
 			RuntimeEvent::Key(key) => {
-				if self.state.overlay_system.interaction().is_open() && key.code == KeyCode::Enter {
+				if self.state.ui.overlay_system.interaction().is_open() && key.code == KeyCode::Enter {
 					self.enqueue_runtime_overlay_commit_work();
-					self.state.frame.needs_redraw = true;
+					self.state.core.frame.needs_redraw = true;
 					self.interaction_on_buffer_edited();
 					return false;
 				}

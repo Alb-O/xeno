@@ -319,7 +319,7 @@ async fn test_filesystem_and_message_phases_preserve_redraw_contract() {
 	assert!(
 		editor
 			.state
-			.filesystem
+			.integration.filesystem
 			.ensure_index(root.path().to_path_buf(), crate::filesystem::FilesystemOptions::default()),
 		"filesystem ensure_index should enqueue work"
 	);
@@ -556,7 +556,7 @@ async fn test_nu_stop_scope_clear_is_generation_local() {
 		RuntimeWorkSource::Overlay,
 	);
 
-	let cleared_generation = editor.state.nu.advance_stop_scope_generation();
+	let cleared_generation = editor.state.integration.nu.advance_stop_scope_generation();
 	editor.clear_runtime_nu_scope(cleared_generation);
 
 	editor.enqueue_runtime_nu_invocation(
@@ -621,7 +621,7 @@ async fn test_log_only_runtime_unknown_command_notification_path_is_stable() {
 	let report = editor.drain_runtime_work_report(usize::MAX).await;
 	assert_eq!(report.drained_invocations, 1);
 
-	let pending = editor.state.notifications.take_pending();
+	let pending = editor.state.ui.notifications.take_pending();
 	assert_eq!(pending.len(), 1, "missing command should emit one unknown-command notification");
 	let expected = xeno_registry::notifications::keys::unknown_command(missing);
 	assert_eq!(pending[0].id, expected.id);

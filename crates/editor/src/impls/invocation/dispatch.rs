@@ -78,7 +78,7 @@ impl Editor {
 			invocation,
 			source,
 			WorkExecutionPolicy::EnforcingNuPipeline,
-			WorkScope::NuStopScope(self.state.nu.current_stop_scope_generation()),
+			WorkScope::NuStopScope(self.state.integration.nu.current_stop_scope_generation()),
 		);
 	}
 
@@ -99,7 +99,7 @@ impl Editor {
 		};
 		let scope = match request.scope_hint {
 			DeferredInvocationScopeHint::Global => WorkScope::Global,
-			DeferredInvocationScopeHint::CurrentNuStopScope => WorkScope::NuStopScope(self.state.nu.current_stop_scope_generation()),
+			DeferredInvocationScopeHint::CurrentNuStopScope => WorkScope::NuStopScope(self.state.integration.nu.current_stop_scope_generation()),
 		};
 
 		self.enqueue_runtime_invocation(invocation, source, execution, scope);

@@ -529,7 +529,7 @@ async fn nu_macro_capability_denial_is_command_error() {
 	let runtime = crate::nu::NuRuntime::load(temp.path()).expect("runtime should load");
 	let mut editor = Editor::new_scratch();
 	editor.set_nu_runtime(Some(runtime));
-	editor.state.config.nu = Some(xeno_registry::config::NuConfig {
+	editor.state.config.config.nu = Some(xeno_registry::config::NuConfig {
 		budget_macro: None,
 		budget_hook: None,
 		capabilities_macro: Some(HashSet::new()),
@@ -599,7 +599,7 @@ async fn nu_hook_capability_denial_is_non_fatal() {
 	let runtime = crate::nu::NuRuntime::load(temp.path()).expect("runtime should load");
 	let mut editor = Editor::new_scratch();
 	editor.set_nu_runtime(Some(runtime));
-	editor.state.config.nu = Some(xeno_registry::config::NuConfig {
+	editor.state.config.config.nu = Some(xeno_registry::config::NuConfig {
 		budget_macro: None,
 		budget_hook: None,
 		capabilities_macro: None,
@@ -707,7 +707,7 @@ async fn nu_runtime_reload_swaps_executor_and_disables_old_runtime_hooks() {
 
 	let old_shared = editor
 		.state
-		.nu
+		.integration.nu
 		.executor()
 		.expect("executor should exist after first Nu hook execution")
 		.shutdown_acks_for_tests();
@@ -833,7 +833,7 @@ async fn mode_change_hook_runs_on_transition() {
 	let mut editor = Editor::new_scratch();
 	editor.set_nu_runtime(Some(runtime));
 
-	assert!(editor.state.nu.hook_id().on_hook.is_some(), "decl ID should be cached");
+	assert!(editor.state.integration.nu.hook_id().on_hook.is_some(), "decl ID should be cached");
 
 	editor.enqueue_mode_change_hook(&xeno_primitives::Mode::Normal, &xeno_primitives::Mode::Insert);
 	let quit = editor.drain_nu_hook_queue(usize::MAX).await;
@@ -964,7 +964,7 @@ export def on_hook [] {
 	let mut editor = Editor::new_scratch();
 	editor.set_nu_runtime(Some(runtime));
 
-	assert!(editor.state.nu.hook_id().on_hook.is_some(), "decl ID should be cached");
+	assert!(editor.state.integration.nu.hook_id().on_hook.is_some(), "decl ID should be cached");
 
 	let location = crate::impls::navigation::Location {
 		path: file_path,
@@ -1068,7 +1068,7 @@ async fn nu_macro_respects_configured_decode_limits() {
 	editor.set_nu_runtime(Some(runtime));
 
 	// Set decode budget: max_effects=1
-	editor.state.config.nu = Some(xeno_registry::config::NuConfig {
+	editor.state.config.config.nu = Some(xeno_registry::config::NuConfig {
 		budget_macro: Some(xeno_registry::config::DecodeBudgetOverrides {
 			max_effects: Some(1),
 			..Default::default()

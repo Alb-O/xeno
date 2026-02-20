@@ -15,13 +15,13 @@ impl Editor {
 			return Err(kernel.command_error_with_notification(InvocationTarget::Nu, error));
 		}
 
-		let Some(decl_id) = self.state.nu.resolve_macro_decl_cached(&fn_name) else {
+		let Some(decl_id) = self.state.integration.nu.resolve_macro_decl_cached(&fn_name) else {
 			let error = format!("Nu runtime error: function '{}' is not defined in xeno.nu", fn_name);
 			let mut kernel = InvocationKernel::new(self, InvocationPolicy::enforcing());
 			return Err(kernel.command_error_with_notification(InvocationTarget::Nu, error));
 		};
 
-		let Some(executor) = self.state.nu.ensure_executor() else {
+		let Some(executor) = self.state.integration.nu.ensure_executor() else {
 			let kernel = InvocationKernel::new(self, InvocationPolicy::enforcing());
 			return Err(kernel.command_error(InvocationTarget::Nu, "Nu executor is not available"));
 		};
@@ -55,7 +55,7 @@ impl Editor {
 			return Ok(Vec::new());
 		}
 
-		let allowed = self.state.config.nu.as_ref().map_or_else(
+		let allowed = self.state.config.config.nu.as_ref().map_or_else(
 			|| xeno_registry::config::NuConfig::default().macro_capabilities(),
 			|config| config.macro_capabilities(),
 		);
@@ -101,7 +101,7 @@ impl Editor {
 		let config_dir = crate::paths::get_config_dir().ok_or_else(|| "config directory is unavailable; cannot auto-load xeno.nu".to_string())?;
 		let loaded = self
 			.state
-			.worker_runtime
+			.async_state.worker_runtime
 			.spawn_blocking(xeno_worker::TaskClass::CpuBlocking, move || crate::nu::NuRuntime::load(&config_dir))
 			.await
 			.map_err(|error| format!("failed to join Nu runtime load task: {error}"))?;
@@ -199,7 +199,7 @@ impl Editor {
 			(cl, cc, ssl, ssc, sel, sec, ranges, snapshot)
 		});
 
-		let state_snapshot: Vec<(String, String)> = self.state.core.workspace.nu_state.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
+		let state_snapshot: Vec<(String, String)> = self.state.core.editor.workspace.nu_state.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
 
 		NuCtx {
 			kind: kind.to_string(),

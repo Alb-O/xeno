@@ -202,7 +202,7 @@ impl Editor {
 	/// Submits one runtime event with an explicit source tag.
 	pub(crate) fn submit_event_from_source(&mut self, event: RuntimeEvent, source: RuntimeEventSource) -> SubmitToken {
 		if matches!(source, RuntimeEventSource::Frontend)
-			&& let Some(rec) = &mut self.state.recorder
+			&& let Some(rec) = &mut self.state.runtime.recorder
 		{
 			rec.record(&event);
 		}

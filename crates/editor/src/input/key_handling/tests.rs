@@ -63,7 +63,7 @@ async fn enter_queues_deferred_commit_and_pump_consumes() {
 	assert!(editor.has_runtime_overlay_commit_work());
 
 	let _ = editor.drain_until_idle(crate::runtime::DrainPolicy::for_pump()).await;
-	assert!(!editor.state.overlay_system.interaction().is_open());
+	assert!(!editor.state.ui.overlay_system.interaction().is_open());
 }
 
 #[tokio::test]

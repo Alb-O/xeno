@@ -195,7 +195,7 @@ impl Editor {
 				.get_buffer(buffer_id)
 				.ok_or_else(|| ApplyError::BufferNotFound(uri.to_string()))?;
 
-			let encoding = self.state.lsp.offset_encoding_for_buffer(buffer);
+			let encoding = self.state.integration.lsp.offset_encoding_for_buffer(buffer);
 			let mut planned_edits = Vec::new();
 			for edit in edits {
 				let planned = buffer
@@ -224,7 +224,7 @@ impl Editor {
 	fn collect_text_document_edit(&self, edit: TextDocumentEdit, per_uri: &mut HashMap<String, (Uri, Vec<TextEdit>)>) -> Result<(), ApplyError> {
 		let uri = edit.text_document.uri;
 		if let Some(expected) = edit.text_document.version {
-			match self.state.lsp.documents().get_version(&uri) {
+			match self.state.integration.lsp.documents().get_version(&uri) {
 				Some(actual) if actual != expected => {
 					return Err(ApplyError::VersionMismatch {
 						uri: uri.to_string(),
@@ -254,7 +254,7 @@ impl Editor {
 	/// workspace edits must not invalidate existing buffer identities.
 	async fn resolve_uri_to_buffer(&mut self, uri: &Uri) -> Result<(ViewId, bool), ApplyError> {
 		let path = xeno_lsp::path_from_uri(uri).ok_or_else(|| ApplyError::InvalidUri(uri.to_string()))?;
-		if let Some(buffer_id) = self.state.core.buffers.find_by_path(&path) {
+		if let Some(buffer_id) = self.state.core.editor.buffers.find_by_path(&path) {
 			return Ok((buffer_id, false));
 		}
 
@@ -273,7 +273,7 @@ impl Editor {
 		let mut all_view_snapshots = HashMap::new();
 
 		for buffer_plan in &plan.per_buffer {
-			let Some(buffer) = self.state.core.buffers.get_buffer(buffer_plan.buffer_id) else {
+			let Some(buffer) = self.state.core.editor.buffers.get_buffer(buffer_plan.buffer_id) else {
 				continue;
 			};
 			let doc_id = buffer.document_id();
@@ -294,7 +294,7 @@ impl Editor {
 			all_view_snapshots.extend(snapshots);
 		}
 
-		self.state.core.undo_manager.push_group(EditorUndoGroup {
+		self.state.core.editor.undo_manager.push_group(EditorUndoGroup {
 			affected_docs,
 			view_snapshots: all_view_snapshots,
 			origin: EditOrigin::Lsp,
@@ -366,29 +366,29 @@ impl Editor {
 				.get_buffer(buffer_id)
 				.ok_or_else(|| ApplyError::BufferNotFound(buffer_id.0.to_string()))?
 				.with_doc(|doc| (doc.content().clone(), doc.version()));
-			self.state.syntax_manager.note_edit_incremental(
+			self.state.integration.syntax_manager.note_edit_incremental(
 				doc_id,
 				version,
 				&before_rope,
 				&after_rope,
 				tx.changes(),
-				&self.state.config.language_loader,
+				&self.state.config.config.language_loader,
 				xeno_syntax::EditSource::History,
 			);
-			self.state.lsp.sync_manager_mut().escalate_full(doc_id);
+			self.state.integration.lsp.sync_manager_mut().escalate_full(doc_id);
 		}
 
 		if !result.applied {
 			return Err(ApplyError::ReadOnly(buffer_id.0.to_string()));
 		}
 
-		for buffer in self.state.core.buffers.buffers_mut() {
+		for buffer in self.state.core.editor.buffers.buffers_mut() {
 			if buffer.document_id() == doc_id {
 				buffer.map_selection_through(&tx);
 			}
 		}
 
-		self.state.frame.dirty_buffers.insert(buffer_id);
+		self.state.core.frame.dirty_buffers.insert(buffer_id);
 		Ok(tx)
 	}
 
@@ -408,7 +408,7 @@ impl Editor {
 		// BTreeMap gives deterministic (lexicographic) write order.
 		let mut plans: BTreeMap<PathBuf, Vec<u8>> = BTreeMap::new();
 		for &id in temps {
-			let Some(buffer) = self.state.core.buffers.get_buffer(id) else {
+			let Some(buffer) = self.state.core.editor.buffers.get_buffer(id) else {
 				continue;
 			};
 			if !buffer.modified() {
@@ -437,7 +437,7 @@ impl Editor {
 			let write_bytes = bytes.clone();
 			let result = self
 				.state
-				.worker_runtime
+				.async_state.worker_runtime
 				.spawn_blocking(xeno_worker::TaskClass::IoBlocking, move || crate::io::write_atomic(&write_path, &write_bytes))
 				.await;
 			let write_result = match result {
@@ -461,12 +461,12 @@ impl Editor {
 	}
 
 	fn close_headless_buffer(&mut self, buffer_id: ViewId) {
-		let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
+		let Some(buffer) = self.state.core.editor.buffers.get_buffer(buffer_id) else {
 			return;
 		};
 		if let (Some(path), Some(lang)) = (buffer.path().map(|p| p.to_path_buf()), buffer.file_type().map(|s| s.to_string())) {
-			let lsp_handle = self.state.lsp.handle();
-			self.state.worker_runtime.spawn(xeno_worker::TaskClass::Background, async move {
+			let lsp_handle = self.state.integration.lsp.handle();
+			self.state.async_state.worker_runtime.spawn(xeno_worker::TaskClass::Background, async move {
 				if let Err(e) = lsp_handle.close_document(path, lang).await {
 					tracing::warn!(error = %e, "LSP buffer close failed");
 				}

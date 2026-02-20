@@ -19,7 +19,7 @@ async fn modal_mouse_capture_keeps_overlay_open() {
 
 	let pane = editor
 		.state
-		.overlay_system
+		.ui.overlay_system
 		.interaction()
 		.active()
 		.and_then(|active| active.session.panes.first())
@@ -28,7 +28,7 @@ async fn modal_mouse_capture_keeps_overlay_open() {
 	let mouse = mouse_down(pane.rect.x, pane.rect.y);
 	let _ = editor.handle_mouse(mouse).await;
 
-	assert!(editor.state.overlay_system.interaction().is_open());
+	assert!(editor.state.ui.overlay_system.interaction().is_open());
 	assert!(matches!(editor.focus(), FocusTarget::Overlay { .. }));
 }
 
@@ -41,5 +41,5 @@ async fn click_outside_modal_closes_overlay() {
 	let mouse = mouse_down(0, 0);
 	let _ = editor.handle_mouse(mouse).await;
 
-	assert!(!editor.state.overlay_system.interaction().is_open());
+	assert!(!editor.state.ui.overlay_system.interaction().is_open());
 }

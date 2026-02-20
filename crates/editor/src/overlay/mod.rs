@@ -338,19 +338,19 @@ pub trait OverlayController: Send + Sync {
 
 impl OverlayContext for crate::Editor {
 	fn buffer(&self, id: ViewId) -> Option<&Buffer> {
-		self.state.core.buffers.get_buffer(id)
+		self.state.core.editor.buffers.get_buffer(id)
 	}
 
 	fn buffer_mut(&mut self, id: ViewId) -> Option<&mut Buffer> {
-		self.state.core.buffers.get_buffer_mut(id)
+		self.state.core.editor.buffers.get_buffer_mut(id)
 	}
 
 	fn reset_buffer_content(&mut self, view: ViewId, content: &str) {
-		let Some(buffer) = self.state.core.buffers.get_buffer_mut(view) else {
+		let Some(buffer) = self.state.core.editor.buffers.get_buffer_mut(view) else {
 			return;
 		};
 		buffer.reset_content(content);
-		self.state.syntax_manager.reset_syntax(buffer.document_id());
+		self.state.integration.syntax_manager.reset_syntax(buffer.document_id());
 	}
 
 	fn notify(&mut self, notification: Notification) {
@@ -362,7 +362,7 @@ impl OverlayContext for crate::Editor {
 	}
 
 	fn request_redraw(&mut self) {
-		self.state.frame.needs_redraw = true;
+		self.state.core.frame.needs_redraw = true;
 	}
 
 	fn queue_invocation(&mut self, request: xeno_registry::actions::DeferredInvocationRequest) {
@@ -371,7 +371,7 @@ impl OverlayContext for crate::Editor {
 
 	#[cfg(feature = "lsp")]
 	fn worker_runtime(&self) -> xeno_worker::WorkerRuntime {
-		self.state.worker_runtime.clone()
+		self.state.async_state.worker_runtime.clone()
 	}
 
 	fn finalize_buffer_removal(&mut self, view: ViewId) {
@@ -397,19 +397,19 @@ impl OverlayContext for crate::Editor {
 	}
 
 	fn record_command_usage(&mut self, canonical: &str) {
-		self.state.command_usage.record(canonical);
+		self.state.telemetry.command_usage.record(canonical);
 	}
 
 	fn command_usage_snapshot(&self) -> crate::completion::CommandUsageSnapshot {
-		self.state.command_usage.snapshot()
+		self.state.telemetry.command_usage.snapshot()
 	}
 
 	fn filesystem(&self) -> &crate::filesystem::FsService {
-		&self.state.filesystem
+		&self.state.integration.filesystem
 	}
 
 	fn filesystem_mut(&mut self) -> &mut crate::filesystem::FsService {
-		&mut self.state.filesystem
+		&mut self.state.integration.filesystem
 	}
 
 	#[cfg(feature = "lsp")]
@@ -417,7 +417,7 @@ impl OverlayContext for crate::Editor {
 		&self,
 		buffer: &Buffer,
 	) -> xeno_lsp::Result<Option<(xeno_lsp::ClientHandle, xeno_lsp::lsp_types::Uri, xeno_lsp::lsp_types::Position)>> {
-		self.state.lsp.prepare_position_request(buffer)
+		self.state.integration.lsp.prepare_position_request(buffer)
 	}
 
 	#[cfg(feature = "lsp")]
@@ -430,15 +430,15 @@ impl OverlayContext for crate::Editor {
 
 	#[cfg(feature = "lsp")]
 	fn mint_rename_token(&mut self) -> u64 {
-		let token = self.state.rename_request_token_next;
-		self.state.rename_request_token_next += 1;
-		self.state.pending_rename_token = Some(token);
+		let token = self.state.async_state.rename_request_token_next;
+		self.state.async_state.rename_request_token_next += 1;
+		self.state.async_state.pending_rename_token = Some(token);
 		token
 	}
 
 	#[cfg(feature = "lsp")]
 	fn clear_pending_rename_token(&mut self) {
-		self.state.pending_rename_token = None;
+		self.state.async_state.pending_rename_token = None;
 	}
 }
 
@@ -540,7 +540,7 @@ impl OverlayManager {
 		} else {
 			10
 		};
-		ed.state.ui.sync_utility_for_modal_overlay(Some(desired_height));
+		ed.state.ui.ui.sync_utility_for_modal_overlay(Some(desired_height));
 
 		if let Some(mut session) = OverlayHost::setup_session(ed, &*controller) {
 			#[cfg(feature = "lsp")]
@@ -550,7 +550,7 @@ impl OverlayManager {
 			self.active = Some(ActiveOverlay { session, controller });
 			true
 		} else {
-			ed.state.ui.sync_utility_for_modal_overlay(None);
+			ed.state.ui.ui.sync_utility_for_modal_overlay(None);
 			false
 		}
 	}
@@ -625,7 +625,7 @@ impl OverlayManager {
 		};
 
 		if OverlayHost::reflow_session(ed, &*active.controller, &mut active.session) {
-			ed.state.frame.needs_redraw = true;
+			ed.state.core.frame.needs_redraw = true;
 			self.active = Some(active);
 			return;
 		}
