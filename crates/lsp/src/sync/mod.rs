@@ -249,7 +249,11 @@ impl DocumentSync {
 
 		let version = self.documents.get_version(&uri).unwrap_or(0);
 
-		client.text_document_did_open(uri.clone(), language.to_string(), version, text).await?;
+		if let Err(e) = client.text_document_did_open(uri.clone(), language.to_string(), version, text).await {
+			// Unregister to prevent phantom "registered but never opened" state.
+			self.documents.unregister(&uri);
+			return Err(e);
+		}
 
 		self.documents.mark_opened(&uri, version);
 

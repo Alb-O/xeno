@@ -749,3 +749,69 @@ async fn reopen_document_opens_new_even_if_did_close_fails() {
 	let new_uri = crate::uri_from_path(new_path).unwrap();
 	assert!(documents.is_opened(&new_uri));
 }
+
+#[tokio::test]
+async fn ensure_open_text_unregisters_if_did_open_fails() {
+	use crate::registry::LanguageServerConfig;
+
+	let transport = Arc::new(RecordingTransport::new());
+	let (sync, registry, documents, _receiver) = DocumentSync::create(transport.clone(), xeno_worker::WorkerRuntime::new());
+
+	registry.register(
+		"rust",
+		LanguageServerConfig {
+			command: "rust-analyzer".into(),
+			..Default::default()
+		},
+	);
+
+	let path = Path::new("/fail_open.rs");
+	let uri = crate::uri_from_path(path).unwrap();
+
+	// Make didOpen fail.
+	transport.set_fail_method("textDocument/didOpen");
+
+	let result = sync.ensure_open_text(path, "rust", "fn main() {}".into()).await;
+	assert!(result.is_err(), "expected error from failed didOpen");
+
+	// URI must NOT be registered or opened.
+	assert!(!documents.is_opened(&uri));
+	assert!(documents.get_diagnostics(&uri).is_empty());
+}
+
+#[tokio::test]
+async fn reopen_document_does_not_register_new_if_did_open_fails() {
+	use crate::registry::LanguageServerConfig;
+
+	let transport = Arc::new(RecordingTransport::new());
+	let (sync, registry, documents, _receiver) = DocumentSync::create(transport.clone(), xeno_worker::WorkerRuntime::new());
+
+	registry.register(
+		"rust",
+		LanguageServerConfig {
+			command: "rust-analyzer".into(),
+			..Default::default()
+		},
+	);
+
+	let old_path = Path::new("/reopen_fail_old.rs");
+	let new_path = Path::new("/reopen_fail_new.rs");
+
+	// Open old normally.
+	sync.open_document(old_path, "rust", &Rope::from("fn main() {}")).await.unwrap();
+	let old_uri = crate::uri_from_path(old_path).unwrap();
+	assert!(documents.is_opened(&old_uri));
+
+	// Make didOpen fail (didClose will succeed).
+	transport.set_fail_method("textDocument/didOpen");
+
+	let result = sync.reopen_document(old_path, "rust", new_path, "rust", "fn main() {}".into()).await;
+	assert!(result.is_err(), "expected error from failed didOpen on new path");
+
+	// Old must be unregistered (close succeeded).
+	assert!(!documents.is_opened(&old_uri));
+
+	// New must NOT be registered (open failed, unregister cleaned up).
+	let new_uri = crate::uri_from_path(new_path).unwrap();
+	assert!(!documents.is_opened(&new_uri));
+}
