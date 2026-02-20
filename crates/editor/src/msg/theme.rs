@@ -3,13 +3,12 @@
 use super::Dirty;
 use crate::Editor;
 
-/// Messages for theme registration and switching.
+/// Messages for theme configuration refresh.
 ///
 /// Theme loading is split into two phases: a background task collects and
 /// deduplicates theme definitions from disk, then sends `ThemesReady` with the
-/// parsed data. The editor thread validates the token (latest-wins) before
-/// registering themes in the global registry, ensuring stale loads never
-/// overwrite a newer theme set.
+/// parsed data. The editor thread validates the token (latest-wins), refreshes
+/// configured theme state, and reports parse errors.
 pub enum ThemeMsg {
 	/// Background theme loading completed.
 	///
@@ -42,14 +41,16 @@ impl ThemeMsg {
 	/// (superseded by a newer `kick_theme_load`) are silently ignored.
 	pub fn apply(self, editor: &mut Editor) -> Dirty {
 		match self {
-			Self::ThemesReady { token, themes, errors } => {
+			Self::ThemesReady {
+				token,
+				themes: _themes,
+				errors,
+			} => {
 				if editor.state.pending_theme_load_token != Some(token) {
 					tracing::debug!(token, "Ignoring stale theme load");
 					return Dirty::NONE;
 				}
 				editor.state.pending_theme_load_token = None;
-
-				xeno_registry::themes::register_runtime_themes(themes);
 
 				editor.resolve_configured_theme();
 				crate::bootstrap::cache_theme(&editor.state.config.theme);

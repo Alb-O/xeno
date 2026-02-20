@@ -44,6 +44,6 @@ pub use highlight::{Highlight, HighlightEvent, HighlightSpan, HighlightStyles, H
 pub use ids::{RegistryLanguageIdExt, TreeHouseLanguageExt};
 pub use language::LanguageData;
 pub use loader::{LanguageId, LanguageLoader};
-pub use lsp_config::{LanguageLspInfo, LanguageLspMapping, LspConfigError, LspServerDef, load_lsp_configs};
+pub use lsp_config::{LanguageLspInfo, LanguageLspMapping, LspConfigError, LspServerDef, ResolvedLanguageLspConfig, load_lsp_configs, load_resolved_lsp_configs};
 pub use query::{CapturedNode, IndentQuery, RainbowQuery, TagQuery, TextObjectQuery, read_query};
 pub use syntax::{InjectionPolicy, SealedSource, Syntax, SyntaxError, SyntaxOptions};

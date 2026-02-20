@@ -1,6 +1,4 @@
-//! LSP server configuration loading.
-//!
-//! Server definitions are loaded from registry specs.
+//! LSP server configuration loading from the immutable registry catalog.
 
 use std::collections::HashMap;
 
@@ -17,7 +15,7 @@ pub enum LspConfigError {
 /// Result type for LSP configuration operations.
 pub type Result<T> = std::result::Result<T, LspConfigError>;
 
-/// LSP server definition loaded from registry specs.
+/// LSP server definition loaded from the immutable registry catalog.
 #[derive(Debug, Clone)]
 pub struct LspServerDef {
 	/// Server identifier (e.g., "rust-analyzer", "pyright").
@@ -36,25 +34,29 @@ pub struct LspServerDef {
 	pub nix: Option<String>,
 }
 
-/// Loads LSP server configurations from registry specs.
+/// Loads LSP server configurations from the immutable registry catalog.
 pub fn load_lsp_configs() -> Result<Vec<LspServerDef>> {
-	let spec = xeno_registry::domains::lsp_servers::loader::load_lsp_servers_spec();
-	Ok(spec
-		.servers
+	Ok(xeno_registry::LSP_SERVERS
+		.snapshot_guard()
+		.iter_refs()
 		.into_iter()
 		.map(|raw| LspServerDef {
-			name: raw.common.name,
-			command: raw.command,
-			args: raw.args,
-			environment: raw.environment.into_iter().collect(),
-			config: raw.config_json.and_then(|s| serde_json::from_str(&s).ok()),
-			source: raw.source,
-			nix: raw.nix,
+			name: raw.name_str().to_string(),
+			command: raw.resolve(raw.command).to_string(),
+			args: raw.args.iter().map(|&arg| raw.resolve(arg).to_string()).collect(),
+			environment: raw
+				.environment
+				.iter()
+				.map(|&(key, value)| (raw.resolve(key).to_string(), raw.resolve(value).to_string()))
+				.collect(),
+			config: raw.config_json.and_then(|symbol| serde_json::from_str(raw.resolve(symbol)).ok()),
+			source: raw.source.map(|symbol| raw.resolve(symbol).to_string()),
+			nix: raw.nix.map(|symbol| raw.resolve(symbol).to_string()),
 		})
 		.collect())
 }
 
-/// Language LSP configuration extracted from registry specs.
+/// Language LSP configuration extracted from registry-backed language entries.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct LanguageLspInfo {
 	/// LSP server names for this language.
@@ -65,3 +67,42 @@ pub struct LanguageLspInfo {
 
 /// Mapping of language name to its LSP configuration.
 pub type LanguageLspMapping = HashMap<String, LanguageLspInfo>;
+
+/// Resolved language-to-server catalog entry.
+#[derive(Debug, Clone)]
+pub struct ResolvedLanguageLspConfig {
+	pub language: String,
+	pub server: LspServerDef,
+	pub roots: Vec<String>,
+}
+
+/// Loads validated language-to-server mappings from the immutable registry catalog.
+pub fn load_resolved_lsp_configs() -> Result<Vec<ResolvedLanguageLspConfig>> {
+	let server_defs = load_lsp_configs()?;
+	let servers_by_name: HashMap<_, _> = server_defs.into_iter().map(|server| (server.name.clone(), server)).collect();
+
+	let mut resolved = Vec::new();
+	for language in xeno_registry::LANGUAGES.snapshot_guard().iter_refs() {
+		if language.lsp_servers.is_empty() {
+			continue;
+		}
+
+		let roots = language.roots.iter().map(|&root| language.resolve(root).to_string()).collect::<Vec<_>>();
+
+		let Some(server) = language
+			.lsp_servers
+			.iter()
+			.find_map(|&server_sym| servers_by_name.get(language.resolve(server_sym)).cloned())
+		else {
+			continue;
+		};
+
+		resolved.push(ResolvedLanguageLspConfig {
+			language: language.name_str().to_string(),
+			server,
+			roots,
+		});
+	}
+
+	Ok(resolved)
+}

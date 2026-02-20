@@ -78,8 +78,8 @@ impl Editor {
 
 	/// Spawns a background task to load LSP server configurations.
 	///
-	/// Parses `lsp_servers.nuon` and `languages.nuon` in a blocking task and
-	/// builds a list of `(language, config)` pairs. Registration is deferred
+	/// Reads the immutable registry-backed language/server catalog in a blocking
+	/// task and builds a list of `(language, config)` pairs. Registration is deferred
 	/// to the editor thread via [`LspMsg::CatalogReady`] to avoid races when
 	/// multiple loads overlap.
 	#[cfg(feature = "lsp")]
@@ -94,14 +94,12 @@ impl Editor {
 		runtime.clone().spawn(xeno_worker::TaskClass::Background, async move {
 			let parsed = runtime
 				.spawn_blocking(xeno_worker::TaskClass::IoBlocking, || {
-					let server_defs = xeno_language::load_lsp_configs().map_err(|e| format!("failed to load LSP configs: {e}"))?;
-					let lang_mapping = xeno_language::language_db().lsp_mapping();
-					Ok::<_, String>((server_defs, lang_mapping))
+					xeno_language::load_resolved_lsp_configs().map_err(|e| format!("failed to load LSP configs: {e}"))
 				})
 				.await;
 
-			let (server_defs, lang_mapping) = match parsed {
-				Ok(Ok(pair)) => pair,
+			let resolved = match parsed {
+				Ok(Ok(configs)) => configs,
 				Ok(Err(error)) => {
 					tracing::warn!(error = %error, "Failed to load LSP configs");
 					send(&tx, LspMsg::CatalogReady { token, configs: vec![] });
@@ -114,22 +112,16 @@ impl Editor {
 				}
 			};
 
-			let server_map: std::collections::HashMap<_, _> = server_defs.iter().map(|s| (s.name.as_str(), s)).collect();
-			let mut configs = Vec::new();
-
-			for (language, info) in &lang_mapping {
-				let Some(server_def) = info.servers.iter().find_map(|name| server_map.get(name.as_str())) else {
-					continue;
-				};
-
+			let mut configs = Vec::with_capacity(resolved.len());
+			for entry in resolved {
 				configs.push((
-					language.clone(),
+					entry.language,
 					xeno_lsp::LanguageServerConfig {
-						command: server_def.command.clone(),
-						args: server_def.args.clone(),
-						env: server_def.environment.clone(),
-						root_markers: info.roots.clone(),
-						config: server_def.config.clone(),
+						command: entry.server.command,
+						args: entry.server.args,
+						env: entry.server.environment,
+						root_markers: entry.roots,
+						config: entry.server.config,
 						..Default::default()
 					},
 				));

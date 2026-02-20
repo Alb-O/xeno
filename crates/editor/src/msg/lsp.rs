@@ -1,7 +1,7 @@
 //! LSP-related messages.
 //!
-//! LSP catalog loading is split into two phases: a background task parses
-//! config files and builds `(language, config)` pairs, then sends
+//! LSP catalog loading is split into two phases: a background task reads the
+//! immutable registry-backed catalog and builds `(language, config)` pairs, then sends
 //! `CatalogReady` with the data. The editor thread validates the token
 //! (latest-wins) before registering configs, ensuring stale loads never
 //! overwrite a newer catalog.
