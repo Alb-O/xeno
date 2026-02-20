@@ -79,7 +79,7 @@ impl LayoutManager {
 			let layout = self.layer_mut(base_layout, layer).expect("overlay layer must exist (preflight required)");
 			layout.replace_view(current_view, new_layout);
 		}
-		self.increment_revision();
+		self.bump_structure_revision();
 	}
 
 	/// Creates a vertical split with a new buffer to the right of the current view.
@@ -102,7 +102,7 @@ impl LayoutManager {
 			let layout = self.layer_mut(base_layout, layer).expect("overlay layer must exist (preflight required)");
 			layout.replace_view(current_view, new_layout);
 		}
-		self.increment_revision();
+		self.bump_structure_revision();
 	}
 
 	/// Gets the area of a specific view.
@@ -147,7 +147,7 @@ impl LayoutManager {
 
 		if layer.is_base() {
 			*base_layout = base_layout.remove_view(view)?;
-			self.increment_revision();
+			self.bump_structure_revision();
 			let after = base_layout.compute_view_areas(layer_area);
 			return suggested_focus_after_close(&before, &after, view).or_else(|| Some(base_layout.first_view()));
 		}
@@ -167,7 +167,7 @@ impl LayoutManager {
 			}
 		};
 
-		self.increment_revision();
+		self.bump_structure_revision();
 
 		if cleared {
 			Some(self.first_view(base_layout))

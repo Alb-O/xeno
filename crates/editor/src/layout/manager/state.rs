@@ -16,7 +16,7 @@ pub struct LayoutManager {
 	///
 	/// Used to detect stale drag state when the layout changes mid-drag
 	/// (e.g., a view is closed while dragging a separator).
-	layout_revision: u64,
+	structure_revision: u64,
 
 	/// Currently hovered separator (for visual feedback during resize).
 	pub hovered_separator: Option<(SplitDirection, Rect)>,
@@ -41,7 +41,7 @@ impl Default for LayoutManager {
 	fn default() -> Self {
 		Self {
 			layers: vec![LayerSlot::empty()],
-			layout_revision: 0,
+			structure_revision: 0,
 			hovered_separator: None,
 			separator_under_mouse: None,
 			separator_hover_animation: None,
@@ -58,17 +58,17 @@ impl LayoutManager {
 		Self::default()
 	}
 
-	/// Returns the current layout revision.
+	/// Returns the current structural layout revision.
 	///
 	/// Structural changes (splits, removals) increment this value.
-	pub fn layout_revision(&self) -> u64 {
-		self.layout_revision
+	pub fn structure_revision(&self) -> u64 {
+		self.structure_revision
 	}
 
-	/// Increments the layout revision counter.
+	/// Increments the structural layout revision counter.
 	///
 	/// Call this after any structural change to the layout.
-	pub(in crate::layout) fn increment_revision(&mut self) {
-		self.layout_revision = self.layout_revision.wrapping_add(1);
+	pub(in crate::layout) fn bump_structure_revision(&mut self) {
+		self.structure_revision = self.structure_revision.wrapping_add(1);
 	}
 }

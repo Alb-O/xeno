@@ -10,12 +10,12 @@ use crate::layout::SeparatorId;
 pub struct DragState {
 	/// Identifier of the separator being dragged.
 	pub id: SeparatorId,
-	/// Layout revision when the drag started.
+	/// Structural layout revision when the drag started.
 	///
 	/// If the layout changes during a drag (e.g., view closed via keybinding),
 	/// the stored path may become invalid. Comparing this against the current
-	/// revision allows detecting and canceling stale drags.
-	pub revision: u64,
+	/// structure revision allows detecting and canceling stale drags.
+	pub structure_revision: u64,
 }
 
 /// Tracks mouse velocity to determine if hover effects should be suppressed.

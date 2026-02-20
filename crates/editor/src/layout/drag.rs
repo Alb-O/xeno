@@ -24,7 +24,7 @@ impl LayoutManager {
 	pub fn start_drag(&mut self, hit: &SeparatorHit) {
 		self.dragging_separator = Some(DragState {
 			id: hit.id.clone(),
-			revision: self.layout_revision(),
+			structure_revision: self.structure_revision(),
 		});
 		let old_hover = self.hovered_separator.take();
 		self.hovered_separator = Some((hit.direction, hit.rect));
@@ -36,14 +36,14 @@ impl LayoutManager {
 	/// Checks if the current drag state is stale.
 	///
 	/// Returns `true` if there is an active drag and:
-	/// * The layout revision has changed, OR
+	/// * The structural layout revision has changed, OR
 	/// * The stored separator's layer generation is invalid (layer was cleared or reused).
 	pub fn is_drag_stale(&self) -> bool {
 		let Some(drag) = &self.dragging_separator else {
 			return false;
 		};
 
-		if drag.revision != self.layout_revision() {
+		if drag.structure_revision != self.structure_revision() {
 			return true;
 		}
 

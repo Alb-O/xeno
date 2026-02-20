@@ -70,7 +70,7 @@ impl LayoutManager {
 
 	/// Executes a closure with a mutable reference to the layout for a given layer ID.
 	///
-	/// Bumps the layout revision after the closure completes to ensure stale
+	/// Bumps the structural layout revision after the closure completes to ensure stale
 	/// interactions (like separator drags) are invalidated.
 	///
 	/// # Errors
@@ -79,14 +79,14 @@ impl LayoutManager {
 	pub fn with_layer_mut<R>(&mut self, base_layout: &mut Layout, id: LayerId, f: impl FnOnce(&mut Layout) -> R) -> Result<R, LayerError> {
 		let layout = self.layer_mut(base_layout, id)?;
 		let out = f(layout);
-		self.increment_revision();
+		self.bump_structure_revision();
 		Ok(out)
 	}
 
 	/// Sets the layout for a layer at the given index.
 	///
 	/// Creates intermediate empty slots if needed. Bumps the slot generation
-	/// to invalidate any stored references and increments the layout revision.
+	/// to invalidate any stored references and increments the structural layout revision.
 	///
 	/// Returns the [`LayerId`] for the set layer.
 	///
@@ -107,7 +107,7 @@ impl LayoutManager {
 			(slot.generation, index as u16)
 		};
 
-		self.increment_revision();
+		self.bump_structure_revision();
 		LayerId::new(idx, new_gen)
 	}
 

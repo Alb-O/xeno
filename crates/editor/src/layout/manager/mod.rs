@@ -37,7 +37,7 @@
 //! | [`crate::buffer::SplitPath`] | Stable path to a split node | Path is relative to the current tree shape; stale paths must be rejected | `buffer::layout::areas` path APIs |
 //! | [`crate::layout::types::SeparatorId`] | Persistent separator identity | Must validate layer generation + path before resize | `layout::separators` + `layout::drag` |
 //! | [`crate::layout::splits::SplitError`] | Split preflight failure | Must not allocate/insert buffers when preflight fails | `layout::splits` + `impls::splits` |
-//! | [`crate::separator::DragState`] | Active separator drag | Must cancel when revision or layer generation invalidates id | `layout::drag` |
+//! | [`crate::separator::DragState`] | Active separator drag | Must cancel when structure revision or layer generation invalidates id | `layout::drag` |
 //! | [`crate::buffer::ViewId`] | Leaf identity in layouts | A [`crate::buffer::ViewId`] must not exist in multiple layers simultaneously | enforced by editor invariants/repair |
 //!
 //! # Invariants
@@ -78,8 +78,8 @@
 //!
 //! 1. Hit-test: `LayoutManager::separator_hit_at_position` produces
 //!    `SeparatorHit { id: SeparatorId::Split{layer,path}, rect, direction }`.
-//! 2. Drag start: `LayoutManager::start_drag` stores `DragState { id, revision }`.
-//! 3. During drag: `cancel_if_stale` checks `layout_revision` and layer generation/path validity; cancels if stale.
+//! 2. Drag start: `LayoutManager::start_drag` stores `DragState { id, structure_revision }`.
+//! 3. During drag: `cancel_if_stale` checks `structure_revision` and layer generation/path validity; cancels if stale.
 //! 4. Resize: `LayoutManager::resize_separator` resolves `(layer,path)` into a `Layout::Split` and updates `position` using soft-min clamping.
 //!
 //! # Lifecycle
@@ -111,8 +111,8 @@
 //! * Close: layout removal must happen before hooks/LSP close.
 //! * Drag: stale detection must happen before applying any resize update.
 //!
-//! `layout_revision`: must increment on structural changes (split creation, view removal, layer clear).
-//! * Enforced in: `increment_revision` calls in `splits.rs` (split apply) and `layers.rs` (overlay slot lifecycle changes).
+//! `structure_revision`: must increment on structural changes (split creation, view removal, layer clear).
+//! * Enforced in: `bump_structure_revision` calls in `splits.rs` (split apply) and `layers.rs` (overlay slot lifecycle changes).
 //!
 //! # Failure modes & recovery
 //!
@@ -145,7 +145,7 @@
 //! 2. Preflight using `LayoutManager::can_split_horizontal`/`can_split_vertical` or an equivalent feasibility check.
 //! 3. Allocate/insert any new `ViewId` only after preflight success.
 //! 4. Apply mutation using the preflight `LayerId` (do not recompute layer identity).
-//! 5. Increment revision (done in layout ops).
+//! 5. Increment structure revision (done in layout ops).
 //! 6. Decide focus target (use `remove_view` suggestion logic or explicit target).
 //! 7. Emit hooks after mutation.
 //!

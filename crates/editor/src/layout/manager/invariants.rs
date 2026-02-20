@@ -135,7 +135,7 @@ pub(crate) fn test_drag_cancels_on_layer_generation_change() {
 			layer: layer_id,
 			path: SplitPath::default(),
 		},
-		revision: mgr.layout_revision(),
+		structure_revision: mgr.structure_revision(),
 	});
 
 	let _new_id = mgr.set_layer(1, Some(Layout::text(ViewId(2))));
@@ -164,7 +164,7 @@ pub(crate) fn test_separator_resize_does_not_invalidate_drag_revision() {
 		.expect("separator hit should resolve from separator rect");
 
 	mgr.start_drag(&hit);
-	let revision_before = mgr.layout_revision();
+	let revision_before = mgr.structure_revision();
 
 	let (mouse_x, mouse_y) = match hit.direction {
 		SplitDirection::Vertical => (rect.x.saturating_add(3), rect.y),
@@ -173,7 +173,7 @@ pub(crate) fn test_separator_resize_does_not_invalidate_drag_revision() {
 	mgr.resize_separator(&mut base_layout, area, &hit.id, mouse_x, mouse_y);
 
 	assert_eq!(
-		mgr.layout_revision(),
+		mgr.structure_revision(),
 		revision_before,
 		"separator resize should not bump structural layout revision"
 	);
