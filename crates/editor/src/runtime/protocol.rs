@@ -94,18 +94,15 @@ impl Default for DrainPolicy {
 
 /// Runtime drain exit reason for one maintenance round.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Default)]
 pub enum RuntimeDrainExitReason {
-	Idle,
+	#[default]
+ Idle,
 	RoundCap,
 	Quit,
 	BudgetCap,
 }
 
-impl Default for RuntimeDrainExitReason {
-	fn default() -> Self {
-		Self::Idle
-	}
-}
 
 /// Queue depth snapshot sampled after a runtime maintenance phase.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

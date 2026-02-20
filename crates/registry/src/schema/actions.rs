@@ -3,7 +3,6 @@
 //! Defines action metadata and keybinding declarations used to build runtime
 //! action registries.
 
-
 use serde::{Deserialize, Serialize};
 
 use super::meta::MetaCommonSpec;

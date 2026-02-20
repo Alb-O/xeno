@@ -2,19 +2,19 @@
 
 #[path = "compile/builtins.rs"]
 pub mod builtins;
+mod domain;
 #[path = "compile/link.rs"]
 pub mod link;
 #[path = "compile/loader.rs"]
 pub mod loader;
-#[path = "runtime/view.rs"]
-pub mod view;
 #[path = "runtime/query.rs"]
 pub mod query;
 #[path = "contract/spec.rs"]
 pub mod spec;
 #[path = "contract/types.rs"]
 pub mod types;
-mod domain;
+#[path = "runtime/view.rs"]
+pub mod view;
 
 pub use domain::Languages;
 pub use query::LanguagesRegistry;

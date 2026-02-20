@@ -2,8 +2,8 @@
 
 use std::collections::HashSet;
 
-use crate::schema::snippets::{SnippetSpec, SnippetsSpec};
 use crate::build_support::compile::*;
+use crate::schema::snippets::{SnippetSpec, SnippetsSpec};
 
 pub fn build(ctx: &BuildCtx) {
 	let path = ctx.asset("src/domains/snippets/assets/snippets.nuon");

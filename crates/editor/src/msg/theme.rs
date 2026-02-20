@@ -118,6 +118,9 @@ mod tests {
 		};
 		let dirty = current.apply(&mut editor);
 		assert_eq!(dirty, Dirty::FULL, "current token should produce Dirty::FULL");
-		assert_eq!(editor.state.async_state.pending_theme_load_token, None, "pending token should be cleared after apply");
+		assert_eq!(
+			editor.state.async_state.pending_theme_load_token, None,
+			"pending token should be cleared after apply"
+		);
 	}
 }

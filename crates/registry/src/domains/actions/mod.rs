@@ -36,12 +36,12 @@ mod result;
 #[path = "contract/spec.rs"]
 pub mod spec;
 
+mod domain;
 #[path = "exec/editor_ctx/mod.rs"]
 pub mod editor_ctx;
-mod domain;
 pub use context::{ActionArgs, ActionContext};
-pub use domain::Actions;
 pub use def::{ActionDef, ActionHandler};
+pub use domain::Actions;
 pub use editor_ctx::{
 	CursorAccess, DeferredInvocationAccess, EditAccess, EditorCapabilities, EditorContext, EditorOps, FileOpsAccess, FocusOps, HandleOutcome, JumpAccess,
 	MacroAccess, ModeAccess, MotionAccess, MotionDispatchAccess, NotificationAccess, OptionAccess, PaletteAccess, ResultHandler, SearchAccess, SelectionAccess,

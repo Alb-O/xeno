@@ -2,8 +2,8 @@
 
 use std::collections::HashSet;
 
-use crate::schema::statusline::{StatuslineSpec, VALID_POSITIONS};
 use crate::build_support::compile::*;
+use crate::schema::statusline::{StatuslineSpec, VALID_POSITIONS};
 
 pub fn build(ctx: &BuildCtx) {
 	let path = ctx.asset("src/domains/statusline/assets/statusline.nuon");

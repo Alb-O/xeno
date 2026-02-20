@@ -319,7 +319,8 @@ async fn test_filesystem_and_message_phases_preserve_redraw_contract() {
 	assert!(
 		editor
 			.state
-			.integration.filesystem
+			.integration
+			.filesystem
 			.ensure_index(root.path().to_path_buf(), crate::filesystem::FilesystemOptions::default()),
 		"filesystem ensure_index should enqueue work"
 	);
@@ -525,9 +526,7 @@ async fn test_budget_cap_sets_exit_reason_without_losing_causality() {
 	assert!(
 		report
 			.runtime_stats
-			.round_exit_reasons
-			.iter()
-			.any(|reason| *reason == RuntimeDrainExitReason::BudgetCap),
+			.round_exit_reasons.contains(&RuntimeDrainExitReason::BudgetCap),
 		"budget-capped drain should include explicit budget-cap exit reason"
 	);
 
@@ -742,7 +741,11 @@ async fn test_multiple_overlay_commits_only_first_applies() {
 	editor.enqueue_runtime_overlay_commit_work();
 	editor.enqueue_runtime_overlay_commit_work();
 	assert_eq!(
-		editor.runtime_work_snapshot().iter().filter(|item| matches!(item.kind, RuntimeWorkKind::OverlayCommit)).count(),
+		editor
+			.runtime_work_snapshot()
+			.iter()
+			.filter(|item| matches!(item.kind, RuntimeWorkKind::OverlayCommit))
+			.count(),
 		3,
 	);
 

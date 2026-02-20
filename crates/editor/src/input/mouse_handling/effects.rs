@@ -27,7 +27,8 @@ impl Editor {
 
 		let base_layout = &mut self.state.core.windows.base_window_mut().layout;
 		self.state
-			.core.layout
+			.core
+			.layout
 			.resize_separator(base_layout, context.doc_area, &drag_state.id, context.mouse_x, context.mouse_y);
 		self.state.core.frame.needs_redraw = true;
 		false
@@ -155,7 +156,10 @@ impl Editor {
 				};
 
 				if old_hover != self.state.core.layout.hovered_separator {
-					self.state.core.layout.update_hover_animation(old_hover, self.state.core.layout.hovered_separator);
+					self.state
+						.core
+						.layout
+						.update_hover_animation(old_hover, self.state.core.layout.hovered_separator);
 					self.state.core.frame.needs_redraw = true;
 				}
 

@@ -98,11 +98,7 @@ fn test_stage_blocking_collisions() {
 
 	for collision in a_collisions {
 		match &collision.kind {
-			CollisionKind::KeyConflict {
-				existing_kind,
-				resolution,
-				..
-			} => {
+			CollisionKind::KeyConflict { existing_kind, resolution, .. } => {
 				assert_eq!(*existing_kind, KeyKind::Canonical);
 				assert_eq!(*resolution, Resolution::KeptExisting);
 			}

@@ -2,7 +2,6 @@
 //!
 //! Defines motion metadata and runtime binding configuration.
 
-
 use serde::{Deserialize, Serialize};
 
 use super::meta::MetaCommonSpec;

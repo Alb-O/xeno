@@ -3,7 +3,6 @@
 //! Defines language metadata, matching rules, LSP associations, and viewport
 //! repair/query configuration used by runtime language loading.
 
-
 use serde::{Deserialize, Serialize};
 
 use super::meta::MetaCommonSpec;

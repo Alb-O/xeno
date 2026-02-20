@@ -2,8 +2,8 @@
 
 use std::collections::HashSet;
 
-use crate::schema::motions::MotionsSpec;
 use crate::build_support::compile::*;
+use crate::schema::motions::MotionsSpec;
 
 pub fn build(ctx: &BuildCtx) {
 	let path = ctx.asset("src/domains/motions/assets/motions.nuon");

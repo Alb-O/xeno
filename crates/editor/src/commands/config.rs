@@ -25,7 +25,8 @@ fn cmd_reload_config<'a>(ctx: &'a mut EditorCommandContext<'a>) -> BoxFutureLoca
 		let report = ctx
 			.editor
 			.state
-			.async_state.worker_runtime
+			.async_state
+			.worker_runtime
 			.spawn_blocking(xeno_worker::TaskClass::IoBlocking, move || {
 				xeno_registry::config::load::load_user_config_from_dir(&config_dir)
 			})

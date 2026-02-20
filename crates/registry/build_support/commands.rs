@@ -2,8 +2,8 @@
 
 use std::collections::HashSet;
 
-use crate::schema::commands::CommandsSpec;
 use crate::build_support::compile::*;
+use crate::schema::commands::CommandsSpec;
 
 pub fn build(ctx: &BuildCtx) {
 	let path = ctx.asset("src/domains/commands/assets/commands.nuon");

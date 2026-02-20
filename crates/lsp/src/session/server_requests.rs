@@ -97,8 +97,9 @@ pub(crate) async fn dispatch_server_request(sync: &DocumentSync, server: Languag
 /// Routes the edit to the editor via the apply-edit channel and waits for the result.
 /// Falls back to `applied: false` if the channel is not configured or times out.
 async fn handle_workspace_apply_edit(sync: &DocumentSync, params: JsonValue) -> JsonValue {
-	use crate::sync::ApplyEditRequest;
 	use lsp_types::ApplyWorkspaceEditParams;
+
+	use crate::sync::ApplyEditRequest;
 
 	let Some(tx) = sync.apply_edit_sender() else {
 		return json!({ "applied": false, "failureReason": "no editor connected" });

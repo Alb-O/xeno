@@ -11,11 +11,7 @@ pub fn validate_language_lsp_references(
 		for &server_sym in language.lsp_servers.iter() {
 			let server = language.resolve(server_sym);
 			if lsp_servers.get(server).is_none() {
-				missing.push(format!(
-					"language '{}' references unknown lsp server '{}'",
-					language.id_str(),
-					server
-				));
+				missing.push(format!("language '{}' references unknown lsp server '{}'", language.id_str(), server));
 			}
 		}
 	}
@@ -36,8 +32,8 @@ mod tests {
 	use crate::core::{LanguageId, RegistryMetaStatic, RegistrySource};
 	use crate::languages::types::LanguageDef;
 	use crate::languages::{LanguageEntry, LanguageInput, LanguagesRegistry};
-	use crate::lsp_servers::entry::{LspServerEntry, LspServerInput};
 	use crate::lsp_servers::LspServersRegistry;
+	use crate::lsp_servers::entry::{LspServerEntry, LspServerInput};
 	use crate::symbol::LspServerId;
 
 	static INVALID_LANGUAGE_DEF: LanguageDef = LanguageDef {

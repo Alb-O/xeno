@@ -668,7 +668,12 @@ impl Editor {
 	/// Shuts down filesystem indexing/search actors with a bounded graceful timeout.
 	pub async fn shutdown_filesystem(&self) {
 		let timeout = std::time::Duration::from_millis(250);
-		let report = self.state.integration.filesystem.shutdown(xeno_worker::ActorShutdownMode::Graceful { timeout }).await;
+		let report = self
+			.state
+			.integration
+			.filesystem
+			.shutdown(xeno_worker::ActorShutdownMode::Graceful { timeout })
+			.await;
 		if report.service.timed_out || report.indexer.timed_out || report.search.timed_out {
 			tracing::warn!(
 				service_timed_out = report.service.timed_out,
@@ -943,7 +948,8 @@ impl Editor {
 	#[inline]
 	pub fn overlay_pane_render_plan(&self) -> Vec<crate::overlay::OverlayPaneRenderTarget> {
 		self.state
-			.ui.overlay_system
+			.ui
+			.overlay_system
 			.interaction()
 			.active()
 			.map_or_else(Vec::new, |active| active.session.pane_render_plan())

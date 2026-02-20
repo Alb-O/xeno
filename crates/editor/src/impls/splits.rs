@@ -214,7 +214,10 @@ impl Editor {
 			}
 		}
 
-		emit_hook_sync_with(&HookContext::new(HookEventData::SplitClosed { view_id: view }), &mut self.state.integration.work_scheduler);
+		emit_hook_sync_with(
+			&HookContext::new(HookEventData::SplitClosed { view_id: view }),
+			&mut self.state.integration.work_scheduler,
+		);
 
 		self.finalize_buffer_removal(view);
 		self.repair_invariants();

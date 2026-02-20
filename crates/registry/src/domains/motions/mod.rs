@@ -15,6 +15,7 @@ pub(crate) mod macros;
 
 #[path = "compile/builtins.rs"]
 pub mod builtins;
+mod domain;
 #[path = "exec/handler.rs"]
 pub mod handler;
 #[path = "compile/link.rs"]
@@ -25,7 +26,6 @@ pub mod loader;
 pub mod movement;
 #[path = "contract/spec.rs"]
 pub mod spec;
-mod domain;
 
 pub use builtins::register_builtins;
 pub use domain::Motions;

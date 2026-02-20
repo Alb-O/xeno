@@ -13,6 +13,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use xeno_primitives::Mode;
+
 use crate::schema::keymaps::KeymapPresetSpec;
 
 /// Default preset name used when no preset is specified in config.

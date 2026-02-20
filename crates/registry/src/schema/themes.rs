@@ -3,7 +3,6 @@
 //! Defines palette, UI/mode/semantic/popup colors, and syntax style mappings
 //! for declarative theme definitions.
 
-
 use serde::{Deserialize, Serialize};
 
 use super::meta::MetaCommonSpec;

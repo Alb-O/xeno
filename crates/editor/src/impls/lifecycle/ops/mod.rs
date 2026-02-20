@@ -114,7 +114,8 @@ impl Editor {
 			let now = std::time::Instant::now();
 			if self
 				.state
-				.integration.syntax_manager
+				.integration
+				.syntax_manager
 				.sweep_retention(now, |doc_id| doc_hotness.get(&doc_id).copied().unwrap_or(SyntaxHotness::Cold))
 			{
 				self.state.runtime.effects.request_redraw();
@@ -123,7 +124,8 @@ impl Editor {
 
 		let mut workset: HashSet<_> = self
 			.state
-			.integration.syntax_manager
+			.integration
+			.syntax_manager
 			.pending_docs()
 			.chain(self.state.integration.syntax_manager.dirty_docs())
 			.chain(self.state.integration.syntax_manager.docs_with_completed())
@@ -203,12 +205,20 @@ impl Editor {
 	pub(super) fn tick_lsp_sync(&mut self) {
 		let sync = self.state.integration.lsp.sync().clone();
 		let buffers = &self.state.core.editor.buffers;
-		let stats = self.state.integration.lsp.sync_manager_mut().tick(Instant::now(), &sync, &self.state.telemetry.metrics, |doc_id| {
-			let view_id = buffers.any_buffer_for_doc(doc_id)?;
-			let buffer = buffers.get_buffer(view_id)?;
-			Some(buffer.with_doc(|doc| (doc.content().clone(), doc.version())))
-		});
-		self.state.telemetry.metrics.record_lsp_tick(stats.full_syncs, stats.incremental_syncs, stats.snapshot_bytes);
+		let stats = self
+			.state
+			.integration
+			.lsp
+			.sync_manager_mut()
+			.tick(Instant::now(), &sync, &self.state.telemetry.metrics, |doc_id| {
+				let view_id = buffers.any_buffer_for_doc(doc_id)?;
+				let buffer = buffers.get_buffer(view_id)?;
+				Some(buffer.with_doc(|doc| (doc.content().clone(), doc.version())))
+			});
+		self.state
+			.telemetry
+			.metrics
+			.record_lsp_tick(stats.full_syncs, stats.incremental_syncs, stats.snapshot_bytes);
 	}
 
 	/// Queues an immediate LSP change and returns a receiver for write completion.
@@ -244,19 +254,29 @@ impl Editor {
 	/// Collects a snapshot of current editor statistics.
 	pub fn stats_snapshot(&self) -> StatsSnapshot {
 		#[cfg(feature = "lsp")]
-		let (lsp_pending_docs, lsp_in_flight) = (self.state.integration.lsp.sync_manager().pending_count(), self.state.integration.lsp.sync_manager().in_flight_count());
+		let (lsp_pending_docs, lsp_in_flight) = (
+			self.state.integration.lsp.sync_manager().pending_count(),
+			self.state.integration.lsp.sync_manager().in_flight_count(),
+		);
 		#[cfg(not(feature = "lsp"))]
 		let (lsp_pending_docs, lsp_in_flight) = (0, 0);
 
 		let nu = crate::metrics::NuStats {
 			runtime_loaded: self.state.integration.nu.runtime().is_some(),
-			script_path: self.state.integration.nu.runtime().as_ref().map(|rt| rt.script_path().to_string_lossy().to_string()),
+			script_path: self
+				.state
+				.integration
+				.nu
+				.runtime()
+				.as_ref()
+				.map(|rt| rt.script_path().to_string_lossy().to_string()),
 			executor_alive: self.state.integration.nu.executor().is_some(),
 			hook_phase: self.state.integration.nu.hook_phase().label(),
 			hook_queue_len: self.state.integration.nu.hook_queue_len(),
 			hook_in_flight: self
 				.state
-				.integration.nu
+				.integration
+				.nu
 				.hook_in_flight()
 				.map(|i| (i.token.runtime_epoch, i.token.seq, "on_hook".to_string())),
 			runtime_work_queue_len: self.runtime_work_len(),

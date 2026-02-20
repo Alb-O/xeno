@@ -212,7 +212,10 @@ mod tests {
 		let buf = editor.state.core.editor.buffers.get_buffer(view_id).unwrap();
 		let content = buf.with_doc(|doc| doc.content().to_string());
 		assert_eq!(content, "current content", "current token should replace buffer content");
-		assert!(!editor.state.async_state.pending_file_loads.contains_key(&path), "pending load should be cleared");
+		assert!(
+			!editor.state.async_state.pending_file_loads.contains_key(&path),
+			"pending load should be cleared"
+		);
 	}
 
 	#[tokio::test]
@@ -266,7 +269,10 @@ mod tests {
 		// B should be populated, A should still be pending.
 		let buf_b = editor.state.core.editor.buffers.get_buffer(view_b).unwrap();
 		assert_eq!(buf_b.with_doc(|doc| doc.content().to_string()), "content B");
-		assert!(!editor.state.async_state.pending_file_loads.contains_key(&path_b), "B pending should be cleared");
+		assert!(
+			!editor.state.async_state.pending_file_loads.contains_key(&path_b),
+			"B pending should be cleared"
+		);
 		assert!(editor.state.async_state.pending_file_loads.contains_key(&path_a), "A pending should remain");
 
 		// Now apply A.
@@ -275,7 +281,10 @@ mod tests {
 
 		let buf_a = editor.state.core.editor.buffers.get_buffer(view_a).unwrap();
 		assert_eq!(buf_a.with_doc(|doc| doc.content().to_string()), "content A");
-		assert!(!editor.state.async_state.pending_file_loads.contains_key(&path_a), "A pending should be cleared");
+		assert!(
+			!editor.state.async_state.pending_file_loads.contains_key(&path_a),
+			"A pending should be cleared"
+		);
 	}
 
 	#[cfg(unix)]

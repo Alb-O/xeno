@@ -6,8 +6,8 @@
 
 use std::collections::HashSet;
 
-use crate::schema::languages::*;
 use crate::build_support::compile::*;
+use crate::schema::languages::*;
 
 pub fn build(ctx: &BuildCtx) {
 	let root = ctx.asset("src/domains/languages/assets");

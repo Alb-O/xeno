@@ -99,8 +99,7 @@ impl OverlayController for CommandPaletteOverlay {
 						let updated_typed_name: String = chars[updated_name_tok.content_start..updated_name_tok.content_end].iter().collect();
 						let updated_token = Self::token_context(&input, Self::char_count(&input));
 						let updated_selected = Self::selected_completion_item(ctx);
-						command_name =
-							Self::resolve_command_name_for_commit(&updated_typed_name, updated_token.token_index, updated_selected.as_ref());
+						command_name = Self::resolve_command_name_for_commit(&updated_typed_name, updated_token.token_index, updated_selected.as_ref());
 					}
 				}
 

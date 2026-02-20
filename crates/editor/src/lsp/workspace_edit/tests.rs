@@ -186,7 +186,14 @@ async fn open_temp_doc(editor: &mut crate::Editor, name: &str, content: &str, ve
 }
 
 fn buffer_text(editor: &crate::Editor, view_id: ViewId) -> String {
-	editor.state.core.editor.buffers.get_buffer(view_id).unwrap().with_doc(|doc| doc.content().to_string())
+	editor
+		.state
+		.core
+		.editor
+		.buffers
+		.get_buffer(view_id)
+		.unwrap()
+		.with_doc(|doc| doc.content().to_string())
 }
 
 #[tokio::test]
@@ -205,7 +212,10 @@ async fn workspace_edit_multi_doc_mismatch_does_not_partially_apply() {
 	]);
 	let err = editor.apply_workspace_edit(edit).await.unwrap_err();
 
-	assert!(matches!(err.error, ApplyError::VersionMismatch { .. }), "expected VersionMismatch, got: {err:?}");
+	assert!(
+		matches!(err.error, ApplyError::VersionMismatch { .. }),
+		"expected VersionMismatch, got: {err:?}"
+	);
 	assert_eq!(buffer_text(&editor, view_a), "original_a\n", "Doc A must be unchanged after rejected edit");
 
 	// Cleanup.
@@ -768,7 +778,7 @@ async fn workspace_edit_temp_save_dedupes_same_target_path() {
 					}],
 				)
 			});
-			buffer.apply(&tx, policy.clone());
+			buffer.apply(&tx, policy);
 		}
 	}
 
@@ -835,7 +845,11 @@ fn make_temp_dir(label: &str) -> PathBuf {
 }
 
 fn uri_from_path(path: &Path) -> Uri {
-	let abs = if path.is_absolute() { path.to_path_buf() } else { std::env::current_dir().unwrap().join(path) };
+	let abs = if path.is_absolute() {
+		path.to_path_buf()
+	} else {
+		std::env::current_dir().unwrap().join(path)
+	};
 	let url_str = format!("file://{}", abs.display());
 	url_str.parse().unwrap()
 }
@@ -843,13 +857,11 @@ fn uri_from_path(path: &Path) -> Uri {
 fn create_file_edit(uri: Uri, options: Option<lsp_types::CreateFileOptions>) -> WorkspaceEdit {
 	WorkspaceEdit {
 		changes: None,
-		document_changes: Some(DocumentChanges::Operations(vec![
-			DocumentChangeOperation::Op(ResourceOp::Create(CreateFile {
-				uri,
-				options,
-				annotation_id: None,
-			})),
-		])),
+		document_changes: Some(DocumentChanges::Operations(vec![DocumentChangeOperation::Op(ResourceOp::Create(CreateFile {
+			uri,
+			options,
+			annotation_id: None,
+		}))])),
 		change_annotations: None,
 	}
 }
@@ -857,14 +869,12 @@ fn create_file_edit(uri: Uri, options: Option<lsp_types::CreateFileOptions>) -> 
 fn rename_file_edit(old_uri: Uri, new_uri: Uri, options: Option<lsp_types::RenameFileOptions>) -> WorkspaceEdit {
 	WorkspaceEdit {
 		changes: None,
-		document_changes: Some(DocumentChanges::Operations(vec![
-			DocumentChangeOperation::Op(ResourceOp::Rename(RenameFile {
-				old_uri,
-				new_uri,
-				options,
-				annotation_id: None,
-			})),
-		])),
+		document_changes: Some(DocumentChanges::Operations(vec![DocumentChangeOperation::Op(ResourceOp::Rename(RenameFile {
+			old_uri,
+			new_uri,
+			options,
+			annotation_id: None,
+		}))])),
 		change_annotations: None,
 	}
 }
@@ -872,12 +882,10 @@ fn rename_file_edit(old_uri: Uri, new_uri: Uri, options: Option<lsp_types::Renam
 fn delete_file_edit(uri: Uri, options: Option<lsp_types::DeleteFileOptions>) -> WorkspaceEdit {
 	WorkspaceEdit {
 		changes: None,
-		document_changes: Some(DocumentChanges::Operations(vec![
-			DocumentChangeOperation::Op(ResourceOp::Delete(DeleteFile {
-				uri,
-				options,
-			})),
-		])),
+		document_changes: Some(DocumentChanges::Operations(vec![DocumentChangeOperation::Op(ResourceOp::Delete(DeleteFile {
+			uri,
+			options,
+		}))])),
 		change_annotations: None,
 	}
 }

@@ -2,8 +2,8 @@
 
 use std::collections::HashSet;
 
-use crate::schema::options::*;
 use crate::build_support::compile::*;
+use crate::schema::options::*;
 
 pub fn build(ctx: &BuildCtx) {
 	let path = ctx.asset("src/domains/options/assets/options.nuon");

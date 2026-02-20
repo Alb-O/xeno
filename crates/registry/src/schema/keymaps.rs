@@ -5,7 +5,6 @@
 //! named prefix groups, compiled at build time into binary blobs for O(1)
 //! runtime access.
 
-
 use serde::{Deserialize, Serialize};
 
 /// A complete keymap preset specification.

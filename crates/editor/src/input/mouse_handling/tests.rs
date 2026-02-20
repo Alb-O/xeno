@@ -19,7 +19,8 @@ async fn modal_mouse_capture_keeps_overlay_open() {
 
 	let pane = editor
 		.state
-		.ui.overlay_system
+		.ui
+		.overlay_system
 		.interaction()
 		.active()
 		.and_then(|active| active.session.panes.first())

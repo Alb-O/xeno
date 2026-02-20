@@ -2,6 +2,7 @@
 
 #[path = "compile/builtins.rs"]
 pub mod builtins;
+mod domain;
 #[path = "contract/entry.rs"]
 pub mod entry;
 #[path = "compile/loader.rs"]
@@ -10,7 +11,6 @@ pub mod loader;
 pub mod query;
 #[path = "contract/spec.rs"]
 pub mod spec;
-mod domain;
 
 pub use builtins::register_builtins;
 pub use domain::LspServers;

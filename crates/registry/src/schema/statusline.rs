@@ -2,7 +2,6 @@
 //!
 //! Defines statusline segment templates and placement metadata.
 
-
 use serde::{Deserialize, Serialize};
 
 use super::meta::MetaCommonSpec;

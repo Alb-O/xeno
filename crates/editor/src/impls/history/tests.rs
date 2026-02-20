@@ -165,7 +165,11 @@ fn redo_stack_clears_on_new_edit() {
 	assert_eq!(editor.state.core.editor.undo_manager.undo_len(), 1);
 
 	editor.undo();
-	assert_eq!(editor.state.core.editor.undo_manager.redo_len(), 1, "redo stack should have one entry after undo");
+	assert_eq!(
+		editor.state.core.editor.undo_manager.redo_len(),
+		1,
+		"redo stack should have one entry after undo"
+	);
 
 	apply_test_edit(&mut editor, "!", 5);
 	assert!(!editor.state.core.editor.undo_manager.can_redo(), "new edit should clear redo stack");
@@ -226,7 +230,11 @@ fn merge_with_current_group_creates_single_undo_group_for_consecutive_inserts() 
 	};
 	editor.apply_edit(buffer_id, &tx1, None, UndoPolicy::MergeWithCurrentGroup, EditOrigin::Internal("insert"));
 
-	assert_eq!(editor.state.core.editor.undo_manager.undo_len(), 1, "first MergeWithCurrentGroup should create group");
+	assert_eq!(
+		editor.state.core.editor.undo_manager.undo_len(),
+		1,
+		"first MergeWithCurrentGroup should create group"
+	);
 
 	let tx2 = {
 		let buffer = {
@@ -311,7 +319,13 @@ fn record_policy_breaks_merge_group() {
 fn sibling_selection_sync_after_apply() {
 	let mut editor = test_editor("abcd");
 	let buffer1_id = editor.focused_view();
-	let buffer2_id = editor.state.core.editor.buffers.clone_buffer_for_split(buffer1_id).expect("focused buffer exists");
+	let buffer2_id = editor
+		.state
+		.core
+		.editor
+		.buffers
+		.clone_buffer_for_split(buffer1_id)
+		.expect("focused buffer exists");
 
 	let original_selection = {
 		let buffer = editor.state.core.editor.buffers.get_buffer_mut(buffer2_id).expect("split buffer exists");

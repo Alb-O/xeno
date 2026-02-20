@@ -123,7 +123,13 @@ impl Editor {
 
 			let is_existing = existing_view.is_some();
 			let replacement = if let Some(source_view) = existing_view {
-				let source = self.state.core.editor.buffers.get_buffer(source_view).expect("existing source buffer must be present");
+				let source = self
+					.state
+					.core
+					.editor
+					.buffers
+					.get_buffer(source_view)
+					.expect("existing source buffer must be present");
 				source.clone_for_split(focused_view)
 			} else {
 				self.load_file_buffer_for_view(focused_view, target_path.clone()).await?

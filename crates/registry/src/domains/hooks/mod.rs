@@ -6,6 +6,7 @@ pub use crate::core::{HookId, RegistryBuilder, RegistryEntry, RegistryIndex, Reg
 pub mod builtins;
 #[path = "exec/context.rs"]
 mod context;
+mod domain;
 #[path = "exec/emit.rs"]
 mod emit;
 #[path = "exec/handler.rs"]
@@ -22,7 +23,6 @@ pub mod query;
 pub mod spec;
 #[path = "contract/types.rs"]
 mod types;
-mod domain;
 
 pub use builtins::register_builtins;
 pub use domain::Hooks;

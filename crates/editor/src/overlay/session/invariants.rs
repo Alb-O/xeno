@@ -200,7 +200,8 @@ pub(crate) fn test_modal_reflow_on_resize() {
 
 	let before = editor
 		.state
-		.ui.overlay_system
+		.ui
+		.overlay_system
 		.interaction()
 		.active()
 		.and_then(|active| active.session.panes.first())
@@ -211,7 +212,8 @@ pub(crate) fn test_modal_reflow_on_resize() {
 
 	let after = editor
 		.state
-		.ui.overlay_system
+		.ui
+		.overlay_system
 		.interaction()
 		.active()
 		.and_then(|active| active.session.panes.first())
@@ -288,7 +290,8 @@ pub(crate) fn test_forced_close_restores_origin_focus() {
 
 	let origin_focus = editor
 		.state
-		.ui.overlay_system
+		.ui
+		.overlay_system
 		.interaction()
 		.active()
 		.map(|active| active.session.origin_focus.clone())
@@ -388,7 +391,8 @@ fn with_interaction(editor: &mut crate::Editor, f: impl FnOnce(&mut crate::overl
 fn palette_input_view(editor: &crate::Editor) -> crate::ViewId {
 	editor
 		.state
-		.ui.overlay_system
+		.ui
+		.overlay_system
 		.interaction()
 		.active()
 		.map(|active| active.session.input)
@@ -397,7 +401,13 @@ fn palette_input_view(editor: &crate::Editor) -> crate::ViewId {
 
 fn palette_set_input(editor: &mut crate::Editor, text: &str, cursor: usize) {
 	let input = palette_input_view(editor);
-	let buffer = editor.state.core.editor.buffers.get_buffer_mut(input).expect("palette input buffer should exist");
+	let buffer = editor
+		.state
+		.core
+		.editor
+		.buffers
+		.get_buffer_mut(input)
+		.expect("palette input buffer should exist");
 	buffer.reset_content(text);
 	buffer.set_cursor_and_selection(cursor, Selection::point(cursor));
 	with_interaction(editor, |interaction, ed| {
@@ -615,7 +625,10 @@ pub(crate) fn test_palette_enter_promotes_required_arg_command_completion() {
 	let _ = futures::executor::block_on(editor.handle_key(key_enter()));
 
 	assert_eq!(palette_input_text(&editor), "theme ");
-	assert!(editor.state.ui.overlay_system.interaction().is_open(), "enter completion should keep palette open");
+	assert!(
+		editor.state.ui.overlay_system.interaction().is_open(),
+		"enter completion should keep palette open"
+	);
 	assert!(!editor.has_runtime_overlay_commit_work(), "enter completion should not schedule commit");
 	assert!(drain_queued_commands(&mut editor).is_empty(), "enter completion should not queue commands");
 }
@@ -634,7 +647,10 @@ pub(crate) fn test_palette_enter_promotes_exact_required_arg_command_completion(
 	let _ = futures::executor::block_on(editor.handle_key(key_enter()));
 
 	assert_eq!(palette_input_text(&editor), "theme ");
-	assert!(editor.state.ui.overlay_system.interaction().is_open(), "enter completion should keep palette open");
+	assert!(
+		editor.state.ui.overlay_system.interaction().is_open(),
+		"enter completion should keep palette open"
+	);
 	assert!(!editor.has_runtime_overlay_commit_work(), "enter completion should not schedule commit");
 	assert!(drain_queued_commands(&mut editor).is_empty(), "enter completion should not queue commands");
 }

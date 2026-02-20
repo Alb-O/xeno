@@ -15,6 +15,7 @@ mod macros;
 pub mod builtins;
 #[path = "contract/def.rs"]
 pub mod def;
+mod domain;
 #[path = "contract/entry.rs"]
 pub mod entry;
 #[path = "runtime/keys/mod.rs"]
@@ -25,7 +26,6 @@ pub mod link;
 pub mod loader;
 #[path = "contract/spec.rs"]
 pub mod spec;
-mod domain;
 
 pub use builtins::register_builtins;
 pub use def::{LinkedNotificationDef, NotificationDef, NotificationInput};

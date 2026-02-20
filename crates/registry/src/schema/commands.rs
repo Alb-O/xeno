@@ -2,7 +2,6 @@
 //!
 //! Defines declarative command metadata entries for registry ingestion.
 
-
 use serde::{Deserialize, Serialize};
 
 use super::meta::MetaCommonSpec;

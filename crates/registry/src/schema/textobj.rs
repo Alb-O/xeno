@@ -2,7 +2,6 @@
 //!
 //! Defines text object metadata used by selection and motion systems.
 
-
 use serde::{Deserialize, Serialize};
 
 use super::meta::MetaCommonSpec;

@@ -1,7 +1,14 @@
 use super::*;
 
 impl CommandPaletteOverlay {
-	pub(super) fn update_completion_state(&mut self, ctx: &mut dyn OverlayContext, items: Vec<CompletionItem>, replace_start: usize, query: String, token_index: usize) {
+	pub(super) fn update_completion_state(
+		&mut self,
+		ctx: &mut dyn OverlayContext,
+		items: Vec<CompletionItem>,
+		replace_start: usize,
+		query: String,
+		token_index: usize,
+	) {
 		let preserve_manual = self.last_token_index == Some(token_index);
 		let prev_manual_label = ctx.completion_state().and_then(|state| {
 			if preserve_manual && state.selection_intent == SelectionIntent::Manual {

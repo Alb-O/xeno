@@ -2,8 +2,8 @@
 
 use std::collections::HashSet;
 
-use crate::schema::lsp_servers::*;
 use crate::build_support::compile::*;
+use crate::schema::lsp_servers::*;
 
 pub fn build(ctx: &BuildCtx) {
 	let root = ctx.asset("src/domains/lsp_servers/assets");

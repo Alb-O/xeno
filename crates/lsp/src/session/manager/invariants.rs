@@ -693,10 +693,7 @@ pub(crate) async fn test_late_diagnostics_after_close_do_not_set_opened() {
 	// The on-demand creation path stores diagnostics but must NOT set opened.
 	// This is intentional for project-wide diagnostics, but opened must stay false.
 	if session.documents().contains(&uri) {
-		assert!(
-			!session.documents().is_opened(&uri),
-			"late diagnostics must not resurrect opened state"
-		);
+		assert!(!session.documents().is_opened(&uri), "late diagnostics must not resurrect opened state");
 	}
 
 	runtime.shutdown().await;
@@ -745,9 +742,7 @@ pub(crate) fn test_closed_diagnostics_entries_are_bounded_and_evict_lru() {
 	let mut mgr = crate::DocumentStateManager::new();
 	mgr.set_max_closed_diagnostic_entries(2);
 
-	let make_uri = |name: &str| -> lsp_types::Uri {
-		format!("file:///tmp/{name}").parse().expect("valid uri")
-	};
+	let make_uri = |name: &str| -> lsp_types::Uri { format!("file:///tmp/{name}").parse().expect("valid uri") };
 	let make_diag = || -> Vec<Diagnostic> {
 		vec![Diagnostic {
 			range: Range::new(Position::new(0, 0), Position::new(0, 1)),
@@ -783,9 +778,7 @@ pub(crate) fn test_eviction_never_removes_open_documents() {
 	let mut mgr = crate::DocumentStateManager::new();
 	mgr.set_max_closed_diagnostic_entries(1);
 
-	let make_uri = |name: &str| -> lsp_types::Uri {
-		format!("file:///tmp/{name}").parse().expect("valid uri")
-	};
+	let make_uri = |name: &str| -> lsp_types::Uri { format!("file:///tmp/{name}").parse().expect("valid uri") };
 	let make_diag = || -> Vec<Diagnostic> {
 		vec![Diagnostic {
 			range: Range::new(Position::new(0, 0), Position::new(0, 1)),
@@ -866,7 +859,9 @@ pub(crate) async fn test_workspace_apply_edit_happy_path() {
 	});
 
 	let reply = dispatch_server_request(&sync, server_id, "workspace/applyEdit", params).await;
-	let ServerRequestReply::Json(value) = reply else { panic!("expected Json reply") };
+	let ServerRequestReply::Json(value) = reply else {
+		panic!("expected Json reply")
+	};
 	assert_eq!(value["applied"], true);
 	assert!(value.get("failureReason").is_none());
 
@@ -896,13 +891,13 @@ pub(crate) async fn test_workspace_apply_edit_timeout() {
 	});
 
 	// Spawn the dispatch and advance time past the 10s timeout.
-	let dispatch_task = tokio::spawn(async move {
-		dispatch_server_request(&sync, server_id, "workspace/applyEdit", params).await
-	});
+	let dispatch_task = tokio::spawn(async move { dispatch_server_request(&sync, server_id, "workspace/applyEdit", params).await });
 	tokio::time::advance(Duration::from_secs(11)).await;
 
 	let reply = dispatch_task.await.expect("dispatch must complete");
-	let ServerRequestReply::Json(value) = reply else { panic!("expected Json reply") };
+	let ServerRequestReply::Json(value) = reply else {
+		panic!("expected Json reply")
+	};
 	assert_eq!(value["applied"], false);
 	assert_eq!(value["failureReason"], "timeout");
 
@@ -935,7 +930,9 @@ pub(crate) async fn test_workspace_apply_edit_failed_change_propagated() {
 	});
 
 	let reply = dispatch_server_request(&sync, server_id, "workspace/applyEdit", params).await;
-	let ServerRequestReply::Json(value) = reply else { panic!("expected Json reply") };
+	let ServerRequestReply::Json(value) = reply else {
+		panic!("expected Json reply")
+	};
 	assert_eq!(value["applied"], false);
 	assert_eq!(value["failedChange"], 3);
 	assert_eq!(value["failureReason"], "delete failed");

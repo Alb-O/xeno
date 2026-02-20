@@ -2,8 +2,8 @@
 
 use std::collections::HashSet;
 
-use crate::schema::gutters::GuttersSpec;
 use crate::build_support::compile::*;
+use crate::schema::gutters::GuttersSpec;
 
 pub fn build(ctx: &BuildCtx) {
 	let path = ctx.asset("src/domains/gutter/assets/gutters.nuon");

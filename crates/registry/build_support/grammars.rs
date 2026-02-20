@@ -2,8 +2,8 @@
 
 use std::collections::HashSet;
 
-use crate::schema::grammars::*;
 use crate::build_support::compile::*;
+use crate::schema::grammars::*;
 
 pub fn build(ctx: &BuildCtx) {
 	let root = ctx.asset("src/domains/grammars/assets");

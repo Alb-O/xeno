@@ -19,9 +19,9 @@ pub mod index;
 pub mod keymap_registry;
 
 use crate::actions::entry::ActionEntry;
-use crate::domains::catalog::with_registry_domains;
 #[cfg(feature = "keymap")]
 use crate::db::keymap_registry::KeymapSnapshotCache;
+use crate::domains::catalog::with_registry_domains;
 
 /// Marker trait for typed domain access over [`RegistryCatalog`].
 pub trait CatalogDomain: crate::db::domain::DomainSpec {
@@ -300,10 +300,7 @@ mod tests {
 		match error {
 			CatalogLoadError::InvalidCrossDomainReferences(missing) => {
 				assert_eq!(missing.len(), 1);
-				assert!(
-					missing[0].contains("missing-server"),
-					"error should include referenced missing server"
-				);
+				assert!(missing[0].contains("missing-server"), "error should include referenced missing server");
 			}
 			other => panic!("unexpected error variant: {other:?}"),
 		}

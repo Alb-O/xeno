@@ -149,11 +149,10 @@ impl Editor {
 	/// application to a buffer fails, or if a temp buffer cannot be saved.
 	pub async fn apply_workspace_edit(&mut self, edit: WorkspaceEdit) -> Result<(), ApplyEditFailure> {
 		// Route: `documentChanges: Operations` needs sequential processing for resource ops.
-		if let Some(DocumentChanges::Operations(ref ops)) = edit.document_changes {
-			if ops.iter().any(|op| matches!(op, DocumentChangeOperation::Op(_))) {
+		if let Some(DocumentChanges::Operations(ref ops)) = edit.document_changes
+			&& ops.iter().any(|op| matches!(op, DocumentChangeOperation::Op(_))) {
 				return self.apply_workspace_edit_operations(edit).await;
 			}
-		}
 
 		// Existing plan-then-apply path (no resource ops, no failed_change index).
 		let (plan_result, temp_buffers) = self.plan_workspace_edit(edit).await;
@@ -492,7 +491,7 @@ impl Editor {
 				.await;
 			let write_result = match result {
 				Ok(r) => r,
-				Err(e) => Err(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())),
+				Err(e) => Err(std::io::Error::other(e.to_string())),
 			};
 			if let Err(e) = write_result {
 				tracing::error!(path = %path.display(), error = %e, "Failed to atomically save workspace edit to disk");
@@ -611,14 +610,13 @@ impl Editor {
 		let previous_bytes = if had_previous { std::fs::read(&path).ok() } else { None };
 
 		// Create parent directories if needed.
-		if let Some(parent) = path.parent() {
-			if !parent.exists() {
+		if let Some(parent) = path.parent()
+			&& !parent.exists() {
 				std::fs::create_dir_all(parent).map_err(|e| ApplyError::CreateFailed {
 					uri: create.uri.to_string(),
 					reason: e.to_string(),
 				})?;
 			}
-		}
 
 		// Create empty file (or truncate if overwriting).
 		std::fs::write(&path, b"").map_err(|e| ApplyError::CreateFailed {
@@ -668,15 +666,14 @@ impl Editor {
 		}
 
 		// Create parent directories for target.
-		if let Some(parent) = new_path.parent() {
-			if !parent.exists() {
+		if let Some(parent) = new_path.parent()
+			&& !parent.exists() {
 				std::fs::create_dir_all(parent).map_err(|e| ApplyError::RenameFailed {
 					old_uri: rename.old_uri.to_string(),
 					new_uri: rename.new_uri.to_string(),
 					reason: e.to_string(),
 				})?;
 			}
-		}
 
 		std::fs::rename(&old_path, &new_path).map_err(|e| ApplyError::RenameFailed {
 			old_uri: rename.old_uri.to_string(),
@@ -801,11 +798,10 @@ impl Editor {
 				let p = b.path().map(|p| p.to_path_buf())?;
 				let l = b.file_type().map(|s| s.to_string())?;
 				Some((p, l))
-			}) {
-				if let Err(e) = self.state.integration.lsp.sync().close_document(&path, &lang).await {
+			})
+				&& let Err(e) = self.state.integration.lsp.sync().close_document(&path, &lang).await {
 					tracing::warn!(error = %e, "LSP close after delete failed");
 				}
-			}
 			self.finalize_buffer_removal(buf_id);
 		}
 

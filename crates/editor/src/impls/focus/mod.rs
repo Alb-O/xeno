@@ -82,7 +82,8 @@ impl Editor {
 	fn first_live_buffer_in_layout(&self) -> Option<ViewId> {
 		let base_layout = &self.base_window().layout;
 		self.state
-			.core.layout
+			.core
+			.layout
 			.views(base_layout)
 			.into_iter()
 			.find(|&view| self.state.core.editor.buffers.get_buffer(view).is_some())
@@ -318,7 +319,12 @@ impl Editor {
 		let current = self.focused_view();
 		let hint = self.cursor_screen_pos(direction, area);
 
-		if let Some(target) = self.state.core.layout.view_in_direction(&self.base_window().layout, area, current, direction, hint) {
+		if let Some(target) = self
+			.state
+			.core
+			.layout
+			.view_in_direction(&self.base_window().layout, area, current, direction, hint)
+		{
 			self.focus_view(target);
 		}
 	}
@@ -342,7 +348,8 @@ impl Editor {
 		let buffer = self.buffer();
 		let view_rect = self
 			.state
-			.core.layout
+			.core
+			.layout
 			.compute_view_areas(&self.base_window().layout, area)
 			.into_iter()
 			.find(|(v, _)| *v == self.focused_view())
@@ -450,7 +457,10 @@ impl Editor {
 				}
 			}
 			FocusTarget::Overlay { buffer } => {
-				assert!(self.state.core.editor.buffers.get_buffer(*buffer).is_some(), "focused overlay buffer must exist");
+				assert!(
+					self.state.core.editor.buffers.get_buffer(*buffer).is_some(),
+					"focused overlay buffer must exist"
+				);
 			}
 			FocusTarget::Panel(_) => {}
 		}

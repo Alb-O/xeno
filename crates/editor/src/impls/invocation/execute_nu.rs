@@ -101,7 +101,8 @@ impl Editor {
 		let config_dir = crate::paths::get_config_dir().ok_or_else(|| "config directory is unavailable; cannot auto-load xeno.nu".to_string())?;
 		let loaded = self
 			.state
-			.async_state.worker_runtime
+			.async_state
+			.worker_runtime
 			.spawn_blocking(xeno_worker::TaskClass::CpuBlocking, move || crate::nu::NuRuntime::load(&config_dir))
 			.await
 			.map_err(|error| format!("failed to join Nu runtime load task: {error}"))?;
@@ -199,7 +200,15 @@ impl Editor {
 			(cl, cc, ssl, ssc, sel, sec, ranges, snapshot)
 		});
 
-		let state_snapshot: Vec<(String, String)> = self.state.core.editor.workspace.nu_state.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
+		let state_snapshot: Vec<(String, String)> = self
+			.state
+			.core
+			.editor
+			.workspace
+			.nu_state
+			.iter()
+			.map(|(k, v)| (k.to_string(), v.to_string()))
+			.collect();
 
 		NuCtx {
 			kind: kind.to_string(),

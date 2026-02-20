@@ -2,7 +2,6 @@
 //!
 //! Declares server process configuration and language attachment metadata.
 
-
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};

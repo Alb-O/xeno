@@ -3,7 +3,6 @@
 //! Describes lifecycle/event hook definitions and execution metadata for
 //! runtime registration.
 
-
 use serde::{Deserialize, Serialize};
 
 use super::meta::MetaCommonSpec;

@@ -2,7 +2,6 @@
 //!
 //! Defines named notification payload metadata and levels.
 
-
 use serde::{Deserialize, Serialize};
 
 use super::meta::MetaCommonSpec;

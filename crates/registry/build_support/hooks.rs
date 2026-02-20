@@ -2,8 +2,8 @@
 
 use std::collections::HashSet;
 
-use crate::schema::hooks::HooksSpec;
 use crate::build_support::compile::*;
+use crate::schema::hooks::HooksSpec;
 
 pub fn build(ctx: &BuildCtx) {
 	let path = ctx.asset("src/domains/hooks/assets/hooks.nuon");

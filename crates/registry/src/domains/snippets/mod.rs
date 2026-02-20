@@ -4,6 +4,7 @@
 pub mod builtins;
 #[path = "contract/def.rs"]
 pub mod def;
+mod domain;
 #[path = "contract/entry.rs"]
 pub mod entry;
 #[path = "compile/link.rs"]
@@ -12,7 +13,6 @@ pub mod link;
 pub mod loader;
 #[path = "contract/spec.rs"]
 pub mod spec;
-mod domain;
 
 pub use builtins::register_builtins;
 pub use def::{SnippetDef, SnippetInput};

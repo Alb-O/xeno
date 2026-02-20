@@ -3,7 +3,6 @@
 //! Declares grammar bundle metadata and query-file mappings used by language
 //! loading and syntax highlighting.
 
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

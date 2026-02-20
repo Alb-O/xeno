@@ -2,7 +2,6 @@
 //!
 //! Defines configurable option metadata, typing, defaults, and scope.
 
-
 use serde::{Deserialize, Serialize};
 
 use super::meta::MetaCommonSpec;

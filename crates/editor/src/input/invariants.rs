@@ -141,7 +141,8 @@ async fn test_overlay_hit_precedes_separator_and_view_routing() {
 
 	let pane = editor
 		.state
-		.ui.overlay_system
+		.ui
+		.overlay_system
 		.interaction()
 		.active()
 		.and_then(|active| active.session.panes.first())

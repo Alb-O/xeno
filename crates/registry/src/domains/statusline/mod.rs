@@ -2,6 +2,7 @@
 
 #[path = "compile/builtins.rs"]
 pub mod builtins;
+mod domain;
 #[path = "exec/handler.rs"]
 pub mod handler;
 #[path = "compile/link.rs"]
@@ -12,14 +13,14 @@ pub mod loader;
 mod macros;
 #[path = "contract/spec.rs"]
 pub mod spec;
-mod domain;
+
+pub use domain::Statusline;
 
 use crate::core::index::{BuildCtx, BuildEntry, RegistryMetaRef, StrListRef};
 pub use crate::core::{
 	CapabilitySet, FrozenInterner, RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta, RegistryMetaStatic, RegistryMetadata, RegistryRef,
 	RegistrySource, RuntimeRegistry, StatuslineId, Symbol, SymbolList,
 };
-pub use domain::Statusline;
 pub use crate::segment_handler;
 
 /// Registers compiled statusline segments from the embedded spec.

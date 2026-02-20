@@ -2,7 +2,6 @@
 //!
 //! Defines declarative gutter kinds and visual attributes for registry loading.
 
-
 use serde::{Deserialize, Serialize};
 
 use super::meta::MetaCommonSpec;

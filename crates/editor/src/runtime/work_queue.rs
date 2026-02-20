@@ -4,9 +4,9 @@
 //! workspace edit queues, and invocation mailboxes) with one FIFO queue.
 //! Invocation payloads are executed directly through `run_invocation` during drain.
 
-use std::collections::VecDeque;
 #[cfg(feature = "lsp")]
 use std::collections::HashMap;
+use std::collections::VecDeque;
 use std::time::Instant;
 
 use crate::Editor;
@@ -309,7 +309,9 @@ impl RuntimeWorkQueue {
 		let before = self.queue.len();
 		#[cfg(feature = "lsp")]
 		{
-			let seqs: Vec<u64> = self.queue.iter()
+			let seqs: Vec<u64> = self
+				.queue
+				.iter()
 				.filter(|item| item.scope == scope && matches!(item.kind, RuntimeWorkKind::WorkspaceEdit(_)))
 				.map(|item| item.seq)
 				.collect();
@@ -495,11 +497,7 @@ mod tests {
 		let mut queue = RuntimeWorkQueue::default();
 		let (tx, mut rx) = tokio::sync::oneshot::channel();
 		let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
-		queue.enqueue_workspace_edit_with_cause(
-			xeno_lsp::lsp_types::WorkspaceEdit::default(),
-			Some((tx, deadline)),
-			None,
-		);
+		queue.enqueue_workspace_edit_with_cause(xeno_lsp::lsp_types::WorkspaceEdit::default(), Some((tx, deadline)), None);
 
 		// Enqueue it under a non-global scope to test removal.
 		// Since workspace edits always use Global, we manually override the scope.

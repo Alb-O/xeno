@@ -707,7 +707,8 @@ async fn nu_runtime_reload_swaps_executor_and_disables_old_runtime_hooks() {
 
 	let old_shared = editor
 		.state
-		.integration.nu
+		.integration
+		.nu
 		.executor()
 		.expect("executor should exist after first Nu hook execution")
 		.shutdown_acks_for_tests();

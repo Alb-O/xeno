@@ -11,6 +11,7 @@ use crate::notifications::Notification;
 pub mod builtins;
 #[path = "contract/def.rs"]
 pub mod def;
+mod domain;
 #[path = "contract/entry.rs"]
 pub mod entry;
 #[path = "exec/handler.rs"]
@@ -23,7 +24,6 @@ pub mod loader;
 mod macros;
 #[path = "contract/spec.rs"]
 pub mod spec;
-mod domain;
 
 pub use builtins::register_builtins;
 pub use def::{CommandDef, CommandHandler, CommandInput};

@@ -121,7 +121,12 @@ impl Editor {
 	/// but have independent cursor/selection/scroll state.
 	pub fn clone_buffer_for_split(&mut self) -> ViewId {
 		let focused = self.focused_view();
-		self.state.core.editor.buffers.clone_buffer_for_split(focused).expect("focused buffer must exist")
+		self.state
+			.core
+			.editor
+			.buffers
+			.clone_buffer_for_split(focused)
+			.expect("focused buffer must exist")
 	}
 
 	/// Initializes LSP for all currently open buffers.

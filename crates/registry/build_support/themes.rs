@@ -2,8 +2,8 @@
 
 use std::collections::HashSet;
 
-use crate::schema::themes::*;
 use crate::build_support::compile::*;
+use crate::schema::themes::*;
 
 pub fn build(ctx: &BuildCtx) {
 	let root = ctx.asset("src/domains/themes/assets");

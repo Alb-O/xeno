@@ -79,7 +79,8 @@ impl Editor {
 	fn view_hit(&self, doc_area: Rect, mouse_x: u16, mouse_y: u16) -> Option<ViewHit> {
 		let base_layout = &self.base_window().layout;
 		self.state
-			.core.layout
+			.core
+			.layout
 			.view_at_position(base_layout, doc_area, mouse_x, mouse_y)
 			.map(|(view, area)| ViewHit {
 				view,

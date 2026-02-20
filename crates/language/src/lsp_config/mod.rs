@@ -39,7 +39,6 @@ pub fn load_lsp_configs() -> Result<Vec<LspServerDef>> {
 	Ok(xeno_registry::LSP_SERVERS
 		.snapshot_guard()
 		.iter_refs()
-		.into_iter()
 		.map(|raw| LspServerDef {
 			name: raw.name_str().to_string(),
 			command: raw.resolve(raw.command).to_string(),

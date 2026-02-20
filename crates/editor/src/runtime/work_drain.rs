@@ -108,9 +108,9 @@ impl Editor {
 					// Skip if the server's deadline has passed or the receiver was
 					// dropped (server timed out). Prevents divergence where the server
 					// believes the edit failed but the workspace was mutated.
-					let stale = reply.as_ref().is_some_and(|(tx, deadline)| {
-						tx.is_closed() || std::time::Instant::now() > *deadline
-					});
+					let stale = reply
+						.as_ref()
+						.is_some_and(|(tx, deadline)| tx.is_closed() || std::time::Instant::now() > *deadline);
 					if stale {
 						tracing::debug!(runtime.work_seq = item.seq, "workspace_edit.skipped_stale");
 						if let Some((tx, _)) = reply {
@@ -135,7 +135,11 @@ impl Editor {
 					};
 					self.frame_mut().needs_redraw = true;
 					if let Some((tx, _)) = reply {
-						let _ = tx.send(xeno_lsp::sync::ApplyEditResult { applied, failure_reason, failed_change });
+						let _ = tx.send(xeno_lsp::sync::ApplyEditResult {
+							applied,
+							failure_reason,
+							failed_change,
+						});
 					}
 					report.drained_workspace_edits += 1;
 					self.metrics().record_runtime_work_drained_total(item.kind_tag, None);

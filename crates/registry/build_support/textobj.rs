@@ -2,8 +2,8 @@
 
 use std::collections::HashSet;
 
-use crate::schema::textobj::TextObjectsSpec;
 use crate::build_support::compile::*;
+use crate::schema::textobj::TextObjectsSpec;
 
 pub fn build(ctx: &BuildCtx) {
 	let path = ctx.asset("src/domains/textobj/assets/text_objects.nuon");

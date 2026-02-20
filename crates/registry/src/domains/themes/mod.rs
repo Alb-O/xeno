@@ -7,13 +7,13 @@ pub mod syntax;
 #[path = "runtime/theme/mod.rs"]
 pub mod theme;
 
+mod domain;
 #[path = "compile/link.rs"]
 pub mod link;
 #[path = "compile/loader.rs"]
 pub mod loader;
 #[path = "contract/spec.rs"]
 pub mod spec;
-mod domain;
 
 pub use domain::Themes;
 pub use syntax::{SyntaxStyle, SyntaxStyles};

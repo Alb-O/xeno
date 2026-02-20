@@ -2,8 +2,8 @@
 
 use std::collections::HashSet;
 
-use crate::schema::notifications::{NotificationsSpec, VALID_DISMISS, VALID_LEVELS};
 use crate::build_support::compile::*;
+use crate::schema::notifications::{NotificationsSpec, VALID_DISMISS, VALID_LEVELS};
 
 pub fn build(ctx: &BuildCtx) {
 	let path = ctx.asset("src/domains/notifications/assets/notifications.nuon");

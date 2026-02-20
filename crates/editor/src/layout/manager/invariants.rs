@@ -244,9 +244,7 @@ pub(crate) fn test_resize_separator_clamps_to_soft_min() {
 	let mut base_layout = Layout::side_by_side(Layout::text(ViewId(0)), Layout::text(ViewId(1)), area);
 
 	let sep_id = {
-		let hit = mgr
-			.separator_hit_at_position(&base_layout, area, 40, 12)
-			.expect("separator hit should resolve");
+		let hit = mgr.separator_hit_at_position(&base_layout, area, 40, 12).expect("separator hit should resolve");
 		hit.id
 	};
 
@@ -273,19 +271,18 @@ pub(crate) fn test_resize_separator_clamps_to_soft_min() {
 /// * Failure symptom: Panes overlap or produce negative/overflowing coordinates under tiny terminals.
 #[cfg_attr(test, test)]
 pub(crate) fn test_compute_areas_degrades_gracefully_under_tiny_area() {
-	let tiny = Rect { x: 0, y: 0, width: 5, height: 3 };
+	let tiny = Rect {
+		x: 0,
+		y: 0,
+		width: 5,
+		height: 3,
+	};
 	let layout = Layout::side_by_side(Layout::text(ViewId(0)), Layout::text(ViewId(1)), tiny);
 	let areas = layout.compute_areas(tiny);
 
 	for (view, rect) in &areas {
-		assert!(
-			rect.x + rect.width <= tiny.x + tiny.width,
-			"view {view:?} extends beyond parent width"
-		);
-		assert!(
-			rect.y + rect.height <= tiny.y + tiny.height,
-			"view {view:?} extends beyond parent height"
-		);
+		assert!(rect.x + rect.width <= tiny.x + tiny.width, "view {view:?} extends beyond parent width");
+		assert!(rect.y + rect.height <= tiny.y + tiny.height, "view {view:?} extends beyond parent height");
 	}
 
 	// Check no overlap between the two views
@@ -299,7 +296,7 @@ pub(crate) fn test_compute_areas_degrades_gracefully_under_tiny_area() {
 
 	// Total width must partition the parent (accounting for separator)
 	let total_w: u16 = areas.iter().map(|(_, r)| r.width).sum();
-	assert!(total_w + 1 <= tiny.width || tiny.width <= 1, "views + separator must fit within parent");
+	assert!(total_w < tiny.width || tiny.width <= 1, "views + separator must fit within parent");
 }
 
 /// Must clamp separator resize to soft-min bounds for vertical (stacked) splits.
@@ -313,9 +310,7 @@ pub(crate) fn test_resize_separator_clamps_to_soft_min_vertical() {
 	let mut base_layout = Layout::stacked(Layout::text(ViewId(0)), Layout::text(ViewId(1)), area);
 
 	let sep_id = {
-		let hit = mgr
-			.separator_hit_at_position(&base_layout, area, 40, 12)
-			.expect("separator hit should resolve");
+		let hit = mgr.separator_hit_at_position(&base_layout, area, 40, 12).expect("separator hit should resolve");
 		hit.id
 	};
 

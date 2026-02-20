@@ -1,7 +1,7 @@
 //! NUON → [`KeymapPresetSpec`] compiler.
 
-use crate::schema::keymaps::KeymapPresetSpec;
 use crate::build_support::compile::*;
+use crate::schema::keymaps::KeymapPresetSpec;
 
 pub fn build(ctx: &BuildCtx) {
 	let assets_dir = ctx.asset("src/keymaps/assets");

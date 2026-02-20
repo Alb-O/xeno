@@ -15,7 +15,8 @@ impl JumpAccess for EditorCaps<'_> {
 			self.ed.snippet_session_on_cursor_moved(buffer_id);
 			self.ed
 				.state
-				.runtime.effects
+				.runtime
+				.effects
 				.push_layer_event(crate::overlay::LayerEvent::CursorMoved { view: buffer_id });
 			true
 		} else {
@@ -38,7 +39,8 @@ impl JumpAccess for EditorCaps<'_> {
 			self.ed.snippet_session_on_cursor_moved(buffer_id);
 			self.ed
 				.state
-				.runtime.effects
+				.runtime
+				.effects
 				.push_layer_event(crate::overlay::LayerEvent::CursorMoved { view: buffer_id });
 			true
 		} else {

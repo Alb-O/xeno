@@ -121,7 +121,11 @@ pub(crate) fn apply_effect_batch(
 				editor.state.core.editor.workspace.nu_state.unset(&key);
 			}
 			NuEffect::ScheduleSet { key, delay_ms, name, args } => {
-				editor.state.integration.nu.schedule_macro(key, delay_ms, name, args, &editor.state.async_state.msg_tx);
+				editor
+					.state
+					.integration
+					.nu
+					.schedule_macro(key, delay_ms, name, args, &editor.state.async_state.msg_tx);
 			}
 			NuEffect::ScheduleCancel { key } => {
 				editor.state.integration.nu.cancel_schedule(&key);

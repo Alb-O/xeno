@@ -2,7 +2,6 @@
 //!
 //! Declares snippet definitions and associated metadata for runtime expansion.
 
-
 use serde::{Deserialize, Serialize};
 
 use super::meta::MetaCommonSpec;

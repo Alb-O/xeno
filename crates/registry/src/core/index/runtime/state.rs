@@ -64,9 +64,7 @@ where
 
 	/// Returns a snapshot guard for efficient iteration.
 	pub fn snapshot_guard(&self) -> SnapshotGuard<T, Id> {
-		SnapshotGuard {
-			snap: Arc::clone(&self.snap),
-		}
+		SnapshotGuard { snap: Arc::clone(&self.snap) }
 	}
 
 	/// Looks up a definition by its dense ID.

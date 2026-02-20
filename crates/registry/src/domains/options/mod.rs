@@ -4,6 +4,7 @@
 pub mod builtins;
 #[path = "contract/def.rs"]
 pub mod def;
+mod domain;
 #[path = "contract/entry.rs"]
 pub mod entry;
 #[path = "compile/link.rs"]
@@ -24,7 +25,6 @@ mod store;
 pub mod typed_keys;
 #[path = "runtime/validators/mod.rs"]
 pub mod validators;
-mod domain;
 
 pub use builtins::register_builtins;
 pub use def::{OptionDef, OptionInput, OptionScope, OptionValidator};

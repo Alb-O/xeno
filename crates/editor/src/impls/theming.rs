@@ -92,12 +92,18 @@ impl Editor {
 				content.len_bytes() as u32
 			};
 
-			let Some(selection) = self.state.integration.syntax_manager.syntax_for_viewport(doc_id, doc_version, start_byte..end_byte) else {
+			let Some(selection) = self
+				.state
+				.integration
+				.syntax_manager
+				.syntax_for_viewport(doc_id, doc_version, start_byte..end_byte)
+			else {
 				return Vec::new();
 			};
 
-			let highlight_styles =
-				xeno_language::highlight::HighlightStyles::new(SyntaxStyles::scope_names(), |scope| self.state.config.config.theme.colors.syntax.resolve(scope));
+			let highlight_styles = xeno_language::highlight::HighlightStyles::new(SyntaxStyles::scope_names(), |scope| {
+				self.state.config.config.theme.colors.syntax.resolve(scope)
+			});
 
 			let highlighter = selection
 				.syntax

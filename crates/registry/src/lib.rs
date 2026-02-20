@@ -12,8 +12,8 @@ extern crate self as xeno_registry;
 pub mod config;
 pub mod core;
 pub mod defs;
-pub mod schema;
 pub mod invocation;
+pub mod schema;
 
 #[cfg(test)]
 mod tests;
@@ -189,6 +189,8 @@ pub mod db;
 #[macro_use]
 pub mod domains;
 
+#[cfg(feature = "minimal")]
+pub use db::CATALOG;
 #[cfg(all(feature = "minimal", feature = "commands"))]
 pub use db::SNIPPETS;
 #[cfg(feature = "minimal")]
@@ -202,8 +204,6 @@ pub use db::index::{
 pub use db::keymap_registry::{
 	CompiledBinding, CompiledBindingTarget, KeymapBuildProblem, KeymapSnapshot, KeymapSnapshotCache, LookupOutcome, get_keymap_snapshot,
 };
-#[cfg(feature = "minimal")]
-pub use db::CATALOG;
 #[cfg(feature = "minimal")]
 pub use db::{ACTIONS, COMMANDS, GUTTERS, HOOKS, LANGUAGES, LSP_SERVERS, MOTIONS, NOTIFICATIONS, OPTIONS, STATUSLINE_SEGMENTS, TEXT_OBJECTS, THEMES};
 #[cfg(feature = "actions")]
