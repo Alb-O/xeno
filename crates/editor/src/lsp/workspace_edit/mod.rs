@@ -5,11 +5,13 @@
 
 use std::collections::{HashMap, HashSet};
 use std::ops::Range;
-
-use thiserror::Error;
 use std::path::PathBuf;
 
-use xeno_lsp::lsp_types::{AnnotatedTextEdit, CreateFile, DeleteFile, DocumentChangeOperation, DocumentChanges, OneOf, RenameFile, ResourceOp, TextDocumentEdit, TextEdit, Uri, WorkspaceEdit};
+use thiserror::Error;
+use xeno_lsp::lsp_types::{
+	AnnotatedTextEdit, CreateFile, DeleteFile, DocumentChangeOperation, DocumentChanges, OneOf, RenameFile, ResourceOp, TextDocumentEdit, TextEdit, Uri,
+	WorkspaceEdit,
+};
 use xeno_lsp::{OffsetEncoding, lsp_range_to_char_range};
 use xeno_primitives::range::CharIdx;
 use xeno_primitives::transaction::{Change, Tendril};
@@ -174,7 +176,9 @@ impl Editor {
 			}
 		};
 		if result.is_ok() {
-			self.save_temp_buffers_atomic(&temp_buffers).await.map_err(|e| ApplyEditFailure { error: e, failed_change: None })?;
+			self.save_temp_buffers_atomic(&temp_buffers)
+				.await
+				.map_err(|e| ApplyEditFailure { error: e, failed_change: None })?;
 		} else {
 			for id in temp_buffers {
 				self.close_headless_buffer(id);
@@ -482,7 +486,8 @@ impl Editor {
 			let write_bytes = bytes.clone();
 			let result = self
 				.state
-				.async_state.worker_runtime
+				.async_state
+				.worker_runtime
 				.spawn_blocking(xeno_worker::TaskClass::IoBlocking, move || crate::io::write_atomic(&write_path, &write_bytes))
 				.await;
 			let write_result = match result {
@@ -505,6 +510,12 @@ impl Editor {
 		Ok(())
 	}
 
+	/// Closes a temporary buffer opened during workspace edit planning.
+	///
+	/// LSP close is fire-and-forget (background spawn) because these are
+	/// ephemeral buffers without rename/delete identity semantics. For
+	/// resource ops that change document identity (rename, delete), use
+	/// inline `sync.close_document()` / `sync.reopen_document()` instead.
 	fn close_headless_buffer(&mut self, buffer_id: ViewId) {
 		let Some(buffer) = self.state.core.editor.buffers.get_buffer(buffer_id) else {
 			return;
@@ -537,12 +548,8 @@ impl Editor {
 
 		for (idx, op) in ops.into_iter().enumerate() {
 			let result = match op {
-				DocumentChangeOperation::Op(resource_op) => {
-					self.apply_resource_op(resource_op, &mut rollback_log).await
-				}
-				DocumentChangeOperation::Edit(text_edit) => {
-					self.apply_single_text_document_edit(text_edit, &mut temp_buffers).await
-				}
+				DocumentChangeOperation::Op(resource_op) => self.apply_resource_op(resource_op, &mut rollback_log).await,
+				DocumentChangeOperation::Edit(text_edit) => self.apply_single_text_document_edit(text_edit, &mut temp_buffers).await,
 			};
 
 			if let Err(error) = result {
@@ -566,11 +573,7 @@ impl Editor {
 	}
 
 	/// Applies a single resource operation (create/rename/delete).
-	async fn apply_resource_op(
-		&mut self,
-		op: ResourceOp,
-		rollback_log: &mut Vec<ResourceRollbackEntry>,
-	) -> Result<(), ApplyError> {
+	async fn apply_resource_op(&mut self, op: ResourceOp, rollback_log: &mut Vec<ResourceRollbackEntry>) -> Result<(), ApplyError> {
 		match op {
 			ResourceOp::Create(create) => self.apply_resource_create(create, rollback_log).await,
 			ResourceOp::Rename(rename) => self.apply_resource_rename(rename, rollback_log).await,
@@ -579,13 +582,8 @@ impl Editor {
 	}
 
 	/// Creates a file on disk. Respects `overwrite` and `ignoreIfExists` options.
-	async fn apply_resource_create(
-		&mut self,
-		create: CreateFile,
-		rollback_log: &mut Vec<ResourceRollbackEntry>,
-	) -> Result<(), ApplyError> {
-		let path = xeno_lsp::path_from_uri(&create.uri)
-			.ok_or_else(|| ApplyError::InvalidUri(create.uri.to_string()))?;
+	async fn apply_resource_create(&mut self, create: CreateFile, rollback_log: &mut Vec<ResourceRollbackEntry>) -> Result<(), ApplyError> {
+		let path = xeno_lsp::path_from_uri(&create.uri).ok_or_else(|| ApplyError::InvalidUri(create.uri.to_string()))?;
 
 		let overwrite = create.options.as_ref().is_some_and(|o| o.overwrite == Some(true));
 		let ignore_if_exists = create.options.as_ref().is_some_and(|o| o.ignore_if_exists == Some(true));
@@ -610,11 +608,7 @@ impl Editor {
 
 		// Snapshot existing content for rollback.
 		let had_previous = path.exists();
-		let previous_bytes = if had_previous {
-			std::fs::read(&path).ok()
-		} else {
-			None
-		};
+		let previous_bytes = if had_previous { std::fs::read(&path).ok() } else { None };
 
 		// Create parent directories if needed.
 		if let Some(parent) = path.parent() {
@@ -642,15 +636,9 @@ impl Editor {
 	}
 
 	/// Renames a file on disk. Updates open buffers if the source is open.
-	async fn apply_resource_rename(
-		&mut self,
-		rename: RenameFile,
-		rollback_log: &mut Vec<ResourceRollbackEntry>,
-	) -> Result<(), ApplyError> {
-		let old_path = xeno_lsp::path_from_uri(&rename.old_uri)
-			.ok_or_else(|| ApplyError::InvalidUri(rename.old_uri.to_string()))?;
-		let new_path = xeno_lsp::path_from_uri(&rename.new_uri)
-			.ok_or_else(|| ApplyError::InvalidUri(rename.new_uri.to_string()))?;
+	async fn apply_resource_rename(&mut self, rename: RenameFile, rollback_log: &mut Vec<ResourceRollbackEntry>) -> Result<(), ApplyError> {
+		let old_path = xeno_lsp::path_from_uri(&rename.old_uri).ok_or_else(|| ApplyError::InvalidUri(rename.old_uri.to_string()))?;
+		let new_path = xeno_lsp::path_from_uri(&rename.new_uri).ok_or_else(|| ApplyError::InvalidUri(rename.new_uri.to_string()))?;
 
 		let overwrite = rename.options.as_ref().is_some_and(|o| o.overwrite == Some(true));
 		let ignore_if_exists = rename.options.as_ref().is_some_and(|o| o.ignore_if_exists == Some(true));
@@ -701,10 +689,61 @@ impl Editor {
 			to: new_path.clone(),
 		});
 
-		// Update open buffer path if applicable.
+		// Update open buffer path and notify LSP of the identity change.
 		if let Some(buf_id) = self.state.core.editor.buffers.find_by_path(&old_path) {
+			// Capture old language and buffer text before changing the path.
+			let old_lang = self
+				.state
+				.core
+				.editor
+				.buffers
+				.get_buffer(buf_id)
+				.and_then(|b| b.file_type().map(|s| s.to_string()));
+			let text = self
+				.state
+				.core
+				.editor
+				.buffers
+				.get_buffer(buf_id)
+				.map(|b| b.with_doc(|doc| doc.content().to_string()));
+
 			if let Some(buffer) = self.state.core.editor.buffers.get_buffer_mut(buf_id) {
-				buffer.set_path(Some(new_path), Some(&self.state.config.config.language_loader));
+				buffer.set_path(Some(new_path.clone()), Some(&self.state.config.config.language_loader));
+			}
+
+			// Get new language after path update (may differ, e.g. .js → .ts).
+			let new_lang = self
+				.state
+				.core
+				.editor
+				.buffers
+				.get_buffer(buf_id)
+				.and_then(|b| b.file_type().map(|s| s.to_string()));
+
+			let sync = self.state.integration.lsp.sync();
+			match (old_lang, new_lang, text) {
+				(Some(old_lang), Some(new_lang), Some(text)) => {
+					if let Err(e) = sync.reopen_document(&old_path, &old_lang, &new_path, &new_lang, text).await {
+						tracing::warn!(error = %e, "LSP reopen after rename failed");
+					}
+				}
+				(Some(old_lang), None, _) => {
+					if let Err(e) = sync.close_document(&old_path, &old_lang).await {
+						tracing::warn!(error = %e, "LSP close after rename (lang removed) failed");
+					}
+				}
+				(None, Some(new_lang), Some(text)) => {
+					if let Err(e) = sync.ensure_open_text(&new_path, &new_lang, text).await {
+						tracing::warn!(error = %e, "LSP open after rename (lang added) failed");
+					}
+				}
+				(Some(old_lang), _, None) => {
+					tracing::warn!("buffer text unavailable during rename; closing stale LSP identity");
+					if let Err(e) = sync.close_document(&old_path, &old_lang).await {
+						tracing::warn!(error = %e, "LSP close (text unavailable) failed");
+					}
+				}
+				_ => {}
 			}
 		}
 
@@ -712,13 +751,8 @@ impl Editor {
 	}
 
 	/// Deletes a file from disk. Closes open buffers for the deleted file.
-	async fn apply_resource_delete(
-		&mut self,
-		delete: DeleteFile,
-		rollback_log: &mut Vec<ResourceRollbackEntry>,
-	) -> Result<(), ApplyError> {
-		let path = xeno_lsp::path_from_uri(&delete.uri)
-			.ok_or_else(|| ApplyError::InvalidUri(delete.uri.to_string()))?;
+	async fn apply_resource_delete(&mut self, delete: DeleteFile, rollback_log: &mut Vec<ResourceRollbackEntry>) -> Result<(), ApplyError> {
+		let path = xeno_lsp::path_from_uri(&delete.uri).ok_or_else(|| ApplyError::InvalidUri(delete.uri.to_string()))?;
 
 		let ignore_if_not_exists = delete.options.as_ref().is_some_and(|o| o.ignore_if_not_exists == Some(true));
 
@@ -736,9 +770,7 @@ impl Editor {
 		if let Some(buf_id) = self.state.core.editor.buffers.find_by_path(&path) {
 			let buffer = self.state.core.editor.buffers.get_buffer(buf_id);
 			if buffer.is_some_and(|b| b.modified()) {
-				return Err(ApplyError::DeleteBlockedModified {
-					uri: delete.uri.to_string(),
-				});
+				return Err(ApplyError::DeleteBlockedModified { uri: delete.uri.to_string() });
 			}
 		}
 
@@ -760,14 +792,21 @@ impl Editor {
 			reason: e.to_string(),
 		})?;
 
-		rollback_log.push(ResourceRollbackEntry::Deleted {
-			path: path.clone(),
-			bytes,
-		});
+		rollback_log.push(ResourceRollbackEntry::Deleted { path: path.clone(), bytes });
 
-		// Close open buffer for deleted file.
+		// Close open buffer for deleted file (inline LSP close, no background spawn).
 		if let Some(buf_id) = self.state.core.editor.buffers.find_by_path(&path) {
-			self.close_headless_buffer(buf_id);
+			let buffer = self.state.core.editor.buffers.get_buffer(buf_id);
+			if let Some((path, lang)) = buffer.and_then(|b| {
+				let p = b.path().map(|p| p.to_path_buf())?;
+				let l = b.file_type().map(|s| s.to_string())?;
+				Some((p, l))
+			}) {
+				if let Err(e) = self.state.integration.lsp.sync().close_document(&path, &lang).await {
+					tracing::warn!(error = %e, "LSP close after delete failed");
+				}
+			}
+			self.finalize_buffer_removal(buf_id);
 		}
 
 		Ok(())
@@ -777,11 +816,7 @@ impl Editor {
 	///
 	/// This opens the document if needed (tracking temp buffers), plans the edit,
 	/// and applies it immediately.
-	async fn apply_single_text_document_edit(
-		&mut self,
-		edit: TextDocumentEdit,
-		temp_buffers: &mut Vec<ViewId>,
-	) -> Result<(), ApplyError> {
+	async fn apply_single_text_document_edit(&mut self, edit: TextDocumentEdit, temp_buffers: &mut Vec<ViewId>) -> Result<(), ApplyError> {
 		let uri = edit.text_document.uri.clone();
 
 		// Version check.
@@ -814,12 +849,17 @@ impl Editor {
 			temp_buffers.push(buffer_id);
 		}
 
-		let buffer = self.state.core.buffers.get_buffer(buffer_id)
+		let buffer = self
+			.state
+			.core
+			.buffers
+			.get_buffer(buffer_id)
 			.ok_or_else(|| ApplyError::BufferNotFound(uri.to_string()))?;
 		let encoding = self.state.integration.lsp.offset_encoding_for_buffer(buffer);
 		let mut planned_edits: Vec<PlannedTextEdit> = Vec::new();
 		for te in &text_edits {
-			let planned = buffer.with_doc(|doc| convert_text_edit(doc.content(), encoding, te))
+			let planned = buffer
+				.with_doc(|doc| convert_text_edit(doc.content(), encoding, te))
 				.ok_or_else(|| ApplyError::RangeConversionFailed(uri.to_string()))?;
 			planned_edits.push(planned);
 		}
@@ -844,7 +884,11 @@ impl Editor {
 	async fn rollback_resource_ops(&mut self, log: &mut Vec<ResourceRollbackEntry>) {
 		while let Some(entry) = log.pop() {
 			match entry {
-				ResourceRollbackEntry::Created { path, had_previous, previous_bytes } => {
+				ResourceRollbackEntry::Created {
+					path,
+					had_previous,
+					previous_bytes,
+				} => {
 					if had_previous {
 						if let Some(bytes) = previous_bytes {
 							let _ = std::fs::write(&path, &bytes);
@@ -855,10 +899,59 @@ impl Editor {
 				}
 				ResourceRollbackEntry::Renamed { from, to } => {
 					let _ = std::fs::rename(&to, &from);
-					// Restore buffer path if it was updated.
+					// Restore buffer path and LSP identity.
 					if let Some(buf_id) = self.state.core.editor.buffers.find_by_path(&to) {
+						let old_lang = self
+							.state
+							.core
+							.editor
+							.buffers
+							.get_buffer(buf_id)
+							.and_then(|b| b.file_type().map(|s| s.to_string()));
+						let text = self
+							.state
+							.core
+							.editor
+							.buffers
+							.get_buffer(buf_id)
+							.map(|b| b.with_doc(|doc| doc.content().to_string()));
+
 						if let Some(buffer) = self.state.core.editor.buffers.get_buffer_mut(buf_id) {
-							buffer.set_path(Some(from), Some(&self.state.config.config.language_loader));
+							buffer.set_path(Some(from.clone()), Some(&self.state.config.config.language_loader));
+						}
+
+						let new_lang = self
+							.state
+							.core
+							.editor
+							.buffers
+							.get_buffer(buf_id)
+							.and_then(|b| b.file_type().map(|s| s.to_string()));
+
+						let sync = self.state.integration.lsp.sync();
+						match (old_lang, new_lang, text) {
+							(Some(old_lang), Some(new_lang), Some(text)) => {
+								if let Err(e) = sync.reopen_document(&to, &old_lang, &from, &new_lang, text).await {
+									tracing::warn!(error = %e, "LSP reopen after rollback rename failed");
+								}
+							}
+							(Some(old_lang), None, _) => {
+								if let Err(e) = sync.close_document(&to, &old_lang).await {
+									tracing::warn!(error = %e, "LSP close after rollback rename (lang removed) failed");
+								}
+							}
+							(None, Some(new_lang), Some(text)) => {
+								if let Err(e) = sync.ensure_open_text(&from, &new_lang, text).await {
+									tracing::warn!(error = %e, "LSP open after rollback rename (lang added) failed");
+								}
+							}
+							(Some(old_lang), _, None) => {
+								tracing::warn!("buffer text unavailable during rollback rename; closing stale LSP identity");
+								if let Err(e) = sync.close_document(&to, &old_lang).await {
+									tracing::warn!(error = %e, "LSP close (text unavailable, rollback) failed");
+								}
+							}
+							_ => {}
 						}
 					}
 				}

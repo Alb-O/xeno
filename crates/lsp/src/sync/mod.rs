@@ -460,6 +460,18 @@ impl DocumentSync {
 		Ok(())
 	}
 
+	/// Closes a document under its old identity and reopens it under a new one.
+	///
+	/// Sends `didClose(old_uri)` then `didOpen(new_uri)` with the provided
+	/// text, clearing old diagnostics and forcing a full sync on the new URI.
+	/// Used when a resource rename changes a file's path (and potentially its
+	/// language) while it remains open in the editor.
+	pub async fn reopen_document(&self, old_path: &Path, old_language: &str, new_path: &Path, new_language: &str, text: String) -> Result<()> {
+		self.close_document(old_path, old_language).await?;
+		self.ensure_open_text(new_path, new_language, text).await?;
+		Ok(())
+	}
+
 	/// Close a document with language servers.
 	pub async fn close_document(&self, path: &Path, language: &str) -> Result<()> {
 		let uri = crate::uri_from_path(path).ok_or_else(|| crate::Error::Protocol("Invalid path".into()))?;

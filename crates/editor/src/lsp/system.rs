@@ -29,6 +29,17 @@ impl LspHandle {
 		self.sync.close_document(&path, &language).await
 	}
 
+	pub async fn reopen_document(
+		&self,
+		old_path: std::path::PathBuf,
+		old_language: String,
+		new_path: std::path::PathBuf,
+		new_language: String,
+		text: String,
+	) -> xeno_lsp::Result<()> {
+		self.sync.reopen_document(&old_path, &old_language, &new_path, &new_language, text).await
+	}
+
 	pub async fn on_buffer_close(&self, path: std::path::PathBuf, language: String) -> xeno_lsp::Result<()> {
 		self.close_document(path, language).await
 	}
