@@ -59,21 +59,6 @@ pub(crate) fn make_def(id: &'static str, priority: i16) -> TestDef {
 	}
 }
 
-pub(crate) fn make_def_with_source(id: &'static str, priority: i16, source: RegistrySource) -> TestDef {
-	TestDef {
-		meta: RegistryMetaStatic {
-			id,
-			name: id,
-			keys: &[],
-			description: "",
-			priority,
-			source,
-			required_caps: &[],
-			flags: 0,
-		},
-	}
-}
-
 pub(crate) fn make_def_with_name(id: &'static str, name: &'static str, priority: i16) -> TestDef {
 	TestDef {
 		meta: RegistryMetaStatic {

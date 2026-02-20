@@ -61,6 +61,10 @@ impl TextObjectRegistry {
 	pub fn is_empty(&self) -> bool {
 		self.inner.is_empty()
 	}
+
+	pub fn collisions(&self) -> &[crate::core::Collision] {
+		self.inner.collisions()
+	}
 }
 
 #[cfg(test)]
@@ -116,12 +120,9 @@ mod tests {
 	fn by_trigger_prefers_runtime_source_on_tie() {
 		let mut builder: RegistryBuilder<TextObjectInput, TextObjectEntry, TextObjectId> = RegistryBuilder::new("textobj-test");
 		builder.push(std::sync::Arc::new(TextObjectInput::Static(BUILTIN_TEXT_OBJECT)));
+		builder.push(std::sync::Arc::new(TextObjectInput::Static(RUNTIME_TEXT_OBJECT)));
 
 		let registry = TextObjectRegistry::new(builder.build());
-		registry
-			.inner
-			.register(&RUNTIME_TEXT_OBJECT)
-			.expect("runtime text object registration should succeed");
 
 		let resolved = registry.by_trigger('x').expect("trigger should resolve");
 		assert_eq!(resolved.id_str(), RUNTIME_TEXT_OBJECT.meta.id);

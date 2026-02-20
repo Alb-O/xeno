@@ -62,11 +62,6 @@ pub use crate::hook_handler;
 pub type HooksRef = RegistryRef<HookEntry, HookId>;
 
 #[cfg(feature = "minimal")]
-pub fn register_hook(def: &'static HookDef) -> bool {
-	HOOKS.register(def)
-}
-
-#[cfg(feature = "minimal")]
 pub fn hooks_for_event(event: crate::HookEvent) -> Vec<HooksRef> {
 	HOOKS.for_event(event)
 }

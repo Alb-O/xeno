@@ -1,18 +1,8 @@
 use xeno_primitives::Color;
 
 use super::super::syntax::SyntaxStyles;
-use super::types::{ColorPair, LinkedThemeDef, ModeColors, NotificationColors, PopupColors, SemanticColors, ThemeColors, ThemeDef, ThemeEntry, UiColors};
+use super::types::{ColorPair, ModeColors, NotificationColors, PopupColors, SemanticColors, ThemeColors, ThemeDef, ThemeEntry, UiColors};
 use crate::core::{RegistryMetaStatic, RegistrySource};
-
-/// Register runtime themes.
-pub fn register_runtime_themes(themes: Vec<LinkedThemeDef>) {
-	for theme in themes {
-		let id = theme.meta.id.clone();
-		if let Err(error) = THEMES.register_owned(std::sync::Arc::new(theme)) {
-			tracing::warn!(theme = %id, error = %error, "failed to register runtime theme");
-		}
-	}
-}
 
 /// Default fallback theme (minimal terminal colors).
 pub static DEFAULT_THEME: ThemeDef = ThemeDef {

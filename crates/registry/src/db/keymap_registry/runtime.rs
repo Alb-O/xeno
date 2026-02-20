@@ -1,7 +1,5 @@
 use std::sync::Arc;
 
-use arc_swap::ArcSwap;
-
 use super::compiler::KeymapCompiler;
 use super::snapshot::KeymapSnapshot;
 use super::sources::collect_keymap_spec;
@@ -31,44 +29,32 @@ impl KeymapSnapshot {
 	}
 }
 
-/// Reactive keymap snapshot cache tied to the actions snapshot lifecycle.
+/// Immutable keymap snapshot cache keyed by catalog version.
 pub struct KeymapSnapshotCache {
-	cache: ArcSwap<KeymapCache>,
-}
-
-struct KeymapCache {
-	snap: Arc<Snapshot<ActionEntry, ActionId>>,
+	catalog_version: u64,
 	snapshot: Arc<KeymapSnapshot>,
 }
 
 impl KeymapSnapshotCache {
-	pub fn new(snap: Arc<Snapshot<ActionEntry, ActionId>>) -> Self {
+	pub fn new(catalog_version: u64, snap: Arc<Snapshot<ActionEntry, ActionId>>) -> Self {
 		let snapshot = Arc::new(KeymapSnapshot::build(&snap));
-		Self {
-			cache: ArcSwap::from_pointee(KeymapCache { snap, snapshot }),
-		}
+		Self { catalog_version, snapshot }
 	}
 
-	pub fn for_snapshot(&self, snap: Arc<Snapshot<ActionEntry, ActionId>>) -> Arc<KeymapSnapshot> {
-		let current = self.cache.load();
-		if Arc::ptr_eq(&current.snap, &snap) {
-			return Arc::clone(&current.snapshot);
-		}
+	pub fn snapshot(&self) -> Arc<KeymapSnapshot> {
+		Arc::clone(&self.snapshot)
+	}
 
-		let snapshot = Arc::new(KeymapSnapshot::build(&snap));
-		self.cache.store(Arc::new(KeymapCache {
-			snap: Arc::clone(&snap),
-			snapshot: Arc::clone(&snapshot),
-		}));
-		snapshot
+	pub fn catalog_version(&self) -> u64 {
+		self.catalog_version
 	}
 }
 
 /// Backward-compatible alias while call sites migrate from old naming.
 pub type KeymapRegistry = KeymapSnapshotCache;
 
-/// Returns the keymap snapshot for the current actions registry snapshot.
+/// Returns the keymap snapshot for the immutable actions registry catalog.
 pub fn get_keymap_snapshot() -> Arc<KeymapSnapshot> {
-	let db = crate::db::get_db();
-	db.keymap.for_snapshot(crate::db::ACTIONS.snapshot())
+	let db = crate::db::get_catalog();
+	db.keymap.snapshot()
 }

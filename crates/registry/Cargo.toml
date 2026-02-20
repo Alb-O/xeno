@@ -101,7 +101,6 @@ registry-contracts = []
 actions-handler-coverage = ["actions-builtins"]
 
 [dependencies]
-arc-swap = { workspace = true }
 bitflags = { workspace = true }
 inventory = { workspace = true, optional = true }
 parking_lot = { workspace = true, optional = true }

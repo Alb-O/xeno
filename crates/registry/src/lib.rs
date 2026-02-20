@@ -198,6 +198,8 @@ pub use db::keymap_registry::{
 	CompiledBinding, CompiledBindingTarget, KeymapBuildProblem, KeymapRegistry, KeymapSnapshot, KeymapSnapshotCache, LookupOutcome, get_keymap_snapshot,
 };
 #[cfg(feature = "minimal")]
+pub use db::CATALOG;
+#[cfg(feature = "minimal")]
 pub use db::{ACTIONS, COMMANDS, GUTTERS, HOOKS, LANGUAGES, LSP_SERVERS, MOTIONS, NOTIFICATIONS, OPTIONS, STATUSLINE_SEGMENTS, TEXT_OBJECTS, THEMES};
 #[cfg(feature = "actions")]
 pub use domains::actions;

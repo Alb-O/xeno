@@ -6283,7 +6283,6 @@ dependencies = [
 name = "xeno-registry"
 version = "0.9.3"
 dependencies = [
- "arc-swap",
  "bitflags 2.11.0",
  "inventory",
  "parking_lot",

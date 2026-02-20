@@ -115,14 +115,6 @@ impl crate::db::domain::DomainSpec for Actions {
 	fn on_push(_db: &mut crate::db::builder::RegistryDbBuilder, _input: &Self::Input) {}
 }
 
-/// Registers an action definition at runtime.
-///
-/// Returns `true` if the action was added, `false` if rejected (e.g., lower priority duplicate).
-#[cfg(feature = "minimal")]
-pub fn register_action(def: &'static ActionDef) -> bool {
-	ACTIONS.register(def).is_ok()
-}
-
 /// Finds an action by name, key, or id.
 #[cfg(feature = "minimal")]
 pub fn find_action(name: &str) -> Option<ActionRef> {

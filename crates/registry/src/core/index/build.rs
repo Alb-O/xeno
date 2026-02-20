@@ -62,24 +62,6 @@ impl BuildCtx for ProdBuildCtx<'_> {
 	}
 }
 
-pub(crate) struct RuntimeBuildCtx<'a> {
-	pub(crate) interner: &'a FrozenInterner,
-}
-
-impl BuildCtx for RuntimeBuildCtx<'_> {
-	fn intern(&mut self, s: &str) -> Symbol {
-		self.interner.get(s).expect("missing interned string in runtime build")
-	}
-
-	fn get(&self, s: &str) -> Option<Symbol> {
-		self.interner.get(s)
-	}
-
-	fn resolve(&self, sym: Symbol) -> &str {
-		self.interner.resolve(sym)
-	}
-}
-
 /// Instrumented context that verifies all used strings were collected.
 #[cfg(any(debug_assertions, feature = "registry-contracts"))]
 pub(crate) struct DebugBuildCtx<'a> {

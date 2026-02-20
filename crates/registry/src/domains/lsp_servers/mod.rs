@@ -1,10 +1,12 @@
 //! LSP server domain registration and runtime entry construction.
 
+pub mod builtins;
 pub mod entry;
 pub mod loader;
 pub mod registry;
 pub mod spec;
 
+pub use builtins::register_builtins;
 pub use entry::{LspServerEntry, LspServerInput};
 pub use registry::LspServersRegistry;
 

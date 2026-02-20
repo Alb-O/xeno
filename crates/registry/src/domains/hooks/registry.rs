@@ -1,7 +1,7 @@
 use crate::HookEvent;
 use crate::core::index::RegistryRef;
 use crate::core::{DenseId, HookId, RegistryIndex, RuntimeRegistry};
-use crate::hooks::{HookDef, HookEntry};
+use crate::hooks::HookEntry;
 
 /// Guard object that keeps a hooks snapshot alive while providing access to a definition.
 pub type HooksRef = RegistryRef<HookEntry, HookId>;
@@ -51,8 +51,8 @@ impl HooksRegistry {
 		self.inner.is_empty()
 	}
 
-	pub fn register(&self, def: &'static HookDef) -> bool {
-		self.inner.register(def).is_ok()
+	pub fn collisions(&self) -> &[crate::core::Collision] {
+		self.inner.collisions()
 	}
 }
 
@@ -61,7 +61,7 @@ mod tests {
 	use super::*;
 	use crate::core::index::RegistryBuilder;
 	use crate::core::{RegistryMetaStatic, RegistrySource};
-	use crate::hooks::{HookAction, HookContext, HookHandler, HookInput, HookMutability, HookPriority, HookResult};
+	use crate::hooks::{HookAction, HookContext, HookDef, HookHandler, HookInput, HookMutability, HookPriority, HookResult};
 
 	fn test_hook(_ctx: &HookContext) -> HookAction {
 		HookAction::Done(HookResult::Continue)
@@ -86,9 +86,9 @@ mod tests {
 
 	#[test]
 	fn runtime_registration_is_visible_in_event_lookup() {
-		let builder: RegistryBuilder<HookInput, HookEntry, HookId> = RegistryBuilder::new("hooks-test");
+		let mut builder: RegistryBuilder<HookInput, HookEntry, HookId> = RegistryBuilder::new("hooks-test");
+		builder.push(std::sync::Arc::new(HookInput::Static(RUNTIME_HOOK)));
 		let registry = HooksRegistry::new(builder.build());
-		assert!(registry.register(&RUNTIME_HOOK));
 
 		let hooks = registry.for_event(crate::HookEvent::EditorTick);
 		assert_eq!(hooks.len(), 1);

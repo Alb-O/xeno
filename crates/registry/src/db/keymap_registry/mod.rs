@@ -13,7 +13,7 @@
 //! * `compiler` resolves targets, applies precedence per `(mode, sequence)` slot, and emits
 //!   a `CompiledKeymap` artifact with diagnostics.
 //! * `snapshot` materializes trie matchers from compiled slots for fast lookup and continuation queries.
-//! * `runtime` caches snapshot instances by action-registry snapshots.
+//! * `runtime` caches a catalog-scoped immutable snapshot.
 //!
 //! # Key types
 //!
@@ -22,7 +22,7 @@
 //! | `KeymapSpec` | Collected source candidates before resolution. |
 //! | `CompiledKeymap` | Compile artifact with resolved slots and diagnostics. |
 //! | `KeymapSnapshot` | Immutable runtime lookup index used by input dispatch. |
-//! | `KeymapSnapshotCache` | Snapshot cache keyed by actions snapshot pointer identity. |
+//! | `KeymapSnapshotCache` | Snapshot cache keyed by immutable catalog version. |
 //!
 //! # Invariants
 //!
@@ -40,14 +40,12 @@
 //!
 //! # Lifecycle
 //!
-//! * Build snapshot from current action registry snapshot.
-//! * Rebuild when action snapshot identity changes.
-//! * Keep old snapshots alive via `Arc` while callers still hold them.
+//! * Build snapshot once from immutable action catalog data.
+//! * Reuse the same snapshot for the catalog lifetime.
 //!
 //! # Concurrency & ordering
 //!
 //! * Snapshot reads are immutable and lock-free.
-//! * Snapshot swaps are atomic through `ArcSwap` in the runtime cache.
 //! * Compile ordering is deterministic through explicit precedence policy and sorted slot materialization.
 //!
 //! # Failure modes & recovery

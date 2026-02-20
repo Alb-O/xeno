@@ -603,6 +603,14 @@
     },
     {
       common: {
+        name: haxe-language-server
+      },
+      command: haxe-language-server,
+      source: "https://github.com/vshaxe/haxe-language-server",
+      nix: haxe-language-server
+    },
+    {
+      common: {
         name: hdls
       },
       command: hdls,
@@ -916,6 +924,13 @@
       command: nls,
       source: "https://github.com/tweag/nickel",
       nix: nickel
+    },
+    {
+      common: {
+        name: nimlangserver
+      },
+      command: nimlangserver,
+      source: "https://github.com/nim-lang/langserver"
     },
     {
       common: {
@@ -1492,6 +1507,13 @@
       command: vale-ls,
       source: "https://github.com/errata-ai/vale-ls",
       nix: vale-ls
+    },
+    {
+      common: {
+        name: verible-verilog-ls
+      },
+      command: verible-verilog-ls,
+      source: "https://github.com/chipsalliance/verible"
     },
     {
       common: {

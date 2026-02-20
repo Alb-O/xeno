@@ -101,6 +101,10 @@ impl LanguagesRegistry {
 	pub fn is_empty(&self) -> bool {
 		self.inner.is_empty()
 	}
+
+	pub fn collisions(&self) -> &[crate::core::Collision] {
+		self.inner.collisions()
+	}
 }
 
 fn best_match(snap: &Arc<Snapshot<LanguageEntry, LanguageId>>, matches: impl Fn(&LanguageEntry) -> bool) -> Option<LanguageRef> {
@@ -239,9 +243,9 @@ mod tests {
 	fn extension_lookup_prefers_runtime_source_on_tie() {
 		let mut builder: RegistryBuilder<LanguageInput, LanguageEntry, LanguageId> = RegistryBuilder::new("languages-test");
 		builder.push(std::sync::Arc::new(LanguageInput::Static(BUILTIN_LANG.clone())));
+		builder.push(std::sync::Arc::new(LanguageInput::Static(RUNTIME_LANG.clone())));
 
 		let registry = LanguagesRegistry::new(builder.build());
-		registry.inner.register(&RUNTIME_LANG).expect("runtime language registration should succeed");
 
 		let resolved = registry.language_for_extension("rs").expect("extension should resolve");
 		assert_eq!(resolved.id_str(), RUNTIME_LANG.meta.id);

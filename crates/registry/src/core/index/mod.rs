@@ -15,8 +15,6 @@
 //!    [`Snapshot`] of the data.
 //! 3. Readers load a [`Snapshot`] and perform O(1) lookups by ID or key, receiving a
 //!    [`RegistryRef`] which pins the specific snapshot version.
-//! 4. At runtime, [`RuntimeRegistry::register`] builds an extended snapshot and atomically
-//!    swaps it, ensuring linearizable updates and lock-free reads.
 //!
 //! # Precedence Contract
 //!
@@ -54,9 +52,8 @@
 //!
 //! * Must have unambiguous ID lookup (one winner per ID).
 //! * Must maintain deterministic iteration order by dense ID (table index).
-//!   Builtins are built in canonical-ID order; runtime appends extend the table in registration order.
+//!   Builtins are built in canonical-ID order.
 //! * Must keep owned definitions alive while reachable.
-//! * Must provide linearizable writes without lost updates.
 //!
 //! # Data flow
 //!
@@ -64,25 +61,20 @@
 //! 2. Build phase interns strings, resolves ID/key collisions, and emits [`RegistryIndex`].
 //! 3. Runtime wraps the index in [`RuntimeRegistry`] snapshot storage.
 //! 4. Readers resolve by key/ID and receive snapshot-pinned [`RegistryRef`] handles.
-//! 5. Runtime registrations build extended snapshots and CAS-publish them.
 //!
 //! # Lifecycle
 //!
 //! * Build-time bootstrap from builtins/plugins into immutable [`RegistryIndex`].
 //! * Runtime steady-state reads from latest snapshot.
-//! * Optional runtime mutation via `register`/`register_owned`.
-//! * Old snapshots remain valid while referenced by pinned refs.
+//! * Snapshot remains immutable for process lifetime.
 //!
 //! # Concurrency & ordering
 //!
-//! * Reads are wait-free through atomic snapshot loads.
-//! * Writes use CAS loops for lock-free linearizable publication.
+//! * Reads are wait-free through immutable snapshot access.
 //! * Conflict resolution order is deterministic through precedence contract.
 //!
 //! # Failure modes & recovery
 //!
-//! * Duplicate-policy rejection returns `RegisterError::Rejected`.
-//! * CAS race retries against latest snapshot until publish succeeds or policy rejects.
 //! * Collision metadata retains diagnostics when keys/IDs conflict.
 //!
 //! # Recipes
@@ -107,9 +99,8 @@ mod types;
 mod util;
 
 pub use build::{BuildCtx, BuildCtxExt, BuildEntry, RegistryBuilder, RegistryMetaRef, StrListRef, StringCollector};
-pub(crate) use collision::cmp_party;
 pub use collision::{Collision, CollisionKind, DuplicatePolicy, KeyKind, Party, Resolution};
-pub use runtime::{RegisterError, RuntimeEntry, RuntimeRegistry};
+pub use runtime::{RuntimeEntry, RuntimeRegistry};
 pub use snapshot::{RegistryRef, Snapshot, SnapshotGuard};
 pub use types::RegistryIndex;
 pub(crate) use util::u32_index;
