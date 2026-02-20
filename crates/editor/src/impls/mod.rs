@@ -61,13 +61,11 @@ pub use focus::{FocusReason, FocusTarget, PanelId};
 pub use navigation::Location;
 use parking_lot::Mutex;
 use xeno_language::LanguageLoader;
-use xeno_registry::actions::ActionEntry;
-use xeno_registry::core::index::Snapshot;
 use xeno_registry::db::keymap_registry::KeymapSnapshot;
 use xeno_registry::hooks::{HookContext, WindowKind, emit as emit_hook, emit_sync_with as emit_hook_sync_with};
 use xeno_registry::options::OPTIONS;
 use xeno_registry::themes::THEMES;
-use xeno_registry::{ActionId, HookEventData};
+use xeno_registry::HookEventData;
 use xeno_worker::WorkerRuntime;
 
 use crate::buffer::{Buffer, Layout, ViewId};
@@ -142,7 +140,7 @@ fn log_registry_summary_once() {
 /// * `focus_buffer` - Focus by ID
 /// * `focus_next_view` / `focus_prev_view` - Cycle through views
 pub(crate) struct EffectiveKeymapCache {
-	pub(crate) snap: Arc<Snapshot<ActionEntry, ActionId>>,
+	pub(crate) catalog_version: u64,
 	pub(crate) overrides_hash: u64,
 	pub(crate) preset_ptr: usize,
 	pub(crate) index: Arc<KeymapSnapshot>,
@@ -205,7 +203,7 @@ pub(crate) struct EditorState {
 	pub(crate) keymap_behavior: xeno_registry::keymaps::KeymapBehavior,
 	/// Initial mode for new buffers / preset changes.
 	pub(crate) keymap_initial_mode: xeno_primitives::Mode,
-	/// Cached effective keymap index for the current actions snapshot and overrides.
+	/// Cached effective keymap index for the current catalog version and overrides.
 	pub(crate) keymap_cache: Mutex<Option<EffectiveKeymapCache>>,
 	/// Nu runtime/executor lifecycle and hook/macro orchestration state.
 	pub(crate) nu: crate::nu::coordinator::NuCoordinatorState,
@@ -768,8 +766,9 @@ impl Editor {
 		self.state.nu.ensure_executor()
 	}
 
-	/// Returns the effective keymap for the current actions snapshot, preset, and overrides.
+	/// Returns the effective keymap for the current catalog version, preset, and overrides.
 	pub fn effective_keymap(&self) -> Arc<KeymapSnapshot> {
+		let catalog_version = xeno_registry::CATALOG.version_hash();
 		let snap = xeno_registry::db::ACTIONS.snapshot();
 		let overrides_hash = hash_unresolved_keys(self.state.key_overrides.as_ref());
 		let preset_ptr = Arc::as_ptr(&self.state.keymap_preset) as usize;
@@ -777,7 +776,7 @@ impl Editor {
 		{
 			let cache = self.state.keymap_cache.lock();
 			if let Some(cache) = cache.as_ref()
-				&& Arc::ptr_eq(&cache.snap, &snap)
+				&& cache.catalog_version == catalog_version
 				&& cache.overrides_hash == overrides_hash
 				&& cache.preset_ptr == preset_ptr
 			{
@@ -792,7 +791,7 @@ impl Editor {
 		));
 		let mut cache = self.state.keymap_cache.lock();
 		*cache = Some(EffectiveKeymapCache {
-			snap,
+			catalog_version,
 			overrides_hash,
 			preset_ptr,
 			index: Arc::clone(&index),
