@@ -13,7 +13,7 @@ use serde::de::DeserializeOwned;
 use walkdir::WalkDir;
 use xeno_nu_data::Value;
 
-use crate::defs_loader::{MAGIC, SCHEMA_VERSION};
+use crate::defs_blob_header::{MAGIC, SCHEMA_VERSION};
 
 pub struct BuildCtx {
 	pub manifest_dir: PathBuf,
@@ -84,11 +84,11 @@ pub fn collect_files_sorted(root: &Path, ext: &str) -> Vec<PathBuf> {
 	paths
 }
 
-/// Validates no duplicate names in a list of `(name, _)` pairs.
-pub fn validate_unique(items: &[(String, String)], domain: &str) {
+/// Validates no duplicate names in a sequence.
+pub fn validate_unique<'a>(items: impl IntoIterator<Item = &'a str>, domain: &str) {
 	let mut seen = HashSet::new();
-	for (name, _) in items {
-		if !seen.insert(name.as_str()) {
+	for name in items {
+		if !seen.insert(name) {
 			panic!("duplicate {domain} name: '{name}'");
 		}
 	}

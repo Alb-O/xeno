@@ -1,9 +1,9 @@
-#[path = "src/defs/loader.rs"]
-mod defs_loader;
-#[path = "src/schema/mod.rs"]
-mod schema;
 #[path = "build_support/mod.rs"]
 mod build_support;
+#[path = "src/defs/blob_header.rs"]
+mod defs_blob_header;
+#[path = "src/schema/mod.rs"]
+mod schema;
 
 use build_support::compile::BuildCtx;
 
