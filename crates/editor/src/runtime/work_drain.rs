@@ -1,6 +1,7 @@
 //! Drain policy for deferred runtime work queued in runtime work queue.
 
 use crate::Editor;
+use crate::runtime::facade::{RuntimeInvocationPort, RuntimeOverlayPort, RuntimePorts};
 use crate::runtime::work_queue::{RuntimeWorkKind, RuntimeWorkKindCounts, RuntimeWorkSource};
 use crate::types::{Invocation, InvocationStatus, PipelineDisposition, PipelineLogContext, classify_for_nu_pipeline, log_pipeline_non_ok};
 
@@ -57,7 +58,10 @@ impl Editor {
 						invocation = %invocation.describe(),
 						"invocation.runtime_work.run",
 					);
-					let result = self.run_invocation(invocation.clone(), policy).await;
+					let result = {
+						let mut ports = RuntimePorts::new(self);
+						RuntimeInvocationPort::run_runtime_invocation(&mut ports, invocation.clone(), policy).await
+					};
 					self.metrics().record_runtime_work_drained_total(item.kind_tag, Some(source));
 
 					if is_nu_pipeline {
@@ -80,7 +84,8 @@ impl Editor {
 					match result.status {
 						InvocationStatus::NotFound => {
 							if let Invocation::Command(command) = &invocation {
-								self.show_notification(xeno_registry::notifications::keys::unknown_command(&command.name));
+								let mut ports = RuntimePorts::new(self);
+								RuntimeInvocationPort::notify_unknown_command(&mut ports, &command.name);
 							}
 						}
 						InvocationStatus::Quit | InvocationStatus::ForceQuit => {
@@ -91,17 +96,16 @@ impl Editor {
 					}
 				}
 				RuntimeWorkKind::OverlayCommit => {
-					self.interaction_commit().await;
+					let mut ports = RuntimePorts::new(self);
+					RuntimeOverlayPort::apply_overlay_commit(&mut ports).await;
 					report.applied_overlay_commits += 1;
 					self.metrics().record_runtime_work_drained_total(item.kind_tag, None);
 				}
 				#[cfg(feature = "lsp")]
 				RuntimeWorkKind::WorkspaceEdit(edit) => {
-					if let Err(err) = self.apply_workspace_edit(edit).await {
-						self.notify(xeno_registry::notifications::keys::error(err.to_string()));
-					}
+					let mut ports = RuntimePorts::new(self);
+					RuntimeOverlayPort::apply_workspace_edit_or_notify(&mut ports, edit).await;
 					report.applied_workspace_edits += 1;
-					self.frame_mut().needs_redraw = true;
 					self.metrics().record_runtime_work_drained_total(item.kind_tag, None);
 				}
 			}

@@ -2,6 +2,7 @@ use std::cell::{Cell, RefCell};
 use std::thread_local;
 use std::time::Duration;
 
+use tokio::time::{sleep, timeout};
 use xeno_primitives::{BoxFutureLocal, Key, KeyCode, Mode};
 use xeno_registry::actions::{ActionEffects, ActionResult};
 use xeno_registry::hooks::HookPriority;
@@ -197,7 +198,7 @@ async fn test_submit_event_on_event_policy_implies_single_maintenance_cycle() {
 
 /// Must defer overlay commit execution to runtime drain phases via deferred work queue.
 ///
-/// * Enforced in: `Editor::apply_runtime_event_input`, `Editor::drain_until_idle`
+/// * Enforced in: `Editor::apply_runtime_event_input`, `runtime::facade::RuntimeOverlayPort`, `Editor::drain_until_idle`
 /// * Failure symptom: overlay commit runs re-entrantly inside key handling.
 #[tokio::test]
 async fn test_overlay_commit_deferred_until_runtime_drain() {
@@ -275,7 +276,7 @@ async fn test_cursor_style_defaults_follow_mode() {
 
 /// Must preserve round phase ordering so maintenance side effects remain deterministic.
 ///
-/// * Enforced in: `runtime::pump::run_pump_cycle_with_report`
+/// * Enforced in: `runtime::facade::RuntimePorts`, `runtime::pump::run_pump_cycle_with_report`
 /// * Failure symptom: deferred effects execute in unstable order across pump cycles.
 #[tokio::test]
 async fn test_pump_round_phase_order_is_stable() {
@@ -293,6 +294,48 @@ async fn test_pump_round_phase_order_is_stable() {
 	];
 
 	assert_eq!(report.rounds[0].phases, expected);
+}
+
+/// Must preserve redraw contract semantics for filesystem and message phases after facade indirection.
+///
+/// * Enforced in: `runtime::facade::{RuntimeFilesystemPort,RuntimeMessagePort}`, `runtime::pump::phases`
+/// * Failure symptom: filesystem/message updates stop requesting redraw when state changes.
+#[tokio::test]
+async fn test_filesystem_and_message_phases_preserve_redraw_contract() {
+	let mut editor = Editor::new_scratch();
+	let _ = drain_for_pump(&mut editor).await;
+	editor.mark_frame_drawn();
+
+	let sent = editor.msg_tx().send(crate::msg::EditorMsg::Overlay(crate::msg::OverlayMsg::Notify(
+		xeno_registry::notifications::keys::info("runtime-invariant-msg-redraw"),
+	)));
+	assert!(sent.is_ok(), "message enqueue should succeed");
+	let directive = drain_for_pump(&mut editor).await;
+	assert!(directive.needs_redraw, "message drain should request redraw when dirty flags require it");
+
+	editor.mark_frame_drawn();
+	let root = tempfile::tempdir().expect("must create temp dir");
+	std::fs::write(root.path().join("main.rs"), "fn main() {}\n").expect("must write fixture file");
+	assert!(
+		editor
+			.state
+			.filesystem
+			.ensure_index(root.path().to_path_buf(), crate::filesystem::FilesystemOptions::default()),
+		"filesystem ensure_index should enqueue work"
+	);
+
+	let saw_redraw = timeout(Duration::from_secs(2), async {
+		loop {
+			let directive = drain_for_pump(&mut editor).await;
+			if directive.needs_redraw {
+				return true;
+			}
+			sleep(Duration::from_millis(10)).await;
+		}
+	})
+	.await
+	.expect("timed out waiting for filesystem phase redraw");
+	assert!(saw_redraw);
 }
 
 /// Must cap runtime maintenance rounds to avoid unbounded single-cycle stall.

@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use xeno_primitives::Mode;
 
-use crate::Editor;
+use crate::runtime::facade::{RuntimeFilesystemPort, RuntimeMessagePort, RuntimeOverlayPort, RuntimePorts, RuntimeSchedulerPort};
 use crate::runtime::work_queue::RuntimeWorkKindCounts;
 
 /// Outcome for filesystem service event-drain phase.
@@ -44,25 +44,24 @@ const DRAIN_BUDGET_SLOW: crate::scheduler::DrainBudget = crate::scheduler::Drain
 	max_completions: 64,
 };
 
-pub(crate) fn phase_ui_tick_and_editor_tick(editor: &mut Editor) {
-	editor.ui_tick();
-	editor.tick();
+pub(crate) fn phase_ui_tick_and_editor_tick(ports: &mut RuntimePorts<'_>) {
+	ports.ui_tick_and_editor_tick();
 }
 
-pub(crate) fn phase_filesystem_events(editor: &mut Editor) -> FilesystemPhaseOutcome {
-	let drained_events = editor.state.filesystem.drain_events();
+pub(crate) fn phase_filesystem_events(ports: &mut RuntimePorts<'_>) -> FilesystemPhaseOutcome {
+	let drained_events = RuntimeFilesystemPort::drain_filesystem_events(ports);
 	if drained_events > 0 {
-		editor.interaction_refresh_file_picker();
-		editor.frame_mut().needs_redraw = true;
+		RuntimeFilesystemPort::refresh_file_picker(ports);
+		RuntimeFilesystemPort::request_redraw(ports);
 	}
 
 	FilesystemPhaseOutcome { drained_events }
 }
 
-pub(crate) fn phase_drain_messages(editor: &mut Editor) -> MessageDrainPhaseOutcome {
-	let report = editor.drain_messages_report();
+pub(crate) fn phase_drain_messages(ports: &mut RuntimePorts<'_>) -> MessageDrainPhaseOutcome {
+	let report = RuntimeMessagePort::drain_messages(ports);
 	if report.dirty.needs_redraw() {
-		editor.frame_mut().needs_redraw = true;
+		RuntimeMessagePort::request_redraw(ports);
 	}
 
 	MessageDrainPhaseOutcome {
@@ -70,40 +69,28 @@ pub(crate) fn phase_drain_messages(editor: &mut Editor) -> MessageDrainPhaseOutc
 	}
 }
 
-pub(crate) fn phase_kick_nu_hook_eval(editor: &mut Editor) {
-	editor.kick_nu_hook_eval();
+pub(crate) fn phase_kick_nu_hook_eval(ports: &mut RuntimePorts<'_>) {
+	ports.kick_nu_hook_eval();
 }
 
-pub(crate) async fn phase_drain_scheduler(editor: &mut Editor) -> SchedulerDrainPhaseOutcome {
-	let drain_budget = if matches!(editor.mode(), Mode::Insert) {
+pub(crate) async fn phase_drain_scheduler(ports: &mut RuntimePorts<'_>) -> SchedulerDrainPhaseOutcome {
+	let drain_budget = if matches!(RuntimeSchedulerPort::scheduler_mode(ports), Mode::Insert) {
 		DRAIN_BUDGET_FAST
 	} else {
 		DRAIN_BUDGET_SLOW
 	};
 
-	let drain_stats = editor.work_scheduler_mut().drain_budget(drain_budget).await;
-	editor.metrics().record_hook_tick(drain_stats.completed, drain_stats.pending);
-	editor
-		.metrics()
-		.record_worker_drain(drain_stats.completed, drain_stats.panicked, drain_stats.cancelled);
-
-	if drain_stats.panicked > 0 {
-		use xeno_registry::notifications::{AutoDismiss, Level, Notification};
-		let message = if let Some(sample) = &drain_stats.panic_sample {
-			format!("worker tasks panicked: {} (first: {}) (see logs)", drain_stats.panicked, sample)
-		} else {
-			format!("worker tasks panicked: {} (see logs)", drain_stats.panicked)
-		};
-		editor.show_notification(Notification::new("xeno-editor::worker_task_panic", Level::Error, AutoDismiss::DEFAULT, message));
-	}
+	let drain_stats = RuntimeSchedulerPort::drain_scheduler_budget(ports, drain_budget).await;
+	RuntimeSchedulerPort::record_scheduler_metrics(ports, &drain_stats);
+	RuntimeSchedulerPort::emit_scheduler_panic_notification(ports, &drain_stats);
 
 	SchedulerDrainPhaseOutcome {
 		completed: drain_stats.completed as usize,
 	}
 }
 
-pub(crate) async fn phase_drain_runtime_work(editor: &mut Editor, max: usize) -> RuntimeWorkPhaseOutcome {
-	let report = editor.drain_runtime_work_report(max).await;
+pub(crate) async fn phase_drain_runtime_work(ports: &mut RuntimePorts<'_>, max: usize) -> RuntimeWorkPhaseOutcome {
+	let report = RuntimeOverlayPort::drain_runtime_work(ports, max).await;
 	RuntimeWorkPhaseOutcome {
 		drained_count: report.drained_count,
 		drained_by_kind: report.drained_by_kind,

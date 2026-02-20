@@ -23,6 +23,7 @@
 //! | [`RuntimeDrainStats`] | Runtime drain observability payload | Must report phase depth snapshots, per-kind drained counts, oldest age by kind, and exit reasons | `Editor::drain_until_idle` |
 //! | [`CursorStyle`] | Editor cursor intent | Must remain mode-consistent unless UI explicitly overrides | `Editor::derive_cursor_style` |
 //! | [`work_queue::RuntimeWorkQueue`] | Runtime-owned deferred work queue | Overlay commits/workspace edits/invocations must be queued through this queue and drained only in pump phases | input/effects/message producers and `pump::phases` |
+//! | [`facade::RuntimePorts`] | Runtime subsystem mutation facade aggregate | Pump phases must mutate filesystem/scheduler/messages/runtime-work through facade traits | `pump::run_pump_cycle_with_report`, `pump::phases` |
 //! | [`pump::PumpCycleReport`] | Internal round/phase progress report | Must preserve phase order and cap tracking for invariants/tests | `pump::run_pump_cycle_with_report` |
 //! | [`pump::RoundWorkFlags`] | Per-round progress summary | Must drive bounded-convergence continuation policy | `pump::run_pump_cycle_with_report` |
 //!
@@ -41,6 +42,7 @@
 //! * Runtime must return immediate quit directive when runtime work drain requests quit.
 //! * Runtime causal metadata must propagate from submitted events to emitted directives and deferred runtime work spawned by that event.
 //! * Runtime work fairness must stay bounded: no queued work kind may starve indefinitely while other kinds continue draining across bounded rounds.
+//! * Pump phase mutations must cross explicit runtime facade traits rather than direct `EditorState` field reads.
 //! * Editor/runtime construction must not require an already-active Tokio runtime.
 //! * Cursor style must default to insert beam vs non-insert block when UI has no override.
 //!
@@ -85,6 +87,7 @@
 //!   3. Update invariants/tests for order and continuation policy.
 
 mod core;
+pub(crate) mod facade;
 pub(crate) mod kernel;
 mod protocol;
 pub(crate) mod pump;

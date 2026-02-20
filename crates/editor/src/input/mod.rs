@@ -37,6 +37,7 @@
 //! * Must defer overlay commit execution via runtime work queue drain phases.
 //! * Must route keymap-produced action/command invocations through `Editor::run_invocation`.
 //! * Must apply runtime frontend events deterministically through direct editor-thread calls.
+//! * Deferred input consequences must cross runtime facade ports during pump drain phases.
 //! * Must confine drag-selection updates to the origin view during active text-selection drags.
 //! * Must cancel or ignore stale separator drag paths after structural layout changes.
 //! * Mouse/panel focus transitions must synchronize editor focus after UI handling.
@@ -47,7 +48,7 @@
 //! 2. Input cascade determines interception target (UI, overlay, base view).
 //! 3. Base dispatch returns `KeyResult` that maps to canonical invocations or local edit/mode behavior.
 //! 4. Canonical invocations flow through invocation preflight/execution; local effects are applied directly.
-//! 5. Runtime drain phases apply deferred commit/drain consequences.
+//! 5. Runtime drain phases apply deferred commit/drain consequences through runtime facade ports.
 //!
 //! # Lifecycle
 //!

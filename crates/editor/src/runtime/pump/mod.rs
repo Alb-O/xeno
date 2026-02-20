@@ -8,12 +8,14 @@ use xeno_primitives::Mode;
 
 use super::core::LoopDirective;
 use crate::Editor;
+use crate::runtime::facade::RuntimePorts;
 use crate::runtime::protocol::{RuntimeDrainExitReason, RuntimePhaseQueueDepthSnapshot};
 
 /// Runs one bounded-convergence maintenance cycle with a detailed report.
 pub(crate) async fn run_pump_cycle_with_report(editor: &mut Editor) -> (LoopDirective, PumpCycleReport) {
 	let mut report = PumpCycleReport::default();
 	let mut should_quit = false;
+	let mut ports = RuntimePorts::new(editor);
 
 	for round_idx in 0..MAX_PUMP_ROUNDS {
 		let _round_span = tracing::trace_span!("runtime.round", runtime.round_idx = round_idx).entered();
@@ -26,35 +28,35 @@ pub(crate) async fn run_pump_cycle_with_report(editor: &mut Editor) -> (LoopDire
 		report.rounds_executed += 1;
 
 		round.phases.push(PumpPhase::UiTickAndTick);
-		phases::phase_ui_tick_and_editor_tick(editor);
-		record_phase_snapshot(&mut report, &mut round, round_idx, PumpPhase::UiTickAndTick, editor);
+		phases::phase_ui_tick_and_editor_tick(&mut ports);
+		record_phase_snapshot(&mut report, &mut round, round_idx, PumpPhase::UiTickAndTick, &ports);
 
 		round.phases.push(PumpPhase::FilesystemEvents);
-		let fs_outcome = phases::phase_filesystem_events(editor);
+		let fs_outcome = phases::phase_filesystem_events(&mut ports);
 		round.work.filesystem_events = fs_outcome.drained_events;
-		record_phase_snapshot(&mut report, &mut round, round_idx, PumpPhase::FilesystemEvents, editor);
+		record_phase_snapshot(&mut report, &mut round, round_idx, PumpPhase::FilesystemEvents, &ports);
 
 		round.phases.push(PumpPhase::DrainMessages);
-		let msg_outcome = phases::phase_drain_messages(editor);
+		let msg_outcome = phases::phase_drain_messages(&mut ports);
 		round.work.drained_messages = msg_outcome.drained_count;
-		record_phase_snapshot(&mut report, &mut round, round_idx, PumpPhase::DrainMessages, editor);
+		record_phase_snapshot(&mut report, &mut round, round_idx, PumpPhase::DrainMessages, &ports);
 
 		round.phases.push(PumpPhase::KickNuHookEval);
-		phases::phase_kick_nu_hook_eval(editor);
-		record_phase_snapshot(&mut report, &mut round, round_idx, PumpPhase::KickNuHookEval, editor);
+		phases::phase_kick_nu_hook_eval(&mut ports);
+		record_phase_snapshot(&mut report, &mut round, round_idx, PumpPhase::KickNuHookEval, &ports);
 
 		round.phases.push(PumpPhase::DrainScheduler);
-		let scheduler_outcome = phases::phase_drain_scheduler(editor).await;
+		let scheduler_outcome = phases::phase_drain_scheduler(&mut ports).await;
 		round.work.scheduler_completions = scheduler_outcome.completed;
-		record_phase_snapshot(&mut report, &mut round, round_idx, PumpPhase::DrainScheduler, editor);
+		record_phase_snapshot(&mut report, &mut round, round_idx, PumpPhase::DrainScheduler, &ports);
 
 		round.phases.push(PumpPhase::DrainRuntimeWork);
-		let runtime_work_outcome = phases::phase_drain_runtime_work(editor, phases::MAX_RUNTIME_WORK_ITEMS_PER_ROUND).await;
+		let runtime_work_outcome = phases::phase_drain_runtime_work(&mut ports, phases::MAX_RUNTIME_WORK_ITEMS_PER_ROUND).await;
 		round.work.drained_runtime_work = runtime_work_outcome.drained_count;
 		round.drained_work_by_kind = runtime_work_outcome.drained_by_kind;
 		report.drained_work_by_kind.add_from(runtime_work_outcome.drained_by_kind);
-		record_phase_snapshot(&mut report, &mut round, round_idx, PumpPhase::DrainRuntimeWork, editor);
-		if runtime_work_outcome.should_quit || editor.take_quit_request() {
+		record_phase_snapshot(&mut report, &mut round, round_idx, PumpPhase::DrainRuntimeWork, &ports);
+		if runtime_work_outcome.should_quit || ports.editor_mut().take_quit_request() {
 			should_quit = true;
 			report.should_quit = true;
 			report.exit_reason = RuntimeDrainExitReason::Quit;
@@ -78,15 +80,15 @@ pub(crate) async fn run_pump_cycle_with_report(editor: &mut Editor) -> (LoopDire
 		}
 	}
 
-	(finalize_loop_directive(editor, should_quit), report)
+	(finalize_loop_directive(ports.editor(), should_quit), report)
 }
 
-fn record_phase_snapshot(report: &mut PumpCycleReport, round: &mut RoundReport, round_idx: usize, phase: PumpPhase, editor: &Editor) {
+fn record_phase_snapshot(report: &mut PumpCycleReport, round: &mut RoundReport, round_idx: usize, phase: PumpPhase, ports: &RuntimePorts<'_>) {
 	let snapshot = RuntimePhaseQueueDepthSnapshot {
 		round_idx,
 		phase: phase.label(),
-		event_queue_depth: editor.state.runtime_kernel().pending_event_count(),
-		work_queue_depth: editor.runtime_work_len(),
+		event_queue_depth: ports.pending_event_count(),
+		work_queue_depth: ports.pending_runtime_work_count(),
 	};
 	round.phase_queue_depths.push(snapshot);
 	report.phase_queue_depths.push(snapshot);
