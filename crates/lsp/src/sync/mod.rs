@@ -179,6 +179,8 @@ pub struct ApplyEditResult {
 	pub applied: bool,
 	/// Human-readable failure reason (if not applied).
 	pub failure_reason: Option<String>,
+	/// Zero-based index of the first operation that failed (if any).
+	pub failed_change: Option<u32>,
 }
 
 /// Sender half of the workspace/applyEdit bridge channel.

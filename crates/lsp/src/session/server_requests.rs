@@ -126,6 +126,9 @@ async fn handle_workspace_apply_edit(sync: &DocumentSync, params: JsonValue) -> 
 			if let Some(reason) = result.failure_reason {
 				response["failureReason"] = json!(reason);
 			}
+			if let Some(idx) = result.failed_change {
+				response["failedChange"] = json!(idx);
+			}
 			response
 		}
 		Ok(Err(_)) => json!({ "applied": false, "failureReason": "editor dropped reply" }),

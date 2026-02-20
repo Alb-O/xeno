@@ -283,7 +283,7 @@ pub trait OverlayContext {
 	fn apply_workspace_edit<'a>(
 		&'a mut self,
 		edit: xeno_lsp::lsp_types::WorkspaceEdit,
-	) -> Pin<Box<dyn Future<Output = Result<(), crate::lsp::workspace_edit::ApplyError>> + 'a>>;
+	) -> Pin<Box<dyn Future<Output = Result<(), crate::lsp::workspace_edit::ApplyEditFailure>> + 'a>>;
 
 	/// Generates a monotonic token for rename requests and records it as pending.
 	///
@@ -424,7 +424,7 @@ impl OverlayContext for crate::Editor {
 	fn apply_workspace_edit<'a>(
 		&'a mut self,
 		edit: xeno_lsp::lsp_types::WorkspaceEdit,
-	) -> Pin<Box<dyn Future<Output = Result<(), crate::lsp::workspace_edit::ApplyError>> + 'a>> {
+	) -> Pin<Box<dyn Future<Output = Result<(), crate::lsp::workspace_edit::ApplyEditFailure>> + 'a>> {
 		Box::pin(self.apply_workspace_edit(edit))
 	}
 

@@ -861,6 +861,7 @@ pub(crate) async fn test_workspace_apply_edit_happy_path() {
 		let _ = request.reply.send(crate::sync::ApplyEditResult {
 			applied: true,
 			failure_reason: None,
+			failed_change: None,
 		});
 	});
 
@@ -906,6 +907,40 @@ pub(crate) async fn test_workspace_apply_edit_timeout() {
 	assert_eq!(value["failureReason"], "timeout");
 
 	recv_task.abort();
+}
+
+/// Must propagate failedChange index in workspace/applyEdit response when editor reports it.
+///
+/// * Enforced in: `handle_workspace_apply_edit`, `ApplyEditResult`
+/// * Failure symptom: Server cannot determine which operation failed.
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_workspace_apply_edit_failed_change_propagated() {
+	let transport = TestTransport::new();
+	let (mut sync, _registry, _documents, _receiver) = DocumentSync::create(transport, xeno_worker::WorkerRuntime::new());
+
+	let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+	sync.set_apply_edit_sender(tx);
+
+	let server_id = LanguageServerId::new(0, 0);
+	let params = json!({ "edit": { "changes": {} } });
+
+	// Spawn a receiver that replies with failed_change.
+	let recv_task = tokio::spawn(async move {
+		let request = rx.recv().await.expect("must receive request");
+		let _ = request.reply.send(crate::sync::ApplyEditResult {
+			applied: false,
+			failure_reason: Some("delete failed".to_string()),
+			failed_change: Some(3),
+		});
+	});
+
+	let reply = dispatch_server_request(&sync, server_id, "workspace/applyEdit", params).await;
+	let ServerRequestReply::Json(value) = reply else { panic!("expected Json reply") };
+	assert_eq!(value["applied"], false);
+	assert_eq!(value["failedChange"], 3);
+	assert_eq!(value["failureReason"], "delete failed");
+
+	recv_task.await.expect("receiver task must complete");
 }
 
 /// Must fail runtime start when called without Tokio runtime context.

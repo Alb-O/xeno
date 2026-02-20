@@ -81,7 +81,7 @@ async fn workspace_edit_version_mismatch_is_rejected() {
 	let err = editor.apply_workspace_edit(edit).await.unwrap_err();
 
 	assert!(
-		matches!(err, ApplyError::VersionMismatch { expected: 2, actual: 5, .. }),
+		matches!(err.error, ApplyError::VersionMismatch { expected: 2, actual: 5, .. }),
 		"expected VersionMismatch, got: {err:?}"
 	);
 }
@@ -98,7 +98,7 @@ async fn workspace_edit_matching_version_is_not_rejected() {
 	let result = editor.apply_workspace_edit(edit).await;
 
 	match result {
-		Err(ApplyError::VersionMismatch { .. }) => panic!("should not reject matching version"),
+		Err(ref e) if matches!(e.error, ApplyError::VersionMismatch { .. }) => panic!("should not reject matching version"),
 		_ => {} // any other outcome is fine for this test
 	}
 }
@@ -115,7 +115,7 @@ async fn workspace_edit_none_version_skips_check() {
 	let result = editor.apply_workspace_edit(edit).await;
 
 	match result {
-		Err(ApplyError::VersionMismatch { .. }) => panic!("should not check version when None"),
+		Err(ref e) if matches!(e.error, ApplyError::VersionMismatch { .. }) => panic!("should not check version when None"),
 		_ => {}
 	}
 }
@@ -130,7 +130,7 @@ async fn workspace_edit_versioned_untracked_doc_is_rejected() {
 	let err = editor.apply_workspace_edit(edit).await.unwrap_err();
 
 	assert!(
-		matches!(err, ApplyError::UntrackedVersionedDocument { version: 42, .. }),
+		matches!(err.error, ApplyError::UntrackedVersionedDocument { version: 42, .. }),
 		"expected UntrackedVersionedDocument, got: {err:?}"
 	);
 }
@@ -145,7 +145,7 @@ async fn workspace_edit_unversioned_untracked_doc_skips_check() {
 	let result = editor.apply_workspace_edit(edit).await;
 
 	match result {
-		Err(ApplyError::VersionMismatch { .. } | ApplyError::UntrackedVersionedDocument { .. }) => {
+		Err(ref e) if matches!(e.error, ApplyError::VersionMismatch { .. } | ApplyError::UntrackedVersionedDocument { .. }) => {
 			panic!("should skip version check for unversioned edits")
 		}
 		_ => {}
@@ -205,7 +205,7 @@ async fn workspace_edit_multi_doc_mismatch_does_not_partially_apply() {
 	]);
 	let err = editor.apply_workspace_edit(edit).await.unwrap_err();
 
-	assert!(matches!(err, ApplyError::VersionMismatch { .. }), "expected VersionMismatch, got: {err:?}");
+	assert!(matches!(err.error, ApplyError::VersionMismatch { .. }), "expected VersionMismatch, got: {err:?}");
 	assert_eq!(buffer_text(&editor, view_a), "original_a\n", "Doc A must be unchanged after rejected edit");
 
 	// Cleanup.
@@ -228,7 +228,7 @@ async fn workspace_edit_multi_doc_untracked_does_not_partially_apply() {
 	let err = editor.apply_workspace_edit(edit).await.unwrap_err();
 
 	assert!(
-		matches!(err, ApplyError::UntrackedVersionedDocument { .. }),
+		matches!(err.error, ApplyError::UntrackedVersionedDocument { .. }),
 		"expected UntrackedVersionedDocument, got: {err:?}"
 	);
 	assert_eq!(
@@ -310,7 +310,7 @@ async fn workspace_edit_invalid_range_rejected_no_panic() {
 	};
 	let err = editor.apply_workspace_edit(edit).await.unwrap_err();
 	assert!(
-		matches!(err, ApplyError::RangeConversionFailed(_)),
+		matches!(err.error, ApplyError::RangeConversionFailed(_)),
 		"expected RangeConversionFailed, got: {err:?}"
 	);
 
@@ -329,7 +329,7 @@ async fn workspace_edit_error_does_not_reopen_existing_buffer() {
 	// Version mismatch → error, but the buffer should not be closed/reopened.
 	let edit = versioned_workspace_edit(uri, Some(0));
 	let err = editor.apply_workspace_edit(edit).await.unwrap_err();
-	assert!(matches!(err, ApplyError::VersionMismatch { .. }));
+	assert!(matches!(err.error, ApplyError::VersionMismatch { .. }));
 
 	// Same view_id must still be valid.
 	assert_eq!(buffer_text(&editor, view_id), "original\n", "buffer identity must be preserved");
@@ -459,7 +459,7 @@ async fn workspace_edit_temporary_buffers_closed_on_error() {
 		change_annotations: None,
 	};
 	let err = editor.apply_workspace_edit(edit).await.unwrap_err();
-	assert!(matches!(err, ApplyError::RangeConversionFailed(_)));
+	assert!(matches!(err.error, ApplyError::RangeConversionFailed(_)));
 
 	// Both temp buffers should be cleaned up despite the error.
 	assert!(
@@ -579,7 +579,7 @@ async fn workspace_edit_temp_buffer_does_not_write_on_error() {
 		change_annotations: None,
 	};
 	let err = editor.apply_workspace_edit(edit).await.unwrap_err();
-	assert!(matches!(err, ApplyError::RangeConversionFailed(_)));
+	assert!(matches!(err.error, ApplyError::RangeConversionFailed(_)));
 
 	// No disk writes should have occurred.
 	assert_eq!(
@@ -704,7 +704,7 @@ async fn workspace_edit_temp_save_failure_keeps_all_temps_alive() {
 		change_annotations: None,
 	};
 	let err = editor.apply_workspace_edit(edit).await.unwrap_err();
-	assert!(matches!(err, ApplyError::IoWriteFailed { .. }), "expected IoWriteFailed, got: {err:?}");
+	assert!(matches!(err.error, ApplyError::IoWriteFailed { .. }), "expected IoWriteFailed, got: {err:?}");
 
 	// Two-phase semantics: since one save failed, NEITHER buffer is closed.
 	assert!(
@@ -814,7 +814,7 @@ async fn workspace_edit_readonly_file_rejected() {
 		change_annotations: None,
 	};
 	let err = editor.apply_workspace_edit(edit).await.unwrap_err();
-	assert!(matches!(err, ApplyError::ReadOnly(_)), "expected ReadOnly, got: {err:?}");
+	assert!(matches!(err.error, ApplyError::ReadOnly(_)), "expected ReadOnly, got: {err:?}");
 
 	// Disk must be unchanged.
 	assert_eq!(std::fs::read_to_string(&path).unwrap(), "frozen\n", "read-only file must not be modified");
@@ -823,4 +823,222 @@ async fn workspace_edit_readonly_file_rejected() {
 	std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
 	let _ = std::fs::remove_file(path);
 	let _ = std::fs::remove_dir(dir);
+}
+
+// --- Resource operation tests ---
+
+fn make_temp_dir(label: &str) -> PathBuf {
+	let dir = std::env::temp_dir().join(format!("xeno_test_resource_ops_{label}_{}", std::process::id()));
+	let _ = std::fs::remove_dir_all(&dir);
+	std::fs::create_dir_all(&dir).unwrap();
+	dir
+}
+
+fn uri_from_path(path: &Path) -> Uri {
+	let abs = if path.is_absolute() { path.to_path_buf() } else { std::env::current_dir().unwrap().join(path) };
+	let url_str = format!("file://{}", abs.display());
+	url_str.parse().unwrap()
+}
+
+fn create_file_edit(uri: Uri, options: Option<lsp_types::CreateFileOptions>) -> WorkspaceEdit {
+	WorkspaceEdit {
+		changes: None,
+		document_changes: Some(DocumentChanges::Operations(vec![
+			DocumentChangeOperation::Op(ResourceOp::Create(CreateFile {
+				uri,
+				options,
+				annotation_id: None,
+			})),
+		])),
+		change_annotations: None,
+	}
+}
+
+fn rename_file_edit(old_uri: Uri, new_uri: Uri, options: Option<lsp_types::RenameFileOptions>) -> WorkspaceEdit {
+	WorkspaceEdit {
+		changes: None,
+		document_changes: Some(DocumentChanges::Operations(vec![
+			DocumentChangeOperation::Op(ResourceOp::Rename(RenameFile {
+				old_uri,
+				new_uri,
+				options,
+				annotation_id: None,
+			})),
+		])),
+		change_annotations: None,
+	}
+}
+
+fn delete_file_edit(uri: Uri, options: Option<lsp_types::DeleteFileOptions>) -> WorkspaceEdit {
+	WorkspaceEdit {
+		changes: None,
+		document_changes: Some(DocumentChanges::Operations(vec![
+			DocumentChangeOperation::Op(ResourceOp::Delete(DeleteFile {
+				uri,
+				options,
+			})),
+		])),
+		change_annotations: None,
+	}
+}
+
+#[tokio::test]
+async fn resource_op_create_file_new() {
+	let dir = make_temp_dir("create_new");
+	let path = dir.join("new_file.rs");
+	assert!(!path.exists());
+
+	let mut editor = crate::Editor::new_scratch();
+	let edit = create_file_edit(uri_from_path(&path), None);
+	editor.apply_workspace_edit(edit).await.unwrap();
+
+	assert!(path.exists());
+	assert_eq!(std::fs::read_to_string(&path).unwrap(), "");
+
+	let _ = std::fs::remove_dir_all(dir);
+}
+
+#[tokio::test]
+async fn resource_op_create_file_ignore_if_exists() {
+	let dir = make_temp_dir("create_ignore");
+	let path = dir.join("existing.rs");
+	std::fs::write(&path, "original").unwrap();
+
+	let mut editor = crate::Editor::new_scratch();
+	let options = lsp_types::CreateFileOptions {
+		overwrite: None,
+		ignore_if_exists: Some(true),
+	};
+	let edit = create_file_edit(uri_from_path(&path), Some(options));
+	editor.apply_workspace_edit(edit).await.unwrap();
+
+	assert_eq!(std::fs::read_to_string(&path).unwrap(), "original", "file must not be overwritten");
+
+	let _ = std::fs::remove_dir_all(dir);
+}
+
+#[tokio::test]
+async fn resource_op_rename_file() {
+	let dir = make_temp_dir("rename");
+	let old_path = dir.join("old.rs");
+	let new_path = dir.join("new.rs");
+	std::fs::write(&old_path, "content").unwrap();
+
+	let mut editor = crate::Editor::new_scratch();
+	let edit = rename_file_edit(uri_from_path(&old_path), uri_from_path(&new_path), None);
+	editor.apply_workspace_edit(edit).await.unwrap();
+
+	assert!(!old_path.exists());
+	assert!(new_path.exists());
+	assert_eq!(std::fs::read_to_string(&new_path).unwrap(), "content");
+
+	let _ = std::fs::remove_dir_all(dir);
+}
+
+#[tokio::test]
+async fn resource_op_delete_file() {
+	let dir = make_temp_dir("delete");
+	let path = dir.join("to_delete.rs");
+	std::fs::write(&path, "gone").unwrap();
+
+	let mut editor = crate::Editor::new_scratch();
+	let edit = delete_file_edit(uri_from_path(&path), None);
+	editor.apply_workspace_edit(edit).await.unwrap();
+
+	assert!(!path.exists());
+
+	let _ = std::fs::remove_dir_all(dir);
+}
+
+#[tokio::test]
+async fn resource_op_delete_ignore_if_missing() {
+	let dir = make_temp_dir("delete_missing");
+	let path = dir.join("nonexistent.rs");
+
+	let mut editor = crate::Editor::new_scratch();
+	let options = lsp_types::DeleteFileOptions {
+		recursive: None,
+		ignore_if_not_exists: Some(true),
+		annotation_id: None,
+	};
+	let edit = delete_file_edit(uri_from_path(&path), Some(options));
+	editor.apply_workspace_edit(edit).await.unwrap();
+
+	let _ = std::fs::remove_dir_all(dir);
+}
+
+#[tokio::test]
+async fn resource_op_failed_change_index_reports_first_failure() {
+	let dir = make_temp_dir("failed_change");
+	let good_path = dir.join("good.rs");
+	let bad_path = dir.join("nonexistent.rs");
+
+	let mut editor = crate::Editor::new_scratch();
+
+	// Operation 0: create (should succeed).
+	// Operation 1: delete non-existent (should fail).
+	let edit = WorkspaceEdit {
+		changes: None,
+		document_changes: Some(DocumentChanges::Operations(vec![
+			DocumentChangeOperation::Op(ResourceOp::Create(CreateFile {
+				uri: uri_from_path(&good_path),
+				options: None,
+				annotation_id: None,
+			})),
+			DocumentChangeOperation::Op(ResourceOp::Delete(DeleteFile {
+				uri: uri_from_path(&bad_path),
+				options: None,
+			})),
+		])),
+		change_annotations: None,
+	};
+
+	let err = editor.apply_workspace_edit(edit).await.unwrap_err();
+	assert_eq!(err.failed_change, Some(1), "failed_change must point to the second operation");
+	assert!(matches!(err.error, ApplyError::DeleteFailed { .. }));
+
+	// Rollback should have cleaned up the created file.
+	assert!(!good_path.exists(), "created file must be rolled back");
+
+	let _ = std::fs::remove_dir_all(dir);
+}
+
+#[tokio::test]
+async fn resource_op_rollback_rename_on_failure() {
+	let dir = make_temp_dir("rollback_rename");
+	let file_a = dir.join("a.rs");
+	let file_b = dir.join("b.rs");
+	let bad_delete = dir.join("nonexistent.rs");
+	std::fs::write(&file_a, "content_a").unwrap();
+
+	let mut editor = crate::Editor::new_scratch();
+
+	// Op 0: rename a→b (succeeds).
+	// Op 1: delete nonexistent (fails).
+	let edit = WorkspaceEdit {
+		changes: None,
+		document_changes: Some(DocumentChanges::Operations(vec![
+			DocumentChangeOperation::Op(ResourceOp::Rename(RenameFile {
+				old_uri: uri_from_path(&file_a),
+				new_uri: uri_from_path(&file_b),
+				options: None,
+				annotation_id: None,
+			})),
+			DocumentChangeOperation::Op(ResourceOp::Delete(DeleteFile {
+				uri: uri_from_path(&bad_delete),
+				options: None,
+			})),
+		])),
+		change_annotations: None,
+	};
+
+	let err = editor.apply_workspace_edit(edit).await.unwrap_err();
+	assert_eq!(err.failed_change, Some(1));
+
+	// Rollback should restore the rename: b→a.
+	assert!(file_a.exists(), "renamed file must be restored to original path");
+	assert!(!file_b.exists(), "target of rolled-back rename must not exist");
+	assert_eq!(std::fs::read_to_string(&file_a).unwrap(), "content_a");
+
+	let _ = std::fs::remove_dir_all(dir);
 }

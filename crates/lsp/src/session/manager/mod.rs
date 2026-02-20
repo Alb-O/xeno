@@ -53,6 +53,7 @@
 //! * Must route workspace/applyEdit requests through the apply-edit channel when connected; must return not-applied when disconnected.
 //! * Must return applied result from editor for workspace/applyEdit when channel is connected.
 //! * Must return timeout for workspace/applyEdit when editor does not reply within the deadline.
+//! * Must propagate failedChange index in workspace/applyEdit response when editor reports it.
 //! * Must bound closed-document diagnostic entries and evict LRU when over the cap.
 //! * Must never evict opened documents during closed-entry eviction.
 //! * Must remove closed-document entry when diagnostics are cleared (empty vec).

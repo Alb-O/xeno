@@ -7,7 +7,9 @@ use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 
 use thiserror::Error;
-use xeno_lsp::lsp_types::{AnnotatedTextEdit, DocumentChangeOperation, DocumentChanges, OneOf, TextDocumentEdit, TextEdit, Uri, WorkspaceEdit};
+use std::path::PathBuf;
+
+use xeno_lsp::lsp_types::{AnnotatedTextEdit, CreateFile, DeleteFile, DocumentChangeOperation, DocumentChanges, OneOf, RenameFile, ResourceOp, TextDocumentEdit, TextEdit, Uri, WorkspaceEdit};
 use xeno_lsp::{OffsetEncoding, lsp_range_to_char_range};
 use xeno_primitives::range::CharIdx;
 use xeno_primitives::transaction::{Change, Tendril};
@@ -51,6 +53,26 @@ pub struct PlannedTextEdit {
 	pub replacement: Tendril,
 }
 
+/// Workspace edit failure with optional index of the first failed change.
+#[derive(Debug)]
+pub struct ApplyEditFailure {
+	/// The underlying error.
+	pub error: ApplyError,
+	/// Zero-based index of the first failed operation in `documentChanges`.
+	/// `None` for edits using the `changes` field (no indexed operations).
+	pub failed_change: Option<u32>,
+}
+
+impl std::fmt::Display for ApplyEditFailure {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		if let Some(idx) = self.failed_change {
+			write!(f, "change {}: {}", idx, self.error)
+		} else {
+			self.error.fmt(f)
+		}
+	}
+}
+
 /// Errors occurring during workspace edit planning or application.
 #[derive(Debug, Error)]
 pub enum ApplyError {
@@ -82,6 +104,21 @@ pub enum ApplyError {
 	/// expects version-consistent state that the client can't verify.
 	#[error("LSP edit for unknown document ignored. uri={uri} version={version}")]
 	UntrackedVersionedDocument { uri: String, version: i32 },
+	/// A resource create operation failed.
+	#[error("create file failed: {uri} — {reason}")]
+	CreateFailed { uri: String, reason: String },
+	/// A resource rename operation failed.
+	#[error("rename file failed: {old_uri} → {new_uri} — {reason}")]
+	RenameFailed { old_uri: String, new_uri: String, reason: String },
+	/// A resource delete operation failed.
+	#[error("delete file failed: {uri} — {reason}")]
+	DeleteFailed { uri: String, reason: String },
+	/// A resource rename would overwrite a modified open buffer.
+	#[error("rename blocked: target buffer is modified — {uri}")]
+	RenameBlockedModified { uri: String },
+	/// A resource delete would discard a modified open buffer.
+	#[error("delete blocked: buffer is modified — {uri}")]
+	DeleteBlockedModified { uri: String },
 	/// A temporary buffer's content could not be written to disk after a
 	/// successful workspace edit. The buffer is kept alive so edits are
 	/// not silently lost.
@@ -108,17 +145,25 @@ impl Editor {
 	///
 	/// Returns [`ApplyError`] if any part of the edit plan is invalid, if
 	/// application to a buffer fails, or if a temp buffer cannot be saved.
-	pub async fn apply_workspace_edit(&mut self, edit: WorkspaceEdit) -> Result<(), ApplyError> {
+	pub async fn apply_workspace_edit(&mut self, edit: WorkspaceEdit) -> Result<(), ApplyEditFailure> {
+		// Route: `documentChanges: Operations` needs sequential processing for resource ops.
+		if let Some(DocumentChanges::Operations(ref ops)) = edit.document_changes {
+			if ops.iter().any(|op| matches!(op, DocumentChangeOperation::Op(_))) {
+				return self.apply_workspace_edit_operations(edit).await;
+			}
+		}
+
+		// Existing plan-then-apply path (no resource ops, no failed_change index).
 		let (plan_result, temp_buffers) = self.plan_workspace_edit(edit).await;
 		let result = match plan_result {
-			Err(e) => Err(e),
+			Err(e) => Err(ApplyEditFailure { error: e, failed_change: None }),
 			Ok(plan) if plan.per_buffer.is_empty() => Ok(()),
 			Ok(plan) => {
 				self.begin_workspace_edit_group(&plan);
 				let mut apply_result = Ok(());
 				for buffer_plan in &plan.per_buffer {
 					if let Err(e) = self.apply_buffer_edit_plan(buffer_plan) {
-						apply_result = Err(e);
+						apply_result = Err(ApplyEditFailure { error: e, failed_change: None });
 						break;
 					}
 				}
@@ -129,7 +174,7 @@ impl Editor {
 			}
 		};
 		if result.is_ok() {
-			self.save_temp_buffers_atomic(&temp_buffers).await?;
+			self.save_temp_buffers_atomic(&temp_buffers).await.map_err(|e| ApplyEditFailure { error: e, failed_change: None })?;
 		} else {
 			for id in temp_buffers {
 				self.close_headless_buffer(id);
@@ -475,6 +520,373 @@ impl Editor {
 
 		self.finalize_buffer_removal(buffer_id);
 	}
+
+	/// Applies a workspace edit containing resource operations sequentially.
+	///
+	/// Each operation in `documentChanges` is processed in order. On failure,
+	/// best-effort rollback is attempted for resource operations already applied
+	/// in this edit. Returns the index of the first failed operation.
+	async fn apply_workspace_edit_operations(&mut self, edit: WorkspaceEdit) -> Result<(), ApplyEditFailure> {
+		let ops = match edit.document_changes {
+			Some(DocumentChanges::Operations(ops)) => ops,
+			_ => return Ok(()),
+		};
+
+		let mut rollback_log: Vec<ResourceRollbackEntry> = Vec::new();
+		let mut temp_buffers: Vec<ViewId> = Vec::new();
+
+		for (idx, op) in ops.into_iter().enumerate() {
+			let result = match op {
+				DocumentChangeOperation::Op(resource_op) => {
+					self.apply_resource_op(resource_op, &mut rollback_log).await
+				}
+				DocumentChangeOperation::Edit(text_edit) => {
+					self.apply_single_text_document_edit(text_edit, &mut temp_buffers).await
+				}
+			};
+
+			if let Err(error) = result {
+				// Rollback resource ops applied so far in reverse order.
+				self.rollback_resource_ops(&mut rollback_log).await;
+				for id in temp_buffers {
+					self.close_headless_buffer(id);
+				}
+				return Err(ApplyEditFailure {
+					error,
+					failed_change: Some(idx as u32),
+				});
+			}
+		}
+
+		// All operations succeeded; save temp buffers.
+		if let Err(error) = self.save_temp_buffers_atomic(&temp_buffers).await {
+			return Err(ApplyEditFailure { error, failed_change: None });
+		}
+		Ok(())
+	}
+
+	/// Applies a single resource operation (create/rename/delete).
+	async fn apply_resource_op(
+		&mut self,
+		op: ResourceOp,
+		rollback_log: &mut Vec<ResourceRollbackEntry>,
+	) -> Result<(), ApplyError> {
+		match op {
+			ResourceOp::Create(create) => self.apply_resource_create(create, rollback_log).await,
+			ResourceOp::Rename(rename) => self.apply_resource_rename(rename, rollback_log).await,
+			ResourceOp::Delete(delete) => self.apply_resource_delete(delete, rollback_log).await,
+		}
+	}
+
+	/// Creates a file on disk. Respects `overwrite` and `ignoreIfExists` options.
+	async fn apply_resource_create(
+		&mut self,
+		create: CreateFile,
+		rollback_log: &mut Vec<ResourceRollbackEntry>,
+	) -> Result<(), ApplyError> {
+		let path = xeno_lsp::path_from_uri(&create.uri)
+			.ok_or_else(|| ApplyError::InvalidUri(create.uri.to_string()))?;
+
+		let overwrite = create.options.as_ref().is_some_and(|o| o.overwrite == Some(true));
+		let ignore_if_exists = create.options.as_ref().is_some_and(|o| o.ignore_if_exists == Some(true));
+
+		if path.exists() {
+			if ignore_if_exists {
+				return Ok(());
+			}
+			if !overwrite {
+				// Check if the file is open and modified — reject to prevent data loss.
+				if let Some(buf_id) = self.state.core.editor.buffers.find_by_path(&path) {
+					let buffer = self.state.core.editor.buffers.get_buffer(buf_id);
+					if buffer.is_some_and(|b| b.modified()) {
+						return Err(ApplyError::CreateFailed {
+							uri: create.uri.to_string(),
+							reason: "file exists and buffer is modified".to_string(),
+						});
+					}
+				}
+			}
+		}
+
+		// Snapshot existing content for rollback.
+		let had_previous = path.exists();
+		let previous_bytes = if had_previous {
+			std::fs::read(&path).ok()
+		} else {
+			None
+		};
+
+		// Create parent directories if needed.
+		if let Some(parent) = path.parent() {
+			if !parent.exists() {
+				std::fs::create_dir_all(parent).map_err(|e| ApplyError::CreateFailed {
+					uri: create.uri.to_string(),
+					reason: e.to_string(),
+				})?;
+			}
+		}
+
+		// Create empty file (or truncate if overwriting).
+		std::fs::write(&path, b"").map_err(|e| ApplyError::CreateFailed {
+			uri: create.uri.to_string(),
+			reason: e.to_string(),
+		})?;
+
+		rollback_log.push(ResourceRollbackEntry::Created {
+			path: path.clone(),
+			had_previous,
+			previous_bytes,
+		});
+
+		Ok(())
+	}
+
+	/// Renames a file on disk. Updates open buffers if the source is open.
+	async fn apply_resource_rename(
+		&mut self,
+		rename: RenameFile,
+		rollback_log: &mut Vec<ResourceRollbackEntry>,
+	) -> Result<(), ApplyError> {
+		let old_path = xeno_lsp::path_from_uri(&rename.old_uri)
+			.ok_or_else(|| ApplyError::InvalidUri(rename.old_uri.to_string()))?;
+		let new_path = xeno_lsp::path_from_uri(&rename.new_uri)
+			.ok_or_else(|| ApplyError::InvalidUri(rename.new_uri.to_string()))?;
+
+		let overwrite = rename.options.as_ref().is_some_and(|o| o.overwrite == Some(true));
+		let ignore_if_exists = rename.options.as_ref().is_some_and(|o| o.ignore_if_exists == Some(true));
+
+		// Block if old file is open + modified.
+		if let Some(buf_id) = self.state.core.editor.buffers.find_by_path(&old_path) {
+			let buffer = self.state.core.editor.buffers.get_buffer(buf_id);
+			if buffer.is_some_and(|b| b.modified()) {
+				return Err(ApplyError::RenameBlockedModified {
+					uri: rename.old_uri.to_string(),
+				});
+			}
+		}
+
+		// Check target.
+		if new_path.exists() {
+			if ignore_if_exists {
+				return Ok(());
+			}
+			if !overwrite {
+				return Err(ApplyError::RenameFailed {
+					old_uri: rename.old_uri.to_string(),
+					new_uri: rename.new_uri.to_string(),
+					reason: "target exists".to_string(),
+				});
+			}
+		}
+
+		// Create parent directories for target.
+		if let Some(parent) = new_path.parent() {
+			if !parent.exists() {
+				std::fs::create_dir_all(parent).map_err(|e| ApplyError::RenameFailed {
+					old_uri: rename.old_uri.to_string(),
+					new_uri: rename.new_uri.to_string(),
+					reason: e.to_string(),
+				})?;
+			}
+		}
+
+		std::fs::rename(&old_path, &new_path).map_err(|e| ApplyError::RenameFailed {
+			old_uri: rename.old_uri.to_string(),
+			new_uri: rename.new_uri.to_string(),
+			reason: e.to_string(),
+		})?;
+
+		rollback_log.push(ResourceRollbackEntry::Renamed {
+			from: old_path.clone(),
+			to: new_path.clone(),
+		});
+
+		// Update open buffer path if applicable.
+		if let Some(buf_id) = self.state.core.editor.buffers.find_by_path(&old_path) {
+			if let Some(buffer) = self.state.core.editor.buffers.get_buffer_mut(buf_id) {
+				buffer.set_path(Some(new_path), Some(&self.state.config.config.language_loader));
+			}
+		}
+
+		Ok(())
+	}
+
+	/// Deletes a file from disk. Closes open buffers for the deleted file.
+	async fn apply_resource_delete(
+		&mut self,
+		delete: DeleteFile,
+		rollback_log: &mut Vec<ResourceRollbackEntry>,
+	) -> Result<(), ApplyError> {
+		let path = xeno_lsp::path_from_uri(&delete.uri)
+			.ok_or_else(|| ApplyError::InvalidUri(delete.uri.to_string()))?;
+
+		let ignore_if_not_exists = delete.options.as_ref().is_some_and(|o| o.ignore_if_not_exists == Some(true));
+
+		if !path.exists() {
+			if ignore_if_not_exists {
+				return Ok(());
+			}
+			return Err(ApplyError::DeleteFailed {
+				uri: delete.uri.to_string(),
+				reason: "file does not exist".to_string(),
+			});
+		}
+
+		// Block if open + modified.
+		if let Some(buf_id) = self.state.core.editor.buffers.find_by_path(&path) {
+			let buffer = self.state.core.editor.buffers.get_buffer(buf_id);
+			if buffer.is_some_and(|b| b.modified()) {
+				return Err(ApplyError::DeleteBlockedModified {
+					uri: delete.uri.to_string(),
+				});
+			}
+		}
+
+		// Snapshot for rollback.
+		let bytes = std::fs::read(&path).ok();
+
+		if path.is_dir() {
+			let recursive = delete.options.as_ref().is_some_and(|o| o.recursive == Some(true));
+			if recursive {
+				std::fs::remove_dir_all(&path)
+			} else {
+				std::fs::remove_dir(&path)
+			}
+		} else {
+			std::fs::remove_file(&path)
+		}
+		.map_err(|e| ApplyError::DeleteFailed {
+			uri: delete.uri.to_string(),
+			reason: e.to_string(),
+		})?;
+
+		rollback_log.push(ResourceRollbackEntry::Deleted {
+			path: path.clone(),
+			bytes,
+		});
+
+		// Close open buffer for deleted file.
+		if let Some(buf_id) = self.state.core.editor.buffers.find_by_path(&path) {
+			self.close_headless_buffer(buf_id);
+		}
+
+		Ok(())
+	}
+
+	/// Applies a single `TextDocumentEdit` as part of a sequential operations flow.
+	///
+	/// This opens the document if needed (tracking temp buffers), plans the edit,
+	/// and applies it immediately.
+	async fn apply_single_text_document_edit(
+		&mut self,
+		edit: TextDocumentEdit,
+		temp_buffers: &mut Vec<ViewId>,
+	) -> Result<(), ApplyError> {
+		let uri = edit.text_document.uri.clone();
+
+		// Version check.
+		if let Some(expected) = edit.text_document.version {
+			match self.state.integration.lsp.documents().get_version(&uri) {
+				Some(actual) if actual != expected => {
+					return Err(ApplyError::VersionMismatch {
+						uri: uri.to_string(),
+						expected,
+						actual,
+					});
+				}
+				None => {
+					return Err(ApplyError::UntrackedVersionedDocument {
+						uri: uri.to_string(),
+						version: expected,
+					});
+				}
+				_ => {}
+			}
+		}
+
+		let text_edits = normalize_text_document_edits(edit.edits);
+		if text_edits.is_empty() {
+			return Ok(());
+		}
+
+		let (buffer_id, opened_temporarily) = self.resolve_uri_to_buffer(&uri).await?;
+		if opened_temporarily {
+			temp_buffers.push(buffer_id);
+		}
+
+		let buffer = self.state.core.buffers.get_buffer(buffer_id)
+			.ok_or_else(|| ApplyError::BufferNotFound(uri.to_string()))?;
+		let encoding = self.state.integration.lsp.offset_encoding_for_buffer(buffer);
+		let mut planned_edits: Vec<PlannedTextEdit> = Vec::new();
+		for te in &text_edits {
+			let planned = buffer.with_doc(|doc| convert_text_edit(doc.content(), encoding, te))
+				.ok_or_else(|| ApplyError::RangeConversionFailed(uri.to_string()))?;
+			planned_edits.push(planned);
+		}
+		coalesce_and_validate(&mut planned_edits, &uri)?;
+
+		let plan = BufferEditPlan {
+			buffer_id,
+			edits: planned_edits,
+			opened_temporarily,
+		};
+
+		// Apply immediately.
+		let workspace_plan = WorkspaceEditPlan { per_buffer: vec![plan] };
+		self.begin_workspace_edit_group(&workspace_plan);
+		self.apply_buffer_edit_plan(&workspace_plan.per_buffer[0])?;
+		self.flush_lsp_sync_now(&[buffer_id]);
+
+		Ok(())
+	}
+
+	/// Best-effort rollback of resource operations applied in this edit.
+	async fn rollback_resource_ops(&mut self, log: &mut Vec<ResourceRollbackEntry>) {
+		while let Some(entry) = log.pop() {
+			match entry {
+				ResourceRollbackEntry::Created { path, had_previous, previous_bytes } => {
+					if had_previous {
+						if let Some(bytes) = previous_bytes {
+							let _ = std::fs::write(&path, &bytes);
+						}
+					} else {
+						let _ = std::fs::remove_file(&path);
+					}
+				}
+				ResourceRollbackEntry::Renamed { from, to } => {
+					let _ = std::fs::rename(&to, &from);
+					// Restore buffer path if it was updated.
+					if let Some(buf_id) = self.state.core.editor.buffers.find_by_path(&to) {
+						if let Some(buffer) = self.state.core.editor.buffers.get_buffer_mut(buf_id) {
+							buffer.set_path(Some(from), Some(&self.state.config.config.language_loader));
+						}
+					}
+				}
+				ResourceRollbackEntry::Deleted { path, bytes } => {
+					if let Some(bytes) = bytes {
+						let _ = std::fs::write(&path, &bytes);
+					}
+				}
+			}
+		}
+	}
+}
+
+/// Rollback log entry for a resource operation.
+enum ResourceRollbackEntry {
+	Created {
+		path: PathBuf,
+		had_previous: bool,
+		previous_bytes: Option<Vec<u8>>,
+	},
+	Renamed {
+		from: PathBuf,
+		to: PathBuf,
+	},
+	Deleted {
+		path: PathBuf,
+		bytes: Option<Vec<u8>>,
+	},
 }
 
 /// Converts an LSP [`TextEdit`] into a character-offset based [`PlannedTextEdit`].

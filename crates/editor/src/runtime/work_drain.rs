@@ -117,6 +117,7 @@ impl Editor {
 							let _ = tx.send(xeno_lsp::sync::ApplyEditResult {
 								applied: false,
 								failure_reason: Some("deadline expired".to_string()),
+								failed_change: None,
 							});
 						}
 						report.drained_workspace_edits += 1;
@@ -125,16 +126,16 @@ impl Editor {
 					}
 
 					let result = self.apply_workspace_edit(edit).await;
-					let (applied, failure_reason) = match &result {
-						Ok(()) => (true, None),
+					let (applied, failure_reason, failed_change) = match &result {
+						Ok(()) => (true, None, None),
 						Err(err) => {
 							self.notify(xeno_registry::notifications::keys::error(err.to_string()));
-							(false, Some(err.to_string()))
+							(false, Some(err.to_string()), err.failed_change)
 						}
 					};
 					self.frame_mut().needs_redraw = true;
 					if let Some((tx, _)) = reply {
-						let _ = tx.send(xeno_lsp::sync::ApplyEditResult { applied, failure_reason });
+						let _ = tx.send(xeno_lsp::sync::ApplyEditResult { applied, failure_reason, failed_change });
 					}
 					report.drained_workspace_edits += 1;
 					self.metrics().record_runtime_work_drained_total(item.kind_tag, None);

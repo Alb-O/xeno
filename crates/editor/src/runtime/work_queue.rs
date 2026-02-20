@@ -328,6 +328,7 @@ impl RuntimeWorkQueue {
 			let _ = tx.send(xeno_lsp::sync::ApplyEditResult {
 				applied: false,
 				failure_reason: Some(reason.to_string()),
+				failed_change: None,
 			});
 		}
 	}
