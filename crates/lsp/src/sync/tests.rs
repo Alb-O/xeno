@@ -815,3 +815,146 @@ async fn reopen_document_does_not_register_new_if_did_open_fails() {
 	let new_uri = crate::uri_from_path(new_path).unwrap();
 	assert!(!documents.is_opened(&new_uri));
 }
+
+/// Transport that handles initialize requests and records notifications.
+/// Combines RecordingTransport's recording with initialize capability.
+struct InitRecordingTransport {
+	inner: RecordingTransport,
+}
+
+impl InitRecordingTransport {
+	fn new() -> Self {
+		Self {
+			inner: RecordingTransport::new(),
+		}
+	}
+}
+
+#[async_trait]
+impl crate::client::transport::LspTransport for InitRecordingTransport {
+	fn subscribe_events(&self) -> crate::Result<mpsc::UnboundedReceiver<crate::client::transport::TransportEvent>> {
+		self.inner.subscribe_events()
+	}
+	async fn start(&self, cfg: crate::client::ServerConfig) -> crate::Result<crate::client::transport::StartedServer> {
+		self.inner.start(cfg).await
+	}
+	async fn notify(&self, server: LanguageServerId, notif: crate::AnyNotification) -> crate::Result<()> {
+		self.inner.notify(server, notif).await
+	}
+	async fn notify_with_barrier(&self, server: LanguageServerId, notif: crate::AnyNotification) -> crate::Result<oneshot::Receiver<crate::Result<()>>> {
+		self.inner.notify_with_barrier(server, notif).await
+	}
+	async fn request(&self, _server: LanguageServerId, _req: crate::AnyRequest, _timeout: Option<std::time::Duration>) -> crate::Result<crate::AnyResponse> {
+		Ok(crate::AnyResponse {
+			id: crate::RequestId::Number(1),
+			result: Some(
+				serde_json::to_value(lsp_types::InitializeResult {
+					capabilities: lsp_types::ServerCapabilities::default(),
+					server_info: None,
+				})
+				.unwrap(),
+			),
+			error: None,
+		})
+	}
+	async fn reply(
+		&self,
+		_server: LanguageServerId,
+		_id: crate::types::RequestId,
+		_resp: std::result::Result<crate::JsonValue, crate::ResponseError>,
+	) -> crate::Result<()> {
+		Ok(())
+	}
+	async fn stop(&self, _server: LanguageServerId) -> crate::Result<()> {
+		Ok(())
+	}
+}
+
+#[tokio::test]
+async fn did_change_failure_marks_force_full_sync() {
+	use crate::registry::LanguageServerConfig;
+
+	let transport = Arc::new(InitRecordingTransport::new());
+	let (sync, registry, documents, _receiver) = DocumentSync::create(transport.clone(), xeno_worker::WorkerRuntime::new());
+
+	registry.register(
+		"rust",
+		LanguageServerConfig {
+			command: "rust-analyzer".into(),
+			..Default::default()
+		},
+	);
+
+	let path = Path::new("/change_fail.rs");
+	sync.open_document(path, "rust", &Rope::from("fn main() {}")).await.unwrap();
+	let uri = crate::uri_from_path(path).unwrap();
+	assert!(documents.is_opened(&uri));
+
+	// Wait for initialization to complete.
+	let client = registry.get("rust", path).unwrap();
+	for _ in 0..100 {
+		if client.is_initialized() {
+			break;
+		}
+		tokio::task::yield_now().await;
+	}
+	assert!(client.is_initialized(), "client must be initialized");
+
+	// No force_full_sync initially.
+	assert!(!documents.take_force_full_sync_by_uri(&uri));
+
+	// Make didChange fail.
+	transport.inner.set_fail_method("textDocument/didChange");
+
+	let result = sync
+		.send_change(ChangeRequest::full_text(path, "rust", "fn main() { 1 }".into()).with_open_if_needed(false))
+		.await;
+	assert!(result.is_err(), "expected error from failed didChange");
+
+	// force_full_sync must be set after failure.
+	assert!(
+		documents.take_force_full_sync_by_uri(&uri),
+		"force_full_sync must be set after didChange failure"
+	);
+}
+
+#[tokio::test]
+async fn did_change_success_does_not_set_force_full_sync() {
+	use crate::registry::LanguageServerConfig;
+
+	let transport = Arc::new(InitRecordingTransport::new());
+	let (sync, registry, documents, _receiver) = DocumentSync::create(transport.clone(), xeno_worker::WorkerRuntime::new());
+
+	registry.register(
+		"rust",
+		LanguageServerConfig {
+			command: "rust-analyzer".into(),
+			..Default::default()
+		},
+	);
+
+	let path = Path::new("/change_ok.rs");
+	sync.open_document(path, "rust", &Rope::from("fn main() {}")).await.unwrap();
+	let uri = crate::uri_from_path(path).unwrap();
+
+	// Wait for initialization.
+	let client = registry.get("rust", path).unwrap();
+	for _ in 0..100 {
+		if client.is_initialized() {
+			break;
+		}
+		tokio::task::yield_now().await;
+	}
+	assert!(client.is_initialized(), "client must be initialized");
+
+	let result = sync
+		.send_change(ChangeRequest::full_text(path, "rust", "fn main() { 1 }".into()).with_open_if_needed(false))
+		.await;
+	assert!(result.is_ok(), "expected successful didChange");
+
+	// force_full_sync must NOT be set after success.
+	assert!(
+		!documents.take_force_full_sync_by_uri(&uri),
+		"force_full_sync should not be set after successful didChange"
+	);
+}
