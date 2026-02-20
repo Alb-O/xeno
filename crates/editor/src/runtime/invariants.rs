@@ -627,3 +627,127 @@ async fn test_log_only_runtime_unknown_command_notification_path_is_stable() {
 	assert_eq!(pending[0].id, expected.id);
 	assert_eq!(pending[0].message, expected.message);
 }
+
+/// Must assign distinct, ordered cause IDs to directives from separately drained events.
+///
+/// * Enforced in: `runtime::kernel::RuntimeKernel::next_cause_id`, `Editor::drain_until_idle`
+/// * Failure symptom: Two events share a cause ID, making causal attribution ambiguous.
+#[tokio::test]
+async fn test_cause_id_monotonic_across_distinct_events() {
+	let mut editor = Editor::new_scratch();
+
+	let _tok1 = editor.submit_event(RuntimeEvent::Key(Key::char('i')));
+	let _ = editor.drain_until_idle(DrainPolicy::for_on_event()).await;
+	let d1 = editor.poll_directive().expect("first directive");
+	let cause1 = d1.cause_id.expect("first directive must have cause_id");
+
+	let _tok2 = editor.submit_event(RuntimeEvent::Key(Key::new(KeyCode::Esc)));
+	let _ = editor.drain_until_idle(DrainPolicy::for_on_event()).await;
+	let d2 = editor.poll_directive().expect("second directive");
+	let cause2 = d2.cause_id.expect("second directive must have cause_id");
+
+	assert!(cause2.0 > cause1.0, "cause IDs must increase across sequential events");
+}
+
+/// Must propagate cause ID from draining work to follow-up work enqueued during that drain.
+///
+/// * Enforced in: `runtime::work_drain::Editor::drain_runtime_work_report`, `Editor::enqueue_runtime_command_invocation`
+/// * Failure symptom: Follow-up work loses causal attribution, making debugging impossible.
+#[tokio::test]
+async fn test_cause_id_preserved_across_deferred_work_chain() {
+	RUNTIME_INVARIANT_RECORDS.with(|r| r.borrow_mut().clear());
+
+	let mut editor = Editor::new_scratch();
+	editor.handle_window_resize(100, 40);
+	assert!(editor.open_command_palette());
+
+	let token = editor.submit_event(RuntimeEvent::Key(Key::new(KeyCode::Enter)));
+	let report = editor.drain_until_idle(DrainPolicy::for_on_event()).await;
+	assert_eq!(report.handled_frontend_events, 1);
+
+	let directive = editor.poll_directive().expect("directive should be queued");
+	assert_eq!(directive.cause_seq, Some(token.0));
+	let event_cause = directive.cause_id.expect("directive must carry a cause id");
+
+	let overlay_work = editor
+		.runtime_work_snapshot()
+		.into_iter()
+		.find(|item| matches!(item.kind, RuntimeWorkKind::OverlayCommit));
+
+	if let Some(work) = overlay_work {
+		assert_eq!(
+			work.cause_id,
+			Some(event_cause),
+			"deferred overlay commit must carry the cause of the event that spawned it"
+		);
+	}
+}
+
+/// Must no-op overlay commit when the overlay was cancelled before drain.
+///
+/// * Enforced in: `OverlayManager::commit` (`self.active.take()` returns `None`)
+/// * Failure symptom: Commit resurrects closed overlay state or panics on missing session.
+#[tokio::test]
+async fn test_overlay_commit_noop_when_cancelled_before_drain() {
+	let mut editor = Editor::new_scratch();
+	editor.handle_window_resize(100, 40);
+	assert!(editor.open_command_palette());
+
+	editor.enqueue_runtime_overlay_commit_work();
+	assert!(editor.has_runtime_overlay_commit_work());
+
+	editor.interaction_cancel();
+	assert!(editor.overlay_kind().is_none());
+
+	let _ = drain_for_pump(&mut editor).await;
+
+	assert!(!editor.has_runtime_overlay_commit_work());
+	assert!(editor.overlay_kind().is_none(), "commit must not resurrect cancelled overlay");
+}
+
+/// Must no-op overlay commit when the overlay was force-closed (e.g. view removal) before drain.
+///
+/// * Enforced in: `OverlayManager::commit` (`self.active.take()` returns `None`)
+/// * Failure symptom: Stale commit crashes or mutates editor state after forced overlay close.
+#[tokio::test]
+async fn test_overlay_commit_noop_when_force_closed_before_drain() {
+	let mut editor = Editor::new_scratch();
+	editor.handle_window_resize(100, 40);
+	assert!(editor.open_command_palette());
+
+	editor.enqueue_runtime_overlay_commit_work();
+
+	let mut interaction = editor.state.ui.overlay_system.take_interaction();
+	interaction.close(&mut editor, crate::overlay::CloseReason::Forced);
+	editor.state.ui.overlay_system.restore_interaction(interaction);
+	assert!(editor.overlay_kind().is_none());
+
+	let _ = drain_for_pump(&mut editor).await;
+
+	assert!(!editor.has_runtime_overlay_commit_work());
+	assert!(editor.overlay_kind().is_none(), "commit must not resurrect force-closed overlay");
+}
+
+/// Must commit only the first queued overlay commit; subsequent commits are no-ops.
+///
+/// * Enforced in: `OverlayManager::commit` (`self.active.take()` consumes the session once)
+/// * Failure symptom: Double-commit panics or corrupts post-commit editor state.
+#[tokio::test]
+async fn test_multiple_overlay_commits_only_first_applies() {
+	let mut editor = Editor::new_scratch();
+	editor.handle_window_resize(100, 40);
+	assert!(editor.open_command_palette());
+
+	editor.enqueue_runtime_overlay_commit_work();
+	editor.enqueue_runtime_overlay_commit_work();
+	editor.enqueue_runtime_overlay_commit_work();
+	assert_eq!(
+		editor.runtime_work_snapshot().iter().filter(|item| matches!(item.kind, RuntimeWorkKind::OverlayCommit)).count(),
+		3,
+	);
+
+	let _ = drain_for_pump(&mut editor).await;
+
+	assert!(editor.overlay_kind().is_none());
+	assert!(!editor.has_runtime_overlay_commit_work());
+}

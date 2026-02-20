@@ -13,7 +13,7 @@ pub(crate) struct RuntimeWorkDrainReport {
 	pub(crate) drained_invocations: usize,
 	pub(crate) applied_overlay_commits: usize,
 	#[cfg(feature = "lsp")]
-	pub(crate) applied_workspace_edits: usize,
+	pub(crate) drained_workspace_edits: usize,
 	pub(crate) should_quit: bool,
 }
 
@@ -103,9 +103,40 @@ impl Editor {
 				}
 				#[cfg(feature = "lsp")]
 				RuntimeWorkKind::WorkspaceEdit(edit) => {
-					let mut ports = RuntimePorts::new(self);
-					RuntimeOverlayPort::apply_workspace_edit_or_notify(&mut ports, edit).await;
-					report.applied_workspace_edits += 1;
+					let reply = self.state.runtime_work_queue_mut().take_apply_edit_reply(item.seq);
+
+					// Skip if the server's deadline has passed or the receiver was
+					// dropped (server timed out). Prevents divergence where the server
+					// believes the edit failed but the workspace was mutated.
+					let stale = reply.as_ref().is_some_and(|(tx, deadline)| {
+						tx.is_closed() || std::time::Instant::now() > *deadline
+					});
+					if stale {
+						tracing::debug!(runtime.work_seq = item.seq, "workspace_edit.skipped_stale");
+						if let Some((tx, _)) = reply {
+							let _ = tx.send(xeno_lsp::sync::ApplyEditResult {
+								applied: false,
+								failure_reason: Some("deadline expired".to_string()),
+							});
+						}
+						report.drained_workspace_edits += 1;
+						self.metrics().record_runtime_work_drained_total(item.kind_tag, None);
+						continue;
+					}
+
+					let result = self.apply_workspace_edit(edit).await;
+					let (applied, failure_reason) = match &result {
+						Ok(()) => (true, None),
+						Err(err) => {
+							self.notify(xeno_registry::notifications::keys::error(err.to_string()));
+							(false, Some(err.to_string()))
+						}
+					};
+					self.frame_mut().needs_redraw = true;
+					if let Some((tx, _)) = reply {
+						let _ = tx.send(xeno_lsp::sync::ApplyEditResult { applied, failure_reason });
+					}
+					report.drained_workspace_edits += 1;
 					self.metrics().record_runtime_work_drained_total(item.kind_tag, None);
 				}
 			}

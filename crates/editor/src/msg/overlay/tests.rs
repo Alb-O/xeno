@@ -41,7 +41,7 @@ fn drain_messages_processes_overlaymsg() {
 #[tokio::test]
 async fn pump_drains_deferred_workspace_edits_queue() {
 	let mut editor = Editor::new_scratch();
-	editor.enqueue_runtime_workspace_edit_work(empty_edit());
+	editor.enqueue_runtime_workspace_edit_work(empty_edit(), None);
 	assert_eq!(editor.pending_runtime_workspace_edit_work(), 1);
 
 	let _ = editor.drain_until_idle(crate::runtime::DrainPolicy::for_pump()).await;

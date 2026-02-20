@@ -5,6 +5,8 @@
 //! Invocation payloads are executed directly through `run_invocation` during drain.
 
 use std::collections::VecDeque;
+#[cfg(feature = "lsp")]
+use std::collections::HashMap;
 use std::time::Instant;
 
 use crate::Editor;
@@ -170,6 +172,11 @@ pub struct RuntimeWorkItem {
 pub struct RuntimeWorkQueue {
 	seq_next: u64,
 	queue: VecDeque<RuntimeWorkItem>,
+	/// Reply channels for workspace edit items, keyed by sequence number.
+	/// Stored separately because `oneshot::Sender` is not `Clone`.
+	/// Tuple: (reply sender, deadline after which edit should not be applied).
+	#[cfg(feature = "lsp")]
+	apply_edit_replies: HashMap<u64, (tokio::sync::oneshot::Sender<xeno_lsp::sync::ApplyEditResult>, Instant)>,
 }
 
 impl RuntimeWorkQueue {
@@ -224,18 +231,33 @@ impl RuntimeWorkQueue {
 	/// Enqueues one deferred workspace edit item and returns its sequence number.
 	#[cfg(feature = "lsp")]
 	pub fn enqueue_workspace_edit(&mut self, edit: xeno_lsp::lsp_types::WorkspaceEdit) -> u64 {
-		self.enqueue_workspace_edit_with_cause(edit, None)
+		self.enqueue_workspace_edit_with_cause(edit, None, None)
 	}
 
-	/// Enqueues one deferred workspace edit item with explicit causal metadata.
+	/// Enqueues one deferred workspace edit item with optional reply channel and explicit causal metadata.
 	#[cfg(feature = "lsp")]
-	pub fn enqueue_workspace_edit_with_cause(&mut self, edit: xeno_lsp::lsp_types::WorkspaceEdit, cause_id: Option<RuntimeCauseId>) -> u64 {
-		self.enqueue_with_cause(RuntimeWorkKind::WorkspaceEdit(edit), WorkScope::Global, cause_id)
+	pub fn enqueue_workspace_edit_with_cause(
+		&mut self,
+		edit: xeno_lsp::lsp_types::WorkspaceEdit,
+		reply: Option<(tokio::sync::oneshot::Sender<xeno_lsp::sync::ApplyEditResult>, Instant)>,
+		cause_id: Option<RuntimeCauseId>,
+	) -> u64 {
+		let seq = self.enqueue_with_cause(RuntimeWorkKind::WorkspaceEdit(edit), WorkScope::Global, cause_id);
+		if let Some(entry) = reply {
+			self.apply_edit_replies.insert(seq, entry);
+		}
+		seq
 	}
 
 	/// Pops the next work item in FIFO order.
 	pub fn pop_front(&mut self) -> Option<RuntimeWorkItem> {
 		self.queue.pop_front()
+	}
+
+	/// Takes the reply entry (sender + deadline) for a workspace edit item.
+	#[cfg(feature = "lsp")]
+	pub fn take_apply_edit_reply(&mut self, seq: u64) -> Option<(tokio::sync::oneshot::Sender<xeno_lsp::sync::ApplyEditResult>, Instant)> {
+		self.apply_edit_replies.remove(&seq)
 	}
 
 	/// Returns queued item count.
@@ -280,10 +302,34 @@ impl RuntimeWorkQueue {
 	}
 
 	/// Removes queued items matching the scope tag.
+	///
+	/// Any workspace edit reply channels for removed items are completed with
+	/// `applied: false` so the server gets a fast rejection instead of timing out.
 	pub fn remove_scope(&mut self, scope: WorkScope) -> usize {
 		let before = self.queue.len();
+		#[cfg(feature = "lsp")]
+		{
+			let seqs: Vec<u64> = self.queue.iter()
+				.filter(|item| item.scope == scope && matches!(item.kind, RuntimeWorkKind::WorkspaceEdit(_)))
+				.map(|item| item.seq)
+				.collect();
+			for seq in seqs {
+				self.reject_apply_edit_reply(seq, "work scope cancelled");
+			}
+		}
 		self.queue.retain(|item| item.scope != scope);
 		before.saturating_sub(self.queue.len())
+	}
+
+	/// Rejects a pending apply-edit reply with `applied: false`.
+	#[cfg(feature = "lsp")]
+	fn reject_apply_edit_reply(&mut self, seq: u64, reason: &str) {
+		if let Some((tx, _deadline)) = self.apply_edit_replies.remove(&seq) {
+			let _ = tx.send(xeno_lsp::sync::ApplyEditResult {
+				applied: false,
+				failure_reason: Some(reason.to_string()),
+			});
+		}
 	}
 
 	#[cfg(test)]
@@ -318,11 +364,15 @@ impl Editor {
 		seq
 	}
 
-	/// Enqueues one deferred workspace edit as runtime work.
+	/// Enqueues one deferred workspace edit as runtime work with an optional reply entry.
 	#[cfg(feature = "lsp")]
-	pub(crate) fn enqueue_runtime_workspace_edit_work(&mut self, edit: xeno_lsp::lsp_types::WorkspaceEdit) -> u64 {
+	pub(crate) fn enqueue_runtime_workspace_edit_work(
+		&mut self,
+		edit: xeno_lsp::lsp_types::WorkspaceEdit,
+		reply: Option<(tokio::sync::oneshot::Sender<xeno_lsp::sync::ApplyEditResult>, std::time::Instant)>,
+	) -> u64 {
 		let cause_id = self.runtime_active_cause_id();
-		let seq = self.state.runtime_work_queue_mut().enqueue_workspace_edit_with_cause(edit, cause_id);
+		let seq = self.state.runtime_work_queue_mut().enqueue_workspace_edit_with_cause(edit, reply, cause_id);
 		self.metrics().record_runtime_work_queue_depth(self.state.runtime_work_queue().len() as u64);
 		seq
 	}
@@ -436,5 +486,30 @@ mod tests {
 		let removed = queue.remove_scope(WorkScope::NuStopScope(11));
 		assert_eq!(removed, 2);
 		assert_eq!(queue.len(), 1);
+	}
+
+	#[cfg(feature = "lsp")]
+	#[test]
+	fn remove_scope_rejects_apply_edit_replies() {
+		let mut queue = RuntimeWorkQueue::default();
+		let (tx, mut rx) = tokio::sync::oneshot::channel();
+		let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+		queue.enqueue_workspace_edit_with_cause(
+			xeno_lsp::lsp_types::WorkspaceEdit::default(),
+			Some((tx, deadline)),
+			None,
+		);
+
+		// Enqueue it under a non-global scope to test removal.
+		// Since workspace edits always use Global, we manually override the scope.
+		queue.queue.back_mut().unwrap().scope = super::WorkScope::NuStopScope(99);
+
+		queue.remove_scope(super::WorkScope::NuStopScope(99));
+		assert!(queue.is_empty());
+
+		// Reply must have been sent with applied=false.
+		let result = rx.try_recv().expect("reply must be sent");
+		assert!(!result.applied);
+		assert_eq!(result.failure_reason.as_deref(), Some("work scope cancelled"));
 	}
 }

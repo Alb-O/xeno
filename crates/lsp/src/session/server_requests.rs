@@ -3,11 +3,21 @@
 //! Handles LSP requests from servers to the client, such as configuration queries
 //! and capability registration.
 
+use std::time::Duration;
+
 use serde_json::{Value as JsonValue, json};
 
 use crate::DocumentSync;
 use crate::client::LanguageServerId;
 use crate::types::{AnyRequest, ErrorCode, ResponseError};
+
+/// Timeout for workspace/applyEdit requests.
+///
+/// Used both for the server-side `tokio::time::timeout` and the editor-side
+/// deadline on [`ApplyEditRequest`](crate::sync::ApplyEditRequest). Must be
+/// the same value so the deadline check in the editor drain is consistent
+/// with the server's timeout behavior.
+pub(crate) const APPLY_EDIT_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Structured reply shape before conversion into wire-level JSON-RPC result.
 pub(crate) enum ServerRequestReply {
@@ -41,7 +51,7 @@ impl ServerRequestReply {
 /// * `client/registerCapability`, `client/unregisterCapability`: No-op success
 /// * `window/showMessageRequest`, `window/workDoneProgress/create`: No-op success
 /// * `workspace/diagnostic/refresh`: No-op success
-/// * `workspace/applyEdit`: Unsupported
+/// * `workspace/applyEdit`: Route to editor for text edit application
 ///
 /// # Errors
 ///
@@ -77,11 +87,49 @@ pub(crate) async fn dispatch_server_request(sync: &DocumentSync, server: Languag
 		"window/showMessageRequest" => ServerRequestReply::Json(JsonValue::Null),
 		"window/workDoneProgress/create" => ServerRequestReply::Json(JsonValue::Null),
 		"workspace/diagnostic/refresh" => ServerRequestReply::Json(JsonValue::Null),
-		"workspace/applyEdit" => ServerRequestReply::Json(json!({
-			"applied": false,
-			"failureReason": "workspace/applyEdit not yet supported"
-		})),
+		"workspace/applyEdit" => ServerRequestReply::Json(handle_workspace_apply_edit(sync, params).await),
 		_ => ServerRequestReply::MethodNotFound,
+	}
+}
+
+/// Handle `workspace/applyEdit` request.
+///
+/// Routes the edit to the editor via the apply-edit channel and waits for the result.
+/// Falls back to `applied: false` if the channel is not configured or times out.
+async fn handle_workspace_apply_edit(sync: &DocumentSync, params: JsonValue) -> JsonValue {
+	use crate::sync::ApplyEditRequest;
+	use lsp_types::ApplyWorkspaceEditParams;
+
+	let Some(tx) = sync.apply_edit_sender() else {
+		return json!({ "applied": false, "failureReason": "no editor connected" });
+	};
+
+	let Ok(params) = serde_json::from_value::<ApplyWorkspaceEditParams>(params) else {
+		return json!({ "applied": false, "failureReason": "invalid params" });
+	};
+
+	let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
+	let request = ApplyEditRequest {
+		edit: params.edit,
+		reply: reply_tx,
+		deadline: std::time::Instant::now() + APPLY_EDIT_TIMEOUT,
+	};
+
+	if tx.send(request).is_err() {
+		return json!({ "applied": false, "failureReason": "editor disconnected" });
+	}
+
+	// Wait with a timeout to avoid hanging the server request loop.
+	match tokio::time::timeout(APPLY_EDIT_TIMEOUT, reply_rx).await {
+		Ok(Ok(result)) => {
+			let mut response = json!({ "applied": result.applied });
+			if let Some(reason) = result.failure_reason {
+				response["failureReason"] = json!(reason);
+			}
+			response
+		}
+		Ok(Err(_)) => json!({ "applied": false, "failureReason": "editor dropped reply" }),
+		Err(_) => json!({ "applied": false, "failureReason": "timeout" }),
 	}
 }
 

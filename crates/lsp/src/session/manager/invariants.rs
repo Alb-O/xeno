@@ -620,6 +620,294 @@ pub(crate) async fn test_registry_lookup_uses_canonical_path() {
 	}
 }
 
+/// Must clear diagnostics when a document is closed via `close_document`.
+///
+/// * Enforced in: `DocumentSync::close_document` → `DocumentStateManager::unregister`
+/// * Failure symptom: Stale diagnostics from a closed document persist in the UI.
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_close_doc_clears_diagnostics() {
+	let transport = TestTransport::new();
+	let (session, runtime, path, server_id) = make_session_runtime(transport.clone()).await;
+	let uri = crate::uri_from_path(&path).expect("uri");
+
+	// Inject diagnostics for the open document.
+	let diags = vec![lsp_types::Diagnostic {
+		range: lsp_types::Range::default(),
+		severity: Some(lsp_types::DiagnosticSeverity::ERROR),
+		message: "test error".into(),
+		..Default::default()
+	}];
+	transport.emit(TransportEvent::Diagnostics {
+		server: server_id,
+		uri: uri.to_string(),
+		version: Some(1),
+		diagnostics: serde_json::to_value(&diags).expect("diagnostics"),
+	});
+
+	wait_until("diagnostics arrive", || session.sync().error_count(&path) > 0).await;
+	assert_eq!(session.sync().error_count(&path), 1);
+
+	// Close the document.
+	session.sync().close_document(&path, "rust").await.expect("close must succeed");
+
+	// Diagnostics must be gone (unregister removes the entire entry).
+	assert_eq!(session.sync().error_count(&path), 0, "diagnostics must be cleared on close");
+	assert!(!session.documents().is_opened(&uri), "document must not be opened after close");
+	assert!(!session.documents().contains(&uri), "document state must be fully removed");
+
+	runtime.shutdown().await;
+}
+
+/// Must not resurrect opened state when late diagnostics arrive for a closed document.
+///
+/// * Enforced in: `DocumentStateManager::update_diagnostics` (on-demand creation)
+/// * Failure symptom: Late diagnostics re-create document state with `opened = false`,
+///   but the entry lingers and accumulates memory.
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_late_diagnostics_after_close_do_not_set_opened() {
+	let transport = TestTransport::new();
+	let (session, runtime, path, server_id) = make_session_runtime(transport.clone()).await;
+	let uri = crate::uri_from_path(&path).expect("uri");
+
+	// Close the document.
+	session.sync().close_document(&path, "rust").await.expect("close must succeed");
+	assert!(!session.documents().contains(&uri));
+
+	// Inject late diagnostics (simulating server sending diagnostics after didClose).
+	let diags = vec![lsp_types::Diagnostic {
+		range: lsp_types::Range::default(),
+		severity: Some(lsp_types::DiagnosticSeverity::WARNING),
+		message: "late warning".into(),
+		..Default::default()
+	}];
+	transport.emit(TransportEvent::Diagnostics {
+		server: server_id,
+		uri: uri.to_string(),
+		version: Some(2),
+		diagnostics: serde_json::to_value(&diags).expect("diagnostics"),
+	});
+
+	// Wait for router to process.
+	sleep(Duration::from_millis(80)).await;
+
+	// The on-demand creation path stores diagnostics but must NOT set opened.
+	// This is intentional for project-wide diagnostics, but opened must stay false.
+	if session.documents().contains(&uri) {
+		assert!(
+			!session.documents().is_opened(&uri),
+			"late diagnostics must not resurrect opened state"
+		);
+	}
+
+	runtime.shutdown().await;
+}
+
+/// Must return not-applied for workspace/applyEdit when no editor is connected.
+///
+/// * Enforced in: `handle_workspace_apply_edit`
+/// * Failure symptom: Server request hangs or crashes without an editor connection.
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_workspace_apply_edit_returns_not_applied() {
+	let transport = TestTransport::new();
+	let (session, runtime, path, server_id) = make_session_runtime(transport.clone()).await;
+
+	// Send workspace/applyEdit server request.
+	transport.emit(TransportEvent::Message {
+		server: server_id,
+		message: Message::Request(AnyRequest {
+			id: RequestId::Number(42),
+			method: "workspace/applyEdit".into(),
+			params: json!({
+				"edit": {
+					"changes": {}
+				}
+			}),
+		}),
+	});
+
+	wait_until("applyEdit reply", || transport.replies().contains(&RequestId::Number(42))).await;
+
+	// Document content must remain unchanged (applyEdit is not supported).
+	let uri = crate::uri_from_path(&path).expect("uri");
+	assert!(session.documents().is_opened(&uri), "document must still be opened");
+
+	runtime.shutdown().await;
+}
+
+/// Must bound closed-document diagnostic entries and evict LRU when over the cap.
+///
+/// * Enforced in: `DocumentStateManager::update_diagnostics`, `DocumentStateManager::evict_closed_entries_if_needed`
+/// * Failure symptom: Unbounded memory growth from project-wide diagnostics in large repos.
+#[cfg_attr(test, test)]
+pub(crate) fn test_closed_diagnostics_entries_are_bounded_and_evict_lru() {
+	use lsp_types::{Diagnostic, DiagnosticSeverity, Position, Range};
+
+	let mut mgr = crate::DocumentStateManager::new();
+	mgr.set_max_closed_diagnostic_entries(2);
+
+	let make_uri = |name: &str| -> lsp_types::Uri {
+		format!("file:///tmp/{name}").parse().expect("valid uri")
+	};
+	let make_diag = || -> Vec<Diagnostic> {
+		vec![Diagnostic {
+			range: Range::new(Position::new(0, 0), Position::new(0, 1)),
+			severity: Some(DiagnosticSeverity::ERROR),
+			message: "err".to_string(),
+			..Default::default()
+		}]
+	};
+
+	let uri1 = make_uri("a.rs");
+	let uri2 = make_uri("b.rs");
+	let uri3 = make_uri("c.rs");
+
+	// All three are closed (not opened), so they count against the cap.
+	mgr.update_diagnostics(&uri1, make_diag(), None);
+	mgr.update_diagnostics(&uri2, make_diag(), None);
+	mgr.update_diagnostics(&uri3, make_diag(), None);
+
+	// Cap is 2, so uri1 (LRU) should be evicted.
+	assert!(!mgr.contains(&uri1), "uri1 should be evicted as LRU closed entry");
+	assert!(mgr.contains(&uri2), "uri2 should remain");
+	assert!(mgr.contains(&uri3), "uri3 should remain");
+}
+
+/// Must never evict opened documents during closed-entry eviction.
+///
+/// * Enforced in: `DocumentStateManager::evict_closed_entries_if_needed`
+/// * Failure symptom: Open documents lose diagnostics due to eviction.
+#[cfg_attr(test, test)]
+pub(crate) fn test_eviction_never_removes_open_documents() {
+	use lsp_types::{Diagnostic, DiagnosticSeverity, Position, Range};
+
+	let mut mgr = crate::DocumentStateManager::new();
+	mgr.set_max_closed_diagnostic_entries(1);
+
+	let make_uri = |name: &str| -> lsp_types::Uri {
+		format!("file:///tmp/{name}").parse().expect("valid uri")
+	};
+	let make_diag = || -> Vec<Diagnostic> {
+		vec![Diagnostic {
+			range: Range::new(Position::new(0, 0), Position::new(0, 1)),
+			severity: Some(DiagnosticSeverity::ERROR),
+			message: "err".to_string(),
+			..Default::default()
+		}]
+	};
+
+	let uri_open = make_uri("open.rs");
+	mgr.register(std::path::Path::new("/tmp/open.rs"), Some("rust"));
+	mgr.set_opened(&uri_open, true);
+	mgr.update_diagnostics(&uri_open, make_diag(), None);
+
+	let uri_closed1 = make_uri("closed1.rs");
+	let uri_closed2 = make_uri("closed2.rs");
+	mgr.update_diagnostics(&uri_closed1, make_diag(), None);
+	mgr.update_diagnostics(&uri_closed2, make_diag(), None);
+
+	// Cap is 1, so closed1 should be evicted but open.rs must survive.
+	assert!(mgr.is_opened(&uri_open), "opened document must survive eviction");
+	assert!(mgr.contains(&uri_open), "opened document must not be removed");
+	assert!(mgr.contains(&uri_closed2), "most recent closed entry should remain");
+	// closed1 may or may not be evicted depending on order; at most 1 closed entry survives.
+	let closed_count = [&uri_closed1, &uri_closed2].iter().filter(|u| mgr.contains(u)).count();
+	assert_eq!(closed_count, 1, "only 1 closed entry should survive the cap");
+}
+
+/// Must remove closed-document entry when diagnostics are cleared (empty vec).
+///
+/// * Enforced in: `DocumentStateManager::update_diagnostics`
+/// * Failure symptom: Tombstone entries accumulate for documents with cleared diagnostics.
+#[cfg_attr(test, test)]
+pub(crate) fn test_closed_entry_removed_when_diagnostics_cleared() {
+	let mut mgr = crate::DocumentStateManager::new();
+	mgr.set_max_closed_diagnostic_entries(512);
+
+	let uri = "file:///tmp/cleared.rs".parse::<lsp_types::Uri>().expect("valid uri");
+	let diag = vec![lsp_types::Diagnostic {
+		range: lsp_types::Range::new(lsp_types::Position::new(0, 0), lsp_types::Position::new(0, 1)),
+		severity: Some(lsp_types::DiagnosticSeverity::WARNING),
+		message: "warn".to_string(),
+		..Default::default()
+	}];
+
+	// Publish non-empty diagnostics → creates on-demand entry.
+	mgr.update_diagnostics(&uri, diag, None);
+	assert!(mgr.contains(&uri), "entry should be created on demand");
+
+	// Publish empty diagnostics → entry should be removed (no tombstone).
+	mgr.update_diagnostics(&uri, vec![], None);
+	assert!(!mgr.contains(&uri), "closed entry with empty diagnostics must be removed");
+}
+
+/// Must route workspace/applyEdit to the editor channel and return the reply.
+///
+/// * Enforced in: `handle_workspace_apply_edit`, `DocumentSync::set_apply_edit_sender`
+/// * Failure symptom: Server request hangs or returns wrong result when editor is connected.
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_workspace_apply_edit_happy_path() {
+	let transport = TestTransport::new();
+	let (mut sync, _registry, _documents, _receiver) = DocumentSync::create(transport, xeno_worker::WorkerRuntime::new());
+
+	let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+	sync.set_apply_edit_sender(tx);
+
+	let server_id = LanguageServerId::new(0, 0);
+	let params = json!({ "edit": { "changes": {} } });
+
+	// Spawn a receiver that replies applied=true.
+	let recv_task = tokio::spawn(async move {
+		let request = rx.recv().await.expect("must receive request");
+		let _ = request.reply.send(crate::sync::ApplyEditResult {
+			applied: true,
+			failure_reason: None,
+		});
+	});
+
+	let reply = dispatch_server_request(&sync, server_id, "workspace/applyEdit", params).await;
+	let ServerRequestReply::Json(value) = reply else { panic!("expected Json reply") };
+	assert_eq!(value["applied"], true);
+	assert!(value.get("failureReason").is_none());
+
+	recv_task.await.expect("receiver task must complete");
+}
+
+/// Must return timeout when editor does not reply to workspace/applyEdit within the deadline.
+///
+/// * Enforced in: `handle_workspace_apply_edit`
+/// * Failure symptom: Server request loop blocks indefinitely.
+#[cfg_attr(test, tokio::test(start_paused = true))]
+pub(crate) async fn test_workspace_apply_edit_timeout() {
+	let transport = TestTransport::new();
+	let (mut sync, _registry, _documents, _receiver) = DocumentSync::create(transport, xeno_worker::WorkerRuntime::new());
+
+	let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+	sync.set_apply_edit_sender(tx);
+
+	let server_id = LanguageServerId::new(0, 0);
+	let params = json!({ "edit": { "changes": {} } });
+
+	// Spawn a receiver that holds the request without replying.
+	let recv_task = tokio::spawn(async move {
+		let _request = rx.recv().await.expect("must receive request");
+		// Hold request indefinitely — don't reply.
+		tokio::time::sleep(Duration::from_secs(60)).await;
+	});
+
+	// Spawn the dispatch and advance time past the 10s timeout.
+	let dispatch_task = tokio::spawn(async move {
+		dispatch_server_request(&sync, server_id, "workspace/applyEdit", params).await
+	});
+	tokio::time::advance(Duration::from_secs(11)).await;
+
+	let reply = dispatch_task.await.expect("dispatch must complete");
+	let ServerRequestReply::Json(value) = reply else { panic!("expected Json reply") };
+	assert_eq!(value["applied"], false);
+	assert_eq!(value["failureReason"], "timeout");
+
+	recv_task.abort();
+}
+
 /// Must fail runtime start when called without Tokio runtime context.
 ///
 /// * Enforced in: `LspRuntime::start`

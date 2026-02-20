@@ -58,6 +58,9 @@
 //! * Must run bootstrap/plan/finalize only after language/work-disabled gate success.
 //! * Must run viewport-specific lane planning only when a normalized viewport is present.
 //! * Must suppress Stage-B planning within a poll when Stage-A is already planned.
+//! * Must silently drop late completions for closed documents without reinstalling state or leaking permits.
+//! * Must release parse permits via RAII when tasks complete, even after document close.
+//! * Must discard pre-switch language completions via epoch invalidation on language change.
 //!
 //! # Data flow
 //!

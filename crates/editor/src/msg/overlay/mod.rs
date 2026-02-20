@@ -50,7 +50,7 @@ impl OverlayMsg {
 			}
 			#[cfg(feature = "lsp")]
 			Self::ApplyWorkspaceEdit(edit) => {
-				editor.enqueue_runtime_workspace_edit_work(edit);
+				editor.enqueue_runtime_workspace_edit_work(edit, None);
 				Dirty::REDRAW
 			}
 			#[cfg(feature = "lsp")]
@@ -63,7 +63,7 @@ impl OverlayMsg {
 
 				match result {
 					Ok(Some(edit)) => {
-						editor.enqueue_runtime_workspace_edit_work(edit);
+						editor.enqueue_runtime_workspace_edit_work(edit, None);
 						Dirty::REDRAW
 					}
 					Ok(None) => {

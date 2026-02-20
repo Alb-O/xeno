@@ -48,6 +48,14 @@
 //! * Ready flag must require capabilities with release/acquire ordering.
 //! * Must use canonicalized paths for registry lookups.
 //! * Must execute LSP background tasks via the injected worker runtime, not ad hoc global spawns.
+//! * Must clear all per-document state (diagnostics, version, opened flag) on document close.
+//! * Must not resurrect opened state when late diagnostics arrive for closed documents.
+//! * Must route workspace/applyEdit requests through the apply-edit channel when connected; must return not-applied when disconnected.
+//! * Must return applied result from editor for workspace/applyEdit when channel is connected.
+//! * Must return timeout for workspace/applyEdit when editor does not reply within the deadline.
+//! * Must bound closed-document diagnostic entries and evict LRU when over the cap.
+//! * Must never evict opened documents during closed-entry eviction.
+//! * Must remove closed-document entry when diagnostics are cleared (empty vec).
 //!
 //! # Data flow
 //!

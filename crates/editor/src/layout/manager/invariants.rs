@@ -181,6 +181,161 @@ pub(crate) fn test_separator_resize_does_not_invalidate_drag_revision() {
 	assert!(mgr.drag_state().is_some());
 }
 
+/// Must cancel active separator drag when a structural split/close changes the layout tree.
+///
+/// * Enforced in: `LayoutManager::is_drag_stale`, `LayoutManager::cancel_if_stale`
+/// * Failure symptom: Drag continues on a stale split path after a view close, resizing the wrong separator.
+#[cfg_attr(test, test)]
+pub(crate) fn test_separator_drag_cancels_on_structure_revision() {
+	let mut mgr = LayoutManager::new();
+	let area = doc_area();
+	let mut base_layout = Layout::side_by_side(Layout::text(ViewId(0)), Layout::text(ViewId(1)), area);
+
+	let hit = mgr
+		.separator_hit_at_position(&base_layout, area, 40, 12)
+		.expect("separator hit should resolve in side-by-side layout");
+
+	mgr.start_drag(&hit);
+	assert!(mgr.is_dragging());
+
+	let _suggestion = mgr.remove_view(&mut base_layout, ViewId(1), area);
+
+	assert!(mgr.is_drag_stale(), "structural change from remove_view must make drag stale");
+	assert!(mgr.cancel_if_stale());
+	assert!(!mgr.is_dragging());
+}
+
+/// Must reject resize operations with a stale SplitPath without mutating layout.
+///
+/// * Enforced in: `LayoutManager::resize_separator`, `Layout::resize_at_path`
+/// * Failure symptom: Stale path targets wrong split node or panics on missing path segment.
+#[cfg_attr(test, test)]
+pub(crate) fn test_stale_splitpath_resize_is_rejected() {
+	use crate::layout::types::SeparatorId;
+
+	let mut mgr = LayoutManager::new();
+	let area = doc_area();
+
+	let left = Layout::side_by_side(Layout::text(ViewId(0)), Layout::text(ViewId(1)), area);
+	let mut base_layout = Layout::stacked(left, Layout::text(ViewId(2)), area);
+
+	let stale_path = SplitPath(vec![false, false]);
+	let stale_id = SeparatorId::Split {
+		path: stale_path,
+		layer: LayerId::BASE,
+	};
+
+	let areas_before = base_layout.compute_areas(area);
+
+	mgr.resize_separator(&mut base_layout, area, &stale_id, 50, 15);
+
+	let areas_after = base_layout.compute_areas(area);
+	assert_eq!(areas_before, areas_after, "stale path resize must not mutate layout");
+}
+
+/// Must clamp separator resize to soft-min bounds when space allows.
+///
+/// * Enforced in: `Layout::compute_split_areas`, `Layout::do_resize_at_path`
+/// * Failure symptom: Dragging separator to extremes produces zero-width or zero-height panes.
+#[cfg_attr(test, test)]
+pub(crate) fn test_resize_separator_clamps_to_soft_min() {
+	let mut mgr = LayoutManager::new();
+	let area = doc_area(); // 80x24
+	let mut base_layout = Layout::side_by_side(Layout::text(ViewId(0)), Layout::text(ViewId(1)), area);
+
+	let sep_id = {
+		let hit = mgr
+			.separator_hit_at_position(&base_layout, area, 40, 12)
+			.expect("separator hit should resolve");
+		hit.id
+	};
+
+	// Drag far left (mouse_x = 0)
+	mgr.resize_separator(&mut base_layout, area, &sep_id, 0, 12);
+	let areas = base_layout.compute_areas(area);
+	let left = areas.iter().find(|(v, _)| *v == ViewId(0)).map(|(_, r)| r).unwrap();
+	let right = areas.iter().find(|(v, _)| *v == ViewId(1)).map(|(_, r)| r).unwrap();
+	assert!(left.width >= Layout::MIN_WIDTH, "left pane must respect soft-min after extreme left drag");
+	assert!(right.width >= Layout::MIN_WIDTH, "right pane must respect soft-min after extreme left drag");
+
+	// Drag far right (mouse_x = 79)
+	mgr.resize_separator(&mut base_layout, area, &sep_id, 79, 12);
+	let areas = base_layout.compute_areas(area);
+	let left = areas.iter().find(|(v, _)| *v == ViewId(0)).map(|(_, r)| r).unwrap();
+	let right = areas.iter().find(|(v, _)| *v == ViewId(1)).map(|(_, r)| r).unwrap();
+	assert!(left.width >= Layout::MIN_WIDTH, "left pane must respect soft-min after extreme right drag");
+	assert!(right.width >= Layout::MIN_WIDTH, "right pane must respect soft-min after extreme right drag");
+}
+
+/// Must produce non-overlapping, non-negative geometry even when area is smaller than soft-min total.
+///
+/// * Enforced in: `Layout::compute_split_areas`
+/// * Failure symptom: Panes overlap or produce negative/overflowing coordinates under tiny terminals.
+#[cfg_attr(test, test)]
+pub(crate) fn test_compute_areas_degrades_gracefully_under_tiny_area() {
+	let tiny = Rect { x: 0, y: 0, width: 5, height: 3 };
+	let layout = Layout::side_by_side(Layout::text(ViewId(0)), Layout::text(ViewId(1)), tiny);
+	let areas = layout.compute_areas(tiny);
+
+	for (view, rect) in &areas {
+		assert!(
+			rect.x + rect.width <= tiny.x + tiny.width,
+			"view {view:?} extends beyond parent width"
+		);
+		assert!(
+			rect.y + rect.height <= tiny.y + tiny.height,
+			"view {view:?} extends beyond parent height"
+		);
+	}
+
+	// Check no overlap between the two views
+	if areas.len() == 2 {
+		let a = &areas[0].1;
+		let b = &areas[1].1;
+		let a_end = a.x + a.width;
+		let b_end = b.x + b.width;
+		assert!(a_end <= b.x || b_end <= a.x, "panes must not overlap horizontally");
+	}
+
+	// Total width must partition the parent (accounting for separator)
+	let total_w: u16 = areas.iter().map(|(_, r)| r.width).sum();
+	assert!(total_w + 1 <= tiny.width || tiny.width <= 1, "views + separator must fit within parent");
+}
+
+/// Must clamp separator resize to soft-min bounds for vertical (stacked) splits.
+///
+/// * Enforced in: `Layout::compute_split_areas`, `Layout::do_resize_at_path`
+/// * Failure symptom: Dragging stacked separator to extremes produces zero-height panes.
+#[cfg_attr(test, test)]
+pub(crate) fn test_resize_separator_clamps_to_soft_min_vertical() {
+	let mut mgr = LayoutManager::new();
+	let area = doc_area(); // 80x24
+	let mut base_layout = Layout::stacked(Layout::text(ViewId(0)), Layout::text(ViewId(1)), area);
+
+	let sep_id = {
+		let hit = mgr
+			.separator_hit_at_position(&base_layout, area, 40, 12)
+			.expect("separator hit should resolve");
+		hit.id
+	};
+
+	// Drag far up (mouse_y = 0)
+	mgr.resize_separator(&mut base_layout, area, &sep_id, 40, 0);
+	let areas = base_layout.compute_areas(area);
+	let top = areas.iter().find(|(v, _)| *v == ViewId(0)).map(|(_, r)| r).unwrap();
+	let bottom = areas.iter().find(|(v, _)| *v == ViewId(1)).map(|(_, r)| r).unwrap();
+	assert!(top.height >= Layout::MIN_HEIGHT, "top pane must respect soft-min after extreme up drag");
+	assert!(bottom.height >= Layout::MIN_HEIGHT, "bottom pane must respect soft-min after extreme up drag");
+
+	// Drag far down (mouse_y = 23)
+	mgr.resize_separator(&mut base_layout, area, &sep_id, 40, 23);
+	let areas = base_layout.compute_areas(area);
+	let top = areas.iter().find(|(v, _)| *v == ViewId(0)).map(|(_, r)| r).unwrap();
+	let bottom = areas.iter().find(|(v, _)| *v == ViewId(1)).map(|(_, r)| r).unwrap();
+	assert!(top.height >= Layout::MIN_HEIGHT, "top pane must respect soft-min after extreme down drag");
+	assert!(bottom.height >= Layout::MIN_HEIGHT, "bottom pane must respect soft-min after extreme down drag");
+}
+
 /// Must bump overlay generation when an overlay layer is cleared.
 ///
 /// * Enforced in: `LayoutManager::remove_view`, `LayoutManager::set_layer`

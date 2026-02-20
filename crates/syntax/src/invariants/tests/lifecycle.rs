@@ -593,6 +593,156 @@ pub(crate) async fn test_syntax_version_monotonic_across_install_and_retention()
 	assert!(v3 > v2, "retention drop must bump version: {v3} > {v2}");
 }
 
+/// Must silently drop late completions for closed documents without reinstalling
+/// state, leaking permits, or polluting `docs_with_completed`.
+///
+/// * Enforced in: `SyntaxManager::drain_finished_inflight`, `SyntaxManager::forget_doc`
+/// * Failure symptom: Late completion resurrects doc state, leaks permit, or causes
+///   unbounded `docs_with_completed` growth.
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_close_doc_drops_late_completion() {
+	let engine = Arc::new(MockEngine::new());
+	let _guard = EngineGuard(engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 1,
+			..Default::default()
+		},
+		engine.clone(),
+	);
+	let mut policy = TieredSyntaxPolicy::test_default();
+	policy.s.debounce = Duration::ZERO;
+	mgr.set_policy(policy);
+
+	let doc_id = DocumentId(1);
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang = loader.language_for_name("rust").unwrap();
+	let content = Rope::from("test");
+
+	// Kick a background parse.
+	mgr.ensure_syntax(make_ctx(doc_id, 1, Some(lang), &content, SyntaxHotness::Visible, &loader));
+	assert!(mgr.has_pending(doc_id));
+
+	// Close the document while parse is in-flight.
+	mgr.on_document_close(doc_id);
+	assert!(!mgr.entries.contains_key(&doc_id), "entry must be removed on close");
+
+	// Let the parse complete.
+	engine.proceed();
+	wait_for_finish(&mgr).await;
+
+	// Drain: late completion must be silently dropped.
+	let any_drained = mgr.drain_finished_inflight();
+	assert!(!any_drained, "late completion for closed doc must not be enqueued");
+	assert!(!mgr.entries.contains_key(&doc_id), "entry must not be recreated");
+	assert_eq!(mgr.docs_with_completed().count(), 0, "no orphan completed entries");
+}
+
+/// Must release the global parse permit when a document is closed with an in-flight
+/// task, allowing other documents to spawn.
+///
+/// * Enforced in: RAII `OwnedSemaphorePermit` in `TaskCollector::spawn`
+/// * Failure symptom: Parsing silently stalls forever after closing a document mid-parse.
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_close_doc_returns_permit_allows_next_spawn() {
+	let engine = Arc::new(MockEngine::new());
+	let _guard = EngineGuard(engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 1,
+			viewport_reserve: 0,
+		},
+		engine.clone(),
+	);
+	let mut policy = TieredSyntaxPolicy::test_default();
+	policy.s.debounce = Duration::ZERO;
+	mgr.set_policy(policy);
+
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang = loader.language_for_name("rust").unwrap();
+	let content = Rope::from("test");
+
+	let doc_a = DocumentId(1);
+	let doc_b = DocumentId(2);
+
+	// Doc A consumes the only permit.
+	mgr.ensure_syntax(make_ctx(doc_a, 1, Some(lang), &content, SyntaxHotness::Visible, &loader));
+	assert!(mgr.has_pending(doc_a));
+
+	// Doc B cannot spawn (no permits).
+	let r = mgr.ensure_syntax(make_ctx(doc_b, 1, Some(lang), &content, SyntaxHotness::Visible, &loader));
+	assert_eq!(r.result, SyntaxPollResult::Pending, "B must not spawn while A holds the permit");
+
+	// Close doc A, let its task finish and release the permit.
+	mgr.on_document_close(doc_a);
+	engine.proceed();
+	wait_for_finish(&mgr).await;
+	mgr.drain_finished_inflight();
+
+	// Now doc B must be able to spawn.
+	let r2 = mgr.ensure_syntax(make_ctx(doc_b, 1, Some(lang), &content, SyntaxHotness::Visible, &loader));
+	assert_eq!(r2.result, SyntaxPollResult::Kicked, "B must spawn after A's permit is released");
+}
+
+/// Must ignore completions from a pre-switch language after a language change,
+/// preventing stale trees from being installed under the new language identity.
+///
+/// * Enforced in: `SyntaxManager::drain_finished_inflight` (epoch check),
+///   `SyntaxManager::ensure_syntax` (normalize → `reset_syntax` → `invalidate`)
+/// * Failure symptom: Old-language parse tree installed under new language, causing
+///   wrong highlights or cooldown pollution.
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_language_switch_ignores_old_results() {
+	let engine = Arc::new(MockEngine::new());
+	let _guard = EngineGuard(engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(
+		SyntaxManagerCfg {
+			max_concurrency: 2,
+			..Default::default()
+		},
+		engine.clone(),
+	);
+	let mut policy = TieredSyntaxPolicy::test_default();
+	policy.s.debounce = Duration::ZERO;
+	mgr.set_policy(policy);
+
+	let doc_id = DocumentId(1);
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let rust_lang = loader.language_for_name("rust").unwrap();
+	let content = Rope::from("test");
+
+	// Kick parse with Rust language.
+	mgr.ensure_syntax(make_ctx(doc_id, 1, Some(rust_lang), &content, SyntaxHotness::Visible, &loader));
+	assert!(mgr.has_pending(doc_id));
+	let epoch_before = mgr.entries.get(&doc_id).unwrap().sched.epoch;
+
+	// Switch language: poll with a different language triggers normalize → epoch bump.
+	let c_lang = loader.language_for_name("c").unwrap();
+	assert_ne!(rust_lang, c_lang);
+	mgr.ensure_syntax(make_ctx(doc_id, 1, Some(c_lang), &content, SyntaxHotness::Visible, &loader));
+	let epoch_after = mgr.entries.get(&doc_id).unwrap().sched.epoch;
+	assert_ne!(epoch_before, epoch_after, "language switch must bump epoch");
+
+	// Release old Rust parse (and new C parse if spawned).
+	engine.proceed_all();
+	sleep(Duration::from_millis(50)).await;
+	mgr.drain_finished_inflight();
+
+	// The old Rust result must have been discarded by epoch check (not enqueued).
+	// Only a same-epoch (C) completion should remain, if any.
+	for c in mgr.entries.get(&doc_id).iter().flat_map(|e| e.sched.completed.iter()) {
+		assert_eq!(c.lang_id, c_lang, "only new-language completions must survive epoch check");
+	}
+
+	// Install whatever survived.
+	mgr.ensure_syntax(make_ctx(doc_id, 1, Some(c_lang), &content, SyntaxHotness::Visible, &loader));
+
+	// If any tree installed, it must be for the new language.
+	if let Some(entry) = mgr.entries.get(&doc_id) {
+		assert_eq!(entry.slot.language_id, Some(c_lang), "installed tree must be for new language");
+	}
+}
+
 /// Must flush completed queue for cold docs with `parse_when_hidden = false`
 /// during `sweep_retention`, preventing unbounded memory accumulation.
 ///

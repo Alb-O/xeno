@@ -3,9 +3,9 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use lsp_types::{Diagnostic, TextDocumentContentChangeEvent, TextDocumentSaveReason, Uri};
+use lsp_types::{Diagnostic, TextDocumentContentChangeEvent, TextDocumentSaveReason, Uri, WorkspaceEdit};
 use ropey::Rope;
-use tokio::sync::oneshot;
+use tokio::sync::{mpsc, oneshot};
 use xeno_primitives::lsp::LspDocumentChange;
 
 use crate::Result;
@@ -162,6 +162,31 @@ impl LspEventHandler for DocumentSyncEventHandler {
 	}
 }
 
+/// Payload for a workspace/applyEdit request routed to the editor.
+pub struct ApplyEditRequest {
+	/// The workspace edit to apply.
+	pub edit: WorkspaceEdit,
+	/// Reply channel for the applied/not-applied result.
+	pub reply: oneshot::Sender<ApplyEditResult>,
+	/// Deadline after which the edit should not be applied (server will have timed out).
+	pub deadline: std::time::Instant,
+}
+
+/// Result of applying a workspace edit.
+#[derive(Debug)]
+pub struct ApplyEditResult {
+	/// Whether the edit was applied successfully.
+	pub applied: bool,
+	/// Human-readable failure reason (if not applied).
+	pub failure_reason: Option<String>,
+}
+
+/// Sender half of the workspace/applyEdit bridge channel.
+pub type ApplyEditSender = mpsc::UnboundedSender<ApplyEditRequest>;
+
+/// Receiver half of the workspace/applyEdit bridge channel.
+pub type ApplyEditReceiver = mpsc::UnboundedReceiver<ApplyEditRequest>;
+
 /// Document synchronization coordinator.
 #[derive(Clone)]
 pub struct DocumentSync {
@@ -171,6 +196,8 @@ pub struct DocumentSync {
 	documents: Arc<DocumentStateManager>,
 	/// Shared worker runtime for async helper tasks.
 	worker_runtime: xeno_worker::WorkerRuntime,
+	/// Optional sender for routing workspace/applyEdit requests to the editor.
+	apply_edit_tx: Option<ApplyEditSender>,
 }
 
 impl DocumentSync {
@@ -180,6 +207,7 @@ impl DocumentSync {
 			worker_runtime: registry.worker_runtime(),
 			registry,
 			documents,
+			apply_edit_tx: None,
 		}
 	}
 
@@ -196,6 +224,7 @@ impl DocumentSync {
 			registry: registry.clone(),
 			documents: documents.clone(),
 			worker_runtime,
+			apply_edit_tx: None,
 		};
 
 		(sync, registry, documents, event_receiver)
@@ -484,6 +513,16 @@ impl DocumentSync {
 	}
 
 	/// Get the registry.
+	/// Sets the apply-edit sender for routing workspace/applyEdit requests.
+	pub fn set_apply_edit_sender(&mut self, tx: ApplyEditSender) {
+		self.apply_edit_tx = Some(tx);
+	}
+
+	/// Returns a reference to the apply-edit sender, if configured.
+	pub fn apply_edit_sender(&self) -> Option<&ApplyEditSender> {
+		self.apply_edit_tx.as_ref()
+	}
+
 	pub fn registry(&self) -> &Registry {
 		&self.registry
 	}

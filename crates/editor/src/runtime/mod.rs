@@ -46,6 +46,11 @@
 //! * Pump phase mutations must cross explicit runtime facade traits rather than direct `EditorState` field reads.
 //! * Editor/runtime construction must not require an already-active Tokio runtime.
 //! * Cursor style must default to insert beam vs non-insert block when UI has no override.
+//! * Must assign distinct, ordered cause IDs to directives from separately drained events.
+//! * Must propagate cause ID from draining work to follow-up work enqueued during that drain.
+//! * Must no-op overlay commit when the overlay was cancelled before drain.
+//! * Must no-op overlay commit when the overlay was force-closed before drain.
+//! * Must commit only the first queued overlay commit; subsequent commits are no-ops.
 //!
 //! # Data flow
 //!

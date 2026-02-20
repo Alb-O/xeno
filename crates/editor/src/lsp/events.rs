@@ -35,6 +35,18 @@ impl Editor {
 		}
 	}
 
+	/// Drains pending workspace/applyEdit requests from the LSP server request handler.
+	///
+	/// Each request is enqueued in the runtime work queue with its reply channel
+	/// stored in a side map. The reply is sent after the edit is actually applied
+	/// (or fails) during the runtime drain phase, providing honest semantics to
+	/// the LSP server.
+	pub(crate) fn drain_lsp_apply_edits(&mut self) {
+		while let Some(request) = self.state.integration.lsp.try_recv_apply_edit() {
+			self.enqueue_runtime_workspace_edit_work(request.edit, Some((request.reply, request.deadline)));
+		}
+	}
+
 	/// Processes an LSP UI event (completion results, signature help).
 	///
 	/// For completion results, validates the response against the current editor state:

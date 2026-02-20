@@ -45,7 +45,7 @@ xeno-rpc.workspace = true
 xeno-worker.workspace = true
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["io-std", "io-util", "macros", "process", "rt", "time"] }
+tokio = { workspace = true, features = ["io-std", "io-util", "macros", "process", "rt", "test-util", "time"] }
 
 [lints]
 workspace = true

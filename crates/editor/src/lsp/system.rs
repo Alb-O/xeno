@@ -44,15 +44,18 @@ pub(super) struct RealLspSystem {
 	pub(super) signature_cancel: Option<tokio_util::sync::CancellationToken>,
 	pub(super) ui_tx: tokio::sync::mpsc::UnboundedSender<crate::lsp::LspUiEvent>,
 	pub(super) ui_rx: tokio::sync::mpsc::UnboundedReceiver<crate::lsp::LspUiEvent>,
+	pub(super) apply_edit_rx: xeno_lsp::sync::ApplyEditReceiver,
 }
 
 #[cfg(feature = "lsp")]
 impl LspSystem {
 	pub fn new(worker_runtime: WorkerRuntime) -> Self {
 		let (ui_tx, ui_rx) = tokio::sync::mpsc::unbounded_channel();
+		let (apply_edit_tx, apply_edit_rx) = tokio::sync::mpsc::unbounded_channel();
 
 		let transport = xeno_lsp::LocalTransport::new(worker_runtime.clone());
-		let (session, runtime) = LspSession::new(transport, worker_runtime.clone());
+		let (mut session, runtime) = LspSession::new(transport, worker_runtime.clone());
+		session.sync_mut().set_apply_edit_sender(apply_edit_tx);
 		if let Err(err) = runtime.start() {
 			tracing::error!(error = ?err, "failed to start LSP runtime");
 		}
@@ -67,6 +70,7 @@ impl LspSystem {
 				signature_cancel: None,
 				ui_tx,
 				ui_rx,
+				apply_edit_rx,
 			},
 		}
 	}
@@ -267,6 +271,10 @@ impl LspSystem {
 
 	pub(crate) fn try_recv_ui_event(&mut self) -> Option<crate::lsp::LspUiEvent> {
 		self.inner.ui_rx.try_recv().ok()
+	}
+
+	pub(crate) fn try_recv_apply_edit(&mut self) -> Option<xeno_lsp::sync::ApplyEditRequest> {
+		self.inner.apply_edit_rx.try_recv().ok()
 	}
 
 	pub(crate) fn canonicalize_path(&self, path: &std::path::Path) -> std::path::PathBuf {

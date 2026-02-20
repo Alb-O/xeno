@@ -49,6 +49,11 @@
 //! * Must apply `remove_view` focus suggestions deterministically.
 //! * Must enforce soft-min sizing and avoid zero-sized panes when space allows.
 //! * Must cancel active separator drag when layout changes or layers become stale.
+//! * Must cancel active separator drag when structural split/close changes the layout tree.
+//! * Must reject resize operations with a stale `SplitPath` without mutating layout.
+//! * Must keep active separator drags valid across non-structural resize updates.
+//! * Must clamp separator resize to soft-min bounds when space allows (horizontal and vertical).
+//! * Must produce non-overlapping, non-negative geometry even when area is smaller than soft-min total.
 //! * Must bump overlay generation when an overlay layer is cleared.
 //!
 //! # Data flow

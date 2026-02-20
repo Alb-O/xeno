@@ -40,6 +40,9 @@ pub struct DocumentState {
 	/// at creation time and validate it on completion so that stale barriers
 	/// from a previous open session are silently ignored.
 	generation: AtomicU64,
+	/// Monotonic sequence counter for LRU eviction of closed-document diagnostics.
+	/// Bumped on each `update_diagnostics` call by [`DocumentStateManager`].
+	diag_touch_seq: AtomicU64,
 }
 
 impl DocumentState {
@@ -56,6 +59,7 @@ impl DocumentState {
 			language_id: RwLock::new(None),
 			sync_state: RwLock::new(SyncState::default()),
 			generation: AtomicU64::new(0),
+			diag_touch_seq: AtomicU64::new(0),
 		})
 	}
 
@@ -69,6 +73,7 @@ impl DocumentState {
 			language_id: RwLock::new(None),
 			sync_state: RwLock::new(SyncState::default()),
 			generation: AtomicU64::new(0),
+			diag_touch_seq: AtomicU64::new(0),
 		}
 	}
 
@@ -116,6 +121,16 @@ impl DocumentState {
 	/// Returns the current session generation.
 	pub fn generation(&self) -> u64 {
 		self.generation.load(Ordering::Relaxed)
+	}
+
+	/// Returns the current diagnostics touch sequence.
+	pub fn diag_touch_seq(&self) -> u64 {
+		self.diag_touch_seq.load(Ordering::Relaxed)
+	}
+
+	/// Sets the diagnostics touch sequence.
+	pub fn set_diag_touch_seq(&self, seq: u64) {
+		self.diag_touch_seq.store(seq, Ordering::Relaxed);
 	}
 
 	/// Get the language ID.

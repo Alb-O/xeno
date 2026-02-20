@@ -33,6 +33,11 @@ pub struct DocumentStateManager {
 	/// the new value to the document, ensuring barriers from a previous
 	/// session are distinguishable even after close+reopen.
 	doc_generation: AtomicU64,
+	/// Monotonic counter for diagnostics touch ordering (LRU eviction).
+	diag_touch_counter: AtomicU64,
+	/// Maximum number of closed-document diagnostic entries retained.
+	/// Only entries with `opened == false` count toward this limit.
+	max_closed_diagnostic_entries: usize,
 	/// Active progress operations keyed by (server_id, token).
 	progress: RwLock<HashMap<(LanguageServerId, String), ProgressItem>>,
 }
@@ -69,6 +74,9 @@ impl DocumentStateManager {
 		self.normalize_uri(uri).to_string()
 	}
 
+	/// Default maximum number of closed-document diagnostic entries.
+	const DEFAULT_MAX_CLOSED_DIAGNOSTIC_ENTRIES: usize = 512;
+
 	/// Create a new empty manager.
 	pub fn new() -> Self {
 		Self {
@@ -76,6 +84,8 @@ impl DocumentStateManager {
 			event_sender: None,
 			diagnostics_version: AtomicU64::new(0),
 			doc_generation: AtomicU64::new(0),
+			diag_touch_counter: AtomicU64::new(0),
+			max_closed_diagnostic_entries: Self::DEFAULT_MAX_CLOSED_DIAGNOSTIC_ENTRIES,
 			progress: RwLock::new(HashMap::new()),
 		}
 	}
@@ -90,9 +100,17 @@ impl DocumentStateManager {
 			event_sender: Some(sender),
 			diagnostics_version: AtomicU64::new(0),
 			doc_generation: AtomicU64::new(0),
+			diag_touch_counter: AtomicU64::new(0),
+			max_closed_diagnostic_entries: Self::DEFAULT_MAX_CLOSED_DIAGNOSTIC_ENTRIES,
 			progress: RwLock::new(HashMap::new()),
 		};
 		(manager, receiver)
+	}
+
+	/// Sets the maximum number of closed-document diagnostic entries.
+	#[cfg(test)]
+	pub fn set_max_closed_diagnostic_entries(&mut self, max: usize) {
+		self.max_closed_diagnostic_entries = max;
 	}
 
 	/// Get the current diagnostics version.
@@ -138,33 +156,85 @@ impl DocumentStateManager {
 		self.documents.write().remove(&key);
 	}
 
+	/// Bumps and returns the next diagnostics touch sequence.
+	fn next_diag_touch_seq(&self) -> u64 {
+		self.diag_touch_counter.fetch_add(1, Ordering::Relaxed) + 1
+	}
+
+	/// Evicts the least-recently-touched closed-document entry if over the cap.
+	///
+	/// Only entries with `opened == false` count toward the limit.
+	/// Never evicts entries with `opened == true`.
+	fn evict_closed_entries_if_needed(docs: &mut HashMap<String, DocumentState>, max: usize) {
+		let closed_count = docs.values().filter(|s| !s.is_opened()).count();
+		if closed_count <= max {
+			return;
+		}
+		let evict_count = closed_count - max;
+		for _ in 0..evict_count {
+			let lru_key = docs
+				.iter()
+				.filter(|(_, s)| !s.is_opened())
+				.min_by_key(|(_, s)| s.diag_touch_seq())
+				.map(|(k, _)| k.clone());
+			if let Some(key) = lru_key {
+				docs.remove(&key);
+			}
+		}
+	}
+
 	/// Updates diagnostics for a document.
 	///
 	/// Creates document state on-demand if the document isn't registered,
 	/// enabling project-wide diagnostics from LSP servers.
+	///
+	/// For closed documents (`opened == false`):
+	/// * Empty diagnostics remove the entry entirely (no tombstones).
+	/// * Non-empty diagnostics are retained up to `max_closed_diagnostic_entries`,
+	///   evicting the least-recently-touched closed entry when over the cap.
 	pub fn update_diagnostics(&self, uri: &Uri, diagnostics: Vec<Diagnostic>, version: Option<i32>) {
 		let error_count = diagnostics.iter().filter(|d| d.severity == Some(DiagnosticSeverity::ERROR)).count();
 		let warning_count = diagnostics.iter().filter(|d| d.severity == Some(DiagnosticSeverity::WARNING)).count();
+		let touch_seq = self.next_diag_touch_seq();
 
 		let uri_key = self.uri_key(uri);
 
-		// Try read lock first for the common case
+		// Try read lock first for the common case (opened documents)
 		{
 			let docs = self.documents.read();
 			if let Some(state) = docs.get(&uri_key) {
-				state.set_diagnostics(diagnostics);
-				if let Some(version) = version {
-					state.record_diagnostics_version(version);
+				if state.is_opened() {
+					state.set_diagnostics(diagnostics);
+					state.set_diag_touch_seq(touch_seq);
+					if let Some(version) = version {
+						state.record_diagnostics_version(version);
+					}
+					self.diagnostics_version.fetch_add(1, Ordering::Relaxed);
+					self.send_diagnostics_event(uri, error_count, warning_count);
+					return;
 				}
-				self.diagnostics_version.fetch_add(1, Ordering::Relaxed);
-				self.send_diagnostics_event(uri, error_count, warning_count);
-				return;
 			}
 		}
 
-		// Document not registered - create on demand
+		// Closed or unregistered document — needs write lock for eviction/removal
 		{
 			let mut docs = self.documents.write();
+
+			// Empty diagnostics for an on-demand closed entry: remove entirely.
+			// Only remove if the entry was never version-tracked (version == 0),
+			// indicating it was created on-demand for project-wide diagnostics
+			// rather than through explicit `register`.
+			if diagnostics.is_empty() {
+				if let Some(state) = docs.get(&uri_key) {
+					if !state.is_opened() && state.version() == 0 {
+						docs.remove(&uri_key);
+						self.diagnostics_version.fetch_add(1, Ordering::Relaxed);
+						self.send_diagnostics_event(uri, 0, 0);
+						return;
+					}
+				}
+			}
+
 			let state = if let Some(state) = docs.get(&uri_key) {
 				state
 			} else {
@@ -174,9 +244,12 @@ impl DocumentStateManager {
 			};
 
 			state.set_diagnostics(diagnostics);
+			state.set_diag_touch_seq(touch_seq);
 			if let Some(version) = version {
 				state.record_diagnostics_version(version);
 			}
+
+			Self::evict_closed_entries_if_needed(&mut docs, self.max_closed_diagnostic_entries);
 		}
 
 		self.diagnostics_version.fetch_add(1, Ordering::Relaxed);

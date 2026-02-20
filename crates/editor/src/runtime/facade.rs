@@ -30,8 +30,6 @@ pub(crate) trait RuntimeSchedulerPort {
 pub(crate) trait RuntimeOverlayPort {
 	async fn drain_runtime_work(&mut self, max: usize) -> RuntimeWorkDrainReport;
 	async fn apply_overlay_commit(&mut self);
-	#[cfg(feature = "lsp")]
-	async fn apply_workspace_edit_or_notify(&mut self, edit: xeno_lsp::lsp_types::WorkspaceEdit);
 }
 
 /// Runtime invocation mutation boundary.
@@ -135,14 +133,6 @@ impl RuntimeOverlayPort for RuntimePorts<'_> {
 
 	async fn apply_overlay_commit(&mut self) {
 		self.editor.interaction_commit().await;
-	}
-
-	#[cfg(feature = "lsp")]
-	async fn apply_workspace_edit_or_notify(&mut self, edit: xeno_lsp::lsp_types::WorkspaceEdit) {
-		if let Err(err) = self.editor.apply_workspace_edit(edit).await {
-			self.editor.notify(xeno_registry::notifications::keys::error(err.to_string()));
-		}
-		self.editor.frame_mut().needs_redraw = true;
 	}
 }
 

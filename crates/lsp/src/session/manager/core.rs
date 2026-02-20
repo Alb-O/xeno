@@ -230,6 +230,11 @@ impl LspSession {
 		&self.sync
 	}
 
+	/// Get a mutable reference to the document sync coordinator.
+	pub fn sync_mut(&mut self) -> &mut DocumentSync {
+		&mut self.sync
+	}
+
 	/// Get the server registry.
 	pub fn registry(&self) -> &Registry {
 		self.sync.registry()
