@@ -112,7 +112,7 @@
 //! * Drag: stale detection must happen before applying any resize update.
 //!
 //! `layout_revision`: must increment on structural changes (split creation, view removal, layer clear).
-//! * Enforced in: `increment_revision` calls in `splits.rs` (split apply) and `separators.rs` (resize structural changes).
+//! * Enforced in: `increment_revision` calls in `splits.rs` (split apply) and `layers.rs` (overlay slot lifecycle changes).
 //!
 //! # Failure modes & recovery
 //!

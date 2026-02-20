@@ -104,14 +104,13 @@ impl LayoutManager {
 	/// Resizes the separator identified by the given ID based on mouse position.
 	///
 	/// This method validates the identifier before resizing. If the ID is stale,
-	/// the operation is ignored. Increments the layout revision on success.
+	/// the operation is ignored.
 	pub fn resize_separator(&mut self, base_layout: &mut Layout, area: Rect, id: &SeparatorId, mouse_x: u16, mouse_y: u16) {
 		match id {
 			SeparatorId::Split { path, layer } => {
 				let layer_area = self.layer_area(*layer, area);
 				if let Ok(layout) = self.layer_mut(base_layout, *layer) {
 					layout.resize_at_path(layer_area, path, mouse_x, mouse_y);
-					self.increment_revision();
 				}
 			}
 		}

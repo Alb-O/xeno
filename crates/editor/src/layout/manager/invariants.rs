@@ -1,4 +1,4 @@
-use crate::buffer::{Layout, SplitPath, ViewId};
+use crate::buffer::{Layout, SplitDirection, SplitPath, ViewId};
 use crate::geometry::Rect;
 use crate::layout::manager::LayoutManager;
 use crate::layout::types::{LayerError, LayerId};
@@ -142,6 +142,43 @@ pub(crate) fn test_drag_cancels_on_layer_generation_change() {
 	assert!(mgr.is_drag_stale());
 	assert!(mgr.cancel_if_stale());
 	assert!(mgr.dragging_separator.is_none());
+}
+
+/// Must keep active separator drags valid across non-structural resize updates.
+///
+/// * Enforced in: `LayoutManager::resize_separator`, `LayoutManager::cancel_if_stale`
+/// * Failure symptom: separator drag cancels after first resize tick and stops moving.
+#[cfg_attr(test, test)]
+pub(crate) fn test_separator_resize_does_not_invalidate_drag_revision() {
+	let mut mgr = LayoutManager::new();
+	let area = doc_area();
+	let mut base_layout = Layout::side_by_side(Layout::text(ViewId(0)), Layout::text(ViewId(1)), area);
+
+	let (_, _, rect) = mgr
+		.separator_positions(&base_layout, area)
+		.into_iter()
+		.next()
+		.expect("split layout should expose one separator");
+	let hit = mgr
+		.separator_hit_at_position(&base_layout, area, rect.x, rect.y)
+		.expect("separator hit should resolve from separator rect");
+
+	mgr.start_drag(&hit);
+	let revision_before = mgr.layout_revision();
+
+	let (mouse_x, mouse_y) = match hit.direction {
+		SplitDirection::Vertical => (rect.x.saturating_add(3), rect.y),
+		SplitDirection::Horizontal => (rect.x, rect.y.saturating_add(3)),
+	};
+	mgr.resize_separator(&mut base_layout, area, &hit.id, mouse_x, mouse_y);
+
+	assert_eq!(
+		mgr.layout_revision(),
+		revision_before,
+		"separator resize should not bump structural layout revision"
+	);
+	assert!(!mgr.cancel_if_stale(), "drag should remain active after non-structural resize update");
+	assert!(mgr.drag_state().is_some());
 }
 
 /// Must bump overlay generation when an overlay layer is cleared.
