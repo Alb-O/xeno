@@ -1,11 +1,12 @@
 //! Shared actor command ingress helpers.
 //!
 //! This avoids per-subsystem reimplementation of:
-//! * `mpsc` command queue setup
+//! * bounded `mpsc` command queue setup
 //! * forwarding task lifecycle
 //! * coordinated shutdown with actor teardown
 
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use tokio::sync::{Mutex, Notify, mpsc};
 use tokio::task::JoinHandle;
@@ -16,12 +17,16 @@ use super::spec::{ActorShutdownMode, ActorShutdownReport};
 use crate::TaskClass;
 use crate::runtime::WorkerRuntime;
 
+/// Default ingress staging queue capacity.
+const DEFAULT_INGRESS_CAPACITY: usize = 1024;
+
 /// Cloneable actor command enqueue port.
 pub struct ActorCommandPort<Cmd>
 where
 	Cmd: Send + 'static,
 {
-	tx: mpsc::UnboundedSender<Cmd>,
+	tx: mpsc::Sender<Cmd>,
+	drops: Arc<AtomicU64>,
 }
 
 impl<Cmd> Clone for ActorCommandPort<Cmd>
@@ -29,7 +34,10 @@ where
 	Cmd: Send + 'static,
 {
 	fn clone(&self) -> Self {
-		Self { tx: self.tx.clone() }
+		Self {
+			tx: self.tx.clone(),
+			drops: Arc::clone(&self.drops),
+		}
 	}
 }
 
@@ -37,9 +45,21 @@ impl<Cmd> ActorCommandPort<Cmd>
 where
 	Cmd: Send + 'static,
 {
-	/// Enqueues one command for the actor ingress queue.
-	pub fn send(&self, cmd: Cmd) -> Result<(), mpsc::error::SendError<Cmd>> {
-		self.tx.send(cmd)
+	/// Non-blocking enqueue. Returns `Err` if queue is full or closed.
+	pub fn send(&self, cmd: Cmd) -> Result<(), mpsc::error::TrySendError<Cmd>> {
+		let result = self.tx.try_send(cmd);
+		if let Err(mpsc::error::TrySendError::Full(_)) = &result {
+			let count = self.drops.fetch_add(1, Ordering::Relaxed);
+			if count % 1024 == 0 {
+				tracing::warn!(drops = count + 1, "actor ingress queue full, dropping command");
+			}
+		}
+		result
+	}
+
+	/// Async enqueue. Waits for capacity if full.
+	pub async fn send_async(&self, cmd: Cmd) -> Result<(), mpsc::error::SendError<Cmd>> {
+		self.tx.send(cmd).await
 	}
 }
 
@@ -93,6 +113,10 @@ impl JoinCtrl {
 }
 
 /// Actor command ingress queue backed by a framework-owned forwarding task.
+///
+/// Commands are staged in a bounded channel and forwarded to the actor's
+/// mailbox by a dedicated task. The bounded channel prevents unbounded memory
+/// growth under load.
 pub struct ActorCommandIngress<Cmd, Evt>
 where
 	Cmd: Send + 'static,
@@ -109,9 +133,15 @@ where
 	Cmd: Send + 'static,
 	Evt: Clone + Send + 'static,
 {
-	/// Creates one ingress queue and starts a forwarding task.
+	/// Creates one ingress queue with default capacity and starts a forwarding task.
 	pub fn new(runtime: &WorkerRuntime, class: TaskClass, actor: Arc<ActorHandle<Cmd, Evt>>) -> Self {
-		let (tx, mut rx) = mpsc::unbounded_channel::<Cmd>();
+		Self::with_capacity(runtime, class, actor, DEFAULT_INGRESS_CAPACITY)
+	}
+
+	/// Creates one ingress queue with explicit capacity and starts a forwarding task.
+	pub fn with_capacity(runtime: &WorkerRuntime, class: TaskClass, actor: Arc<ActorHandle<Cmd, Evt>>, capacity: usize) -> Self {
+		let (tx, mut rx) = mpsc::channel::<Cmd>(capacity);
+		let drops = Arc::new(AtomicU64::new(0));
 		let cancel = CancellationToken::new();
 		let task_cancel = cancel.clone();
 		let task_actor = Arc::clone(&actor);
@@ -139,15 +169,15 @@ where
 		});
 
 		Self {
-			port: ActorCommandPort { tx },
+			port: ActorCommandPort { tx, drops },
 			cancel,
 			actor,
 			join_ctrl: Arc::new(JoinCtrl::new(task)),
 		}
 	}
 
-	/// Enqueues one command for forwarding to the actor.
-	pub fn send(&self, cmd: Cmd) -> Result<(), mpsc::error::SendError<Cmd>> {
+	/// Non-blocking enqueue. Returns `Err` if queue is full or closed.
+	pub fn send(&self, cmd: Cmd) -> Result<(), mpsc::error::TrySendError<Cmd>> {
 		self.port.send(cmd)
 	}
 
@@ -219,6 +249,41 @@ mod tests {
 
 		assert_eq!(events.recv().await.ok(), Some(7));
 		assert_eq!(events.recv().await.ok(), Some(9));
+
+		let report = ingress
+			.shutdown(ActorShutdownMode::Graceful {
+				timeout: Duration::from_secs(1),
+			})
+			.await;
+		assert!(report.completed);
+	}
+
+	#[tokio::test]
+	async fn ingress_returns_full_when_capacity_exhausted() {
+		let runtime = WorkerRuntime::new();
+		let actor = Arc::new(ActorRuntime::spawn(
+			ActorSpec::new("dispatch.full", crate::TaskClass::Background, || EchoActor).supervisor(ActorLifecyclePolicy {
+				restart: ActorRestartPolicy::Never,
+				event_buffer: 8,
+			}),
+		));
+		// Tiny capacity to force fullness.
+		let ingress = ActorCommandIngress::with_capacity(&runtime, crate::TaskClass::Background, Arc::clone(&actor), 2);
+
+		// Yield so forwarder task can start, but then flood faster than it can forward.
+		tokio::task::yield_now().await;
+
+		// Fill the staging queue. The forwarder may consume some, so send enough to guarantee
+		// at least one Full.
+		let mut saw_full = false;
+		for i in 0..100 {
+			if let Err(mpsc::error::TrySendError::Full(_)) = ingress.send(i) {
+				saw_full = true;
+				break;
+			}
+		}
+
+		assert!(saw_full, "should eventually get Full on a capacity-2 queue");
 
 		let report = ingress
 			.shutdown(ActorShutdownMode::Graceful {

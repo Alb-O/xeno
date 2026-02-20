@@ -666,7 +666,7 @@ impl LspSyncManager {
 				}),
 			),
 		);
-		let ingress = xeno_worker::ActorCommandIngress::new(&worker_runtime, xeno_worker::TaskClass::Background, Arc::clone(&actor));
+		let ingress = xeno_worker::ActorCommandIngress::with_capacity(&worker_runtime, xeno_worker::TaskClass::Background, Arc::clone(&actor), 4096);
 		let _ = command_port.set(ingress.port());
 
 		Self { shared, ingress }
