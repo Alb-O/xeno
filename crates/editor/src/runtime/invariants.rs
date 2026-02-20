@@ -9,9 +9,9 @@ use xeno_registry::hooks::HookPriority;
 use super::{CursorStyle, RuntimeEvent};
 use crate::Editor;
 use crate::commands::{CommandError, CommandOutcome, EditorCommandContext};
-use crate::runtime::DrainPolicy;
 use crate::runtime::pump::PumpPhase;
-use crate::runtime::work_queue::{RuntimeWorkSource, WorkExecutionPolicy, WorkScope};
+use crate::runtime::work_queue::{RuntimeWorkKind, RuntimeWorkSource, WorkExecutionPolicy, WorkScope};
+use crate::runtime::{DrainPolicy, RuntimeDrainExitReason};
 use crate::scheduler::{WorkItem, WorkKind};
 use crate::types::Invocation;
 
@@ -33,6 +33,7 @@ fn placeholder_directive() -> crate::runtime::LoopDirectiveV2 {
 		cursor_style: CursorStyle::Block,
 		should_quit: false,
 		cause_seq: None,
+		cause_id: None,
 		drained_runtime_work: 0,
 		pending_events: 0,
 	}
@@ -142,7 +143,43 @@ async fn test_drain_until_idle_preserves_cause_sequence() {
 
 	let directive = editor.poll_directive().expect("directive should be queued");
 	assert_eq!(directive.cause_seq, Some(token.0));
+	assert!(directive.cause_id.is_some());
 	assert_eq!(directive.pending_events, 0);
+}
+
+/// Must propagate runtime cause IDs from drained events to both emitted directives
+/// and deferred runtime work spawned by the same event.
+///
+/// * Enforced in: `Editor::drain_until_idle`, `Editor::enqueue_runtime_overlay_commit_work`
+/// * Failure symptom: deferred work cannot be attributed to its triggering event.
+#[tokio::test]
+async fn test_cause_id_propagates_event_to_runtime_work_and_directive() {
+	let mut editor = Editor::new_scratch();
+	editor.handle_window_resize(100, 40);
+	assert!(editor.open_command_palette());
+
+	for idx in 0..96 {
+		editor.enqueue_runtime_command_invocation(
+			"runtime_invariant_record_command".to_string(),
+			vec![format!("pre-{idx}")],
+			RuntimeWorkSource::ActionEffect,
+		);
+	}
+
+	let token = editor.submit_event(RuntimeEvent::Key(Key::new(KeyCode::Enter)));
+	let report = editor.drain_until_idle(DrainPolicy::for_on_event()).await;
+	assert_eq!(report.handled_frontend_events, 1);
+
+	let directive = editor.poll_directive().expect("directive should be queued");
+	assert_eq!(directive.cause_seq, Some(token.0));
+	let cause_id = directive.cause_id.expect("directive must carry a cause id");
+
+	let remaining_overlay_work = editor
+		.runtime_work_snapshot()
+		.into_iter()
+		.find(|item| matches!(item.kind, RuntimeWorkKind::OverlayCommit))
+		.expect("overlay commit should remain queued after round cap");
+	assert_eq!(remaining_overlay_work.cause_id, Some(cause_id));
 }
 
 /// Must execute one maintenance cycle after one submitted event under on-event policy.
@@ -336,6 +373,38 @@ async fn test_runtime_work_queue_preserves_fifo_across_sources() {
 	assert_eq!(recorded, vec!["one".to_string(), "two".to_string(), "three".to_string()]);
 }
 
+/// Must make bounded fairness progress across mixed runtime work kinds without starvation.
+///
+/// * Enforced in: `runtime::pump::run_pump_cycle_with_report`, `runtime::work_drain::Editor::drain_runtime_work_report`
+/// * Failure symptom: one kind drains while another kind remains indefinitely queued.
+#[tokio::test]
+async fn test_runtime_work_kind_fairness_under_mixed_backlog() {
+	RUNTIME_INVARIANT_RECORDS.with(|records| records.borrow_mut().clear());
+
+	let mut editor = Editor::new_scratch();
+	editor.handle_window_resize(100, 40);
+	assert!(editor.open_command_palette());
+
+	for idx in 0..48 {
+		editor.enqueue_runtime_command_invocation(
+			"runtime_invariant_record_command".to_string(),
+			vec![format!("mixed-{idx}")],
+			RuntimeWorkSource::Overlay,
+		);
+		editor.enqueue_runtime_overlay_commit_work();
+	}
+
+	let report = editor.drain_until_idle(DrainPolicy::for_pump()).await;
+	assert!(
+		report.runtime_stats.drained_work_by_kind.invocation > 0,
+		"invocation work should make bounded progress under mixed backlog"
+	);
+	assert!(
+		report.runtime_stats.drained_work_by_kind.overlay_commit > 0,
+		"overlay commit work should make bounded progress under mixed backlog"
+	);
+}
+
 /// Must bound runtime work drain count per round to preserve latency.
 ///
 /// * Enforced in: `runtime::pump::phases::phase_drain_runtime_work`
@@ -359,6 +428,70 @@ async fn test_runtime_work_drain_is_bounded_per_round() {
 	assert_eq!(report.rounds[0].work.drained_runtime_work, 32);
 	assert_eq!(editor.runtime_work_len(), 4);
 	assert!(report.reached_round_cap);
+}
+
+/// Must report queue depth and oldest-age snapshots from a consistent queue view.
+///
+/// * Enforced in: `Editor::drain_until_idle`
+/// * Failure symptom: observability reports impossible states (e.g., non-empty depth with no age).
+#[tokio::test]
+async fn test_runtime_reports_oldest_age_and_depth_consistently() {
+	let mut editor = Editor::new_scratch();
+	for idx in 0..100 {
+		editor.enqueue_runtime_command_invocation(
+			"runtime_invariant_record_command".to_string(),
+			vec![format!("age-{idx}")],
+			RuntimeWorkSource::ActionEffect,
+		);
+	}
+
+	let report = editor.drain_until_idle(DrainPolicy::for_pump()).await;
+	assert_eq!(report.runtime_stats.final_work_queue_depth, editor.runtime_work_len());
+	assert!(
+		!report.runtime_stats.phase_queue_depths.is_empty(),
+		"drain stats should include per-phase queue depth snapshots"
+	);
+	if report.runtime_stats.final_work_queue_depth > 0 {
+		assert!(
+			report.runtime_stats.oldest_work_age_ms.invocation_ms.is_some(),
+			"oldest age should be present when invocation work remains queued"
+		);
+	}
+}
+
+/// Must mark budget-cap exits while preserving event causality on emitted directives.
+///
+/// * Enforced in: `Editor::drain_until_idle`
+/// * Failure symptom: frontends lose event attribution when budget-limited drains stop early.
+#[tokio::test]
+async fn test_budget_cap_sets_exit_reason_without_losing_causality() {
+	let mut editor = Editor::new_scratch();
+	let first = editor.submit_event(RuntimeEvent::Key(Key::char('i')));
+	let _second = editor.submit_event(RuntimeEvent::Key(Key::new(KeyCode::Esc)));
+
+	let report = editor
+		.drain_until_idle(DrainPolicy {
+			max_frontend_events: 1,
+			max_events_per_source: 1,
+			max_directives: 1,
+			run_idle_maintenance: false,
+		})
+		.await;
+
+	assert!(report.reached_budget_cap);
+	assert!(
+		report
+			.runtime_stats
+			.round_exit_reasons
+			.iter()
+			.any(|reason| *reason == RuntimeDrainExitReason::BudgetCap),
+		"budget-capped drain should include explicit budget-cap exit reason"
+	);
+
+	let directive = editor.poll_directive().expect("directive should be queued");
+	assert_eq!(directive.cause_seq, Some(first.0));
+	assert!(directive.cause_id.is_some());
+	assert!(directive.pending_events > 0);
 }
 
 /// Must clear only the targeted Nu stop-scope generation from queued runtime work.

@@ -5,6 +5,9 @@
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use crate::runtime::RuntimeDrainExitReason;
+use crate::runtime::work_queue::{RuntimeWorkKindOldestAgesMs, RuntimeWorkKindTag, RuntimeWorkSource};
+
 /// Runtime metrics for hooks and LSP sync.
 ///
 /// All counters use relaxed ordering for performance - exact counts aren't
@@ -37,6 +40,26 @@ pub struct EditorMetrics {
 	pub lsp_incremental_sync_tick: AtomicU64,
 	/// Snapshot bytes scheduled in the last tick.
 	pub lsp_snapshot_bytes_tick: AtomicU64,
+	/// Latest runtime event queue depth.
+	pub runtime_event_queue_depth: AtomicU64,
+	/// Latest runtime work queue depth.
+	pub runtime_work_queue_depth: AtomicU64,
+	/// Latest observed oldest runtime work age.
+	pub runtime_work_oldest_age_ms: AtomicU64,
+	/// Total runtime drain rounds executed.
+	pub runtime_drain_rounds_executed: AtomicU64,
+	/// Total runtime drain exits due to idle.
+	pub runtime_drain_exit_idle_total: AtomicU64,
+	/// Total runtime drain exits due to round cap.
+	pub runtime_drain_exit_round_cap_total: AtomicU64,
+	/// Total runtime drain exits due to quit.
+	pub runtime_drain_exit_quit_total: AtomicU64,
+	/// Total runtime drain exits due to budget cap.
+	pub runtime_drain_exit_budget_cap_total: AtomicU64,
+	/// Total runtime work items drained.
+	pub runtime_work_drained_total: AtomicU64,
+	/// Latest observed event-to-directive latency.
+	pub runtime_event_to_directive_latency_ms: AtomicU64,
 }
 
 impl EditorMetrics {
@@ -143,6 +166,97 @@ impl EditorMetrics {
 	/// Returns the last tick snapshot byte count.
 	pub fn snapshot_bytes_tick_count(&self) -> u64 {
 		self.lsp_snapshot_bytes_tick.load(Ordering::Relaxed)
+	}
+
+	/// Records `runtime_event_queue_depth`.
+	pub fn record_runtime_event_queue_depth(&self, depth: u64) {
+		self.runtime_event_queue_depth.store(depth, Ordering::Relaxed);
+		tracing::trace!(metric = "runtime_event_queue_depth", value = depth, "metric.runtime");
+	}
+
+	/// Records `runtime_work_queue_depth`.
+	pub fn record_runtime_work_queue_depth(&self, depth: u64) {
+		self.runtime_work_queue_depth.store(depth, Ordering::Relaxed);
+		tracing::trace!(metric = "runtime_work_queue_depth", value = depth, "metric.runtime");
+	}
+
+	/// Records `runtime_work_oldest_age_ms` per kind and as a top-level gauge.
+	pub fn record_runtime_work_oldest_age_ms_by_kind(&self, ages: RuntimeWorkKindOldestAgesMs) {
+		let mut max_age = 0u64;
+
+		if let Some(age_ms) = ages.invocation_ms {
+			max_age = max_age.max(age_ms);
+			tracing::trace!(metric = "runtime_work_oldest_age_ms", kind = "invocation", value = age_ms, "metric.runtime");
+		}
+		if let Some(age_ms) = ages.overlay_commit_ms {
+			max_age = max_age.max(age_ms);
+			tracing::trace!(metric = "runtime_work_oldest_age_ms", kind = "overlay_commit", value = age_ms, "metric.runtime");
+		}
+		#[cfg(feature = "lsp")]
+		if let Some(age_ms) = ages.workspace_edit_ms {
+			max_age = max_age.max(age_ms);
+			tracing::trace!(metric = "runtime_work_oldest_age_ms", kind = "workspace_edit", value = age_ms, "metric.runtime");
+		}
+
+		self.runtime_work_oldest_age_ms.store(max_age, Ordering::Relaxed);
+	}
+
+	/// Records `runtime_drain_rounds_executed`.
+	pub fn record_runtime_drain_rounds_executed(&self, rounds: u64) {
+		self.runtime_drain_rounds_executed.fetch_add(rounds, Ordering::Relaxed);
+		tracing::trace!(metric = "runtime_drain_rounds_executed", value = rounds, "metric.runtime");
+	}
+
+	/// Records `runtime_drain_exit_reason_total`.
+	pub fn record_runtime_drain_exit_reason(&self, reason: RuntimeDrainExitReason) {
+		match reason {
+			RuntimeDrainExitReason::Idle => {
+				self.runtime_drain_exit_idle_total.fetch_add(1, Ordering::Relaxed);
+			}
+			RuntimeDrainExitReason::RoundCap => {
+				self.runtime_drain_exit_round_cap_total.fetch_add(1, Ordering::Relaxed);
+			}
+			RuntimeDrainExitReason::Quit => {
+				self.runtime_drain_exit_quit_total.fetch_add(1, Ordering::Relaxed);
+			}
+			RuntimeDrainExitReason::BudgetCap => {
+				self.runtime_drain_exit_budget_cap_total.fetch_add(1, Ordering::Relaxed);
+			}
+		}
+		tracing::trace!(metric = "runtime_drain_exit_reason_total", ?reason, value = 1u64, "metric.runtime");
+	}
+
+	/// Records `runtime_work_drained_total{kind,source}`.
+	pub fn record_runtime_work_drained_total(&self, kind: RuntimeWorkKindTag, source: Option<RuntimeWorkSource>) {
+		self.runtime_work_drained_total.fetch_add(1, Ordering::Relaxed);
+
+		let source_label = source.map_or("internal", |src| match src {
+			RuntimeWorkSource::ActionEffect => "action_effect",
+			RuntimeWorkSource::Overlay => "overlay",
+			RuntimeWorkSource::CommandOps => "command_ops",
+			RuntimeWorkSource::NuHookDispatch => "nu_hook_dispatch",
+			RuntimeWorkSource::NuScheduledMacro => "nu_scheduled_macro",
+		});
+		let kind_label = match kind {
+			RuntimeWorkKindTag::Invocation => "invocation",
+			RuntimeWorkKindTag::OverlayCommit => "overlay_commit",
+			#[cfg(feature = "lsp")]
+			RuntimeWorkKindTag::WorkspaceEdit => "workspace_edit",
+		};
+
+		tracing::trace!(
+			metric = "runtime_work_drained_total",
+			kind = kind_label,
+			source = source_label,
+			value = 1u64,
+			"metric.runtime"
+		);
+	}
+
+	/// Records `runtime_event_to_directive_latency_ms`.
+	pub fn record_runtime_event_to_directive_latency_ms(&self, latency_ms: u64) {
+		self.runtime_event_to_directive_latency_ms.store(latency_ms, Ordering::Relaxed);
+		tracing::trace!(metric = "runtime_event_to_directive_latency_ms", value = latency_ms, "metric.runtime");
 	}
 }
 

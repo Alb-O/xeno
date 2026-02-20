@@ -79,6 +79,7 @@ use crate::lsp::LspSystem;
 use crate::msg::{MsgReceiver, MsgSender};
 use crate::overlay::{OverlayStore, OverlaySystem};
 use crate::paste::normalize_to_lf;
+use crate::runtime::RuntimeCauseId;
 use crate::runtime::kernel::RuntimeKernel;
 use crate::runtime::work_queue::RuntimeWorkQueue;
 use crate::scheduler::WorkScheduler;
@@ -187,6 +188,8 @@ pub(crate) struct EditorState {
 	runtime_work_queue: RuntimeWorkQueue,
 	/// Runtime event coordinator queues and directive buffer.
 	runtime_kernel: RuntimeKernel,
+	/// Active runtime cause propagated while draining one causal chain.
+	runtime_active_cause_id: Option<RuntimeCauseId>,
 	/// Shared worker runtime root for editor-owned async/background tasks.
 	pub(crate) worker_runtime: WorkerRuntime,
 
@@ -301,6 +304,16 @@ impl EditorState {
 	#[inline]
 	pub(crate) fn runtime_kernel_mut(&mut self) -> &mut RuntimeKernel {
 		&mut self.runtime_kernel
+	}
+
+	#[inline]
+	pub(crate) fn runtime_active_cause_id(&self) -> Option<RuntimeCauseId> {
+		self.runtime_active_cause_id
+	}
+
+	#[inline]
+	pub(crate) fn set_runtime_active_cause_id(&mut self, cause_id: Option<RuntimeCauseId>) {
+		self.runtime_active_cause_id = cause_id;
 	}
 }
 
@@ -441,6 +454,7 @@ impl Editor {
 				frame: FrameState::default(),
 				runtime_work_queue: RuntimeWorkQueue::default(),
 				runtime_kernel: RuntimeKernel::default(),
+				runtime_active_cause_id: None,
 				worker_runtime: worker_runtime.clone(),
 				config: Config::new(language_loader),
 				key_overrides: None,

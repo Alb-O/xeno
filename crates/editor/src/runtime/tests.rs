@@ -29,6 +29,7 @@ impl RuntimeDirectiveFallback for Option<LoopDirectiveV2> {
 			cursor_style: CursorStyle::Block,
 			should_quit: false,
 			cause_seq: None,
+			cause_id: None,
 			drained_runtime_work: 0,
 			pending_events: 0,
 		})

@@ -5,8 +5,10 @@
 //! Invocation payloads are executed directly through `run_invocation` during drain.
 
 use std::collections::VecDeque;
+use std::time::Instant;
 
 use crate::Editor;
+use crate::runtime::protocol::RuntimeCauseId;
 use crate::types::{Invocation, InvocationPolicy};
 
 /// Deferred invocation origin used for policy and diagnostics decisions.
@@ -71,12 +73,96 @@ pub enum RuntimeWorkKind {
 	WorkspaceEdit(xeno_lsp::lsp_types::WorkspaceEdit),
 }
 
+/// Non-payload runtime work kind tag used for bounded-cardinality metrics.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum RuntimeWorkKindTag {
+	Invocation,
+	OverlayCommit,
+	#[cfg(feature = "lsp")]
+	WorkspaceEdit,
+}
+
+impl RuntimeWorkKind {
+	pub const fn kind_tag(&self) -> RuntimeWorkKindTag {
+		match self {
+			Self::Invocation(_) => RuntimeWorkKindTag::Invocation,
+			Self::OverlayCommit => RuntimeWorkKindTag::OverlayCommit,
+			#[cfg(feature = "lsp")]
+			Self::WorkspaceEdit(_) => RuntimeWorkKindTag::WorkspaceEdit,
+		}
+	}
+}
+
+/// Per-kind runtime work counts.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct RuntimeWorkKindCounts {
+	pub invocation: usize,
+	pub overlay_commit: usize,
+	#[cfg(feature = "lsp")]
+	pub workspace_edit: usize,
+}
+
+impl RuntimeWorkKindCounts {
+	pub(crate) fn add_kind(&mut self, tag: RuntimeWorkKindTag) {
+		match tag {
+			RuntimeWorkKindTag::Invocation => {
+				self.invocation = self.invocation.saturating_add(1);
+			}
+			RuntimeWorkKindTag::OverlayCommit => {
+				self.overlay_commit = self.overlay_commit.saturating_add(1);
+			}
+			#[cfg(feature = "lsp")]
+			RuntimeWorkKindTag::WorkspaceEdit => {
+				self.workspace_edit = self.workspace_edit.saturating_add(1);
+			}
+		}
+	}
+
+	pub(crate) fn add_from(&mut self, other: Self) {
+		self.invocation = self.invocation.saturating_add(other.invocation);
+		self.overlay_commit = self.overlay_commit.saturating_add(other.overlay_commit);
+		#[cfg(feature = "lsp")]
+		{
+			self.workspace_edit = self.workspace_edit.saturating_add(other.workspace_edit);
+		}
+	}
+}
+
+/// Per-kind oldest queued runtime work age snapshot in milliseconds.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct RuntimeWorkKindOldestAgesMs {
+	pub invocation_ms: Option<u64>,
+	pub overlay_commit_ms: Option<u64>,
+	#[cfg(feature = "lsp")]
+	pub workspace_edit_ms: Option<u64>,
+}
+
+impl RuntimeWorkKindOldestAgesMs {
+	pub(crate) fn observe_kind_age_ms(&mut self, tag: RuntimeWorkKindTag, age_ms: u64) {
+		match tag {
+			RuntimeWorkKindTag::Invocation => {
+				self.invocation_ms = Some(self.invocation_ms.unwrap_or(0).max(age_ms));
+			}
+			RuntimeWorkKindTag::OverlayCommit => {
+				self.overlay_commit_ms = Some(self.overlay_commit_ms.unwrap_or(0).max(age_ms));
+			}
+			#[cfg(feature = "lsp")]
+			RuntimeWorkKindTag::WorkspaceEdit => {
+				self.workspace_edit_ms = Some(self.workspace_edit_ms.unwrap_or(0).max(age_ms));
+			}
+		}
+	}
+}
+
 /// Queue entry carrying sequence and scope metadata.
 #[derive(Debug, Clone)]
 pub struct RuntimeWorkItem {
 	pub kind: RuntimeWorkKind,
+	pub kind_tag: RuntimeWorkKindTag,
 	pub scope: WorkScope,
 	pub seq: u64,
+	pub cause_id: Option<RuntimeCauseId>,
+	pub enqueued_at: Instant,
 }
 
 /// FIFO queue for deferred runtime work.
@@ -89,26 +175,62 @@ pub struct RuntimeWorkQueue {
 impl RuntimeWorkQueue {
 	/// Enqueues one runtime work item and returns its sequence number.
 	pub fn enqueue(&mut self, kind: RuntimeWorkKind, scope: WorkScope) -> u64 {
+		self.enqueue_with_cause(kind, scope, None)
+	}
+
+	/// Enqueues one runtime work item with explicit causal metadata.
+	pub fn enqueue_with_cause(&mut self, kind: RuntimeWorkKind, scope: WorkScope, cause_id: Option<RuntimeCauseId>) -> u64 {
 		let seq = self.seq_next;
 		self.seq_next = self.seq_next.wrapping_add(1);
-		self.queue.push_back(RuntimeWorkItem { kind, scope, seq });
+		let kind_tag = kind.kind_tag();
+		self.queue.push_back(RuntimeWorkItem {
+			kind,
+			kind_tag,
+			scope,
+			seq,
+			cause_id,
+			enqueued_at: Instant::now(),
+		});
 		seq
 	}
 
 	/// Enqueues one deferred invocation item and returns its sequence number.
 	pub fn enqueue_invocation(&mut self, invocation: Invocation, source: RuntimeWorkSource, execution: WorkExecutionPolicy, scope: WorkScope) -> u64 {
-		self.enqueue(RuntimeWorkKind::Invocation(QueuedInvocation { invocation, source, execution }), scope)
+		self.enqueue_invocation_with_cause(invocation, source, execution, scope, None)
+	}
+
+	/// Enqueues one deferred invocation item with explicit causal metadata.
+	pub fn enqueue_invocation_with_cause(
+		&mut self,
+		invocation: Invocation,
+		source: RuntimeWorkSource,
+		execution: WorkExecutionPolicy,
+		scope: WorkScope,
+		cause_id: Option<RuntimeCauseId>,
+	) -> u64 {
+		self.enqueue_with_cause(RuntimeWorkKind::Invocation(QueuedInvocation { invocation, source, execution }), scope, cause_id)
 	}
 
 	/// Enqueues one deferred overlay commit item and returns its sequence number.
 	pub fn enqueue_overlay_commit(&mut self) -> u64 {
-		self.enqueue(RuntimeWorkKind::OverlayCommit, WorkScope::Global)
+		self.enqueue_overlay_commit_with_cause(None)
+	}
+
+	/// Enqueues one deferred overlay commit item with explicit causal metadata.
+	pub fn enqueue_overlay_commit_with_cause(&mut self, cause_id: Option<RuntimeCauseId>) -> u64 {
+		self.enqueue_with_cause(RuntimeWorkKind::OverlayCommit, WorkScope::Global, cause_id)
 	}
 
 	/// Enqueues one deferred workspace edit item and returns its sequence number.
 	#[cfg(feature = "lsp")]
 	pub fn enqueue_workspace_edit(&mut self, edit: xeno_lsp::lsp_types::WorkspaceEdit) -> u64 {
-		self.enqueue(RuntimeWorkKind::WorkspaceEdit(edit), WorkScope::Global)
+		self.enqueue_workspace_edit_with_cause(edit, None)
+	}
+
+	/// Enqueues one deferred workspace edit item with explicit causal metadata.
+	#[cfg(feature = "lsp")]
+	pub fn enqueue_workspace_edit_with_cause(&mut self, edit: xeno_lsp::lsp_types::WorkspaceEdit, cause_id: Option<RuntimeCauseId>) -> u64 {
+		self.enqueue_with_cause(RuntimeWorkKind::WorkspaceEdit(edit), WorkScope::Global, cause_id)
 	}
 
 	/// Pops the next work item in FIFO order.
@@ -124,6 +246,26 @@ impl RuntimeWorkQueue {
 	/// Returns true when queue is empty.
 	pub fn is_empty(&self) -> bool {
 		self.queue.is_empty()
+	}
+
+	/// Returns pending runtime work counts grouped by kind tag.
+	pub fn depth_by_kind(&self) -> RuntimeWorkKindCounts {
+		let mut counts = RuntimeWorkKindCounts::default();
+		for item in &self.queue {
+			counts.add_kind(item.kind_tag);
+		}
+		counts
+	}
+
+	/// Returns oldest queued runtime work age grouped by kind tag.
+	pub fn oldest_age_ms_by_kind(&self) -> RuntimeWorkKindOldestAgesMs {
+		let mut ages = RuntimeWorkKindOldestAgesMs::default();
+		let now = Instant::now();
+		for item in &self.queue {
+			let age_ms = now.saturating_duration_since(item.enqueued_at).as_millis().min(u128::from(u64::MAX)) as u64;
+			ages.observe_kind_age_ms(item.kind_tag, age_ms);
+		}
+		ages
 	}
 
 	/// Returns true when at least one overlay commit item is queued.
@@ -143,6 +285,11 @@ impl RuntimeWorkQueue {
 		self.queue.retain(|item| item.scope != scope);
 		before.saturating_sub(self.queue.len())
 	}
+
+	#[cfg(test)]
+	pub fn snapshot(&self) -> Vec<RuntimeWorkItem> {
+		self.queue.iter().cloned().collect()
+	}
 }
 
 impl Editor {
@@ -154,33 +301,58 @@ impl Editor {
 		execution: WorkExecutionPolicy,
 		scope: WorkScope,
 	) -> u64 {
-		self.state.runtime_work_queue_mut().enqueue_invocation(invocation, source, execution, scope)
+		let cause_id = self.runtime_active_cause_id();
+		let seq = self
+			.state
+			.runtime_work_queue_mut()
+			.enqueue_invocation_with_cause(invocation, source, execution, scope, cause_id);
+		self.metrics().record_runtime_work_queue_depth(self.state.runtime_work_queue().len() as u64);
+		seq
 	}
 
 	/// Enqueues one deferred overlay commit as runtime work.
 	pub(crate) fn enqueue_runtime_overlay_commit_work(&mut self) -> u64 {
-		self.state.runtime_work_queue_mut().enqueue_overlay_commit()
+		let cause_id = self.runtime_active_cause_id();
+		let seq = self.state.runtime_work_queue_mut().enqueue_overlay_commit_with_cause(cause_id);
+		self.metrics().record_runtime_work_queue_depth(self.state.runtime_work_queue().len() as u64);
+		seq
 	}
 
 	/// Enqueues one deferred workspace edit as runtime work.
 	#[cfg(feature = "lsp")]
 	pub(crate) fn enqueue_runtime_workspace_edit_work(&mut self, edit: xeno_lsp::lsp_types::WorkspaceEdit) -> u64 {
-		self.state.runtime_work_queue_mut().enqueue_workspace_edit(edit)
+		let cause_id = self.runtime_active_cause_id();
+		let seq = self.state.runtime_work_queue_mut().enqueue_workspace_edit_with_cause(edit, cause_id);
+		self.metrics().record_runtime_work_queue_depth(self.state.runtime_work_queue().len() as u64);
+		seq
 	}
 
 	/// Pops one deferred runtime work item in FIFO order.
 	pub(crate) fn pop_runtime_work(&mut self) -> Option<RuntimeWorkItem> {
-		self.state.runtime_work_queue_mut().pop_front()
+		let item = self.state.runtime_work_queue_mut().pop_front();
+		if item.is_some() {
+			self.metrics().record_runtime_work_queue_depth(self.state.runtime_work_queue().len() as u64);
+		}
+		item
 	}
 
 	/// Removes deferred runtime work matching a specific scope.
 	pub(crate) fn clear_runtime_work_scope(&mut self, scope: WorkScope) -> usize {
-		self.state.runtime_work_queue_mut().remove_scope(scope)
+		let removed = self.state.runtime_work_queue_mut().remove_scope(scope);
+		if removed > 0 {
+			self.metrics().record_runtime_work_queue_depth(self.state.runtime_work_queue().len() as u64);
+		}
+		removed
 	}
 
 	/// Returns deferred runtime work queue length.
 	pub(crate) fn runtime_work_len(&self) -> usize {
 		self.state.runtime_work_queue().len()
+	}
+
+	/// Returns oldest queued runtime work age grouped by kind.
+	pub(crate) fn runtime_work_oldest_age_ms_by_kind(&self) -> RuntimeWorkKindOldestAgesMs {
+		self.state.runtime_work_queue().oldest_age_ms_by_kind()
 	}
 
 	/// Returns true when at least one overlay commit work item is queued.
@@ -199,6 +371,11 @@ impl Editor {
 	#[cfg(test)]
 	pub(crate) fn runtime_work_is_empty(&self) -> bool {
 		self.state.runtime_work_queue().is_empty()
+	}
+
+	#[cfg(test)]
+	pub(crate) fn runtime_work_snapshot(&self) -> Vec<RuntimeWorkItem> {
+		self.state.runtime_work_queue().snapshot()
 	}
 }
 

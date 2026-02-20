@@ -3,6 +3,7 @@ use std::time::Duration;
 use xeno_primitives::Mode;
 
 use crate::Editor;
+use crate::runtime::work_queue::RuntimeWorkKindCounts;
 
 /// Outcome for filesystem service event-drain phase.
 #[derive(Debug, Clone, Copy, Default)]
@@ -20,13 +21,13 @@ pub(crate) struct MessageDrainPhaseOutcome {
 #[derive(Debug, Clone, Copy, Default)]
 pub(crate) struct SchedulerDrainPhaseOutcome {
 	pub(crate) completed: usize,
-	pub(crate) panicked: u64,
 }
 
 /// Outcome for runtime work drain phase.
 #[derive(Debug, Clone, Copy, Default)]
 pub(crate) struct RuntimeWorkPhaseOutcome {
 	pub(crate) drained_count: usize,
+	pub(crate) drained_by_kind: RuntimeWorkKindCounts,
 	pub(crate) should_quit: bool,
 }
 
@@ -98,7 +99,6 @@ pub(crate) async fn phase_drain_scheduler(editor: &mut Editor) -> SchedulerDrain
 
 	SchedulerDrainPhaseOutcome {
 		completed: drain_stats.completed as usize,
-		panicked: drain_stats.panicked,
 	}
 }
 
@@ -106,6 +106,7 @@ pub(crate) async fn phase_drain_runtime_work(editor: &mut Editor, max: usize) ->
 	let report = editor.drain_runtime_work_report(max).await;
 	RuntimeWorkPhaseOutcome {
 		drained_count: report.drained_count,
+		drained_by_kind: report.drained_by_kind,
 		should_quit: report.should_quit,
 	}
 }

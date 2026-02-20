@@ -17,8 +17,10 @@
 //! | Type | Meaning | Constraints | Constructed / mutated in |
 //! |---|---|---|---|
 //! | [`RuntimeEvent`] | Frontend event payload | Must map to deterministic direct input application | frontend adapters |
+//! | [`RuntimeCauseId`] | Monotonic causal chain identifier | Must propagate from runtime event envelopes to directives and deferred runtime work spawned by that event | runtime kernel + runtime work queue |
 //! | [`LoopDirectiveV2`] | Event-driven directive with causal metadata | Must preserve cause sequence and pending depth snapshots | `Editor::drain_until_idle` |
 //! | [`DrainPolicy`] | Event-driven drain budget policy | Must bound frontend work and directive emission | runtime coordinator APIs |
+//! | [`RuntimeDrainStats`] | Runtime drain observability payload | Must report phase depth snapshots, per-kind drained counts, oldest age by kind, and exit reasons | `Editor::drain_until_idle` |
 //! | [`CursorStyle`] | Editor cursor intent | Must remain mode-consistent unless UI explicitly overrides | `Editor::derive_cursor_style` |
 //! | [`work_queue::RuntimeWorkQueue`] | Runtime-owned deferred work queue | Overlay commits/workspace edits/invocations must be queued through this queue and drained only in pump phases | input/effects/message producers and `pump::phases` |
 //! | [`pump::PumpCycleReport`] | Internal round/phase progress report | Must preserve phase order and cap tracking for invariants/tests | `pump::run_pump_cycle_with_report` |
@@ -37,6 +39,8 @@
 //! * Deferred invocation/runtime work drain must preserve global FIFO order across work kinds.
 //! * Runtime work drain must remain bounded by `phases::MAX_RUNTIME_WORK_ITEMS_PER_ROUND`.
 //! * Runtime must return immediate quit directive when runtime work drain requests quit.
+//! * Runtime causal metadata must propagate from submitted events to emitted directives and deferred runtime work spawned by that event.
+//! * Runtime work fairness must stay bounded: no queued work kind may starve indefinitely while other kinds continue draining across bounded rounds.
 //! * Editor/runtime construction must not require an already-active Tokio runtime.
 //! * Cursor style must default to insert beam vs non-insert block when UI has no override.
 //!
@@ -89,7 +93,10 @@ pub(crate) mod work_queue;
 
 pub use core::{CursorStyle, RuntimeEvent};
 
-pub use protocol::{DrainPolicy, DrainReport, LoopDirectiveV2, RuntimeEventEnvelope, SubmitToken};
+pub use protocol::{
+	DrainPolicy, DrainReport, LoopDirectiveV2, RuntimeCauseId, RuntimeDrainExitReason, RuntimeDrainStats, RuntimeEventEnvelope, RuntimeEventSource,
+	RuntimePhaseQueueDepthSnapshot, SubmitToken,
+};
 
 #[cfg(test)]
 use crate::Editor;
