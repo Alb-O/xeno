@@ -467,24 +467,35 @@ impl DocumentSync {
 	/// Used when a resource rename changes a file's path (and potentially its
 	/// language) while it remains open in the editor.
 	pub async fn reopen_document(&self, old_path: &Path, old_language: &str, new_path: &Path, new_language: &str, text: String) -> Result<()> {
-		self.close_document(old_path, old_language).await?;
-		self.ensure_open_text(new_path, new_language, text).await?;
-		Ok(())
+		let close_result = self.close_document(old_path, old_language).await;
+		let open_result = self.ensure_open_text(new_path, new_language, text).await;
+		// Open failure takes precedence (new identity not established).
+		open_result?;
+		close_result
 	}
 
 	/// Close a document with language servers.
+	///
+	/// Always unregisters the document from the state manager, even if the
+	/// `didClose` notification fails. This prevents stale URI state from
+	/// accumulating when servers are unreachable.
 	pub async fn close_document(&self, path: &Path, language: &str) -> Result<()> {
 		let uri = crate::uri_from_path(path).ok_or_else(|| crate::Error::Protocol("Invalid path".into()))?;
 
-		if self.documents.is_opened(&uri)
-			&& let Some(client) = self.registry.get(language, path)
-		{
-			client.text_document_did_close(uri.clone()).await?;
-		}
+		let notify_result = if self.documents.is_opened(&uri) {
+			if let Some(client) = self.registry.get(language, path) {
+				client.text_document_did_close(uri.clone()).await
+			} else {
+				Ok(())
+			}
+		} else {
+			Ok(())
+		};
 
+		// Always clean up local state regardless of notification outcome.
 		self.documents.unregister(&uri);
 
-		Ok(())
+		notify_result
 	}
 
 	/// Get diagnostics for a document.

@@ -291,9 +291,11 @@ struct RecordedNotification {
 }
 
 /// Transport that records notification methods, server ids, and URIs in order.
+/// Methods listed in `fail_methods` will return an error instead of succeeding.
 struct RecordingTransport {
 	notifications: std::sync::Mutex<Vec<RecordedNotification>>,
 	next_slot: std::sync::atomic::AtomicU32,
+	fail_methods: std::sync::Mutex<std::collections::HashSet<String>>,
 }
 
 impl RecordingTransport {
@@ -301,7 +303,12 @@ impl RecordingTransport {
 		Self {
 			notifications: std::sync::Mutex::new(Vec::new()),
 			next_slot: std::sync::atomic::AtomicU32::new(1),
+			fail_methods: std::sync::Mutex::new(std::collections::HashSet::new()),
 		}
+	}
+
+	fn set_fail_method(&self, method: &str) {
+		self.fail_methods.lock().unwrap().insert(method.to_string());
 	}
 
 	fn recorded(&self) -> Vec<RecordedNotification> {
@@ -312,7 +319,8 @@ impl RecordingTransport {
 		self.notifications.lock().unwrap().iter().map(|n| n.method.clone()).collect()
 	}
 
-	fn record(&self, server_id: LanguageServerId, notif: &crate::AnyNotification) {
+	/// Records the notification and returns `Err` if the method is in the fail set.
+	fn record(&self, server_id: LanguageServerId, notif: &crate::AnyNotification) -> crate::Result<()> {
 		let uri = notif
 			.params
 			.get("textDocument")
@@ -324,6 +332,10 @@ impl RecordingTransport {
 			method: notif.method.clone(),
 			uri,
 		});
+		if self.fail_methods.lock().unwrap().contains(&notif.method) {
+			return Err(crate::Error::Protocol(format!("injected failure for {}", notif.method)));
+		}
+		Ok(())
 	}
 }
 
@@ -340,11 +352,11 @@ impl crate::client::transport::LspTransport for RecordingTransport {
 		})
 	}
 	async fn notify(&self, server: LanguageServerId, notif: crate::AnyNotification) -> crate::Result<()> {
-		self.record(server, &notif);
+		self.record(server, &notif)?;
 		Ok(())
 	}
 	async fn notify_with_barrier(&self, server: LanguageServerId, notif: crate::AnyNotification) -> crate::Result<oneshot::Receiver<crate::Result<()>>> {
-		self.record(server, &notif);
+		self.record(server, &notif)?;
 		let (tx, rx) = oneshot::channel();
 		let _ = tx.send(Ok(()));
 		Ok(rx)
@@ -651,4 +663,89 @@ async fn ensure_open_text_registers_and_sends_did_open() {
 		recs.iter().map(|r| &r.method).collect::<Vec<_>>()
 	);
 	assert!(open.unwrap().uri.as_deref().unwrap().contains("open_me.rs"));
+}
+
+#[tokio::test]
+async fn close_document_unregisters_even_if_did_close_fails() {
+	use crate::registry::LanguageServerConfig;
+
+	let transport = Arc::new(RecordingTransport::new());
+	let (sync, registry, documents, _receiver) = DocumentSync::create(transport.clone(), xeno_worker::WorkerRuntime::new());
+
+	registry.register(
+		"rust",
+		LanguageServerConfig {
+			command: "rust-analyzer".into(),
+			..Default::default()
+		},
+	);
+
+	let path = Path::new("/fail_close.rs");
+	sync.open_document(path, "rust", &Rope::from("fn main() {}")).await.unwrap();
+	let uri = crate::uri_from_path(path).unwrap();
+	assert!(documents.is_opened(&uri));
+
+	// Inject diagnostics.
+	documents.update_diagnostics(
+		&uri,
+		vec![Diagnostic {
+			range: Range::default(),
+			severity: Some(DiagnosticSeverity::ERROR),
+			message: "error".into(),
+			..Diagnostic::default()
+		}],
+		None,
+	);
+
+	// Make didClose fail.
+	transport.set_fail_method("textDocument/didClose");
+
+	// close_document should return Err but still unregister.
+	let result = sync.close_document(path, "rust").await;
+	assert!(result.is_err(), "expected error from failed didClose");
+
+	// URI must be unregistered despite the error.
+	assert!(!documents.is_opened(&uri));
+
+	// Diagnostics must be cleared.
+	assert!(documents.get_diagnostics(&uri).is_empty());
+}
+
+#[tokio::test]
+async fn reopen_document_opens_new_even_if_did_close_fails() {
+	use crate::registry::LanguageServerConfig;
+
+	let transport = Arc::new(RecordingTransport::new());
+	let (sync, registry, documents, _receiver) = DocumentSync::create(transport.clone(), xeno_worker::WorkerRuntime::new());
+
+	registry.register(
+		"rust",
+		LanguageServerConfig {
+			command: "rust-analyzer".into(),
+			..Default::default()
+		},
+	);
+
+	let old_path = Path::new("/fail_reopen_old.rs");
+	let new_path = Path::new("/fail_reopen_new.rs");
+
+	sync.open_document(old_path, "rust", &Rope::from("fn main() {}")).await.unwrap();
+	let old_uri = crate::uri_from_path(old_path).unwrap();
+	assert!(documents.is_opened(&old_uri));
+
+	// Make didClose fail.
+	transport.set_fail_method("textDocument/didClose");
+
+	// reopen_document should still open the new document.
+	let result = sync.reopen_document(old_path, "rust", new_path, "rust", "fn main() {}".into()).await;
+
+	// Should return the close error (open succeeded).
+	assert!(result.is_err(), "expected error propagated from failed didClose");
+
+	// Old URI must be unregistered despite the error.
+	assert!(!documents.is_opened(&old_uri));
+
+	// New URI must be registered and opened.
+	let new_uri = crate::uri_from_path(new_path).unwrap();
+	assert!(documents.is_opened(&new_uri));
 }

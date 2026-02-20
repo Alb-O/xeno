@@ -181,7 +181,7 @@ impl Editor {
 				.map_err(|e| ApplyEditFailure { error: e, failed_change: None })?;
 		} else {
 			for id in temp_buffers {
-				self.close_headless_buffer(id);
+				self.close_headless_buffer(id).await;
 			}
 		}
 		result
@@ -505,28 +505,24 @@ impl Editor {
 
 		// Phase 2: all saves succeeded — close all temp buffers.
 		for &id in temps {
-			self.close_headless_buffer(id);
+			self.close_headless_buffer(id).await;
 		}
 		Ok(())
 	}
 
-	/// Closes a temporary buffer opened during workspace edit planning.
+	/// Closes a buffer and its LSP identity inline.
 	///
-	/// LSP close is fire-and-forget (background spawn) because these are
-	/// ephemeral buffers without rename/delete identity semantics. For
-	/// resource ops that change document identity (rename, delete), use
-	/// inline `sync.close_document()` / `sync.reopen_document()` instead.
-	fn close_headless_buffer(&mut self, buffer_id: ViewId) {
+	/// Used for temp buffers opened during workspace edit planning and for
+	/// resource op cleanup. LSP close is awaited inline to prevent
+	/// out-of-order didClose/didOpen interleaving with subsequent operations.
+	async fn close_headless_buffer(&mut self, buffer_id: ViewId) {
 		let Some(buffer) = self.state.core.editor.buffers.get_buffer(buffer_id) else {
 			return;
 		};
 		if let (Some(path), Some(lang)) = (buffer.path().map(|p| p.to_path_buf()), buffer.file_type().map(|s| s.to_string())) {
-			let lsp_handle = self.state.integration.lsp.handle();
-			self.state.async_state.worker_runtime.spawn(xeno_worker::TaskClass::Background, async move {
-				if let Err(e) = lsp_handle.close_document(path, lang).await {
-					tracing::warn!(error = %e, "LSP buffer close failed");
-				}
-			});
+			if let Err(e) = self.state.integration.lsp.sync().close_document(&path, &lang).await {
+				tracing::warn!(error = %e, "LSP buffer close failed");
+			}
 		}
 
 		self.finalize_buffer_removal(buffer_id);
@@ -556,7 +552,7 @@ impl Editor {
 				// Rollback resource ops applied so far in reverse order.
 				self.rollback_resource_ops(&mut rollback_log).await;
 				for id in temp_buffers {
-					self.close_headless_buffer(id);
+					self.close_headless_buffer(id).await;
 				}
 				return Err(ApplyEditFailure {
 					error,
@@ -794,18 +790,9 @@ impl Editor {
 
 		rollback_log.push(ResourceRollbackEntry::Deleted { path: path.clone(), bytes });
 
-		// Close open buffer for deleted file (inline LSP close, no background spawn).
+		// Close open buffer for deleted file.
 		if let Some(buf_id) = self.state.core.editor.buffers.find_by_path(&path) {
-			let buffer = self.state.core.editor.buffers.get_buffer(buf_id);
-			if let Some((path, lang)) = buffer.and_then(|b| {
-				let p = b.path().map(|p| p.to_path_buf())?;
-				let l = b.file_type().map(|s| s.to_string())?;
-				Some((p, l))
-			}) && let Err(e) = self.state.integration.lsp.sync().close_document(&path, &lang).await
-			{
-				tracing::warn!(error = %e, "LSP close after delete failed");
-			}
-			self.finalize_buffer_removal(buf_id);
+			self.close_headless_buffer(buf_id).await;
 		}
 
 		Ok(())
