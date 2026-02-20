@@ -262,3 +262,59 @@ fn test_full_sync_resets_expected_prev() {
 	assert_eq!(state.expected_prev, Some(10));
 	assert_eq!(state.phase, SyncPhase::Idle);
 }
+
+#[test]
+fn test_escalate_full_forces_next_send_to_full() {
+	let mut state = DocSyncState::new(test_config(), 1);
+	state.needs_full = false;
+	state.open_sent = true;
+
+	// Record incremental changes.
+	state.record_changes(1, 2, vec![test_change("a")], 1);
+	assert!(!state.needs_full);
+	assert!(!state.pending_changes.is_empty());
+
+	// Simulate didChange transport failure → escalate_full.
+	state.escalate_full();
+	assert!(state.needs_full);
+	assert!(state.pending_changes.is_empty(), "escalate_full must clear pending incrementals");
+
+	// is_due should return true immediately (full syncs bypass debounce).
+	let far_future = Instant::now() + Duration::from_secs(0);
+	assert!(state.is_due(far_future, Duration::from_millis(100)));
+
+	// take_for_send with is_full=true clears the flag.
+	let (changes, _bytes) = state.take_for_send(true);
+	assert!(!state.needs_full, "needs_full must be cleared after full send");
+	assert!(changes.is_empty(), "full send should have no incremental changes");
+}
+
+#[test]
+fn test_after_full_recovery_incremental_resumes() {
+	let mut state = DocSyncState::new(test_config(), 1);
+	state.needs_full = false;
+	state.open_sent = true;
+
+	// Record change, then escalate (simulating didChange failure).
+	state.record_changes(1, 2, vec![test_change("a")], 1);
+	state.escalate_full();
+	assert!(state.needs_full);
+
+	// Full send.
+	let _changes = state.take_for_send(true);
+	assert!(!state.needs_full);
+
+	// Complete the full send successfully.
+	state.mark_complete(FlushResult::Success, true);
+	assert_eq!(state.phase, SyncPhase::Idle);
+
+	// Record new incremental changes.
+	state.record_changes(2, 3, vec![test_change("b")], 1);
+	assert!(!state.needs_full, "needs_full should stay false after recovery");
+	assert_eq!(state.pending_changes.len(), 1, "incremental changes should accumulate normally");
+
+	// take_for_send with is_full=false (incremental).
+	let (changes, _bytes) = state.take_for_send(false);
+	assert_eq!(changes.len(), 1, "should send the incremental change");
+	assert!(!state.needs_full);
+}

@@ -282,12 +282,15 @@ async fn barrier_error_ignored_after_doc_reopen() {
 	);
 }
 
-/// Recorded notification entry: `(server_id, method, uri_from_params)`.
+/// Recorded notification entry.
 #[derive(Debug, Clone)]
 struct RecordedNotification {
 	server_id: LanguageServerId,
 	method: String,
 	uri: Option<String>,
+	/// For `textDocument/didChange` only: `true` if full-text (no range),
+	/// `false` if incremental (has range). `None` for other methods.
+	is_full_change: Option<bool>,
 }
 
 /// Transport that records notification methods, server ids, and URIs in order.
@@ -327,10 +330,22 @@ impl RecordingTransport {
 			.and_then(|td| td.get("uri"))
 			.and_then(|u| u.as_str())
 			.map(|s| s.to_string());
+		let is_full_change = if notif.method == "textDocument/didChange" {
+			notif
+				.params
+				.get("contentChanges")
+				.and_then(|cc| cc.as_array())
+				.and_then(|arr| arr.first())
+				.map(|first| !first.get("range").is_some())
+		} else {
+			None
+		};
+
 		self.notifications.lock().unwrap().push(RecordedNotification {
 			server_id,
 			method: notif.method.clone(),
 			uri,
+			is_full_change,
 		});
 		if self.fail_methods.lock().unwrap().contains(&notif.method) {
 			return Err(crate::Error::Protocol(format!("injected failure for {}", notif.method)));
@@ -828,6 +843,22 @@ impl InitRecordingTransport {
 			inner: RecordingTransport::new(),
 		}
 	}
+
+	fn set_fail_method(&self, method: &str) {
+		self.inner.set_fail_method(method);
+	}
+
+	fn clear_fail_method(&self, method: &str) {
+		self.inner.fail_methods.lock().unwrap().remove(method);
+	}
+
+	fn recorded(&self) -> Vec<RecordedNotification> {
+		self.inner.recorded()
+	}
+
+	fn clear_recordings(&self) {
+		self.inner.notifications.lock().unwrap().clear();
+	}
 }
 
 #[async_trait]
@@ -904,7 +935,7 @@ async fn did_change_failure_marks_force_full_sync() {
 	assert!(!documents.take_force_full_sync_by_uri(&uri));
 
 	// Make didChange fail.
-	transport.inner.set_fail_method("textDocument/didChange");
+	transport.set_fail_method("textDocument/didChange");
 
 	let result = sync
 		.send_change(ChangeRequest::full_text(path, "rust", "fn main() { 1 }".into()).with_open_if_needed(false))
