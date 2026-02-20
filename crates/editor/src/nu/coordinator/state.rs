@@ -336,9 +336,7 @@ impl NuCoordinatorState {
 	/// Handle a fired scheduled macro. Verifies token, enqueues invocation
 	/// into the runtime work queue.
 	pub(crate) fn apply_schedule_fired(&mut self, msg: NuScheduleFiredMsg) -> Option<Invocation> {
-		let Some(entry) = self.scheduled.get(&msg.key) else {
-			return None;
-		};
+		let entry = self.scheduled.get(&msg.key)?;
 		if entry.token != msg.token {
 			return None;
 		}

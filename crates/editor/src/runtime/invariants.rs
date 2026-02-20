@@ -524,9 +524,7 @@ async fn test_budget_cap_sets_exit_reason_without_losing_causality() {
 
 	assert!(report.reached_budget_cap);
 	assert!(
-		report
-			.runtime_stats
-			.round_exit_reasons.contains(&RuntimeDrainExitReason::BudgetCap),
+		report.runtime_stats.round_exit_reasons.contains(&RuntimeDrainExitReason::BudgetCap),
 		"budget-capped drain should include explicit budget-cap exit reason"
 	);
 

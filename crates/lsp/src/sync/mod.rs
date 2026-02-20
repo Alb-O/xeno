@@ -526,8 +526,7 @@ impl DocumentSync {
 		self.documents.total_warning_count()
 	}
 
-	/// Get the registry.
-	/// Sets the apply-edit sender for routing workspace/applyEdit requests.
+	/// Sets the apply-edit sender for routing `workspace/applyEdit` requests.
 	pub fn set_apply_edit_sender(&mut self, tx: ApplyEditSender) {
 		self.apply_edit_tx = Some(tx);
 	}
@@ -537,6 +536,7 @@ impl DocumentSync {
 		self.apply_edit_tx.as_ref()
 	}
 
+	/// Returns the language server registry used by this controller.
 	pub fn registry(&self) -> &Registry {
 		&self.registry
 	}

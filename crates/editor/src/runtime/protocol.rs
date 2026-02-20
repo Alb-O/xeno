@@ -93,16 +93,14 @@ impl Default for DrainPolicy {
 }
 
 /// Runtime drain exit reason for one maintenance round.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum RuntimeDrainExitReason {
 	#[default]
- Idle,
+	Idle,
 	RoundCap,
 	Quit,
 	BudgetCap,
 }
-
 
 /// Queue depth snapshot sampled after a runtime maintenance phase.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

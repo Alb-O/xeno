@@ -203,16 +203,17 @@ impl DocumentStateManager {
 		{
 			let docs = self.documents.read();
 			if let Some(state) = docs.get(&uri_key)
-				&& state.is_opened() {
-					state.set_diagnostics(diagnostics);
-					state.set_diag_touch_seq(touch_seq);
-					if let Some(version) = version {
-						state.record_diagnostics_version(version);
-					}
-					self.diagnostics_version.fetch_add(1, Ordering::Relaxed);
-					self.send_diagnostics_event(uri, error_count, warning_count);
-					return;
+				&& state.is_opened()
+			{
+				state.set_diagnostics(diagnostics);
+				state.set_diag_touch_seq(touch_seq);
+				if let Some(version) = version {
+					state.record_diagnostics_version(version);
 				}
+				self.diagnostics_version.fetch_add(1, Ordering::Relaxed);
+				self.send_diagnostics_event(uri, error_count, warning_count);
+				return;
+			}
 		}
 
 		// Closed or unregistered document — needs write lock for eviction/removal
@@ -225,12 +226,14 @@ impl DocumentStateManager {
 			// rather than through explicit `register`.
 			if diagnostics.is_empty()
 				&& let Some(state) = docs.get(&uri_key)
-					&& !state.is_opened() && state.version() == 0 {
-						docs.remove(&uri_key);
-						self.diagnostics_version.fetch_add(1, Ordering::Relaxed);
-						self.send_diagnostics_event(uri, 0, 0);
-						return;
-					}
+				&& !state.is_opened()
+				&& state.version() == 0
+			{
+				docs.remove(&uri_key);
+				self.diagnostics_version.fetch_add(1, Ordering::Relaxed);
+				self.send_diagnostics_event(uri, 0, 0);
+				return;
+			}
 
 			let state = if let Some(state) = docs.get(&uri_key) {
 				state

@@ -170,8 +170,10 @@ where
 	pub mailbox: MailboxSpec,
 	pub supervisor: SupervisorSpec,
 	factory: Arc<dyn Fn() -> A + Send + Sync>,
-	coalesce_eq: Option<Arc<dyn Fn(&A::Cmd, &A::Cmd) -> bool + Send + Sync>>,
+	coalesce_eq: Option<Arc<CoalesceEqFn<A::Cmd>>>,
 }
+
+type CoalesceEqFn<T> = dyn Fn(&T, &T) -> bool + Send + Sync;
 
 impl<A> ActorSpec<A>
 where

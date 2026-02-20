@@ -47,10 +47,12 @@ struct MailboxState<T> {
 	closed: bool,
 }
 
+type CoalesceEqFn<T> = dyn Fn(&T, &T) -> bool + Send + Sync;
+
 struct MailboxInner<T> {
 	capacity: usize,
 	policy: MailboxPolicy,
-	coalesce_eq: Option<Arc<dyn Fn(&T, &T) -> bool + Send + Sync>>,
+	coalesce_eq: Option<Arc<CoalesceEqFn<T>>>,
 	state: Mutex<MailboxState<T>>,
 	notify_recv: Notify,
 	notify_send: Notify,
@@ -214,6 +216,11 @@ impl<T> MailboxSender<T> {
 		self.inner.state.lock().await.queue.len()
 	}
 
+	/// Returns whether the queue contains no messages.
+	pub async fn is_empty(&self) -> bool {
+		self.inner.state.lock().await.queue.is_empty()
+	}
+
 	/// Returns queue capacity.
 	pub fn capacity(&self) -> usize {
 		self.inner.capacity
@@ -241,6 +248,11 @@ impl<T> MailboxReceiver<T> {
 	/// Returns current queue length.
 	pub async fn len(&self) -> usize {
 		self.inner.state.lock().await.queue.len()
+	}
+
+	/// Returns whether the queue contains no messages.
+	pub async fn is_empty(&self) -> bool {
+		self.inner.state.lock().await.queue.is_empty()
 	}
 }
 
@@ -359,7 +371,7 @@ mod tests {
 
 		// send(3) should block because queue is full.
 		let tx2 = tx.clone();
-		let send_task = tokio::spawn(async move { tx2.send(3).await });
+		let send_task = crate::spawn::spawn(crate::TaskClass::Background, async move { tx2.send(3).await });
 
 		// Give send_task a moment to park on the notify.
 		tokio::time::sleep(Duration::from_millis(10)).await;
@@ -967,7 +979,7 @@ mod tests {
 		for sender_id in 0..SENDERS {
 			let tx = tx.clone();
 			let barrier = Arc::clone(&barrier);
-			handles.push(tokio::spawn(async move {
+			handles.push(crate::spawn::spawn(crate::TaskClass::Background, async move {
 				// All senders stampede at once.
 				barrier.wait().await;
 				for seq in 0..ITEMS_PER_SENDER {
@@ -979,7 +991,7 @@ mod tests {
 		}
 
 		// Drain receiver until we have all items.
-		let receiver = tokio::spawn(async move {
+		let receiver = crate::spawn::spawn(crate::TaskClass::Background, async move {
 			let mut received = Vec::with_capacity(total);
 			for _ in 0..total {
 				let val = rx.recv().await.expect("should not close early");
@@ -1014,7 +1026,7 @@ mod tests {
 
 		// send(2) will block because queue is full.
 		let tx2 = tx.clone();
-		let send_task = tokio::spawn(async move { tx2.send(2).await });
+		let send_task = crate::spawn::spawn(crate::TaskClass::Background, async move { tx2.send(2).await });
 
 		tokio::time::sleep(Duration::from_millis(10)).await;
 
