@@ -8,6 +8,7 @@ extern crate self as xeno_registry;
 pub mod config;
 pub mod core;
 pub mod defs;
+pub mod schema;
 pub mod invocation;
 
 #[cfg(test)]

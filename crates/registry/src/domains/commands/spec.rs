@@ -1,2 +1,2 @@
-pub use xeno_registry_spec::MetaCommonSpec;
-pub use xeno_registry_spec::commands::*;
+pub use crate::schema::meta::MetaCommonSpec;
+pub use crate::schema::commands::*;

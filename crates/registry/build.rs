@@ -1,21 +1,28 @@
-use xeno_registry_spec::compile::BuildCtx;
+#[path = "src/defs/loader.rs"]
+mod defs_loader;
+#[path = "src/schema/mod.rs"]
+mod schema;
+#[path = "build_support/mod.rs"]
+mod build_support;
+
+use build_support::compile::BuildCtx;
 
 fn main() {
 	let ctx = BuildCtx::new();
 
-	xeno_registry_spec::actions::compile::build(&ctx);
-	xeno_registry_spec::grammars::compile::build(&ctx);
-	xeno_registry_spec::languages::compile::build(&ctx);
-	xeno_registry_spec::lsp_servers::compile::build(&ctx);
-	xeno_registry_spec::commands::compile::build(&ctx);
-	xeno_registry_spec::motions::compile::build(&ctx);
-	xeno_registry_spec::textobj::compile::build(&ctx);
-	xeno_registry_spec::options::compile::build(&ctx);
-	xeno_registry_spec::gutters::compile::build(&ctx);
-	xeno_registry_spec::statusline::compile::build(&ctx);
-	xeno_registry_spec::hooks::compile::build(&ctx);
-	xeno_registry_spec::notifications::compile::build(&ctx);
-	xeno_registry_spec::snippets::compile::build(&ctx);
-	xeno_registry_spec::themes::compile::build(&ctx);
-	xeno_registry_spec::keymaps::compile::build(&ctx);
+	build_support::actions::build(&ctx);
+	build_support::grammars::build(&ctx);
+	build_support::languages::build(&ctx);
+	build_support::lsp_servers::build(&ctx);
+	build_support::commands::build(&ctx);
+	build_support::motions::build(&ctx);
+	build_support::textobj::build(&ctx);
+	build_support::options::build(&ctx);
+	build_support::gutters::build(&ctx);
+	build_support::statusline::build(&ctx);
+	build_support::hooks::build(&ctx);
+	build_support::notifications::build(&ctx);
+	build_support::snippets::build(&ctx);
+	build_support::themes::build(&ctx);
+	build_support::keymaps::build(&ctx);
 }

@@ -15,7 +15,6 @@ thiserror.workspace = true
 tracing.workspace = true
 xeno-primitives.workspace = true
 xeno-registry.workspace = true
-xeno-registry-spec.workspace = true
 xeno-tree-house.workspace = true
 xeno-worker.workspace = true
 

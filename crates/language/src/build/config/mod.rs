@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use xeno_registry_spec::grammars::{GrammarSourceSpec, GrammarSpec};
+use xeno_registry::schema::grammars::{GrammarSourceSpec, GrammarSpec};
 
 use crate::grammar::{cache_dir, runtime_dir};
 

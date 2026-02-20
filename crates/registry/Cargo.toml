@@ -120,10 +120,13 @@ xeno-macros = { workspace = true, optional = true }
 xeno-nu-api = { workspace = true, optional = true }
 xeno-nu-data = { workspace = true, optional = true }
 xeno-primitives = { workspace = true, optional = true }
-xeno-registry-spec = { workspace = true }
 
 [build-dependencies]
-xeno-registry-spec = { workspace = true, features = ["compile"] }
+postcard = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+walkdir = "2"
+xeno-nu-api = { workspace = true }
+xeno-nu-data = { workspace = true }
 
 [lints]
 workspace = true

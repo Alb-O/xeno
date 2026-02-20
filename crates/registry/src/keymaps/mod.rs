@@ -13,7 +13,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use xeno_primitives::Mode;
-use xeno_registry_spec::keymaps::KeymapPresetSpec;
+use crate::schema::keymaps::KeymapPresetSpec;
 
 /// Default preset name used when no preset is specified in config.
 pub const DEFAULT_PRESET: &str = "vim";

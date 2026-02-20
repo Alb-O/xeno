@@ -1,2 +1,2 @@
-pub use xeno_registry_spec::MetaCommonSpec;
-pub use xeno_registry_spec::lsp_servers::*;
+pub use crate::schema::meta::MetaCommonSpec;
+pub use crate::schema::lsp_servers::*;
