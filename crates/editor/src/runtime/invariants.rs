@@ -607,3 +607,23 @@ async fn test_runtime_work_execution_policy_gates_enforcement() {
 		"only the log-only item should execute the handler; enforcing item should be denied by readonly gate"
 	);
 }
+
+/// Must keep log-only runtime unknown-command notifications on the canonical key path.
+///
+/// * Enforced in: `runtime::work_drain::Editor::drain_runtime_work_report`, `runtime::facade::RuntimeInvocationPort`
+/// * Failure symptom: runtime queue drain emits divergent unknown-command notifications.
+#[tokio::test]
+async fn test_log_only_runtime_unknown_command_notification_path_is_stable() {
+	let mut editor = Editor::new_scratch();
+	let missing = "runtime_invariant_missing_command";
+
+	editor.enqueue_runtime_command_invocation(missing.to_string(), Vec::new(), RuntimeWorkSource::ActionEffect);
+	let report = editor.drain_runtime_work_report(usize::MAX).await;
+	assert_eq!(report.drained_invocations, 1);
+
+	let pending = editor.state.notifications.take_pending();
+	assert_eq!(pending.len(), 1, "missing command should emit one unknown-command notification");
+	let expected = xeno_registry::notifications::keys::unknown_command(missing);
+	assert_eq!(pending[0].id, expected.id);
+	assert_eq!(pending[0].message, expected.message);
+}

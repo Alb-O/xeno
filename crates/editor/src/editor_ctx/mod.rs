@@ -27,10 +27,10 @@
 //! # Invariants
 //!
 //! * Must not use RTTI or engine-specific downcasting to reach concrete editor internals.
-//! * Must route all side effects through capability providers and effect sink flush paths.
-//! * Must preserve effect ordering from `ActionEffects`.
-//! * Must apply action effects directly through `apply_effects` at invocation/runtime boundaries.
-//! * Must handle unknown effect variants as debug assertions plus safe no-op traces.
+//! * Must apply mixed view/ui/app effects in strict `ActionEffects` sequence order.
+//! * Must route capability-emitted side effects through sink flush paths before they become visible.
+//! * Must route action result effects through `apply_effects` at invocation/runtime boundaries.
+//! * Must handle unknown effect variants as debug assertions plus safe no-op traces in release.
 //!
 //! # Data flow
 //!

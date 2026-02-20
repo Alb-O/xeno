@@ -1,5 +1,7 @@
 use std::cell::Cell;
 
+use xeno_primitives::{Key, KeyCode};
+use xeno_registry::actions::{DeferredInvocationPolicy, DeferredInvocationRequest, DeferredInvocationScopeHint};
 use xeno_registry::{Capability, CommandError};
 
 use super::policy_gate::{GateFailure, GateResult, InvocationGateInput, InvocationKind, RequiredCaps};
@@ -7,6 +9,7 @@ use super::{action_post_event, command_post_event, handle_capability_violation};
 use crate::commands::{CommandError as EditorCommandError, CommandOutcome};
 use crate::impls::Editor;
 use crate::nu::ctx::NuCtxEvent;
+use crate::runtime::work_queue::{RuntimeWorkKind, RuntimeWorkSource, WorkExecutionPolicy, WorkScope};
 use crate::types::{
 	Invocation, InvocationOutcome, InvocationPolicy, InvocationStatus, InvocationTarget, PipelineDisposition, classify_for_nu_pipeline,
 	to_command_outcome_for_nu_run,
@@ -170,6 +173,62 @@ async fn test_run_invocation_enforcing_returns_ok_for_known_command() {
 		.run_invocation(Invocation::command("stats", Vec::<String>::new()), InvocationPolicy::enforcing())
 		.await;
 	assert!(matches!(outcome.status, InvocationStatus::Ok));
+}
+
+/// Must route keymap-produced invocations through `run_invocation`.
+///
+/// * Enforced in: `input::key_handling`, `Editor::run_invocation`
+/// * Failure symptom: key dispatch bypasses invocation policy/hook/error boundaries.
+#[tokio::test]
+async fn test_keymap_dispatch_routes_through_run_invocation() {
+	use super::dispatch::run_invocation_call_count;
+
+	let mut editor = Editor::new_scratch();
+	let before = run_invocation_call_count();
+	let should_quit = editor.handle_key(Key::new(KeyCode::Char('l'))).await;
+	assert!(!should_quit);
+	assert!(
+		run_invocation_call_count() > before,
+		"keymap dispatch should increment run_invocation call counter"
+	);
+}
+
+/// Must preserve source-aware deferred invocation policy/scope metadata when queueing runtime work.
+///
+/// * Enforced in: `Editor::enqueue_runtime_invocation_request`
+/// * Failure symptom: runtime drain applies wrong policy/scope for deferred invocations.
+#[cfg_attr(test, test)]
+fn test_deferred_invocation_queue_preserves_source_policy_and_scope() {
+	let mut editor = Editor::new_scratch();
+	let current_nu_scope = editor.state.nu.current_stop_scope_generation();
+
+	editor.enqueue_runtime_invocation_request(
+		DeferredInvocationRequest::command("stats".to_string(), Vec::new()),
+		RuntimeWorkSource::ActionEffect,
+	);
+	editor.enqueue_runtime_invocation_request(
+		DeferredInvocationRequest::editor_command("stats".to_string(), Vec::new())
+			.with_policy(DeferredInvocationPolicy::EnforcingNuPipeline)
+			.with_scope_hint(DeferredInvocationScopeHint::CurrentNuStopScope),
+		RuntimeWorkSource::NuHookDispatch,
+	);
+
+	let snapshot = editor.runtime_work_snapshot();
+	assert_eq!(snapshot.len(), 2);
+
+	let RuntimeWorkKind::Invocation(first) = &snapshot[0].kind else {
+		panic!("first queued item should be invocation work");
+	};
+	assert_eq!(first.source, RuntimeWorkSource::ActionEffect);
+	assert_eq!(first.execution, WorkExecutionPolicy::LogOnlyCommandPath);
+	assert_eq!(snapshot[0].scope, WorkScope::Global);
+
+	let RuntimeWorkKind::Invocation(second) = &snapshot[1].kind else {
+		panic!("second queued item should be invocation work");
+	};
+	assert_eq!(second.source, RuntimeWorkSource::NuHookDispatch);
+	assert_eq!(second.execution, WorkExecutionPolicy::EnforcingNuPipeline);
+	assert_eq!(snapshot[1].scope, WorkScope::NuStopScope(current_nu_scope));
 }
 
 /// Must map Nu invocation outcomes into stable `nu-run` command results.

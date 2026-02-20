@@ -40,10 +40,12 @@
 //! * Must gate readonly edits when policy enforces readonly and target requires edit capability.
 //! * Action and command execution must pass through the shared policy gate.
 //! * Command auto-route resolution must prefer editor commands before registry commands.
+//! * Keymap-produced invocations must route through `run_invocation`.
 //! * Must enqueue Nu post hooks only for non-quit invocation outcomes.
 //! * Must cap Nu macro recursion depth to prevent unbounded self-recursion.
 //! * Must flush queued effects after action/command execution branches.
 //! * Deferred invocation drain must enforce source-aware policy (Nu sources enforcing, non-Nu sources log-only).
+//! * Deferred invocation request queueing must preserve source/policy/scope metadata.
 //! * Runtime invocation work must execute through `run_invocation` with source/scope/sequence metadata preserved in drain logging.
 //!
 //! # Data flow

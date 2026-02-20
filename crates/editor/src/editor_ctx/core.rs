@@ -38,10 +38,7 @@ pub fn apply_effects(effects: &ActionEffects, ctx: &mut xeno_registry::actions::
 					outcome = quit;
 				}
 			}
-			_ => {
-				debug_assert!(false, "Unhandled effect variant: {effect:?}");
-				trace!(?effect, "unhandled effect variant");
-			}
+			_ => handle_unknown_effect(effect),
 		}
 		trace!(duration_ms = start.elapsed().as_millis() as u64, "effect.applied");
 	}
@@ -57,6 +54,36 @@ fn effect_kind(effect: &Effect) -> (&'static str, bool) {
 		Effect::App(_) => ("app", false),
 		_ => ("unknown", false),
 	}
+}
+
+fn handle_unknown_effect(effect: &Effect) {
+	debug_assert!(false, "Unhandled effect variant: {effect:?}");
+	trace!(?effect, "unhandled effect variant");
+}
+
+fn handle_unknown_view_effect(effect: &ViewEffect) {
+	debug_assert!(false, "Unhandled view effect variant: {effect:?}");
+	trace!(?effect, "unhandled view effect variant");
+}
+
+fn handle_unknown_edit_effect(effect: &EditEffect) {
+	debug_assert!(false, "Unhandled edit effect variant: {effect:?}");
+	trace!(?effect, "unhandled edit effect variant");
+}
+
+fn handle_unknown_ui_effect(effect: &UiEffect) {
+	debug_assert!(false, "Unhandled ui effect variant: {effect:?}");
+	trace!(?effect, "unhandled ui effect variant");
+}
+
+fn handle_unknown_app_effect(effect: &AppEffect) {
+	debug_assert!(false, "Unhandled app effect variant: {effect:?}");
+	trace!(?effect, "unhandled app effect variant");
+}
+
+#[cfg(test)]
+pub(crate) fn trigger_unknown_effect_fallback_for_test() {
+	handle_unknown_effect(&Effect::App(AppEffect::Quit { force: false }));
 }
 
 /// Applies a view-related effect.
@@ -133,10 +160,7 @@ fn apply_view_effect(effect: &ViewEffect, ctx: &mut xeno_registry::actions::edit
 			}
 		}
 
-		_ => {
-			debug_assert!(false, "Unhandled view effect variant: {effect:?}");
-			trace!(?effect, "unhandled view effect variant");
-		}
+		_ => handle_unknown_view_effect(effect),
 	}
 }
 
@@ -155,10 +179,7 @@ fn apply_edit_effect(effect: &EditEffect, ctx: &mut xeno_registry::actions::edit
 			}
 		}
 
-		_ => {
-			debug_assert!(false, "Unhandled edit effect variant: {effect:?}");
-			trace!(?effect, "unhandled edit effect variant");
-		}
+		_ => handle_unknown_edit_effect(effect),
 	}
 }
 
@@ -187,10 +208,7 @@ fn apply_ui_effect(effect: &UiEffect, ctx: &mut xeno_registry::actions::editor_c
 
 		UiEffect::ForceRedraw => {}
 
-		_ => {
-			debug_assert!(false, "Unhandled ui effect variant: {effect:?}");
-			trace!(?effect, "unhandled ui effect variant");
-		}
+		_ => handle_unknown_ui_effect(effect),
 	}
 }
 
@@ -254,10 +272,7 @@ fn apply_app_effect(effect: &AppEffect, ctx: &mut xeno_registry::actions::editor
 			}
 		}
 
-		_ => {
-			debug_assert!(false, "Unhandled app effect variant: {effect:?}");
-			trace!(?effect, "unhandled app effect variant");
-		}
+		_ => handle_unknown_app_effect(effect),
 	}
 
 	None

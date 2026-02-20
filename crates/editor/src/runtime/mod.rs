@@ -42,6 +42,7 @@
 //! * Runtime must return immediate quit directive when runtime work drain requests quit.
 //! * Runtime causal metadata must propagate from submitted events to emitted directives and deferred runtime work spawned by that event.
 //! * Runtime work fairness must stay bounded: no queued work kind may starve indefinitely while other kinds continue draining across bounded rounds.
+//! * Log-only runtime command-path drains must emit unknown-command notifications through the canonical notification key path.
 //! * Pump phase mutations must cross explicit runtime facade traits rather than direct `EditorState` field reads.
 //! * Editor/runtime construction must not require an already-active Tokio runtime.
 //! * Cursor style must default to insert beam vs non-insert block when UI has no override.
