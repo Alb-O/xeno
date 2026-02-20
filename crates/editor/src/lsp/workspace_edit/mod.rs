@@ -519,11 +519,10 @@ impl Editor {
 		let Some(buffer) = self.state.core.editor.buffers.get_buffer(buffer_id) else {
 			return;
 		};
-		if let (Some(path), Some(lang)) = (buffer.path().map(|p| p.to_path_buf()), buffer.file_type().map(|s| s.to_string())) {
-			if let Err(e) = self.state.integration.lsp.sync().close_document(&path, &lang).await {
+		if let (Some(path), Some(lang)) = (buffer.path().map(|p| p.to_path_buf()), buffer.file_type().map(|s| s.to_string()))
+			&& let Err(e) = self.state.integration.lsp.sync().close_document(&path, &lang).await {
 				tracing::warn!(error = %e, "LSP buffer close failed");
 			}
-		}
 
 		self.finalize_buffer_removal(buffer_id);
 	}

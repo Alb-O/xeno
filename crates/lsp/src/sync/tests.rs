@@ -340,7 +340,7 @@ impl RecordingTransport {
 				.get("contentChanges")
 				.and_then(|cc| cc.as_array())
 				.and_then(|arr| arr.first())
-				.map(|first| !first.get("range").is_some())
+				.map(|first| first.get("range").is_none())
 		} else {
 			None
 		};
@@ -1094,7 +1094,6 @@ fn no_direct_did_notifications_outside_sync_module() {
 	let mut violations = Vec::new();
 
 	for path in &rs_files {
-
 		// Allow the sync module itself (implementation).
 		if path.starts_with(&sync_dir) {
 			continue;

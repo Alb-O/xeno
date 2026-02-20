@@ -363,28 +363,19 @@ impl E2eTransport {
 
 #[async_trait::async_trait]
 impl xeno_lsp::client::LspTransport for E2eTransport {
-	fn subscribe_events(
-		&self,
-	) -> xeno_lsp::Result<tokio::sync::mpsc::UnboundedReceiver<xeno_lsp::client::transport::TransportEvent>> {
+	fn subscribe_events(&self) -> xeno_lsp::Result<tokio::sync::mpsc::UnboundedReceiver<xeno_lsp::client::transport::TransportEvent>> {
 		let (_, rx) = tokio::sync::mpsc::unbounded_channel();
 		Ok(rx)
 	}
 
-	async fn start(
-		&self,
-		_cfg: xeno_lsp::client::ServerConfig,
-	) -> xeno_lsp::Result<xeno_lsp::client::transport::StartedServer> {
+	async fn start(&self, _cfg: xeno_lsp::client::ServerConfig) -> xeno_lsp::Result<xeno_lsp::client::transport::StartedServer> {
 		let slot = self.next_slot.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 		Ok(xeno_lsp::client::transport::StartedServer {
 			id: xeno_lsp::client::LanguageServerId::new(slot, 0),
 		})
 	}
 
-	async fn notify(
-		&self,
-		_server: xeno_lsp::client::LanguageServerId,
-		notif: xeno_lsp::AnyNotification,
-	) -> xeno_lsp::Result<()> {
+	async fn notify(&self, _server: xeno_lsp::client::LanguageServerId, notif: xeno_lsp::AnyNotification) -> xeno_lsp::Result<()> {
 		let is_full_change = if notif.method == "textDocument/didChange" {
 			notif
 				.params
@@ -450,8 +441,7 @@ impl xeno_lsp::client::LspTransport for E2eTransport {
 async fn test_e2e_failed_incremental_triggers_full_then_incremental_resumes() {
 	let worker_runtime = xeno_worker::WorkerRuntime::new();
 	let transport = Arc::new(E2eTransport::new());
-	let (sync, registry, _documents, _receiver) =
-		xeno_lsp::DocumentSync::create(transport.clone(), worker_runtime.clone());
+	let (sync, registry, _documents, _receiver) = xeno_lsp::DocumentSync::create(transport.clone(), worker_runtime.clone());
 	let metrics = Arc::new(crate::metrics::EditorMetrics::new());
 
 	// Register a language server so acquire() succeeds.
@@ -467,9 +457,7 @@ async fn test_e2e_failed_incremental_triggers_full_then_incremental_resumes() {
 	let doc_id = DocumentId(1);
 
 	// Open doc through DocumentSync to trigger server initialization.
-	sync.open_document(&path, "rust", &ropey::Rope::from("fn main() {}"))
-		.await
-		.unwrap();
+	sync.open_document(&path, "rust", &ropey::Rope::from("fn main() {}")).await.unwrap();
 
 	// Wait for initialization.
 	let client = registry.get("rust", &path).unwrap();
@@ -541,9 +529,7 @@ async fn test_e2e_failed_incremental_triggers_full_then_incremental_resumes() {
 	let snapshot = ropey::Rope::from("fn main() { recovered }");
 	let snapshot_bytes = snapshot.len_bytes() as u64;
 	let far_future = Instant::now() + Duration::from_secs(10);
-	let done_rx = mgr
-		.flush_now(far_future, doc_id, &sync, &metrics, Some((snapshot, snapshot_bytes)))
-		.unwrap();
+	let done_rx = mgr.flush_now(far_future, doc_id, &sync, &metrics, Some((snapshot, snapshot_bytes))).unwrap();
 	timeout(Duration::from_secs(5), done_rx)
 		.await
 		.expect("recovery flush timed out")
@@ -554,11 +540,7 @@ async fn test_e2e_failed_incremental_triggers_full_then_incremental_resumes() {
 	let recs = transport.recorded();
 	let did_changes: Vec<_> = recs.iter().filter(|r| r.method == "textDocument/didChange").collect();
 	assert!(!did_changes.is_empty(), "expected full-text didChange; got: {:?}", recs);
-	assert_eq!(
-		did_changes[0].is_full_change,
-		Some(true),
-		"recovery didChange must be full-text"
-	);
+	assert_eq!(did_changes[0].is_full_change, Some(true), "recovery didChange must be full-text");
 
 	// Clear and flush another incremental edit.
 	transport.clear_recordings();
@@ -577,9 +559,5 @@ async fn test_e2e_failed_incremental_triggers_full_then_incremental_resumes() {
 	let recs = transport.recorded();
 	let did_changes: Vec<_> = recs.iter().filter(|r| r.method == "textDocument/didChange").collect();
 	assert!(!did_changes.is_empty(), "expected incremental didChange; got: {:?}", recs);
-	assert_eq!(
-		did_changes[0].is_full_change,
-		Some(false),
-		"post-recovery didChange must be incremental"
-	);
+	assert_eq!(did_changes[0].is_full_change, Some(false), "post-recovery didChange must be incremental");
 }

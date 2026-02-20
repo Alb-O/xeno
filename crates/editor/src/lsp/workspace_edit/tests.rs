@@ -1078,28 +1078,19 @@ impl UriRecordingTransport {
 
 #[async_trait::async_trait]
 impl xeno_lsp::client::LspTransport for UriRecordingTransport {
-	fn subscribe_events(
-		&self,
-	) -> xeno_lsp::Result<tokio::sync::mpsc::UnboundedReceiver<xeno_lsp::client::transport::TransportEvent>> {
+	fn subscribe_events(&self) -> xeno_lsp::Result<tokio::sync::mpsc::UnboundedReceiver<xeno_lsp::client::transport::TransportEvent>> {
 		let (_, rx) = tokio::sync::mpsc::unbounded_channel();
 		Ok(rx)
 	}
 
-	async fn start(
-		&self,
-		_cfg: xeno_lsp::client::ServerConfig,
-	) -> xeno_lsp::Result<xeno_lsp::client::transport::StartedServer> {
+	async fn start(&self, _cfg: xeno_lsp::client::ServerConfig) -> xeno_lsp::Result<xeno_lsp::client::transport::StartedServer> {
 		let slot = self.next_slot.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 		Ok(xeno_lsp::client::transport::StartedServer {
 			id: xeno_lsp::client::LanguageServerId::new(slot, 0),
 		})
 	}
 
-	async fn notify(
-		&self,
-		_server: xeno_lsp::client::LanguageServerId,
-		notif: xeno_lsp::AnyNotification,
-	) -> xeno_lsp::Result<()> {
+	async fn notify(&self, _server: xeno_lsp::client::LanguageServerId, notif: xeno_lsp::AnyNotification) -> xeno_lsp::Result<()> {
 		let uri = notif
 			.params
 			.get("textDocument")
@@ -1218,13 +1209,12 @@ async fn resource_op_rename_updates_sync_manager_tracked_path() {
 			.buffers
 			.get_buffer(buf_id)
 			.map(|b| b.with_doc(|doc| (doc.content().clone(), doc.version())));
-		let done_rx = editor.state.integration.lsp.sync_manager_mut().flush_now(
-			std::time::Instant::now(),
-			doc_id,
-			&sync,
-			&metrics,
-			snapshot,
-		);
+		let done_rx = editor
+			.state
+			.integration
+			.lsp
+			.sync_manager_mut()
+			.flush_now(std::time::Instant::now(), doc_id, &sync, &metrics, snapshot);
 		if let Some(rx) = done_rx {
 			let _ = tokio::time::timeout(std::time::Duration::from_secs(5), rx).await;
 		}
@@ -1259,12 +1249,11 @@ async fn resource_op_rename_updates_sync_manager_tracked_path() {
 				syntax: xeno_primitives::SyntaxPolicy::IncrementalOrDirty,
 			},
 		);
-		editor.state.integration.lsp.on_local_edit(
-			editor.state.core.editor.buffers.get_buffer(buf_id).unwrap(),
-			Some(before),
-			&tx,
-			&result,
-		);
+		editor
+			.state
+			.integration
+			.lsp
+			.on_local_edit(editor.state.core.editor.buffers.get_buffer(buf_id).unwrap(), Some(before), &tx, &result);
 	}
 
 	// Flush with full snapshot (reset_tracked sets needs_full=true).
@@ -1275,13 +1264,12 @@ async fn resource_op_rename_updates_sync_manager_tracked_path() {
 		.buffers
 		.get_buffer(buf_id)
 		.map(|b| b.with_doc(|doc| (doc.content().clone(), doc.version())));
-	let done_rx = editor.state.integration.lsp.sync_manager_mut().flush_now(
-		std::time::Instant::now(),
-		doc_id,
-		&sync,
-		&metrics,
-		snapshot,
-	);
+	let done_rx = editor
+		.state
+		.integration
+		.lsp
+		.sync_manager_mut()
+		.flush_now(std::time::Instant::now(), doc_id, &sync, &metrics, snapshot);
 	if let Some(rx) = done_rx {
 		let result = tokio::time::timeout(std::time::Duration::from_secs(5), rx).await;
 		assert!(result.is_ok(), "flush must complete within timeout");
@@ -1358,13 +1346,7 @@ async fn setup_lsp_editor_with_buffer(
 		.with_doc(|doc| doc.content().clone());
 	sync.open_document(file_path, "rust", &text).await.unwrap();
 
-	let client = editor
-		.state
-		.integration
-		.lsp
-		.registry()
-		.get("rust", file_path)
-		.expect("client must exist");
+	let client = editor.state.integration.lsp.registry().get("rust", file_path).expect("client must exist");
 	for _ in 0..200 {
 		if client.is_initialized() {
 			break;
@@ -1386,13 +1368,12 @@ async fn setup_lsp_editor_with_buffer(
 			.buffers
 			.get_buffer(buf_id)
 			.map(|b| b.with_doc(|doc| (doc.content().clone(), doc.version())));
-		let done_rx = editor.state.integration.lsp.sync_manager_mut().flush_now(
-			std::time::Instant::now(),
-			doc_id,
-			&sync,
-			&metrics,
-			snapshot,
-		);
+		let done_rx = editor
+			.state
+			.integration
+			.lsp
+			.sync_manager_mut()
+			.flush_now(std::time::Instant::now(), doc_id, &sync, &metrics, snapshot);
 		if let Some(rx) = done_rx {
 			let _ = tokio::time::timeout(std::time::Duration::from_secs(5), rx).await;
 		}
@@ -1431,12 +1412,11 @@ async fn edit_and_flush(
 				syntax: xeno_primitives::SyntaxPolicy::IncrementalOrDirty,
 			},
 		);
-		editor.state.integration.lsp.on_local_edit(
-			editor.state.core.editor.buffers.get_buffer(buf_id).unwrap(),
-			Some(before),
-			&tx,
-			&result,
-		);
+		editor
+			.state
+			.integration
+			.lsp
+			.on_local_edit(editor.state.core.editor.buffers.get_buffer(buf_id).unwrap(), Some(before), &tx, &result);
 	}
 
 	let snapshot = editor
@@ -1446,13 +1426,12 @@ async fn edit_and_flush(
 		.buffers
 		.get_buffer(buf_id)
 		.map(|b| b.with_doc(|doc| (doc.content().clone(), doc.version())));
-	let done_rx = editor.state.integration.lsp.sync_manager_mut().flush_now(
-		std::time::Instant::now(),
-		doc_id,
-		sync,
-		metrics,
-		snapshot,
-	);
+	let done_rx = editor
+		.state
+		.integration
+		.lsp
+		.sync_manager_mut()
+		.flush_now(std::time::Instant::now(), doc_id, sync, metrics, snapshot);
 	if let Some(rx) = done_rx {
 		let result = tokio::time::timeout(std::time::Duration::from_secs(5), rx).await;
 		assert!(result.is_ok(), "flush must complete within timeout");
@@ -1505,7 +1484,10 @@ async fn save_as_updates_sync_manager_tracked_path() {
 		.filter(|(m, _)| m == "textDocument/didOpen" || m == "textDocument/didChange")
 		.collect();
 
-	assert!(!doc_notifications.is_empty(), "expected didOpen or didChange after save-as + edit; got: {recs:?}");
+	assert!(
+		!doc_notifications.is_empty(),
+		"expected didOpen or didChange after save-as + edit; got: {recs:?}"
+	);
 	assert!(
 		doc_notifications.iter().all(|(_, u)| u.contains("save_new.rs")),
 		"all doc notifications must reference new URI; got: {doc_notifications:?}",
