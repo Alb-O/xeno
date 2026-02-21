@@ -37,7 +37,6 @@ pub enum ActorExitReason {
 pub enum RestartPolicy {
 	Never,
 	OnFailure { max_restarts: usize, backoff: Duration },
-	Always { max_restarts: Option<usize>, backoff: Duration },
 }
 
 impl RestartPolicy {
@@ -50,16 +49,6 @@ impl RestartPolicy {
 					ActorExitReason::StartupFailed(_) | ActorExitReason::HandlerFailed(_) | ActorExitReason::Panicked | ActorExitReason::JoinFailed(_)
 				);
 				if is_failure && restart_count < *max_restarts { Some(*backoff) } else { None }
-			}
-			Self::Always { max_restarts, backoff } => {
-				if matches!(reason, ActorExitReason::MailboxClosed) {
-					return None;
-				}
-				if max_restarts.is_some_and(|max| restart_count >= max) {
-					None
-				} else {
-					Some(*backoff)
-				}
 			}
 		}
 	}
@@ -793,11 +782,11 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn graceful_shutdown_terminates_with_restart_always() {
+	async fn graceful_shutdown_terminates_with_restart_on_failure() {
 		let handle = spawn_supervised_actor(
-			ActorSpec::new("always-restart", TaskClass::Background, NoopActor::default).supervisor(SupervisorSpec {
-				restart: RestartPolicy::Always {
-					max_restarts: None,
+			ActorSpec::new("restart-shutdown", TaskClass::Background, NoopActor::default).supervisor(SupervisorSpec {
+				restart: RestartPolicy::OnFailure {
+					max_restarts: 5,
 					backoff: Duration::from_millis(1),
 				},
 				event_buffer: 8,
@@ -810,7 +799,7 @@ mod tests {
 				timeout: Duration::from_millis(200),
 			})
 			.await;
-		assert!(report.completed, "graceful shutdown should complete, not spin on MailboxClosed restarts");
+		assert!(report.completed, "graceful shutdown should complete promptly");
 		assert!(!report.timed_out);
 	}
 
@@ -1041,26 +1030,36 @@ mod tests {
 		let starts = Arc::new(AtomicUsize::new(0));
 		let starts_clone = Arc::clone(&starts);
 
+		// Actor that fails on first message, triggering OnFailure restart + backoff.
+		struct FailOnceActor;
+		#[async_trait]
+		impl WorkerActor for FailOnceActor {
+			type Cmd = ();
+			type Evt = ();
+			async fn handle(&mut self, _cmd: (), _ctx: &mut ActorContext<()>) -> Result<ActorFlow, String> {
+				Err("deliberate failure".into())
+			}
+		}
+
 		let handle = spawn_supervised_actor(
 			ActorSpec::new("backoff-shutdown", TaskClass::Background, move || {
 				let s = Arc::clone(&starts_clone);
 				s.fetch_add(1, Ordering::SeqCst);
-				CountingActor::default()
+				FailOnceActor
 			})
 			.supervisor(SupervisorSpec {
-				restart: RestartPolicy::Always {
-					max_restarts: None,
+				restart: RestartPolicy::OnFailure {
+					max_restarts: 5,
 					backoff: Duration::from_secs(60), // very long backoff
 				},
 				event_buffer: 8,
 			}),
 		);
 
-		// Trigger a stop (actor returns Stop on cmd=99).
-		let _ = handle.send(99).await;
+		// Trigger failure → supervisor enters 60s backoff sleep.
+		let _ = handle.send(()).await;
 		tokio::time::sleep(Duration::from_millis(20)).await;
 
-		// Actor stopped, supervisor is now in 60s backoff sleep.
 		let starts_before = starts.load(Ordering::SeqCst);
 		assert_eq!(starts_before, 1, "only one start so far");
 
