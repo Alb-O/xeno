@@ -5,7 +5,7 @@ use tokio::sync::{Mutex, Notify};
 
 /// Mailbox send error.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MailboxSendError {
+pub(crate) enum MailboxSendError {
 	/// Mailbox is closed.
 	Closed,
 }

@@ -27,7 +27,7 @@ pub use actor::{
 	ActorMailboxPolicy, ActorRestartPolicy, ActorRuntime,
 	ActorShutdownMode, ActorShutdownReport, ActorSpec,
 };
-pub use mailbox::MailboxSendError;
+pub use supervisor::ActorSendError;
 pub use budget::{DrainBudget, DrainReport};
 pub use class::TaskClass;
 pub use join_set::WorkerJoinSet;

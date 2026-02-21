@@ -7,7 +7,7 @@ use tokio::sync::{Mutex, broadcast};
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
-use crate::mailbox::{Mailbox, MailboxReceiver, MailboxSendError, MailboxSender};
+use crate::mailbox::{Mailbox, MailboxReceiver, MailboxSender};
 use crate::token::{GenerationClock, GenerationToken};
 use crate::{TaskClass, spawn};
 
@@ -312,6 +312,29 @@ impl SupervisorJoinCtrl {
 	}
 }
 
+/// Error returned when sending a command to a stopped actor.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActorSendError {
+	/// The actor's mailbox is closed.
+	Closed,
+}
+
+impl From<crate::mailbox::MailboxSendError> for ActorSendError {
+	fn from(_: crate::mailbox::MailboxSendError) -> Self {
+		ActorSendError::Closed
+	}
+}
+
+impl std::fmt::Display for ActorSendError {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			ActorSendError::Closed => write!(f, "actor mailbox closed"),
+		}
+	}
+}
+
+impl std::error::Error for ActorSendError {}
+
 /// Handle for one supervised actor.
 pub struct ActorHandle<Cmd, Evt>
 where
@@ -369,8 +392,9 @@ where
 	}
 
 	/// Sends one command honoring mailbox policy.
-	pub async fn send(&self, cmd: Cmd) -> Result<(), MailboxSendError> {
-		self.tx.send(cmd).await
+	pub async fn send(&self, cmd: Cmd) -> Result<(), ActorSendError> {
+		self.tx.send(cmd).await?;
+		Ok(())
 	}
 
 	/// Requests cancellation and closes the mailbox.
