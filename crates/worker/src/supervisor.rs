@@ -1089,7 +1089,7 @@ mod tests {
 			// Spawn a background "ticker" scoped to this generation's token.
 			let active = Arc::clone(&self.active_tickers);
 			let peak = Arc::clone(&self.peak_tickers);
-			let token = ctx.token.child();
+			let token = ctx.token.clone();
 			tokio::spawn(async move {
 				let cur = active.fetch_add(1, Ordering::SeqCst) + 1;
 				// Track peak concurrent tickers.

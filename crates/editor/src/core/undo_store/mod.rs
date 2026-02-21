@@ -103,6 +103,7 @@ pub struct TxnUndoStore {
 
 impl TxnUndoStore {
 	/// Creates a new empty transaction store.
+	#[cfg(test)]
 	pub fn new() -> Self {
 		Self::default()
 	}
@@ -305,22 +306,6 @@ impl TxnUndoStore {
 		Some(redo_txs)
 	}
 
-	/// Clears all undo and redo history.
-	pub fn clear_all(&mut self) {
-		self.undo_stack.clear();
-		self.redo_stack.clear();
-		self.undo_bytes = 0;
-		self.redo_bytes = 0;
-		self.undo_tx_count = 0;
-		self.redo_tx_count = 0;
-		self.head_pos = 0;
-		self.clean_pos = None;
-		self.active_group_owner = None;
-
-		#[cfg(debug_assertions)]
-		self.assert_invariants();
-	}
-
 	/// Returns true if the current state is modified relative to the clean state.
 	pub fn is_modified(&self) -> bool {
 		self.clean_pos != Some(self.head_pos)
@@ -395,11 +380,6 @@ impl UndoBackend {
 	/// Returns the number of steps in the redo stack.
 	pub fn redo_len(&self) -> usize {
 		self.store.redo_len()
-	}
-
-	/// Clears the redo stack.
-	pub fn clear_redo(&mut self) {
-		self.store.clear_redo();
 	}
 
 	/// Records a commit for undo.
@@ -480,11 +460,6 @@ impl UndoBackend {
 			"undo_backend.redo"
 		);
 		Some(applied)
-	}
-
-	/// Clears all undo and redo history.
-	pub fn clear_all(&mut self) {
-		self.store.clear_all();
 	}
 
 	/// Returns true if the current state is modified relative to the clean state.

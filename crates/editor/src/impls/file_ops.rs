@@ -79,10 +79,12 @@ impl Editor {
 	/// Saves the current buffer to a new file path.
 	pub fn save_as(&mut self, path: PathBuf) -> BoxFutureLocal<'_, Result<(), CommandError>> {
 		let loader_arc = self.state.config.config.language_loader.clone();
-		let buf_id = self.focused_view();
 		let _ = self.buffer_mut().set_path(Some(path), Some(&loader_arc));
 		#[cfg(feature = "lsp")]
-		self.maybe_track_lsp_for_buffer(buf_id, true);
+		{
+			let buf_id = self.focused_view();
+			self.maybe_track_lsp_for_buffer(buf_id, true);
+		}
 		self.save()
 	}
 

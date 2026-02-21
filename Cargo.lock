@@ -6072,7 +6072,6 @@ dependencies = [
  "url",
  "xeno-lsp-framework",
  "xeno-primitives",
- "xeno-rpc",
  "xeno-worker",
 ]
 

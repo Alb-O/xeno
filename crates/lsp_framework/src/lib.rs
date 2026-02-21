@@ -49,10 +49,10 @@ pub use protocol::JsonRpcProtocol;
 pub use socket::{ClientSocket, ServerSocket};
 pub use types::{AnyNotification, AnyRequest, AnyResponse, ErrorCode, RequestId, ResponseError};
 
-mod concurrency;
-mod panic;
-mod router;
-mod server;
+pub mod concurrency;
+pub mod panic;
+pub mod router;
+pub mod server;
 
 /// Service forwarding implementations (requires `forward` feature).
 #[cfg(feature = "forward")]
@@ -61,13 +61,13 @@ mod forward;
 
 #[cfg(feature = "client-monitor")]
 #[cfg_attr(docsrs, doc(cfg(feature = "client-monitor")))]
-mod client_monitor;
+pub mod client_monitor;
 
 #[cfg(all(feature = "stdio", unix))]
 #[cfg_attr(docsrs, doc(cfg(all(feature = "stdio", unix))))]
 mod stdio;
 
-mod tracing;
+pub mod tracing;
 
 /// Mega-traits for Language Server and Client implementations.
 #[cfg(feature = "omni-trait")]

@@ -4,7 +4,6 @@
 //! and routes overlay requests/events through validated capability boundaries.
 
 pub mod sink;
-pub mod types;
 
 #[cfg(test)]
 mod invariants;

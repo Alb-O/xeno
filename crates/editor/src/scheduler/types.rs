@@ -13,12 +13,6 @@ pub enum WorkKind {
 	Hook,
 	/// Nu hook async evaluation.
 	NuHook,
-	/// LSP document sync flush.
-	LspFlush,
-	/// File indexing.
-	Indexing,
-	/// File watcher event processing.
-	Watcher,
 }
 
 /// A scheduled work item.

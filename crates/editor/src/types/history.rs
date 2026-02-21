@@ -6,29 +6,15 @@
 //!
 //! # History Layers
 //!
-//! * [`DocumentHistoryEntry`]: Document-only state (text content and version).
 //! * [`ViewSnapshot`]: Per-buffer view state (cursor, selection, scroll position).
 //! * [`EditorUndoGroup`]: Editor-level grouping that combines affected documents
 //!   with their corresponding view snapshots.
 
 use std::collections::HashMap;
 
-use xeno_primitives::{CharIdx, EditOrigin, Rope, Selection};
+use xeno_primitives::{CharIdx, EditOrigin, Selection};
 
 use crate::buffer::{DocumentId, ViewId};
-
-/// Document-level undo entry storing only document state.
-///
-/// This replaces the old `HistoryEntry` which incorrectly stored per-buffer
-/// selections. Document history should be view-agnostic - the same document
-/// can be viewed in multiple buffers with different selections.
-#[derive(Clone)]
-pub struct DocumentHistoryEntry {
-	/// Document content at this point in history.
-	pub rope: Rope,
-	/// Document version at this point in history.
-	pub version: u64,
-}
 
 /// Snapshot of a buffer's view state for undo/redo restoration.
 ///

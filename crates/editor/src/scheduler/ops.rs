@@ -139,6 +139,7 @@ impl WorkScheduler {
 	///
 	/// Fires the per-(doc, kind) cancellation token so in-flight futures
 	/// exit early, and removes the pending counter entry.
+	#[cfg(test)]
 	pub fn cancel(&mut self, doc_id: DocId, kind: WorkKind) -> usize {
 		let key = (doc_id, kind);
 		if let Some(tok) = self.kind_cancel.remove(&key) {
@@ -206,6 +207,7 @@ impl WorkScheduler {
 	}
 
 	/// Returns the count of pending work for a document and kind.
+	#[cfg(test)]
 	pub fn pending_for_doc(&self, doc_id: DocId, kind: WorkKind) -> usize {
 		self.pending_by_doc.get(&(doc_id, kind)).map(|c| c.load(Ordering::Relaxed)).unwrap_or(0)
 	}
@@ -220,16 +222,6 @@ impl WorkScheduler {
 		self.interactive.len() + self.background.len()
 	}
 
-	/// Returns pending interactive work count.
-	pub fn interactive_count(&self) -> usize {
-		self.interactive.len()
-	}
-
-	/// Returns pending background work count.
-	pub fn background_count(&self) -> usize {
-		self.background.len()
-	}
-
 	/// Returns total work scheduled.
 	pub fn scheduled_total(&self) -> u64 {
 		self.scheduled_total
@@ -241,6 +233,7 @@ impl WorkScheduler {
 	}
 
 	/// Returns total background work dropped.
+	#[cfg(test)]
 	pub fn dropped_total(&self) -> u64 {
 		self.dropped_total
 	}
@@ -380,6 +373,7 @@ impl WorkScheduler {
 	}
 
 	/// Drains all pending work.
+	#[cfg(test)]
 	pub async fn drain_all(&mut self) {
 		while let Some(res) = self.interactive.join_next().await {
 			if let Err(e) = res {
@@ -395,16 +389,6 @@ impl WorkScheduler {
 				}
 				self.completed_total += 1;
 			}
-		}
-	}
-
-	/// Drops all pending background work.
-	pub fn drop_background(&mut self) {
-		let count = self.background.len();
-		if count > 0 {
-			self.background.abort_all();
-			self.dropped_total += count as u64;
-			tracing::info!(dropped = count, "dropped all background work");
 		}
 	}
 }
@@ -430,6 +414,7 @@ pub struct DrainBudget {
 }
 
 impl DrainBudget {
+	#[cfg(test)]
 	pub fn new(duration: Duration, max_completions: usize) -> Self {
 		Self { duration, max_completions }
 	}

@@ -79,9 +79,6 @@ async fn nu_run_command_injects_ctx() {
 		let mut ctx = EditorCommandContext {
 			editor: &mut editor,
 			args: &args,
-			count: 1,
-			register: None,
-			user_data: None,
 		};
 		cmd_nu_run(&mut ctx).await
 	}

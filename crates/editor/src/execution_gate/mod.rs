@@ -69,11 +69,6 @@ impl ExecutionGate {
 			depth: self.background_open_depth.clone(),
 		}
 	}
-
-	/// Returns true if there are any interactive tasks in flight.
-	pub fn is_interactive_active(&self) -> bool {
-		self.interactive_in_flight.load(Ordering::SeqCst) > 0
-	}
 }
 
 /// Guard tracking an in-flight interactive task.

@@ -44,21 +44,8 @@ impl GenerationToken {
 		self.cancel.is_cancelled()
 	}
 
-	/// Requests cancellation.
-	pub fn cancel(&self) {
-		self.cancel.cancel();
-	}
-
 	/// Future resolving when cancellation is requested.
 	pub async fn cancelled(&self) {
 		self.cancel.cancelled().await;
-	}
-
-	/// Creates a child token in the same generation.
-	pub fn child(&self) -> Self {
-		Self {
-			generation: self.generation,
-			cancel: self.cancel.child_token(),
-		}
 	}
 }

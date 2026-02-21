@@ -29,7 +29,7 @@ async fn test_schedule_and_drain() {
 		future: Box::pin(async move {
 			c.fetch_add(10, Ordering::SeqCst);
 		}),
-		kind: WorkKind::LspFlush,
+		kind: WorkKind::NuHook,
 		priority: HookPriority::Background,
 		doc_id: Some(1),
 	});
@@ -99,14 +99,14 @@ async fn test_pending_for_doc() {
 
 	scheduler.schedule(WorkItem {
 		future: Box::pin(async {}),
-		kind: WorkKind::LspFlush,
+		kind: WorkKind::NuHook,
 		priority: HookPriority::Interactive,
 		doc_id: Some(42),
 	});
 
 	scheduler.schedule(WorkItem {
 		future: Box::pin(async {}),
-		kind: WorkKind::LspFlush,
+		kind: WorkKind::NuHook,
 		priority: HookPriority::Interactive,
 		doc_id: Some(42),
 	});
@@ -118,9 +118,9 @@ async fn test_pending_for_doc() {
 		doc_id: Some(42),
 	});
 
-	assert_eq!(scheduler.pending_for_doc(42, WorkKind::LspFlush), 2);
+	assert_eq!(scheduler.pending_for_doc(42, WorkKind::NuHook), 2);
 	assert_eq!(scheduler.pending_for_doc(42, WorkKind::Hook), 1);
-	assert_eq!(scheduler.pending_for_doc(99, WorkKind::LspFlush), 0);
+	assert_eq!(scheduler.pending_for_doc(99, WorkKind::NuHook), 0);
 }
 
 #[tokio::test]
@@ -130,16 +130,16 @@ async fn test_cancel() {
 	for _ in 0..3 {
 		scheduler.schedule(WorkItem {
 			future: Box::pin(async {}),
-			kind: WorkKind::LspFlush,
+			kind: WorkKind::NuHook,
 			priority: HookPriority::Interactive,
 			doc_id: Some(42),
 		});
 	}
 
-	assert_eq!(scheduler.pending_for_doc(42, WorkKind::LspFlush), 3);
-	let cancelled = scheduler.cancel(42, WorkKind::LspFlush);
+	assert_eq!(scheduler.pending_for_doc(42, WorkKind::NuHook), 3);
+	let cancelled = scheduler.cancel(42, WorkKind::NuHook);
 	assert_eq!(cancelled, 3);
-	assert_eq!(scheduler.pending_for_doc(42, WorkKind::LspFlush), 0);
+	assert_eq!(scheduler.pending_for_doc(42, WorkKind::NuHook), 0);
 }
 
 /// Must schedule registry async hooks via HookScheduler trait.
@@ -439,16 +439,16 @@ async fn cancel_doc_purges_pending_by_doc() {
 
 	scheduler.schedule(WorkItem {
 		future: Box::pin(async {}),
-		kind: WorkKind::LspFlush,
+		kind: WorkKind::NuHook,
 		priority: HookPriority::Interactive,
 		doc_id: Some(42),
 	});
 
-	assert_eq!(scheduler.pending_for_doc(42, WorkKind::LspFlush), 1);
+	assert_eq!(scheduler.pending_for_doc(42, WorkKind::NuHook), 1);
 
 	scheduler.cancel_doc(42);
 
-	assert_eq!(scheduler.pending_for_doc(42, WorkKind::LspFlush), 0, "cancel_doc should purge pending_by_doc");
+	assert_eq!(scheduler.pending_for_doc(42, WorkKind::NuHook), 0, "cancel_doc should purge pending_by_doc");
 }
 
 /// Must decrement pending_by_doc on normal completion via drop guard.

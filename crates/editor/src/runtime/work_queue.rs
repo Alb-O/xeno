@@ -180,11 +180,6 @@ pub struct RuntimeWorkQueue {
 }
 
 impl RuntimeWorkQueue {
-	/// Enqueues one runtime work item and returns its sequence number.
-	pub fn enqueue(&mut self, kind: RuntimeWorkKind, scope: WorkScope) -> u64 {
-		self.enqueue_with_cause(kind, scope, None)
-	}
-
 	/// Enqueues one runtime work item with explicit causal metadata.
 	pub fn enqueue_with_cause(&mut self, kind: RuntimeWorkKind, scope: WorkScope, cause_id: Option<RuntimeCauseId>) -> u64 {
 		let seq = self.seq_next;
@@ -202,6 +197,7 @@ impl RuntimeWorkQueue {
 	}
 
 	/// Enqueues one deferred invocation item and returns its sequence number.
+	#[cfg(test)]
 	pub fn enqueue_invocation(&mut self, invocation: Invocation, source: RuntimeWorkSource, execution: WorkExecutionPolicy, scope: WorkScope) -> u64 {
 		self.enqueue_invocation_with_cause(invocation, source, execution, scope, None)
 	}
@@ -219,6 +215,7 @@ impl RuntimeWorkQueue {
 	}
 
 	/// Enqueues one deferred overlay commit item and returns its sequence number.
+	#[cfg(test)]
 	pub fn enqueue_overlay_commit(&mut self) -> u64 {
 		self.enqueue_overlay_commit_with_cause(None)
 	}
@@ -226,12 +223,6 @@ impl RuntimeWorkQueue {
 	/// Enqueues one deferred overlay commit item with explicit causal metadata.
 	pub fn enqueue_overlay_commit_with_cause(&mut self, cause_id: Option<RuntimeCauseId>) -> u64 {
 		self.enqueue_with_cause(RuntimeWorkKind::OverlayCommit, WorkScope::Global, cause_id)
-	}
-
-	/// Enqueues one deferred workspace edit item and returns its sequence number.
-	#[cfg(feature = "lsp")]
-	pub fn enqueue_workspace_edit(&mut self, edit: xeno_lsp::lsp_types::WorkspaceEdit) -> u64 {
-		self.enqueue_workspace_edit_with_cause(edit, None, None)
 	}
 
 	/// Enqueues one deferred workspace edit item with optional reply channel and explicit causal metadata.
@@ -266,17 +257,9 @@ impl RuntimeWorkQueue {
 	}
 
 	/// Returns true when queue is empty.
+	#[cfg(test)]
 	pub fn is_empty(&self) -> bool {
 		self.queue.is_empty()
-	}
-
-	/// Returns pending runtime work counts grouped by kind tag.
-	pub fn depth_by_kind(&self) -> RuntimeWorkKindCounts {
-		let mut counts = RuntimeWorkKindCounts::default();
-		for item in &self.queue {
-			counts.add_kind(item.kind_tag);
-		}
-		counts
 	}
 
 	/// Returns oldest queued runtime work age grouped by kind tag.
@@ -291,12 +274,13 @@ impl RuntimeWorkQueue {
 	}
 
 	/// Returns true when at least one overlay commit item is queued.
+	#[cfg(test)]
 	pub fn has_overlay_commit(&self) -> bool {
 		self.queue.iter().any(|item| matches!(item.kind, RuntimeWorkKind::OverlayCommit))
 	}
 
 	/// Returns number of queued workspace edit items.
-	#[cfg(feature = "lsp")]
+	#[cfg(all(feature = "lsp", test))]
 	pub fn pending_workspace_edits(&self) -> usize {
 		self.queue.iter().filter(|item| matches!(item.kind, RuntimeWorkKind::WorkspaceEdit(_))).count()
 	}

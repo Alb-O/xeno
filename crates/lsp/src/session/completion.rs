@@ -124,3 +124,9 @@ impl CompletionController {
 		});
 	}
 }
+
+impl Default for CompletionController {
+	fn default() -> Self {
+		Self::new()
+	}
+}

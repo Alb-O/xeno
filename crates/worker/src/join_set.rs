@@ -4,84 +4,54 @@ use tokio::task::{JoinError, JoinSet};
 
 use crate::TaskClass;
 
-/// Join-set wrapper carrying shared worker class metadata and counters.
+/// Reactor-safe wrapper for a Tokio [`JoinSet`].
+///
+/// Task spawning is routed through `xeno_worker` runtime entry so tasks are
+/// attached to the active worker runtime context.
 #[derive(Debug)]
-pub(crate) struct WorkerJoinSet<T> {
+pub struct WorkerJoinSet<T> {
 	class: TaskClass,
 	inner: JoinSet<T>,
-	spawned_total: u64,
-	completed_total: u64,
 }
 
 impl<T> WorkerJoinSet<T>
 where
 	T: Send + 'static,
 {
-	/// Creates a worker join set for one task class.
+	/// Creates an empty worker join set for the given task class.
 	pub fn new(class: TaskClass) -> Self {
-		Self {
-			class,
-			inner: JoinSet::new(),
-			spawned_total: 0,
-			completed_total: 0,
-		}
+		Self { class, inner: JoinSet::new() }
 	}
 
-	/// Returns pending task count.
+	/// Returns the number of tasks currently in the set.
 	pub fn len(&self) -> usize {
 		self.inner.len()
 	}
 
-	/// Returns whether no tasks are pending.
+	/// Returns `true` if the set is empty.
 	pub fn is_empty(&self) -> bool {
 		self.inner.is_empty()
 	}
 
-	/// Returns total tasks spawned since construction or reset.
-	pub fn spawned_total(&self) -> u64 {
-		self.spawned_total
-	}
-
-	/// Returns total tasks completed (ok or error) since construction or reset.
-	pub fn completed_total(&self) -> u64 {
-		self.completed_total
-	}
-
-	/// Aborts all tasks and resets the join set.
-	pub fn abort_all(&mut self) {
-		self.inner.abort_all();
-		self.inner = JoinSet::new();
-	}
-	/// Spawns one task into the set.
-	///
-	/// Panics if called outside a tokio runtime context.
+	/// Spawns a future into the set on the current worker runtime handle.
 	#[allow(clippy::disallowed_methods)]
 	pub fn spawn<F>(&mut self, fut: F)
 	where
 		F: Future<Output = T> + Send + 'static,
 	{
-		self.spawned_total = self.spawned_total.wrapping_add(1);
 		tracing::trace!(worker_class = self.class.as_str(), pending = self.inner.len(), "worker.join_set.spawn");
 		let handle = crate::spawn_impl::current_handle();
 		let _guard = handle.enter();
 		self.inner.spawn(fut);
 	}
 
-	/// Waits for one completion.
+	/// Waits for the next completed task.
 	pub async fn join_next(&mut self) -> Option<Result<T, JoinError>> {
-		let res = self.inner.join_next().await;
-		if res.is_some() {
-			self.completed_total = self.completed_total.wrapping_add(1);
-		}
-		res
+		self.inner.join_next().await
 	}
 
-	/// Polls for a ready completion without blocking.
+	/// Returns one ready completion without waiting.
 	pub fn try_join_next(&mut self) -> Option<Result<T, JoinError>> {
-		let res = self.inner.try_join_next();
-		if res.is_some() {
-			self.completed_total = self.completed_total.wrapping_add(1);
-		}
-		res
+		self.inner.try_join_next()
 	}
 }

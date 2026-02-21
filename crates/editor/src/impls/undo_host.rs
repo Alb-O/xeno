@@ -85,10 +85,7 @@ impl EditorUndoHost<'_> {
 		new_selection: Option<Selection>,
 		undo: UndoPolicy,
 	) -> xeno_primitives::CommitResult {
-		let policy = ApplyPolicy {
-			undo,
-			syntax: SyntaxPolicy::IncrementalOrDirty,
-		};
+		let policy = ApplyPolicy::EDIT.with_undo(undo).with_syntax(SyntaxPolicy::IncrementalOrDirty);
 
 		let before_rope = {
 			let buffer = self.buffers.get_buffer(buffer_id).expect("buffer must exist");

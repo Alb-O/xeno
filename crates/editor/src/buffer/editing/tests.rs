@@ -13,7 +13,7 @@ fn readonly_blocks_apply() {
 	let mut buffer = Buffer::scratch(ViewId::SCRATCH);
 	let (tx, _selection) = buffer.prepare_insert("hi");
 	buffer.set_readonly(true);
-	let result = buffer.apply(&tx, ApplyPolicy::INTERNAL);
+	let result = buffer.apply(&tx, ApplyPolicy::EDIT);
 	assert!(!result.applied);
 	assert_eq!(buffer.with_doc(|doc| doc.content().to_string()), "");
 }
@@ -26,7 +26,7 @@ fn readonly_override_blocks_transaction() {
 	assert!(buffer.is_readonly());
 
 	let (tx, _selection) = buffer.prepare_insert("hi");
-	let result = buffer.apply(&tx, ApplyPolicy::INTERNAL);
+	let result = buffer.apply(&tx, ApplyPolicy::EDIT);
 	assert!(!result.applied);
 	assert_eq!(buffer.with_doc(|doc| doc.content().to_string()), "");
 }
@@ -42,7 +42,7 @@ fn readonly_override_false_does_not_bypass_doc_readonly() {
 	assert!(buffer.is_readonly());
 
 	let (tx, _selection) = buffer.prepare_insert("hi");
-	let result = buffer.apply(&tx, ApplyPolicy::INTERNAL);
+	let result = buffer.apply(&tx, ApplyPolicy::EDIT);
 	assert!(!result.applied);
 	assert_eq!(buffer.with_doc(|doc| doc.content().to_string()), "");
 }

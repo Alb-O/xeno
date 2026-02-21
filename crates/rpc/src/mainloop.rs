@@ -9,8 +9,8 @@ use std::task::{Context, Poll};
 use pin_project_lite::pin_project;
 use tokio::io::{AsyncBufRead, AsyncWrite, AsyncWriteExt};
 use tokio::sync::{mpsc, oneshot};
-use tokio::task::JoinSet;
 use tower_service::Service;
+use xeno_worker::{TaskClass, WorkerJoinSet};
 
 use crate::event::AnyEvent;
 use crate::protocol::{Inbound, Protocol};
@@ -58,7 +58,7 @@ pub struct MainLoop<S, P: Protocol> {
 	/// Pending outgoing requests awaiting responses.
 	outgoing: HashMap<P::Id, oneshot::Sender<P::Response>>,
 	/// Concurrent request handlers in flight.
-	tasks: JoinSet<P::Response>,
+	tasks: WorkerJoinSet<P::Response>,
 	/// Protocol codec and message handling.
 	protocol: P,
 }
@@ -92,7 +92,7 @@ where
 			rx,
 			id_gen,
 			outgoing: HashMap::new(),
-			tasks: JoinSet::new(),
+			tasks: WorkerJoinSet::new(TaskClass::Interactive),
 			protocol,
 		};
 		(this, socket)
@@ -102,7 +102,7 @@ where
 	///
 	/// This asynchronous loop:
 	/// 1. Reads inbound messages using the protocol codec.
-	/// 2. Dispatches requests to the concurrent task pool (`JoinSet`).
+	/// 2. Dispatches requests to the concurrent task pool ([`WorkerJoinSet`]).
 	/// 3. Routes notifications and internal events to the service handlers.
 	/// 4. Manages a "drain budget" to ensure high-throughput response writing
 	///    while maintaining fairness for new incoming work.

@@ -17,7 +17,6 @@ use crate::highlight::Highlighter;
 use crate::loader::LanguageLoader;
 
 mod edit_generation;
-mod pretty_print;
 mod viewport_repair;
 
 use edit_generation::generate_edits;

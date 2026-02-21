@@ -14,6 +14,7 @@ pub use xeno_invocation::nu::{DecodeBudget, NuEffect, NuEffectBatch, NuNotifyLev
 use xeno_nu_api::{ExportId, NuProgram};
 use xeno_nu_data::Value;
 
+#[cfg(test)]
 use crate::types::Invocation;
 
 /// Cached function ID for the unified `on_hook` export, populated once when the runtime is set.
@@ -175,6 +176,7 @@ fn map_run_error(error: NuRunError) -> String {
 }
 
 /// Parse a macro invocation spec string into an [`Invocation`].
+#[cfg(test)]
 pub fn parse_invocation_spec(spec: &str) -> Result<Invocation, String> {
 	let parsed = xeno_invocation_spec::parse_spec(spec)?;
 	match parsed.kind {

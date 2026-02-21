@@ -6,7 +6,7 @@
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, LazyLock, OnceLock};
 
-pub use crate::core::{ActionId, DenseId, RuntimeRegistry};
+pub use crate::core::{ActionId, RuntimeRegistry};
 
 pub mod builder;
 pub mod builtins;
@@ -237,11 +237,6 @@ with_registry_domains!(define_registry_globals);
 
 pub fn resolve_action_id_typed(id: ActionId) -> Option<Arc<ActionEntry>> {
 	ACTIONS.get_by_id(id).map(|r| r.get_arc())
-}
-
-pub fn resolve_action_id_from_static(id: &str) -> ActionId {
-	let db = get_catalog();
-	db.actions.get(id).map(|r: crate::actions::ActionRef| r.dense_id()).unwrap_or(ActionId::INVALID)
 }
 
 #[cfg(test)]

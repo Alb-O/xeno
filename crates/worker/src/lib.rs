@@ -7,6 +7,7 @@
 //! * [`TaskClass`] for categorizing work (interactive, background, blocking)
 //! * spawn free functions ([`spawn`], [`spawn_blocking`], [`spawn_thread`],
 //!   [`spawn_named_thread`], [`spawn_actor`])
+//! * [`WorkerJoinSet`] for reactor-safe concurrent task groups
 //! * actor framework ([`Actor`] trait, [`ActorSpec`], [`ActorHandle`],
 //!   [`ActorCommandIngress`] / [`ActorCommandPort`])
 //! * supervision lifecycle ([`ActorSupervisorSpec`], [`ActorRestartPolicy`],
@@ -18,11 +19,9 @@
 //! Tokio/std equivalents.
 
 mod actor;
-mod budget;
 mod class;
 mod join_set;
 mod mailbox;
-mod runtime;
 #[path = "spawn.rs"]
 mod spawn_impl;
 pub use spawn_impl::{spawn, spawn_blocking, spawn_named_thread, spawn_thread};
@@ -46,6 +45,7 @@ where
 	ActorRuntime::spawn(spec)
 }
 pub use class::TaskClass;
+pub use join_set::WorkerJoinSet;
 pub use supervisor::ActorSendError;
 
 /// Handle for an async task spawned on the Tokio runtime.

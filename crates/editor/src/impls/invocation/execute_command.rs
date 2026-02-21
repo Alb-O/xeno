@@ -120,9 +120,6 @@ impl Editor {
 			let mut ctx = EditorCommandContext {
 				editor: kernel.editor(),
 				args: &args_refs,
-				count: 1,
-				register: None,
-				user_data: editor_cmd.user_data,
 			};
 
 			(editor_cmd.handler)(&mut ctx).await

@@ -30,15 +30,6 @@ impl ApplyPolicy {
 		syntax: SyntaxPolicy::IncrementalOrDirty,
 	};
 
-	/// Transaction applied with history recording but without syntax updates.
-	///
-	/// Useful for internal document operations that shouldn't trigger immediate
-	/// syntax re-parsing.
-	pub const INTERNAL: Self = Self {
-		undo: UndoPolicy::Record,
-		syntax: SyntaxPolicy::None,
-	};
-
 	/// Returns a copy of the policy with the specified [`UndoPolicy`].
 	pub const fn with_undo(mut self, undo: UndoPolicy) -> Self {
 		self.undo = undo;
@@ -83,7 +74,7 @@ impl Buffer {
 	/// This updates syntax highlighting according to [`ApplyPolicy::EDIT`].
 	pub fn insert_text(&mut self, text: &str) -> Transaction {
 		let (tx, new_selection) = self.prepare_insert(text);
-		if self.apply(&tx, ApplyPolicy::EDIT).applied {
+		if self.apply(&tx, ApplyPolicy::INSERT).applied {
 			self.set_selection(new_selection);
 			self.sync_cursor_to_selection();
 		}

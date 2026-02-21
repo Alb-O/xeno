@@ -20,7 +20,6 @@ mod debug;
 mod lsp;
 mod nu;
 
-use std::any::Any;
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
@@ -42,12 +41,6 @@ pub struct EditorCommandContext<'a> {
 	pub editor: &'a mut Editor,
 	/// Command arguments (space-separated tokens after command name).
 	pub args: &'a [&'a str],
-	/// Numeric prefix count (e.g., `3:w` has count=3).
-	pub count: usize,
-	/// Register specified with command (e.g., `"a:w`).
-	pub register: Option<char>,
-	/// Extension-specific data attached to the command.
-	pub user_data: Option<&'static (dyn Any + Sync)>,
 }
 
 /// Function signature for async editor-direct command handlers.
@@ -67,8 +60,6 @@ pub struct EditorCommandDef {
 	pub mutates_buffer: bool,
 	/// Async function that executes the command.
 	pub handler: EditorCommandHandler,
-	/// Extension-specific data passed to handler.
-	pub user_data: Option<&'static (dyn Any + Sync)>,
 	/// Sort priority (higher = listed first).
 	pub priority: i16,
 	/// Where this command was registered from.
@@ -99,11 +90,6 @@ pub fn find_editor_command(name: &str) -> Option<&'static EditorCommandDef> {
 	EDITOR_CMD_INDEX.get(name).copied()
 }
 
-/// Returns an iterator over all registered editor commands, sorted by name.
-pub fn all_editor_commands() -> impl Iterator<Item = &'static EditorCommandDef> {
-	EDITOR_COMMANDS.iter().copied()
-}
-
 /// Registers an editor-direct command via `inventory`.
 #[macro_export]
 macro_rules! editor_command {
@@ -124,7 +110,6 @@ macro_rules! editor_command {
 					description: $desc,
 					mutates_buffer: $crate::__editor_cmd_opt!($({$mutates})?, false),
 					handler: $handler,
-					user_data: None,
 					priority: $crate::__editor_cmd_opt!($({$priority})?, 0),
 					source: $crate::commands::RegistrySource::Crate(env!("CARGO_PKG_NAME")),
 				};

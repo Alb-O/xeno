@@ -62,13 +62,13 @@ pub(crate) fn test_version_monotonicity() {
 
 	// Apply a real edit.
 	let (tx, _sel) = buffer.prepare_insert("hello");
-	let result = buffer.apply(&tx, ApplyPolicy::INTERNAL);
+	let result = buffer.apply(&tx, ApplyPolicy::EDIT);
 	let v1 = result.version_after;
 	assert!(v1 > v0, "version must increase after non-identity edit");
 
 	// Apply another edit.
 	let (tx2, _sel2) = buffer.prepare_insert(" world");
-	let result2 = buffer.apply(&tx2, ApplyPolicy::INTERNAL);
+	let result2 = buffer.apply(&tx2, ApplyPolicy::EDIT);
 	let v2 = result2.version_after;
 	assert!(v2 > v1, "version must continue increasing");
 }

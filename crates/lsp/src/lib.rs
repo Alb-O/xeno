@@ -11,11 +11,17 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(missing_docs)]
 
+#[cfg(test)]
+use tokio as _;
+
 // Re-export framework types that downstream (editor) uses via `xeno_lsp::*`.
+#[cfg(all(feature = "client", feature = "position"))]
+pub(crate) use xeno_lsp_framework::ErrorCode;
+#[cfg(feature = "client")]
+pub(crate) use xeno_lsp_framework::Message;
 pub use xeno_lsp_framework::{
 	AnyNotification, AnyRequest, AnyResponse, Error, JsonValue, OffsetEncoding, RequestId, ResponseError, Result, lsp_types, path_from_uri, uri_from_path,
 };
-pub(crate) use xeno_lsp_framework::{ErrorCode, Message};
 
 #[cfg(feature = "client")]
 #[cfg_attr(docsrs, doc(cfg(feature = "client")))]

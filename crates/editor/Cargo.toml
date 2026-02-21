@@ -37,7 +37,6 @@ unicode-width.workspace = true
 xeno-buffer-display.workspace = true
 xeno-input.workspace = true
 xeno-invocation = { workspace = true, features = ["nu"] }
-xeno-invocation-spec.workspace = true
 xeno-language.workspace = true
 xeno-lsp = { workspace = true, features = ["position"], optional = true }
 xeno-matcher.workspace = true
@@ -53,6 +52,7 @@ proptest.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
 tokio-util = { workspace = true, features = ["rt"] }
 tracing-subscriber = "0.3"
+xeno-invocation-spec.workspace = true
 xeno-keymap-core.workspace = true
 xeno-lsp = { workspace = true, features = ["client", "position"] }
 

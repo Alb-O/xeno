@@ -32,18 +32,6 @@ pub struct CompiledKeymap {
 }
 
 impl CompiledKeymap {
-	pub fn slots(&self) -> &[CompiledSlot] {
-		&self.slots
-	}
-
-	pub fn conflicts(&self) -> &[KeymapConflict] {
-		&self.conflicts
-	}
-
-	pub fn problems(&self) -> &[KeymapBuildProblem] {
-		&self.problems
-	}
-
 	pub fn into_snapshot(self) -> KeymapSnapshot {
 		let matchers = build_matchers(&self.slots);
 		KeymapSnapshot::from_parts(matchers, self.prefixes, self.conflicts, self.problems)
