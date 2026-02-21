@@ -39,7 +39,7 @@ impl Editor {
 		let anchor = signature_help_anchor(self, buffer_id);
 		let ui_tx = self.state.integration.lsp.ui_tx();
 
-		self.state.async_state.worker_runtime.spawn(xeno_worker::TaskClass::Background, async move {
+		xeno_worker::spawn(xeno_worker::TaskClass::Background, async move {
 			let help = tokio::select! {
 				_ = cancel.cancelled() => return,
 				result = client.signature_help(uri, position) => result,

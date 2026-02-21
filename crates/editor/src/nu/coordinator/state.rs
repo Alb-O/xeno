@@ -314,7 +314,7 @@ impl NuCoordinatorState {
 		let token = self.scheduled_seq;
 		let tx = msg_tx.clone();
 		let fire_key = key.clone();
-		let handle = self.worker_runtime.spawn(xeno_worker::TaskClass::Background, async move {
+		let handle = xeno_worker::spawn(xeno_worker::TaskClass::Background, async move {
 			tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
 			let _ = tx.send(crate::msg::EditorMsg::NuScheduleFired(NuScheduleFiredMsg {
 				key: fire_key,

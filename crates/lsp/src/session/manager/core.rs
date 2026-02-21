@@ -93,7 +93,7 @@ impl LspRuntime {
 		);
 		let router_for_forward = Arc::clone(&router_actor);
 
-		let task = self.worker_runtime.spawn(xeno_worker::TaskClass::Background, async move {
+		let task = xeno_worker::spawn(xeno_worker::TaskClass::Background, async move {
 			loop {
 				tokio::select! {
 					_ = cancel.cancelled() => break,

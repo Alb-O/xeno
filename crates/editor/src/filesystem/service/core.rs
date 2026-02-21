@@ -119,7 +119,7 @@ impl xeno_worker::Actor for FsIndexerActor {
 			FsIndexerCmd::Start { generation, root, options } => {
 				let command_port = Arc::clone(&self.command_port);
 				let runtime = self.worker_runtime.clone();
-				self.worker_runtime.spawn_thread(xeno_worker::TaskClass::IoBlocking, move || {
+				xeno_worker::spawn_thread(xeno_worker::TaskClass::IoBlocking, move || {
 					run_filesystem_index(
 						runtime,
 						generation,
@@ -186,9 +186,8 @@ impl xeno_worker::Actor for FsSearchActor {
 					let data = self.data.clone();
 					let command_port = Arc::clone(&self.command_port);
 					let runtime = self.worker_runtime.clone();
-					self.worker_runtime.spawn(xeno_worker::TaskClass::Background, async move {
-						let result = runtime
-							.spawn_blocking(xeno_worker::TaskClass::CpuBlocking, move || {
+					xeno_worker::spawn(xeno_worker::TaskClass::Background, async move {
+						let result = xeno_worker::spawn_blocking(xeno_worker::TaskClass::CpuBlocking, move || {
 								run_search_query(generation, id, &query, limit, &data, latest_query_id.as_ref())
 							})
 							.await
@@ -532,7 +531,7 @@ impl FsService {
 				}
 			})),
 		);
-		let service_ingress = xeno_worker::ActorCommandIngress::new(&worker_runtime, xeno_worker::TaskClass::Interactive, Arc::clone(&service_actor));
+		let service_ingress = xeno_worker::ActorCommandIngress::new(xeno_worker::TaskClass::Interactive, Arc::clone(&service_actor));
 		let command_port = service_ingress.port();
 		let _ = service_command_port.set(command_port.clone());
 		let service_event_rx = service_ingress.subscribe();

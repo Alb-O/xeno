@@ -408,7 +408,7 @@ impl DocumentSync {
 		let (tx, rx) = oneshot::channel();
 		let documents = self.documents.clone();
 		let gen_at_start = documents.doc_generation(&uri).unwrap_or(0);
-		self.worker_runtime.spawn(xeno_worker::TaskClass::Background, async move {
+		xeno_worker::spawn(xeno_worker::TaskClass::Background, async move {
 			if documents.doc_generation(&uri) != Some(gen_at_start) {
 				tracing::debug!(uri = uri.as_str(), version, gen_at_start, "Barrier stale before await (doc generation changed)");
 				let _ = tx.send(());

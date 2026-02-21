@@ -63,7 +63,7 @@ impl<S: LspService> Service<AnyRequest> for ClientProcessMonitor<S> {
 				Ok(mut handle) => {
 					let client = self.client.clone();
 					let spawn_ret =
-						xeno_worker::spawn::spawn_named_thread(xeno_worker::TaskClass::Background, "client-process-monitor", move || match handle.wait() {
+						xeno_worker::spawn_named_thread(xeno_worker::TaskClass::Background, "client-process-monitor", move || match handle.wait() {
 							Ok(()) => {
 								let _: Result<_, _> = client.emit(ClientProcessExited);
 							}

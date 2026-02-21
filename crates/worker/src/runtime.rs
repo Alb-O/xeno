@@ -1,4 +1,3 @@
-use std::future::Future;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -7,7 +6,7 @@ use tokio::sync::{Mutex, Notify};
 use crate::actor::{Actor, ActorHandle, ActorRuntime, ActorSpec};
 use crate::budget::{DrainBudget, DrainReport};
 use crate::join_set::WorkerJoinSet;
-use crate::{TaskClass, spawn};
+use crate::TaskClass;
 
 /// Drop guard that signals a [`Notify`] on completion regardless of exit path
 /// (normal return, panic unwind, or future cancellation/abort).
@@ -55,42 +54,6 @@ impl WorkerRuntime {
 			interactive_notify: Arc::new(Notify::new()),
 			background_notify: Arc::new(Notify::new()),
 		}
-	}
-
-	/// Spawns an async task.
-	pub fn spawn<F>(&self, class: TaskClass, fut: F) -> crate::TaskHandle<F::Output>
-	where
-		F: Future + Send + 'static,
-		F::Output: Send + 'static,
-	{
-		spawn::spawn(class, fut)
-	}
-
-	/// Spawns blocking work.
-	pub fn spawn_blocking<F, R>(&self, class: TaskClass, f: F) -> crate::TaskHandle<R>
-	where
-		F: FnOnce() -> R + Send + 'static,
-		R: Send + 'static,
-	{
-		spawn::spawn_blocking(class, f)
-	}
-
-	/// Spawns an OS thread.
-	pub fn spawn_thread<F, R>(&self, class: TaskClass, f: F) -> crate::ThreadHandle<R>
-	where
-		F: FnOnce() -> R + Send + 'static,
-		R: Send + 'static,
-	{
-		spawn::spawn_thread(class, f)
-	}
-
-	/// Spawns a named OS thread.
-	pub fn spawn_named_thread<F, R>(&self, class: TaskClass, name: impl Into<String>, f: F) -> std::io::Result<crate::ThreadHandle<R>>
-	where
-		F: FnOnce() -> R + Send + 'static,
-		R: Send + 'static,
-	{
-		spawn::spawn_named_thread(class, name, f)
 	}
 
 	/// Submits managed runtime work drained by [`Self::drain`].

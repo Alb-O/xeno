@@ -21,7 +21,9 @@ mod class;
 mod join_set;
 mod mailbox;
 mod runtime;
-pub mod spawn;
+#[path = "spawn.rs"]
+mod spawn_impl;
+pub use spawn_impl::{spawn, spawn_blocking, spawn_thread, spawn_named_thread};
 mod supervisor;
 mod token;
 
@@ -41,7 +43,7 @@ pub type TaskHandle<T> = tokio::task::JoinHandle<T>;
 /// Error from joining a [`TaskHandle`].
 pub type TaskJoinError = tokio::task::JoinError;
 
-/// Handle for a thread spawned via [`WorkerRuntime::spawn_thread`].
+/// Handle for a thread spawned via [`spawn_thread`].
 pub type ThreadHandle<T> = std::thread::JoinHandle<T>;
 
 /// Receiver for actor events from [`ActorHandle::subscribe`].

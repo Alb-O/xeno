@@ -94,7 +94,7 @@ fn run_indexer(runtime: xeno_worker::WorkerRuntime, generation: u64, root: PathB
 
 	let (file_tx, file_rx) = mpsc::sync_channel::<FileRow>(options.file_channel_capacity.max(1));
 	let aggregator_emit = Arc::clone(&emit);
-	let aggregator = runtime.spawn_thread(xeno_worker::TaskClass::Background, move || {
+	let aggregator = xeno_worker::spawn_thread(xeno_worker::TaskClass::Background, move || {
 		aggregate_files(generation, file_rx, aggregator_emit)
 	});
 	let walk_error_emit = Arc::clone(&emit);

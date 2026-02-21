@@ -250,16 +250,14 @@ impl LspSyncActor {
 			worker_runtime,
 		} = input;
 
-		let task_runtime = worker_runtime.clone();
-		task_runtime.spawn(xeno_worker::TaskClass::Background, async move {
+		xeno_worker::spawn(xeno_worker::TaskClass::Background, async move {
 			let mode = work.mode();
 			let was_full = work.was_full();
 			let start = Instant::now();
 
 			let send_result = match work {
 				SendWork::Full { content, snapshot_bytes } => {
-					let snapshot = match worker_runtime
-						.spawn_blocking(xeno_worker::TaskClass::CpuBlocking, move || content.to_string())
+					let snapshot = match xeno_worker::spawn_blocking(xeno_worker::TaskClass::CpuBlocking, move || content.to_string())
 						.await
 					{
 						Ok(snapshot) => snapshot,
@@ -665,7 +663,7 @@ impl LspSyncManager {
 					.event_buffer(64)),
 			),
 		);
-		let ingress = xeno_worker::ActorCommandIngress::with_capacity(&worker_runtime, xeno_worker::TaskClass::Background, Arc::clone(&actor), 4096);
+		let ingress = xeno_worker::ActorCommandIngress::with_capacity(xeno_worker::TaskClass::Background, Arc::clone(&actor), 4096);
 		let _ = command_port.set(ingress.port());
 
 		Self { shared, ingress }

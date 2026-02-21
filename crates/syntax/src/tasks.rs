@@ -115,7 +115,7 @@ impl TaskCollector {
 		let viewport_key = spec.viewport_key;
 		let viewport_lane = spec.viewport_lane;
 
-		let handle = self.runtime.spawn_blocking(xeno_worker::TaskClass::CpuBlocking, move || {
+		let handle = xeno_worker::spawn_blocking(xeno_worker::TaskClass::CpuBlocking, move || {
 			let _permit = permit; // Tie permit lifetime to closure
 
 			let t0 = Instant::now();

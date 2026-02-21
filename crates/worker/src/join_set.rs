@@ -62,7 +62,7 @@ where
 	{
 		self.spawned_total = self.spawned_total.wrapping_add(1);
 		tracing::trace!(worker_class = self.class.as_str(), pending = self.inner.len(), "worker.join_set.spawn");
-		let handle = crate::spawn::current_handle();
+		let handle = crate::spawn_impl::current_handle();
 		let _guard = handle.enter();
 		self.inner.spawn(fut);
 	}

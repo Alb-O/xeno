@@ -366,7 +366,7 @@ impl Registry {
 						let enable_snippets = config.enable_snippets;
 						let init_config = config.config.clone();
 
-						self.worker_runtime.spawn(xeno_worker::TaskClass::Background, async move {
+						xeno_worker::spawn(xeno_worker::TaskClass::Background, async move {
 							match tokio::time::timeout(Duration::from_secs(30), init_handle.initialize(enable_snippets, init_config)).await {
 								Ok(Ok(_)) => {}
 								Ok(Err(e)) => {
@@ -392,7 +392,7 @@ impl Registry {
 				if let Some(id) = stop_id {
 					// Stop the redundant server we just started
 					let transport = self.transport.clone();
-					self.worker_runtime.spawn(xeno_worker::TaskClass::Background, async move {
+					xeno_worker::spawn(xeno_worker::TaskClass::Background, async move {
 						let _ = transport.stop(id).await;
 					});
 				}
@@ -542,7 +542,7 @@ impl Drop for StartGuard {
 		let worker_runtime = self.worker_runtime.clone();
 		let started_id = self.started_id;
 
-		worker_runtime.spawn(xeno_worker::TaskClass::Background, async move {
+		xeno_worker::spawn(xeno_worker::TaskClass::Background, async move {
 			// If we already spawned a server but never registered it, try to stop it.
 			if let Some(id) = started_id {
 				let _ = transport.stop(id).await;

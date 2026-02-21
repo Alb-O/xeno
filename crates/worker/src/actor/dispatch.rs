@@ -15,7 +15,6 @@ use tokio_util::sync::CancellationToken;
 use super::handle::ActorHandle;
 use super::spec::{ActorShutdownMode, ActorShutdownReport};
 use crate::TaskClass;
-use crate::runtime::WorkerRuntime;
 
 /// Default ingress staging queue capacity.
 const DEFAULT_INGRESS_CAPACITY: usize = 1024;
@@ -134,18 +133,18 @@ where
 	Evt: Clone + Send + 'static,
 {
 	/// Creates one ingress queue with default capacity and starts a forwarding task.
-	pub fn new(runtime: &WorkerRuntime, class: TaskClass, actor: Arc<ActorHandle<Cmd, Evt>>) -> Self {
-		Self::with_capacity(runtime, class, actor, DEFAULT_INGRESS_CAPACITY)
+	pub fn new(class: TaskClass, actor: Arc<ActorHandle<Cmd, Evt>>) -> Self {
+		Self::with_capacity(class, actor, DEFAULT_INGRESS_CAPACITY)
 	}
 
 	/// Creates one ingress queue with explicit capacity and starts a forwarding task.
-	pub fn with_capacity(runtime: &WorkerRuntime, class: TaskClass, actor: Arc<ActorHandle<Cmd, Evt>>, capacity: usize) -> Self {
+	pub fn with_capacity(class: TaskClass, actor: Arc<ActorHandle<Cmd, Evt>>, capacity: usize) -> Self {
 		let (tx, mut rx) = mpsc::channel::<Cmd>(capacity);
 		let drops = Arc::new(AtomicU64::new(0));
 		let cancel = CancellationToken::new();
 		let task_cancel = cancel.clone();
 		let task_actor = Arc::clone(&actor);
-		let task = runtime.spawn(class, async move {
+		let task = crate::spawn(class, async move {
 			loop {
 				let cmd = tokio::select! {
 					biased;
@@ -234,14 +233,13 @@ mod tests {
 
 	#[tokio::test]
 	async fn ingress_forwards_commands_to_actor() {
-		let runtime = WorkerRuntime::new();
 		let actor = Arc::new(ActorRuntime::spawn(
 			ActorSpec::new("dispatch.echo", crate::TaskClass::Background, || EchoActor).supervisor(ActorSupervisorSpec {
 				restart: ActorRestartPolicy::Never,
 				event_buffer: 8,
 			}),
 		));
-		let ingress = ActorCommandIngress::new(&runtime, crate::TaskClass::Background, Arc::clone(&actor));
+		let ingress = ActorCommandIngress::new(crate::TaskClass::Background, Arc::clone(&actor));
 		let mut events = ingress.subscribe();
 
 		let _ = ingress.send(7);
@@ -260,7 +258,6 @@ mod tests {
 
 	#[tokio::test]
 	async fn ingress_returns_full_when_capacity_exhausted() {
-		let runtime = WorkerRuntime::new();
 		let actor = Arc::new(ActorRuntime::spawn(
 			ActorSpec::new("dispatch.full", crate::TaskClass::Background, || EchoActor).supervisor(ActorSupervisorSpec {
 				restart: ActorRestartPolicy::Never,
@@ -268,7 +265,7 @@ mod tests {
 			}),
 		));
 		// Tiny capacity to force fullness.
-		let ingress = ActorCommandIngress::with_capacity(&runtime, crate::TaskClass::Background, Arc::clone(&actor), 2);
+		let ingress = ActorCommandIngress::with_capacity(crate::TaskClass::Background, Arc::clone(&actor), 2);
 
 		// Yield so forwarder task can start, but then flood faster than it can forward.
 		tokio::task::yield_now().await;

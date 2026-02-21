@@ -25,7 +25,7 @@ pub fn fetch_all_grammars(
 	for chunk in chunks {
 		let tx = tx.clone();
 
-		runtime.spawn_thread(xeno_worker::TaskClass::IoBlocking, move || {
+		xeno_worker::spawn_thread(xeno_worker::TaskClass::IoBlocking, move || {
 			for grammar in chunk {
 				let result = fetch_grammar(&grammar);
 				let _ = tx.send((grammar, result));
@@ -67,7 +67,7 @@ pub fn build_all_grammars(
 	for chunk in chunks {
 		let tx = tx.clone();
 
-		runtime.spawn_thread(xeno_worker::TaskClass::CpuBlocking, move || {
+		xeno_worker::spawn_thread(xeno_worker::TaskClass::CpuBlocking, move || {
 			for grammar in chunk {
 				let result = build_grammar(&grammar);
 				let _ = tx.send((grammar, result));

@@ -27,7 +27,7 @@ impl Editor {
 		let data_themes_dir = crate::paths::get_data_dir().map(|d| d.join("themes"));
 		let runtime = self.state.async_state.worker_runtime.clone();
 
-		runtime.clone().spawn(xeno_worker::TaskClass::Background, async move {
+		xeno_worker::spawn(xeno_worker::TaskClass::Background, async move {
 			let (themes, errors) = load_themes_blocking(runtime.clone(), config_themes_dir, data_themes_dir).await;
 			send(&tx, ThemeMsg::ThemesReady { token, themes, errors });
 		});
@@ -41,12 +41,11 @@ impl Editor {
 	pub fn kick_file_load(&self, path: PathBuf, token: u64) {
 		let tx = self.msg_tx();
 		let runtime = self.state.async_state.worker_runtime.clone();
-		runtime.clone().spawn(xeno_worker::TaskClass::IoBlocking, async move {
+		xeno_worker::spawn(xeno_worker::TaskClass::IoBlocking, async move {
 			match tokio::fs::read_to_string(&path).await {
 				Ok(content) => {
 					let path_for_build = path.clone();
-					let built = runtime
-						.spawn_blocking(xeno_worker::TaskClass::CpuBlocking, move || {
+					let built = xeno_worker::spawn_blocking(xeno_worker::TaskClass::CpuBlocking, move || {
 							let rope = ropey::Rope::from_str(&normalize_to_lf(content));
 							let readonly = !is_writable(&path_for_build);
 							(rope, readonly)
@@ -91,9 +90,8 @@ impl Editor {
 		let tx = self.msg_tx();
 		let runtime = self.state.async_state.worker_runtime.clone();
 
-		runtime.clone().spawn(xeno_worker::TaskClass::Background, async move {
-			let parsed = runtime
-				.spawn_blocking(xeno_worker::TaskClass::IoBlocking, || {
+		xeno_worker::spawn(xeno_worker::TaskClass::Background, async move {
+			let parsed = xeno_worker::spawn_blocking(xeno_worker::TaskClass::IoBlocking, || {
 					xeno_language::load_resolved_lsp_configs().map_err(|e| format!("failed to load LSP configs: {e}"))
 				})
 				.await;
@@ -149,8 +147,7 @@ async fn load_themes_blocking(
 	config_themes_dir: Option<PathBuf>,
 	data_themes_dir: Option<PathBuf>,
 ) -> (Vec<xeno_registry::themes::LinkedThemeDef>, Vec<(String, String)>) {
-	runtime
-		.spawn_blocking(xeno_worker::TaskClass::IoBlocking, move || {
+	xeno_worker::spawn_blocking(xeno_worker::TaskClass::IoBlocking, move || {
 			let mut errors = Vec::new();
 			let mut all_themes: Vec<xeno_registry::themes::LinkedThemeDef> = Vec::new();
 

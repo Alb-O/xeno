@@ -484,11 +484,7 @@ impl Editor {
 		for (path, bytes) in &plans {
 			let write_path = path.clone();
 			let write_bytes = bytes.clone();
-			let result = self
-				.state
-				.async_state
-				.worker_runtime
-				.spawn_blocking(xeno_worker::TaskClass::IoBlocking, move || crate::io::write_atomic(&write_path, &write_bytes))
+			let result = xeno_worker::spawn_blocking(xeno_worker::TaskClass::IoBlocking, move || crate::io::write_atomic(&write_path, &write_bytes))
 				.await;
 			let write_result = match result {
 				Ok(r) => r,

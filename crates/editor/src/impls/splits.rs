@@ -205,7 +205,7 @@ impl Editor {
 				let path = buffer.path().map(|p| p.to_path_buf());
 				let language = buffer.file_type().map(|s| s.to_string());
 				if let (Some(path), Some(language)) = (path, language) {
-					self.state.async_state.worker_runtime.spawn(xeno_worker::TaskClass::Background, async move {
+					xeno_worker::spawn(xeno_worker::TaskClass::Background, async move {
 						if let Err(e) = lsp.on_buffer_close(path, language).await {
 							tracing::warn!(error = %e, "LSP buffer close failed");
 						}

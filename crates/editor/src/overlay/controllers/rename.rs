@@ -94,7 +94,7 @@ impl OverlayController for RenameOverlay {
 
 			let token = ctx.mint_rename_token();
 			let tx = ctx.msg_tx();
-			ctx.worker_runtime().spawn(xeno_worker::TaskClass::Background, async move {
+			xeno_worker::spawn(xeno_worker::TaskClass::Background, async move {
 				let result = client.rename(uri, pos, new_name).await.map_err(|e| e.to_string());
 				let _ = tx.send(OverlayMsg::RenameDone { token, result }.into());
 			});

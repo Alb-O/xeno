@@ -58,7 +58,7 @@ impl xeno_worker::Actor for NuActor {
 				reply,
 			} => {
 				let runtime = self.runtime.clone();
-				let result = xeno_worker::spawn::spawn_blocking(xeno_worker::TaskClass::CpuBlocking, move || {
+				let result = xeno_worker::spawn_blocking(xeno_worker::TaskClass::CpuBlocking, move || {
 					let _guard = span.enter();
 					let host_ref = host.as_ref().map(|h| h.as_ref() as &(dyn xeno_nu_api::XenoNuHost + 'static));
 					std::panic::catch_unwind(AssertUnwindSafe(|| {

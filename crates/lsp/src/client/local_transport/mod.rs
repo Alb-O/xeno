@@ -114,8 +114,7 @@ impl LocalTransport {
 		let event_tx = self.event_tx.clone();
 
 		// Spawn the I/O task for this server
-		self.worker_runtime
-			.spawn(xeno_worker::TaskClass::Background, io::run_server_io(id, stdin, stdout, outbound_rx, event_tx));
+		xeno_worker::spawn(xeno_worker::TaskClass::Background, io::run_server_io(id, stdin, stdout, outbound_rx, event_tx));
 
 		Ok(ServerProcess { child, outbound_tx })
 	}

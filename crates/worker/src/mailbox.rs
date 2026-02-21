@@ -230,7 +230,7 @@ mod tests {
 		let _ = tx.send(2).await;
 
 		let tx2 = tx.clone();
-		let send_task = crate::spawn::spawn(crate::TaskClass::Background, async move { tx2.send(3).await });
+		let send_task = crate::spawn(crate::TaskClass::Background, async move { tx2.send(3).await });
 
 		tokio::time::sleep(Duration::from_millis(10)).await;
 		assert_eq!(rx.recv().await, Some(1));
@@ -505,7 +505,7 @@ mod tests {
 		for sender_id in 0..SENDERS {
 			let tx = tx.clone();
 			let barrier = Arc::clone(&barrier);
-			handles.push(crate::spawn::spawn(crate::TaskClass::Background, async move {
+			handles.push(crate::spawn(crate::TaskClass::Background, async move {
 				barrier.wait().await;
 				for seq in 0..ITEMS_PER_SENDER {
 					let val = (sender_id * ITEMS_PER_SENDER + seq) as u32;
@@ -514,7 +514,7 @@ mod tests {
 			}));
 		}
 
-		let receiver = crate::spawn::spawn(crate::TaskClass::Background, async move {
+		let receiver = crate::spawn(crate::TaskClass::Background, async move {
 			let mut received = Vec::with_capacity(total);
 			for _ in 0..total {
 				let val = rx.recv().await.expect("should not close early");
@@ -546,7 +546,7 @@ mod tests {
 		let _ = tx.send(1u32).await;
 
 		let tx2 = tx.clone();
-		let send_task = crate::spawn::spawn(crate::TaskClass::Background, async move { tx2.send(2).await });
+		let send_task = crate::spawn(crate::TaskClass::Background, async move { tx2.send(2).await });
 
 		tokio::time::sleep(Duration::from_millis(10)).await;
 		tx.close().await;
