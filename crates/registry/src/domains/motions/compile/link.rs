@@ -35,7 +35,6 @@ pub fn link_motions(spec: &MotionsSpec, handlers: impl Iterator<Item = &'static 
 					priority: common.priority,
 					source: RegistrySource::Crate(handler.crate_name),
 					mutates_buffer: false,
-					flags: common.flags,
 					short_desc: Some(common.name.clone()),
 				},
 				payload: MotionPayload { handler: handler.handler },

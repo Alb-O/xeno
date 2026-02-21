@@ -13,6 +13,4 @@ pub struct MetaCommonSpec {
 	pub priority: i16,
 	#[serde(default)]
 	pub mutates_buffer: bool,
-	#[serde(default)]
-	pub flags: u32,
 }

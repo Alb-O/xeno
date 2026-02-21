@@ -63,7 +63,6 @@ static ACTION_RUNTIME_EDIT: xeno_registry::actions::ActionDef = xeno_registry::a
 		priority: 0,
 		source: xeno_registry::RegistrySource::Crate("xeno-editor"),
 		mutates_buffer: true,
-		flags: 0,
 	},
 	short_desc: "Runtime invariant edit action",
 	handler: handler_runtime_edit_action,

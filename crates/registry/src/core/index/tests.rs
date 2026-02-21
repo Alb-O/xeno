@@ -68,7 +68,6 @@ fn test_registry_ref_string_helpers() {
 			priority: 42,
 			source: RegistrySource::Builtin,
 			mutates_buffer: false,
-			flags: 0,
 		},
 	};
 	builder.push(Arc::new(def));
@@ -127,7 +126,6 @@ fn test_build_ctx_enforcement() {
 				priority: 0,
 				source: RegistrySource::Builtin,
 				mutates_buffer: false,
-				flags: 0,
 			}
 		}
 

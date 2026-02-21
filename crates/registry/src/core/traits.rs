@@ -35,11 +35,6 @@ pub trait RegistryEntry {
 	fn mutates_buffer(&self) -> bool {
 		self.meta().mutates_buffer
 	}
-
-	/// Returns behavior flags.
-	fn flags(&self) -> u32 {
-		self.meta().flags
-	}
 }
 
 /// Trait for basic metadata access.

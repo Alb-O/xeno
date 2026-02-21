@@ -102,7 +102,6 @@ impl BuildEntry<HookEntry> for HookDef {
 			priority: self.meta.priority,
 			source: self.meta.source,
 			mutates_buffer: self.meta.mutates_buffer,
-			flags: self.meta.flags,
 		}
 	}
 

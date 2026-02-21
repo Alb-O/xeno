@@ -60,7 +60,6 @@ pub(crate) fn test_key_collision_recording() {
 			priority: 10,
 			source: RegistrySource::Builtin,
 			mutates_buffer: false,
-			flags: 0,
 		},
 	};
 	let def_b = TestDef {
@@ -72,7 +71,6 @@ pub(crate) fn test_key_collision_recording() {
 			priority: 20,
 			source: RegistrySource::Builtin,
 			mutates_buffer: false,
-			flags: 0,
 		},
 	};
 	builder.push(std::sync::Arc::new(def_a));
@@ -99,7 +97,6 @@ pub(crate) fn test_id_override_eviction() {
 			priority: 5,
 			source: RegistrySource::Builtin,
 			mutates_buffer: false,
-			flags: 0,
 		},
 	};
 	let high = TestDef {
@@ -111,7 +108,6 @@ pub(crate) fn test_id_override_eviction() {
 			priority: 50,
 			source: RegistrySource::Builtin,
 			mutates_buffer: false,
-			flags: 0,
 		},
 	};
 	builder.push(Arc::new(low));
@@ -140,7 +136,6 @@ pub(crate) fn test_canonical_id_ordinal_tiebreaker() {
 			priority: 10,
 			source: RegistrySource::Builtin,
 			mutates_buffer: false,
-			flags: 0,
 		},
 	};
 	let second = TestDef {
@@ -152,7 +147,6 @@ pub(crate) fn test_canonical_id_ordinal_tiebreaker() {
 			priority: 10,
 			source: RegistrySource::Builtin,
 			mutates_buffer: false,
-			flags: 0,
 		},
 	};
 
@@ -186,7 +180,6 @@ pub(crate) fn test_key_conflict_ordinal_tiebreaker() {
 			priority: 10,
 			source: RegistrySource::Builtin,
 			mutates_buffer: false,
-			flags: 0,
 		},
 	};
 	let def_second = TestDef {
@@ -198,7 +191,6 @@ pub(crate) fn test_key_conflict_ordinal_tiebreaker() {
 			priority: 10,
 			source: RegistrySource::Builtin,
 			mutates_buffer: false,
-			flags: 0,
 		},
 	};
 
@@ -233,7 +225,6 @@ pub(crate) fn test_id_override_keeps_name_binding_on_tie() {
 			priority: 10,
 			source: RegistrySource::Builtin,
 			mutates_buffer: false,
-			flags: 0,
 		},
 	};
 	let def_a_v1 = TestDef {
@@ -245,7 +236,6 @@ pub(crate) fn test_id_override_keeps_name_binding_on_tie() {
 			priority: 10,
 			source: RegistrySource::Builtin,
 			mutates_buffer: false,
-			flags: 0,
 		},
 	};
 	let def_a_v2 = TestDef {
@@ -257,7 +247,6 @@ pub(crate) fn test_id_override_keeps_name_binding_on_tie() {
 			priority: 10,
 			source: RegistrySource::Builtin,
 			mutates_buffer: false,
-			flags: 0,
 		},
 	};
 

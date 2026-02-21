@@ -134,7 +134,6 @@ pub fn parse_theme_value(value: &Value) -> Result<crate::themes::LinkedThemeDef>
 			keys,
 			description: String::new(),
 			priority: 0,
-			flags: 0,
 			source: crate::core::RegistrySource::Runtime,
 			mutates_buffer: false,
 			short_desc: None,

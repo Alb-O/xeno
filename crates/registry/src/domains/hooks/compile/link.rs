@@ -56,7 +56,6 @@ pub fn link_hooks(spec: &HooksSpec, handlers: impl Iterator<Item = &'static Hook
 					priority: common.priority,
 					source: RegistrySource::Crate(handler.crate_name),
 					mutates_buffer: false,
-					flags: common.flags,
 					short_desc: Some(common.short_desc.clone().unwrap_or_else(|| common.description.clone())),
 				},
 				payload: HookPayload {

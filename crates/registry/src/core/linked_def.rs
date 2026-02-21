@@ -10,7 +10,6 @@ pub struct LinkedMetaOwned {
 	pub priority: i16,
 	pub source: RegistrySource,
 	pub mutates_buffer: bool,
-	pub flags: u32,
 	pub short_desc: Option<String>,
 }
 
@@ -50,7 +49,6 @@ where
 			priority: self.meta.priority,
 			source: self.meta.source,
 			mutates_buffer: self.meta.mutates_buffer,
-			flags: self.meta.flags,
 		}
 	}
 

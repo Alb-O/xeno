@@ -14,7 +14,6 @@ pub static DEFAULT_THEME: ThemeDef = ThemeDef {
 		priority: 0,
 		source: RegistrySource::Builtin,
 		mutates_buffer: false,
-		flags: 0,
 	},
 	variant: crate::themes::ThemeVariant::Dark,
 	colors: ThemeColors {

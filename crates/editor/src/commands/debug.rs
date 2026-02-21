@@ -168,7 +168,6 @@ struct RegistryItem {
 	priority: i16,
 	source: xeno_registry::RegistrySource,
 	mutates_buffer: bool,
-	flags: u32,
 }
 
 fn cmd_registry<'a>(ctx: &'a mut EditorCommandContext<'a>) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
@@ -249,14 +248,8 @@ fn append_registry_section(out: &mut String, kind: RegistryKind, prefix: Option<
 	out.push_str(&format!("## {} ({})\n", kind.label(), count));
 	for item in items {
 		out.push_str(&format!(
-			"- {} ({}) prio={} src={} mut={} flags={} - {}\n",
-			item.id,
-			item.name,
-			item.priority,
-			item.source,
-			item.mutates_buffer,
-			format_flags(item.flags),
-			item.description
+			"- {} ({}) prio={} src={} mut={} - {}\n",
+			item.id, item.name, item.priority, item.source, item.mutates_buffer, item.description
 		));
 	}
 	out.push('\n');
@@ -276,7 +269,6 @@ where
 		priority: def.priority(),
 		source: def.source(),
 		mutates_buffer: def.mutates_buffer(),
-		flags: def.flags(),
 	}
 }
 
@@ -294,7 +286,6 @@ fn collect_registry_items(kind: RegistryKind) -> Vec<RegistryItem> {
 				priority: def.priority,
 				source: def.source,
 				mutates_buffer: def.mutates_buffer,
-				flags: 0,
 			})
 			.collect(),
 		RegistryKind::Motions => all_motions().iter().map(registry_item_from_ref).collect(),
@@ -311,7 +302,6 @@ fn collect_registry_items(kind: RegistryKind) -> Vec<RegistryItem> {
 				priority: 0,
 				source: def.source(),
 				mutates_buffer: false,
-				flags: 0,
 			})
 			.collect(),
 		RegistryKind::Options => OPTIONS.snapshot_guard().iter_refs().map(|r| registry_item_from_ref(&r)).collect(),
@@ -327,6 +317,3 @@ fn matches_prefix(item: &RegistryItem, prefix: Option<&str>) -> bool {
 	item.id.starts_with(prefix) || item.name.starts_with(prefix)
 }
 
-fn format_flags(flags: u32) -> String {
-	format!("0x{flags:08x}")
-}

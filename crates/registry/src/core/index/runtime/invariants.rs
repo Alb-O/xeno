@@ -81,7 +81,6 @@ pub(crate) fn test_source_precedence() {
 			priority: 10,
 			source: RegistrySource::Builtin,
 			mutates_buffer: false,
-			flags: 0,
 		},
 	}));
 	builder.push(Arc::new(TestDef {
@@ -93,7 +92,6 @@ pub(crate) fn test_source_precedence() {
 			priority: 10,
 			source: RegistrySource::Runtime,
 			mutates_buffer: false,
-			flags: 0,
 		},
 	}));
 
@@ -119,7 +117,6 @@ pub(crate) fn test_canonical_id_ordinal_tiebreaker() {
 			priority: 10,
 			source: RegistrySource::Builtin,
 			mutates_buffer: false,
-			flags: 0,
 		},
 	}));
 	builder.push(Arc::new(TestDef {
@@ -131,7 +128,6 @@ pub(crate) fn test_canonical_id_ordinal_tiebreaker() {
 			priority: 10,
 			source: RegistrySource::Builtin,
 			mutates_buffer: false,
-			flags: 0,
 		},
 	}));
 

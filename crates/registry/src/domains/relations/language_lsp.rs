@@ -45,7 +45,6 @@ mod tests {
 			priority: 0,
 			source: RegistrySource::Builtin,
 			mutates_buffer: false,
-			flags: 0,
 		},
 		scope: None,
 		grammar_name: None,

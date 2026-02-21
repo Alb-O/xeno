@@ -42,7 +42,6 @@ pub struct RegistryMetaStatic {
 	pub priority: i16,
 	pub source: RegistrySource,
 	pub mutates_buffer: bool,
-	pub flags: u32,
 }
 
 impl RegistryMetaStatic {
@@ -56,7 +55,6 @@ impl RegistryMetaStatic {
 		priority: i16,
 		source: RegistrySource,
 		mutates_buffer: bool,
-		flags: u32,
 	) -> Self {
 		Self {
 			id,
@@ -66,7 +64,6 @@ impl RegistryMetaStatic {
 			priority,
 			source,
 			mutates_buffer,
-			flags,
 		}
 	}
 
@@ -80,7 +77,6 @@ impl RegistryMetaStatic {
 			priority: 0,
 			source: RegistrySource::Builtin,
 			mutates_buffer: false,
-			flags: 0,
 		}
 	}
 }
@@ -109,6 +105,4 @@ pub struct RegistryMeta {
 	pub source: RegistrySource,
 	/// Whether this item mutates buffer text (used for readonly gating).
 	pub mutates_buffer: bool,
-	/// Bitflags for additional behavior hints.
-	pub flags: u32,
 }

@@ -39,6 +39,5 @@ pub fn build_meta<'a>(
 		priority: meta_ref.priority,
 		source: meta_ref.source,
 		mutates_buffer: meta_ref.mutates_buffer,
-		flags: meta_ref.flags,
 	}
 }

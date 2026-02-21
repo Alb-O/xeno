@@ -76,7 +76,6 @@ mod tests {
 			priority: 0,
 			source: RegistrySource::Runtime,
 			mutates_buffer: false,
-			flags: 0,
 		},
 		event: crate::HookEvent::EditorTick,
 		mutability: HookMutability::Immutable,

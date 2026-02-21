@@ -30,7 +30,6 @@ impl BuildEntry<TestEntry> for TestDef {
 			priority: self.meta.priority,
 			source: self.meta.source,
 			mutates_buffer: self.meta.mutates_buffer,
-			flags: self.meta.flags,
 		}
 	}
 	fn short_desc_str(&self) -> &str {
@@ -54,7 +53,6 @@ pub(crate) fn make_def(id: &'static str, priority: i16) -> TestDef {
 			priority,
 			source: RegistrySource::Builtin,
 			mutates_buffer: false,
-			flags: 0,
 		},
 	}
 }
@@ -69,7 +67,6 @@ pub(crate) fn make_def_with_name(id: &'static str, name: &'static str, priority:
 			priority,
 			source: RegistrySource::Builtin,
 			mutates_buffer: false,
-			flags: 0,
 		},
 	}
 }
@@ -84,7 +81,6 @@ pub(crate) fn make_def_with_keyes(id: &'static str, priority: i16, keys: &'stati
 			priority,
 			source: RegistrySource::Builtin,
 			mutates_buffer: false,
-			flags: 0,
 		},
 	}
 }

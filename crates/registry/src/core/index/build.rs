@@ -152,7 +152,6 @@ pub struct RegistryMetaRef<'a> {
 	pub priority: i16,
 	pub source: RegistrySource,
 	pub mutates_buffer: bool,
-	pub flags: u32,
 }
 
 /// Trait for converting static or dynamic definitions into symbolized runtime entries.

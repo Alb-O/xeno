@@ -197,7 +197,6 @@ impl BuildEntry<ThemeEntry> for ThemeDef {
 			priority: self.meta.priority,
 			source: self.meta.source,
 			mutates_buffer: self.meta.mutates_buffer,
-			flags: self.meta.flags,
 		}
 	}
 
