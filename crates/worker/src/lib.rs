@@ -17,7 +17,7 @@
 //! [`ThreadHandle`], [`ActorEventReceiver`]) are aliases for their
 //! Tokio/std equivalents.
 
-pub mod actor;
+mod actor;
 mod budget;
 mod class;
 mod join_set;
