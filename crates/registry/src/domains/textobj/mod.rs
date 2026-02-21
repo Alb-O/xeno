@@ -40,8 +40,8 @@ pub fn register_compiled(db: &mut crate::db::builder::RegistryDbBuilder) {
 
 use crate::core::index::{BuildCtx, BuildEntry, RegistryMetaRef, StrListRef};
 pub use crate::core::{
-	DuplicatePolicy, FrozenInterner, RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta, RegistryMetaStatic, RegistryRef,
-	RegistrySource, Symbol, SymbolList, TextObjectId,
+	DuplicatePolicy, FrozenInterner, RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta, RegistryMetaStatic, RegistryRef, RegistrySource, Symbol,
+	SymbolList, TextObjectId,
 };
 // Re-export macros
 pub use crate::text_object_handler;

@@ -100,9 +100,7 @@ async fn nu_run_noop_macro_returns_ok() {
 	let mut editor = Editor::new_scratch();
 	editor.set_nu_runtime(Some(runtime));
 
-	let result = editor
-		.run_invocation(Invocation::nu("noop", vec![]), InvocationPolicy::enforcing())
-		.await;
+	let result = editor.run_invocation(Invocation::nu("noop", vec![]), InvocationPolicy::enforcing()).await;
 
 	assert!(
 		matches!(result.status, InvocationStatus::Ok),
@@ -126,10 +124,7 @@ async fn nu_run_command_injects_expanded_ctx_fields() {
 	editor.set_nu_runtime(Some(runtime));
 
 	let result = editor
-		.run_invocation(
-			Invocation::editor_command("nu-run", vec!["go".to_string()]),
-			InvocationPolicy::enforcing(),
-		)
+		.run_invocation(Invocation::editor_command("nu-run", vec!["go".to_string()]), InvocationPolicy::enforcing())
 		.await;
 
 	assert!(matches!(result.status, InvocationStatus::Ok));
@@ -146,10 +141,7 @@ async fn nu_run_dispatches_editor_command() {
 	editor.set_nu_runtime(Some(runtime));
 
 	let result = editor
-		.run_invocation(
-			Invocation::editor_command("nu-run", vec!["go".to_string()]),
-			InvocationPolicy::enforcing(),
-		)
+		.run_invocation(Invocation::editor_command("nu-run", vec!["go".to_string()]), InvocationPolicy::enforcing())
 		.await;
 
 	assert!(matches!(result.status, InvocationStatus::Ok));
@@ -190,9 +182,7 @@ async fn action_post_hook_dispatches_once_with_recursion_guard() {
 	let mut editor = Editor::from_content("abcd".to_string(), None);
 	editor.set_nu_runtime(Some(runtime));
 
-	let result = editor
-		.run_invocation(Invocation::action("move_right"), InvocationPolicy::enforcing())
-		.await;
+	let result = editor.run_invocation(Invocation::action("move_right"), InvocationPolicy::enforcing()).await;
 	editor.drain_nu_hook_queue(usize::MAX).await;
 
 	assert!(matches!(result.status, InvocationStatus::Ok));
@@ -217,9 +207,7 @@ async fn action_post_hook_receives_expanded_ctx_fields() {
 	let mut editor = Editor::from_content("abcd".to_string(), None);
 	editor.set_nu_runtime(Some(runtime));
 
-	let result = editor
-		.run_invocation(Invocation::action("move_right"), InvocationPolicy::enforcing())
-		.await;
+	let result = editor.run_invocation(Invocation::action("move_right"), InvocationPolicy::enforcing()).await;
 	editor.drain_nu_hook_queue(usize::MAX).await;
 
 	assert!(matches!(result.status, InvocationStatus::Ok));
@@ -237,9 +225,7 @@ async fn action_post_missing_hook_is_noop() {
 	let mut editor = Editor::from_content("abcd".to_string(), None);
 	editor.set_nu_runtime(Some(runtime));
 
-	let result = editor
-		.run_invocation(Invocation::action("move_right"), InvocationPolicy::enforcing())
-		.await;
+	let result = editor.run_invocation(Invocation::action("move_right"), InvocationPolicy::enforcing()).await;
 
 	assert!(matches!(result.status, InvocationStatus::Ok));
 	assert_eq!(editor.buffer().cursor, 1, "without on_hook export only base action should run");
@@ -260,10 +246,7 @@ async fn nu_run_structured_action_record_executes_count() {
 	editor.set_nu_runtime(Some(runtime));
 
 	let result = editor
-		.run_invocation(
-			Invocation::editor_command("nu-run", vec!["go".to_string()]),
-			InvocationPolicy::enforcing(),
-		)
+		.run_invocation(Invocation::editor_command("nu-run", vec!["go".to_string()]), InvocationPolicy::enforcing())
 		.await;
 
 	assert!(matches!(result.status, InvocationStatus::Ok));
@@ -283,10 +266,7 @@ async fn nu_run_structured_list_of_records_executes() {
 	editor.set_nu_runtime(Some(runtime));
 
 	let result = editor
-		.run_invocation(
-			Invocation::editor_command("nu-run", vec!["go".to_string()]),
-			InvocationPolicy::enforcing(),
-		)
+		.run_invocation(Invocation::editor_command("nu-run", vec!["go".to_string()]), InvocationPolicy::enforcing())
 		.await;
 
 	assert!(matches!(result.status, InvocationStatus::Ok));

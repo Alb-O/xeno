@@ -10,7 +10,7 @@ pub(crate) mod pipeline;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-pub use xeno_invocation::nu::{DecodeBudget, NuPermission, NuEffect, NuEffectBatch, NuNotifyLevel, required_permission_for_effect};
+pub use xeno_invocation::nu::{DecodeBudget, NuEffect, NuEffectBatch, NuNotifyLevel, NuPermission, required_permission_for_effect};
 use xeno_nu_api::{ExportId, NuProgram};
 use xeno_nu_data::Value;
 

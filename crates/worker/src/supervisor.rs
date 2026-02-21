@@ -7,9 +7,9 @@ use tokio::sync::{Mutex, broadcast};
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
+use crate::TaskClass;
 use crate::mailbox::{Mailbox, MailboxReceiver, MailboxSender};
 use crate::token::{GenerationClock, GenerationToken};
-use crate::TaskClass;
 
 /// Continuation directive from one actor command handling step.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -64,13 +64,34 @@ impl ActorExit {
 impl From<&ActorExitReason> for ActorExit {
 	fn from(reason: &ActorExitReason) -> Self {
 		match reason {
-			ActorExitReason::Stopped => Self { kind: ActorExitKind::Stopped, message: None },
-			ActorExitReason::MailboxClosed => Self { kind: ActorExitKind::MailboxClosed, message: None },
-			ActorExitReason::Cancelled => Self { kind: ActorExitKind::Cancelled, message: None },
-			ActorExitReason::StartupFailed(msg) => Self { kind: ActorExitKind::StartupFailed, message: Some(msg.clone()) },
-			ActorExitReason::HandlerFailed(msg) => Self { kind: ActorExitKind::HandlerFailed, message: Some(msg.clone()) },
-			ActorExitReason::Panicked => Self { kind: ActorExitKind::Panicked, message: None },
-			ActorExitReason::JoinFailed(msg) => Self { kind: ActorExitKind::JoinFailed, message: Some(msg.clone()) },
+			ActorExitReason::Stopped => Self {
+				kind: ActorExitKind::Stopped,
+				message: None,
+			},
+			ActorExitReason::MailboxClosed => Self {
+				kind: ActorExitKind::MailboxClosed,
+				message: None,
+			},
+			ActorExitReason::Cancelled => Self {
+				kind: ActorExitKind::Cancelled,
+				message: None,
+			},
+			ActorExitReason::StartupFailed(msg) => Self {
+				kind: ActorExitKind::StartupFailed,
+				message: Some(msg.clone()),
+			},
+			ActorExitReason::HandlerFailed(msg) => Self {
+				kind: ActorExitKind::HandlerFailed,
+				message: Some(msg.clone()),
+			},
+			ActorExitReason::Panicked => Self {
+				kind: ActorExitKind::Panicked,
+				message: None,
+			},
+			ActorExitReason::JoinFailed(msg) => Self {
+				kind: ActorExitKind::JoinFailed,
+				message: Some(msg.clone()),
+			},
 		}
 	}
 }
@@ -958,9 +979,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn cancel_closes_mailbox_and_send_fails_fast() {
-		let handle = spawn_supervised_actor(
-			ActorSpec::new("cancel-close", TaskClass::Background, CountingActor::default).mailbox(ActorMailboxSpec { capacity: 1 }),
-		);
+		let handle =
+			spawn_supervised_actor(ActorSpec::new("cancel-close", TaskClass::Background, CountingActor::default).mailbox(ActorMailboxSpec { capacity: 1 }));
 
 		handle.cancel();
 

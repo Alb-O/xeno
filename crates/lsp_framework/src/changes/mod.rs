@@ -9,7 +9,7 @@ use xeno_primitives::Transaction;
 use xeno_primitives::lsp::{LspDocumentChange, LspPosition, LspRange};
 use xeno_primitives::transaction::Operation;
 
-use crate::client::OffsetEncoding;
+use crate::OffsetEncoding;
 use crate::position::{char_range_to_lsp_range, char_to_lsp_position};
 
 /// Result of computing incremental LSP changes from a transaction.

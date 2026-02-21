@@ -13,7 +13,7 @@ use xeno_primitives::{EditOrigin, Transaction, UndoPolicy};
 use crate::buffer::ViewId;
 use crate::impls::Editor;
 use crate::msg::Dirty;
-use crate::nu::{NuPermission, NuEffect, NuEffectBatch, NuNotifyLevel, required_permission_for_effect};
+use crate::nu::{NuEffect, NuEffectBatch, NuNotifyLevel, NuPermission, required_permission_for_effect};
 use crate::types::Invocation;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

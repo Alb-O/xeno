@@ -316,4 +316,3 @@ fn matches_prefix(item: &RegistryItem, prefix: Option<&str>) -> bool {
 	};
 	item.id.starts_with(prefix) || item.name.starts_with(prefix)
 }
-

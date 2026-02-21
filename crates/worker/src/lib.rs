@@ -25,16 +25,14 @@ mod mailbox;
 mod runtime;
 #[path = "spawn.rs"]
 mod spawn_impl;
-pub use spawn_impl::{spawn, spawn_blocking, spawn_thread, spawn_named_thread};
+pub use spawn_impl::{spawn, spawn_blocking, spawn_named_thread, spawn_thread};
 mod supervisor;
 mod token;
 
+pub(crate) use actor::ActorRuntime;
 pub use actor::{
-	Actor, ActorCommandIngress, ActorCommandPort, ActorContext, ActorExit, ActorExitKind, ActorFlow, ActorHandle,
-	ActorMailboxSpec, ActorRestartPolicy, ActorShutdownMode, ActorShutdownReport, ActorSpec, ActorSupervisorSpec,
-};
-pub(crate) use actor::{
-	ActorRuntime,
+	Actor, ActorCommandIngress, ActorCommandPort, ActorContext, ActorExit, ActorExitKind, ActorFlow, ActorHandle, ActorMailboxSpec, ActorRestartPolicy,
+	ActorShutdownMode, ActorShutdownReport, ActorSpec, ActorSupervisorSpec,
 };
 
 /// Spawns one supervised actor, returning its handle.
@@ -47,10 +45,10 @@ where
 {
 	ActorRuntime::spawn(spec)
 }
-pub use supervisor::ActorSendError;
 pub use class::TaskClass;
 pub(crate) use join_set::WorkerJoinSet;
 pub(crate) use runtime::WorkerRuntime;
+pub use supervisor::ActorSendError;
 
 /// Handle for an async task spawned on the Tokio runtime.
 pub type TaskHandle<T> = tokio::task::JoinHandle<T>;

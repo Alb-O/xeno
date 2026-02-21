@@ -3,8 +3,8 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
 
 use tokio::sync::Notify;
-use tokio_util::sync::CancellationToken;
 use tokio::task::JoinSet;
+use tokio_util::sync::CancellationToken;
 
 use super::super::execution_gate::ExecutionGate;
 use super::types::{DocId, WorkKind};

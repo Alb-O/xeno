@@ -4,7 +4,7 @@ use async_trait::async_trait;
 
 use super::*;
 use crate::client::transport::StartedServer;
-use crate::types::{AnyNotification, AnyRequest, AnyResponse, ResponseError};
+use crate::{AnyNotification, AnyRequest, AnyResponse, ResponseError};
 
 struct MockTransport {
 	start_count: AtomicUsize,
@@ -40,7 +40,7 @@ impl LspTransport for MockTransport {
 		unimplemented!()
 	}
 
-	async fn reply(&self, _server: LanguageServerId, _id: crate::types::RequestId, _resp: std::result::Result<Value, ResponseError>) -> Result<()> {
+	async fn reply(&self, _server: LanguageServerId, _id: crate::RequestId, _resp: std::result::Result<Value, ResponseError>) -> Result<()> {
 		Ok(())
 	}
 

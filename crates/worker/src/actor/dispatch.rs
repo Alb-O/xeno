@@ -216,7 +216,7 @@ mod tests {
 	use async_trait::async_trait;
 
 	use super::*;
-	use crate::{Actor, ActorContext, ActorFlow, ActorSupervisorSpec, ActorRestartPolicy, ActorRuntime, ActorSpec};
+	use crate::{Actor, ActorContext, ActorFlow, ActorRestartPolicy, ActorRuntime, ActorSpec, ActorSupervisorSpec};
 
 	struct EchoActor;
 

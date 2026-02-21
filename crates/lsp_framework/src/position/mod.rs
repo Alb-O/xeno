@@ -17,7 +17,7 @@
 use lsp_types::{Position, Range};
 use ropey::{Rope, RopeSlice};
 
-use crate::client::OffsetEncoding;
+use crate::OffsetEncoding;
 
 /// Convert an LSP Position to a character index in the rope.
 ///

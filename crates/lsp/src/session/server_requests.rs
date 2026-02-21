@@ -7,9 +7,8 @@ use std::time::Duration;
 
 use serde_json::{Value as JsonValue, json};
 
-use crate::DocumentSync;
 use crate::client::LanguageServerId;
-use crate::types::{AnyRequest, ErrorCode, ResponseError};
+use crate::{AnyRequest, DocumentSync, ErrorCode, ResponseError};
 
 /// Timeout for workspace/applyEdit requests.
 ///

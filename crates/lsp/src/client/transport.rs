@@ -88,7 +88,7 @@ pub trait LspTransport: Send + Sync {
 	async fn request(&self, server: LanguageServerId, req: AnyRequest, timeout: Option<Duration>) -> crate::Result<AnyResponse>;
 
 	/// Replies to a request initiated by the server.
-	async fn reply(&self, server: LanguageServerId, id: crate::types::RequestId, resp: Result<JsonValue, ResponseError>) -> crate::Result<()>;
+	async fn reply(&self, server: LanguageServerId, id: crate::RequestId, resp: Result<JsonValue, ResponseError>) -> crate::Result<()>;
 
 	/// Stops a language server process.
 	async fn stop(&self, server: LanguageServerId) -> crate::Result<()>;

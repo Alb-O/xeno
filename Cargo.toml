@@ -11,6 +11,7 @@ members = [
     "crates/keymap/*",
     "crates/language",
     "crates/lsp",
+    "crates/lsp_framework",
     "crates/macros",
     "crates/matcher",
     "crates/nu/api",
@@ -140,6 +141,7 @@ xeno-keymap-core = { path = "crates/keymap/core" }
 xeno-keymap-parser = { path = "crates/keymap/parser" }
 xeno-language = { path = "crates/language" }
 xeno-lsp = { path = "crates/lsp" }
+xeno-lsp-framework = { path = "crates/lsp_framework" }
 xeno-macros = { path = "crates/macros" }
 xeno-matcher = { path = "crates/matcher" }
 xeno-nu-api = { path = "crates/nu/api" }

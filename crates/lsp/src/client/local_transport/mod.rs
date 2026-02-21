@@ -17,8 +17,7 @@ use tokio::sync::{mpsc, oneshot};
 
 use super::config::{LanguageServerId, ServerConfig};
 use super::transport::{LspTransport, StartedServer, TransportEvent, TransportStatus};
-use crate::types::{AnyNotification, AnyRequest, AnyResponse, RequestId, ResponseError};
-use crate::{Error, Result};
+use crate::{AnyNotification, AnyRequest, AnyResponse, Error, RequestId, ResponseError, Result};
 
 /// Outbound message envelope for total ordering and barrier support.
 pub(super) enum Outbound {

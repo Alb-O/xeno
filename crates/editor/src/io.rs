@@ -112,8 +112,7 @@ pub(crate) async fn save_buffer_to_disk(buffer: &crate::buffer::Buffer) -> Resul
 
 	let bytes = serialize_buffer(buffer);
 	let write_path = path.clone();
-	let result = xeno_worker::spawn_blocking(xeno_worker::TaskClass::IoBlocking, move || write_atomic(&write_path, &bytes))
-		.await;
+	let result = xeno_worker::spawn_blocking(xeno_worker::TaskClass::IoBlocking, move || write_atomic(&write_path, &bytes)).await;
 	match result {
 		Ok(Ok(())) => Ok(path),
 		Ok(Err(e)) => Err(SaveError::Io {

@@ -46,9 +46,7 @@ pub fn register_compiled(db: &mut crate::db::builder::RegistryDbBuilder) {
 
 // Re-export macros
 pub use crate::command_handler;
-pub use crate::core::{
-	CommandError, RegistryBuilder, RegistryEntry, RegistryMeta, RegistryMetaStatic, RegistryRef, RegistrySource, RuntimeRegistry,
-};
+pub use crate::core::{CommandError, RegistryBuilder, RegistryEntry, RegistryMeta, RegistryMetaStatic, RegistryRef, RegistrySource, RuntimeRegistry};
 
 /// Typed reference to a runtime command entry.
 pub type CommandRef = RegistryRef<CommandEntry, crate::core::CommandId>;

@@ -3,10 +3,10 @@ use std::time::Instant;
 
 use tokio::sync::{Mutex, Notify};
 
+use crate::TaskClass;
 use crate::actor::{Actor, ActorHandle, ActorRuntime, ActorSpec};
 use crate::budget::{DrainBudget, DrainReport};
 use crate::join_set::WorkerJoinSet;
-use crate::TaskClass;
 
 /// Drop guard that signals a [`Notify`] on completion regardless of exit path
 /// (normal return, panic unwind, or future cancellation/abort).
@@ -187,7 +187,6 @@ impl WorkerRuntime {
 	{
 		ActorRuntime::spawn(spec)
 	}
-
 }
 
 #[cfg(test)]

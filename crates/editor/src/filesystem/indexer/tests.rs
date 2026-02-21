@@ -16,12 +16,7 @@ fn indexer_streams_relative_normalized_paths() {
 	fs::write(src.join("lib.rs"), "pub fn lib() {}\n").expect("write lib");
 
 	let (tx, rx) = mpsc::channel();
-	run_filesystem_index(
-		1,
-		root.to_path_buf(),
-		FilesystemOptions::default(),
-		Arc::new(move |msg| tx.send(msg).is_ok()),
-	);
+	run_filesystem_index(1, root.to_path_buf(), FilesystemOptions::default(), Arc::new(move |msg| tx.send(msg).is_ok()));
 	let mut seen_paths: Vec<String> = Vec::new();
 
 	loop {

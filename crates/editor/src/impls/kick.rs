@@ -43,11 +43,11 @@ impl Editor {
 				Ok(content) => {
 					let path_for_build = path.clone();
 					let built = xeno_worker::spawn_blocking(xeno_worker::TaskClass::CpuBlocking, move || {
-							let rope = ropey::Rope::from_str(&normalize_to_lf(content));
-							let readonly = !is_writable(&path_for_build);
-							(rope, readonly)
-						})
-						.await;
+						let rope = ropey::Rope::from_str(&normalize_to_lf(content));
+						let readonly = !is_writable(&path_for_build);
+						(rope, readonly)
+					})
+					.await;
 
 					match built {
 						Ok((rope, readonly)) => {
@@ -88,9 +88,9 @@ impl Editor {
 
 		xeno_worker::spawn(xeno_worker::TaskClass::Background, async move {
 			let parsed = xeno_worker::spawn_blocking(xeno_worker::TaskClass::IoBlocking, || {
-					xeno_language::load_resolved_lsp_configs().map_err(|e| format!("failed to load LSP configs: {e}"))
-				})
-				.await;
+				xeno_language::load_resolved_lsp_configs().map_err(|e| format!("failed to load LSP configs: {e}"))
+			})
+			.await;
 
 			let resolved = match parsed {
 				Ok(Ok(configs)) => configs,
@@ -143,27 +143,27 @@ async fn load_themes_blocking(
 	data_themes_dir: Option<PathBuf>,
 ) -> (Vec<xeno_registry::themes::LinkedThemeDef>, Vec<(String, String)>) {
 	xeno_worker::spawn_blocking(xeno_worker::TaskClass::IoBlocking, move || {
-			let mut errors = Vec::new();
-			let mut all_themes: Vec<xeno_registry::themes::LinkedThemeDef> = Vec::new();
+		let mut errors = Vec::new();
+		let mut all_themes: Vec<xeno_registry::themes::LinkedThemeDef> = Vec::new();
 
-			if let Some(ref dir) = data_themes_dir {
-				collect_dir_themes(dir, &mut all_themes, &mut errors);
-			}
+		if let Some(ref dir) = data_themes_dir {
+			collect_dir_themes(dir, &mut all_themes, &mut errors);
+		}
 
-			if let Some(ref dir) = config_themes_dir {
-				collect_dir_themes(dir, &mut all_themes, &mut errors);
-			}
+		if let Some(ref dir) = config_themes_dir {
+			collect_dir_themes(dir, &mut all_themes, &mut errors);
+		}
 
-			// Deduplicate by canonical ID (xeno-registry::<name>)
-			let mut deduped = std::collections::BTreeMap::new();
-			for theme in all_themes {
-				deduped.insert(theme.meta.id.clone(), theme);
-			}
+		// Deduplicate by canonical ID (xeno-registry::<name>)
+		let mut deduped = std::collections::BTreeMap::new();
+		for theme in all_themes {
+			deduped.insert(theme.meta.id.clone(), theme);
+		}
 
-			(deduped.into_values().collect(), errors)
-		})
-		.await
-		.unwrap_or_else(|_| (Vec::new(), Vec::new()))
+		(deduped.into_values().collect(), errors)
+	})
+	.await
+	.unwrap_or_else(|_| (Vec::new(), Vec::new()))
 }
 
 /// Loads themes from `dir` into the accumulator vectors, logging on failure.

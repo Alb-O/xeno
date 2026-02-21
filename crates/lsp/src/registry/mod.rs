@@ -295,12 +295,7 @@ impl Registry {
 		}
 
 		// 3b. Leader work
-		let mut guard = StartGuard::new(
-			key.clone(),
-			self.inflight.clone(),
-			inflight.clone(),
-			self.transport.clone(),
-		);
+		let mut guard = StartGuard::new(key.clone(), self.inflight.clone(), inflight.clone(), self.transport.clone());
 
 		// Re-check state after lock acquisition to prevent double-start
 		if let Some(acquired) = self.get_running(&key) {
@@ -482,12 +477,7 @@ struct StartGuard {
 }
 
 impl StartGuard {
-	fn new(
-		key: (String, PathBuf),
-		inflight_map: InFlightMap,
-		inflight: Arc<InFlightStart>,
-		transport: Arc<dyn LspTransport>,
-	) -> Self {
+	fn new(key: (String, PathBuf), inflight_map: InFlightMap, inflight: Arc<InFlightStart>, transport: Arc<dyn LspTransport>) -> Self {
 		Self {
 			key,
 			inflight_map,

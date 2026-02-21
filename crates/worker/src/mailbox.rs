@@ -75,9 +75,7 @@ impl<T> Mailbox<T> {
 					closed: false,
 				}),
 				notify_recv: Notify::new(),
-				policy: MailboxPolicy::Backpressure {
-					notify_send: Notify::new(),
-				},
+				policy: MailboxPolicy::Backpressure { notify_send: Notify::new() },
 			}),
 		}
 	}
@@ -96,9 +94,7 @@ impl<T> Mailbox<T> {
 					closed: false,
 				}),
 				notify_recv: Notify::new(),
-				policy: MailboxPolicy::CoalesceByEq {
-					coalesce_eq: Arc::new(eq_fn),
-				},
+				policy: MailboxPolicy::CoalesceByEq { coalesce_eq: Arc::new(eq_fn) },
 			}),
 		}
 	}
@@ -148,23 +144,21 @@ impl<T> MailboxSender<T> {
 	/// `CoalesceByEq` replaces in-place or evicts oldest; never blocks.
 	pub async fn send(&self, msg: T) -> Result<(), MailboxSendError> {
 		match &self.inner.policy {
-			MailboxPolicy::Backpressure { notify_send } => {
-				loop {
-					let notified = notify_send.notified();
+			MailboxPolicy::Backpressure { notify_send } => loop {
+				let notified = notify_send.notified();
 
-					let mut state = self.inner.state.lock().await;
-					if state.closed {
-						return Err(MailboxSendError::Closed);
-					}
-					if state.queue.len() < self.inner.capacity {
-						state.queue.push_back(msg);
-						self.inner.notify_recv.notify_one();
-						return Ok(());
-					}
-					drop(state);
-					notified.await;
+				let mut state = self.inner.state.lock().await;
+				if state.closed {
+					return Err(MailboxSendError::Closed);
 				}
-			}
+				if state.queue.len() < self.inner.capacity {
+					state.queue.push_back(msg);
+					self.inner.notify_recv.notify_one();
+					return Ok(());
+				}
+				drop(state);
+				notified.await;
+			},
 			MailboxPolicy::CoalesceByEq { coalesce_eq } => {
 				let mut state = self.inner.state.lock().await;
 				if state.closed {
@@ -186,7 +180,6 @@ impl<T> MailboxSender<T> {
 			}
 		}
 	}
-
 }
 
 impl<T> MailboxReceiver<T> {
@@ -208,7 +201,6 @@ impl<T> MailboxReceiver<T> {
 			self.inner.notify_recv.notified().await;
 		}
 	}
-
 }
 
 #[cfg(test)]
@@ -474,7 +466,7 @@ mod tests {
 		assert_eq!(rx.recv().await, Some(42));
 	}
 
-#[tokio::test]
+	#[tokio::test]
 	async fn close_now_is_best_effort() {
 		let mailbox = Mailbox::backpressure(4);
 		let tx = mailbox.sender();

@@ -36,9 +36,7 @@ pub(crate) fn to_command_outcome_for_nu_run(outcome: &InvocationOutcome, describ
 pub(crate) fn classify_for_nu_pipeline(outcome: &InvocationOutcome) -> PipelineDisposition {
 	match outcome.status {
 		InvocationStatus::Quit | InvocationStatus::ForceQuit => PipelineDisposition::ShouldQuit,
-		InvocationStatus::Ok | InvocationStatus::NotFound | InvocationStatus::ReadonlyDenied | InvocationStatus::CommandError => {
-			PipelineDisposition::Continue
-		}
+		InvocationStatus::Ok | InvocationStatus::NotFound | InvocationStatus::ReadonlyDenied | InvocationStatus::CommandError => PipelineDisposition::Continue,
 	}
 }
 

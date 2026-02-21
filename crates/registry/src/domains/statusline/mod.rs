@@ -18,8 +18,8 @@ pub use domain::Statusline;
 
 use crate::core::index::{BuildCtx, BuildEntry, RegistryMetaRef, StrListRef};
 pub use crate::core::{
-	FrozenInterner, RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta, RegistryMetaStatic, RegistryRef, RegistrySource,
-	RuntimeRegistry, StatuslineId, Symbol, SymbolList,
+	FrozenInterner, RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta, RegistryMetaStatic, RegistryRef, RegistrySource, RuntimeRegistry,
+	StatuslineId, Symbol, SymbolList,
 };
 pub use crate::segment_handler;
 

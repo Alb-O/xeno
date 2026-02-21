@@ -66,6 +66,7 @@ use xeno_registry::db::keymap_registry::KeymapSnapshot;
 use xeno_registry::hooks::{HookContext, WindowKind, emit as emit_hook, emit_sync_with as emit_hook_sync_with};
 use xeno_registry::options::OPTIONS;
 use xeno_registry::themes::THEMES;
+
 use crate::buffer::{Buffer, Layout, ViewId};
 use crate::geometry::Rect;
 use crate::layout::LayoutManager;
@@ -510,12 +511,10 @@ impl Editor {
 		IntegrationStateBundle {
 			nu: crate::nu::coordinator::NuCoordinatorState::new(),
 			lsp: LspSystem::new(),
-			syntax_manager: xeno_syntax::SyntaxManager::new(
-				xeno_syntax::SyntaxManagerCfg {
-					max_concurrency: 2,
-					..Default::default()
-				},
-			),
+			syntax_manager: xeno_syntax::SyntaxManager::new(xeno_syntax::SyntaxManagerCfg {
+				max_concurrency: 2,
+				..Default::default()
+			}),
 			work_scheduler,
 			filesystem: crate::filesystem::FsService::new_with_runtime(),
 		}

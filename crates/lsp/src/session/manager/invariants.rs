@@ -14,8 +14,7 @@ use crate::client::LanguageServerId;
 use crate::client::transport::{LspTransport, StartedServer, TransportEvent, TransportStatus};
 use crate::registry::{AcquireDisposition, LanguageServerConfig, Registry};
 use crate::session::server_requests::{ServerRequestReply, dispatch_server_request};
-use crate::types::{AnyNotification, AnyRequest, AnyResponse, RequestId, ResponseError};
-use crate::{DocumentSync, Message};
+use crate::{AnyNotification, AnyRequest, AnyResponse, DocumentSync, Message, RequestId, ResponseError};
 
 static NEXT_TMP_ID: AtomicU64 = AtomicU64::new(1);
 
@@ -272,22 +271,14 @@ pub(crate) async fn test_router_event_ordering() {
 
 	transport.emit(TransportEvent::Message {
 		server: server_id,
-		message: Message::Request(AnyRequest {
-			id: RequestId::Number(1),
-			method: "client/registerCapability".into(),
-			params: json!({}),
-		}),
+		message: Message::Request(AnyRequest::new(RequestId::Number(1), "client/registerCapability", json!({}))),
 	});
 
 	wait_until("first reply to start", || transport.reply_started() >= 1).await;
 
 	transport.emit(TransportEvent::Message {
 		server: server_id,
-		message: Message::Request(AnyRequest {
-			id: RequestId::Number(2),
-			method: "client/registerCapability".into(),
-			params: json!({}),
-		}),
+		message: Message::Request(AnyRequest::new(RequestId::Number(2), "client/registerCapability", json!({}))),
 	});
 
 	sleep(Duration::from_millis(60)).await;
@@ -315,11 +306,7 @@ pub(crate) async fn test_runtime_shutdown_is_bounded_with_open_stream_and_blocke
 
 	transport.emit(TransportEvent::Message {
 		server: server_id,
-		message: Message::Request(AnyRequest {
-			id: RequestId::Number(11),
-			method: "client/registerCapability".into(),
-			params: json!({}),
-		}),
+		message: Message::Request(AnyRequest::new(RequestId::Number(11), "client/registerCapability", json!({}))),
 	});
 
 	wait_until("blocked reply starts", || transport.reply_started() >= 1).await;
@@ -346,10 +333,7 @@ pub(crate) async fn test_status_stopped_removes_server_and_clears_progress() {
 	};
 	transport.emit(TransportEvent::Message {
 		server: server_id,
-		message: Message::Notification(AnyNotification {
-			method: "$/progress".into(),
-			params: serde_json::to_value(progress).expect("progress params"),
-		}),
+		message: Message::Notification(AnyNotification::new("$/progress", serde_json::to_value(progress).expect("progress params"))),
 	});
 
 	wait_until("progress begin", || session.documents().has_progress()).await;
@@ -711,15 +695,15 @@ pub(crate) async fn test_workspace_apply_edit_returns_not_applied() {
 	// Send workspace/applyEdit server request.
 	transport.emit(TransportEvent::Message {
 		server: server_id,
-		message: Message::Request(AnyRequest {
-			id: RequestId::Number(42),
-			method: "workspace/applyEdit".into(),
-			params: json!({
+		message: Message::Request(AnyRequest::new(
+			RequestId::Number(42),
+			"workspace/applyEdit",
+			json!({
 				"edit": {
 					"changes": {}
 				}
 			}),
-		}),
+		)),
 	});
 
 	wait_until("applyEdit reply", || transport.replies().contains(&RequestId::Number(42))).await;

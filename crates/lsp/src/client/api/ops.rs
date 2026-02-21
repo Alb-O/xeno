@@ -6,8 +6,7 @@ use tokio::sync::oneshot;
 use super::super::capabilities::client_capabilities;
 use super::super::handle::ClientHandle;
 use super::types::workspace_folder_from_uri;
-use crate::types::AnyNotification;
-use crate::{Result, uri_from_path};
+use crate::{AnyNotification, Result, uri_from_path};
 
 impl ClientHandle {
 	/// Initialize the language server.
@@ -40,10 +39,10 @@ impl ClientHandle {
 			.transport
 			.notify_with_barrier(
 				self.id,
-				AnyNotification {
-					method: lsp_types::notification::Initialized::METHOD.into(),
-					params: serde_json::to_value(lsp_types::InitializedParams {}).expect("serialize"),
-				},
+				AnyNotification::new(
+					lsp_types::notification::Initialized::METHOD,
+					serde_json::to_value(lsp_types::InitializedParams {}).expect("serialize"),
+				),
 			)
 			.await?;
 
@@ -95,9 +94,9 @@ impl ClientHandle {
 
 	/// Notify the server that a document was changed (full sync).
 	pub async fn text_document_did_change_full(&self, uri: Uri, version: i32, text: String) -> Result<()> {
-		let notification = AnyNotification {
-			method: lsp_types::notification::DidChangeTextDocument::METHOD.into(),
-			params: serde_json::to_value(lsp_types::DidChangeTextDocumentParams {
+		let notification = AnyNotification::new(
+			lsp_types::notification::DidChangeTextDocument::METHOD,
+			serde_json::to_value(lsp_types::DidChangeTextDocumentParams {
 				text_document: lsp_types::VersionedTextDocumentIdentifier { uri, version },
 				content_changes: vec![lsp_types::TextDocumentContentChangeEvent {
 					range: None,
@@ -106,15 +105,15 @@ impl ClientHandle {
 				}],
 			})
 			.expect("Failed to serialize"),
-		};
+		);
 		self.transport.notify(self.id, notification).await
 	}
 
 	/// Notify the server that a document was changed (full sync) with a write barrier.
 	pub async fn text_document_did_change_full_with_barrier(&self, uri: Uri, version: i32, text: String) -> Result<oneshot::Receiver<Result<()>>> {
-		let notification = AnyNotification {
-			method: lsp_types::notification::DidChangeTextDocument::METHOD.into(),
-			params: serde_json::to_value(lsp_types::DidChangeTextDocumentParams {
+		let notification = AnyNotification::new(
+			lsp_types::notification::DidChangeTextDocument::METHOD,
+			serde_json::to_value(lsp_types::DidChangeTextDocumentParams {
 				text_document: lsp_types::VersionedTextDocumentIdentifier { uri, version },
 				content_changes: vec![lsp_types::TextDocumentContentChangeEvent {
 					range: None,
@@ -123,20 +122,20 @@ impl ClientHandle {
 				}],
 			})
 			.expect("Failed to serialize"),
-		};
+		);
 		self.transport.notify_with_barrier(self.id, notification).await
 	}
 
 	/// Notify the server that a document was changed (incremental sync).
 	pub async fn text_document_did_change(&self, uri: Uri, version: i32, changes: Vec<lsp_types::TextDocumentContentChangeEvent>) -> Result<()> {
-		let notification = AnyNotification {
-			method: lsp_types::notification::DidChangeTextDocument::METHOD.into(),
-			params: serde_json::to_value(lsp_types::DidChangeTextDocumentParams {
+		let notification = AnyNotification::new(
+			lsp_types::notification::DidChangeTextDocument::METHOD,
+			serde_json::to_value(lsp_types::DidChangeTextDocumentParams {
 				text_document: lsp_types::VersionedTextDocumentIdentifier { uri, version },
 				content_changes: changes,
 			})
 			.expect("Failed to serialize"),
-		};
+		);
 		self.transport.notify(self.id, notification).await
 	}
 
@@ -147,14 +146,14 @@ impl ClientHandle {
 		version: i32,
 		changes: Vec<lsp_types::TextDocumentContentChangeEvent>,
 	) -> Result<oneshot::Receiver<Result<()>>> {
-		let notification = AnyNotification {
-			method: lsp_types::notification::DidChangeTextDocument::METHOD.into(),
-			params: serde_json::to_value(lsp_types::DidChangeTextDocumentParams {
+		let notification = AnyNotification::new(
+			lsp_types::notification::DidChangeTextDocument::METHOD,
+			serde_json::to_value(lsp_types::DidChangeTextDocumentParams {
 				text_document: lsp_types::VersionedTextDocumentIdentifier { uri, version },
 				content_changes: changes,
 			})
 			.expect("Failed to serialize"),
-		};
+		);
 		self.transport.notify_with_barrier(self.id, notification).await
 	}
 

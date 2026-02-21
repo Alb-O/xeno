@@ -254,9 +254,7 @@ impl LspSyncActor {
 
 			let send_result = match work {
 				SendWork::Full { content, snapshot_bytes } => {
-					let snapshot = match xeno_worker::spawn_blocking(xeno_worker::TaskClass::CpuBlocking, move || content.to_string())
-						.await
-					{
+					let snapshot = match xeno_worker::spawn_blocking(xeno_worker::TaskClass::CpuBlocking, move || content.to_string()).await {
 						Ok(snapshot) => snapshot,
 						Err(e) => {
 							metrics.inc_send_error();
@@ -637,25 +635,25 @@ impl LspSyncManager {
 	pub fn new() -> Self {
 		let shared = Arc::new(RwLock::new(LspSyncShared::default()));
 		let command_port = Arc::new(std::sync::OnceLock::<xeno_worker::ActorCommandPort<LspSyncCmd>>::new());
-		let actor = Arc::new(
-			xeno_worker::spawn_actor(
-				xeno_worker::ActorSpec::new("lsp.sync", xeno_worker::TaskClass::Background, {
-					let command_port = Arc::clone(&command_port);
-					let shared = Arc::clone(&shared);
-					move || LspSyncActor {
-						docs: HashMap::new(),
-						command_port: Arc::clone(&command_port),
-						shared: Arc::clone(&shared),
-					}
-				})
-				.supervisor(xeno_worker::ActorSupervisorSpec::default()
+		let actor = Arc::new(xeno_worker::spawn_actor(
+			xeno_worker::ActorSpec::new("lsp.sync", xeno_worker::TaskClass::Background, {
+				let command_port = Arc::clone(&command_port);
+				let shared = Arc::clone(&shared);
+				move || LspSyncActor {
+					docs: HashMap::new(),
+					command_port: Arc::clone(&command_port),
+					shared: Arc::clone(&shared),
+				}
+			})
+			.supervisor(
+				xeno_worker::ActorSupervisorSpec::default()
 					.restart(xeno_worker::ActorRestartPolicy::OnFailure {
 						max_restarts: 3,
 						backoff: Duration::from_millis(50),
 					})
-					.event_buffer(64)),
+					.event_buffer(64),
 			),
-		);
+		));
 		let ingress = xeno_worker::ActorCommandIngress::with_capacity(xeno_worker::TaskClass::Background, Arc::clone(&actor), 4096);
 		let _ = command_port.set(ingress.port());
 

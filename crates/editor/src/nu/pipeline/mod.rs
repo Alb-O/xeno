@@ -16,7 +16,7 @@ use tracing::{trace, warn};
 use crate::impls::Editor;
 use crate::nu::ctx::NuCtxEvent;
 use crate::nu::effects::{NuEffectApplyMode, apply_effect_batch};
-use crate::nu::{NuPermission, NuDecodeSurface};
+use crate::nu::{NuDecodeSurface, NuPermission};
 use crate::runtime::work_queue::RuntimeWorkSource;
 use crate::types::InvocationOutcome;
 #[cfg(test)]

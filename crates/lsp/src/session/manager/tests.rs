@@ -7,7 +7,7 @@ use tokio::sync::{mpsc, oneshot};
 
 use super::*;
 use crate::client::LanguageServerId;
-use crate::types::{AnyNotification, AnyRequest, AnyResponse, ResponseError};
+use crate::{AnyNotification, AnyRequest, AnyResponse, ResponseError};
 
 struct StubTransport {
 	events_rx: Mutex<Option<mpsc::UnboundedReceiver<TransportEvent>>>,
@@ -49,7 +49,7 @@ impl LspTransport for StubTransport {
 		Err(crate::Error::Protocol("StubTransport".into()))
 	}
 
-	async fn reply(&self, _server: LanguageServerId, _id: crate::types::RequestId, _resp: Result<JsonValue, ResponseError>) -> crate::Result<()> {
+	async fn reply(&self, _server: LanguageServerId, _id: crate::RequestId, _resp: Result<JsonValue, ResponseError>) -> crate::Result<()> {
 		Ok(())
 	}
 

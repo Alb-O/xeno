@@ -39,8 +39,8 @@ pub fn register_compiled(db: &mut crate::db::builder::RegistryDbBuilder) {
 
 use crate::core::index::{BuildCtx, BuildEntry, RegistryMetaRef, StrListRef};
 pub use crate::core::{
-	FrozenInterner, GutterId, RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta, RegistryMetaStatic, RegistryRef, RegistrySource,
-	RuntimeRegistry, Symbol, SymbolList,
+	FrozenInterner, GutterId, RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta, RegistryMetaStatic, RegistryRef, RegistrySource, RuntimeRegistry,
+	Symbol, SymbolList,
 };
 // Re-export macros
 pub use crate::gutter_handler;

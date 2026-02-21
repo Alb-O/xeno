@@ -3,13 +3,12 @@ use std::collections::HashMap;
 use serde_json::Value as JsonValue;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::{mpsc, oneshot};
+use xeno_lsp_framework::protocol::JsonRpcProtocol;
 
 use super::Outbound;
 use crate::client::config::LanguageServerId;
 use crate::client::transport::{TransportEvent, TransportStatus};
-use crate::protocol::JsonRpcProtocol;
-use crate::types::{AnyNotification, AnyRequest, AnyResponse, RequestId, ResponseError};
-use crate::{Error, Result};
+use crate::{AnyNotification, AnyRequest, AnyResponse, Error, RequestId, ResponseError, Result};
 
 /// Runs the I/O loop for a single server process.
 pub(super) async fn run_server_io(
@@ -245,10 +244,7 @@ fn handle_inbound_message(
 		// Other notifications go through as messages
 		let _ = event_tx.send(TransportEvent::Message {
 			server: id,
-			message: crate::Message::Notification(AnyNotification {
-				method: method.to_string(),
-				params,
-			}),
+			message: crate::Message::Notification(AnyNotification::new(method, params)),
 		});
 		return;
 	}
@@ -267,11 +263,7 @@ fn handle_inbound_message(
 
 		let _ = event_tx.send(TransportEvent::Message {
 			server: id,
-			message: crate::Message::Request(AnyRequest {
-				id: id_parsed,
-				method: method.to_string(),
-				params,
-			}),
+			message: crate::Message::Request(AnyRequest::new(id_parsed, method, params)),
 		});
 	}
 }

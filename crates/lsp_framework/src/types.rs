@@ -173,6 +173,18 @@ pub struct AnyRequest {
 	pub params: serde_json::Value,
 }
 
+impl AnyRequest {
+	/// Create a new request with the given id, method, and params.
+	#[must_use]
+	pub fn new(id: RequestId, method: impl Into<String>, params: serde_json::Value) -> Self {
+		Self {
+			id,
+			method: method.into(),
+			params,
+		}
+	}
+}
+
 /// A dynamic runtime [LSP notification](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#notificationMessage).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]

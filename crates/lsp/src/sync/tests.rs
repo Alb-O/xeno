@@ -34,7 +34,7 @@ impl crate::client::transport::LspTransport for SimpleStubTransport {
 	async fn reply(
 		&self,
 		_server: LanguageServerId,
-		_id: crate::types::RequestId,
+		_id: crate::RequestId,
 		_resp: std::result::Result<crate::JsonValue, crate::ResponseError>,
 	) -> crate::Result<()> {
 		Ok(())
@@ -117,22 +117,19 @@ async fn test_document_sync_returns_not_ready_before_init() {
 			_timeout: Option<std::time::Duration>,
 		) -> crate::Result<crate::AnyResponse> {
 			// Return a dummy response for initialize
-			Ok(crate::AnyResponse {
-				id: crate::RequestId::Number(1),
-				result: Some(
-					serde_json::to_value(lsp_types::InitializeResult {
-						capabilities: lsp_types::ServerCapabilities::default(),
-						server_info: None,
-					})
-					.unwrap(),
-				),
-				error: None,
-			})
+			Ok(crate::AnyResponse::new_ok(
+				crate::RequestId::Number(1),
+				serde_json::to_value(lsp_types::InitializeResult {
+					capabilities: lsp_types::ServerCapabilities::default(),
+					server_info: None,
+				})
+				.unwrap(),
+			))
 		}
 		async fn reply(
 			&self,
 			_server: LanguageServerId,
-			_id: crate::types::RequestId,
+			_id: crate::RequestId,
 			_resp: std::result::Result<crate::JsonValue, crate::ResponseError>,
 		) -> crate::Result<()> {
 			Ok(())
@@ -386,7 +383,7 @@ impl crate::client::transport::LspTransport for RecordingTransport {
 	async fn reply(
 		&self,
 		_server: LanguageServerId,
-		_id: crate::types::RequestId,
+		_id: crate::RequestId,
 		_resp: std::result::Result<crate::JsonValue, crate::ResponseError>,
 	) -> crate::Result<()> {
 		Ok(())
@@ -880,22 +877,19 @@ impl crate::client::transport::LspTransport for InitRecordingTransport {
 		self.inner.notify_with_barrier(server, notif).await
 	}
 	async fn request(&self, _server: LanguageServerId, _req: crate::AnyRequest, _timeout: Option<std::time::Duration>) -> crate::Result<crate::AnyResponse> {
-		Ok(crate::AnyResponse {
-			id: crate::RequestId::Number(1),
-			result: Some(
-				serde_json::to_value(lsp_types::InitializeResult {
-					capabilities: lsp_types::ServerCapabilities::default(),
-					server_info: None,
-				})
-				.unwrap(),
-			),
-			error: None,
-		})
+		Ok(crate::AnyResponse::new_ok(
+			crate::RequestId::Number(1),
+			serde_json::to_value(lsp_types::InitializeResult {
+				capabilities: lsp_types::ServerCapabilities::default(),
+				server_info: None,
+			})
+			.unwrap(),
+		))
 	}
 	async fn reply(
 		&self,
 		_server: LanguageServerId,
-		_id: crate::types::RequestId,
+		_id: crate::RequestId,
 		_resp: std::result::Result<crate::JsonValue, crate::ResponseError>,
 	) -> crate::Result<()> {
 		Ok(())

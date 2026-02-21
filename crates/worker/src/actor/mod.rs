@@ -12,6 +12,6 @@ pub use dispatch::{ActorCommandIngress, ActorCommandPort};
 pub use handle::ActorHandle;
 pub use runtime::ActorRuntime;
 pub use spec::{
-	Actor, ActorContext, ActorExit, ActorExitKind, ActorFlow, ActorMailboxSpec, ActorRestartPolicy, ActorShutdownMode,
-	ActorShutdownReport, ActorSpec, ActorSupervisorSpec,
+	Actor, ActorContext, ActorExit, ActorExitKind, ActorFlow, ActorMailboxSpec, ActorRestartPolicy, ActorShutdownMode, ActorShutdownReport, ActorSpec,
+	ActorSupervisorSpec,
 };

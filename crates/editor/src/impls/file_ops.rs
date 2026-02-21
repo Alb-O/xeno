@@ -60,9 +60,7 @@ impl Editor {
 				.buffers
 				.get_buffer(buffer_id)
 				.ok_or_else(|| CommandError::Io("buffer not found".to_string()))?;
-			crate::io::save_buffer_to_disk(buffer)
-				.await
-				.map_err(|e| CommandError::Io(e.to_string()))?;
+			crate::io::save_buffer_to_disk(buffer).await.map_err(|e| CommandError::Io(e.to_string()))?;
 
 			let _ = self.buffer_mut().set_modified(false);
 			self.show_notification(xeno_registry::notifications::keys::file_saved(&path_owned));

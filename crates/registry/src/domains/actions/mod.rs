@@ -3,9 +3,7 @@
 //! Actions are the primary unit of editor functionality, executed via keybindings.
 //! This module provides auto-registration via the [`action_handler!`] macro and O(1) lookup.
 
-pub use crate::core::{
-	CommandError, RegistryBuilder, RegistryEntry, RegistryMeta, RegistryMetaStatic, RegistryRef, RegistrySource, RuntimeRegistry,
-};
+pub use crate::core::{CommandError, RegistryBuilder, RegistryEntry, RegistryMeta, RegistryMetaStatic, RegistryRef, RegistrySource, RuntimeRegistry};
 
 #[path = "compile/builtins/mod.rs"]
 pub mod builtins;
@@ -60,9 +58,7 @@ pub type ActionKey = LookupKey<ActionEntry, ActionId>;
 pub type ActionRef = RegistryRef<ActionEntry, ActionId>;
 pub use builtins::{cursor_motion, selection_motion};
 pub use edit_op::{CharMapKind, CursorAdjust, EditOp, EditPlan, PostEffect, PreEffect, SelectionOp, TextTransform};
-pub use effects::{
-	ActionEffects, AppEffect, DeferredInvocationRequest, EditEffect, Effect, MotionKind, MotionRequest, ScrollAmount, UiEffect, ViewEffect,
-};
+pub use effects::{ActionEffects, AppEffect, DeferredInvocationRequest, EditEffect, Effect, MotionKind, MotionRequest, ScrollAmount, UiEffect, ViewEffect};
 pub use keybindings::{BindingMode, KeyBindingDef};
 pub use pending::PendingAction;
 pub use result::{ActionResult, ScreenPosition};

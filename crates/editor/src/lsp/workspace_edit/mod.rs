@@ -484,8 +484,7 @@ impl Editor {
 		for (path, bytes) in &plans {
 			let write_path = path.clone();
 			let write_bytes = bytes.clone();
-			let result = xeno_worker::spawn_blocking(xeno_worker::TaskClass::IoBlocking, move || crate::io::write_atomic(&write_path, &write_bytes))
-				.await;
+			let result = xeno_worker::spawn_blocking(xeno_worker::TaskClass::IoBlocking, move || crate::io::write_atomic(&write_path, &write_bytes)).await;
 			let write_result = match result {
 				Ok(r) => r,
 				Err(e) => Err(std::io::Error::other(e.to_string())),
@@ -516,9 +515,10 @@ impl Editor {
 			return;
 		};
 		if let (Some(path), Some(lang)) = (buffer.path().map(|p| p.to_path_buf()), buffer.file_type().map(|s| s.to_string()))
-			&& let Err(e) = self.state.integration.lsp.sync().close_document(&path, &lang).await {
-				tracing::warn!(error = %e, "LSP buffer close failed");
-			}
+			&& let Err(e) = self.state.integration.lsp.sync().close_document(&path, &lang).await
+		{
+			tracing::warn!(error = %e, "LSP buffer close failed");
+		}
 
 		self.finalize_buffer_removal(buffer_id);
 	}

@@ -77,18 +77,18 @@ impl LspRuntime {
 		let transport = self.transport.clone();
 		let documents = self.sync.documents_arc();
 		let cancel = self.state.lock().cancel.clone();
-		let router_actor = Arc::new(
-			xeno_worker::spawn_actor(
-				xeno_worker::ActorSpec::new("lsp.runtime.router", xeno_worker::TaskClass::Interactive, move || RouterActor {
-					sync: sync.clone(),
-					transport: transport.clone(),
-					documents: Arc::clone(&documents),
-				})
-				.supervisor(xeno_worker::ActorSupervisorSpec::default()
+		let router_actor = Arc::new(xeno_worker::spawn_actor(
+			xeno_worker::ActorSpec::new("lsp.runtime.router", xeno_worker::TaskClass::Interactive, move || RouterActor {
+				sync: sync.clone(),
+				transport: transport.clone(),
+				documents: Arc::clone(&documents),
+			})
+			.supervisor(
+				xeno_worker::ActorSupervisorSpec::default()
 					.restart(xeno_worker::ActorRestartPolicy::Never)
-					.event_buffer(8)),
+					.event_buffer(8),
 			),
-		);
+		));
 		let router_for_forward = Arc::clone(&router_actor);
 
 		let task = xeno_worker::spawn(xeno_worker::TaskClass::Background, async move {

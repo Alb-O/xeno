@@ -3,8 +3,8 @@
 use std::sync::Arc;
 
 pub use crate::core::{
-	ActionId, CommandError, CommandId, DuplicatePolicy, GutterId, HookId, KeyKind, LanguageId, MotionId, OptionId, RegistryBuilder, RegistryEntry, RegistryError,
-	RegistryIndex, RegistryMeta, RegistrySource, RuntimeRegistry, StatuslineId, TextObjectId, ThemeId,
+	ActionId, CommandError, CommandId, DuplicatePolicy, GutterId, HookId, KeyKind, LanguageId, MotionId, OptionId, RegistryBuilder, RegistryEntry,
+	RegistryError, RegistryIndex, RegistryMeta, RegistrySource, RuntimeRegistry, StatuslineId, TextObjectId, ThemeId,
 };
 use crate::options::OptionDef;
 

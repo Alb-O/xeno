@@ -1,45 +1,37 @@
 [package]
-name = "xeno-lsp"
-description = "LSP client stack: transport, session management, and document synchronization"
+name = "xeno-lsp-framework"
+description = "Asynchronous Language Server Protocol (LSP) framework based on tower"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [features]
-default = []
-# LSP client support (spawns and manages language server processes)
-client = [
-    "tokio/process",
-    "tokio/io-util",
-    "tokio/sync",
-    "dep:async-trait",
-    "dep:parking_lot",
-]
+default = ["client-monitor", "omni-trait", "stdio"]
+client-monitor = ["dep:waitpid-any", "dep:rustix", "dep:xeno-worker"]
+omni-trait = []
+stdio = ["dep:rustix", "rustix?/fs", "tokio/net"]
+forward = []
+tokio = []
 # Position conversion utilities (requires ropey)
-position = [
-    "client",
-    "dep:ropey",
-    "dep:tokio-util",
-    "dep:xeno-primitives",
-    "xeno-lsp-framework/position",
-]
+position = ["dep:ropey", "dep:xeno-primitives"]
 
 [dependencies]
-async-trait = { workspace = true, optional = true }
 lsp-types.workspace = true
-parking_lot = { workspace = true, optional = true }
+pin-project-lite.workspace = true
 ropey = { workspace = true, optional = true }
+rustix = { workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt", "sync", "io-util", "macros"] }
-tokio-util = { workspace = true, optional = true }
+tower-layer.workspace = true
+tower-service.workspace = true
 tracing.workspace = true
 url.workspace = true
-xeno-lsp-framework.workspace = true
+waitpid-any = { workspace = true, optional = true }
 xeno-primitives = { workspace = true, optional = true }
 xeno-rpc.workspace = true
-xeno-worker.workspace = true
+xeno-worker = { workspace = true, optional = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["io-std", "io-util", "macros", "process", "rt", "test-util", "time"] }

@@ -183,11 +183,11 @@ impl xeno_worker::Actor for FsSearchActor {
 					let command_port = Arc::clone(&self.command_port);
 					xeno_worker::spawn(xeno_worker::TaskClass::Background, async move {
 						let result = xeno_worker::spawn_blocking(xeno_worker::TaskClass::CpuBlocking, move || {
-								run_search_query(generation, id, &query, limit, &data, latest_query_id.as_ref())
-							})
-							.await
-							.ok()
-							.flatten();
+							run_search_query(generation, id, &query, limit, &data, latest_query_id.as_ref())
+						})
+						.await
+						.ok()
+						.flatten();
 						if let Some(msg) = result
 							&& let Some(port) = command_port.get()
 						{
@@ -463,46 +463,46 @@ impl FsService {
 		let state = Arc::new(RwLock::new(FsSharedState::default()));
 		let service_command_port = Arc::new(std::sync::OnceLock::<xeno_worker::ActorCommandPort<FsServiceCmd>>::new());
 
-		let indexer = Arc::new(
-			xeno_worker::spawn_actor(
-				xeno_worker::ActorSpec::new("fs.indexer", xeno_worker::TaskClass::IoBlocking, {
-					let service_command_port = Arc::clone(&service_command_port);
-					move || FsIndexerActor {
-						command_port: Arc::clone(&service_command_port),
-					}
-				})
-				.supervisor(xeno_worker::ActorSupervisorSpec::default()
+		let indexer = Arc::new(xeno_worker::spawn_actor(
+			xeno_worker::ActorSpec::new("fs.indexer", xeno_worker::TaskClass::IoBlocking, {
+				let service_command_port = Arc::clone(&service_command_port);
+				move || FsIndexerActor {
+					command_port: Arc::clone(&service_command_port),
+				}
+			})
+			.supervisor(
+				xeno_worker::ActorSupervisorSpec::default()
 					.restart(xeno_worker::ActorRestartPolicy::OnFailure {
 						max_restarts: 3,
 						backoff: Duration::from_millis(50),
 					})
-					.event_buffer(16)),
+					.event_buffer(16),
 			),
-		);
+		));
 
-		let search = Arc::new(
-			xeno_worker::spawn_actor(
-				xeno_worker::ActorSpec::new("fs.search", xeno_worker::TaskClass::CpuBlocking, {
-					let service_command_port = Arc::clone(&service_command_port);
-					move || FsSearchActor {
-						command_port: Arc::clone(&service_command_port),
-						data: SearchData::default(),
-						generation: None,
-						latest_query_id: None,
-					}
-				})
-				.mailbox(xeno_worker::ActorMailboxSpec::with_capacity(128))
-				.coalesce_by_key(|cmd: &FsSearchCmd| match cmd {
-					FsSearchCmd::RunQuery { generation, id, .. } => format!("q:{generation}:{id}"),
-					FsSearchCmd::UpdateDelta { generation, .. } => format!("u:{generation}"),
-					FsSearchCmd::Start { generation, .. } => format!("s:{generation}"),
-					FsSearchCmd::Stop => "stop".to_string(),
-				}),
-			),
-		);
+		let search = Arc::new(xeno_worker::spawn_actor(
+			xeno_worker::ActorSpec::new("fs.search", xeno_worker::TaskClass::CpuBlocking, {
+				let service_command_port = Arc::clone(&service_command_port);
+				move || FsSearchActor {
+					command_port: Arc::clone(&service_command_port),
+					data: SearchData::default(),
+					generation: None,
+					latest_query_id: None,
+				}
+			})
+			.mailbox(xeno_worker::ActorMailboxSpec::with_capacity(128))
+			.coalesce_by_key(|cmd: &FsSearchCmd| match cmd {
+				FsSearchCmd::RunQuery { generation, id, .. } => format!("q:{generation}:{id}"),
+				FsSearchCmd::UpdateDelta { generation, .. } => format!("u:{generation}"),
+				FsSearchCmd::Start { generation, .. } => format!("s:{generation}"),
+				FsSearchCmd::Stop => "stop".to_string(),
+			}),
+		));
 
-		let service_actor = Arc::new(
-			xeno_worker::spawn_actor(xeno_worker::ActorSpec::new("fs.service", xeno_worker::TaskClass::Interactive, {
+		let service_actor = Arc::new(xeno_worker::spawn_actor(xeno_worker::ActorSpec::new(
+			"fs.service",
+			xeno_worker::TaskClass::Interactive,
+			{
 				let state = Arc::clone(&state);
 				let indexer = Arc::clone(&indexer);
 				let search = Arc::clone(&search);
@@ -520,8 +520,8 @@ impl FsService {
 					search: Arc::clone(&search),
 					shared: Arc::clone(&state),
 				}
-			})),
-		);
+			},
+		)));
 		let service_ingress = xeno_worker::ActorCommandIngress::new(xeno_worker::TaskClass::Interactive, Arc::clone(&service_actor));
 		let command_port = service_ingress.port();
 		let _ = service_command_port.set(command_port.clone());

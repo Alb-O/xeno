@@ -1,3 +1,5 @@
+use lsp_types::PositionEncodingKind;
+
 use super::*;
 
 #[test]

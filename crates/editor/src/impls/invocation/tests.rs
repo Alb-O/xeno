@@ -2,10 +2,10 @@ use std::cell::Cell;
 use std::collections::HashSet;
 
 use xeno_primitives::{BoxFutureLocal, Key, KeyCode, Mode};
+use xeno_registry::CommandError;
 use xeno_registry::actions::{ActionEffects, ActionResult};
 use xeno_registry::commands::{CommandContext, CommandOutcome};
 use xeno_registry::hooks::{HookAction, HookContext, HookDef, HookHandler, HookMutability, HookPriority};
-use xeno_registry::CommandError;
 
 use super::*;
 use crate::types::{InvocationOutcome, InvocationStatus, InvocationTarget};

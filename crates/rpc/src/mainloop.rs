@@ -9,8 +9,8 @@ use std::task::{Context, Poll};
 use pin_project_lite::pin_project;
 use tokio::io::{AsyncBufRead, AsyncWrite, AsyncWriteExt};
 use tokio::sync::{mpsc, oneshot};
-use tower_service::Service;
 use tokio::task::JoinSet;
+use tower_service::Service;
 
 use crate::event::AnyEvent;
 use crate::protocol::{Inbound, Protocol};

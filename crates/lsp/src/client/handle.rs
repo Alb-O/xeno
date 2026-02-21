@@ -12,8 +12,7 @@ use tokio::sync::{Notify, OnceCell};
 
 use super::config::{LanguageServerId, OffsetEncoding};
 use super::transport::LspTransport;
-use crate::Result;
-use crate::types::{AnyNotification, AnyRequest, RequestId};
+use crate::{AnyNotification, AnyRequest, RequestId, Result};
 
 /// Handle to an LSP language server.
 ///
@@ -202,11 +201,11 @@ impl ClientHandle {
 	/// or if the server returns an LSP error response.
 	pub async fn request<R: Request>(&self, params: R::Params) -> Result<R::Result> {
 		let id_num = self.next_request_id.fetch_add(1, Ordering::Relaxed);
-		let req = AnyRequest {
-			id: RequestId::Number(id_num as i32),
-			method: R::METHOD.into(),
-			params: serde_json::to_value(params).expect("Failed to serialize"),
-		};
+		let req = AnyRequest::new(
+			RequestId::Number(id_num as i32),
+			R::METHOD,
+			serde_json::to_value(params).expect("Failed to serialize"),
+		);
 		let resp = self.transport.request(self.id, req, Some(self.timeout)).await?;
 		match resp.error {
 			None => Ok(serde_json::from_value(resp.result.unwrap_or_default())?),
@@ -216,10 +215,7 @@ impl ClientHandle {
 
 	/// Send a notification to the language server.
 	pub async fn notify<N: Notification>(&self, params: N::Params) -> Result<()> {
-		let notif = AnyNotification {
-			method: N::METHOD.into(),
-			params: serde_json::to_value(params).expect("Failed to serialize"),
-		};
+		let notif = AnyNotification::new(N::METHOD, serde_json::to_value(params).expect("Failed to serialize"));
 		self.transport.notify(self.id, notif).await
 	}
 }
