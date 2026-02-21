@@ -22,7 +22,7 @@ enum MailboxPolicy<T> {
 	/// Senders wait for capacity. `notify_send` wakes blocked senders on pop.
 	Backpressure { notify_send: Notify },
 	/// Replace matching key in-place, or evict oldest when full.
-	CoalesceByKey { coalesce_eq: Arc<CoalesceEqFn<T>> },
+	CoalesceByEq { coalesce_eq: Arc<CoalesceEqFn<T>> },
 }
 
 struct MailboxInner<T> {
@@ -82,19 +82,10 @@ impl<T> Mailbox<T> {
 		}
 	}
 
-	/// Creates a bounded mailbox with key-based coalescing.
+	/// Creates a bounded mailbox with equality-based coalescing.
 	///
-	/// Messages with matching keys replace the existing entry in-place.
-	/// When full and no key match exists, the oldest entry is evicted.
-	pub fn coalesce_by_key<K>(capacity: usize, key_fn: impl Fn(&T) -> K + Send + Sync + 'static) -> Self
-	where
-		K: Eq + Send + Sync + 'static,
-	{
-		let cmp = move |lhs: &T, rhs: &T| key_fn(lhs) == key_fn(rhs);
-		Self::coalesce_by_eq(capacity, cmp)
-	}
-
-	/// Creates a bounded mailbox with direct equality-based coalescing.
+	/// Messages for which `eq_fn` returns `true` replace the existing entry
+	/// in-place. When full and no match exists, the oldest entry is evicted.
 	pub fn coalesce_by_eq(capacity: usize, eq_fn: impl Fn(&T, &T) -> bool + Send + Sync + 'static) -> Self {
 		assert!(capacity > 0, "mailbox capacity must be > 0");
 		Self {
@@ -105,7 +96,7 @@ impl<T> Mailbox<T> {
 					closed: false,
 				}),
 				notify_recv: Notify::new(),
-				policy: MailboxPolicy::CoalesceByKey {
+				policy: MailboxPolicy::CoalesceByEq {
 					coalesce_eq: Arc::new(eq_fn),
 				},
 			}),
@@ -154,7 +145,7 @@ impl<T> MailboxSender<T> {
 	/// Enqueue honoring policy.
 	///
 	/// `Backpressure` waits for capacity, guaranteeing no silent drops.
-	/// `CoalesceByKey` replaces in-place or evicts oldest; never blocks.
+	/// `CoalesceByEq` replaces in-place or evicts oldest; never blocks.
 	pub async fn send(&self, msg: T) -> Result<(), MailboxSendError> {
 		match &self.inner.policy {
 			MailboxPolicy::Backpressure { notify_send } => {
@@ -174,7 +165,7 @@ impl<T> MailboxSender<T> {
 					notified.await;
 				}
 			}
-			MailboxPolicy::CoalesceByKey { coalesce_eq } => {
+			MailboxPolicy::CoalesceByEq { coalesce_eq } => {
 				let mut state = self.inner.state.lock().await;
 				if state.closed {
 					return Err(MailboxSendError::Closed);
@@ -256,7 +247,7 @@ mod tests {
 		assert_eq!(rx.recv().await, None);
 	}
 
-	// ── CoalesceByKey golden tests ──
+	// ── CoalesceByEq golden tests ──
 
 	#[derive(Clone, Debug, PartialEq, Eq)]
 	struct Msg {
@@ -266,7 +257,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn coalesce_replaces_in_place_preserving_order() {
-		let mailbox = Mailbox::coalesce_by_key(4, |m: &Msg| m.key);
+		let mailbox = Mailbox::coalesce_by_eq(4, |a: &Msg, b: &Msg| a.key == b.key);
 		let tx = mailbox.sender();
 		let rx = mailbox.receiver();
 
@@ -284,7 +275,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn coalesce_evicts_oldest_when_full_and_no_match() {
-		let mailbox = Mailbox::coalesce_by_key(3, |m: &Msg| m.key);
+		let mailbox = Mailbox::coalesce_by_eq(3, |a: &Msg, b: &Msg| a.key == b.key);
 		let tx = mailbox.sender();
 		let rx = mailbox.receiver();
 
@@ -302,7 +293,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn coalesce_replaces_even_when_full() {
-		let mailbox = Mailbox::coalesce_by_key(3, |m: &Msg| m.key);
+		let mailbox = Mailbox::coalesce_by_eq(3, |a: &Msg, b: &Msg| a.key == b.key);
 		let tx = mailbox.sender();
 		let rx = mailbox.receiver();
 
@@ -349,7 +340,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn coalesce_interleaved_push_pop_preserves_order() {
-		let mailbox = Mailbox::coalesce_by_key(3, |m: &Msg| m.key);
+		let mailbox = Mailbox::coalesce_by_eq(3, |a: &Msg, b: &Msg| a.key == b.key);
 		let tx = mailbox.sender();
 		let rx = mailbox.receiver();
 
@@ -389,7 +380,7 @@ mod tests {
 		}
 	}
 
-	/// Reference model for CoalesceByKey using (key, value) pairs.
+	/// Reference model for CoalesceByEq using (key, value) pairs.
 	struct KeyedQueueModel {
 		capacity: usize,
 		queue: std::collections::VecDeque<(u64, u32)>,
@@ -432,10 +423,10 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn stress_coalesce_by_key_matches_model() {
+	async fn stress_coalesce_by_eq_matches_model() {
 		const OPS: usize = 10_000;
 		let capacity = 4;
-		let mailbox = Mailbox::coalesce_by_key(capacity, |m: &Msg| m.key);
+		let mailbox = Mailbox::coalesce_by_eq(capacity, |a: &Msg, b: &Msg| a.key == b.key);
 		let tx = mailbox.sender();
 		let rx = mailbox.receiver();
 		let mut model = KeyedQueueModel::new(capacity);
