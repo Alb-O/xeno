@@ -107,8 +107,8 @@ use tokio::sync::Semaphore;
 use xeno_language::{InjectionPolicy, LanguageLoader, SyntaxOptions};
 use xeno_primitives::{ChangeSet, DocumentId, Rope};
 
-pub mod highlight_cache;
-pub mod lru;
+mod highlight_cache;
+mod lru;
 mod metrics;
 
 mod completion;
