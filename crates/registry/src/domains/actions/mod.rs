@@ -44,8 +44,8 @@ pub use def::{ActionDef, ActionHandler};
 pub use domain::Actions;
 pub use editor_ctx::{
 	CursorAccess, DeferredInvocationAccess, EditAccess, EditorCapabilities, EditorContext, EditorOps, FileOpsAccess, FocusOps, HandleOutcome, JumpAccess,
-	MacroAccess, ModeAccess, MotionAccess, MotionDispatchAccess, NotificationAccess, OptionAccess, PaletteAccess, ResultHandler, SearchAccess, SelectionAccess,
-	SplitOps, TextAccess, ThemeAccess, UndoAccess, ViewportAccess,
+	MacroAccess, ModeAccess, MotionAccess, MotionDispatchAccess, NotificationAccess, OptionAccess, PaletteAccess, SearchAccess, SelectionAccess, SplitOps,
+	TextAccess, ThemeAccess, UndoAccess, ViewportAccess,
 };
 pub use entry::ActionEntry;
 pub use handler::{ActionHandlerReg, ActionHandlerStatic};
@@ -53,7 +53,6 @@ pub use handler::{ActionHandlerReg, ActionHandlerStatic};
 // Re-export macros
 pub use crate::action_handler;
 pub use crate::core::{ActionId, LookupKey};
-pub use crate::{result_extension_handler, result_handler};
 
 /// Typed handle for looking up an action by canonical ID or registry reference.
 pub type ActionKey = LookupKey<ActionEntry, ActionId>;
@@ -67,10 +66,7 @@ pub use effects::{
 };
 pub use keybindings::{BindingMode, KeyBindingDef};
 pub use pending::PendingAction;
-pub use result::{
-	ActionResult, RESULT_EFFECTS_HANDLERS, RESULT_EXTENSION_HANDLERS, ResultHandlerRegistry, ScreenPosition, dispatch_result,
-	register_result_extension_handler, register_result_handler,
-};
+pub use result::{ActionResult, ScreenPosition};
 pub use xeno_primitives::direction::{Axis, SeqDirection, SpatialDirection};
 pub use xeno_primitives::{Mode, ObjectSelectionKind, PendingKind};
 

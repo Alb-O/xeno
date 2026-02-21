@@ -42,7 +42,7 @@
 //!
 //! # Lifecycle
 //!
-//! * Construct `EditorCaps`, wrap in `EditorContext`, and call `dispatch_result`.
+//! * Construct `EditorCaps`, wrap in `EditorContext`, and call `apply_effects`.
 //! * Execute `apply_effects` synchronously in invocation path.
 //! * Runtime/lifecycle flush applies deferred sink consequences.
 //!
@@ -73,8 +73,6 @@
 mod core;
 
 pub use core::apply_effects;
-pub(crate) use core::register_result_handlers;
-
 pub use xeno_registry::actions::editor_ctx::*;
 
 #[cfg(test)]

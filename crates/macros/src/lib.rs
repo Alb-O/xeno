@@ -1,13 +1,11 @@
 //! Procedural macros for Xeno editor.
 //!
 //! Provides derive macros and attribute macros:
-//! * `#[derive(DispatchResult)]` - generates result handler registries
 //! * `#[derive(Option)]` - option registration from static definitions
 //! * `define_events!` - hook event generation
 
 use proc_macro::TokenStream;
 
-mod dispatch;
 mod events;
 /// Notification macro implementation.
 mod notification;
@@ -25,28 +23,6 @@ mod option;
 #[proc_macro]
 pub fn register_notification(input: TokenStream) -> TokenStream {
 	notification::register_notification(input)
-}
-
-/// Derives dispatch infrastructure for `ActionResult`.
-///
-/// Generates handler registry declarations (`RESULT_*_HANDLERS`) and a `dispatch_result`
-/// function.
-///
-/// Attributes:
-/// * `#[handler(Foo)]` - Use `RESULT_FOO_HANDLERS` instead of deriving from variant name
-///
-/// ```ignore
-/// #[derive(DispatchResult)]
-/// pub enum ActionResult {
-///     Ok,
-///     #[handler(Quit)]
-///     Quit,
-///     Motion(Selection),
-/// }
-/// ```
-#[proc_macro_derive(DispatchResult, attributes(handler, handler_coverage))]
-pub fn derive_dispatch_result(input: TokenStream) -> TokenStream {
-	dispatch::derive_dispatch_result(input)
 }
 
 /// Generates hook event types and extractor macros from a single definition.

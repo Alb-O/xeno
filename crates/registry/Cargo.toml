@@ -28,7 +28,6 @@ full = [
 
 minimal = [
     "dep:inventory",
-    "dep:parking_lot",
     "dep:paste",
     "dep:tracing",
     "actions",
@@ -103,7 +102,6 @@ actions-handler-coverage = ["actions-builtins"]
 [dependencies]
 bitflags = { workspace = true }
 inventory = { workspace = true, optional = true }
-parking_lot = { workspace = true, optional = true }
 paste = { workspace = true, optional = true }
 postcard.workspace = true
 regex = { workspace = true, optional = true }

@@ -32,11 +32,10 @@ pub use capabilities::{
 	MotionDispatchAccess, NotificationAccess, OptionAccess, OverlayAccess, OverlayCloseReason, OverlayRequest, PaletteAccess, SearchAccess, SelectionAccess,
 	SplitError, SplitOps, TextAccess, ThemeAccess, UndoAccess, ViewportAccess,
 };
-pub use handlers::{HandleOutcome, ResultHandler};
+pub use handlers::HandleOutcome;
 use xeno_primitives::range::CharIdx;
 use xeno_primitives::selection::Selection;
 
-pub use super::result::ResultHandlerRegistry;
 use crate::actions::{Capability, CommandError, Mode};
 
 /// Context for applying action results to editor state.

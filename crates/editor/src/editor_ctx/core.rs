@@ -3,10 +3,10 @@ use std::time::Instant;
 use tracing::{trace, trace_span};
 use xeno_primitives::{Mode, Selection};
 use xeno_registry::actions::editor_ctx::*;
-use xeno_registry::actions::{ActionEffects, ActionResult, AppEffect, EditEffect, Effect, ScreenPosition, ScrollAmount, UiEffect, ViewEffect};
+use xeno_registry::actions::{ActionEffects, AppEffect, EditEffect, Effect, ScreenPosition, ScrollAmount, UiEffect, ViewEffect};
 use xeno_registry::hooks::{HookContext, emit_sync as emit_hook_sync};
 use xeno_registry::notifications::keys;
-use xeno_registry::{HookEventData, result_handler};
+use xeno_registry::HookEventData;
 
 /// Applies a set of effects to the editor context.
 ///
@@ -276,14 +276,4 @@ fn apply_screen_motion(ctx: &mut xeno_registry::actions::editor_ctx::EditorConte
 	ctx.set_selection(new_selection.clone());
 	emit_cursor_hook(ctx);
 	emit_selection_hook(ctx, &new_selection);
-}
-
-// Register the handler for ActionResult::Effects
-result_handler!(RESULT_EFFECTS_HANDLERS, HANDLE_EFFECTS, "effects", |r, ctx, extend| {
-	let ActionResult::Effects(effects) = r;
-	apply_effects(effects, ctx, extend)
-});
-
-pub(crate) fn register_result_handlers() {
-	xeno_registry::actions::register_result_handler(&HANDLE_EFFECTS);
 }

@@ -6284,7 +6284,6 @@ version = "0.9.4"
 dependencies = [
  "bitflags 2.11.0",
  "inventory",
- "parking_lot",
  "paste",
  "postcard",
  "regex",

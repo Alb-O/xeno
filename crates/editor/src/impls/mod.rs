@@ -419,7 +419,6 @@ impl Editor {
 
 	#[cfg(all(test, feature = "lsp"))]
 	pub fn new_scratch_with_transport(transport: std::sync::Arc<dyn xeno_lsp::client::LspTransport>) -> Self {
-		crate::editor_ctx::register_result_handlers();
 		log_registry_summary_once();
 
 		let (msg_tx, msg_rx) = crate::msg::channel();
@@ -439,7 +438,6 @@ impl Editor {
 
 	/// Creates an editor from the given content and optional file path.
 	pub fn from_content(content: String, path: Option<PathBuf>) -> Self {
-		crate::editor_ctx::register_result_handlers();
 		log_registry_summary_once();
 
 		let (msg_tx, msg_rx) = crate::msg::channel();
