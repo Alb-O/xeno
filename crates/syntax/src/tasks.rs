@@ -4,8 +4,7 @@ use std::time::{Duration, Instant};
 use rustc_hash::FxHashMap;
 use tokio::sync::Semaphore;
 use tokio::task::JoinHandle;
-use xeno_language::syntax::{SealedSource, Syntax, SyntaxError, SyntaxOptions};
-use xeno_language::{LanguageId, LanguageLoader};
+use xeno_language::{LanguageId, LanguageLoader, SealedSource, Syntax, SyntaxError, SyntaxOptions};
 use xeno_primitives::{ChangeSet, DocumentId, Rope};
 
 use super::engine::SyntaxEngine;
@@ -121,7 +120,7 @@ impl TaskCollector {
 				TaskKind::FullParse { content } => engine.parse(content.slice(..), spec.lang_id, &spec.loader, spec.opts),
 				TaskKind::ViewportParse { content, window, .. } => {
 					if let Some(data) = spec.loader.get(spec.lang_id) {
-						let repair: xeno_language::syntax::ViewportRepair = data.viewport_repair();
+						let repair: xeno_language::ViewportRepair = data.viewport_repair();
 						let forward_haystack = if window.end < content.len_bytes() as u32 {
 							Some(content.byte_slice(window.end as usize..))
 						} else {

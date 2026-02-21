@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 use std::ops::Range;
 
-use xeno_language::highlight::HighlightSpan;
+use xeno_language::HighlightSpan;
 use xeno_primitives::Style;
 
 #[derive(Debug, Clone)]

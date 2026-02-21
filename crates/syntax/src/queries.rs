@@ -1,4 +1,4 @@
-use xeno_language::syntax::{InjectionPolicy, Syntax};
+use xeno_language::{InjectionPolicy, Syntax};
 
 use super::*;
 

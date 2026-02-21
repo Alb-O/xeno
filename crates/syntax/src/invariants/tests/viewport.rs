@@ -353,7 +353,7 @@ pub(crate) async fn test_viewport_stale_install_continuity() {
 ///   spans before the eventual corrected repaint.
 #[cfg_attr(test, test)]
 pub(crate) fn test_viewport_stale_install_skipped_when_covered() {
-	use xeno_language::syntax::SealedSource;
+	use xeno_language::SealedSource;
 
 	let mut mgr = SyntaxManager::default();
 	let mut policy = TieredSyntaxPolicy::test_default();

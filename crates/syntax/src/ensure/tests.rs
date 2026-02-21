@@ -1,4 +1,4 @@
-use xeno_language::syntax::{SyntaxError, SyntaxOptions};
+use xeno_language::{SyntaxError, SyntaxOptions};
 
 use super::install::{InstallDecision, decide_install, install_completions};
 use super::*;
@@ -153,7 +153,7 @@ fn test_stale_viewport_discards_when_covered() {
 	let mut entry = DocEntry::new(Instant::now());
 	entry.slot.language_id = Some(lang);
 	entry.slot.full = Some(InstalledTree {
-		syntax: xeno_language::syntax::Syntax::new(
+		syntax: xeno_language::Syntax::new(
 			content.slice(..),
 			lang,
 			&loader,
@@ -227,7 +227,7 @@ fn test_stale_full_discards_on_projection_mismatch() {
 	entry.slot.language_id = Some(lang);
 	entry.slot.dirty = true;
 	entry.slot.full = Some(InstalledTree {
-		syntax: xeno_language::syntax::Syntax::new(
+		syntax: xeno_language::Syntax::new(
 			content.slice(..),
 			lang,
 			&loader,

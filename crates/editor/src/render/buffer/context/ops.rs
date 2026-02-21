@@ -1,7 +1,7 @@
 use ropey::Rope;
 use tracing::trace;
 use xeno_language::LanguageId;
-use xeno_language::highlight::HighlightSpan;
+use xeno_language::HighlightSpan;
 use xeno_primitives::{Mode, Modifier, Style, UnderlineStyle, visible_line_count};
 use xeno_registry::gutter::GutterAnnotations;
 

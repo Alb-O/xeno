@@ -19,9 +19,7 @@ use builder::line_to_byte_or_eof;
 #[cfg(test)]
 use builder::remap_stale_span_to_current;
 use tracing::trace;
-use xeno_language::highlight::HighlightSpan;
-use xeno_language::syntax::Syntax;
-use xeno_language::{LanguageId, LanguageLoader};
+use xeno_language::{HighlightSpan, LanguageId, LanguageLoader, Syntax};
 use xeno_primitives::{Bias, DocumentId, Rope, Style};
 
 use crate::HighlightProjectionCtx;

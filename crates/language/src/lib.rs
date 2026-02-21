@@ -26,18 +26,19 @@
 //! * File type associations (extensions, filenames, globs)
 //! * Query files (highlights, indents, textobjects, injections, locals)
 
-pub mod build;
-pub mod db;
-pub mod grammar;
-pub mod highlight;
-pub mod ids;
-pub mod language;
-pub mod loader;
-pub mod lsp_config;
-pub mod query;
+mod build;
+mod db;
+mod grammar;
+mod highlight;
+mod ids;
+mod language;
+mod loader;
+mod lsp_config;
+mod query;
 mod runtime;
-pub mod syntax;
+mod syntax;
 
+pub use build::{BuildStatus, FetchStatus, GrammarBuildError, GrammarConfig, build_all_grammars, build_grammar, fetch_all_grammars, fetch_grammar, load_grammar_configs};
 pub use db::{LanguageDb, language_db};
 pub use grammar::{GrammarError, GrammarSource, cache_dir, grammar_search_paths, load_grammar, load_grammar_or_build, query_search_paths, runtime_dir};
 pub use highlight::{Highlight, HighlightEvent, HighlightSpan, HighlightStyles, Highlighter};
@@ -48,4 +49,4 @@ pub use lsp_config::{
 	LanguageLspInfo, LanguageLspMapping, LspConfigError, LspServerDef, ResolvedLanguageLspConfig, load_lsp_configs, load_resolved_lsp_configs,
 };
 pub use query::{CapturedNode, IndentQuery, RainbowQuery, TagQuery, TextObjectQuery, read_query};
-pub use syntax::{InjectionPolicy, SealedSource, Syntax, SyntaxError, SyntaxOptions};
+pub use syntax::{InjectionPolicy, SealedSource, Syntax, SyntaxError, SyntaxOptions, ViewportRepair};

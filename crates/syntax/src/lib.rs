@@ -104,8 +104,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use tokio::sync::Semaphore;
-use xeno_language::LanguageLoader;
-use xeno_language::syntax::{InjectionPolicy, SyntaxOptions};
+use xeno_language::{InjectionPolicy, LanguageLoader, SyntaxOptions};
 use xeno_primitives::{ChangeSet, DocumentId, Rope};
 
 pub mod highlight_cache;

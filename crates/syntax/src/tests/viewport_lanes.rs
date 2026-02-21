@@ -325,7 +325,7 @@ async fn test_l_retention_drops_viewport_when_configured() {
 
 #[tokio::test]
 async fn test_stage_b_timeout_sets_per_key_cooldown_and_allows_retry() {
-	use xeno_language::syntax::SyntaxError;
+	use xeno_language::SyntaxError;
 
 	use super::scheduling::{CompletedSyntaxTask, ViewportLane};
 
@@ -415,7 +415,7 @@ async fn test_stage_b_timeout_sets_per_key_cooldown_and_allows_retry() {
 
 #[tokio::test]
 async fn test_stage_b_failure_does_not_block_stage_a() {
-	use xeno_language::syntax::SyntaxError;
+	use xeno_language::SyntaxError;
 
 	use super::scheduling::{CompletedSyntaxTask, ViewportLane};
 

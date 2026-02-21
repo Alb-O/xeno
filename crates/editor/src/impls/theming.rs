@@ -69,7 +69,7 @@ impl Editor {
 	}
 
 	/// Collects syntax highlight spans for the visible area of the buffer.
-	pub fn collect_highlight_spans(&self, area: crate::geometry::Rect) -> Vec<(xeno_language::highlight::HighlightSpan, xeno_primitives::Style)> {
+	pub fn collect_highlight_spans(&self, area: crate::geometry::Rect) -> Vec<(xeno_language::HighlightSpan, xeno_primitives::Style)> {
 		let buffer = self.buffer();
 		let scroll_line = buffer.scroll_line;
 		let doc_id = buffer.document_id();
@@ -101,7 +101,7 @@ impl Editor {
 				return Vec::new();
 			};
 
-			let highlight_styles = xeno_language::highlight::HighlightStyles::new(SyntaxStyles::scope_names(), |scope| {
+			let highlight_styles = xeno_language::HighlightStyles::new(SyntaxStyles::scope_names(), |scope| {
 				self.state.config.config.theme.colors.syntax.resolve(scope)
 			});
 
@@ -122,7 +122,7 @@ impl Editor {
 	pub fn style_for_byte_pos(
 		&self,
 		byte_pos: usize,
-		spans: &[(xeno_language::highlight::HighlightSpan, xeno_primitives::Style)],
+		spans: &[(xeno_language::HighlightSpan, xeno_primitives::Style)],
 	) -> Option<xeno_primitives::Style> {
 		for (span, style) in spans.iter().rev() {
 			if byte_pos >= span.start as usize && byte_pos < span.end as usize {

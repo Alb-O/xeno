@@ -15,11 +15,11 @@ pub(super) enum InstallDecision {
 enum InstallAction {
 	InstallViewport {
 		done: CompletedRef,
-		syntax: xeno_language::syntax::Syntax,
+		syntax: xeno_language::Syntax,
 	},
 	InstallFull {
 		done: CompletedRef,
-		syntax: xeno_language::syntax::Syntax,
+		syntax: xeno_language::Syntax,
 	},
 	DropRetention,
 	ApplyFailureCooldown {
@@ -73,7 +73,7 @@ enum CompletionEval {
 	Error {
 		meta: CompletionMeta,
 		action: InstallAction,
-		error: xeno_language::syntax::SyntaxError,
+		error: xeno_language::SyntaxError,
 	},
 }
 
@@ -209,7 +209,7 @@ impl CompletedRef {
 }
 
 /// Applies a successful viewport parse install. Returns true (always updates).
-fn apply_viewport_install(entry: &mut DocEntry, done: &CompletedRef, syntax: xeno_language::syntax::Syntax, current_lang: xeno_language::LanguageId) -> bool {
+fn apply_viewport_install(entry: &mut DocEntry, done: &CompletedRef, syntax: xeno_language::Syntax, current_lang: xeno_language::LanguageId) -> bool {
 	let Some(vp_key) = done.viewport_key else { return false };
 	let tree_id = entry.slot.alloc_tree_id();
 	let coverage = if let Some(meta) = &syntax.viewport {
@@ -243,7 +243,7 @@ fn apply_viewport_install(entry: &mut DocEntry, done: &CompletedRef, syntax: xen
 fn apply_full_install(
 	entry: &mut DocEntry,
 	done: &CompletedRef,
-	syntax: xeno_language::syntax::Syntax,
+	syntax: xeno_language::Syntax,
 	ctx: &EnsureBase<'_>,
 	current_lang: xeno_language::LanguageId,
 ) -> bool {
@@ -346,7 +346,7 @@ fn evaluate_completion(done: CompletedSyntaxTask, now: Instant, ctx: &EnsureBase
 			};
 			CompletionEval::Success { meta, decision, action }
 		}
-		Err(xeno_language::syntax::SyntaxError::Timeout) => CompletionEval::Timeout {
+		Err(xeno_language::SyntaxError::Timeout) => CompletionEval::Timeout {
 			meta,
 			action: InstallAction::ApplyFailureCooldown {
 				done: done_ref,

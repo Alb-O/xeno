@@ -156,7 +156,7 @@ async fn test_retention_dropafter_viewport_ttl() {
 /// expires, then allows retry.
 #[tokio::test]
 async fn test_stage_b_cooldown_blocks_then_allows_retry() {
-	use xeno_language::syntax::SyntaxError;
+	use xeno_language::SyntaxError;
 
 	use super::scheduling::{CompletedSyntaxTask, ViewportLane};
 
@@ -251,7 +251,7 @@ async fn test_stage_b_cooldown_blocks_then_allows_retry() {
 /// expires.
 #[tokio::test]
 async fn test_doc_cooldown_blocks_bg_tasks() {
-	use xeno_language::syntax::SyntaxError;
+	use xeno_language::SyntaxError;
 
 	use super::scheduling::CompletedSyntaxTask;
 

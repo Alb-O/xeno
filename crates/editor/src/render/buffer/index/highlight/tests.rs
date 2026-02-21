@@ -1,4 +1,4 @@
-use xeno_language::highlight::Highlight;
+use xeno_language::Highlight;
 use xeno_primitives::Color;
 
 use super::*;

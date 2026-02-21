@@ -2,8 +2,7 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 use rustc_hash::FxHashMap;
-use xeno_language::syntax::{InjectionPolicy, Syntax};
-use xeno_language::{LanguageId, LanguageLoader};
+use xeno_language::{InjectionPolicy, LanguageId, LanguageLoader, Syntax};
 use xeno_primitives::{ChangeSet, DocumentId, Rope};
 
 /// Maximum number of remembered full-tree snapshots per document for undo/redo reuse.

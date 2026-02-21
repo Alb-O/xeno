@@ -4,6 +4,7 @@ description = "Language configuration and metadata"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+publish = false
 
 [dependencies]
 cc.workspace = true

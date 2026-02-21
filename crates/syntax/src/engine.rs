@@ -1,5 +1,4 @@
-use xeno_language::syntax::{Syntax, SyntaxError, SyntaxOptions};
-use xeno_language::{LanguageId, LanguageLoader};
+use xeno_language::{LanguageId, LanguageLoader, Syntax, SyntaxError, SyntaxOptions};
 use xeno_primitives::ChangeSet;
 
 /// Abstract engine for parsing syntax (for test mockability).
