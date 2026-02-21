@@ -7,7 +7,7 @@ use tokio::sync::{Mutex, broadcast};
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
-use crate::mailbox::{Mailbox, MailboxReceiver, MailboxSendError, MailboxSendOutcome, MailboxSender};
+use crate::mailbox::{Mailbox, MailboxReceiver, MailboxSendError, MailboxSender};
 use crate::token::{GenerationClock, GenerationToken};
 use crate::{TaskClass, spawn};
 
@@ -369,12 +369,12 @@ where
 	}
 
 	/// Sends one command honoring mailbox policy.
-	pub async fn send(&self, cmd: Cmd) -> Result<MailboxSendOutcome, MailboxSendError> {
+	pub async fn send(&self, cmd: Cmd) -> Result<(), MailboxSendError> {
 		self.tx.send(cmd).await
 	}
 
 	/// Sends one command without waiting for mailbox capacity.
-	pub async fn try_send(&self, cmd: Cmd) -> Result<MailboxSendOutcome, MailboxSendError> {
+	pub async fn try_send(&self, cmd: Cmd) -> Result<(), MailboxSendError> {
 		self.tx.try_send(cmd).await
 	}
 

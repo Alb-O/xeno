@@ -12,17 +12,6 @@ enum MailboxMode {
 	CoalesceByKey,
 }
 
-/// Outcome from enqueueing a mailbox message.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MailboxSendOutcome {
-	/// Message was enqueued without replacement.
-	Enqueued,
-	/// Oldest queued message was evicted to make room.
-	ReplacedOldest,
-	/// Existing keyed queued message was replaced in-place.
-	Coalesced,
-}
-
 /// Mailbox send error.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MailboxSendError {
@@ -165,7 +154,7 @@ impl<T> MailboxSender<T> {
 	}
 
 	/// Non-blocking enqueue.
-	pub async fn try_send(&self, msg: T) -> Result<MailboxSendOutcome, MailboxSendError> {
+	pub async fn try_send(&self, msg: T) -> Result<(), MailboxSendError> {
 		let mut state = self.inner.state.lock().await;
 		enqueue_non_blocking(&self.inner, &mut state, msg)
 	}
@@ -175,7 +164,7 @@ impl<T> MailboxSender<T> {
 	/// For `Backpressure` policy, this loops under the lock until capacity is
 	/// available, guaranteeing no silent drops. All other policies enqueue
 	/// immediately according to their overflow semantics.
-	pub async fn send(&self, msg: T) -> Result<MailboxSendOutcome, MailboxSendError> {
+	pub async fn send(&self, msg: T) -> Result<(), MailboxSendError> {
 		if self.inner.mode == MailboxMode::Backpressure {
 			loop {
 				// Register the notification future *before* checking capacity
@@ -189,7 +178,7 @@ impl<T> MailboxSender<T> {
 				if state.queue.len() < self.inner.capacity {
 					state.queue.push_back(msg);
 					self.inner.notify_recv.notify_one();
-					return Ok(MailboxSendOutcome::Enqueued);
+					return Ok(());
 				}
 				drop(state);
 				notified.await;
@@ -250,7 +239,7 @@ impl<T> MailboxReceiver<T> {
 /// `Backpressure` returns `Full` when at capacity (the blocking wait lives
 /// in `MailboxSender::send` which enqueues under the lock directly).
 /// `CoalesceByKey` replaces in-place or evicts oldest; never returns `Full`.
-fn enqueue_non_blocking<T>(inner: &MailboxInner<T>, state: &mut MailboxState<T>, msg: T) -> Result<MailboxSendOutcome, MailboxSendError> {
+fn enqueue_non_blocking<T>(inner: &MailboxInner<T>, state: &mut MailboxState<T>, msg: T) -> Result<(), MailboxSendError> {
 	if state.closed {
 		return Err(MailboxSendError::Closed);
 	}
@@ -263,25 +252,21 @@ fn enqueue_non_blocking<T>(inner: &MailboxInner<T>, state: &mut MailboxState<T>,
 			if let Some(existing) = state.queue.iter_mut().find(|it| eq_fn(it, &msg)) {
 				*existing = msg;
 				inner.notify_recv.notify_one();
-				return Ok(MailboxSendOutcome::Coalesced);
+				return Ok(());
 			}
 
 			if state.queue.len() >= inner.capacity {
 				let _ = state.queue.pop_front();
-				state.queue.push_back(msg);
-				inner.notify_recv.notify_one();
-				Ok(MailboxSendOutcome::ReplacedOldest)
-			} else {
-				state.queue.push_back(msg);
-				inner.notify_recv.notify_one();
-				Ok(MailboxSendOutcome::Enqueued)
 			}
+			state.queue.push_back(msg);
+			inner.notify_recv.notify_one();
+			Ok(())
 		}
 		MailboxMode::Backpressure => {
 			if state.queue.len() < inner.capacity {
 				state.queue.push_back(msg);
 				inner.notify_recv.notify_one();
-				Ok(MailboxSendOutcome::Enqueued)
+				Ok(())
 			} else {
 				Err(MailboxSendError::Full)
 			}
@@ -304,9 +289,9 @@ mod tests {
 		let tx = mailbox.sender();
 		let rx = mailbox.receiver();
 
-		assert_eq!(tx.try_send(1u32).await, Ok(MailboxSendOutcome::Enqueued));
-		assert_eq!(tx.try_send(2).await, Ok(MailboxSendOutcome::Enqueued));
-		assert_eq!(tx.try_send(3).await, Ok(MailboxSendOutcome::Enqueued));
+		assert!(tx.try_send(1u32).await.is_ok());
+		assert!(tx.try_send(2).await.is_ok());
+		assert!(tx.try_send(3).await.is_ok());
 		assert_eq!(tx.try_send(4).await, Err(MailboxSendError::Full));
 		assert_eq!(tx.try_send(5).await, Err(MailboxSendError::Full));
 
@@ -336,7 +321,7 @@ mod tests {
 			.await
 			.expect("send should unblock after pop")
 			.unwrap();
-		assert_eq!(result, Ok(MailboxSendOutcome::Enqueued));
+		assert!(result.is_ok());
 
 		tx.close().await;
 		assert_eq!(rx.recv().await, Some(2));
@@ -361,8 +346,8 @@ mod tests {
 		let _ = tx.send(Msg { key: 1, value: 10 }).await;
 		let _ = tx.send(Msg { key: 2, value: 20 }).await;
 		let _ = tx.send(Msg { key: 3, value: 30 }).await;
-		let outcome = tx.send(Msg { key: 1, value: 99 }).await;
-		assert_eq!(outcome, Ok(MailboxSendOutcome::Coalesced));
+		// Coalesce: key 1 already in queue, value replaced
+		assert!(tx.send(Msg { key: 1, value: 99 }).await.is_ok());
 
 		tx.close().await;
 		assert_eq!(rx.recv().await, Some(Msg { key: 1, value: 99 }));
@@ -380,8 +365,8 @@ mod tests {
 		let _ = tx.send(Msg { key: 1, value: 10 }).await;
 		let _ = tx.send(Msg { key: 2, value: 20 }).await;
 		let _ = tx.send(Msg { key: 3, value: 30 }).await;
-		let outcome = tx.send(Msg { key: 4, value: 40 }).await;
-		assert_eq!(outcome, Ok(MailboxSendOutcome::ReplacedOldest));
+		// Full, no match: oldest (key=1) evicted
+		assert!(tx.send(Msg { key: 4, value: 40 }).await.is_ok());
 
 		tx.close().await;
 		assert_eq!(rx.recv().await, Some(Msg { key: 2, value: 20 }));
@@ -399,8 +384,8 @@ mod tests {
 		let _ = tx.send(Msg { key: 1, value: 10 }).await;
 		let _ = tx.send(Msg { key: 2, value: 20 }).await;
 		let _ = tx.send(Msg { key: 3, value: 30 }).await;
-		let outcome = tx.send(Msg { key: 2, value: 99 }).await;
-		assert_eq!(outcome, Ok(MailboxSendOutcome::Coalesced));
+		// Full but key matches: coalesce in-place
+		assert!(tx.send(Msg { key: 2, value: 99 }).await.is_ok());
 
 		tx.close().await;
 		assert_eq!(rx.recv().await, Some(Msg { key: 1, value: 10 }));
@@ -449,8 +434,8 @@ mod tests {
 		let _ = tx.send(Msg { key: 2, value: 20 }).await;
 		assert_eq!(rx.recv().await, Some(Msg { key: 1, value: 10 }));
 
-		let outcome = tx.send(Msg { key: 2, value: 99 }).await;
-		assert_eq!(outcome, Ok(MailboxSendOutcome::Coalesced));
+		// Coalesce key=2 in-place
+		assert!(tx.send(Msg { key: 2, value: 99 }).await.is_ok());
 		let _ = tx.send(Msg { key: 3, value: 30 }).await;
 
 		tx.close().await;
@@ -496,10 +481,10 @@ mod tests {
 			}
 		}
 
-		fn push(&mut self, val: u32) -> Result<MailboxSendOutcome, MailboxSendError> {
+		fn push(&mut self, val: u32) -> Result<(), MailboxSendError> {
 			if self.queue.len() < self.capacity {
 				self.queue.push_back(val);
-				Ok(MailboxSendOutcome::Enqueued)
+				Ok(())
 			} else {
 				Err(MailboxSendError::Full)
 			}
@@ -528,19 +513,16 @@ mod tests {
 			}
 		}
 
-		fn push(&mut self, key: u64, value: u32) -> Result<MailboxSendOutcome, MailboxSendError> {
+		fn push(&mut self, key: u64, value: u32) -> Result<(), MailboxSendError> {
 			if let Some(existing) = self.queue.iter_mut().find(|(k, _)| *k == key) {
 				existing.1 = value;
-				return Ok(MailboxSendOutcome::Coalesced);
+				return Ok(());
 			}
 			if self.queue.len() >= self.capacity {
 				let _ = self.queue.pop_front();
-				self.queue.push_back((key, value));
-				Ok(MailboxSendOutcome::ReplacedOldest)
-			} else {
-				self.queue.push_back((key, value));
-				Ok(MailboxSendOutcome::Enqueued)
 			}
+			self.queue.push_back((key, value));
+			Ok(())
 		}
 
 		fn pop(&mut self) -> Option<(u64, u32)> {
@@ -698,8 +680,7 @@ mod tests {
 				barrier.wait().await;
 				for seq in 0..ITEMS_PER_SENDER {
 					let val = (sender_id * ITEMS_PER_SENDER + seq) as u32;
-					let outcome = tx.send(val).await;
-					assert_eq!(outcome, Ok(MailboxSendOutcome::Enqueued), "sender {sender_id} seq {seq}: must not drop");
+					tx.send(val).await.expect("backpressure send must not fail");
 				}
 			}));
 		}
