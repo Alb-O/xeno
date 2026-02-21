@@ -56,16 +56,16 @@ impl Editor {
 		}
 
 		let allowed = self.state.config.config.nu.as_ref().map_or_else(
-			|| xeno_registry::config::NuConfig::default().macro_capabilities(),
-			|config| config.macro_capabilities(),
+			|| xeno_registry::config::NuConfig::default().macro_permissions(),
+			|config| config.macro_permissions(),
 		);
 
 		let outcome = match apply_effect_batch(self, effects, NuEffectApplyMode::Macro, &allowed) {
 			Ok(outcome) => outcome,
 			Err(error) => {
 				let msg = match error {
-					NuEffectApplyError::PermissionDenied { capability } => {
-						format!("Nu macro effect denied by permission policy: {}", capability.as_str())
+					NuEffectApplyError::PermissionDenied { permission } => {
+						format!("Nu macro effect denied by permission policy: {}", permission.as_str())
 					}
 					NuEffectApplyError::StopPropagationUnsupportedForMacro => "Nu macro produced hook-only stop effect".to_string(),
 				};

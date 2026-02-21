@@ -230,10 +230,10 @@ pub struct NuConfig {
 	pub budget_macro: Option<DecodeBudgetOverrides>,
 	/// Decode budget overrides for hook return values.
 	pub budget_hook: Option<DecodeBudgetOverrides>,
-	/// Optional macro capability override set.
-	pub capabilities_macro: Option<HashSet<xeno_invocation::nu::NuCapability>>,
-	/// Optional hook capability override set.
-	pub capabilities_hook: Option<HashSet<xeno_invocation::nu::NuCapability>>,
+	/// Optional macro permission override set.
+	pub permissions_macro: Option<HashSet<xeno_invocation::nu::NuPermission>>,
+	/// Optional hook permission override set.
+	pub permissions_hook: Option<HashSet<xeno_invocation::nu::NuPermission>>,
 }
 
 #[cfg(feature = "config-nuon")]
@@ -252,49 +252,49 @@ impl NuConfig {
 		})
 	}
 
-	/// Effective macro capabilities (defaults + optional overrides).
-	pub fn macro_capabilities(&self) -> HashSet<xeno_invocation::nu::NuCapability> {
-		self.capabilities_macro.clone().unwrap_or_else(default_macro_capabilities)
+	/// Effective macro permissions (defaults + optional overrides).
+	pub fn macro_permissions(&self) -> HashSet<xeno_invocation::nu::NuPermission> {
+		self.permissions_macro.clone().unwrap_or_else(default_macro_permissions)
 	}
 
-	/// Effective hook capabilities (defaults + optional overrides).
-	pub fn hook_capabilities(&self) -> HashSet<xeno_invocation::nu::NuCapability> {
-		self.capabilities_hook.clone().unwrap_or_else(default_hook_capabilities)
+	/// Effective hook permissions (defaults + optional overrides).
+	pub fn hook_permissions(&self) -> HashSet<xeno_invocation::nu::NuPermission> {
+		self.permissions_hook.clone().unwrap_or_else(default_hook_permissions)
 	}
 }
 
 #[cfg(feature = "config-nuon")]
-fn default_macro_capabilities() -> HashSet<xeno_invocation::nu::NuCapability> {
-	use xeno_invocation::nu::NuCapability;
+fn default_macro_permissions() -> HashSet<xeno_invocation::nu::NuPermission> {
+	use xeno_invocation::nu::NuPermission;
 
 	[
-		NuCapability::DispatchAction,
-		NuCapability::DispatchCommand,
-		NuCapability::DispatchEditorCommand,
-		NuCapability::DispatchMacro,
-		NuCapability::Notify,
-		NuCapability::EditText,
-		NuCapability::SetClipboard,
-		NuCapability::WriteState,
-		NuCapability::ScheduleMacro,
+		NuPermission::DispatchAction,
+		NuPermission::DispatchCommand,
+		NuPermission::DispatchEditorCommand,
+		NuPermission::DispatchMacro,
+		NuPermission::Notify,
+		NuPermission::EditText,
+		NuPermission::SetClipboard,
+		NuPermission::WriteState,
+		NuPermission::ScheduleMacro,
 	]
 	.into_iter()
 	.collect()
 }
 
 #[cfg(feature = "config-nuon")]
-fn default_hook_capabilities() -> HashSet<xeno_invocation::nu::NuCapability> {
-	use xeno_invocation::nu::NuCapability;
+fn default_hook_permissions() -> HashSet<xeno_invocation::nu::NuPermission> {
+	use xeno_invocation::nu::NuPermission;
 
 	[
-		NuCapability::DispatchAction,
-		NuCapability::DispatchCommand,
-		NuCapability::DispatchEditorCommand,
-		NuCapability::Notify,
-		NuCapability::StopPropagation,
-		NuCapability::EditText,
-		NuCapability::WriteState,
-		NuCapability::ScheduleMacro,
+		NuPermission::DispatchAction,
+		NuPermission::DispatchCommand,
+		NuPermission::DispatchEditorCommand,
+		NuPermission::Notify,
+		NuPermission::StopPropagation,
+		NuPermission::EditText,
+		NuPermission::WriteState,
+		NuPermission::ScheduleMacro,
 	]
 	.into_iter()
 	.collect()
@@ -307,7 +307,7 @@ fn default_hook_capabilities() -> HashSet<xeno_invocation::nu::NuCapability> {
 pub struct Config {
 	/// Keymap configuration (preset + key overrides).
 	pub keymap: Option<KeymapConfig>,
-	/// Nu scripting configuration (decode budgets, capabilities).
+	/// Nu scripting configuration (decode budgets, permissions).
 	#[cfg(feature = "config-nuon")]
 	pub nu: Option<NuConfig>,
 	/// Global option overrides.

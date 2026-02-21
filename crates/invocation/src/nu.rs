@@ -228,9 +228,9 @@ impl NuEffectBatch {
 	}
 }
 
-/// Capability tokens for Nu-produced effects.
+/// Permission tokens for Nu-produced effects.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum NuCapability {
+pub enum NuPermission {
 	DispatchAction,
 	DispatchCommand,
 	DispatchEditorCommand,
@@ -243,7 +243,7 @@ pub enum NuCapability {
 	ScheduleMacro,
 }
 
-impl NuCapability {
+impl NuPermission {
 	pub fn parse(input: &str) -> Option<Self> {
 		match input {
 			"dispatch_action" => Some(Self::DispatchAction),
@@ -276,20 +276,20 @@ impl NuCapability {
 	}
 }
 
-pub fn required_capability_for_effect(effect: &NuEffect) -> NuCapability {
+pub fn required_permission_for_effect(effect: &NuEffect) -> NuPermission {
 	match effect {
-		NuEffect::Dispatch(Invocation::Action { .. }) | NuEffect::Dispatch(Invocation::ActionWithChar { .. }) => NuCapability::DispatchAction,
+		NuEffect::Dispatch(Invocation::Action { .. }) | NuEffect::Dispatch(Invocation::ActionWithChar { .. }) => NuPermission::DispatchAction,
 		NuEffect::Dispatch(Invocation::Command(CommandInvocation {
 			route: CommandRoute::Editor, ..
-		})) => NuCapability::DispatchEditorCommand,
-		NuEffect::Dispatch(Invocation::Command(_)) => NuCapability::DispatchCommand,
-		NuEffect::Dispatch(Invocation::Nu { .. }) => NuCapability::DispatchMacro,
-		NuEffect::Notify { .. } => NuCapability::Notify,
-		NuEffect::StopPropagation => NuCapability::StopPropagation,
-		NuEffect::EditText { .. } => NuCapability::EditText,
-		NuEffect::SetClipboard { .. } => NuCapability::SetClipboard,
-		NuEffect::StateSet { .. } | NuEffect::StateUnset { .. } => NuCapability::WriteState,
-		NuEffect::ScheduleSet { .. } | NuEffect::ScheduleCancel { .. } => NuCapability::ScheduleMacro,
+		})) => NuPermission::DispatchEditorCommand,
+		NuEffect::Dispatch(Invocation::Command(_)) => NuPermission::DispatchCommand,
+		NuEffect::Dispatch(Invocation::Nu { .. }) => NuPermission::DispatchMacro,
+		NuEffect::Notify { .. } => NuPermission::Notify,
+		NuEffect::StopPropagation => NuPermission::StopPropagation,
+		NuEffect::EditText { .. } => NuPermission::EditText,
+		NuEffect::SetClipboard { .. } => NuPermission::SetClipboard,
+		NuEffect::StateSet { .. } | NuEffect::StateUnset { .. } => NuPermission::WriteState,
+		NuEffect::ScheduleSet { .. } | NuEffect::ScheduleCancel { .. } => NuPermission::ScheduleMacro,
 	}
 }
 

@@ -140,21 +140,21 @@ fn config_single_dispatch_effect_rejects_notify() {
 }
 
 #[test]
-fn capability_for_dispatch_matches_invocation_kind() {
+fn permission_for_dispatch_matches_invocation_kind() {
 	assert_eq!(
-		required_capability_for_effect(&NuEffect::Dispatch(Invocation::action("move_right"))),
-		NuCapability::DispatchAction
+		required_permission_for_effect(&NuEffect::Dispatch(Invocation::action("move_right"))),
+		NuPermission::DispatchAction
 	);
 	assert_eq!(
-		required_capability_for_effect(&NuEffect::Dispatch(Invocation::command("write", vec![]))),
-		NuCapability::DispatchCommand
+		required_permission_for_effect(&NuEffect::Dispatch(Invocation::command("write", vec![]))),
+		NuPermission::DispatchCommand
 	);
 	assert_eq!(
-		required_capability_for_effect(&NuEffect::Notify {
+		required_permission_for_effect(&NuEffect::Notify {
 			level: NuNotifyLevel::Warn,
 			message: "warn".to_string()
 		}),
-		NuCapability::Notify
+		NuPermission::Notify
 	);
 }
 
@@ -227,13 +227,13 @@ fn decode_edit_unknown_op_errors() {
 }
 
 #[test]
-fn capability_for_edit_text() {
+fn permission_for_edit_text() {
 	assert_eq!(
-		required_capability_for_effect(&NuEffect::EditText {
+		required_permission_for_effect(&NuEffect::EditText {
 			op: NuTextEditOp::ReplaceSelection,
 			text: "x".into()
 		}),
-		NuCapability::EditText
+		NuPermission::EditText
 	);
 }
 
@@ -267,10 +267,10 @@ fn decode_clipboard_empty_ok() {
 }
 
 #[test]
-fn capability_for_set_clipboard() {
+fn permission_for_set_clipboard() {
 	assert_eq!(
-		required_capability_for_effect(&NuEffect::SetClipboard { text: "x".into() }),
-		NuCapability::SetClipboard
+		required_permission_for_effect(&NuEffect::SetClipboard { text: "x".into() }),
+		NuPermission::SetClipboard
 	);
 }
 
@@ -347,17 +347,17 @@ fn decode_state_empty_key_errors() {
 }
 
 #[test]
-fn capability_for_write_state() {
+fn permission_for_write_state() {
 	assert_eq!(
-		required_capability_for_effect(&NuEffect::StateSet {
+		required_permission_for_effect(&NuEffect::StateSet {
 			key: "k".into(),
 			value: "v".into()
 		}),
-		NuCapability::WriteState
+		NuPermission::WriteState
 	);
 	assert_eq!(
-		required_capability_for_effect(&NuEffect::StateUnset { key: "k".into() }),
-		NuCapability::WriteState
+		required_permission_for_effect(&NuEffect::StateUnset { key: "k".into() }),
+		NuPermission::WriteState
 	);
 }
 
@@ -464,19 +464,19 @@ fn decode_envelope_with_warnings() {
 }
 
 #[test]
-fn capability_for_schedule_macro() {
+fn permission_for_schedule_macro() {
 	assert_eq!(
-		required_capability_for_effect(&NuEffect::ScheduleSet {
+		required_permission_for_effect(&NuEffect::ScheduleSet {
 			key: "k".into(),
 			delay_ms: 100,
 			name: "m".into(),
 			args: vec![]
 		}),
-		NuCapability::ScheduleMacro
+		NuPermission::ScheduleMacro
 	);
 	assert_eq!(
-		required_capability_for_effect(&NuEffect::ScheduleCancel { key: "k".into() }),
-		NuCapability::ScheduleMacro
+		required_permission_for_effect(&NuEffect::ScheduleCancel { key: "k".into() }),
+		NuPermission::ScheduleMacro
 	);
 }
 

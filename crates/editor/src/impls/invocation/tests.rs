@@ -405,8 +405,8 @@ async fn nu_macro_capability_denial_is_command_error() {
 	editor.state.config.config.nu = Some(xeno_registry::config::NuConfig {
 		budget_macro: None,
 		budget_hook: None,
-		capabilities_macro: Some(HashSet::new()),
-		capabilities_hook: None,
+		permissions_macro: Some(HashSet::new()),
+		permissions_hook: None,
 	});
 
 	let result = editor
@@ -475,8 +475,8 @@ async fn nu_hook_capability_denial_is_non_fatal() {
 	editor.state.config.config.nu = Some(xeno_registry::config::NuConfig {
 		budget_macro: None,
 		budget_hook: None,
-		capabilities_macro: None,
-		capabilities_hook: Some(HashSet::new()),
+		permissions_macro: None,
+		permissions_hook: Some(HashSet::new()),
 	});
 
 	let result = editor
@@ -948,8 +948,8 @@ async fn nu_macro_respects_configured_decode_limits() {
 			..Default::default()
 		}),
 		budget_hook: None,
-		capabilities_macro: None,
-		capabilities_hook: None,
+		permissions_macro: None,
+		permissions_hook: None,
 	});
 
 	let result = editor

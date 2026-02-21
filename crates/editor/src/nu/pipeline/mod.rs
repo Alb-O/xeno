@@ -16,7 +16,7 @@ use tracing::{trace, warn};
 use crate::impls::Editor;
 use crate::nu::ctx::NuCtxEvent;
 use crate::nu::effects::{NuEffectApplyMode, apply_effect_batch};
-use crate::nu::{NuCapability, NuDecodeSurface};
+use crate::nu::{NuPermission, NuDecodeSurface};
 use crate::runtime::work_queue::RuntimeWorkSource;
 use crate::types::InvocationOutcome;
 #[cfg(test)]
@@ -177,7 +177,7 @@ pub(crate) fn apply_nu_hook_eval_done(editor: &mut Editor, msg: crate::msg::NuHo
 }
 
 fn apply_hook_effect_batch(editor: &mut Editor, batch: crate::nu::NuEffectBatch) -> crate::msg::Dirty {
-	let allowed = hook_allowed_capabilities(editor);
+	let allowed = hook_allowed_permissions(editor);
 	let outcome = apply_effect_batch(editor, batch, NuEffectApplyMode::Hook, &allowed).expect("hook mode effect apply should not fail");
 
 	if outcome.stop_requested {
@@ -251,7 +251,7 @@ async fn run_single_nu_hook_sync(editor: &mut Editor, event: NuCtxEvent) -> Opti
 		}
 	};
 
-	let allowed = hook_allowed_capabilities(editor);
+	let allowed = hook_allowed_permissions(editor);
 	let outcome = apply_effect_batch(editor, effects, NuEffectApplyMode::Hook, &allowed).expect("hook mode effect apply should not fail");
 	if outcome.stop_requested {
 		editor.state.integration.nu.clear_hook_work_on_stop_propagation();
@@ -269,13 +269,13 @@ async fn run_single_nu_hook_sync(editor: &mut Editor, event: NuCtxEvent) -> Opti
 	None
 }
 
-fn hook_allowed_capabilities(editor: &Editor) -> std::collections::HashSet<NuCapability> {
+fn hook_allowed_permissions(editor: &Editor) -> std::collections::HashSet<NuPermission> {
 	editor
 		.state
 		.config
 		.nu
 		.as_ref()
-		.map_or_else(|| xeno_registry::config::NuConfig::default().hook_capabilities(), |cfg| cfg.hook_capabilities())
+		.map_or_else(|| xeno_registry::config::NuConfig::default().hook_permissions(), |cfg| cfg.hook_permissions())
 }
 
 #[cfg(test)]

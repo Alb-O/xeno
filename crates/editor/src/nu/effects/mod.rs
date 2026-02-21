@@ -1,6 +1,6 @@
 //! Shared Nu effect processing for macro and hook surfaces.
 //!
-//! Centralizes capability gating, notification mapping, and per-surface
+//! Centralizes permission gating, notification mapping, and per-surface
 //! `stop_propagation` semantics so hooks and macros stay behaviorally aligned.
 
 use std::collections::HashSet;
@@ -13,7 +13,7 @@ use xeno_primitives::{EditOrigin, Transaction, UndoPolicy};
 use crate::buffer::ViewId;
 use crate::impls::Editor;
 use crate::msg::Dirty;
-use crate::nu::{NuCapability, NuEffect, NuEffectBatch, NuNotifyLevel, required_capability_for_effect};
+use crate::nu::{NuPermission, NuEffect, NuEffectBatch, NuNotifyLevel, required_permission_for_effect};
 use crate::types::Invocation;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -33,7 +33,7 @@ impl NuEffectApplyMode {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum NuEffectApplyError {
-	PermissionDenied { capability: NuCapability },
+	PermissionDenied { permission: NuPermission },
 	StopPropagationUnsupportedForMacro,
 }
 
@@ -46,13 +46,13 @@ pub(crate) struct NuEffectApplyOutcome {
 
 /// Apply a decoded Nu effect batch under explicit surface policy.
 ///
-/// Hook mode drops denied-capability effects and continues.
-/// Macro mode rejects denied-capability effects and stop-propagation.
+/// Hook mode drops denied-permission effects and continues.
+/// Macro mode rejects denied-permission effects and stop-propagation.
 pub(crate) fn apply_effect_batch(
 	editor: &mut Editor,
 	batch: NuEffectBatch,
 	mode: NuEffectApplyMode,
-	allowed: &HashSet<NuCapability>,
+	allowed: &HashSet<NuPermission>,
 ) -> Result<NuEffectApplyOutcome, NuEffectApplyError> {
 	if !batch.warnings.is_empty() {
 		let total = batch.warnings.len();
@@ -69,9 +69,9 @@ pub(crate) fn apply_effect_batch(
 	// Macro surface must be all-or-nothing for policy validation.
 	if matches!(mode, NuEffectApplyMode::Macro) {
 		for effect in &batch.effects {
-			let required = required_capability_for_effect(effect);
+			let required = required_permission_for_effect(effect);
 			if !allowed.contains(&required) {
-				return Err(NuEffectApplyError::PermissionDenied { capability: required });
+				return Err(NuEffectApplyError::PermissionDenied { permission: required });
 			}
 			if matches!(effect, NuEffect::StopPropagation) {
 				return Err(NuEffectApplyError::StopPropagationUnsupportedForMacro);
@@ -80,15 +80,15 @@ pub(crate) fn apply_effect_batch(
 	}
 
 	for effect in batch.effects {
-		let required = required_capability_for_effect(&effect);
+		let required = required_permission_for_effect(&effect);
 		if !allowed.contains(&required) {
 			match mode {
 				NuEffectApplyMode::Hook => {
-					warn!(mode = mode.label(), capability = %required.as_str(), "Nu effect denied by permission policy");
+					warn!(mode = mode.label(), permission = %required.as_str(), "Nu effect denied by permission policy");
 					continue;
 				}
 				NuEffectApplyMode::Macro => {
-					return Err(NuEffectApplyError::PermissionDenied { capability: required });
+					return Err(NuEffectApplyError::PermissionDenied { permission: required });
 				}
 			}
 		}
@@ -240,7 +240,7 @@ mod tests {
 	}
 
 	#[tokio::test(flavor = "current_thread")]
-	async fn hook_mode_capability_denial_is_non_fatal() {
+	async fn hook_mode_permission_denial_is_non_fatal() {
 		let mut editor = Editor::new_scratch();
 		let batch = batch(vec![NuEffect::Dispatch(Invocation::action("move_right"))]);
 
@@ -252,7 +252,7 @@ mod tests {
 	}
 
 	#[tokio::test(flavor = "current_thread")]
-	async fn macro_mode_capability_denial_is_error() {
+	async fn macro_mode_permission_denial_is_error() {
 		let mut editor = Editor::new_scratch();
 		let batch = batch(vec![NuEffect::Dispatch(Invocation::action("move_right"))]);
 
@@ -260,15 +260,15 @@ mod tests {
 		assert!(matches!(
 			err,
 			NuEffectApplyError::PermissionDenied {
-				capability: NuCapability::DispatchAction
+				permission: NuPermission::DispatchAction
 			}
 		));
 	}
 
 	#[tokio::test(flavor = "current_thread")]
-	async fn macro_mode_capability_denial_is_atomic() {
+	async fn macro_mode_permission_denial_is_atomic() {
 		let mut editor = Editor::new_scratch();
-		let allowed = HashSet::from([NuCapability::WriteState]);
+		let allowed = HashSet::from([NuPermission::WriteState]);
 		let batch = batch(vec![
 			NuEffect::StateSet {
 				key: "foo".to_string(),
@@ -281,7 +281,7 @@ mod tests {
 		assert!(matches!(
 			err,
 			NuEffectApplyError::PermissionDenied {
-				capability: NuCapability::DispatchAction
+				permission: NuPermission::DispatchAction
 			}
 		));
 		assert!(editor.state.core.editor.workspace.nu_state.iter().next().is_none());
@@ -291,7 +291,7 @@ mod tests {
 	async fn stop_propagation_is_hook_only() {
 		let mut editor = Editor::new_scratch();
 		let mut allowed = HashSet::new();
-		allowed.insert(NuCapability::StopPropagation);
+		allowed.insert(NuPermission::StopPropagation);
 
 		let hook_outcome =
 			apply_effect_batch(&mut editor, batch(vec![NuEffect::StopPropagation]), NuEffectApplyMode::Hook, &allowed).expect("hook stop should succeed");
@@ -306,7 +306,7 @@ mod tests {
 	#[tokio::test(flavor = "current_thread")]
 	async fn notify_levels_map_to_editor_notifications() {
 		let mut editor = Editor::new_scratch();
-		let allowed = HashSet::from([NuCapability::Notify]);
+		let allowed = HashSet::from([NuPermission::Notify]);
 		let batch = batch(vec![
 			NuEffect::Notify {
 				level: NuNotifyLevel::Debug,
@@ -354,7 +354,7 @@ mod tests {
 		// Select "world" (chars 6..11)
 		editor.buffer_mut().set_selection(xeno_primitives::Selection::single(6, 11));
 
-		let allowed = HashSet::from([NuCapability::EditText]);
+		let allowed = HashSet::from([NuPermission::EditText]);
 		let b = batch(vec![NuEffect::EditText {
 			op: NuTextEditOp::ReplaceSelection,
 			text: "WORLD".to_string(),
@@ -373,7 +373,7 @@ mod tests {
 		// Cursor on line 1 (second line)
 		editor.buffer_mut().cursor = 9; // start of "line two"
 
-		let allowed = HashSet::from([NuCapability::EditText]);
+		let allowed = HashSet::from([NuPermission::EditText]);
 		let b = batch(vec![NuEffect::EditText {
 			op: NuTextEditOp::ReplaceLine,
 			text: "LINE TWO".to_string(),
@@ -391,7 +391,7 @@ mod tests {
 		editor.buffer_mut().reset_content("hello world");
 		editor.buffer_mut().set_selection(xeno_primitives::Selection::single(5, 11));
 
-		let allowed = HashSet::from([NuCapability::EditText]);
+		let allowed = HashSet::from([NuPermission::EditText]);
 		let b = batch(vec![NuEffect::EditText {
 			op: NuTextEditOp::ReplaceSelection,
 			text: String::new(),
@@ -405,7 +405,7 @@ mod tests {
 	#[tokio::test(flavor = "current_thread")]
 	async fn clipboard_set_populates_yank_register() {
 		let mut editor = Editor::new_scratch();
-		let allowed = HashSet::from([NuCapability::SetClipboard]);
+		let allowed = HashSet::from([NuPermission::SetClipboard]);
 		let b = batch(vec![NuEffect::SetClipboard { text: "COPIED".to_string() }]);
 		let outcome = apply_effect_batch(&mut editor, b, NuEffectApplyMode::Macro, &allowed).expect("clipboard should succeed");
 		assert_eq!(outcome.dirty, Dirty::FULL);
@@ -416,14 +416,14 @@ mod tests {
 	}
 
 	#[tokio::test(flavor = "current_thread")]
-	async fn clipboard_set_denied_without_capability() {
+	async fn clipboard_set_denied_without_permission() {
 		let mut editor = Editor::new_scratch();
 		let b = batch(vec![NuEffect::SetClipboard { text: "X".to_string() }]);
 		let err = apply_effect_batch(&mut editor, b, NuEffectApplyMode::Macro, &HashSet::new()).expect_err("should deny");
 		assert!(matches!(
 			err,
 			NuEffectApplyError::PermissionDenied {
-				capability: NuCapability::SetClipboard
+				permission: NuPermission::SetClipboard
 			}
 		));
 	}
@@ -440,7 +440,7 @@ mod tests {
 	#[tokio::test(flavor = "current_thread")]
 	async fn state_set_populates_store() {
 		let mut editor = Editor::new_scratch();
-		let allowed = HashSet::from([NuCapability::WriteState]);
+		let allowed = HashSet::from([NuPermission::WriteState]);
 		let b = batch(vec![NuEffect::StateSet {
 			key: "foo".to_string(),
 			value: "bar".to_string(),
@@ -455,7 +455,7 @@ mod tests {
 	async fn state_unset_removes_key() {
 		let mut editor = Editor::new_scratch();
 		editor.state.core.editor.workspace.nu_state.set("foo".to_string(), "bar".to_string());
-		let allowed = HashSet::from([NuCapability::WriteState]);
+		let allowed = HashSet::from([NuPermission::WriteState]);
 		let b = batch(vec![NuEffect::StateUnset { key: "foo".to_string() }]);
 		apply_effect_batch(&mut editor, b, NuEffectApplyMode::Macro, &allowed).expect("state unset should succeed");
 
@@ -466,7 +466,7 @@ mod tests {
 	#[tokio::test]
 	async fn schedule_set_creates_entry() {
 		let mut editor = Editor::new_scratch();
-		let allowed = HashSet::from([NuCapability::ScheduleMacro]);
+		let allowed = HashSet::from([NuPermission::ScheduleMacro]);
 		let b = batch(vec![NuEffect::ScheduleSet {
 			key: "autosave".to_string(),
 			delay_ms: 60_000,
@@ -480,7 +480,7 @@ mod tests {
 	#[tokio::test]
 	async fn schedule_cancel_removes_entry() {
 		let mut editor = Editor::new_scratch();
-		let allowed = HashSet::from([NuCapability::ScheduleMacro]);
+		let allowed = HashSet::from([NuPermission::ScheduleMacro]);
 		// Set then cancel
 		let b1 = batch(vec![NuEffect::ScheduleSet {
 			key: "autosave".to_string(),
@@ -497,7 +497,7 @@ mod tests {
 	#[tokio::test]
 	async fn schedule_reschedule_replaces_entry() {
 		let mut editor = Editor::new_scratch();
-		let allowed = HashSet::from([NuCapability::ScheduleMacro]);
+		let allowed = HashSet::from([NuPermission::ScheduleMacro]);
 		let b1 = batch(vec![NuEffect::ScheduleSet {
 			key: "fmt".to_string(),
 			delay_ms: 300,
@@ -519,7 +519,7 @@ mod tests {
 	#[tokio::test]
 	async fn schedule_fire_enqueues_invocation() {
 		let mut editor = Editor::new_scratch();
-		let allowed = HashSet::from([NuCapability::ScheduleMacro]);
+		let allowed = HashSet::from([NuPermission::ScheduleMacro]);
 		// Schedule with 0ms delay
 		let b = batch(vec![NuEffect::ScheduleSet {
 			key: "test".to_string(),
@@ -561,7 +561,7 @@ mod tests {
 		use crate::nu::coordinator::NuScheduleFiredMsg;
 
 		let mut editor = Editor::new_scratch();
-		let allowed = HashSet::from([NuCapability::ScheduleMacro]);
+		let allowed = HashSet::from([NuPermission::ScheduleMacro]);
 
 		// Token 1: replaced by the next schedule set on the same key.
 		let old = batch(vec![NuEffect::ScheduleSet {
@@ -602,7 +602,7 @@ mod tests {
 	}
 
 	#[tokio::test(flavor = "current_thread")]
-	async fn edit_text_denied_without_capability() {
+	async fn edit_text_denied_without_permission() {
 		let mut editor = Editor::new_scratch();
 		editor.buffer_mut().reset_content("hello");
 
@@ -614,7 +614,7 @@ mod tests {
 		assert!(matches!(
 			err,
 			NuEffectApplyError::PermissionDenied {
-				capability: NuCapability::EditText
+				permission: NuPermission::EditText
 			}
 		));
 	}

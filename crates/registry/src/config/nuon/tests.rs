@@ -137,14 +137,14 @@ fn parse_config_nu_budget_and_capabilities() {
 	assert_eq!(hook_budget.max_effects, Some(16));
 	assert_eq!(hook_budget.max_nodes, None);
 	assert!(
-		nu.capabilities_macro
+		nu.permissions_macro
 			.expect("macro caps should be present")
-			.contains(&xeno_invocation::nu::NuCapability::Notify)
+			.contains(&xeno_invocation::nu::NuPermission::Notify)
 	);
 	assert!(
-		nu.capabilities_hook
+		nu.permissions_hook
 			.expect("hook caps should be present")
-			.contains(&xeno_invocation::nu::NuCapability::StopPropagation)
+			.contains(&xeno_invocation::nu::NuPermission::StopPropagation)
 	);
 }
 

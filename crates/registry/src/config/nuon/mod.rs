@@ -186,28 +186,28 @@ fn parse_nu_config(value: &Value) -> Result<NuConfig> {
 		(None, None)
 	};
 
-	let (capabilities_macro, capabilities_hook) = if let Some(capabilities_value) = record.get("capabilities") {
+	let (permissions_macro, permissions_hook) = if let Some(capabilities_value) = record.get("capabilities") {
 		let caps_record = expect_record(capabilities_value, "nu.capabilities")?;
 		validate_allowed_fields(caps_record, &["macro", "hook"], "nu.capabilities")?;
 
-		let parse_caps = |value: &Value, parent: &str| -> Result<std::collections::HashSet<xeno_invocation::nu::NuCapability>> {
+		let parse_caps = |value: &Value, parent: &str| -> Result<std::collections::HashSet<xeno_invocation::nu::NuPermission>> {
 			let list = expect_list(value, parent)?;
 			let mut caps = std::collections::HashSet::with_capacity(list.len());
 			for (idx, item) in list.iter().enumerate() {
 				let field = format!("{parent}[{idx}]");
 				let raw = expect_string(item, &field)?;
-				let Some(cap) = xeno_invocation::nu::NuCapability::parse(raw) else {
-					return Err(ConfigError::Nuon(format!("unknown Nu capability at {field}: '{raw}'")));
+				let Some(cap) = xeno_invocation::nu::NuPermission::parse(raw) else {
+					return Err(ConfigError::Nuon(format!("unknown Nu permission at {field}: '{raw}'")));
 				};
 				caps.insert(cap);
 			}
 			Ok(caps)
 		};
 
-		let capabilities_macro = caps_record.get("macro").map(|v| parse_caps(v, "nu.capabilities.macro")).transpose()?;
-		let capabilities_hook = caps_record.get("hook").map(|v| parse_caps(v, "nu.capabilities.hook")).transpose()?;
+		let permissions_macro = caps_record.get("macro").map(|v| parse_caps(v, "nu.capabilities.macro")).transpose()?;
+		let permissions_hook = caps_record.get("hook").map(|v| parse_caps(v, "nu.capabilities.hook")).transpose()?;
 
-		(capabilities_macro, capabilities_hook)
+		(permissions_macro, permissions_hook)
 	} else {
 		(None, None)
 	};
@@ -215,8 +215,8 @@ fn parse_nu_config(value: &Value) -> Result<NuConfig> {
 	Ok(NuConfig {
 		budget_macro,
 		budget_hook,
-		capabilities_macro,
-		capabilities_hook,
+		permissions_macro,
+		permissions_hook,
 	})
 }
 
