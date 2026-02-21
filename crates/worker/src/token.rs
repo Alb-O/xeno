@@ -5,7 +5,7 @@ use tokio_util::sync::CancellationToken;
 
 /// Monotonic generation clock for supervised worker lifecycles.
 #[derive(Debug, Default, Clone)]
-pub struct GenerationClock {
+pub(crate) struct GenerationClock {
 	next: Arc<AtomicU64>,
 }
 
@@ -23,7 +23,7 @@ impl GenerationClock {
 
 /// Generation-scoped cancellation token for actor/task lifecycles.
 #[derive(Debug, Clone)]
-pub struct GenerationToken {
+pub(crate) struct GenerationToken {
 	generation: u64,
 	cancel: CancellationToken,
 }

@@ -33,7 +33,6 @@ pub use class::TaskClass;
 pub use join_set::WorkerJoinSet;
 pub use registry::{WorkerRecord, WorkerRegistry};
 pub use runtime::WorkerRuntime;
-pub use token::{GenerationClock, GenerationToken};
 
 #[cfg(test)]
 #[allow(clippy::disallowed_methods)]
