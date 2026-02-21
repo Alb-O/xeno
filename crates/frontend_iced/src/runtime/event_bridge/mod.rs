@@ -1,12 +1,12 @@
 //! Iced-to-runtime event bridge.
 //!
 //! Normalizes Iced keyboard/mouse/input-method events into
-//! `xeno_editor::runtime::RuntimeEvent` values and tracks bridge-local state
+//! `xeno_editor::RuntimeEvent` values and tracks bridge-local state
 //! such as pointer cell coordinates and IME preedit text.
 
 use iced::{Event, keyboard, mouse, window};
 use iced_core::input_method;
-use xeno_editor::runtime::RuntimeEvent;
+use xeno_editor::RuntimeEvent;
 use xeno_primitives::{Key, KeyCode, Modifiers, MouseButton as CoreMouseButton, MouseEvent as CoreMouseEvent, ScrollDirection};
 
 const DEFAULT_TEXT_SIZE_PX: f32 = 16.0;

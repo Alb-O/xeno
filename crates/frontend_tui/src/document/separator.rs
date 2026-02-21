@@ -4,8 +4,7 @@
 //! including hover effects, drag highlighting, and junction glyphs.
 
 use xeno_editor::Editor;
-use xeno_editor::render_api::SeparatorRenderTarget;
-use xeno_editor::test_events::SeparatorAnimationEvent;
+use xeno_editor::{SeparatorAnimationEvent, SeparatorRenderTarget};
 use xeno_tui::animation::Animatable;
 use xeno_tui::layout::Rect;
 use xeno_tui::style::{Color, Style};

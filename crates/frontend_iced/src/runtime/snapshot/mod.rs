@@ -4,7 +4,7 @@
 //! frontend snapshot structures consumed by the Iced renderer.
 
 use xeno_editor::Editor;
-use xeno_editor::render_api::{
+use xeno_editor::{
 	CompletionRenderPlan, DocumentViewPlan, InfoPopupRenderTarget, OverlayControllerKind, OverlayPaneRenderTarget, Rect, RenderLine, SeparatorJunctionTarget,
 	SeparatorRenderTarget, SnippetChoiceRenderPlan, StatuslineRenderSegment, SurfaceStyle, WindowRole,
 };

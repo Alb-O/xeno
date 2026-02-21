@@ -1,5 +1,5 @@
 use xeno_editor::Editor;
-use xeno_editor::render_api::{CompletionKind, CompletionRenderItem, CompletionRenderPlan};
+use xeno_editor::{CompletionKind, CompletionRenderItem, CompletionRenderPlan};
 use xeno_tui::layout::Rect;
 use xeno_tui::style::{Color, Modifier, Style};
 use xeno_tui::text::{Line, Span};

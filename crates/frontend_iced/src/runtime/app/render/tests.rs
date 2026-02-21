@@ -1,11 +1,11 @@
 use super::*;
 
-fn file_presentation(label: &str) -> xeno_editor::render_api::FilePresentationRender {
-	xeno_editor::render_api::FilePresentationRender::new(String::from("󰈙"), label.to_string())
+fn file_presentation(label: &str) -> xeno_editor::FilePresentationRender {
+	xeno_editor::FilePresentationRender::new(String::from("󰈙"), label.to_string())
 }
 
-fn generic_file_presentation(label: &str) -> xeno_editor::render_api::FilePresentationRender {
-	xeno_editor::render_api::FilePresentationRender::new(String::from("󰈔"), label.to_string())
+fn generic_file_presentation(label: &str) -> xeno_editor::FilePresentationRender {
+	xeno_editor::FilePresentationRender::new(String::from("󰈔"), label.to_string())
 }
 
 #[test]

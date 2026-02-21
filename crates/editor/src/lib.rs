@@ -5,40 +5,41 @@
 //!
 //! * [`Editor`] — workspace state, input handling, and plan generation.
 //! * [`Buffer`], [`ViewId`] — text buffers with undo, syntax, and selections.
-//! * [`render_api`] — the explicit frontend seam. All render/layout plan types
-//!   that frontends consume are re-exported here.
+//! * Render/layout plan types from the internal `render_api` module are
+//!   re-exported directly at the crate root for frontend consumption.
 //! * Message types ([`EditorMsg`], [`IoMsg`], [`LspMsg`], etc.) for async coordination.
 //! * [`EditorContext`] / [`EditorOps`] — capability surface for commands and effects.
 //! * Theme re-exports from `xeno_registry`.
 //!
 //! # Seam contract
 //!
-//! Frontends must only import from `xeno_editor::render_api` for anything
-//! render/layout related. Internal modules (`completion`, `overlay`, `ui`,
-//! `window`, `geometry`, `render`, `info_popup`, `snippet`) are `pub(crate)`.
+//! Frontends must only import from the `xeno_editor` crate root for anything
+//! render/layout related. All render plan types are re-exported at the root.
+//! Internal modules (`completion`, `overlay`, `ui`, `window`, `geometry`,
+//! `render`, `info_popup`, `snippet`) are `pub(crate)`.
 //!
 //! Core owns all render plan assembly — frontends receive opaque plan structs
 //! with getter-only access and perform no policy decisions.
 
 /// Theme bootstrap cache for instant first-frame rendering.
-pub mod bootstrap;
-pub mod buffer;
+mod bootstrap;
+mod buffer;
 mod buffer_identity;
-pub mod capabilities;
+mod capabilities;
 /// Editor-direct commands that need full [`Editor`] access.
-pub mod commands;
+mod commands;
 /// Completion types and sources for command palette.
 pub(crate) mod completion;
 #[cfg(test)]
 mod convergence;
 /// Headless core model (documents, undo).
-pub mod core;
+mod core;
 /// Editor context and effect handling.
-pub mod editor_ctx;
+mod editor_ctx;
 /// Unified side-effect routing and sink.
-pub mod effects;
+mod effects;
 /// Execution gate for task ordering.
-pub mod execution_gate;
+mod execution_gate;
 /// Filesystem indexing and picker backend services.
 pub(crate) mod filesystem;
 /// Shared geometry aliases for core/front-end seams.
@@ -51,46 +52,46 @@ mod input;
 /// Atomic file writing utilities.
 pub(crate) mod io;
 /// Split layout management.
-pub mod layout;
+mod layout;
 mod lsp;
 /// Runtime metrics for observability.
-pub mod metrics;
+mod metrics;
 /// Async message bus for background task hydration.
-pub mod msg;
+mod msg;
 /// User notification queue internals.
 mod notifications;
 /// Nu runtime for user macro scripts.
-pub mod nu;
+mod nu;
 /// Type-erased UI overlay storage.
 pub(crate) mod overlay;
 pub(crate) mod paste;
 /// Platform-specific configuration paths.
-pub mod paths;
+mod paths;
 /// Internal rendering utilities for buffers, status line, and completion.
 mod render;
 /// Frontend-facing render boundary exports.
-pub mod render_api;
+mod render_api;
 /// Runtime policy and directives.
-pub mod runtime;
+mod runtime;
 /// Unified async work scheduler.
-pub mod scheduler;
+mod scheduler;
 #[cfg(test)]
 mod seam_contract;
 /// Separator drag and hover state.
-pub mod separator;
+mod separator;
 /// Snippet parsing and rendering primitives.
 pub(crate) mod snippet;
 /// Style utilities and conversions.
-pub mod styles;
+mod styles;
 /// Terminal capability configuration.
-pub mod terminal_config;
-pub mod test_events;
+mod terminal_config;
+mod test_events;
 /// Editor type definitions.
-pub mod types;
+mod types;
 /// UI management: focus tracking.
 pub(crate) mod ui;
 /// View storage and management.
-pub mod view_manager;
+mod view_manager;
 /// Window management primitives.
 pub(crate) mod window;
 
@@ -108,3 +109,20 @@ pub use msg::{Dirty, EditorMsg, IoMsg, LspMsg, MsgSender, ThemeMsg};
 pub use notifications::{NotificationRenderAutoDismiss, NotificationRenderItem, NotificationRenderLevel};
 pub use terminal_config::{TerminalConfig, TerminalSequence};
 pub use xeno_registry::themes::{ColorPair, ModeColors, PopupColors, SemanticColors, THEMES, Theme, ThemeColors, UiColors, blend_colors, suggest_theme};
+
+// Root facade re-exports for external consumers.
+pub use bootstrap::init as bootstrap_init;
+pub use paths::get_data_dir;
+pub use render_api::{
+	CompletionKind, CompletionRenderItem, CompletionRenderPlan, DocumentViewPlan, FilePresentationRender,
+	InfoPopupId, InfoPopupRenderAnchor, InfoPopupRenderTarget,
+	OverlayControllerKind, OverlayPaneRenderTarget, WindowRole,
+	PanelRenderTarget, RenderLine, Rect,
+	SeparatorJunctionTarget, SeparatorRenderTarget, SeparatorState, SurfaceStyle,
+	SnippetChoiceRenderItem, SnippetChoiceRenderPlan,
+	SplitDirection, StatuslineRenderSegment, StatuslineRenderStyle,
+	UTILITY_PANEL_ID,
+};
+pub use runtime::{CursorStyle, DrainPolicy, LoopDirectiveV2, RuntimeEvent};
+pub use styles::cli_styles;
+pub use test_events::SeparatorAnimationEvent;

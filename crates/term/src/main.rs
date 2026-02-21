@@ -34,7 +34,7 @@ async fn main() -> anyhow::Result<()> {
 		Some(Command::LspSmoke { workspace }) => {
 			#[cfg(feature = "lsp")]
 			{
-				xeno_editor::bootstrap::init();
+				xeno_editor::bootstrap_init();
 				return xeno_editor::run_lsp_smoke(workspace).await;
 			}
 			#[cfg(not(feature = "lsp"))]
@@ -46,7 +46,7 @@ async fn main() -> anyhow::Result<()> {
 		None => {}
 	}
 
-	xeno_editor::bootstrap::init();
+	xeno_editor::bootstrap_init();
 
 	let user_config = Editor::load_user_config();
 
@@ -237,7 +237,7 @@ fn setup_socket_tracing(socket_path: &str) {
 
 /// Runs the editor with standard initialization for socket logging mode.
 async fn run_editor_normal() -> anyhow::Result<()> {
-	xeno_editor::bootstrap::init();
+	xeno_editor::bootstrap_init();
 
 	let user_config = Editor::load_user_config();
 
@@ -276,7 +276,7 @@ fn setup_tracing() {
 	let log_dir = std::env::var("XENO_LOG_DIR")
 		.ok()
 		.map(std::path::PathBuf::from)
-		.or_else(xeno_editor::paths::get_data_dir);
+		.or_else(xeno_editor::get_data_dir);
 
 	let Some(log_dir) = log_dir else {
 		return;

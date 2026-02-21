@@ -4,7 +4,7 @@ use iced::widget::text::Wrapping;
 use iced::widget::{column, container, rich_text, span, text};
 use iced::{Background, Color, Element, Fill, Font, Pixels, border, font};
 use xeno_editor::Editor;
-use xeno_editor::render_api::{CompletionKind, CompletionRenderItem, CompletionRenderPlan, RenderLine, StatuslineRenderSegment, StatuslineRenderStyle};
+use xeno_editor::{CompletionKind, CompletionRenderItem, CompletionRenderPlan, RenderLine, StatuslineRenderSegment, StatuslineRenderStyle};
 use xeno_primitives::{Color as UiColor, Style as UiStyle};
 
 use super::Message;

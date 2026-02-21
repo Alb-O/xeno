@@ -10,8 +10,7 @@ use iced::widget::scrollable::{Direction as ScrollDirection, Scrollbar};
 use iced::widget::{column, container, mouse_area, pin, row, rule, scrollable, sensor, stack, text};
 use iced::{Element, Event, Fill, Font, Pixels, Point, Size, Subscription, Task, event, keyboard, mouse, time, window};
 use xeno_editor::Editor;
-use xeno_editor::render_api::{CompletionRenderPlan, Rect as CoreRect};
-use xeno_editor::runtime::{CursorStyle, DrainPolicy, LoopDirectiveV2, RuntimeEvent};
+use xeno_editor::{CompletionRenderPlan, CursorStyle, DrainPolicy, LoopDirectiveV2, Rect as CoreRect, RuntimeEvent};
 
 use self::inspector::render_inspector_rows;
 use self::render::{background_style, render_palette_completion_menu, render_render_lines, render_statusline};
@@ -124,7 +123,7 @@ fn format_header_line(header: &HeaderSnapshot) -> String {
 
 impl IcedEditorApp {
 	pub(crate) fn boot(startup: StartupOptions) -> (Self, Task<Message>) {
-		xeno_editor::bootstrap::init();
+		xeno_editor::bootstrap_init();
 
 		let runtime = tokio::runtime::Builder::new_current_thread()
 			.enable_all()
@@ -253,8 +252,8 @@ impl IcedEditorApp {
 			let (sx, sy, sw, sh) = self.rect_px(sep_rect);
 			let (fg, bg) = separator_fg_bg(sep.state(), sep.priority(), &sep_colors);
 			let sep_text = match sep.direction() {
-				xeno_editor::render_api::SplitDirection::Horizontal => "\u{2502}\n".repeat(sep_rect.height as usize),
-				xeno_editor::render_api::SplitDirection::Vertical => "\u{2500}".repeat(sep_rect.width as usize),
+				xeno_editor::SplitDirection::Horizontal => "\u{2502}\n".repeat(sep_rect.height as usize),
+				xeno_editor::SplitDirection::Vertical => "\u{2500}".repeat(sep_rect.width as usize),
 			};
 			let sep_widget = container(
 				text(sep_text)
@@ -501,7 +500,7 @@ struct SeparatorThemeColors {
 	drag_bg: iced::Color,
 }
 
-fn separator_fg_bg(state: &xeno_editor::render_api::SeparatorState, priority: u8, colors: &SeparatorThemeColors) -> (iced::Color, iced::Color) {
+fn separator_fg_bg(state: &xeno_editor::SeparatorState, priority: u8, colors: &SeparatorThemeColors) -> (iced::Color, iced::Color) {
 	let idx = (priority as usize).min(colors.base_fg.len() - 1);
 	let normal_fg = colors.base_fg[idx];
 	let normal_bg = colors.base_bg[idx];

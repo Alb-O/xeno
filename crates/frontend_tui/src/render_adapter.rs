@@ -1,4 +1,4 @@
-use xeno_editor::render_api::RenderLine;
+use xeno_editor::RenderLine;
 use xeno_tui::text::{Line, Span};
 
 /// Converts backend-neutral render lines into TUI line primitives.

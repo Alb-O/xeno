@@ -7,7 +7,7 @@ use crate::scene::{SceneRenderResult, SurfaceKind, SurfaceOp};
 
 pub fn render_frame(ed: &mut Editor, frame: &mut xeno_tui::Frame, notifications: &mut crate::layers::notifications::FrontendNotifications) {
 	let area = frame.area();
-	let viewport = xeno_editor::render_api::Rect::new(area.x, area.y, area.width, area.height);
+	let viewport = xeno_editor::Rect::new(area.x, area.y, area.width, area.height);
 	let frame_plan = ed.begin_frontend_frame(viewport);
 	let main_area: xeno_tui::layout::Rect = frame_plan.main_area().into();
 	let status_area: xeno_tui::layout::Rect = frame_plan.status_area().into();

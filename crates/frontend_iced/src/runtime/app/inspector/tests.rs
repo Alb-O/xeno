@@ -1,4 +1,4 @@
-use xeno_editor::render_api::CompletionKind;
+use xeno_editor::CompletionKind;
 
 use super::*;
 

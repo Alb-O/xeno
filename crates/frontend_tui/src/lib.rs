@@ -3,7 +3,7 @@
 //!
 //! Owns the terminal event loop, frame rendering orchestration, cursor style
 //! synchronization, terminal capability setup/teardown, and event translation
-//! from `termina` into `xeno_editor::runtime::RuntimeEvent`.
+//! from `termina` into `xeno_editor::RuntimeEvent`.
 
 mod backend;
 mod compositor;
@@ -21,7 +21,7 @@ use std::time::{Duration, Instant};
 
 use termina::escape::csi::{Csi, Cursor};
 use termina::{PlatformTerminal, Terminal as _};
-use xeno_editor::runtime::{CursorStyle, DrainPolicy, LoopDirectiveV2, RuntimeEvent};
+use xeno_editor::{CursorStyle, DrainPolicy, LoopDirectiveV2, RuntimeEvent};
 use xeno_editor::{Editor, TerminalConfig};
 use xeno_tui::Terminal;
 

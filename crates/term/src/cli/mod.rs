@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
-use xeno_editor::styles::cli_styles;
+use xeno_editor::cli_styles;
 
 /// A file path with optional line and column position.
 ///
