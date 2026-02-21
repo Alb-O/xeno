@@ -5,7 +5,7 @@ use xeno_primitives::Range;
 
 use crate::core::index::{BuildCtx, BuildEntry, RegistryMetaRef, StrListRef};
 pub use crate::core::{
-	FrozenInterner, MotionId, RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta, RegistryMetaStatic, RegistryMetadata, RegistryRef, RegistrySource,
+	FrozenInterner, MotionId, RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta, RegistryMetaStatic, RegistryRef, RegistrySource,
 	RuntimeRegistry, Symbol, SymbolList,
 };
 

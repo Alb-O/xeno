@@ -3,7 +3,7 @@
 use super::context::{HookContext, MutableHookContext};
 use crate::HookEvent;
 use crate::core::index::{BuildEntry, RegistryMetaRef, StrListRef};
-pub use crate::core::{RegistryEntry, RegistryMeta, RegistryMetaStatic, RegistryMetadata, Symbol};
+pub use crate::core::{RegistryEntry, RegistryMeta, RegistryMetaStatic, Symbol};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum HookPriority {

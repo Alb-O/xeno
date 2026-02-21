@@ -5,7 +5,7 @@
 
 use std::time::Duration;
 
-pub use crate::core::{RegistryMetadata, RegistrySource};
+pub use crate::core::RegistrySource;
 
 #[macro_use]
 #[path = "exec/macros.rs"]

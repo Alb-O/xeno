@@ -23,4 +23,4 @@ pub use symbol::{
 	ActionId, CommandId, DenseId, FrozenInterner, GutterId, HookId, Interner, InternerBuilder, LanguageId, MotionId, NotificationId, OptionId, OverlayId,
 	SnippetId, StatuslineId, Symbol, TextObjectId, ThemeId,
 };
-pub use traits::{RegistryEntry, RegistryMetadata};
+pub use traits::RegistryEntry;

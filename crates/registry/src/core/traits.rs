@@ -37,40 +37,13 @@ pub trait RegistryEntry {
 	}
 }
 
-/// Trait for basic metadata access.
-pub trait RegistryMetadata {
-	/// Returns the unique identifier for this registry item.
-	fn id(&self) -> Symbol;
-	/// Returns the human-readable name for this registry item.
-	fn name(&self) -> Symbol;
-	/// Returns the priority for collision resolution (higher wins).
-	fn priority(&self) -> i16;
-	/// Returns where this registry item was defined.
-	fn source(&self) -> RegistrySource;
-}
-
-/// Implements [`RegistryEntry`] and [`RegistryMetadata`] for a type with a `meta: RegistryMeta` field.
+/// Implements [`RegistryEntry`] for a type with a `meta: RegistryMeta` field.
 #[macro_export]
 macro_rules! impl_registry_entry {
 	($type:ty) => {
 		impl $crate::RegistryEntry for $type {
 			fn meta(&self) -> &$crate::RegistryMeta {
 				&self.meta
-			}
-		}
-
-		impl $crate::RegistryMetadata for $type {
-			fn id(&self) -> $crate::Symbol {
-				self.meta.id
-			}
-			fn name(&self) -> $crate::Symbol {
-				self.meta.name
-			}
-			fn priority(&self) -> i16 {
-				self.meta.priority
-			}
-			fn source(&self) -> $crate::RegistrySource {
-				self.meta.source
 			}
 		}
 	};

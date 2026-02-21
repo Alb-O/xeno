@@ -4,7 +4,7 @@ use xeno_primitives::BoxFutureLocal;
 use xeno_registry::index::{all_actions, all_commands, all_motions, all_text_objects};
 use xeno_registry::options::OPTIONS;
 use xeno_registry::themes::THEMES;
-use xeno_registry::{GUTTERS, HOOKS, NOTIFICATIONS, RegistryMetadata, STATUSLINE_SEGMENTS};
+use xeno_registry::{GUTTERS, HOOKS, NOTIFICATIONS, RegistryEntry, STATUSLINE_SEGMENTS};
 
 use super::{CommandError, CommandOutcome, EditorCommandContext};
 use crate::editor_command;
