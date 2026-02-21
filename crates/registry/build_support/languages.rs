@@ -25,6 +25,8 @@ struct HelixRuntimeLock {
 pub fn build(ctx: &BuildCtx) {
 	let root = ctx.asset("src/domains/languages/assets");
 	ctx.rerun_tree(&root);
+	println!("cargo:rerun-if-env-changed=XENO_HELIX_RUNTIME_DIR");
+	println!("cargo:rerun-if-env-changed=XENO_HELIX_RUNTIME_QUERIES_DIR");
 
 	let path = root.join("languages.nuon");
 	let mut spec: LanguagesSpec = read_nuon_spec(&path);
@@ -32,7 +34,7 @@ pub fn build(ctx: &BuildCtx) {
 	let lock_path = root.join("helix_runtime.nuon");
 	let lock: HelixRuntimeLock = read_nuon_spec(&lock_path);
 
-	let helix_queries_root = ensure_helix_queries_checkout(ctx, &lock);
+	let helix_queries_root = helix_queries_root_from_env(ctx).unwrap_or_else(|| ensure_helix_queries_checkout(ctx, &lock));
 	let local_overrides_root = root.join("queries");
 	let mut query_roots = vec![helix_queries_root];
 	if local_overrides_root.is_dir() {
@@ -52,6 +54,44 @@ pub fn build(ctx: &BuildCtx) {
 
 	let bin = postcard::to_stdvec(&spec).expect("failed to serialize languages spec");
 	ctx.write_blob("languages.bin", &bin);
+}
+
+fn helix_queries_root_from_env(ctx: &BuildCtx) -> Option<PathBuf> {
+	if let Some(path) = std::env::var_os("XENO_HELIX_RUNTIME_QUERIES_DIR") {
+		let queries_dir = resolve_env_path(ctx, &path);
+		if !queries_dir.is_dir() {
+			panic!(
+				"XENO_HELIX_RUNTIME_QUERIES_DIR must point to a directory containing Helix .scm queries: {}",
+				queries_dir.display()
+			);
+		}
+		ctx.rerun_tree(&queries_dir);
+		return Some(queries_dir);
+	}
+
+	if let Some(path) = std::env::var_os("XENO_HELIX_RUNTIME_DIR") {
+		let runtime_dir = resolve_env_path(ctx, &path);
+		let queries_dir = runtime_dir.join("runtime").join("queries");
+		if !queries_dir.is_dir() {
+			panic!(
+				"XENO_HELIX_RUNTIME_DIR must contain runtime/queries: {}",
+				runtime_dir.display()
+			);
+		}
+		ctx.rerun_tree(&queries_dir);
+		return Some(queries_dir);
+	}
+
+	None
+}
+
+fn resolve_env_path(ctx: &BuildCtx, value: &std::ffi::OsStr) -> PathBuf {
+	let path = PathBuf::from(value);
+	if path.is_absolute() {
+		path
+	} else {
+		ctx.manifest_dir.join(path)
+	}
 }
 
 fn merge_queries(lang: &mut LanguageSpec, query_roots: &[PathBuf]) {

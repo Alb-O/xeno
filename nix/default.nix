@@ -27,6 +27,13 @@ flake-parts.lib.mkFlake { inherit inputs; } {
         cargo = rustToolchain;
         rustc = rustToolchain;
       };
+      # Keep this in sync with crates/registry/src/domains/languages/assets/helix_runtime.nuon.
+      helixRuntimeSrc = pkgs.fetchFromGitHub {
+        owner = "helix-editor";
+        repo = "helix";
+        rev = "d12a48a51e2409e876a18baf3cae1e838a9dddc3";
+        hash = "sha256-q/ZyGZIfALlPW3AxZMjfsT01daTU232JGNVkQ/eiFsE=";
+      };
 
       guiRuntimeDeps = with pkgs; [
         pkg-config
@@ -84,6 +91,7 @@ flake-parts.lib.mkFlake { inherit inputs; } {
           pkgs.clang
           pkgs.mold
         ];
+        XENO_HELIX_RUNTIME_DIR = helixRuntimeSrc;
 
         doCheck = false;
       };
