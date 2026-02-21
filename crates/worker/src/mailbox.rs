@@ -3,15 +3,6 @@ use std::sync::Arc;
 
 use tokio::sync::{Mutex, Notify};
 
-/// Internal mode tag for mailbox behavior.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum MailboxMode {
-	/// Wait for capacity when full.
-	Backpressure,
-	/// Replace an existing queued message with the same key, or evict oldest.
-	CoalesceByKey,
-}
-
 /// Mailbox send error.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MailboxSendError {
@@ -26,13 +17,19 @@ struct MailboxState<T> {
 
 type CoalesceEqFn<T> = dyn Fn(&T, &T) -> bool + Send + Sync;
 
+/// Mode-specific data. Each variant owns only what it needs.
+enum MailboxPolicy<T> {
+	/// Senders wait for capacity. `notify_send` wakes blocked senders on pop.
+	Backpressure { notify_send: Notify },
+	/// Replace matching key in-place, or evict oldest when full.
+	CoalesceByKey { coalesce_eq: Arc<CoalesceEqFn<T>> },
+}
+
 struct MailboxInner<T> {
 	capacity: usize,
-	mode: MailboxMode,
-	coalesce_eq: Option<Arc<CoalesceEqFn<T>>>,
 	state: Mutex<MailboxState<T>>,
 	notify_recv: Notify,
-	notify_send: Notify,
+	policy: MailboxPolicy<T>,
 }
 
 /// Multi-producer actor mailbox sender.
@@ -73,14 +70,14 @@ impl<T> Mailbox<T> {
 		Self {
 			inner: Arc::new(MailboxInner {
 				capacity,
-				mode: MailboxMode::Backpressure,
-				coalesce_eq: None,
 				state: Mutex::new(MailboxState {
 					queue: VecDeque::with_capacity(capacity),
 					closed: false,
 				}),
 				notify_recv: Notify::new(),
-				notify_send: Notify::new(),
+				policy: MailboxPolicy::Backpressure {
+					notify_send: Notify::new(),
+				},
 			}),
 		}
 	}
@@ -103,14 +100,14 @@ impl<T> Mailbox<T> {
 		Self {
 			inner: Arc::new(MailboxInner {
 				capacity,
-				mode: MailboxMode::CoalesceByKey,
-				coalesce_eq: Some(Arc::new(eq_fn)),
 				state: Mutex::new(MailboxState {
 					queue: VecDeque::with_capacity(capacity),
 					closed: false,
 				}),
 				notify_recv: Notify::new(),
-				notify_send: Notify::new(),
+				policy: MailboxPolicy::CoalesceByKey {
+					coalesce_eq: Arc::new(eq_fn),
+				},
 			}),
 		}
 	}
@@ -137,7 +134,9 @@ impl<T> MailboxSender<T> {
 		state.closed = true;
 		drop(state);
 		self.inner.notify_recv.notify_waiters();
-		self.inner.notify_send.notify_waiters();
+		if let MailboxPolicy::Backpressure { notify_send } = &self.inner.policy {
+			notify_send.notify_waiters();
+		}
 	}
 
 	/// Attempts to close mailbox without waiting for a lock.
@@ -146,7 +145,9 @@ impl<T> MailboxSender<T> {
 			state.closed = true;
 			drop(state);
 			self.inner.notify_recv.notify_waiters();
-			self.inner.notify_send.notify_waiters();
+			if let MailboxPolicy::Backpressure { notify_send } = &self.inner.policy {
+				notify_send.notify_waiters();
+			}
 		}
 	}
 
@@ -155,26 +156,44 @@ impl<T> MailboxSender<T> {
 	/// `Backpressure` waits for capacity, guaranteeing no silent drops.
 	/// `CoalesceByKey` replaces in-place or evicts oldest; never blocks.
 	pub async fn send(&self, msg: T) -> Result<(), MailboxSendError> {
-		if self.inner.mode == MailboxMode::Backpressure {
-			loop {
-				let notified = self.inner.notify_send.notified();
+		match &self.inner.policy {
+			MailboxPolicy::Backpressure { notify_send } => {
+				loop {
+					let notified = notify_send.notified();
 
+					let mut state = self.inner.state.lock().await;
+					if state.closed {
+						return Err(MailboxSendError::Closed);
+					}
+					if state.queue.len() < self.inner.capacity {
+						state.queue.push_back(msg);
+						self.inner.notify_recv.notify_one();
+						return Ok(());
+					}
+					drop(state);
+					notified.await;
+				}
+			}
+			MailboxPolicy::CoalesceByKey { coalesce_eq } => {
 				let mut state = self.inner.state.lock().await;
 				if state.closed {
 					return Err(MailboxSendError::Closed);
 				}
-				if state.queue.len() < self.inner.capacity {
-					state.queue.push_back(msg);
+
+				if let Some(existing) = state.queue.iter_mut().find(|it| coalesce_eq(it, &msg)) {
+					*existing = msg;
 					self.inner.notify_recv.notify_one();
 					return Ok(());
 				}
-				drop(state);
-				notified.await;
+
+				if state.queue.len() >= self.inner.capacity {
+					let _ = state.queue.pop_front();
+				}
+				state.queue.push_back(msg);
+				self.inner.notify_recv.notify_one();
+				Ok(())
 			}
 		}
-
-		let mut state = self.inner.state.lock().await;
-		enqueue_coalesce(&self.inner, &mut state, msg)
 	}
 
 	/// Returns current queue length.
@@ -200,7 +219,9 @@ impl<T> MailboxReceiver<T> {
 			let mut state = self.inner.state.lock().await;
 			if let Some(msg) = state.queue.pop_front() {
 				drop(state);
-				self.inner.notify_send.notify_one();
+				if let MailboxPolicy::Backpressure { notify_send } = &self.inner.policy {
+					notify_send.notify_one();
+				}
 				return Some(msg);
 			}
 			if state.closed {
@@ -220,27 +241,6 @@ impl<T> MailboxReceiver<T> {
 	pub async fn is_empty(&self) -> bool {
 		self.inner.state.lock().await.queue.is_empty()
 	}
-}
-
-/// Enqueue for `CoalesceByKey` mode (non-blocking, replaces or evicts).
-fn enqueue_coalesce<T>(inner: &MailboxInner<T>, state: &mut MailboxState<T>, msg: T) -> Result<(), MailboxSendError> {
-	if state.closed {
-		return Err(MailboxSendError::Closed);
-	}
-
-	let eq_fn = inner.coalesce_eq.as_ref().expect("coalesce_eq must be set for CoalesceByKey mode");
-	if let Some(existing) = state.queue.iter_mut().find(|it| eq_fn(it, &msg)) {
-		*existing = msg;
-		inner.notify_recv.notify_one();
-		return Ok(());
-	}
-
-	if state.queue.len() >= inner.capacity {
-		let _ = state.queue.pop_front();
-	}
-	state.queue.push_back(msg);
-	inner.notify_recv.notify_one();
-	Ok(())
 }
 
 #[cfg(test)]
