@@ -11,6 +11,6 @@ pub mod spec;
 
 pub use dispatch::{ActorCommandIngress, ActorCommandPort};
 pub use handle::ActorHandle;
-pub use mailbox::{ActorMailbox, ActorMailboxPolicy, ActorMailboxReceiver, ActorMailboxSendError, ActorMailboxSender};
+pub use mailbox::ActorMailboxPolicy;
 pub use runtime::ActorRuntime;
 pub use spec::{Actor, ActorContext, ActorExitReason, ActorFlow, ActorLifecyclePolicy, ActorRestartPolicy, ActorShutdownMode, ActorShutdownReport, ActorSpec};

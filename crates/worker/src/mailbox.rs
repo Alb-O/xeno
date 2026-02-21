@@ -33,17 +33,17 @@ struct MailboxInner<T> {
 }
 
 /// Multi-producer actor mailbox sender.
-pub struct MailboxSender<T> {
+pub(crate) struct MailboxSender<T> {
 	inner: Arc<MailboxInner<T>>,
 }
 
 /// Actor mailbox receiver.
-pub struct MailboxReceiver<T> {
+pub(crate) struct MailboxReceiver<T> {
 	inner: Arc<MailboxInner<T>>,
 }
 
 /// Bounded mailbox primitive used by supervised actors.
-pub struct Mailbox<T> {
+pub(crate) struct Mailbox<T> {
 	inner: Arc<MailboxInner<T>>,
 }
 

@@ -23,10 +23,11 @@ mod supervisor;
 mod token;
 
 pub use actor::{
-	Actor, ActorCommandIngress, ActorCommandPort, ActorContext, ActorExitReason, ActorFlow, ActorHandle, ActorLifecyclePolicy, ActorMailbox,
-	ActorMailboxPolicy, ActorMailboxReceiver, ActorMailboxSendError, ActorMailboxSender, ActorRestartPolicy, ActorRuntime,
+	Actor, ActorCommandIngress, ActorCommandPort, ActorContext, ActorExitReason, ActorFlow, ActorHandle, ActorLifecyclePolicy,
+	ActorMailboxPolicy, ActorRestartPolicy, ActorRuntime,
 	ActorShutdownMode, ActorShutdownReport, ActorSpec,
 };
+pub use mailbox::MailboxSendError;
 pub use budget::{DrainBudget, DrainReport};
 pub use class::TaskClass;
 pub use join_set::WorkerJoinSet;
