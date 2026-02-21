@@ -61,8 +61,7 @@ pub type ActionRef = RegistryRef<ActionEntry, ActionId>;
 pub use builtins::{cursor_motion, selection_motion};
 pub use edit_op::{CharMapKind, CursorAdjust, EditOp, EditPlan, PostEffect, PreEffect, SelectionOp, TextTransform};
 pub use effects::{
-	ActionEffects, AppEffect, DeferredInvocationKind, DeferredInvocationPolicy, DeferredInvocationRequest, DeferredInvocationScopeHint, EditEffect, Effect,
-	MotionKind, MotionRequest, ScrollAmount, UiEffect, ViewEffect,
+	ActionEffects, AppEffect, DeferredInvocationRequest, EditEffect, Effect, MotionKind, MotionRequest, ScrollAmount, UiEffect, ViewEffect,
 };
 pub use keybindings::{BindingMode, KeyBindingDef};
 pub use pending::PendingAction;

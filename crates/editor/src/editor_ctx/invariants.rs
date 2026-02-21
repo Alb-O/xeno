@@ -4,7 +4,7 @@ use xeno_primitives::{Mode, Selection};
 use xeno_registry::actions::editor_ctx::{
 	CursorAccess, DeferredInvocationAccess, EditorCapabilities, HandleOutcome, ModeAccess, NotificationAccess, SelectionAccess,
 };
-use xeno_registry::actions::{ActionEffects, ActionResult, AppEffect, DeferredInvocationKind, DeferredInvocationRequest, UiEffect, ViewEffect};
+use xeno_registry::actions::{ActionEffects, ActionResult, AppEffect, DeferredInvocationRequest, UiEffect, ViewEffect};
 use xeno_registry::notifications::{Notification, keys};
 
 use super::apply_effects;
@@ -96,9 +96,9 @@ impl NotificationAccess for MockEditor {
 
 impl DeferredInvocationAccess for MockEditor {
 	fn queue_invocation(&mut self, request: DeferredInvocationRequest) {
-		match &request.kind {
-			DeferredInvocationKind::Command { name, .. } => self.push_log(format!("queue_invocation:command:{name}")),
-			DeferredInvocationKind::EditorCommand { name, .. } => self.push_log(format!("queue_invocation:editor_command:{name}")),
+		match &request {
+			DeferredInvocationRequest::Command { name, .. } => self.push_log(format!("queue_invocation:command:{name}")),
+			DeferredInvocationRequest::EditorCommand { name, .. } => self.push_log(format!("queue_invocation:editor_command:{name}")),
 		}
 		self.deferred_requests.push(request);
 	}

@@ -1,5 +1,5 @@
 use tracing::{trace, trace_span};
-use xeno_registry::actions::{DeferredInvocationKind, DeferredInvocationPolicy, DeferredInvocationRequest, DeferredInvocationScopeHint};
+use xeno_registry::actions::DeferredInvocationRequest;
 
 use super::engine::InvocationEngine;
 use crate::impls::Editor;
@@ -88,20 +88,15 @@ impl Editor {
 	}
 
 	/// Enqueues one typed invocation request from capability surfaces.
+	///
+	/// All deferred invocation requests use log-only command-path policy and global scope.
+	/// Nu pipeline enforcement and scope binding happen at the Nu dispatch layer, not here.
 	pub(crate) fn enqueue_runtime_invocation_request(&mut self, request: DeferredInvocationRequest, source: RuntimeWorkSource) {
-		let invocation = match request.kind {
-			DeferredInvocationKind::Command { name, args } => Invocation::command(name, args),
-			DeferredInvocationKind::EditorCommand { name, args } => Invocation::editor_command(name, args),
-		};
-		let execution = match request.policy {
-			DeferredInvocationPolicy::LogOnlyCommandPath => WorkExecutionPolicy::LogOnlyCommandPath,
-			DeferredInvocationPolicy::EnforcingNuPipeline => WorkExecutionPolicy::EnforcingNuPipeline,
-		};
-		let scope = match request.scope_hint {
-			DeferredInvocationScopeHint::Global => WorkScope::Global,
-			DeferredInvocationScopeHint::CurrentNuStopScope => WorkScope::NuStopScope(self.state.integration.nu.current_stop_scope_generation()),
+		let invocation = match request {
+			DeferredInvocationRequest::Command { name, args } => Invocation::command(name, args),
+			DeferredInvocationRequest::EditorCommand { name, args } => Invocation::editor_command(name, args),
 		};
 
-		self.enqueue_runtime_invocation(invocation, source, execution, scope);
+		self.enqueue_runtime_invocation(invocation, source, WorkExecutionPolicy::LogOnlyCommandPath, WorkScope::Global);
 	}
 }

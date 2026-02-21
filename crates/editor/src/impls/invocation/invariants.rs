@@ -1,7 +1,7 @@
 use std::cell::Cell;
 
 use xeno_primitives::{Key, KeyCode};
-use xeno_registry::actions::{DeferredInvocationPolicy, DeferredInvocationRequest, DeferredInvocationScopeHint};
+use xeno_registry::actions::DeferredInvocationRequest;
 use xeno_registry::{Capability, CommandError};
 
 use super::policy_gate::{GateFailure, GateResult, InvocationGateInput, InvocationKind, RequiredCaps};
@@ -193,23 +193,20 @@ async fn test_keymap_dispatch_routes_through_run_invocation() {
 	);
 }
 
-/// Must preserve source-aware deferred invocation policy/scope metadata when queueing runtime work.
+/// Must enqueue deferred invocations with log-only command-path policy and global scope.
 ///
 /// * Enforced in: `Editor::enqueue_runtime_invocation_request`
 /// * Failure symptom: runtime drain applies wrong policy/scope for deferred invocations.
 #[tokio::test(flavor = "current_thread")]
-async fn test_deferred_invocation_queue_preserves_source_policy_and_scope() {
+async fn test_deferred_invocation_queue_uses_default_policy_and_global_scope() {
 	let mut editor = Editor::new_scratch();
-	let current_nu_scope = editor.state.integration.nu.current_stop_scope_generation();
 
 	editor.enqueue_runtime_invocation_request(
 		DeferredInvocationRequest::command("stats".to_string(), Vec::new()),
 		RuntimeWorkSource::ActionEffect,
 	);
 	editor.enqueue_runtime_invocation_request(
-		DeferredInvocationRequest::editor_command("stats".to_string(), Vec::new())
-			.with_policy(DeferredInvocationPolicy::EnforcingNuPipeline)
-			.with_scope_hint(DeferredInvocationScopeHint::CurrentNuStopScope),
+		DeferredInvocationRequest::editor_command("reload".to_string(), Vec::new()),
 		RuntimeWorkSource::NuHookDispatch,
 	);
 
@@ -227,8 +224,8 @@ async fn test_deferred_invocation_queue_preserves_source_policy_and_scope() {
 		panic!("second queued item should be invocation work");
 	};
 	assert_eq!(second.source, RuntimeWorkSource::NuHookDispatch);
-	assert_eq!(second.execution, WorkExecutionPolicy::EnforcingNuPipeline);
-	assert_eq!(snapshot[1].scope, WorkScope::NuStopScope(current_nu_scope));
+	assert_eq!(second.execution, WorkExecutionPolicy::LogOnlyCommandPath);
+	assert_eq!(snapshot[1].scope, WorkScope::Global);
 }
 
 /// Must map Nu invocation outcomes into stable `nu-run` command results.
