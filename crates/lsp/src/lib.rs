@@ -13,9 +13,10 @@
 
 // Re-export framework types that downstream (editor) uses via `xeno_lsp::*`.
 pub use xeno_lsp_framework::{
-	AnyEvent, AnyNotification, AnyRequest, AnyResponse, Error, ErrorCode, JsonValue, Message, OffsetEncoding, RequestId, ResponseError, Result, lsp_types,
-	path_from_uri, uri_from_path,
+	AnyNotification, AnyRequest, AnyResponse, Error, JsonValue, OffsetEncoding, RequestId, ResponseError, Result,
+	lsp_types, path_from_uri, uri_from_path,
 };
+pub(crate) use xeno_lsp_framework::{ErrorCode, Message};
 
 #[cfg(feature = "client")]
 #[cfg_attr(docsrs, doc(cfg(feature = "client")))]
