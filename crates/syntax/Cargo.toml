@@ -12,7 +12,7 @@ tokio = { workspace = true, features = ["time", "sync", "rt"] }
 tracing.workspace = true
 xeno-language.workspace = true
 xeno-primitives.workspace = true
-xeno-registry.workspace = true
+xeno-registry = { workspace = true, features = ["full"] }
 xeno-worker.workspace = true
 
 [dev-dependencies]

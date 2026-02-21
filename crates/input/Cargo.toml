@@ -11,10 +11,10 @@ ropey.workspace = true
 tracing.workspace = true
 xeno-keymap-core.workspace = true
 xeno-primitives.workspace = true
-xeno-registry.workspace = true
+xeno-registry = { workspace = true, features = ["full"] }
 
 [dev-dependencies]
-xeno-registry = { workspace = true, features = ["test-support"] }
+xeno-registry = { workspace = true, features = ["full", "test-support"] }
 
 [lints]
 workspace = true

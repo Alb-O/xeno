@@ -44,7 +44,7 @@ xeno-matcher.workspace = true
 xeno-nu-api.workspace = true
 xeno-nu-data.workspace = true
 xeno-primitives.workspace = true
-xeno-registry.workspace = true
+xeno-registry = { workspace = true, features = ["full"] }
 xeno-syntax.workspace = true
 xeno-worker.workspace = true
 [dev-dependencies]

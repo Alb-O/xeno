@@ -14,7 +14,7 @@ serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 xeno-primitives.workspace = true
-xeno-registry.workspace = true
+xeno-registry = { workspace = true, features = ["full"] }
 xeno-tree-house.workspace = true
 xeno-worker.workspace = true
 

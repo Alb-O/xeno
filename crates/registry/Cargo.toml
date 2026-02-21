@@ -7,7 +7,7 @@ license.workspace = true
 publish = false
 
 [features]
-default = ["full"]
+default = []
 
 full = [
     "minimal",

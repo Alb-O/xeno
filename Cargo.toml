@@ -154,7 +154,7 @@ xeno-nu-protocol = { path = "crates/nu/protocol", version = "0.110.1", default-f
 xeno-nu-runtime = { path = "crates/nu/runtime" }
 xeno-nu-safe-commands = { path = "crates/nu/safe_commands" }
 xeno-primitives = { path = "crates/primitives" }
-xeno-registry = { path = "crates/registry" }
+xeno-registry = { path = "crates/registry", default-features = false }
 xeno-rpc = { path = "crates/rpc" }
 xeno-syntax = { path = "crates/syntax" }
 xeno-tree-house = { path = "crates/tree_house", default-features = false }
