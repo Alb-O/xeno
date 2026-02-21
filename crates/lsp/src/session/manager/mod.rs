@@ -8,7 +8,7 @@
 //!
 //! # Mental model
 //!
-//! * `LspSystem` (in `xeno-editor`) creates `(LspSession, LspRuntime)` and starts runtime once. Actors are spawned via `xeno_worker::ActorRuntime::spawn`.
+//! * `LspSystem` (in `xeno-editor`) creates `(LspSession, LspRuntime)` and starts runtime once. Actors are spawned via `xeno_worker::spawn_actor`.
 //! * [`crate::sync::DocumentSync`] owns didOpen/didChange/didSave/didClose policy and document state updates.
 //! * [`crate::registry::Registry`] maps `(language, workspace_root)` to active server slots and singleflights startup.
 //! * `LspRuntime` is the only transport-event subscriber. It forwards events into one supervised router actor that processes them sequentially.

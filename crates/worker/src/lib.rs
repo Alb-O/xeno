@@ -29,9 +29,22 @@ mod token;
 
 pub use actor::{
 	Actor, ActorCommandIngress, ActorCommandPort, ActorContext, ActorExit, ActorExitKind, ActorFlow, ActorHandle,
-	ActorMailboxSpec, ActorRestartPolicy, ActorRuntime, ActorShutdownMode, ActorShutdownReport, ActorSpec,
-	ActorSupervisorSpec,
+	ActorMailboxSpec, ActorRestartPolicy, ActorShutdownMode, ActorShutdownReport, ActorSpec, ActorSupervisorSpec,
 };
+pub(crate) use actor::{
+	ActorRuntime,
+};
+
+/// Spawns one supervised actor, returning its handle.
+///
+/// This is the canonical entry point for actor creation. Equivalent to
+/// [`ActorRuntime::spawn`].
+pub fn spawn_actor<A>(spec: ActorSpec<A>) -> ActorHandle<A::Cmd, A::Evt>
+where
+	A: Actor,
+{
+	ActorRuntime::spawn(spec)
+}
 pub use supervisor::ActorSendError;
 pub use class::TaskClass;
 pub(crate) use join_set::WorkerJoinSet;

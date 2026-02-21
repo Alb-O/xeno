@@ -638,7 +638,7 @@ impl LspSyncManager {
 		let shared = Arc::new(RwLock::new(LspSyncShared::default()));
 		let command_port = Arc::new(std::sync::OnceLock::<xeno_worker::ActorCommandPort<LspSyncCmd>>::new());
 		let actor = Arc::new(
-			xeno_worker::ActorRuntime::spawn(
+			xeno_worker::spawn_actor(
 				xeno_worker::ActorSpec::new("lsp.sync", xeno_worker::TaskClass::Background, {
 					let command_port = Arc::clone(&command_port);
 					let shared = Arc::clone(&shared);

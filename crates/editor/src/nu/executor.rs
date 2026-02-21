@@ -147,10 +147,10 @@ impl NuExecutor {
 		);
 
 		let (runtime_guard, handle) = if tokio::runtime::Handle::try_current().is_ok() {
-			(None, Arc::new(xeno_worker::ActorRuntime::spawn(spec)))
+			(None, Arc::new(xeno_worker::spawn_actor(spec)))
 		} else {
 			let rt = Arc::new(Self::build_worker_runtime());
-			let actor = Arc::new(rt.block_on(async move { xeno_worker::ActorRuntime::spawn(spec) }));
+			let actor = Arc::new(rt.block_on(async move { xeno_worker::spawn_actor(spec) }));
 			(Some(rt), actor)
 		};
 

@@ -78,7 +78,7 @@ impl LspRuntime {
 		let documents = self.sync.documents_arc();
 		let cancel = self.state.lock().cancel.clone();
 		let router_actor = Arc::new(
-			xeno_worker::ActorRuntime::spawn(
+			xeno_worker::spawn_actor(
 				xeno_worker::ActorSpec::new("lsp.runtime.router", xeno_worker::TaskClass::Interactive, move || RouterActor {
 					sync: sync.clone(),
 					transport: transport.clone(),
