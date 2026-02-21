@@ -4,6 +4,7 @@ description = "Canonical invocation types and Nu interop for Xeno"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+publish = false
 
 [features]
 nu = ["dep:xeno-nu-data"]

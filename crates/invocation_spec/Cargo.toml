@@ -4,6 +4,7 @@ description = "Invocation spec parser for action:/command:/editor: target string
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+publish = false
 
 [lints.rust]
 unused_crate_dependencies = "warn"
