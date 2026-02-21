@@ -2,7 +2,7 @@ use std::time::Duration;
 
 /// Drain budget for bounded work convergence loops.
 #[derive(Debug, Clone, Copy)]
-pub struct DrainBudget {
+pub(crate) struct DrainBudget {
 	/// Maximum wall-clock duration to spend draining.
 	pub duration: Duration,
 	/// Maximum completed tasks/items to drain.
@@ -27,7 +27,7 @@ impl Default for DrainBudget {
 
 /// Drain report from one bounded convergence pass.
 #[derive(Debug, Clone, Copy, Default)]
-pub struct DrainReport {
+pub(crate) struct DrainReport {
 	/// Number of completed tasks drained (includes panicked/cancelled).
 	pub completed: u64,
 	/// Number of tasks that panicked during execution.

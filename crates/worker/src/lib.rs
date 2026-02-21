@@ -27,7 +27,6 @@ pub use actor::{
 	ActorShutdownMode, ActorShutdownReport, ActorSpec,
 };
 pub use supervisor::ActorSendError;
-pub use budget::{DrainBudget, DrainReport};
 pub use class::TaskClass;
 pub use join_set::WorkerJoinSet;
 pub use runtime::WorkerRuntime;

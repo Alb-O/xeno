@@ -117,7 +117,7 @@ impl WorkerRuntime {
 	///
 	/// Never holds a join-set mutex across an await point, so concurrent
 	/// `submit()` calls are never blocked by an in-progress drain.
-	pub async fn drain(&self, budget: DrainBudget) -> DrainReport {
+	pub(crate) async fn drain(&self, budget: DrainBudget) -> DrainReport {
 		if budget.max_completions == 0 {
 			let i = self.interactive.lock().await.len();
 			let b = self.background.lock().await.len();
