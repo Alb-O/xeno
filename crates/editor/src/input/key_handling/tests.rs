@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use xeno_input::input::KeyResult;
+use xeno_input::KeyResult;
 use xeno_keymap_core::parser::parse_seq;
 use xeno_primitives::{Key, KeyCode};
 use xeno_registry::actions::{ActionEntry, BindingMode};
@@ -160,13 +160,13 @@ async fn invalid_override_keeps_base_binding() {
 
 #[test]
 fn dispatch_key_result_contains_invocation() {
-	let result = KeyResult::Dispatch(xeno_input::input::types::KeyDispatch {
+	let result = KeyResult::Dispatch(xeno_input::KeyDispatch {
 		invocation: xeno_registry::Invocation::action("move_left"),
 	});
 
 	assert!(matches!(
 		result,
-		KeyResult::Dispatch(xeno_input::input::types::KeyDispatch {
+		KeyResult::Dispatch(xeno_input::KeyDispatch {
 			invocation: xeno_registry::Invocation::Action { name, .. }
 		}) if name == "move_left"
 	));

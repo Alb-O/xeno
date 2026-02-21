@@ -7,7 +7,7 @@ mod effects;
 mod routing;
 
 use routing::decide_mouse_route;
-use xeno_input::input::KeyResult;
+use xeno_input::KeyResult;
 use xeno_primitives::MouseEvent;
 
 use crate::impls::{Editor, FocusTarget};

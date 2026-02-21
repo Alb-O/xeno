@@ -2,7 +2,7 @@
 
 mod ops;
 
-use xeno_input::input::KeyResult;
+use xeno_input::KeyResult;
 use xeno_primitives::{Key, Mode};
 
 use crate::Editor;

@@ -88,7 +88,7 @@ pub use state::Buffer;
 pub(crate) use state::CommitBypassToken;
 #[cfg(test)]
 pub(crate) use state::LockGuard;
-use xeno_input::input::InputHandler;
+use xeno_input::InputHandler;
 use xeno_language::LanguageLoader;
 pub use xeno_primitives::ViewId;
 use xeno_primitives::{CharIdx, Mode, Selection};
