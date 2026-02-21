@@ -1,8 +1,7 @@
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
-use xeno_language::LanguageId;
-use xeno_language::{Syntax, SyntaxError};
+use xeno_language::{LanguageId, Syntax, SyntaxError};
 
 use super::tasks::TaskClass;
 use super::types::{DocEpoch, OptKey, TaskId, ViewportKey};

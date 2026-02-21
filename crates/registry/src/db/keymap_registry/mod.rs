@@ -73,12 +73,10 @@ mod snapshot;
 mod sources;
 mod spec;
 
-pub use compiler::{CompiledKeymap, KeymapCompiler};
-pub use diagnostics::{KeymapBuildProblem, KeymapConflict, KeymapProblemKind};
+pub use diagnostics::KeymapBuildProblem;
 pub use runtime::{KeymapSnapshotCache, get_keymap_snapshot};
 pub use snapshot::{CompiledBinding, CompiledBindingTarget, KeymapSnapshot, LookupOutcome};
-pub use spec::{KeymapBindingSource, KeymapSpec, SlotKey, SpecBinding, SpecBindingTarget, SpecPrefix};
-pub use xeno_keymap_core::{ContinuationEntry, ContinuationKind};
+pub use xeno_keymap_core::ContinuationKind;
 
 #[cfg(test)]
 mod invariants;

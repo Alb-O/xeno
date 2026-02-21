@@ -9,4 +9,5 @@ mod input;
 /// Pure cursor/selection movement functions.
 pub mod movement;
 
-pub use input::{InputHandler, KeyResult, types::KeyDispatch};
+pub use input::types::KeyDispatch;
+pub use input::{InputHandler, KeyResult};

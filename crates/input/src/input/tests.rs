@@ -69,8 +69,8 @@ fn test_set_last_search() {
 fn invocation_spec_multi_key_pending_then_match() {
 	use std::collections::HashMap;
 
-	use xeno_registry::config::UnresolvedKeys;
 	use xeno_registry::KeymapSnapshot;
+	use xeno_registry::config::UnresolvedKeys;
 	use xeno_registry::keymaps::KeymapBehavior;
 
 	let actions = xeno_registry::ACTIONS.snapshot();
@@ -111,8 +111,7 @@ fn invocation_spec_multi_key_pending_then_match() {
 
 #[test]
 fn insert_multikey_prefix_dispatches() {
-	use xeno_registry::KeymapSnapshot;
-	use xeno_registry::keymaps;
+	use xeno_registry::{KeymapSnapshot, keymaps};
 
 	let actions = xeno_registry::ACTIONS.snapshot();
 	let preset = keymaps::preset("emacs").expect("emacs preset must load");
@@ -145,8 +144,7 @@ fn insert_multikey_prefix_dispatches() {
 
 #[test]
 fn insert_text_char_does_not_enter_pending() {
-	use xeno_registry::KeymapSnapshot;
-	use xeno_registry::keymaps;
+	use xeno_registry::{KeymapSnapshot, keymaps};
 
 	let actions = xeno_registry::ACTIONS.snapshot();
 	let preset = keymaps::preset("emacs").expect("emacs preset must load");

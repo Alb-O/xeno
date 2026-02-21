@@ -1,5 +1,4 @@
-use xeno_editor::Editor;
-use xeno_editor::{StatuslineRenderSegment, StatuslineRenderStyle};
+use xeno_editor::{Editor, StatuslineRenderSegment, StatuslineRenderStyle};
 use xeno_tui::layout::Rect;
 use xeno_tui::style::{Modifier, Style};
 use xeno_tui::text::{Line, Span};

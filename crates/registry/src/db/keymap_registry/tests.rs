@@ -206,7 +206,7 @@ fn which_key_labels_invocation() {
 
 #[test]
 fn invalid_override_produces_problem() {
-	use super::KeymapProblemKind;
+	use crate::db::keymap_registry::diagnostics::KeymapProblemKind;
 
 	let actions = crate::db::ACTIONS.snapshot();
 	let (mode, key_seq, base_id, _, _) = sample_binding(&actions).expect("registry should contain at least one binding");

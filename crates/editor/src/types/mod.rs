@@ -23,12 +23,9 @@ mod workspace;
 pub use config::Config;
 pub use edit_policy::ApplyEditPolicy;
 pub use frame::FrameState;
-pub use history::{DocumentHistoryEntry, EditorUndoGroup, ViewSnapshot};
+pub use history::{EditorUndoGroup, ViewSnapshot};
 pub(crate) use invocation::adapters::{PipelineDisposition, PipelineLogContext, classify_for_nu_pipeline, log_pipeline_non_ok, to_command_outcome_for_nu_run};
-pub use invocation::{Invocation, InvocationDetail, InvocationOutcome, InvocationPolicy, InvocationStatus, InvocationTarget};
-pub use undo_manager::{PreparedEdit, UndoHost, UndoManager};
+pub use invocation::{Invocation, InvocationOutcome, InvocationPolicy, InvocationStatus, InvocationTarget};
+pub use undo_manager::{UndoHost, UndoManager};
 pub use viewport::Viewport;
-pub use workspace::{JumpList, JumpLocation, MacroState, NuState, Registers, Workspace, Yank};
-pub use xeno_primitives::CharIdx;
-
-pub use crate::runtime::work_queue::{QueuedInvocation, RuntimeWorkItem, RuntimeWorkKind, RuntimeWorkQueue, RuntimeWorkSource, WorkExecutionPolicy, WorkScope};
+pub use workspace::{JumpLocation, Workspace, Yank};

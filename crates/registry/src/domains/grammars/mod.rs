@@ -5,5 +5,3 @@ mod domain;
 pub mod loader;
 #[path = "contract/spec.rs"]
 pub mod spec;
-
-pub use domain::Grammars;

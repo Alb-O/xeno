@@ -74,9 +74,7 @@ impl Editor {
 	/// let width: i64 = editor.resolve_typed_option(buffer_id, keys::TAB_WIDTH);
 	/// ```
 	pub fn resolve_typed_option<T: FromOptionValue>(&self, buffer_id: ViewId, key: TypedOptionKey<T>) -> T {
-		let opt = xeno_registry::OPTIONS
-			.get_key(&key.untyped())
-			.expect("typed option key missing from registry");
+		let opt = xeno_registry::OPTIONS.get_key(&key.untyped()).expect("typed option key missing from registry");
 
 		T::from_option(&self.resolve_option_ref(buffer_id, &opt))
 			.or_else(|| T::from_option(&opt.default.to_value()))

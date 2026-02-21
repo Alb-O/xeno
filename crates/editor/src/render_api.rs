@@ -5,7 +5,7 @@
 
 // Render plan types.
 // Buffer types.
-pub use crate::buffer::{SplitDirection, ViewId};
+pub use crate::buffer::SplitDirection;
 // Completion types.
 pub use crate::completion::{CompletionKind, CompletionRenderItem, CompletionRenderPlan, FilePresentationRender};
 // Geometry.
@@ -14,10 +14,7 @@ pub use crate::geometry::Rect;
 pub use crate::info_popup::{InfoPopupId, InfoPopupRenderAnchor, InfoPopupRenderTarget};
 // Overlay types.
 pub use crate::overlay::{OverlayControllerKind, OverlayPaneRenderTarget, WindowRole};
-pub use crate::render::{
-	DocumentViewPlan, InfoPopupViewPlan, OverlayCompletionMenuTarget, OverlayPaneViewPlan, RenderLine, RenderSpan, SeparatorJunctionTarget,
-	SeparatorRenderTarget, SeparatorScenePlan, SeparatorState,
-};
+pub use crate::render::{DocumentViewPlan, RenderLine, SeparatorJunctionTarget, SeparatorRenderTarget, SeparatorState};
 // Snippet choice types.
 pub use crate::snippet::{SnippetChoiceRenderItem, SnippetChoiceRenderPlan};
 // Panel identifiers.

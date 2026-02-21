@@ -21,8 +21,7 @@ mod pretty_print;
 mod viewport_repair;
 
 use edit_generation::generate_edits;
-pub use pretty_print::pretty_print_tree;
-pub use viewport_repair::{SealPlan, ViewportRepair, ViewportRepairRule};
+pub use viewport_repair::{ViewportRepair, ViewportRepairRule};
 
 /// Default parse timeout (500ms).
 const DEFAULT_PARSE_TIMEOUT: Duration = Duration::from_millis(500);

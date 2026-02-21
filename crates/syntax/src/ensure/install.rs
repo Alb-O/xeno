@@ -13,19 +13,10 @@ pub(super) enum InstallDecision {
 
 /// Action computed for a completed parse result.
 enum InstallAction {
-	InstallViewport {
-		done: CompletedRef,
-		syntax: xeno_language::Syntax,
-	},
-	InstallFull {
-		done: CompletedRef,
-		syntax: xeno_language::Syntax,
-	},
+	InstallViewport { done: CompletedRef, syntax: xeno_language::Syntax },
+	InstallFull { done: CompletedRef, syntax: xeno_language::Syntax },
 	DropRetention,
-	ApplyFailureCooldown {
-		done: CompletedRef,
-		is_timeout: bool,
-	},
+	ApplyFailureCooldown { done: CompletedRef, is_timeout: bool },
 	NoOp,
 }
 

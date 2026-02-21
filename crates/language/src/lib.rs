@@ -38,7 +38,9 @@ mod query;
 mod runtime;
 mod syntax;
 
-pub use build::{BuildStatus, FetchStatus, GrammarBuildError, GrammarConfig, build_all_grammars, build_grammar, fetch_all_grammars, fetch_grammar, load_grammar_configs};
+pub use build::{
+	BuildStatus, FetchStatus, GrammarBuildError, GrammarConfig, build_all_grammars, build_grammar, fetch_all_grammars, fetch_grammar, load_grammar_configs,
+};
 pub use db::{LanguageDb, language_db};
 pub use grammar::{GrammarError, GrammarSource, cache_dir, grammar_search_paths, load_grammar, load_grammar_or_build, query_search_paths, runtime_dir};
 pub use highlight::{Highlight, HighlightEvent, HighlightSpan, HighlightStyles, Highlighter};

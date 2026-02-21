@@ -6,10 +6,7 @@
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, LazyLock, OnceLock};
 
-pub use crate::core::{
-	ActionId, CommandId, DenseId, GutterId, HookId, LanguageId, MotionId, OptionId, RegistryIndex, RuntimeRegistry, SnippetId, StatuslineId, TextObjectId,
-	ThemeId,
-};
+pub use crate::core::{ActionId, DenseId, RuntimeRegistry};
 
 pub mod builder;
 pub mod builtins;

@@ -95,6 +95,8 @@ mod view_manager;
 /// Window management primitives.
 pub(crate) mod window;
 
+// Root facade re-exports for external consumers.
+pub use bootstrap::init as bootstrap_init;
 pub use buffer::{Buffer, HistoryResult, ViewId};
 pub(crate) use completion::CompletionState;
 pub use editor_ctx::{EditorCapabilities, EditorContext, EditorOps, HandleOutcome, apply_effects};
@@ -107,22 +109,15 @@ pub use lsp::api::LanguageServerConfig;
 pub use lsp::smoke::run_lsp_smoke;
 pub use msg::{Dirty, EditorMsg, IoMsg, LspMsg, MsgSender, ThemeMsg};
 pub use notifications::{NotificationRenderAutoDismiss, NotificationRenderItem, NotificationRenderLevel};
-pub use terminal_config::{TerminalConfig, TerminalSequence};
-pub use xeno_registry::themes::{ColorPair, ModeColors, PopupColors, SemanticColors, THEMES, Theme, ThemeColors, UiColors, blend_colors, suggest_theme};
-
-// Root facade re-exports for external consumers.
-pub use bootstrap::init as bootstrap_init;
 pub use paths::get_data_dir;
 pub use render_api::{
-	CompletionKind, CompletionRenderItem, CompletionRenderPlan, DocumentViewPlan, FilePresentationRender,
-	InfoPopupId, InfoPopupRenderAnchor, InfoPopupRenderTarget,
-	OverlayControllerKind, OverlayPaneRenderTarget, WindowRole,
-	PanelRenderTarget, RenderLine, Rect,
-	SeparatorJunctionTarget, SeparatorRenderTarget, SeparatorState, SurfaceStyle,
-	SnippetChoiceRenderItem, SnippetChoiceRenderPlan,
-	SplitDirection, StatuslineRenderSegment, StatuslineRenderStyle,
-	UTILITY_PANEL_ID,
+	CompletionKind, CompletionRenderItem, CompletionRenderPlan, DocumentViewPlan, FilePresentationRender, InfoPopupId, InfoPopupRenderAnchor,
+	InfoPopupRenderTarget, OverlayControllerKind, OverlayPaneRenderTarget, PanelRenderTarget, Rect, RenderLine, SeparatorJunctionTarget, SeparatorRenderTarget,
+	SeparatorState, SnippetChoiceRenderItem, SnippetChoiceRenderPlan, SplitDirection, StatuslineRenderSegment, StatuslineRenderStyle, SurfaceStyle,
+	UTILITY_PANEL_ID, WindowRole,
 };
 pub use runtime::{CursorStyle, DrainPolicy, LoopDirectiveV2, RuntimeEvent};
 pub use styles::cli_styles;
+pub use terminal_config::{TerminalConfig, TerminalSequence};
 pub use test_events::SeparatorAnimationEvent;
+pub use xeno_registry::themes::{ColorPair, ModeColors, PopupColors, SemanticColors, THEMES, Theme, ThemeColors, UiColors, blend_colors, suggest_theme};

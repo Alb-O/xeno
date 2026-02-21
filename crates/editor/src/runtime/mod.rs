@@ -102,10 +102,7 @@ pub(crate) mod work_queue;
 
 pub use core::{CursorStyle, RuntimeEvent};
 
-pub use protocol::{
-	DrainPolicy, DrainReport, LoopDirectiveV2, RuntimeCauseId, RuntimeDrainExitReason, RuntimeDrainStats, RuntimeEventEnvelope, RuntimeEventSource,
-	RuntimePhaseQueueDepthSnapshot, SubmitToken,
-};
+pub use protocol::{DrainPolicy, DrainReport, LoopDirectiveV2, RuntimeCauseId, RuntimeDrainExitReason, RuntimeEventEnvelope, RuntimeEventSource, SubmitToken};
 
 #[cfg(test)]
 use crate::Editor;

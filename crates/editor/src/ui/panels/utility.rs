@@ -1,6 +1,6 @@
 use xeno_primitives::KeyCode;
-use xeno_registry::actions::BindingMode;
 use xeno_registry::ContinuationKind;
+use xeno_registry::actions::BindingMode;
 
 use crate::Editor;
 use crate::ui::UiRequest;

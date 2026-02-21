@@ -49,7 +49,7 @@ where
 		let result = self.tx.try_send(cmd);
 		if let Err(mpsc::error::TrySendError::Full(_)) = &result {
 			let count = self.drops.fetch_add(1, Ordering::Relaxed);
-			if count % 1024 == 0 {
+			if count.is_multiple_of(1024) {
 				tracing::warn!(drops = count + 1, "actor ingress queue full, dropping command");
 			}
 		}

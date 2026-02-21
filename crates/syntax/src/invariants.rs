@@ -9,8 +9,7 @@ use std::time::Duration;
 
 use tokio::sync::Notify;
 use tokio::time::{sleep, timeout};
-use xeno_language::LanguageLoader;
-use xeno_language::{InjectionPolicy, Syntax, SyntaxError, SyntaxOptions};
+use xeno_language::{InjectionPolicy, LanguageLoader, Syntax, SyntaxError, SyntaxOptions};
 use xeno_primitives::{ChangeSet, DocumentId, Rope};
 
 use super::*;

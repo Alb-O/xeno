@@ -5,8 +5,7 @@
 
 mod separator;
 
-use xeno_editor::Editor;
-use xeno_editor::SplitDirection;
+use xeno_editor::{Editor, SplitDirection};
 use xeno_tui::layout::Rect;
 use xeno_tui::text::{Line, Span};
 use xeno_tui::widgets::Paragraph;

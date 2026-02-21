@@ -20,9 +20,6 @@ pub mod wrap;
 #[cfg(any(feature = "lsp", test))]
 pub use buffer::DiagnosticSpan;
 pub use buffer::{BufferRenderContext, DiagnosticLineMap, DiagnosticRangeMap, GutterLayout, ensure_buffer_cursor_visible};
-pub use completion::OverlayCompletionMenuTarget;
 pub use text::{RenderLine, RenderSpan};
-pub use view_plan::{
-	DocumentViewPlan, InfoPopupViewPlan, OverlayPaneViewPlan, SeparatorJunctionTarget, SeparatorRenderTarget, SeparatorScenePlan, SeparatorState,
-};
+pub use view_plan::{DocumentViewPlan, SeparatorJunctionTarget, SeparatorRenderTarget, SeparatorState};
 pub use wrap::wrap_line;

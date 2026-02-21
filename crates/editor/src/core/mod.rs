@@ -6,7 +6,3 @@
 pub mod document;
 pub mod history;
 pub mod undo_store;
-
-pub use document::{Document, DocumentId};
-pub use history::HistoryResult;
-pub use undo_store::{TxnUndoStore, UndoBackend};

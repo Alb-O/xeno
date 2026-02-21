@@ -34,7 +34,6 @@ pub mod viewport;
 #[cfg(test)]
 mod invariants;
 
-pub use provider::EditorCaps;
 use xeno_registry::commands::CommandError;
 use xeno_registry::options::{OptionValue, parse};
 

@@ -3,10 +3,9 @@
 //! Converts live `xeno_editor::Editor` state into immutable, data-only
 //! frontend snapshot structures consumed by the Iced renderer.
 
-use xeno_editor::Editor;
 use xeno_editor::{
-	CompletionRenderPlan, DocumentViewPlan, InfoPopupRenderTarget, OverlayControllerKind, OverlayPaneRenderTarget, Rect, RenderLine, SeparatorJunctionTarget,
-	SeparatorRenderTarget, SnippetChoiceRenderPlan, StatuslineRenderSegment, SurfaceStyle, WindowRole,
+	CompletionRenderPlan, DocumentViewPlan, Editor, InfoPopupRenderTarget, OverlayControllerKind, OverlayPaneRenderTarget, Rect, RenderLine,
+	SeparatorJunctionTarget, SeparatorRenderTarget, SnippetChoiceRenderPlan, StatuslineRenderSegment, SurfaceStyle, WindowRole,
 };
 
 #[derive(Debug, Default)]

@@ -3,8 +3,7 @@
 //! This module handles visual styling of separators between split views,
 //! including hover effects, drag highlighting, and junction glyphs.
 
-use xeno_editor::Editor;
-use xeno_editor::{SeparatorAnimationEvent, SeparatorRenderTarget};
+use xeno_editor::{Editor, SeparatorAnimationEvent, SeparatorRenderTarget};
 use xeno_tui::animation::Animatable;
 use xeno_tui::layout::Rect;
 use xeno_tui::style::{Color, Style};

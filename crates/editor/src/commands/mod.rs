@@ -26,7 +26,7 @@ use std::sync::LazyLock;
 
 use xeno_primitives::BoxFutureLocal;
 pub use xeno_registry::RegistrySource;
-pub use xeno_registry::commands::{CommandError, CommandOutcome, CommandResult};
+pub use xeno_registry::commands::{CommandError, CommandOutcome};
 
 use crate::Editor;
 

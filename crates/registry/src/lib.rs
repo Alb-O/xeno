@@ -194,6 +194,10 @@ pub use db::CATALOG;
 #[cfg(all(feature = "minimal", feature = "commands"))]
 pub use db::SNIPPETS;
 #[cfg(feature = "minimal")]
+pub use db::builder::{RegistryDbBuilder, RegistryError};
+#[cfg(feature = "minimal")]
+pub use db::builtins::BuiltinsReg;
+#[cfg(feature = "minimal")]
 pub use db::index;
 #[cfg(feature = "minimal")]
 pub use db::index::{
@@ -202,20 +206,15 @@ pub use db::index::{
 };
 #[cfg(feature = "keymap")]
 pub use db::keymap_registry::{
-	CompiledBinding, CompiledBindingTarget, ContinuationKind, KeymapBuildProblem, KeymapSnapshot, KeymapSnapshotCache, LookupOutcome,
-	get_keymap_snapshot,
+	CompiledBinding, CompiledBindingTarget, ContinuationKind, KeymapBuildProblem, KeymapSnapshot, KeymapSnapshotCache, LookupOutcome, get_keymap_snapshot,
 };
 #[cfg(feature = "minimal")]
-pub use db::builder::{RegistryDbBuilder, RegistryError};
-#[cfg(feature = "minimal")]
-pub use db::builtins::BuiltinsReg;
-#[cfg(feature = "minimal")]
 pub use db::{ACTIONS, COMMANDS, GUTTERS, HOOKS, LANGUAGES, LSP_SERVERS, MOTIONS, NOTIFICATIONS, OPTIONS, STATUSLINE_SEGMENTS, TEXT_OBJECTS, THEMES};
-pub use domains::grammars::loader::load_grammars_spec;
 #[cfg(feature = "actions")]
 pub use domains::actions;
 #[cfg(feature = "commands")]
 pub use domains::commands;
+pub use domains::grammars::loader::load_grammars_spec;
 #[cfg(feature = "gutter")]
 pub use domains::gutter;
 #[cfg(feature = "hooks")]

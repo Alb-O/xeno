@@ -11,7 +11,7 @@ mod tests;
 mod types;
 
 pub use changeset::ChangeSet;
-pub use types::{Bias, Change, Insertion, Operation, Tendril};
+pub use types::{Bias, Change, Operation, Tendril};
 
 use crate::range::CharIdx;
 use crate::{Range, Rope, RopeSlice, Selection};

@@ -101,9 +101,8 @@ impl Editor {
 				return Vec::new();
 			};
 
-			let highlight_styles = xeno_language::HighlightStyles::new(SyntaxStyles::scope_names(), |scope| {
-				self.state.config.config.theme.colors.syntax.resolve(scope)
-			});
+			let highlight_styles =
+				xeno_language::HighlightStyles::new(SyntaxStyles::scope_names(), |scope| self.state.config.config.theme.colors.syntax.resolve(scope));
 
 			let highlighter = selection
 				.syntax
@@ -119,11 +118,7 @@ impl Editor {
 	}
 
 	/// Finds the style for a given byte position from precomputed highlight spans.
-	pub fn style_for_byte_pos(
-		&self,
-		byte_pos: usize,
-		spans: &[(xeno_language::HighlightSpan, xeno_primitives::Style)],
-	) -> Option<xeno_primitives::Style> {
+	pub fn style_for_byte_pos(&self, byte_pos: usize, spans: &[(xeno_language::HighlightSpan, xeno_primitives::Style)]) -> Option<xeno_primitives::Style> {
 		for (span, style) in spans.iter().rev() {
 			if byte_pos >= span.start as usize && byte_pos < span.end as usize {
 				return Some(*style);

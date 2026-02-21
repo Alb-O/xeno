@@ -61,11 +61,10 @@ pub use focus::{FocusReason, FocusTarget, PanelId};
 pub use navigation::Location;
 use parking_lot::Mutex;
 use xeno_language::LanguageLoader;
-use xeno_registry::HookEventData;
-use xeno_registry::KeymapSnapshot;
 use xeno_registry::hooks::{HookContext, WindowKind, emit as emit_hook, emit_sync_with as emit_hook_sync_with};
 use xeno_registry::options::OPTIONS;
 use xeno_registry::themes::THEMES;
+use xeno_registry::{HookEventData, KeymapSnapshot};
 
 use crate::buffer::{Buffer, Layout, ViewId};
 use crate::geometry::Rect;

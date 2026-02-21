@@ -46,8 +46,6 @@ where
 	ActorRuntime::spawn(spec)
 }
 pub use class::TaskClass;
-pub(crate) use join_set::WorkerJoinSet;
-pub(crate) use runtime::WorkerRuntime;
 pub use supervisor::ActorSendError;
 
 /// Handle for an async task spawned on the Tokio runtime.

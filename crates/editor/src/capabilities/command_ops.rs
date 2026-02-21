@@ -47,13 +47,7 @@ impl CommandEditorOps for EditorCaps<'_> {
 
 	fn set_option(&mut self, key: &str, value: &str) -> Result<(), CommandError> {
 		let opt_value = super::parse_option_value(key, value)?;
-		let _ = self
-			.ed
-			.state
-			.config
-			.config
-			.global_options
-			.set_by_key(&xeno_registry::OPTIONS, key, opt_value);
+		let _ = self.ed.state.config.config.global_options.set_by_key(&xeno_registry::OPTIONS, key, opt_value);
 
 		if let Some(def) = find(key) {
 			let resolved_key = def.name_str();

@@ -21,8 +21,7 @@ use std::time::{Duration, Instant};
 
 use termina::escape::csi::{Csi, Cursor};
 use termina::{PlatformTerminal, Terminal as _};
-use xeno_editor::{CursorStyle, DrainPolicy, LoopDirectiveV2, RuntimeEvent};
-use xeno_editor::{Editor, TerminalConfig};
+use xeno_editor::{CursorStyle, DrainPolicy, Editor, LoopDirectiveV2, RuntimeEvent, TerminalConfig};
 use xeno_tui::Terminal;
 
 use crate::backend::TerminaBackend;

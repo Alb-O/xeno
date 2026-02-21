@@ -2,10 +2,7 @@
 
 use std::sync::Arc;
 
-pub use crate::core::{
-	ActionId, CommandError, CommandId, DuplicatePolicy, GutterId, HookId, KeyKind, LanguageId, MotionId, OptionId, RegistryBuilder, RegistryEntry,
-	RegistryError, RegistryIndex, RegistryMeta, RegistrySource, RuntimeRegistry, StatuslineId, TextObjectId, ThemeId,
-};
+pub use crate::core::{RegistryBuilder, RegistryEntry, RegistryError, RegistryIndex};
 use crate::options::OptionDef;
 
 macro_rules! define_domains {

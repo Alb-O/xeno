@@ -6,8 +6,7 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
-use xeno_language::LanguageId;
-use xeno_language::InjectionPolicy;
+use xeno_language::{InjectionPolicy, LanguageId};
 
 use super::policy::SyntaxTier;
 use super::tasks::TaskClass;

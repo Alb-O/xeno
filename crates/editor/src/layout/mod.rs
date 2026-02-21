@@ -31,7 +31,7 @@ mod views;
 
 pub use manager::LayoutManager;
 pub use splits::SplitError;
-pub use types::{LayerError, LayerId, SeparatorHit, SeparatorId};
+pub use types::{LayerId, SeparatorHit, SeparatorId};
 
 #[cfg(test)]
 mod tests {

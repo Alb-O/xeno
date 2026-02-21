@@ -9,8 +9,7 @@ mod render;
 use iced::widget::scrollable::{Direction as ScrollDirection, Scrollbar};
 use iced::widget::{column, container, mouse_area, pin, row, rule, scrollable, sensor, stack, text};
 use iced::{Element, Event, Fill, Font, Pixels, Point, Size, Subscription, Task, event, keyboard, mouse, time, window};
-use xeno_editor::Editor;
-use xeno_editor::{CompletionRenderPlan, CursorStyle, DrainPolicy, LoopDirectiveV2, Rect as CoreRect, RuntimeEvent};
+use xeno_editor::{CompletionRenderPlan, CursorStyle, DrainPolicy, Editor, LoopDirectiveV2, Rect as CoreRect, RuntimeEvent};
 
 use self::inspector::render_inspector_rows;
 use self::render::{background_style, render_palette_completion_menu, render_render_lines, render_statusline};

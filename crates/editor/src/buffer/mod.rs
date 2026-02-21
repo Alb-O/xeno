@@ -96,4 +96,3 @@ use xeno_registry::options::{FromOptionValue, OptionKey, OptionStore, OptionValu
 
 pub use crate::core::document::{Document, DocumentId, DocumentMetaOutcome};
 pub use crate::core::history::HistoryResult;
-pub use crate::core::undo_store::{TxnUndoStore, UndoBackend};

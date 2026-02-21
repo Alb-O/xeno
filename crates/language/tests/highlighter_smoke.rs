@@ -3,8 +3,7 @@
 use std::sync::Arc;
 
 use ropey::Rope;
-use xeno_language::LanguageLoader;
-use xeno_language::{SealedSource, Syntax, SyntaxOptions};
+use xeno_language::{LanguageLoader, SealedSource, Syntax, SyntaxOptions};
 
 #[test]
 fn test_highlighter_mapped_offsets() {
