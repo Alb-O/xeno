@@ -10,13 +10,13 @@ pub struct LinkedMetaOwned {
 	pub priority: i16,
 	pub source: RegistrySource,
 	pub mutates_buffer: bool,
-	pub short_desc: Option<String>,
+	pub short_desc: String,
 }
 
 pub trait LinkedPayload<Out: RegistryEntry>: Clone + Send + Sync + 'static {
-	/// default: use meta.name
+	/// Default: use `meta.short_desc` (always populated by the linker).
 	fn short_desc<'a>(&'a self, meta: &'a LinkedMetaOwned) -> &'a str {
-		meta.short_desc.as_deref().unwrap_or(meta.name.as_str())
+		&meta.short_desc
 	}
 
 	/// Stage C "extra keys" (e.g. options' config key). Default none.

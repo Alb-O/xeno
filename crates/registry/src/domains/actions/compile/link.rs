@@ -71,7 +71,7 @@ pub fn link_actions(spec: &ActionsSpec, handlers: impl Iterator<Item = &'static 
 					priority: common.priority,
 					source: RegistrySource::Crate(handler.crate_name),
 					mutates_buffer: common.mutates_buffer,
-					short_desc: Some(common.short_desc.clone().unwrap_or_else(|| common.description.clone())),
+					short_desc: common.short_desc.clone().unwrap_or_else(|| common.description.clone()),
 				},
 				payload: ActionPayload {
 					handler: handler.handler,

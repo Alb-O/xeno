@@ -130,13 +130,13 @@ pub fn parse_theme_value(value: &Value) -> Result<crate::themes::LinkedThemeDef>
 	Ok(LinkedThemeDef {
 		meta: crate::core::LinkedMetaOwned {
 			id,
+			short_desc: name.clone(),
 			name,
 			keys,
 			description: String::new(),
 			priority: 0,
 			source: crate::core::RegistrySource::Runtime,
 			mutates_buffer: false,
-			short_desc: None,
 		},
 		payload: crate::themes::theme::ThemePayload {
 			variant,

@@ -56,7 +56,7 @@ pub fn link_gutters(spec: &GuttersSpec, handlers: impl Iterator<Item = &'static 
 					priority: common.priority,
 					source: RegistrySource::Crate(handler.crate_name),
 					mutates_buffer: false,
-					short_desc: Some(common.name.clone()),
+					short_desc: common.name.clone(),
 				},
 				payload: GutterPayload {
 					default_enabled: meta.enabled,

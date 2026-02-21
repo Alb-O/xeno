@@ -44,7 +44,7 @@ pub fn link_commands(spec: &CommandsSpec, handlers: impl Iterator<Item = &'stati
 					priority: common.priority,
 					source: RegistrySource::Crate(handler.crate_name),
 					mutates_buffer: false,
-					short_desc: Some(common.name.clone()), // commands.rs used name as short_desc
+					short_desc: common.name.clone(), // commands.rs used name as short_desc
 				},
 				payload: CommandPayload {
 					handler: handler.handler,

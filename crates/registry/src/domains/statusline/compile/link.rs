@@ -51,7 +51,7 @@ pub fn link_statusline(spec: &StatuslineSpec, handlers: impl Iterator<Item = &'s
 					priority: common.priority,
 					source: RegistrySource::Crate(handler.crate_name),
 					mutates_buffer: false,
-					short_desc: Some(common.name.clone()),
+					short_desc: common.name.clone(),
 				},
 				payload: StatuslinePayload {
 					position: parse_position(&meta.position, &common.name),
