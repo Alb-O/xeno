@@ -4,7 +4,7 @@ use std::sync::atomic::AtomicUsize;
 
 use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
-use xeno_worker::{TaskClass, WorkerJoinSet};
+use tokio::task::JoinSet;
 
 use super::super::execution_gate::ExecutionGate;
 use super::types::{DocId, WorkKind};
@@ -15,9 +15,9 @@ use super::types::{DocId, WorkKind};
 /// backpressure system with explicit budgets and priorities.
 pub struct WorkScheduler {
 	/// Interactive work (must complete).
-	pub(super) interactive: WorkerJoinSet<()>,
+	pub(super) interactive: JoinSet<()>,
 	/// Background work (can be dropped).
-	pub(super) background: WorkerJoinSet<()>,
+	pub(super) background: JoinSet<()>,
 	/// Wakeup notify for interactive completions (including panics/cancels).
 	pub(super) interactive_notify: Arc<Notify>,
 	/// Wakeup notify for background completions (including panics/cancels).
@@ -54,8 +54,8 @@ pub(super) const CANCELLED_DOC_LRU_CAP: usize = 4096;
 impl Default for WorkScheduler {
 	fn default() -> Self {
 		Self {
-			interactive: WorkerJoinSet::new(TaskClass::Interactive),
-			background: WorkerJoinSet::new(TaskClass::Background),
+			interactive: JoinSet::new(),
+			background: JoinSet::new(),
 			interactive_notify: Arc::new(Notify::new()),
 			background_notify: Arc::new(Notify::new()),
 			gate: ExecutionGate::new(),

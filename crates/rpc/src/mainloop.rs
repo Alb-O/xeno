@@ -10,7 +10,7 @@ use pin_project_lite::pin_project;
 use tokio::io::{AsyncBufRead, AsyncWrite, AsyncWriteExt};
 use tokio::sync::{mpsc, oneshot};
 use tower_service::Service;
-use xeno_worker::{TaskClass, WorkerJoinSet};
+use tokio::task::JoinSet;
 
 use crate::event::AnyEvent;
 use crate::protocol::{Inbound, Protocol};
@@ -58,7 +58,7 @@ pub struct MainLoop<S, P: Protocol> {
 	/// Pending outgoing requests awaiting responses.
 	outgoing: HashMap<P::Id, oneshot::Sender<P::Response>>,
 	/// Concurrent request handlers in flight.
-	tasks: WorkerJoinSet<P::Response>,
+	tasks: JoinSet<P::Response>,
 	/// Protocol codec and message handling.
 	protocol: P,
 }
@@ -92,7 +92,7 @@ where
 			rx,
 			id_gen,
 			outgoing: HashMap::new(),
-			tasks: WorkerJoinSet::new(TaskClass::Interactive),
+			tasks: JoinSet::new(),
 			protocol,
 		};
 		(this, socket)

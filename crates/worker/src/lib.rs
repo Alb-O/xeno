@@ -34,7 +34,7 @@ pub use actor::{
 };
 pub use supervisor::ActorSendError;
 pub use class::TaskClass;
-pub use join_set::WorkerJoinSet;
+pub(crate) use join_set::WorkerJoinSet;
 pub(crate) use runtime::WorkerRuntime;
 
 /// Handle for an async task spawned on the Tokio runtime.

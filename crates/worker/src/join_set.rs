@@ -6,7 +6,7 @@ use crate::TaskClass;
 
 /// Join-set wrapper carrying shared worker class metadata and counters.
 #[derive(Debug)]
-pub struct WorkerJoinSet<T> {
+pub(crate) struct WorkerJoinSet<T> {
 	class: TaskClass,
 	inner: JoinSet<T>,
 	spawned_total: u64,
