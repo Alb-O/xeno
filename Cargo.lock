@@ -5924,14 +5924,14 @@ checksum = "bec9e4a500ca8864c5b47b8b482a73d62e4237670e5b5f1d6b9e3cae50f28f2b"
 
 [[package]]
 name = "xeno-buffer-display"
-version = "0.9.5"
+version = "0.9.6"
 dependencies = [
  "devicons",
 ]
 
 [[package]]
 name = "xeno-editor"
-version = "0.9.5"
+version = "0.9.6"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -5977,7 +5977,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-frontend-iced"
-version = "0.9.5"
+version = "0.9.6"
 dependencies = [
  "iced",
  "iced_core",
@@ -5988,7 +5988,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-frontend-tui"
-version = "0.9.5"
+version = "0.9.6"
 dependencies = [
  "termina",
  "tracing",
@@ -5999,7 +5999,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-input"
-version = "0.9.5"
+version = "0.9.6"
 dependencies = [
  "regex",
  "ropey",
@@ -6011,18 +6011,18 @@ dependencies = [
 
 [[package]]
 name = "xeno-invocation"
-version = "0.9.5"
+version = "0.9.6"
 dependencies = [
  "xeno-nu-data",
 ]
 
 [[package]]
 name = "xeno-invocation-spec"
-version = "0.9.5"
+version = "0.9.6"
 
 [[package]]
 name = "xeno-keymap-core"
-version = "0.9.5"
+version = "0.9.6"
 dependencies = [
  "xeno-keymap-parser",
  "xeno-primitives",
@@ -6030,7 +6030,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-keymap-parser"
-version = "0.9.5"
+version = "0.9.6"
 dependencies = [
  "serde",
  "strum",
@@ -6040,7 +6040,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-language"
-version = "0.9.5"
+version = "0.9.6"
 dependencies = [
  "cc",
  "regex",
@@ -6057,7 +6057,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-lsp"
-version = "0.9.5"
+version = "0.9.6"
 dependencies = [
  "async-trait",
  "lsp-types",
@@ -6077,7 +6077,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-lsp-framework"
-version = "0.9.5"
+version = "0.9.6"
 dependencies = [
  "lsp-types",
  "pin-project-lite",
@@ -6099,7 +6099,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-macros"
-version = "0.9.5"
+version = "0.9.6"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6108,7 +6108,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-matcher"
-version = "0.9.5"
+version = "0.9.6"
 dependencies = [
  "criterion",
  "multiversion",
@@ -6118,7 +6118,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-nu-api"
-version = "0.9.5"
+version = "0.9.6"
 dependencies = [
  "xeno-nu-data",
  "xeno-nu-nuon",
@@ -6135,7 +6135,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-nu-data"
-version = "0.9.5"
+version = "0.9.6"
 dependencies = [
  "indexmap",
  "xeno-nu-protocol",
@@ -6243,7 +6243,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-nu-runtime"
-version = "0.9.5"
+version = "0.9.6"
 dependencies = [
  "tempfile",
  "tracing",
@@ -6258,7 +6258,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-nu-safe-commands"
-version = "0.9.5"
+version = "0.9.6"
 dependencies = [
  "xeno-invocation",
  "xeno-nu-engine",
@@ -6282,7 +6282,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-primitives"
-version = "0.9.5"
+version = "0.9.6"
 dependencies = [
  "bitflags 2.11.0",
  "proptest",
@@ -6297,7 +6297,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-registry"
-version = "0.9.5"
+version = "0.9.6"
 dependencies = [
  "inventory",
  "paste",
@@ -6321,7 +6321,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-rpc"
-version = "0.9.5"
+version = "0.9.6"
 dependencies = [
  "pin-project-lite",
  "thiserror 2.0.18",
@@ -6333,7 +6333,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-syntax"
-version = "0.9.5"
+version = "0.9.6"
 dependencies = [
  "futures",
  "parking_lot",
@@ -6349,7 +6349,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-term"
-version = "0.9.5"
+version = "0.9.6"
 dependencies = [
  "anyhow",
  "clap",
@@ -6373,7 +6373,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-tree-house"
-version = "0.9.5"
+version = "0.9.6"
 dependencies = [
  "arc-swap",
  "regex",
@@ -6385,7 +6385,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-tui"
-version = "0.9.5"
+version = "0.9.6"
 dependencies = [
  "anstyle",
  "bitflags 2.11.0",
@@ -6405,7 +6405,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-worker"
-version = "0.9.5"
+version = "0.9.6"
 dependencies = [
  "async-trait",
  "tokio",
