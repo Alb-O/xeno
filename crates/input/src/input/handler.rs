@@ -1,13 +1,13 @@
 //! Input handler managing key processing and mode state.
 
 use tracing::debug;
-use xeno_keymap_core::ToKeyMap;
 use xeno_keymap_core::parser::Node;
 use xeno_primitives::{Key, KeyCode, MouseButton, MouseEvent};
 use xeno_registry::actions::BindingMode;
 use xeno_registry::keymaps::KeymapBehavior;
 use xeno_registry::{KeymapSnapshot, LookupOutcome, get_keymap_snapshot};
 
+use super::keymap_adapter::key_to_node;
 use super::types::{KeyDispatch, KeyResult, Mode};
 
 /// Modal input state machine that resolves key sequences against the keymap registry.
@@ -199,7 +199,7 @@ impl InputHandler {
 		}
 
 		let lookup_with = |k: Key, seq: &mut Vec<Node>| -> Option<LookupOutcome> {
-			let node = k.to_keymap().ok()?;
+			let node = key_to_node(k);
 			seq.push(node);
 			let res = registry.lookup(binding_mode, seq);
 			if matches!(res, LookupOutcome::None) {

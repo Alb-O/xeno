@@ -2,9 +2,55 @@
 
 use std::fmt;
 
-pub use xeno_keymap_parser::Key as KeyCode;
-
 use super::Modifiers;
+
+/// Runtime keyboard key codes used by input events.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum KeyCode {
+	BackTab,
+	Backspace,
+	Delete,
+	Down,
+	End,
+	Enter,
+	Esc,
+	Home,
+	Insert,
+	Left,
+	PageDown,
+	PageUp,
+	Right,
+	Space,
+	Tab,
+	Up,
+	F(u8),
+	Char(char),
+}
+
+impl fmt::Display for KeyCode {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self {
+			Self::Char(c) => write!(f, "{c}"),
+			Self::F(n) => write!(f, "f{n}"),
+			Self::BackTab => write!(f, "backtab"),
+			Self::Backspace => write!(f, "backspace"),
+			Self::Delete => write!(f, "delete"),
+			Self::Down => write!(f, "down"),
+			Self::End => write!(f, "end"),
+			Self::Enter => write!(f, "enter"),
+			Self::Esc => write!(f, "esc"),
+			Self::Home => write!(f, "home"),
+			Self::Insert => write!(f, "insert"),
+			Self::Left => write!(f, "left"),
+			Self::PageDown => write!(f, "pagedown"),
+			Self::PageUp => write!(f, "pageup"),
+			Self::Right => write!(f, "right"),
+			Self::Space => write!(f, "space"),
+			Self::Tab => write!(f, "tab"),
+			Self::Up => write!(f, "up"),
+		}
+	}
+}
 
 /// A key with optional modifiers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -190,6 +236,7 @@ impl From<termina::event::KeyEvent> for Key {
 			TmKeyCode::Char(c) => KeyCode::Char(c),
 			TmKeyCode::Escape => KeyCode::Esc,
 			TmKeyCode::Enter => KeyCode::Enter,
+			TmKeyCode::BackTab => KeyCode::BackTab,
 			TmKeyCode::Tab => KeyCode::Tab,
 			TmKeyCode::Backspace => KeyCode::Backspace,
 			TmKeyCode::Delete => KeyCode::Delete,

@@ -18,7 +18,6 @@ smallvec.workspace = true
 termina = { workspace = true, optional = true }
 thiserror.workspace = true
 unicode-segmentation.workspace = true
-xeno-keymap-parser.workspace = true
 xeno-tui = { workspace = true, optional = true }
 
 [dev-dependencies]

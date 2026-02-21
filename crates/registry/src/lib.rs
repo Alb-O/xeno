@@ -5,9 +5,6 @@
 //! * runtime domain packages under `src/domains/*`
 //! * serialized schema contracts under `src/schema/*`
 
-// Allow generated code to refer to this crate as `xeno_registry`
-extern crate self as xeno_registry;
-
 #[cfg(feature = "config-nuon")]
 pub mod config;
 pub mod core;

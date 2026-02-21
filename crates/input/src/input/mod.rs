@@ -5,6 +5,7 @@
 
 pub mod handler;
 pub mod insert;
+mod keymap_adapter;
 pub mod pending;
 #[cfg(test)]
 mod tests;

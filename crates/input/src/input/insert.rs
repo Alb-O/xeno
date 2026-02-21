@@ -1,11 +1,11 @@
 //! Insert mode key handling.
 
-use xeno_keymap_core::ToKeyMap;
 use xeno_primitives::{Key, KeyCode, Modifiers};
 use xeno_registry::actions::BindingMode;
 use xeno_registry::{KeymapSnapshot, LookupOutcome};
 
 use super::InputHandler;
+use super::keymap_adapter::key_to_node;
 use super::types::{KeyResult, Mode};
 
 impl InputHandler {
@@ -44,10 +44,7 @@ impl InputHandler {
 		// key_sequence accumulator and look up Insert-mode bindings.
 		let key = self.canonicalize_insert_key(key);
 
-		let node = match key.to_keymap() {
-			Ok(n) => n,
-			Err(_) => return KeyResult::Consumed,
-		};
+		let node = key_to_node(key);
 
 		self.key_sequence.push(node);
 		let result = registry.lookup(BindingMode::Insert, &self.key_sequence);

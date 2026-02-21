@@ -27,15 +27,6 @@ Notice:     crates/tui/src/widgets/terminal/LICENSE
 
 ================================================================================
 
-Component:  Keymap library
-Path:       crates/keymap/
-License:    MIT
-Copyright:  (c) 2023 Marut Khumtong
-Source:     https://github.com/rezigned/keymap-rs
-Notice:     crates/keymap/LICENSE
-
-================================================================================
-
 Component:  tree-house (syntax/highlighting core)
 Path:       crates/tree_house/
 License:    MPL-2.0
