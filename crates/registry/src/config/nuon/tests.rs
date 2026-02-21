@@ -114,14 +114,14 @@ popup: {
 }
 
 #[test]
-fn parse_config_nu_budget_and_capabilities() {
+fn parse_config_nu_budget_and_permissions() {
 	let input = r#"{
 		nu: {
 			budget: {
 				macro: { max_effects: 512, max_nodes: 100000 },
 				hook: { max_effects: 16 }
 			},
-			capabilities: {
+			permissions: {
 				macro: ["dispatch_action", "notify"],
 				hook: ["dispatch_action", "stop_propagation"]
 			}
@@ -138,12 +138,12 @@ fn parse_config_nu_budget_and_capabilities() {
 	assert_eq!(hook_budget.max_nodes, None);
 	assert!(
 		nu.permissions_macro
-			.expect("macro caps should be present")
+			.expect("macro permissions should be present")
 			.contains(&xeno_invocation::nu::NuPermission::Notify)
 	);
 	assert!(
 		nu.permissions_hook
-			.expect("hook caps should be present")
+			.expect("hook permissions should be present")
 			.contains(&xeno_invocation::nu::NuPermission::StopPropagation)
 	);
 }

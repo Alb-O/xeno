@@ -168,7 +168,7 @@ fn validate_allowed_fields(record: &Record, allowed: &[&str], parent: &str) -> R
 
 fn parse_nu_config(value: &Value) -> Result<NuConfig> {
 	let record = expect_record(value, "nu")?;
-	validate_allowed_fields(record, &["budget", "capabilities"], "nu")?;
+	validate_allowed_fields(record, &["budget", "permissions"], "nu")?;
 
 	let (budget_macro, budget_hook) = if let Some(budget_value) = record.get("budget") {
 		let budget_record = expect_record(budget_value, "nu.budget")?;
@@ -186,26 +186,26 @@ fn parse_nu_config(value: &Value) -> Result<NuConfig> {
 		(None, None)
 	};
 
-	let (permissions_macro, permissions_hook) = if let Some(capabilities_value) = record.get("capabilities") {
-		let caps_record = expect_record(capabilities_value, "nu.capabilities")?;
-		validate_allowed_fields(caps_record, &["macro", "hook"], "nu.capabilities")?;
+	let (permissions_macro, permissions_hook) = if let Some(perms_value) = record.get("permissions") {
+		let perms_record = expect_record(perms_value, "nu.permissions")?;
+		validate_allowed_fields(perms_record, &["macro", "hook"], "nu.permissions")?;
 
-		let parse_caps = |value: &Value, parent: &str| -> Result<std::collections::HashSet<xeno_invocation::nu::NuPermission>> {
+		let parse_perms = |value: &Value, parent: &str| -> Result<std::collections::HashSet<xeno_invocation::nu::NuPermission>> {
 			let list = expect_list(value, parent)?;
-			let mut caps = std::collections::HashSet::with_capacity(list.len());
+			let mut perms = std::collections::HashSet::with_capacity(list.len());
 			for (idx, item) in list.iter().enumerate() {
 				let field = format!("{parent}[{idx}]");
 				let raw = expect_string(item, &field)?;
-				let Some(cap) = xeno_invocation::nu::NuPermission::parse(raw) else {
+				let Some(perm) = xeno_invocation::nu::NuPermission::parse(raw) else {
 					return Err(ConfigError::Nuon(format!("unknown Nu permission at {field}: '{raw}'")));
 				};
-				caps.insert(cap);
+				perms.insert(perm);
 			}
-			Ok(caps)
+			Ok(perms)
 		};
 
-		let permissions_macro = caps_record.get("macro").map(|v| parse_caps(v, "nu.capabilities.macro")).transpose()?;
-		let permissions_hook = caps_record.get("hook").map(|v| parse_caps(v, "nu.capabilities.hook")).transpose()?;
+		let permissions_macro = perms_record.get("macro").map(|v| parse_perms(v, "nu.permissions.macro")).transpose()?;
+		let permissions_hook = perms_record.get("hook").map(|v| parse_perms(v, "nu.permissions.hook")).transpose()?;
 
 		(permissions_macro, permissions_hook)
 	} else {
