@@ -119,6 +119,7 @@ impl From<termina::event::MouseEvent> for MouseEvent {
 			ctrl: event.modifiers.contains(TmModifiers::CONTROL),
 			alt: event.modifiers.contains(TmModifiers::ALT),
 			shift: event.modifiers.contains(TmModifiers::SHIFT),
+			cmd: event.modifiers.contains(TmModifiers::SUPER),
 		};
 
 		let convert_button = |btn: TmButton| match btn {

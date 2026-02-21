@@ -1,6 +1,6 @@
 //! Key modifier types (Ctrl, Alt, Shift).
 
-/// Key modifiers (Ctrl, Alt, Shift).
+/// Key modifiers (Ctrl, Alt, Shift, Cmd).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct Modifiers {
 	/// Whether Ctrl is held.
@@ -9,6 +9,8 @@ pub struct Modifiers {
 	pub alt: bool,
 	/// Whether Shift is held.
 	pub shift: bool,
+	/// Whether Cmd/Logo/Super is held.
+	pub cmd: bool,
 }
 
 impl Modifiers {
@@ -17,6 +19,7 @@ impl Modifiers {
 		ctrl: false,
 		alt: false,
 		shift: false,
+		cmd: false,
 	};
 
 	/// Only Ctrl pressed.
@@ -24,6 +27,7 @@ impl Modifiers {
 		ctrl: true,
 		alt: false,
 		shift: false,
+		cmd: false,
 	};
 
 	/// Only Alt pressed.
@@ -31,6 +35,7 @@ impl Modifiers {
 		ctrl: false,
 		alt: true,
 		shift: false,
+		cmd: false,
 	};
 
 	/// Only Shift pressed.
@@ -38,6 +43,15 @@ impl Modifiers {
 		ctrl: false,
 		alt: false,
 		shift: true,
+		cmd: false,
+	};
+
+	/// Only Cmd/Logo/Super pressed.
+	pub const CMD: Self = Self {
+		ctrl: false,
+		alt: false,
+		shift: false,
+		cmd: true,
 	};
 
 	/// Returns a copy with Ctrl added.
@@ -55,8 +69,13 @@ impl Modifiers {
 		Self { shift: true, ..self }
 	}
 
+	/// Returns a copy with Cmd added.
+	pub fn cmd(self) -> Self {
+		Self { cmd: true, ..self }
+	}
+
 	/// Returns true if no modifiers are set.
 	pub fn is_empty(self) -> bool {
-		!self.ctrl && !self.alt && !self.shift
+		!self.ctrl && !self.alt && !self.shift && !self.cmd
 	}
 }

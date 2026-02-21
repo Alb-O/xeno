@@ -63,9 +63,18 @@ pub struct Key {
 
 impl Key {
 	/// Create a key from a character with no modifiers.
+	///
+	/// Whitespace characters are canonicalized: `' '` → `Space`, `'\t'` → `Tab`,
+	/// `'\n'` → `Enter`.
 	pub const fn char(c: char) -> Self {
+		let code = match c {
+			' ' => KeyCode::Space,
+			'\t' => KeyCode::Tab,
+			'\n' => KeyCode::Enter,
+			_ => KeyCode::Char(c),
+		};
 		Self {
-			code: KeyCode::Char(c),
+			code,
 			modifiers: Modifiers::NONE,
 		}
 	}
@@ -127,6 +136,19 @@ impl Key {
 			modifiers: Modifiers { shift: true, ..self.modifiers },
 			..self
 		}
+	}
+
+	/// Canonicalizes the key code so equivalent inputs have one representation.
+	///
+	/// `Char(' ')` → `Space`, `Char('\t')` → `Tab`, `Char('\n')` → `Enter`.
+	pub fn canonicalize(self) -> Self {
+		let code = match self.code {
+			KeyCode::Char(' ') => KeyCode::Space,
+			KeyCode::Char('\t') => KeyCode::Tab,
+			KeyCode::Char('\n') => KeyCode::Enter,
+			other => other,
+		};
+		Self { code, ..self }
 	}
 
 	/// Check if this is a digit key (for count prefixes).
@@ -214,6 +236,9 @@ impl fmt::Display for Key {
 		if self.modifiers.alt {
 			write!(f, "A-")?;
 		}
+		if self.modifiers.cmd {
+			write!(f, "D-")?;
+		}
 		if self.modifiers.shift {
 			write!(f, "S-")?;
 		}
@@ -222,14 +247,17 @@ impl fmt::Display for Key {
 }
 
 #[cfg(feature = "terminal-input")]
-impl From<termina::event::KeyEvent> for Key {
-	fn from(event: termina::event::KeyEvent) -> Self {
+impl TryFrom<termina::event::KeyEvent> for Key {
+	type Error = ();
+
+	fn try_from(event: termina::event::KeyEvent) -> Result<Self, ()> {
 		use termina::event::{KeyCode as TmKeyCode, Modifiers as TmModifiers};
 
 		let modifiers = Modifiers {
 			ctrl: event.modifiers.contains(TmModifiers::CONTROL),
 			alt: event.modifiers.contains(TmModifiers::ALT),
 			shift: event.modifiers.contains(TmModifiers::SHIFT),
+			cmd: event.modifiers.contains(TmModifiers::SUPER),
 		};
 
 		let code = match event.code {
@@ -250,9 +278,9 @@ impl From<termina::event::KeyEvent> for Key {
 			TmKeyCode::Left => KeyCode::Left,
 			TmKeyCode::Right => KeyCode::Right,
 			TmKeyCode::Function(n) => KeyCode::F(n),
-			_ => KeyCode::Char('\0'),
+			_ => return Err(()),
 		};
 
-		Self { code, modifiers }
+		Ok(Self { code, modifiers }.canonicalize())
 	}
 }

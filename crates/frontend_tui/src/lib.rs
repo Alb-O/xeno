@@ -163,7 +163,9 @@ fn map_terminal_event(event: termina::event::Event) -> Option<RuntimeEvent> {
 	use termina::event::{Event, KeyEventKind};
 
 	match event {
-		Event::Key(key) if matches!(key.kind, KeyEventKind::Press | KeyEventKind::Repeat) => Some(RuntimeEvent::Key(key.into())),
+		Event::Key(key) if matches!(key.kind, KeyEventKind::Press | KeyEventKind::Repeat) => {
+			key.try_into().ok().map(RuntimeEvent::Key)
+		}
 		Event::Mouse(mouse) => Some(RuntimeEvent::Mouse(mouse.into())),
 		Event::Paste(content) => Some(RuntimeEvent::Paste(content)),
 		Event::WindowResized(size) => Some(RuntimeEvent::WindowResized {

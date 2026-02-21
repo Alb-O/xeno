@@ -184,6 +184,7 @@ fn map_modifiers(modifiers: keyboard::Modifiers) -> Modifiers {
 		ctrl: modifiers.control(),
 		alt: modifiers.alt(),
 		shift: modifiers.shift(),
+		cmd: modifiers.logo(),
 	}
 }
 
@@ -214,7 +215,7 @@ fn map_key_event(key: keyboard::Key, physical_key: keyboard::key::Physical, modi
 		keyboard::Key::Unidentified => return None,
 	};
 
-	Some(Key { code, modifiers })
+	Some(Key { code, modifiers }.canonicalize())
 }
 
 fn map_mouse_button(button: mouse::Button) -> Option<CoreMouseButton> {

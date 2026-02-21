@@ -40,5 +40,8 @@ fn modifiers_to_parser(mods: &Modifiers) -> u8 {
 	if mods.shift {
 		result |= Modifier::Shift as u8;
 	}
+	if mods.cmd {
+		result |= Modifier::Cmd as u8;
+	}
 	result
 }
