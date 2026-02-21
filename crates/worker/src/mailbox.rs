@@ -196,20 +196,6 @@ impl<T> MailboxSender<T> {
 		}
 	}
 
-	/// Returns current queue length.
-	pub async fn len(&self) -> usize {
-		self.inner.state.lock().await.queue.len()
-	}
-
-	/// Returns whether the queue contains no messages.
-	pub async fn is_empty(&self) -> bool {
-		self.inner.state.lock().await.queue.is_empty()
-	}
-
-	/// Returns queue capacity.
-	pub fn capacity(&self) -> usize {
-		self.inner.capacity
-	}
 }
 
 impl<T> MailboxReceiver<T> {
@@ -232,15 +218,6 @@ impl<T> MailboxReceiver<T> {
 		}
 	}
 
-	/// Returns current queue length.
-	pub async fn len(&self) -> usize {
-		self.inner.state.lock().await.queue.len()
-	}
-
-	/// Returns whether the queue contains no messages.
-	pub async fn is_empty(&self) -> bool {
-		self.inner.state.lock().await.queue.is_empty()
-	}
 }
 
 #[cfg(test)]
@@ -506,25 +483,7 @@ mod tests {
 		assert_eq!(rx.recv().await, Some(42));
 	}
 
-	#[tokio::test]
-	async fn len_tracks_queue_depth() {
-		let mailbox = Mailbox::backpressure(4);
-		let tx = mailbox.sender();
-		let rx = mailbox.receiver();
-
-		assert_eq!(tx.len().await, 0);
-		assert_eq!(rx.len().await, 0);
-
-		let _ = tx.send(1u32).await;
-		let _ = tx.send(2).await;
-		assert_eq!(tx.len().await, 2);
-		assert_eq!(rx.len().await, 2);
-
-		let _ = rx.recv().await;
-		assert_eq!(tx.len().await, 1);
-	}
-
-	#[tokio::test]
+#[tokio::test]
 	async fn close_now_is_best_effort() {
 		let mailbox = Mailbox::backpressure(4);
 		let tx = mailbox.sender();
