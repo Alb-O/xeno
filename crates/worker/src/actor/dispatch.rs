@@ -192,7 +192,7 @@ where
 	}
 
 	/// Returns an actor event subscription receiver.
-	pub fn subscribe(&self) -> tokio::sync::broadcast::Receiver<Evt> {
+	pub fn subscribe(&self) -> crate::ActorEventReceiver<Evt> {
 		self.actor.subscribe()
 	}
 

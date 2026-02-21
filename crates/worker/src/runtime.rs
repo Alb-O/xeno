@@ -58,7 +58,7 @@ impl WorkerRuntime {
 	}
 
 	/// Spawns an async task.
-	pub fn spawn<F>(&self, class: TaskClass, fut: F) -> tokio::task::JoinHandle<F::Output>
+	pub fn spawn<F>(&self, class: TaskClass, fut: F) -> crate::TaskHandle<F::Output>
 	where
 		F: Future + Send + 'static,
 		F::Output: Send + 'static,
@@ -67,7 +67,7 @@ impl WorkerRuntime {
 	}
 
 	/// Spawns blocking work.
-	pub fn spawn_blocking<F, R>(&self, class: TaskClass, f: F) -> tokio::task::JoinHandle<R>
+	pub fn spawn_blocking<F, R>(&self, class: TaskClass, f: F) -> crate::TaskHandle<R>
 	where
 		F: FnOnce() -> R + Send + 'static,
 		R: Send + 'static,
@@ -76,7 +76,7 @@ impl WorkerRuntime {
 	}
 
 	/// Spawns an OS thread.
-	pub fn spawn_thread<F, R>(&self, class: TaskClass, f: F) -> std::thread::JoinHandle<R>
+	pub fn spawn_thread<F, R>(&self, class: TaskClass, f: F) -> crate::ThreadHandle<R>
 	where
 		F: FnOnce() -> R + Send + 'static,
 		R: Send + 'static,
@@ -85,7 +85,7 @@ impl WorkerRuntime {
 	}
 
 	/// Spawns a named OS thread.
-	pub fn spawn_named_thread<F, R>(&self, class: TaskClass, name: impl Into<String>, f: F) -> std::io::Result<std::thread::JoinHandle<R>>
+	pub fn spawn_named_thread<F, R>(&self, class: TaskClass, name: impl Into<String>, f: F) -> std::io::Result<crate::ThreadHandle<R>>
 	where
 		F: FnOnce() -> R + Send + 'static,
 		R: Send + 'static,

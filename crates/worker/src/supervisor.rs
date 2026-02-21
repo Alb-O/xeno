@@ -493,7 +493,7 @@ where
 	}
 
 	/// Subscribes to actor events.
-	pub fn subscribe(&self) -> broadcast::Receiver<Evt> {
+	pub fn subscribe(&self) -> crate::ActorEventReceiver<Evt> {
 		self.events.subscribe()
 	}
 

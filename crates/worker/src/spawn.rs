@@ -1,7 +1,6 @@
 use std::future::Future;
 
 use tokio::runtime::Handle;
-use tokio::task::JoinHandle;
 
 use crate::TaskClass;
 
@@ -18,7 +17,7 @@ pub(crate) fn current_handle() -> Handle {
 /// This is the only sanctioned entry point for `tokio::spawn` in the workspace.
 /// Panics if called outside a tokio runtime context.
 #[allow(clippy::disallowed_methods)]
-pub fn spawn<F>(class: TaskClass, fut: F) -> JoinHandle<F::Output>
+pub fn spawn<F>(class: TaskClass, fut: F) -> crate::TaskHandle<F::Output>
 where
 	F: Future + Send + 'static,
 	F::Output: Send + 'static,
@@ -32,7 +31,7 @@ where
 /// This is the only sanctioned entry point for `tokio::task::spawn_blocking` in the workspace.
 /// Panics if called outside a tokio runtime context.
 #[allow(clippy::disallowed_methods)]
-pub fn spawn_blocking<F, R>(class: TaskClass, f: F) -> JoinHandle<R>
+pub fn spawn_blocking<F, R>(class: TaskClass, f: F) -> crate::TaskHandle<R>
 where
 	F: FnOnce() -> R + Send + 'static,
 	R: Send + 'static,
@@ -45,7 +44,7 @@ where
 ///
 /// This is the only sanctioned entry point for `std::thread::spawn` in the workspace.
 #[allow(clippy::disallowed_methods)]
-pub fn spawn_thread<F, R>(class: TaskClass, f: F) -> std::thread::JoinHandle<R>
+pub fn spawn_thread<F, R>(class: TaskClass, f: F) -> crate::ThreadHandle<R>
 where
 	F: FnOnce() -> R + Send + 'static,
 	R: Send + 'static,
@@ -58,7 +57,7 @@ where
 ///
 /// This is the only sanctioned entry point for `std::thread::Builder::spawn` in the workspace.
 #[allow(clippy::disallowed_methods)]
-pub fn spawn_named_thread<F, R>(class: TaskClass, name: impl Into<String>, f: F) -> std::io::Result<std::thread::JoinHandle<R>>
+pub fn spawn_named_thread<F, R>(class: TaskClass, name: impl Into<String>, f: F) -> std::io::Result<crate::ThreadHandle<R>>
 where
 	F: FnOnce() -> R + Send + 'static,
 	R: Send + 'static,
