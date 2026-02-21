@@ -519,12 +519,38 @@
         */
       ],
       lsp_servers: [
+        roslyn-language-server,
         omnisharp,
         csharp-ls
       ],
       roots: [
         sln,
         csproj
+      ]
+    },
+    {
+      common: {
+        name: c3
+      },
+      scope: "source.c3",
+      injection_regex: c3,
+      extensions: [
+        c3,
+        c3i,
+        c3t
+      ],
+      comment_tokens: [
+        //
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        c3-lsp
+      ],
+      roots: [
+        "project.json"
       ]
     },
     {
@@ -652,7 +678,8 @@
         cjs,
         rules,
         "es6",
-        pac
+        pac,
+        gs
       ],
       filenames: [
         ".node_repl_history",
@@ -807,6 +834,24 @@
       auto_format: true,
       extensions: [
         scss
+      ],
+      block_comment: [
+        /*,
+        */
+      ],
+      lsp_servers: [
+        vscode-css-language-server
+      ]
+    },
+    {
+      common: {
+        name: less
+      },
+      scope: "source.less",
+      injection_regex: less,
+      auto_format: true,
+      extensions: [
+        less
       ],
       block_comment: [
         /*,
@@ -987,6 +1032,9 @@
         Gymfile,
         ".irbrc"
       ],
+      globs: [
+        "*.Brewfile"
+      ],
       shebangs: [
         ruby
       ],
@@ -1080,7 +1128,8 @@
         ".xinitrc",
         xinitrc,
         ".xserverrc",
-        xserverrc
+        xserverrc,
+        direnvrc
       ],
       globs: [
         bash-completion/completions/*,
@@ -1312,6 +1361,9 @@
       ],
       comment_tokens: [
         "#"
+      ],
+      lsp_servers: [
+        smalisp
       ]
     },
     {
@@ -1443,6 +1495,13 @@
       },
       scope: "source.luap",
       injection_regex: luap
+    },
+    {
+      common: {
+        name: lua-format-string
+      },
+      scope: "source.lua-format-string",
+      injection_regex: lua-format-string
     },
     {
       common: {
@@ -1673,6 +1732,27 @@
     },
     {
       common: {
+        name: picat
+      },
+      scope: "source.picat",
+      injection_regex: "(pi|picat)",
+      extensions: [
+        pi,
+        picat
+      ],
+      shebangs: [
+        picat
+      ],
+      comment_tokens: [
+        %
+      ],
+      block_comment: [
+        /*,
+        */
+      ]
+    },
+    {
+      common: {
         name: prolog
       },
       scope: "source.prolog",
@@ -1791,7 +1871,23 @@
         */
       ],
       lsp_servers: [
-        glsl_analyzer
+        glsl_analyzer,
+        glsld
+      ]
+    },
+    {
+      common: {
+        name: penrose
+      },
+      scope: "source.penrose",
+      auto_format: false,
+      extensions: [
+        substance,
+        style,
+        domain
+      ],
+      comment_tokens: [
+        --
       ]
     },
     {
@@ -2221,6 +2317,24 @@
     },
     {
       common: {
+        name: github-action
+      },
+      scope: "source.yaml.github-action",
+      grammar_name: yaml,
+      globs: [
+        ".github/workflows/*.yaml",
+        ".github/workflows/*.yml"
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      lsp_servers: [
+        actions-language-server,
+        yaml-language-server
+      ]
+    },
+    {
+      common: {
         name: diff
       },
       scope: "source.diff",
@@ -2274,7 +2388,11 @@
         gitconfig,
         ".gitconfig",
         ".git/config",
-        ".config/git/config"
+        ".config/git/config",
+        "config.worktree"
+      ],
+      globs: [
+        ".git/modules/*/config"
       ],
       comment_tokens: [
         "#"
@@ -2606,6 +2724,7 @@
         "#"
       ],
       lsp_servers: [
+        robotcode,
         robotframework_ls
       ]
     },
@@ -2821,7 +2940,8 @@
         "#"
       ],
       lsp_servers: [
-        nu-lsp
+        nu-lsp,
+        nu-lint
       ]
     },
     {
@@ -3724,7 +3844,8 @@
       globs: [
         ".env.*",
         ".envrc.*",
-        _environment-*
+        _environment-*,
+        ".bazeliskrc"
       ],
       comment_tokens: [
         "#"
@@ -4450,7 +4571,7 @@
         "jj/config.toml"
       ],
       globs: [
-        "jj/conf.d/*.toml",
+        "jj/**/*.toml",
         ".jj/repo/*.toml"
       ],
       comment_tokens: [
@@ -6039,6 +6160,59 @@
       block_comment: [
         /*,
         */
+      ]
+    },
+    {
+      common: {
+        name: qmv
+      },
+      scope: "source.qmv",
+      globs: [
+        "/tmp/qmv*"
+      ]
+    },
+    {
+      common: {
+        name: klog
+      },
+      scope: "source.klg",
+      injection_regex: klg,
+      extensions: [
+        klg
+      ]
+    },
+    {
+      common: {
+        name: tilt
+      },
+      scope: "source.tilt",
+      grammar_name: python,
+      injection_regex: "[Tt]ilt(file)?",
+      auto_format: true,
+      filenames: [
+        Tiltfile,
+        tiltfile
+      ],
+      comment_tokens: [
+        "#"
+      ],
+      lsp_servers: [
+        tilt
+      ]
+    },
+    {
+      common: {
+        name: gnuplot
+      },
+      scope: "source.gnuplot",
+      injection_regex: gnuplot,
+      extensions: [
+        gnuplot,
+        plot,
+        plt
+      ],
+      comment_tokens: [
+        "#"
       ]
     }
   ]
