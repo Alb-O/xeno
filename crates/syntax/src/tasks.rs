@@ -79,15 +79,13 @@ pub(super) struct TaskDone {
 pub(crate) struct TaskCollector {
 	next_id: u64,
 	tasks: FxHashMap<u64, JoinHandle<TaskDone>>,
-	runtime: xeno_worker::WorkerRuntime,
 }
 
 impl TaskCollector {
-	pub(super) fn new_with_runtime(runtime: xeno_worker::WorkerRuntime) -> Self {
+	pub(super) fn new() -> Self {
 		Self {
 			next_id: 0,
 			tasks: FxHashMap::default(),
-			runtime,
 		}
 	}
 

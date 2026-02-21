@@ -302,7 +302,6 @@ impl Registry {
 			self.inflight.clone(),
 			inflight.clone(),
 			self.transport.clone(),
-			self.worker_runtime.clone(),
 		);
 
 		// Re-check state after lock acquisition to prevent double-start
@@ -485,7 +484,6 @@ struct StartGuard {
 	inflight_map: InFlightMap,
 	inflight: Arc<InFlightStart>,
 	transport: Arc<dyn LspTransport>,
-	worker_runtime: xeno_worker::WorkerRuntime,
 	started_id: Option<LanguageServerId>,
 	completed: bool,
 }
@@ -496,14 +494,12 @@ impl StartGuard {
 		inflight_map: InFlightMap,
 		inflight: Arc<InFlightStart>,
 		transport: Arc<dyn LspTransport>,
-		worker_runtime: xeno_worker::WorkerRuntime,
 	) -> Self {
 		Self {
 			key,
 			inflight_map,
 			inflight,
 			transport,
-			worker_runtime,
 			started_id: None,
 			completed: false,
 		}
@@ -539,7 +535,6 @@ impl Drop for StartGuard {
 		let inflight_map = Arc::clone(&self.inflight_map);
 		let tx = self.inflight.tx.clone();
 		let transport = Arc::clone(&self.transport);
-		let worker_runtime = self.worker_runtime.clone();
 		let started_id = self.started_id;
 
 		xeno_worker::spawn(xeno_worker::TaskClass::Background, async move {

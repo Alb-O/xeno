@@ -66,7 +66,6 @@ pub struct NuScheduleFiredMsg {
 
 /// Unified Nu pipeline state for runtime, executor, and hook/macro lifecycle.
 pub(crate) struct NuCoordinatorState {
-	worker_runtime: xeno_worker::WorkerRuntime,
 	runtime: Option<NuRuntime>,
 	executor: Option<NuExecutor>,
 	hook_id: CachedHookId,
@@ -84,12 +83,7 @@ pub(crate) struct NuCoordinatorState {
 
 impl NuCoordinatorState {
 	pub(crate) fn new() -> Self {
-		Self::new_with_runtime(xeno_worker::WorkerRuntime::new())
-	}
-
-	pub(crate) fn new_with_runtime(worker_runtime: xeno_worker::WorkerRuntime) -> Self {
 		Self {
-			worker_runtime,
 			runtime: None,
 			executor: None,
 			hook_id: CachedHookId::default(),

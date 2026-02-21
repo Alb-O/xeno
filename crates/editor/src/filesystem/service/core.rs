@@ -105,7 +105,6 @@ pub(crate) enum FsSearchEvt {
 }
 
 struct FsIndexerActor {
-	worker_runtime: xeno_worker::WorkerRuntime,
 	command_port: Arc<std::sync::OnceLock<xeno_worker::ActorCommandPort<FsServiceCmd>>>,
 }
 
@@ -118,10 +117,8 @@ impl xeno_worker::Actor for FsIndexerActor {
 		match cmd {
 			FsIndexerCmd::Start { generation, root, options } => {
 				let command_port = Arc::clone(&self.command_port);
-				let runtime = self.worker_runtime.clone();
 				xeno_worker::spawn_thread(xeno_worker::TaskClass::IoBlocking, move || {
 					run_filesystem_index(
-						runtime,
 						generation,
 						root,
 						options,
@@ -140,7 +137,6 @@ impl xeno_worker::Actor for FsIndexerActor {
 }
 
 struct FsSearchActor {
-	worker_runtime: xeno_worker::WorkerRuntime,
 	command_port: Arc<std::sync::OnceLock<xeno_worker::ActorCommandPort<FsServiceCmd>>>,
 	data: SearchData,
 	generation: Option<u64>,
@@ -185,7 +181,6 @@ impl xeno_worker::Actor for FsSearchActor {
 					let latest_query_id = Arc::clone(latest_query_id);
 					let data = self.data.clone();
 					let command_port = Arc::clone(&self.command_port);
-					let runtime = self.worker_runtime.clone();
 					xeno_worker::spawn(xeno_worker::TaskClass::Background, async move {
 						let result = xeno_worker::spawn_blocking(xeno_worker::TaskClass::CpuBlocking, move || {
 								run_search_query(generation, id, &query, limit, &data, latest_query_id.as_ref())
@@ -471,10 +466,8 @@ impl FsService {
 		let indexer = Arc::new(
 			worker_runtime.spawn_actor(
 				xeno_worker::ActorSpec::new("fs.indexer", xeno_worker::TaskClass::IoBlocking, {
-					let worker_runtime = worker_runtime.clone();
 					let service_command_port = Arc::clone(&service_command_port);
 					move || FsIndexerActor {
-						worker_runtime: worker_runtime.clone(),
 						command_port: Arc::clone(&service_command_port),
 					}
 				})
@@ -490,10 +483,8 @@ impl FsService {
 		let search = Arc::new(
 			worker_runtime.spawn_actor(
 				xeno_worker::ActorSpec::new("fs.search", xeno_worker::TaskClass::CpuBlocking, {
-					let worker_runtime = worker_runtime.clone();
 					let service_command_port = Arc::clone(&service_command_port);
 					move || FsSearchActor {
-						worker_runtime: worker_runtime.clone(),
 						command_port: Arc::clone(&service_command_port),
 						data: SearchData::default(),
 						generation: None,

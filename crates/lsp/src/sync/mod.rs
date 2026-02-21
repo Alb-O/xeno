@@ -196,8 +196,6 @@ pub struct DocumentSync {
 	registry: Arc<Registry>,
 	/// Document state manager.
 	documents: Arc<DocumentStateManager>,
-	/// Shared worker runtime for async helper tasks.
-	worker_runtime: xeno_worker::WorkerRuntime,
 	/// Optional sender for routing workspace/applyEdit requests to the editor.
 	apply_edit_tx: Option<ApplyEditSender>,
 }
@@ -206,7 +204,6 @@ impl DocumentSync {
 	/// Create a new document sync coordinator with a pre-configured registry.
 	pub fn with_registry(registry: Arc<Registry>, documents: Arc<DocumentStateManager>) -> Self {
 		Self {
-			worker_runtime: registry.worker_runtime(),
 			registry,
 			documents,
 			apply_edit_tx: None,
@@ -225,7 +222,6 @@ impl DocumentSync {
 		let sync = Self {
 			registry: registry.clone(),
 			documents: documents.clone(),
-			worker_runtime,
 			apply_edit_tx: None,
 		};
 

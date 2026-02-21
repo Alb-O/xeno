@@ -104,7 +104,7 @@ pub(crate) fn serialize_buffer(buffer: &crate::buffer::Buffer) -> Vec<u8> {
 /// * [`SaveError::ReadOnly`] — buffer is marked read-only
 /// * [`SaveError::Io`] — write_atomic failed
 /// * [`SaveError::TaskFailed`] — spawn_blocking panicked
-pub(crate) async fn save_buffer_to_disk(buffer: &crate::buffer::Buffer, worker_runtime: &xeno_worker::WorkerRuntime) -> Result<std::path::PathBuf, SaveError> {
+pub(crate) async fn save_buffer_to_disk(buffer: &crate::buffer::Buffer) -> Result<std::path::PathBuf, SaveError> {
 	let path = buffer.path().map(|p| p.to_path_buf()).ok_or(SaveError::NoPath)?;
 	if buffer.is_readonly() {
 		return Err(SaveError::ReadOnly(path.display().to_string()));
@@ -164,7 +164,7 @@ mod tests {
 		assert!(editor.state.core.editor.buffers.get_buffer(view_id).unwrap().modified());
 
 		let buffer = editor.state.core.editor.buffers.get_buffer(view_id).unwrap();
-		let saved_path = save_buffer_to_disk(buffer, &editor.state.async_state.worker_runtime).await.unwrap();
+		let saved_path = save_buffer_to_disk(buffer).await.unwrap();
 		assert_eq!(saved_path, path);
 		assert_eq!(std::fs::read_to_string(&path).unwrap(), "new\n");
 	}
@@ -180,7 +180,7 @@ mod tests {
 		editor.state.core.editor.buffers.get_buffer_mut(view_id).unwrap().set_readonly(true);
 
 		let buffer = editor.state.core.editor.buffers.get_buffer(view_id).unwrap();
-		let err = save_buffer_to_disk(buffer, &editor.state.async_state.worker_runtime).await.unwrap_err();
+		let err = save_buffer_to_disk(buffer).await.unwrap_err();
 		assert!(matches!(err, SaveError::ReadOnly(_)), "expected ReadOnly, got: {err}");
 		assert_eq!(std::fs::read_to_string(&path).unwrap(), "locked\n", "disk must be unchanged");
 	}

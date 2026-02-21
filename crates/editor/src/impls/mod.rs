@@ -514,7 +514,7 @@ impl Editor {
 
 	fn bootstrap_integrations(worker_runtime: &WorkerRuntime, work_scheduler: WorkScheduler) -> IntegrationStateBundle {
 		IntegrationStateBundle {
-			nu: crate::nu::coordinator::NuCoordinatorState::new_with_runtime(worker_runtime.clone()),
+			nu: crate::nu::coordinator::NuCoordinatorState::new(),
 			lsp: LspSystem::new(worker_runtime.clone()),
 			syntax_manager: xeno_syntax::SyntaxManager::new_with_runtime(
 				xeno_syntax::SyntaxManagerCfg {

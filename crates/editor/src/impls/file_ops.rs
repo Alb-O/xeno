@@ -60,7 +60,7 @@ impl Editor {
 				.buffers
 				.get_buffer(buffer_id)
 				.ok_or_else(|| CommandError::Io("buffer not found".to_string()))?;
-			crate::io::save_buffer_to_disk(buffer, &self.state.async_state.worker_runtime)
+			crate::io::save_buffer_to_disk(buffer)
 				.await
 				.map_err(|e| CommandError::Io(e.to_string()))?;
 

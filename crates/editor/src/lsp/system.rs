@@ -53,7 +53,7 @@ impl LspSystem {
 		let (ui_tx, ui_rx) = tokio::sync::mpsc::unbounded_channel();
 		let (apply_edit_tx, apply_edit_rx) = tokio::sync::mpsc::unbounded_channel();
 
-		let transport = xeno_lsp::LocalTransport::new(worker_runtime.clone());
+		let transport = xeno_lsp::LocalTransport::new();
 		let (mut session, runtime) = LspSession::new(transport, worker_runtime.clone());
 		session.sync_mut().set_apply_edit_sender(apply_edit_tx);
 		if let Err(err) = runtime.start() {
@@ -65,7 +65,7 @@ impl LspSystem {
 				session,
 				runtime,
 				sync_manager: crate::lsp::sync_manager::LspSyncManager::new(worker_runtime.clone()),
-				completion: xeno_lsp::CompletionController::new(worker_runtime),
+				completion: xeno_lsp::CompletionController::new(),
 				signature_gen: 0,
 				signature_cancel: None,
 				ui_tx,
@@ -91,7 +91,7 @@ impl LspSystem {
 				session,
 				runtime,
 				sync_manager: crate::lsp::sync_manager::LspSyncManager::new(worker_runtime.clone()),
-				completion: xeno_lsp::CompletionController::new(worker_runtime),
+				completion: xeno_lsp::CompletionController::new(),
 				signature_gen: 0,
 				signature_cancel: None,
 				ui_tx,

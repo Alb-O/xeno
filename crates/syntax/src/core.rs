@@ -12,7 +12,7 @@ impl SyntaxManager {
 		Self::new_with_runtime(cfg, xeno_worker::WorkerRuntime::new())
 	}
 
-	pub fn new_with_runtime(cfg: SyntaxManagerCfg, runtime: xeno_worker::WorkerRuntime) -> Self {
+	pub fn new_with_runtime(cfg: SyntaxManagerCfg, _runtime: xeno_worker::WorkerRuntime) -> Self {
 		let max_concurrency = cfg.max_concurrency.max(1);
 		let cfg = SyntaxManagerCfg {
 			max_concurrency,
@@ -24,7 +24,7 @@ impl SyntaxManager {
 			permits: Arc::new(Semaphore::new(max_concurrency)),
 			entries: HashMap::new(),
 			engine: Arc::new(RealSyntaxEngine),
-			collector: TaskCollector::new_with_runtime(runtime),
+			collector: TaskCollector::new(),
 			warm_docs: RecentDocLru::default(),
 			cfg,
 		}
@@ -36,7 +36,7 @@ impl SyntaxManager {
 	}
 
 	#[cfg(any(test, doc))]
-	pub fn new_with_engine_and_runtime(cfg: SyntaxManagerCfg, engine: Arc<dyn SyntaxEngine>, runtime: xeno_worker::WorkerRuntime) -> Self {
+	pub fn new_with_engine_and_runtime(cfg: SyntaxManagerCfg, engine: Arc<dyn SyntaxEngine>, _runtime: xeno_worker::WorkerRuntime) -> Self {
 		let max_concurrency = cfg.max_concurrency.max(1);
 		let cfg = SyntaxManagerCfg {
 			max_concurrency,
@@ -48,7 +48,7 @@ impl SyntaxManager {
 			permits: Arc::new(Semaphore::new(max_concurrency)),
 			entries: HashMap::new(),
 			engine,
-			collector: TaskCollector::new_with_runtime(runtime),
+			collector: TaskCollector::new(),
 			warm_docs: RecentDocLru::default(),
 			cfg,
 		}

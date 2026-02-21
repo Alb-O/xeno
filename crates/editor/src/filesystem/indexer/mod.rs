@@ -68,11 +68,11 @@ impl FilesystemOptions {
 	}
 }
 
-pub(crate) fn run_filesystem_index(runtime: xeno_worker::WorkerRuntime, generation: u64, root: PathBuf, options: FilesystemOptions, emit: IndexEmit) {
-	run_indexer(runtime, generation, root, options, emit);
+pub(crate) fn run_filesystem_index(generation: u64, root: PathBuf, options: FilesystemOptions, emit: IndexEmit) {
+	run_indexer(generation, root, options, emit);
 }
 
-fn run_indexer(runtime: xeno_worker::WorkerRuntime, generation: u64, root: PathBuf, options: FilesystemOptions, emit: IndexEmit) {
+fn run_indexer(generation: u64, root: PathBuf, options: FilesystemOptions, emit: IndexEmit) {
 	let start = Instant::now();
 	tracing::info!(generation, root = %root.display(), threads = options.thread_count(), "fs.index.start");
 

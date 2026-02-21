@@ -12,7 +12,6 @@ pub type ProgressCallback = Box<dyn Fn(&str, &str) + Send + Sync>;
 
 /// Fetch all grammars in parallel.
 pub fn fetch_all_grammars(
-	runtime: &xeno_worker::WorkerRuntime,
 	grammars: Vec<GrammarConfig>,
 	on_progress: Option<ProgressCallback>,
 ) -> Vec<(GrammarConfig, Result<FetchStatus>)> {
@@ -54,7 +53,6 @@ pub fn fetch_all_grammars(
 
 /// Build all grammars in parallel.
 pub fn build_all_grammars(
-	runtime: &xeno_worker::WorkerRuntime,
 	grammars: Vec<GrammarConfig>,
 	on_progress: Option<ProgressCallback>,
 ) -> Vec<(GrammarConfig, Result<BuildStatus>)> {

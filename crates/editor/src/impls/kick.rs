@@ -25,10 +25,8 @@ impl Editor {
 		let tx = self.msg_tx();
 		let config_themes_dir = crate::paths::get_config_dir().map(|d| d.join("themes"));
 		let data_themes_dir = crate::paths::get_data_dir().map(|d| d.join("themes"));
-		let runtime = self.state.async_state.worker_runtime.clone();
-
 		xeno_worker::spawn(xeno_worker::TaskClass::Background, async move {
-			let (themes, errors) = load_themes_blocking(runtime.clone(), config_themes_dir, data_themes_dir).await;
+			let (themes, errors) = load_themes_blocking(config_themes_dir, data_themes_dir).await;
 			send(&tx, ThemeMsg::ThemesReady { token, themes, errors });
 		});
 	}
@@ -40,7 +38,6 @@ impl Editor {
 	/// Sends [`crate::msg::IoMsg::FileLoaded`] or [`crate::msg::IoMsg::LoadFailed`] on completion.
 	pub fn kick_file_load(&self, path: PathBuf, token: u64) {
 		let tx = self.msg_tx();
-		let runtime = self.state.async_state.worker_runtime.clone();
 		xeno_worker::spawn(xeno_worker::TaskClass::IoBlocking, async move {
 			match tokio::fs::read_to_string(&path).await {
 				Ok(content) => {
@@ -88,7 +85,6 @@ impl Editor {
 		self.state.async_state.pending_lsp_catalog_load_token = Some(token);
 
 		let tx = self.msg_tx();
-		let runtime = self.state.async_state.worker_runtime.clone();
 
 		xeno_worker::spawn(xeno_worker::TaskClass::Background, async move {
 			let parsed = xeno_worker::spawn_blocking(xeno_worker::TaskClass::IoBlocking, || {
@@ -143,7 +139,6 @@ impl Editor {
 /// Returns the deduped theme list and any parse errors. Registration happens
 /// on the editor thread after token validation.
 async fn load_themes_blocking(
-	runtime: xeno_worker::WorkerRuntime,
 	config_themes_dir: Option<PathBuf>,
 	data_themes_dir: Option<PathBuf>,
 ) -> (Vec<xeno_registry::themes::LinkedThemeDef>, Vec<(String, String)>) {

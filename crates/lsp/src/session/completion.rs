@@ -48,26 +48,18 @@ pub struct CompletionRequest<T> {
 pub struct CompletionController {
 	generation: u64,
 	in_flight: Option<InFlightCompletion>,
-	worker_runtime: xeno_worker::WorkerRuntime,
 }
 
 struct InFlightCompletion {
 	cancel: CancellationToken,
 }
 
-impl Default for CompletionController {
-	fn default() -> Self {
-		Self::new(xeno_worker::WorkerRuntime::new())
-	}
-}
-
 impl CompletionController {
 	/// Creates a new completion controller.
-	pub fn new(worker_runtime: xeno_worker::WorkerRuntime) -> Self {
+	pub fn new() -> Self {
 		Self {
 			generation: 0,
 			in_flight: None,
-			worker_runtime,
 		}
 	}
 
