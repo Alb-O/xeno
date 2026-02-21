@@ -1,8 +1,6 @@
 #[cfg(test)]
 mod unit_tests {
-	use xeno_primitives::range::CharIdx;
-	use xeno_primitives::selection::Selection;
-	use xeno_primitives::{Color, Rope, Style};
+	use xeno_primitives::{CharIdx, Color, Rope, Selection, Style};
 
 	use crate::render::GutterLayout;
 	use crate::render::buffer::context::types::{BufferRenderContext, CursorStyles, RenderLayout};

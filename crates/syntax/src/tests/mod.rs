@@ -7,8 +7,7 @@ use std::time::Duration;
 use tokio::time::sleep;
 use xeno_language::LanguageLoader;
 use xeno_language::syntax::{InjectionPolicy, Syntax, SyntaxOptions};
-use xeno_primitives::transaction::Change;
-use xeno_primitives::{DocumentId, Rope, Transaction};
+use xeno_primitives::{Change, DocumentId, Rope, Transaction};
 
 use super::invariants::{EngineGuard, MockEngine};
 use super::*;

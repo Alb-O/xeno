@@ -20,9 +20,7 @@
 //!
 //! [`ActionResult`]: crate::actions::ActionResult
 
-use xeno_primitives::direction::{Axis, SeqDirection, SpatialDirection};
-use xeno_primitives::range::{CharIdx, Direction};
-use xeno_primitives::{Mode, MotionId, Selection};
+use xeno_primitives::{Axis, CharIdx, Direction, Mode, MotionId, Selection, SeqDirection, SpatialDirection};
 
 use crate::actions::{PendingAction, ScreenPosition};
 use crate::notifications::Notification;

@@ -4,7 +4,7 @@
 //! the keybinding/action registry. Integration tests that verify
 //! keybinding → action resolution are in tests/keybindings.rs.
 
-use xeno_primitives::key::Key;
+use xeno_primitives::Key;
 
 use super::InputHandler;
 

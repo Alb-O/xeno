@@ -145,7 +145,7 @@ mod tests {
 			let tx = buffer.with_doc(|doc| {
 				Transaction::change(
 					doc.content().slice(..),
-					vec![xeno_primitives::transaction::Change {
+					vec![xeno_primitives::Change {
 						start: 0,
 						end: 3,
 						replacement: Some("new".into()),

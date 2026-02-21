@@ -1,7 +1,5 @@
 use xeno_input::movement::{self, WordType};
-use xeno_primitives::range::{Direction as MoveDir, Range};
-use xeno_primitives::transaction::Change;
-use xeno_primitives::{Selection, Transaction};
+use xeno_primitives::{Change, Direction as MoveDir, Range, Selection, Transaction};
 use xeno_registry::actions::edit_op::{CharMapKind, CursorAdjust, EditPlan, PostEffect, PreEffect, SelectionOp, TextTransform};
 
 use super::super::Editor;
@@ -43,7 +41,7 @@ impl Editor {
 							.map(|r| {
 								let mut new_range = movement::move_horizontally(text, *r, *direction, *count, true);
 								if is_normal {
-									new_range.head = xeno_primitives::rope::clamp_to_cell(new_range.head, text);
+									new_range.head = xeno_primitives::clamp_to_cell(new_range.head, text);
 								}
 								new_range
 							})
@@ -67,7 +65,7 @@ impl Editor {
 							.map(|r| {
 								let mut new_range = movement::move_to_line_start(text, *r, false);
 								if is_normal {
-									new_range.head = xeno_primitives::rope::clamp_to_cell(new_range.head, text);
+									new_range.head = xeno_primitives::clamp_to_cell(new_range.head, text);
 									new_range.anchor = new_range.head;
 								}
 								new_range
@@ -92,7 +90,7 @@ impl Editor {
 							.map(|r| {
 								let mut new_range = movement::move_to_line_end(text, *r, false);
 								if is_normal {
-									new_range.head = xeno_primitives::rope::clamp_to_cell(new_range.head, text);
+									new_range.head = xeno_primitives::clamp_to_cell(new_range.head, text);
 									new_range.anchor = new_range.head;
 								}
 								new_range
@@ -218,7 +216,7 @@ impl Editor {
 							.iter()
 							.map(|r| {
 								let new_pos = if is_normal {
-									xeno_primitives::rope::clamp_to_cell(r.head + 1, text)
+									xeno_primitives::clamp_to_cell(r.head + 1, text)
 								} else {
 									(r.head + 1).min(text.len_chars())
 								};

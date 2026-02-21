@@ -13,8 +13,7 @@
 
 use std::collections::HashMap;
 
-use xeno_primitives::range::CharIdx;
-use xeno_primitives::{EditOrigin, Rope, Selection};
+use xeno_primitives::{CharIdx, EditOrigin, Rope, Selection};
 
 use crate::buffer::{DocumentId, ViewId};
 

@@ -64,7 +64,7 @@ fn approx_transaction_bytes(tx: &Transaction) -> usize {
 	tx.operations()
 		.iter()
 		.map(|op| match op {
-			xeno_primitives::transaction::Operation::Insert(ins) => ins.byte_len(),
+			xeno_primitives::Operation::Insert(ins) => ins.byte_len(),
 			_ => 0,
 		})
 		.sum::<usize>()

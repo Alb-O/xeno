@@ -1,14 +1,13 @@
 //! Built-in motion implementations.
 
 use ropey::RopeSlice;
-use xeno_primitives::graphemes::{next_grapheme_boundary, prev_grapheme_boundary};
-use xeno_primitives::range::{CharIdx, Direction, Range};
+use xeno_primitives::{CharIdx, Direction, Range, next_grapheme_boundary, prev_grapheme_boundary};
 
 use crate::motions::movement::{self, WordType, make_range};
 
 pub fn move_horizontally(text: RopeSlice, range: Range, direction: Direction, count: usize, extend: bool) -> Range {
 	let pos: CharIdx = range.head;
-	let max_pos = xeno_primitives::rope::max_cell_pos(text).unwrap_or(0);
+	let max_pos = xeno_primitives::max_cell_pos(text).unwrap_or(0);
 	let new_pos: CharIdx = match direction {
 		Direction::Forward => {
 			let mut p = pos;
@@ -87,7 +86,7 @@ motion_handler!(first_nonwhitespace, |text, range, _count, extend| {
 motion_handler!(document_start, |_text, range, _count, extend| make_range(range, 0, extend));
 
 motion_handler!(document_end, |text, range, _count, extend| {
-	let pos = xeno_primitives::rope::clamp_to_cell(text.len_chars(), text);
+	let pos = xeno_primitives::clamp_to_cell(text.len_chars(), text);
 	make_range(range, pos, extend)
 });
 

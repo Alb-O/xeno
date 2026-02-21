@@ -23,7 +23,7 @@
 //! the document state *after* all previous changes. Coalescing preserves this
 //! invariant by only merging changes that are logically adjacent.
 
-use xeno_primitives::lsp::{LspDocumentChange, LspPosition, LspRange};
+use xeno_primitives::{LspDocumentChange, LspPosition, LspRange};
 
 #[cfg(test)]
 mod tests;

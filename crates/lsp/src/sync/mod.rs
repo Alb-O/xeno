@@ -6,7 +6,7 @@ use std::sync::Arc;
 use lsp_types::{Diagnostic, TextDocumentContentChangeEvent, TextDocumentSaveReason, Uri, WorkspaceEdit};
 use ropey::Rope;
 use tokio::sync::{mpsc, oneshot};
-use xeno_primitives::lsp::LspDocumentChange;
+use xeno_primitives::LspDocumentChange;
 
 use crate::Result;
 use crate::client::{ClientHandle, LanguageServerId, LspEventHandler};
@@ -125,7 +125,7 @@ impl ChangeDispatch {
 	}
 }
 
-fn base_range_to_lsp(range: xeno_primitives::lsp::LspRange) -> lsp_types::Range {
+fn base_range_to_lsp(range: xeno_primitives::LspRange) -> lsp_types::Range {
 	lsp_types::Range {
 		start: lsp_types::Position {
 			line: range.start.line,

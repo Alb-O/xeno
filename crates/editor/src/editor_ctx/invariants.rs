@@ -1,6 +1,5 @@
 use xeno_invocation::CommandRoute;
-use xeno_primitives::range::CharIdx;
-use xeno_primitives::{Mode, Selection};
+use xeno_primitives::{CharIdx, Mode, Selection};
 use xeno_registry::actions::editor_ctx::{
 	CursorAccess, DeferredInvocationAccess, EditorCapabilities, HandleOutcome, ModeAccess, NotificationAccess, SelectionAccess,
 };

@@ -10,9 +10,7 @@ pub use objects::{select_surround_object, select_word_object};
 use ropey::RopeSlice;
 pub use search::{escape_pattern, find_all_matches, find_next, find_next_re, find_prev, find_prev_re, matches_pattern};
 pub use word::{move_to_next_word_end, move_to_next_word_start, move_to_prev_word_start};
-use xeno_primitives::graphemes::{next_grapheme_boundary, prev_grapheme_boundary};
-use xeno_primitives::range::{CharIdx, Direction, Range};
-use xeno_primitives::{max_cursor_pos, visible_line_count};
+use xeno_primitives::{CharIdx, Direction, Range, max_cursor_pos, next_grapheme_boundary, prev_grapheme_boundary, visible_line_count};
 
 /// Vim-style word boundary classification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

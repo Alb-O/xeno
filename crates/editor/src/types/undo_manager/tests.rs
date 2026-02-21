@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
-use xeno_primitives::range::CharIdx;
-use xeno_primitives::{EditOrigin, Selection};
+use xeno_primitives::{CharIdx, EditOrigin, Selection};
 
 use super::*;
 

@@ -1,4 +1,4 @@
-use xeno_primitives::range::Range;
+use xeno_primitives::Range;
 
 use crate::actions::{ActionEffects, ActionResult, ObjectSelectionKind, PendingAction, PendingKind, action_handler};
 

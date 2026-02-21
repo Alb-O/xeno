@@ -1,5 +1,4 @@
-use xeno_primitives::range::Range;
-use xeno_primitives::{Mode, MotionId, Selection, motion_ids};
+use xeno_primitives::{Mode, MotionId, Range, Selection, motion_ids};
 
 use crate::actions::{ActionEffects, ActionResult, AppEffect, Effect, MotionKind, MotionRequest, ViewEffect, action_handler, edit_op};
 

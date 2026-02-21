@@ -1,4 +1,4 @@
-use xeno_primitives::range::Direction;
+use xeno_primitives::Direction;
 use xeno_registry::actions::MotionAccess;
 
 use crate::capabilities::provider::EditorCaps;

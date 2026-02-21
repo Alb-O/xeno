@@ -1,7 +1,7 @@
 //! Diff movement logic.
 
 use ropey::RopeSlice;
-use xeno_primitives::range::{Direction, Range};
+use xeno_primitives::{Direction, Range};
 
 use super::make_range;
 

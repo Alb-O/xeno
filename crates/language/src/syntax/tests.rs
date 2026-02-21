@@ -4,7 +4,7 @@ use super::*;
 
 #[test]
 fn test_generate_edits_insert() {
-	use xeno_primitives::transaction::Change;
+	use xeno_primitives::Change;
 	let doc = Rope::from("hello world");
 	let changes = vec![Change {
 		start: 5,
@@ -22,7 +22,7 @@ fn test_generate_edits_insert() {
 
 #[test]
 fn test_generate_edits_delete() {
-	use xeno_primitives::transaction::Change;
+	use xeno_primitives::Change;
 	let doc = Rope::from("hello world");
 	let changes = vec![Change {
 		start: 5,
@@ -40,7 +40,7 @@ fn test_generate_edits_delete() {
 
 #[test]
 fn test_generate_edits_replace() {
-	use xeno_primitives::transaction::Change;
+	use xeno_primitives::Change;
 	let doc = Rope::from("hello world");
 	let changes = vec![Change {
 		start: 6,
@@ -58,7 +58,7 @@ fn test_generate_edits_replace() {
 
 #[test]
 fn test_generate_edits_multi_insert_requires_coordinate_shift() {
-	use xeno_primitives::transaction::Change;
+	use xeno_primitives::Change;
 
 	// ASCII => bytes == chars for simple assertions.
 	let doc = Rope::from("hello world"); // len_bytes = 11

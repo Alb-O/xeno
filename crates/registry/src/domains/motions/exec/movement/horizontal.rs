@@ -1,9 +1,7 @@
 //! Horizontal movement logic.
 
 use ropey::RopeSlice;
-use xeno_primitives::graphemes::{next_grapheme_boundary, prev_grapheme_boundary};
-use xeno_primitives::max_cursor_pos;
-use xeno_primitives::range::{CharIdx, Direction, Range};
+use xeno_primitives::{CharIdx, Direction, Range, max_cursor_pos, next_grapheme_boundary, prev_grapheme_boundary};
 
 use super::make_range;
 

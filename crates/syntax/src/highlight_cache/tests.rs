@@ -2,8 +2,7 @@ use std::collections::HashMap;
 
 use xeno_language::LanguageLoader;
 use xeno_language::syntax::{Syntax, SyntaxOptions};
-use xeno_primitives::Transaction;
-use xeno_primitives::transaction::Change;
+use xeno_primitives::{Change, Transaction};
 
 use super::*;
 use crate::HighlightProjectionCtx;

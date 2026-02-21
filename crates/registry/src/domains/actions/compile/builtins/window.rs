@@ -1,4 +1,4 @@
-use xeno_primitives::direction::{Axis, SeqDirection, SpatialDirection};
+use xeno_primitives::{Axis, SeqDirection, SpatialDirection};
 
 use crate::actions::{ActionResult, AppEffect, action_handler};
 

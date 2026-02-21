@@ -1,4 +1,4 @@
-use xeno_primitives::lsp::{LspDocumentChange, LspPosition, LspRange};
+use xeno_primitives::{LspDocumentChange, LspPosition, LspRange};
 
 use super::coalesce_changes;
 

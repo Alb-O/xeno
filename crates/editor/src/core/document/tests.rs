@@ -1,5 +1,4 @@
-use xeno_primitives::transaction::Change;
-use xeno_primitives::{EditCommit, EditError, EditOrigin, SyntaxPolicy, Transaction, UndoPolicy, ViewId};
+use xeno_primitives::{Change, EditCommit, EditError, EditOrigin, SyntaxPolicy, Transaction, UndoPolicy, ViewId};
 
 use super::Document;
 

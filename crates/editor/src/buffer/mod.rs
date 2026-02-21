@@ -91,8 +91,7 @@ pub(crate) use state::LockGuard;
 use xeno_input::input::InputHandler;
 use xeno_language::LanguageLoader;
 pub use xeno_primitives::ViewId;
-use xeno_primitives::range::CharIdx;
-use xeno_primitives::{Mode, Selection};
+use xeno_primitives::{CharIdx, Mode, Selection};
 use xeno_registry::options::{FromOptionValue, OptionKey, OptionStore, OptionValue, TypedOptionKey};
 
 pub use crate::core::document::{Document, DocumentId, DocumentMetaOutcome};

@@ -1,5 +1,5 @@
 pub use xeno_primitives::Mode;
-use xeno_primitives::key::ScrollDirection;
+use xeno_primitives::ScrollDirection;
 
 /// Canonical dispatch payload emitted by keymap resolution.
 #[derive(Debug, Clone)]

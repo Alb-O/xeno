@@ -1,54 +1,37 @@
 //! Core types for text editing: ranges, selections, transactions, and modes.
 
-/// Directional types for navigation and layout operations.
-pub mod direction;
-/// Edit operation types: errors, policies, and results.
-pub mod edit;
-/// Async future aliases.
-pub mod future;
-/// Backend-agnostic geometry primitives.
-pub mod geometry;
-/// Grapheme cluster boundary detection.
-pub mod graphemes;
-/// Identifier types for editor entities.
-pub mod ids;
-/// Key and mouse event types.
-pub mod key;
-/// LSP sync primitives (position/range/change).
-pub mod lsp;
-/// Editor mode definitions.
-pub mod mode;
+mod direction;
+mod edit;
+mod future;
+mod geometry;
+mod graphemes;
+mod ids;
+mod key;
+mod lsp;
+mod mode;
 /// Movement helper functions for cursor manipulation.
 pub mod movement;
-/// Pending action state types.
-pub mod pending;
-/// Common re-exports for convenience.
-pub mod prelude;
-/// Text range types: byte, char, and line indices.
-pub mod range;
-/// Rope utilities and extensions.
-pub mod rope;
-/// Selection types for single and multi-cursor editing.
-pub mod selection;
-/// Backend-neutral style primitives and optional frontend conversions.
-pub mod style;
-/// Undo/redo transaction primitives.
-pub mod transaction;
+mod pending;
+mod prelude;
+mod range;
+mod rope;
+mod selection;
+mod style;
+mod transaction;
 
-// Shared style types are re-exported to avoid duplicating xeno-tui deps
-// across multiple crates that parse themes and syntax styles.
 pub use direction::{Axis, SeqDirection, SpatialDirection};
 pub use edit::{CommitResult, EditCommit, EditError, EditOrigin, ReadOnlyReason, ReadOnlyScope, SyntaxPolicy, UndoPolicy};
-pub use future::{BoxFutureLocal, BoxFutureSend, BoxFutureStatic};
+pub use future::{BoxFutureLocal, BoxFutureSend, BoxFutureStatic, poll_once};
 pub use geometry::{Position, Rect};
+pub use graphemes::{next_grapheme_boundary, prev_grapheme_boundary};
 pub use ids::{DocumentId, MotionId, ViewId, motion_ids};
 pub use key::{Key, KeyCode, Modifiers, MouseButton, MouseEvent, ScrollDirection};
 pub use lsp::{LspChangeSet, LspDocumentChange, LspPosition, LspRange};
 pub use mode::Mode;
 pub use pending::{ObjectSelectionKind, PendingKind};
-pub use range::Range;
-pub use rope::{max_cursor_pos, visible_line_count};
+pub use range::{CharIdx, Direction, Range};
+pub use rope::{clamp_to_cell, max_cell_pos, max_cursor_pos, visible_line_count};
 pub use ropey::{Rope, RopeSlice};
 pub use selection::Selection;
 pub use style::{Color, Modifier, Style, UnderlineStyle};
-pub use transaction::{ChangeSet, Transaction};
+pub use transaction::{Bias, Change, ChangeSet, Operation, Tendril, Transaction};

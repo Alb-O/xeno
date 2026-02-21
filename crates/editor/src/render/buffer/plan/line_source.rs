@@ -1,5 +1,4 @@
-use xeno_primitives::Rope;
-use xeno_primitives::range::CharIdx;
+use xeno_primitives::{CharIdx, Rope};
 
 /// Doc-derived line content slice with offset-based access.
 ///

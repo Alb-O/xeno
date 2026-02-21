@@ -72,8 +72,7 @@
 //!
 use std::collections::HashMap;
 
-use xeno_primitives::range::{CharIdx, Range};
-use xeno_primitives::{Mode, Selection};
+use xeno_primitives::{CharIdx, Mode, Range, Selection};
 
 use super::WindowRole;
 use crate::buffer::ViewId;

@@ -1,7 +1,7 @@
 //! Line movement logic.
 
 use ropey::RopeSlice;
-use xeno_primitives::range::{CharIdx, Range};
+use xeno_primitives::{CharIdx, Range};
 
 use super::{LineBoundary, make_range};
 

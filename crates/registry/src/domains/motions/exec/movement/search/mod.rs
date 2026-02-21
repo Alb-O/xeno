@@ -3,7 +3,7 @@
 use regex::Regex;
 pub use regex::escape as escape_pattern;
 use ropey::RopeSlice;
-use xeno_primitives::range::CharIdx;
+use xeno_primitives::CharIdx;
 
 use crate::motions::Range;
 

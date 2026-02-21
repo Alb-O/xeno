@@ -1,9 +1,7 @@
 use std::collections::BTreeMap;
 use std::ops::Range as StdRange;
 
-use xeno_primitives::range::CharIdx;
-use xeno_primitives::transaction::Change;
-use xeno_primitives::{Range, Selection};
+use xeno_primitives::{Change, CharIdx, Range, Selection};
 
 use super::ActiveMode;
 

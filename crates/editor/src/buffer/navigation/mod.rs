@@ -1,7 +1,6 @@
 //! Cursor navigation for buffers.
 
-use xeno_primitives::range::{Direction as MoveDir, Range};
-use xeno_primitives::{ScrollDirection, Selection, max_cursor_pos, visible_line_count};
+use xeno_primitives::{Direction as MoveDir, Range, ScrollDirection, Selection, max_cursor_pos, visible_line_count};
 
 use super::Buffer;
 use crate::render::wrap::WrapSegment;

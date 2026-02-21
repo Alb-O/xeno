@@ -3,7 +3,7 @@
 use tracing::debug;
 use xeno_keymap_core::ToKeyMap;
 use xeno_keymap_core::parser::Node;
-use xeno_primitives::key::{Key, KeyCode, MouseButton, MouseEvent};
+use xeno_primitives::{Key, KeyCode, MouseButton, MouseEvent};
 use xeno_registry::actions::BindingMode;
 use xeno_registry::keymaps::KeymapBehavior;
 use xeno_registry::{KeymapSnapshot, LookupOutcome, get_keymap_snapshot};

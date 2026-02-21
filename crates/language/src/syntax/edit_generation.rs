@@ -1,5 +1,5 @@
 use ropey::RopeSlice;
-use xeno_primitives::transaction::Operation;
+use xeno_primitives::Operation;
 use xeno_tree_house::tree_sitter::{InputEdit, Point};
 
 /// Generates tree-sitter InputEdits from a Xeno ChangeSet.

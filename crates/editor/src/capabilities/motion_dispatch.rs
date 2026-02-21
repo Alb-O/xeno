@@ -27,7 +27,7 @@ impl MotionDispatchAccess for EditorCaps<'_> {
 					let mut target = handler(text, *range, count, extend);
 
 					if is_normal {
-						target.head = xeno_primitives::rope::clamp_to_cell(target.head, text);
+						target.head = xeno_primitives::clamp_to_cell(target.head, text);
 					}
 
 					match kind {

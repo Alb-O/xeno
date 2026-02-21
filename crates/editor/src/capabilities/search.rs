@@ -1,4 +1,4 @@
-use xeno_primitives::direction::SeqDirection;
+use xeno_primitives::SeqDirection;
 use xeno_registry::actions::SearchAccess;
 
 use crate::capabilities::provider::EditorCaps;

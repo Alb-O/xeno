@@ -1,5 +1,4 @@
-use xeno_primitives::Selection;
-use xeno_primitives::transaction::Change;
+use xeno_primitives::{Change, Selection};
 
 use super::*;
 

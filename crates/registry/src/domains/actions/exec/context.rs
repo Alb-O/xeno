@@ -3,8 +3,7 @@
 //! Provides read-only access to buffer state needed for computing action results.
 
 use ropey::RopeSlice;
-use xeno_primitives::Selection;
-use xeno_primitives::range::CharIdx;
+use xeno_primitives::{CharIdx, Selection};
 
 /// Context passed to action handlers.
 ///

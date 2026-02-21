@@ -31,10 +31,7 @@
 //! [`EditorCapabilities`]: super::EditorCapabilities
 
 use ropey::RopeSlice;
-use xeno_primitives::BoxFutureLocal;
-use xeno_primitives::direction::{Axis, SeqDirection, SpatialDirection};
-use xeno_primitives::range::{CharIdx, Direction};
-use xeno_primitives::selection::Selection;
+use xeno_primitives::{Axis, BoxFutureLocal, CharIdx, Direction, Selection, SeqDirection, SpatialDirection};
 
 use crate::actions::effects::MotionRequest;
 use crate::actions::{CommandError, Mode};

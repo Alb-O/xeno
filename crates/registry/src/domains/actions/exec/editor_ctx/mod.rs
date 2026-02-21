@@ -33,8 +33,7 @@ pub use capabilities::{
 	SplitError, SplitOps, TextAccess, ThemeAccess, UndoAccess, ViewportAccess,
 };
 pub use handlers::HandleOutcome;
-use xeno_primitives::range::CharIdx;
-use xeno_primitives::selection::Selection;
+use xeno_primitives::{CharIdx, Selection};
 
 use crate::actions::Mode;
 

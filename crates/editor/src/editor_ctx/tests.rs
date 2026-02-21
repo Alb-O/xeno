@@ -1,7 +1,6 @@
 //! Behavior-lock tests for the effect interpreter.
 
-use xeno_primitives::range::CharIdx;
-use xeno_primitives::{Mode, Selection};
+use xeno_primitives::{CharIdx, Mode, Selection};
 use xeno_registry::actions::editor_ctx::{CursorAccess, EditorCapabilities, ModeAccess, NotificationAccess, SelectionAccess};
 use xeno_registry::actions::{ActionEffects, AppEffect, UiEffect, ViewEffect};
 use xeno_registry::notifications::Notification;

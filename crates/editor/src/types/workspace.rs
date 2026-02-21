@@ -2,8 +2,7 @@
 
 use std::collections::{HashMap, VecDeque};
 
-use xeno_primitives::Key;
-use xeno_primitives::range::CharIdx;
+use xeno_primitives::{CharIdx, Key};
 
 use crate::buffer::ViewId;
 

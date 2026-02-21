@@ -24,7 +24,7 @@ pub use paragraph::*;
 pub use search::*;
 pub use vertical::*;
 pub use word::*;
-use xeno_primitives::range::{CharIdx, Range};
+use xeno_primitives::{CharIdx, Range};
 
 /// Word boundary type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

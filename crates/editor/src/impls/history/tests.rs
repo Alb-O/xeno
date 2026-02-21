@@ -1,9 +1,7 @@
 //! Behavior-lock tests for editor-level undo/redo.
 
 use proptest::prelude::*;
-use xeno_primitives::range::CharIdx;
-use xeno_primitives::transaction::Change;
-use xeno_primitives::{EditOrigin, Mode, Selection, Transaction, UndoPolicy};
+use xeno_primitives::{Change, CharIdx, EditOrigin, Mode, Selection, Transaction, UndoPolicy};
 
 use super::Editor;
 use crate::buffer::ViewId;

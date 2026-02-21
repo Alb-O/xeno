@@ -1,4 +1,4 @@
-use xeno_primitives::direction::Axis;
+use xeno_primitives::Axis;
 use xeno_registry::actions::SplitOps;
 use xeno_registry::actions::editor_ctx::SplitError;
 

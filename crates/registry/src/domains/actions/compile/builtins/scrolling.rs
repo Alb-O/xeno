@@ -1,4 +1,4 @@
-use xeno_primitives::range::Direction;
+use xeno_primitives::Direction;
 
 use crate::actions::{ActionEffects, ActionResult, ScrollAmount, action_handler};
 

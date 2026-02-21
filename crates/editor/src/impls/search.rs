@@ -14,14 +14,14 @@ impl Editor {
 	/// * `hit` - The range of the matched text.
 	/// * `add_selection` - Whether to add the hit to existing selections.
 	/// * `extend` - Whether to extend the primary selection to the match start.
-	fn apply_search_hit(&mut self, hit: xeno_primitives::range::Range, add_selection: bool, extend: bool) {
+	fn apply_search_hit(&mut self, hit: xeno_primitives::Range, add_selection: bool, extend: bool) {
 		let start = hit.min();
 		let end = hit.max();
 
 		self.buffer_mut().set_cursor(start);
 
 		if add_selection {
-			self.buffer_mut().selection.push(xeno_primitives::range::Range::new(start, end));
+			self.buffer_mut().selection.push(xeno_primitives::Range::new(start, end));
 			return;
 		}
 
@@ -128,9 +128,9 @@ impl Editor {
 		let search_result = self.buffer().with_doc(|doc| movement::find_all_matches(doc.content().slice(from..to), pattern));
 		match search_result {
 			Ok(matches) if !matches.is_empty() => {
-				let new_ranges: Vec<xeno_primitives::range::Range> = matches
+				let new_ranges: Vec<xeno_primitives::Range> = matches
 					.into_iter()
-					.map(|r| xeno_primitives::range::Range::new(from + r.min(), from + r.max()))
+					.map(|r| xeno_primitives::Range::new(from + r.min(), from + r.max()))
 					.collect();
 				let count = new_ranges.len();
 				self.buffer_mut().set_selection(Selection::from_vec(new_ranges, 0));
@@ -160,17 +160,17 @@ impl Editor {
 		let search_result = self.buffer().with_doc(|doc| movement::find_all_matches(doc.content().slice(from..to), pattern));
 		match search_result {
 			Ok(matches) if !matches.is_empty() => {
-				let mut new_ranges: Vec<xeno_primitives::range::Range> = Vec::new();
+				let mut new_ranges: Vec<xeno_primitives::Range> = Vec::new();
 				let mut last_end = from;
 				for m in matches {
 					let match_start = from + m.min();
 					if match_start > last_end {
-						new_ranges.push(xeno_primitives::range::Range::from_exclusive(last_end, match_start));
+						new_ranges.push(xeno_primitives::Range::from_exclusive(last_end, match_start));
 					}
 					last_end = from + m.to();
 				}
 				if last_end < to {
-					new_ranges.push(xeno_primitives::range::Range::from_exclusive(last_end, to));
+					new_ranges.push(xeno_primitives::Range::from_exclusive(last_end, to));
 				}
 				if !new_ranges.is_empty() {
 					let count = new_ranges.len();
@@ -193,7 +193,7 @@ impl Editor {
 	/// Keeps only selections that match (or don't match) the pattern.
 	#[allow(dead_code, reason = "keep-matching filter will be re-enabled via picker UI")]
 	pub(crate) fn keep_matching(&mut self, pattern: &str, invert: bool) -> bool {
-		let ranges_with_text: Vec<(xeno_primitives::range::Range, String)> = {
+		let ranges_with_text: Vec<(xeno_primitives::Range, String)> = {
 			let buffer = self.buffer();
 			buffer.with_doc(|doc| {
 				buffer
@@ -210,7 +210,7 @@ impl Editor {
 			})
 		};
 
-		let mut kept_ranges: Vec<xeno_primitives::range::Range> = Vec::new();
+		let mut kept_ranges: Vec<xeno_primitives::Range> = Vec::new();
 		let mut had_error = false;
 		for (range, text) in ranges_with_text {
 			match movement::matches_pattern(&text, pattern) {

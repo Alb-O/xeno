@@ -1,7 +1,7 @@
 //! Word movement functions (`w`, `b`, `e` commands).
 
 use ropey::RopeSlice;
-use xeno_primitives::range::{CharIdx, Range};
+use xeno_primitives::{CharIdx, Range};
 
 use super::{WordType, is_word_char, make_range_select};
 

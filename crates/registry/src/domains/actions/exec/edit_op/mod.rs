@@ -34,8 +34,7 @@
 //! let plan = change.compile();
 //! ```
 
-use xeno_primitives::range::Direction;
-use xeno_primitives::{EditOrigin, Mode, SyntaxPolicy, UndoPolicy};
+use xeno_primitives::{Direction, EditOrigin, Mode, SyntaxPolicy, UndoPolicy};
 
 /// A data description of a text edit operation.
 ///
@@ -197,14 +196,14 @@ pub enum SelectionOp {
 	/// Creates a collapsed selection at `head - 1`. Combined with [`Transaction::delete`]
 	/// (which is inclusive of the head cell), this deletes exactly `[head-1, head)`.
 	///
-	/// [`Transaction::delete`]: xeno_primitives::transaction::Transaction::delete
+	/// [`Transaction::delete`]: xeno_primitives::Transaction::delete
 	SelectCharBefore,
 	/// Select the character after cursor.
 	///
 	/// Creates a collapsed selection at `head`. Combined with [`Transaction::delete`]
 	/// (which is inclusive of the head cell), this deletes exactly `[head, head+1)`.
 	///
-	/// [`Transaction::delete`]: xeno_primitives::transaction::Transaction::delete
+	/// [`Transaction::delete`]: xeno_primitives::Transaction::delete
 	SelectCharAfter,
 	/// Select from cursor back to previous word start.
 	SelectWordBefore,

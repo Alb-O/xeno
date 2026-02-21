@@ -259,14 +259,14 @@ fn apply_screen_motion(ctx: &mut xeno_registry::actions::editor_ctx::EditorConte
 
 	let selection = ctx.selection();
 	let primary_index = selection.primary_index();
-	let new_ranges: Vec<xeno_primitives::range::Range> = selection
+	let new_ranges: Vec<xeno_primitives::Range> = selection
 		.ranges()
 		.iter()
 		.map(|range| {
 			if extend {
-				xeno_primitives::range::Range::new(range.anchor, target)
+				xeno_primitives::Range::new(range.anchor, target)
 			} else {
-				xeno_primitives::range::Range::point(target)
+				xeno_primitives::Range::point(target)
 			}
 		})
 		.collect();

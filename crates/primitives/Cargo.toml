@@ -4,6 +4,7 @@ description = "Basic editing primitives"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+publish = false
 
 [features]
 default = []

@@ -1,5 +1,4 @@
-use xeno_primitives::key::{Key, KeyCode};
-use xeno_primitives::{ObjectSelectionKind, PendingKind};
+use xeno_primitives::{Key, KeyCode, ObjectSelectionKind, PendingKind};
 
 use super::InputHandler;
 use super::types::{KeyDispatch, KeyResult, Mode};

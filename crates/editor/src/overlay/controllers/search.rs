@@ -3,8 +3,7 @@ use std::pin::Pin;
 
 use regex::Regex;
 use xeno_input::movement;
-use xeno_primitives::Selection;
-use xeno_primitives::range::Range;
+use xeno_primitives::{Range, Selection};
 use xeno_registry::notifications::keys;
 
 use crate::buffer::ViewId;

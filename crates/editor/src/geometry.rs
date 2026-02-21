@@ -7,4 +7,4 @@
 //! convert to backend-specific geometry types at
 //! render/event boundaries.
 
-pub use xeno_primitives::geometry::Rect;
+pub use xeno_primitives::Rect;

@@ -1,7 +1,7 @@
 //! LSP UI event handling (completions, signature help).
 
 use xeno_lsp::lsp_types::{CompletionList, CompletionResponse};
-use xeno_primitives::range::CharIdx;
+use xeno_primitives::CharIdx;
 
 use super::completion_filter::{extract_query, filter_items};
 use super::types::{LspMenuKind, LspMenuState};

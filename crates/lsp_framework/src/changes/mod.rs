@@ -5,9 +5,7 @@
 //! incremental mapping cannot be produced.
 
 use ropey::Rope;
-use xeno_primitives::Transaction;
-use xeno_primitives::lsp::{LspDocumentChange, LspPosition, LspRange};
-use xeno_primitives::transaction::Operation;
+use xeno_primitives::{LspDocumentChange, LspPosition, LspRange, Operation, Transaction};
 
 use crate::OffsetEncoding;
 use crate::position::{char_range_to_lsp_range, char_to_lsp_position};

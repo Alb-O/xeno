@@ -5,9 +5,7 @@
 
 use std::path::PathBuf;
 
-use xeno_primitives::ScrollDirection;
-use xeno_primitives::range::Direction as MoveDir;
-use xeno_primitives::selection::Selection;
+use xeno_primitives::{Direction as MoveDir, ScrollDirection, Selection};
 use xeno_registry::HookEventData;
 use xeno_registry::hooks::{HookContext, emit as emit_hook, emit_sync_with as emit_hook_sync_with};
 use xeno_registry::options::option_keys as keys;

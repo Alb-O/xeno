@@ -7,8 +7,7 @@
 use std::collections::HashMap;
 
 use tracing::{trace, trace_span, warn};
-use xeno_primitives::transaction::Operation;
-use xeno_primitives::{ChangeSet, Selection, SyntaxPolicy, Transaction, UndoPolicy};
+use xeno_primitives::{ChangeSet, Operation, Selection, SyntaxPolicy, Transaction, UndoPolicy};
 use xeno_registry::notifications::{Notification, keys};
 
 use crate::buffer::{ApplyPolicy, DocumentId, ViewId};

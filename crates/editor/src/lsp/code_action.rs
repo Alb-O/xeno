@@ -11,7 +11,7 @@
 use std::ops::Range;
 
 use xeno_lsp::lsp_types::CodeActionOrCommand;
-use xeno_primitives::range::CharIdx;
+use xeno_primitives::CharIdx;
 use xeno_registry::notifications::keys;
 
 use super::types::{LspMenuKind, LspMenuState};

@@ -14,7 +14,7 @@ pub type KeyMap = Node;
 
 /// A trait for converting a backend-specific key type into a [`KeyMap`].
 ///
-/// This is typically implemented by types like `xeno_primitives::key::Key`,
+/// This is typically implemented by types like `xeno_primitives::Key`,
 /// allowing the transformation of native input representations into the
 /// abstract `KeyMap` format used for keybinding configuration and matching.
 ///

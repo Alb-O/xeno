@@ -7,8 +7,7 @@ use std::collections::HashSet;
 
 use tracing::warn;
 use xeno_invocation::nu::NuTextEditOp;
-use xeno_primitives::transaction::Change;
-use xeno_primitives::{EditOrigin, Transaction, UndoPolicy};
+use xeno_primitives::{Change, EditOrigin, Transaction, UndoPolicy};
 
 use crate::buffer::ViewId;
 use crate::impls::Editor;

@@ -771,7 +771,7 @@ async fn workspace_edit_temp_save_dedupes_same_target_path() {
 			let tx = buffer.with_doc(|doc| {
 				Transaction::change(
 					doc.content().slice(..),
-					vec![xeno_primitives::transaction::Change {
+					vec![xeno_primitives::Change {
 						start: 0,
 						end: 8,
 						replacement: Some("modified".into()),
@@ -1236,7 +1236,7 @@ async fn resource_op_rename_updates_sync_manager_tracked_path() {
 		let before = buffer.with_doc(|doc| doc.content().clone());
 		let tx = xeno_primitives::Transaction::change(
 			before.slice(..),
-			vec![xeno_primitives::transaction::Change {
+			vec![xeno_primitives::Change {
 				start: 0,
 				end: 0,
 				replacement: Some("// comment\n".into()),
@@ -1399,7 +1399,7 @@ async fn edit_and_flush(
 		let before = buffer.with_doc(|doc| doc.content().clone());
 		let tx = xeno_primitives::Transaction::change(
 			before.slice(..),
-			vec![xeno_primitives::transaction::Change {
+			vec![xeno_primitives::Change {
 				start: 0,
 				end: 0,
 				replacement: Some("// edit\n".into()),

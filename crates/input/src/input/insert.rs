@@ -1,7 +1,7 @@
 //! Insert mode key handling.
 
 use xeno_keymap_core::ToKeyMap;
-use xeno_primitives::key::{Key, KeyCode, Modifiers};
+use xeno_primitives::{Key, KeyCode, Modifiers};
 use xeno_registry::actions::BindingMode;
 use xeno_registry::{KeymapSnapshot, LookupOutcome};
 

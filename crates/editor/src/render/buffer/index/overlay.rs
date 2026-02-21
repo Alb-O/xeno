@@ -1,8 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 
-use xeno_primitives::Selection;
-use xeno_primitives::range::CharIdx;
+use xeno_primitives::{CharIdx, Selection};
 
 /// Classification of cursor state for a given document position.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

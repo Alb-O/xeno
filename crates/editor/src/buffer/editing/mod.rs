@@ -125,7 +125,7 @@ impl Buffer {
 				self.selection
 					.ranges()
 					.iter()
-					.map(|r| movement::move_horizontally(doc.content().slice(..), *r, xeno_primitives::range::Direction::Forward, 1, false))
+					.map(|r| movement::move_horizontally(doc.content().slice(..), *r, xeno_primitives::Direction::Forward, 1, false))
 					.collect()
 			});
 			self.set_selection(xeno_primitives::Selection::from_vec(new_ranges, self.selection.primary_index()));

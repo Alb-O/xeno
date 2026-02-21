@@ -1,7 +1,7 @@
 //! Word movement logic.
 
 use ropey::RopeSlice;
-use xeno_primitives::range::{CharIdx, Direction, Range};
+use xeno_primitives::{CharIdx, Direction, Range};
 
 use super::{WordBoundary, WordType, is_word_char, make_range_select};
 

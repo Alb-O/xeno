@@ -1,4 +1,4 @@
-use xeno_primitives::direction::{SeqDirection, SpatialDirection};
+use xeno_primitives::{SeqDirection, SpatialDirection};
 use xeno_registry::actions::FocusOps;
 
 use crate::capabilities::provider::EditorCaps;

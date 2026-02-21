@@ -13,9 +13,7 @@ use xeno_lsp::lsp_types::{
 	WorkspaceEdit,
 };
 use xeno_lsp::{OffsetEncoding, lsp_range_to_char_range};
-use xeno_primitives::range::CharIdx;
-use xeno_primitives::transaction::{Change, Tendril};
-use xeno_primitives::{EditOrigin, SyntaxPolicy, Transaction, UndoPolicy};
+use xeno_primitives::{Change, CharIdx, EditOrigin, SyntaxPolicy, Tendril, Transaction, UndoPolicy};
 
 use crate::Editor;
 use crate::buffer::{ApplyPolicy, ViewId};

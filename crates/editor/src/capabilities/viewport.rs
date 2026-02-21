@@ -1,4 +1,4 @@
-use xeno_primitives::range::CharIdx;
+use xeno_primitives::CharIdx;
 use xeno_registry::actions::ViewportAccess;
 
 use crate::capabilities::provider::EditorCaps;

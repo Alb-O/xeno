@@ -15,7 +15,7 @@ pub fn test_delegator_rule() {
 ///   action executes.
 #[tokio::test(flavor = "current_thread")]
 pub async fn test_mutation_side_effect_invariant() {
-	use xeno_primitives::range::CharIdx;
+	use xeno_primitives::CharIdx;
 	use xeno_registry::actions::CursorAccess;
 
 	use crate::Editor;

@@ -167,7 +167,7 @@ impl TaskCollector {
 		let mut done = Vec::new();
 
 		self.tasks.retain(|_, handle| {
-			match xeno_primitives::future::poll_once(handle) {
+			match xeno_primitives::poll_once(handle) {
 				None => true, // Still running, keep it
 				Some(Ok(task_done)) => {
 					done.push(task_done);

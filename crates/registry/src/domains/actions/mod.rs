@@ -62,8 +62,7 @@ pub use effects::{ActionEffects, AppEffect, DeferredInvocationRequest, EditEffec
 pub use keybindings::{BindingMode, KeyBindingDef};
 pub use pending::PendingAction;
 pub use result::{ActionResult, ScreenPosition};
-pub use xeno_primitives::direction::{Axis, SeqDirection, SpatialDirection};
-pub use xeno_primitives::{Mode, ObjectSelectionKind, PendingKind};
+pub use xeno_primitives::{Axis, Mode, ObjectSelectionKind, PendingKind, SeqDirection, SpatialDirection};
 
 /// Command flags for action definitions.
 pub mod flags {

@@ -1,8 +1,7 @@
 //! Vertical movement logic.
 
 use ropey::RopeSlice;
-use xeno_primitives::range::{CharIdx, Direction, Range};
-use xeno_primitives::visible_line_count;
+use xeno_primitives::{CharIdx, Direction, Range, visible_line_count};
 
 use super::make_range;
 

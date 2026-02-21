@@ -149,7 +149,7 @@ fn split_lines_impl(ctx: &crate::actions::ActionContext) -> ActionResult {
 			};
 
 			if line_start < line_end {
-				new_ranges.push(xeno_primitives::range::Range::new(line_start, line_end));
+				new_ranges.push(xeno_primitives::Range::new(line_start, line_end));
 			}
 		}
 	}
@@ -183,7 +183,7 @@ fn duplicate_selections_down_impl(ctx: &crate::actions::ActionContext) -> Action
 
 		let new_anchor = line_col_to_char(text, target_anchor_line, anchor_col);
 		let new_head = line_col_to_char(text, target_head_line, head_col);
-		let new_range = xeno_primitives::range::Range::new(new_anchor, new_head);
+		let new_range = xeno_primitives::Range::new(new_anchor, new_head);
 
 		if !new_ranges.contains(&new_range) {
 			new_ranges.push(new_range);
@@ -219,7 +219,7 @@ fn duplicate_selections_up_impl(ctx: &crate::actions::ActionContext) -> ActionRe
 
 		let new_anchor = line_col_to_char(text, target_anchor_line, anchor_col);
 		let new_head = line_col_to_char(text, target_head_line, head_col);
-		let new_range = xeno_primitives::range::Range::new(new_anchor, new_head);
+		let new_range = xeno_primitives::Range::new(new_anchor, new_head);
 
 		if !new_ranges.contains(&new_range) {
 			new_ranges.push(new_range);

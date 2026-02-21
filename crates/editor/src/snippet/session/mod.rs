@@ -8,9 +8,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Range;
 
 use chrono::Local;
-use xeno_primitives::range::CharIdx;
-use xeno_primitives::transaction::{Bias, Change};
-use xeno_primitives::{EditOrigin, Key, KeyCode, Mode, Selection, Transaction, UndoPolicy};
+use xeno_primitives::{Bias, Change, CharIdx, EditOrigin, Key, KeyCode, Mode, Selection, Transaction, UndoPolicy};
 
 mod choice;
 mod helpers;

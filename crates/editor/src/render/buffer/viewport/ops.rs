@@ -1,5 +1,4 @@
-use xeno_primitives::range::CharIdx;
-use xeno_primitives::visible_line_count;
+use xeno_primitives::{CharIdx, visible_line_count};
 
 use super::types::ViewportEnsureEvent;
 use crate::buffer::{Buffer, Document};

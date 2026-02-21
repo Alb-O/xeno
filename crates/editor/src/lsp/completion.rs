@@ -12,9 +12,7 @@
 
 use xeno_lsp::lsp_types::{CompletionItem, CompletionTextEdit, CompletionTriggerKind, InsertTextFormat, TextEdit};
 use xeno_lsp::{CompletionRequest, CompletionTrigger, OffsetEncoding};
-use xeno_primitives::Selection;
-use xeno_primitives::range::CharIdx;
-use xeno_primitives::transaction::Bias;
+use xeno_primitives::{Bias, CharIdx, Selection};
 use xeno_registry::notifications::keys;
 
 use super::completion_filter::{extract_query, filter_items};

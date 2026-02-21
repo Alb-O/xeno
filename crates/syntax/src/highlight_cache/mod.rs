@@ -22,8 +22,7 @@ use tracing::trace;
 use xeno_language::highlight::HighlightSpan;
 use xeno_language::syntax::Syntax;
 use xeno_language::{LanguageId, LanguageLoader};
-use xeno_primitives::transaction::Bias;
-use xeno_primitives::{DocumentId, Rope, Style};
+use xeno_primitives::{Bias, DocumentId, Rope, Style};
 
 use crate::HighlightProjectionCtx;
 

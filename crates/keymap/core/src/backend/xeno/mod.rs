@@ -1,10 +1,10 @@
 //! Key event conversion for `xeno-primitives` key types.
 //!
-//! Bridges `xeno_primitives::key::Key` with the `KeyMap` (`Node`) representation
+//! Bridges `xeno_primitives::Key` with the `KeyMap` (`Node`) representation
 //! used for keybinding configuration and matching.
 
 use xeno_keymap_parser::{self as parser, Key as ParserKey, Modifier, Node};
-use xeno_primitives::key::{Key, KeyCode, Modifiers};
+use xeno_primitives::{Key, KeyCode, Modifiers};
 
 use crate::Error;
 use crate::keymap::{KeyMap, ToKeyMap};

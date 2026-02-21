@@ -1,8 +1,7 @@
 use std::future::Future;
 use std::pin::Pin;
 
-use xeno_primitives::Selection;
-use xeno_primitives::range::CharIdx;
+use xeno_primitives::{CharIdx, Selection};
 use xeno_registry::notifications::keys;
 
 use crate::buffer::ViewId;
