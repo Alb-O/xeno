@@ -255,7 +255,7 @@ mod tests {
 				timeout: Duration::from_secs(1),
 			})
 			.await;
-		assert!(report.completed);
+		assert!(report.completed());
 	}
 
 	#[tokio::test]
@@ -290,6 +290,6 @@ mod tests {
 				timeout: Duration::from_secs(1),
 			})
 			.await;
-		assert!(report.completed);
+		assert!(report.completed());
 	}
 }

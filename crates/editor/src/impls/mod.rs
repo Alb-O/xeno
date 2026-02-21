@@ -692,11 +692,11 @@ impl Editor {
 			.filesystem
 			.shutdown(xeno_worker::ActorShutdownMode::Graceful { timeout })
 			.await;
-		if report.service.timed_out || report.indexer.timed_out || report.search.timed_out {
+		if report.service.timed_out() || report.indexer.timed_out() || report.search.timed_out() {
 			tracing::warn!(
-				service_timed_out = report.service.timed_out,
-				indexer_timed_out = report.indexer.timed_out,
-				search_timed_out = report.search.timed_out,
+				service_timed_out = report.service.timed_out(),
+				indexer_timed_out = report.indexer.timed_out(),
+				search_timed_out = report.search.timed_out(),
 				"filesystem graceful shutdown timed out; forcing immediate"
 			);
 			let _ = self.state.integration.filesystem.shutdown(xeno_worker::ActorShutdownMode::Immediate).await;

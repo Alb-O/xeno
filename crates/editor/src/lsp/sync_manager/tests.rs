@@ -91,8 +91,8 @@ async fn test_shutdown_returns_completed_report() {
 			timeout: Duration::from_millis(200),
 		})
 		.await;
-	assert!(report.actor.completed);
-	assert!(!report.actor.timed_out);
+	assert!(report.actor.completed());
+	assert!(!report.actor.timed_out());
 }
 
 #[test]

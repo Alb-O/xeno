@@ -7,7 +7,6 @@ use tokio::sync::{Mutex, Notify};
 use crate::actor::{Actor, ActorHandle, ActorRuntime, ActorSpec};
 use crate::budget::{DrainBudget, DrainReport};
 use crate::join_set::WorkerJoinSet;
-use crate::registry::WorkerRegistry;
 use crate::{TaskClass, spawn};
 
 /// Drop guard that signals a [`Notify`] on completion regardless of exit path
@@ -39,7 +38,6 @@ pub struct WorkerRuntime {
 	background: Arc<Mutex<WorkerJoinSet<()>>>,
 	interactive_notify: Arc<Notify>,
 	background_notify: Arc<Notify>,
-	registry: WorkerRegistry,
 }
 
 impl Default for WorkerRuntime {
@@ -56,7 +54,6 @@ impl WorkerRuntime {
 			background: Arc::new(Mutex::new(WorkerJoinSet::new(TaskClass::Background))),
 			interactive_notify: Arc::new(Notify::new()),
 			background_notify: Arc::new(Notify::new()),
-			registry: WorkerRegistry::new(),
 		}
 	}
 
@@ -228,10 +225,6 @@ impl WorkerRuntime {
 		ActorRuntime::spawn(spec)
 	}
 
-	/// Returns the shared worker registry.
-	pub fn registry(&self) -> &WorkerRegistry {
-		&self.registry
-	}
 }
 
 #[cfg(test)]

@@ -20,9 +20,64 @@ pub enum ActorFlow {
 	Stop,
 }
 
+/// Opaque exit classification for public consumers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ActorExitKind {
+	Stopped,
+	MailboxClosed,
+	Cancelled,
+	StartupFailed,
+	HandlerFailed,
+	Panicked,
+	JoinFailed,
+}
+
+/// Opaque exit summary for public consumers.
+///
+/// Wraps the exit classification and optional error message without
+/// exposing the internal `ActorExitReason` enum variants that carry
+/// payload strings.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ActorExit {
+	kind: ActorExitKind,
+	message: Option<String>,
+}
+
+impl ActorExit {
+	pub fn kind(&self) -> ActorExitKind {
+		self.kind
+	}
+
+	pub fn message(&self) -> Option<&str> {
+		self.message.as_deref()
+	}
+
+	pub fn is_failure(&self) -> bool {
+		matches!(
+			self.kind,
+			ActorExitKind::StartupFailed | ActorExitKind::HandlerFailed | ActorExitKind::Panicked | ActorExitKind::JoinFailed
+		)
+	}
+}
+
+impl From<&ActorExitReason> for ActorExit {
+	fn from(reason: &ActorExitReason) -> Self {
+		match reason {
+			ActorExitReason::Stopped => Self { kind: ActorExitKind::Stopped, message: None },
+			ActorExitReason::MailboxClosed => Self { kind: ActorExitKind::MailboxClosed, message: None },
+			ActorExitReason::Cancelled => Self { kind: ActorExitKind::Cancelled, message: None },
+			ActorExitReason::StartupFailed(msg) => Self { kind: ActorExitKind::StartupFailed, message: Some(msg.clone()) },
+			ActorExitReason::HandlerFailed(msg) => Self { kind: ActorExitKind::HandlerFailed, message: Some(msg.clone()) },
+			ActorExitReason::Panicked => Self { kind: ActorExitKind::Panicked, message: None },
+			ActorExitReason::JoinFailed(msg) => Self { kind: ActorExitKind::JoinFailed, message: Some(msg.clone()) },
+		}
+	}
+}
+
 /// Exit reason for one supervised actor instance.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ActorExitReason {
+pub(crate) enum ActorExitReason {
 	Stopped,
 	MailboxClosed,
 	Cancelled,
@@ -98,9 +153,23 @@ pub enum ShutdownMode {
 /// Shutdown report for one actor.
 #[derive(Debug, Clone)]
 pub struct ShutdownReport {
-	pub completed: bool,
-	pub timed_out: bool,
-	pub last_exit: Option<ActorExitReason>,
+	completed: bool,
+	timed_out: bool,
+	last_exit: Option<ActorExit>,
+}
+
+impl ShutdownReport {
+	pub fn completed(&self) -> bool {
+		self.completed
+	}
+
+	pub fn timed_out(&self) -> bool {
+		self.timed_out
+	}
+
+	pub fn last_exit(&self) -> Option<&ActorExit> {
+		self.last_exit.as_ref()
+	}
 }
 
 /// Actor trait executed by the supervisor.
@@ -407,9 +476,9 @@ where
 		self.tx.close_now();
 	}
 
-	/// Returns last exit reason observed by supervisor.
-	pub async fn last_exit(&self) -> Option<ActorExitReason> {
-		self.state.last_exit.lock().await.clone()
+	/// Returns last exit summary observed by supervisor.
+	pub async fn last_exit(&self) -> Option<ActorExit> {
+		self.state.last_exit.lock().await.as_ref().map(ActorExit::from)
 	}
 
 	/// Shuts down this actor.
@@ -443,7 +512,7 @@ where
 	/// Two-phase shutdown: tries graceful first, forces immediate on timeout.
 	pub async fn shutdown_graceful_or_force(&self, timeout: Duration) -> ShutdownReport {
 		let report = self.shutdown(ShutdownMode::Graceful { timeout }).await;
-		if report.timed_out {
+		if report.timed_out() {
 			tracing::warn!(actor = %self.name, "graceful shutdown timed out; forcing immediate");
 			return self.shutdown(ShutdownMode::Immediate).await;
 		}
@@ -647,7 +716,7 @@ mod tests {
 				timeout: Duration::from_secs(1),
 			})
 			.await;
-		assert!(report.completed);
+		assert!(report.completed());
 	}
 
 	struct FailingActor {
@@ -724,8 +793,8 @@ mod tests {
 		let report = tokio::time::timeout(Duration::from_millis(500), handle.shutdown(ShutdownMode::Immediate))
 			.await
 			.expect("shutdown should not hang");
-		assert!(report.completed);
-		assert_eq!(report.last_exit, Some(ActorExitReason::Cancelled));
+		assert!(report.completed());
+		assert_eq!(report.last_exit().map(|e| e.kind()), Some(ActorExitKind::Cancelled));
 	}
 
 	struct SlowStopActor {
@@ -774,8 +843,8 @@ mod tests {
 				timeout: Duration::from_millis(10),
 			})
 			.await;
-		assert!(report.timed_out);
-		assert!(!report.completed);
+		assert!(report.timed_out());
+		assert!(!report.completed());
 		// on_stop hasn't run yet (cancel just fired, actor still tearing down).
 		assert!(!stopped.load(Ordering::SeqCst));
 
@@ -783,7 +852,7 @@ mod tests {
 		let report = tokio::time::timeout(Duration::from_secs(2), handle.shutdown(ShutdownMode::Immediate))
 			.await
 			.expect("immediate after graceful should not hang");
-		assert!(report.completed);
+		assert!(report.completed());
 		assert!(stopped.load(Ordering::SeqCst), "on_stop should have completed");
 	}
 
@@ -818,8 +887,8 @@ mod tests {
 				timeout: Duration::from_millis(200),
 			})
 			.await;
-		assert!(report.completed, "graceful shutdown should complete promptly");
-		assert!(!report.timed_out);
+		assert!(report.completed(), "graceful shutdown should complete promptly");
+		assert!(!report.timed_out());
 	}
 
 	#[tokio::test]
@@ -846,7 +915,7 @@ mod tests {
 		let report = tokio::time::timeout(Duration::from_secs(2), handle.shutdown_graceful_or_force(Duration::from_millis(10)))
 			.await
 			.expect("shutdown_graceful_or_force should not hang");
-		assert!(report.completed);
+		assert!(report.completed());
 		assert!(stopped.load(Ordering::SeqCst), "on_stop should have completed via forced immediate");
 	}
 
@@ -864,7 +933,7 @@ mod tests {
 		assert!(result.unwrap().is_err(), "send should return error on closed mailbox");
 
 		let report = handle.shutdown(ShutdownMode::Immediate).await;
-		assert!(report.completed);
+		assert!(report.completed());
 	}
 
 	struct ConcurrentStopActor {
@@ -1031,7 +1100,7 @@ mod tests {
 		// Shutdown and verify all tickers stop.
 		handle.cancel();
 		let report = handle.shutdown(ShutdownMode::Immediate).await;
-		assert!(report.completed);
+		assert!(report.completed());
 
 		// Give ticker tasks a moment to observe cancellation.
 		tokio::time::sleep(Duration::from_millis(20)).await;
@@ -1086,7 +1155,7 @@ mod tests {
 		let report = tokio::time::timeout(Duration::from_millis(500), handle.shutdown(ShutdownMode::Immediate))
 			.await
 			.expect("shutdown should not hang during backoff");
-		assert!(report.completed);
+		assert!(report.completed());
 
 		// No additional restart should have occurred.
 		assert_eq!(starts.load(Ordering::SeqCst), 1, "no restart after shutdown during backoff");
@@ -1137,11 +1206,11 @@ mod tests {
 
 		// Final exit should be Panicked.
 		let last_exit = handle.last_exit().await;
-		assert_eq!(last_exit, Some(ActorExitReason::Panicked));
+		assert_eq!(last_exit.as_ref().map(|e| e.kind()), Some(ActorExitKind::Panicked));
 
 		handle.cancel();
 		let report = handle.shutdown(ShutdownMode::Immediate).await;
-		assert!(report.completed);
+		assert!(report.completed());
 	}
 
 	#[tokio::test]
@@ -1190,7 +1259,7 @@ mod tests {
 
 		let last_exit = handle.last_exit().await;
 		assert!(
-			matches!(last_exit, Some(ActorExitReason::StartupFailed(_))),
+			last_exit.as_ref().map(|e| e.kind()) == Some(ActorExitKind::StartupFailed),
 			"final exit should be StartupFailed, got {last_exit:?}"
 		);
 
@@ -1198,7 +1267,7 @@ mod tests {
 		let report = tokio::time::timeout(Duration::from_millis(100), handle.shutdown(ShutdownMode::Immediate))
 			.await
 			.expect("shutdown should complete quickly when supervisor already exited");
-		assert!(report.completed);
+		assert!(report.completed());
 	}
 
 	#[tokio::test]

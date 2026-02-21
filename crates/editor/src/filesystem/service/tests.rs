@@ -110,10 +110,10 @@ async fn shutdown_returns_completed_reports() {
 		})
 		.await;
 
-	assert!(report.service.completed);
-	assert!(report.indexer.completed);
-	assert!(report.search.completed);
-	assert!(!report.service.timed_out);
-	assert!(!report.indexer.timed_out);
-	assert!(!report.search.timed_out);
+	assert!(report.service.completed());
+	assert!(report.indexer.completed());
+	assert!(report.search.completed());
+	assert!(!report.service.timed_out());
+	assert!(!report.indexer.timed_out());
+	assert!(!report.search.timed_out());
 }

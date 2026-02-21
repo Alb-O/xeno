@@ -9,21 +9,20 @@
 //! * generation-scoped cancellation tokens
 //! * actor runtime lifecycle orchestration with restart policies
 //! * a runtime facade with bounded managed-work draining
-//! * registry snapshots for worker status reporting
+//! * opaque actor exit summaries for public consumers
 
 pub mod actor;
 mod budget;
 mod class;
 mod join_set;
 mod mailbox;
-mod registry;
 mod runtime;
 pub mod spawn;
 mod supervisor;
 mod token;
 
 pub use actor::{
-	Actor, ActorCommandIngress, ActorCommandPort, ActorContext, ActorExitReason, ActorFlow, ActorHandle, ActorLifecyclePolicy,
+	Actor, ActorCommandIngress, ActorCommandPort, ActorContext, ActorExit, ActorExitKind, ActorFlow, ActorHandle, ActorLifecyclePolicy,
 	ActorMailboxSpec, ActorRestartPolicy, ActorRuntime,
 	ActorShutdownMode, ActorShutdownReport, ActorSpec,
 };
@@ -31,7 +30,6 @@ pub use supervisor::ActorSendError;
 pub use budget::{DrainBudget, DrainReport};
 pub use class::TaskClass;
 pub use join_set::WorkerJoinSet;
-pub use registry::{WorkerRecord, WorkerRegistry};
 pub use runtime::WorkerRuntime;
 
 #[cfg(test)]
