@@ -8,7 +8,7 @@
 //! * actor mailbox policies
 //! * generation-scoped cancellation tokens
 //! * actor runtime lifecycle orchestration with restart policies
-//! * a runtime facade with bounded managed-work draining
+//! * a runtime facade for task submission and actor spawning
 //! * opaque actor exit summaries for public consumers
 
 pub mod actor;

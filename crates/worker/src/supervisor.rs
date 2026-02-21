@@ -120,7 +120,13 @@ pub struct MailboxSpec {
 
 impl MailboxSpec {
 	/// Creates a mailbox spec with the given capacity.
+	///
+	/// # Panics
+	///
+	/// Panics if `capacity` is zero.
+	#[must_use]
 	pub fn with_capacity(capacity: usize) -> Self {
+		assert!(capacity > 0, "mailbox capacity must be > 0");
 		Self { capacity }
 	}
 }
@@ -140,13 +146,20 @@ pub struct SupervisorSpec {
 
 impl SupervisorSpec {
 	/// Sets the restart policy.
+	#[must_use]
 	pub fn restart(mut self, restart: RestartPolicy) -> Self {
 		self.restart = restart;
 		self
 	}
 
 	/// Sets the event broadcast buffer capacity.
+	///
+	/// # Panics
+	///
+	/// Panics if `size` is zero.
+	#[must_use]
 	pub fn event_buffer(mut self, size: usize) -> Self {
+		assert!(size > 0, "event buffer size must be > 0");
 		self.event_buffer = size;
 		self
 	}
@@ -270,18 +283,21 @@ where
 	}
 
 	/// Configures mailbox policy/capacity.
+	#[must_use]
 	pub fn mailbox(mut self, mailbox: MailboxSpec) -> Self {
 		self.mailbox = mailbox;
 		self
 	}
 
 	/// Configures supervisor behavior.
+	#[must_use]
 	pub fn supervisor(mut self, supervisor: SupervisorSpec) -> Self {
 		self.supervisor = supervisor;
 		self
 	}
 
 	/// Enables keyed coalescing mailboxes.
+	#[must_use]
 	pub fn coalesce_by_key<K>(mut self, key_fn: impl Fn(&A::Cmd) -> K + Send + Sync + 'static) -> Self
 	where
 		K: Eq + Send + Sync + 'static,
