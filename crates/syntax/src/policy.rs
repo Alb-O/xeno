@@ -219,6 +219,68 @@ impl TieredSyntaxPolicy {
 	}
 }
 
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn tier_for_bytes_at_s_boundary() {
+		let policy = TieredSyntaxPolicy::default();
+		assert_eq!(policy.tier_for_bytes(0), SyntaxTier::S);
+		assert_eq!(policy.tier_for_bytes(policy.s_max_bytes_inclusive), SyntaxTier::S);
+		assert_eq!(policy.tier_for_bytes(policy.s_max_bytes_inclusive + 1), SyntaxTier::M);
+	}
+
+	#[test]
+	fn tier_for_bytes_at_m_boundary() {
+		let policy = TieredSyntaxPolicy::default();
+		assert_eq!(policy.tier_for_bytes(policy.m_max_bytes_inclusive), SyntaxTier::M);
+		assert_eq!(policy.tier_for_bytes(policy.m_max_bytes_inclusive + 1), SyntaxTier::L);
+	}
+
+	#[test]
+	fn tier_for_bytes_large_stays_l() {
+		let policy = TieredSyntaxPolicy::default();
+		assert_eq!(policy.tier_for_bytes(100 * 1024 * 1024), SyntaxTier::L);
+	}
+
+	#[test]
+	fn default_thresholds_match_documented_values() {
+		let policy = TieredSyntaxPolicy::default();
+		assert_eq!(policy.s_max_bytes_inclusive, 256 * 1024, "S tier: ≤256KB");
+		assert_eq!(policy.m_max_bytes_inclusive, 1024 * 1024, "M tier: ≤1MB");
+	}
+
+	#[test]
+	fn s_tier_has_sync_bootstrap() {
+		let policy = TieredSyntaxPolicy::default();
+		assert!(policy.cfg(SyntaxTier::S).sync_bootstrap_timeout.is_some());
+		assert!(policy.cfg(SyntaxTier::M).sync_bootstrap_timeout.is_some());
+	}
+
+	#[test]
+	fn l_tier_disables_sync_bootstrap() {
+		let policy = TieredSyntaxPolicy::default();
+		assert!(policy.cfg(SyntaxTier::L).sync_bootstrap_timeout.is_none());
+	}
+
+	#[test]
+	fn l_tier_disables_eager_injections() {
+		let policy = TieredSyntaxPolicy::default();
+		assert_eq!(policy.cfg(SyntaxTier::L).injections, InjectionPolicy::Disabled);
+	}
+
+	#[test]
+	fn viewport_span_cap_is_bounded() {
+		let policy = TieredSyntaxPolicy::default();
+		for tier in [SyntaxTier::S, SyntaxTier::M, SyntaxTier::L] {
+			let cfg = policy.cfg(tier);
+			assert!(cfg.viewport_visible_span_cap > 0, "{tier:?} must have nonzero span cap");
+			assert!(cfg.viewport_visible_span_cap <= 128 * 1024, "{tier:?} span cap too large");
+		}
+	}
+}
+
 /// Global configuration for the [`crate::SyntaxManager`].
 #[derive(Debug, Clone)]
 pub struct SyntaxManagerCfg {

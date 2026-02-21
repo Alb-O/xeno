@@ -3,7 +3,7 @@ use super::*;
 /// Computes derived policy state from context and policy. Pure computation.
 pub(super) fn derive<'a>(ctx: &'a EnsureSyntaxContext<'a>, policy: &TieredSyntaxPolicy) -> EnsureBase<'a> {
 	let bytes = ctx.content.len_bytes();
-	let bytes_u32 = bytes as u32;
+	let bytes_u32 = (bytes.min(u32::MAX as usize)) as u32;
 	let tier = policy.tier_for_bytes(bytes);
 	let cfg = policy.cfg(tier);
 	let opts_key = OptKey { injections: cfg.injections };
