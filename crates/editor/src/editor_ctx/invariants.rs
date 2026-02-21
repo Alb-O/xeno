@@ -1,5 +1,3 @@
-use std::panic::catch_unwind;
-
 use xeno_invocation::CommandRoute;
 use xeno_primitives::range::CharIdx;
 use xeno_primitives::{Mode, Selection};
@@ -258,15 +256,3 @@ pub async fn test_action_result_effects_enter_apply_effects_and_defer_until_sink
 	));
 }
 
-/// Must treat unknown effect variants as debug assertions and safe no-ops in release.
-///
-/// * Enforced in: `editor_ctx::core::handle_unknown_*`
-/// * Failure symptom: future effect variants either panic in release or silently skip debug guardrails.
-#[cfg_attr(test, test)]
-pub fn test_unknown_effect_variant_behavior_is_debug_assert_and_release_noop() {
-	let result = catch_unwind(super::core::trigger_unknown_effect_fallback_for_test);
-	#[cfg(debug_assertions)]
-	assert!(result.is_err(), "debug builds should assert on unknown effect variants");
-	#[cfg(not(debug_assertions))]
-	assert!(result.is_ok(), "release builds should safely no-op unknown effect variants");
-}

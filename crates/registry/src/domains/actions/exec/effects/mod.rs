@@ -355,7 +355,6 @@ impl DeferredInvocationRequest {
 
 /// View-related effects (cursor, selection, viewport).
 #[derive(Debug, Clone)]
-#[non_exhaustive]
 pub enum ViewEffect {
 	/// Set cursor to absolute position.
 	SetCursor(CharIdx),
@@ -418,7 +417,6 @@ pub enum ViewEffect {
 
 /// Text editing effects.
 #[derive(Debug, Clone)]
-#[non_exhaustive]
 pub enum EditEffect {
 	/// Execute a data-oriented edit operation.
 	///
@@ -435,7 +433,6 @@ pub enum EditEffect {
 
 /// UI-related effects (notifications, palette, redraw).
 #[derive(Debug, Clone)]
-#[non_exhaustive]
 pub enum UiEffect {
 	/// Show a notification.
 	Notify(Notification),
@@ -458,7 +455,6 @@ pub enum UiEffect {
 
 /// Application-level effects (mode, focus, lifecycle).
 #[derive(Debug, Clone)]
-#[non_exhaustive]
 pub enum AppEffect {
 	/// Change editor mode.
 	SetMode(Mode),
@@ -546,7 +542,6 @@ pub enum AppEffect {
 ///
 /// These hooks fire immediately after each effect, not batched at the end.
 #[derive(Debug, Clone)]
-#[non_exhaustive]
 pub enum Effect {
 	/// View-related effect (cursor, selection, viewport, search).
 	View(ViewEffect),

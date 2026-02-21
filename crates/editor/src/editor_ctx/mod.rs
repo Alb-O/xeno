@@ -30,7 +30,7 @@
 //! * Must apply mixed view/ui/app effects in strict `ActionEffects` sequence order.
 //! * Must route capability-emitted side effects through sink flush paths before they become visible.
 //! * Must route action result effects through `apply_effects` at invocation/runtime boundaries.
-//! * Must handle unknown effect variants as debug assertions plus safe no-op traces in release.
+//! * Must produce compiler errors (exhaustive match) when new effect variants are added.
 //!
 //! # Data flow
 //!
@@ -55,7 +55,7 @@
 //! # Failure modes & recovery
 //!
 //! * Missing optional capability: effect branch becomes no-op with trace logging.
-//! * Unsupported effect variant: debug assertion plus no-op in release.
+//! * New effect variant without interpreter arm: compile error (exhaustive match).
 //! * Overlay request validation failure: converted to command error at sink boundary.
 //!
 //! # Recipes
