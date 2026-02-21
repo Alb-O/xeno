@@ -422,7 +422,7 @@ async fn nu_macro_capability_denial_is_command_error() {
 		.await;
 
 	assert!(
-		matches!(result.status, InvocationStatus::CommandError) && result.detail_text().is_some_and(|msg| msg.contains("denied by capability policy")),
+		matches!(result.status, InvocationStatus::CommandError) && result.detail_text().is_some_and(|msg| msg.contains("denied by permission policy")),
 		"expected macro capability denial, got: {result:?}"
 	);
 	assert_eq!(

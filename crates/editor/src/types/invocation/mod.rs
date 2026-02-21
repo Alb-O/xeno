@@ -79,7 +79,7 @@ pub enum InvocationStatus {
 	Quit,
 	ForceQuit,
 	NotFound,
-	CapabilityDenied,
+	PermissionDenied,
 	ReadonlyDenied,
 	CommandError,
 }
@@ -133,9 +133,9 @@ impl InvocationOutcome {
 		}
 	}
 
-	pub const fn capability_denied(target: InvocationTarget, capability: Capability) -> Self {
+	pub const fn permission_denied(target: InvocationTarget, capability: Capability) -> Self {
 		Self {
-			status: InvocationStatus::CapabilityDenied,
+			status: InvocationStatus::PermissionDenied,
 			target,
 			detail: Some(InvocationDetail::Capability(capability)),
 		}
@@ -174,7 +174,7 @@ impl InvocationOutcome {
 		}
 	}
 
-	pub const fn denied_capability(&self) -> Option<Capability> {
+	pub const fn denied_permission(&self) -> Option<Capability> {
 		match self.detail {
 			Some(InvocationDetail::Capability(capability)) => Some(capability),
 			Some(InvocationDetail::NotFoundTarget(_) | InvocationDetail::Message(_)) | None => None,
@@ -187,7 +187,7 @@ impl InvocationOutcome {
 			InvocationStatus::Quit => "quit",
 			InvocationStatus::ForceQuit => "force_quit",
 			InvocationStatus::NotFound => "not_found",
-			InvocationStatus::CapabilityDenied => "cap_denied",
+			InvocationStatus::PermissionDenied => "perm_denied",
 			InvocationStatus::ReadonlyDenied => "readonly",
 			InvocationStatus::CommandError => "error",
 		}

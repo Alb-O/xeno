@@ -25,9 +25,9 @@ pub(crate) fn to_command_outcome_for_nu_run(outcome: &InvocationOutcome, describ
 			let target = outcome.detail_text().unwrap_or("unknown");
 			Err(CommandError::Failed(format!("nu-run invocation not found: {target} ({describe})")))
 		}
-		InvocationStatus::CapabilityDenied => {
-			let cap = outcome.denied_capability();
-			Err(CommandError::Failed(format!("nu-run invocation denied by capability {cap:?} ({describe})")))
+		InvocationStatus::PermissionDenied => {
+			let cap = outcome.denied_permission();
+			Err(CommandError::Failed(format!("nu-run invocation denied by permission {cap:?} ({describe})")))
 		}
 		InvocationStatus::ReadonlyDenied => Err(CommandError::Failed(format!("nu-run invocation blocked by readonly mode ({describe})"))),
 		InvocationStatus::CommandError => {
@@ -42,7 +42,7 @@ pub(crate) fn classify_for_nu_pipeline(outcome: &InvocationOutcome) -> PipelineD
 		InvocationStatus::Quit | InvocationStatus::ForceQuit => PipelineDisposition::ShouldQuit,
 		InvocationStatus::Ok
 		| InvocationStatus::NotFound
-		| InvocationStatus::CapabilityDenied
+		| InvocationStatus::PermissionDenied
 		| InvocationStatus::ReadonlyDenied
 		| InvocationStatus::CommandError => PipelineDisposition::Continue,
 	}
@@ -62,14 +62,14 @@ pub(crate) fn log_pipeline_non_ok(outcome: &InvocationOutcome, context: Pipeline
 				}
 			}
 		}
-		InvocationStatus::CapabilityDenied => {
-			let cap = outcome.denied_capability();
+		InvocationStatus::PermissionDenied => {
+			let cap = outcome.denied_permission();
 			match context {
 				PipelineLogContext::HookDrain => {
-					warn!(context = "hook_drain", capability = ?cap, "Nu hook invocation denied by capability");
+					warn!(context = "hook_drain", capability = ?cap, "Nu hook invocation denied by permission");
 				}
 				PipelineLogContext::HookSync { hook } => {
-					warn!(context = "hook_sync", hook = %hook, capability = ?cap, "Nu hook invocation denied by capability");
+					warn!(context = "hook_sync", hook = %hook, capability = ?cap, "Nu hook invocation denied by permission");
 				}
 			}
 		}

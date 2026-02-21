@@ -33,7 +33,7 @@ impl NuEffectApplyMode {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum NuEffectApplyError {
-	CapabilityDenied { capability: NuCapability },
+	PermissionDenied { capability: NuCapability },
 	StopPropagationUnsupportedForMacro,
 }
 
@@ -71,7 +71,7 @@ pub(crate) fn apply_effect_batch(
 		for effect in &batch.effects {
 			let required = required_capability_for_effect(effect);
 			if !allowed.contains(&required) {
-				return Err(NuEffectApplyError::CapabilityDenied { capability: required });
+				return Err(NuEffectApplyError::PermissionDenied { capability: required });
 			}
 			if matches!(effect, NuEffect::StopPropagation) {
 				return Err(NuEffectApplyError::StopPropagationUnsupportedForMacro);
@@ -84,11 +84,11 @@ pub(crate) fn apply_effect_batch(
 		if !allowed.contains(&required) {
 			match mode {
 				NuEffectApplyMode::Hook => {
-					warn!(mode = mode.label(), capability = %required.as_str(), "Nu effect denied by capability policy");
+					warn!(mode = mode.label(), capability = %required.as_str(), "Nu effect denied by permission policy");
 					continue;
 				}
 				NuEffectApplyMode::Macro => {
-					return Err(NuEffectApplyError::CapabilityDenied { capability: required });
+					return Err(NuEffectApplyError::PermissionDenied { capability: required });
 				}
 			}
 		}
@@ -259,7 +259,7 @@ mod tests {
 		let err = apply_effect_batch(&mut editor, batch, NuEffectApplyMode::Macro, &HashSet::new()).expect_err("macro denial should error");
 		assert!(matches!(
 			err,
-			NuEffectApplyError::CapabilityDenied {
+			NuEffectApplyError::PermissionDenied {
 				capability: NuCapability::DispatchAction
 			}
 		));
@@ -280,7 +280,7 @@ mod tests {
 		let err = apply_effect_batch(&mut editor, batch, NuEffectApplyMode::Macro, &allowed).expect_err("macro denial should error");
 		assert!(matches!(
 			err,
-			NuEffectApplyError::CapabilityDenied {
+			NuEffectApplyError::PermissionDenied {
 				capability: NuCapability::DispatchAction
 			}
 		));
@@ -422,7 +422,7 @@ mod tests {
 		let err = apply_effect_batch(&mut editor, b, NuEffectApplyMode::Macro, &HashSet::new()).expect_err("should deny");
 		assert!(matches!(
 			err,
-			NuEffectApplyError::CapabilityDenied {
+			NuEffectApplyError::PermissionDenied {
 				capability: NuCapability::SetClipboard
 			}
 		));
@@ -613,7 +613,7 @@ mod tests {
 		let err = apply_effect_batch(&mut editor, b, NuEffectApplyMode::Macro, &HashSet::new()).expect_err("should deny");
 		assert!(matches!(
 			err,
-			NuEffectApplyError::CapabilityDenied {
+			NuEffectApplyError::PermissionDenied {
 				capability: NuCapability::EditText
 			}
 		));

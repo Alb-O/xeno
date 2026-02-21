@@ -64,8 +64,8 @@ impl Editor {
 			Ok(outcome) => outcome,
 			Err(error) => {
 				let msg = match error {
-					NuEffectApplyError::CapabilityDenied { capability } => {
-						format!("Nu macro effect denied by capability policy: {}", capability.as_str())
+					NuEffectApplyError::PermissionDenied { capability } => {
+						format!("Nu macro effect denied by permission policy: {}", capability.as_str())
 					}
 					NuEffectApplyError::StopPropagationUnsupportedForMacro => "Nu macro produced hook-only stop effect".to_string(),
 				};

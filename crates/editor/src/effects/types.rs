@@ -19,6 +19,6 @@ pub enum DispatchOutcome {
 impl DispatchOutcome {
 	#[inline]
 	pub fn denied_cap(cap: Capability) -> Self {
-		DispatchOutcome::Denied(CommandError::MissingCapability(cap))
+		DispatchOutcome::Denied(CommandError::PermissionDenied(cap))
 	}
 }

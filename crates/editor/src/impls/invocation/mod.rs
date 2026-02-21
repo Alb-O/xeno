@@ -78,7 +78,7 @@
 //! # Failure modes & recovery
 //!
 //! * Unknown target: return `InvocationStatus::NotFound` with canonical detail string.
-//! * Capability violation: return `CapabilityDenied` or log-only continue based on policy.
+//! * Permission violation: return `PermissionDenied` (Nu sandbox gate).
 //! * Readonly violation: emit readonly notification and return `ReadonlyDenied`.
 //! * Nu runtime/executor/decode failure: return `CommandError` and notify user.
 //! * Nu recursion overflow: return bounded recursion error string.

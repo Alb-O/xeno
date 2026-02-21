@@ -24,9 +24,9 @@ pub enum CommandError {
 	/// Command name was not found in registry.
 	#[error("command not found: {0}")]
 	NotFound(String),
-	/// Command requires a capability the context doesn't provide.
-	#[error("missing capability: {0:?}")]
-	MissingCapability(Capability),
+	/// Operation denied by permission policy (e.g. Nu sandbox edit gate).
+	#[error("permission denied: {0:?}")]
+	PermissionDenied(Capability),
 	/// Operation not supported in current context.
 	#[error("unsupported operation: {0}")]
 	Unsupported(&'static str),
