@@ -1,4 +1,4 @@
-//! LSP feature request methods (hover, completion, goto, references, format).
+//! LSP feature request methods (hover, goto-definition).
 
 #[cfg(feature = "lsp")]
 use super::system::LspSystem;
@@ -44,39 +44,10 @@ impl LspSystem {
 		client.hover(uri, position).await
 	}
 
-	#[allow(dead_code)]
-	pub async fn completion(&self, buffer: &Buffer) -> xeno_lsp::Result<Option<xeno_lsp::lsp_types::CompletionResponse>> {
-		let Some((client, uri, position)) = self.prepare_position_request(buffer)? else {
-			return Ok(None);
-		};
-		client.completion(uri, position, None).await
-	}
-
 	pub async fn goto_definition(&self, buffer: &Buffer) -> xeno_lsp::Result<Option<xeno_lsp::lsp_types::GotoDefinitionResponse>> {
 		let Some((client, uri, position)) = self.prepare_position_request(buffer)? else {
 			return Ok(None);
 		};
 		client.goto_definition(uri, position).await
-	}
-
-	#[allow(dead_code)]
-	pub async fn references(&self, buffer: &Buffer, include_declaration: bool) -> xeno_lsp::Result<Option<Vec<xeno_lsp::lsp_types::Location>>> {
-		let Some((client, uri, position)) = self.prepare_position_request(buffer)? else {
-			return Ok(None);
-		};
-		client.references(uri, position, include_declaration).await
-	}
-
-	#[allow(dead_code)]
-	pub async fn format(&self, buffer: &Buffer) -> xeno_lsp::Result<Option<Vec<xeno_lsp::lsp_types::TextEdit>>> {
-		let Some((client, uri, _)) = self.prepare_position_request(buffer)? else {
-			return Ok(None);
-		};
-		let options = xeno_lsp::lsp_types::FormattingOptions {
-			tab_size: 4,
-			insert_spaces: false,
-			..Default::default()
-		};
-		client.formatting(uri, options).await
 	}
 }

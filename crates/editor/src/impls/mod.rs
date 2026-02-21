@@ -909,12 +909,6 @@ impl Editor {
 	}
 
 	#[inline]
-	#[allow(dead_code)]
-	pub(crate) fn lsp_mut(&mut self) -> &mut LspSystem {
-		&mut self.state.integration.lsp
-	}
-
-	#[inline]
 	#[cfg(feature = "lsp")]
 	pub(crate) fn lsp_handle(&self) -> LspHandle {
 		self.state.integration.lsp.handle()

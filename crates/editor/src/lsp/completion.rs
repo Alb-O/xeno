@@ -193,11 +193,7 @@ impl Editor {
 			return;
 		}
 
-		let plan = BufferEditPlan {
-			buffer_id,
-			edits,
-			opened_temporarily: false,
-		};
+		let plan = BufferEditPlan { buffer_id, edits };
 
 		let tx = match self.apply_buffer_edit_plan(&plan) {
 			Ok(tx) => tx,

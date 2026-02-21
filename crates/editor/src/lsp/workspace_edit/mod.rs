@@ -38,11 +38,6 @@ pub struct BufferEditPlan {
 	pub buffer_id: ViewId,
 	/// Set of non-overlapping text edits.
 	pub edits: Vec<PlannedTextEdit>,
-	/// Whether the buffer was opened specifically for this edit.
-	/// Tracked separately in [`apply_workspace_edit`] for cleanup; retained
-	/// here for diagnostics.
-	#[allow(dead_code)]
-	pub opened_temporarily: bool,
 }
 
 /// A single text replacement for a character range.
@@ -255,7 +250,6 @@ impl Editor {
 			per_buffer.push(BufferEditPlan {
 				buffer_id,
 				edits: planned_edits,
-				opened_temporarily,
 			});
 		}
 
@@ -851,7 +845,6 @@ impl Editor {
 		let plan = BufferEditPlan {
 			buffer_id,
 			edits: planned_edits,
-			opened_temporarily,
 		};
 
 		// Apply immediately.
