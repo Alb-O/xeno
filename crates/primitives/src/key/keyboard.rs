@@ -284,3 +284,46 @@ impl TryFrom<termina::event::KeyEvent> for Key {
 		Ok(Self { code, modifiers }.canonicalize())
 	}
 }
+
+#[cfg(all(test, feature = "terminal-input"))]
+mod termina_tests {
+	use super::*;
+	use termina::event::{KeyCode as TmKeyCode, KeyEvent, KeyEventKind, KeyEventState, Modifiers as TmModifiers};
+
+	fn key_event(code: TmKeyCode, modifiers: TmModifiers) -> KeyEvent {
+		KeyEvent {
+			code,
+			modifiers,
+			kind: KeyEventKind::Press,
+			state: KeyEventState::NONE,
+		}
+	}
+
+	#[test]
+	fn unknown_keycode_returns_err() {
+		let event = key_event(TmKeyCode::Null, TmModifiers::empty());
+		assert!(Key::try_from(event).is_err());
+	}
+
+	#[test]
+	fn space_char_canonicalizes_to_space_keycode() {
+		let event = key_event(TmKeyCode::Char(' '), TmModifiers::empty());
+		let key = Key::try_from(event).unwrap();
+		assert_eq!(key.code, KeyCode::Space);
+	}
+
+	#[test]
+	fn super_modifier_maps_to_cmd() {
+		let event = key_event(TmKeyCode::Char('a'), TmModifiers::SUPER);
+		let key = Key::try_from(event).unwrap();
+		assert!(key.modifiers.cmd);
+		assert!(!key.modifiers.ctrl);
+	}
+
+	#[test]
+	fn function_key_35_maps_correctly() {
+		let event = key_event(TmKeyCode::Function(35), TmModifiers::empty());
+		let key = Key::try_from(event).unwrap();
+		assert_eq!(key.code, KeyCode::F(35));
+	}
+}

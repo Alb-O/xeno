@@ -182,3 +182,68 @@ fn action_count_overflow_clamped_to_max() {
 		other => panic!("expected Dispatch, got {other:?}"),
 	}
 }
+
+/// Golden table: `key_to_node(Key)` must produce the same `Node` as `parse(keymap_string)`.
+///
+/// This ensures the runtime key representation and the keymap parser agree
+/// on canonical form, preventing silent misbindings.
+#[test]
+fn key_to_node_matches_parser_for_golden_table() {
+	use super::keymap_adapter::key_to_node;
+	use xeno_keymap_core::parser::parse;
+	use xeno_primitives::{Key, KeyCode, Modifiers};
+
+	let cases: Vec<(&str, Key)> = vec![
+		// Plain characters
+		("a", Key::char('a')),
+		("z", Key::char('z')),
+		("0", Key::char('0')),
+		("9", Key::char('9')),
+		// Modifier + char
+		("ctrl-a", Key::ctrl('a')),
+		("alt-a", Key::alt('a')),
+		("cmd-a", Key { code: KeyCode::Char('a'), modifiers: Modifiers::CMD }),
+		("ctrl-alt-a", Key { code: KeyCode::Char('a'), modifiers: Modifiers::NONE.ctrl().alt() }),
+		("cmd-alt-a", Key { code: KeyCode::Char('a'), modifiers: Modifiers::NONE.cmd().alt() }),
+		// Whitespace keys (canonicalized)
+		("space", Key::new(KeyCode::Space)),
+		("tab", Key::new(KeyCode::Tab)),
+		("enter", Key::new(KeyCode::Enter)),
+		// Special keys
+		("esc", Key::new(KeyCode::Esc)),
+		("backspace", Key::new(KeyCode::Backspace)),
+		("del", Key::new(KeyCode::Delete)),
+		("insert", Key::new(KeyCode::Insert)),
+		// Arrows
+		("up", Key::new(KeyCode::Up)),
+		("down", Key::new(KeyCode::Down)),
+		("left", Key::new(KeyCode::Left)),
+		("right", Key::new(KeyCode::Right)),
+		// Function keys (boundary values)
+		("f1", Key::new(KeyCode::F(1))),
+		("f12", Key::new(KeyCode::F(12))),
+		("f13", Key::new(KeyCode::F(13))),
+		("f35", Key::new(KeyCode::F(35))),
+		// Modifier + function keys
+		("cmd-f35", Key { code: KeyCode::F(35), modifiers: Modifiers::CMD }),
+		("ctrl-f13", Key { code: KeyCode::F(13), modifiers: Modifiers::CTRL }),
+	];
+
+	for (keymap_str, key) in &cases {
+		let parsed = parse(keymap_str).unwrap_or_else(|e| panic!("parse({keymap_str:?}) failed: {e}"));
+		let from_key = key_to_node(*key);
+		assert_eq!(from_key, parsed, "mismatch for {keymap_str:?}: key_to_node={from_key:?}, parsed={parsed:?}");
+	}
+}
+
+/// Golden table: `parse_seq` matches `key_to_node` for multi-key sequences.
+#[test]
+fn key_to_node_matches_parser_for_sequences() {
+	use super::keymap_adapter::key_to_node;
+	use xeno_keymap_core::parser::parse_seq;
+	use xeno_primitives::Key;
+
+	let parsed = parse_seq("g r").unwrap();
+	let from_keys = vec![key_to_node(Key::char('g')), key_to_node(Key::char('r'))];
+	assert_eq!(from_keys, parsed);
+}

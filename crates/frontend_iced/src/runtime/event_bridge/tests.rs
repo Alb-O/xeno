@@ -147,3 +147,54 @@ fn map_event_maps_mouse_move_press_drag_sequence() {
 		}))
 	);
 }
+
+#[test]
+fn map_key_event_named_space_produces_space_keycode() {
+	let key = map_key_event(
+		keyboard::Key::Named(keyboard::key::Named::Space),
+		keyboard::key::Physical::Unidentified(keyboard::key::NativeCode::Unidentified),
+		keyboard::Modifiers::empty(),
+	);
+	assert_eq!(key.unwrap().code, KeyCode::Space);
+}
+
+#[test]
+fn map_key_event_character_space_canonicalizes_to_space_keycode() {
+	let key = map_key_event(
+		keyboard::Key::Character(" ".into()),
+		keyboard::key::Physical::Unidentified(keyboard::key::NativeCode::Unidentified),
+		keyboard::Modifiers::empty(),
+	);
+	assert_eq!(key.unwrap().code, KeyCode::Space);
+}
+
+#[test]
+fn map_key_event_logo_modifier_sets_cmd() {
+	let key = map_key_event(
+		keyboard::Key::Character("a".into()),
+		keyboard::key::Physical::Unidentified(keyboard::key::NativeCode::Unidentified),
+		keyboard::Modifiers::LOGO,
+	);
+	let key = key.unwrap();
+	assert!(key.modifiers.cmd, "LOGO modifier should map to cmd=true");
+}
+
+#[test]
+fn map_key_event_f35_maps_correctly() {
+	let key = map_key_event(
+		keyboard::Key::Named(keyboard::key::Named::F35),
+		keyboard::key::Physical::Unidentified(keyboard::key::NativeCode::Unidentified),
+		keyboard::Modifiers::empty(),
+	);
+	assert_eq!(key.unwrap().code, KeyCode::F(35));
+}
+
+#[test]
+fn map_key_event_multi_char_returns_none() {
+	let key = map_key_event(
+		keyboard::Key::Character("ab".into()),
+		keyboard::key::Physical::Unidentified(keyboard::key::NativeCode::Unidentified),
+		keyboard::Modifiers::empty(),
+	);
+	assert!(key.is_none());
+}
