@@ -59,7 +59,7 @@ pub(crate) fn test_key_collision_recording() {
 			description: "",
 			priority: 10,
 			source: RegistrySource::Builtin,
-			required_caps: &[],
+			mutates_buffer: false,
 			flags: 0,
 		},
 	};
@@ -71,7 +71,7 @@ pub(crate) fn test_key_collision_recording() {
 			description: "",
 			priority: 20,
 			source: RegistrySource::Builtin,
-			required_caps: &[],
+			mutates_buffer: false,
 			flags: 0,
 		},
 	};
@@ -98,7 +98,7 @@ pub(crate) fn test_id_override_eviction() {
 			description: "low priority",
 			priority: 5,
 			source: RegistrySource::Builtin,
-			required_caps: &[],
+			mutates_buffer: false,
 			flags: 0,
 		},
 	};
@@ -110,7 +110,7 @@ pub(crate) fn test_id_override_eviction() {
 			description: "high priority",
 			priority: 50,
 			source: RegistrySource::Builtin,
-			required_caps: &[],
+			mutates_buffer: false,
 			flags: 0,
 		},
 	};
@@ -139,7 +139,7 @@ pub(crate) fn test_canonical_id_ordinal_tiebreaker() {
 			description: "",
 			priority: 10,
 			source: RegistrySource::Builtin,
-			required_caps: &[],
+			mutates_buffer: false,
 			flags: 0,
 		},
 	};
@@ -151,7 +151,7 @@ pub(crate) fn test_canonical_id_ordinal_tiebreaker() {
 			description: "",
 			priority: 10,
 			source: RegistrySource::Builtin,
-			required_caps: &[],
+			mutates_buffer: false,
 			flags: 0,
 		},
 	};
@@ -185,7 +185,7 @@ pub(crate) fn test_key_conflict_ordinal_tiebreaker() {
 			description: "",
 			priority: 10,
 			source: RegistrySource::Builtin,
-			required_caps: &[],
+			mutates_buffer: false,
 			flags: 0,
 		},
 	};
@@ -197,7 +197,7 @@ pub(crate) fn test_key_conflict_ordinal_tiebreaker() {
 			description: "",
 			priority: 10,
 			source: RegistrySource::Builtin,
-			required_caps: &[],
+			mutates_buffer: false,
 			flags: 0,
 		},
 	};
@@ -232,7 +232,7 @@ pub(crate) fn test_id_override_keeps_name_binding_on_tie() {
 			description: "",
 			priority: 10,
 			source: RegistrySource::Builtin,
-			required_caps: &[],
+			mutates_buffer: false,
 			flags: 0,
 		},
 	};
@@ -244,7 +244,7 @@ pub(crate) fn test_id_override_keeps_name_binding_on_tie() {
 			description: "v1",
 			priority: 10,
 			source: RegistrySource::Builtin,
-			required_caps: &[],
+			mutates_buffer: false,
 			flags: 0,
 		},
 	};
@@ -256,7 +256,7 @@ pub(crate) fn test_id_override_keeps_name_binding_on_tie() {
 			description: "v2",
 			priority: 10,
 			source: RegistrySource::Builtin,
-			required_caps: &[],
+			mutates_buffer: false,
 			flags: 0,
 		},
 	};

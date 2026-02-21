@@ -5,7 +5,7 @@ use crate::actions::def::ActionHandler;
 use crate::actions::entry::ActionEntry;
 use crate::actions::handler::ActionHandlerStatic;
 use crate::actions::{BindingMode, KeyBindingDef};
-use crate::core::{Capability, LinkedDef, LinkedMetaOwned, LinkedPayload, RegistryMeta, RegistrySource, Symbol};
+use crate::core::{LinkedDef, LinkedMetaOwned, LinkedPayload, RegistryMeta, RegistrySource, Symbol};
 
 /// An action definition assembled from spec + Rust handler.
 pub type LinkedActionDef = LinkedDef<ActionPayload>;
@@ -48,20 +48,9 @@ pub(crate) fn parse_binding_mode(mode: &str) -> BindingMode {
 	}
 }
 
-pub(crate) fn parse_capability(name: &str) -> Capability {
-	match name {
-		"Text" => Capability::Text,
-		"Cursor" => Capability::Cursor,
-		"Selection" => Capability::Selection,
-		"Mode" => Capability::Mode,
-		"Messaging" => Capability::Messaging,
-		"Edit" => Capability::Edit,
-		"Search" => Capability::Search,
-		"Undo" => Capability::Undo,
-		"FileOps" => Capability::FileOps,
-		"Overlay" => Capability::Overlay,
-		other => panic!("unknown capability: {}", other),
-	}
+/// Returns true if any capability string in the list is "Edit".
+fn caps_contain_edit(caps: &[String]) -> bool {
+	caps.iter().any(|c| c == "Edit")
 }
 
 /// Links spec with handler statics, producing `LinkedActionDef`s.
@@ -76,8 +65,6 @@ pub fn link_actions(spec: &ActionsSpec, handlers: impl Iterator<Item = &'static 
 			let id = format!("xeno-registry::{}", common.name);
 			let canonical_id: Arc<str> = Arc::from(id.as_str());
 
-			let required_caps = common.caps.iter().map(|c| parse_capability(c)).collect();
-
 			let bindings = parse_bindings(&meta.bindings, canonical_id.clone());
 
 			LinkedDef {
@@ -88,7 +75,7 @@ pub fn link_actions(spec: &ActionsSpec, handlers: impl Iterator<Item = &'static 
 					description: common.description.clone(),
 					priority: common.priority,
 					source: RegistrySource::Crate(handler.crate_name),
-					required_caps,
+					mutates_buffer: caps_contain_edit(&common.caps),
 					flags: common.flags,
 					short_desc: Some(common.short_desc.clone().unwrap_or_else(|| common.description.clone())),
 				},

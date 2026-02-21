@@ -26,7 +26,7 @@ impl Editor {
 			return InvocationOutcome::not_found(InvocationTarget::Action, format!("action:{name}"));
 		};
 
-		let gate_input = InvocationGateInput::action(action.required_caps());
+		let gate_input = InvocationGateInput::action(action.mutates_buffer());
 		if let Some(result) = kernel.deny_if_policy_blocks(gate_input) {
 			return result;
 		}

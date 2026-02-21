@@ -79,7 +79,7 @@ impl Editor {
 		policy: InvocationPolicy,
 	) -> InvocationOutcome {
 		let mut kernel = InvocationKernel::new(self, policy);
-		let gate_input = InvocationGateInput::command(command_def.required_caps());
+		let gate_input = InvocationGateInput::command(command_def.mutates_buffer());
 		if let Some(result) = kernel.deny_if_policy_blocks(gate_input) {
 			return result;
 		}
@@ -110,7 +110,7 @@ impl Editor {
 		policy: InvocationPolicy,
 	) -> InvocationOutcome {
 		let mut kernel = InvocationKernel::new(self, policy);
-		let gate_input = InvocationGateInput::editor_command(editor_cmd.required_caps);
+		let gate_input = InvocationGateInput::command(editor_cmd.mutates_buffer);
 		if let Some(result) = kernel.deny_if_policy_blocks(gate_input) {
 			return result;
 		}

@@ -29,7 +29,7 @@ impl BuildEntry<TestEntry> for TestDef {
 			description: self.meta.description,
 			priority: self.meta.priority,
 			source: self.meta.source,
-			required_caps: self.meta.required_caps,
+			mutates_buffer: self.meta.mutates_buffer,
 			flags: self.meta.flags,
 		}
 	}
@@ -53,7 +53,7 @@ pub(crate) fn make_def(id: &'static str, priority: i16) -> TestDef {
 			description: "",
 			priority,
 			source: RegistrySource::Builtin,
-			required_caps: &[],
+			mutates_buffer: false,
 			flags: 0,
 		},
 	}
@@ -68,7 +68,7 @@ pub(crate) fn make_def_with_name(id: &'static str, name: &'static str, priority:
 			description: "",
 			priority,
 			source: RegistrySource::Builtin,
-			required_caps: &[],
+			mutates_buffer: false,
 			flags: 0,
 		},
 	}
@@ -83,7 +83,7 @@ pub(crate) fn make_def_with_keyes(id: &'static str, priority: i16, keys: &'stati
 			description: "",
 			priority,
 			source: RegistrySource::Builtin,
-			required_caps: &[],
+			mutates_buffer: false,
 			flags: 0,
 		},
 	}

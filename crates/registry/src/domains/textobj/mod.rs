@@ -40,8 +40,8 @@ pub fn register_compiled(db: &mut crate::db::builder::RegistryDbBuilder) {
 
 use crate::core::index::{BuildCtx, BuildEntry, RegistryMetaRef, StrListRef};
 pub use crate::core::{
-	Capability, CapabilitySet, DuplicatePolicy, FrozenInterner, RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta, RegistryMetaStatic,
-	RegistryMetadata, RegistryRef, RegistrySource, Symbol, SymbolList, TextObjectId,
+	DuplicatePolicy, FrozenInterner, RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta, RegistryMetaStatic, RegistryMetadata, RegistryRef,
+	RegistrySource, Symbol, SymbolList, TextObjectId,
 };
 // Re-export macros
 pub use crate::text_object_handler;
@@ -92,7 +92,7 @@ impl BuildEntry<TextObjectEntry> for TextObjectDef {
 			description: self.meta.description,
 			priority: self.meta.priority,
 			source: self.meta.source,
-			required_caps: self.meta.required_caps,
+			mutates_buffer: self.meta.mutates_buffer,
 			flags: self.meta.flags,
 		}
 	}

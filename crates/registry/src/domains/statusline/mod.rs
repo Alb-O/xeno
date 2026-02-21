@@ -18,8 +18,8 @@ pub use domain::Statusline;
 
 use crate::core::index::{BuildCtx, BuildEntry, RegistryMetaRef, StrListRef};
 pub use crate::core::{
-	CapabilitySet, FrozenInterner, RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta, RegistryMetaStatic, RegistryMetadata, RegistryRef,
-	RegistrySource, RuntimeRegistry, StatuslineId, Symbol, SymbolList,
+	FrozenInterner, RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta, RegistryMetaStatic, RegistryMetadata, RegistryRef, RegistrySource,
+	RuntimeRegistry, StatuslineId, Symbol, SymbolList,
 };
 pub use crate::segment_handler;
 
@@ -114,7 +114,7 @@ impl BuildEntry<StatuslineEntry> for StatuslineSegmentDef {
 			description: self.meta.description,
 			priority: self.meta.priority,
 			source: self.meta.source,
-			required_caps: self.meta.required_caps,
+			mutates_buffer: self.meta.mutates_buffer,
 			flags: self.meta.flags,
 		}
 	}

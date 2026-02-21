@@ -216,7 +216,7 @@ fn create_bootstrap_theme(colors: &BootstrapColors) -> &'static Theme {
 			description: "",
 			priority: -1000,
 			source: RegistrySource::Builtin,
-			required_caps: &[],
+			mutates_buffer: false,
 			flags: 0,
 		},
 		variant: colors.variant.into(),

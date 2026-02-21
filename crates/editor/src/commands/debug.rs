@@ -167,7 +167,7 @@ struct RegistryItem {
 	description: String,
 	priority: i16,
 	source: xeno_registry::RegistrySource,
-	required_caps: String,
+	mutates_buffer: bool,
 	flags: u32,
 }
 
@@ -249,12 +249,12 @@ fn append_registry_section(out: &mut String, kind: RegistryKind, prefix: Option<
 	out.push_str(&format!("## {} ({})\n", kind.label(), count));
 	for item in items {
 		out.push_str(&format!(
-			"- {} ({}) prio={} src={} caps={} flags={} - {}\n",
+			"- {} ({}) prio={} src={} mut={} flags={} - {}\n",
 			item.id,
 			item.name,
 			item.priority,
 			item.source,
-			item.required_caps,
+			item.mutates_buffer,
 			format_flags(item.flags),
 			item.description
 		));
@@ -275,7 +275,7 @@ where
 		description: def.description_str().to_string(),
 		priority: def.priority(),
 		source: def.source(),
-		required_caps: format_caps(def.required_caps()),
+		mutates_buffer: def.mutates_buffer(),
 		flags: def.flags(),
 	}
 }
@@ -293,7 +293,7 @@ fn collect_registry_items(kind: RegistryKind) -> Vec<RegistryItem> {
 				description: def.description.to_string(),
 				priority: def.priority,
 				source: def.source,
-				required_caps: format!("{:?}", xeno_registry::CapabilitySet::from_iter(def.required_caps.iter().cloned())),
+				mutates_buffer: def.mutates_buffer,
 				flags: 0,
 			})
 			.collect(),
@@ -310,7 +310,7 @@ fn collect_registry_items(kind: RegistryKind) -> Vec<RegistryItem> {
 				description: format!("level={:?}, auto_dismiss={:?}", def.level, def.auto_dismiss),
 				priority: 0,
 				source: def.source(),
-				required_caps: "[]".to_string(),
+				mutates_buffer: false,
 				flags: 0,
 			})
 			.collect(),
@@ -325,10 +325,6 @@ fn matches_prefix(item: &RegistryItem, prefix: Option<&str>) -> bool {
 		return true;
 	};
 	item.id.starts_with(prefix) || item.name.starts_with(prefix)
-}
-
-fn format_caps(caps: xeno_registry::CapabilitySet) -> String {
-	format!("{caps:?}")
 }
 
 fn format_flags(flags: u32) -> String {

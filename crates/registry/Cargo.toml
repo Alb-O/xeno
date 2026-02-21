@@ -100,7 +100,6 @@ registry-contracts = []
 actions-handler-coverage = ["actions-builtins"]
 
 [dependencies]
-bitflags = { workspace = true }
 inventory = { workspace = true, optional = true }
 paste = { workspace = true, optional = true }
 postcard.workspace = true

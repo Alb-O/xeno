@@ -160,7 +160,7 @@ pub fn derive_option(input: TokenStream) -> TokenStream {
 			description: #description,
 			priority: #priority,
 			source: ::xeno_registry::options::RegistrySource::Crate(::core::env!("CARGO_PKG_NAME")),
-			required_caps: &[],
+			mutates_buffer: false,
 			flags: 0,
 		},
 		key: #key,

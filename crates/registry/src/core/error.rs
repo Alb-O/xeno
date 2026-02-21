@@ -1,6 +1,5 @@
 use thiserror::Error;
 
-use super::capability::Capability;
 use super::index::KeyKind;
 
 /// Errors that can occur during command execution.
@@ -24,9 +23,6 @@ pub enum CommandError {
 	/// Command name was not found in registry.
 	#[error("command not found: {0}")]
 	NotFound(String),
-	/// Operation denied by permission policy (e.g. Nu sandbox edit gate).
-	#[error("permission denied: {0:?}")]
-	PermissionDenied(Capability),
 	/// Operation not supported in current context.
 	#[error("unsupported operation: {0}")]
 	Unsupported(&'static str),

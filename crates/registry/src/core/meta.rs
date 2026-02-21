@@ -1,4 +1,3 @@
-use super::capability::{Capability, CapabilitySet};
 use super::symbol::Symbol;
 
 /// Represents where a registry item was defined.
@@ -42,7 +41,7 @@ pub struct RegistryMetaStatic {
 	pub description: &'static str,
 	pub priority: i16,
 	pub source: RegistrySource,
-	pub required_caps: &'static [Capability],
+	pub mutates_buffer: bool,
 	pub flags: u32,
 }
 
@@ -56,7 +55,7 @@ impl RegistryMetaStatic {
 		description: &'static str,
 		priority: i16,
 		source: RegistrySource,
-		required_caps: &'static [Capability],
+		mutates_buffer: bool,
 		flags: u32,
 	) -> Self {
 		Self {
@@ -66,7 +65,7 @@ impl RegistryMetaStatic {
 			description,
 			priority,
 			source,
-			required_caps,
+			mutates_buffer,
 			flags,
 		}
 	}
@@ -80,7 +79,7 @@ impl RegistryMetaStatic {
 			description,
 			priority: 0,
 			source: RegistrySource::Builtin,
-			required_caps: &[],
+			mutates_buffer: false,
 			flags: 0,
 		}
 	}
@@ -108,8 +107,8 @@ pub struct RegistryMeta {
 	pub priority: i16,
 	/// Where this item was defined.
 	pub source: RegistrySource,
-	/// Capabilities required to execute this item.
-	pub required_caps: CapabilitySet,
+	/// Whether this item mutates buffer text (used for readonly gating).
+	pub mutates_buffer: bool,
 	/// Bitflags for additional behavior hints.
 	pub flags: u32,
 }

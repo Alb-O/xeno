@@ -13,7 +13,7 @@ static BAD_OPT: crate::options::OptionDef = crate::options::OptionDef {
 		description: "bad opt",
 		priority: 0,
 		source: RegistrySource::Builtin,
-		required_caps: &[],
+		mutates_buffer: false,
 		flags: 0,
 	},
 	key: "bad-opt",

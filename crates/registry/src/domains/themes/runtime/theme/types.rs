@@ -2,7 +2,7 @@ use xeno_primitives::{Color, Mode, Style};
 
 use super::super::syntax::SyntaxStyles;
 use crate::core::index::{BuildEntry, RegistryMetaRef, StrListRef};
-pub use crate::core::{CapabilitySet, FrozenInterner, RegistryMeta, RegistryMetaStatic, RegistryRef, RegistrySource, Symbol, SymbolList, ThemeId};
+pub use crate::core::{FrozenInterner, RegistryMeta, RegistryMetaStatic, RegistryRef, RegistrySource, Symbol, SymbolList, ThemeId};
 use crate::core::{LinkedDef, LinkedPayload};
 
 /// Whether a theme uses a light or dark background.
@@ -196,7 +196,7 @@ impl BuildEntry<ThemeEntry> for ThemeDef {
 			description: self.meta.description,
 			priority: self.meta.priority,
 			source: self.meta.source,
-			required_caps: self.meta.required_caps,
+			mutates_buffer: self.meta.mutates_buffer,
 			flags: self.meta.flags,
 		}
 	}

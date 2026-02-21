@@ -6282,7 +6282,6 @@ dependencies = [
 name = "xeno-registry"
 version = "0.9.4"
 dependencies = [
- "bitflags 2.11.0",
  "inventory",
  "paste",
  "postcard",

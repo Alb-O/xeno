@@ -1,5 +1,3 @@
-use xeno_registry::{Capability, CapabilitySet};
-
 use crate::impls::Editor;
 use crate::types::{InvocationPolicy, InvocationTarget};
 
@@ -27,24 +25,17 @@ pub(crate) struct InvocationGateInput {
 }
 
 impl InvocationGateInput {
-	pub(crate) fn action(required_caps: CapabilitySet) -> Self {
+	pub(crate) fn action(mutates_buffer: bool) -> Self {
 		Self {
 			kind: InvocationKind::Action,
-			mutates_buffer: required_caps.contains(CapabilitySet::EDIT),
+			mutates_buffer,
 		}
 	}
 
-	pub(crate) fn command(required_caps: CapabilitySet) -> Self {
+	pub(crate) fn command(mutates_buffer: bool) -> Self {
 		Self {
 			kind: InvocationKind::Command,
-			mutates_buffer: required_caps.contains(CapabilitySet::EDIT),
-		}
-	}
-
-	pub(crate) fn editor_command(required_caps: &[Capability]) -> Self {
-		Self {
-			kind: InvocationKind::Command,
-			mutates_buffer: required_caps.iter().any(|cap| matches!(cap, Capability::Edit)),
+			mutates_buffer,
 		}
 	}
 }
@@ -59,9 +50,8 @@ pub(crate) enum GateResult {
 impl Editor {
 	/// Checks whether the invocation should be blocked by readonly policy.
 	///
-	/// All capabilities are always available (PR B). The only runtime gate
-	/// is readonly enforcement: if the buffer is readonly and the action
-	/// requires edit capability, deny under enforcing policy.
+	/// The only runtime gate is readonly enforcement: if the buffer is readonly
+	/// and the item mutates the buffer, deny under enforcing policy.
 	pub(crate) fn gate_invocation(&mut self, policy: InvocationPolicy, input: InvocationGateInput) -> GateResult {
 		if policy.enforce_readonly && input.mutates_buffer && self.buffer().is_readonly() {
 			return GateResult::DenyReadonly;

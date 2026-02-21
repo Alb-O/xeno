@@ -49,7 +49,7 @@ impl BuildEntry<NotificationEntry> for NotificationDef {
 			description: self.meta.description,
 			priority: self.meta.priority,
 			source: self.meta.source,
-			required_caps: self.meta.required_caps,
+			mutates_buffer: self.meta.mutates_buffer,
 			flags: self.meta.flags,
 		}
 	}

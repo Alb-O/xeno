@@ -80,7 +80,7 @@ pub(crate) fn test_source_precedence() {
 			description: "",
 			priority: 10,
 			source: RegistrySource::Builtin,
-			required_caps: &[],
+			mutates_buffer: false,
 			flags: 0,
 		},
 	}));
@@ -92,7 +92,7 @@ pub(crate) fn test_source_precedence() {
 			description: "",
 			priority: 10,
 			source: RegistrySource::Runtime,
-			required_caps: &[],
+			mutates_buffer: false,
 			flags: 0,
 		},
 	}));
@@ -118,7 +118,7 @@ pub(crate) fn test_canonical_id_ordinal_tiebreaker() {
 			description: "",
 			priority: 10,
 			source: RegistrySource::Builtin,
-			required_caps: &[],
+			mutates_buffer: false,
 			flags: 0,
 		},
 	}));
@@ -130,7 +130,7 @@ pub(crate) fn test_canonical_id_ordinal_tiebreaker() {
 			description: "",
 			priority: 10,
 			source: RegistrySource::Builtin,
-			required_caps: &[],
+			mutates_buffer: false,
 			flags: 0,
 		},
 	}));

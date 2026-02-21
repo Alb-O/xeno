@@ -5,7 +5,7 @@ use xeno_primitives::{BoxFutureLocal, Key, KeyCode, Mode};
 use xeno_registry::actions::{ActionEffects, ActionResult};
 use xeno_registry::commands::{CommandContext, CommandOutcome};
 use xeno_registry::hooks::{HookAction, HookContext, HookDef, HookHandler, HookMutability, HookPriority};
-use xeno_registry::{Capability, CommandError};
+use xeno_registry::CommandError;
 
 use super::*;
 use crate::types::{InvocationOutcome, InvocationStatus, InvocationTarget};
@@ -35,7 +35,7 @@ static ACTION_INVOCATION_TEST: xeno_registry::actions::ActionDef = xeno_registry
 		description: "Invocation test action",
 		priority: 0,
 		source: xeno_registry::RegistrySource::Crate("xeno-editor"),
-		required_caps: &[],
+		mutates_buffer: false,
 		flags: 0,
 	},
 	short_desc: "Invocation test action",
@@ -51,7 +51,7 @@ static ACTION_INVOCATION_TEST_ALT: xeno_registry::actions::ActionDef = xeno_regi
 		description: "Invocation test action alt",
 		priority: 0,
 		source: xeno_registry::RegistrySource::Crate("xeno-editor"),
-		required_caps: &[],
+		mutates_buffer: false,
 		flags: 0,
 	},
 	short_desc: "Invocation test action alt",
@@ -71,7 +71,7 @@ static ACTION_INVOCATION_EDIT: xeno_registry::actions::ActionDef = xeno_registry
 		description: "Invocation edit action",
 		priority: 0,
 		source: xeno_registry::RegistrySource::Crate("xeno-editor"),
-		required_caps: &[Capability::Edit],
+		mutates_buffer: true,
 		flags: 0,
 	},
 	short_desc: "Invocation edit action",
@@ -94,7 +94,7 @@ static HOOK_ACTION_PRE: HookDef = HookDef {
 		description: "Count action pre hooks",
 		priority: 0,
 		source: xeno_registry::RegistrySource::Crate("xeno-editor"),
-		required_caps: &[],
+		mutates_buffer: false,
 		flags: 0,
 	},
 	event: xeno_registry::HookEvent::ActionPre,
@@ -118,7 +118,7 @@ static HOOK_ACTION_POST: HookDef = HookDef {
 		description: "Count action post hooks",
 		priority: 0,
 		source: xeno_registry::RegistrySource::Crate("xeno-editor"),
-		required_caps: &[],
+		mutates_buffer: false,
 		flags: 0,
 	},
 	event: xeno_registry::HookEvent::ActionPost,
@@ -139,7 +139,7 @@ static CMD_TEST_FAIL: xeno_registry::commands::CommandDef = xeno_registry::comma
 		description: "Invocation test command failure",
 		priority: 0,
 		source: xeno_registry::RegistrySource::Crate("xeno-editor"),
-		required_caps: &[],
+		mutates_buffer: false,
 		flags: 0,
 	},
 	handler: invocation_test_command_fail,
@@ -175,11 +175,9 @@ fn invocation_describe() {
 #[test]
 fn invocation_policy_defaults() {
 	let policy = InvocationPolicy::default();
-	assert!(!policy.enforce_caps);
 	assert!(!policy.enforce_readonly);
 
 	let policy = InvocationPolicy::enforcing();
-	assert!(policy.enforce_caps);
 	assert!(policy.enforce_readonly);
 }
 

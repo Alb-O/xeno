@@ -151,7 +151,7 @@ pub struct RegistryMetaRef<'a> {
 	pub description: &'a str,
 	pub priority: i16,
 	pub source: RegistrySource,
-	pub required_caps: &'a [crate::Capability],
+	pub mutates_buffer: bool,
 	pub flags: u32,
 }
 

@@ -5,8 +5,8 @@ use xeno_primitives::Range;
 
 use crate::core::index::{BuildCtx, BuildEntry, RegistryMetaRef, StrListRef};
 pub use crate::core::{
-	Capability, CapabilitySet, FrozenInterner, MotionId, RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta, RegistryMetaStatic, RegistryMetadata,
-	RegistryRef, RegistrySource, RuntimeRegistry, Symbol, SymbolList,
+	FrozenInterner, MotionId, RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta, RegistryMetaStatic, RegistryMetadata, RegistryRef, RegistrySource,
+	RuntimeRegistry, Symbol, SymbolList,
 };
 
 #[macro_use]
@@ -83,7 +83,7 @@ impl BuildEntry<MotionEntry> for MotionDef {
 			description: self.meta.description,
 			priority: self.meta.priority,
 			source: self.meta.source,
-			required_caps: self.meta.required_caps,
+			mutates_buffer: self.meta.mutates_buffer,
 			flags: self.meta.flags,
 		}
 	}

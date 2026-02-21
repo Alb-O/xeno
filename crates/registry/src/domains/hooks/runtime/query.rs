@@ -75,7 +75,7 @@ mod tests {
 			description: "runtime hook test",
 			priority: 0,
 			source: RegistrySource::Runtime,
-			required_caps: &[],
+			mutates_buffer: false,
 			flags: 0,
 		},
 		event: crate::HookEvent::EditorTick,

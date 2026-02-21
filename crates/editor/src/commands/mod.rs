@@ -25,7 +25,6 @@ use std::collections::HashMap;
 use std::sync::LazyLock;
 
 use xeno_primitives::BoxFutureLocal;
-use xeno_registry::Capability;
 pub use xeno_registry::RegistrySource;
 pub use xeno_registry::commands::{CommandError, CommandOutcome, CommandResult};
 
@@ -64,8 +63,8 @@ pub struct EditorCommandDef {
 	pub keys: &'static [&'static str],
 	/// Human-readable description for help text.
 	pub description: &'static str,
-	/// Capabilities required to execute this command.
-	pub required_caps: &'static [Capability],
+	/// Whether this command mutates buffer text (used for readonly gating).
+	pub mutates_buffer: bool,
 	/// Async function that executes the command.
 	pub handler: EditorCommandHandler,
 	/// Extension-specific data passed to handler.
@@ -111,7 +110,7 @@ macro_rules! editor_command {
 	($name:ident, {
 		$(keys: $keys:expr,)?
 		description: $desc:expr
-		$(, caps: $caps:expr)?
+		$(, mutates_buffer: $mutates:expr)?
 		$(, priority: $priority:expr)?
 		$(,)?
 	}, handler: $handler:expr) => {
@@ -123,7 +122,7 @@ macro_rules! editor_command {
 					name: stringify!($name),
 					keys: $crate::__editor_cmd_opt_slice!($({$keys})?),
 					description: $desc,
-					required_caps: $crate::__editor_cmd_opt_slice!($({$caps})?),
+					mutates_buffer: $crate::__editor_cmd_opt!($({$mutates})?, false),
 					handler: $handler,
 					user_data: None,
 					priority: $crate::__editor_cmd_opt!($({$priority})?, 0),

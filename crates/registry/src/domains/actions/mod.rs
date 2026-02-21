@@ -4,7 +4,7 @@
 //! This module provides auto-registration via the [`action_handler!`] macro and O(1) lookup.
 
 pub use crate::core::{
-	Capability, CommandError, RegistryBuilder, RegistryEntry, RegistryMeta, RegistryMetaStatic, RegistryMetadata, RegistryRef, RegistrySource, RuntimeRegistry,
+	CommandError, RegistryBuilder, RegistryEntry, RegistryMeta, RegistryMetaStatic, RegistryMetadata, RegistryRef, RegistrySource, RuntimeRegistry,
 };
 
 #[path = "compile/builtins/mod.rs"]

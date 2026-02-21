@@ -1,4 +1,3 @@
-use super::capability::CapabilitySet;
 use super::meta::{RegistryMeta, RegistrySource};
 use super::symbol::Symbol;
 
@@ -32,9 +31,9 @@ pub trait RegistryEntry {
 		self.meta().source
 	}
 
-	/// Returns capabilities required to execute this item.
-	fn required_caps(&self) -> CapabilitySet {
-		self.meta().required_caps
+	/// Returns whether this item mutates buffer text.
+	fn mutates_buffer(&self) -> bool {
+		self.meta().mutates_buffer
 	}
 
 	/// Returns behavior flags.

@@ -67,7 +67,7 @@ fn test_registry_ref_string_helpers() {
 			description: "A test action",
 			priority: 42,
 			source: RegistrySource::Builtin,
-			required_caps: &[],
+			mutates_buffer: false,
 			flags: 0,
 		},
 	};
@@ -126,7 +126,7 @@ fn test_build_ctx_enforcement() {
 				description: "",
 				priority: 0,
 				source: RegistrySource::Builtin,
-				required_caps: &[],
+				mutates_buffer: false,
 				flags: 0,
 			}
 		}

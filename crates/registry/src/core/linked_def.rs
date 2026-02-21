@@ -1,4 +1,3 @@
-use crate::core::capability::Capability;
 use crate::core::index::{BuildCtx, BuildEntry, RegistryMetaRef, StrListRef};
 use crate::core::{RegistryEntry, RegistryMeta, RegistrySource, Symbol};
 
@@ -10,7 +9,7 @@ pub struct LinkedMetaOwned {
 	pub description: String,
 	pub priority: i16,
 	pub source: RegistrySource,
-	pub required_caps: Vec<Capability>,
+	pub mutates_buffer: bool,
 	pub flags: u32,
 	pub short_desc: Option<String>,
 }
@@ -50,7 +49,7 @@ where
 			description: &self.meta.description,
 			priority: self.meta.priority,
 			source: self.meta.source,
-			required_caps: &self.meta.required_caps,
+			mutates_buffer: self.meta.mutates_buffer,
 			flags: self.meta.flags,
 		}
 	}

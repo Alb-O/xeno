@@ -50,7 +50,7 @@ pub fn link_statusline(spec: &StatuslineSpec, handlers: impl Iterator<Item = &'s
 					description: common.description.clone(),
 					priority: common.priority,
 					source: RegistrySource::Crate(handler.crate_name),
-					required_caps: vec![],
+					mutates_buffer: false,
 					flags: common.flags,
 					short_desc: Some(common.name.clone()),
 				},

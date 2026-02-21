@@ -44,7 +44,7 @@ mod tests {
 			description: "test language with unknown lsp server",
 			priority: 0,
 			source: RegistrySource::Builtin,
-			required_caps: &[],
+			mutates_buffer: false,
 			flags: 0,
 		},
 		scope: None,

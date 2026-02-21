@@ -5,7 +5,7 @@
 //! sorted, and interned consistently across all domains.
 
 use crate::core::index::build::RegistryMetaRef;
-use crate::core::{CapabilitySet, RegistryMeta, Symbol, SymbolList};
+use crate::core::{RegistryMeta, Symbol, SymbolList};
 
 /// Builds a symbolized [`RegistryMeta`] and interns keys into the pool.
 pub fn build_meta<'a>(
@@ -38,7 +38,7 @@ pub fn build_meta<'a>(
 		keys: SymbolList { start, len },
 		priority: meta_ref.priority,
 		source: meta_ref.source,
-		required_caps: CapabilitySet::from_iter(meta_ref.required_caps.iter().cloned()),
+		mutates_buffer: meta_ref.mutates_buffer,
 		flags: meta_ref.flags,
 	}
 }

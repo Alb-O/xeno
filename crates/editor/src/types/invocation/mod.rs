@@ -4,27 +4,17 @@
 //! here for convenience. Editor-specific dispatch types (`InvocationPolicy`,
 //! `InvocationOutcome`) remain local.
 
-use xeno_registry::Capability;
 pub use xeno_registry::Invocation;
 
 pub(crate) mod adapters;
 
-/// Policy for capability enforcement during invocation dispatch.
-///
-/// Controls whether violations block execution or just log warnings.
-/// Use log-only mode during migration, then flip to enforcing.
+/// Policy for readonly enforcement during invocation dispatch.
 #[derive(Debug, Clone, Copy)]
 pub struct InvocationPolicy {
-	/// Whether to check and enforce required capabilities.
-	///
-	/// * `true`: Block execution if capabilities are missing (enforcement mode)
-	/// * `false`: Log violations but continue (log-only mode)
-	pub enforce_caps: bool,
-
 	/// Whether to check and enforce readonly buffer status.
 	///
 	/// * `true`: Block edits to readonly buffers
-	/// * `false`: Log but allow (useful for testing)
+	/// * `false`: Allow (useful for testing)
 	pub enforce_readonly: bool,
 }
 
@@ -35,32 +25,14 @@ impl Default for InvocationPolicy {
 }
 
 impl InvocationPolicy {
-	/// Creates a policy that logs violations but doesn't block execution.
-	///
-	/// Use this during migration to identify capability gaps.
+	/// Creates a policy that doesn't block execution.
 	pub const fn log_only() -> Self {
-		Self {
-			enforce_caps: false,
-			enforce_readonly: false,
-		}
+		Self { enforce_readonly: false }
 	}
 
 	/// Creates a policy that enforces all checks.
-	///
-	/// Use this once capability gating is fully wired.
 	pub const fn enforcing() -> Self {
-		Self {
-			enforce_caps: true,
-			enforce_readonly: true,
-		}
-	}
-
-	/// Creates a policy that enforces capabilities but not readonly.
-	pub const fn enforce_caps_only() -> Self {
-		Self {
-			enforce_caps: true,
-			enforce_readonly: false,
-		}
+		Self { enforce_readonly: true }
 	}
 }
 
@@ -79,7 +51,6 @@ pub enum InvocationStatus {
 	Quit,
 	ForceQuit,
 	NotFound,
-	PermissionDenied,
 	ReadonlyDenied,
 	CommandError,
 }
@@ -89,7 +60,6 @@ pub enum InvocationStatus {
 pub enum InvocationDetail {
 	NotFoundTarget(String),
 	Message(String),
-	Capability(Capability),
 }
 
 /// Structured invocation outcome with explicit status and diagnostics payload.
@@ -133,14 +103,6 @@ impl InvocationOutcome {
 		}
 	}
 
-	pub const fn permission_denied(target: InvocationTarget, capability: Capability) -> Self {
-		Self {
-			status: InvocationStatus::PermissionDenied,
-			target,
-			detail: Some(InvocationDetail::Capability(capability)),
-		}
-	}
-
 	pub const fn readonly_denied(target: InvocationTarget) -> Self {
 		Self {
 			status: InvocationStatus::ReadonlyDenied,
@@ -170,14 +132,7 @@ impl InvocationOutcome {
 	pub fn detail_text(&self) -> Option<&str> {
 		match &self.detail {
 			Some(InvocationDetail::NotFoundTarget(text) | InvocationDetail::Message(text)) => Some(text.as_str()),
-			Some(InvocationDetail::Capability(_)) | None => None,
-		}
-	}
-
-	pub const fn denied_permission(&self) -> Option<Capability> {
-		match self.detail {
-			Some(InvocationDetail::Capability(capability)) => Some(capability),
-			Some(InvocationDetail::NotFoundTarget(_) | InvocationDetail::Message(_)) | None => None,
+			None => None,
 		}
 	}
 
@@ -187,7 +142,6 @@ impl InvocationOutcome {
 			InvocationStatus::Quit => "quit",
 			InvocationStatus::ForceQuit => "force_quit",
 			InvocationStatus::NotFound => "not_found",
-			InvocationStatus::PermissionDenied => "perm_denied",
 			InvocationStatus::ReadonlyDenied => "readonly",
 			InvocationStatus::CommandError => "error",
 		}

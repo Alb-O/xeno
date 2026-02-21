@@ -19,8 +19,8 @@ fn cmd_help<'a>(ctx: &'a mut CommandContext<'a>) -> BoxFutureLocal<'a, Result<Co
 				out.push(format!("Description: {}", cmd.description_str()));
 				out.push(format!("Source: {}", cmd.source()));
 				out.push(format!("Priority: {}", cmd.priority()));
-				if !cmd.required_caps().is_empty() {
-					out.push(format!("Required Capabilities: {:?}", cmd.required_caps()));
+				if cmd.mutates_buffer() {
+					out.push("Mutates Buffer: yes".to_string());
 				}
 				ctx.emit(keys::help_text(out.join("\n")));
 				return Ok(CommandOutcome::Ok);

@@ -13,7 +13,7 @@ pub static DEFAULT_THEME: ThemeDef = ThemeDef {
 		description: "",
 		priority: 0,
 		source: RegistrySource::Builtin,
-		required_caps: &[],
+		mutates_buffer: false,
 		flags: 0,
 	},
 	variant: crate::themes::ThemeVariant::Dark,

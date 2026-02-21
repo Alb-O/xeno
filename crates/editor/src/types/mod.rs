@@ -9,7 +9,7 @@
 //! * [`crate::types::UndoManager`] - Editor-level undo/redo management
 //! * [`crate::types::ApplyEditPolicy`] - Policy for edit transaction behavior
 //! * [`crate::types::Invocation`] - Unified action/command dispatch
-//! * [`crate::types::InvocationPolicy`] - Capability enforcement policy
+//! * [`crate::types::InvocationPolicy`] - Readonly enforcement policy
 
 mod config;
 mod edit_policy;

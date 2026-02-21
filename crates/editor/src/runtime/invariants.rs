@@ -62,7 +62,7 @@ static ACTION_RUNTIME_EDIT: xeno_registry::actions::ActionDef = xeno_registry::a
 		description: "Runtime invariant test action requiring Edit capability",
 		priority: 0,
 		source: xeno_registry::RegistrySource::Crate("xeno-editor"),
-		required_caps: &[xeno_registry::Capability::Edit],
+		mutates_buffer: true,
 		flags: 0,
 	},
 	short_desc: "Runtime invariant edit action",

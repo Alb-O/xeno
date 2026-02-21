@@ -1,7 +1,6 @@
 //! LSP commands with direct [`Editor`] access.
 
 use xeno_primitives::BoxFutureLocal;
-use xeno_registry::Capability;
 
 use super::{CommandError, CommandOutcome, EditorCommandContext};
 use crate::info_popup::PopupAnchor;
@@ -34,7 +33,7 @@ editor_command!(
 	{
 		keys: &["goto-definition", "lsp-definition"],
 		description: "Go to definition",
-		caps: &[Capability::FileOps]
+		mutates_buffer: false
 	},
 	handler: cmd_goto_definition
 );
@@ -104,7 +103,7 @@ editor_command!(
 	{
 		keys: &["code-action", "code-actions", "lsp-code-action", "lsp-code-actions"],
 		description: "Show code actions at cursor",
-		caps: &[Capability::Edit]
+		mutates_buffer: true
 	},
 	handler: cmd_code_action
 );
@@ -121,7 +120,7 @@ editor_command!(
 	{
 		keys: &["lsp-rename"],
 		description: "Rename symbol at cursor",
-		caps: &[Capability::Edit]
+		mutates_buffer: true
 	},
 	handler: cmd_rename
 );
