@@ -4,9 +4,10 @@ description = "Asynchronous Language Server Protocol (LSP) framework based on to
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+publish = false
 
 [features]
-default = ["client-monitor", "omni-trait", "stdio"]
+default = []
 client-monitor = ["dep:waitpid-any", "dep:rustix", "dep:xeno-worker"]
 omni-trait = []
 stdio = ["dep:rustix", "rustix?/fs", "tokio/net"]

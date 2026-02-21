@@ -141,7 +141,7 @@ xeno-keymap-core = { path = "crates/keymap/core" }
 xeno-keymap-parser = { path = "crates/keymap/parser" }
 xeno-language = { path = "crates/language" }
 xeno-lsp = { path = "crates/lsp" }
-xeno-lsp-framework = { path = "crates/lsp_framework" }
+xeno-lsp-framework = { path = "crates/lsp_framework", default-features = false }
 xeno-macros = { path = "crates/macros" }
 xeno-matcher = { path = "crates/matcher" }
 xeno-nu-api = { path = "crates/nu/api" }
