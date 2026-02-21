@@ -1,0 +1,6 @@
+{
+  upstream: "https://github.com/helix-editor/helix",
+  ref: "master",
+  commit: "d12a48a51e2409e876a18baf3cae1e838a9dddc3",
+  synced_at: "2026-02-21T22:46:57+11:00"
+}
