@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use serde_json::Value as JsonValue;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::{mpsc, oneshot};
-use xeno_lsp_framework::protocol::JsonRpcProtocol;
+use xeno_lsp_framework::JsonRpcProtocol;
 
 use super::Outbound;
 use crate::client::config::LanguageServerId;

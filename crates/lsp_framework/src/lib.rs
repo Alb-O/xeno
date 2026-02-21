@@ -37,21 +37,22 @@ use tower_service::Service;
 mod event;
 #[macro_use]
 mod mainloop;
-pub mod message;
-pub mod protocol;
+mod message;
+mod protocol;
 mod socket;
-pub mod types;
+mod types;
 
 pub use event::AnyEvent;
 pub use mainloop::MainLoop;
 pub use message::Message;
+pub use protocol::JsonRpcProtocol;
 pub use socket::{ClientSocket, ServerSocket};
 pub use types::{AnyNotification, AnyRequest, AnyResponse, ErrorCode, RequestId, ResponseError};
 
-pub mod concurrency;
-pub mod panic;
-pub mod router;
-pub mod server;
+mod concurrency;
+mod panic;
+mod router;
+mod server;
 
 /// Service forwarding implementations (requires `forward` feature).
 #[cfg(feature = "forward")]
@@ -60,13 +61,13 @@ mod forward;
 
 #[cfg(feature = "client-monitor")]
 #[cfg_attr(docsrs, doc(cfg(feature = "client-monitor")))]
-pub mod client_monitor;
+mod client_monitor;
 
 #[cfg(all(feature = "stdio", unix))]
 #[cfg_attr(docsrs, doc(cfg(all(feature = "stdio", unix))))]
-pub mod stdio;
+mod stdio;
 
-pub mod tracing;
+mod tracing;
 
 /// Mega-traits for Language Server and Client implementations.
 #[cfg(feature = "omni-trait")]
@@ -80,15 +81,12 @@ mod encoding;
 pub use encoding::OffsetEncoding;
 
 #[cfg(feature = "position")]
-#[cfg_attr(docsrs, doc(cfg(feature = "position")))]
-pub mod position;
+mod position;
 #[cfg(feature = "position")]
 pub use position::{char_range_to_lsp_range, char_to_lsp_position, lsp_position_to_char, lsp_range_to_char_range};
 
 #[cfg(feature = "position")]
-#[cfg_attr(docsrs, doc(cfg(feature = "position")))]
-/// LSP change computation helpers.
-pub mod changes;
+mod changes;
 #[cfg(feature = "position")]
 pub use changes::{IncrementalResult, compute_lsp_changes};
 
