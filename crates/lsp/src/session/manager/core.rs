@@ -86,10 +86,9 @@ impl LspRuntime {
 					transport: transport.clone(),
 					documents: Arc::clone(&documents),
 				})
-				.supervisor(xeno_worker::ActorLifecyclePolicy {
-					restart: xeno_worker::ActorRestartPolicy::Never,
-					event_buffer: 8,
-				}),
+				.supervisor(xeno_worker::ActorLifecyclePolicy::default()
+					.restart(xeno_worker::ActorRestartPolicy::Never)
+					.event_buffer(8)),
 			),
 		);
 		let router_for_forward = Arc::clone(&router_actor);

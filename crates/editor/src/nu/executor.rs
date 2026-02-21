@@ -136,14 +136,15 @@ impl NuExecutor {
 		let spec = xeno_worker::ActorSpec::new("nu.executor", xeno_worker::TaskClass::CpuBlocking, move || NuActor {
 			runtime: actor_runtime.clone(),
 		})
-		.mailbox(xeno_worker::ActorMailboxSpec { capacity: 256 })
-		.supervisor(xeno_worker::ActorLifecyclePolicy {
-			restart: xeno_worker::ActorRestartPolicy::OnFailure {
-				max_restarts: 8,
-				backoff: std::time::Duration::from_millis(25),
-			},
-			event_buffer: 8,
-		});
+		.mailbox(xeno_worker::ActorMailboxSpec::with_capacity(256))
+		.supervisor(
+			xeno_worker::ActorLifecyclePolicy::default()
+				.restart(xeno_worker::ActorRestartPolicy::OnFailure {
+					max_restarts: 8,
+					backoff: std::time::Duration::from_millis(25),
+				})
+				.event_buffer(8),
+		);
 
 		let (runtime_guard, handle) = if tokio::runtime::Handle::try_current().is_ok() {
 			(None, Arc::new(xeno_worker::ActorRuntime::spawn(spec)))

@@ -657,13 +657,12 @@ impl LspSyncManager {
 						shared: Arc::clone(&shared),
 					}
 				})
-				.supervisor(xeno_worker::ActorLifecyclePolicy {
-					restart: xeno_worker::ActorRestartPolicy::OnFailure {
+				.supervisor(xeno_worker::ActorLifecyclePolicy::default()
+					.restart(xeno_worker::ActorRestartPolicy::OnFailure {
 						max_restarts: 3,
 						backoff: Duration::from_millis(50),
-					},
-					event_buffer: 64,
-				}),
+					})
+					.event_buffer(64)),
 			),
 		);
 		let ingress = xeno_worker::ActorCommandIngress::with_capacity(&worker_runtime, xeno_worker::TaskClass::Background, Arc::clone(&actor), 4096);

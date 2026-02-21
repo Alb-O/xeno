@@ -479,13 +479,12 @@ impl FsService {
 						command_port: Arc::clone(&service_command_port),
 					}
 				})
-				.supervisor(xeno_worker::ActorLifecyclePolicy {
-					restart: xeno_worker::ActorRestartPolicy::OnFailure {
+				.supervisor(xeno_worker::ActorLifecyclePolicy::default()
+					.restart(xeno_worker::ActorRestartPolicy::OnFailure {
 						max_restarts: 3,
 						backoff: Duration::from_millis(50),
-					},
-					event_buffer: 16,
-				}),
+					})
+					.event_buffer(16)),
 			),
 		);
 
@@ -502,7 +501,7 @@ impl FsService {
 						latest_query_id: None,
 					}
 				})
-				.mailbox(xeno_worker::ActorMailboxSpec { capacity: 128 })
+				.mailbox(xeno_worker::ActorMailboxSpec::with_capacity(128))
 				.coalesce_by_key(|cmd: &FsSearchCmd| match cmd {
 					FsSearchCmd::RunQuery { generation, id, .. } => format!("q:{generation}:{id}"),
 					FsSearchCmd::UpdateDelta { generation, .. } => format!("u:{generation}"),

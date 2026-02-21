@@ -115,7 +115,14 @@ impl RestartPolicy {
 /// `coalesce_by_key` is called on the `ActorSpec` builder.
 #[derive(Debug, Clone)]
 pub struct MailboxSpec {
-	pub capacity: usize,
+	pub(crate) capacity: usize,
+}
+
+impl MailboxSpec {
+	/// Creates a mailbox spec with the given capacity.
+	pub fn with_capacity(capacity: usize) -> Self {
+		Self { capacity }
+	}
 }
 
 impl Default for MailboxSpec {
@@ -127,8 +134,22 @@ impl Default for MailboxSpec {
 /// Supervisor configuration for one actor.
 #[derive(Debug, Clone)]
 pub struct SupervisorSpec {
-	pub restart: RestartPolicy,
-	pub event_buffer: usize,
+	pub(crate) restart: RestartPolicy,
+	pub(crate) event_buffer: usize,
+}
+
+impl SupervisorSpec {
+	/// Sets the restart policy.
+	pub fn restart(mut self, restart: RestartPolicy) -> Self {
+		self.restart = restart;
+		self
+	}
+
+	/// Sets the event broadcast buffer capacity.
+	pub fn event_buffer(mut self, size: usize) -> Self {
+		self.event_buffer = size;
+		self
+	}
 }
 
 impl Default for SupervisorSpec {
@@ -222,10 +243,10 @@ pub struct ActorSpec<A>
 where
 	A: WorkerActor,
 {
-	pub name: String,
-	pub class: TaskClass,
-	pub mailbox: MailboxSpec,
-	pub supervisor: SupervisorSpec,
+	pub(crate) name: String,
+	pub(crate) class: TaskClass,
+	pub(crate) mailbox: MailboxSpec,
+	pub(crate) supervisor: SupervisorSpec,
 	factory: Arc<dyn Fn() -> A + Send + Sync>,
 	coalesce_eq: Option<Arc<CoalesceEqFn<A::Cmd>>>,
 }
