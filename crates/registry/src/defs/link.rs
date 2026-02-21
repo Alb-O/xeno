@@ -12,7 +12,7 @@ pub fn linked_meta_from_spec(common: &MetaCommonSpec) -> LinkedMetaOwned {
 		description: common.description.clone(),
 		priority: common.priority,
 		source: RegistrySource::Crate(env!("CARGO_PKG_NAME")),
-		mutates_buffer: false,
+		mutates_buffer: common.mutates_buffer,
 		short_desc: common.short_desc.clone().unwrap_or_else(|| common.description.clone()),
 	}
 }
