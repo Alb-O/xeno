@@ -502,7 +502,7 @@ impl FsService {
 						latest_query_id: None,
 					}
 				})
-				.mailbox(xeno_worker::ActorMailboxPolicy { capacity: 128 })
+				.mailbox(xeno_worker::ActorMailboxSpec { capacity: 128 })
 				.coalesce_by_key(|cmd: &FsSearchCmd| match cmd {
 					FsSearchCmd::RunQuery { generation, id, .. } => format!("q:{generation}:{id}"),
 					FsSearchCmd::UpdateDelta { generation, .. } => format!("u:{generation}"),

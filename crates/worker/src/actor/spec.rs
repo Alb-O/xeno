@@ -6,4 +6,4 @@ pub use crate::supervisor::{
 };
 
 /// Mailbox configuration for actor specs.
-pub type ActorMailboxPolicy = crate::supervisor::MailboxSpec;
+pub type ActorMailboxSpec = crate::supervisor::MailboxSpec;

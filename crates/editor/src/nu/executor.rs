@@ -136,7 +136,7 @@ impl NuExecutor {
 		let spec = xeno_worker::ActorSpec::new("nu.executor", xeno_worker::TaskClass::CpuBlocking, move || NuActor {
 			runtime: actor_runtime.clone(),
 		})
-		.mailbox(xeno_worker::ActorMailboxPolicy { capacity: 256 })
+		.mailbox(xeno_worker::ActorMailboxSpec { capacity: 256 })
 		.supervisor(xeno_worker::ActorLifecyclePolicy {
 			restart: xeno_worker::ActorRestartPolicy::OnFailure {
 				max_restarts: 8,

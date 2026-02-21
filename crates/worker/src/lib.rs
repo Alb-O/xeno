@@ -24,7 +24,7 @@ mod token;
 
 pub use actor::{
 	Actor, ActorCommandIngress, ActorCommandPort, ActorContext, ActorExitReason, ActorFlow, ActorHandle, ActorLifecyclePolicy,
-	ActorMailboxPolicy, ActorRestartPolicy, ActorRuntime,
+	ActorMailboxSpec, ActorRestartPolicy, ActorRuntime,
 	ActorShutdownMode, ActorShutdownReport, ActorSpec,
 };
 pub use supervisor::ActorSendError;
