@@ -538,6 +538,10 @@ impl Editor {
 			return false;
 		}
 
+		if self.buffer().is_readonly() {
+			return false;
+		}
+
 		let focused = self.focused_view();
 		if !self.validate_snippet_session_for_view(focused) {
 			return false;
