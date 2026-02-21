@@ -38,19 +38,16 @@ fn test_parse_seq() {
 
 #[test]
 fn test_parse_fn_key() {
-	// Valid function key numbers: f0 - f12
-	(0..=12).for_each(|n| {
+	// Valid function key numbers: f1 - f35
+	(1..=35).for_each(|n| {
 		let input = format!("f{n}");
 		let result = parse(&input);
 		assert_eq!(Key::F(n), result.unwrap().key);
 	});
 
-	// Invalid: above f12
-	for n in [13, 15] {
-		let input = format!("f{n}");
-		let result = parse(&input);
-		assert!(result.is_err());
-	}
+	// Invalid: f0 and f36+ produce hard errors (no silent degradation).
+	assert!(parse("f0").is_err());
+	assert!(parse("f36").is_err());
 }
 
 #[test]

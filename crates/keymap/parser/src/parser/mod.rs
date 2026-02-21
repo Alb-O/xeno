@@ -233,20 +233,27 @@ fn parse_key(parser: &mut Parser) -> Result<Key, ParseError> {
 	}
 }
 
-/// Attempts to parse a function key (e.g., `"f1"` to `"f12"`).
+/// Attempts to parse a function key (e.g., `"f1"` to `"f35"`).
+///
+/// Only activates when the input starts with `f` followed by a digit.
+/// Once activated, the digits must form a valid function key number (1-35)
+/// or an error is returned (no silent degradation to a char key).
 fn try_parse_fn_key(parser: &mut Parser) -> Result<Option<Key>, ParseError> {
-	if parser.peek() != Some('f') || parser.peek_at(1).is_none() {
+	if parser.peek() != Some('f') {
+		return Ok(None);
+	}
+
+	if !matches!(parser.peek_at(1), Some(ch) if ch.is_ascii_digit()) {
 		return Ok(None);
 	}
 
 	parser.take('f')?;
-	parser.try_parse(|p| {
-		let num = p.take_while(|ch| ch.is_ascii_digit());
-		match num.parse::<u8>() {
-			Ok(n) if n <= 12 => Ok(Some(Key::F(n))),
-			_ => Err(p.error("invalid function key number (must be 0-12)".to_string())),
-		}
-	})
+	let num = parser.take_while(|ch| ch.is_ascii_digit());
+
+	match num.parse::<u8>() {
+		Ok(n) if (1..=35).contains(&n) => Ok(Some(Key::F(n))),
+		_ => Err(parser.error("invalid function key number (must be 1-35)".to_string())),
+	}
 }
 
 /// Attempts to parse a named key such as `"del"`, `"insert"`, or `"end"`.
