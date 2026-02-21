@@ -479,7 +479,7 @@ impl FsService {
 						command_port: Arc::clone(&service_command_port),
 					}
 				})
-				.supervisor(xeno_worker::ActorLifecyclePolicy::default()
+				.supervisor(xeno_worker::ActorSupervisorSpec::default()
 					.restart(xeno_worker::ActorRestartPolicy::OnFailure {
 						max_restarts: 3,
 						backoff: Duration::from_millis(50),

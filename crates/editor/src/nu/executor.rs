@@ -138,7 +138,7 @@ impl NuExecutor {
 		})
 		.mailbox(xeno_worker::ActorMailboxSpec::with_capacity(256))
 		.supervisor(
-			xeno_worker::ActorLifecyclePolicy::default()
+			xeno_worker::ActorSupervisorSpec::default()
 				.restart(xeno_worker::ActorRestartPolicy::OnFailure {
 					max_restarts: 8,
 					backoff: std::time::Duration::from_millis(25),

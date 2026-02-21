@@ -89,12 +89,12 @@ pub(crate) enum ActorExitReason {
 
 /// Supervisor restart policy.
 #[derive(Debug, Clone)]
-pub enum RestartPolicy {
+pub enum ActorRestartPolicy {
 	Never,
 	OnFailure { max_restarts: usize, backoff: Duration },
 }
 
-impl RestartPolicy {
+impl ActorRestartPolicy {
 	fn restart_delay(&self, reason: &ActorExitReason, restart_count: usize) -> Option<Duration> {
 		match self {
 			Self::Never => None,
@@ -114,11 +114,11 @@ impl RestartPolicy {
 /// The mailbox mode (backpressure vs coalesce) is determined by whether
 /// `coalesce_by_key` is called on the `ActorSpec` builder.
 #[derive(Debug, Clone)]
-pub struct MailboxSpec {
+pub struct ActorMailboxSpec {
 	pub(crate) capacity: usize,
 }
 
-impl MailboxSpec {
+impl ActorMailboxSpec {
 	/// Creates a mailbox spec with the given capacity.
 	///
 	/// # Panics
@@ -131,7 +131,7 @@ impl MailboxSpec {
 	}
 }
 
-impl Default for MailboxSpec {
+impl Default for ActorMailboxSpec {
 	fn default() -> Self {
 		Self { capacity: 128 }
 	}
@@ -139,15 +139,15 @@ impl Default for MailboxSpec {
 
 /// Supervisor configuration for one actor.
 #[derive(Debug, Clone)]
-pub struct SupervisorSpec {
-	pub(crate) restart: RestartPolicy,
+pub struct ActorSupervisorSpec {
+	pub(crate) restart: ActorRestartPolicy,
 	pub(crate) event_buffer: usize,
 }
 
-impl SupervisorSpec {
+impl ActorSupervisorSpec {
 	/// Sets the restart policy.
 	#[must_use]
-	pub fn restart(mut self, restart: RestartPolicy) -> Self {
+	pub fn restart(mut self, restart: ActorRestartPolicy) -> Self {
 		self.restart = restart;
 		self
 	}
@@ -165,10 +165,10 @@ impl SupervisorSpec {
 	}
 }
 
-impl Default for SupervisorSpec {
+impl Default for ActorSupervisorSpec {
 	fn default() -> Self {
 		Self {
-			restart: RestartPolicy::OnFailure {
+			restart: ActorRestartPolicy::OnFailure {
 				max_restarts: 3,
 				backoff: Duration::from_millis(50),
 			},
@@ -179,20 +179,20 @@ impl Default for SupervisorSpec {
 
 /// Shutdown mode for supervised actors.
 #[derive(Debug, Clone, Copy)]
-pub enum ShutdownMode {
+pub enum ActorShutdownMode {
 	Immediate,
 	Graceful { timeout: Duration },
 }
 
 /// Shutdown report for one actor.
 #[derive(Debug, Clone)]
-pub struct ShutdownReport {
+pub struct ActorShutdownReport {
 	completed: bool,
 	timed_out: bool,
 	last_exit: Option<ActorExit>,
 }
 
-impl ShutdownReport {
+impl ActorShutdownReport {
 	pub fn completed(&self) -> bool {
 		self.completed
 	}
@@ -258,8 +258,8 @@ where
 {
 	pub(crate) name: String,
 	pub(crate) class: TaskClass,
-	pub(crate) mailbox: MailboxSpec,
-	pub(crate) supervisor: SupervisorSpec,
+	pub(crate) mailbox: ActorMailboxSpec,
+	pub(crate) supervisor: ActorSupervisorSpec,
 	factory: Arc<dyn Fn() -> A + Send + Sync>,
 	coalesce_eq: Option<Arc<CoalesceEqFn<A::Cmd>>>,
 }
@@ -275,8 +275,8 @@ where
 		Self {
 			name: name.into(),
 			class,
-			mailbox: MailboxSpec::default(),
-			supervisor: SupervisorSpec::default(),
+			mailbox: ActorMailboxSpec::default(),
+			supervisor: ActorSupervisorSpec::default(),
 			factory: Arc::new(factory),
 			coalesce_eq: None,
 		}
@@ -284,14 +284,14 @@ where
 
 	/// Configures mailbox policy/capacity.
 	#[must_use]
-	pub fn mailbox(mut self, mailbox: MailboxSpec) -> Self {
+	pub fn mailbox(mut self, mailbox: ActorMailboxSpec) -> Self {
 		self.mailbox = mailbox;
 		self
 	}
 
 	/// Configures supervisor behavior.
 	#[must_use]
-	pub fn supervisor(mut self, supervisor: SupervisorSpec) -> Self {
+	pub fn supervisor(mut self, supervisor: ActorSupervisorSpec) -> Self {
 		self.supervisor = supervisor;
 		self
 	}
@@ -519,25 +519,25 @@ where
 	}
 
 	/// Shuts down this actor.
-	pub async fn shutdown(&self, mode: ShutdownMode) -> ShutdownReport {
+	pub async fn shutdown(&self, mode: ActorShutdownMode) -> ActorShutdownReport {
 		match mode {
-			ShutdownMode::Immediate => {
+			ActorShutdownMode::Immediate => {
 				self.cancel.cancel();
 				self.tx.close().await;
 				self.join_ctrl.join_forever().await;
-				ShutdownReport {
+				ActorShutdownReport {
 					completed: true,
 					timed_out: false,
 					last_exit: self.last_exit().await,
 				}
 			}
-			ShutdownMode::Graceful { timeout } => {
+			ActorShutdownMode::Graceful { timeout } => {
 				self.tx.close().await;
 				let completed = self.join_ctrl.join_with_timeout(timeout).await;
 				if !completed {
 					self.cancel.cancel();
 				}
-				ShutdownReport {
+				ActorShutdownReport {
 					completed,
 					timed_out: !completed,
 					last_exit: self.last_exit().await,
@@ -547,11 +547,11 @@ where
 	}
 
 	/// Two-phase shutdown: tries graceful first, forces immediate on timeout.
-	pub async fn shutdown_graceful_or_force(&self, timeout: Duration) -> ShutdownReport {
-		let report = self.shutdown(ShutdownMode::Graceful { timeout }).await;
+	pub async fn shutdown_graceful_or_force(&self, timeout: Duration) -> ActorShutdownReport {
+		let report = self.shutdown(ActorShutdownMode::Graceful { timeout }).await;
 		if report.timed_out() {
 			tracing::warn!(actor = %self.name, "graceful shutdown timed out; forcing immediate");
-			return self.shutdown(ShutdownMode::Immediate).await;
+			return self.shutdown(ActorShutdownMode::Immediate).await;
 		}
 		report
 	}
@@ -749,7 +749,7 @@ mod tests {
 		assert_eq!(events.recv().await.ok(), Some(99));
 
 		let report = handle
-			.shutdown(ShutdownMode::Graceful {
+			.shutdown(ActorShutdownMode::Graceful {
 				timeout: Duration::from_secs(1),
 			})
 			.await;
@@ -782,8 +782,8 @@ mod tests {
 		let spec = ActorSpec::new("failing", TaskClass::Background, move || FailingActor {
 			start_counter: Arc::clone(&starts_clone),
 		})
-		.supervisor(SupervisorSpec {
-			restart: RestartPolicy::OnFailure {
+		.supervisor(ActorSupervisorSpec {
+			restart: ActorRestartPolicy::OnFailure {
 				max_restarts: 2,
 				backoff: Duration::from_millis(1),
 			},
@@ -794,7 +794,7 @@ mod tests {
 		let _ = handle.send(()).await;
 		tokio::time::sleep(Duration::from_millis(20)).await;
 		handle.cancel();
-		let _ = handle.shutdown(ShutdownMode::Immediate).await;
+		let _ = handle.shutdown(ActorShutdownMode::Immediate).await;
 
 		assert!(starts.load(Ordering::SeqCst) >= 2, "actor should restart after failure");
 	}
@@ -815,8 +815,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn immediate_shutdown_preempts_slow_handler() {
-		let handle = spawn_supervised_actor(ActorSpec::new("slow", TaskClass::Background, || SlowActor).supervisor(SupervisorSpec {
-			restart: RestartPolicy::Never,
+		let handle = spawn_supervised_actor(ActorSpec::new("slow", TaskClass::Background, || SlowActor).supervisor(ActorSupervisorSpec {
+			restart: ActorRestartPolicy::Never,
 			event_buffer: 8,
 		}));
 		let mut events = handle.subscribe();
@@ -827,7 +827,7 @@ mod tests {
 		assert_eq!(got.ok().and_then(|r| r.ok()), Some("entered"), "actor should enter handle()");
 
 		// Immediate shutdown must complete quickly despite the 60s sleep.
-		let report = tokio::time::timeout(Duration::from_millis(500), handle.shutdown(ShutdownMode::Immediate))
+		let report = tokio::time::timeout(Duration::from_millis(500), handle.shutdown(ActorShutdownMode::Immediate))
 			.await
 			.expect("shutdown should not hang");
 		assert!(report.completed());
@@ -863,8 +863,8 @@ mod tests {
 			ActorSpec::new("slow-stop", TaskClass::Background, move || SlowStopActor {
 				stopped: Arc::clone(&stopped_clone),
 			})
-			.supervisor(SupervisorSpec {
-				restart: RestartPolicy::Never,
+			.supervisor(ActorSupervisorSpec {
+				restart: ActorRestartPolicy::Never,
 				event_buffer: 8,
 			}),
 		);
@@ -876,7 +876,7 @@ mod tests {
 
 		// Graceful with very short timeout — will time out while handle() sleeps.
 		let report = handle
-			.shutdown(ShutdownMode::Graceful {
+			.shutdown(ActorShutdownMode::Graceful {
 				timeout: Duration::from_millis(10),
 			})
 			.await;
@@ -886,7 +886,7 @@ mod tests {
 		assert!(!stopped.load(Ordering::SeqCst));
 
 		// Follow-up Immediate must join the supervisor and wait for on_stop to finish.
-		let report = tokio::time::timeout(Duration::from_secs(2), handle.shutdown(ShutdownMode::Immediate))
+		let report = tokio::time::timeout(Duration::from_secs(2), handle.shutdown(ActorShutdownMode::Immediate))
 			.await
 			.expect("immediate after graceful should not hang");
 		assert!(report.completed());
@@ -909,8 +909,8 @@ mod tests {
 	#[tokio::test]
 	async fn graceful_shutdown_terminates_with_restart_on_failure() {
 		let handle = spawn_supervised_actor(
-			ActorSpec::new("restart-shutdown", TaskClass::Background, NoopActor::default).supervisor(SupervisorSpec {
-				restart: RestartPolicy::OnFailure {
+			ActorSpec::new("restart-shutdown", TaskClass::Background, NoopActor::default).supervisor(ActorSupervisorSpec {
+				restart: ActorRestartPolicy::OnFailure {
 					max_restarts: 5,
 					backoff: Duration::from_millis(1),
 				},
@@ -920,7 +920,7 @@ mod tests {
 
 		// Don't send anything — just graceful-shutdown immediately.
 		let report = handle
-			.shutdown(ShutdownMode::Graceful {
+			.shutdown(ActorShutdownMode::Graceful {
 				timeout: Duration::from_millis(200),
 			})
 			.await;
@@ -936,8 +936,8 @@ mod tests {
 			ActorSpec::new("force-test", TaskClass::Background, move || SlowStopActor {
 				stopped: Arc::clone(&stopped_clone),
 			})
-			.supervisor(SupervisorSpec {
-				restart: RestartPolicy::Never,
+			.supervisor(ActorSupervisorSpec {
+				restart: ActorRestartPolicy::Never,
 				event_buffer: 8,
 			}),
 		);
@@ -959,7 +959,7 @@ mod tests {
 	#[tokio::test]
 	async fn cancel_closes_mailbox_and_send_fails_fast() {
 		let handle = spawn_supervised_actor(
-			ActorSpec::new("cancel-close", TaskClass::Background, CountingActor::default).mailbox(MailboxSpec { capacity: 1 }),
+			ActorSpec::new("cancel-close", TaskClass::Background, CountingActor::default).mailbox(ActorMailboxSpec { capacity: 1 }),
 		);
 
 		handle.cancel();
@@ -969,7 +969,7 @@ mod tests {
 		assert!(result.is_ok(), "send should not block after cancel");
 		assert!(result.unwrap().is_err(), "send should return error on closed mailbox");
 
-		let report = handle.shutdown(ShutdownMode::Immediate).await;
+		let report = handle.shutdown(ActorShutdownMode::Immediate).await;
 		assert!(report.completed());
 	}
 
@@ -1007,8 +1007,8 @@ mod tests {
 				started_stop: Arc::clone(&ss),
 				done_stop: Arc::clone(&ds),
 			})
-			.supervisor(SupervisorSpec {
-				restart: RestartPolicy::Never,
+			.supervisor(ActorSupervisorSpec {
+				restart: ActorRestartPolicy::Never,
 				event_buffer: 8,
 			}),
 		));
@@ -1020,7 +1020,7 @@ mod tests {
 
 		// Caller A starts Immediate shutdown.
 		let handle_a = Arc::clone(&handle);
-		let task_a = tokio::spawn(async move { handle_a.shutdown(ShutdownMode::Immediate).await });
+		let task_a = tokio::spawn(async move { handle_a.shutdown(ActorShutdownMode::Immediate).await });
 
 		// Wait until on_stop has started (proves A is the leader, joining).
 		while !started_stop.load(Ordering::SeqCst) {
@@ -1030,7 +1030,7 @@ mod tests {
 		assert!(!done_stop.load(Ordering::SeqCst));
 
 		// Caller B also calls Immediate shutdown concurrently.
-		let report_b = tokio::time::timeout(Duration::from_secs(2), handle.shutdown(ShutdownMode::Immediate))
+		let report_b = tokio::time::timeout(Duration::from_secs(2), handle.shutdown(ActorShutdownMode::Immediate))
 			.await
 			.expect("concurrent shutdown B should not hang");
 		// B must wait until on_stop finishes (not return early).
@@ -1118,8 +1118,8 @@ mod tests {
 				starts: Arc::clone(&st),
 				fail_first_n: Arc::clone(&ff),
 			})
-			.supervisor(SupervisorSpec {
-				restart: RestartPolicy::OnFailure {
+			.supervisor(ActorSupervisorSpec {
+				restart: ActorRestartPolicy::OnFailure {
 					max_restarts: 5,
 					backoff: Duration::from_millis(1),
 				},
@@ -1136,7 +1136,7 @@ mod tests {
 
 		// Shutdown and verify all tickers stop.
 		handle.cancel();
-		let report = handle.shutdown(ShutdownMode::Immediate).await;
+		let report = handle.shutdown(ActorShutdownMode::Immediate).await;
 		assert!(report.completed());
 
 		// Give ticker tasks a moment to observe cancellation.
@@ -1172,8 +1172,8 @@ mod tests {
 				s.fetch_add(1, Ordering::SeqCst);
 				FailOnceActor
 			})
-			.supervisor(SupervisorSpec {
-				restart: RestartPolicy::OnFailure {
+			.supervisor(ActorSupervisorSpec {
+				restart: ActorRestartPolicy::OnFailure {
 					max_restarts: 5,
 					backoff: Duration::from_secs(60), // very long backoff
 				},
@@ -1189,7 +1189,7 @@ mod tests {
 		assert_eq!(starts_before, 1, "only one start so far");
 
 		// Shutdown must complete promptly despite the 60s backoff.
-		let report = tokio::time::timeout(Duration::from_millis(500), handle.shutdown(ShutdownMode::Immediate))
+		let report = tokio::time::timeout(Duration::from_millis(500), handle.shutdown(ActorShutdownMode::Immediate))
 			.await
 			.expect("shutdown should not hang during backoff");
 		assert!(report.completed());
@@ -1226,8 +1226,8 @@ mod tests {
 			ActorSpec::new("panic-restart", TaskClass::Background, move || PanicOnStartActor {
 				starts: Arc::clone(&starts_clone),
 			})
-			.supervisor(SupervisorSpec {
-				restart: RestartPolicy::OnFailure {
+			.supervisor(ActorSupervisorSpec {
+				restart: ActorRestartPolicy::OnFailure {
 					max_restarts: 2,
 					backoff: Duration::from_millis(1),
 				},
@@ -1246,7 +1246,7 @@ mod tests {
 		assert_eq!(last_exit.as_ref().map(|e| e.kind()), Some(ActorExitKind::Panicked));
 
 		handle.cancel();
-		let report = handle.shutdown(ShutdownMode::Immediate).await;
+		let report = handle.shutdown(ActorShutdownMode::Immediate).await;
 		assert!(report.completed());
 	}
 
@@ -1278,8 +1278,8 @@ mod tests {
 			ActorSpec::new("max-restarts", TaskClass::Background, move || AlwaysFailActor {
 				starts: Arc::clone(&starts_clone),
 			})
-			.supervisor(SupervisorSpec {
-				restart: RestartPolicy::OnFailure {
+			.supervisor(ActorSupervisorSpec {
+				restart: ActorRestartPolicy::OnFailure {
 					max_restarts: 3,
 					backoff: Duration::from_millis(1),
 				},
@@ -1301,7 +1301,7 @@ mod tests {
 		);
 
 		// Supervisor should have already exited (no more restarts).
-		let report = tokio::time::timeout(Duration::from_millis(100), handle.shutdown(ShutdownMode::Immediate))
+		let report = tokio::time::timeout(Duration::from_millis(100), handle.shutdown(ActorShutdownMode::Immediate))
 			.await
 			.expect("shutdown should complete quickly when supervisor already exited");
 		assert!(report.completed());
@@ -1335,8 +1335,8 @@ mod tests {
 			ActorSpec::new("gen-tracking", TaskClass::Background, move || GenTrackingActor {
 				generations: Arc::clone(&gens),
 			})
-			.supervisor(SupervisorSpec {
-				restart: RestartPolicy::OnFailure {
+			.supervisor(ActorSupervisorSpec {
+				restart: ActorRestartPolicy::OnFailure {
 					max_restarts: 3,
 					backoff: Duration::from_millis(1),
 				},
@@ -1346,7 +1346,7 @@ mod tests {
 
 		tokio::time::sleep(Duration::from_millis(100)).await;
 		handle.cancel();
-		let _ = handle.shutdown(ShutdownMode::Immediate).await;
+		let _ = handle.shutdown(ActorShutdownMode::Immediate).await;
 
 		let gens = generations.lock().await;
 		assert_eq!(gens.len(), 4, "4 starts = 4 generations");

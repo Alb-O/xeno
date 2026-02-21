@@ -217,7 +217,7 @@ mod tests {
 	use async_trait::async_trait;
 
 	use super::*;
-	use crate::{Actor, ActorContext, ActorFlow, ActorLifecyclePolicy, ActorRestartPolicy, ActorRuntime, ActorSpec};
+	use crate::{Actor, ActorContext, ActorFlow, ActorSupervisorSpec, ActorRestartPolicy, ActorRuntime, ActorSpec};
 
 	struct EchoActor;
 
@@ -236,7 +236,7 @@ mod tests {
 	async fn ingress_forwards_commands_to_actor() {
 		let runtime = WorkerRuntime::new();
 		let actor = Arc::new(ActorRuntime::spawn(
-			ActorSpec::new("dispatch.echo", crate::TaskClass::Background, || EchoActor).supervisor(ActorLifecyclePolicy {
+			ActorSpec::new("dispatch.echo", crate::TaskClass::Background, || EchoActor).supervisor(ActorSupervisorSpec {
 				restart: ActorRestartPolicy::Never,
 				event_buffer: 8,
 			}),
@@ -262,7 +262,7 @@ mod tests {
 	async fn ingress_returns_full_when_capacity_exhausted() {
 		let runtime = WorkerRuntime::new();
 		let actor = Arc::new(ActorRuntime::spawn(
-			ActorSpec::new("dispatch.full", crate::TaskClass::Background, || EchoActor).supervisor(ActorLifecyclePolicy {
+			ActorSpec::new("dispatch.full", crate::TaskClass::Background, || EchoActor).supervisor(ActorSupervisorSpec {
 				restart: ActorRestartPolicy::Never,
 				event_buffer: 8,
 			}),

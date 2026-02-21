@@ -86,7 +86,7 @@ impl LspRuntime {
 					transport: transport.clone(),
 					documents: Arc::clone(&documents),
 				})
-				.supervisor(xeno_worker::ActorLifecyclePolicy::default()
+				.supervisor(xeno_worker::ActorSupervisorSpec::default()
 					.restart(xeno_worker::ActorRestartPolicy::Never)
 					.event_buffer(8)),
 			),

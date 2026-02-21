@@ -22,9 +22,9 @@ mod supervisor;
 mod token;
 
 pub use actor::{
-	Actor, ActorCommandIngress, ActorCommandPort, ActorContext, ActorExit, ActorExitKind, ActorFlow, ActorHandle, ActorLifecyclePolicy,
-	ActorMailboxSpec, ActorRestartPolicy, ActorRuntime,
-	ActorShutdownMode, ActorShutdownReport, ActorSpec,
+	Actor, ActorCommandIngress, ActorCommandPort, ActorContext, ActorExit, ActorExitKind, ActorFlow, ActorHandle,
+	ActorMailboxSpec, ActorRestartPolicy, ActorRuntime, ActorShutdownMode, ActorShutdownReport, ActorSpec,
+	ActorSupervisorSpec,
 };
 pub use supervisor::ActorSendError;
 pub use class::TaskClass;

@@ -657,7 +657,7 @@ impl LspSyncManager {
 						shared: Arc::clone(&shared),
 					}
 				})
-				.supervisor(xeno_worker::ActorLifecyclePolicy::default()
+				.supervisor(xeno_worker::ActorSupervisorSpec::default()
 					.restart(xeno_worker::ActorRestartPolicy::OnFailure {
 						max_restarts: 3,
 						backoff: Duration::from_millis(50),
