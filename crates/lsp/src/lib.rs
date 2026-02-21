@@ -1,12 +1,13 @@
 //! LSP client stack: transport, session management, and document synchronization.
 //!
-//! This crate provides the client-side LSP integration layer built on top of
-//! the [`xeno_lsp_framework`] tower-based LSP framework.
+//! This is the downstream entry point for LSP integration. It re-exports
+//! framework types from [`xeno_lsp_framework`] and adds client-specific
+//! modules (transport, registry, document sync, session management).
 //!
 //! ## Cargo features
 //!
 //! * `client`: Client transport, process management, server config types.
-//! * `position`: Position conversion and change computation utilities (implies `client`).
+//! * `position`: Position conversion and change computation (implies `client`).
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(missing_docs)]
 

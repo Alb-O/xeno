@@ -3,44 +3,27 @@
 //! [lsp]: https://microsoft.github.io/language-server-protocol/overviews/lsp/overview/
 //! [tower]: https://github.com/tower-rs/tower
 //!
-//! This crate is centered at a core service trait [`LspService`] for either Language Servers or
-//! Language Clients. The main loop driver [`MainLoop`] executes the service. The additional
-//! features, called middleware, are pluggable can be layered using the [`tower_layer`]
-//! abstraction. This crate defines several common middlewares for various mandatory or optional
-//! LSP functionalities, see their documentations for details.
+//! Internal crate — use [`xeno_lsp`] for editor/client integration.
+//!
+//! This crate provides the tower-based LSP service framework: the core
+//! [`LspService`] trait, the [`MainLoop`] driver, and pluggable middleware:
+//!
 //! * [`concurrency::Concurrency`]: Incoming request multiplexing and cancellation.
 //! * [`panic::CatchUnwind`]: Turn panics into errors.
 //! * [`tracing::Tracing`]: Logger spans with methods instrumenting handlers.
 //! * [`server::Lifecycle`]: Server initialization, shutting down, and exit handling.
-//! * [`client_monitor::ClientProcessMonitor`]: Client process monitor.
 //! * [`router::Router`]: "Root" service to dispatch requests, notifications and events.
-//!
-//! Users are free to select and layer middlewares to run a Language Server or Language Client.
-//! They can also implement their own middlewares for like timeout, metering, request
-//! transformation and etc.
-//!
-//! ## Usages
-//!
-//! There are two main ways to define a [`Router`](router::Router) root service: one is via its
-//! builder API, and the other is to construct via implementing the omnitrait [`LanguageServer`] or
-//! [`LanguageClient`] for a state struct. The former is more flexible, while the latter has a
-//! more similar API as [`tower-lsp`](https://crates.io/crates/tower-lsp).
 //!
 //! ## Cargo features
 //!
-//! * `client-monitor`: Client process monitor middleware [`client_monitor`].
-//!   *Enabled by default.*
-//! * `omni-trait`: Mega traits of all standard requests and notifications, namely
-//!   [`LanguageServer`] and [`LanguageClient`].
-//!   *Enabled by default.*
-//! * `stdio`: Utilities to deal with pipe-like stdin/stdout communication channel for Language
-//!   Servers.
-//!   *Enabled by default.*
-//! * `forward`: Impl [`LspService`] for `{Client,Server}Socket`. This collides some method names
-//!   but allows easy service forwarding.
-//!   *Disabled by default.*
-//! * `tokio`: Enable compatible methods for [`tokio`](https://crates.io/crates/tokio) runtime.
-//!   *Disabled by default.*
+//! No features are enabled by default.
+//!
+//! * `client-monitor`: Client process monitor middleware.
+//! * `omni-trait`: `LanguageServer` and `LanguageClient` mega-traits.
+//! * `stdio`: Pipe-based stdin/stdout communication channel (unix-only).
+//! * `forward`: Impl `LspService` for `{Client,Server}Socket`.
+//! * `tokio`: Tokio-compat helpers in `stdio`.
+//! * `position`: Ropey-based position conversion and change computation.
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(missing_docs)]
 use std::io;
