@@ -8,13 +8,12 @@
 
 #![warn(missing_docs)]
 
-pub mod error;
-pub mod event;
-pub mod mainloop;
-pub mod protocol;
-pub mod socket;
+mod error;
+mod event;
+mod mainloop;
+mod protocol;
+mod socket;
 
-pub use error::{Error, Result};
 pub use event::AnyEvent;
 pub use mainloop::{MainLoop, RpcService};
 pub use protocol::{CounterIdGen, Inbound, Protocol};

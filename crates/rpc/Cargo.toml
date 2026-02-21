@@ -4,6 +4,7 @@ description = "Generic async RPC message pump and protocol framework"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+publish = false
 
 [dependencies]
 pin-project-lite.workspace = true
