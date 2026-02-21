@@ -53,7 +53,7 @@ impl CommandEditorOps for EditorCaps<'_> {
 			.config
 			.config
 			.global_options
-			.set_by_key(&xeno_registry::db::OPTIONS, key, opt_value);
+			.set_by_key(&xeno_registry::OPTIONS, key, opt_value);
 
 		if let Some(def) = find(key) {
 			let resolved_key = def.name_str();
@@ -85,7 +85,7 @@ impl CommandEditorOps for EditorCaps<'_> {
 		}
 
 		let opt_value = super::parse_option_value(key, value)?;
-		let _ = self.ed.buffer_mut().local_options.set_by_key(&xeno_registry::db::OPTIONS, key, opt_value);
+		let _ = self.ed.buffer_mut().local_options.set_by_key(&xeno_registry::OPTIONS, key, opt_value);
 
 		let resolved_key = def.name_str();
 		emit_hook_sync_with(

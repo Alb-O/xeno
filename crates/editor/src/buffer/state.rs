@@ -366,7 +366,7 @@ impl Buffer {
 	/// Resolves a typed option for this buffer.
 	pub fn option<T: FromOptionValue>(&self, key: TypedOptionKey<T>, editor: &crate::Editor) -> T {
 		let untyped = key.untyped();
-		let opt = xeno_registry::db::OPTIONS.get_key(&untyped).expect("typed option key missing from registry");
+		let opt = xeno_registry::OPTIONS.get_key(&untyped).expect("typed option key missing from registry");
 
 		T::from_option(&self.option_raw(untyped, editor))
 			.or_else(|| T::from_option(&opt.default.to_value()))

@@ -69,13 +69,13 @@ static ACTION_RUNTIME_EDIT: xeno_registry::actions::ActionDef = xeno_registry::a
 	bindings: &[],
 };
 
-fn register_runtime_invariant_action_defs(db: &mut xeno_registry::db::builder::RegistryDbBuilder) -> Result<(), xeno_registry::db::builder::RegistryError> {
+fn register_runtime_invariant_action_defs(db: &mut xeno_registry::RegistryDbBuilder) -> Result<(), xeno_registry::RegistryError> {
 	db.push_domain::<xeno_registry::actions::Actions>(xeno_registry::actions::def::ActionInput::Static(ACTION_RUNTIME_EDIT.clone()));
 	Ok(())
 }
 
 inventory::submit! {
-	xeno_registry::db::builtins::BuiltinsReg {
+	xeno_registry::BuiltinsReg {
 		ordinal: 65001,
 		f: register_runtime_invariant_action_defs,
 	}

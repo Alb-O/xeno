@@ -62,7 +62,7 @@ pub use navigation::Location;
 use parking_lot::Mutex;
 use xeno_language::LanguageLoader;
 use xeno_registry::HookEventData;
-use xeno_registry::db::keymap_registry::KeymapSnapshot;
+use xeno_registry::KeymapSnapshot;
 use xeno_registry::hooks::{HookContext, WindowKind, emit as emit_hook, emit_sync_with as emit_hook_sync_with};
 use xeno_registry::options::OPTIONS;
 use xeno_registry::themes::THEMES;
@@ -863,7 +863,7 @@ impl Editor {
 	/// Returns the effective keymap for the current catalog version, preset, and overrides.
 	pub fn effective_keymap(&self) -> Arc<KeymapSnapshot> {
 		let catalog_version = xeno_registry::CATALOG.version_hash();
-		let snap = xeno_registry::db::ACTIONS.snapshot();
+		let snap = xeno_registry::ACTIONS.snapshot();
 		let overrides_hash = hash_unresolved_keys(self.state.config.key_overrides.as_ref());
 		let preset_ptr = Arc::as_ptr(&self.state.config.keymap_preset) as usize;
 

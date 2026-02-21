@@ -140,7 +140,7 @@ static CMD_TEST_FAIL: xeno_registry::commands::CommandDef = xeno_registry::comma
 	user_data: None,
 };
 
-fn register_invocation_test_defs(db: &mut xeno_registry::db::builder::RegistryDbBuilder) -> Result<(), xeno_registry::db::builder::RegistryError> {
+fn register_invocation_test_defs(db: &mut xeno_registry::RegistryDbBuilder) -> Result<(), xeno_registry::RegistryError> {
 	db.push_domain::<xeno_registry::actions::Actions>(xeno_registry::actions::def::ActionInput::Static(ACTION_INVOCATION_TEST.clone()));
 	db.push_domain::<xeno_registry::actions::Actions>(xeno_registry::actions::def::ActionInput::Static(ACTION_INVOCATION_TEST_ALT.clone()));
 	db.push_domain::<xeno_registry::actions::Actions>(xeno_registry::actions::def::ActionInput::Static(ACTION_INVOCATION_EDIT.clone()));
@@ -151,7 +151,7 @@ fn register_invocation_test_defs(db: &mut xeno_registry::db::builder::RegistryDb
 }
 
 inventory::submit! {
-	xeno_registry::db::builtins::BuiltinsReg {
+	xeno_registry::BuiltinsReg {
 		ordinal: 65000,
 		f: register_invocation_test_defs,
 	}

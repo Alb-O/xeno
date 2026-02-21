@@ -184,10 +184,10 @@ xeno_macros::define_events! {
 pub mod keymaps;
 
 #[cfg(feature = "minimal")]
-pub mod db;
+mod db;
 
 #[macro_use]
-pub mod domains;
+mod domains;
 
 #[cfg(feature = "minimal")]
 pub use db::CATALOG;
@@ -202,10 +202,16 @@ pub use db::index::{
 };
 #[cfg(feature = "keymap")]
 pub use db::keymap_registry::{
-	CompiledBinding, CompiledBindingTarget, KeymapBuildProblem, KeymapSnapshot, KeymapSnapshotCache, LookupOutcome, get_keymap_snapshot,
+	CompiledBinding, CompiledBindingTarget, ContinuationKind, KeymapBuildProblem, KeymapSnapshot, KeymapSnapshotCache, LookupOutcome,
+	get_keymap_snapshot,
 };
 #[cfg(feature = "minimal")]
+pub use db::builder::{RegistryDbBuilder, RegistryError};
+#[cfg(feature = "minimal")]
+pub use db::builtins::BuiltinsReg;
+#[cfg(feature = "minimal")]
 pub use db::{ACTIONS, COMMANDS, GUTTERS, HOOKS, LANGUAGES, LSP_SERVERS, MOTIONS, NOTIFICATIONS, OPTIONS, STATUSLINE_SEGMENTS, TEXT_OBJECTS, THEMES};
+pub use domains::grammars::loader::load_grammars_spec;
 #[cfg(feature = "actions")]
 pub use domains::actions;
 #[cfg(feature = "commands")]

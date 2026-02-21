@@ -15,7 +15,7 @@ impl Editor {
 	pub fn set_configured_theme_name(&mut self, theme_name: impl Into<String>) {
 		use xeno_registry::options::{OptionValue, option_keys as keys};
 
-		let option_ref = xeno_registry::db::OPTIONS
+		let option_ref = xeno_registry::OPTIONS
 			.get_key(&keys::THEME.untyped())
 			.expect("theme option missing from registry");
 		self.state.config.config.global_options.set(option_ref, OptionValue::String(theme_name.into()));
@@ -32,7 +32,7 @@ impl Editor {
 			.config
 			.global_options
 			.get(
-				xeno_registry::db::OPTIONS
+				xeno_registry::OPTIONS
 					.get_key(&keys::THEME.untyped())
 					.expect("theme option missing from registry")
 					.dense_id(),

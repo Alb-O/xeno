@@ -70,10 +70,10 @@ fn invocation_spec_multi_key_pending_then_match() {
 	use std::collections::HashMap;
 
 	use xeno_registry::config::UnresolvedKeys;
-	use xeno_registry::db::keymap_registry::KeymapSnapshot;
+	use xeno_registry::KeymapSnapshot;
 	use xeno_registry::keymaps::KeymapBehavior;
 
-	let actions = xeno_registry::db::ACTIONS.snapshot();
+	let actions = xeno_registry::ACTIONS.snapshot();
 
 	// Override "g r" → editor_command reload_config
 	let mut normal = HashMap::new();
@@ -111,10 +111,10 @@ fn invocation_spec_multi_key_pending_then_match() {
 
 #[test]
 fn insert_multikey_prefix_dispatches() {
-	use xeno_registry::db::keymap_registry::KeymapSnapshot;
+	use xeno_registry::KeymapSnapshot;
 	use xeno_registry::keymaps;
 
-	let actions = xeno_registry::db::ACTIONS.snapshot();
+	let actions = xeno_registry::ACTIONS.snapshot();
 	let preset = keymaps::preset("emacs").expect("emacs preset must load");
 	let keymap = KeymapSnapshot::build_with_preset(&actions, Some(&preset), None);
 
@@ -145,10 +145,10 @@ fn insert_multikey_prefix_dispatches() {
 
 #[test]
 fn insert_text_char_does_not_enter_pending() {
-	use xeno_registry::db::keymap_registry::KeymapSnapshot;
+	use xeno_registry::KeymapSnapshot;
 	use xeno_registry::keymaps;
 
-	let actions = xeno_registry::db::ACTIONS.snapshot();
+	let actions = xeno_registry::ACTIONS.snapshot();
 	let preset = keymaps::preset("emacs").expect("emacs preset must load");
 	let keymap = KeymapSnapshot::build_with_preset(&actions, Some(&preset), None);
 

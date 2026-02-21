@@ -203,7 +203,7 @@ impl OverlayHost {
 
 			if let Some(buffer) = ed.state.core.editor.buffers.get_buffer_mut(buffer_id) {
 				for (k, v) in win_spec.buffer_options {
-					let _ = buffer.local_options.set_by_key(&xeno_registry::db::OPTIONS, &k, v);
+					let _ = buffer.local_options.set_by_key(&xeno_registry::OPTIONS, &k, v);
 				}
 			}
 

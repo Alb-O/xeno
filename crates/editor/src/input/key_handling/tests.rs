@@ -69,7 +69,7 @@ async fn enter_queues_deferred_commit_and_pump_consumes() {
 #[tokio::test]
 async fn effective_keymap_applies_overrides_and_invalidates_cache() {
 	let mut editor = Editor::new_scratch();
-	let actions = xeno_registry::db::ACTIONS.snapshot();
+	let actions = xeno_registry::ACTIONS.snapshot();
 	let (mode, key_seq, base_id, target_id, target_id_str) = sample_binding(&actions).expect("registry should contain at least one binding");
 
 	let keymap_before = editor.effective_keymap();
@@ -89,7 +89,7 @@ async fn effective_keymap_applies_overrides_and_invalidates_cache() {
 #[tokio::test]
 async fn effective_keymap_continuations_include_override() {
 	let mut editor = Editor::new_scratch();
-	let actions = xeno_registry::db::ACTIONS.snapshot();
+	let actions = xeno_registry::ACTIONS.snapshot();
 	let (_mode, _key_seq, _base_id, _target_id, target_id_str) = sample_binding(&actions).expect("registry should contain at least one binding");
 
 	let base = editor.effective_keymap();
@@ -145,7 +145,7 @@ async fn effective_keymap_continuations_include_override() {
 #[tokio::test]
 async fn invalid_override_keeps_base_binding() {
 	let mut editor = Editor::new_scratch();
-	let actions = xeno_registry::db::ACTIONS.snapshot();
+	let actions = xeno_registry::ACTIONS.snapshot();
 	let (mode, key_seq, base_id, _target_id, _target_id_str) = sample_binding(&actions).expect("registry should contain at least one binding");
 
 	let mut mode_overrides = HashMap::new();

@@ -36,7 +36,7 @@ pub enum GrammarSource {
 
 /// Loads grammar configurations from compiled registry specs.
 pub fn load_grammar_configs() -> super::Result<Vec<GrammarConfig>> {
-	let spec = xeno_registry::domains::grammars::loader::load_grammars_spec();
+	let spec = xeno_registry::load_grammars_spec();
 	Ok(spec.grammars.into_iter().map(GrammarConfig::from).collect())
 }
 

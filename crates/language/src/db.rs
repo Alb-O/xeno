@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
-use xeno_registry::db::LANGUAGES;
+use xeno_registry::LANGUAGES;
 use xeno_registry::languages::query::LanguageRef;
 use xeno_registry::{DenseId, LanguageId};
 use xeno_tree_house::LanguageConfig as TreeHouseConfig;

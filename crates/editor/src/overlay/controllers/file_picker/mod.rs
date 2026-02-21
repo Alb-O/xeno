@@ -540,7 +540,7 @@ impl OverlayController for FilePickerOverlay {
 
 	fn on_open(&mut self, ctx: &mut dyn OverlayContext, session: &mut OverlaySession) {
 		if let Some(buffer) = ctx.buffer_mut(session.input) {
-			let opt = xeno_registry::db::OPTIONS
+			let opt = xeno_registry::OPTIONS
 				.get_key(&xeno_registry::options::option_keys::CURSORLINE.untyped())
 				.expect("cursorline option missing from registry");
 			buffer.local_options.set(opt, OptionValue::Bool(false));
