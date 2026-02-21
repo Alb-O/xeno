@@ -1,15 +1,17 @@
 //! Shared worker runtime primitives.
 //!
-//! This crate centralizes task classification, spawn helpers, and join-set
-//! orchestration used across core runtime subsystems.
+//! This crate centralizes task classification, spawn helpers, and actor
+//! supervision used across core runtime subsystems.
 //!
 //! The API surface includes:
-//! * task classification and runtime-scoped spawn helpers
-//! * actor mailbox policies
-//! * generation-scoped cancellation tokens
-//! * actor runtime lifecycle orchestration with restart policies
-//! * a runtime facade for task submission and actor spawning
-//! * opaque actor exit summaries for public consumers
+//! * [`TaskClass`] for categorizing work (interactive, background, blocking)
+//! * spawn free functions ([`spawn`], [`spawn_blocking`], [`spawn_thread`],
+//!   [`spawn_named_thread`], [`spawn_actor`])
+//! * actor framework ([`Actor`] trait, [`ActorSpec`], [`ActorHandle`],
+//!   [`ActorCommandIngress`] / [`ActorCommandPort`])
+//! * supervision lifecycle ([`ActorSupervisorSpec`], [`ActorRestartPolicy`],
+//!   [`ActorShutdownMode`], [`ActorShutdownReport`])
+//! * opaque exit summaries ([`ActorExit`], [`ActorExitKind`])
 //!
 //! This crate is Tokio-based. Public handle types ([`TaskHandle`],
 //! [`ThreadHandle`], [`ActorEventReceiver`]) are aliases for their
