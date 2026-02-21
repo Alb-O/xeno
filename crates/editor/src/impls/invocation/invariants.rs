@@ -1,11 +1,8 @@
-use std::cell::Cell;
-
 use xeno_primitives::{Key, KeyCode};
 use xeno_registry::actions::DeferredInvocationRequest;
-use xeno_registry::{Capability, CommandError};
 
-use super::policy_gate::{GateFailure, GateResult, InvocationGateInput, InvocationKind, RequiredCaps};
-use super::{action_post_event, command_post_event, handle_capability_violation};
+use super::policy_gate::{GateResult, InvocationGateInput, InvocationKind};
+use super::{action_post_event, command_post_event};
 use crate::commands::{CommandError as EditorCommandError, CommandOutcome};
 use crate::impls::Editor;
 use crate::nu::ctx::NuCtxEvent;
@@ -43,51 +40,6 @@ pub(crate) fn test_command_post_event_shape() {
 	));
 }
 
-/// Must return an invocation error when capability checks fail in enforcing mode.
-///
-/// * Enforced in: `handle_capability_violation`, `Editor::run_*_invocation`
-/// * Failure symptom: missing capabilities execute mutating handlers anyway.
-#[cfg_attr(test, test)]
-pub(crate) fn test_capability_violation_enforcing_returns_error() {
-	let result = handle_capability_violation(
-		InvocationKind::Command,
-		InvocationPolicy::enforcing(),
-		CommandError::MissingCapability(Capability::Edit),
-		|_| {},
-		|_| panic!("log-only branch must not run in enforcing mode"),
-	);
-	assert!(matches!(
-		&result,
-		Some(InvocationOutcome {
-			status: InvocationStatus::CapabilityDenied,
-			..
-		})
-	));
-	assert_eq!(result.and_then(|outcome| outcome.denied_capability()), Some(Capability::Edit));
-}
-
-/// Must continue execution in log-only mode while still reporting the violation.
-///
-/// * Enforced in: `handle_capability_violation`
-/// * Failure symptom: migration mode either hard-fails unexpectedly or hides policy violations.
-#[cfg_attr(test, test)]
-pub(crate) fn test_capability_violation_log_only_continues() {
-	thread_local! {
-		static LOG_HIT: Cell<bool> = const { Cell::new(false) };
-	}
-
-	let result = handle_capability_violation(
-		InvocationKind::Command,
-		InvocationPolicy::default(),
-		CommandError::MissingCapability(Capability::Edit),
-		|_| panic!("enforcing branch must not run in log-only mode"),
-		|_| LOG_HIT.with(|hit| hit.set(true)),
-	);
-
-	assert!(result.is_none());
-	assert!(LOG_HIT.with(|hit| hit.get()), "log-only branch should be invoked");
-}
-
 /// Must deny mutating invocations on readonly buffers in enforcing mode.
 ///
 /// * Enforced in: `Editor::gate_invocation`
@@ -99,13 +51,11 @@ pub(crate) async fn test_preflight_denies_readonly_mutating_subject() {
 
 	let gate_input = InvocationGateInput {
 		kind: InvocationKind::Command,
-		name: "test",
-		required_caps: RequiredCaps::Set(xeno_registry::CapabilitySet::empty()),
 		mutates_buffer: true,
 	};
 
 	let decision = editor.gate_invocation(InvocationPolicy::enforcing(), gate_input);
-	assert!(matches!(decision, (GateResult::Deny(GateFailure::Readonly), None)));
+	assert!(matches!(decision, GateResult::DenyReadonly));
 }
 
 /// Must allow non-mutating invocations on readonly buffers.
@@ -119,13 +69,11 @@ pub(crate) async fn test_preflight_allows_non_mutating_subject_on_readonly_buffe
 
 	let gate_input = InvocationGateInput {
 		kind: InvocationKind::Command,
-		name: "test",
-		required_caps: RequiredCaps::Set(xeno_registry::CapabilitySet::empty()),
 		mutates_buffer: false,
 	};
 
 	let decision = editor.gate_invocation(InvocationPolicy::enforcing(), gate_input);
-	assert!(matches!(decision, (GateResult::Proceed, None)));
+	assert!(matches!(decision, GateResult::Proceed));
 }
 
 /// Must resolve auto-routed command invocations to editor commands before registry commands.

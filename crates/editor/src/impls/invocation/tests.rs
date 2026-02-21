@@ -183,53 +183,6 @@ fn invocation_policy_defaults() {
 	assert!(policy.enforce_readonly);
 }
 
-#[test]
-fn capability_enforcement_blocks_when_enforced() {
-	let error = CommandError::MissingCapability(Capability::Search);
-
-	let notified = Cell::new(false);
-	let logged = Cell::new(false);
-
-	let result = handle_capability_violation(
-		policy_gate::InvocationKind::Command,
-		InvocationPolicy::enforcing(),
-		error,
-		|_err| notified.set(true),
-		|_err| logged.set(true),
-	);
-
-	assert!(notified.get());
-	assert!(!logged.get());
-	assert!(matches!(
-		&result,
-		Some(InvocationOutcome {
-			status: InvocationStatus::CapabilityDenied,
-			..
-		})
-	));
-	assert_eq!(result.and_then(|outcome| outcome.denied_capability()), Some(Capability::Search));
-}
-
-#[test]
-fn capability_enforcement_logs_in_log_only_mode() {
-	let error = CommandError::MissingCapability(Capability::Search);
-
-	let notified = Cell::new(false);
-	let logged = Cell::new(false);
-
-	let result = handle_capability_violation(
-		policy_gate::InvocationKind::Command,
-		InvocationPolicy::log_only(),
-		error,
-		|_err| notified.set(true),
-		|_err| logged.set(true),
-	);
-
-	assert!(result.is_none());
-	assert!(!notified.get());
-	assert!(logged.get());
-}
-
 #[tokio::test]
 async fn action_hooks_fire_once() {
 	// Test defs registered via inventory::submit!(BuiltinsReg) at DB init time.

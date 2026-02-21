@@ -1,9 +1,8 @@
-use tracing::warn;
 use xeno_registry::CommandError;
 use xeno_registry::commands::CommandOutcome;
 use xeno_registry::notifications::keys;
 
-use super::policy_gate::{GateFailure, GateResult, InvocationGateInput, InvocationKind};
+use super::policy_gate::{GateResult, InvocationGateInput};
 use crate::impls::Editor;
 use crate::types::{InvocationOutcome, InvocationPolicy, InvocationTarget};
 
@@ -21,50 +20,13 @@ impl<'a> InvocationKernel<'a> {
 		self.editor
 	}
 
-	pub(super) fn deny_if_policy_blocks(&mut self, input: InvocationGateInput<'_>) -> Option<InvocationOutcome> {
-		let (gate_result, log_only_error) = self.editor.gate_invocation(self.policy, input);
-		if let Some(error) = log_only_error {
-			warn!(
-				kind = ?input.kind,
-				name = input.name,
-				error = %error,
-				"Capability check failed (log-only mode)"
-			);
-		}
-
-		match gate_result {
+	pub(super) fn deny_if_policy_blocks(&mut self, input: InvocationGateInput) -> Option<InvocationOutcome> {
+		match self.editor.gate_invocation(self.policy, input) {
 			GateResult::Proceed => None,
-			GateResult::Deny(failure) => Some(self.map_gate_failure(input.kind, failure)),
-		}
-	}
-
-	fn map_gate_failure(&mut self, kind: InvocationKind, failure: GateFailure) -> InvocationOutcome {
-		match failure {
-			GateFailure::Capability(error) => {
-				self.notify_capability_denied(kind, &error);
-				self.capability_error_outcome(kind, &error)
-			}
-			GateFailure::Readonly => {
+			GateResult::DenyReadonly => {
 				self.editor.show_notification(xeno_registry::notifications::keys::BUFFER_READONLY.into());
-				InvocationOutcome::readonly_denied(kind.target())
+				Some(InvocationOutcome::readonly_denied(input.kind.target()))
 			}
-		}
-	}
-
-	fn notify_capability_denied(&mut self, kind: InvocationKind, error: &CommandError) {
-		match kind {
-			InvocationKind::Action => self.editor.show_notification(xeno_registry::notifications::keys::action_error(error)),
-			InvocationKind::Command => {
-				let error = error.to_string();
-				self.editor.show_notification(xeno_registry::notifications::keys::command_error(&error));
-			}
-		}
-	}
-
-	fn capability_error_outcome(&self, kind: InvocationKind, error: &CommandError) -> InvocationOutcome {
-		match error {
-			CommandError::MissingCapability(cap) => InvocationOutcome::capability_denied(kind.target(), *cap),
-			_ => InvocationOutcome::command_error(kind.target(), error.to_string()),
 		}
 	}
 

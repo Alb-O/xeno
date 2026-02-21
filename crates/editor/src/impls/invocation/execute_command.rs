@@ -73,13 +73,13 @@ impl Editor {
 
 	async fn execute_registry_command(
 		&mut self,
-		name: &str,
+		_name: &str,
 		args: &[String],
 		command_def: xeno_registry::commands::CommandRef,
 		policy: InvocationPolicy,
 	) -> InvocationOutcome {
 		let mut kernel = InvocationKernel::new(self, policy);
-		let gate_input = InvocationGateInput::command(name, command_def.required_caps());
+		let gate_input = InvocationGateInput::command(command_def.required_caps());
 		if let Some(result) = kernel.deny_if_policy_blocks(gate_input) {
 			return result;
 		}
@@ -104,13 +104,13 @@ impl Editor {
 
 	async fn execute_editor_command(
 		&mut self,
-		name: &str,
+		_name: &str,
 		args: &[String],
 		editor_cmd: &'static crate::commands::EditorCommandDef,
 		policy: InvocationPolicy,
 	) -> InvocationOutcome {
 		let mut kernel = InvocationKernel::new(self, policy);
-		let gate_input = InvocationGateInput::editor_command(name, editor_cmd.required_caps);
+		let gate_input = InvocationGateInput::editor_command(editor_cmd.required_caps);
 		if let Some(result) = kernel.deny_if_policy_blocks(gate_input) {
 			return result;
 		}

@@ -36,7 +36,7 @@ pub use handlers::HandleOutcome;
 use xeno_primitives::range::CharIdx;
 use xeno_primitives::selection::Selection;
 
-use crate::actions::{Capability, CommandError, Mode};
+use crate::actions::Mode;
 
 /// Context for applying action results to editor state.
 ///
@@ -196,21 +196,6 @@ impl<'a> EditorContext<'a> {
 	/// Emits a type-safe notification.
 	pub fn emit(&mut self, notification: impl Into<crate::notifications::Notification>) {
 		self.inner.emit(notification.into());
-	}
-
-	/// All capabilities are always available. Returns `true` unconditionally.
-	pub fn check_capability(&mut self, _cap: Capability) -> bool {
-		true
-	}
-
-	/// All capabilities are always available. Returns `Ok(())` unconditionally.
-	pub fn check_all_capabilities(&mut self, _caps: &[Capability]) -> Result<(), CommandError> {
-		Ok(())
-	}
-
-	/// All capabilities are always available. Returns `Ok(())` unconditionally.
-	pub fn check_capability_set(&mut self, _caps: crate::CapabilitySet) -> Result<(), CommandError> {
-		Ok(())
 	}
 
 	/// Returns option access.
