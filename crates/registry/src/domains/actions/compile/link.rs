@@ -48,11 +48,6 @@ pub(crate) fn parse_binding_mode(mode: &str) -> BindingMode {
 	}
 }
 
-/// Returns true if any capability string in the list is "Edit".
-fn caps_contain_edit(caps: &[String]) -> bool {
-	caps.iter().any(|c| c == "Edit")
-}
-
 /// Links spec with handler statics, producing `LinkedActionDef`s.
 pub fn link_actions(spec: &ActionsSpec, handlers: impl Iterator<Item = &'static ActionHandlerStatic>) -> Vec<LinkedActionDef> {
 	crate::defs::link::link_by_name(
@@ -75,7 +70,7 @@ pub fn link_actions(spec: &ActionsSpec, handlers: impl Iterator<Item = &'static 
 					description: common.description.clone(),
 					priority: common.priority,
 					source: RegistrySource::Crate(handler.crate_name),
-					mutates_buffer: caps_contain_edit(&common.caps),
+					mutates_buffer: common.mutates_buffer,
 					flags: common.flags,
 					short_desc: Some(common.short_desc.clone().unwrap_or_else(|| common.description.clone())),
 				},

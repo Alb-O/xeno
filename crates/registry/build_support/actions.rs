@@ -1,7 +1,7 @@
 //! NUON → [`ActionsSpec`] compiler.
 
 use crate::build_support::compile::*;
-use crate::schema::actions::{ActionsSpec, VALID_CAPS, VALID_MODES};
+use crate::schema::actions::{ActionsSpec, VALID_MODES};
 
 pub fn build(ctx: &BuildCtx) {
 	let path = ctx.asset("src/domains/actions/assets/actions.nuon");
@@ -11,7 +11,6 @@ pub fn build(ctx: &BuildCtx) {
 
 	validate_unique(spec.actions.iter().map(|action| action.common.name.as_str()), "action");
 	validate_action_modes(&spec);
-	validate_action_capabilities(&spec);
 
 	let bin = postcard::to_stdvec(&spec).expect("failed to serialize actions spec");
 	ctx.write_blob("actions.bin", &bin);
@@ -26,14 +25,6 @@ fn validate_action_modes(spec: &ActionsSpec) {
 	{
 		if !VALID_MODES.contains(&mode) {
 			panic!("unknown action mode: '{mode}'");
-		}
-	}
-}
-
-fn validate_action_capabilities(spec: &ActionsSpec) {
-	for cap in spec.actions.iter().flat_map(|action| action.common.caps.iter().map(String::as_str)) {
-		if !VALID_CAPS.contains(&cap) {
-			panic!("unknown action capability: '{cap}'");
 		}
 	}
 }

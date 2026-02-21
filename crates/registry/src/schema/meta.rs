@@ -12,7 +12,7 @@ pub struct MetaCommonSpec {
 	#[serde(default)]
 	pub priority: i16,
 	#[serde(default)]
-	pub caps: Vec<String>,
+	pub mutates_buffer: bool,
 	#[serde(default)]
 	pub flags: u32,
 }

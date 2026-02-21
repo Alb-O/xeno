@@ -25,7 +25,6 @@ pub fn build(ctx: &BuildCtx) {
 			opt.common.name,
 			opt.scope
 		);
-		assert!(opt.common.caps.is_empty(), "option '{}': options do not support caps", opt.common.name);
 		if !seen.insert(&opt.common.name) {
 			panic!("duplicate option name: '{}'", opt.common.name);
 		}
