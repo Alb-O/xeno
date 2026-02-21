@@ -34,7 +34,7 @@ where
 
 #[tokio::test]
 async fn test_doc_open_close() {
-	let mut mgr = LspSyncManager::new(xeno_worker::WorkerRuntime::new());
+	let mut mgr = LspSyncManager::new();
 	let doc_id = DocumentId(1);
 
 	mgr.reset_tracked(doc_id, test_config(), 1);
@@ -60,7 +60,7 @@ fn test_change(text: &str) -> LspDocumentChange {
 
 #[tokio::test]
 async fn test_record_changes() {
-	let mut mgr = LspSyncManager::new(xeno_worker::WorkerRuntime::new());
+	let mut mgr = LspSyncManager::new();
 	let doc_id = DocumentId(1);
 	mgr.reset_tracked(doc_id, test_config(), 1);
 
@@ -72,7 +72,7 @@ async fn test_record_changes() {
 
 #[tokio::test]
 async fn test_actor_restarts_after_failure_and_recovers() {
-	let mut mgr = LspSyncManager::new(xeno_worker::WorkerRuntime::new());
+	let mut mgr = LspSyncManager::new();
 	let before = mgr.restart_count();
 	mgr.crash_for_test();
 	wait_until("lsp.sync restart", || mgr.restart_count() > before).await;
@@ -85,7 +85,7 @@ async fn test_actor_restarts_after_failure_and_recovers() {
 
 #[tokio::test]
 async fn test_shutdown_returns_completed_report() {
-	let mgr = LspSyncManager::new(xeno_worker::WorkerRuntime::new());
+	let mgr = LspSyncManager::new();
 	let report = mgr
 		.shutdown(ActorShutdownMode::Graceful {
 			timeout: Duration::from_millis(200),
@@ -439,9 +439,8 @@ impl xeno_lsp::client::LspTransport for E2eTransport {
 
 #[tokio::test]
 async fn test_e2e_failed_incremental_triggers_full_then_incremental_resumes() {
-	let worker_runtime = xeno_worker::WorkerRuntime::new();
 	let transport = Arc::new(E2eTransport::new());
-	let (sync, registry, _documents, _receiver) = xeno_lsp::DocumentSync::create(transport.clone(), worker_runtime.clone());
+	let (sync, registry, _documents, _receiver) = xeno_lsp::DocumentSync::create(transport.clone());
 	let metrics = Arc::new(crate::metrics::EditorMetrics::new());
 
 	// Register a language server so acquire() succeeds.
@@ -470,7 +469,7 @@ async fn test_e2e_failed_incremental_triggers_full_then_incremental_resumes() {
 	assert!(client.is_initialized(), "server must be initialized");
 
 	// Set up sync manager tracking.
-	let mut mgr = LspSyncManager::new(worker_runtime);
+	let mut mgr = LspSyncManager::new();
 	let config = LspDocumentConfig {
 		path: path.clone(),
 		language: "rust".to_string(),

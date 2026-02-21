@@ -166,7 +166,7 @@ where
 }
 
 fn make_registry(transport: Arc<dyn LspTransport>) -> Arc<Registry> {
-	let registry = Arc::new(Registry::new(transport, xeno_worker::WorkerRuntime::new()));
+	let registry = Arc::new(Registry::new(transport));
 	registry.register(
 		"rust",
 		LanguageServerConfig {
@@ -184,7 +184,7 @@ fn make_client_handle() -> crate::client::ClientHandle {
 }
 
 async fn make_session_runtime(transport: Arc<TestTransport>) -> (LspSession, LspRuntime, PathBuf, LanguageServerId) {
-	let (session, runtime) = LspSession::new(transport.clone(), xeno_worker::WorkerRuntime::new());
+	let (session, runtime) = LspSession::new(transport.clone());
 	runtime.start().expect("runtime must start in tokio tests");
 	session.configure_server(
 		"rust",
@@ -440,7 +440,7 @@ pub(crate) async fn test_singleflight_start() {
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_server_request_workspace_configuration_section_slicing() {
 	let transport = TestTransport::new();
-	let registry = Arc::new(Registry::new(transport, xeno_worker::WorkerRuntime::new()));
+	let registry = Arc::new(Registry::new(transport));
 	registry.register(
 		"rust",
 		LanguageServerConfig {
@@ -511,7 +511,7 @@ pub(crate) async fn test_server_request_workspace_folders_uri_encoding() {
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_document_sync_returns_not_ready_before_init() {
 	let transport = TestTransport::new();
-	let (sync, registry, _documents, _receiver) = DocumentSync::create(transport, xeno_worker::WorkerRuntime::new());
+	let (sync, registry, _documents, _receiver) = DocumentSync::create(transport);
 	registry.register(
 		"rust",
 		LanguageServerConfig {
@@ -536,7 +536,7 @@ pub(crate) async fn test_document_sync_returns_not_ready_before_init() {
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_document_sync_send_change_full_opens_when_missing() {
 	let transport = TestTransport::new();
-	let (sync, registry, _documents, _receiver) = DocumentSync::create(transport, xeno_worker::WorkerRuntime::new());
+	let (sync, registry, _documents, _receiver) = DocumentSync::create(transport);
 	registry.register(
 		"rust",
 		LanguageServerConfig {
@@ -840,7 +840,7 @@ pub(crate) fn test_closed_entry_removed_when_diagnostics_cleared() {
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_workspace_apply_edit_happy_path() {
 	let transport = TestTransport::new();
-	let (mut sync, _registry, _documents, _receiver) = DocumentSync::create(transport, xeno_worker::WorkerRuntime::new());
+	let (mut sync, _registry, _documents, _receiver) = DocumentSync::create(transport);
 
 	let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
 	sync.set_apply_edit_sender(tx);
@@ -875,7 +875,7 @@ pub(crate) async fn test_workspace_apply_edit_happy_path() {
 #[cfg_attr(test, tokio::test(start_paused = true))]
 pub(crate) async fn test_workspace_apply_edit_timeout() {
 	let transport = TestTransport::new();
-	let (mut sync, _registry, _documents, _receiver) = DocumentSync::create(transport, xeno_worker::WorkerRuntime::new());
+	let (mut sync, _registry, _documents, _receiver) = DocumentSync::create(transport);
 
 	let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
 	sync.set_apply_edit_sender(tx);
@@ -911,7 +911,7 @@ pub(crate) async fn test_workspace_apply_edit_timeout() {
 #[cfg_attr(test, tokio::test)]
 pub(crate) async fn test_workspace_apply_edit_failed_change_propagated() {
 	let transport = TestTransport::new();
-	let (mut sync, _registry, _documents, _receiver) = DocumentSync::create(transport, xeno_worker::WorkerRuntime::new());
+	let (mut sync, _registry, _documents, _receiver) = DocumentSync::create(transport);
 
 	let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
 	sync.set_apply_edit_sender(tx);
@@ -947,6 +947,6 @@ pub(crate) async fn test_workspace_apply_edit_failed_change_propagated() {
 #[cfg_attr(test, test)]
 pub(crate) fn test_runtime_start_requires_runtime_context() {
 	let transport = TestTransport::new();
-	let (_session, runtime) = LspSession::new(transport, xeno_worker::WorkerRuntime::new());
+	let (_session, runtime) = LspSession::new(transport);
 	assert!(matches!(runtime.start(), Err(RuntimeStartError::NoRuntime)));
 }

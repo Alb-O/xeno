@@ -66,8 +66,6 @@ use xeno_registry::db::keymap_registry::KeymapSnapshot;
 use xeno_registry::hooks::{HookContext, WindowKind, emit as emit_hook, emit_sync_with as emit_hook_sync_with};
 use xeno_registry::options::OPTIONS;
 use xeno_registry::themes::THEMES;
-use xeno_worker::WorkerRuntime;
-
 use crate::buffer::{Buffer, Layout, ViewId};
 use crate::geometry::Rect;
 use crate::layout::LayoutManager;
@@ -257,8 +255,6 @@ impl std::ops::DerefMut for ConfigStateBundle {
 }
 
 pub(crate) struct AsyncStateBundle {
-	/// Shared worker runtime root for editor-owned async/background tasks.
-	pub(crate) worker_runtime: WorkerRuntime,
 	/// Message sender for background tasks.
 	pub(crate) msg_tx: MsgSender,
 	/// Message receiver for main loop drain.
@@ -422,14 +418,13 @@ impl Editor {
 		log_registry_summary_once();
 
 		let (msg_tx, msg_rx) = crate::msg::channel();
-		let worker_runtime = WorkerRuntime::new();
 		let (core, work_scheduler, language_loader) = Self::bootstrap_core(String::new(), None);
 		let runtime = Self::bootstrap_runtime();
-		let mut integration = Self::bootstrap_integrations(&worker_runtime, work_scheduler);
-		integration.lsp = LspSystem::with_transport(worker_runtime.clone(), transport);
+		let mut integration = Self::bootstrap_integrations(work_scheduler);
+		integration.lsp = LspSystem::with_transport(transport);
 		let ui = Self::bootstrap_ui();
 		let config = Self::bootstrap_config(language_loader);
-		let async_state = Self::bootstrap_async(worker_runtime, msg_tx, msg_rx);
+		let async_state = Self::bootstrap_async(msg_tx, msg_rx);
 		let telemetry = Self::bootstrap_telemetry();
 		let state = Self::assemble_editor_state(core, runtime, integration, ui, config, async_state, telemetry);
 
@@ -441,13 +436,12 @@ impl Editor {
 		log_registry_summary_once();
 
 		let (msg_tx, msg_rx) = crate::msg::channel();
-		let worker_runtime = WorkerRuntime::new();
 		let (core, work_scheduler, language_loader) = Self::bootstrap_core(content, path);
 		let runtime = Self::bootstrap_runtime();
-		let integration = Self::bootstrap_integrations(&worker_runtime, work_scheduler);
+		let integration = Self::bootstrap_integrations(work_scheduler);
 		let ui = Self::bootstrap_ui();
 		let config = Self::bootstrap_config(language_loader);
-		let async_state = Self::bootstrap_async(worker_runtime, msg_tx, msg_rx);
+		let async_state = Self::bootstrap_async(msg_tx, msg_rx);
 		let telemetry = Self::bootstrap_telemetry();
 		let state = Self::assemble_editor_state(core, runtime, integration, ui, config, async_state, telemetry);
 
@@ -512,19 +506,18 @@ impl Editor {
 		}
 	}
 
-	fn bootstrap_integrations(worker_runtime: &WorkerRuntime, work_scheduler: WorkScheduler) -> IntegrationStateBundle {
+	fn bootstrap_integrations(work_scheduler: WorkScheduler) -> IntegrationStateBundle {
 		IntegrationStateBundle {
 			nu: crate::nu::coordinator::NuCoordinatorState::new(),
-			lsp: LspSystem::new(worker_runtime.clone()),
-			syntax_manager: xeno_syntax::SyntaxManager::new_with_runtime(
+			lsp: LspSystem::new(),
+			syntax_manager: xeno_syntax::SyntaxManager::new(
 				xeno_syntax::SyntaxManagerCfg {
 					max_concurrency: 2,
 					..Default::default()
 				},
-				worker_runtime.clone(),
 			),
 			work_scheduler,
-			filesystem: crate::filesystem::FsService::new_with_runtime(worker_runtime.clone()),
+			filesystem: crate::filesystem::FsService::new_with_runtime(),
 		}
 	}
 
@@ -558,9 +551,8 @@ impl Editor {
 		}
 	}
 
-	fn bootstrap_async(worker_runtime: WorkerRuntime, msg_tx: MsgSender, msg_rx: MsgReceiver) -> AsyncStateBundle {
+	fn bootstrap_async(msg_tx: MsgSender, msg_rx: MsgReceiver) -> AsyncStateBundle {
 		AsyncStateBundle {
-			worker_runtime,
 			msg_tx,
 			msg_rx,
 			pending_file_loads: PendingFileLoads::default(),

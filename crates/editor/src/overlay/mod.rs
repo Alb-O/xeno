@@ -249,9 +249,6 @@ pub trait OverlayContext {
 	fn request_redraw(&mut self);
 	/// Queues a deferred invocation request.
 	fn queue_invocation(&mut self, request: xeno_registry::actions::DeferredInvocationRequest);
-	/// Returns the shared worker runtime.
-	#[cfg(feature = "lsp")]
-	fn worker_runtime(&self) -> xeno_worker::WorkerRuntime;
 	/// Returns the async message sender for background results.
 	#[cfg(feature = "lsp")]
 	fn msg_tx(&self) -> crate::msg::MsgSender;
@@ -367,11 +364,6 @@ impl OverlayContext for crate::Editor {
 
 	fn queue_invocation(&mut self, request: xeno_registry::actions::DeferredInvocationRequest) {
 		self.enqueue_runtime_invocation_request(request, crate::runtime::work_queue::RuntimeWorkSource::Overlay);
-	}
-
-	#[cfg(feature = "lsp")]
-	fn worker_runtime(&self) -> xeno_worker::WorkerRuntime {
-		self.state.async_state.worker_runtime.clone()
 	}
 
 	fn finalize_buffer_removal(&mut self, view: ViewId) {

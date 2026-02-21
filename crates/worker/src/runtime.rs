@@ -32,7 +32,7 @@ fn classify_join_result<T>(class: &str, result: &Result<T, tokio::task::JoinErro
 
 /// Unified runtime entrypoint for worker task execution and actor supervision.
 #[derive(Debug, Clone)]
-pub struct WorkerRuntime {
+pub(crate) struct WorkerRuntime {
 	interactive: Arc<Mutex<WorkerJoinSet<()>>>,
 	background: Arc<Mutex<WorkerJoinSet<()>>>,
 	interactive_notify: Arc<Notify>,

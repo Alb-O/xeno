@@ -35,17 +35,15 @@ struct RuntimeState {
 pub struct LspRuntime {
 	sync: DocumentSync,
 	transport: Arc<dyn LspTransport>,
-	worker_runtime: xeno_worker::WorkerRuntime,
 	started: AtomicBool,
 	state: Mutex<RuntimeState>,
 }
 
 impl LspRuntime {
-	fn new(sync: DocumentSync, transport: Arc<dyn LspTransport>, worker_runtime: xeno_worker::WorkerRuntime) -> Self {
+	fn new(sync: DocumentSync, transport: Arc<dyn LspTransport>) -> Self {
 		Self {
 			sync,
 			transport,
-			worker_runtime,
 			started: AtomicBool::new(false),
 			state: Mutex::new(RuntimeState {
 				cancel: CancellationToken::new(),
@@ -80,7 +78,7 @@ impl LspRuntime {
 		let documents = self.sync.documents_arc();
 		let cancel = self.state.lock().cancel.clone();
 		let router_actor = Arc::new(
-			self.worker_runtime.spawn_actor(
+			xeno_worker::ActorRuntime::spawn(
 				xeno_worker::ActorSpec::new("lsp.runtime.router", xeno_worker::TaskClass::Interactive, move || RouterActor {
 					sync: sync.clone(),
 					transport: transport.clone(),
@@ -168,9 +166,9 @@ pub struct LspSession {
 
 impl LspSession {
 	/// Create a new session and runtime pair from a transport.
-	pub fn new(transport: Arc<dyn LspTransport>, worker_runtime: xeno_worker::WorkerRuntime) -> (Self, LspRuntime) {
-		let (sync, _registry, _documents, diagnostics_receiver) = DocumentSync::create(transport.clone(), worker_runtime.clone());
-		let runtime = LspRuntime::new(sync.clone(), transport.clone(), worker_runtime);
+	pub fn new(transport: Arc<dyn LspTransport>) -> (Self, LspRuntime) {
+		let (sync, _registry, _documents, diagnostics_receiver) = DocumentSync::create(transport.clone());
+		let runtime = LspRuntime::new(sync.clone(), transport.clone());
 		(
 			Self {
 				sync,
@@ -182,10 +180,10 @@ impl LspSession {
 	}
 
 	/// Create a session and runtime pair from existing registry/doc state.
-	pub fn with_state(registry: Arc<Registry>, documents: Arc<DocumentStateManager>, worker_runtime: xeno_worker::WorkerRuntime) -> (Self, LspRuntime) {
+	pub fn with_state(registry: Arc<Registry>, documents: Arc<DocumentStateManager>) -> (Self, LspRuntime) {
 		let transport = registry.transport();
 		let sync = DocumentSync::with_registry(registry, documents);
-		let runtime = LspRuntime::new(sync.clone(), transport.clone(), worker_runtime);
+		let runtime = LspRuntime::new(sync.clone(), transport.clone());
 		(
 			Self {
 				sync,

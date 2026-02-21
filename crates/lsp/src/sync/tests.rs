@@ -47,7 +47,7 @@ impl crate::client::transport::LspTransport for SimpleStubTransport {
 #[test]
 fn test_document_sync_with_registry() {
 	let transport = Arc::new(SimpleStubTransport);
-	let registry = Arc::new(Registry::new(transport, xeno_worker::WorkerRuntime::new()));
+	let registry = Arc::new(Registry::new(transport));
 	let documents = Arc::new(DocumentStateManager::new());
 	let sync = DocumentSync::with_registry(registry, documents);
 
@@ -58,7 +58,7 @@ fn test_document_sync_with_registry() {
 #[tokio::test]
 async fn test_document_sync_create() {
 	let transport = Arc::new(SimpleStubTransport);
-	let (sync, _registry, _documents, _receiver) = DocumentSync::create(transport, xeno_worker::WorkerRuntime::new());
+	let (sync, _registry, _documents, _receiver) = DocumentSync::create(transport);
 
 	assert_eq!(sync.total_error_count(), 0);
 	assert_eq!(sync.total_warning_count(), 0);
@@ -143,7 +143,7 @@ async fn test_document_sync_returns_not_ready_before_init() {
 	}
 
 	let transport = Arc::new(InitStubTransport);
-	let (sync, registry, _documents, _receiver) = DocumentSync::create(transport, xeno_worker::WorkerRuntime::new());
+	let (sync, registry, _documents, _receiver) = DocumentSync::create(transport);
 
 	registry.register(
 		"rust",
@@ -174,7 +174,7 @@ async fn test_document_sync_returns_not_ready_before_init() {
 #[tokio::test]
 async fn test_send_change_incremental_empty_is_noop() {
 	let transport = Arc::new(SimpleStubTransport);
-	let registry = Arc::new(Registry::new(transport, xeno_worker::WorkerRuntime::new()));
+	let registry = Arc::new(Registry::new(transport));
 	let documents = Arc::new(DocumentStateManager::new());
 	let sync = DocumentSync::with_registry(registry, documents);
 
@@ -200,7 +200,7 @@ async fn barrier_ignored_after_doc_close() {
 	let (barrier_tx, barrier_rx) = oneshot::channel();
 
 	let transport = Arc::new(SimpleStubTransport);
-	let registry = Arc::new(Registry::new(transport, xeno_worker::WorkerRuntime::new()));
+	let registry = Arc::new(Registry::new(transport));
 	let sync = DocumentSync::with_registry(registry, documents.clone());
 
 	let completion_rx = sync.wrap_barrier(uri.clone(), version, barrier_rx);
@@ -230,7 +230,7 @@ async fn barrier_ignored_after_doc_reopen() {
 	let (barrier_tx, barrier_rx) = oneshot::channel();
 
 	let transport = Arc::new(SimpleStubTransport);
-	let registry = Arc::new(Registry::new(transport, xeno_worker::WorkerRuntime::new()));
+	let registry = Arc::new(Registry::new(transport));
 	let sync = DocumentSync::with_registry(registry, documents.clone());
 
 	let completion_rx = sync.wrap_barrier(uri.clone(), version, barrier_rx);
@@ -262,7 +262,7 @@ async fn barrier_error_ignored_after_doc_reopen() {
 	let (barrier_tx, barrier_rx) = oneshot::channel();
 
 	let transport = Arc::new(SimpleStubTransport);
-	let registry = Arc::new(Registry::new(transport, xeno_worker::WorkerRuntime::new()));
+	let registry = Arc::new(Registry::new(transport));
 	let sync = DocumentSync::with_registry(registry, documents.clone());
 
 	let completion_rx = sync.wrap_barrier(uri.clone(), version, barrier_rx);
@@ -401,7 +401,7 @@ async fn reopen_document_sends_did_close_then_did_open() {
 	use crate::registry::LanguageServerConfig;
 
 	let transport = Arc::new(RecordingTransport::new());
-	let (sync, registry, documents, _receiver) = DocumentSync::create(transport.clone(), xeno_worker::WorkerRuntime::new());
+	let (sync, registry, documents, _receiver) = DocumentSync::create(transport.clone());
 
 	// Configure a server so acquire() succeeds.
 	registry.register(
@@ -447,7 +447,7 @@ async fn reopen_document_clears_old_diagnostics() {
 	use crate::registry::LanguageServerConfig;
 
 	let transport = Arc::new(RecordingTransport::new());
-	let (sync, registry, documents, _receiver) = DocumentSync::create(transport, xeno_worker::WorkerRuntime::new());
+	let (sync, registry, documents, _receiver) = DocumentSync::create(transport);
 
 	registry.register(
 		"rust",
@@ -487,7 +487,7 @@ async fn reopen_document_cross_language_routes_to_correct_servers() {
 	use crate::registry::LanguageServerConfig;
 
 	let transport = Arc::new(RecordingTransport::new());
-	let (sync, registry, documents, _receiver) = DocumentSync::create(transport.clone(), xeno_worker::WorkerRuntime::new());
+	let (sync, registry, documents, _receiver) = DocumentSync::create(transport.clone());
 
 	// Configure two different language servers.
 	registry.register(
@@ -550,7 +550,7 @@ async fn reopen_then_change_maintains_correct_identity() {
 	use crate::registry::LanguageServerConfig;
 
 	let transport = Arc::new(RecordingTransport::new());
-	let (sync, registry, documents, _receiver) = DocumentSync::create(transport.clone(), xeno_worker::WorkerRuntime::new());
+	let (sync, registry, documents, _receiver) = DocumentSync::create(transport.clone());
 
 	registry.register(
 		"rust",
@@ -598,7 +598,7 @@ async fn close_document_sends_did_close_and_clears_diagnostics() {
 	use crate::registry::LanguageServerConfig;
 
 	let transport = Arc::new(RecordingTransport::new());
-	let (sync, registry, documents, _receiver) = DocumentSync::create(transport.clone(), xeno_worker::WorkerRuntime::new());
+	let (sync, registry, documents, _receiver) = DocumentSync::create(transport.clone());
 
 	registry.register(
 		"rust",
@@ -653,7 +653,7 @@ async fn ensure_open_text_registers_and_sends_did_open() {
 	use crate::registry::LanguageServerConfig;
 
 	let transport = Arc::new(RecordingTransport::new());
-	let (sync, registry, documents, _receiver) = DocumentSync::create(transport.clone(), xeno_worker::WorkerRuntime::new());
+	let (sync, registry, documents, _receiver) = DocumentSync::create(transport.clone());
 
 	registry.register(
 		"rust",
@@ -689,7 +689,7 @@ async fn close_document_unregisters_even_if_did_close_fails() {
 	use crate::registry::LanguageServerConfig;
 
 	let transport = Arc::new(RecordingTransport::new());
-	let (sync, registry, documents, _receiver) = DocumentSync::create(transport.clone(), xeno_worker::WorkerRuntime::new());
+	let (sync, registry, documents, _receiver) = DocumentSync::create(transport.clone());
 
 	registry.register(
 		"rust",
@@ -735,7 +735,7 @@ async fn reopen_document_opens_new_even_if_did_close_fails() {
 	use crate::registry::LanguageServerConfig;
 
 	let transport = Arc::new(RecordingTransport::new());
-	let (sync, registry, documents, _receiver) = DocumentSync::create(transport.clone(), xeno_worker::WorkerRuntime::new());
+	let (sync, registry, documents, _receiver) = DocumentSync::create(transport.clone());
 
 	registry.register(
 		"rust",
@@ -774,7 +774,7 @@ async fn ensure_open_text_unregisters_if_did_open_fails() {
 	use crate::registry::LanguageServerConfig;
 
 	let transport = Arc::new(RecordingTransport::new());
-	let (sync, registry, documents, _receiver) = DocumentSync::create(transport.clone(), xeno_worker::WorkerRuntime::new());
+	let (sync, registry, documents, _receiver) = DocumentSync::create(transport.clone());
 
 	registry.register(
 		"rust",
@@ -803,7 +803,7 @@ async fn reopen_document_does_not_register_new_if_did_open_fails() {
 	use crate::registry::LanguageServerConfig;
 
 	let transport = Arc::new(RecordingTransport::new());
-	let (sync, registry, documents, _receiver) = DocumentSync::create(transport.clone(), xeno_worker::WorkerRuntime::new());
+	let (sync, registry, documents, _receiver) = DocumentSync::create(transport.clone());
 
 	registry.register(
 		"rust",
@@ -910,7 +910,7 @@ async fn did_change_failure_marks_force_full_sync() {
 	use crate::registry::LanguageServerConfig;
 
 	let transport = Arc::new(InitRecordingTransport::new());
-	let (sync, registry, documents, _receiver) = DocumentSync::create(transport.clone(), xeno_worker::WorkerRuntime::new());
+	let (sync, registry, documents, _receiver) = DocumentSync::create(transport.clone());
 
 	registry.register(
 		"rust",
@@ -958,7 +958,7 @@ async fn did_change_success_does_not_set_force_full_sync() {
 	use crate::registry::LanguageServerConfig;
 
 	let transport = Arc::new(InitRecordingTransport::new());
-	let (sync, registry, documents, _receiver) = DocumentSync::create(transport.clone(), xeno_worker::WorkerRuntime::new());
+	let (sync, registry, documents, _receiver) = DocumentSync::create(transport.clone());
 
 	registry.register(
 		"rust",
@@ -999,7 +999,7 @@ async fn open_document_unregisters_if_did_open_fails() {
 	use crate::registry::LanguageServerConfig;
 
 	let transport = Arc::new(RecordingTransport::new());
-	let (sync, registry, documents, _receiver) = DocumentSync::create(transport.clone(), xeno_worker::WorkerRuntime::new());
+	let (sync, registry, documents, _receiver) = DocumentSync::create(transport.clone());
 
 	registry.register(
 		"rust",
@@ -1028,7 +1028,7 @@ async fn open_document_can_retry_after_failed_open() {
 	use crate::registry::LanguageServerConfig;
 
 	let transport = Arc::new(RecordingTransport::new());
-	let (sync, registry, documents, _receiver) = DocumentSync::create(transport.clone(), xeno_worker::WorkerRuntime::new());
+	let (sync, registry, documents, _receiver) = DocumentSync::create(transport.clone());
 
 	registry.register(
 		"rust",

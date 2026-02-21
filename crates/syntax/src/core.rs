@@ -3,16 +3,12 @@ use super::*;
 impl Default for SyntaxManager {
 	/// Creates a new manager with default concurrency limits.
 	fn default() -> Self {
-		Self::new_with_runtime(SyntaxManagerCfg::default(), xeno_worker::WorkerRuntime::new())
+		Self::new(SyntaxManagerCfg::default())
 	}
 }
 
 impl SyntaxManager {
 	pub fn new(cfg: SyntaxManagerCfg) -> Self {
-		Self::new_with_runtime(cfg, xeno_worker::WorkerRuntime::new())
-	}
-
-	pub fn new_with_runtime(cfg: SyntaxManagerCfg, _runtime: xeno_worker::WorkerRuntime) -> Self {
 		let max_concurrency = cfg.max_concurrency.max(1);
 		let cfg = SyntaxManagerCfg {
 			max_concurrency,
@@ -32,11 +28,6 @@ impl SyntaxManager {
 
 	#[cfg(any(test, doc))]
 	pub fn new_with_engine(cfg: SyntaxManagerCfg, engine: Arc<dyn SyntaxEngine>) -> Self {
-		Self::new_with_engine_and_runtime(cfg, engine, xeno_worker::WorkerRuntime::new())
-	}
-
-	#[cfg(any(test, doc))]
-	pub fn new_with_engine_and_runtime(cfg: SyntaxManagerCfg, engine: Arc<dyn SyntaxEngine>, _runtime: xeno_worker::WorkerRuntime) -> Self {
 		let max_concurrency = cfg.max_concurrency.max(1);
 		let cfg = SyntaxManagerCfg {
 			max_concurrency,

@@ -459,12 +459,12 @@ impl FsService {
 		Self::default()
 	}
 
-	pub fn new_with_runtime(worker_runtime: xeno_worker::WorkerRuntime) -> Self {
+	pub fn new_with_runtime() -> Self {
 		let state = Arc::new(RwLock::new(FsSharedState::default()));
 		let service_command_port = Arc::new(std::sync::OnceLock::<xeno_worker::ActorCommandPort<FsServiceCmd>>::new());
 
 		let indexer = Arc::new(
-			worker_runtime.spawn_actor(
+			xeno_worker::ActorRuntime::spawn(
 				xeno_worker::ActorSpec::new("fs.indexer", xeno_worker::TaskClass::IoBlocking, {
 					let service_command_port = Arc::clone(&service_command_port);
 					move || FsIndexerActor {
@@ -481,7 +481,7 @@ impl FsService {
 		);
 
 		let search = Arc::new(
-			worker_runtime.spawn_actor(
+			xeno_worker::ActorRuntime::spawn(
 				xeno_worker::ActorSpec::new("fs.search", xeno_worker::TaskClass::CpuBlocking, {
 					let service_command_port = Arc::clone(&service_command_port);
 					move || FsSearchActor {
@@ -502,7 +502,7 @@ impl FsService {
 		);
 
 		let service_actor = Arc::new(
-			worker_runtime.spawn_actor(xeno_worker::ActorSpec::new("fs.service", xeno_worker::TaskClass::Interactive, {
+			xeno_worker::ActorRuntime::spawn(xeno_worker::ActorSpec::new("fs.service", xeno_worker::TaskClass::Interactive, {
 				let state = Arc::clone(&state);
 				let indexer = Arc::clone(&indexer);
 				let search = Arc::clone(&search);
@@ -540,7 +540,7 @@ impl FsService {
 
 impl Default for FsService {
 	fn default() -> Self {
-		Self::new_with_runtime(xeno_worker::WorkerRuntime::new())
+		Self::new_with_runtime()
 	}
 }
 

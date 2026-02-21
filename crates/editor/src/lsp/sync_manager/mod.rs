@@ -48,7 +48,6 @@ struct SendTaskInput {
 	language: String,
 	work: SendWork,
 	done_tx: Option<oneshot::Sender<()>>,
-	worker_runtime: xeno_worker::WorkerRuntime,
 }
 
 struct SendDispatch {
@@ -127,7 +126,6 @@ struct LspSyncShared {
 struct LspSyncActor {
 	docs: HashMap<DocumentId, DocSyncState>,
 	command_port: Arc<std::sync::OnceLock<xeno_worker::ActorCommandPort<LspSyncCmd>>>,
-	worker_runtime: xeno_worker::WorkerRuntime,
 	shared: Arc<RwLock<LspSyncShared>>,
 }
 
@@ -247,7 +245,6 @@ impl LspSyncActor {
 			language,
 			work,
 			done_tx,
-			worker_runtime,
 		} = input;
 
 		xeno_worker::spawn(xeno_worker::TaskClass::Background, async move {
@@ -479,7 +476,6 @@ impl LspSyncActor {
 			language: dispatch.language,
 			work: dispatch.work,
 			done_tx,
-			worker_runtime: self.worker_runtime.clone(),
 		});
 
 		if let Some(state) = self.docs.get_mut(&doc_id) {
@@ -526,7 +522,6 @@ impl LspSyncActor {
 				language: dispatch.language,
 				work: dispatch.work,
 				done_tx: None,
-				worker_runtime: self.worker_runtime.clone(),
 			});
 
 			if let Some(state) = self.docs.get_mut(&doc_id) {
@@ -626,7 +621,7 @@ pub struct LspSyncManager {
 
 impl Default for LspSyncManager {
 	fn default() -> Self {
-		Self::new(xeno_worker::WorkerRuntime::new())
+		Self::new()
 	}
 }
 
@@ -639,19 +634,17 @@ impl std::fmt::Debug for LspSyncManager {
 }
 
 impl LspSyncManager {
-	pub fn new(worker_runtime: xeno_worker::WorkerRuntime) -> Self {
+	pub fn new() -> Self {
 		let shared = Arc::new(RwLock::new(LspSyncShared::default()));
 		let command_port = Arc::new(std::sync::OnceLock::<xeno_worker::ActorCommandPort<LspSyncCmd>>::new());
 		let actor = Arc::new(
-			worker_runtime.spawn_actor(
+			xeno_worker::ActorRuntime::spawn(
 				xeno_worker::ActorSpec::new("lsp.sync", xeno_worker::TaskClass::Background, {
-					let worker_runtime = worker_runtime.clone();
 					let command_port = Arc::clone(&command_port);
 					let shared = Arc::clone(&shared);
 					move || LspSyncActor {
 						docs: HashMap::new(),
 						command_port: Arc::clone(&command_port),
-						worker_runtime: worker_runtime.clone(),
 						shared: Arc::clone(&shared),
 					}
 				})

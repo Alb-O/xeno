@@ -213,11 +213,10 @@ impl DocumentSync {
 	/// Create a document sync coordinator and a properly configured registry.
 	pub fn create(
 		transport: Arc<dyn crate::client::transport::LspTransport>,
-		worker_runtime: xeno_worker::WorkerRuntime,
 	) -> (Self, Arc<Registry>, Arc<DocumentStateManager>, DiagnosticsEventReceiver) {
 		let (documents, event_receiver) = DocumentStateManager::with_events();
 		let documents = Arc::new(documents);
-		let registry = Arc::new(Registry::new(transport, worker_runtime.clone()));
+		let registry = Arc::new(Registry::new(transport));
 
 		let sync = Self {
 			registry: registry.clone(),

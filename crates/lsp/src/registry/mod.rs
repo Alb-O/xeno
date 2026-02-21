@@ -185,18 +185,16 @@ pub struct Registry {
 	state: RwLock<RegistryState>,
 	transport: Arc<dyn LspTransport>,
 	inflight: InFlightMap,
-	worker_runtime: xeno_worker::WorkerRuntime,
 }
 
 impl Registry {
 	/// Create a new registry with the given transport.
-	pub fn new(transport: Arc<dyn LspTransport>, worker_runtime: xeno_worker::WorkerRuntime) -> Self {
+	pub fn new(transport: Arc<dyn LspTransport>) -> Self {
 		Self {
 			configs: RwLock::new(HashMap::new()),
 			state: RwLock::new(RegistryState::new()),
 			transport,
 			inflight: Arc::new(Mutex::new(HashMap::new())),
-			worker_runtime,
 		}
 	}
 
@@ -453,11 +451,6 @@ impl Registry {
 	/// Get the underlying transport.
 	pub fn transport(&self) -> Arc<dyn LspTransport> {
 		self.transport.clone()
-	}
-
-	/// Returns the shared worker runtime used for registry background work.
-	pub fn worker_runtime(&self) -> xeno_worker::WorkerRuntime {
-		self.worker_runtime.clone()
 	}
 
 	/// Check if any server is ready (initialized and accepting requests).

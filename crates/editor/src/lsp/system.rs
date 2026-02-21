@@ -4,7 +4,6 @@
 use xeno_lsp::{LspRuntime, LspSession};
 #[cfg(feature = "lsp")]
 use xeno_primitives::{CommitResult, Rope, Transaction};
-use xeno_worker::WorkerRuntime;
 
 #[cfg(feature = "lsp")]
 use crate::buffer::Buffer;
@@ -49,12 +48,12 @@ pub(super) struct RealLspSystem {
 
 #[cfg(feature = "lsp")]
 impl LspSystem {
-	pub fn new(worker_runtime: WorkerRuntime) -> Self {
+	pub fn new() -> Self {
 		let (ui_tx, ui_rx) = tokio::sync::mpsc::unbounded_channel();
 		let (apply_edit_tx, apply_edit_rx) = tokio::sync::mpsc::unbounded_channel();
 
 		let transport = xeno_lsp::LocalTransport::new();
-		let (mut session, runtime) = LspSession::new(transport, worker_runtime.clone());
+		let (mut session, runtime) = LspSession::new(transport);
 		session.sync_mut().set_apply_edit_sender(apply_edit_tx);
 		if let Err(err) = runtime.start() {
 			tracing::error!(error = ?err, "failed to start LSP runtime");
@@ -64,7 +63,7 @@ impl LspSystem {
 			inner: RealLspSystem {
 				session,
 				runtime,
-				sync_manager: crate::lsp::sync_manager::LspSyncManager::new(worker_runtime.clone()),
+				sync_manager: crate::lsp::sync_manager::LspSyncManager::default(),
 				completion: xeno_lsp::CompletionController::new(),
 				signature_gen: 0,
 				signature_cancel: None,
@@ -76,11 +75,11 @@ impl LspSystem {
 	}
 
 	#[cfg(test)]
-	pub fn with_transport(worker_runtime: WorkerRuntime, transport: std::sync::Arc<dyn xeno_lsp::client::LspTransport>) -> Self {
+	pub fn with_transport(transport: std::sync::Arc<dyn xeno_lsp::client::LspTransport>) -> Self {
 		let (ui_tx, ui_rx) = tokio::sync::mpsc::unbounded_channel();
 		let (apply_edit_tx, apply_edit_rx) = tokio::sync::mpsc::unbounded_channel();
 
-		let (mut session, runtime) = LspSession::new(transport, worker_runtime.clone());
+		let (mut session, runtime) = LspSession::new(transport);
 		session.sync_mut().set_apply_edit_sender(apply_edit_tx);
 		if let Err(err) = runtime.start() {
 			tracing::error!(error = ?err, "failed to start LSP runtime");
@@ -90,7 +89,7 @@ impl LspSystem {
 			inner: RealLspSystem {
 				session,
 				runtime,
-				sync_manager: crate::lsp::sync_manager::LspSyncManager::new(worker_runtime.clone()),
+				sync_manager: crate::lsp::sync_manager::LspSyncManager::default(),
 				completion: xeno_lsp::CompletionController::new(),
 				signature_gen: 0,
 				signature_cancel: None,
@@ -110,14 +109,14 @@ impl LspSystem {
 
 #[cfg(not(feature = "lsp"))]
 impl LspSystem {
-	pub fn new(_worker_runtime: WorkerRuntime) -> Self {
+	pub fn new() -> Self {
 		Self
 	}
 }
 
 impl Default for LspSystem {
 	fn default() -> Self {
-		Self::new(WorkerRuntime::new())
+		Self::new()
 	}
 }
 
