@@ -35,16 +35,12 @@ pub trait ToKeyMap {
 pub enum Error {
 	/// A parsing error occurred while processing a `KeyMap`.
 	Parse(ParseError),
-
-	/// The key or structure is not supported by the current backend.
-	UnsupportedKey(String),
 }
 
 impl std::fmt::Display for Error {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
 			Error::Parse(e) => write!(f, "{e}"),
-			Error::UnsupportedKey(k) => write!(f, "{k}"),
 		}
 	}
 }
@@ -53,7 +49,6 @@ impl std::error::Error for Error {
 	fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
 		match self {
 			Error::Parse(e) => Some(e),
-			Error::UnsupportedKey(_) => None,
 		}
 	}
 }

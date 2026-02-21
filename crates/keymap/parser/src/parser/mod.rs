@@ -56,22 +56,22 @@ struct Parser<'a> {
 
 impl<'a> Parser<'a> {
 	/// Creates a new `Parser` from the given input string.
-	pub fn new(input: &'a str) -> Self {
+	fn new(input: &'a str) -> Self {
 		Self { input, position: 0 }
 	}
 
 	/// Peeks at the next character without consuming it.
-	pub fn peek(&self) -> Option<char> {
+	fn peek(&self) -> Option<char> {
 		self.input.chars().next()
 	}
 
 	/// Peeks at the character `n` positions ahead without consuming it.
-	pub fn peek_at(&self, n: usize) -> Option<char> {
+	fn peek_at(&self, n: usize) -> Option<char> {
 		self.input.chars().nth(n)
 	}
 
 	/// Consumes and returns the next character, advancing the parser.
-	pub fn next(&mut self) -> Option<char> {
+	fn next(&mut self) -> Option<char> {
 		if let Some(ch) = self.peek() {
 			self.position += ch.len_utf8();
 			self.input = &self.input[ch.len_utf8()..];
@@ -83,7 +83,7 @@ impl<'a> Parser<'a> {
 	}
 
 	/// Returns `true` if the parser has consumed all input.
-	pub fn is_end(&self) -> bool {
+	fn is_end(&self) -> bool {
 		self.input.is_empty()
 	}
 
@@ -92,7 +92,7 @@ impl<'a> Parser<'a> {
 	/// # Errors
 	///
 	/// Returns a [`ParseError`] if the character doesn't match or if input is exhausted.
-	pub fn take(&mut self, expected: char) -> Result<(), ParseError> {
+	fn take(&mut self, expected: char) -> Result<(), ParseError> {
 		match self.next() {
 			Some(ch) if ch == expected => Ok(()),
 			Some(ch) => Err(ParseError {
@@ -109,7 +109,7 @@ impl<'a> Parser<'a> {
 	/// Attempts to parse with a fallback: restores state if parsing fails.
 	///
 	/// Returns `Ok(Some(value))` if successful, or `Ok(None)` on failure.
-	pub fn try_parse<T, F>(&mut self, f: F) -> Result<Option<T>, ParseError>
+	fn try_parse<T, F>(&mut self, f: F) -> Result<Option<T>, ParseError>
 	where
 		F: FnOnce(&mut Parser<'a>) -> Result<Option<T>, ParseError>,
 	{
@@ -125,7 +125,7 @@ impl<'a> Parser<'a> {
 	}
 
 	/// Consumes and returns characters that satisfy a predicate.
-	pub fn take_while<F>(&mut self, predicate: F) -> String
+	fn take_while<F>(&mut self, predicate: F) -> String
 	where
 		F: Fn(char) -> bool,
 	{
@@ -144,7 +144,7 @@ impl<'a> Parser<'a> {
 	}
 
 	/// Tries multiple parsers in sequence, returning the result of the first successful one.
-	pub fn alt<T>(&mut self, parsers: &[ParserFn<T>]) -> Result<Option<T>, ParseError> {
+	fn alt<T>(&mut self, parsers: &[ParserFn<T>]) -> Result<Option<T>, ParseError> {
 		for p in parsers {
 			match p(self)? {
 				Some(value) => return Ok(Some(value)),
@@ -156,7 +156,7 @@ impl<'a> Parser<'a> {
 	}
 
 	/// Creates a [`ParseError`] with the current parser position.
-	pub fn error(&self, message: String) -> ParseError {
+	fn error(&self, message: String) -> ParseError {
 		ParseError {
 			message,
 			position: self.position,

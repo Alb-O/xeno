@@ -23,15 +23,12 @@ pub struct Node {
 	pub modifiers: Modifiers,
 	/// The main key (see [`Key`]).
 	pub key: Key,
-
-	/// Optional key state (pressed/released) for advanced bindings.
-	pub state: Option<State>,
 }
 
 impl Node {
 	/// Creates a new `Node` from the given modifiers and key.
 	pub fn new(modifiers: Modifiers, key: Key) -> Self {
-		Self { modifiers, key, state: None }
+		Self { modifiers, key }
 	}
 }
 
@@ -40,24 +37,9 @@ impl From<Key> for Node {
 	fn from(key: Key) -> Self {
 		Self {
 			modifiers: Modifier::None as u8,
-			state: None,
 			key,
 		}
 	}
-}
-
-/// Key press state for advanced bindings.
-#[derive(Copy, Clone, Debug, Default, Display, Hash, PartialEq, Eq)]
-pub enum State {
-	/// The key is pressed.
-	#[default]
-	Pressed,
-	/// The key is released.
-	Released,
-	/// The key is held down.
-	Held,
-	/// The key is repeated.
-	Repeated,
 }
 
 /// Modifier keys that can be combined with other keys.

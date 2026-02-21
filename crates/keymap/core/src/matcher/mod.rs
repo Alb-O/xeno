@@ -173,11 +173,6 @@ impl<T> Matcher<T> {
 		lookup_with_info(&self.root, nodes, 0)
 	}
 
-	/// Check if any bindings exist that start with the given prefix.
-	pub fn has_prefix(&self, nodes: &[Node]) -> bool {
-		!matches!(self.lookup(nodes), MatchResult::None)
-	}
-
 	/// Returns all direct children (continuations) at a given prefix.
 	///
 	/// Used for which-key style displays showing available next keys.
