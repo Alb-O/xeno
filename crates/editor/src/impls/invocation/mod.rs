@@ -107,8 +107,6 @@ mod policy_gate;
 pub(crate) use hooks_bridge::{action_post_event, command_post_event};
 #[cfg(test)]
 pub(crate) use policy_gate::handle_capability_violation;
-#[cfg(test)]
-use xeno_registry::actions::EditorContext;
 
 #[cfg(test)]
 use crate::impls::Editor;

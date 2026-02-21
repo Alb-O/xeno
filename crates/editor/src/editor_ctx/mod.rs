@@ -54,7 +54,7 @@
 //!
 //! # Failure modes & recovery
 //!
-//! * Missing optional capability: effect branch becomes no-op with trace logging.
+//! * All capabilities are always available; no runtime None checks.
 //! * New effect variant without interpreter arm: compile error (exhaustive match).
 //! * Overlay request validation failure: converted to command error at sink boundary.
 //!

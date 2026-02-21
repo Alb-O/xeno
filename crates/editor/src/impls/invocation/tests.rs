@@ -1,12 +1,10 @@
 use std::cell::Cell;
 use std::collections::HashSet;
 
-use xeno_primitives::range::CharIdx;
-use xeno_primitives::{BoxFutureLocal, Key, KeyCode, Mode, Selection};
-use xeno_registry::actions::{ActionEffects, ActionResult, CursorAccess, EditorCapabilities, ModeAccess, NotificationAccess, SelectionAccess};
+use xeno_primitives::{BoxFutureLocal, Key, KeyCode, Mode};
+use xeno_registry::actions::{ActionEffects, ActionResult};
 use xeno_registry::commands::{CommandContext, CommandOutcome};
 use xeno_registry::hooks::{HookAction, HookContext, HookDef, HookHandler, HookMutability, HookPriority};
-use xeno_registry::notifications::Notification;
 use xeno_registry::{Capability, CommandError};
 
 use super::*;
@@ -165,78 +163,6 @@ inventory::submit! {
 	}
 }
 
-struct MockEditor {
-	cursor: CharIdx,
-	selection: Selection,
-	mode: Mode,
-	notifications: Vec<Notification>,
-}
-
-impl MockEditor {
-	fn new() -> Self {
-		Self {
-			cursor: CharIdx::from(0usize),
-			selection: Selection::point(CharIdx::from(0usize)),
-			mode: Mode::Normal,
-			notifications: Vec::new(),
-		}
-	}
-}
-
-impl CursorAccess for MockEditor {
-	fn focused_view(&self) -> xeno_registry::hooks::ViewId {
-		xeno_registry::hooks::ViewId::text(1)
-	}
-
-	fn cursor(&self) -> CharIdx {
-		self.cursor
-	}
-
-	fn cursor_line_col(&self) -> Option<(usize, usize)> {
-		Some((0, self.cursor))
-	}
-
-	fn set_cursor(&mut self, pos: CharIdx) {
-		self.cursor = pos;
-	}
-}
-
-impl SelectionAccess for MockEditor {
-	fn selection(&self) -> &Selection {
-		&self.selection
-	}
-
-	fn selection_mut(&mut self) -> &mut Selection {
-		&mut self.selection
-	}
-
-	fn set_selection(&mut self, sel: Selection) {
-		self.selection = sel;
-	}
-}
-
-impl ModeAccess for MockEditor {
-	fn mode(&self) -> Mode {
-		self.mode.clone()
-	}
-
-	fn set_mode(&mut self, mode: Mode) {
-		self.mode = mode;
-	}
-}
-
-impl NotificationAccess for MockEditor {
-	fn emit(&mut self, notification: Notification) {
-		self.notifications.push(notification);
-	}
-
-	fn clear_notifications(&mut self) {
-		self.notifications.clear();
-	}
-}
-
-impl EditorCapabilities for MockEditor {}
-
 #[test]
 fn invocation_describe() {
 	assert_eq!(Invocation::action("move_left").describe(), "action:move_left");
@@ -259,9 +185,7 @@ fn invocation_policy_defaults() {
 
 #[test]
 fn capability_enforcement_blocks_when_enforced() {
-	let mut editor = MockEditor::new();
-	let mut ctx = EditorContext::new(&mut editor);
-	let error = ctx.check_all_capabilities(&[Capability::Search]).expect_err("expected missing capability");
+	let error = CommandError::MissingCapability(Capability::Search);
 
 	let notified = Cell::new(false);
 	let logged = Cell::new(false);
@@ -288,9 +212,7 @@ fn capability_enforcement_blocks_when_enforced() {
 
 #[test]
 fn capability_enforcement_logs_in_log_only_mode() {
-	let mut editor = MockEditor::new();
-	let mut ctx = EditorContext::new(&mut editor);
-	let error = ctx.check_all_capabilities(&[Capability::Search]).expect_err("expected missing capability");
+	let error = CommandError::MissingCapability(Capability::Search);
 
 	let notified = Cell::new(false);
 	let logged = Cell::new(false);

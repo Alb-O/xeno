@@ -84,7 +84,23 @@ impl NotificationAccess for MockEditor {
 	}
 }
 
-impl EditorCapabilities for MockEditor {}
+impl EditorCapabilities for MockEditor {
+	fn search(&mut self) -> &mut dyn xeno_registry::actions::editor_ctx::SearchAccess { unimplemented!("test mock") }
+	fn undo(&mut self) -> &mut dyn xeno_registry::actions::editor_ctx::UndoAccess { unimplemented!("test mock") }
+	fn edit(&mut self) -> &mut dyn xeno_registry::actions::editor_ctx::EditAccess { unimplemented!("test mock") }
+	fn motion(&mut self) -> &mut dyn xeno_registry::actions::editor_ctx::MotionAccess { unimplemented!("test mock") }
+	fn motion_dispatch(&mut self) -> &mut dyn xeno_registry::actions::editor_ctx::MotionDispatchAccess { unimplemented!("test mock") }
+	fn split_ops(&mut self) -> &mut dyn xeno_registry::actions::editor_ctx::SplitOps { unimplemented!("test mock") }
+	fn focus_ops(&mut self) -> &mut dyn xeno_registry::actions::editor_ctx::FocusOps { unimplemented!("test mock") }
+	fn viewport(&mut self) -> &mut dyn xeno_registry::actions::editor_ctx::ViewportAccess { unimplemented!("test mock") }
+	fn file_ops(&mut self) -> &mut dyn xeno_registry::actions::editor_ctx::FileOpsAccess { unimplemented!("test mock") }
+	fn jump_ops(&mut self) -> &mut dyn xeno_registry::actions::editor_ctx::JumpAccess { unimplemented!("test mock") }
+	fn macro_ops(&mut self) -> &mut dyn xeno_registry::actions::editor_ctx::MacroAccess { unimplemented!("test mock") }
+	fn deferred_invocations(&mut self) -> &mut dyn xeno_registry::actions::editor_ctx::DeferredInvocationAccess { unimplemented!("test mock") }
+	fn palette(&mut self) -> &mut dyn xeno_registry::actions::editor_ctx::PaletteAccess { unimplemented!("test mock") }
+	fn option_ops(&self) -> &dyn xeno_registry::actions::editor_ctx::OptionAccess { unimplemented!("test mock") }
+	fn overlay(&mut self) -> &mut dyn xeno_registry::actions::editor_ctx::OverlayAccess { unimplemented!("test mock") }
+}
 
 #[test]
 fn effects_apply_in_order() {

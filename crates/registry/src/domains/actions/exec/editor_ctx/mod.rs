@@ -15,8 +15,7 @@
 //! # Capabilities
 //!
 //! Capabilities are split into fine-grained traits (e.g., [`CursorAccess`], [`SearchAccess`]).
-//! This allows actions to declare exactly what they need, and enables graceful
-//! degradation when capabilities are missing (e.g., in a headless environment).
+//! All capabilities are always available — there is no optional/`None` path.
 //!
 //! See [`crate::actions::editor_ctx`] module for the full list of available traits.
 //!
@@ -46,24 +45,14 @@ use crate::actions::{Capability, CommandError, Mode};
 /// for common operations. Used by the result dispatch system to translate
 /// [`ActionResult`] variants into editor mutations.
 ///
-/// # Capability Checking
-///
-/// Use [`check_capability`] or `require_*` methods to safely access
-/// optional capabilities:
+/// All capabilities are always available — access them directly:
 ///
 /// ```ignore
-/// // Optional access - returns None if unavailable
-/// if let Some(search) = ctx.search() {
-///     search.search_next(false, false);
-/// }
-///
-/// // Required access - returns error if unavailable
-/// let edit = ctx.require_edit()?;
-/// edit.execute_edit(&action, false);
+/// ctx.search().search(direction, false, false);
+/// ctx.edit().execute_edit_op(&op);
 /// ```
 ///
 /// [`ActionResult`]: crate::actions::ActionResult
-/// [`check_capability`]: Self::check_capability
 pub struct EditorContext<'a> {
 	/// The capability provider (typically `EditorCaps` from xeno-editor).
 	inner: &'a mut dyn EditorCapabilities,
@@ -120,105 +109,79 @@ impl<'a> EditorContext<'a> {
 		self.inner.set_mode(mode);
 	}
 
-	/// Returns search access if the capability is available.
-	pub fn search(&mut self) -> Option<&mut dyn SearchAccess> {
+	/// Returns search access.
+	pub fn search(&mut self) -> &mut dyn SearchAccess {
 		self.inner.search()
 	}
 
-	/// Returns search access or an error if not available.
-	pub fn require_search(&mut self) -> Result<&mut dyn SearchAccess, CommandError> {
-		self.inner.search().ok_or(CommandError::MissingCapability(Capability::Search))
-	}
-
-	/// Returns undo access if the capability is available.
-	pub fn undo(&mut self) -> Option<&mut dyn UndoAccess> {
+	/// Returns undo access.
+	pub fn undo(&mut self) -> &mut dyn UndoAccess {
 		self.inner.undo()
 	}
 
-	/// Returns undo access or an error if not available.
-	pub fn require_undo(&mut self) -> Result<&mut dyn UndoAccess, CommandError> {
-		self.inner.undo().ok_or(CommandError::MissingCapability(Capability::Undo))
-	}
-
-	/// Returns edit access if the capability is available.
-	pub fn edit(&mut self) -> Option<&mut dyn EditAccess> {
+	/// Returns edit access.
+	pub fn edit(&mut self) -> &mut dyn EditAccess {
 		self.inner.edit()
 	}
 
-	/// Returns edit access or an error if not available.
-	pub fn require_edit(&mut self) -> Result<&mut dyn EditAccess, CommandError> {
-		self.inner.edit().ok_or(CommandError::MissingCapability(Capability::Edit))
-	}
-
-	/// Returns motion access if the capability is available.
-	pub fn motion(&mut self) -> Option<&mut dyn MotionAccess> {
+	/// Returns motion access.
+	pub fn motion(&mut self) -> &mut dyn MotionAccess {
 		self.inner.motion()
 	}
 
-	/// Returns motion dispatch access if the capability is available.
-	pub fn motion_dispatch(&mut self) -> Option<&mut dyn MotionDispatchAccess> {
+	/// Returns motion dispatch access.
+	pub fn motion_dispatch(&mut self) -> &mut dyn MotionDispatchAccess {
 		self.inner.motion_dispatch()
 	}
 
-	/// Returns split operations if the capability is available.
-	pub fn split_ops(&mut self) -> Option<&mut dyn SplitOps> {
+	/// Returns split operations.
+	pub fn split_ops(&mut self) -> &mut dyn SplitOps {
 		self.inner.split_ops()
 	}
 
-	/// Returns focus operations if the capability is available.
-	pub fn focus_ops(&mut self) -> Option<&mut dyn FocusOps> {
+	/// Returns focus operations.
+	pub fn focus_ops(&mut self) -> &mut dyn FocusOps {
 		self.inner.focus_ops()
 	}
 
-	/// Returns viewport access if the capability is available.
-	pub fn viewport(&mut self) -> Option<&mut dyn ViewportAccess> {
+	/// Returns viewport access.
+	pub fn viewport(&mut self) -> &mut dyn ViewportAccess {
 		self.inner.viewport()
 	}
 
-	/// Returns jump list access if the capability is available.
-	pub fn jump_ops(&mut self) -> Option<&mut dyn JumpAccess> {
+	/// Returns jump list access.
+	pub fn jump_ops(&mut self) -> &mut dyn JumpAccess {
 		self.inner.jump_ops()
 	}
 
-	/// Returns macro operations if the capability is available.
-	pub fn macro_ops(&mut self) -> Option<&mut dyn MacroAccess> {
+	/// Returns macro operations.
+	pub fn macro_ops(&mut self) -> &mut dyn MacroAccess {
 		self.inner.macro_ops()
 	}
 
-	/// Returns deferred invocation access if the capability is available.
-	pub fn deferred_invocations(&mut self) -> Option<&mut dyn DeferredInvocationAccess> {
+	/// Returns deferred invocation access.
+	pub fn deferred_invocations(&mut self) -> &mut dyn DeferredInvocationAccess {
 		self.inner.deferred_invocations()
 	}
 
-	/// Returns overlay access if the capability is available.
-	pub fn overlay(&mut self) -> Option<&mut dyn OverlayAccess> {
+	/// Returns overlay access.
+	pub fn overlay(&mut self) -> &mut dyn OverlayAccess {
 		self.inner.overlay()
-	}
-
-	/// Returns overlay access or an error if not available.
-	pub fn require_overlay(&mut self) -> Result<&mut dyn OverlayAccess, CommandError> {
-		self.inner.overlay().ok_or(CommandError::MissingCapability(Capability::Overlay))
 	}
 
 	/// Opens the command palette.
 	pub fn open_palette(&mut self) {
-		if let Some(p) = self.inner.palette() {
-			p.open_palette();
-		}
+		self.inner.palette().open_palette();
 	}
 
 	/// Closes the command palette without executing.
 	pub fn close_palette(&mut self) {
-		if let Some(p) = self.inner.palette() {
-			p.close_palette();
-		}
+		self.inner.palette().close_palette();
 	}
 
 	/// Executes the current palette input and closes it.
 	pub fn execute_palette(&mut self) {
-		if let Some(p) = self.inner.palette() {
-			p.execute_palette();
-		}
+		self.inner.palette().execute_palette();
 	}
 
 	/// Opens the search prompt.
@@ -232,162 +195,92 @@ impl<'a> EditorContext<'a> {
 	}
 
 	/// Emits a type-safe notification.
-	///
-	/// # Example
-	///
-	/// ```ignore
-	/// use crate::notifications::keys;
-	/// ctx.emit(keys::BUFFER_READONLY);
-	/// ctx.emit(keys::yanked_chars(42));
-	/// ```
 	pub fn emit(&mut self, notification: impl Into<crate::notifications::Notification>) {
 		self.inner.emit(notification.into());
 	}
 
-	/// Checks if a specific capability is available.
-	pub fn check_capability(&mut self, cap: Capability) -> bool {
-		use Capability::*;
-		match cap {
-			Text | Cursor | Selection | Mode | Messaging => true,
-			Edit => self.inner.edit().is_some(),
-			Search => self.inner.search().is_some(),
-			Undo => self.inner.undo().is_some(),
-			FileOps => self.inner.file_ops().is_some(),
-			Overlay => self.inner.overlay().is_some(),
-		}
+	/// All capabilities are always available. Returns `true` unconditionally.
+	pub fn check_capability(&mut self, _cap: Capability) -> bool {
+		true
 	}
 
-	/// Checks if all specified capabilities are available.
-	pub fn check_all_capabilities(&mut self, caps: &[Capability]) -> Result<(), CommandError> {
-		for &cap in caps {
-			if !self.check_capability(cap) {
-				return Err(CommandError::MissingCapability(cap));
-			}
-		}
+	/// All capabilities are always available. Returns `Ok(())` unconditionally.
+	pub fn check_all_capabilities(&mut self, _caps: &[Capability]) -> Result<(), CommandError> {
 		Ok(())
 	}
 
-	/// Checks if all capabilities in the given set are available.
-	pub fn check_capability_set(&mut self, caps: crate::CapabilitySet) -> Result<(), CommandError> {
-		use crate::CapabilitySet;
-		let all_caps = [
-			(CapabilitySet::TEXT, Capability::Text),
-			(CapabilitySet::CURSOR, Capability::Cursor),
-			(CapabilitySet::SELECTION, Capability::Selection),
-			(CapabilitySet::MODE, Capability::Mode),
-			(CapabilitySet::MESSAGING, Capability::Messaging),
-			(CapabilitySet::EDIT, Capability::Edit),
-			(CapabilitySet::SEARCH, Capability::Search),
-			(CapabilitySet::UNDO, Capability::Undo),
-			(CapabilitySet::FILE_OPS, Capability::FileOps),
-			(CapabilitySet::OVERLAY, Capability::Overlay),
-		];
-		for (flag, cap) in all_caps {
-			if caps.contains(flag) && !self.check_capability(cap) {
-				return Err(CommandError::MissingCapability(cap));
-			}
-		}
+	/// All capabilities are always available. Returns `Ok(())` unconditionally.
+	pub fn check_capability_set(&mut self, _caps: crate::CapabilitySet) -> Result<(), CommandError> {
 		Ok(())
 	}
 
-	/// Returns option access if the capability is available.
-	pub fn option_ops(&self) -> Option<&dyn OptionAccess> {
+	/// Returns option access.
+	pub fn option_ops(&self) -> &dyn OptionAccess {
 		self.inner.option_ops()
 	}
 }
 
-/// Core capabilities that all editors must provide for result handling.
+/// Full capability surface that all editors must provide for result handling.
 ///
 /// Combines required capability traits ([`CursorAccess`], [`SelectionAccess`],
-/// [`ModeAccess`], [`NotificationAccess`]) and provides optional accessors for
-/// extended features. See module docs for why [`TextAccess`] is not required.
+/// [`ModeAccess`], [`NotificationAccess`]) as supertraits and requires all
+/// capability accessors. Every capability is always available — there is no
+/// optional/`None` path.
 ///
 /// # Implementing
 ///
 /// ```ignore
 /// impl EditorCapabilities for MyEditor {
-///     fn search(&mut self) -> Option<&mut dyn SearchAccess> {
-///         Some(self)
-///     }
+///     fn search(&mut self) -> &mut dyn SearchAccess { self }
+///     fn edit(&mut self) -> &mut dyn EditAccess { self }
+///     // ... all accessors must be provided
 /// }
 /// ```
 pub trait EditorCapabilities: CursorAccess + SelectionAccess + ModeAccess + NotificationAccess {
-	/// Access to search operations (optional).
-	fn search(&mut self) -> Option<&mut dyn SearchAccess> {
-		None
-	}
+	/// Access to search operations.
+	fn search(&mut self) -> &mut dyn SearchAccess;
 
-	/// Access to undo/redo operations (optional).
-	fn undo(&mut self) -> Option<&mut dyn UndoAccess> {
-		None
-	}
+	/// Access to undo/redo operations.
+	fn undo(&mut self) -> &mut dyn UndoAccess;
 
-	/// Access to edit operations (optional).
-	fn edit(&mut self) -> Option<&mut dyn EditAccess> {
-		None
-	}
+	/// Access to edit operations.
+	fn edit(&mut self) -> &mut dyn EditAccess;
 
-	/// Access to visual cursor motion (optional).
-	fn motion(&mut self) -> Option<&mut dyn MotionAccess> {
-		None
-	}
+	/// Access to visual cursor motion.
+	fn motion(&mut self) -> &mut dyn MotionAccess;
 
-	/// Access to motion dispatch with text access (optional).
-	///
-	/// This enables resolving motion IDs to handlers and applying them.
-	fn motion_dispatch(&mut self) -> Option<&mut dyn MotionDispatchAccess> {
-		None
-	}
+	/// Access to motion dispatch with text access.
+	fn motion_dispatch(&mut self) -> &mut dyn MotionDispatchAccess;
 
-	/// Access to split management operations (optional).
-	fn split_ops(&mut self) -> Option<&mut dyn SplitOps> {
-		None
-	}
+	/// Access to split management operations.
+	fn split_ops(&mut self) -> &mut dyn SplitOps;
 
-	/// Access to focus and buffer navigation operations (optional).
-	fn focus_ops(&mut self) -> Option<&mut dyn FocusOps> {
-		None
-	}
+	/// Access to focus and buffer navigation operations.
+	fn focus_ops(&mut self) -> &mut dyn FocusOps;
 
-	/// Access to viewport queries (optional).
-	fn viewport(&mut self) -> Option<&mut dyn ViewportAccess> {
-		None
-	}
+	/// Access to viewport queries.
+	fn viewport(&mut self) -> &mut dyn ViewportAccess;
 
-	/// Access to file operations (optional).
-	fn file_ops(&mut self) -> Option<&mut dyn FileOpsAccess> {
-		None
-	}
+	/// Access to file operations.
+	fn file_ops(&mut self) -> &mut dyn FileOpsAccess;
 
-	/// Access to jump list operations (optional).
-	fn jump_ops(&mut self) -> Option<&mut dyn JumpAccess> {
-		None
-	}
+	/// Access to jump list operations.
+	fn jump_ops(&mut self) -> &mut dyn JumpAccess;
 
-	/// Access to macro recording/playback operations (optional).
-	fn macro_ops(&mut self) -> Option<&mut dyn MacroAccess> {
-		None
-	}
+	/// Access to macro recording/playback operations.
+	fn macro_ops(&mut self) -> &mut dyn MacroAccess;
 
-	/// Access to deferred invocation operations (optional).
-	fn deferred_invocations(&mut self) -> Option<&mut dyn DeferredInvocationAccess> {
-		None
-	}
+	/// Access to deferred invocation operations.
+	fn deferred_invocations(&mut self) -> &mut dyn DeferredInvocationAccess;
 
-	/// Access to command palette operations (optional).
-	fn palette(&mut self) -> Option<&mut dyn PaletteAccess> {
-		None
-	}
+	/// Access to command palette operations.
+	fn palette(&mut self) -> &mut dyn PaletteAccess;
 
-	/// Access to configuration option resolution (optional).
-	fn option_ops(&self) -> Option<&dyn OptionAccess> {
-		None
-	}
+	/// Access to configuration option resolution.
+	fn option_ops(&self) -> &dyn OptionAccess;
 
-	/// Access to UI overlays (optional).
-	fn overlay(&mut self) -> Option<&mut dyn OverlayAccess> {
-		None
-	}
+	/// Access to UI overlays.
+	fn overlay(&mut self) -> &mut dyn OverlayAccess;
 
 	/// Opens the search prompt.
 	fn open_search_prompt(&mut self, _reverse: bool) {}

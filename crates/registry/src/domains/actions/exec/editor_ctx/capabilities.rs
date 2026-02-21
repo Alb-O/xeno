@@ -1,25 +1,20 @@
 //! Fine-grained capability traits for editor operations.
 //!
-//! Each trait represents a specific category of editor functionality. This allows
-//! actions and commands to declare exactly what capabilities they need, and enables
-//! graceful degradation when features aren't available.
+//! Each trait represents a specific category of editor functionality. All traits
+//! are required by [`EditorCapabilities`] — there is no optional/`None` path.
 //!
-//! # Required Traits
-//!
-//! These must be implemented by all [`EditorCapabilities`] implementors:
+//! # Supertrait group (on `EditorCapabilities` directly)
 //!
 //! * [`CursorAccess`] - Get/set cursor position
 //! * [`SelectionAccess`] - Get/set selections
-//! * [`TextAccess`] - Read document content
 //! * [`ModeAccess`] - Get/set editor mode
 //! * [`NotificationAccess`] - Display notifications (type-safe)
 //!
-//! # Optional Traits
-//!
-//! These extend functionality when implemented:
+//! # Accessor-provided traits (via `EditorCapabilities` methods)
 //!
 //! * [`EditAccess`] - Text modification (delete, yank, paste)
 //! * [`MotionAccess`] - Visual/wrapped-line cursor movement
+//! * [`MotionDispatchAccess`] - Motion ID resolution
 //! * [`SearchAccess`] - Pattern search and navigation
 //! * [`UndoAccess`] - Undo/redo history
 //! * [`SplitOps`] - Split management
@@ -28,8 +23,10 @@
 //! * [`FileOpsAccess`] - Save/load operations
 //! * [`JumpAccess`] - Jump list navigation
 //! * [`MacroAccess`] - Macro recording/playback
+//! * [`PaletteAccess`] - Command palette
 //! * [`OptionAccess`] - Configuration option resolution
 //! * [`OverlayAccess`] - UI overlays and modal interactions
+//! * [`DeferredInvocationAccess`] - Deferred invocation queueing
 //!
 //! [`EditorCapabilities`]: super::EditorCapabilities
 

@@ -70,15 +70,11 @@ fn apply_view_effect(effect: &ViewEffect, ctx: &mut xeno_registry::actions::edit
 		}
 
 		ViewEffect::Motion(req) => {
-			if let Some(dispatch) = ctx.motion_dispatch() {
-				let sel = dispatch.apply_motion(req);
-				ctx.set_cursor(sel.primary().head);
-				ctx.set_selection(sel.clone());
-				emit_cursor_hook(ctx);
-				emit_selection_hook(ctx, &sel);
-			} else {
-				trace!("motion dispatch not available");
-			}
+			let sel = ctx.motion_dispatch().apply_motion(req);
+			ctx.set_cursor(sel.primary().head);
+			ctx.set_selection(sel.clone());
+			emit_cursor_hook(ctx);
+			emit_selection_hook(ctx, &sel);
 		}
 
 		ViewEffect::ScreenMotion { position, count } => {
@@ -91,9 +87,7 @@ fn apply_view_effect(effect: &ViewEffect, ctx: &mut xeno_registry::actions::edit
 			extend: scroll_extend,
 		} => {
 			let count = scroll_amount_to_lines(amount);
-			if let Some(motion) = ctx.motion() {
-				motion.move_visual_vertical(*direction, count, *scroll_extend);
-			}
+			ctx.motion().move_visual_vertical(*direction, count, *scroll_extend);
 		}
 
 		ViewEffect::VisualMove {
@@ -101,15 +95,11 @@ fn apply_view_effect(effect: &ViewEffect, ctx: &mut xeno_registry::actions::edit
 			count,
 			extend: move_extend,
 		} => {
-			if let Some(motion) = ctx.motion() {
-				motion.move_visual_vertical(*direction, *count, *move_extend);
-			}
+			ctx.motion().move_visual_vertical(*direction, *count, *move_extend);
 		}
 
 		ViewEffect::Search { direction, add_selection } => {
-			if let Some(search) = ctx.search() {
-				search.search(*direction, *add_selection, extend);
-			}
+			ctx.search().search(*direction, *add_selection, extend);
 		}
 
 		ViewEffect::SearchRepeat {
@@ -117,15 +107,11 @@ fn apply_view_effect(effect: &ViewEffect, ctx: &mut xeno_registry::actions::edit
 			add_selection,
 			extend: repeat_extend,
 		} => {
-			if let Some(search) = ctx.search() {
-				search.search_repeat(*flip, *add_selection, *repeat_extend);
-			}
+			ctx.search().search_repeat(*flip, *add_selection, *repeat_extend);
 		}
 
 		ViewEffect::UseSelectionAsSearch => {
-			if let Some(search) = ctx.search() {
-				search.use_selection_as_pattern();
-			}
+			ctx.search().use_selection_as_pattern();
 		}
 	}
 }
@@ -134,15 +120,11 @@ fn apply_view_effect(effect: &ViewEffect, ctx: &mut xeno_registry::actions::edit
 fn apply_edit_effect(effect: &EditEffect, ctx: &mut xeno_registry::actions::editor_ctx::EditorContext) {
 	match effect {
 		EditEffect::EditOp(op) => {
-			if let Some(edit) = ctx.edit() {
-				edit.execute_edit_op(op);
-			}
+			ctx.edit().execute_edit_op(op);
 		}
 
 		EditEffect::Paste { before } => {
-			if let Some(edit) = ctx.edit() {
-				edit.paste(*before);
-			}
+			ctx.edit().paste(*before);
 		}
 	}
 }
@@ -189,35 +171,25 @@ fn apply_app_effect(effect: &AppEffect, ctx: &mut xeno_registry::actions::editor
 		}
 
 		AppEffect::FocusBuffer(direction) => {
-			if let Some(ops) = ctx.focus_ops() {
-				ops.buffer_switch(*direction);
-			}
+			ctx.focus_ops().buffer_switch(*direction);
 		}
 
 		AppEffect::FocusSplit(direction) => {
-			if let Some(ops) = ctx.focus_ops() {
-				ops.focus(*direction);
-			}
+			ctx.focus_ops().focus(*direction);
 		}
 
 		AppEffect::Split(axis) => {
-			if let Some(ops) = ctx.split_ops()
-				&& let Err(e) = ops.split(*axis)
-			{
+			if let Err(e) = ctx.split_ops().split(*axis) {
 				tracing::warn!(error = ?e, "Split operation failed");
 			}
 		}
 
 		AppEffect::CloseSplit => {
-			if let Some(ops) = ctx.split_ops() {
-				ops.close_split();
-			}
+			ctx.split_ops().close_split();
 		}
 
 		AppEffect::CloseOtherBuffers => {
-			if let Some(ops) = ctx.split_ops() {
-				ops.close_other_buffers();
-			}
+			ctx.split_ops().close_other_buffers();
 		}
 
 		AppEffect::OpenSearchPrompt { reverse } => {
@@ -229,9 +201,7 @@ fn apply_app_effect(effect: &AppEffect, ctx: &mut xeno_registry::actions::editor
 		}
 
 		AppEffect::QueueInvocation(request) => {
-			if let Some(deferred) = ctx.deferred_invocations() {
-				deferred.queue_invocation(request.clone());
-			}
+			ctx.deferred_invocations().queue_invocation(request.clone());
 		}
 	}
 
@@ -265,12 +235,8 @@ fn emit_selection_hook(_ctx: &xeno_registry::actions::editor_ctx::EditorContext,
 
 /// Applies a screen-relative motion (H/M/L).
 fn apply_screen_motion(ctx: &mut xeno_registry::actions::editor_ctx::EditorContext, position: ScreenPosition, count: usize, extend: bool) {
-	let Some(viewport) = ctx.viewport() else {
-		ctx.emit(keys::VIEWPORT_UNAVAILABLE);
-		return;
-	};
-
-	let height = viewport.viewport_height();
+	// Query viewport data upfront to release the mutable borrow before using ctx again.
+	let height = ctx.viewport().viewport_height();
 	if height == 0 {
 		ctx.emit(keys::VIEWPORT_HEIGHT_UNAVAILABLE);
 		return;
@@ -286,7 +252,7 @@ fn apply_screen_motion(ctx: &mut xeno_registry::actions::editor_ctx::EditorConte
 		row = height.saturating_sub(1);
 	}
 
-	let Some(target) = viewport.viewport_row_to_doc_position(row) else {
+	let Some(target) = ctx.viewport().viewport_row_to_doc_position(row) else {
 		ctx.emit(keys::SCREEN_MOTION_UNAVAILABLE);
 		return;
 	};
