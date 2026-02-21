@@ -373,11 +373,6 @@ where
 		self.tx.send(cmd).await
 	}
 
-	/// Sends one command without waiting for mailbox capacity.
-	pub async fn try_send(&self, cmd: Cmd) -> Result<(), MailboxSendError> {
-		self.tx.try_send(cmd).await
-	}
-
 	/// Requests cancellation and closes the mailbox.
 	///
 	/// After cancel, the supervisor loop will exit and no restarts occur.
