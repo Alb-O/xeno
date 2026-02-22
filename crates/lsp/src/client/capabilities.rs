@@ -37,7 +37,7 @@ pub fn client_capabilities(enable_snippets: bool) -> ClientCapabilities {
 				change_annotation_support: None,
 			}),
 			did_change_watched_files: Some(lsp_types::DidChangeWatchedFilesClientCapabilities {
-				dynamic_registration: Some(true),
+				dynamic_registration: Some(false),
 				relative_pattern_support: Some(false),
 			}),
 			file_operations: Some(lsp_types::WorkspaceFileOperationsClientCapabilities {
@@ -45,7 +45,7 @@ pub fn client_capabilities(enable_snippets: bool) -> ClientCapabilities {
 				did_rename: Some(true),
 				..Default::default()
 			}),
-			diagnostic: Some(lsp_types::DiagnosticWorkspaceClientCapabilities { refresh_support: Some(true) }),
+			diagnostic: Some(lsp_types::DiagnosticWorkspaceClientCapabilities { refresh_support: Some(false) }),
 			..Default::default()
 		}),
 		text_document: Some(TextDocumentClientCapabilities {
@@ -135,7 +135,7 @@ pub fn client_capabilities(enable_snippets: bool) -> ClientCapabilities {
 		}),
 		window: Some(WindowClientCapabilities {
 			work_done_progress: Some(true),
-			show_document: Some(lsp_types::ShowDocumentClientCapabilities { support: true }),
+			show_document: Some(lsp_types::ShowDocumentClientCapabilities { support: false }),
 			..Default::default()
 		}),
 		general: Some(GeneralClientCapabilities {

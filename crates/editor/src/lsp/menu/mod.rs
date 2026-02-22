@@ -27,8 +27,10 @@ impl Editor {
 		};
 
 		let buffer_id = match &menu_kind {
-			LspMenuKind::Completion { buffer_id, .. } => *buffer_id,
-			LspMenuKind::CodeAction { buffer_id, .. } => *buffer_id,
+			LspMenuKind::Completion { buffer_id, .. }
+			| LspMenuKind::CodeAction { buffer_id, .. }
+			| LspMenuKind::References { buffer_id, .. }
+			| LspMenuKind::Symbols { buffer_id, .. } => *buffer_id,
 		};
 		if buffer_id != self.focused_view() {
 			self.clear_lsp_menu();
@@ -37,9 +39,11 @@ impl Editor {
 
 		match key.code {
 			KeyCode::Esc => {
-				self.state.integration.lsp.cancel_completion();
-				if self.overlays().get::<CompletionState>().is_some_and(|s| s.active) {
-					self.overlays_mut().get_or_default::<CompletionState>().suppressed = true;
+				if matches!(menu_kind, LspMenuKind::Completion { .. }) {
+					self.state.integration.lsp.cancel_completion();
+					if self.overlays().get::<CompletionState>().is_some_and(|s| s.active) {
+						self.overlays_mut().get_or_default::<CompletionState>().suppressed = true;
+					}
 				}
 				self.clear_lsp_menu();
 				return true;
@@ -65,7 +69,9 @@ impl Editor {
 				let selected_idx = state.and_then(|completion| completion.selected_idx);
 				if let Some(idx) = selected_idx {
 					let raw_idx = lsp_completion_raw_index(state, idx);
-					self.state.integration.lsp.cancel_completion();
+					if matches!(menu_kind, LspMenuKind::Completion { .. }) {
+						self.state.integration.lsp.cancel_completion();
+					}
 					self.clear_lsp_menu();
 					match menu_kind {
 						LspMenuKind::Completion { buffer_id, items } => {
@@ -76,6 +82,16 @@ impl Editor {
 						LspMenuKind::CodeAction { buffer_id, actions } => {
 							if let Some(action) = actions.get(idx).cloned() {
 								self.apply_code_action_or_command(buffer_id, action).await;
+							}
+						}
+						LspMenuKind::References { locations, encoding, .. } => {
+							if let Some(loc) = locations.get(idx) {
+								let _ = self.goto_lsp_location(loc, encoding).await;
+							}
+						}
+						LspMenuKind::Symbols { locations, encoding, .. } => {
+							if let Some(loc) = locations.get(idx) {
+								let _ = self.goto_lsp_location(loc, encoding).await;
 							}
 						}
 					}
@@ -94,7 +110,9 @@ impl Editor {
 				let state = self.overlays().get::<CompletionState>();
 				let idx = state.and_then(|s| s.selected_idx).or_else(|| state.filter(|s| !s.items.is_empty()).map(|_| 0));
 				let raw_idx = idx.map(|display_idx| lsp_completion_raw_index(state, display_idx));
-				self.state.integration.lsp.cancel_completion();
+				if matches!(menu_kind, LspMenuKind::Completion { .. }) {
+					self.state.integration.lsp.cancel_completion();
+				}
 				self.clear_lsp_menu();
 				if let Some(idx) = idx {
 					match menu_kind {
@@ -108,11 +126,31 @@ impl Editor {
 								self.apply_code_action_or_command(buffer_id, action).await;
 							}
 						}
+						LspMenuKind::References { locations, encoding, .. } | LspMenuKind::Symbols { locations, encoding, .. } => {
+							if let Some(loc) = locations.get(idx) {
+								let _ = self.goto_lsp_location(loc, encoding).await;
+							}
+						}
 					}
 				}
 				return true;
 			}
-			KeyCode::Enter => return false,
+			KeyCode::Enter => {
+				// For location-based menus (references, symbols), Enter accepts selection.
+				// For completion/code action, Enter passes through to normal editing.
+				match &menu_kind {
+					LspMenuKind::References { locations, encoding, .. } | LspMenuKind::Symbols { locations, encoding, .. } => {
+						let state = self.overlays().get::<CompletionState>();
+						let idx = state.and_then(|s| s.selected_idx).unwrap_or(0);
+						self.clear_lsp_menu();
+						if let Some(loc) = locations.get(idx) {
+							let _ = self.goto_lsp_location(loc, *encoding).await;
+						}
+						return true;
+					}
+					_ => return false,
+				}
+			}
 			_ => {}
 		}
 

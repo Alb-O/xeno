@@ -162,6 +162,31 @@ impl ClientHandle {
 		self.capabilities().is_some_and(|c| c.execute_command_provider.is_some())
 	}
 
+	/// Check if the server supports go to declaration.
+	pub fn supports_declaration(&self) -> bool {
+		self.capabilities().is_some_and(|c| c.declaration_provider.is_some())
+	}
+
+	/// Check if the server supports go to implementation.
+	pub fn supports_implementation(&self) -> bool {
+		self.capabilities().is_some_and(|c| c.implementation_provider.is_some())
+	}
+
+	/// Check if the server supports go to type definition.
+	pub fn supports_type_definition(&self) -> bool {
+		self.capabilities().is_some_and(|c| c.type_definition_provider.is_some())
+	}
+
+	/// Check if the server supports range formatting.
+	pub fn supports_range_formatting(&self) -> bool {
+		self.capabilities().is_some_and(|c| c.document_range_formatting_provider.is_some())
+	}
+
+	/// Check if the server supports workspace symbol search.
+	pub fn supports_workspace_symbol(&self) -> bool {
+		self.capabilities().is_some_and(|c| c.workspace_symbol_provider.is_some())
+	}
+
 	/// Get the offset encoding negotiated with the server.
 	///
 	/// Returns the LSP default (UTF-16) if the server has not yet finished

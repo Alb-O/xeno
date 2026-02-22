@@ -89,8 +89,10 @@ impl Editor {
 			};
 
 			let buffer_id = match menu_state {
-				crate::lsp::LspMenuKind::Completion { buffer_id, .. } => *buffer_id,
-				crate::lsp::LspMenuKind::CodeAction { buffer_id, .. } => *buffer_id,
+				crate::lsp::LspMenuKind::Completion { buffer_id, .. }
+				| crate::lsp::LspMenuKind::CodeAction { buffer_id, .. }
+				| crate::lsp::LspMenuKind::References { buffer_id, .. }
+				| crate::lsp::LspMenuKind::Symbols { buffer_id, .. } => *buffer_id,
 			};
 
 			buffer_id == self.focused_view()

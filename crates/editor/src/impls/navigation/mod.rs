@@ -173,6 +173,32 @@ impl Editor {
 		Ok(focused_view)
 	}
 
+	/// Navigates to an LSP location with encoding-aware column resolution.
+	///
+	/// Opens the target file (or switches to it if already open), then uses the
+	/// negotiated LSP offset encoding to resolve the position against the buffer
+	/// content. This avoids the column drift that occurs when naively treating
+	/// UTF-16 code unit offsets as character indices.
+	#[cfg(feature = "lsp")]
+	pub async fn goto_lsp_location(&mut self, lsp_location: &xeno_lsp::lsp_types::Location, encoding: xeno_lsp::OffsetEncoding) -> anyhow::Result<ViewId> {
+		let path = xeno_lsp::path_from_uri(&lsp_location.uri).ok_or_else(|| anyhow::anyhow!("Invalid file URI"))?;
+
+		// Navigate to the file first (loads it if needed).
+		let loc = Location::new(&path, lsp_location.range.start.line as usize, 0);
+		let view = self.goto_location(&loc).await?;
+
+		// Now resolve the LSP position against the actual rope using proper encoding.
+		let buffer = self.buffer_mut();
+		let target_pos = buffer.with_doc(|doc| xeno_lsp::lsp_position_to_char(doc.content(), lsp_location.range.start, encoding));
+		if let Some(pos) = target_pos {
+			buffer.set_cursor(pos);
+			buffer.set_selection(Selection::point(pos));
+			buffer.establish_goal_column();
+		}
+
+		Ok(view)
+	}
+
 	/// Moves cursor to a specific line and column.
 	///
 	/// Line and column are 0-indexed. If the line doesn't exist, goes to the

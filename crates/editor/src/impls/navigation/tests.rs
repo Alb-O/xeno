@@ -1,6 +1,40 @@
 use super::Location;
 use crate::impls::Editor;
 
+/// Verifies that LSP location → editor cursor resolves correctly for
+/// non-ASCII content when the server uses UTF-16 encoding.
+///
+/// Text: `"a🙂bX\n"` — the emoji 🙂 occupies 2 UTF-16 code units.
+/// Server returns `Position { line: 0, character: 4 }` (a=1, 🙂=2, b=1 → col 4).
+/// Editor must land on `X` (char index 3), not `b` (char index 2).
+#[cfg(feature = "lsp")]
+#[tokio::test]
+async fn goto_lsp_location_utf16_emoji() {
+	let tmp = tempfile::tempdir().expect("temp dir");
+	let path = tmp.path().join("emoji.rs");
+	std::fs::write(&path, "a\u{1F642}bX\n").expect("write file");
+
+	let mut editor = Editor::new(path.clone()).await.expect("open file");
+
+	let uri = xeno_lsp::uri_from_path(&path).expect("uri");
+	let lsp_loc = xeno_lsp::lsp_types::Location {
+		uri,
+		range: xeno_lsp::lsp_types::Range {
+			start: xeno_lsp::lsp_types::Position { line: 0, character: 4 },
+			end: xeno_lsp::lsp_types::Position { line: 0, character: 5 },
+		},
+	};
+
+	editor
+		.goto_lsp_location(&lsp_loc, xeno_lsp::OffsetEncoding::Utf16)
+		.await
+		.expect("goto lsp location");
+
+	let cursor = editor.buffer().cursor;
+	let ch = editor.buffer().with_doc(|doc| doc.content().char(cursor));
+	assert_eq!(ch, 'X', "cursor should land on 'X', got char at index {cursor}");
+}
+
 #[tokio::test]
 async fn goto_location_keeps_focused_view_stable() {
 	let tmp = tempfile::tempdir().expect("temp dir");

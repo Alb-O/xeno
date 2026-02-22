@@ -358,9 +358,16 @@ impl Registry {
 						let enable_snippets = config.enable_snippets;
 						let init_config = config.config.clone();
 
+						let settings_for_push = config.config.clone();
 						xeno_worker::spawn(xeno_worker::TaskClass::Background, async move {
 							match tokio::time::timeout(Duration::from_secs(30), init_handle.initialize(enable_snippets, init_config)).await {
-								Ok(Ok(_)) => {}
+								Ok(Ok(_)) => {
+									// Push initial configuration to the server.
+									let settings = settings_for_push.unwrap_or_else(|| serde_json::json!({}));
+									if let Err(e) = init_handle.did_change_configuration(settings).await {
+										warn!(error = %e, "failed to send didChangeConfiguration");
+									}
+								}
 								Ok(Err(e)) => {
 									warn!(error = %e, "LSP initialize failed");
 								}

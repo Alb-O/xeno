@@ -183,6 +183,12 @@ impl ClientHandle {
 		.await
 	}
 
+	/// Notify the server of configuration changes.
+	pub async fn did_change_configuration(&self, settings: Value) -> Result<()> {
+		self.notify::<lsp_types::notification::DidChangeConfiguration>(lsp_types::DidChangeConfigurationParams { settings })
+			.await
+	}
+
 	/// Request hover information.
 	pub async fn hover(&self, uri: Uri, position: lsp_types::Position) -> Result<Option<lsp_types::Hover>> {
 		if !self.supports_hover() {
@@ -322,6 +328,81 @@ impl ClientHandle {
 			},
 			new_name,
 			work_done_progress_params: Default::default(),
+		})
+		.await
+	}
+
+	/// Request go to declaration.
+	pub async fn goto_declaration(&self, uri: Uri, position: lsp_types::Position) -> Result<Option<lsp_types::GotoDefinitionResponse>> {
+		if !self.supports_declaration() {
+			return Ok(None);
+		}
+		self.request::<lsp_types::request::GotoDeclaration>(lsp_types::GotoDefinitionParams {
+			text_document_position_params: lsp_types::TextDocumentPositionParams {
+				text_document: lsp_types::TextDocumentIdentifier { uri },
+				position,
+			},
+			work_done_progress_params: Default::default(),
+			partial_result_params: Default::default(),
+		})
+		.await
+	}
+
+	/// Request go to implementation.
+	pub async fn goto_implementation(&self, uri: Uri, position: lsp_types::Position) -> Result<Option<lsp_types::GotoDefinitionResponse>> {
+		if !self.supports_implementation() {
+			return Ok(None);
+		}
+		self.request::<lsp_types::request::GotoImplementation>(lsp_types::GotoDefinitionParams {
+			text_document_position_params: lsp_types::TextDocumentPositionParams {
+				text_document: lsp_types::TextDocumentIdentifier { uri },
+				position,
+			},
+			work_done_progress_params: Default::default(),
+			partial_result_params: Default::default(),
+		})
+		.await
+	}
+
+	/// Request go to type definition.
+	pub async fn goto_type_definition(&self, uri: Uri, position: lsp_types::Position) -> Result<Option<lsp_types::GotoDefinitionResponse>> {
+		if !self.supports_type_definition() {
+			return Ok(None);
+		}
+		self.request::<lsp_types::request::GotoTypeDefinition>(lsp_types::GotoDefinitionParams {
+			text_document_position_params: lsp_types::TextDocumentPositionParams {
+				text_document: lsp_types::TextDocumentIdentifier { uri },
+				position,
+			},
+			work_done_progress_params: Default::default(),
+			partial_result_params: Default::default(),
+		})
+		.await
+	}
+
+	/// Request range formatting.
+	pub async fn range_formatting(&self, uri: Uri, range: lsp_types::Range, options: lsp_types::FormattingOptions) -> Result<Option<Vec<lsp_types::TextEdit>>> {
+		if !self.supports_range_formatting() {
+			return Ok(None);
+		}
+		self.request::<lsp_types::request::RangeFormatting>(lsp_types::DocumentRangeFormattingParams {
+			text_document: lsp_types::TextDocumentIdentifier { uri },
+			range,
+			options,
+			work_done_progress_params: Default::default(),
+		})
+		.await
+	}
+
+	/// Request workspace symbols.
+	pub async fn workspace_symbol(&self, query: String) -> Result<Option<lsp_types::WorkspaceSymbolResponse>> {
+		if !self.supports_workspace_symbol() {
+			return Ok(None);
+		}
+		self.request::<lsp_types::request::WorkspaceSymbolRequest>(lsp_types::WorkspaceSymbolParams {
+			query,
+			work_done_progress_params: Default::default(),
+			partial_result_params: Default::default(),
 		})
 		.await
 	}
