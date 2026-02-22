@@ -301,6 +301,8 @@ impl SyntaxManager {
 			bg_inflight: entry.sched.bg_active(),
 			viewport_urgent_inflight: entry.sched.viewport_urgent_active(),
 			viewport_enrich_inflight: entry.sched.viewport_enrich_active(),
+			has_completed: !entry.sched.completed.is_empty(),
+			full_tree_id: entry.slot.full.as_ref().map(|t| t.tree_id),
 		})
 	}
 }
@@ -316,4 +318,6 @@ pub(crate) struct DebugDocState {
 	pub bg_inflight: bool,
 	pub viewport_urgent_inflight: bool,
 	pub viewport_enrich_inflight: bool,
+	pub has_completed: bool,
+	pub full_tree_id: Option<u64>,
 }
