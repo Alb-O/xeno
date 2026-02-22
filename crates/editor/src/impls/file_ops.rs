@@ -160,10 +160,10 @@ impl Editor {
 						match client.will_rename_files(vec![rename.clone()]).await {
 							Ok(Some(edit)) => {
 								let text_only = Self::filter_text_only_edit(edit);
-								if text_only.changes.as_ref().is_some_and(|c| !c.is_empty()) || text_only.document_changes.is_some() {
-									if let Err(e) = self.apply_workspace_edit(text_only).await {
-										warn!(error = %e.error, "willRenameFiles workspace edit failed");
-									}
+								if (text_only.changes.as_ref().is_some_and(|c| !c.is_empty()) || text_only.document_changes.is_some())
+									&& let Err(e) = self.apply_workspace_edit(text_only).await
+								{
+									warn!(error = %e.error, "willRenameFiles workspace edit failed");
 								}
 							}
 							Err(e) => {
@@ -229,10 +229,8 @@ impl Editor {
 					|| new_uri
 						.as_ref()
 						.is_some_and(|u| client.matches_file_operation(u, FileOperationKind::DidRename, FileOperationTarget::File));
-				if did_match {
-					if let Err(e) = client.did_rename_files(vec![rename]).await {
-						warn!(error = %e, "didRenameFiles notification failed");
-					}
+				if did_match && let Err(e) = client.did_rename_files(vec![rename]).await {
+					warn!(error = %e, "didRenameFiles notification failed");
 				}
 			}
 
@@ -289,23 +287,22 @@ impl Editor {
 				let client = target_language
 					.as_deref()
 					.and_then(|lang| self.state.integration.lsp.sync().registry().get(lang, &abs_path).filter(|c| c.is_ready()));
-				if let (Some(client), Some(fc)) = (&client, &file_create) {
-					if uri
+				if let (Some(client), Some(fc)) = (&client, &file_create)
+					&& uri
 						.as_ref()
 						.is_some_and(|u| client.matches_file_operation(u, FileOperationKind::WillCreate, FileOperationTarget::File))
-					{
-						match client.will_create_files(vec![fc.clone()]).await {
-							Ok(Some(edit)) => {
-								let text_only = Self::filter_text_only_edit(edit);
-								if text_only.changes.as_ref().is_some_and(|c| !c.is_empty()) || text_only.document_changes.is_some() {
-									if let Err(e) = self.apply_workspace_edit(text_only).await {
-										warn!(error = %e.error, "willCreateFiles workspace edit failed");
-									}
-								}
+				{
+					match client.will_create_files(vec![fc.clone()]).await {
+						Ok(Some(edit)) => {
+							let text_only = Self::filter_text_only_edit(edit);
+							if (text_only.changes.as_ref().is_some_and(|c| !c.is_empty()) || text_only.document_changes.is_some())
+								&& let Err(e) = self.apply_workspace_edit(text_only).await
+							{
+								warn!(error = %e.error, "willCreateFiles workspace edit failed");
 							}
-							Err(e) => warn!(error = %e, "willCreateFiles request failed"),
-							_ => {}
 						}
+						Err(e) => warn!(error = %e, "willCreateFiles request failed"),
+						_ => {}
 					}
 				}
 				client
@@ -338,10 +335,9 @@ impl Editor {
 				if uri
 					.as_ref()
 					.is_some_and(|u| client.matches_file_operation(u, FileOperationKind::DidCreate, FileOperationTarget::File))
+					&& let Err(e) = client.did_create_files(vec![fc]).await
 				{
-					if let Err(e) = client.did_create_files(vec![fc]).await {
-						warn!(error = %e, "didCreateFiles notification failed");
-					}
+					warn!(error = %e, "didCreateFiles notification failed");
 				}
 			}
 
@@ -384,23 +380,22 @@ impl Editor {
 				let client = language
 					.as_deref()
 					.and_then(|lang| self.state.integration.lsp.sync().registry().get(lang, &abs_path).filter(|c| c.is_ready()));
-				if let (Some(client), Some(fd)) = (&client, &file_delete) {
-					if uri
+				if let (Some(client), Some(fd)) = (&client, &file_delete)
+					&& uri
 						.as_ref()
 						.is_some_and(|u| client.matches_file_operation(u, FileOperationKind::WillDelete, FileOperationTarget::File))
-					{
-						match client.will_delete_files(vec![fd.clone()]).await {
-							Ok(Some(edit)) => {
-								let text_only = Self::filter_text_only_edit(edit);
-								if text_only.changes.as_ref().is_some_and(|c| !c.is_empty()) || text_only.document_changes.is_some() {
-									if let Err(e) = self.apply_workspace_edit(text_only).await {
-										warn!(error = %e.error, "willDeleteFiles workspace edit failed");
-									}
-								}
+				{
+					match client.will_delete_files(vec![fd.clone()]).await {
+						Ok(Some(edit)) => {
+							let text_only = Self::filter_text_only_edit(edit);
+							if (text_only.changes.as_ref().is_some_and(|c| !c.is_empty()) || text_only.document_changes.is_some())
+								&& let Err(e) = self.apply_workspace_edit(text_only).await
+							{
+								warn!(error = %e.error, "willDeleteFiles workspace edit failed");
 							}
-							Err(e) => warn!(error = %e, "willDeleteFiles request failed"),
-							_ => {}
 						}
+						Err(e) => warn!(error = %e, "willDeleteFiles request failed"),
+						_ => {}
 					}
 				}
 				client
@@ -411,10 +406,10 @@ impl Editor {
 
 			// Close LSP document explicitly (didClose) BEFORE didDeleteFiles.
 			#[cfg(feature = "lsp")]
-			if let Some(lang) = language.as_deref() {
-				if let Err(e) = self.state.integration.lsp.sync().close_document(&abs_path, lang).await {
-					warn!(error = %e, "LSP close_document after delete failed");
-				}
+			if let Some(lang) = language.as_deref()
+				&& let Err(e) = self.state.integration.lsp.sync().close_document(&abs_path, lang).await
+			{
+				warn!(error = %e, "LSP close_document after delete failed");
 			}
 
 			// Notify server that files were deleted.
@@ -424,10 +419,9 @@ impl Editor {
 				if uri
 					.as_ref()
 					.is_some_and(|u| client.matches_file_operation(u, FileOperationKind::DidDelete, FileOperationTarget::File))
+					&& let Err(e) = client.did_delete_files(vec![fd]).await
 				{
-					if let Err(e) = client.did_delete_files(vec![fd]).await {
-						warn!(error = %e, "didDeleteFiles notification failed");
-					}
+					warn!(error = %e, "didDeleteFiles notification failed");
 				}
 			}
 
@@ -533,10 +527,10 @@ impl Editor {
 					match client.will_create_files(vec![fc.clone()]).await {
 						Ok(Some(edit)) => {
 							let text_only = Self::filter_text_only_edit(edit);
-							if text_only.changes.as_ref().is_some_and(|c| !c.is_empty()) || text_only.document_changes.is_some() {
-								if let Err(e) = self.apply_workspace_edit(text_only).await {
-									warn!(error = %e.error, "willCreateFiles workspace edit failed");
-								}
+							if (text_only.changes.as_ref().is_some_and(|c| !c.is_empty()) || text_only.document_changes.is_some())
+								&& let Err(e) = self.apply_workspace_edit(text_only).await
+							{
+								warn!(error = %e.error, "willCreateFiles workspace edit failed");
 							}
 						}
 						Err(e) => warn!(error = %e, "willCreateFiles request failed"),
@@ -611,10 +605,10 @@ impl Editor {
 					match client.will_delete_files(vec![fd.clone()]).await {
 						Ok(Some(edit)) => {
 							let text_only = Self::filter_text_only_edit(edit);
-							if text_only.changes.as_ref().is_some_and(|c| !c.is_empty()) || text_only.document_changes.is_some() {
-								if let Err(e) = self.apply_workspace_edit(text_only).await {
-									warn!(error = %e.error, "willDeleteFiles workspace edit failed");
-								}
+							if (text_only.changes.as_ref().is_some_and(|c| !c.is_empty()) || text_only.document_changes.is_some())
+								&& let Err(e) = self.apply_workspace_edit(text_only).await
+							{
+								warn!(error = %e.error, "willDeleteFiles workspace edit failed");
 							}
 						}
 						Err(e) => warn!(error = %e, "willDeleteFiles request failed"),

@@ -398,10 +398,10 @@ pub fn matches_file_operation_filters(root_path: &Path, uri: &Uri, filters: &[ls
 
 	filters.iter().any(|f| {
 		// Check scheme constraint.
-		if let Some(s) = &f.scheme {
-			if !scheme.eq_ignore_ascii_case(s) {
-				return false;
-			}
+		if let Some(s) = &f.scheme
+			&& !scheme.eq_ignore_ascii_case(s)
+		{
+			return false;
 		}
 
 		// Check target kind constraint.

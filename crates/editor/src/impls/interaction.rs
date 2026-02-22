@@ -102,27 +102,27 @@ impl Editor {
 		if result {
 			// Re-borrow buffer after flush_effects released the earlier borrow.
 			let buffer = self.state.core.editor.buffers.get_buffer(buffer_id).unwrap();
-			if let Some((client, uri, _)) = self.state.integration.lsp.prepare_position_request(buffer).ok().flatten() {
-				if client.supports_prepare_rename() {
-					let encoding = client.offset_encoding();
-					let pos = buffer.with_doc(|doc| xeno_lsp::char_to_lsp_position(doc.content(), cursor, encoding));
-					if let Some(pos) = pos {
-						let token = self.mint_rename_token();
-						let tx = self.msg_tx();
-						let expected_prompt = word;
-						xeno_worker::spawn(xeno_worker::TaskClass::Background, async move {
-							let result = client.prepare_rename(uri, pos).await.map_err(|e| e.to_string());
-							let _ = tx.send(
-								crate::msg::OverlayMsg::RenamePrepared {
-									token,
-									result,
-									encoding,
-									expected_prompt,
-								}
-								.into(),
-							);
-						});
-					}
+			if let Some((client, uri, _)) = self.state.integration.lsp.prepare_position_request(buffer).ok().flatten()
+				&& client.supports_prepare_rename()
+			{
+				let encoding = client.offset_encoding();
+				let pos = buffer.with_doc(|doc| xeno_lsp::char_to_lsp_position(doc.content(), cursor, encoding));
+				if let Some(pos) = pos {
+					let token = self.mint_rename_token();
+					let tx = self.msg_tx();
+					let expected_prompt = word;
+					xeno_worker::spawn(xeno_worker::TaskClass::Background, async move {
+						let result = client.prepare_rename(uri, pos).await.map_err(|e| e.to_string());
+						let _ = tx.send(
+							crate::msg::OverlayMsg::RenamePrepared {
+								token,
+								result,
+								encoding,
+								expected_prompt,
+							}
+							.into(),
+						);
+					});
 				}
 			}
 		}
@@ -179,22 +179,21 @@ impl Editor {
 		// Highlight the target range in the source buffer.
 		if let Some(range) = range {
 			let active = self.state.ui.overlay_system.interaction().active();
-			if let Some(active) = active {
-				if active.controller.kind() == crate::overlay::OverlayControllerKind::Rename {
-					// Find the target buffer (first non-input pane).
-					if let Some(target_view) = active
-						.session
-						.panes
-						.iter()
-						.find_map(|p| if p.buffer != active.session.input { Some(p.buffer) } else { None })
-					{
-						if let Some(buffer) = self.state.core.editor.buffers.get_buffer_mut(target_view) {
-							let start_char = buffer.with_doc(|doc| xeno_lsp::lsp_position_to_char(doc.content(), range.start, encoding));
-							let end_char = buffer.with_doc(|doc| xeno_lsp::lsp_position_to_char(doc.content(), range.end, encoding));
-							if let (Some(start), Some(end)) = (start_char, end_char) {
-								buffer.set_selection(xeno_primitives::Selection::single(start, end));
-							}
-						}
+			if let Some(active) = active
+				&& active.controller.kind() == crate::overlay::OverlayControllerKind::Rename
+			{
+				// Find the target buffer (first non-input pane).
+				if let Some(target_view) = active
+					.session
+					.panes
+					.iter()
+					.find_map(|p| if p.buffer != active.session.input { Some(p.buffer) } else { None })
+					&& let Some(buffer) = self.state.core.editor.buffers.get_buffer_mut(target_view)
+				{
+					let start_char = buffer.with_doc(|doc| xeno_lsp::lsp_position_to_char(doc.content(), range.start, encoding));
+					let end_char = buffer.with_doc(|doc| xeno_lsp::lsp_position_to_char(doc.content(), range.end, encoding));
+					if let (Some(start), Some(end)) = (start_char, end_char) {
+						buffer.set_selection(xeno_primitives::Selection::single(start, end));
 					}
 				}
 			}
