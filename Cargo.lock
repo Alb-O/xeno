@@ -6059,6 +6059,7 @@ name = "xeno-lsp"
 version = "0.9.7"
 dependencies = [
  "async-trait",
+ "globset",
  "lsp-types",
  "parking_lot",
  "ropey",

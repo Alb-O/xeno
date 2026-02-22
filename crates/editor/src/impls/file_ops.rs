@@ -132,35 +132,45 @@ impl Editor {
 
 			// Build consistent FileRename URIs used for will/did/reopen.
 			#[cfg(feature = "lsp")]
-			let file_rename = {
-				let old_uri = xeno_lsp::uri_from_path(&abs_old).map(|u| u.to_string());
-				let new_uri = xeno_lsp::uri_from_path(&abs_new).map(|u| u.to_string());
-				old_uri
-					.zip(new_uri)
-					.map(|(old_uri, new_uri)| xeno_lsp::lsp_types::FileRename { old_uri, new_uri })
-			};
+			let old_uri = xeno_lsp::uri_from_path(&abs_old);
+			#[cfg(feature = "lsp")]
+			let new_uri = xeno_lsp::uri_from_path(&abs_new);
+			#[cfg(feature = "lsp")]
+			let file_rename = old_uri.as_ref().zip(new_uri.as_ref()).map(|(o, n)| xeno_lsp::lsp_types::FileRename {
+				old_uri: o.to_string(),
+				new_uri: n.to_string(),
+			});
 
 			// Ask the language server for import-path edits before renaming.
 			#[cfg(feature = "lsp")]
 			let lsp_client = {
+				use xeno_lsp::client::{FileOperationKind, FileOperationTarget};
 				let client = old_language
 					.as_deref()
 					.and_then(|lang| self.state.integration.lsp.sync().registry().get(lang, &abs_old).filter(|c| c.is_ready()));
 
 				if let (Some(client), Some(rename)) = (&client, &file_rename) {
-					match client.will_rename_files(vec![rename.clone()]).await {
-						Ok(Some(edit)) => {
-							let text_only = Self::filter_text_only_edit(edit);
-							if text_only.changes.as_ref().is_some_and(|c| !c.is_empty()) || text_only.document_changes.is_some() {
-								if let Err(e) = self.apply_workspace_edit(text_only).await {
-									warn!(error = %e.error, "willRenameFiles workspace edit failed");
+					let will_match = old_uri
+						.as_ref()
+						.is_some_and(|u| client.matches_file_operation(u, FileOperationKind::WillRename, FileOperationTarget::File))
+						|| new_uri
+							.as_ref()
+							.is_some_and(|u| client.matches_file_operation(u, FileOperationKind::WillRename, FileOperationTarget::File));
+					if will_match {
+						match client.will_rename_files(vec![rename.clone()]).await {
+							Ok(Some(edit)) => {
+								let text_only = Self::filter_text_only_edit(edit);
+								if text_only.changes.as_ref().is_some_and(|c| !c.is_empty()) || text_only.document_changes.is_some() {
+									if let Err(e) = self.apply_workspace_edit(text_only).await {
+										warn!(error = %e.error, "willRenameFiles workspace edit failed");
+									}
 								}
 							}
+							Err(e) => {
+								warn!(error = %e, "willRenameFiles request failed");
+							}
+							_ => {}
 						}
-						Err(e) => {
-							warn!(error = %e, "willRenameFiles request failed");
-						}
-						_ => {}
 					}
 				}
 				client
@@ -212,8 +222,17 @@ impl Editor {
 			// Notify the server that the file was renamed (reuse same client + URIs).
 			#[cfg(feature = "lsp")]
 			if let (Some(client), Some(rename)) = (lsp_client, file_rename) {
-				if let Err(e) = client.did_rename_files(vec![rename]).await {
-					warn!(error = %e, "didRenameFiles notification failed");
+				use xeno_lsp::client::{FileOperationKind, FileOperationTarget};
+				let did_match = old_uri
+					.as_ref()
+					.is_some_and(|u| client.matches_file_operation(u, FileOperationKind::DidRename, FileOperationTarget::File))
+					|| new_uri
+						.as_ref()
+						.is_some_and(|u| client.matches_file_operation(u, FileOperationKind::DidRename, FileOperationTarget::File));
+				if did_match {
+					if let Err(e) = client.did_rename_files(vec![rename]).await {
+						warn!(error = %e, "didRenameFiles notification failed");
+					}
 				}
 			}
 
@@ -259,26 +278,34 @@ impl Editor {
 				.and_then(|id| self.state.config.config.language_loader.get(id))
 				.map(|l| l.name().to_string());
 			#[cfg(feature = "lsp")]
-			let file_create = xeno_lsp::uri_from_path(&abs_path).map(|u| xeno_lsp::lsp_types::FileCreate { uri: u.to_string() });
+			let uri = xeno_lsp::uri_from_path(&abs_path);
+			#[cfg(feature = "lsp")]
+			let file_create = uri.as_ref().map(|u| xeno_lsp::lsp_types::FileCreate { uri: u.to_string() });
 
 			// Ask server for edits before file creation.
 			#[cfg(feature = "lsp")]
 			let lsp_client = {
+				use xeno_lsp::client::{FileOperationKind, FileOperationTarget};
 				let client = target_language
 					.as_deref()
 					.and_then(|lang| self.state.integration.lsp.sync().registry().get(lang, &abs_path).filter(|c| c.is_ready()));
 				if let (Some(client), Some(fc)) = (&client, &file_create) {
-					match client.will_create_files(vec![fc.clone()]).await {
-						Ok(Some(edit)) => {
-							let text_only = Self::filter_text_only_edit(edit);
-							if text_only.changes.as_ref().is_some_and(|c| !c.is_empty()) || text_only.document_changes.is_some() {
-								if let Err(e) = self.apply_workspace_edit(text_only).await {
-									warn!(error = %e.error, "willCreateFiles workspace edit failed");
+					if uri
+						.as_ref()
+						.is_some_and(|u| client.matches_file_operation(u, FileOperationKind::WillCreate, FileOperationTarget::File))
+					{
+						match client.will_create_files(vec![fc.clone()]).await {
+							Ok(Some(edit)) => {
+								let text_only = Self::filter_text_only_edit(edit);
+								if text_only.changes.as_ref().is_some_and(|c| !c.is_empty()) || text_only.document_changes.is_some() {
+									if let Err(e) = self.apply_workspace_edit(text_only).await {
+										warn!(error = %e.error, "willCreateFiles workspace edit failed");
+									}
 								}
 							}
+							Err(e) => warn!(error = %e, "willCreateFiles request failed"),
+							_ => {}
 						}
-						Err(e) => warn!(error = %e, "willCreateFiles request failed"),
-						_ => {}
 					}
 				}
 				client
@@ -307,8 +334,14 @@ impl Editor {
 			// Notify server after didOpen so sequence is: willCreate → didOpen → didCreate.
 			#[cfg(feature = "lsp")]
 			if let (Some(client), Some(fc)) = (lsp_client, file_create) {
-				if let Err(e) = client.did_create_files(vec![fc]).await {
-					warn!(error = %e, "didCreateFiles notification failed");
+				use xeno_lsp::client::{FileOperationKind, FileOperationTarget};
+				if uri
+					.as_ref()
+					.is_some_and(|u| client.matches_file_operation(u, FileOperationKind::DidCreate, FileOperationTarget::File))
+				{
+					if let Err(e) = client.did_create_files(vec![fc]).await {
+						warn!(error = %e, "didCreateFiles notification failed");
+					}
 				}
 			}
 
@@ -340,26 +373,34 @@ impl Editor {
 			#[cfg(feature = "lsp")]
 			let language = self.buffer().file_type().map(|s| s.to_string());
 			#[cfg(feature = "lsp")]
-			let file_delete = xeno_lsp::uri_from_path(&abs_path).map(|u| xeno_lsp::lsp_types::FileDelete { uri: u.to_string() });
+			let uri = xeno_lsp::uri_from_path(&abs_path);
+			#[cfg(feature = "lsp")]
+			let file_delete = uri.as_ref().map(|u| xeno_lsp::lsp_types::FileDelete { uri: u.to_string() });
 
 			// Ask server for text-only edits before deletion.
 			#[cfg(feature = "lsp")]
 			let lsp_client = {
+				use xeno_lsp::client::{FileOperationKind, FileOperationTarget};
 				let client = language
 					.as_deref()
 					.and_then(|lang| self.state.integration.lsp.sync().registry().get(lang, &abs_path).filter(|c| c.is_ready()));
 				if let (Some(client), Some(fd)) = (&client, &file_delete) {
-					match client.will_delete_files(vec![fd.clone()]).await {
-						Ok(Some(edit)) => {
-							let text_only = Self::filter_text_only_edit(edit);
-							if text_only.changes.as_ref().is_some_and(|c| !c.is_empty()) || text_only.document_changes.is_some() {
-								if let Err(e) = self.apply_workspace_edit(text_only).await {
-									warn!(error = %e.error, "willDeleteFiles workspace edit failed");
+					if uri
+						.as_ref()
+						.is_some_and(|u| client.matches_file_operation(u, FileOperationKind::WillDelete, FileOperationTarget::File))
+					{
+						match client.will_delete_files(vec![fd.clone()]).await {
+							Ok(Some(edit)) => {
+								let text_only = Self::filter_text_only_edit(edit);
+								if text_only.changes.as_ref().is_some_and(|c| !c.is_empty()) || text_only.document_changes.is_some() {
+									if let Err(e) = self.apply_workspace_edit(text_only).await {
+										warn!(error = %e.error, "willDeleteFiles workspace edit failed");
+									}
 								}
 							}
+							Err(e) => warn!(error = %e, "willDeleteFiles request failed"),
+							_ => {}
 						}
-						Err(e) => warn!(error = %e, "willDeleteFiles request failed"),
-						_ => {}
 					}
 				}
 				client
@@ -379,8 +420,14 @@ impl Editor {
 			// Notify server that files were deleted.
 			#[cfg(feature = "lsp")]
 			if let (Some(client), Some(fd)) = (lsp_client, file_delete) {
-				if let Err(e) = client.did_delete_files(vec![fd]).await {
-					warn!(error = %e, "didDeleteFiles notification failed");
+				use xeno_lsp::client::{FileOperationKind, FileOperationTarget};
+				if uri
+					.as_ref()
+					.is_some_and(|u| client.matches_file_operation(u, FileOperationKind::DidDelete, FileOperationTarget::File))
+				{
+					if let Err(e) = client.did_delete_files(vec![fd]).await {
+						warn!(error = %e, "didDeleteFiles notification failed");
+					}
 				}
 			}
 
@@ -467,16 +514,22 @@ impl Editor {
 			#[cfg(feature = "lsp")]
 			let abs_path = self.state.integration.lsp.canonicalize_path(&path);
 			#[cfg(feature = "lsp")]
-			let file_create = xeno_lsp::uri_from_path(&abs_path).map(|u| xeno_lsp::lsp_types::FileCreate { uri: u.to_string() });
+			let uri = xeno_lsp::uri_from_path(&abs_path);
+			#[cfg(feature = "lsp")]
+			let file_create = uri.as_ref().map(|u| xeno_lsp::lsp_types::FileCreate { uri: u.to_string() });
 
-			// Snapshot ready clients once for consistent will/did recipients.
+			// Snapshot ready clients once, filtered by file operation interest.
 			#[cfg(feature = "lsp")]
 			let lsp_clients = self.state.integration.lsp.sync().registry().ready_clients();
 
-			// Broadcast willCreateFiles to all ready clients.
+			// Broadcast willCreateFiles to interested clients.
 			#[cfg(feature = "lsp")]
-			if let Some(fc) = &file_create {
+			if let (Some(fc), Some(uri)) = (&file_create, &uri) {
+				use xeno_lsp::client::{FileOperationKind, FileOperationTarget};
 				for client in &lsp_clients {
+					if !client.matches_file_operation(uri, FileOperationKind::WillCreate, FileOperationTarget::Folder) {
+						continue;
+					}
 					match client.will_create_files(vec![fc.clone()]).await {
 						Ok(Some(edit)) => {
 							let text_only = Self::filter_text_only_edit(edit);
@@ -494,10 +547,14 @@ impl Editor {
 
 			tokio::fs::create_dir_all(&path).await.map_err(|e| CommandError::Io(e.to_string()))?;
 
-			// Broadcast didCreateFiles.
+			// Broadcast didCreateFiles to interested clients.
 			#[cfg(feature = "lsp")]
-			if let Some(fc) = file_create {
+			if let (Some(fc), Some(uri)) = (file_create, &uri) {
+				use xeno_lsp::client::{FileOperationKind, FileOperationTarget};
 				for client in &lsp_clients {
+					if !client.matches_file_operation(uri, FileOperationKind::DidCreate, FileOperationTarget::Folder) {
+						continue;
+					}
 					if let Err(e) = client.did_create_files(vec![fc.clone()]).await {
 						warn!(error = %e, "didCreateFiles notification failed");
 					}
@@ -535,16 +592,22 @@ impl Editor {
 			#[cfg(feature = "lsp")]
 			let abs_path = self.state.integration.lsp.canonicalize_path(&path);
 			#[cfg(feature = "lsp")]
-			let file_delete = xeno_lsp::uri_from_path(&abs_path).map(|u| xeno_lsp::lsp_types::FileDelete { uri: u.to_string() });
+			let uri = xeno_lsp::uri_from_path(&abs_path);
+			#[cfg(feature = "lsp")]
+			let file_delete = uri.as_ref().map(|u| xeno_lsp::lsp_types::FileDelete { uri: u.to_string() });
 
 			// Snapshot ready clients once for consistent will/did recipients.
 			#[cfg(feature = "lsp")]
 			let lsp_clients = self.state.integration.lsp.sync().registry().ready_clients();
 
-			// Broadcast willDeleteFiles to all ready clients.
+			// Broadcast willDeleteFiles to interested clients.
 			#[cfg(feature = "lsp")]
-			if let Some(fd) = &file_delete {
+			if let (Some(fd), Some(uri)) = (&file_delete, &uri) {
+				use xeno_lsp::client::{FileOperationKind, FileOperationTarget};
 				for client in &lsp_clients {
+					if !client.matches_file_operation(uri, FileOperationKind::WillDelete, FileOperationTarget::Folder) {
+						continue;
+					}
 					match client.will_delete_files(vec![fd.clone()]).await {
 						Ok(Some(edit)) => {
 							let text_only = Self::filter_text_only_edit(edit);
@@ -570,10 +633,14 @@ impl Editor {
 				}
 			})?;
 
-			// Broadcast didDeleteFiles.
+			// Broadcast didDeleteFiles to interested clients.
 			#[cfg(feature = "lsp")]
-			if let Some(fd) = file_delete {
+			if let (Some(fd), Some(uri)) = (file_delete, &uri) {
+				use xeno_lsp::client::{FileOperationKind, FileOperationTarget};
 				for client in &lsp_clients {
+					if !client.matches_file_operation(uri, FileOperationKind::DidDelete, FileOperationTarget::Folder) {
+						continue;
+					}
 					if let Err(e) = client.did_delete_files(vec![fd.clone()]).await {
 						warn!(error = %e, "didDeleteFiles notification failed");
 					}

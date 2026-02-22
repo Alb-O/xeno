@@ -8,6 +8,7 @@ license.workspace = true
 [features]
 default = []
 client = [
+    "dep:globset",
     "dep:lsp-types",
     "dep:serde",
     "dep:serde_json",
@@ -32,6 +33,7 @@ position = [
 
 [dependencies]
 async-trait = { workspace = true, optional = true }
+globset = { workspace = true, optional = true }
 lsp-types = { workspace = true, optional = true }
 parking_lot = { workspace = true, optional = true }
 ropey = { workspace = true, optional = true }

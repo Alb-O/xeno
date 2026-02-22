@@ -64,7 +64,7 @@ pub mod transport;
 pub use capabilities::client_capabilities;
 pub use config::{LanguageServerId, LspSlotId, OffsetEncoding, ServerConfig};
 pub use event_handler::{LogLevel, LspEventHandler, NoOpEventHandler, SharedEventHandler};
-pub use handle::ClientHandle;
+pub use handle::{ClientHandle, FileOperationKind, FileOperationTarget};
 pub use local_transport::LocalTransport;
 pub use state::ServerState;
 pub use transport::{LspTransport, TransportEvent, TransportStatus};

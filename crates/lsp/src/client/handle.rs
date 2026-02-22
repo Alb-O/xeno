@@ -270,6 +270,35 @@ impl ClientHandle {
 		})
 	}
 
+	/// Check if a file operation URI matches this server's registered filters.
+	///
+	/// Returns `true` if the server has registered filters for the given
+	/// operation kind and at least one filter matches the URI. Returns
+	/// `false` if the server has no filters for this operation (i.e., it
+	/// doesn't support it) or no filter matches.
+	pub fn matches_file_operation(&self, uri: &Uri, op: FileOperationKind, target: FileOperationTarget) -> bool {
+		let caps = match self.capabilities() {
+			Some(c) => c,
+			None => return false,
+		};
+		let file_ops = match caps.workspace.as_ref().and_then(|w| w.file_operations.as_ref()) {
+			Some(fo) => fo,
+			None => return false,
+		};
+		let reg = match op {
+			FileOperationKind::WillCreate => file_ops.will_create.as_ref(),
+			FileOperationKind::DidCreate => file_ops.did_create.as_ref(),
+			FileOperationKind::WillRename => file_ops.will_rename.as_ref(),
+			FileOperationKind::DidRename => file_ops.did_rename.as_ref(),
+			FileOperationKind::WillDelete => file_ops.will_delete.as_ref(),
+			FileOperationKind::DidDelete => file_ops.did_delete.as_ref(),
+		};
+		match reg {
+			Some(reg) => matches_file_operation_filters(&self.root_path, uri, &reg.filters, target),
+			None => false,
+		}
+	}
+
 	/// Get the offset encoding negotiated with the server.
 	///
 	/// Returns the LSP default (UTF-16) if the server has not yet finished
@@ -325,5 +354,182 @@ impl ClientHandle {
 	pub async fn notify<N: Notification>(&self, params: N::Params) -> Result<()> {
 		let notif = AnyNotification::new(N::METHOD, serde_json::to_value(params).expect("Failed to serialize"));
 		self.transport.notify(self.id, notif).await
+	}
+}
+
+/// The kind of LSP file operation being performed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FileOperationKind {
+	/// Pre-creation request (`workspace/willCreateFiles`).
+	WillCreate,
+	/// Post-creation notification (`workspace/didCreateFiles`).
+	DidCreate,
+	/// Pre-rename request (`workspace/willRenameFiles`).
+	WillRename,
+	/// Post-rename notification (`workspace/didRenameFiles`).
+	DidRename,
+	/// Pre-deletion request (`workspace/willDeleteFiles`).
+	WillDelete,
+	/// Post-deletion notification (`workspace/didDeleteFiles`).
+	DidDelete,
+}
+
+/// Whether the file operation targets a file or a folder.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FileOperationTarget {
+	/// A regular file.
+	File,
+	/// A directory/folder.
+	Folder,
+}
+
+/// Check if a URI matches any of the given file operation filters.
+///
+/// Pure helper for testability — [`ClientHandle::matches_file_operation`]
+/// delegates to this function.
+pub fn matches_file_operation_filters(root_path: &Path, uri: &Uri, filters: &[lsp_types::FileOperationFilter], target: FileOperationTarget) -> bool {
+	let abs_path = match crate::path_from_uri(uri) {
+		Some(p) => p,
+		None => return false,
+	};
+	let rel_path = abs_path.strip_prefix(root_path).unwrap_or(&abs_path);
+
+	let scheme = uri.as_str().split_once(':').map(|(s, _)| s).unwrap_or("file");
+
+	filters.iter().any(|f| {
+		// Check scheme constraint.
+		if let Some(s) = &f.scheme {
+			if !scheme.eq_ignore_ascii_case(s) {
+				return false;
+			}
+		}
+
+		// Check target kind constraint.
+		if let Some(m) = &f.pattern.matches {
+			let matches_target = match (m, target) {
+				(lsp_types::FileOperationPatternKind::File, FileOperationTarget::File) => true,
+				(lsp_types::FileOperationPatternKind::Folder, FileOperationTarget::Folder) => true,
+				_ => false,
+			};
+			if !matches_target {
+				return false;
+			}
+		}
+
+		// Build glob matcher with LSP semantics: `*` must not cross `/`.
+		let ignore_case = f.pattern.options.as_ref().and_then(|o| o.ignore_case).unwrap_or(false);
+
+		let Ok(glob) = globset::GlobBuilder::new(&f.pattern.glob)
+			.literal_separator(true)
+			.case_insensitive(ignore_case)
+			.build()
+		else {
+			tracing::warn!(glob = %f.pattern.glob, "invalid file operation glob pattern");
+			return false;
+		};
+		let matcher = glob.compile_matcher();
+
+		matcher.is_match(rel_path) || matcher.is_match(&abs_path)
+	})
+}
+
+#[cfg(test)]
+mod tests {
+	use std::path::Path;
+
+	use lsp_types::Uri;
+
+	use super::*;
+
+	fn make_filter(glob: &str, matches: Option<lsp_types::FileOperationPatternKind>, scheme: Option<&str>) -> lsp_types::FileOperationFilter {
+		lsp_types::FileOperationFilter {
+			scheme: scheme.map(|s| s.to_string()),
+			pattern: lsp_types::FileOperationPattern {
+				glob: glob.to_string(),
+				matches,
+				options: None,
+			},
+		}
+	}
+
+	fn make_filter_with_case(glob: &str, ignore_case: bool) -> lsp_types::FileOperationFilter {
+		lsp_types::FileOperationFilter {
+			scheme: None,
+			pattern: lsp_types::FileOperationPattern {
+				glob: glob.to_string(),
+				matches: None,
+				options: Some(lsp_types::FileOperationPatternOptions {
+					ignore_case: Some(ignore_case),
+				}),
+			},
+		}
+	}
+
+	#[test]
+	fn glob_matches_nested_file_relative_to_root() {
+		let root = Path::new("/project");
+		let uri: Uri = "file:///project/src/main.rs".parse().unwrap();
+		let filters = vec![make_filter("**/*.rs", None, None)];
+		assert!(matches_file_operation_filters(root, &uri, &filters, FileOperationTarget::File));
+	}
+
+	#[test]
+	fn matches_file_rejects_folder_target() {
+		let root = Path::new("/project");
+		let uri: Uri = "file:///project/src/utils".parse().unwrap();
+		let filters = vec![make_filter("**/*", Some(lsp_types::FileOperationPatternKind::File), None)];
+		assert!(!matches_file_operation_filters(root, &uri, &filters, FileOperationTarget::Folder));
+	}
+
+	#[test]
+	fn single_star_does_not_cross_segments() {
+		let root = Path::new("/project");
+		let uri: Uri = "file:///project/src/main.rs".parse().unwrap();
+		// `*.rs` should only match files in the root directory, not nested
+		let filters = vec![make_filter("*.rs", None, None)];
+		assert!(!matches_file_operation_filters(root, &uri, &filters, FileOperationTarget::File));
+
+		// But matches a file directly in root
+		let uri_root: Uri = "file:///project/main.rs".parse().unwrap();
+		assert!(matches_file_operation_filters(root, &uri_root, &filters, FileOperationTarget::File));
+	}
+
+	#[test]
+	fn ignore_case_matches_uppercase() {
+		let root = Path::new("/project");
+		let uri: Uri = "file:///project/SRC/MAIN.RS".parse().unwrap();
+		let filters = vec![make_filter_with_case("**/*.rs", true)];
+		assert!(matches_file_operation_filters(root, &uri, &filters, FileOperationTarget::File));
+	}
+
+	#[test]
+	fn scheme_mismatch_rejects() {
+		let root = Path::new("/project");
+		let uri: Uri = "file:///project/main.rs".parse().unwrap();
+		let filters = vec![make_filter("**/*.rs", None, Some("untitled"))];
+		assert!(!matches_file_operation_filters(root, &uri, &filters, FileOperationTarget::File));
+	}
+
+	#[test]
+	fn scheme_match_accepts() {
+		let root = Path::new("/project");
+		let uri: Uri = "file:///project/main.rs".parse().unwrap();
+		let filters = vec![make_filter("**/*.rs", None, Some("file"))];
+		assert!(matches_file_operation_filters(root, &uri, &filters, FileOperationTarget::File));
+	}
+
+	#[test]
+	fn glob_brace_alternation_matches_either_ext() {
+		let root = Path::new("/project");
+		let filters = vec![make_filter("**/*.{rs,py}", None, None)];
+
+		let rs_uri: Uri = "file:///project/src/main.rs".parse().unwrap();
+		assert!(matches_file_operation_filters(root, &rs_uri, &filters, FileOperationTarget::File));
+
+		let py_uri: Uri = "file:///project/src/main.py".parse().unwrap();
+		assert!(matches_file_operation_filters(root, &py_uri, &filters, FileOperationTarget::File));
+
+		let js_uri: Uri = "file:///project/src/main.js".parse().unwrap();
+		assert!(!matches_file_operation_filters(root, &js_uri, &filters, FileOperationTarget::File));
 	}
 }
