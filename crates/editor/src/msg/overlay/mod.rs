@@ -17,6 +17,19 @@ pub enum OverlayMsg {
 	/// Queue a workspace edit to be applied in runtime pump.
 	#[cfg(feature = "lsp")]
 	ApplyWorkspaceEdit(xeno_lsp::lsp_types::WorkspaceEdit),
+	/// Rename preparation completed with a token-gated result.
+	///
+	/// If valid, updates the rename overlay with the server-provided range
+	/// and placeholder. If invalid, closes the overlay with a notification.
+	#[cfg(feature = "lsp")]
+	RenamePrepared {
+		token: u64,
+		result: Result<Option<xeno_lsp::lsp_types::PrepareRenameResponse>, String>,
+		encoding: xeno_lsp::OffsetEncoding,
+		/// The initial prompt text set when the overlay opened, used to detect
+		/// whether the user has edited the prompt before the prepare response arrives.
+		expected_prompt: String,
+	},
 	/// Rename RPC completed with a token-gated result.
 	///
 	/// Only applied if `token` matches the pending rename token in editor
@@ -35,6 +48,8 @@ impl std::fmt::Debug for OverlayMsg {
 			#[cfg(feature = "lsp")]
 			Self::ApplyWorkspaceEdit(_) => f.debug_struct("ApplyWorkspaceEdit").finish(),
 			#[cfg(feature = "lsp")]
+			Self::RenamePrepared { token, result, .. } => f.debug_struct("RenamePrepared").field("token", token).field("ok", &result.is_ok()).finish(),
+			#[cfg(feature = "lsp")]
 			Self::RenameDone { token, result } => f.debug_struct("RenameDone").field("token", token).field("ok", &result.is_ok()).finish(),
 		}
 	}
@@ -52,6 +67,37 @@ impl OverlayMsg {
 			Self::ApplyWorkspaceEdit(edit) => {
 				editor.enqueue_runtime_workspace_edit_work(edit, None);
 				Dirty::REDRAW
+			}
+			#[cfg(feature = "lsp")]
+			Self::RenamePrepared {
+				token,
+				result,
+				encoding,
+				expected_prompt,
+			} => {
+				if editor.state.async_state.pending_rename_token != Some(token) {
+					tracing::debug!(token, "Ignoring stale prepare rename result");
+					return Dirty::NONE;
+				}
+				editor.state.async_state.pending_rename_token = None;
+
+				match result {
+					Ok(Some(response)) => {
+						editor.apply_prepare_rename_response(response, encoding, &expected_prompt);
+						Dirty::REDRAW
+					}
+					Ok(None) => {
+						// Server says rename not valid here — close overlay.
+						editor.notify(xeno_registry::notifications::keys::warn("Rename not valid at this position"));
+						editor.interaction_cancel();
+						Dirty::REDRAW
+					}
+					Err(err) => {
+						editor.notify(xeno_registry::notifications::keys::error(err));
+						editor.interaction_cancel();
+						Dirty::REDRAW
+					}
+				}
 			}
 			#[cfg(feature = "lsp")]
 			Self::RenameDone { token, result } => {

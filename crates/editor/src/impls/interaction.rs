@@ -1,5 +1,7 @@
 use crate::buffer::ViewId;
 use crate::impls::Editor;
+#[cfg(feature = "lsp")]
+use crate::overlay::OverlayContext;
 use crate::overlay::{CloseReason, controllers};
 
 impl Editor {
@@ -88,12 +90,117 @@ impl Editor {
 		let cursor = buffer.cursor;
 		let word = word_at_cursor(buffer);
 
-		let ctl = controllers::RenameOverlay::new(buffer_id, cursor, word);
+		let ctl = controllers::RenameOverlay::new(buffer_id, cursor, word.clone());
 		let mut interaction = self.state.ui.overlay_system.take_interaction();
 		let result = interaction.open(self, Box::new(ctl));
 		self.state.ui.overlay_system.restore_interaction(interaction);
 		self.flush_effects();
+
+		// Spawn prepareRename in background if server supports it, to validate
+		// the rename position and get an authoritative range/placeholder.
+		#[cfg(feature = "lsp")]
+		if result {
+			// Re-borrow buffer after flush_effects released the earlier borrow.
+			let buffer = self.state.core.editor.buffers.get_buffer(buffer_id).unwrap();
+			if let Some((client, uri, _)) = self.state.integration.lsp.prepare_position_request(buffer).ok().flatten() {
+				if client.supports_prepare_rename() {
+					let encoding = client.offset_encoding();
+					let pos = buffer.with_doc(|doc| xeno_lsp::char_to_lsp_position(doc.content(), cursor, encoding));
+					if let Some(pos) = pos {
+						let token = self.mint_rename_token();
+						let tx = self.msg_tx();
+						let expected_prompt = word;
+						xeno_worker::spawn(xeno_worker::TaskClass::Background, async move {
+							let result = client.prepare_rename(uri, pos).await.map_err(|e| e.to_string());
+							let _ = tx.send(
+								crate::msg::OverlayMsg::RenamePrepared {
+									token,
+									result,
+									encoding,
+									expected_prompt,
+								}
+								.into(),
+							);
+						});
+					}
+				}
+			}
+		}
+
 		result
+	}
+
+	/// Applies a successful prepareRename response to the active rename overlay.
+	///
+	/// If the response includes a placeholder, updates the overlay prompt text
+	/// (only if the user hasn't edited it yet). If the response includes a range,
+	/// highlights the target symbol in the source buffer.
+	#[cfg(feature = "lsp")]
+	pub(crate) fn apply_prepare_rename_response(
+		&mut self,
+		response: xeno_lsp::lsp_types::PrepareRenameResponse,
+		encoding: xeno_lsp::OffsetEncoding,
+		expected_prompt: &str,
+	) {
+		use xeno_lsp::lsp_types::PrepareRenameResponse;
+
+		let (placeholder, range) = match &response {
+			PrepareRenameResponse::Range(range) => (None, Some(*range)),
+			PrepareRenameResponse::RangeWithPlaceholder { range, placeholder } => (Some(placeholder.as_str()), Some(*range)),
+			PrepareRenameResponse::DefaultBehavior { .. } => (None, None),
+		};
+
+		// Update the overlay prompt text with placeholder if user hasn't edited.
+		if let Some(placeholder) = placeholder {
+			let active = self.state.ui.overlay_system.interaction().active();
+			if let Some(active) = active {
+				let input_id = active.session.input;
+				// Check if prompt still matches the initial word (user hasn't edited).
+				let current_text = self
+					.state
+					.core
+					.editor
+					.buffers
+					.get_buffer(input_id)
+					.map(|b| b.with_doc(|doc| doc.content().to_string()))
+					.unwrap_or_default();
+				let current_trimmed = current_text.trim_end_matches('\n');
+				// Only replace if the user hasn't edited the prompt yet.
+				if current_trimmed == expected_prompt {
+					let end = placeholder.chars().count();
+					if let Some(buffer) = self.state.core.editor.buffers.get_buffer_mut(input_id) {
+						buffer.reset_content(placeholder);
+						buffer.set_cursor_and_selection(end, xeno_primitives::Selection::single(0, end));
+					}
+				}
+			}
+		}
+
+		// Highlight the target range in the source buffer.
+		if let Some(range) = range {
+			let active = self.state.ui.overlay_system.interaction().active();
+			if let Some(active) = active {
+				if active.controller.kind() == crate::overlay::OverlayControllerKind::Rename {
+					// Find the target buffer (first non-input pane).
+					if let Some(target_view) = active
+						.session
+						.panes
+						.iter()
+						.find_map(|p| if p.buffer != active.session.input { Some(p.buffer) } else { None })
+					{
+						if let Some(buffer) = self.state.core.editor.buffers.get_buffer_mut(target_view) {
+							let start_char = buffer.with_doc(|doc| xeno_lsp::lsp_position_to_char(doc.content(), range.start, encoding));
+							let end_char = buffer.with_doc(|doc| xeno_lsp::lsp_position_to_char(doc.content(), range.end, encoding));
+							if let (Some(start), Some(end)) = (start_char, end_char) {
+								buffer.set_selection(xeno_primitives::Selection::single(start, end));
+							}
+						}
+					}
+				}
+			}
+		}
+
+		self.state.core.frame.needs_redraw = true;
 	}
 
 	/// Broadcasts an event to all passive overlay layers.
@@ -168,4 +275,88 @@ fn word_at_cursor(buffer: &crate::buffer::Buffer) -> String {
 
 fn is_word_char(ch: char) -> bool {
 	ch.is_alphanumeric() || ch == '_'
+}
+
+#[cfg(all(test, feature = "lsp"))]
+mod tests {
+	use crate::Editor;
+	use crate::overlay::controllers;
+
+	/// Opens a rename overlay on a scratch editor and returns the input ViewId.
+	fn open_rename_overlay(editor: &mut Editor, initial_word: &str) -> crate::buffer::ViewId {
+		let buffer_id = editor.focused_view();
+		let ctl = controllers::RenameOverlay::new(buffer_id, 0, initial_word.to_string());
+		let mut interaction = editor.state.ui.overlay_system.take_interaction();
+		assert!(interaction.open(editor, Box::new(ctl)));
+		editor.state.ui.overlay_system.restore_interaction(interaction);
+
+		let active = editor.state.ui.overlay_system.interaction().active().expect("overlay should be open");
+		active.session.input
+	}
+
+	#[tokio::test]
+	async fn prepare_rename_placeholder_replaces_untouched_prompt() {
+		let mut editor = Editor::new_scratch();
+		editor.handle_window_resize(80, 24);
+
+		let input_id = open_rename_overlay(&mut editor, "myVar");
+
+		// Prompt should contain "myVar" initially.
+		let text = editor
+			.state
+			.core
+			.editor
+			.buffers
+			.get_buffer(input_id)
+			.unwrap()
+			.with_doc(|doc| doc.content().to_string());
+		assert_eq!(text.trim_end_matches('\n'), "myVar");
+
+		// Apply prepare response with placeholder — should replace since prompt is untouched.
+		let response = xeno_lsp::lsp_types::PrepareRenameResponse::RangeWithPlaceholder {
+			range: xeno_lsp::lsp_types::Range::default(),
+			placeholder: "serverName".into(),
+		};
+		editor.apply_prepare_rename_response(response, xeno_lsp::OffsetEncoding::Utf16, "myVar");
+
+		let text = editor
+			.state
+			.core
+			.editor
+			.buffers
+			.get_buffer(input_id)
+			.unwrap()
+			.with_doc(|doc| doc.content().to_string());
+		assert_eq!(text.trim_end_matches('\n'), "serverName", "placeholder should replace untouched prompt");
+	}
+
+	#[tokio::test]
+	async fn prepare_rename_placeholder_does_not_clobber_user_edits() {
+		let mut editor = Editor::new_scratch();
+		editor.handle_window_resize(80, 24);
+
+		let input_id = open_rename_overlay(&mut editor, "myVar");
+
+		// Simulate user editing the prompt to "userTyped".
+		if let Some(buffer) = editor.state.core.editor.buffers.get_buffer_mut(input_id) {
+			buffer.reset_content("userTyped");
+		}
+
+		// Apply prepare response with placeholder — should NOT replace since user edited.
+		let response = xeno_lsp::lsp_types::PrepareRenameResponse::RangeWithPlaceholder {
+			range: xeno_lsp::lsp_types::Range::default(),
+			placeholder: "serverName".into(),
+		};
+		editor.apply_prepare_rename_response(response, xeno_lsp::OffsetEncoding::Utf16, "myVar");
+
+		let text = editor
+			.state
+			.core
+			.editor
+			.buffers
+			.get_buffer(input_id)
+			.unwrap()
+			.with_doc(|doc| doc.content().to_string());
+		assert_eq!(text.trim_end_matches('\n'), "userTyped", "user edits must not be clobbered");
+	}
 }

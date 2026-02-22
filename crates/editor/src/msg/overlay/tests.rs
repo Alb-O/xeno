@@ -111,3 +111,43 @@ async fn rename_current_token_applies_workspace_edit() {
 	assert_eq!(editor.pending_runtime_workspace_edit_work(), 1, "workspace edit should be enqueued");
 	assert_eq!(editor.state.async_state.pending_rename_token, None, "pending token should be cleared");
 }
+
+#[cfg(feature = "lsp")]
+#[tokio::test]
+async fn prepare_rename_stale_token_is_ignored() {
+	use crate::msg::Dirty;
+
+	let mut editor = Editor::new_scratch();
+	editor.state.async_state.pending_rename_token = Some(5);
+
+	let stale = OverlayMsg::RenamePrepared {
+		token: 4,
+		result: Ok(None),
+		encoding: xeno_lsp::OffsetEncoding::Utf16,
+		expected_prompt: "foo".into(),
+	};
+	let dirty = stale.apply(&mut editor);
+
+	assert_eq!(dirty, Dirty::NONE, "stale prepare token should be ignored");
+	assert_eq!(editor.state.async_state.pending_rename_token, Some(5), "pending token should remain");
+}
+
+#[cfg(feature = "lsp")]
+#[tokio::test]
+async fn prepare_rename_invalid_clears_token() {
+	use crate::msg::Dirty;
+
+	let mut editor = Editor::new_scratch();
+	editor.state.async_state.pending_rename_token = Some(6);
+
+	let msg = OverlayMsg::RenamePrepared {
+		token: 6,
+		result: Ok(None),
+		encoding: xeno_lsp::OffsetEncoding::Utf16,
+		expected_prompt: "foo".into(),
+	};
+	let dirty = msg.apply(&mut editor);
+
+	assert_eq!(dirty, Dirty::REDRAW);
+	assert_eq!(editor.state.async_state.pending_rename_token, None, "token should be cleared");
+}

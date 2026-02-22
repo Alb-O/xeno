@@ -316,6 +316,18 @@ impl ClientHandle {
 		.await
 	}
 
+	/// Request prepare rename to validate a rename operation and get the target range/placeholder.
+	pub async fn prepare_rename(&self, uri: Uri, position: lsp_types::Position) -> Result<Option<lsp_types::PrepareRenameResponse>> {
+		if !self.supports_prepare_rename() {
+			return Ok(None);
+		}
+		self.request::<lsp_types::request::PrepareRenameRequest>(lsp_types::TextDocumentPositionParams {
+			text_document: lsp_types::TextDocumentIdentifier { uri },
+			position,
+		})
+		.await
+	}
+
 	/// Request rename.
 	pub async fn rename(&self, uri: Uri, position: lsp_types::Position, new_name: String) -> Result<Option<lsp_types::WorkspaceEdit>> {
 		if !self.supports_rename() {

@@ -153,8 +153,25 @@ impl ClientHandle {
 	}
 
 	/// Check if the server supports rename.
+	///
+	/// Returns `false` when the server explicitly sets `renameProvider: false`
+	/// or omits it entirely.
 	pub fn supports_rename(&self) -> bool {
-		self.capabilities().is_some_and(|c| c.rename_provider.is_some())
+		self.capabilities()
+			.is_some_and(|c| matches!(c.rename_provider, Some(lsp_types::OneOf::Left(true)) | Some(lsp_types::OneOf::Right(_))))
+	}
+
+	/// Check if the server supports prepareRename (rename validation before execution).
+	pub fn supports_prepare_rename(&self) -> bool {
+		self.capabilities().is_some_and(|c| {
+			matches!(
+				c.rename_provider,
+				Some(lsp_types::OneOf::Right(lsp_types::RenameOptions {
+					prepare_provider: Some(true),
+					..
+				}))
+			)
+		})
 	}
 
 	/// Check if the server supports execute command.
