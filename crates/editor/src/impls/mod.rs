@@ -230,6 +230,9 @@ pub(crate) struct UiStateBundle {
 	/// Semantic token cache for LSP semantic tokens.
 	#[cfg(feature = "lsp")]
 	pub(crate) semantic_token_cache: crate::lsp::semantic_tokens::SemanticTokenCache,
+	/// Document highlight cache (references under cursor).
+	#[cfg(feature = "lsp")]
+	pub(crate) document_highlight_cache: crate::lsp::document_highlight::DocumentHighlightCache,
 }
 
 pub(crate) struct ConfigStateBundle {

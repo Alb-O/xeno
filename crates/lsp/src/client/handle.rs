@@ -137,6 +137,11 @@ impl ClientHandle {
 		self.capabilities().is_some_and(|c| c.references_provider.is_some())
 	}
 
+	/// Check if the server supports document highlight (references under cursor).
+	pub fn supports_document_highlight(&self) -> bool {
+		self.capabilities().is_some_and(|c| c.document_highlight_provider.is_some())
+	}
+
 	/// Check if the server supports document symbols.
 	pub fn supports_document_symbol(&self) -> bool {
 		self.capabilities().is_some_and(|c| c.document_symbol_provider.is_some())

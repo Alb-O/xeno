@@ -35,6 +35,8 @@ fn test_render_baseline() {
 		inlay_hints: None,
 		#[cfg(feature = "lsp")]
 		semantic_tokens: None,
+		#[cfg(feature = "lsp")]
+		document_highlights: None,
 	};
 
 	let area = Rect::new(0, 0, 20, 3);
@@ -73,6 +75,8 @@ fn test_render_wrapping() {
 		inlay_hints: None,
 		#[cfg(feature = "lsp")]
 		semantic_tokens: None,
+		#[cfg(feature = "lsp")]
+		document_highlights: None,
 	};
 
 	// 30 width, gutter will take ~6, leaving ~24 for text

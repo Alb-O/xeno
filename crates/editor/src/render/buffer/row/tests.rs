@@ -56,6 +56,8 @@ mod unit_tests {
 			inlay_hints: None,
 			#[cfg(feature = "lsp")]
 			semantic_tokens: None,
+			#[cfg(feature = "lsp")]
+			document_highlights: None,
 		};
 
 		let cursor_styles = CursorStyles {
@@ -148,6 +150,8 @@ mod unit_tests {
 			inlay_hints: None,
 			#[cfg(feature = "lsp")]
 			semantic_tokens: None,
+			#[cfg(feature = "lsp")]
+			document_highlights: None,
 		};
 
 		let cursor_styles = CursorStyles {
@@ -242,6 +246,8 @@ mod unit_tests {
 			inlay_hints: None,
 			#[cfg(feature = "lsp")]
 			semantic_tokens: None,
+			#[cfg(feature = "lsp")]
+			document_highlights: None,
 		};
 
 		let cursor_styles = CursorStyles {
@@ -353,6 +359,8 @@ mod unit_tests {
 			inlay_hints: None,
 			#[cfg(feature = "lsp")]
 			semantic_tokens: None,
+			#[cfg(feature = "lsp")]
+			document_highlights: None,
 		};
 
 		let cursor_styles = CursorStyles {

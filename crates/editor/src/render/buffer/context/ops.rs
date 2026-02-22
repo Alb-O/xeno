@@ -171,6 +171,39 @@ impl<'a> BufferRenderContext<'a> {
 		style.underline_style(UnderlineStyle::Curl).underline_color(underline_color)
 	}
 
+	/// Applies document highlight background if the byte position falls in a highlight range.
+	///
+	/// Blends the background color to preserve syntax foreground. Write references
+	/// get a stronger tint than read/text references.
+	#[cfg(feature = "lsp")]
+	pub fn apply_document_highlight_bg(&self, byte_pos: u32, style: Style) -> Style {
+		use xeno_lsp::lsp_types::DocumentHighlightKind;
+
+		use super::super::style_layers::blend;
+
+		let Some(highlights) = self.document_highlights else {
+			return style;
+		};
+
+		let kind = highlights
+			.iter()
+			.find_map(|(range, kind)| if range.contains(&byte_pos) { Some(*kind) } else { None });
+
+		let Some(kind) = kind else {
+			return style;
+		};
+
+		let alpha = match kind {
+			DocumentHighlightKind::WRITE => blend::SELECTION_MODE_ALPHA,
+			_ => blend::CURSORLINE_ALPHA,
+		};
+
+		let base_bg = style.bg.unwrap_or(self.theme.colors.ui.bg);
+		let tint = self.theme.colors.ui.fg;
+		let blended = base_bg.blend(tint, alpha);
+		style.bg(blended)
+	}
+
 	/// Returns inlay hint spans for a line, or an empty view if none.
 	pub fn inlay_hints_for_line(&self, line_idx: usize) -> InlayHintLine<'_> {
 		match self.inlay_hints.and_then(|m| m.get(&line_idx)) {

@@ -184,6 +184,8 @@ impl Editor {
 			pull_diag_state: crate::lsp::pull_diagnostics::PullDiagState::new(),
 			#[cfg(feature = "lsp")]
 			semantic_token_cache: crate::lsp::semantic_tokens::SemanticTokenCache::new(),
+			#[cfg(feature = "lsp")]
+			document_highlight_cache: crate::lsp::document_highlight::DocumentHighlightCache::new(),
 		}
 	}
 

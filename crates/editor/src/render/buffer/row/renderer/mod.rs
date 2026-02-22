@@ -164,6 +164,10 @@ impl TextRowRenderer {
 						let mut base = resolved.non_cursor;
 						if !matches!(glyph.virtual_kind, GlyphVirtual::Layout) {
 							base = input.ctx.apply_diagnostic_underline(line.line_idx, glyph.line_char_off, base);
+							#[cfg(feature = "lsp")]
+							{
+								base = input.ctx.apply_document_highlight_bg(glyph.doc_byte, base);
+							}
 						}
 						base
 					};

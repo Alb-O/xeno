@@ -502,6 +502,55 @@ impl LspSystem {
 			});
 		});
 	}
+
+	/// Sends a `textDocument/documentHighlight` request for the given buffer and cursor.
+	///
+	/// Always sends a UI event on completion (even if empty/failed) to clear
+	/// in-flight state when the request is successfully spawned.
+	///
+	/// Returns `true` only if a request task was spawned.
+	pub(crate) fn request_document_highlights(&self, buffer: &Buffer, generation: u64, cursor: usize) -> bool {
+		let Some(path) = buffer.path() else { return false };
+		let Some(language) = buffer.file_type() else { return false };
+		let abs_path = self.canonicalize_path(&path);
+		let Some(client) = self.sync().registry().get(&language, &abs_path) else {
+			return false;
+		};
+		if !client.is_ready() || !client.supports_document_highlight() {
+			return false;
+		}
+
+		let Some(uri) = xeno_lsp::uri_from_path(&abs_path) else { return false };
+		let encoding = client.offset_encoding();
+
+		let (doc_rev, rope) = buffer.with_doc(|doc| (doc.version(), doc.content().clone()));
+		let Some(position) = xeno_lsp::char_to_lsp_position(&rope, cursor, encoding) else {
+			return false;
+		};
+
+		let buffer_id = buffer.id;
+		let ui_tx = self.inner.ui_tx.clone();
+
+		tokio::spawn(async move {
+			let highlights = match client.document_highlight(uri, position).await {
+				Ok(Some(hl)) => super::document_highlight::decode_document_highlights(&hl, &rope, encoding),
+				Ok(None) => Vec::new(),
+				Err(e) => {
+					tracing::debug!(error = ?e, "document highlight request failed");
+					Vec::new()
+				}
+			};
+
+			let _ = ui_tx.send(crate::lsp::LspUiEvent::DocumentHighlightResult {
+				generation,
+				buffer_id,
+				doc_rev,
+				cursor,
+				highlights,
+			});
+		});
+		true
+	}
 }
 
 #[cfg(feature = "lsp")]

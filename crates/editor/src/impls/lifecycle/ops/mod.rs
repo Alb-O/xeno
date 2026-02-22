@@ -330,6 +330,49 @@ impl Editor {
 		}
 	}
 
+	/// Ticks document highlights (references under cursor) with debounced requests.
+	///
+	/// Waits for the cursor to settle for 2 ticks before sending a request,
+	/// avoiding excessive requests during rapid cursor movement.
+	#[cfg(feature = "lsp")]
+	pub(super) fn tick_document_highlights(&mut self) {
+		use crate::lsp::document_highlight::DOCUMENT_HIGHLIGHT_SETTLE_TICKS;
+
+		let visible_ids = self.base_window().layout.buffer_ids();
+
+		for &buffer_id in &visible_ids {
+			let Some(buffer) = self.state.core.editor.buffers.get_buffer(buffer_id) else {
+				continue;
+			};
+			let cursor = buffer.cursor;
+			let doc_rev = buffer.version();
+
+			// Check cache hit — already have highlights for this cursor position.
+			if self.state.ui.document_highlight_cache.get(buffer_id, doc_rev, cursor).is_some() {
+				continue;
+			}
+
+			if self.state.ui.document_highlight_cache.is_in_flight(buffer_id) {
+				continue;
+			}
+
+			// Debounce: wait for cursor to settle.
+			if !self
+				.state
+				.ui
+				.document_highlight_cache
+				.tick_settle(buffer_id, cursor, doc_rev, DOCUMENT_HIGHLIGHT_SETTLE_TICKS)
+			{
+				continue;
+			}
+
+			let generation = self.state.ui.document_highlight_cache.bump_generation(buffer_id);
+			if self.state.integration.lsp.request_document_highlights(buffer, generation, cursor) {
+				self.state.ui.document_highlight_cache.mark_in_flight(buffer_id, generation);
+			}
+		}
+	}
+
 	/// Queues an immediate LSP change and returns a receiver for write completion.
 	#[cfg(feature = "lsp")]
 	pub(super) fn queue_lsp_change_immediate(&mut self, buffer_id: crate::buffer::ViewId) -> Option<oneshot::Receiver<()>> {

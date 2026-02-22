@@ -51,6 +51,13 @@ pub enum LspUiEvent {
 		line_hi: usize,
 		tokens: Arc<super::semantic_tokens::SemanticTokenSpans>,
 	},
+	DocumentHighlightResult {
+		generation: u64,
+		buffer_id: ViewId,
+		doc_rev: u64,
+		cursor: usize,
+		highlights: super::document_highlight::DocumentHighlightSpans,
+	},
 }
 
 /// Outcome of a pull diagnostics request.
@@ -129,6 +136,23 @@ impl Editor {
 						.ui
 						.semantic_token_cache
 						.insert(buffer_id, doc_rev, line_lo, line_hi, generation, epoch, tokens);
+					self.state.core.frame.needs_redraw = true;
+				}
+				return;
+			}
+			LspUiEvent::DocumentHighlightResult {
+				generation,
+				buffer_id,
+				doc_rev,
+				cursor,
+				highlights,
+			} => {
+				let current_gen = self.state.ui.document_highlight_cache.generation(buffer_id);
+				if generation >= current_gen {
+					self.state
+						.ui
+						.document_highlight_cache
+						.insert(buffer_id, doc_rev, cursor, generation, highlights);
 					self.state.core.frame.needs_redraw = true;
 				}
 				return;
@@ -219,7 +243,10 @@ impl Editor {
 				self.open_info_popup(contents, Some("markdown"), anchor);
 			}
 			// Handled before the overlay-open check above.
-			LspUiEvent::InlayHintResult { .. } | LspUiEvent::PullDiagnosticResult { .. } | LspUiEvent::SemanticTokensResult { .. } => {
+			LspUiEvent::InlayHintResult { .. }
+			| LspUiEvent::PullDiagnosticResult { .. }
+			| LspUiEvent::SemanticTokensResult { .. }
+			| LspUiEvent::DocumentHighlightResult { .. } => {
 				unreachable!()
 			}
 		}

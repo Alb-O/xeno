@@ -80,6 +80,8 @@ impl Editor {
 			inlay_hints: render_ctx.lsp.inlay_hints_for(view),
 			#[cfg(feature = "lsp")]
 			semantic_tokens: render_ctx.lsp.semantic_tokens_for(view),
+			#[cfg(feature = "lsp")]
+			document_highlights: render_ctx.lsp.document_highlights_for(view),
 		};
 
 		let result = buffer_ctx.render_buffer(buffer, area, use_block_cursor, is_focused, tab_width, cursorline, &mut cache);

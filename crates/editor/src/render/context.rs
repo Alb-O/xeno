@@ -47,6 +47,8 @@ pub struct LspRenderSnapshot {
 	inlay_hints: HashMap<ViewId, Arc<InlayHintRangeMap>>,
 	#[cfg(feature = "lsp")]
 	semantic_tokens: HashMap<ViewId, Arc<crate::lsp::semantic_tokens::SemanticTokenSpans>>,
+	#[cfg(feature = "lsp")]
+	document_highlights: HashMap<ViewId, crate::lsp::document_highlight::DocumentHighlightSpans>,
 }
 
 impl LspRenderSnapshot {
@@ -65,6 +67,11 @@ impl LspRenderSnapshot {
 	#[cfg(feature = "lsp")]
 	pub fn semantic_tokens_for(&self, buffer_id: ViewId) -> Option<&crate::lsp::semantic_tokens::SemanticTokenSpans> {
 		self.semantic_tokens.get(&buffer_id).map(|arc| arc.as_ref())
+	}
+
+	#[cfg(feature = "lsp")]
+	pub fn document_highlights_for(&self, buffer_id: ViewId) -> Option<&crate::lsp::document_highlight::DocumentHighlightSpans> {
+		self.document_highlights.get(&buffer_id)
 	}
 }
 
@@ -117,6 +124,14 @@ impl Editor {
 				}
 				if let Some(tokens) = self.state.ui.semantic_token_cache.get(buffer.id, doc_rev, line_lo, line_hi) {
 					snapshot.semantic_tokens.insert(buffer.id, tokens.clone());
+				}
+				if let Some(highlights) = self.state.ui.document_highlight_cache.get_for_render(
+					buffer.id,
+					doc_rev,
+					buffer.cursor,
+					crate::lsp::document_highlight::DOCUMENT_HIGHLIGHT_SETTLE_TICKS,
+				) {
+					snapshot.document_highlights.insert(buffer.id, highlights.clone());
 				}
 			}
 		}

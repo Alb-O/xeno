@@ -259,6 +259,22 @@ impl ClientHandle {
 		.await
 	}
 
+	/// Request document highlights (references under cursor).
+	pub async fn document_highlight(&self, uri: Uri, position: lsp_types::Position) -> Result<Option<Vec<lsp_types::DocumentHighlight>>> {
+		if !self.supports_document_highlight() {
+			return Ok(None);
+		}
+		self.request::<lsp_types::request::DocumentHighlightRequest>(lsp_types::DocumentHighlightParams {
+			text_document_position_params: lsp_types::TextDocumentPositionParams {
+				text_document: lsp_types::TextDocumentIdentifier { uri },
+				position,
+			},
+			work_done_progress_params: Default::default(),
+			partial_result_params: Default::default(),
+		})
+		.await
+	}
+
 	/// Request document symbols.
 	pub async fn document_symbol(&self, uri: Uri) -> Result<Option<lsp_types::DocumentSymbolResponse>> {
 		if !self.supports_document_symbol() {

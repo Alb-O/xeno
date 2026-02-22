@@ -77,6 +77,9 @@ pub struct BufferRenderContext<'a> {
 	/// Optional semantic token spans for highlight overlay.
 	#[cfg(feature = "lsp")]
 	pub semantic_tokens: Option<&'a crate::lsp::semantic_tokens::SemanticTokenSpans>,
+	/// Optional document highlight spans (references under cursor).
+	#[cfg(feature = "lsp")]
+	pub document_highlights: Option<&'a crate::lsp::document_highlight::DocumentHighlightSpans>,
 }
 
 /// Cursor styling configuration for rendering.

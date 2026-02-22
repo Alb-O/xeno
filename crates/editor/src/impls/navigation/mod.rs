@@ -85,6 +85,15 @@ impl Editor {
 	/// The focused view ID, or an error if the file couldn't be opened.
 	pub async fn goto_location(&mut self, location: &Location) -> anyhow::Result<ViewId> {
 		let focused_view = self.base_window().focused_buffer;
+
+		// Save current position to jump list before navigating.
+		if let Some(buffer) = self.state.core.editor.buffers.get_buffer(focused_view) {
+			self.state.core.editor.workspace.jump_list.push(crate::types::JumpLocation {
+				buffer_id: focused_view,
+				cursor: buffer.cursor,
+			});
+		}
+
 		let target_path = crate::paths::fast_abs(&location.path);
 
 		let already_focused_path = self

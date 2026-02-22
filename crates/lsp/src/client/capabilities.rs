@@ -182,6 +182,9 @@ pub fn client_capabilities(enable_snippets: bool) -> ClientCapabilities {
 				server_cancel_support: Some(false),
 				augments_syntax_tokens: Some(true),
 			}),
+			document_highlight: Some(lsp_types::DocumentHighlightClientCapabilities {
+				dynamic_registration: Some(false),
+			}),
 			inlay_hint: Some(lsp_types::InlayHintClientCapabilities {
 				dynamic_registration: Some(false),
 				resolve_support: Some(lsp_types::InlayHintResolveClientCapabilities {

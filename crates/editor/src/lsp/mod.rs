@@ -14,6 +14,8 @@ pub(crate) mod completion_filter;
 #[cfg(feature = "lsp")]
 pub(crate) mod diagnostics;
 #[cfg(feature = "lsp")]
+pub(crate) mod document_highlight;
+#[cfg(feature = "lsp")]
 mod document_ops;
 #[cfg(feature = "lsp")]
 mod encoding;

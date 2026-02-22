@@ -101,6 +101,8 @@ impl Editor {
 		self.tick_pull_diagnostics();
 		#[cfg(feature = "lsp")]
 		self.tick_semantic_tokens();
+		#[cfg(feature = "lsp")]
+		self.tick_document_highlights();
 
 		emit_hook_sync_with(&HookContext::new(HookEventData::EditorTick), &mut self.state.integration.work_scheduler);
 
