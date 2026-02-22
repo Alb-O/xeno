@@ -288,4 +288,32 @@ impl SyntaxManager {
 	pub fn any_task_finished(&self) -> bool {
 		self.collector.any_finished()
 	}
+
+	/// Returns a snapshot of per-document internal state for test introspection.
+	#[cfg(test)]
+	pub(crate) fn debug_doc_state(&self, doc_id: DocumentId) -> Option<DebugDocState> {
+		let entry = self.entries.get(&doc_id)?;
+		Some(DebugDocState {
+			dirty: entry.slot.dirty,
+			sync_bootstrap_attempted: entry.slot.sync_bootstrap_attempted,
+			full_doc_version: entry.slot.full.as_ref().map(|t| t.doc_version),
+			pending_base_version: entry.slot.pending_incremental.as_ref().map(|p| p.base_tree_doc_version),
+			bg_inflight: entry.sched.bg_active(),
+			viewport_urgent_inflight: entry.sched.viewport_urgent_active(),
+			viewport_enrich_inflight: entry.sched.viewport_enrich_active(),
+		})
+	}
+}
+
+/// Test-only snapshot of per-document syntax state.
+#[cfg(test)]
+#[derive(Debug)]
+pub(crate) struct DebugDocState {
+	pub dirty: bool,
+	pub sync_bootstrap_attempted: bool,
+	pub full_doc_version: Option<u64>,
+	pub pending_base_version: Option<u64>,
+	pub bg_inflight: bool,
+	pub viewport_urgent_inflight: bool,
+	pub viewport_enrich_inflight: bool,
 }
