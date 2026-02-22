@@ -52,7 +52,10 @@ pub struct TierCfg {
 	pub retention_hidden_full: RetentionPolicy,
 	/// Retention policy for viewport cache when document is hidden.
 	pub retention_hidden_viewport: RetentionPolicy,
-	/// Whether to allow background parsing when the document is not visible.
+	/// Whether to allow background parsing when the document is Cold.
+	///
+	/// When `false`, work is disabled for [`SyntaxHotness::Cold`] documents
+	/// but still allowed for [`SyntaxHotness::Warm`] documents.
 	pub parse_when_hidden: bool,
 	/// Timeout for the synchronous bootstrap parse attempt on the render
 	/// thread. `None` disables the fast path for this tier.

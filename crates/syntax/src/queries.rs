@@ -310,6 +310,7 @@ impl SyntaxManager {
 /// Test-only snapshot of per-document syntax state.
 #[cfg(test)]
 #[derive(Debug)]
+#[allow(dead_code)]
 pub(crate) struct DebugDocState {
 	pub dirty: bool,
 	pub sync_bootstrap_attempted: bool,

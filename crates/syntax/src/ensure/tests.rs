@@ -434,7 +434,9 @@ fn derive_viewport_handles_reversed_range() {
 	let content = Rope::from("hello world");
 	let policy = TieredSyntaxPolicy::default();
 
-	let ctx = make_derive_ctx(&content, &loader, Some(8..3), SyntaxHotness::Visible);
+	#[allow(clippy::reversed_empty_ranges)]
+	let reversed_viewport = Some(8..3);
+	let ctx = make_derive_ctx(&content, &loader, reversed_viewport, SyntaxHotness::Visible);
 	let base = derive::derive(&ctx, &policy);
 
 	let vp = base.viewport.unwrap();
@@ -590,9 +592,19 @@ fn sync_incremental_typing_updates_full_tree_without_bg_parse() {
 	let tree_id_v1 = s1.full_tree_id.unwrap();
 	let syntax_version_v1 = mgr.syntax_version(doc_id);
 
-	// Typing edit: identity changeset (simplest case that always succeeds)
-	let changeset = xeno_primitives::ChangeSet::new(content.slice(..));
-	mgr.note_edit_incremental(doc_id, 2, &content, &content, &changeset, &loader, EditSource::Typing);
+	// Typing edit: real one-char insertion (space after "fn")
+	let old_rope = content.clone();
+	let tx = xeno_primitives::Transaction::change(
+		old_rope.slice(..),
+		[xeno_primitives::Change {
+			start: 2,
+			end: 2,
+			replacement: Some(" ".into()),
+		}],
+	);
+	let mut new_rope = old_rope.clone();
+	tx.apply(&mut new_rope);
+	mgr.note_edit_incremental(doc_id, 2, &old_rope, &new_rope, tx.changes(), &loader, EditSource::Typing);
 
 	let s2 = mgr.debug_doc_state(doc_id).unwrap();
 	assert_eq!(s2.full_doc_version, Some(2), "sync incremental must bump full tree to v2");
@@ -606,7 +618,7 @@ fn sync_incremental_typing_updates_full_tree_without_bg_parse() {
 		doc_id,
 		doc_version: 2,
 		language_id: Some(lang),
-		content: &content,
+		content: &new_rope,
 		hotness: SyntaxHotness::Visible,
 		loader: &loader,
 		viewport: None,
