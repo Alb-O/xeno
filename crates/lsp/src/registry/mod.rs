@@ -460,6 +460,17 @@ impl Registry {
 		self.state.read().servers.values().any(|instance| instance.handle.is_ready())
 	}
 
+	/// Returns handles to all servers that are initialized and accepting requests.
+	pub fn ready_clients(&self) -> Vec<ClientHandle> {
+		self.state
+			.read()
+			.servers
+			.values()
+			.filter(|i| i.handle.is_ready())
+			.map(|i| i.handle.clone())
+			.collect()
+	}
+
 	/// Returns true if the given instance ID is currently active in the registry.
 	pub fn is_current(&self, id: LanguageServerId) -> bool {
 		self.state.read().id_index.contains_key(&id)

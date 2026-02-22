@@ -174,7 +174,17 @@ impl Editor {
 			}
 
 			// Perform the actual filesystem rename.
-			tokio::fs::rename(&old_path, &new_path).await.map_err(|e| CommandError::Io(e.to_string()))?;
+			match tokio::fs::rename(&old_path, &new_path).await {
+				Ok(()) => {}
+				Err(e) if Self::is_cross_device_rename(&e) => {
+					return Err(CommandError::Failed(format!(
+						"Cross-device rename not supported (EXDEV): {} -> {}",
+						old_path.display(),
+						new_path.display()
+					)));
+				}
+				Err(e) => return Err(CommandError::Io(e.to_string())),
+			}
 
 			// Update buffer path.
 			let loader_arc = self.state.config.config.language_loader.clone();
@@ -408,6 +418,171 @@ impl Editor {
 			document_changes,
 			change_annotations: edit.change_annotations,
 		}
+	}
+
+	/// Detects cross-device rename errors (EXDEV = 18 on Linux/macOS).
+	fn is_cross_device_rename(e: &std::io::Error) -> bool {
+		#[cfg(unix)]
+		{
+			e.raw_os_error() == Some(18) // EXDEV
+		}
+		#[cfg(not(unix))]
+		{
+			_ = e;
+			false
+		}
+	}
+
+	/// Creates a directory on disk with LSP `fileOperations` hooks.
+	///
+	/// Broadcasts `willCreateFiles`/`didCreateFiles` to all ready LSP clients
+	/// since directories are language-agnostic. Creates intermediate
+	/// directories as needed.
+	pub fn create_dir(&mut self, path: PathBuf) -> BoxFutureLocal<'_, Result<(), CommandError>> {
+		Box::pin(async move {
+			// Resolve relative to current buffer's parent or cwd.
+			let path = if path.is_relative() {
+				let base = self
+					.buffer()
+					.path()
+					.and_then(|p| p.parent().map(|pp| pp.to_path_buf()))
+					.unwrap_or_else(|| std::path::PathBuf::from("."));
+				base.join(&path)
+			} else {
+				path
+			};
+
+			// If path already exists, check it's a directory and return early (no LSP hooks).
+			if path.exists() {
+				if !path.is_dir() {
+					return Err(CommandError::Failed(format!("Path exists and is not a directory: {}", path.display())));
+				}
+				self.show_notification(xeno_registry::notifications::keys::info(format!(
+					"Directory already exists: {}",
+					path.display()
+				)));
+				return Ok(());
+			}
+
+			#[cfg(feature = "lsp")]
+			let abs_path = self.state.integration.lsp.canonicalize_path(&path);
+			#[cfg(feature = "lsp")]
+			let file_create = xeno_lsp::uri_from_path(&abs_path).map(|u| xeno_lsp::lsp_types::FileCreate { uri: u.to_string() });
+
+			// Snapshot ready clients once for consistent will/did recipients.
+			#[cfg(feature = "lsp")]
+			let lsp_clients = self.state.integration.lsp.sync().registry().ready_clients();
+
+			// Broadcast willCreateFiles to all ready clients.
+			#[cfg(feature = "lsp")]
+			if let Some(fc) = &file_create {
+				for client in &lsp_clients {
+					match client.will_create_files(vec![fc.clone()]).await {
+						Ok(Some(edit)) => {
+							let text_only = Self::filter_text_only_edit(edit);
+							if text_only.changes.as_ref().is_some_and(|c| !c.is_empty()) || text_only.document_changes.is_some() {
+								if let Err(e) = self.apply_workspace_edit(text_only).await {
+									warn!(error = %e.error, "willCreateFiles workspace edit failed");
+								}
+							}
+						}
+						Err(e) => warn!(error = %e, "willCreateFiles request failed"),
+						_ => {}
+					}
+				}
+			}
+
+			tokio::fs::create_dir_all(&path).await.map_err(|e| CommandError::Io(e.to_string()))?;
+
+			// Broadcast didCreateFiles.
+			#[cfg(feature = "lsp")]
+			if let Some(fc) = file_create {
+				for client in &lsp_clients {
+					if let Err(e) = client.did_create_files(vec![fc.clone()]).await {
+						warn!(error = %e, "didCreateFiles notification failed");
+					}
+				}
+			}
+
+			self.show_notification(xeno_registry::notifications::keys::info(format!("Created directory {}", path.display())));
+			Ok(())
+		})
+	}
+
+	/// Deletes an empty directory from disk with LSP `fileOperations` hooks.
+	///
+	/// Only removes empty directories. Returns an error if the directory
+	/// is non-empty. Broadcasts `willDeleteFiles`/`didDeleteFiles` to all
+	/// ready LSP clients.
+	pub fn delete_dir(&mut self, path: PathBuf) -> BoxFutureLocal<'_, Result<(), CommandError>> {
+		Box::pin(async move {
+			// Resolve relative to current buffer's parent or cwd.
+			let path = if path.is_relative() {
+				let base = self
+					.buffer()
+					.path()
+					.and_then(|p| p.parent().map(|pp| pp.to_path_buf()))
+					.unwrap_or_else(|| std::path::PathBuf::from("."));
+				base.join(&path)
+			} else {
+				path
+			};
+
+			if !path.is_dir() {
+				return Err(CommandError::InvalidArgument(format!("Not a directory: {}", path.display())));
+			}
+
+			#[cfg(feature = "lsp")]
+			let abs_path = self.state.integration.lsp.canonicalize_path(&path);
+			#[cfg(feature = "lsp")]
+			let file_delete = xeno_lsp::uri_from_path(&abs_path).map(|u| xeno_lsp::lsp_types::FileDelete { uri: u.to_string() });
+
+			// Snapshot ready clients once for consistent will/did recipients.
+			#[cfg(feature = "lsp")]
+			let lsp_clients = self.state.integration.lsp.sync().registry().ready_clients();
+
+			// Broadcast willDeleteFiles to all ready clients.
+			#[cfg(feature = "lsp")]
+			if let Some(fd) = &file_delete {
+				for client in &lsp_clients {
+					match client.will_delete_files(vec![fd.clone()]).await {
+						Ok(Some(edit)) => {
+							let text_only = Self::filter_text_only_edit(edit);
+							if text_only.changes.as_ref().is_some_and(|c| !c.is_empty()) || text_only.document_changes.is_some() {
+								if let Err(e) = self.apply_workspace_edit(text_only).await {
+									warn!(error = %e.error, "willDeleteFiles workspace edit failed");
+								}
+							}
+						}
+						Err(e) => warn!(error = %e, "willDeleteFiles request failed"),
+						_ => {}
+					}
+				}
+			}
+
+			// remove_dir (not remove_dir_all) — only empty dirs.
+			tokio::fs::remove_dir(&path).await.map_err(|e| {
+				// ENOTEMPTY = 39 on Linux, 66 on macOS
+				if e.raw_os_error() == Some(39) || e.raw_os_error() == Some(66) {
+					CommandError::Failed(format!("Directory not empty: {}", path.display()))
+				} else {
+					CommandError::Io(e.to_string())
+				}
+			})?;
+
+			// Broadcast didDeleteFiles.
+			#[cfg(feature = "lsp")]
+			if let Some(fd) = file_delete {
+				for client in &lsp_clients {
+					if let Err(e) = client.did_delete_files(vec![fd.clone()]).await {
+						warn!(error = %e, "didDeleteFiles notification failed");
+					}
+				}
+			}
+
+			self.show_notification(xeno_registry::notifications::keys::info(format!("Deleted directory {}", path.display())));
+			Ok(())
+		})
 	}
 
 	/// Applies a loaded file to the editor.
@@ -767,5 +942,62 @@ mod tests {
 		let result = editor.delete_current_file().await;
 		assert!(result.is_err(), "should reject modified buffer");
 		assert!(path.exists(), "file should remain on disk");
+	}
+
+	#[tokio::test]
+	async fn create_dir_creates_on_disk() {
+		let tmp = tempfile::tempdir().expect("temp dir");
+		let path = tmp.path().join("new_dir/nested");
+
+		let mut editor = Editor::new_scratch();
+		editor.create_dir(path.clone()).await.expect("mkdir");
+
+		assert!(path.is_dir(), "directory should be created on disk");
+	}
+
+	#[tokio::test]
+	async fn delete_dir_removes_empty_dir() {
+		let tmp = tempfile::tempdir().expect("temp dir");
+		let path = tmp.path().join("empty_dir");
+		std::fs::create_dir(&path).expect("mkdir");
+
+		let mut editor = Editor::new_scratch();
+		editor.delete_dir(path.clone()).await.expect("rmdir");
+
+		assert!(!path.exists(), "directory should be removed from disk");
+	}
+
+	#[tokio::test]
+	async fn delete_dir_rejects_non_empty() {
+		let tmp = tempfile::tempdir().expect("temp dir");
+		let path = tmp.path().join("non_empty_dir");
+		std::fs::create_dir(&path).expect("mkdir");
+		std::fs::write(path.join("file.txt"), "content").expect("write");
+
+		let mut editor = Editor::new_scratch();
+		let result = editor.delete_dir(path.clone()).await;
+		assert!(result.is_err(), "should reject non-empty directory");
+		assert!(path.is_dir(), "directory should remain");
+	}
+
+	#[tokio::test]
+	async fn delete_dir_rejects_non_directory() {
+		let tmp = tempfile::tempdir().expect("temp dir");
+		let path = tmp.path().join("not_a_dir.txt");
+		std::fs::write(&path, "file").expect("write");
+
+		let mut editor = Editor::new_scratch();
+		let result = editor.delete_dir(path.clone()).await;
+		assert!(result.is_err(), "should reject non-directory path");
+	}
+
+	#[cfg(unix)]
+	#[test]
+	fn is_cross_device_rename_detects_exdev() {
+		let exdev = std::io::Error::from_raw_os_error(18); // EXDEV
+		assert!(Editor::is_cross_device_rename(&exdev));
+
+		let enoent = std::io::Error::from_raw_os_error(2); // ENOENT
+		assert!(!Editor::is_cross_device_rename(&enoent));
 	}
 }

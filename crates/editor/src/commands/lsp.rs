@@ -538,6 +538,44 @@ fn cmd_delete_file<'a>(ctx: &'a mut EditorCommandContext<'a>) -> BoxFutureLocal<
 	})
 }
 
+editor_command!(
+	create_dir,
+	{
+		keys: &["mkdir"],
+		description: "Create a directory",
+		mutates_buffer: true
+	},
+	handler: cmd_create_dir
+);
+
+fn cmd_create_dir<'a>(ctx: &'a mut EditorCommandContext<'a>) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
+	Box::pin(async move {
+		let name = ctx.args.first().ok_or_else(|| CommandError::InvalidArgument("Usage: mkdir <path>".into()))?;
+		let path = std::path::PathBuf::from(name);
+		ctx.editor.create_dir(path).await?;
+		Ok(CommandOutcome::Ok)
+	})
+}
+
+editor_command!(
+	delete_dir,
+	{
+		keys: &["rmdir"],
+		description: "Delete an empty directory",
+		mutates_buffer: true
+	},
+	handler: cmd_delete_dir
+);
+
+fn cmd_delete_dir<'a>(ctx: &'a mut EditorCommandContext<'a>) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
+	Box::pin(async move {
+		let name = ctx.args.first().ok_or_else(|| CommandError::InvalidArgument("Usage: rmdir <path>".into()))?;
+		let path = std::path::PathBuf::from(name);
+		ctx.editor.delete_dir(path).await?;
+		Ok(CommandOutcome::Ok)
+	})
+}
+
 impl Editor {
 	fn open_locations_menu(&mut self, locations: Vec<xeno_lsp::lsp_types::Location>, encoding: xeno_lsp::OffsetEncoding) {
 		use crate::completion::{CompletionItem, CompletionState};
