@@ -287,8 +287,9 @@ impl TryFrom<termina::event::KeyEvent> for Key {
 
 #[cfg(all(test, feature = "terminal-input"))]
 mod termina_tests {
-	use super::*;
 	use termina::event::{KeyCode as TmKeyCode, KeyEvent, KeyEventKind, KeyEventState, Modifiers as TmModifiers};
+
+	use super::*;
 
 	fn key_event(code: TmKeyCode, modifiers: TmModifiers) -> KeyEvent {
 		KeyEvent {

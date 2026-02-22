@@ -1698,7 +1698,11 @@ async fn lifecycle_open_edit_flush_produces_incremental_change() {
 	let expected_uri = xeno_lsp::uri_from_path(&path).unwrap().to_string();
 	for dc in &did_changes {
 		assert_eq!(dc.uri, expected_uri, "didChange URI mismatch");
-		assert_eq!(dc.is_full_change, Some(false), "didChange must be incremental with INCREMENTAL caps; got: {dc:?}");
+		assert_eq!(
+			dc.is_full_change,
+			Some(false),
+			"didChange must be incremental with INCREMENTAL caps; got: {dc:?}"
+		);
 	}
 
 	// No didOpen in this window (doc was already open from setup).

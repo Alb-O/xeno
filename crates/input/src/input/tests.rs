@@ -189,9 +189,10 @@ fn action_count_overflow_clamped_to_max() {
 /// on canonical form, preventing silent misbindings.
 #[test]
 fn key_to_node_matches_parser_for_golden_table() {
-	use super::keymap_adapter::key_to_node;
 	use xeno_keymap_core::parser::parse;
 	use xeno_primitives::{Key, KeyCode, Modifiers};
+
+	use super::keymap_adapter::key_to_node;
 
 	let cases: Vec<(&str, Key)> = vec![
 		// Plain characters
@@ -202,9 +203,27 @@ fn key_to_node_matches_parser_for_golden_table() {
 		// Modifier + char
 		("ctrl-a", Key::ctrl('a')),
 		("alt-a", Key::alt('a')),
-		("cmd-a", Key { code: KeyCode::Char('a'), modifiers: Modifiers::CMD }),
-		("ctrl-alt-a", Key { code: KeyCode::Char('a'), modifiers: Modifiers::NONE.ctrl().alt() }),
-		("cmd-alt-a", Key { code: KeyCode::Char('a'), modifiers: Modifiers::NONE.cmd().alt() }),
+		(
+			"cmd-a",
+			Key {
+				code: KeyCode::Char('a'),
+				modifiers: Modifiers::CMD,
+			},
+		),
+		(
+			"ctrl-alt-a",
+			Key {
+				code: KeyCode::Char('a'),
+				modifiers: Modifiers::NONE.ctrl().alt(),
+			},
+		),
+		(
+			"cmd-alt-a",
+			Key {
+				code: KeyCode::Char('a'),
+				modifiers: Modifiers::NONE.cmd().alt(),
+			},
+		),
 		// Whitespace keys (canonicalized)
 		("space", Key::new(KeyCode::Space)),
 		("tab", Key::new(KeyCode::Tab)),
@@ -225,8 +244,20 @@ fn key_to_node_matches_parser_for_golden_table() {
 		("f13", Key::new(KeyCode::F(13))),
 		("f35", Key::new(KeyCode::F(35))),
 		// Modifier + function keys
-		("cmd-f35", Key { code: KeyCode::F(35), modifiers: Modifiers::CMD }),
-		("ctrl-f13", Key { code: KeyCode::F(13), modifiers: Modifiers::CTRL }),
+		(
+			"cmd-f35",
+			Key {
+				code: KeyCode::F(35),
+				modifiers: Modifiers::CMD,
+			},
+		),
+		(
+			"ctrl-f13",
+			Key {
+				code: KeyCode::F(13),
+				modifiers: Modifiers::CTRL,
+			},
+		),
 	];
 
 	for (keymap_str, key) in &cases {
@@ -239,9 +270,10 @@ fn key_to_node_matches_parser_for_golden_table() {
 /// Golden table: `parse_seq` matches `key_to_node` for multi-key sequences.
 #[test]
 fn key_to_node_matches_parser_for_sequences() {
-	use super::keymap_adapter::key_to_node;
 	use xeno_keymap_core::parser::parse_seq;
 	use xeno_primitives::Key;
+
+	use super::keymap_adapter::key_to_node;
 
 	let parsed = parse_seq("g r").unwrap();
 	let from_keys = vec![key_to_node(Key::char('g')), key_to_node(Key::char('r'))];

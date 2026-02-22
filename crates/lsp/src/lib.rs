@@ -13,7 +13,6 @@
 
 #[cfg(test)]
 use tokio as _;
-
 // Re-export framework types that downstream (editor) uses via `xeno_lsp::*`.
 #[cfg(all(feature = "client", feature = "position"))]
 pub(crate) use xeno_lsp_framework::ErrorCode;

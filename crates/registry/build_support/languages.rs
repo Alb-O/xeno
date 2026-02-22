@@ -73,10 +73,7 @@ fn helix_queries_root_from_env(ctx: &BuildCtx) -> Option<PathBuf> {
 		let runtime_dir = resolve_env_path(ctx, &path);
 		let queries_dir = runtime_dir.join("runtime").join("queries");
 		if !queries_dir.is_dir() {
-			panic!(
-				"XENO_HELIX_RUNTIME_DIR must contain runtime/queries: {}",
-				runtime_dir.display()
-			);
+			panic!("XENO_HELIX_RUNTIME_DIR must contain runtime/queries: {}", runtime_dir.display());
 		}
 		ctx.rerun_tree(&queries_dir);
 		return Some(queries_dir);
@@ -87,11 +84,7 @@ fn helix_queries_root_from_env(ctx: &BuildCtx) -> Option<PathBuf> {
 
 fn resolve_env_path(ctx: &BuildCtx, value: &std::ffi::OsStr) -> PathBuf {
 	let path = PathBuf::from(value);
-	if path.is_absolute() {
-		path
-	} else {
-		ctx.manifest_dir.join(path)
-	}
+	if path.is_absolute() { path } else { ctx.manifest_dir.join(path) }
 }
 
 fn merge_queries(lang: &mut LanguageSpec, query_roots: &[PathBuf]) {
@@ -172,11 +165,7 @@ fn target_dir(ctx: &BuildCtx) -> PathBuf {
 	match std::env::var_os("CARGO_TARGET_DIR") {
 		Some(dir) => {
 			let path = PathBuf::from(dir);
-			if path.is_absolute() {
-				path
-			} else {
-				workspace_root.join(path)
-			}
+			if path.is_absolute() { path } else { workspace_root.join(path) }
 		}
 		None => workspace_root.join("target"),
 	}
