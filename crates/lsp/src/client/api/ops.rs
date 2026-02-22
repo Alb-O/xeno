@@ -419,6 +419,25 @@ impl ClientHandle {
 		.await
 	}
 
+	/// Notify the server that files will be renamed, allowing it to return edits
+	/// (e.g. import path updates) to apply before the rename.
+	pub async fn will_rename_files(&self, files: Vec<lsp_types::FileRename>) -> Result<Option<lsp_types::WorkspaceEdit>> {
+		if !self.supports_will_rename_files() {
+			return Ok(None);
+		}
+		self.request::<lsp_types::request::WillRenameFiles>(lsp_types::RenameFilesParams { files })
+			.await
+	}
+
+	/// Notify the server that files were renamed.
+	pub async fn did_rename_files(&self, files: Vec<lsp_types::FileRename>) -> Result<()> {
+		if !self.supports_did_rename_files() {
+			return Ok(());
+		}
+		self.notify::<lsp_types::notification::DidRenameFiles>(lsp_types::RenameFilesParams { files })
+			.await
+	}
+
 	/// Execute a command on the server.
 	pub async fn execute_command(&self, command: String, arguments: Option<Vec<Value>>) -> Result<Option<Value>> {
 		if !self.supports_execute_command() {

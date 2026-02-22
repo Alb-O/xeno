@@ -204,6 +204,28 @@ impl ClientHandle {
 		self.capabilities().is_some_and(|c| c.workspace_symbol_provider.is_some())
 	}
 
+	/// Check if the server is interested in willRenameFiles requests.
+	pub fn supports_will_rename_files(&self) -> bool {
+		self.capabilities().is_some_and(|c| {
+			c.workspace
+				.as_ref()
+				.and_then(|w| w.file_operations.as_ref())
+				.and_then(|fo| fo.will_rename.as_ref())
+				.is_some()
+		})
+	}
+
+	/// Check if the server is interested in didRenameFiles notifications.
+	pub fn supports_did_rename_files(&self) -> bool {
+		self.capabilities().is_some_and(|c| {
+			c.workspace
+				.as_ref()
+				.and_then(|w| w.file_operations.as_ref())
+				.and_then(|fo| fo.did_rename.as_ref())
+				.is_some()
+		})
+	}
+
 	/// Get the offset encoding negotiated with the server.
 	///
 	/// Returns the LSP default (UTF-16) if the server has not yet finished

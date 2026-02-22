@@ -77,6 +77,11 @@ impl Editor {
 	}
 
 	/// Saves the current buffer to a new file path.
+	///
+	/// This is a "copy+switch" operation: the old file remains on disk and the
+	/// buffer path is updated to the new location. This does NOT send
+	/// `willRenameFiles`/`didRenameFiles` to LSP servers since no file is being
+	/// moved or deleted.
 	pub fn save_as(&mut self, path: PathBuf) -> BoxFutureLocal<'_, Result<(), CommandError>> {
 		let loader_arc = self.state.config.config.language_loader.clone();
 		let _ = self.buffer_mut().set_path(Some(path), Some(&loader_arc));
