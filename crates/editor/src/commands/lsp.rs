@@ -475,6 +475,29 @@ fn cmd_diagnostic_prev<'a>(ctx: &'a mut EditorCommandContext<'a>) -> BoxFutureLo
 	})
 }
 
+editor_command!(
+	rename_file,
+	{
+		keys: &["rename-file", "move-file"],
+		description: "Rename/move the current file on disk",
+		mutates_buffer: true
+	},
+	handler: cmd_rename_file
+);
+
+fn cmd_rename_file<'a>(ctx: &'a mut EditorCommandContext<'a>) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
+	Box::pin(async move {
+		let new_name = ctx
+			.args
+			.first()
+			.ok_or_else(|| CommandError::InvalidArgument("Usage: rename-file <new-path>".into()))?;
+		let new_path = std::path::PathBuf::from(new_name);
+
+		ctx.editor.rename_current_file(new_path).await?;
+		Ok(CommandOutcome::Ok)
+	})
+}
+
 impl Editor {
 	fn open_locations_menu(&mut self, locations: Vec<xeno_lsp::lsp_types::Location>, encoding: xeno_lsp::OffsetEncoding) {
 		use crate::completion::{CompletionItem, CompletionState};

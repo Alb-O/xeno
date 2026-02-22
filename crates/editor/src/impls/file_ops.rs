@@ -93,6 +93,145 @@ impl Editor {
 		self.save()
 	}
 
+	/// Renames/moves the current buffer's file on disk.
+	///
+	/// Sends `workspace/willRenameFiles` before the rename to get import-path
+	/// updates from the language server, performs `std::fs::rename`, updates
+	/// the buffer path and LSP identity, then sends `workspace/didRenameFiles`.
+	pub fn rename_current_file(&mut self, new_path: PathBuf) -> BoxFutureLocal<'_, Result<(), CommandError>> {
+		Box::pin(async move {
+			let old_path = self
+				.buffer()
+				.path()
+				.map(|p| p.to_path_buf())
+				.ok_or_else(|| CommandError::InvalidArgument("Buffer has no file path".into()))?;
+
+			if self.buffer().modified() {
+				return Err(CommandError::Failed("Buffer has unsaved changes — save first".into()));
+			}
+
+			// Resolve new_path relative to old_path's parent directory.
+			let new_path = if new_path.is_relative() {
+				old_path.parent().unwrap_or_else(|| std::path::Path::new(".")).join(&new_path)
+			} else {
+				new_path
+			};
+
+			if new_path == old_path {
+				return Ok(());
+			}
+
+			// Canonicalize paths BEFORE the filesystem rename so the old path
+			// still exists on disk and resolves symlinks correctly.
+			#[cfg(feature = "lsp")]
+			let abs_old = self.state.integration.lsp.canonicalize_path(&old_path);
+			#[cfg(feature = "lsp")]
+			let abs_new = self.state.integration.lsp.canonicalize_path(&new_path);
+			#[cfg(feature = "lsp")]
+			let old_language = self.buffer().file_type().map(|s| s.to_string());
+
+			// Build consistent FileRename URIs used for will/did/reopen.
+			#[cfg(feature = "lsp")]
+			let file_rename = {
+				let old_uri = xeno_lsp::uri_from_path(&abs_old).map(|u| u.to_string());
+				let new_uri = xeno_lsp::uri_from_path(&abs_new).map(|u| u.to_string());
+				old_uri
+					.zip(new_uri)
+					.map(|(old_uri, new_uri)| xeno_lsp::lsp_types::FileRename { old_uri, new_uri })
+			};
+
+			// Ask the language server for import-path edits before renaming.
+			#[cfg(feature = "lsp")]
+			let lsp_client = {
+				let client = old_language
+					.as_deref()
+					.and_then(|lang| self.state.integration.lsp.sync().registry().get(lang, &abs_old).filter(|c| c.is_ready()));
+
+				if let (Some(client), Some(rename)) = (&client, &file_rename) {
+					match client.will_rename_files(vec![rename.clone()]).await {
+						Ok(Some(edit)) => {
+							// Filter resource operations from document_changes to avoid
+							// double-renames. Only keep text edits.
+							let document_changes = edit.document_changes.and_then(|dcs| match dcs {
+								xeno_lsp::lsp_types::DocumentChanges::Edits(edits) => Some(xeno_lsp::lsp_types::DocumentChanges::Edits(edits)),
+								xeno_lsp::lsp_types::DocumentChanges::Operations(ops) => {
+									let text_ops: Vec<_> = ops
+										.into_iter()
+										.filter(|op| matches!(op, xeno_lsp::lsp_types::DocumentChangeOperation::Edit(_)))
+										.collect();
+									if text_ops.is_empty() {
+										None
+									} else {
+										Some(xeno_lsp::lsp_types::DocumentChanges::Operations(text_ops))
+									}
+								}
+							});
+							let text_only = xeno_lsp::lsp_types::WorkspaceEdit {
+								changes: edit.changes,
+								document_changes,
+								change_annotations: edit.change_annotations,
+							};
+							let has_edits = text_only.changes.as_ref().is_some_and(|c| !c.is_empty()) || text_only.document_changes.is_some();
+							if has_edits {
+								if let Err(e) = self.apply_workspace_edit(text_only).await {
+									warn!(error = %e.error, "willRenameFiles workspace edit failed");
+								}
+							}
+						}
+						Err(e) => {
+							warn!(error = %e, "willRenameFiles request failed");
+						}
+						_ => {}
+					}
+				}
+				client
+			};
+
+			// Create parent directories if needed.
+			if let Some(parent) = new_path.parent()
+				&& !parent.as_os_str().is_empty()
+			{
+				tokio::fs::create_dir_all(parent).await.map_err(|e| CommandError::Io(e.to_string()))?;
+			}
+
+			// Perform the actual filesystem rename.
+			tokio::fs::rename(&old_path, &new_path).await.map_err(|e| CommandError::Io(e.to_string()))?;
+
+			// Update buffer path.
+			let loader_arc = self.state.config.config.language_loader.clone();
+			let _ = self.buffer_mut().set_path(Some(new_path.clone()), Some(&loader_arc));
+
+			// Reopen the LSP document: didClose(old URI) + didOpen(new URI).
+			// Uses pre-rename canonicalized paths for URI consistency.
+			#[cfg(feature = "lsp")]
+			{
+				let new_language = self.buffer().file_type().map(|s| s.to_string());
+				let old_lang = old_language.as_deref().or(new_language.as_deref());
+				let new_lang = new_language.as_deref().or(old_language.as_deref());
+				if let (Some(old_l), Some(new_l)) = (old_lang, new_lang) {
+					let text = self.buffer().with_doc(|doc| doc.content().to_string());
+					if let Err(e) = self.state.integration.lsp.sync().reopen_document(&abs_old, old_l, &abs_new, new_l, text).await {
+						warn!(error = %e, "LSP reopen_document after rename failed");
+					}
+				}
+				let buf_id = self.focused_view();
+				self.maybe_track_lsp_for_buffer(buf_id, true);
+			}
+
+			self.show_notification(xeno_registry::notifications::keys::info(format!("Renamed to {}", new_path.display())));
+
+			// Notify the server that the file was renamed (reuse same client + URIs).
+			#[cfg(feature = "lsp")]
+			if let (Some(client), Some(rename)) = (lsp_client, file_rename) {
+				if let Err(e) = client.did_rename_files(vec![rename]).await {
+					warn!(error = %e, "didRenameFiles notification failed");
+				}
+			}
+
+			Ok(())
+		})
+	}
+
 	/// Applies a loaded file to the editor.
 	///
 	/// Called by [`crate::msg::IoMsg::FileLoaded`] when background file loading completes.
@@ -353,5 +492,51 @@ mod tests {
 
 		let _ = std::fs::remove_file(path);
 		let _ = std::fs::remove_dir(dir);
+	}
+
+	#[tokio::test]
+	async fn rename_current_file_moves_on_disk_and_updates_buffer() {
+		let tmp = tempfile::tempdir().expect("temp dir");
+		let old_path = tmp.path().join("old.txt");
+		std::fs::write(&old_path, "hello\n").expect("write");
+
+		let mut editor = Editor::new(old_path.clone()).await.expect("open");
+		assert!(old_path.exists());
+
+		let new_path = tmp.path().join("subdir/new.txt");
+		editor.rename_current_file(new_path.clone()).await.expect("rename");
+
+		assert!(!old_path.exists(), "old file should be removed");
+		assert!(new_path.exists(), "new file should exist");
+		assert_eq!(std::fs::read_to_string(&new_path).unwrap(), "hello\n");
+
+		let buf_path = editor.buffer().path().map(|p| p.to_path_buf());
+		assert_eq!(buf_path, Some(new_path), "buffer path should be updated");
+	}
+
+	#[tokio::test]
+	async fn rename_current_file_rejects_modified_buffer() {
+		let tmp = tempfile::tempdir().expect("temp dir");
+		let old_path = tmp.path().join("mod.txt");
+		std::fs::write(&old_path, "original\n").expect("write");
+
+		let mut editor = Editor::new(old_path.clone()).await.expect("open");
+		let _ = editor.buffer_mut().set_modified(true);
+
+		let new_path = tmp.path().join("moved.txt");
+		let result = editor.rename_current_file(new_path).await;
+		assert!(result.is_err(), "should reject modified buffer");
+		assert!(old_path.exists(), "old file should remain");
+	}
+
+	#[tokio::test]
+	async fn rename_current_file_noop_for_same_path() {
+		let tmp = tempfile::tempdir().expect("temp dir");
+		let path = tmp.path().join("same.txt");
+		std::fs::write(&path, "content\n").expect("write");
+
+		let mut editor = Editor::new(path.clone()).await.expect("open");
+		editor.rename_current_file(path.clone()).await.expect("noop rename");
+		assert!(path.exists());
 	}
 }

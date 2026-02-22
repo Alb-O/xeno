@@ -279,28 +279,32 @@ async fn barrier_error_ignored_after_doc_reopen() {
 	);
 }
 
-/// Recorded notification entry.
+/// Recorded outbound message (notification or request).
 #[derive(Debug, Clone)]
-struct RecordedNotification {
+struct RecordedMessage {
 	server_id: LanguageServerId,
 	method: String,
 	uri: Option<String>,
+	is_request: bool,
 }
 
-/// Transport that records notification methods, server ids, and URIs in order.
+/// Transport that records notification/request methods, server ids, and URIs in order.
 /// Methods listed in `fail_methods` will return an error instead of succeeding.
 struct RecordingTransport {
-	notifications: std::sync::Mutex<Vec<RecordedNotification>>,
+	messages: std::sync::Mutex<Vec<RecordedMessage>>,
 	next_slot: std::sync::atomic::AtomicU32,
 	fail_methods: std::sync::Mutex<std::collections::HashSet<String>>,
+	/// Canned JSON responses keyed by request method name.
+	request_responses: std::sync::Mutex<std::collections::HashMap<String, crate::JsonValue>>,
 }
 
 impl RecordingTransport {
 	fn new() -> Self {
 		Self {
-			notifications: std::sync::Mutex::new(Vec::new()),
+			messages: std::sync::Mutex::new(Vec::new()),
 			next_slot: std::sync::atomic::AtomicU32::new(1),
 			fail_methods: std::sync::Mutex::new(std::collections::HashSet::new()),
+			request_responses: std::sync::Mutex::new(std::collections::HashMap::new()),
 		}
 	}
 
@@ -312,16 +316,19 @@ impl RecordingTransport {
 		self.fail_methods.lock().unwrap().remove(method);
 	}
 
-	fn recorded(&self) -> Vec<RecordedNotification> {
-		self.notifications.lock().unwrap().clone()
+	fn set_request_response(&self, method: &str, response: crate::JsonValue) {
+		self.request_responses.lock().unwrap().insert(method.to_string(), response);
+	}
+
+	fn recorded(&self) -> Vec<RecordedMessage> {
+		self.messages.lock().unwrap().clone()
 	}
 
 	fn recorded_methods(&self) -> Vec<String> {
-		self.notifications.lock().unwrap().iter().map(|n| n.method.clone()).collect()
+		self.messages.lock().unwrap().iter().map(|n| n.method.clone()).collect()
 	}
 
-	/// Records the notification and returns `Err` if the method is in the fail set.
-	fn record(&self, server_id: LanguageServerId, notif: &crate::AnyNotification) -> crate::Result<()> {
+	fn record_notification(&self, server_id: LanguageServerId, notif: &crate::AnyNotification) -> crate::Result<()> {
 		let uri = notif
 			.params
 			.get("textDocument")
@@ -329,15 +336,25 @@ impl RecordingTransport {
 			.and_then(|u| u.as_str())
 			.map(|s| s.to_string());
 
-		self.notifications.lock().unwrap().push(RecordedNotification {
+		self.messages.lock().unwrap().push(RecordedMessage {
 			server_id,
 			method: notif.method.clone(),
 			uri,
+			is_request: false,
 		});
 		if self.fail_methods.lock().unwrap().contains(&notif.method) {
 			return Err(crate::Error::Protocol(format!("injected failure for {}", notif.method)));
 		}
 		Ok(())
+	}
+
+	fn record_request(&self, server_id: LanguageServerId, req: &crate::AnyRequest) {
+		self.messages.lock().unwrap().push(RecordedMessage {
+			server_id,
+			method: req.method.clone(),
+			uri: None,
+			is_request: true,
+		});
 	}
 }
 
@@ -354,17 +371,21 @@ impl crate::client::transport::LspTransport for RecordingTransport {
 		})
 	}
 	async fn notify(&self, server: LanguageServerId, notif: crate::AnyNotification) -> crate::Result<()> {
-		self.record(server, &notif)?;
+		self.record_notification(server, &notif)?;
 		Ok(())
 	}
 	async fn notify_with_barrier(&self, server: LanguageServerId, notif: crate::AnyNotification) -> crate::Result<oneshot::Receiver<crate::Result<()>>> {
-		self.record(server, &notif)?;
+		self.record_notification(server, &notif)?;
 		let (tx, rx) = oneshot::channel();
 		let _ = tx.send(Ok(()));
 		Ok(rx)
 	}
-	async fn request(&self, _server: LanguageServerId, _req: crate::AnyRequest, _timeout: Option<std::time::Duration>) -> crate::Result<crate::AnyResponse> {
-		Err(crate::Error::Protocol("RecordingTransport".into()))
+	async fn request(&self, server: LanguageServerId, req: crate::AnyRequest, _timeout: Option<std::time::Duration>) -> crate::Result<crate::AnyResponse> {
+		self.record_request(server, &req);
+		if let Some(response) = self.request_responses.lock().unwrap().get(&req.method).cloned() {
+			return Ok(crate::AnyResponse::new_ok(req.id, response));
+		}
+		Err(crate::Error::Protocol("RecordingTransport: no canned response".into()))
 	}
 	async fn reply(
 		&self,
@@ -404,7 +425,7 @@ async fn reopen_document_sends_did_close_then_did_open() {
 	assert!(documents.is_opened(&old_uri));
 
 	// Clear recorded notifications from the open call.
-	transport.notifications.lock().unwrap().clear();
+	transport.messages.lock().unwrap().clear();
 
 	// Reopen under new path.
 	sync.reopen_document(old_path, "rust", new_path, "rust", "fn main() {}".into()).await.unwrap();
@@ -503,7 +524,7 @@ async fn reopen_document_cross_language_routes_to_correct_servers() {
 	};
 
 	// Clear recordings.
-	transport.notifications.lock().unwrap().clear();
+	transport.messages.lock().unwrap().clear();
 
 	// Reopen under different language.
 	sync.reopen_document(old_path, "rust", new_path, "python", "def main(): pass".into())
@@ -548,7 +569,7 @@ async fn reopen_then_change_maintains_correct_identity() {
 
 	// Open old, reopen to new.
 	sync.open_document(old_path, "rust", &Rope::from("fn main() {}")).await.unwrap();
-	transport.notifications.lock().unwrap().clear();
+	transport.messages.lock().unwrap().clear();
 
 	sync.reopen_document(old_path, "rust", new_path, "rust", "fn main() {}".into()).await.unwrap();
 
@@ -609,7 +630,7 @@ async fn close_document_sends_did_close_and_clears_diagnostics() {
 	);
 	assert_eq!(documents.get_diagnostics(&uri).len(), 1);
 
-	transport.notifications.lock().unwrap().clear();
+	transport.messages.lock().unwrap().clear();
 
 	// Close the document.
 	sync.close_document(path, "rust").await.unwrap();
@@ -834,6 +855,19 @@ impl InitRecordingTransport {
 	fn set_fail_method(&self, method: &str) {
 		self.inner.set_fail_method(method);
 	}
+
+	fn with_capabilities(capabilities: lsp_types::ServerCapabilities) -> Self {
+		let t = Self::new();
+		t.inner.set_request_response(
+			"initialize",
+			serde_json::to_value(lsp_types::InitializeResult {
+				capabilities,
+				server_info: None,
+			})
+			.unwrap(),
+		);
+		t
+	}
 }
 
 #[async_trait]
@@ -850,15 +884,24 @@ impl crate::client::transport::LspTransport for InitRecordingTransport {
 	async fn notify_with_barrier(&self, server: LanguageServerId, notif: crate::AnyNotification) -> crate::Result<oneshot::Receiver<crate::Result<()>>> {
 		self.inner.notify_with_barrier(server, notif).await
 	}
-	async fn request(&self, _server: LanguageServerId, _req: crate::AnyRequest, _timeout: Option<std::time::Duration>) -> crate::Result<crate::AnyResponse> {
-		Ok(crate::AnyResponse::new_ok(
-			crate::RequestId::Number(1),
-			serde_json::to_value(lsp_types::InitializeResult {
-				capabilities: lsp_types::ServerCapabilities::default(),
-				server_info: None,
-			})
-			.unwrap(),
-		))
+	async fn request(&self, server: LanguageServerId, req: crate::AnyRequest, _timeout: Option<std::time::Duration>) -> crate::Result<crate::AnyResponse> {
+		self.inner.record_request(server, &req);
+		// Check inner's canned responses first (includes initialize).
+		if let Some(response) = self.inner.request_responses.lock().unwrap().get(&req.method).cloned() {
+			return Ok(crate::AnyResponse::new_ok(req.id, response));
+		}
+		// Default: return default InitializeResult for initialize.
+		if req.method == "initialize" {
+			return Ok(crate::AnyResponse::new_ok(
+				req.id,
+				serde_json::to_value(lsp_types::InitializeResult {
+					capabilities: lsp_types::ServerCapabilities::default(),
+					server_info: None,
+				})
+				.unwrap(),
+			));
+		}
+		Err(crate::Error::Protocol(format!("InitRecordingTransport: no handler for {}", req.method)))
 	}
 	async fn reply(
 		&self,
@@ -1020,6 +1063,173 @@ async fn open_document_can_retry_after_failed_open() {
 	let result = sync.open_document(path, "rust", &Rope::from("fn main() {}")).await;
 	assert!(result.is_ok(), "retry must succeed: {:?}", result.err());
 	assert!(documents.is_opened(&uri), "document must be opened after retry");
+}
+
+/// Simulates the rename-file flow: willRenameFiles → didClose → didOpen → didRenameFiles.
+///
+/// Verifies that all four messages are sent in the correct order when a file
+/// is renamed through the LSP client API and DocumentSync::reopen_document.
+#[tokio::test]
+async fn rename_file_sequence_will_close_open_did() {
+	use crate::registry::LanguageServerConfig;
+
+	let file_op_filter = lsp_types::FileOperationRegistrationOptions {
+		filters: vec![lsp_types::FileOperationFilter {
+			scheme: None,
+			pattern: lsp_types::FileOperationPattern {
+				glob: "**/*.rs".into(),
+				matches: None,
+				options: None,
+			},
+		}],
+	};
+	let caps = lsp_types::ServerCapabilities {
+		workspace: Some(lsp_types::WorkspaceServerCapabilities {
+			file_operations: Some(lsp_types::WorkspaceFileOperationsServerCapabilities {
+				will_rename: Some(file_op_filter.clone()),
+				did_rename: Some(file_op_filter),
+				..Default::default()
+			}),
+			..Default::default()
+		}),
+		..Default::default()
+	};
+
+	let transport = Arc::new(InitRecordingTransport::with_capabilities(caps));
+
+	// Set up a null response for willRenameFiles.
+	transport.inner.set_request_response("workspace/willRenameFiles", serde_json::Value::Null);
+
+	let (sync, registry, _documents, _receiver) = DocumentSync::create(transport.clone());
+
+	registry.register(
+		"rust",
+		LanguageServerConfig {
+			command: "rust-analyzer".into(),
+			..Default::default()
+		},
+	);
+
+	let old_path = Path::new("/project/src/old.rs");
+	let new_path = Path::new("/project/src/new.rs");
+
+	// Open the document and wait for initialization.
+	sync.open_document(old_path, "rust", &Rope::from("fn main() {}")).await.unwrap();
+	let client = registry.get("rust", old_path).unwrap();
+	for _ in 0..100 {
+		if client.is_initialized() {
+			break;
+		}
+		tokio::task::yield_now().await;
+	}
+	assert!(client.is_initialized(), "client must be initialized");
+
+	// Clear recordings from setup.
+	transport.inner.messages.lock().unwrap().clear();
+
+	// 1. willRenameFiles request.
+	let old_uri = crate::uri_from_path(old_path).unwrap();
+	let new_uri = crate::uri_from_path(new_path).unwrap();
+	let _edit = client
+		.will_rename_files(vec![lsp_types::FileRename {
+			old_uri: old_uri.to_string(),
+			new_uri: new_uri.to_string(),
+		}])
+		.await
+		.unwrap();
+
+	// 2. reopen_document: didClose(old) + didOpen(new).
+	sync.reopen_document(old_path, "rust", new_path, "rust", "fn main() {}".into()).await.unwrap();
+
+	// 3. didRenameFiles notification.
+	client
+		.did_rename_files(vec![lsp_types::FileRename {
+			old_uri: old_uri.to_string(),
+			new_uri: new_uri.to_string(),
+		}])
+		.await
+		.unwrap();
+
+	// Verify ordering: willRename → didClose → didOpen → didRename.
+	let methods = transport.inner.recorded_methods();
+	let will_idx = methods.iter().position(|m| m == "workspace/willRenameFiles");
+	let close_idx = methods.iter().position(|m| m == "textDocument/didClose");
+	let open_idx = methods.iter().position(|m| m == "textDocument/didOpen");
+	let did_idx = methods.iter().position(|m| m == "workspace/didRenameFiles");
+
+	assert!(will_idx.is_some(), "willRenameFiles not sent; methods: {methods:?}");
+	assert!(close_idx.is_some(), "didClose not sent; methods: {methods:?}");
+	assert!(open_idx.is_some(), "didOpen not sent; methods: {methods:?}");
+	assert!(did_idx.is_some(), "didRenameFiles not sent; methods: {methods:?}");
+
+	let will_idx = will_idx.unwrap();
+	let close_idx = close_idx.unwrap();
+	let open_idx = open_idx.unwrap();
+	let did_idx = did_idx.unwrap();
+
+	assert!(will_idx < close_idx, "willRename must precede didClose; methods: {methods:?}");
+	assert!(close_idx < open_idx, "didClose must precede didOpen; methods: {methods:?}");
+	assert!(open_idx < did_idx, "didOpen must precede didRename; methods: {methods:?}");
+}
+
+/// When the server doesn't advertise fileOperations rename support, will/did
+/// rename messages must not be emitted.
+#[tokio::test]
+async fn rename_file_no_capability_skips_will_and_did() {
+	use crate::registry::LanguageServerConfig;
+
+	let transport = Arc::new(InitRecordingTransport::new());
+	let (sync, registry, _documents, _receiver) = DocumentSync::create(transport.clone());
+
+	registry.register(
+		"rust",
+		LanguageServerConfig {
+			command: "rust-analyzer".into(),
+			..Default::default()
+		},
+	);
+
+	let old_path = Path::new("/project/src/nocap.rs");
+	let new_path = Path::new("/project/src/nocap_new.rs");
+
+	sync.open_document(old_path, "rust", &Rope::from("fn main() {}")).await.unwrap();
+	let client = registry.get("rust", old_path).unwrap();
+	for _ in 0..100 {
+		if client.is_initialized() {
+			break;
+		}
+		tokio::task::yield_now().await;
+	}
+	assert!(client.is_initialized(), "client must be initialized");
+
+	transport.inner.messages.lock().unwrap().clear();
+
+	// will_rename_files should return None when not supported.
+	let old_uri = crate::uri_from_path(old_path).unwrap();
+	let new_uri = crate::uri_from_path(new_path).unwrap();
+	let edit = client
+		.will_rename_files(vec![lsp_types::FileRename {
+			old_uri: old_uri.to_string(),
+			new_uri: new_uri.to_string(),
+		}])
+		.await
+		.unwrap();
+	assert!(edit.is_none(), "willRenameFiles should return None when unsupported");
+
+	// did_rename_files should be a noop.
+	client
+		.did_rename_files(vec![lsp_types::FileRename {
+			old_uri: old_uri.to_string(),
+			new_uri: new_uri.to_string(),
+		}])
+		.await
+		.unwrap();
+
+	let methods = transport.inner.recorded_methods();
+	assert!(
+		!methods.iter().any(|m| m.contains("Rename")),
+		"no rename messages should be sent without capability; methods: {methods:?}"
+	);
 }
 
 /// Source-level invariant: no direct `ClientHandle.text_document_did_*` calls outside `crates/lsp/src/sync/`.
