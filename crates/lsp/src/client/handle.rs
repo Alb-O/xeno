@@ -406,11 +406,11 @@ pub fn matches_file_operation_filters(root_path: &Path, uri: &Uri, filters: &[ls
 
 		// Check target kind constraint.
 		if let Some(m) = &f.pattern.matches {
-			let matches_target = match (m, target) {
-				(lsp_types::FileOperationPatternKind::File, FileOperationTarget::File) => true,
-				(lsp_types::FileOperationPatternKind::Folder, FileOperationTarget::Folder) => true,
-				_ => false,
-			};
+			let matches_target = matches!(
+				(m, target),
+				(lsp_types::FileOperationPatternKind::File, FileOperationTarget::File)
+					| (lsp_types::FileOperationPatternKind::Folder, FileOperationTarget::Folder)
+			);
 			if !matches_target {
 				return false;
 			}

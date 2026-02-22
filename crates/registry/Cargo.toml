@@ -43,7 +43,7 @@ minimal = [
     "notifications",
     "languages",
 ]
-keymap = ["minimal", "actions", "dep:xeno-keymap-core"]
+keymap = ["minimal", "actions", "config-nuon", "dep:xeno-keymap-core"]
 
 # Domain type gates
 actions = [
