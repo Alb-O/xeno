@@ -1,0 +1,263 @@
+use xeno_language::SyntaxOptions;
+
+use super::*;
+
+/// Stale viewport completion must only install when no covering tree exists (continuity).
+///
+/// If the viewport is already covered by a full tree or viewport cache, stale results
+/// are discarded to avoid installing outdated trees over better ones.
+#[test]
+fn test_stale_viewport_discards_when_covered() {
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang = loader.language_for_name("rust").unwrap();
+	let content = Rope::from("x".repeat(300_000));
+
+	let policy = {
+		let mut p = TieredSyntaxPolicy::test_default();
+		p.s_max_bytes_inclusive = 0;
+		p.m_max_bytes_inclusive = 0;
+		p.l.debounce = Duration::ZERO;
+		p
+	};
+
+	let ctx = EnsureSyntaxContext {
+		doc_id: DocumentId(1),
+		doc_version: 5,
+		language_id: Some(lang),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+		viewport: Some(0..100),
+	};
+	let d = derive(&ctx, &policy);
+
+	// Case 1: entry has a full tree → stale viewport should discard.
+	let mut entry = DocEntry::new(Instant::now());
+	entry.slot.language_id = Some(lang);
+	entry.slot.full = Some(InstalledTree {
+		syntax: xeno_language::Syntax::new(
+			content.slice(..),
+			lang,
+			&loader,
+			SyntaxOptions {
+				parse_timeout: Duration::from_secs(5),
+				injections: InjectionPolicy::Disabled,
+			},
+		)
+		.unwrap(),
+		doc_version: 3,
+		tree_id: 0,
+	});
+
+	let done = dummy_completed(
+		3,
+		lang,
+		TaskClass::Viewport,
+		d.cfg.viewport_injections,
+		Some(ViewportKey(0)),
+		Some(scheduling::ViewportLane::Urgent),
+	);
+	let decision = decide_install(&done, Instant::now(), &d, &entry);
+	assert!(
+		matches!(decision, InstallDecision::Discard),
+		"stale viewport should discard when full tree covers: {decision:?}"
+	);
+
+	// Case 2: entry has NO full tree and NO viewport coverage → stale should install (continuity).
+	let mut entry2 = DocEntry::new(Instant::now());
+	entry2.slot.language_id = Some(lang);
+	let done2 = dummy_completed(
+		3,
+		lang,
+		TaskClass::Viewport,
+		d.cfg.viewport_injections,
+		Some(ViewportKey(0)),
+		Some(scheduling::ViewportLane::Urgent),
+	);
+	let decision2 = decide_install(&done2, Instant::now(), &d, &entry2);
+	assert!(
+		matches!(decision2, InstallDecision::Install),
+		"stale viewport should install when uncovered: {decision2:?}"
+	);
+}
+
+/// Stale full-parse install must preserve projection alignment.
+///
+/// When a full tree already exists and `pending_incremental.base_tree_doc_version`
+/// doesn't match the completed version, installing would break projection continuity.
+#[test]
+fn test_stale_full_discards_on_projection_mismatch() {
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang = loader.language_for_name("rust").unwrap();
+	let content = Rope::from("fn main() {}");
+
+	let policy = TieredSyntaxPolicy::test_default();
+	let ctx = EnsureSyntaxContext {
+		doc_id: DocumentId(1),
+		doc_version: 5,
+		language_id: Some(lang),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+		viewport: None,
+	};
+	let d = derive(&ctx, &policy);
+
+	// Full tree at version 2, pending_incremental base at version 2.
+	// Completed task at version 3 → base mismatch (3 ≠ 2) → discard.
+	let mut entry = DocEntry::new(Instant::now());
+	entry.slot.language_id = Some(lang);
+	entry.slot.dirty = true;
+	entry.slot.full = Some(InstalledTree {
+		syntax: xeno_language::Syntax::new(
+			content.slice(..),
+			lang,
+			&loader,
+			SyntaxOptions {
+				parse_timeout: Duration::from_secs(5),
+				injections: d.cfg.injections,
+			},
+		)
+		.unwrap(),
+		doc_version: 2,
+		tree_id: 0,
+	});
+	entry.slot.pending_incremental = Some(PendingIncrementalEdits {
+		base_tree_doc_version: 2,
+		old_rope: content.clone(),
+		composed: xeno_primitives::ChangeSet::new(content.slice(..)),
+	});
+	entry.sched.lanes.bg.requested_doc_version = 1;
+
+	let done = dummy_completed(3, lang, TaskClass::Full, d.cfg.injections, None, None);
+	let decision = decide_install(&done, Instant::now(), &d, &entry);
+	assert!(
+		matches!(decision, InstallDecision::Discard),
+		"stale full with projection mismatch should discard: {decision:?}"
+	);
+
+	// Same setup but pending_incremental base matches done.doc_version → should install.
+	entry.slot.pending_incremental = Some(PendingIncrementalEdits {
+		base_tree_doc_version: 3,
+		old_rope: content.clone(),
+		composed: xeno_primitives::ChangeSet::new(content.slice(..)),
+	});
+
+	let done2 = dummy_completed(3, lang, TaskClass::Full, d.cfg.injections, None, None);
+	let decision2 = decide_install(&done2, Instant::now(), &d, &entry);
+	assert!(
+		matches!(decision2, InstallDecision::Install),
+		"stale full with matching projection should install: {decision2:?}"
+	);
+}
+
+/// Documents with unprocessed completions must appear in `docs_with_completed()`.
+#[test]
+fn test_docs_with_completed_includes_queued() {
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang = loader.language_for_name("rust").unwrap();
+
+	let mut mgr = SyntaxManager::new(Default::default());
+	let doc_id = DocumentId(42);
+	mgr.entry_mut(doc_id);
+	assert!(mgr.docs_with_completed().next().is_none(), "no docs with completed initially");
+
+	let done = dummy_completed(1, lang, TaskClass::Full, InjectionPolicy::Disabled, None, None);
+	mgr.entry_mut(doc_id).sched.completed.push_back(done);
+	let ids: Vec<_> = mgr.docs_with_completed().collect();
+	assert_eq!(ids, vec![doc_id], "doc with queued completion should appear");
+}
+
+#[test]
+fn test_install_completions_timeout_sets_urgent_lane_cooldown_without_update() {
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang = loader.language_for_name("rust").unwrap();
+	let content = Rope::from("x".repeat(300_000));
+
+	let policy = {
+		let mut p = TieredSyntaxPolicy::test_default();
+		p.s_max_bytes_inclusive = 0;
+		p.m_max_bytes_inclusive = 0;
+		p.l.debounce = Duration::ZERO;
+		p
+	};
+	let now = Instant::now();
+	let ctx = EnsureSyntaxContext {
+		doc_id: DocumentId(1),
+		doc_version: 1,
+		language_id: Some(lang),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+		viewport: Some(0..128),
+	};
+	let d = derive(&ctx, &policy);
+	let mut entry = DocEntry::new(now);
+	entry.slot.language_id = Some(lang);
+	entry.sched.completed.push_back(dummy_completed(
+		1,
+		lang,
+		TaskClass::Viewport,
+		d.cfg.viewport_injections,
+		Some(ViewportKey(0)),
+		Some(scheduling::ViewportLane::Urgent),
+	));
+
+	let mut metrics = SyntaxMetrics::new();
+	let updated = install_completions(&mut entry, now, &d, &mut metrics);
+	assert!(!updated, "timeout completion must not report syntax-tree updates");
+	assert!(
+		entry.sched.lanes.viewport_urgent.cooldown_until.is_some(),
+		"urgent viewport timeout must enter viewport lane cooldown"
+	);
+}
+
+#[test]
+fn test_install_completions_stage_b_timeout_sets_key_cooldown() {
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang = loader.language_for_name("rust").unwrap();
+	let content = Rope::from("x".repeat(300_000));
+
+	let policy = {
+		let mut p = TieredSyntaxPolicy::test_default();
+		p.s_max_bytes_inclusive = 0;
+		p.m_max_bytes_inclusive = 0;
+		p.l.debounce = Duration::ZERO;
+		p
+	};
+	let now = Instant::now();
+	let ctx = EnsureSyntaxContext {
+		doc_id: DocumentId(1),
+		doc_version: 1,
+		language_id: Some(lang),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+		viewport: Some(0..128),
+	};
+	let d = derive(&ctx, &policy);
+	let mut entry = DocEntry::new(now);
+	entry.slot.language_id = Some(lang);
+	let key = ViewportKey(0);
+	let ce = entry.slot.viewport_cache.get_mut_or_insert(key);
+	ce.attempted_b_for = Some(1);
+	entry.sched.completed.push_back(dummy_completed(
+		1,
+		lang,
+		TaskClass::Viewport,
+		InjectionPolicy::Eager,
+		Some(key),
+		Some(scheduling::ViewportLane::Enrich),
+	));
+
+	let mut metrics = SyntaxMetrics::new();
+	let updated = install_completions(&mut entry, now, &d, &mut metrics);
+	assert!(!updated, "timeout completion must not report syntax-tree updates");
+	let ce = entry.slot.viewport_cache.map.get(&key).expect("cache entry must exist");
+	assert!(ce.stage_b_cooldown_until.is_some(), "Stage-B timeout must apply per-key viewport cooldown");
+	assert_eq!(ce.attempted_b_for, None, "Stage-B timeout must clear attempted marker");
+	assert!(
+		entry.sched.lanes.viewport_enrich.cooldown_until.is_none(),
+		"Stage-B cooldown must stay per-key and avoid lane-level cooldown"
+	);
+}
