@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use super::*;
 
 /// After open + edit + flush with incremental sync capabilities, the transport

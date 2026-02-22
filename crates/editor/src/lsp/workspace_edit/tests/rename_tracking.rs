@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use super::*;
 
 /// After `apply_resource_rename`, the sync manager's tracked config must

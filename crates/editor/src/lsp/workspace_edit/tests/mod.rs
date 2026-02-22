@@ -209,7 +209,7 @@ fn classify_notif(method: &str, params: &serde_json::Value) -> Option<bool> {
 	}
 	let changes = params.get("contentChanges").and_then(|c| c.as_array())?;
 	let first = changes.first()?;
-	Some(!first.get("range").is_some())
+	Some(first.get("range").is_none())
 }
 
 #[async_trait::async_trait]
