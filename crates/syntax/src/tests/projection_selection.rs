@@ -230,3 +230,63 @@ fn test_viewport_cache_selects_overlapping_entry() {
 	let sel = mgr.syntax_for_viewport(doc_id, 1, 60..90);
 	assert!(sel.is_some());
 }
+
+/// Stage-B (eager injections) is preferred over Stage-A when both cover the viewport.
+#[test]
+fn test_selection_prefers_stage_b_over_stage_a() {
+	let mut mgr = SyntaxManager::default();
+	let doc_id = DocumentId(1);
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang = loader.language_for_name("rust").unwrap();
+	let content = Rope::from("fn main() {}");
+
+	let tree_a = Syntax::new(
+		content.slice(..),
+		lang,
+		&loader,
+		SyntaxOptions {
+			injections: InjectionPolicy::Disabled,
+			..Default::default()
+		},
+	)
+	.unwrap();
+
+	let tree_b = Syntax::new(
+		content.slice(..),
+		lang,
+		&loader,
+		SyntaxOptions {
+			injections: InjectionPolicy::Eager,
+			..Default::default()
+		},
+	)
+	.unwrap();
+
+	{
+		let entry = mgr.entry_mut(doc_id);
+		let coverage = 0..content.len_bytes() as u32;
+
+		let tid_a = entry.slot.alloc_tree_id();
+		let tid_b = entry.slot.alloc_tree_id();
+		let ce = entry.slot.viewport_cache.get_mut_or_insert(ViewportKey(0));
+		ce.stage_a = Some(ViewportTree {
+			syntax: tree_a,
+			doc_version: 1,
+			tree_id: tid_a,
+			coverage: coverage.clone(),
+		});
+		ce.stage_b = Some(ViewportTree {
+			syntax: tree_b,
+			doc_version: 1,
+			tree_id: tid_b,
+			coverage,
+		});
+	}
+
+	let sel = mgr.syntax_for_viewport(doc_id, 1, 0..10).unwrap();
+	assert_eq!(
+		sel.syntax.opts().injections,
+		InjectionPolicy::Eager,
+		"Stage-B (eager) must be preferred over Stage-A (disabled) when both cover viewport"
+	);
+}
