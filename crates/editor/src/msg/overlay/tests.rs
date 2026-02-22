@@ -14,8 +14,8 @@ fn empty_edit() -> WorkspaceEdit {
 }
 
 #[cfg(feature = "lsp")]
-#[test]
-fn overlaymsg_apply_enqueues_workspace_edit() {
+#[tokio::test]
+async fn overlaymsg_apply_enqueues_workspace_edit() {
 	let mut editor = Editor::new_scratch();
 	assert_eq!(editor.pending_runtime_workspace_edit_work(), 0);
 
@@ -25,8 +25,8 @@ fn overlaymsg_apply_enqueues_workspace_edit() {
 }
 
 #[cfg(feature = "lsp")]
-#[test]
-fn drain_messages_processes_overlaymsg() {
+#[tokio::test]
+async fn drain_messages_processes_overlaymsg() {
 	let mut editor = Editor::new_scratch();
 	let tx = editor.msg_tx();
 	assert!(tx.send(EditorMsg::Overlay(OverlayMsg::ApplyWorkspaceEdit(empty_edit()))).is_ok());
@@ -50,8 +50,8 @@ async fn pump_drains_deferred_workspace_edits_queue() {
 }
 
 #[cfg(feature = "lsp")]
-#[test]
-fn rename_stale_token_is_ignored() {
+#[tokio::test]
+async fn rename_stale_token_is_ignored() {
 	use crate::msg::Dirty;
 
 	let mut editor = Editor::new_scratch();
@@ -75,8 +75,8 @@ fn rename_stale_token_is_ignored() {
 }
 
 #[cfg(feature = "lsp")]
-#[test]
-fn rename_result_ignored_after_overlay_close() {
+#[tokio::test]
+async fn rename_result_ignored_after_overlay_close() {
 	use crate::msg::Dirty;
 
 	let mut editor = Editor::new_scratch();
@@ -94,8 +94,8 @@ fn rename_result_ignored_after_overlay_close() {
 }
 
 #[cfg(feature = "lsp")]
-#[test]
-fn rename_current_token_applies_workspace_edit() {
+#[tokio::test]
+async fn rename_current_token_applies_workspace_edit() {
 	use crate::msg::Dirty;
 
 	let mut editor = Editor::new_scratch();
