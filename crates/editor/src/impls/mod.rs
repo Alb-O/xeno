@@ -221,6 +221,15 @@ pub(crate) struct UiStateBundle {
 	pub(crate) notifications: crate::notifications::NotificationCenter,
 	/// Render cache for efficient viewport rendering.
 	pub(crate) render_cache: crate::render::cache::RenderCache,
+	/// Inlay hint cache for LSP inlay hints.
+	#[cfg(feature = "lsp")]
+	pub(crate) inlay_hint_cache: crate::lsp::inlay_hints::InlayHintCache,
+	/// Pull diagnostic state per buffer.
+	#[cfg(feature = "lsp")]
+	pub(crate) pull_diag_state: crate::lsp::pull_diagnostics::PullDiagState,
+	/// Semantic token cache for LSP semantic tokens.
+	#[cfg(feature = "lsp")]
+	pub(crate) semantic_token_cache: crate::lsp::semantic_tokens::SemanticTokenCache,
 }
 
 pub(crate) struct ConfigStateBundle {

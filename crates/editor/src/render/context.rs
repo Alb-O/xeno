@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use xeno_registry::themes::Theme;
 
-use super::{DiagnosticLineMap, DiagnosticRangeMap};
+use super::{DiagnosticLineMap, DiagnosticRangeMap, InlayHintRangeMap};
 use crate::Editor;
 use crate::buffer::{Layout, SplitDirection, ViewId};
 use crate::geometry::Rect;
@@ -44,6 +44,9 @@ impl LayoutSnapshot {
 pub struct LspRenderSnapshot {
 	diagnostics: HashMap<ViewId, Arc<DiagnosticLineMap>>,
 	diagnostic_ranges: HashMap<ViewId, Arc<DiagnosticRangeMap>>,
+	inlay_hints: HashMap<ViewId, Arc<InlayHintRangeMap>>,
+	#[cfg(feature = "lsp")]
+	semantic_tokens: HashMap<ViewId, Arc<crate::lsp::semantic_tokens::SemanticTokenSpans>>,
 }
 
 impl LspRenderSnapshot {
@@ -53,6 +56,15 @@ impl LspRenderSnapshot {
 
 	pub fn diagnostic_ranges_for(&self, buffer_id: ViewId) -> Option<&DiagnosticRangeMap> {
 		self.diagnostic_ranges.get(&buffer_id).map(|arc| arc.as_ref())
+	}
+
+	pub fn inlay_hints_for(&self, buffer_id: ViewId) -> Option<&InlayHintRangeMap> {
+		self.inlay_hints.get(&buffer_id).map(|arc| arc.as_ref())
+	}
+
+	#[cfg(feature = "lsp")]
+	pub fn semantic_tokens_for(&self, buffer_id: ViewId) -> Option<&crate::lsp::semantic_tokens::SemanticTokenSpans> {
+		self.semantic_tokens.get(&buffer_id).map(|arc| arc.as_ref())
 	}
 }
 
@@ -94,6 +106,19 @@ impl Editor {
 
 			snapshot.diagnostics.insert(buffer.id, entry.line_map.clone());
 			snapshot.diagnostic_ranges.insert(buffer.id, entry.range_map.clone());
+
+			{
+				let doc_rev = buffer.version();
+				let line_lo = buffer.scroll_line;
+				let viewport_height = self.state.core.viewport.height.unwrap_or(24) as usize;
+				let line_hi = line_lo + viewport_height + 2;
+				if let Some(hints) = self.state.ui.inlay_hint_cache.get(buffer.id, doc_rev, line_lo, line_hi) {
+					snapshot.inlay_hints.insert(buffer.id, hints.clone());
+				}
+				if let Some(tokens) = self.state.ui.semantic_token_cache.get(buffer.id, doc_rev, line_lo, line_hi) {
+					snapshot.semantic_tokens.insert(buffer.id, tokens.clone());
+				}
+			}
 		}
 
 		snapshot

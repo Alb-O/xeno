@@ -300,6 +300,17 @@ impl ClientHandle {
 		.await
 	}
 
+	/// Resolve additional details for a code action (edit, command, etc.).
+	///
+	/// Only sends the request if the server advertises `resolve_provider`. Returns
+	/// the original action unchanged if resolve is not supported.
+	pub async fn code_action_resolve(&self, action: lsp_types::CodeAction) -> Result<lsp_types::CodeAction> {
+		if !self.supports_code_action_resolve() {
+			return Ok(action);
+		}
+		self.request::<lsp_types::request::CodeActionResolveRequest>(action).await
+	}
+
 	/// Request signature help.
 	pub async fn signature_help(&self, uri: Uri, position: lsp_types::Position) -> Result<Option<lsp_types::SignatureHelp>> {
 		if !self.supports_signature_help() {
@@ -474,6 +485,75 @@ impl ClientHandle {
 		}
 		self.notify::<lsp_types::notification::DidDeleteFiles>(lsp_types::DeleteFilesParams { files })
 			.await
+	}
+
+	/// Request pull diagnostics for a document.
+	pub async fn pull_diagnostics(&self, uri: Uri, previous_result_id: Option<String>) -> Result<Option<lsp_types::DocumentDiagnosticReportResult>> {
+		if !self.supports_pull_diagnostics() {
+			return Ok(None);
+		}
+		let result: lsp_types::DocumentDiagnosticReportResult = self
+			.request::<lsp_types::request::DocumentDiagnosticRequest>(lsp_types::DocumentDiagnosticParams {
+				text_document: lsp_types::TextDocumentIdentifier { uri },
+				identifier: None,
+				previous_result_id,
+				work_done_progress_params: Default::default(),
+				partial_result_params: Default::default(),
+			})
+			.await?;
+		Ok(Some(result))
+	}
+
+	/// Request inlay hints for a range.
+	pub async fn inlay_hints(&self, uri: Uri, range: lsp_types::Range) -> Result<Option<Vec<lsp_types::InlayHint>>> {
+		if !self.supports_inlay_hint() {
+			return Ok(None);
+		}
+		self.request::<lsp_types::request::InlayHintRequest>(lsp_types::InlayHintParams {
+			text_document: lsp_types::TextDocumentIdentifier { uri },
+			range,
+			work_done_progress_params: Default::default(),
+		})
+		.await
+	}
+
+	/// Request semantic tokens for an entire document.
+	pub async fn semantic_tokens_full(&self, uri: Uri) -> Result<Option<lsp_types::SemanticTokensResult>> {
+		if !self.supports_semantic_tokens_full() {
+			return Ok(None);
+		}
+		let result = self
+			.request::<lsp_types::request::SemanticTokensFullRequest>(lsp_types::SemanticTokensParams {
+				text_document: lsp_types::TextDocumentIdentifier { uri },
+				work_done_progress_params: Default::default(),
+				partial_result_params: Default::default(),
+			})
+			.await?;
+		Ok(result)
+	}
+
+	/// Request semantic tokens for a range within a document.
+	pub async fn semantic_tokens_range(&self, uri: Uri, range: lsp_types::Range) -> Result<Option<lsp_types::SemanticTokensRangeResult>> {
+		if !self.supports_semantic_tokens_range() {
+			return Ok(None);
+		}
+		let result = self
+			.request::<lsp_types::request::SemanticTokensRangeRequest>(lsp_types::SemanticTokensRangeParams {
+				text_document: lsp_types::TextDocumentIdentifier { uri },
+				range,
+				work_done_progress_params: Default::default(),
+				partial_result_params: Default::default(),
+			})
+			.await?;
+		Ok(result)
+	}
+
+	/// Resolve additional details for an inlay hint.
+	pub async fn inlay_hint_resolve(&self, hint: lsp_types::InlayHint) -> Result<lsp_types::InlayHint> {
+		if !self.supports_inlay_hint_resolve() {
+			return Ok(hint);
+		}
+		self.request::<lsp_types::request::InlayHintResolveRequest>(hint).await
 	}
 
 	/// Execute a command on the server.

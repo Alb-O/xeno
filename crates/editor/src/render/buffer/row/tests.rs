@@ -53,6 +53,9 @@ mod unit_tests {
 			syntax_manager: &syntax_manager,
 			diagnostics: None,
 			diagnostic_ranges: None,
+			inlay_hints: None,
+			#[cfg(feature = "lsp")]
+			semantic_tokens: None,
 		};
 
 		let cursor_styles = CursorStyles {
@@ -142,6 +145,9 @@ mod unit_tests {
 			syntax_manager: &syntax_manager,
 			diagnostics: None,
 			diagnostic_ranges: None,
+			inlay_hints: None,
+			#[cfg(feature = "lsp")]
+			semantic_tokens: None,
 		};
 
 		let cursor_styles = CursorStyles {
@@ -233,6 +239,9 @@ mod unit_tests {
 			syntax_manager: &syntax_manager,
 			diagnostics: None,
 			diagnostic_ranges: None,
+			inlay_hints: None,
+			#[cfg(feature = "lsp")]
+			semantic_tokens: None,
 		};
 
 		let cursor_styles = CursorStyles {
@@ -341,6 +350,9 @@ mod unit_tests {
 			syntax_manager: &syntax_manager,
 			diagnostics: None,
 			diagnostic_ranges: None,
+			inlay_hints: None,
+			#[cfg(feature = "lsp")]
+			semantic_tokens: None,
 		};
 
 		let cursor_styles = CursorStyles {

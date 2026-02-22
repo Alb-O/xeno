@@ -20,9 +20,15 @@ mod encoding;
 #[cfg(feature = "lsp")]
 pub(crate) mod events;
 #[cfg(feature = "lsp")]
+pub(crate) mod inlay_hints;
+#[cfg(feature = "lsp")]
 pub(crate) mod menu;
 #[cfg(feature = "lsp")]
+pub(crate) mod pull_diagnostics;
+#[cfg(feature = "lsp")]
 mod requests;
+#[cfg(feature = "lsp")]
+pub(crate) mod semantic_tokens;
 #[cfg(feature = "lsp")]
 pub(crate) mod signature_help;
 #[cfg(feature = "lsp")]

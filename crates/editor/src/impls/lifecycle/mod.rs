@@ -95,6 +95,12 @@ impl Editor {
 
 		#[cfg(feature = "lsp")]
 		self.tick_lsp_sync();
+		#[cfg(feature = "lsp")]
+		self.tick_inlay_hints();
+		#[cfg(feature = "lsp")]
+		self.tick_pull_diagnostics();
+		#[cfg(feature = "lsp")]
+		self.tick_semantic_tokens();
 
 		emit_hook_sync_with(&HookContext::new(HookEventData::EditorTick), &mut self.state.integration.work_scheduler);
 

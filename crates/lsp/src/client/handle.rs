@@ -147,6 +147,19 @@ impl ClientHandle {
 		self.capabilities().is_some_and(|c| c.code_action_provider.is_some())
 	}
 
+	/// Check if the server supports lazy resolution of code action details.
+	pub fn supports_code_action_resolve(&self) -> bool {
+		self.capabilities().is_some_and(|c| {
+			matches!(
+				c.code_action_provider,
+				Some(lsp_types::CodeActionProviderCapability::Options(lsp_types::CodeActionOptions {
+					resolve_provider: Some(true),
+					..
+				}))
+			)
+		})
+	}
+
 	/// Check if the server supports signature help.
 	pub fn supports_signature_help(&self) -> bool {
 		self.capabilities().is_some_and(|c| c.signature_help_provider.is_some())
@@ -202,6 +215,76 @@ impl ClientHandle {
 	/// Check if the server supports workspace symbol search.
 	pub fn supports_workspace_symbol(&self) -> bool {
 		self.capabilities().is_some_and(|c| c.workspace_symbol_provider.is_some())
+	}
+
+	/// Check if the server supports pull diagnostics (`textDocument/diagnostic`).
+	pub fn supports_pull_diagnostics(&self) -> bool {
+		self.capabilities().is_some_and(|c| c.diagnostic_provider.is_some())
+	}
+
+	/// Check if the server supports semantic tokens (full).
+	///
+	/// Returns `true` only when the server explicitly advertises full support
+	/// in its `semanticTokensProvider` capability. A server that only supports
+	/// `range` will return `false` here.
+	pub fn supports_semantic_tokens_full(&self) -> bool {
+		self.capabilities().is_some_and(|c| {
+			matches!(
+				&c.semantic_tokens_provider,
+				Some(
+					lsp_types::SemanticTokensServerCapabilities::SemanticTokensOptions(lsp_types::SemanticTokensOptions { full: Some(_), .. })
+						| lsp_types::SemanticTokensServerCapabilities::SemanticTokensRegistrationOptions(lsp_types::SemanticTokensRegistrationOptions {
+							semantic_tokens_options: lsp_types::SemanticTokensOptions { full: Some(_), .. },
+							..
+						})
+				)
+			)
+		})
+	}
+
+	/// Check if the server supports semantic tokens (range).
+	pub fn supports_semantic_tokens_range(&self) -> bool {
+		self.capabilities().is_some_and(|c| {
+			matches!(
+				&c.semantic_tokens_provider,
+				Some(
+					lsp_types::SemanticTokensServerCapabilities::SemanticTokensOptions(lsp_types::SemanticTokensOptions { range: Some(true), .. })
+						| lsp_types::SemanticTokensServerCapabilities::SemanticTokensRegistrationOptions(lsp_types::SemanticTokensRegistrationOptions {
+							semantic_tokens_options: lsp_types::SemanticTokensOptions { range: Some(true), .. },
+							..
+						})
+				)
+			)
+		})
+	}
+
+	/// Returns the semantic token legend from the server, if available.
+	pub fn semantic_token_legend(&self) -> Option<&lsp_types::SemanticTokensLegend> {
+		self.capabilities().and_then(|c| match &c.semantic_tokens_provider {
+			Some(lsp_types::SemanticTokensServerCapabilities::SemanticTokensOptions(opts)) => Some(&opts.legend),
+			Some(lsp_types::SemanticTokensServerCapabilities::SemanticTokensRegistrationOptions(opts)) => Some(&opts.semantic_tokens_options.legend),
+			None => None,
+		})
+	}
+
+	/// Check if the server supports inlay hints.
+	pub fn supports_inlay_hint(&self) -> bool {
+		self.capabilities().is_some_and(|c| c.inlay_hint_provider.is_some())
+	}
+
+	/// Check if the server supports inlay hint resolve.
+	pub fn supports_inlay_hint_resolve(&self) -> bool {
+		self.capabilities().is_some_and(|c| {
+			matches!(
+				c.inlay_hint_provider,
+				Some(lsp_types::OneOf::Right(lsp_types::InlayHintServerCapabilities::Options(
+					lsp_types::InlayHintOptions {
+						resolve_provider: Some(true),
+						..
+					}
+				)))
+			)
+		})
 	}
 
 	/// Check if the server is interested in willRenameFiles requests.

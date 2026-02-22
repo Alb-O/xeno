@@ -19,7 +19,10 @@ pub mod wrap;
 
 #[cfg(any(feature = "lsp", test))]
 pub use buffer::DiagnosticSpan;
-pub use buffer::{BufferRenderContext, DiagnosticLineMap, DiagnosticRangeMap, GutterLayout, ensure_buffer_cursor_visible};
+#[cfg(feature = "lsp")]
+pub(crate) use buffer::InlayHintSpan;
+pub(crate) use buffer::inlay_hints::InlayHintLine;
+pub use buffer::{BufferRenderContext, DiagnosticLineMap, DiagnosticRangeMap, GutterLayout, InlayHintRangeMap, ensure_buffer_cursor_visible};
 pub use text::{RenderLine, RenderSpan};
 pub use view_plan::{DocumentViewPlan, SeparatorJunctionTarget, SeparatorRenderTarget, SeparatorState};
 pub use wrap::wrap_line;

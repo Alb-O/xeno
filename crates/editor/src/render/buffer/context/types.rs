@@ -5,6 +5,7 @@ use xeno_registry::themes::Theme;
 use super::super::cell_style::CursorStyleSet;
 use super::super::diagnostics::{DiagnosticLineMap, DiagnosticRangeMap};
 use super::super::gutter::GutterLayout;
+use super::super::inlay_hints::InlayHintRangeMap;
 use crate::buffer::Buffer;
 use crate::geometry::Rect;
 use crate::render::RenderLine;
@@ -71,6 +72,11 @@ pub struct BufferRenderContext<'a> {
 	pub diagnostics: Option<&'a DiagnosticLineMap>,
 	/// Optional diagnostic range map for underlines.
 	pub diagnostic_ranges: Option<&'a DiagnosticRangeMap>,
+	/// Optional inlay hint map for virtual text rendering.
+	pub inlay_hints: Option<&'a InlayHintRangeMap>,
+	/// Optional semantic token spans for highlight overlay.
+	#[cfg(feature = "lsp")]
+	pub semantic_tokens: Option<&'a crate::lsp::semantic_tokens::SemanticTokenSpans>,
 }
 
 /// Cursor styling configuration for rendering.

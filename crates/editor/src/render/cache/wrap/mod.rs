@@ -7,8 +7,9 @@ use std::collections::{HashMap, VecDeque};
 
 use xeno_primitives::{DocumentId, Rope};
 
+use super::super::buffer::inlay_hints::{InlayHintRangeMap, InlayHintSpan};
 use crate::render::buffer::plan::WrapAccess;
-use crate::render::wrap::{WrappedSegment, wrap_line_ranges_rope};
+use crate::render::wrap::{WrappedSegment, wrap_line_ranges_rope, wrap_line_ranges_rope_with_inlays};
 
 /// Key for identifying a wrap bucket configuration.
 pub type WrapBucketKey = (usize, usize); // (text_width, tab_width)
@@ -178,7 +179,16 @@ impl WrapBuckets {
 	/// Builds wrap entries for lines in the given range.
 	///
 	/// This populates the cache by wrapping lines from the rope.
-	pub fn build_range(&mut self, doc_id: DocumentId, key: WrapBucketKey, rope: &Rope, doc_version: u64, start_line: usize, end_line: usize) {
+	pub fn build_range(
+		&mut self,
+		doc_id: DocumentId,
+		key: WrapBucketKey,
+		rope: &Rope,
+		doc_version: u64,
+		start_line: usize,
+		end_line: usize,
+		inlay_hints: Option<&InlayHintRangeMap>,
+	) {
 		let bucket = self.get_or_build(doc_id, key);
 
 		for line_idx in start_line..end_line.min(rope.len_lines()) {
@@ -195,7 +205,13 @@ impl WrapBuckets {
 			let has_newline = line_len > 0 && line.char(line_len - 1) == '\n';
 			let content = if has_newline { line.slice(..line_len - 1) } else { line };
 
-			let segments = wrap_line_ranges_rope(content, key.0, key.1);
+			let line_inlays: &[InlayHintSpan] = inlay_hints.and_then(|m| m.get(&line_idx)).map(|v| v.as_slice()).unwrap_or(&[]);
+
+			let segments = if line_inlays.is_empty() {
+				wrap_line_ranges_rope(content, key.0, key.1)
+			} else {
+				wrap_line_ranges_rope_with_inlays(content, key.0, key.1, line_inlays)
+			};
 
 			bucket.set_entry(
 				line_idx,

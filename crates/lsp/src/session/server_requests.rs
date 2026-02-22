@@ -49,7 +49,9 @@ impl ServerRequestReply {
 /// * `workspace/workspaceFolders`: Workspace root folder
 /// * `client/registerCapability`, `client/unregisterCapability`: No-op success
 /// * `window/showMessageRequest`, `window/workDoneProgress/create`: No-op success
-/// * `workspace/diagnostic/refresh`: No-op success
+/// * `workspace/diagnostic/refresh`: Signal editor to re-pull diagnostics
+/// * `workspace/inlayHint/refresh`: Signal editor to invalidate inlay hint caches
+/// * `workspace/semanticTokens/refresh`: Signal editor to invalidate semantic token caches
 /// * `workspace/applyEdit`: Route to editor for text edit application
 ///
 /// # Errors
@@ -85,7 +87,18 @@ pub(crate) async fn dispatch_server_request(sync: &DocumentSync, server: Languag
 		"client/unregisterCapability" => ServerRequestReply::Json(JsonValue::Null),
 		"window/showMessageRequest" => ServerRequestReply::Json(JsonValue::Null),
 		"window/workDoneProgress/create" => ServerRequestReply::Json(JsonValue::Null),
-		"workspace/diagnostic/refresh" => ServerRequestReply::Json(JsonValue::Null),
+		"workspace/diagnostic/refresh" => {
+			sync.signal_diagnostic_refresh();
+			ServerRequestReply::Json(JsonValue::Null)
+		}
+		"workspace/inlayHint/refresh" => {
+			sync.signal_inlay_hint_refresh();
+			ServerRequestReply::Json(JsonValue::Null)
+		}
+		"workspace/semanticTokens/refresh" => {
+			sync.signal_semantic_tokens_refresh();
+			ServerRequestReply::Json(JsonValue::Null)
+		}
 		"workspace/applyEdit" => ServerRequestReply::Json(handle_workspace_apply_edit(sync, params).await),
 		_ => ServerRequestReply::MethodNotFound,
 	}

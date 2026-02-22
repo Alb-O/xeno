@@ -45,31 +45,31 @@ impl Editor {
 			return false;
 		};
 		let diagnostics = buffer.with_doc(|doc| diagnostics_for_range(&self.state.integration.lsp.get_diagnostics(buffer), doc.content(), start..end));
-		let lsp_diagnostics: Vec<xeno_lsp::lsp_types::Diagnostic> = diagnostics
-			.into_iter()
-			.map(|d| xeno_lsp::lsp_types::Diagnostic {
-				range: xeno_lsp::lsp_types::Range {
-					start: xeno_lsp::lsp_types::Position {
-						line: d.range.0 as u32,
-						character: d.range.1 as u32,
-					},
-					end: xeno_lsp::lsp_types::Position {
-						line: d.range.2 as u32,
-						character: d.range.3 as u32,
-					},
-				},
-				severity: Some(match d.severity {
-					DiagnosticSeverity::Error => xeno_lsp::lsp_types::DiagnosticSeverity::ERROR,
-					DiagnosticSeverity::Warning => xeno_lsp::lsp_types::DiagnosticSeverity::WARNING,
-					DiagnosticSeverity::Info => xeno_lsp::lsp_types::DiagnosticSeverity::INFORMATION,
-					DiagnosticSeverity::Hint => xeno_lsp::lsp_types::DiagnosticSeverity::HINT,
-				}),
-				code: d.code.map(xeno_lsp::lsp_types::NumberOrString::String),
-				source: d.source,
-				message: d.message,
-				..Default::default()
-			})
-			.collect();
+		let lsp_diagnostics: Vec<xeno_lsp::lsp_types::Diagnostic> = buffer.with_doc(|doc| {
+			let rope = doc.content();
+			diagnostics
+				.into_iter()
+				.filter_map(|d| {
+					let (sl, sc, el, ec) = d.range;
+					let abs_start = rope.line_to_char(sl) + sc;
+					let abs_end = rope.line_to_char(el) + ec;
+					let range = xeno_lsp::char_range_to_lsp_range(rope, abs_start, abs_end, encoding)?;
+					Some(xeno_lsp::lsp_types::Diagnostic {
+						range,
+						severity: Some(match d.severity {
+							DiagnosticSeverity::Error => xeno_lsp::lsp_types::DiagnosticSeverity::ERROR,
+							DiagnosticSeverity::Warning => xeno_lsp::lsp_types::DiagnosticSeverity::WARNING,
+							DiagnosticSeverity::Info => xeno_lsp::lsp_types::DiagnosticSeverity::INFORMATION,
+							DiagnosticSeverity::Hint => xeno_lsp::lsp_types::DiagnosticSeverity::HINT,
+						}),
+						code: d.code.map(xeno_lsp::lsp_types::NumberOrString::String),
+						source: d.source,
+						message: d.message,
+						..Default::default()
+					})
+				})
+				.collect()
+		});
 
 		let context = xeno_lsp::lsp_types::CodeActionContext {
 			diagnostics: lsp_diagnostics,
@@ -120,11 +120,20 @@ impl Editor {
 			CodeActionOrCommand::Command(command) => {
 				self.execute_lsp_command(buffer_id, command.command, command.arguments).await;
 			}
-			CodeActionOrCommand::CodeAction(action) => {
+			CodeActionOrCommand::CodeAction(mut action) => {
 				if let Some(disabled) = action.disabled {
 					self.notify(keys::warn(disabled.reason));
 					return;
 				}
+
+				// If the action lacks both edit and command but has data, resolve it first.
+				if action.edit.is_none() && action.command.is_none() && action.data.is_some() {
+					action = match self.resolve_code_action(buffer_id, action).await {
+						Some(resolved) => resolved,
+						None => return,
+					};
+				}
+
 				if let Some(edit) = action.edit
 					&& let Err(err) = self.apply_workspace_edit(edit).await
 				{
@@ -135,6 +144,18 @@ impl Editor {
 				if let Some(command) = action.command {
 					self.execute_lsp_command(buffer_id, command.command, command.arguments).await;
 				}
+			}
+		}
+	}
+
+	async fn resolve_code_action(&mut self, buffer_id: ViewId, action: xeno_lsp::lsp_types::CodeAction) -> Option<xeno_lsp::lsp_types::CodeAction> {
+		let buffer = self.state.core.editor.buffers.get_buffer(buffer_id)?;
+		let (client, _, _) = self.state.integration.lsp.prepare_position_request(buffer).ok().flatten()?;
+		match client.code_action_resolve(action).await {
+			Ok(resolved) => Some(resolved),
+			Err(err) => {
+				self.notify(keys::error(format!("Code action resolve failed: {err}")));
+				None
 			}
 		}
 	}

@@ -32,6 +32,9 @@ fn test_render_baseline() {
 		syntax_manager: &syntax_manager,
 		diagnostics: None,
 		diagnostic_ranges: None,
+		inlay_hints: None,
+		#[cfg(feature = "lsp")]
+		semantic_tokens: None,
 	};
 
 	let area = Rect::new(0, 0, 20, 3);
@@ -67,6 +70,9 @@ fn test_render_wrapping() {
 		syntax_manager: &syntax_manager,
 		diagnostics: None,
 		diagnostic_ranges: None,
+		inlay_hints: None,
+		#[cfg(feature = "lsp")]
+		semantic_tokens: None,
 	};
 
 	// 30 width, gutter will take ~6, leaving ~24 for text

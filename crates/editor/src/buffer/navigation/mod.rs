@@ -4,6 +4,7 @@ use xeno_primitives::{Direction as MoveDir, Range, ScrollDirection, Selection, m
 
 use super::Buffer;
 use crate::render::wrap::WrapSegment;
+use crate::render::{InlayHintLine, InlayHintRangeMap};
 
 /// Maps a screen column to a character offset within a wrap segment.
 ///
@@ -338,8 +339,11 @@ impl Buffer {
 
 	/// Converts a document position to screen coordinates within the buffer view.
 	///
+	/// When `inlays` is provided, the returned column accounts for virtual
+	/// inlay hint columns inserted before `doc_pos` on its line.
+	///
 	/// Returns None if the position is above the current scroll window.
-	pub fn doc_to_screen_position(&self, doc_pos: usize, tab_width: usize) -> Option<(u16, u16)> {
+	pub fn doc_to_screen_position(&self, doc_pos: usize, tab_width: usize, inlays: Option<&InlayHintRangeMap>) -> Option<(u16, u16)> {
 		self.with_doc(|doc| {
 			let content = doc.content();
 			let total_lines = visible_line_count(content.slice(..));
@@ -405,7 +409,14 @@ impl Buffer {
 							}
 
 							let row = seg_row as u16;
-							let col = gutter_width.saturating_add(col) as u16;
+							let inlay_cols = inlays
+								.and_then(|m| m.get(&line_idx))
+								.map(|spans| {
+									let line_inlays = InlayHintLine::new(spans);
+									line_inlays.cols_before(col_in_line).saturating_sub(line_inlays.cols_before(seg_start))
+								})
+								.unwrap_or(0);
+							let col = gutter_width.saturating_add(col) as u16 + inlay_cols;
 							return Some((row, col));
 						}
 						seg_row += 1;

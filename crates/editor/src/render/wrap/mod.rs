@@ -208,6 +208,20 @@ fn find_wrap_break(chars: &[char], start: usize, max_end: usize) -> usize {
 /// Returns a single segment of length 0 for empty lines, ensuring they can be
 /// rendered with a cursor.
 pub fn wrap_line_ranges_rope(line: RopeSlice<'_>, max_width: usize, tab_width: usize) -> Vec<WrappedSegment> {
+	wrap_line_ranges_rope_with_inlays(line, max_width, tab_width, &[])
+}
+
+/// Wraps a line with inlay hint column accounting.
+///
+/// Inlay hints at position `i` consume display columns that are injected *before*
+/// the document glyph at position `i`. The wrap scanner accounts for these extra
+/// columns so that segments don't visually overflow `max_width`.
+pub fn wrap_line_ranges_rope_with_inlays(
+	line: RopeSlice<'_>,
+	max_width: usize,
+	tab_width: usize,
+	inlay_spans: &[super::buffer::inlay_hints::InlayHintSpan],
+) -> Vec<WrappedSegment> {
 	if max_width == 0 {
 		return vec![];
 	}
@@ -239,16 +253,34 @@ pub fn wrap_line_ranges_rope(line: RopeSlice<'_>, max_width: usize, tab_width: u
 		let mut end = pos;
 		let mut best_break = pos;
 
+		let mut next_inlay = inlay_spans.partition_point(|s| s.pos_char < pos);
+
 		let mut iter = line.slice(pos..).chars().peekable();
 		while let Some(ch) = iter.next() {
-			let w = cell_width(ch, col, tab_width);
+			let char_off = end; // absolute character offset in line
 
-			let remaining = effective_width.saturating_sub(col);
-			if remaining == 0 || w > remaining {
-				break;
+			// Add inlay hint columns at this position (before the glyph).
+			let mut inlay_cols = 0usize;
+			while next_inlay < inlay_spans.len() && inlay_spans[next_inlay].pos_char == char_off {
+				let hint = &inlay_spans[next_inlay];
+				inlay_cols += hint.cols as usize + hint.pad_left as usize + hint.pad_right as usize;
+				next_inlay += 1;
 			}
 
-			col += w;
+			let col_after_inlays = col + inlay_cols;
+			let w = cell_width(ch, col_after_inlays, tab_width);
+			let total = inlay_cols + w;
+
+			let remaining = effective_width.saturating_sub(col);
+			if remaining == 0 || total > remaining {
+				// If we have room for the inlays but not the char, and col > 0, break.
+				if col > 0 {
+					break;
+				}
+				// Must make progress: accept at least one char.
+			}
+
+			col += total;
 			end += 1;
 
 			let next_ch = iter.peek().copied();

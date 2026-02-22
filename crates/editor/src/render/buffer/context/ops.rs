@@ -7,6 +7,7 @@ use xeno_registry::gutter::GutterAnnotations;
 use super::super::diff::{DiffLineNumbers, compute_diff_line_numbers, diff_line_bg};
 use super::super::gutter::GutterLayout;
 use super::super::index::{HighlightIndex, OverlayIndex};
+use super::super::inlay_hints::InlayHintLine;
 use super::super::plan::{LineSlice, LineSource, RowKind, ViewportPlan};
 use super::super::row::{GutterRenderer, RowRenderInput, TextRowRenderer};
 use super::super::style_layers::LineStyleContext;
@@ -170,6 +171,21 @@ impl<'a> BufferRenderContext<'a> {
 		style.underline_style(UnderlineStyle::Curl).underline_color(underline_color)
 	}
 
+	/// Returns inlay hint spans for a line, or an empty view if none.
+	pub fn inlay_hints_for_line(&self, line_idx: usize) -> InlayHintLine<'_> {
+		match self.inlay_hints.and_then(|m| m.get(&line_idx)) {
+			Some(spans) => InlayHintLine::new(spans),
+			None => InlayHintLine::empty(),
+		}
+	}
+
+	/// Returns the style for rendering inlay hint text.
+	pub fn inlay_hint_style(&self) -> Style {
+		let fg = self.theme.colors.ui.gutter_fg;
+		let bg = self.theme.colors.ui.bg;
+		Style::default().fg(fg.blend(bg, 0.5))
+	}
+
 	/// Renders a buffer into a paragraph widget using registry gutters.
 	pub fn render_buffer(
 		&self,
@@ -230,6 +246,17 @@ impl<'a> BufferRenderContext<'a> {
 		let styles = self.make_cursor_styles(p.buffer.mode());
 		let cursor_style_set = styles.to_cursor_set();
 		let highlight_spans = self.collect_highlight_spans(doc_id, &doc_content, doc_version, language_id, p.buffer.scroll_line, viewport_height, p.cache);
+
+		// Merge semantic tokens after syntax spans: "last-wins" priority in HighlightIndex.
+		#[cfg(feature = "lsp")]
+		let highlight_spans = if let Some(semantic) = self.semantic_tokens {
+			let mut merged = highlight_spans;
+			merged.extend_from_slice(semantic);
+			merged
+		} else {
+			highlight_spans
+		};
+
 		let highlight_index = HighlightIndex::new(highlight_spans);
 
 		let needs_diff_line_numbers = is_diff_file && !matches!(effective_gutter, GutterSelector::Hidden | GutterSelector::Prompt(_));
@@ -258,7 +285,9 @@ impl<'a> BufferRenderContext<'a> {
 		let wrap_key = (text_width, p.tab_width);
 
 		// Reverse order to avoid borrow conflict: build first, then get reference.
-		p.cache.wrap.build_range(doc_id, wrap_key, &doc_content, doc_version, start_line, end_line);
+		p.cache
+			.wrap
+			.build_range(doc_id, wrap_key, &doc_content, doc_version, start_line, end_line, self.inlay_hints);
 		let wrap_bucket = p.cache.wrap.get_or_build(doc_id, wrap_key);
 
 		let plan = ViewportPlan::new_with_wrap(p.buffer.scroll_line, p.buffer.scroll_segment, viewport_height, total_lines, &*wrap_bucket);

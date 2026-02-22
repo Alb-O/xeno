@@ -141,4 +141,11 @@ impl LspSystem {
 		};
 		client.range_formatting(uri, range, options).await
 	}
+
+	pub async fn inlay_hints(&self, buffer: &Buffer, range: xeno_lsp::lsp_types::Range) -> xeno_lsp::Result<Option<Vec<xeno_lsp::lsp_types::InlayHint>>> {
+		let Some((client, uri)) = self.prepare_uri_request(buffer)? else {
+			return Ok(None);
+		};
+		client.inlay_hints(uri, range).await
+	}
 }

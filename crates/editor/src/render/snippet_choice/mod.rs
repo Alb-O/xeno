@@ -53,7 +53,7 @@ impl Editor {
 
 		let buffer = self.get_buffer(overlay.buffer_id)?;
 		let tab_width = self.tab_width_for(overlay.buffer_id);
-		let (cursor_row, cursor_col) = buffer.doc_to_screen_position(buffer.cursor, tab_width)?;
+		let (cursor_row, cursor_col) = buffer.doc_to_screen_position(buffer.cursor, tab_width, None)?;
 
 		let view_area = self.view_area(overlay.buffer_id);
 		if view_area.width < 12 || view_area.height < 3 {

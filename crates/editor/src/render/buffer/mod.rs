@@ -11,6 +11,7 @@ pub(crate) mod diff;
 mod fill;
 mod gutter;
 mod index;
+pub(crate) mod inlay_hints;
 pub mod plan;
 mod row;
 mod style_layers;
@@ -21,4 +22,7 @@ pub use context::BufferRenderContext;
 pub use diagnostics::DiagnosticSpan;
 pub use diagnostics::{DiagnosticLineMap, DiagnosticRangeMap};
 pub use gutter::GutterLayout;
+pub use inlay_hints::InlayHintRangeMap;
+#[cfg(feature = "lsp")]
+pub use inlay_hints::InlayHintSpan;
 pub use viewport::ensure_buffer_cursor_visible;

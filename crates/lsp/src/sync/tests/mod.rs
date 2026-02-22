@@ -10,9 +10,15 @@ use super::*;
 
 mod barriers;
 mod change_failures;
+mod code_actions;
 mod core;
+mod formatting;
+mod inlay_hints;
 mod invariants;
 mod lifecycle;
+mod navigation;
+mod pull_diagnostics;
+mod rename_refs;
 mod resource_ops;
 
 struct SimpleStubTransport;

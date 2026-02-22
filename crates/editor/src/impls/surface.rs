@@ -178,6 +178,12 @@ impl Editor {
 			overlay_system: OverlaySystem::default(),
 			notifications: crate::notifications::NotificationCenter::new(),
 			render_cache: crate::render::cache::RenderCache::new(),
+			#[cfg(feature = "lsp")]
+			inlay_hint_cache: crate::lsp::inlay_hints::InlayHintCache::new(),
+			#[cfg(feature = "lsp")]
+			pull_diag_state: crate::lsp::pull_diagnostics::PullDiagState::new(),
+			#[cfg(feature = "lsp")]
+			semantic_token_cache: crate::lsp::semantic_tokens::SemanticTokenCache::new(),
 		}
 	}
 

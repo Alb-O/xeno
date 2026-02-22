@@ -305,4 +305,382 @@ impl LspSystem {
 	pub(crate) fn canonicalize_path(&self, path: &std::path::Path) -> std::path::PathBuf {
 		path.canonicalize().unwrap_or_else(|_| std::env::current_dir().unwrap_or_default().join(path))
 	}
+
+	/// Spawns an async inlay hint request for the given buffer's visible range.
+	///
+	/// The result is sent back through the `LspUiEvent` channel with a generation
+	/// counter for de-duplication. Stale results (from superseded requests) are
+	/// discarded by the receiver.
+	/// Spawns a pull diagnostics request for a buffer.
+	///
+	/// Results are sent back as `PullDiagnosticResult` UI events for processing
+	/// on the main thread. This ensures state updates happen synchronously.
+	pub(crate) fn request_pull_diagnostics(&self, buffer: &Buffer, doc_rev: u64, previous_result_id: Option<String>) {
+		let Some(path) = buffer.path() else { return };
+		let Some(language) = buffer.file_type() else { return };
+		let abs_path = self.canonicalize_path(&path);
+		let Some(client) = self.sync().registry().get(&language, &abs_path) else {
+			return;
+		};
+		if !client.is_ready() || !client.supports_pull_diagnostics() {
+			return;
+		}
+
+		let Some(uri) = xeno_lsp::uri_from_path(&abs_path) else { return };
+
+		let buffer_id = buffer.id;
+		let ui_tx = self.inner.ui_tx.clone();
+		let documents = self.sync().documents_arc();
+		let pull_uri = uri.clone();
+
+		tokio::spawn(async move {
+			let result = client.pull_diagnostics(uri, previous_result_id).await;
+			let outcome = match result {
+				Ok(Some(report_result)) => {
+					let (outcome, related) = extract_pull_diagnostics(report_result);
+					// Apply primary diagnostics to the requested URI.
+					if let super::events::PullDiagnosticOutcome::Full { diagnostics, .. } = &outcome {
+						documents.update_diagnostics(&pull_uri, diagnostics.clone(), None);
+					}
+					// Apply related document diagnostics to their own URIs.
+					apply_related_documents(&documents, related);
+					outcome
+				}
+				Ok(None) => super::events::PullDiagnosticOutcome::Failed,
+				Err(e) => {
+					tracing::debug!(error = ?e, "pull diagnostics request failed");
+					super::events::PullDiagnosticOutcome::Failed
+				}
+			};
+			let _ = ui_tx.send(crate::lsp::LspUiEvent::PullDiagnosticResult { buffer_id, doc_rev, outcome });
+		});
+	}
+
+	pub(crate) fn request_inlay_hints(&self, buffer: &Buffer, generation: u64, line_lo: usize, line_hi: usize) {
+		let Some(path) = buffer.path() else { return };
+		let Some(language) = buffer.file_type() else { return };
+		let abs_path = self.canonicalize_path(&path);
+		let Some(client) = self.sync().registry().get(&language, &abs_path) else {
+			return;
+		};
+		if !client.is_ready() || !client.supports_inlay_hint() {
+			return;
+		}
+
+		let Some(uri) = xeno_lsp::uri_from_path(&abs_path) else { return };
+		let encoding = client.offset_encoding();
+
+		let (doc_rev, rope) = buffer.with_doc(|doc| (doc.version(), doc.content().clone()));
+
+		let range = {
+			let start = xeno_lsp::char_to_lsp_position(&rope, rope.line_to_char(line_lo), encoding);
+			let end_char = if line_hi < rope.len_lines() {
+				rope.line_to_char(line_hi)
+			} else {
+				rope.len_chars()
+			};
+			let end = xeno_lsp::char_to_lsp_position(&rope, end_char, encoding);
+			match (start, end) {
+				(Some(s), Some(e)) => xeno_lsp::lsp_types::Range::new(s, e),
+				_ => return,
+			}
+		};
+
+		let buffer_id = buffer.id;
+		let ui_tx = self.inner.ui_tx.clone();
+
+		tokio::spawn(async move {
+			let result = client.inlay_hints(uri, range).await;
+			match result {
+				Ok(Some(hints)) => {
+					let map = super::inlay_hints::convert_lsp_hints(&hints, &rope, encoding);
+					let _ = ui_tx.send(crate::lsp::LspUiEvent::InlayHintResult {
+						generation,
+						buffer_id,
+						doc_rev,
+						line_lo,
+						line_hi,
+						hints: std::sync::Arc::new(map),
+					});
+				}
+				Ok(None) => {}
+				Err(e) => {
+					tracing::debug!(error = ?e, "inlay hint request failed");
+				}
+			}
+		});
+	}
+
+	/// Spawns a semantic tokens request for a buffer's visible range.
+	///
+	/// Prefers `semanticTokens/range` if supported, falls back to `semanticTokens/full`.
+	/// The result is decoded, styled, and sent back via the UI event channel.
+	pub(crate) fn request_semantic_tokens(
+		&self,
+		buffer: &Buffer,
+		generation: u64,
+		epoch: u64,
+		line_lo: usize,
+		line_hi: usize,
+		style_resolver: impl Fn(&str) -> Option<xeno_primitives::Style> + Send + 'static,
+	) {
+		let Some(path) = buffer.path() else { return };
+		let Some(language) = buffer.file_type() else { return };
+		let abs_path = self.canonicalize_path(&path);
+		let Some(client) = self.sync().registry().get(&language, &abs_path) else {
+			return;
+		};
+		let supports_range = client.supports_semantic_tokens_range();
+		let supports_full = client.supports_semantic_tokens_full();
+		if !client.is_ready() || (!supports_range && !supports_full) {
+			return;
+		}
+
+		let Some(uri) = xeno_lsp::uri_from_path(&abs_path) else { return };
+		let Some(legend) = client.semantic_token_legend().cloned() else { return };
+		let encoding = client.offset_encoding();
+
+		let (doc_rev, rope) = buffer.with_doc(|doc| (doc.version(), doc.content().clone()));
+
+		let range = {
+			let start = xeno_lsp::char_to_lsp_position(&rope, rope.line_to_char(line_lo), encoding);
+			let end_char = if line_hi < rope.len_lines() {
+				rope.line_to_char(line_hi)
+			} else {
+				rope.len_chars()
+			};
+			let end = xeno_lsp::char_to_lsp_position(&rope, end_char, encoding);
+			match (start, end) {
+				(Some(s), Some(e)) => xeno_lsp::lsp_types::Range::new(s, e),
+				_ => return,
+			}
+		};
+
+		let buffer_id = buffer.id;
+		let ui_tx = self.inner.ui_tx.clone();
+
+		let total_lines = rope.len_lines();
+
+		tokio::spawn(async move {
+			let (raw_tokens, used_full) = if supports_range {
+				match client.semantic_tokens_range(uri, range).await {
+					Ok(Some(result)) => (Some(extract_semantic_tokens_from_range_result(result)), false),
+					Ok(None) => (None, false),
+					Err(e) => {
+						tracing::debug!(error = ?e, "semantic tokens range request failed");
+						(None, false)
+					}
+				}
+			} else {
+				match client.semantic_tokens_full(uri).await {
+					Ok(Some(result)) => (Some(extract_semantic_tokens_from_full_result(result)), true),
+					Ok(None) => (None, true),
+					Err(e) => {
+						tracing::debug!(error = ?e, "semantic tokens full request failed");
+						(None, true)
+					}
+				}
+			};
+
+			let spans = raw_tokens
+				.map(|tokens| super::semantic_tokens::decode_semantic_tokens(&tokens, &rope, encoding, &legend, style_resolver))
+				.unwrap_or_default();
+
+			// Full responses cover the entire document — advertise full coverage
+			// so the cache considers it valid for any viewport scroll position.
+			let (eff_lo, eff_hi) = if used_full { (0, total_lines + 1) } else { (line_lo, line_hi) };
+
+			// Always send so the cache clears in-flight (even if empty/failed).
+			let _ = ui_tx.send(crate::lsp::LspUiEvent::SemanticTokensResult {
+				generation,
+				epoch,
+				buffer_id,
+				doc_rev,
+				line_lo: eff_lo,
+				line_hi: eff_hi,
+				tokens: std::sync::Arc::new(spans),
+			});
+		});
+	}
+}
+
+#[cfg(feature = "lsp")]
+fn extract_semantic_tokens_from_range_result(result: xeno_lsp::lsp_types::SemanticTokensRangeResult) -> Vec<xeno_lsp::lsp_types::SemanticToken> {
+	match result {
+		xeno_lsp::lsp_types::SemanticTokensRangeResult::Tokens(tokens) => tokens.data,
+		xeno_lsp::lsp_types::SemanticTokensRangeResult::Partial(partial) => partial.data,
+	}
+}
+
+#[cfg(feature = "lsp")]
+fn extract_semantic_tokens_from_full_result(result: xeno_lsp::lsp_types::SemanticTokensResult) -> Vec<xeno_lsp::lsp_types::SemanticToken> {
+	match result {
+		xeno_lsp::lsp_types::SemanticTokensResult::Tokens(tokens) => tokens.data,
+		xeno_lsp::lsp_types::SemanticTokensResult::Partial(partial) => partial.data,
+	}
+}
+
+/// Related document entries extracted from a pull diagnostics response.
+#[cfg(feature = "lsp")]
+type RelatedDocs = Vec<(xeno_lsp::lsp_types::Uri, xeno_lsp::lsp_types::DocumentDiagnosticReportKind)>;
+
+/// Extracts the primary document outcome and any related document entries.
+///
+/// Returns a tuple of (primary outcome, related documents). The primary outcome
+/// represents the requested document; related documents carry diagnostics for
+/// other URIs that depend on the primary (e.g., C/C++ header errors from includes).
+///
+/// For `Partial` results (no primary report), returns `Failed` since there's
+/// nothing to apply to the requested URI — related docs are still returned.
+#[cfg(feature = "lsp")]
+fn extract_pull_diagnostics(result: xeno_lsp::lsp_types::DocumentDiagnosticReportResult) -> (super::events::PullDiagnosticOutcome, RelatedDocs) {
+	use xeno_lsp::lsp_types::{DocumentDiagnosticReport, DocumentDiagnosticReportResult};
+
+	use super::events::PullDiagnosticOutcome;
+
+	fn drain_related(related: Option<std::collections::HashMap<xeno_lsp::lsp_types::Uri, xeno_lsp::lsp_types::DocumentDiagnosticReportKind>>) -> RelatedDocs {
+		related.into_iter().flatten().collect()
+	}
+
+	match result {
+		DocumentDiagnosticReportResult::Report(report) => match report {
+			DocumentDiagnosticReport::Full(full) => {
+				let related = drain_related(full.related_documents);
+				let outcome = PullDiagnosticOutcome::Full {
+					result_id: full.full_document_diagnostic_report.result_id,
+					diagnostics: full.full_document_diagnostic_report.items,
+				};
+				(outcome, related)
+			}
+			DocumentDiagnosticReport::Unchanged(unchanged) => {
+				let related = drain_related(unchanged.related_documents);
+				let outcome = PullDiagnosticOutcome::Unchanged {
+					result_id: unchanged.unchanged_document_diagnostic_report.result_id,
+				};
+				(outcome, related)
+			}
+		},
+		// Partial: no primary report, only related documents.
+		DocumentDiagnosticReportResult::Partial(partial) => {
+			let related = drain_related(partial.related_documents);
+			(PullDiagnosticOutcome::Failed, related)
+		}
+	}
+}
+
+/// Applies related document diagnostics to their respective URIs.
+///
+/// Only `Full` entries are applied; `Unchanged` entries are skipped since the
+/// server is confirming existing diagnostics are still valid for those URIs.
+#[cfg(feature = "lsp")]
+fn apply_related_documents(documents: &xeno_lsp::DocumentStateManager, related: RelatedDocs) {
+	for (uri, kind) in related {
+		if let xeno_lsp::lsp_types::DocumentDiagnosticReportKind::Full(full) = kind {
+			documents.update_diagnostics(&uri, full.items, None);
+		}
+	}
+}
+
+#[cfg(all(test, feature = "lsp"))]
+mod tests {
+	use super::*;
+	use crate::lsp::events::PullDiagnosticOutcome;
+
+	/// Verifies that Unchanged reports do NOT produce diagnostics to apply.
+	#[test]
+	fn pull_diagnostics_unchanged_does_not_update() {
+		use xeno_lsp::lsp_types::*;
+
+		let result = DocumentDiagnosticReportResult::Report(DocumentDiagnosticReport::Unchanged(RelatedUnchangedDocumentDiagnosticReport {
+			related_documents: None,
+			unchanged_document_diagnostic_report: UnchangedDocumentDiagnosticReport { result_id: "result-42".into() },
+		}));
+
+		let (outcome, related) = extract_pull_diagnostics(result);
+		assert!(related.is_empty());
+		match outcome {
+			PullDiagnosticOutcome::Unchanged { result_id } => {
+				assert_eq!(result_id, "result-42");
+			}
+			other => panic!("expected Unchanged, got {other:?}"),
+		}
+	}
+
+	/// Partial results yield `Failed` primary (no primary report) and related docs are returned separately.
+	#[test]
+	fn pull_diagnostics_partial_returns_related_separately() {
+		use std::str::FromStr;
+
+		use xeno_lsp::lsp_types::*;
+
+		let mut related = std::collections::HashMap::new();
+		related.insert(
+			Uri::from_str("file:///a.rs").unwrap(),
+			DocumentDiagnosticReportKind::Full(FullDocumentDiagnosticReport {
+				result_id: None,
+				items: vec![Diagnostic {
+					message: "error in a.rs".into(),
+					..Default::default()
+				}],
+			}),
+		);
+		related.insert(
+			Uri::from_str("file:///b.rs").unwrap(),
+			DocumentDiagnosticReportKind::Unchanged(UnchangedDocumentDiagnosticReport { result_id: "old-b".into() }),
+		);
+
+		let result = DocumentDiagnosticReportResult::Partial(DocumentDiagnosticReportPartialResult {
+			related_documents: Some(related),
+		});
+
+		let (outcome, related_out) = extract_pull_diagnostics(result);
+		assert!(matches!(outcome, PullDiagnosticOutcome::Failed), "partial has no primary, expect Failed");
+		assert_eq!(related_out.len(), 2, "both related docs returned");
+
+		// Only Full entries have diagnostics to apply.
+		let full_count = related_out.iter().filter(|(_, k)| matches!(k, DocumentDiagnosticReportKind::Full(_))).count();
+		assert_eq!(full_count, 1);
+	}
+
+	/// Full reports with related_documents return primary diagnostics + related separately.
+	#[test]
+	fn pull_diagnostics_full_with_related() {
+		use std::str::FromStr;
+
+		use xeno_lsp::lsp_types::*;
+
+		let mut related = std::collections::HashMap::new();
+		related.insert(
+			Uri::from_str("file:///dep.rs").unwrap(),
+			DocumentDiagnosticReportKind::Full(FullDocumentDiagnosticReport {
+				result_id: Some("dep-1".into()),
+				items: vec![Diagnostic {
+					message: "dep error".into(),
+					..Default::default()
+				}],
+			}),
+		);
+
+		let result = DocumentDiagnosticReportResult::Report(DocumentDiagnosticReport::Full(RelatedFullDocumentDiagnosticReport {
+			related_documents: Some(related),
+			full_document_diagnostic_report: FullDocumentDiagnosticReport {
+				result_id: Some("main-1".into()),
+				items: vec![Diagnostic {
+					message: "main error".into(),
+					..Default::default()
+				}],
+			},
+		}));
+
+		let (outcome, related_out) = extract_pull_diagnostics(result);
+		match outcome {
+			PullDiagnosticOutcome::Full { result_id, diagnostics } => {
+				assert_eq!(result_id.as_deref(), Some("main-1"));
+				assert_eq!(diagnostics.len(), 1);
+				assert_eq!(diagnostics[0].message, "main error");
+			}
+			other => panic!("expected Full, got {other:?}"),
+		}
+		assert_eq!(related_out.len(), 1, "related doc returned separately");
+	}
 }

@@ -82,7 +82,7 @@ fn signature_help_anchor(editor: &Editor, buffer_id: ViewId) -> PopupAnchor {
 		return PopupAnchor::Center;
 	};
 	let tab_width = editor.tab_width_for(buffer_id);
-	let Some((row, col)) = buffer.doc_to_screen_position(buffer.cursor, tab_width) else {
+	let Some((row, col)) = buffer.doc_to_screen_position(buffer.cursor, tab_width, None) else {
 		return PopupAnchor::Center;
 	};
 	let view_area = editor.focused_view_area();

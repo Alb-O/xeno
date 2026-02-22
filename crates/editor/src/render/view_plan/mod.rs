@@ -77,6 +77,9 @@ impl Editor {
 			syntax_manager: self.syntax_manager(),
 			diagnostics: render_ctx.lsp.diagnostics_for(view),
 			diagnostic_ranges: render_ctx.lsp.diagnostic_ranges_for(view),
+			inlay_hints: render_ctx.lsp.inlay_hints_for(view),
+			#[cfg(feature = "lsp")]
+			semantic_tokens: render_ctx.lsp.semantic_tokens_for(view),
 		};
 
 		let result = buffer_ctx.render_buffer(buffer, area, use_block_cursor, is_focused, tab_width, cursorline, &mut cache);

@@ -198,6 +198,12 @@ pub struct DocumentSync {
 	documents: Arc<DocumentStateManager>,
 	/// Optional sender for routing workspace/applyEdit requests to the editor.
 	apply_edit_tx: Option<ApplyEditSender>,
+	/// Flag for `workspace/inlayHint/refresh` — polled by editor tick to invalidate all inlay hint caches.
+	inlay_hint_refresh: Arc<std::sync::atomic::AtomicBool>,
+	/// Flag for `workspace/diagnostic/refresh` — polled by editor tick to re-pull diagnostics.
+	diagnostic_refresh: Arc<std::sync::atomic::AtomicBool>,
+	/// Flag for `workspace/semanticTokens/refresh` — polled by editor tick to invalidate semantic token caches.
+	semantic_tokens_refresh: Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl DocumentSync {
@@ -207,6 +213,9 @@ impl DocumentSync {
 			registry,
 			documents,
 			apply_edit_tx: None,
+			inlay_hint_refresh: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+			diagnostic_refresh: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+			semantic_tokens_refresh: Arc::new(std::sync::atomic::AtomicBool::new(false)),
 		}
 	}
 
@@ -220,6 +229,9 @@ impl DocumentSync {
 			registry: registry.clone(),
 			documents: documents.clone(),
 			apply_edit_tx: None,
+			inlay_hint_refresh: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+			diagnostic_refresh: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+			semantic_tokens_refresh: Arc::new(std::sync::atomic::AtomicBool::new(false)),
 		};
 
 		(sync, registry, documents, event_receiver)
@@ -542,6 +554,42 @@ impl DocumentSync {
 	/// Returns a reference to the apply-edit sender, if configured.
 	pub fn apply_edit_sender(&self) -> Option<&ApplyEditSender> {
 		self.apply_edit_tx.as_ref()
+	}
+
+	/// Signals that inlay hint caches should be invalidated (triggered by `workspace/inlayHint/refresh`).
+	pub fn signal_inlay_hint_refresh(&self) {
+		self.inlay_hint_refresh.store(true, std::sync::atomic::Ordering::Release);
+	}
+
+	/// Polls and clears the inlay hint refresh flag.
+	///
+	/// Returns `true` if a refresh was signaled since the last poll.
+	pub fn take_inlay_hint_refresh(&self) -> bool {
+		self.inlay_hint_refresh.swap(false, std::sync::atomic::Ordering::AcqRel)
+	}
+
+	/// Signals that pull diagnostic caches should be invalidated (triggered by `workspace/diagnostic/refresh`).
+	pub fn signal_diagnostic_refresh(&self) {
+		self.diagnostic_refresh.store(true, std::sync::atomic::Ordering::Release);
+	}
+
+	/// Polls and clears the diagnostic refresh flag.
+	///
+	/// Returns `true` if a refresh was signaled since the last poll.
+	pub fn take_diagnostic_refresh(&self) -> bool {
+		self.diagnostic_refresh.swap(false, std::sync::atomic::Ordering::AcqRel)
+	}
+
+	/// Signals that semantic token caches should be invalidated (triggered by `workspace/semanticTokens/refresh`).
+	pub fn signal_semantic_tokens_refresh(&self) {
+		self.semantic_tokens_refresh.store(true, std::sync::atomic::Ordering::Release);
+	}
+
+	/// Polls and clears the semantic tokens refresh flag.
+	///
+	/// Returns `true` if a refresh was signaled since the last poll.
+	pub fn take_semantic_tokens_refresh(&self) -> bool {
+		self.semantic_tokens_refresh.swap(false, std::sync::atomic::Ordering::AcqRel)
 	}
 
 	/// Returns the language server registry used by this controller.

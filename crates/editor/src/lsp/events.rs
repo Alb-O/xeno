@@ -1,5 +1,7 @@
 //! LSP UI event handling (completions, signature help).
 
+use std::sync::Arc;
+
 use xeno_lsp::lsp_types::{CompletionList, CompletionResponse};
 use xeno_primitives::CharIdx;
 
@@ -9,6 +11,7 @@ use crate::Editor;
 use crate::buffer::ViewId;
 use crate::completion::{CompletionItem, CompletionState, SelectionIntent};
 use crate::info_popup::PopupAnchor;
+use crate::render::InlayHintRangeMap;
 use crate::render_api::CompletionKind;
 
 pub enum LspUiEvent {
@@ -26,6 +29,42 @@ pub enum LspUiEvent {
 		contents: String,
 		anchor: PopupAnchor,
 	},
+	InlayHintResult {
+		generation: u64,
+		buffer_id: ViewId,
+		doc_rev: u64,
+		line_lo: usize,
+		line_hi: usize,
+		hints: Arc<InlayHintRangeMap>,
+	},
+	PullDiagnosticResult {
+		buffer_id: ViewId,
+		doc_rev: u64,
+		outcome: PullDiagnosticOutcome,
+	},
+	SemanticTokensResult {
+		generation: u64,
+		epoch: u64,
+		buffer_id: ViewId,
+		doc_rev: u64,
+		line_lo: usize,
+		line_hi: usize,
+		tokens: Arc<super::semantic_tokens::SemanticTokenSpans>,
+	},
+}
+
+/// Outcome of a pull diagnostics request.
+#[derive(Debug)]
+pub(crate) enum PullDiagnosticOutcome {
+	/// Server returned a full diagnostic report.
+	Full {
+		result_id: Option<String>,
+		diagnostics: Vec<xeno_lsp::lsp_types::Diagnostic>,
+	},
+	/// Server indicates diagnostics are unchanged since `result_id`.
+	Unchanged { result_id: String },
+	/// Request failed — allow retry on next tick.
+	Failed,
 }
 
 impl Editor {
@@ -54,10 +93,57 @@ impl Editor {
 	/// after `replace_start` (allowing continued typing without dismissing the menu).
 	/// Stale results from cancelled requests are silently discarded.
 	fn handle_lsp_ui_event(&mut self, event: LspUiEvent) {
-		if self.state.ui.overlay_system.interaction().is_open() {
-			return;
+		// Inlay hint + pull diagnostic results are always processed (even with overlay open).
+		match event {
+			LspUiEvent::InlayHintResult {
+				generation,
+				buffer_id,
+				doc_rev,
+				line_lo,
+				line_hi,
+				hints,
+			} => {
+				let current_gen = self.state.ui.inlay_hint_cache.generation(buffer_id);
+				if generation >= current_gen {
+					self.state.ui.inlay_hint_cache.insert(buffer_id, doc_rev, line_lo, line_hi, generation, hints);
+					self.state.core.frame.needs_redraw = true;
+				}
+				return;
+			}
+			LspUiEvent::PullDiagnosticResult { buffer_id, doc_rev, outcome } => {
+				self.handle_pull_diagnostic_result(buffer_id, doc_rev, &outcome);
+				return;
+			}
+			LspUiEvent::SemanticTokensResult {
+				generation,
+				epoch,
+				buffer_id,
+				doc_rev,
+				line_lo,
+				line_hi,
+				tokens,
+			} => {
+				let current_gen = self.state.ui.semantic_token_cache.generation(buffer_id);
+				if generation >= current_gen {
+					self.state
+						.ui
+						.semantic_token_cache
+						.insert(buffer_id, doc_rev, line_lo, line_hi, generation, epoch, tokens);
+					self.state.core.frame.needs_redraw = true;
+				}
+				return;
+			}
+			other => {
+				// Fall through for completion/signature help, which need overlay check.
+				if self.state.ui.overlay_system.interaction().is_open() {
+					return;
+				}
+				self.handle_lsp_ui_event_inner(other);
+			}
 		}
+	}
 
+	fn handle_lsp_ui_event_inner(&mut self, event: LspUiEvent) {
 		match event {
 			LspUiEvent::CompletionResult {
 				generation,
@@ -131,6 +217,28 @@ impl Editor {
 					return;
 				}
 				self.open_info_popup(contents, Some("markdown"), anchor);
+			}
+			// Handled before the overlay-open check above.
+			LspUiEvent::InlayHintResult { .. } | LspUiEvent::PullDiagnosticResult { .. } | LspUiEvent::SemanticTokensResult { .. } => {
+				unreachable!()
+			}
+		}
+	}
+
+	/// Processes a pull diagnostic result, updating state and requesting redraw.
+	fn handle_pull_diagnostic_result(&mut self, buffer_id: ViewId, doc_rev: u64, outcome: &PullDiagnosticOutcome) {
+		match outcome {
+			PullDiagnosticOutcome::Full { result_id, .. } => {
+				// Diagnostics already applied to DocumentStateManager in the spawned task.
+				self.state.ui.pull_diag_state.record_full(buffer_id, doc_rev, result_id.clone());
+				self.state.core.frame.needs_redraw = true;
+			}
+			PullDiagnosticOutcome::Unchanged { result_id } => {
+				// No diagnostics to apply — keep existing.
+				self.state.ui.pull_diag_state.record_unchanged(buffer_id, doc_rev, result_id.clone());
+			}
+			PullDiagnosticOutcome::Failed => {
+				self.state.ui.pull_diag_state.record_failed(buffer_id);
 			}
 		}
 	}

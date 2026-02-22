@@ -2,6 +2,7 @@
 
 use std::path::Path;
 
+use unicode_width::UnicodeWidthChar;
 use xeno_primitives::{Rope, Style};
 use xeno_registry::gutter::GutterAnnotations;
 
@@ -14,6 +15,21 @@ use super::shaper::{GlyphVirtual, SegmentGlyphIter};
 use super::span_builder::SpanRunBuilder;
 use crate::render::RenderLine;
 use crate::render::wrap::WrappedSegment;
+
+/// Truncates text to fit within `max_cols` display columns.
+///
+/// Returns the truncated string and the actual number of columns used.
+fn truncate_to_cols(text: &str, max_cols: usize) -> (&str, usize) {
+	let mut cols = 0;
+	for (i, ch) in text.char_indices() {
+		let w = UnicodeWidthChar::width(ch).unwrap_or(0);
+		if cols + w > max_cols {
+			return (&text[..i], cols);
+		}
+		cols += w;
+	}
+	(text, cols)
+}
 
 /// Input data for rendering a single visual row.
 ///
@@ -77,7 +93,41 @@ impl TextRowRenderer {
 				let shaper = SegmentGlyphIter::new(input.doc_content, line, segment, input.tab_width, text_width);
 				let mut cols_used = 0;
 
+				let inlays = input.ctx.inlay_hints_for_line(line.line_idx);
+				let inlay_style = if !inlays.is_empty() { Some(input.ctx.inlay_hint_style()) } else { None };
+				let inlay_spans = inlays.spans();
+				let mut next_inlay = 0;
+
 				for glyph in shaper {
+					// Inject inlay hints at this position (before the doc glyph).
+					if !matches!(glyph.virtual_kind, GlyphVirtual::Layout) {
+						while next_inlay < inlay_spans.len() && inlay_spans[next_inlay].pos_char == glyph.line_char_off {
+							let hint = &inlay_spans[next_inlay];
+							let style = inlay_style.unwrap_or_default();
+							if hint.pad_left && cols_used < text_width {
+								builder.push_text(style, " ");
+								cols_used += 1;
+							}
+							let remaining = text_width.saturating_sub(cols_used);
+							if remaining > 0 {
+								let (truncated, actual_cols) = truncate_to_cols(&hint.text, remaining);
+								if actual_cols > 0 {
+									builder.push_text(style, truncated);
+									cols_used += actual_cols;
+								}
+							}
+							if hint.pad_right && cols_used < text_width {
+								builder.push_text(style, " ");
+								cols_used += 1;
+							}
+							next_inlay += 1;
+						}
+					}
+
+					if cols_used >= text_width {
+						break;
+					}
+
 					let (syntax_style, in_selection, cursor_kind) = match glyph.virtual_kind {
 						GlyphVirtual::Layout => {
 							let seg_selected =
@@ -120,6 +170,31 @@ impl TextRowRenderer {
 
 					builder.push_text(style, &render_safe_char(glyph.ch).to_string());
 					cols_used += glyph.width;
+				}
+
+				// Inject any remaining inlay hints at or beyond the last glyph position.
+				if input.is_last_segment {
+					while next_inlay < inlay_spans.len() && cols_used < text_width {
+						let hint = &inlay_spans[next_inlay];
+						let style = inlay_style.unwrap_or_default();
+						if hint.pad_left && cols_used < text_width {
+							builder.push_text(style, " ");
+							cols_used += 1;
+						}
+						let remaining = text_width.saturating_sub(cols_used);
+						if remaining > 0 {
+							let (truncated, actual_cols) = truncate_to_cols(&hint.text, remaining);
+							if actual_cols > 0 {
+								builder.push_text(style, truncated);
+								cols_used += actual_cols;
+							}
+						}
+						if hint.pad_right && cols_used < text_width {
+							builder.push_text(style, " ");
+							cols_used += 1;
+						}
+						next_inlay += 1;
+					}
 				}
 
 				if cols_used < text_width && input.is_last_segment {

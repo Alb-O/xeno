@@ -24,7 +24,7 @@ pub fn client_capabilities(enable_snippets: bool) -> ClientCapabilities {
 			execute_command: Some(lsp_types::DynamicRegistrationClientCapabilities {
 				dynamic_registration: Some(false),
 			}),
-			inlay_hint: Some(lsp_types::InlayHintWorkspaceClientCapabilities { refresh_support: Some(false) }),
+			inlay_hint: Some(lsp_types::InlayHintWorkspaceClientCapabilities { refresh_support: Some(true) }),
 			workspace_edit: Some(lsp_types::WorkspaceEditClientCapabilities {
 				document_changes: Some(true),
 				resource_operations: Some(vec![
@@ -49,7 +49,8 @@ pub fn client_capabilities(enable_snippets: bool) -> ClientCapabilities {
 				did_delete: Some(true),
 				..Default::default()
 			}),
-			diagnostic: Some(lsp_types::DiagnosticWorkspaceClientCapabilities { refresh_support: Some(false) }),
+			semantic_tokens: Some(lsp_types::SemanticTokensWorkspaceClientCapabilities { refresh_support: Some(true) }),
+			diagnostic: Some(lsp_types::DiagnosticWorkspaceClientCapabilities { refresh_support: Some(true) }),
 			..Default::default()
 		}),
 		text_document: Some(TextDocumentClientCapabilities {
@@ -131,9 +132,67 @@ pub fn client_capabilities(enable_snippets: bool) -> ClientCapabilities {
 				}),
 				..Default::default()
 			}),
+			semantic_tokens: Some(lsp_types::SemanticTokensClientCapabilities {
+				dynamic_registration: Some(false),
+				requests: lsp_types::SemanticTokensClientCapabilitiesRequests {
+					full: Some(lsp_types::SemanticTokensFullOptions::Bool(true)),
+					range: Some(true),
+					..Default::default()
+				},
+				token_types: vec![
+					lsp_types::SemanticTokenType::NAMESPACE,
+					lsp_types::SemanticTokenType::TYPE,
+					lsp_types::SemanticTokenType::CLASS,
+					lsp_types::SemanticTokenType::ENUM,
+					lsp_types::SemanticTokenType::INTERFACE,
+					lsp_types::SemanticTokenType::STRUCT,
+					lsp_types::SemanticTokenType::TYPE_PARAMETER,
+					lsp_types::SemanticTokenType::PARAMETER,
+					lsp_types::SemanticTokenType::VARIABLE,
+					lsp_types::SemanticTokenType::PROPERTY,
+					lsp_types::SemanticTokenType::ENUM_MEMBER,
+					lsp_types::SemanticTokenType::EVENT,
+					lsp_types::SemanticTokenType::FUNCTION,
+					lsp_types::SemanticTokenType::METHOD,
+					lsp_types::SemanticTokenType::MACRO,
+					lsp_types::SemanticTokenType::KEYWORD,
+					lsp_types::SemanticTokenType::MODIFIER,
+					lsp_types::SemanticTokenType::COMMENT,
+					lsp_types::SemanticTokenType::STRING,
+					lsp_types::SemanticTokenType::NUMBER,
+					lsp_types::SemanticTokenType::REGEXP,
+					lsp_types::SemanticTokenType::OPERATOR,
+					lsp_types::SemanticTokenType::DECORATOR,
+				],
+				token_modifiers: vec![
+					lsp_types::SemanticTokenModifier::DECLARATION,
+					lsp_types::SemanticTokenModifier::DEFINITION,
+					lsp_types::SemanticTokenModifier::READONLY,
+					lsp_types::SemanticTokenModifier::STATIC,
+					lsp_types::SemanticTokenModifier::DEPRECATED,
+					lsp_types::SemanticTokenModifier::ABSTRACT,
+					lsp_types::SemanticTokenModifier::ASYNC,
+					lsp_types::SemanticTokenModifier::MODIFICATION,
+					lsp_types::SemanticTokenModifier::DOCUMENTATION,
+					lsp_types::SemanticTokenModifier::DEFAULT_LIBRARY,
+				],
+				formats: vec![lsp_types::TokenFormat::RELATIVE],
+				overlapping_token_support: Some(false),
+				multiline_token_support: Some(false),
+				server_cancel_support: Some(false),
+				augments_syntax_tokens: Some(true),
+			}),
 			inlay_hint: Some(lsp_types::InlayHintClientCapabilities {
 				dynamic_registration: Some(false),
-				resolve_support: None,
+				resolve_support: Some(lsp_types::InlayHintResolveClientCapabilities {
+					properties: vec![
+						"label.location".to_owned(),
+						"label.command".to_owned(),
+						"label.tooltip".to_owned(),
+						"tooltip".to_owned(),
+						"textEdits".to_owned(),
+					],
+				}),
 			}),
 			..Default::default()
 		}),

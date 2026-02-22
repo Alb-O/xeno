@@ -221,6 +221,115 @@ impl Editor {
 			.record_lsp_tick(stats.full_syncs, stats.incremental_syncs, stats.snapshot_bytes);
 	}
 
+	/// Requests inlay hints for visible buffers whose cache is stale.
+	///
+	/// Only requests hints for buffers in the active layout (visible on screen).
+	/// Uses in-flight tracking to prevent duplicate requests for the same buffer.
+	#[cfg(feature = "lsp")]
+	pub(super) fn tick_inlay_hints(&mut self) {
+		// Check refresh signal first.
+		if self.state.integration.lsp.sync().take_inlay_hint_refresh() {
+			self.state.ui.inlay_hint_cache.invalidate_all();
+		}
+
+		let viewport_height = self.state.core.viewport.height.unwrap_or(24) as usize;
+		let visible_ids = self.base_window().layout.buffer_ids();
+
+		for &buffer_id in &visible_ids {
+			let Some(buffer) = self.state.core.editor.buffers.get_buffer(buffer_id) else {
+				continue;
+			};
+			let scroll_line = buffer.scroll_line;
+			let doc_rev = buffer.version();
+			let line_lo = scroll_line;
+			let line_hi = scroll_line + viewport_height + 2;
+
+			if self.state.ui.inlay_hint_cache.get(buffer_id, doc_rev, line_lo, line_hi).is_some() {
+				continue;
+			}
+
+			if self.state.ui.inlay_hint_cache.is_in_flight(buffer_id) {
+				continue;
+			}
+
+			let generation = self.state.ui.inlay_hint_cache.bump_generation(buffer_id);
+			self.state.ui.inlay_hint_cache.mark_in_flight(buffer_id, generation);
+			self.state.integration.lsp.request_inlay_hints(buffer, generation, line_lo, line_hi);
+		}
+	}
+
+	/// Requests pull diagnostics for visible buffers whose servers support it.
+	///
+	/// Uses `PullDiagState` for in-flight tracking, doc version checks, and
+	/// `previous_result_id` propagation. Failed requests are retried on next tick.
+	///
+	/// Results arrive via `PullDiagnosticResult` UI event and are fed into the
+	/// existing diagnostics rendering pipeline.
+	#[cfg(feature = "lsp")]
+	pub(super) fn tick_pull_diagnostics(&mut self) {
+		if self.state.integration.lsp.sync().take_diagnostic_refresh() {
+			self.state.ui.pull_diag_state.invalidate_all();
+		}
+
+		let visible_ids = self.base_window().layout.buffer_ids();
+
+		for &buffer_id in &visible_ids {
+			let Some(buffer) = self.state.core.editor.buffers.get_buffer(buffer_id) else {
+				continue;
+			};
+
+			let doc_rev = buffer.version();
+			if !self.state.ui.pull_diag_state.needs_request(buffer_id, doc_rev) {
+				continue;
+			}
+
+			let prev_id = self.state.ui.pull_diag_state.previous_result_id(buffer_id);
+			self.state.ui.pull_diag_state.mark_in_flight(buffer_id);
+			self.state.integration.lsp.request_pull_diagnostics(buffer, doc_rev, prev_id);
+		}
+	}
+
+	/// Requests semantic tokens for visible buffers whose cache is stale.
+	///
+	/// Mirrors the inlay hints tick: checks refresh signal, iterates visible
+	/// buffers, and spawns requests for any buffer without a valid cache entry.
+	#[cfg(feature = "lsp")]
+	pub(super) fn tick_semantic_tokens(&mut self) {
+		if self.state.integration.lsp.sync().take_semantic_tokens_refresh() {
+			self.state.ui.semantic_token_cache.invalidate_all();
+		}
+
+		let viewport_height = self.state.core.viewport.height.unwrap_or(24) as usize;
+		let visible_ids = self.base_window().layout.buffer_ids();
+		let syntax_styles = self.state.config.config.theme.colors.syntax;
+
+		for &buffer_id in &visible_ids {
+			let Some(buffer) = self.state.core.editor.buffers.get_buffer(buffer_id) else {
+				continue;
+			};
+			let scroll_line = buffer.scroll_line;
+			let doc_rev = buffer.version();
+			let line_lo = scroll_line;
+			let line_hi = scroll_line + viewport_height + 2;
+
+			if self.state.ui.semantic_token_cache.get(buffer_id, doc_rev, line_lo, line_hi).is_some() {
+				continue;
+			}
+
+			if self.state.ui.semantic_token_cache.is_in_flight(buffer_id) {
+				continue;
+			}
+
+			let generation = self.state.ui.semantic_token_cache.bump_generation(buffer_id);
+			let epoch = self.state.ui.semantic_token_cache.epoch();
+			self.state.ui.semantic_token_cache.mark_in_flight(buffer_id, generation);
+			self.state
+				.integration
+				.lsp
+				.request_semantic_tokens(buffer, generation, epoch, line_lo, line_hi, move |scope| Some(syntax_styles.resolve(scope)));
+		}
+	}
+
 	/// Queues an immediate LSP change and returns a receiver for write completion.
 	#[cfg(feature = "lsp")]
 	pub(super) fn queue_lsp_change_immediate(&mut self, buffer_id: crate::buffer::ViewId) -> Option<oneshot::Receiver<()>> {
