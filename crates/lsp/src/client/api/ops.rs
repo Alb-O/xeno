@@ -438,6 +438,44 @@ impl ClientHandle {
 			.await
 	}
 
+	/// Notify the server that files will be created, allowing it to return edits
+	/// to apply before the creation.
+	pub async fn will_create_files(&self, files: Vec<lsp_types::FileCreate>) -> Result<Option<lsp_types::WorkspaceEdit>> {
+		if !self.supports_will_create_files() {
+			return Ok(None);
+		}
+		self.request::<lsp_types::request::WillCreateFiles>(lsp_types::CreateFilesParams { files })
+			.await
+	}
+
+	/// Notify the server that files were created.
+	pub async fn did_create_files(&self, files: Vec<lsp_types::FileCreate>) -> Result<()> {
+		if !self.supports_did_create_files() {
+			return Ok(());
+		}
+		self.notify::<lsp_types::notification::DidCreateFiles>(lsp_types::CreateFilesParams { files })
+			.await
+	}
+
+	/// Notify the server that files will be deleted, allowing it to return edits
+	/// to apply before the deletion.
+	pub async fn will_delete_files(&self, files: Vec<lsp_types::FileDelete>) -> Result<Option<lsp_types::WorkspaceEdit>> {
+		if !self.supports_will_delete_files() {
+			return Ok(None);
+		}
+		self.request::<lsp_types::request::WillDeleteFiles>(lsp_types::DeleteFilesParams { files })
+			.await
+	}
+
+	/// Notify the server that files were deleted.
+	pub async fn did_delete_files(&self, files: Vec<lsp_types::FileDelete>) -> Result<()> {
+		if !self.supports_did_delete_files() {
+			return Ok(());
+		}
+		self.notify::<lsp_types::notification::DidDeleteFiles>(lsp_types::DeleteFilesParams { files })
+			.await
+	}
+
 	/// Execute a command on the server.
 	pub async fn execute_command(&self, command: String, arguments: Option<Vec<Value>>) -> Result<Option<Value>> {
 		if !self.supports_execute_command() {

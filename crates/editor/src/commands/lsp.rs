@@ -498,6 +498,46 @@ fn cmd_rename_file<'a>(ctx: &'a mut EditorCommandContext<'a>) -> BoxFutureLocal<
 	})
 }
 
+editor_command!(
+	create_file,
+	{
+		keys: &["create-file", "new-file", "touch"],
+		description: "Create a new file on disk and open it",
+		mutates_buffer: true
+	},
+	handler: cmd_create_file
+);
+
+fn cmd_create_file<'a>(ctx: &'a mut EditorCommandContext<'a>) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
+	Box::pin(async move {
+		let name = ctx
+			.args
+			.first()
+			.ok_or_else(|| CommandError::InvalidArgument("Usage: create-file <path>".into()))?;
+		let path = std::path::PathBuf::from(name);
+
+		ctx.editor.create_file(path).await?;
+		Ok(CommandOutcome::Ok)
+	})
+}
+
+editor_command!(
+	delete_file,
+	{
+		keys: &["delete-file", "rm"],
+		description: "Delete the current file from disk",
+		mutates_buffer: true
+	},
+	handler: cmd_delete_file
+);
+
+fn cmd_delete_file<'a>(ctx: &'a mut EditorCommandContext<'a>) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
+	Box::pin(async move {
+		ctx.editor.delete_current_file().await?;
+		Ok(CommandOutcome::Ok)
+	})
+}
+
 impl Editor {
 	fn open_locations_menu(&mut self, locations: Vec<xeno_lsp::lsp_types::Location>, encoding: xeno_lsp::OffsetEncoding) {
 		use crate::completion::{CompletionItem, CompletionState};

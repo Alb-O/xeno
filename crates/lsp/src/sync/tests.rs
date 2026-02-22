@@ -285,7 +285,7 @@ struct RecordedMessage {
 	server_id: LanguageServerId,
 	method: String,
 	uri: Option<String>,
-	is_request: bool,
+	_is_request: bool,
 }
 
 /// Transport that records notification/request methods, server ids, and URIs in order.
@@ -340,7 +340,7 @@ impl RecordingTransport {
 			server_id,
 			method: notif.method.clone(),
 			uri,
-			is_request: false,
+			_is_request: false,
 		});
 		if self.fail_methods.lock().unwrap().contains(&notif.method) {
 			return Err(crate::Error::Protocol(format!("injected failure for {}", notif.method)));
@@ -353,7 +353,7 @@ impl RecordingTransport {
 			server_id,
 			method: req.method.clone(),
 			uri: None,
-			is_request: true,
+			_is_request: true,
 		});
 	}
 }
@@ -1230,6 +1230,165 @@ async fn rename_file_no_capability_skips_will_and_did() {
 		!methods.iter().any(|m| m.contains("Rename")),
 		"no rename messages should be sent without capability; methods: {methods:?}"
 	);
+}
+
+/// Verifies the create-file sequence: willCreateFiles → didOpen → didCreateFiles.
+#[tokio::test]
+async fn create_file_sequence_will_open_did() {
+	use crate::registry::LanguageServerConfig;
+
+	let file_op_filter = lsp_types::FileOperationRegistrationOptions {
+		filters: vec![lsp_types::FileOperationFilter {
+			scheme: None,
+			pattern: lsp_types::FileOperationPattern {
+				glob: "**/*.rs".into(),
+				matches: None,
+				options: None,
+			},
+		}],
+	};
+	let caps = lsp_types::ServerCapabilities {
+		workspace: Some(lsp_types::WorkspaceServerCapabilities {
+			file_operations: Some(lsp_types::WorkspaceFileOperationsServerCapabilities {
+				will_create: Some(file_op_filter.clone()),
+				did_create: Some(file_op_filter),
+				..Default::default()
+			}),
+			..Default::default()
+		}),
+		..Default::default()
+	};
+
+	let transport = Arc::new(InitRecordingTransport::with_capabilities(caps));
+	transport.inner.set_request_response("workspace/willCreateFiles", serde_json::Value::Null);
+
+	let (sync, registry, _documents, _receiver) = DocumentSync::create(transport.clone());
+
+	registry.register(
+		"rust",
+		LanguageServerConfig {
+			command: "rust-analyzer".into(),
+			..Default::default()
+		},
+	);
+
+	// Open an existing file to acquire a client.
+	let existing = Path::new("/project/src/existing.rs");
+	sync.open_document(existing, "rust", &Rope::from("fn main() {}")).await.unwrap();
+	let client = registry.get("rust", existing).unwrap();
+	for _ in 0..100 {
+		if client.is_initialized() {
+			break;
+		}
+		tokio::task::yield_now().await;
+	}
+	assert!(client.is_initialized());
+
+	transport.inner.messages.lock().unwrap().clear();
+
+	let new_path = Path::new("/project/src/new_file.rs");
+	let new_uri = crate::uri_from_path(new_path).unwrap();
+
+	// 1. willCreateFiles
+	let _edit = client
+		.will_create_files(vec![lsp_types::FileCreate { uri: new_uri.to_string() }])
+		.await
+		.unwrap();
+
+	// 2. didOpen (via open_document)
+	sync.open_document(new_path, "rust", &Rope::from("")).await.unwrap();
+
+	// 3. didCreateFiles
+	client.did_create_files(vec![lsp_types::FileCreate { uri: new_uri.to_string() }]).await.unwrap();
+
+	let methods = transport.inner.recorded_methods();
+	let will_idx = methods.iter().position(|m| m == "workspace/willCreateFiles");
+	let open_idx = methods.iter().position(|m| m == "textDocument/didOpen");
+	let did_idx = methods.iter().position(|m| m == "workspace/didCreateFiles");
+
+	assert!(will_idx.is_some(), "willCreateFiles not sent; methods: {methods:?}");
+	assert!(open_idx.is_some(), "didOpen not sent; methods: {methods:?}");
+	assert!(did_idx.is_some(), "didCreateFiles not sent; methods: {methods:?}");
+
+	assert!(will_idx.unwrap() < open_idx.unwrap(), "willCreate must precede didOpen; methods: {methods:?}");
+	assert!(open_idx.unwrap() < did_idx.unwrap(), "didOpen must precede didCreate; methods: {methods:?}");
+}
+
+/// Verifies the delete-file sequence: willDeleteFiles → didClose → didDeleteFiles.
+#[tokio::test]
+async fn delete_file_sequence_will_close_did() {
+	use crate::registry::LanguageServerConfig;
+
+	let file_op_filter = lsp_types::FileOperationRegistrationOptions {
+		filters: vec![lsp_types::FileOperationFilter {
+			scheme: None,
+			pattern: lsp_types::FileOperationPattern {
+				glob: "**/*.rs".into(),
+				matches: None,
+				options: None,
+			},
+		}],
+	};
+	let caps = lsp_types::ServerCapabilities {
+		workspace: Some(lsp_types::WorkspaceServerCapabilities {
+			file_operations: Some(lsp_types::WorkspaceFileOperationsServerCapabilities {
+				will_delete: Some(file_op_filter.clone()),
+				did_delete: Some(file_op_filter),
+				..Default::default()
+			}),
+			..Default::default()
+		}),
+		..Default::default()
+	};
+
+	let transport = Arc::new(InitRecordingTransport::with_capabilities(caps));
+	transport.inner.set_request_response("workspace/willDeleteFiles", serde_json::Value::Null);
+
+	let (sync, registry, _documents, _receiver) = DocumentSync::create(transport.clone());
+
+	registry.register(
+		"rust",
+		LanguageServerConfig {
+			command: "rust-analyzer".into(),
+			..Default::default()
+		},
+	);
+
+	let path = Path::new("/project/src/delete_me.rs");
+	sync.open_document(path, "rust", &Rope::from("fn main() {}")).await.unwrap();
+	let client = registry.get("rust", path).unwrap();
+	for _ in 0..100 {
+		if client.is_initialized() {
+			break;
+		}
+		tokio::task::yield_now().await;
+	}
+	assert!(client.is_initialized());
+
+	transport.inner.messages.lock().unwrap().clear();
+
+	let uri = crate::uri_from_path(path).unwrap();
+
+	// 1. willDeleteFiles
+	let _edit = client.will_delete_files(vec![lsp_types::FileDelete { uri: uri.to_string() }]).await.unwrap();
+
+	// 2. didClose
+	sync.close_document(path, "rust").await.unwrap();
+
+	// 3. didDeleteFiles
+	client.did_delete_files(vec![lsp_types::FileDelete { uri: uri.to_string() }]).await.unwrap();
+
+	let methods = transport.inner.recorded_methods();
+	let will_idx = methods.iter().position(|m| m == "workspace/willDeleteFiles");
+	let close_idx = methods.iter().position(|m| m == "textDocument/didClose");
+	let did_idx = methods.iter().position(|m| m == "workspace/didDeleteFiles");
+
+	assert!(will_idx.is_some(), "willDeleteFiles not sent; methods: {methods:?}");
+	assert!(close_idx.is_some(), "didClose not sent; methods: {methods:?}");
+	assert!(did_idx.is_some(), "didDeleteFiles not sent; methods: {methods:?}");
+
+	assert!(will_idx.unwrap() < close_idx.unwrap(), "willDelete must precede didClose; methods: {methods:?}");
+	assert!(close_idx.unwrap() < did_idx.unwrap(), "didClose must precede didDelete; methods: {methods:?}");
 }
 
 /// Source-level invariant: no direct `ClientHandle.text_document_did_*` calls outside `crates/lsp/src/sync/`.

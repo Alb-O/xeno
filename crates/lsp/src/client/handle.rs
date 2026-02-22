@@ -226,6 +226,50 @@ impl ClientHandle {
 		})
 	}
 
+	/// Check if the server is interested in willCreateFiles requests.
+	pub fn supports_will_create_files(&self) -> bool {
+		self.capabilities().is_some_and(|c| {
+			c.workspace
+				.as_ref()
+				.and_then(|w| w.file_operations.as_ref())
+				.and_then(|fo| fo.will_create.as_ref())
+				.is_some()
+		})
+	}
+
+	/// Check if the server is interested in didCreateFiles notifications.
+	pub fn supports_did_create_files(&self) -> bool {
+		self.capabilities().is_some_and(|c| {
+			c.workspace
+				.as_ref()
+				.and_then(|w| w.file_operations.as_ref())
+				.and_then(|fo| fo.did_create.as_ref())
+				.is_some()
+		})
+	}
+
+	/// Check if the server is interested in willDeleteFiles requests.
+	pub fn supports_will_delete_files(&self) -> bool {
+		self.capabilities().is_some_and(|c| {
+			c.workspace
+				.as_ref()
+				.and_then(|w| w.file_operations.as_ref())
+				.and_then(|fo| fo.will_delete.as_ref())
+				.is_some()
+		})
+	}
+
+	/// Check if the server is interested in didDeleteFiles notifications.
+	pub fn supports_did_delete_files(&self) -> bool {
+		self.capabilities().is_some_and(|c| {
+			c.workspace
+				.as_ref()
+				.and_then(|w| w.file_operations.as_ref())
+				.and_then(|fo| fo.did_delete.as_ref())
+				.is_some()
+		})
+	}
+
 	/// Get the offset encoding negotiated with the server.
 	///
 	/// Returns the LSP default (UTF-16) if the server has not yet finished

@@ -150,29 +150,8 @@ impl Editor {
 				if let (Some(client), Some(rename)) = (&client, &file_rename) {
 					match client.will_rename_files(vec![rename.clone()]).await {
 						Ok(Some(edit)) => {
-							// Filter resource operations from document_changes to avoid
-							// double-renames. Only keep text edits.
-							let document_changes = edit.document_changes.and_then(|dcs| match dcs {
-								xeno_lsp::lsp_types::DocumentChanges::Edits(edits) => Some(xeno_lsp::lsp_types::DocumentChanges::Edits(edits)),
-								xeno_lsp::lsp_types::DocumentChanges::Operations(ops) => {
-									let text_ops: Vec<_> = ops
-										.into_iter()
-										.filter(|op| matches!(op, xeno_lsp::lsp_types::DocumentChangeOperation::Edit(_)))
-										.collect();
-									if text_ops.is_empty() {
-										None
-									} else {
-										Some(xeno_lsp::lsp_types::DocumentChanges::Operations(text_ops))
-									}
-								}
-							});
-							let text_only = xeno_lsp::lsp_types::WorkspaceEdit {
-								changes: edit.changes,
-								document_changes,
-								change_annotations: edit.change_annotations,
-							};
-							let has_edits = text_only.changes.as_ref().is_some_and(|c| !c.is_empty()) || text_only.document_changes.is_some();
-							if has_edits {
+							let text_only = Self::filter_text_only_edit(edit);
+							if text_only.changes.as_ref().is_some_and(|c| !c.is_empty()) || text_only.document_changes.is_some() {
 								if let Err(e) = self.apply_workspace_edit(text_only).await {
 									warn!(error = %e.error, "willRenameFiles workspace edit failed");
 								}
@@ -230,6 +209,205 @@ impl Editor {
 
 			Ok(())
 		})
+	}
+
+	/// Creates a new file on disk and opens it in the editor.
+	///
+	/// Sends `workspace/willCreateFiles` before creation and
+	/// `workspace/didCreateFiles` after. If the file already exists, opens it
+	/// without sending LSP file operation hooks.
+	pub fn create_file(&mut self, path: PathBuf) -> BoxFutureLocal<'_, Result<(), CommandError>> {
+		Box::pin(async move {
+			// Resolve relative to current buffer's parent or cwd.
+			let path = if path.is_relative() {
+				let base = self
+					.buffer()
+					.path()
+					.and_then(|p| p.parent().map(|pp| pp.to_path_buf()))
+					.unwrap_or_else(|| std::path::PathBuf::from("."));
+				base.join(&path)
+			} else {
+				path
+			};
+
+			// If file already exists, just open it (no LSP create hooks).
+			if path.exists() {
+				let _ = self.open_file(path).await.map_err(|e| CommandError::Failed(e.to_string()))?;
+				return Ok(());
+			}
+
+			// Derive language from target path for LSP client lookup.
+			#[cfg(feature = "lsp")]
+			let abs_path = self.state.integration.lsp.canonicalize_path(&path);
+			#[cfg(feature = "lsp")]
+			let target_language = self
+				.state
+				.config
+				.config
+				.language_loader
+				.language_for_path(&path)
+				.and_then(|id| self.state.config.config.language_loader.get(id))
+				.map(|l| l.name().to_string());
+			#[cfg(feature = "lsp")]
+			let file_create = xeno_lsp::uri_from_path(&abs_path).map(|u| xeno_lsp::lsp_types::FileCreate { uri: u.to_string() });
+
+			// Ask server for edits before file creation.
+			#[cfg(feature = "lsp")]
+			let lsp_client = {
+				let client = target_language
+					.as_deref()
+					.and_then(|lang| self.state.integration.lsp.sync().registry().get(lang, &abs_path).filter(|c| c.is_ready()));
+				if let (Some(client), Some(fc)) = (&client, &file_create) {
+					match client.will_create_files(vec![fc.clone()]).await {
+						Ok(Some(edit)) => {
+							let text_only = Self::filter_text_only_edit(edit);
+							if text_only.changes.as_ref().is_some_and(|c| !c.is_empty()) || text_only.document_changes.is_some() {
+								if let Err(e) = self.apply_workspace_edit(text_only).await {
+									warn!(error = %e.error, "willCreateFiles workspace edit failed");
+								}
+							}
+						}
+						Err(e) => warn!(error = %e, "willCreateFiles request failed"),
+						_ => {}
+					}
+				}
+				client
+			};
+
+			// Create parent directories + file.
+			if let Some(parent) = path.parent()
+				&& !parent.as_os_str().is_empty()
+			{
+				tokio::fs::create_dir_all(parent).await.map_err(|e| CommandError::Io(e.to_string()))?;
+			}
+			// Use create_new to avoid TOCTOU clobber if file appeared between exists() check and here.
+			match tokio::fs::OpenOptions::new().write(true).create_new(true).open(&path).await {
+				Ok(_) => {}
+				Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+					// Race: file appeared; just open it (skip didCreateFiles).
+					let _ = self.open_file(path).await.map_err(|e| CommandError::Failed(e.to_string()))?;
+					return Ok(());
+				}
+				Err(e) => return Err(CommandError::Io(e.to_string())),
+			}
+
+			// Open the file in the editor (triggers didOpen via LSP tracking).
+			let _ = self.open_file(path).await.map_err(|e| CommandError::Failed(e.to_string()))?;
+
+			// Notify server after didOpen so sequence is: willCreate → didOpen → didCreate.
+			#[cfg(feature = "lsp")]
+			if let (Some(client), Some(fc)) = (lsp_client, file_create) {
+				if let Err(e) = client.did_create_files(vec![fc]).await {
+					warn!(error = %e, "didCreateFiles notification failed");
+				}
+			}
+
+			Ok(())
+		})
+	}
+
+	/// Deletes the current buffer's file from disk.
+	///
+	/// Sends `workspace/willDeleteFiles` before deletion and
+	/// `workspace/didDeleteFiles` after. The buffer's LSP document is
+	/// explicitly closed before the didDelete notification to ensure
+	/// `didClose` precedes `didDeleteFiles`.
+	pub fn delete_current_file(&mut self) -> BoxFutureLocal<'_, Result<(), CommandError>> {
+		Box::pin(async move {
+			let path = self
+				.buffer()
+				.path()
+				.map(|p| p.to_path_buf())
+				.ok_or_else(|| CommandError::InvalidArgument("Buffer has no file path".into()))?;
+
+			if self.buffer().modified() {
+				return Err(CommandError::Failed("Buffer has unsaved changes".into()));
+			}
+
+			// Canonicalize BEFORE deletion (while file still exists).
+			#[cfg(feature = "lsp")]
+			let abs_path = self.state.integration.lsp.canonicalize_path(&path);
+			#[cfg(feature = "lsp")]
+			let language = self.buffer().file_type().map(|s| s.to_string());
+			#[cfg(feature = "lsp")]
+			let file_delete = xeno_lsp::uri_from_path(&abs_path).map(|u| xeno_lsp::lsp_types::FileDelete { uri: u.to_string() });
+
+			// Ask server for text-only edits before deletion.
+			#[cfg(feature = "lsp")]
+			let lsp_client = {
+				let client = language
+					.as_deref()
+					.and_then(|lang| self.state.integration.lsp.sync().registry().get(lang, &abs_path).filter(|c| c.is_ready()));
+				if let (Some(client), Some(fd)) = (&client, &file_delete) {
+					match client.will_delete_files(vec![fd.clone()]).await {
+						Ok(Some(edit)) => {
+							let text_only = Self::filter_text_only_edit(edit);
+							if text_only.changes.as_ref().is_some_and(|c| !c.is_empty()) || text_only.document_changes.is_some() {
+								if let Err(e) = self.apply_workspace_edit(text_only).await {
+									warn!(error = %e.error, "willDeleteFiles workspace edit failed");
+								}
+							}
+						}
+						Err(e) => warn!(error = %e, "willDeleteFiles request failed"),
+						_ => {}
+					}
+				}
+				client
+			};
+
+			// Delete the file from disk.
+			tokio::fs::remove_file(&path).await.map_err(|e| CommandError::Io(e.to_string()))?;
+
+			// Close LSP document explicitly (didClose) BEFORE didDeleteFiles.
+			#[cfg(feature = "lsp")]
+			if let Some(lang) = language.as_deref() {
+				if let Err(e) = self.state.integration.lsp.sync().close_document(&abs_path, lang).await {
+					warn!(error = %e, "LSP close_document after delete failed");
+				}
+			}
+
+			// Notify server that files were deleted.
+			#[cfg(feature = "lsp")]
+			if let (Some(client), Some(fd)) = (lsp_client, file_delete) {
+				if let Err(e) = client.did_delete_files(vec![fd]).await {
+					warn!(error = %e, "didDeleteFiles notification failed");
+				}
+			}
+
+			self.show_notification(xeno_registry::notifications::keys::info(format!("Deleted {}", path.display())));
+
+			// Close the buffer in editor state.
+			let buf_id = self.focused_view();
+			self.close_buffer(buf_id);
+
+			Ok(())
+		})
+	}
+
+	/// Filters a `WorkspaceEdit` to only include text edits, dropping
+	/// resource operations (create/rename/delete) to prevent double effects
+	/// when the editor manages the resource operation itself.
+	#[cfg(feature = "lsp")]
+	fn filter_text_only_edit(edit: xeno_lsp::lsp_types::WorkspaceEdit) -> xeno_lsp::lsp_types::WorkspaceEdit {
+		let document_changes = edit.document_changes.and_then(|dcs| match dcs {
+			xeno_lsp::lsp_types::DocumentChanges::Edits(edits) => Some(xeno_lsp::lsp_types::DocumentChanges::Edits(edits)),
+			xeno_lsp::lsp_types::DocumentChanges::Operations(ops) => {
+				let text_ops: Vec<_> = ops
+					.into_iter()
+					.filter(|op| matches!(op, xeno_lsp::lsp_types::DocumentChangeOperation::Edit(_)))
+					.collect();
+				if text_ops.is_empty() {
+					None
+				} else {
+					Some(xeno_lsp::lsp_types::DocumentChanges::Operations(text_ops))
+				}
+			}
+		});
+		xeno_lsp::lsp_types::WorkspaceEdit {
+			changes: edit.changes,
+			document_changes,
+			change_annotations: edit.change_annotations,
+		}
 	}
 
 	/// Applies a loaded file to the editor.
@@ -538,5 +716,56 @@ mod tests {
 		let mut editor = Editor::new(path.clone()).await.expect("open");
 		editor.rename_current_file(path.clone()).await.expect("noop rename");
 		assert!(path.exists());
+	}
+
+	#[tokio::test]
+	async fn create_file_creates_on_disk_and_opens() {
+		let tmp = tempfile::tempdir().expect("temp dir");
+		let path = tmp.path().join("subdir/new_file.txt");
+
+		let mut editor = Editor::new_scratch();
+		editor.create_file(path.clone()).await.expect("create");
+
+		assert!(path.exists(), "file should be created on disk");
+		assert_eq!(std::fs::read_to_string(&path).unwrap(), "");
+	}
+
+	#[tokio::test]
+	async fn create_file_opens_existing_without_overwrite() {
+		let tmp = tempfile::tempdir().expect("temp dir");
+		let path = tmp.path().join("existing.txt");
+		std::fs::write(&path, "keep me\n").expect("write");
+
+		let mut editor = Editor::new_scratch();
+		editor.create_file(path.clone()).await.expect("create existing");
+
+		assert_eq!(std::fs::read_to_string(&path).unwrap(), "keep me\n", "existing content must be preserved");
+	}
+
+	#[tokio::test]
+	async fn delete_current_file_removes_from_disk() {
+		let tmp = tempfile::tempdir().expect("temp dir");
+		let path = tmp.path().join("delete_me.txt");
+		std::fs::write(&path, "goodbye\n").expect("write");
+
+		let mut editor = Editor::new(path.clone()).await.expect("open");
+		assert!(path.exists());
+
+		editor.delete_current_file().await.expect("delete");
+		assert!(!path.exists(), "file should be deleted from disk");
+	}
+
+	#[tokio::test]
+	async fn delete_current_file_rejects_modified_buffer() {
+		let tmp = tempfile::tempdir().expect("temp dir");
+		let path = tmp.path().join("modified_delete.txt");
+		std::fs::write(&path, "data\n").expect("write");
+
+		let mut editor = Editor::new(path.clone()).await.expect("open");
+		let _ = editor.buffer_mut().set_modified(true);
+
+		let result = editor.delete_current_file().await;
+		assert!(result.is_err(), "should reject modified buffer");
+		assert!(path.exists(), "file should remain on disk");
 	}
 }

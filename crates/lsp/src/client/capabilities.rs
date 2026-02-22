@@ -41,8 +41,12 @@ pub fn client_capabilities(enable_snippets: bool) -> ClientCapabilities {
 				relative_pattern_support: Some(false),
 			}),
 			file_operations: Some(lsp_types::WorkspaceFileOperationsClientCapabilities {
+				will_create: Some(true),
+				did_create: Some(true),
 				will_rename: Some(true),
 				did_rename: Some(true),
+				will_delete: Some(true),
+				did_delete: Some(true),
 				..Default::default()
 			}),
 			diagnostic: Some(lsp_types::DiagnosticWorkspaceClientCapabilities { refresh_support: Some(false) }),
